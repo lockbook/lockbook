@@ -16,6 +16,7 @@ pub use libsecp256k1::PublicKey;
 pub use uuid::Uuid;
 
 pub use lockbook_shared::account::Account;
+pub use lockbook_shared::api::ServerIndex;
 pub use lockbook_shared::api::{
     AccountFilter, AccountIdentifier, AppStoreAccountState, GooglePlayAccountState, PaymentMethod,
     PaymentPlatform, StripeAccountTier, SubscriptionInfo,
@@ -76,7 +77,8 @@ pub struct DataCache {
 pub struct CoreLib<Client: Requester> {
     // TODO not pub?
     pub config: Config,
-    pub data_cache: Arc<Mutex<DataCache>>, // Or Rc<RefCell>>
+    pub data_cache: Arc<Mutex<DataCache>>,
+    // Or Rc<RefCell>>
     pub db: CoreDb,
     pub client: Client,
 }
@@ -593,6 +595,16 @@ impl<Client: Requester> CoreLib<Client> {
         &self, id: Uuid,
     ) -> Result<AdminFileInfoResponse, Error<AdminFileInfoError>> {
         let val = self.db.transaction(|tx| self.context(tx)?.file_info(id))?;
+        Ok(val?)
+    }
+
+    #[instrument(level = "debug", skip(self), err(Debug))]
+    pub fn admin_rebuild_index(
+        &self, index: ServerIndex,
+    ) -> Result<(), Error<AdminRebuildIndexError>> {
+        let val = self
+            .db
+            .transaction(|tx| self.context(tx)?.rebuild_index(index))?;
         Ok(val?)
     }
 }

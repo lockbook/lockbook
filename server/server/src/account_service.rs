@@ -329,7 +329,7 @@ pub enum DeleteAccountHelperError {
 pub async fn delete_account_helper(
     server_state: &ServerState, public_key: &PublicKey, free_username: bool,
 ) -> Result<(), ServerError<DeleteAccountHelperError>> {
-    let all_files: Result<Vec<(Uuid, DocumentHmac)>, ServerError<DeleteAccountHelperError>> =
+    let docs_to_delete: Result<Vec<(Uuid, DocumentHmac)>, ServerError<DeleteAccountHelperError>> =
         server_state.index_db.transaction(|tx| {
             let mut tree = ServerTree::new(
                 Owner(*public_key),
@@ -339,13 +339,13 @@ pub async fn delete_account_helper(
                 &mut tx.metas,
             )?
             .to_lazy();
-            let mut docs_to_delete = vec![];
+            let mut docs_to_delete = Vec::new();
             let metas_to_delete = tree.owned_ids();
 
-            for id in tree.owned_ids() {
+            for id in metas_to_delete.clone() {
                 if !tree.calculate_deleted(&id)? {
                     let meta = tree.find(&id)?;
-                    if meta.is_document() {
+                    if meta.is_document() && &(meta.owner().0) == public_key {
                         if let Some(hmac) = meta.document_hmac() {
                             docs_to_delete.push((*meta.id(), *hmac));
                             tx.sizes.delete(id);
@@ -356,9 +356,25 @@ pub async fn delete_account_helper(
             tx.owned_files.delete(Owner(*public_key));
             tx.shared_files.delete(Owner(*public_key));
             tx.last_seen.delete(Owner(*public_key));
+
             for id in metas_to_delete {
-                tx.metas.delete(id);
-                tx.file_children.delete(id);
+                if let Some(meta) = tx.metas.get(&id) {
+                    if &(meta.owner().0) == public_key {
+                        for user_access_key in meta.user_access_keys() {
+                            let sharee = Owner(user_access_key.encrypted_for);
+                            if let Some(shared_files) = tx.shared_files.get(&sharee) {
+                                let new_shared_files = shared_files
+                                    .iter()
+                                    .copied()
+                                    .filter(|id| id != meta.id())
+                                    .collect();
+                                tx.shared_files.insert(sharee, new_shared_files);
+                            }
+                        }
+                        tx.metas.delete(id);
+                        tx.file_children.delete(id);
+                    }
+                }
             }
 
             if free_username {
@@ -372,7 +388,7 @@ pub async fn delete_account_helper(
             Ok(docs_to_delete)
         })?;
 
-    for (id, version) in all_files? {
+    for (id, version) in docs_to_delete? {
         document_service::delete(server_state, &id, &version).await?;
     }
 
