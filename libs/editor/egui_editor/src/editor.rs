@@ -1,4 +1,4 @@
-use crate::appearance::{Appearance, Theme};
+use crate::appearance::{Appearance};
 use crate::ast::Ast;
 use crate::buffer::Buffer;
 use crate::cursor::Cursor;
@@ -65,8 +65,7 @@ impl Editor {
         self.debug.frame_start();
 
         // update theme
-        self.appearance.current_theme =
-            if ui.visuals().dark_mode { Theme::Dark } else { Theme::Light };
+        let theme_updated = self.appearance.set_theme(ui.visuals());
 
         // process events
         let (text_updated, selection_updated) = if self.initialized {
@@ -88,7 +87,7 @@ impl Editor {
         if text_updated {
             self.ast = ast::calc(&self.buffer);
         }
-        if text_updated || selection_updated {
+        if text_updated || selection_updated || theme_updated {
             self.styles = styles::calc(&self.ast, &self.cursor.selection_bytes(&self.segs));
             self.layouts = layouts::calc(&self.buffer, &self.styles, &self.appearance);
         }

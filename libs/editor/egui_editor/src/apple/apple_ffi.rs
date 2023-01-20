@@ -1,6 +1,6 @@
 use crate::apple::keyboard::NSKeys;
 use crate::{Editor, WgpuEditor};
-use egui::{Context, Event, Pos2, Vec2};
+use egui::{Context, Event, Pos2, Vec2, Visuals};
 use egui_wgpu_backend::{wgpu, ScreenDescriptor};
 use std::ffi::{c_char, c_void, CStr, CString};
 use egui::PointerButton::{Primary, Secondary};
@@ -131,6 +131,13 @@ pub unsafe extern "C" fn mouse_button(obj: *mut c_void, x: f32, y: f32, pressed:
             pressed,
             modifiers: Default::default(),
         })
+}
+
+/// # Safety
+#[no_mangle]
+pub unsafe extern "C" fn dark_mode(obj: *mut c_void, dark: bool) {
+    let obj = &mut *(obj as *mut WgpuEditor);
+    obj.context.set_visuals(if dark { Visuals::dark() } else { Visuals::light() });
 }
 
 /// # Safety

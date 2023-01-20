@@ -1,5 +1,5 @@
 use egui::color::Hsva;
-use egui::Color32;
+use egui::{Color32, Visuals};
 
 // Apple colors: https://developer.apple.com/design/human-interface-guidelines/foundations/color/
 pub const RED: ThemedColor =
@@ -66,6 +66,17 @@ pub struct Appearance {
 }
 
 impl Appearance {
+    pub fn set_theme(&mut self, visuals: &Visuals) -> bool {
+        let target_theme = if visuals.dark_mode { Theme::Dark } else { Theme::Light };
+        
+        if self.current_theme != target_theme {
+            self.current_theme = target_theme;
+            true
+        } else {
+            false
+        }
+    }
+
     pub fn text(&self) -> Color32 {
         self.text.unwrap_or(BLACK).get(self.current_theme)
     }
@@ -120,7 +131,7 @@ impl Appearance {
     }
 }
 
-#[derive(Default, Clone, Copy)]
+#[derive(Default, Clone, Copy, PartialEq)]
 pub enum Theme {
     #[default]
     Dark,

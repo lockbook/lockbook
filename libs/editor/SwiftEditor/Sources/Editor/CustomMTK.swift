@@ -68,6 +68,15 @@ class CustomMTK: MTKView  {
         key_event(editor(), event.keyCode, event.modifierFlags.contains(.shift), event.modifierFlags.contains(.control), event.modifierFlags.contains(.option), event.modifierFlags.contains(.command), true, event.characters)
     }
     
+    override func viewDidChangeEffectiveAppearance() {
+        dark_mode(editor(), isDarkMode())
+    }
+    
+    // https://stackoverflow.com/a/53218688/1060955
+    func isDarkMode() -> Bool {
+        return self.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+    }
+    
     override func keyUp(with event: NSEvent) {
         key_event(editor(), event.keyCode, event.modifierFlags.contains(.shift), event.modifierFlags.contains(.control), event.modifierFlags.contains(.option), event.modifierFlags.contains(.command), false, event.characters)
         delegate().maybeDirty()
@@ -119,7 +128,7 @@ class FrameManager: NSObject, MTKViewDelegate {
         resize_editor(editorHandle, Float(size.width), Float(size.height), Float(scale))
     }
     
-    func draw(in view: MTKView) { // Ask for frame here?
+    func draw(in view: MTKView) {
         let scale = Float(self.parent.window?.backingScaleFactor ?? 1.0)
         set_scale(editorHandle, scale)
         draw_editor(editorHandle)
