@@ -418,15 +418,18 @@ pub async fn admin_disappear_file(
         .server_state
         .index_db
         .transaction(|tx| {
-            let meta = tx
-                .metas
-                .get(&context.request.id)
-                .ok_or(ClientError(AdminDisappearFileError::FileNonexistent))?.clone();
-            if meta.is_root() {
-                return Err(ClientError(AdminDisappearFileError::RootModificationInvalid));
-            }
+            let owner = {
+                let meta = tx
+                    .metas
+                    .get(&context.request.id)
+                    .ok_or(ClientError(AdminDisappearFileError::FileNonexistent))?.clone();
+                if meta.is_root() {
+                    return Err(ClientError(AdminDisappearFileError::RootModificationInvalid));
+                }
+                meta.owner()
+            };
             let mut tree = ServerTree::new(
-                meta.owner(),
+                owner,
                 &mut tx.owned_files,
                 &mut tx.shared_files,
                 &mut tx.file_children,
@@ -434,63 +437,75 @@ pub async fn admin_disappear_file(
             )?.to_lazy();
 
             let mut docs_to_delete = Vec::new();
-            if meta.is_document() && !tree.calculate_deleted(&id)? {
-                if let Some(hmac) = meta.document_hmac() {
-                    docs_to_delete.push((*meta.id(), *hmac));
-                    tx.sizes.delete(id);
+            let metas_to_delete = {
+                let mut metas_to_delete = tree.descendants(&id)?;
+                metas_to_delete.insert(id);
+                metas_to_delete
+            };
+            for id in metas_to_delete.clone() {
+                if !tree.calculate_deleted(&id)? {
+                    let meta = tree.find(&id)?;
+                    if meta.is_document() && meta.owner() == owner {
+                        if let Some(hmac) = meta.document_hmac() {
+                            docs_to_delete.push((*meta.id(), *hmac));
+                            tx.sizes.delete(id);
+                        }
+                    }
                 }
             }
 
-            let meta = tx
-                .metas
-                .delete(context.request.id)
-                .ok_or(ClientError(AdminDisappearFileError::FileNonexistent))?;
+            for id in metas_to_delete {
+                let meta = tx
+                    .metas
+                    .delete(context.request.id)
+                    .ok_or(ClientError(AdminDisappearFileError::FileNonexistent))?;
 
-            // maintain index: owned_files
-            let owner = meta.owner();
-            if let Some(mut owned_files) = tx.owned_files.delete(owner) {
-                if !owned_files.remove(&context.request.id) {
-                    error!(?id, ?owner, "attempted to disappear a file, the owner didn't own it");
-                }
-                tx.owned_files.insert(owner, owned_files);
-            } else {
-                error!(
+                // maintain index: owned_files
+                let owner = meta.owner();
+                if let Some(mut owned_files) = tx.owned_files.delete(owner) {
+                    if !owned_files.remove(&context.request.id) {
+                        error!(?id, ?owner, "attempted to disappear a file, the owner didn't own it");
+                    }
+                    tx.owned_files.insert(owner, owned_files);
+                } else {
+                    error!(
                     "attempted to disappear a file, the owner was not present, id: {}, owner: {:?}",
                     context.request.id,
                     owner
                 );
-            }
+                }
 
-            // maintain index: shared_files
-            for user_access_key in meta.user_access_keys() {
-                let sharee = Owner(user_access_key.encrypted_for);
-                if let Some(mut shared_files) = tx.shared_files.delete(sharee) {
-                    if !shared_files.remove(&context.request.id) {
-                        error!(?id, ?sharee, "attempted to disappear a file, a sharee didn't have it shared");
-                    }
-                    tx.shared_files.insert(sharee, shared_files);
-                } else {
-                    error!(
+                // maintain index: shared_files
+                for user_access_key in meta.user_access_keys() {
+                    let sharee = Owner(user_access_key.encrypted_for);
+                    if let Some(mut shared_files) = tx.shared_files.delete(sharee) {
+                        if !shared_files.remove(&context.request.id) {
+                            error!(?id, ?sharee, "attempted to disappear a file, a sharee didn't have it shared");
+                        }
+                        tx.shared_files.insert(sharee, shared_files);
+                    } else {
+                        error!(
                         "attempted to disappear a file, the sharee was not present, id: {}, sharee: {:?}",
                         context.request.id,
                         sharee
                     );
+                    }
                 }
-            }
 
-            // maintain index: file_children
-            let parent = *meta.parent();
-            if let Some(mut file_children) = tx.file_children.delete(*meta.parent()) {
-                if !file_children.remove(&context.request.id) {
-                    error!(?id, ?parent, "attempted to disappear a file, the parent didn't have it as a child");
-                }
-                tx.file_children.insert(*meta.parent(), file_children);
-            } else {
-                error!(
+                // maintain index: file_children
+                let parent = *meta.parent();
+                if let Some(mut file_children) = tx.file_children.delete(*meta.parent()) {
+                    if !file_children.remove(&context.request.id) {
+                        error!(?id, ?parent, "attempted to disappear a file, the parent didn't have it as a child");
+                    }
+                    tx.file_children.insert(*meta.parent(), file_children);
+                } else {
+                    error!(
                     "attempted to disappear a file, the parent was not present, id: {}, parent: {:?}",
                     context.request.id,
                     meta.parent()
                 );
+                }
             }
 
             Ok(docs_to_delete)

@@ -339,10 +339,10 @@ pub async fn delete_account_helper(
                 &mut tx.metas,
             )?
             .to_lazy();
-            let mut docs_to_delete = vec![];
+            let mut docs_to_delete = Vec::new();
             let metas_to_delete = tree.owned_ids();
 
-            for id in tree.owned_ids() {
+            for id in metas_to_delete.clone() {
                 if !tree.calculate_deleted(&id)? {
                     let meta = tree.find(&id)?;
                     if meta.is_document() && &(meta.owner().0) == public_key {
