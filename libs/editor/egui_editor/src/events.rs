@@ -422,11 +422,10 @@ fn calc_modifications<'a>(
                     modifications.push(Modification::Delete(layout.head_size_chars(buffer)));
 
                     // if we deleted an item in a numbered list, decrement subsequent items
-                    if let Some(Annotation::Item(ItemType::Numbered(prev_number), indent_level)) =
+                    if let Some(Annotation::Item(ItemType::Numbered(_), indent_level)) =
                         layout.annotation
                     {
                         let mut layout_idx = layout_idx;
-                        let mut prev_number = prev_number;
                         loop {
                             layout_idx += 1;
                             if layout_idx == layouts.len() {
@@ -462,12 +461,10 @@ fn calc_modifications<'a>(
                                         let text = head
                                             [0..head.len() - (cur_number).to_string().len() - 2]
                                             .to_string()
-                                            + &(prev_number).to_string()
+                                            + &(cur_number - 1).to_string()
                                             + ". ";
                                         modifications.push(Modification::InsertOwned { text });
                                         modifications.push(Modification::Cursor { cur: cursor });
-
-                                        prev_number = cur_number;
                                     }
                                 }
                             } else {
@@ -488,7 +485,8 @@ fn calc_modifications<'a>(
                 modifications.push(Modification::Insert { text: "\n" });
 
                 // auto-insertion of list items
-                let layout = &layouts[layouts.layout_at_char(cursor.pos, segs)];
+                let layout_idx = layouts.layout_at_char(cursor.pos, segs);
+                let layout = &layouts[layout_idx];
                 if segs.char_offset_to_byte(cursor.pos) == layout.range.end - layout.tail_size {
                     match layout.annotation {
                         Some(Annotation::Item(ItemType::Bulleted, _)) => {
@@ -496,13 +494,65 @@ fn calc_modifications<'a>(
                                 text: layout.head(buffer).to_string(),
                             });
                         }
-                        Some(Annotation::Item(ItemType::Numbered(number), _)) => {
+                        Some(Annotation::Item(ItemType::Numbered(cur_number), indent_level)) => {
                             let head = layout.head(buffer);
-                            let text = head[0..head.len() - (number).to_string().len() - 2]
+                            let text = head[0..head.len() - (cur_number).to_string().len() - 2]
                                 .to_string()
-                                + &(number + 1).to_string()
+                                + &(cur_number + 1).to_string()
                                 + ". ";
                             modifications.push(Modification::InsertOwned { text });
+
+                            // increment subsequent items
+                            let mut layout_idx = layout_idx;
+                            loop {
+                                layout_idx += 1;
+                                if layout_idx == layouts.len() {
+                                    break;
+                                }
+                                let layout = &layouts[layout_idx];
+                                if let Some(Annotation::Item(
+                                    ItemType::Numbered(cur_number),
+                                    cur_indent_level,
+                                )) = layout.annotation
+                                {
+                                    match cur_indent_level.cmp(&indent_level) {
+                                        Ordering::Greater => {
+                                            continue; // skip nested list items
+                                        }
+                                        Ordering::Less => {
+                                            break; // end of nested list
+                                        }
+                                        Ordering::Equal => {
+                                            // replace cur_number with next_number in head
+                                            modifications.push(Modification::Cursor {
+                                                cur: Cursor {
+                                                    pos: segs.byte_offset_to_char(
+                                                        layout.range.start + layout.head_size,
+                                                    ),
+                                                    selection_origin: Some(
+                                                        segs.byte_offset_to_char(
+                                                            layout.range.start,
+                                                        ),
+                                                    ),
+                                                    ..Default::default()
+                                                },
+                                            });
+                                            let head = layout.head(buffer);
+                                            let text = head[0..head.len()
+                                                - (cur_number).to_string().len()
+                                                - 2]
+                                                .to_string()
+                                                + &(cur_number + 1).to_string()
+                                                + ". ";
+                                            modifications.push(Modification::InsertOwned { text });
+                                            modifications
+                                                .push(Modification::Cursor { cur: cursor });
+                                        }
+                                    }
+                                } else {
+                                    break;
+                                }
+                            }
                         }
                         Some(Annotation::Item(ItemType::Todo(_), _)) => {
                             let head = layout.head(buffer);
