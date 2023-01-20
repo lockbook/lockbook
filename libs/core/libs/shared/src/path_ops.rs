@@ -7,7 +7,6 @@ use crate::access_info::UserAccessMode;
 use crate::account::Account;
 use crate::file_like::FileLike;
 use crate::file_metadata::{FileType, Owner};
-use crate::filename::MAX_FILENAME_LENGTH;
 use crate::lazy::LazyStaged1;
 use crate::signed_file::SignedFile;
 use crate::tree_like::{TreeLike, TreeLikeMut};
@@ -164,10 +163,6 @@ where
         pub_key: &PublicKey,
     ) -> SharedResult<Uuid> {
         let mut current = *root;
-
-        if path_components.last().unwrap().len() > MAX_FILENAME_LENGTH {
-            return Err(SharedError::FileNameTooLong);
-        }
 
         'path: for index in 0..path_components.len() {
             'child: for child in self.children(&current)? {

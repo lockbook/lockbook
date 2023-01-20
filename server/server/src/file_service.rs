@@ -5,10 +5,8 @@ use crate::{ServerError, Tx};
 use hmdb::transaction::Transaction;
 use lockbook_shared::api::*;
 use lockbook_shared::clock::get_time;
-use lockbook_shared::crypto::get_encryption_overhead;
 use lockbook_shared::file_like::FileLike;
 use lockbook_shared::file_metadata::{Diff, Owner};
-use lockbook_shared::filename::MAX_FILENAME_LENGTH;
 use lockbook_shared::server_file::IntoServerFile;
 use lockbook_shared::server_tree::ServerTree;
 use lockbook_shared::tree_like::TreeLike;
@@ -68,11 +66,6 @@ pub async fn upsert_file_metadata(
 
     for update in request.updates {
         let new = update.new;
-        if new.secret_name().encrypted_value.value.len()
-            > get_encryption_overhead(MAX_FILENAME_LENGTH)
-        {
-            return Err(ClientError(UpsertError::FileNameTooLong));
-        }
 
         let id = *new.id();
         match update.old {
@@ -169,12 +162,6 @@ pub async fn change_doc(
             .metas
             .get(request.diff.new.id())
             .ok_or(ClientError(DocumentNotFound))?;
-
-        if meta.file.secret_name().encrypted_value.value.len()
-            > get_encryption_overhead(MAX_FILENAME_LENGTH)
-        {
-            return Err(ClientError(FileNameTooLong));
-        }
 
         let meta_owner = meta.owner();
 
