@@ -1,4 +1,4 @@
-use crate::appearance::{Appearance};
+use crate::appearance::Appearance;
 use crate::ast::Ast;
 use crate::buffer::Buffer;
 use crate::cursor::Cursor;
@@ -90,7 +90,6 @@ impl Editor {
         if text_updated || selection_updated || theme_updated {
             self.styles = styles::calc(&self.ast, &self.cursor.selection_bytes(&self.segs));
             self.layouts = layouts::calc(&self.buffer, &self.styles, &self.appearance);
-            self.print_layouts();
         }
         self.galleys = galleys::calc(&self.layouts, &self.appearance, ui);
 

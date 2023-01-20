@@ -428,6 +428,7 @@ fn calc_modifications<'a>(
                         modifications.extend(increment_numbered_list_items(
                             layout_idx,
                             indent_level,
+                            1,
                             true,
                             segs,
                             layouts,
@@ -468,6 +469,7 @@ fn calc_modifications<'a>(
                             modifications.extend(increment_numbered_list_items(
                                 layout_idx,
                                 indent_level,
+                                1,
                                 false,
                                 segs,
                                 layouts,
@@ -505,11 +507,15 @@ fn calc_modifications<'a>(
                             } else if layout_text.starts_with("  ") {
                                 "  "
                             } else {
-                                ""
+                                "\t"
                             };
 
-                            if modifiers.shift {
-                                if layout_idx != layouts.len() - 1 {
+                            // indent or de-indent if able
+                            let new_indent_level = if modifiers.shift {
+                                let mut can_deindent = true;
+                                if *indent_level == 0 {
+                                    can_deindent = false; // cannot de-indent un-indented list item
+                                } else if layout_idx != layouts.len() - 1 {
                                     let next_layout = &layouts[layout_idx + 1];
                                     if let Some(Annotation::Item(
                                         next_item_type,
@@ -519,55 +525,172 @@ fn calc_modifications<'a>(
                                         if next_item_type == item_type
                                             && next_indent_level > indent_level
                                         {
-                                            continue; // list item cannot be de-indented if already indented less than next item
+                                            can_deindent = false; // list item cannot be de-indented if already indented less than next item
                                         }
                                     }
                                 }
 
-                                // de-indentation: select text, delete selection, restore cursor
-                                modifications.push(Modification::Cursor {
-                                    cur: Cursor {
-                                        pos: segs.byte_offset_to_char(
-                                            layout.range.start + indent_seq.len(),
-                                        ),
-                                        selection_origin: Some(
-                                            segs.byte_offset_to_char(layout.range.start),
-                                        ),
-                                        ..Default::default()
-                                    },
-                                });
-                                modifications.push(Modification::Delete(0.into()));
-                                modifications.push(Modification::Cursor { cur: cursor });
+                                if can_deindent {
+                                    // de-indentation: select text, delete selection, restore cursor
+                                    modifications.push(Modification::Cursor {
+                                        cur: Cursor {
+                                            pos: segs.byte_offset_to_char(
+                                                layout.range.start + indent_seq.len(),
+                                            ),
+                                            selection_origin: Some(
+                                                segs.byte_offset_to_char(layout.range.start),
+                                            ),
+                                            ..Default::default()
+                                        },
+                                    });
+                                    modifications.push(Modification::Delete(0.into()));
+                                    modifications.push(Modification::Cursor { cur: cursor });
+
+                                    indent_level - 1
+                                } else {
+                                    *indent_level
+                                }
                             } else {
+                                let mut can_indent = true;
                                 if layout_idx == 0 {
-                                    continue; // first layout cannot be indented
+                                    can_indent = false; // first layout cannot be indented
                                 }
                                 let prior_layout = &layouts[layout_idx - 1];
                                 if let Some(Annotation::Item(prior_item_type, prior_indent_level)) =
                                     &prior_layout.annotation
                                 {
                                     if prior_item_type != item_type {
-                                        continue; // first list item of a given type in a list cannot be indented
+                                        can_indent = false; // first list item of a given type in a list cannot be indented
                                     }
                                     if prior_indent_level < indent_level {
-                                        continue; // list item cannot be indented if already indented more than prior item
+                                        can_indent = false; // list item cannot be indented if already indented more than prior item
                                     }
                                 } else {
-                                    continue; // first list item of a list cannot be indented
+                                    can_indent = false; // first list item of a list cannot be indented
                                 }
 
-                                // indentation: set cursor to galley start, insert indentation sequence, restore cursor
-                                modifications.push(Modification::Cursor {
-                                    cur: Cursor {
-                                        pos: segs.byte_offset_to_char(layout.range.start),
-                                        ..Default::default()
-                                    },
-                                });
-                                modifications.push(Modification::InsertOwned {
-                                    text: (if indent_seq.is_empty() { "\t" } else { indent_seq })
-                                        .to_string(),
-                                });
-                                modifications.push(Modification::Cursor { cur: cursor });
+                                if can_indent {
+                                    // indentation: set cursor to galley start, insert indentation sequence, restore cursor
+                                    modifications.push(Modification::Cursor {
+                                        cur: Cursor {
+                                            pos: segs.byte_offset_to_char(layout.range.start),
+                                            ..Default::default()
+                                        },
+                                    });
+                                    modifications.push(Modification::InsertOwned {
+                                        text: indent_seq.to_string(),
+                                    });
+                                    modifications.push(Modification::Cursor { cur: cursor });
+
+                                    indent_level + 1
+                                } else {
+                                    *indent_level
+                                }
+                            };
+
+                            // re-number numbered lists
+                            if new_indent_level != *indent_level {
+                                if let ItemType::Numbered(cur_number) = item_type {
+                                    // assign a new_number to this item based on position in new nested list
+                                    let new_number = {
+                                        let mut new_number = 1;
+                                        let mut prior_layout_idx = layout_idx;
+                                        while prior_layout_idx > 0 {
+                                            prior_layout_idx -= 1;
+                                            let prior_layout = &layouts[prior_layout_idx];
+                                            if let Some(Annotation::Item(
+                                                ItemType::Numbered(prior_number),
+                                                prior_indent_level,
+                                            )) = prior_layout.annotation
+                                            {
+                                                match prior_indent_level.cmp(&new_indent_level) {
+                                                    Ordering::Greater => {
+                                                        continue; // skip more-nested list items
+                                                    }
+                                                    Ordering::Less => {
+                                                        break; // our element is the first in its sublist
+                                                    }
+                                                    Ordering::Equal => {
+                                                        new_number = prior_number + 1; // our element comes after this one in its sublist
+                                                        break;
+                                                    }
+                                                }
+                                            } else {
+                                                break;
+                                            }
+                                        }
+                                        new_number
+                                    };
+
+                                    // replace cur_number with new_number in head
+                                    modifications.push(Modification::Cursor {
+                                        cur: Cursor {
+                                            pos: segs.byte_offset_to_char(
+                                                layout.range.start + layout.head_size
+                                                    - (cur_number).to_string().len()
+                                                    - 2,
+                                            ),
+                                            selection_origin: Some(segs.byte_offset_to_char(
+                                                layout.range.start + layout.head_size,
+                                            )),
+                                            ..Default::default()
+                                        },
+                                    });
+                                    modifications.push(Modification::InsertOwned {
+                                        text: new_number.to_string() + ". ",
+                                    });
+                                    modifications.push(Modification::Cursor { cur: cursor });
+
+                                    if modifiers.shift {
+                                        // decrement numbers in old list by this item's old number
+                                        modifications.extend(increment_numbered_list_items(
+                                            layout_idx,
+                                            *indent_level,
+                                            *cur_number,
+                                            true,
+                                            segs,
+                                            layouts,
+                                            buffer,
+                                            cursor,
+                                        ));
+
+                                        // increment numbers in new nested list by one
+                                        modifications.extend(increment_numbered_list_items(
+                                            layout_idx,
+                                            new_indent_level,
+                                            1,
+                                            false,
+                                            segs,
+                                            layouts,
+                                            buffer,
+                                            cursor,
+                                        ));
+                                    } else {
+                                        // decrement numbers in old list by one
+                                        modifications.extend(increment_numbered_list_items(
+                                            layout_idx,
+                                            *indent_level,
+                                            1,
+                                            true,
+                                            segs,
+                                            layouts,
+                                            buffer,
+                                            cursor,
+                                        ));
+
+                                        // increment numbers in new nested list by this item's new number
+                                        modifications.extend(increment_numbered_list_items(
+                                            layout_idx,
+                                            new_indent_level,
+                                            new_number,
+                                            false,
+                                            segs,
+                                            layouts,
+                                            buffer,
+                                            cursor,
+                                        ));
+                                    }
+                                }
                             }
                         }
                         Annotation::Image(..) => {}
@@ -652,9 +775,10 @@ fn calc_modifications<'a>(
     modifications
 }
 
+#[allow(clippy::too_many_arguments)]
 fn increment_numbered_list_items<'a>(
-    starting_layout_idx: usize, indent_level: u8, decrement: bool, segs: &UnicodeSegs,
-    layouts: &Layouts, buffer: &Buffer, cursor: Cursor,
+    starting_layout_idx: usize, indent_level: u8, amount: usize, decrement: bool,
+    segs: &UnicodeSegs, layouts: &Layouts, buffer: &Buffer, cursor: Cursor,
 ) -> Vec<Modification<'a>> {
     let mut modifications = Vec::new();
 
@@ -686,7 +810,8 @@ fn increment_numbered_list_items<'a>(
                     });
                     let head = layout.head(buffer);
                     let text = head[0..head.len() - (cur_number).to_string().len() - 2].to_string()
-                        + &(if !decrement { cur_number + 1 } else { cur_number - 1 }).to_string()
+                        + &(if !decrement { cur_number + amount } else { cur_number - amount })
+                            .to_string()
                         + ". ";
                     modifications.push(Modification::InsertOwned { text });
                     modifications.push(Modification::Cursor { cur: cursor });
