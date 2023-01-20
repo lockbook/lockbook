@@ -18,6 +18,8 @@ class CustomMTK: MTKView  {
     
     override init(frame frameRect: CGRect, device: MTLDevice?) {
         super.init(frame: frameRect, device: device)
+        self.isPaused = true
+        self.enableSetNeedsDisplay = true
     }
     
     required init(coder: NSCoder) {
@@ -31,45 +33,54 @@ class CustomMTK: MTKView  {
     override func mouseDragged(with event: NSEvent) {
         let local = viewCoordinates(event)
         mouse_moved(editor(), Float(local.x), Float(local.y))
+        setNeedsDisplay(self.frame)
     }
     
     override func mouseMoved(with event: NSEvent) {
         let local = viewCoordinates(event)
         mouse_moved(editor(), Float(local.x), Float(local.y))
+        setNeedsDisplay(self.frame)
     }
     
     override func mouseDown(with event: NSEvent) {
         let local = viewCoordinates(event)
         mouse_button(editor(), Float(local.x), Float(local.y), true, true)
+        setNeedsDisplay(self.frame)
     }
     
     override func mouseUp(with event: NSEvent) {
         let local = viewCoordinates(event)
         mouse_button(editor(), Float(local.x), Float(local.y), false, true)
+        setNeedsDisplay(self.frame)
     }
     
     override func rightMouseDown(with event: NSEvent) {
         let local = viewCoordinates(event)
         mouse_button(editor(), Float(local.x), Float(local.y), true, false)
+        setNeedsDisplay(self.frame)
     }
     
     override func rightMouseUp(with event: NSEvent) {
         let local = viewCoordinates(event)
         mouse_button(editor(), Float(local.x), Float(local.y), false, false)
+        setNeedsDisplay(self.frame)
     }
     
     
     override func scrollWheel(with event: NSEvent) {
-        scroll_wheel(editor(), Float(event.scrollingDeltaY)) // todo: get x too
+        scroll_wheel(editor(), Float(event.scrollingDeltaY))
+        setNeedsDisplay(self.frame)
     }
     
     override func keyDown(with event: NSEvent) {
         print("down \(event.keyCode), \(event.modifierFlags), \(event.characters)")
         key_event(editor(), event.keyCode, event.modifierFlags.contains(.shift), event.modifierFlags.contains(.control), event.modifierFlags.contains(.option), event.modifierFlags.contains(.command), true, event.characters)
+        setNeedsDisplay(self.frame)
     }
     
     override func viewDidChangeEffectiveAppearance() {
         dark_mode(editor(), isDarkMode())
+        setNeedsDisplay(self.frame)
     }
     
     // https://stackoverflow.com/a/53218688/1060955
@@ -80,6 +91,7 @@ class CustomMTK: MTKView  {
     override func keyUp(with event: NSEvent) {
         key_event(editor(), event.keyCode, event.modifierFlags.contains(.shift), event.modifierFlags.contains(.control), event.modifierFlags.contains(.option), event.modifierFlags.contains(.command), false, event.characters)
         delegate().maybeDirty()
+        setNeedsDisplay(self.frame)
     }
     
     func delegate() -> FrameManager {

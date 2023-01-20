@@ -63,6 +63,7 @@ impl WgpuEditor {
 
         self.context.begin_frame(self.raw_input.take());
         self.editor.draw(&self.context);
+        // todo: consider consuming repaint_after
         let full_output = self.context.end_frame();
         let paint_jobs = self.context.tessellate(full_output.shapes);
         let mut encoder = self
