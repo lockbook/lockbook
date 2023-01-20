@@ -513,7 +513,7 @@ fn calc_modifications<'a>(
                             // indent or de-indent if able
                             let new_indent_level = if modifiers.shift {
                                 let mut can_deindent = true;
-                                if *indent_level == 0 {
+                                if *indent_level == 1 {
                                     can_deindent = false; // cannot de-indent un-indented list item
                                 } else if layout_idx != layouts.len() - 1 {
                                     let next_layout = &layouts[layout_idx + 1];
