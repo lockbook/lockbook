@@ -412,8 +412,6 @@ pub async fn admin_disappear_file(
         return Err(ClientError(AdminDisappearFileError::NotPermissioned));
     }
 
-    let id = context.request.id;
-
     let docs_to_delete: Result<Vec<(Uuid, DocumentHmac)>, ServerError<AdminDisappearFileError>> = context
         .server_state
         .index_db
@@ -438,8 +436,8 @@ pub async fn admin_disappear_file(
 
             let mut docs_to_delete = Vec::new();
             let metas_to_delete = {
-                let mut metas_to_delete = tree.descendants(&id)?;
-                metas_to_delete.insert(id);
+                let mut metas_to_delete = tree.descendants(&context.request.id)?;
+                metas_to_delete.insert(context.request.id);
                 metas_to_delete
             };
             for id in metas_to_delete.clone() {
@@ -457,70 +455,70 @@ pub async fn admin_disappear_file(
             for id in metas_to_delete {
                 let meta = tx
                     .metas
-                    .delete(context.request.id)
+                    .delete(id)
                     .ok_or(ClientError(AdminDisappearFileError::FileNonexistent))?;
 
                 // maintain index: owned_files
                 let owner = meta.owner();
                 if let Some(mut owned_files) = tx.owned_files.delete(owner) {
-                    if !owned_files.remove(&context.request.id) {
+                    if !owned_files.remove(&id) {
                         error!(?id, ?owner, "attempted to disappear a file, the owner didn't own it");
                     }
                     tx.owned_files.insert(owner, owned_files);
                 } else {
                     error!(
-                    "attempted to disappear a file, the owner was not present, id: {}, owner: {:?}",
-                    context.request.id,
-                    owner
-                );
+                        "attempted to disappear a file, the owner was not present, id: {}, owner: {:?}",
+                        id,
+                        owner
+                    );
                 }
 
                 // maintain index: shared_files
                 for user_access_key in meta.user_access_keys() {
                     let sharee = Owner(user_access_key.encrypted_for);
                     if let Some(mut shared_files) = tx.shared_files.delete(sharee) {
-                        if !shared_files.remove(&context.request.id) {
+                        if !shared_files.remove(&id) {
                             error!(?id, ?sharee, "attempted to disappear a file, a sharee didn't have it shared");
                         }
                         tx.shared_files.insert(sharee, shared_files);
                     } else {
                         error!(
-                        "attempted to disappear a file, the sharee was not present, id: {}, sharee: {:?}",
-                        context.request.id,
-                        sharee
-                    );
+                            "attempted to disappear a file, the sharee was not present, id: {}, sharee: {:?}",
+                            id,
+                            sharee
+                        );
                     }
                 }
 
                 // maintain index: file_children
                 let parent = *meta.parent();
                 if let Some(mut file_children) = tx.file_children.delete(*meta.parent()) {
-                    if !file_children.remove(&context.request.id) {
+                    if !file_children.remove(&id) {
                         error!(?id, ?parent, "attempted to disappear a file, the parent didn't have it as a child");
                     }
                     tx.file_children.insert(*meta.parent(), file_children);
                 } else {
                     error!(
-                    "attempted to disappear a file, the parent was not present, id: {}, parent: {:?}",
-                    context.request.id,
-                    meta.parent()
-                );
+                        "attempted to disappear a file, the parent was not present, id: {}, parent: {:?}",
+                        id,
+                        meta.parent()
+                    );
                 }
             }
 
             Ok(docs_to_delete)
         })?;
 
+    for (id, version) in docs_to_delete? {
+        document_service::delete(context.server_state, &id, &version).await?;
+    }
+
     let username = db
         .accounts
         .get(&Owner(context.public_key))?
         .map(|account| account.username)
         .unwrap_or_else(|| "~unknown~".to_string());
-    warn!(?username, ?id, "Disappeared file");
-
-    for (id, version) in docs_to_delete? {
-        document_service::delete(context.server_state, &id, &version).await?;
-    }
+    warn!(?username, ?context.request.id, "Disappeared file");
 
     Ok(())
 }
