@@ -329,7 +329,7 @@ pub enum DeleteAccountHelperError {
 pub async fn delete_account_helper(
     server_state: &ServerState, public_key: &PublicKey, free_username: bool,
 ) -> Result<(), ServerError<DeleteAccountHelperError>> {
-    let all_files: Result<Vec<(Uuid, DocumentHmac)>, ServerError<DeleteAccountHelperError>> =
+    let docs_to_delete: Result<Vec<(Uuid, DocumentHmac)>, ServerError<DeleteAccountHelperError>> =
         server_state.index_db.transaction(|tx| {
             let mut tree = ServerTree::new(
                 Owner(*public_key),
@@ -345,7 +345,7 @@ pub async fn delete_account_helper(
             for id in tree.owned_ids() {
                 if !tree.calculate_deleted(&id)? {
                     let meta = tree.find(&id)?;
-                    if meta.is_document() {
+                    if meta.is_document() && &(meta.owner().0) == public_key {
                         if let Some(hmac) = meta.document_hmac() {
                             docs_to_delete.push((*meta.id(), *hmac));
                             tx.sizes.delete(id);
@@ -388,7 +388,7 @@ pub async fn delete_account_helper(
             Ok(docs_to_delete)
         })?;
 
-    for (id, version) in all_files? {
+    for (id, version) in docs_to_delete? {
         document_service::delete(server_state, &id, &version).await?;
     }
 

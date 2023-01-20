@@ -6,7 +6,7 @@ use hmdb::transaction::Transaction;
 use lockbook_shared::api::*;
 use lockbook_shared::clock::get_time;
 use lockbook_shared::file_like::FileLike;
-use lockbook_shared::file_metadata::{Diff, Owner};
+use lockbook_shared::file_metadata::{Diff, DocumentHmac, Owner};
 use lockbook_shared::server_file::IntoServerFile;
 use lockbook_shared::server_tree::ServerTree;
 use lockbook_shared::tree_like::TreeLike;
@@ -14,6 +14,7 @@ use lockbook_shared::{SharedError, SharedResult};
 use std::collections::{HashMap, HashSet};
 use std::hash::Hash;
 use tracing::{debug, error, warn};
+use uuid::Uuid;
 
 pub async fn upsert_file_metadata(
     context: RequestContext<'_, UpsertRequest>,
@@ -412,16 +413,34 @@ pub async fn admin_disappear_file(
     }
 
     let id = context.request.id;
-    let username = db
-        .accounts
-        .get(&Owner(context.public_key))?
-        .map(|account| account.username)
-        .unwrap_or_else(|| "~unknown~".to_string());
 
-    context
+    let docs_to_delete: Result<Vec<(Uuid, DocumentHmac)>, ServerError<AdminDisappearFileError>> = context
         .server_state
         .index_db
-        .transaction::<_, Result<(), ServerError<_>>>(|tx| {
+        .transaction(|tx| {
+            let meta = tx
+                .metas
+                .get(&context.request.id)
+                .ok_or(ClientError(AdminDisappearFileError::FileNonexistent))?.clone();
+            if meta.is_root() {
+                return Err(ClientError(AdminDisappearFileError::RootModificationInvalid));
+            }
+            let mut tree = ServerTree::new(
+                meta.owner(),
+                &mut tx.owned_files,
+                &mut tx.shared_files,
+                &mut tx.file_children,
+                &mut tx.metas,
+            )?.to_lazy();
+
+            let mut docs_to_delete = Vec::new();
+            if meta.is_document() && !tree.calculate_deleted(&id)? {
+                if let Some(hmac) = meta.document_hmac() {
+                    docs_to_delete.push((*meta.id(), *hmac));
+                    tx.sizes.delete(id);
+                }
+            }
+
             let meta = tx
                 .metas
                 .delete(context.request.id)
@@ -474,9 +493,19 @@ pub async fn admin_disappear_file(
                 );
             }
 
-            Ok(())
-        })??;
+            Ok(docs_to_delete)
+        })?;
+
+    let username = db
+        .accounts
+        .get(&Owner(context.public_key))?
+        .map(|account| account.username)
+        .unwrap_or_else(|| "~unknown~".to_string());
     warn!(?username, ?id, "Disappeared file");
+
+    for (id, version) in docs_to_delete? {
+        document_service::delete(context.server_state, &id, &version).await?;
+    }
 
     Ok(())
 }

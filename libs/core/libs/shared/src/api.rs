@@ -514,6 +514,7 @@ pub struct AdminDisappearFileRequest {
 pub enum AdminDisappearFileError {
     NotPermissioned,
     FileNonexistent,
+    RootModificationInvalid,
 }
 
 impl Request for AdminDisappearFileRequest {
