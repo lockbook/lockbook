@@ -91,6 +91,7 @@ impl Editor {
         if text_updated || selection_updated {
             self.styles = styles::calc(&self.ast, &self.cursor.selection_bytes(&self.segs));
             self.layouts = layouts::calc(&self.buffer, &self.styles, &self.appearance);
+            self.print_layouts();
         }
         self.galleys = galleys::calc(&self.layouts, &self.appearance, ui);
 
