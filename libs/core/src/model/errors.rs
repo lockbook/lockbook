@@ -1218,6 +1218,7 @@ pub enum TestRepoError {
     FileOrphaned(Uuid),
     CycleDetected(HashSet<Uuid>),
     FileNameEmpty(Uuid),
+    FileNameTooLong(Uuid),
     FileNameContainsSlash(Uuid),
     PathConflict(HashSet<Uuid>),
     NonDecryptableFileName(Uuid),
@@ -1249,6 +1250,7 @@ impl From<SharedError> for TestRepoError {
                 ValidationFailure::FileWithDifferentOwnerParent(id) => {
                     Self::FileWithDifferentOwnerParent(id)
                 }
+                ValidationFailure::FileNameTooLong(id) => Self::FileNameTooLong(id),
             },
             _ => Self::Shared(err),
         }
@@ -1263,6 +1265,7 @@ impl fmt::Display for TestRepoError {
             NoRootFolder => write!(f, "no root folder"),
             DocumentTreatedAsFolder(id) => write!(f, "doc '{}' treated as folder", id),
             FileOrphaned(id) => write!(f, "orphaned file '{}'", id),
+            FileNameTooLong(id) => write!(f, "file '{}' is too long", id),
             CycleDetected(ids) => write!(f, "cycle for files: {}", ids.iter().join(", ")),
             FileNameEmpty(id) => write!(f, "file '{}' name is empty", id),
             FileNameContainsSlash(id) => write!(f, "file '{}' name contains slash", id),

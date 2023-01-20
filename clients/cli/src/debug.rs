@@ -114,6 +114,9 @@ fn validate(core: &Core) -> Result<(), CliError> {
             TestRepoError::NonDecryptableFileName(id) => {
                 CliError::unexpected(format!("nondecryptable file name for id: {}", id))
             }
+            TestRepoError::FileNameTooLong(id) => {
+                CliError::unexpected(format!("file name for id {} is too long", id))
+            }
             TestRepoError::Shared(err) => {
                 CliError::unexpected(format!("unexpected error: {:#?}", err))
             }
