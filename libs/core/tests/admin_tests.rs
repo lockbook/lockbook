@@ -40,6 +40,36 @@ fn admin_disappear_test() {
 
 #[test]
 #[ignore]
+fn admin_disappear_file_shared_with_disappeared_account() {
+    let admin_core = test_core();
+    admin_core.create_account("admin1", &url(), false).unwrap();
+
+    let customer1 = test_core_with_account();
+    let customer2 = test_core_with_account();
+
+    let doc = customer1.create_at_path("test.md").unwrap();
+    customer1
+        .share_file(doc.id, &customer2.get_account().unwrap().username, ShareMode::Read)
+        .unwrap();
+    customer1.sync(None).unwrap();
+    customer2.sync(None).unwrap();
+
+    assert!(admin_core
+        .admin_validate_server()
+        .unwrap()
+        .users_with_validation_failures
+        .is_empty());
+
+    admin_core
+        .admin_disappear_account(&customer2.get_account().unwrap().username)
+        .unwrap();
+    admin_core.admin_disappear_file(doc.id).unwrap();
+
+    customer1.sync(None).unwrap();
+}
+
+#[test]
+#[ignore]
 fn admin_rebuild_owned_files_index_test() {
     let admin_core = test_core();
     admin_core.create_account("admin1", &url(), false).unwrap();
