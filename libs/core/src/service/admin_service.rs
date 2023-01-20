@@ -124,4 +124,18 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
                 _ => core_err_unexpected(err),
             })
     }
+
+    pub fn rebuild_index(&self, index: ServerIndex) -> CoreResult<()> {
+        let account = self.get_account()?;
+        self.client
+            .request(account, AdminRebuildIndexRequest { index })
+            .map_err(|err| match err {
+                ApiError::Endpoint(AdminRebuildIndexError::NotPermissioned) => {
+                    CoreError::InsufficientPermission
+                }
+                ApiError::SendFailed(_) => CoreError::ServerUnreachable,
+                ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,
+                _ => core_err_unexpected(err),
+            })
+    }
 }

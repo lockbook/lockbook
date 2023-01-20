@@ -6,6 +6,10 @@ struct AccountSettingsView: View {
     let account: Account
     
     @EnvironmentObject var settings: SettingsService
+    @EnvironmentObject var accounts: AccountService
+    
+    @State var deleteAccountConfirmation = false
+    @State var deleteAccount = false
     
     // MARK: QR Code things
     @State var codeRevealed: Bool = false
@@ -44,6 +48,24 @@ struct AccountSettingsView: View {
                     Button(action: {codeRevealed.toggle()}, label: {
                         Text(qrCodeText)
                     }).frame(maxWidth: .infinity, alignment: .leading)
+                    
+                    Button("Delete Account", role: .destructive) {
+                        deleteAccountConfirmation = true
+                    }
+                    .foregroundColor(.red)
+                    .confirmationDialog("Are you sure you want to delete your account?", isPresented: $deleteAccountConfirmation) {
+                        Button("Delete account", role: .destructive) {
+                            accounts.deleteAccount()
+                            deleteAccount = true
+                        }
+                        .onDisappear {
+                            if deleteAccount {
+                                NSApplication.shared.keyWindow?.close()
+                            }
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.top, 20)
                     
                 }.frame(maxWidth: .infinity, alignment: .leading)
             }

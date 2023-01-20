@@ -24,6 +24,6 @@ struct OutlineSection: View {
         }.contextMenu {
             OutlineContextMenu (meta: root, branchState: nil)
         }
-        .navigationTitle(files.root!.name)
+        .navigationTitle(files.root?.name ?? "")
     }
 }

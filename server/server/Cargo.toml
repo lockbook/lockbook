@@ -1,6 +1,6 @@
 [package]
 name = "lockbook-server"
-version = "0.5.8"
+version = "0.5.10"
 edition = "2018"
 build = "build.rs"
 

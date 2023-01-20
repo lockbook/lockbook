@@ -39,6 +39,10 @@ public struct CoreApi: LockbookApi {
         fromPrimitiveResult(result: get_uncompressed_usage())
     }
     
+    public func deleteAccount() -> FfiResult<Empty, DeleteAccountError> {
+        fromPrimitiveResult(result: delete_account())
+    }
+    
     public func syncAll() -> FfiResult<Empty, SyncAllError> {
         fromPrimitiveResult(result: sync_all())
     }
@@ -83,6 +87,10 @@ public struct CoreApi: LockbookApi {
         return fromPrimitiveResult(result: create_file(name, dirId.uuidString, fileType))
     }
     
+    public func createLink(name: String, dirId: UUID, target: UUID) -> FfiResult<Empty, CreateFileError> {
+        fromPrimitiveResult(result: create_link(name, dirId.uuidString, target.uuidString))
+    }
+    
     // TODO this needs to be renamed and brought in line with core
     public func updateFile(id: UUID, content: String) -> FfiResult<Empty, WriteToDocumentError> {
         fromPrimitiveResult(result: write_document(id.uuidString, content))
@@ -114,5 +122,18 @@ public struct CoreApi: LockbookApi {
 
     public func cancelSub() -> FfiResult<Empty, CancelSubscriptionError> {
         fromPrimitiveResult(result: cancel_subscription())
+    }
+    
+    public func shareFile(id: UUID, username: String, isWrite: Bool) -> FfiResult<Empty, ShareFileError> {
+        let shareMode = isWrite ? "Read" : "Write"
+        return fromPrimitiveResult(result: share_file(id.uuidString, username, shareMode))
+    }
+    
+    public func getPendingShares() -> FfiResult<[File], GetPendingShares> {
+        fromPrimitiveResult(result: get_pending_shares())
+    }
+    
+    public func deletePendingShare(id: UUID) ->FfiResult<Empty, DeletePendingShareError> {
+        fromPrimitiveResult(result: delete_pending_share(id.uuidString))
     }
 }

@@ -27,7 +27,9 @@ impl SubscriptionProfile {
                     }
                 }
                 BillingPlatform::AppStore(info) => {
-                    if info.account_state == AppStoreAccountState::FailedToRenew {
+                    if info.account_state == AppStoreAccountState::FailedToRenew
+                        || info.account_state == AppStoreAccountState::Expired
+                    {
                         FREE_TIER_USAGE_SIZE
                     } else {
                         PREMIUM_TIER_USAGE_SIZE
@@ -36,6 +38,10 @@ impl SubscriptionProfile {
             },
             None => FREE_TIER_USAGE_SIZE,
         }
+    }
+
+    pub fn is_active(&self) -> bool {
+        self.data_cap() == PREMIUM_TIER_USAGE_SIZE
     }
 }
 

@@ -1058,6 +1058,22 @@ impl From<CoreError> for Error<GetSubscriptionInfoError> {
 }
 
 #[derive(Debug, Serialize, EnumIter)]
+pub enum DeleteAccountError {
+    CouldNotReachServer,
+    ClientUpdateRequired,
+}
+
+impl From<CoreError> for Error<DeleteAccountError> {
+    fn from(e: CoreError) -> Self {
+        match e {
+            CoreError::ServerUnreachable => UiError(DeleteAccountError::CouldNotReachServer),
+            CoreError::ClientUpdateRequired => UiError(DeleteAccountError::ClientUpdateRequired),
+            _ => unexpected!("{:#?}", e),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, EnumIter)]
 pub enum AdminDisappearAccount {
     InsufficientPermission,
     UsernameNotFound,
@@ -1141,6 +1157,28 @@ impl From<CoreError> for Error<AdminListUsersError> {
             }
             CoreError::ServerUnreachable => UiError(AdminListUsersError::CouldNotReachServer),
             CoreError::ClientUpdateRequired => UiError(AdminListUsersError::ClientUpdateRequired),
+            _ => unexpected!("{:#?}", e),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, EnumIter)]
+pub enum AdminRebuildIndexError {
+    InsufficientPermission,
+    CouldNotReachServer,
+    ClientUpdateRequired,
+}
+
+impl From<CoreError> for Error<AdminRebuildIndexError> {
+    fn from(e: CoreError) -> Self {
+        match e {
+            CoreError::InsufficientPermission => {
+                UiError(AdminRebuildIndexError::InsufficientPermission)
+            }
+            CoreError::ServerUnreachable => UiError(AdminRebuildIndexError::CouldNotReachServer),
+            CoreError::ClientUpdateRequired => {
+                UiError(AdminRebuildIndexError::ClientUpdateRequired)
+            }
             _ => unexpected!("{:#?}", e),
         }
     }

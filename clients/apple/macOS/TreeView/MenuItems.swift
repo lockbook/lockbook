@@ -51,3 +51,20 @@ class Delete: NSMenuItem {
         DI.files.deleteFile(id: file.id)
     }
 }
+
+class Share: NSMenuItem {
+    let file: File
+    init(file: File) {
+        self.file = file
+        super.init(title: "Share", action: #selector(share(_:)), keyEquivalent: "")
+        target = self
+    }
+
+    required init(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    @objc func share(_ sender: AnyObject) {
+        DI.sheets.sharingFileInfo = file
+    }
+}

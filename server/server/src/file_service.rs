@@ -796,3 +796,70 @@ pub async fn admin_file_info(
             Ok(AdminFileInfoResponse { file, ancestors, descendants })
         })?
 }
+
+pub async fn admin_rebuild_index(
+    context: RequestContext<'_, AdminRebuildIndexRequest>,
+) -> Result<(), ServerError<AdminRebuildIndexError>> {
+    context
+        .server_state
+        .index_db
+        .transaction(|tx| match context.request.index {
+            ServerIndex::OwnedFiles => {
+                let mut owned_files = HashMap::new();
+                for owner in tx.accounts.keys() {
+                    owned_files.insert(*owner, HashSet::new());
+                }
+                for (id, file) in tx.metas.get_all() {
+                    if let Some(owned_files) = owned_files.get_mut(&file.owner()) {
+                        owned_files.insert(*id);
+                    }
+                }
+
+                tx.owned_files.clear();
+                for (k, v) in owned_files {
+                    tx.owned_files.insert(k, v);
+                }
+                Ok(())
+            }
+            ServerIndex::SharedFiles => {
+                let mut shared_files = HashMap::new();
+                for owner in tx.accounts.keys() {
+                    shared_files.insert(*owner, HashSet::new());
+                }
+                for (id, file) in tx.metas.get_all() {
+                    for user_access_key in file.user_access_keys() {
+                        if user_access_key.encrypted_for != user_access_key.encrypted_by {
+                            if let Some(shared_files) =
+                                shared_files.get_mut(&Owner(user_access_key.encrypted_for))
+                            {
+                                shared_files.insert(*id);
+                            }
+                        }
+                    }
+                }
+
+                tx.shared_files.clear();
+                for (k, v) in shared_files {
+                    tx.shared_files.insert(k, v);
+                }
+                Ok(())
+            }
+            ServerIndex::FileChildren => {
+                let mut file_children = HashMap::new();
+                for id in tx.metas.keys() {
+                    file_children.insert(*id, HashSet::new());
+                }
+                for (id, file) in tx.metas.get_all() {
+                    if let Some(file_children) = file_children.get_mut(file.parent()) {
+                        file_children.insert(*id);
+                    }
+                }
+
+                tx.file_children.clear();
+                for (k, v) in file_children {
+                    tx.file_children.insert(k, v);
+                }
+                Ok(())
+            }
+        })?
+}
