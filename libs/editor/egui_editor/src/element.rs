@@ -119,11 +119,24 @@ impl Element {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, Eq)]
 pub enum ItemType {
     Bulleted,
     Numbered(usize),
     Todo(bool),
+}
+
+// Ignore inner values in enum variant comparison
+// Note: you need to remember to incorporate new variants here!
+impl PartialEq for ItemType {
+    fn eq(&self, other: &Self) -> bool {
+        matches!(
+            (self, other),
+            (ItemType::Bulleted, ItemType::Bulleted)
+                | (ItemType::Numbered(_), ItemType::Numbered(_))
+                | (ItemType::Todo(_), ItemType::Todo(_))
+        )
+    }
 }
 
 pub type Url = String;

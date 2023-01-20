@@ -441,7 +441,14 @@ fn calc_modifications<'a>(
                         }
                         Some(Annotation::Item(ItemType::Numbered(number), indent_level)) => {
                             // numbered list indentation always four spaces; don't blame me, blame the markdown spec
-                            let text = "    ".to_string().repeat((indent_level - 1) as usize)
+                            let indent_seq = if buffer.raw[layout.range.start.0..layout.range.end.0]
+                                .starts_with("    ")
+                            {
+                                "    "
+                            } else {
+                                "\t"
+                            };
+                            let text = indent_seq.to_string().repeat((indent_level - 1) as usize)
                                 + &(number + 1).to_string()
                                 + ". ";
                             modifications.push(Modification::InsertOwned { text });
@@ -461,62 +468,92 @@ fn calc_modifications<'a>(
                 cursor.selection_origin = None;
             }
             Event::Key { key: Key::Tab, pressed: true, modifiers } => {
-                // (de-)indentation of list items
-                let reverse = modifiers.shift;
+                // if we're in a list item, tab/shift+tab will indent/de-indent
+                // otherwise, tab will insert a tab and shift tab will do nothing
+                let layout_idx = layouts.layout_at_char(cursor.pos, segs);
+                let layout = &layouts[layout_idx];
+                if let Some(annotation) = &layout.annotation {
+                    match annotation {
+                        Annotation::Item(item_type, indent_level) => {
+                            // todo: this needs more attention e.g. list items doubly indented using 2-space indents
+                            let layout_text = &buffer.raw[layout.range.start.0..layout.range.end.0];
+                            let indent_seq = if layout_text.starts_with('\t') {
+                                "\t"
+                            } else if layout_text.starts_with("    ") {
+                                "    "
+                            } else if layout_text.starts_with("  ") {
+                                "  "
+                            } else {
+                                ""
+                            };
 
-                let layout = &layouts[layouts.layout_at_char(cursor.pos, segs)];
-                match layout.annotation {
-                    Some(Annotation::Item(ItemType::Bulleted, indent_level)) => {
-                        // are we using two-space- or four-space-indentation?
-                        let leading_whitespace =
-                            layout.head_size - layout.head(buffer).trim_start().len();
-                        let spaces_per_indentation = if reverse && indent_level == 1 {
-                            continue; // can't de-indent un-indented items
-                        } else if indent_level == 1 {
-                            2 // default to 2
-                        } else {
-                            leading_whitespace.0 / (indent_level as usize - 1)
-                        };
+                            if modifiers.shift {
+                                if layout_idx != layouts.len() - 1 {
+                                    let next_layout = &layouts[layout_idx + 1];
+                                    if let Some(Annotation::Item(
+                                        next_item_type,
+                                        next_indent_level,
+                                    )) = &next_layout.annotation
+                                    {
+                                        if next_item_type == item_type
+                                            && next_indent_level > indent_level
+                                        {
+                                            continue; // list item cannot be de-indented if already indented less than next item
+                                        }
+                                    }
+                                }
 
-                        // move cursor to after leading whitespace
-                        modifications.push(Modification::Cursor {
-                            cur: Cursor {
-                                pos: segs
-                                    .byte_offset_to_char(layout.range.start + leading_whitespace),
-                                ..Default::default()
-                            },
-                        });
+                                // de-indentation: select text, delete selection, restore cursor
+                                modifications.push(Modification::Cursor {
+                                    cur: Cursor {
+                                        pos: segs.byte_offset_to_char(
+                                            layout.range.start + indent_seq.len(),
+                                        ),
+                                        selection_origin: Some(
+                                            segs.byte_offset_to_char(layout.range.start),
+                                        ),
+                                        ..Default::default()
+                                    },
+                                });
+                                modifications.push(Modification::Delete(0.into()));
+                                modifications.push(Modification::Cursor { cur: cursor });
+                            } else {
+                                if layout_idx == 0 {
+                                    continue; // first layout cannot be indented
+                                }
+                                let prior_layout = &layouts[layout_idx - 1];
+                                if let Some(Annotation::Item(prior_item_type, prior_indent_level)) =
+                                    &prior_layout.annotation
+                                {
+                                    if prior_item_type != item_type {
+                                        continue; // first list item of a given type in a list cannot be indented
+                                    }
+                                    if prior_indent_level < indent_level {
+                                        continue; // list item cannot be indented if already indented more than prior item
+                                    }
+                                } else {
+                                    continue; // first list item of a list cannot be indented
+                                }
 
-                        // add or remove indentation
-                        if !reverse {
-                            println!("insert {:?}", spaces_per_indentation);
-                            modifications.push(Modification::InsertOwned {
-                                text: " ".to_string().repeat(spaces_per_indentation),
-                            });
-                        } else {
-                            println!("delete {:?}", spaces_per_indentation);
-                            modifications.push(Modification::Delete(spaces_per_indentation.into()));
+                                // indentation: set cursor to galley start, insert indentation sequence, restore cursor
+                                modifications.push(Modification::Cursor {
+                                    cur: Cursor {
+                                        pos: segs.byte_offset_to_char(layout.range.start),
+                                        ..Default::default()
+                                    },
+                                });
+                                modifications.push(Modification::InsertOwned {
+                                    text: (if indent_seq.is_empty() { "\t" } else { indent_seq })
+                                        .to_string(),
+                                });
+                                modifications.push(Modification::Cursor { cur: cursor });
+                            }
                         }
-
-                        // put the cursor back where it was
-                        modifications.push(Modification::Cursor { cur: cursor });
+                        Annotation::Image(..) => {}
+                        Annotation::Rule => {}
                     }
-                    Some(Annotation::Item(ItemType::Numbered(number), indent_level)) => {
-                        // numbered list indentation always four spaces; don't blame me, blame the markdown spec
-                        let text = "    ".to_string().repeat((indent_level - 1) as usize)
-                            + &(number + 1).to_string()
-                            + ". ";
-                        modifications.push(Modification::InsertOwned { text });
-                    }
-                    Some(Annotation::Item(ItemType::Todo(checked), indent_level)) => {
-                        // todo: todo lists currently act very strangely; revisit this once that's fixed
-                        let text = "    ".to_string().repeat((indent_level - 1) as usize)
-                            + if checked { "- [x]" } else { "- [ ]" };
-                        modifications.push(Modification::InsertOwned { text });
-                    }
-                    Some(Annotation::Image(_, _, _)) => {}
-                    Some(Annotation::Rule) => {}
-                    None => {}
+                } else if !modifiers.shift {
+                    modifications.push(Modification::InsertOwned { text: "\t".to_string() });
                 }
             }
             Event::Key { key: Key::A, pressed: true, modifiers } => {

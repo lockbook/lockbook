@@ -188,4 +188,8 @@ impl GalleyInfo {
             end: segs.byte_offset_to_char(text_end),
         }
     }
+
+    pub fn size(&self) -> RelByteOffset {
+        self.range.end - self.range.start
+    }
 }
