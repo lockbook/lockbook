@@ -429,47 +429,50 @@ pub async fn admin_disappear_file(
 
             // maintain index: owned_files
             let owner = meta.owner();
-            let mut owned_files = tx.owned_files.delete(owner).ok_or_else(|| {
-                internal!(
-                    "Attempted to disappear a file, the owner was not present, id: {}, owner: {:?}",
+            if let Some(mut owned_files) = tx.owned_files.delete(owner) {
+                if !owned_files.remove(&context.request.id) {
+                    error!(?id, ?owner, "attempted to disappear a file, the owner didn't own it");
+                }
+                tx.owned_files.insert(owner, owned_files);
+            } else {
+                error!(
+                    "attempted to disappear a file, the owner was not present, id: {}, owner: {:?}",
                     context.request.id,
                     owner
-                )
-            })?;
-            if !owned_files.remove(&context.request.id) {
-                error!(?id, ?owner, "attempted to disappear a file, the owner didn't own it");
+                );
             }
-            tx.owned_files.insert(owner, owned_files);
 
             // maintain index: shared_files
             for user_access_key in meta.user_access_keys() {
                 let sharee = Owner(user_access_key.encrypted_for);
-                let mut shared_files = tx.shared_files.delete(sharee).ok_or_else(|| {
-                    internal!(
-                        "Attempted to disappear a file, the sharee was not present, id: {}, sharee: {:?}",
+                if let Some(mut shared_files) = tx.shared_files.delete(sharee) {
+                    if !shared_files.remove(&context.request.id) {
+                        error!(?id, ?sharee, "attempted to disappear a file, a sharee didn't have it shared");
+                    }
+                    tx.shared_files.insert(sharee, shared_files);
+                } else {
+                    error!(
+                        "attempted to disappear a file, the sharee was not present, id: {}, sharee: {:?}",
                         context.request.id,
                         sharee
-                    )
-                })?;
-                if !shared_files.remove(&context.request.id) {
-                    error!(?id, ?sharee, "attempted to disappear a file, a sharee didn't have it shared");
+                    );
                 }
-                tx.shared_files.insert(sharee, shared_files);
             }
 
             // maintain index: file_children
             let parent = *meta.parent();
-            let mut file_children = tx.file_children.delete(*meta.parent()).ok_or_else(|| {
-                internal!(
-                    "Attempted to disappear a file, the parent was not present, id: {}, parent: {:?}",
+            if let Some(mut file_children) = tx.file_children.delete(*meta.parent()) {
+                if !file_children.remove(&context.request.id) {
+                    error!(?id, ?parent, "attempted to disappear a file, the parent didn't have it as a child");
+                }
+                tx.file_children.insert(*meta.parent(), file_children);
+            } else {
+                error!(
+                    "attempted to disappear a file, the parent was not present, id: {}, parent: {:?}",
                     context.request.id,
                     meta.parent()
-                )
-            })?;
-            if !file_children.remove(&context.request.id) {
-                error!(?id, ?parent, "attempted to disappear a file, the parent didn't have it as a child");
+                );
             }
-            tx.file_children.insert(*meta.parent(), file_children);
 
             Ok(())
         })??;
