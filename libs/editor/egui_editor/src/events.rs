@@ -8,6 +8,7 @@ use crate::offset_types::{DocCharOffset, RelCharOffset};
 use crate::unicode_segs;
 use crate::unicode_segs::UnicodeSegs;
 use egui::{Event, Key, PointerButton, Vec2};
+use std::cmp::Ordering;
 use std::iter;
 use std::ops::Range;
 use unicode_segmentation::UnicodeSegmentation;
@@ -411,12 +412,69 @@ fn calc_modifications<'a>(
             Event::Key { key: Key::Backspace, pressed: true, modifiers: _modifiers } => {
                 cursor.x_target = None;
 
-                let layout = &layouts[layouts.layout_at_char(cursor.pos, segs)];
+                let layout_idx = layouts.layout_at_char(cursor.pos, segs);
+                let layout = &layouts[layout_idx];
                 if layout.head_size > 0
                     && segs.char_offset_to_byte(cursor.pos) == layout.range.start + layout.head_size
+                    && cursor.selection().is_none()
                 {
                     // delete layout head (e.g. bullet)
                     modifications.push(Modification::Delete(layout.head_size_chars(buffer)));
+
+                    // if we deleted an item in a numbered list, decrement subsequent items
+                    if let Some(Annotation::Item(ItemType::Numbered(prev_number), indent_level)) =
+                        layout.annotation
+                    {
+                        let mut layout_idx = layout_idx;
+                        let mut prev_number = prev_number;
+                        loop {
+                            layout_idx += 1;
+                            if layout_idx == layouts.len() {
+                                break;
+                            }
+                            let layout = &layouts[layout_idx];
+                            if let Some(Annotation::Item(
+                                ItemType::Numbered(cur_number),
+                                cur_indent_level,
+                            )) = layout.annotation
+                            {
+                                match cur_indent_level.cmp(&indent_level) {
+                                    Ordering::Greater => {
+                                        continue; // skip nested list items
+                                    }
+                                    Ordering::Less => {
+                                        break; // end of nested list
+                                    }
+                                    Ordering::Equal => {
+                                        // replace cur_number with prev_number in head
+                                        modifications.push(Modification::Cursor {
+                                            cur: Cursor {
+                                                pos: segs.byte_offset_to_char(
+                                                    layout.range.start + layout.head_size,
+                                                ),
+                                                selection_origin: Some(
+                                                    segs.byte_offset_to_char(layout.range.start),
+                                                ),
+                                                ..Default::default()
+                                            },
+                                        });
+                                        let head = layout.head(buffer);
+                                        let text = head
+                                            [0..head.len() - (cur_number).to_string().len() - 2]
+                                            .to_string()
+                                            + &(prev_number).to_string()
+                                            + ". ";
+                                        modifications.push(Modification::InsertOwned { text });
+                                        modifications.push(Modification::Cursor { cur: cursor });
+
+                                        prev_number = cur_number;
+                                    }
+                                }
+                            } else {
+                                break;
+                            }
+                        }
+                    }
                 } else {
                     // delete selected text or one character
                     modifications.push(Modification::Delete(1.into()));
@@ -433,30 +491,22 @@ fn calc_modifications<'a>(
                 let layout = &layouts[layouts.layout_at_char(cursor.pos, segs)];
                 if segs.char_offset_to_byte(cursor.pos) == layout.range.end - layout.tail_size {
                     match layout.annotation {
-                        Some(Annotation::Item(ItemType::Bulleted, _indent_level)) => {
+                        Some(Annotation::Item(ItemType::Bulleted, _)) => {
                             modifications.push(Modification::InsertOwned {
-                                // bulleted list indentation can be two or four spaces; just use whatever this bullet used
                                 text: layout.head(buffer).to_string(),
                             });
                         }
-                        Some(Annotation::Item(ItemType::Numbered(number), indent_level)) => {
-                            // numbered list indentation always four spaces; don't blame me, blame the markdown spec
-                            let indent_seq = if buffer.raw[layout.range.start.0..layout.range.end.0]
-                                .starts_with("    ")
-                            {
-                                "    "
-                            } else {
-                                "\t"
-                            };
-                            let text = indent_seq.to_string().repeat((indent_level - 1) as usize)
+                        Some(Annotation::Item(ItemType::Numbered(number), _)) => {
+                            let head = layout.head(buffer);
+                            let text = head[0..head.len() - (number).to_string().len() - 2]
+                                .to_string()
                                 + &(number + 1).to_string()
                                 + ". ";
                             modifications.push(Modification::InsertOwned { text });
                         }
-                        Some(Annotation::Item(ItemType::Todo(checked), indent_level)) => {
-                            // todo: todo lists currently act very strangely; revisit this once that's fixed
-                            let text = "    ".to_string().repeat((indent_level - 1) as usize)
-                                + if checked { "- [x]" } else { "- [ ]" };
+                        Some(Annotation::Item(ItemType::Todo(_), _)) => {
+                            let head = layout.head(buffer);
+                            let text = head[0..head.len() - 4].to_string() + "- [ ]";
                             modifications.push(Modification::InsertOwned { text });
                         }
                         Some(Annotation::Image(_, _, _)) => {}

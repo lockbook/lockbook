@@ -166,9 +166,11 @@ pub static TEST_MARKDOWN_36: &str = "* x\n\n* ";
 pub static TEST_MARKDOWN_37: &str = "* *x*\n\n* ";
 pub static TEST_MARKDOWN_38: &str =
     "* one\n* `two`\n    * three\n* `one`\n* two\n  * three and a half\n    * three";
+pub static TEST_MARKDOWN_39: &str =
+    "1. one\n2. `two`\n    1. three\n3. `one`\n4. two\n    1. three";
 
 // todo: newlines between 2 and 3 are not rendered
-pub static TEST_MARKDOWN_39: &str = r#"# Numbered List Indentation
+pub static TEST_MARKDOWN_40: &str = r#"# Numbered List Indentation
 1. one
 2. 
 
