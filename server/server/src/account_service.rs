@@ -212,21 +212,27 @@ pub async fn admin_list_users(
         match &request.filter {
             Some(filter) => match filter {
                 AccountFilter::Premium => {
-                    if account.billing_info.billing_platform.is_some() {
-                        users.push(account.username.clone());
+                    match account.billing_info.billing_platform {
+                        Some(BillingPlatform::AppStore(_)) if account.billing_info.is_premium() => {
+                            users.push(account.username.clone());
+                        }
+                        _ => {}
                     }
                 }
                 AccountFilter::StripePremium => {
-                    if let Some(BillingPlatform::Stripe(_)) = account.billing_info.billing_platform
-                    {
-                        users.push(account.username.clone());
+                    match account.billing_info.billing_platform {
+                        Some(BillingPlatform::Stripe(_)) if account.billing_info.is_premium() => {
+                            users.push(account.username.clone());
+                        }
+                        _ => {}
                     }
                 }
                 AccountFilter::GooglePlayPremium => {
-                    if let Some(BillingPlatform::GooglePlay(_)) =
-                        account.billing_info.billing_platform
-                    {
-                        users.push(account.username.clone());
+                    match account.billing_info.billing_platform {
+                        Some(BillingPlatform::GooglePlay(_)) if account.billing_info.is_premium() => {
+                            users.push(account.username.clone());
+                        }
+                        _ => {}
                     }
                 }
             },

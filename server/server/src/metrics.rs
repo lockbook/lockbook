@@ -9,7 +9,7 @@ use std::fmt::Debug;
 use tracing::*;
 use uuid::Uuid;
 
-use crate::billing::billing_model::BillingPlatform;
+use crate::billing::billing_model::{BillingPlatform, SubscriptionProfile};
 use crate::transaction::Server as TransactionalServer;
 use lockbook_shared::file_like::FileLike;
 use lockbook_shared::file_metadata::Owner;
@@ -125,15 +125,21 @@ pub async fn start(state: ServerState) -> Result<(), ServerError<MetricsError>> 
                 .with_label_values(&[&username])
                 .set(user_info.total_bytes);
 
-            let maybe_billing_platform = get_user_billing_platform(&state.index_db, &owner).await?;
+            let billing_info = get_user_billing_info(&state.index_db, &owner).await?;
 
-            if let Some(billing_platform) = maybe_billing_platform {
+
+            if billing_info.is_premium() {
                 premium_users += 1;
 
-                match billing_platform {
-                    BillingPlatform::GooglePlay { .. } => premium_google_play_users += 1,
-                    BillingPlatform::Stripe { .. } => premium_stripe_users += 1,
-                    BillingPlatform::AppStore { .. } => premium_app_store_users += 1,
+                match billing_info.billing_platform {
+                    None => return Err(internal!("Could not retrieve billing platform although it was used moments before.")),
+                    Some(billing_platform) => {
+                        match billing_platform {
+                            BillingPlatform::GooglePlay { .. } => premium_google_play_users += 1,
+                            BillingPlatform::Stripe { .. } => premium_stripe_users += 1,
+                            BillingPlatform::AppStore { .. } => premium_app_store_users += 1,
+                        }
+                    }
                 }
             }
 
@@ -167,15 +173,15 @@ pub async fn start(state: ServerState) -> Result<(), ServerError<MetricsError>> 
     }
 }
 
-pub async fn get_user_billing_platform(
+pub async fn get_user_billing_info(
     db: &Server, owner: &Owner,
-) -> Result<Option<BillingPlatform>, ServerError<MetricsError>> {
+) -> Result<SubscriptionProfile, ServerError<MetricsError>> {
     let account = db
         .accounts
         .get(owner)?
         .ok_or_else(|| internal!("Could not get user's account during metrics {:?}", owner))?;
 
-    Ok(account.billing_info.billing_platform)
+    Ok(account.billing_info)
 }
 
 pub async fn get_user_info(

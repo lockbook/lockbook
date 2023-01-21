@@ -94,7 +94,7 @@ pub async fn upgrade_account_app_store(
                 other_account.billing_info.billing_platform
             {
                 if info.account_token == request.app_account_token
-                    && other_account.billing_info.is_active()
+                    && other_account.billing_info.is_premium()
                 {
                     return Err(ClientError(
                         UpgradeAccountAppStoreError::AppStoreAccountAlreadyLinked,
@@ -104,7 +104,7 @@ pub async fn upgrade_account_app_store(
         }
     }
 
-    if account.billing_info.is_active() {
+    if account.billing_info.is_premium() {
         return Err(ClientError(UpgradeAccountAppStoreError::AlreadyPremium));
     }
 
@@ -152,7 +152,7 @@ pub async fn upgrade_account_google_play(
 
     let mut account = lock_subscription_profile(server_state, &context.public_key)?;
 
-    if account.billing_info.is_active() {
+    if account.billing_info.is_premium() {
         return Err(ClientError(UpgradeAccountGooglePlayError::AlreadyPremium));
     }
 
@@ -205,7 +205,7 @@ pub async fn upgrade_account_stripe(
 
     let mut account = lock_subscription_profile(server_state, &context.public_key)?;
 
-    if account.billing_info.is_active() {
+    if account.billing_info.is_premium() {
         return Err(ClientError(UpgradeAccountStripeError::AlreadyPremium));
     }
 
