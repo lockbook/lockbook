@@ -49,11 +49,7 @@ fn calc_recursive(
     let mut elements = Vec::from(parent_elements);
     elements.push(node.element.clone());
 
-    // this text range starts a block if it is a block element or if it is a leaf node that does not
-    // have an ancestor that starts a block
-    let should_start_block = can_start_block
-        && (node.element.is_block() || node.children.is_empty())
-        || node.element == Element::Item; // items always start blocks
+    let should_start_block = can_start_block && node.element != Element::Document;
     let mut did_start_block = false;
 
     // if this is a leaf node, just emit the style for the whole range
@@ -70,7 +66,7 @@ fn calc_recursive(
         Range { start: node.range.start, end: ast.nodes[node.children[0]].range.start };
     if !head_range.is_empty() {
         let style = StyleInfo {
-            block_start: should_start_block && !did_start_block,
+            block_start: can_start_block && (!should_start_block || !did_start_block),
             range: head_range,
             elements: elements.clone(),
         };
@@ -108,7 +104,7 @@ fn calc_recursive(
                 || child.element == Element::Item && next.element == Element::Item)
             {
                 let style = StyleInfo {
-                    block_start: should_start_block && !did_start_block,
+                    block_start: can_start_block && (!should_start_block || !did_start_block),
                     range,
                     elements: elements.clone(),
                 };
@@ -125,7 +121,7 @@ fn calc_recursive(
         Range { start: ast.nodes[*node.children.last().unwrap()].range.end, end: node.range.end };
     if !tail_range.is_empty() {
         let style = StyleInfo {
-            block_start: should_start_block && !did_start_block,
+            block_start: can_start_block && (!should_start_block || !did_start_block),
             range: tail_range,
             elements: elements.clone(),
         };

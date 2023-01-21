@@ -124,7 +124,7 @@ impl Ast {
         let node = &ast.nodes[node];
         let indent = "->".repeat(nest);
         println!("{indent}element: {:?}", node.element);
-        println!("{indent}range: {}", &raw[node.range.start.0..node.range.end.0]);
+        println!("{indent}range: {:?}", &raw[node.range.start.0..node.range.end.0]);
 
         for &child in &node.children {
             Self::print_recursive(ast, child, raw, nest + 1);

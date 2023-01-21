@@ -106,3 +106,5 @@ lockbook-server
 
 libs/editor/SwiftEditor/Libs/
 libs/editor/egui_editor/include
+
+clients/apple/lockbook.xcworkspace/xcshareddata/swiftpm/Package.resolved
