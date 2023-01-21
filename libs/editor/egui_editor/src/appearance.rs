@@ -68,7 +68,7 @@ pub struct Appearance {
 impl Appearance {
     pub fn set_theme(&mut self, visuals: &Visuals) -> bool {
         let target_theme = if visuals.dark_mode { Theme::Dark } else { Theme::Light };
-        
+
         if self.current_theme != target_theme {
             self.current_theme = target_theme;
             true

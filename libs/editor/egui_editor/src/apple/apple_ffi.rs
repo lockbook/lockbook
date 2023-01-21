@@ -1,9 +1,9 @@
 use crate::apple::keyboard::NSKeys;
 use crate::{Editor, WgpuEditor};
+use egui::PointerButton::{Primary, Secondary};
 use egui::{Context, Event, Pos2, Vec2, Visuals};
 use egui_wgpu_backend::{wgpu, ScreenDescriptor};
 use std::ffi::{c_char, c_void, CStr, CString};
-use egui::PointerButton::{Primary, Secondary};
 
 /// # Safety
 #[no_mangle]
@@ -121,23 +121,24 @@ pub unsafe extern "C" fn mouse_moved(obj: *mut c_void, x: f32, y: f32) {
 
 /// # Safety
 #[no_mangle]
-pub unsafe extern "C" fn mouse_button(obj: *mut c_void, x: f32, y: f32, pressed: bool, primary: bool) {
+pub unsafe extern "C" fn mouse_button(
+    obj: *mut c_void, x: f32, y: f32, pressed: bool, primary: bool,
+) {
     let obj = &mut *(obj as *mut WgpuEditor);
-    obj.raw_input
-        .events
-        .push(Event::PointerButton {
-            pos: Pos2 { x, y },
-            button: if primary { Primary } else { Secondary },
-            pressed,
-            modifiers: Default::default(),
-        })
+    obj.raw_input.events.push(Event::PointerButton {
+        pos: Pos2 { x, y },
+        button: if primary { Primary } else { Secondary },
+        pressed,
+        modifiers: Default::default(),
+    })
 }
 
 /// # Safety
 #[no_mangle]
 pub unsafe extern "C" fn dark_mode(obj: *mut c_void, dark: bool) {
     let obj = &mut *(obj as *mut WgpuEditor);
-    obj.context.set_visuals(if dark { Visuals::dark() } else { Visuals::light() });
+    obj.context
+        .set_visuals(if dark { Visuals::dark() } else { Visuals::light() });
 }
 
 /// # Safety
