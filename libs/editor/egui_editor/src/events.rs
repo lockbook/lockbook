@@ -156,7 +156,7 @@ fn modify_subsequent_cursors(
                         Some(selection_origin + text_replacement_len - replaced_text_len);
                 }
             }
-            _ if cur_selection.end <= replaced_text_range.start => {
+            _ if cur_selection.end < replaced_text_range.start => {
                 // case 2:
                 //                       text before replacement: * * * * * * *
                 //                        range of replaced text:        |<->|
@@ -212,8 +212,7 @@ fn modify_subsequent_cursors(
                 //          range of subsequent cursor selection:    |<--->|
                 //                        text after replacement: * X *
                 // adjusted range of subsequent cursor selection:    |
-                mod_cursor.pos = replaced_text_range.end;
-                mod_cursor.pos = mod_cursor.pos + text_replacement_len - replaced_text_len;
+                mod_cursor.pos = replaced_text_range.end + text_replacement_len - replaced_text_len;
                 mod_cursor.selection_origin = Some(mod_cursor.pos);
             }
             (true, false) => {
@@ -937,8 +936,8 @@ mod test {
             Case {
                 cursor_a: (1, 6),
                 cursor_b: (1, 1),
-                expected_buffer: "1ba7",
-                expected_cursor: (2, 2),
+                expected_buffer: "1ab7",
+                expected_cursor: (3, 3),
             },
         ];
 
