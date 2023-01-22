@@ -574,12 +574,9 @@ fn calc_modifications<'a>(
                                     can_indent = false; // first layout cannot be indented
                                 }
                                 let prior_layout = &layouts[layout_idx - 1];
-                                if let Some(Annotation::Item(prior_item_type, prior_indent_level)) =
+                                if let Some(Annotation::Item(_, prior_indent_level)) =
                                     &prior_layout.annotation
                                 {
-                                    if prior_item_type != item_type {
-                                        can_indent = false; // first list item of a given type in a list cannot be indented
-                                    }
                                     if prior_indent_level < indent_level {
                                         can_indent = false; // list item cannot be indented if already indented more than prior item
                                     }
@@ -807,9 +804,7 @@ fn increment_numbered_list_items<'a>(
             break;
         }
         let layout = &layouts[layout_idx];
-        if let Some(Annotation::Item(ItemType::Numbered(cur_number), cur_indent_level)) =
-            layout.annotation
-        {
+        if let Some(Annotation::Item(item_type, cur_indent_level)) = &layout.annotation {
             match cur_indent_level.cmp(&indent_level) {
                 Ordering::Greater => {
                     continue; // skip nested list items
@@ -818,21 +813,27 @@ fn increment_numbered_list_items<'a>(
                     break; // end of nested list
                 }
                 Ordering::Equal => {
-                    // replace cur_number with next_number in head
-                    modifications.push(Modification::Cursor {
-                        cursor: Cursor {
-                            pos: segs.byte_offset_to_char(layout.range.start + layout.head_size),
-                            selection_origin: Some(segs.byte_offset_to_char(layout.range.start)),
-                            ..Default::default()
-                        },
-                    });
-                    let head = layout.head(buffer);
-                    let text = head[0..head.len() - (cur_number).to_string().len() - 2].to_string()
-                        + &(if !decrement { cur_number + amount } else { cur_number - amount })
+                    if let ItemType::Numbered(cur_number) = item_type {
+                        // replace cur_number with next_number in head
+                        modifications.push(Modification::Cursor {
+                            cursor: Cursor {
+                                pos: segs
+                                    .byte_offset_to_char(layout.range.start + layout.head_size),
+                                selection_origin: Some(
+                                    segs.byte_offset_to_char(layout.range.start),
+                                ),
+                                ..Default::default()
+                            },
+                        });
+                        let head = layout.head(buffer);
+                        let text = head[0..head.len() - (cur_number).to_string().len() - 2]
                             .to_string()
-                        + ". ";
-                    modifications.push(Modification::InsertOwned { text });
-                    modifications.push(Modification::Cursor { cursor });
+                            + &(if !decrement { cur_number + amount } else { cur_number - amount })
+                                .to_string()
+                            + ". ";
+                        modifications.push(Modification::InsertOwned { text });
+                        modifications.push(Modification::Cursor { cursor });
+                    }
                 }
             }
         } else {
