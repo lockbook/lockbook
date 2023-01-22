@@ -68,8 +68,9 @@ impl Editor {
         let theme_updated = self.appearance.set_theme(ui.visuals());
 
         // process events
-        let (text_updated, selection_updated) = if self.initialized {
-            events::process(
+        let (text_updated, cursor_pos_updated, selection_updated) = if self.initialized {
+            let prior_cursor_pos = self.cursor.pos;
+            let (text_updated, selection_updated) = events::process(
                 &ui.ctx().input().events,
                 &self.layouts,
                 &self.galleys,
@@ -77,10 +78,12 @@ impl Editor {
                 &mut self.segs,
                 &mut self.cursor,
                 &mut self.debug,
-            )
+            );
+            let cursor_pos_updated = self.cursor.pos != prior_cursor_pos;
+            (text_updated, cursor_pos_updated, selection_updated)
         } else {
             self.segs = unicode_segs::calc(&self.buffer);
-            (true, true)
+            (true, true, true)
         };
 
         // recalculate dependent state
@@ -100,6 +103,11 @@ impl Editor {
         self.draw_cursor(ui);
         if self.debug.draw_enabled {
             self.draw_debug(ui);
+        }
+
+        // scroll
+        if cursor_pos_updated {
+            ui.scroll_to_rect(self.cursor.rect(&self.segs, &self.galleys), None);
         }
     }
 

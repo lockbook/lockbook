@@ -3,7 +3,7 @@ use crate::galleys::{GalleyInfo, Galleys};
 use crate::offset_types::*;
 use crate::unicode_segs::UnicodeSegs;
 use egui::epaint::text::cursor::Cursor as EguiCursor;
-use egui::Pos2;
+use egui::{Pos2, Rect, Vec2};
 use std::cmp::{max, min};
 use std::iter;
 use std::ops::Range;
@@ -232,5 +232,15 @@ impl Cursor {
         }
 
         self.pos = galleys.char_offset_by_galley_and_cursor(galley_idx, &cursor, segs);
+    }
+
+    pub fn rect(&self, segs: &UnicodeSegs, galleys: &Galleys) -> Rect {
+        let (galley_idx, cursor) = galleys.galley_and_cursor_by_char_offset(self.pos, segs);
+        let galley = &galleys[galley_idx];
+        let cursor_size = Vec2 { x: 1.0, y: galley.cursor_height() };
+
+        let max = Cursor::cursor_to_pos_abs(galley, cursor);
+        let min = max - cursor_size;
+        Rect { min, max }
     }
 }

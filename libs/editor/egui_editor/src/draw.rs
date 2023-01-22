@@ -71,18 +71,8 @@ impl Editor {
     }
 
     pub fn draw_cursor(&mut self, ui: &mut Ui) {
-        let (galley_idx, cursor) = self
-            .galleys
-            .galley_and_cursor_by_char_offset(self.cursor.pos, &self.segs);
-        let galley = &self.galleys[galley_idx];
-        let cursor_size = Vec2 { x: 1.0, y: galley.cursor_height() };
-
-        let max = Cursor::cursor_to_pos_abs(galley, cursor);
-        let min = max - cursor_size;
-        let cursor_rect = Rect { min, max };
-
         ui.painter().rect(
-            cursor_rect,
+            self.cursor.rect(&self.segs, &self.galleys),
             Rounding::none(),
             Color32::TRANSPARENT,
             Stroke { width: 1.0, color: self.appearance.text() },
