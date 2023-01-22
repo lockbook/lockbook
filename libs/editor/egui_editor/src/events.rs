@@ -833,8 +833,12 @@ fn increment_numbered_list_items<'a>(
                         let head = layout.head(buffer);
                         let text = head[0..head.len() - (cur_number).to_string().len() - 2]
                             .to_string()
-                            + &(if !decrement { cur_number + amount } else { cur_number - amount })
-                                .to_string()
+                            + &(if !decrement {
+                                cur_number.saturating_add(amount)
+                            } else {
+                                cur_number.saturating_sub(amount)
+                            })
+                            .to_string()
                             + ". ";
                         modifications.push(Modification::InsertOwned { text });
                         modifications.push(Modification::Cursor { cursor });
