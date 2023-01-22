@@ -7,7 +7,7 @@ use egui::TextFormat;
 use std::cmp::{max, min};
 use std::ops::Range;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct StyleInfo {
     pub block_start: bool,
     pub range: Range<DocByteOffset>,
@@ -43,22 +43,29 @@ pub fn calc(ast: &Ast, selection: &Option<Range<DocByteOffset>>) -> Vec<StyleInf
 /// recursive implementation of calc(); returns whether a block was started
 fn calc_recursive(
     ast: &Ast, selection: &Option<Range<DocByteOffset>>, node_idx: usize,
-    parent_elements: &[Element], can_start_block: bool, styles: &mut Vec<StyleInfo>,
+    parent_elements: &[Element], should_start_block_for_ancestor: bool,
+    styles: &mut Vec<StyleInfo>,
 ) -> bool {
     let node = &ast.nodes[node_idx];
     let mut elements = Vec::from(parent_elements);
     elements.push(node.element.clone());
 
-    let should_start_block = can_start_block && node.element != Element::Document;
+    let should_start_block = node.element == Element::Item || should_start_block_for_ancestor;
+    let children_start_blocks = elements == [Element::Document];
     let mut did_start_block = false;
 
     // if this is a leaf node, just emit the style for the whole range
     if node.children.is_empty() {
-        styles.extend(cursor_split(
-            selection,
-            StyleInfo { block_start: should_start_block, range: node.range.clone(), elements },
-        ));
-        return should_start_block;
+        let style = StyleInfo {
+            block_start: children_start_blocks || (should_start_block && !did_start_block),
+            range: node.range.clone(),
+            elements,
+        };
+        if style.block_start {
+            did_start_block = true;
+        }
+        styles.extend(cursor_split(selection, style));
+        return did_start_block;
     }
 
     // emit style for text before first child
@@ -66,7 +73,7 @@ fn calc_recursive(
         Range { start: node.range.start, end: ast.nodes[node.children[0]].range.start };
     if !head_range.is_empty() {
         let style = StyleInfo {
-            block_start: can_start_block && (!should_start_block || !did_start_block),
+            block_start: children_start_blocks || (should_start_block && !did_start_block),
             range: head_range,
             elements: elements.clone(),
         };
@@ -85,10 +92,7 @@ fn calc_recursive(
             selection,
             child_idx,
             &elements,
-            // if this node can't start a block, neither can its descendants
-            // if this node should start a block, only one child can start a block
-            // if this node should not start a block, any number of children may start a block
-            can_start_block && (!should_start_block || !did_start_block),
+            children_start_blocks || (should_start_block && !did_start_block),
             styles,
         );
 
@@ -104,7 +108,7 @@ fn calc_recursive(
                 || child.element == Element::Item && next.element == Element::Item)
             {
                 let style = StyleInfo {
-                    block_start: can_start_block && (!should_start_block || !did_start_block),
+                    block_start: children_start_blocks || (should_start_block && !did_start_block),
                     range,
                     elements: elements.clone(),
                 };
@@ -121,7 +125,7 @@ fn calc_recursive(
         Range { start: ast.nodes[*node.children.last().unwrap()].range.end, end: node.range.end };
     if !tail_range.is_empty() {
         let style = StyleInfo {
-            block_start: can_start_block && (!should_start_block || !did_start_block),
+            block_start: children_start_blocks || (should_start_block && !did_start_block),
             range: tail_range,
             elements: elements.clone(),
         };
@@ -184,11 +188,83 @@ impl Editor {
         println!("styles:");
         for style in &self.styles {
             println!(
-                "block_start: {:?},\t{:?},\t{:?}",
-                style.block_start,
+                "{}{:?}: {:?}..{:?} ({:?})",
+                if style.block_start { "block: " } else { "       " },
+                style.elements,
+                style.range.start.0,
+                style.range.end.0,
                 &self.buffer.raw[style.range.start.0..style.range.end.0],
-                style.elements
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use crate::ast::{Ast, AstNode};
+    use crate::element::Element;
+    use crate::styles::{calc, StyleInfo};
+    use pulldown_cmark::HeadingLevel::H1;
+
+    #[test]
+    fn calc_title_with_newline() {
+        let nodes = vec![
+            AstNode { element: Element::Document, range: 0.into()..9.into(), children: vec![1] },
+            AstNode { element: Element::Heading(H1), range: 0.into()..8.into(), children: vec![] },
+        ];
+        let ast = Ast { nodes, root: 0 };
+        let expected_styles: Vec<StyleInfo> = vec![
+            StyleInfo {
+                block_start: true,
+                range: 0.into()..8.into(),
+                elements: vec![Element::Document, Element::Heading(H1)],
+            },
+            StyleInfo {
+                block_start: true,
+                range: 8.into()..9.into(),
+                elements: vec![Element::Document],
+            },
+        ];
+
+        let actual_styles = calc(&ast, &None);
+
+        assert_eq!(actual_styles, expected_styles);
+    }
+
+    #[test]
+    fn calc_nested_bullet_with_code() {
+        let nodes = vec![
+            AstNode { element: Element::Document, range: 0.into()..14.into(), children: vec![1] },
+            AstNode { element: Element::Item, range: 0.into()..14.into(), children: vec![2] },
+            AstNode { element: Element::Item, range: 6.into()..14.into(), children: vec![3] },
+            AstNode { element: Element::InlineCode, range: 9.into()..14.into(), children: vec![] },
+        ];
+        let ast = Ast { nodes, root: 0 };
+        let expected_styles: Vec<StyleInfo> = vec![
+            StyleInfo {
+                block_start: true,
+                range: 0.into()..6.into(),
+                elements: vec![Element::Document, Element::Item],
+            },
+            StyleInfo {
+                block_start: true,
+                range: 6.into()..9.into(),
+                elements: vec![Element::Document, Element::Item, Element::Item],
+            },
+            StyleInfo {
+                block_start: false,
+                range: 9.into()..14.into(),
+                elements: vec![
+                    Element::Document,
+                    Element::Item,
+                    Element::Item,
+                    Element::InlineCode,
+                ],
+            },
+        ];
+
+        let actual_styles = calc(&ast, &None);
+
+        assert_eq!(actual_styles, expected_styles);
     }
 }

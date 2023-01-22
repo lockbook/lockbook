@@ -117,17 +117,69 @@ impl Ast {
     }
 
     pub fn print(&self, raw: &str) {
-        Self::print_recursive(self, self.root, raw, 0);
+        Self::print_recursive(self, self.root, raw, "");
     }
 
-    fn print_recursive(ast: &Ast, node: usize, raw: &str, nest: usize) {
-        let node = &ast.nodes[node];
-        let indent = "->".repeat(nest);
-        println!("{indent}element: {:?}", node.element);
-        println!("{indent}range: {:?}", &raw[node.range.start.0..node.range.end.0]);
+    fn print_recursive(ast: &Ast, node_idx: usize, raw: &str, prefix: &str) {
+        let node = &ast.nodes[node_idx];
+        let prefix = format!("{}[{:?} {:?}]", prefix, node_idx, node.element);
 
-        for &child in &node.children {
-            Self::print_recursive(ast, child, raw, nest + 1);
+        if node.children.is_empty() {
+            println!(
+                "{}: {:?}..{:?} ({:?})",
+                prefix,
+                node.range.start.0,
+                node.range.end.0,
+                &raw[node.range.start.0..node.range.end.0]
+            );
+        } else {
+            let head_range =
+                Range { start: node.range.start.0, end: ast.nodes[node.children[0]].range.start.0 };
+            if !head_range.is_empty() {
+                println!(
+                    "{}: {:?}..{:?} ({:?})",
+                    prefix,
+                    head_range.start,
+                    head_range.end,
+                    &raw[head_range.start..head_range.end]
+                );
+            }
+            for child_idx in 0..node.children.len() {
+                let child = node.children[child_idx];
+                Self::print_recursive(ast, child, raw, &prefix);
+                if child_idx != node.children.len() - 1 {
+                    let next_child = node.children[child_idx + 1];
+                    let mid_range = Range {
+                        start: ast.nodes[child].range.end.0,
+                        end: ast.nodes[next_child].range.start.0,
+                    };
+                    if !mid_range.is_empty() {
+                        println!(
+                            "{}: {:?}..{:?} ({:?})",
+                            prefix,
+                            mid_range.start,
+                            mid_range.end,
+                            &raw[mid_range.start..mid_range.end]
+                        );
+                    }
+                }
+            }
+            let tail_range = Range {
+                start: ast.nodes[node.children[node.children.len() - 1]]
+                    .range
+                    .end
+                    .0,
+                end: node.range.end.0,
+            };
+            if !tail_range.is_empty() {
+                println!(
+                    "{}: {:?}..{:?} ({:?})",
+                    prefix,
+                    tail_range.start,
+                    tail_range.end,
+                    &raw[tail_range.start..tail_range.end]
+                );
+            }
         }
     }
 }

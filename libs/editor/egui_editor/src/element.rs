@@ -28,21 +28,6 @@ pub enum Element {
 }
 
 impl Element {
-    pub fn is_block(&self) -> bool {
-        use Element::*;
-        match self {
-            Heading(_) | Paragraph | QuoteBlock | CodeBlock | Item => true,
-            Document
-            | InlineCode
-            | Strong
-            | Emphasis
-            | Strikethrough
-            | Link(_, _, _)
-            | Image(_, _, _)
-            | Selection => false,
-        }
-    }
-
     /// note: Not all tags supported, also see `Event`
     pub fn from_tag(tag: Tag) -> Option<Self> {
         match tag {
