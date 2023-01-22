@@ -24,11 +24,13 @@ enum Modification<'a> {
 }
 
 /// processes `events` and returns a boolean representing whether text was updated
+#[allow(clippy::too_many_arguments)]
 pub fn process(
-    events: &[Event], layouts: &Layouts, galleys: &Galleys, buffer: &mut Buffer,
+    events: &[Event], layouts: &Layouts, galleys: &Galleys, ui_size: Vec2, buffer: &mut Buffer,
     segs: &mut UnicodeSegs, cursor: &mut Cursor, debug: &mut DebugInfo,
 ) -> bool {
-    let modifications = calc_modifications(events, segs, layouts, galleys, buffer, *cursor);
+    let modifications =
+        calc_modifications(events, segs, layouts, galleys, buffer, *cursor, ui_size);
     apply_modifications(modifications, buffer, segs, cursor, debug)
 }
 
@@ -236,7 +238,7 @@ fn modify_subsequent_cursors(
 
 fn calc_modifications<'a>(
     events: &'a [Event], segs: &UnicodeSegs, layouts: &Layouts, galleys: &Galleys, buffer: &Buffer,
-    cursor: Cursor,
+    cursor: Cursor, ui_size: Vec2,
 ) -> Vec<Modification<'a>> {
     let mut modifications = Vec::new();
     let mut previous_cursor = cursor;
@@ -730,16 +732,19 @@ fn calc_modifications<'a>(
                 pressed: true,
                 modifiers,
             } => {
-                if !modifiers.shift {
-                    // click: end selection
-                    cursor.selection_origin = None;
-                } else {
-                    // shift+click: begin selection
-                    cursor.set_selection_origin();
+                // do not process scrollbar clicks
+                if pos.x <= ui_size.x {
+                    if !modifiers.shift {
+                        // click: end selection
+                        cursor.selection_origin = None;
+                    } else {
+                        // shift+click: begin selection
+                        cursor.set_selection_origin();
+                    }
+                    // any click: begin drag; update cursor
+                    cursor.set_click_and_drag_origin();
+                    new_cursor_position = Some(pos);
                 }
-                // any click: begin drag; update cursor
-                cursor.set_click_and_drag_origin();
-                new_cursor_position = Some(pos);
             }
             Event::PointerMoved(pos) => {
                 if cursor.click_and_drag_origin.is_some() {
