@@ -62,6 +62,7 @@ impl Editor {
     }
 
     pub fn ui(&mut self, ui: &mut Ui) {
+        let ui_size = ui.max_rect().size();
         self.debug.frame_start();
 
         // update theme
@@ -101,7 +102,7 @@ impl Editor {
         self.initialized = true;
 
         // draw
-        self.draw_text(ui);
+        self.draw_text(ui_size, ui);
         self.draw_cursor(ui);
         if self.debug.draw_enabled {
             self.draw_debug(ui);

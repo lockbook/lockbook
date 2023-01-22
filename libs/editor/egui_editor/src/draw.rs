@@ -1,16 +1,15 @@
 use crate::appearance::YELLOW;
-use crate::cursor::Cursor;
 use crate::element::{Element, ItemType};
 use crate::layouts::Annotation;
 use crate::Editor;
 use egui::text::LayoutJob;
-use egui::{Align2, Color32, FontId, Pos2, Rect, Rounding, Stroke, Ui, Vec2};
+use egui::{Align2, Color32, FontId, Pos2, Rect, Rounding, Sense, Stroke, Ui, Vec2};
 
 impl Editor {
-    pub fn draw_text(&mut self, ui: &mut Ui) {
+    pub fn draw_text(&mut self, mut ui_size: Vec2, ui: &mut Ui) {
         let bullet_radius = self.appearance.bullet_radius();
         for galley in &self.galleys.galleys {
-            // Draw Annotations
+            // draw annotations
             if let Some(annotation) = &galley.annotation {
                 match annotation {
                     Annotation::Item(item_type, indent_level) => match item_type {
@@ -64,10 +63,20 @@ impl Editor {
                 }
             }
 
-            // Draw Text
+            // draw text
             ui.painter()
                 .galley(galley.text_location, galley.galley.clone());
         }
+
+        // draw end-of-text padding
+        ui_size.y -= self.galleys.galleys[self.galleys.len() - 1]
+            .galley
+            .rect
+            .size()
+            .y;
+        let (padding_rect, _) = ui.allocate_exact_size(ui_size, Sense::click_and_drag());
+        ui.painter()
+            .rect(padding_rect, Rounding::none(), Color32::TRANSPARENT, Stroke::none());
     }
 
     pub fn draw_cursor(&mut self, ui: &mut Ui) {
