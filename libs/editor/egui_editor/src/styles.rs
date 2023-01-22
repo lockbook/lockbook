@@ -100,18 +100,12 @@ fn calc_recursive(
         let node = &ast.nodes[node_idx];
         let child = &ast.nodes[child_idx];
         if let Some(&next_idx) = node.children.get(index + 1) {
-            let next = &ast.nodes[next_idx];
-            let range = Range { start: child.range.end, end: next.range.start };
-            // only collect if non empty & not between items
-            // todo: this may not be needed anymore because of `look_back_whitespace(...)`
-            if !(range.is_empty()
-                || child.element == Element::Item && next.element == Element::Item)
-            {
-                let style = StyleInfo {
-                    block_start: children_start_blocks || (should_start_block && !did_start_block),
-                    range,
-                    elements: elements.clone(),
-                };
+            let style = StyleInfo {
+                block_start: children_start_blocks || (should_start_block && !did_start_block),
+                range: Range { start: child.range.end, end: ast.nodes[next_idx].range.start },
+                elements: elements.clone(),
+            };
+            if !style.range.is_empty() {
                 if style.block_start {
                     did_start_block = true;
                 }
@@ -260,6 +254,53 @@ mod test {
                     Element::Item,
                     Element::InlineCode,
                 ],
+            },
+        ];
+
+        let actual_styles = calc(&ast, &None);
+
+        assert_eq!(actual_styles, expected_styles);
+    }
+
+    #[test]
+    fn calc_bullets_with_intervening_newline() {
+        let nodes = vec![
+            AstNode {
+                element: Element::Document,
+                range: 0.into()..12.into(),
+                children: vec![1, 3],
+            },
+            AstNode { element: Element::Item, range: 0.into()..6.into(), children: vec![2] },
+            AstNode { element: Element::Paragraph, range: 2.into()..6.into(), children: vec![] },
+            AstNode { element: Element::Item, range: 7.into()..12.into(), children: vec![4] },
+            AstNode { element: Element::Paragraph, range: 9.into()..12.into(), children: vec![] },
+        ];
+        let ast = Ast { nodes, root: 0 };
+        let expected_styles: Vec<StyleInfo> = vec![
+            StyleInfo {
+                block_start: true,
+                range: 0.into()..2.into(),
+                elements: vec![Element::Document, Element::Item],
+            },
+            StyleInfo {
+                block_start: false,
+                range: 2.into()..6.into(),
+                elements: vec![Element::Document, Element::Item, Element::Paragraph],
+            },
+            StyleInfo {
+                block_start: true,
+                range: 6.into()..7.into(),
+                elements: vec![Element::Document],
+            },
+            StyleInfo {
+                block_start: true,
+                range: 7.into()..9.into(),
+                elements: vec![Element::Document, Element::Item],
+            },
+            StyleInfo {
+                block_start: false,
+                range: 9.into()..12.into(),
+                elements: vec![Element::Document, Element::Item, Element::Paragraph],
             },
         ];
 
