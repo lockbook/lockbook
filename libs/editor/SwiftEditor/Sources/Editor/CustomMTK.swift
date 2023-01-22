@@ -1,11 +1,11 @@
 import MetalKit
 import Bridge
 
-class CustomMTK: MTKView  {
+public class CustomMTK: MTKView  {
     
     var trackingArea : NSTrackingArea?
     
-    override func updateTrackingAreas() {
+    public override func updateTrackingAreas() {
         if trackingArea != nil {
             self.removeTrackingArea(trackingArea!)
         }
@@ -26,59 +26,59 @@ class CustomMTK: MTKView  {
         fatalError("init(coder:) has not been implemented")
     }
     
-    override var acceptsFirstResponder: Bool {
+    public override var acceptsFirstResponder: Bool {
         return true
     }
     
-    override func mouseDragged(with event: NSEvent) {
+    public override func mouseDragged(with event: NSEvent) {
         let local = viewCoordinates(event)
         mouse_moved(editor(), Float(local.x), Float(local.y))
         setNeedsDisplay(self.frame)
     }
     
-    override func mouseMoved(with event: NSEvent) {
+    public override func mouseMoved(with event: NSEvent) {
         let local = viewCoordinates(event)
         mouse_moved(editor(), Float(local.x), Float(local.y))
         setNeedsDisplay(self.frame)
     }
     
-    override func mouseDown(with event: NSEvent) {
+    public override func mouseDown(with event: NSEvent) {
         let local = viewCoordinates(event)
         mouse_button(editor(), Float(local.x), Float(local.y), true, true)
         setNeedsDisplay(self.frame)
     }
     
-    override func mouseUp(with event: NSEvent) {
+    public override func mouseUp(with event: NSEvent) {
         let local = viewCoordinates(event)
         mouse_button(editor(), Float(local.x), Float(local.y), false, true)
         setNeedsDisplay(self.frame)
     }
     
-    override func rightMouseDown(with event: NSEvent) {
+    public override func rightMouseDown(with event: NSEvent) {
         let local = viewCoordinates(event)
         mouse_button(editor(), Float(local.x), Float(local.y), true, false)
         setNeedsDisplay(self.frame)
     }
     
-    override func rightMouseUp(with event: NSEvent) {
+    public override func rightMouseUp(with event: NSEvent) {
         let local = viewCoordinates(event)
         mouse_button(editor(), Float(local.x), Float(local.y), false, false)
         setNeedsDisplay(self.frame)
     }
     
     
-    override func scrollWheel(with event: NSEvent) {
+    public override func scrollWheel(with event: NSEvent) {
         scroll_wheel(editor(), Float(event.scrollingDeltaY))
         setNeedsDisplay(self.frame)
     }
     
-    override func keyDown(with event: NSEvent) {
+    public  override func keyDown(with event: NSEvent) {
         print("down \(event.keyCode), \(event.modifierFlags), \(event.characters)")
         key_event(editor(), event.keyCode, event.modifierFlags.contains(.shift), event.modifierFlags.contains(.control), event.modifierFlags.contains(.option), event.modifierFlags.contains(.command), true, event.characters)
         setNeedsDisplay(self.frame)
     }
     
-    override func viewDidChangeEffectiveAppearance() {
+    public override func viewDidChangeEffectiveAppearance() {
         dark_mode(editor(), isDarkMode())
         setNeedsDisplay(self.frame)
     }
@@ -88,7 +88,7 @@ class CustomMTK: MTKView  {
         return self.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
     }
     
-    override func keyUp(with event: NSEvent) {
+    public override func keyUp(with event: NSEvent) {
         key_event(editor(), event.keyCode, event.modifierFlags.contains(.shift), event.modifierFlags.contains(.control), event.modifierFlags.contains(.option), event.modifierFlags.contains(.command), false, event.characters)
         delegate().maybeDirty()
         setNeedsDisplay(self.frame)
@@ -110,22 +110,22 @@ class CustomMTK: MTKView  {
 }
 
 public protocol TextLoader {
-    func initialText() -> String
+    func textReloadNeeded() -> Bool
+    func textReloaded()
+    func loadText() -> String
     func documentChanged(s: String)
 }
 
-class FrameManager: NSObject, MTKViewDelegate {
+public class FrameManager: NSObject, MTKViewDelegate {
     var editorHandle: UnsafeMutableRawPointer
     var loader: TextLoader
     var parent: CustomMTK
-    var metalDevice: MTLDevice!
-    var metalCommandQueue: MTLCommandQueue!
     
-    init(_ parent: CustomMTK, _ loader: TextLoader) {
+    public init(_ parent: CustomMTK, _ loader: TextLoader) {
         self.parent = parent
         self.loader = loader
         let metalLayer = UnsafeMutableRawPointer(Unmanaged.passRetained(self.parent.layer!).toOpaque())
-        self.editorHandle = init_editor(metalLayer, self.loader.initialText())
+        self.editorHandle = init_editor(metalLayer, self.loader.loadText())
         
         super.init()
     }
@@ -134,13 +134,21 @@ class FrameManager: NSObject, MTKViewDelegate {
         deinit_editor(editorHandle)
     }
     
-    func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {
+    public func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {
         let scale = self.parent.window?.backingScaleFactor ?? 1.0
         print(Float(size.width), Float(size.height), Float(scale))
         resize_editor(editorHandle, Float(size.width), Float(size.height), Float(scale))
     }
     
-    func draw(in view: MTKView) {
+    func reloadText() {
+        let text = self.loader.loadText()
+        set_text(editorHandle, text)
+        self.parent.setNeedsDisplay(self.parent.frame)
+        print("called new text \(text)")
+        self.loader.textReloaded()
+    }
+    
+    public func draw(in view: MTKView) {
         let scale = Float(self.parent.window?.backingScaleFactor ?? 1.0)
         set_scale(editorHandle, scale)
         draw_editor(editorHandle)

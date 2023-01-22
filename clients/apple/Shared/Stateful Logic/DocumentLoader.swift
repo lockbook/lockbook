@@ -15,7 +15,16 @@ public enum ViewType {
 }
 
 class DocumentLoader: ObservableObject, TextLoader {
-    func initialText() -> String {
+    func textReloadNeeded() -> Bool {
+        self.reloadContent
+    }
+    
+    func textReloaded() {
+        self.reloadContent = false
+        print("reload false")
+    }
+    
+    func loadText() -> String {
         self.textDocument!
     }
     
@@ -63,7 +72,7 @@ class DocumentLoader: ObservableObject, TextLoader {
 
         switch type {
         case .Markdown:
-            loadText()
+            loadMarkdown()
             #if os(iOS)
         case .Drawing:
             loadDrawing()
@@ -89,6 +98,7 @@ class DocumentLoader: ObservableObject, TextLoader {
                         switch operation {
                         case .success(let txt):
                             if txt != self.textDocument {
+                                print("reload true")
                                 self.reloadContent = true
                                 self.textDocument = txt
                             }
@@ -135,7 +145,7 @@ class DocumentLoader: ObservableObject, TextLoader {
                 .store(in: &cancellables)
     }
 
-    private func loadText() {
+    private func loadMarkdown() {
         if let meta = self.meta {
 
             DispatchQueue.global(qos: .userInitiated).async {

@@ -115,6 +115,11 @@ impl Editor {
         }
     }
 
+    pub fn set_text(&mut self, new_text: String) {
+        self.buffer.raw = new_text;
+        self.initialized = false;
+    }
+
     pub fn set_font(&self, ctx: &Context) {
         let mut fonts = FontDefinitions::default();
 
