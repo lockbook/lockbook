@@ -54,7 +54,8 @@ pub unsafe extern "C" fn init_editor(
 #[no_mangle]
 pub unsafe extern "C" fn set_text(obj: *mut c_void, content: *const c_char) {
     let obj = unsafe { &mut *(obj as *mut WgpuEditor) };
-    obj.editor.set_text(CStr::from_ptr(content).to_str().unwrap().into());
+    obj.editor
+        .set_text(CStr::from_ptr(content).to_str().unwrap().into());
 }
 
 #[no_mangle]

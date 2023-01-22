@@ -3,7 +3,6 @@ import SwiftLockbookCore
 import Combine
 import PencilKit
 import SwiftUI
-import SwiftEditor
 
 public enum ViewType {
     case Markdown
@@ -14,23 +13,7 @@ public enum ViewType {
     case Unknown
 }
 
-class DocumentLoader: ObservableObject, TextLoader {
-    func textReloadNeeded() -> Bool {
-        self.reloadContent
-    }
-    
-    func textReloaded() {
-        self.reloadContent = false
-        print("reload false")
-    }
-    
-    func loadText() -> String {
-        self.textDocument!
-    }
-    
-    func documentChanged(s: String) {
-        self.textDocument = s
-    }
+class DocumentLoader: ObservableObject {
     
     let core: LockbookApi
 
@@ -266,3 +249,25 @@ class DocumentLoader: ObservableObject, TextLoader {
         }
     }
 }
+
+#if os(macOS)
+import SwiftEditor
+extension DocumentLoader: TextLoader {
+    func textReloadNeeded() -> Bool {
+        self.reloadContent
+    }
+    
+    func textReloaded() {
+        self.reloadContent = false
+        print("reload false")
+    }
+    
+    func loadText() -> String {
+        self.textDocument!
+    }
+    
+    func documentChanged(s: String) {
+        self.textDocument = s
+    }
+}
+#endif
