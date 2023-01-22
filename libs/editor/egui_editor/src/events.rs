@@ -16,7 +16,7 @@ use unicode_segmentation::UnicodeSegmentation;
 /// represents a modification made as a result of event processing
 #[derive(Debug)]
 enum Modification<'a> {
-    Cursor { cur: Cursor },       // modify the cursor state
+    Cursor { cursor: Cursor },    // modify the cursor state
     Insert { text: &'a str },     // insert text at cursor location
     InsertOwned { text: String }, // insert text at cursor location
     Delete(RelCharOffset),        // delete selection or characters before cursor
@@ -43,7 +43,7 @@ fn apply_modifications(
     while let Some(modification) = modifications.pop() {
         // todo: reduce duplication
         match modification {
-            Modification::Cursor { cur } => {
+            Modification::Cursor { cursor: cur } => {
                 cur_cursor = cur;
             }
             Modification::Insert { text: text_replacement } => {
@@ -118,17 +118,16 @@ fn modify_subsequent_cursors(
     let text_replacement_len =
         UnicodeSegmentation::grapheme_indices(text_replacement, true).count();
 
-    for mod_cursor in
-        modifications
-            .iter_mut()
-            .filter_map(|modification| {
-                if let Modification::Cursor { cur } = modification {
-                    Some(cur)
-                } else {
-                    None
-                }
-            })
-            .chain(iter::once(cur_cursor))
+    for mod_cursor in modifications
+        .iter_mut()
+        .filter_map(|modification| {
+            if let Modification::Cursor { cursor: cur } = modification {
+                Some(cur)
+            } else {
+                None
+            }
+        })
+        .chain(iter::once(cur_cursor))
     {
         // adjust subsequent cursor selections; no part of a cursor shall appear inside
         // text that was not rendered when the cursor was placed (though a selection may
@@ -245,7 +244,7 @@ fn calc_modifications<'a>(
 
     cursor.fix(false, segs, galleys);
     if cursor != previous_cursor {
-        modifications.push(Modification::Cursor { cur: cursor });
+        modifications.push(Modification::Cursor { cursor });
         previous_cursor = cursor;
     }
 
@@ -445,43 +444,64 @@ fn calc_modifications<'a>(
 
                 modifications.push(Modification::Insert { text: "\n" });
 
-                // auto-insertion of list items
                 let layout_idx = layouts.layout_at_char(cursor.pos, segs);
                 let layout = &layouts[layout_idx];
                 if segs.char_offset_to_byte(cursor.pos) == layout.range.end - layout.tail_size {
-                    match layout.annotation {
-                        Some(Annotation::Item(ItemType::Bulleted, _)) => {
-                            modifications.push(Modification::InsertOwned {
-                                text: layout.head(buffer).to_string(),
-                            });
-                        }
-                        Some(Annotation::Item(ItemType::Numbered(cur_number), indent_level)) => {
-                            let head = layout.head(buffer);
-                            let text = head[0..head.len() - (cur_number).to_string().len() - 2]
-                                .to_string()
-                                + &(cur_number + 1).to_string()
-                                + ". ";
-                            modifications.push(Modification::InsertOwned { text });
-
-                            modifications.extend(increment_numbered_list_items(
-                                layout_idx,
+                    // empty list item -> delete current annotation
+                    if layout.size() - layout.head_size - layout.tail_size == 0 {
+                        modifications.push(Modification::Cursor {
+                            cursor: Cursor {
+                                pos: segs
+                                    .byte_offset_to_char(layout.range.start + layout.head_size),
+                                selection_origin: Some(
+                                    segs.byte_offset_to_char(layout.range.start),
+                                ),
+                                ..Default::default()
+                            },
+                        });
+                        modifications.push(Modification::Delete(0.into()));
+                        modifications.push(Modification::Cursor { cursor });
+                        modifications.push(Modification::Insert { text: "\n" });
+                    }
+                    // nonempty list item -> insert new list item
+                    else {
+                        match layout.annotation {
+                            Some(Annotation::Item(ItemType::Bulleted, _)) => {
+                                modifications.push(Modification::InsertOwned {
+                                    text: layout.head(buffer).to_string(),
+                                });
+                            }
+                            Some(Annotation::Item(
+                                ItemType::Numbered(cur_number),
                                 indent_level,
-                                1,
-                                false,
-                                segs,
-                                layouts,
-                                buffer,
-                                cursor,
-                            ));
+                            )) => {
+                                let head = layout.head(buffer);
+                                let text = head[0..head.len() - (cur_number).to_string().len() - 2]
+                                    .to_string()
+                                    + &(cur_number + 1).to_string()
+                                    + ". ";
+                                modifications.push(Modification::InsertOwned { text });
+
+                                modifications.extend(increment_numbered_list_items(
+                                    layout_idx,
+                                    indent_level,
+                                    1,
+                                    false,
+                                    segs,
+                                    layouts,
+                                    buffer,
+                                    cursor,
+                                ));
+                            }
+                            Some(Annotation::Item(ItemType::Todo(_), _)) => {
+                                let head = layout.head(buffer);
+                                let text = head[0..head.len() - 4].to_string() + "- [ ]";
+                                modifications.push(Modification::InsertOwned { text });
+                            }
+                            Some(Annotation::Image(_, _, _)) => {}
+                            Some(Annotation::Rule) => {}
+                            None => {}
                         }
-                        Some(Annotation::Item(ItemType::Todo(_), _)) => {
-                            let head = layout.head(buffer);
-                            let text = head[0..head.len() - 4].to_string() + "- [ ]";
-                            modifications.push(Modification::InsertOwned { text });
-                        }
-                        Some(Annotation::Image(_, _, _)) => {}
-                        Some(Annotation::Rule) => {}
-                        None => {}
                     }
                 }
 
@@ -530,7 +550,7 @@ fn calc_modifications<'a>(
                                 if can_deindent {
                                     // de-indentation: select text, delete selection, restore cursor
                                     modifications.push(Modification::Cursor {
-                                        cur: Cursor {
+                                        cursor: Cursor {
                                             pos: segs.byte_offset_to_char(
                                                 layout.range.start + indent_seq.len(),
                                             ),
@@ -541,7 +561,7 @@ fn calc_modifications<'a>(
                                         },
                                     });
                                     modifications.push(Modification::Delete(0.into()));
-                                    modifications.push(Modification::Cursor { cur: cursor });
+                                    modifications.push(Modification::Cursor { cursor });
 
                                     indent_level - 1
                                 } else {
@@ -569,7 +589,7 @@ fn calc_modifications<'a>(
                                 if can_indent {
                                     // indentation: set cursor to galley start, insert indentation sequence, restore cursor
                                     modifications.push(Modification::Cursor {
-                                        cur: Cursor {
+                                        cursor: Cursor {
                                             pos: segs.byte_offset_to_char(layout.range.start),
                                             ..Default::default()
                                         },
@@ -577,7 +597,7 @@ fn calc_modifications<'a>(
                                     modifications.push(Modification::InsertOwned {
                                         text: indent_seq.to_string(),
                                     });
-                                    modifications.push(Modification::Cursor { cur: cursor });
+                                    modifications.push(Modification::Cursor { cursor });
 
                                     indent_level + 1
                                 } else {
@@ -621,7 +641,7 @@ fn calc_modifications<'a>(
 
                                     // replace cur_number with new_number in head
                                     modifications.push(Modification::Cursor {
-                                        cur: Cursor {
+                                        cursor: Cursor {
                                             pos: segs.byte_offset_to_char(
                                                 layout.range.start + layout.head_size
                                                     - (cur_number).to_string().len()
@@ -636,7 +656,7 @@ fn calc_modifications<'a>(
                                     modifications.push(Modification::InsertOwned {
                                         text: new_number.to_string() + ". ",
                                     });
-                                    modifications.push(Modification::Cursor { cur: cursor });
+                                    modifications.push(Modification::Cursor { cursor });
 
                                     if modifiers.shift {
                                         // decrement numbers in old list by this item's old number
@@ -764,7 +784,7 @@ fn calc_modifications<'a>(
         }
 
         if cursor != previous_cursor {
-            modifications.push(Modification::Cursor { cur: cursor });
+            modifications.push(Modification::Cursor { cursor });
             previous_cursor = cursor;
         }
     }
@@ -799,7 +819,7 @@ fn increment_numbered_list_items<'a>(
                 Ordering::Equal => {
                     // replace cur_number with next_number in head
                     modifications.push(Modification::Cursor {
-                        cur: Cursor {
+                        cursor: Cursor {
                             pos: segs.byte_offset_to_char(layout.range.start + layout.head_size),
                             selection_origin: Some(segs.byte_offset_to_char(layout.range.start)),
                             ..Default::default()
@@ -811,7 +831,7 @@ fn increment_numbered_list_items<'a>(
                             .to_string()
                         + ". ";
                     modifications.push(Modification::InsertOwned { text });
-                    modifications.push(Modification::Cursor { cur: cursor });
+                    modifications.push(Modification::Cursor { cursor });
                 }
             }
         } else {
@@ -950,7 +970,7 @@ mod test {
             let modifications = vec![
                 Modification::Insert { text: "a" },
                 Modification::Cursor {
-                    cur: Cursor {
+                    cursor: Cursor {
                         pos: case.cursor_b.0.into(),
                         x_target: None,
                         selection_origin: Some(case.cursor_b.1.into()),

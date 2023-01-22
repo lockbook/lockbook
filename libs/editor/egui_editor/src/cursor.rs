@@ -37,6 +37,17 @@ impl From<usize> for Cursor {
     }
 }
 
+impl From<(usize, usize)> for Cursor {
+    fn from(value: (usize, usize)) -> Self {
+        Self {
+            pos: DocCharOffset(value.1),
+            x_target: None,
+            selection_origin: Some(DocCharOffset(value.0)),
+            click_and_drag_origin: None,
+        }
+    }
+}
+
 impl Cursor {
     /// sets `x_target` to match the position of `cursor` in `galley` if there isn't already an
     /// `x_target`
