@@ -23,11 +23,11 @@ enum Modification<'a> {
     DebugToggle,                  // toggle debug overlay
 }
 
-/// processes `events` and returns a boolean pair representing (text_updated, selection_updated)
+/// processes `events` and returns a boolean representing whether text was updated
 pub fn process(
     events: &[Event], layouts: &Layouts, galleys: &Galleys, buffer: &mut Buffer,
     segs: &mut UnicodeSegs, cursor: &mut Cursor, debug: &mut DebugInfo,
-) -> (bool, bool) {
+) -> bool {
     let modifications = calc_modifications(events, segs, layouts, galleys, buffer, *cursor);
     apply_modifications(modifications, buffer, segs, cursor, debug)
 }
@@ -35,9 +35,8 @@ pub fn process(
 fn apply_modifications(
     mut modifications: Vec<Modification>, buffer: &mut Buffer, segs: &mut UnicodeSegs,
     cursor: &mut Cursor, debug: &mut DebugInfo,
-) -> (bool, bool) {
+) -> bool {
     let mut text_updated = false;
-    let mut selection_updated = false;
 
     let mut cur_cursor = *cursor;
     modifications.reverse();
@@ -46,7 +45,6 @@ fn apply_modifications(
         match modification {
             Modification::Cursor { cur } => {
                 cur_cursor = cur;
-                selection_updated = true;
             }
             Modification::Insert { text: text_replacement } => {
                 let replaced_text_range = cur_cursor
@@ -109,7 +107,7 @@ fn apply_modifications(
     }
 
     *cursor = cur_cursor;
-    (text_updated, selection_updated)
+    text_updated
 }
 
 fn modify_subsequent_cursors(
@@ -839,14 +837,13 @@ mod test {
 
         let modifications = Default::default();
 
-        let (text_updated, selection_updated) =
+        let text_updated =
             apply_modifications(modifications, &mut buffer, &mut segs, &mut cursor, &mut debug);
 
         assert_eq!(buffer.raw, "");
         assert_eq!(cursor, Default::default());
         assert!(!debug.draw_enabled);
         assert!(!text_updated);
-        assert!(!selection_updated);
     }
 
     #[test]
@@ -858,14 +855,13 @@ mod test {
 
         let modifications = Default::default();
 
-        let (text_updated, selection_updated) =
+        let text_updated =
             apply_modifications(modifications, &mut buffer, &mut segs, &mut cursor, &mut debug);
 
         assert_eq!(buffer.raw, "document content");
         assert_eq!(cursor, 9.into());
         assert!(!debug.draw_enabled);
         assert!(!text_updated);
-        assert!(!selection_updated);
     }
 
     #[test]
@@ -877,14 +873,13 @@ mod test {
 
         let modifications = vec![Modification::Insert { text: "new " }];
 
-        let (text_updated, selection_updated) =
+        let text_updated =
             apply_modifications(modifications, &mut buffer, &mut segs, &mut cursor, &mut debug);
 
         assert_eq!(buffer.raw, "document new content");
         assert_eq!(cursor, 13.into());
         assert!(!debug.draw_enabled);
         assert!(text_updated);
-        assert!(!selection_updated);
     }
 
     #[test]
@@ -965,7 +960,7 @@ mod test {
                 Modification::Insert { text: "b" },
             ];
 
-            let (text_updated, selection_updated) =
+            let text_updated =
                 apply_modifications(modifications, &mut buffer, &mut segs, &mut cursor, &mut debug);
 
             assert_eq!(buffer.raw, case.expected_buffer);
@@ -973,7 +968,6 @@ mod test {
             assert_eq!(cursor.selection_origin, Some(case.expected_cursor.1.into()));
             assert!(!debug.draw_enabled);
             assert!(text_updated);
-            assert!(selection_updated);
         }
     }
 }

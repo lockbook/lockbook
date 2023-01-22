@@ -70,7 +70,8 @@ impl Editor {
         // process events
         let (text_updated, cursor_pos_updated, selection_updated) = if self.initialized {
             let prior_cursor_pos = self.cursor.pos;
-            let (text_updated, selection_updated) = events::process(
+            let prior_selection = self.cursor.selection();
+            let text_updated = events::process(
                 &ui.ctx().input().events,
                 &self.layouts,
                 &self.galleys,
@@ -80,6 +81,7 @@ impl Editor {
                 &mut self.debug,
             );
             let cursor_pos_updated = self.cursor.pos != prior_cursor_pos;
+            let selection_updated = self.cursor.selection() != prior_selection;
             (text_updated, cursor_pos_updated, selection_updated)
         } else {
             self.segs = unicode_segs::calc(&self.buffer);
