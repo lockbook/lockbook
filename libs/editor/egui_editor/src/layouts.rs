@@ -160,17 +160,47 @@ impl LayoutJobInfo {
                 head_size = RelByteOffset(text.len() - trimmed_text.len());
                 trimmed_text
             };
+
+            // capture bulleted list annotation
             if text.starts_with("+ ") || text.starts_with("* ") || text.starts_with("- ") {
                 annotation = Some(Annotation::Item(ItemType::Bulleted, indent_level));
                 head_size += 2;
-            } else if let Some(prefix) = text.split(". ").next() {
+            }
+            // capture numbered list annotation
+            else if let Some(prefix) = text.split(". ").next() {
                 if let Ok(num) = prefix.parse::<usize>() {
                     annotation = Some(Annotation::Item(ItemType::Numbered(num), indent_level));
                     head_size += prefix.len() + 2;
                 }
             }
-        } else if style.elements.contains(&Element::Heading(HeadingLevel::H1)) {
-            annotation = Some(Annotation::Rule);
+        } else if let Some(heading_element) = style
+            .elements
+            .iter()
+            .filter_map(|e| {
+                if let Element::Heading(heading_level) = e {
+                    Some(heading_level)
+                } else {
+                    None
+                }
+            })
+            .next()
+        {
+            match heading_element {
+                HeadingLevel::H1 => {
+                    annotation = Some(Annotation::Rule);
+                    head_size += 1
+                }
+                HeadingLevel::H2 => head_size += 2,
+                HeadingLevel::H3 => head_size += 3,
+                HeadingLevel::H4 => head_size += 4,
+                HeadingLevel::H5 => head_size += 5,
+                HeadingLevel::H6 => head_size += 6,
+            }
+            if text.starts_with(&("#".repeat(head_size.0) + " ")) {
+                head_size += 1;
+            } else {
+                head_size = 0.into();
+            }
         }
 
         (annotation, head_size, Self::tail_size(style, src, absorb_terminal_nl))
