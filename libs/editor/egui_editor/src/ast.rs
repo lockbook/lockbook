@@ -43,6 +43,7 @@ impl Ast {
                     if let Some(new_child) = Element::from_tag(new_child) {
                         if new_child == Element::Item {
                             range.start -= Self::look_back_whitespace(raw, range.start);
+                            range.end -= Self::look_back_newlines(raw, range.end);
                         }
                         if new_child == Element::CodeBlock {
                             range.end +=
@@ -76,21 +77,16 @@ impl Ast {
         new_child_idx
     }
 
-    fn look_back_whitespace(s: &str, index: DocByteOffset) -> usize {
-        if index == 0 {
-            return 0;
-        }
-
+    // capture this many spaces or tabs from before a list item
+    fn look_back_whitespace(raw: &str, start: DocByteOffset) -> usize {
         let mut modification = 0;
         loop {
-            let location = index - (modification + 1);
-            let range = Range { start: location, end: location + 1 };
-
-            if location + 1 > s.len() - 1 {
+            if start < modification + 1 {
                 break;
             }
+            let location = start - (modification + 1);
 
-            let white_maybe = &s[range.start.0..range.end.0];
+            let white_maybe = &raw[location.0..location.0 + 1];
             if white_maybe == " " || white_maybe == "\t" {
                 modification += 1;
             } else {
@@ -100,16 +96,39 @@ impl Ast {
         modification
     }
 
-    fn capture_codeblock_newline(s: &str, start: DocByteOffset, end: DocByteOffset) -> usize {
-        if s.len() < end.0 + 1 {
+    // release this many newlines from the end of a list item
+    fn look_back_newlines(raw: &str, end: DocByteOffset) -> usize {
+        let mut modification = 0;
+        loop {
+            if end < modification + 1 {
+                break;
+            }
+            let location = end - (modification + 1);
+
+            let maybe_newline = &raw[location.0..location.0 + 1];
+            if maybe_newline == "\n" {
+                modification += 1;
+            } else {
+                break;
+            }
+        }
+
+        // leave up to one newline
+        modification = modification.saturating_sub(1);
+
+        modification
+    }
+
+    fn capture_codeblock_newline(raw: &str, start: DocByteOffset, end: DocByteOffset) -> usize {
+        if raw.len() < end.0 + 1 {
             return 0;
         }
 
-        if &s[start.0..start.0 + 1] != "`" {
+        if &raw[start.0..start.0 + 1] != "`" {
             return 0;
         }
 
-        if &s[end.0..end.0 + 1] == "\n" {
+        if &raw[end.0..end.0 + 1] == "\n" {
             return 1;
         }
 
