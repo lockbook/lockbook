@@ -447,24 +447,25 @@ fn calc_modifications<'a>(
                 let layout_idx = layouts.layout_at_char(cursor.pos, segs);
                 let layout = &layouts[layout_idx];
                 if segs.char_offset_to_byte(cursor.pos) == layout.range.end - layout.tail_size {
-                    // empty list item -> delete current annotation
-                    if layout.size() - layout.head_size - layout.tail_size == 0 {
-                        modifications.push(Modification::Cursor {
-                            cursor: Cursor {
-                                pos: segs
-                                    .byte_offset_to_char(layout.range.start + layout.head_size),
-                                selection_origin: Some(
-                                    segs.byte_offset_to_char(layout.range.start),
-                                ),
-                                ..Default::default()
-                            },
-                        });
-                        modifications.push(Modification::Delete(0.into()));
-                        modifications.push(Modification::Cursor { cursor });
-                        modifications.push(Modification::Insert { text: "\n" });
-                    }
-                    // nonempty list item -> insert new list item
-                    else {
+                    if matches!(layout.annotation, Some(Annotation::Item(..))) {
+                        // empty list item -> delete current annotation
+                        if layout.size() - layout.head_size - layout.tail_size == 0 {
+                            modifications.push(Modification::Cursor {
+                                cursor: Cursor {
+                                    pos: segs
+                                        .byte_offset_to_char(layout.range.start + layout.head_size),
+                                    selection_origin: Some(
+                                        segs.byte_offset_to_char(layout.range.start),
+                                    ),
+                                    ..Default::default()
+                                },
+                            });
+                            modifications.push(Modification::Delete(0.into()));
+                            modifications.push(Modification::Cursor { cursor });
+                            modifications.push(Modification::Insert { text: "\n" });
+                        }
+                    } else {
+                        // nonempty list item -> insert new list item
                         match layout.annotation {
                             Some(Annotation::Item(ItemType::Bulleted, _)) => {
                                 modifications.push(Modification::InsertOwned {
