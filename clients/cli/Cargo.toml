@@ -1,7 +1,7 @@
 [package]
 name = "lockbook-cli"
 version = "0.5.10"
-edition = "2018"
+edition = "2021"
 
 [[bin]]
 name = "lockbook"

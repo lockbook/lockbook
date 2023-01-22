@@ -103,3 +103,8 @@ lockbook-server.prod
 lockbook-server
 
 !docs/guides/build
+
+libs/editor/SwiftEditor/Libs/
+libs/editor/egui_editor/include
+
+clients/apple/lockbook.xcworkspace/xcshareddata/swiftpm/Package.resolved
