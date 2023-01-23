@@ -9,7 +9,7 @@ use crate::styles::StyleInfo;
 use crate::test_input::TEST_MARKDOWN;
 use crate::unicode_segs::UnicodeSegs;
 use crate::{ast, events, galleys, layouts, register_fonts, styles, unicode_segs};
-use egui::{FontDefinitions, Context, Ui, Vec2};
+use egui::{Context, FontDefinitions, Ui, Vec2};
 
 pub struct Editor {
     pub initialized: bool,
