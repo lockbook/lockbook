@@ -732,7 +732,15 @@ fn calc_modifications<'a>(
                 if modifiers.command {
                     modifications.push(Modification::ToClipboard {
                         text: cursor.selection_text(buffer, segs).to_string(),
-                    })
+                    });
+                }
+            }
+            Event::Key { key: Key::X, pressed: true, modifiers } => {
+                if modifiers.command {
+                    modifications.push(Modification::ToClipboard {
+                        text: cursor.selection_text(buffer, segs).to_string(),
+                    });
+                    modifications.push(Modification::Delete(0.into()));
                 }
             }
             Event::Key { key: Key::F2, pressed: true, modifiers: _modifiers } => {
