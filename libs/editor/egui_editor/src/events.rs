@@ -407,7 +407,7 @@ fn calc_modifications<'a>(
 
                 cursor.selection_origin = None;
             }
-            Event::Key { key: Key::Backspace, pressed: true, modifiers: _modifiers } => {
+            Event::Key { key: Key::Backspace, pressed: true, modifiers } => {
                 cursor.x_target = None;
 
                 let layout_idx = layouts.layout_at_char(cursor.pos, segs);
@@ -435,6 +435,38 @@ fn calc_modifications<'a>(
                         ));
                     }
                 } else {
+                    if modifiers.command {
+                        // select line
+                        let (galley_idx, cur_cursor) =
+                            galleys.galley_and_cursor_by_char_offset(cursor.pos, segs);
+                        let galley = &galleys[galley_idx];
+                        let begin_of_row_cursor = galley.galley.cursor_begin_of_row(&cur_cursor);
+                        let end_of_row_cursor = galley.galley.cursor_end_of_row(&cur_cursor);
+                        let begin_of_row_pos = galleys.char_offset_by_galley_and_cursor(
+                            galley_idx,
+                            &begin_of_row_cursor,
+                            segs,
+                        );
+                        let end_of_row_pos = galleys.char_offset_by_galley_and_cursor(
+                            galley_idx,
+                            &end_of_row_cursor,
+                            segs,
+                        );
+
+                        modifications.push(Modification::Cursor {
+                            cursor: (begin_of_row_pos, end_of_row_pos).into(),
+                        })
+                    } else if modifiers.alt {
+                        // select word
+                        let end_of_word_pos = cursor.pos;
+                        cursor.advance_word(true, buffer, segs, galleys);
+                        let begin_of_word_pos = cursor.pos;
+
+                        modifications.push(Modification::Cursor {
+                            cursor: (begin_of_word_pos, end_of_word_pos).into(),
+                        })
+                    }
+
                     // delete selected text or one character
                     modifications.push(Modification::Delete(1.into()));
                 }
