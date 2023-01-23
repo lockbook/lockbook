@@ -106,6 +106,15 @@ impl Cursor {
         })
     }
 
+    /// returns the (possibly empty) selected text
+    pub fn selection_text<'b>(&self, buffer: &'b Buffer, segs: &UnicodeSegs) -> &'b str {
+        if let Some(selection_bytes) = self.selection_bytes(segs) {
+            &buffer.raw[selection_bytes.start.0..selection_bytes.end.0]
+        } else {
+            ""
+        }
+    }
+
     /// adjusts cursor so that its absolute x coordinate matches the target (if there is one)
     pub fn move_to_x_target(galley: &GalleyInfo, cursor: EguiCursor, x_target: f32) -> EguiCursor {
         let mut pos_abs = Self::cursor_to_pos_abs(galley, cursor);

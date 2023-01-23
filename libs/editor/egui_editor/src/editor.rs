@@ -72,7 +72,7 @@ impl Editor {
         let (text_updated, cursor_pos_updated, selection_updated) = if self.initialized {
             let prior_cursor_pos = self.cursor.pos;
             let prior_selection = self.cursor.selection();
-            let text_updated = events::process(
+            let (text_updated, maybe_to_clipboard) = events::process(
                 &ui.ctx().input().events,
                 &self.layouts,
                 &self.galleys,
@@ -84,6 +84,11 @@ impl Editor {
             );
             let cursor_pos_updated = self.cursor.pos != prior_cursor_pos;
             let selection_updated = self.cursor.selection() != prior_selection;
+
+            // put cut or copied text in clipboard
+            if let Some(to_clipboard) = maybe_to_clipboard {
+                ui.output().copied_text = to_clipboard;
+            }
             (text_updated, cursor_pos_updated, selection_updated)
         } else {
             self.segs = unicode_segs::calc(&self.buffer);
