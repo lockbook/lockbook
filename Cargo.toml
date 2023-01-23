@@ -10,7 +10,6 @@ members = [
 	"server/server",
 	"clients/cli",
 	"clients/egui",
-	"clients/linux",
 	"clients/admin",
 	"utils/dev-tool",
 	"utils/releaser",
