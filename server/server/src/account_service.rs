@@ -211,30 +211,24 @@ pub async fn admin_list_users(
     for account in db.accounts.get_all()?.values() {
         match &request.filter {
             Some(filter) => match filter {
-                AccountFilter::Premium => {
-                    match account.billing_info.billing_platform {
-                        Some(BillingPlatform::AppStore(_)) if account.billing_info.is_premium() => {
-                            users.push(account.username.clone());
-                        }
-                        _ => {}
+                AccountFilter::Premium => match account.billing_info.billing_platform {
+                    Some(BillingPlatform::AppStore(_)) if account.billing_info.is_premium() => {
+                        users.push(account.username.clone());
                     }
-                }
-                AccountFilter::StripePremium => {
-                    match account.billing_info.billing_platform {
-                        Some(BillingPlatform::Stripe(_)) if account.billing_info.is_premium() => {
-                            users.push(account.username.clone());
-                        }
-                        _ => {}
+                    _ => {}
+                },
+                AccountFilter::StripePremium => match account.billing_info.billing_platform {
+                    Some(BillingPlatform::Stripe(_)) if account.billing_info.is_premium() => {
+                        users.push(account.username.clone());
                     }
-                }
-                AccountFilter::GooglePlayPremium => {
-                    match account.billing_info.billing_platform {
-                        Some(BillingPlatform::GooglePlay(_)) if account.billing_info.is_premium() => {
-                            users.push(account.username.clone());
-                        }
-                        _ => {}
+                    _ => {}
+                },
+                AccountFilter::GooglePlayPremium => match account.billing_info.billing_platform {
+                    Some(BillingPlatform::GooglePlay(_)) if account.billing_info.is_premium() => {
+                        users.push(account.username.clone());
                     }
-                }
+                    _ => {}
+                },
             },
             None => users.push(account.username.clone()),
         }

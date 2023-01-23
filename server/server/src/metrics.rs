@@ -127,19 +127,18 @@ pub async fn start(state: ServerState) -> Result<(), ServerError<MetricsError>> 
 
             let billing_info = get_user_billing_info(&state.index_db, &owner).await?;
 
-
             if billing_info.is_premium() {
                 premium_users += 1;
 
                 match billing_info.billing_platform {
-                    None => return Err(internal!("Could not retrieve billing platform although it was used moments before.")),
-                    Some(billing_platform) => {
-                        match billing_platform {
-                            BillingPlatform::GooglePlay { .. } => premium_google_play_users += 1,
-                            BillingPlatform::Stripe { .. } => premium_stripe_users += 1,
-                            BillingPlatform::AppStore { .. } => premium_app_store_users += 1,
-                        }
-                    }
+                    None => return Err(internal!(
+                        "Could not retrieve billing platform although it was used moments before."
+                    )),
+                    Some(billing_platform) => match billing_platform {
+                        BillingPlatform::GooglePlay { .. } => premium_google_play_users += 1,
+                        BillingPlatform::Stripe { .. } => premium_stripe_users += 1,
+                        BillingPlatform::AppStore { .. } => premium_app_store_users += 1,
+                    },
                 }
             }
 
