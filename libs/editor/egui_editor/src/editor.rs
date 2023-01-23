@@ -9,7 +9,7 @@ use crate::styles::StyleInfo;
 use crate::test_input::TEST_MARKDOWN;
 use crate::unicode_segs::UnicodeSegs;
 use crate::{ast, events, galleys, layouts, register_fonts, styles, unicode_segs};
-use egui::{Context, Ui, Vec2};
+use egui::{Context, FontDefinitions, Ui, Vec2};
 
 pub struct Editor {
     pub initialized: bool,
@@ -125,6 +125,8 @@ impl Editor {
     }
 
     pub fn set_font(&self, ctx: &Context) {
-        register_fonts(ctx);
+        let mut fonts = FontDefinitions::default();
+        register_fonts(&mut fonts);
+        ctx.set_fonts(fonts);
     }
 }
