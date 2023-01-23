@@ -48,6 +48,12 @@ impl From<(usize, usize)> for Cursor {
     }
 }
 
+impl From<(DocCharOffset, DocCharOffset)> for Cursor {
+    fn from(value: (DocCharOffset, DocCharOffset)) -> Self {
+        Self { pos: value.1, selection_origin: Some(value.0), ..Default::default() }
+    }
+}
+
 impl Cursor {
     /// sets `x_target` to match the position of `cursor` in `galley` if there isn't already an
     /// `x_target`
@@ -61,7 +67,7 @@ impl Cursor {
         }
     }
 
-    /// sets `selection_origin` to match `loc` if there isn't already a `selection_origin`
+    /// sets `selection_origin` to match `pos` if there isn't already a `selection_origin`
     pub fn set_selection_origin(&mut self) -> DocCharOffset {
         if let Some(selection_origin) = self.selection_origin {
             selection_origin
@@ -71,7 +77,7 @@ impl Cursor {
         }
     }
 
-    /// sets `click_and_drag_origin` to match `loc` if there isn't already a `click_and_drag_origin`
+    /// sets `click_and_drag_origin` to match `pos` if there isn't already a `click_and_drag_origin`
     pub fn set_click_and_drag_origin(&mut self) -> DocCharOffset {
         if let Some(click_and_drag_origin) = self.click_and_drag_origin {
             click_and_drag_origin
