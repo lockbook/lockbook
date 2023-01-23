@@ -21,6 +21,7 @@ enum Modification<'a> {
     InsertOwned { text: String }, // insert text at cursor location
     Delete(RelCharOffset),        // delete selection or characters before cursor
     DebugToggle,                  // toggle debug overlay
+    ToClipboard { text: String }, // cut or copy text to clipboard
 }
 
 /// processes `events` and returns a boolean representing whether text was updated
@@ -28,7 +29,7 @@ enum Modification<'a> {
 pub fn process(
     events: &[Event], layouts: &Layouts, galleys: &Galleys, ui_size: Vec2, buffer: &mut Buffer,
     segs: &mut UnicodeSegs, cursor: &mut Cursor, debug: &mut DebugInfo,
-) -> bool {
+) -> (bool, Option<String>) {
     let modifications =
         calc_modifications(events, segs, layouts, galleys, buffer, *cursor, ui_size);
     apply_modifications(modifications, buffer, segs, cursor, debug)
@@ -37,8 +38,9 @@ pub fn process(
 fn apply_modifications(
     mut modifications: Vec<Modification>, buffer: &mut Buffer, segs: &mut UnicodeSegs,
     cursor: &mut Cursor, debug: &mut DebugInfo,
-) -> bool {
+) -> (bool, Option<String>) {
     let mut text_updated = false;
+    let mut to_clipboard = None;
 
     let mut cur_cursor = *cursor;
     modifications.reverse();
@@ -105,11 +107,14 @@ fn apply_modifications(
             Modification::DebugToggle => {
                 debug.draw_enabled = !debug.draw_enabled;
             }
+            Modification::ToClipboard { text } => {
+                to_clipboard = Some(text);
+            }
         }
     }
 
     *cursor = cur_cursor;
-    text_updated
+    (text_updated, to_clipboard.map(|s| s.to_string()))
 }
 
 fn modify_subsequent_cursors(
@@ -723,6 +728,13 @@ fn calc_modifications<'a>(
                     cursor.pos = segs.last_cursor_position();
                 }
             }
+            Event::Key { key: Key::C, pressed: true, modifiers } => {
+                if modifiers.command {
+                    modifications.push(Modification::ToClipboard {
+                        text: cursor.selection_text(buffer, segs).to_string(),
+                    })
+                }
+            }
             Event::Key { key: Key::F2, pressed: true, modifiers: _modifiers } => {
                 modifications.push(Modification::DebugToggle);
             }
@@ -868,7 +880,7 @@ mod test {
 
         let modifications = Default::default();
 
-        let text_updated =
+        let (text_updated, _) =
             apply_modifications(modifications, &mut buffer, &mut segs, &mut cursor, &mut debug);
 
         assert_eq!(buffer.raw, "");
@@ -886,7 +898,7 @@ mod test {
 
         let modifications = Default::default();
 
-        let text_updated =
+        let (text_updated, _) =
             apply_modifications(modifications, &mut buffer, &mut segs, &mut cursor, &mut debug);
 
         assert_eq!(buffer.raw, "document content");
@@ -904,7 +916,7 @@ mod test {
 
         let modifications = vec![Modification::Insert { text: "new " }];
 
-        let text_updated =
+        let (text_updated, _) =
             apply_modifications(modifications, &mut buffer, &mut segs, &mut cursor, &mut debug);
 
         assert_eq!(buffer.raw, "document new content");
@@ -991,7 +1003,7 @@ mod test {
                 Modification::Insert { text: "b" },
             ];
 
-            let text_updated =
+            let (text_updated, _) =
                 apply_modifications(modifications, &mut buffer, &mut segs, &mut cursor, &mut debug);
 
             assert_eq!(buffer.raw, case.expected_buffer);
