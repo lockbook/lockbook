@@ -376,7 +376,7 @@ impl<Client: Requester> CoreLib<Client> {
     pub fn get_most_active_documents(&self) -> Result<Vec<(Uuid, usize)>, Error<GetUsageError>> {
         let val = self
             .db
-            .transaction(|tx| self.context(tx)?.most_active_documents())?;
+            .transaction(|tx| self.context(tx)?.suggested_docs())?;
         Ok(val?)
     }
 
