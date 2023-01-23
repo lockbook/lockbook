@@ -1,5 +1,5 @@
 pub use crate::editor::Editor;
-use egui::{Context, FontData, FontDefinitions, FontFamily, Pos2, Rect};
+use egui::{FontData, FontDefinitions, FontFamily, Pos2, Rect};
 use egui_wgpu_backend::wgpu;
 use std::iter;
 use std::sync::Arc;
@@ -128,9 +128,7 @@ impl WgpuEditor {
     }
 }
 
-pub fn register_fonts(ctx: &Context) {
-    let mut fonts = FontDefinitions::default();
-
+pub fn register_fonts(fonts: &mut FontDefinitions) {
     fonts.font_data.insert(
         "pt_sans".to_string(),
         FontData::from_static(include_bytes!("../fonts/PTSans-Regular.ttf")),
@@ -159,6 +157,4 @@ pub fn register_fonts(ctx: &Context) {
         .get_mut(&FontFamily::Monospace)
         .unwrap()
         .insert(0, "pt_mono".to_string());
-
-    ctx.set_fonts(fonts);
 }
