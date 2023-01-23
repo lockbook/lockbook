@@ -1,6 +1,6 @@
 use crate::CoreError;
+use chrono::{DateTime, Utc};
 use hmdb::transaction::Transaction;
-use lockbook_shared;
 use lockbook_shared::account::Account;
 use lockbook_shared::file_metadata::Owner;
 use lockbook_shared::signed_file::SignedFile;
@@ -23,8 +23,8 @@ hmdb::schema! {
         base_metadata: <Uuid, SignedFile>,
         public_key_by_username: <String, Owner>,
         username_by_public_key: <Owner, String>,
-        read_activity: <Uuid, usize>,
-        write_activity: <Uuid, usize>
+        read_activity: <Uuid, Vec<i64>>,
+        write_activity: <Uuid, Vec<i64>>
     }
 }
 
@@ -32,11 +32,9 @@ impl CoreV3 {
     pub fn init_with_migration(writeable_path: &str) -> Result<CoreV3, CoreError> {
         let db = CoreV3::init(writeable_path)?;
 
-        // migrate metadata from v1
         if db.account.get_all()?.is_empty() {
             let source = CoreV2::init(writeable_path)?;
             db.transaction(|tx| {
-                // copy existing tables (new tables populated on next sync)
                 for v in source.account.get_all()?.into_values() {
                     tx.account.insert(OneKey {}, v);
                 }

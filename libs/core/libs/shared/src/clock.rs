@@ -1,10 +1,11 @@
+use serde::{Deserialize, Serialize};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::crypto::Timestamped;
 
 pub type TimeGetter = fn() -> Timestamp;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Timestamp(pub i64);
 
 pub fn get_time() -> Timestamp {

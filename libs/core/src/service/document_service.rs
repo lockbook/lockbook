@@ -1,5 +1,6 @@
 use crate::{CoreError, RequestContext, Requester};
 use crate::{CoreResult, OneKey};
+use chrono::Utc;
 use lockbook_shared::crypto::DecryptedDocument;
 use lockbook_shared::document_repo;
 use lockbook_shared::file_like::FileLike;
@@ -20,8 +21,9 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
 
         let doc = tree.read_document(self.config, &id, account)?;
 
-        let read_count = *self.tx.read_activity.get(&id).unwrap_or(&1);
-        self.tx.read_activity.insert(id, read_count + 1);
+        let mut read_activity = self.tx.read_activity.get(&id).unwrap_or(&vec![]);
+        read_activity.push(Utc::now().timestamp());
+        self.tx.read_activity.insert(id, *read_activity);
 
         Ok(doc)
     }
@@ -44,8 +46,9 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
         let hmac = tree.find(&id)?.document_hmac();
         document_repo::insert(self.config, &id, hmac, &encrypted_document)?;
 
-        let write_count = *self.tx.write_activity.get(&id).unwrap_or(&1);
-        self.tx.write_activity.insert(id, write_count + 1);
+        let mut write_activity = self.tx.write_activity.get(&id).unwrap_or(&vec![]);
+        write_activity.push(Utc::now().timestamp());
+        self.tx.write_activity.insert(id, *write_activity);
 
         Ok(())
     }
