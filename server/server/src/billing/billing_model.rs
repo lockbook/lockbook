@@ -40,7 +40,7 @@ impl SubscriptionProfile {
         }
     }
 
-    pub fn is_active(&self) -> bool {
+    pub fn is_premium(&self) -> bool {
         self.data_cap() == PREMIUM_TIER_USAGE_SIZE
     }
 }
