@@ -21,7 +21,12 @@ struct BookView: View {
             .iOSOnlySheet(isPresented: $sheets.moving)
             .sheet(isPresented: $onboarding.anAccountWasCreatedThisSession, content: BeforeYouStart.init)
             .sheet(isPresented: $sheets.creating) {
-                NewFileSheet(selected: sheets.creatingInfo?.toClientFileTypes() ?? .Document)
+                let fileType = sheets.creatingInfo?.toClientFileTypes() ?? .Document
+                if fileType == .Document {
+                    NewFileSheet(selected: fileType, name: ".md")
+                } else {
+                    NewFileSheet(selected: fileType, name: "")
+                }
             }
             .sheet(isPresented: $sheets.renaming, content: RenamingSheet.init)
             .sheet(isPresented: $sheets.sharingFile, content: ShareFileSheet.init)
