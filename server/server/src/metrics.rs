@@ -131,9 +131,11 @@ pub async fn start(state: ServerState) -> Result<(), ServerError<MetricsError>> 
                 premium_users += 1;
 
                 match billing_info.billing_platform {
-                    None => return Err(internal!(
+                    None => {
+                        return Err(internal!(
                         "Could not retrieve billing platform although it was used moments before."
-                    )),
+                    ))
+                    }
                     Some(billing_platform) => match billing_platform {
                         BillingPlatform::GooglePlay { .. } => premium_google_play_users += 1,
                         BillingPlatform::Stripe { .. } => premium_stripe_users += 1,
