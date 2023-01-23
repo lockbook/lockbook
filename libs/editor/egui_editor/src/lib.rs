@@ -1,7 +1,8 @@
 pub use crate::editor::Editor;
-use egui::{Pos2, Rect};
+use egui::{Context, FontData, FontDefinitions, FontFamily, Pos2, Rect};
 use egui_wgpu_backend::wgpu;
 use std::iter;
+use std::sync::Arc;
 
 pub mod appearance;
 pub mod ast;
@@ -125,4 +126,39 @@ impl WgpuEditor {
         };
         self.surface.configure(&self.device, &surface_config);
     }
+}
+
+pub fn register_fonts(ctx: &Context) {
+    let mut fonts = FontDefinitions::default();
+
+    fonts.font_data.insert(
+        "pt_sans".to_string(),
+        FontData::from_static(include_bytes!("../fonts/PTSans-Regular.ttf")),
+    );
+    fonts.font_data.insert(
+        "pt_mono".to_string(),
+        FontData::from_static(include_bytes!("../fonts/PTMono-Regular.ttf")),
+    );
+    fonts.font_data.insert(
+        "pt_bold".to_string(),
+        FontData::from_static(include_bytes!("../fonts/PTSans-Bold.ttf")),
+    );
+
+    fonts
+        .families
+        .insert(FontFamily::Name(Arc::from("Bold")), vec!["pt_bold".to_string()]);
+
+    fonts
+        .families
+        .get_mut(&FontFamily::Proportional)
+        .unwrap()
+        .insert(0, "pt_sans".to_string());
+
+    fonts
+        .families
+        .get_mut(&FontFamily::Monospace)
+        .unwrap()
+        .insert(0, "pt_mono".to_string());
+
+    ctx.set_fonts(fonts);
 }

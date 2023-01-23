@@ -8,9 +8,8 @@ use crate::layouts::Layouts;
 use crate::styles::StyleInfo;
 use crate::test_input::TEST_MARKDOWN;
 use crate::unicode_segs::UnicodeSegs;
-use crate::{ast, events, galleys, layouts, styles, unicode_segs};
-use egui::{Context, FontData, FontDefinitions, FontFamily, Ui, Vec2};
-use std::sync::Arc;
+use crate::{ast, events, galleys, layouts, register_fonts, styles, unicode_segs};
+use egui::{Context, Ui, Vec2};
 
 pub struct Editor {
     pub initialized: bool,
@@ -126,37 +125,6 @@ impl Editor {
     }
 
     pub fn set_font(&self, ctx: &Context) {
-        let mut fonts = FontDefinitions::default();
-
-        fonts.font_data.insert(
-            "pt_sans".to_string(),
-            FontData::from_static(include_bytes!("../fonts/PTSans-Regular.ttf")),
-        );
-        fonts.font_data.insert(
-            "pt_mono".to_string(),
-            FontData::from_static(include_bytes!("../fonts/PTMono-Regular.ttf")),
-        );
-        fonts.font_data.insert(
-            "pt_bold".to_string(),
-            FontData::from_static(include_bytes!("../fonts/PTSans-Bold.ttf")),
-        );
-
-        fonts
-            .families
-            .insert(FontFamily::Name(Arc::from("Bold")), vec!["pt_bold".to_string()]);
-
-        fonts
-            .families
-            .get_mut(&FontFamily::Proportional)
-            .unwrap()
-            .insert(0, "pt_sans".to_string());
-
-        fonts
-            .families
-            .get_mut(&FontFamily::Monospace)
-            .unwrap()
-            .insert(0, "pt_mono".to_string());
-
-        ctx.set_fonts(fonts);
+        register_fonts(ctx);
     }
 }
