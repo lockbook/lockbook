@@ -7,10 +7,11 @@ use crate::layouts::{Annotation, Layouts};
 use crate::offset_types::{DocCharOffset, RelCharOffset};
 use crate::unicode_segs;
 use crate::unicode_segs::UnicodeSegs;
-use egui::{Event, Key, PointerButton, Vec2};
+use egui::{Event, Key, PointerButton, Pos2, Vec2};
 use std::cmp::Ordering;
 use std::iter;
 use std::ops::Range;
+use std::time::Instant;
 use unicode_segmentation::UnicodeSegmentation;
 
 /// represents a modification made as a result of event processing
@@ -251,7 +252,6 @@ fn calc_modifications<'a>(
     }
 
     for event in events {
-        let mut new_cursor_position = None;
         match event {
             Event::Key { key: Key::ArrowRight, pressed: true, modifiers } => {
                 cursor.x_target = None;
@@ -734,23 +734,65 @@ fn calc_modifications<'a>(
             } => {
                 // do not process scrollbar clicks
                 if pos.x <= ui_size.x {
+                    // record instant for double/triple click
+                    cursor.process_click_instant(Instant::now());
+
+                    let mut double_click = false;
+                    let mut triple_click = false;
                     if !modifiers.shift {
                         // click: end selection
                         cursor.selection_origin = None;
+
+                        double_click = cursor.double_click();
+                        triple_click = cursor.triple_click();
                     } else {
                         // shift+click: begin selection
                         cursor.set_selection_origin();
                     }
                     // any click: begin drag; update cursor
                     cursor.set_click_and_drag_origin();
-                    new_cursor_position = Some(pos);
+                    if triple_click {
+                        cursor.pos = pos_to_char_offset(*pos, galleys, segs);
+
+                        let (galley_idx, cur_cursor) =
+                            galleys.galley_and_cursor_by_char_offset(cursor.pos, segs);
+                        let galley = &galleys[galley_idx];
+                        let begin_of_row_cursor = galley.galley.cursor_begin_of_row(&cur_cursor);
+                        let end_of_row_cursor = galley.galley.cursor_end_of_row(&cur_cursor);
+
+                        cursor.selection_origin = Some(galleys.char_offset_by_galley_and_cursor(
+                            galley_idx,
+                            &begin_of_row_cursor,
+                            segs,
+                        ));
+                        cursor.pos = galleys.char_offset_by_galley_and_cursor(
+                            galley_idx,
+                            &end_of_row_cursor,
+                            segs,
+                        );
+                    } else if double_click {
+                        cursor.pos = pos_to_char_offset(*pos, galleys, segs);
+
+                        cursor.advance_word(false, buffer, segs, galleys);
+                        let end_of_word_pos = cursor.pos;
+                        cursor.advance_word(true, buffer, segs, galleys);
+                        let begin_of_word_pos = cursor.pos;
+
+                        cursor.selection_origin = Some(begin_of_word_pos);
+                        cursor.pos = end_of_word_pos;
+                    } else {
+                        cursor.pos = pos_to_char_offset(*pos, galleys, segs);
+                    }
                 }
             }
             Event::PointerMoved(pos) => {
-                if cursor.click_and_drag_origin.is_some() {
+                if cursor.click_and_drag_origin.is_some()
+                    && !cursor.double_click()
+                    && !cursor.triple_click()
+                {
                     // drag: begin selection; update cursor
                     cursor.set_selection_origin();
-                    new_cursor_position = Some(pos);
+                    cursor.pos = pos_to_char_offset(*pos, galleys, segs);
                 }
             }
             Event::PointerButton { button: PointerButton::Primary, pressed: false, .. } => {
@@ -760,32 +802,6 @@ fn calc_modifications<'a>(
             _ => {}
         }
 
-        if let Some(&pos) = new_cursor_position {
-            if !galleys.is_empty() {
-                if pos.y < galleys[0].ui_location.min.y {
-                    // click position is above first galley
-                    cursor.pos = DocCharOffset(0);
-                } else if pos.y >= galleys[galleys.len() - 1].ui_location.max.y {
-                    // click position is below last galley
-                    cursor.pos = segs.last_cursor_position();
-                } else {
-                    for galley_idx in 0..galleys.len() {
-                        let galley = &galleys[galley_idx];
-                        if galley.ui_location.contains(pos) {
-                            // click position is in a galley
-                            let relative_pos = pos - galley.text_location;
-                            let new_cursor = galley.galley.cursor_from_pos(relative_pos);
-                            cursor.pos = galleys.char_offset_by_galley_and_cursor(
-                                galley_idx,
-                                &new_cursor,
-                                segs,
-                            );
-                        }
-                    }
-                }
-            }
-        }
-
         if cursor != previous_cursor {
             modifications.push(Modification::Cursor { cursor });
             previous_cursor = cursor;
@@ -793,6 +809,33 @@ fn calc_modifications<'a>(
     }
 
     modifications
+}
+
+fn pos_to_char_offset(pos: Pos2, galleys: &Galleys, segs: &UnicodeSegs) -> DocCharOffset {
+    if !galleys.is_empty() {
+        if pos.y < galleys[0].ui_location.min.y {
+            // click position is above first galley
+            DocCharOffset(0)
+        } else if pos.y >= galleys[galleys.len() - 1].ui_location.max.y {
+            // click position is below last galley
+            segs.last_cursor_position()
+        } else {
+            let mut result = 0.into();
+            for galley_idx in 0..galleys.len() {
+                let galley = &galleys[galley_idx];
+                if galley.ui_location.contains(pos) {
+                    // click position is in a galley
+                    let relative_pos = pos - galley.text_location;
+                    let new_cursor = galley.galley.cursor_from_pos(relative_pos);
+                    result =
+                        galleys.char_offset_by_galley_and_cursor(galley_idx, &new_cursor, segs);
+                }
+            }
+            result
+        }
+    } else {
+        0.into()
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -970,9 +1013,8 @@ mod test {
         for case in cases {
             let mut cursor = Cursor {
                 pos: case.cursor_a.0.into(),
-                x_target: None,
                 selection_origin: Some(case.cursor_a.1.into()),
-                click_and_drag_origin: None,
+                ..Default::default()
             };
             let mut buffer = "1234567".into();
             let mut debug = Default::default();
@@ -983,9 +1025,8 @@ mod test {
                 Modification::Cursor {
                     cursor: Cursor {
                         pos: case.cursor_b.0.into(),
-                        x_target: None,
                         selection_origin: Some(case.cursor_b.1.into()),
-                        click_and_drag_origin: None,
+                        ..Default::default()
                     },
                 },
                 Modification::Insert { text: "b" },

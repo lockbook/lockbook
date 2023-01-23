@@ -7,7 +7,10 @@ use egui::{Pos2, Rect, Vec2};
 use std::cmp::{max, min};
 use std::iter;
 use std::ops::Range;
+use std::time::{Duration, Instant};
 use unicode_segmentation::UnicodeSegmentation;
+
+static DOUBLE_CLICK_PERIOD: Duration = Duration::from_millis(300);
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct Cursor {
@@ -24,16 +27,14 @@ pub struct Cursor {
 
     /// When clicking and dragging, this is the location of the initial click
     pub click_and_drag_origin: Option<DocCharOffset>,
+
+    /// Time of release of last three clicks, used for double & triple click detection
+    pub last_click_times: (Option<Instant>, Option<Instant>, Option<Instant>),
 }
 
 impl From<usize> for Cursor {
     fn from(value: usize) -> Self {
-        Self {
-            pos: DocCharOffset(value),
-            x_target: None,
-            selection_origin: None,
-            click_and_drag_origin: None,
-        }
+        Self { pos: DocCharOffset(value), ..Default::default() }
     }
 }
 
@@ -41,9 +42,8 @@ impl From<(usize, usize)> for Cursor {
     fn from(value: (usize, usize)) -> Self {
         Self {
             pos: DocCharOffset(value.1),
-            x_target: None,
             selection_origin: Some(DocCharOffset(value.0)),
-            click_and_drag_origin: None,
+            ..Default::default()
         }
     }
 }
@@ -243,6 +243,32 @@ impl Cursor {
         }
 
         self.pos = galleys.char_offset_by_galley_and_cursor(galley_idx, &cursor, segs);
+    }
+
+    pub fn process_click_instant(&mut self, t: Instant) {
+        self.last_click_times.2 = self.last_click_times.1;
+        self.last_click_times.1 = self.last_click_times.0;
+        self.last_click_times.0 = Some(t);
+    }
+
+    pub fn triple_click(&mut self) -> bool {
+        if let (Some(one_click_ago), Some(three_clicks_ago)) =
+            (self.last_click_times.0, self.last_click_times.2)
+        {
+            one_click_ago - three_clicks_ago < DOUBLE_CLICK_PERIOD * 2
+        } else {
+            false
+        }
+    }
+
+    pub fn double_click(&mut self) -> bool {
+        if let (Some(one_click_ago), Some(two_clicks_ago)) =
+            (self.last_click_times.0, self.last_click_times.1)
+        {
+            one_click_ago - two_clicks_ago < DOUBLE_CLICK_PERIOD
+        } else {
+            false
+        }
     }
 
     pub fn rect(&self, segs: &UnicodeSegs, galleys: &Galleys) -> Rect {
