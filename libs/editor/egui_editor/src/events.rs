@@ -114,7 +114,7 @@ fn apply_modifications(
     }
 
     *cursor = cur_cursor;
-    (text_updated, to_clipboard.map(|s| s.to_string()))
+    (text_updated, to_clipboard)
 }
 
 fn modify_subsequent_cursors(
