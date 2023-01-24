@@ -6,9 +6,13 @@ use crate::unicode_segs::UnicodeSegs;
 use queues::{CircularBuffer, IsQueue};
 use std::iter;
 use std::ops::Range;
+use std::time::{Duration, Instant};
 use unicode_segmentation::UnicodeSegmentation;
 
 static MAX_UNDOS: usize = 100; // todo: make this much larger and measure performance impact
+
+/// don't type text for this long, and the text before and after are considered separate undo events
+static UNDO_DEBOUNCE_PERIOD: Duration = Duration::from_millis(300);
 
 /// represents a modification made as a result of event processing
 pub type Modification = Vec<SubModification>; // todo: tinyvec candidate
@@ -38,6 +42,9 @@ pub struct Buffer {
 
     /// modifications reverted by undo and available for redo; used as a stack
     pub redo_stack: Vec<Vec<Modification>>,
+
+    // instant of last modification application
+    pub last_apply: Instant,
 }
 
 // todo: lazy af name
@@ -56,6 +63,7 @@ impl From<&str> for Buffer {
             undo_queue: CircularBuffer::new(MAX_UNDOS),
             current_text_mods: None,
             redo_stack: Vec::new(),
+            last_apply: Instant::now(),
         }
     }
 }
@@ -74,26 +82,41 @@ impl Buffer {
     pub fn apply(
         &mut self, modification: Modification, debug: &mut DebugInfo,
     ) -> (bool, Option<String>) {
+        let now = Instant::now();
+
         // accumulate modifications into one modification until a non-cursor update is applied (for purposes of undo)
         if modification
             .iter()
             .any(|m| matches!(m, SubModification::Insert { .. } | SubModification::Delete(..)))
         {
-            if let Some(ref current_text_mods) = self.current_text_mods {
-                if let Ok(Some(undo_mods)) = self.undo_queue.add(current_text_mods.clone()) {
-                    // when modifications overflow the queue, apply them to undo_base
-                    for m in undo_mods {
-                        self.undo_base.apply_modification(m, debug);
+            if let Some(ref mut current_text_mods) = self.current_text_mods {
+                // extend current modification until new cursor placement
+                if current_text_mods.iter().any(|modification| {
+                    !modification.iter().any(|m| {
+                        matches!(m, SubModification::Insert { .. } | SubModification::Delete(..))
+                    })
+                }) || now - self.last_apply > UNDO_DEBOUNCE_PERIOD
+                {
+                    if let Ok(Some(undo_mods)) = self.undo_queue.add(current_text_mods.clone()) {
+                        // when modifications overflow the queue, apply them to undo_base
+                        for m in undo_mods {
+                            self.undo_base.apply_modification(m, debug);
+                        }
                     }
+                    self.current_text_mods = Some(vec![modification.clone()]);
+                } else {
+                    current_text_mods.push(modification.clone());
                 }
+            } else {
+                self.current_text_mods = Some(vec![modification.clone()]);
             }
-            self.current_text_mods = Some(vec![modification.clone()]);
-        } else if let Some(ref mut current_text_mod) = self.current_text_mods {
-            current_text_mod.push(modification.clone());
+        } else if let Some(ref mut current_text_mods) = self.current_text_mods {
+            current_text_mods.push(modification.clone());
         } else {
             self.current_text_mods = Some(vec![modification.clone()]);
         }
 
+        self.last_apply = now;
         self.redo_stack = Vec::new();
         self.current.apply_modification(modification, debug)
     }
