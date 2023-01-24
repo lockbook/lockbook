@@ -8,7 +8,7 @@ use std::iter;
 use std::ops::Range;
 use unicode_segmentation::UnicodeSegmentation;
 
-static MAX_UNDOS: usize = 5; // todo: make this much larger and measure performance impact
+static MAX_UNDOS: usize = 100; // todo: make this much larger and measure performance impact
 
 /// represents a modification made as a result of event processing
 pub type Modification = Vec<SubModification>; // todo: tinyvec candidate
@@ -38,7 +38,7 @@ pub struct Buffer {
 }
 
 // todo: lazy af name
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct SubBuffer {
     pub cursor: Cursor,
     pub text: String,
@@ -69,12 +69,40 @@ impl Buffer {
     pub fn apply(
         &mut self, modification: Modification, debug: &mut DebugInfo,
     ) -> (bool, Option<String>) {
+        if modification.is_empty() {
+            return (false, None);
+        }
+
         // todo: less cloning of modifications
         if let Ok(Some(undo_modification)) = self.modification_queue.add(modification.clone()) {
             // when modifications overflow the queue, apply them to undo_base
             self.undo_base.apply_modification(undo_modification, debug);
         }
         self.current.apply_modification(modification, debug)
+    }
+
+    /// undoes one modification, if able
+    pub fn undo(&mut self, debug: &mut DebugInfo) {
+        let mut modifications_to_apply = CircularBuffer::new(MAX_UNDOS);
+        std::mem::swap(&mut modifications_to_apply, &mut self.modification_queue);
+
+        // current starts over from undo base
+        self.current = self.undo_base.clone();
+
+        // all but one modification applied to current and put back in the queue
+        while modifications_to_apply.size() > 1 {
+            if let Ok(modification) = modifications_to_apply.remove() {
+                self.current.apply_modification(modification.clone(), debug);
+                let _ = self.modification_queue.add(modification);
+            }
+        }
+
+        // final modification is not applied and is instead added to redo stack
+        if modifications_to_apply.size() > 0 {
+            if let Ok(modification) = modifications_to_apply.remove() {
+                self.modifications_undone.push(modification);
+            }
+        }
     }
 }
 

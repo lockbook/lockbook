@@ -1,7 +1,7 @@
 use crate::offset_types::{DocByteOffset, DocCharOffset};
 use unicode_segmentation::UnicodeSegmentation;
 
-#[derive(Default, Debug)]
+#[derive(Clone, Default, Debug)]
 pub struct UnicodeSegs {
     pub grapheme_indexes: Vec<DocByteOffset>,
 }
