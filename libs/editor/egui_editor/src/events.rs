@@ -1,258 +1,36 @@
-use crate::buffer::Buffer;
+use crate::buffer::{Buffer, Modification, SubModification};
 use crate::cursor::Cursor;
 use crate::debug::DebugInfo;
 use crate::element::ItemType;
 use crate::galleys::Galleys;
 use crate::layouts::{Annotation, Layouts};
-use crate::offset_types::{DocCharOffset, RelCharOffset};
-use crate::unicode_segs;
+use crate::offset_types::DocCharOffset;
 use crate::unicode_segs::UnicodeSegs;
 use egui::{Event, Key, PointerButton, Pos2, Vec2};
 use std::cmp::Ordering;
-use std::iter;
-use std::ops::Range;
 use std::time::Instant;
-use unicode_segmentation::UnicodeSegmentation;
 
-/// represents a modification made as a result of event processing
-#[derive(Debug)]
-enum Modification<'a> {
-    Cursor { cursor: Cursor },    // modify the cursor state
-    Insert { text: &'a str },     // insert text at cursor location
-    InsertOwned { text: String }, // insert text at cursor location
-    Delete(RelCharOffset),        // delete selection or characters before cursor
-    DebugToggle,                  // toggle debug overlay
-    ToClipboard { text: String }, // cut or copy text to clipboard
-}
-
-/// processes `events` and returns a boolean representing whether text was updated
+/// processes `events` and returns a boolean representing whether text was updated and optionally new contents for clipboard
 #[allow(clippy::too_many_arguments)]
 pub fn process(
     events: &[Event], layouts: &Layouts, galleys: &Galleys, ui_size: Vec2, buffer: &mut Buffer,
     segs: &mut UnicodeSegs, cursor: &mut Cursor, debug: &mut DebugInfo,
 ) -> (bool, Option<String>) {
-    let modifications =
-        calc_modifications(events, segs, layouts, galleys, buffer, *cursor, ui_size);
-    apply_modifications(modifications, buffer, segs, cursor, debug)
+    let modification = calc_modification(events, segs, layouts, galleys, buffer, *cursor, ui_size);
+    buffer.apply(modification, segs, cursor, debug)
 }
 
-fn apply_modifications(
-    mut modifications: Vec<Modification>, buffer: &mut Buffer, segs: &mut UnicodeSegs,
-    cursor: &mut Cursor, debug: &mut DebugInfo,
-) -> (bool, Option<String>) {
-    let mut text_updated = false;
-    let mut to_clipboard = None;
-
-    let mut cur_cursor = *cursor;
-    modifications.reverse();
-    while let Some(modification) = modifications.pop() {
-        // todo: reduce duplication
-        match modification {
-            Modification::Cursor { cursor: cur } => {
-                cur_cursor = cur;
-            }
-            Modification::Insert { text: text_replacement } => {
-                let replaced_text_range = cur_cursor
-                    .selection()
-                    .unwrap_or(Range { start: cur_cursor.pos, end: cur_cursor.pos });
-
-                modify_subsequent_cursors(
-                    replaced_text_range.clone(),
-                    text_replacement,
-                    &mut modifications,
-                    &mut cur_cursor,
-                );
-
-                buffer.replace_range(replaced_text_range, text_replacement, segs);
-                *segs = unicode_segs::calc(buffer);
-                text_updated = true;
-            }
-            Modification::InsertOwned { text: text_replacement } => {
-                let replaced_text_range = cur_cursor
-                    .selection()
-                    .unwrap_or(Range { start: cur_cursor.pos, end: cur_cursor.pos });
-
-                modify_subsequent_cursors(
-                    replaced_text_range.clone(),
-                    &text_replacement,
-                    &mut modifications,
-                    &mut cur_cursor,
-                );
-
-                buffer.replace_range(replaced_text_range, &text_replacement, segs);
-                *segs = unicode_segs::calc(buffer);
-                text_updated = true;
-            }
-            Modification::Delete(n_chars) => {
-                let text_replacement = "";
-                let replaced_text_range = cur_cursor.selection().unwrap_or(Range {
-                    start: if cur_cursor.pos.0 == 0 {
-                        DocCharOffset(0)
-                    } else {
-                        cur_cursor.pos - n_chars
-                    },
-                    end: cur_cursor.pos,
-                });
-
-                modify_subsequent_cursors(
-                    replaced_text_range.clone(),
-                    text_replacement,
-                    &mut modifications,
-                    &mut cur_cursor,
-                );
-
-                buffer.replace_range(replaced_text_range, text_replacement, segs);
-                *segs = unicode_segs::calc(buffer);
-                text_updated = true;
-            }
-            Modification::DebugToggle => {
-                debug.draw_enabled = !debug.draw_enabled;
-            }
-            Modification::ToClipboard { text } => {
-                to_clipboard = Some(text);
-            }
-        }
-    }
-
-    *cursor = cur_cursor;
-    (text_updated, to_clipboard)
-}
-
-fn modify_subsequent_cursors(
-    replaced_text_range: Range<DocCharOffset>, text_replacement: &str,
-    modifications: &mut [Modification], cur_cursor: &mut Cursor,
-) {
-    let replaced_text_len = replaced_text_range.end - replaced_text_range.start;
-    let text_replacement_len =
-        UnicodeSegmentation::grapheme_indices(text_replacement, true).count();
-
-    for mod_cursor in modifications
-        .iter_mut()
-        .filter_map(|modification| {
-            if let Modification::Cursor { cursor: cur } = modification {
-                Some(cur)
-            } else {
-                None
-            }
-        })
-        .chain(iter::once(cur_cursor))
-    {
-        // adjust subsequent cursor selections; no part of a cursor shall appear inside
-        // text that was not rendered when the cursor was placed (though a selection may
-        // contain it).
-        let cur_selection = mod_cursor
-            .selection()
-            .unwrap_or(Range { start: mod_cursor.pos, end: mod_cursor.pos });
-
-        match (
-            cur_selection.start < replaced_text_range.start,
-            cur_selection.end < replaced_text_range.end,
-        ) {
-            _ if cur_selection.start >= replaced_text_range.end => {
-                // case 1:
-                //                       text before replacement: * * * * * * *
-                //                        range of replaced text:  |<->|
-                //          range of subsequent cursor selection:        |<->|
-                //                        text after replacement: * X * * * *
-                // adjusted range of subsequent cursor selection:      |<->|
-                mod_cursor.pos = mod_cursor.pos + text_replacement_len - replaced_text_len;
-                if let Some(selection_origin) = mod_cursor.selection_origin {
-                    mod_cursor.selection_origin =
-                        Some(selection_origin + text_replacement_len - replaced_text_len);
-                }
-            }
-            _ if cur_selection.end < replaced_text_range.start => {
-                // case 2:
-                //                       text before replacement: * * * * * * *
-                //                        range of replaced text:        |<->|
-                //          range of subsequent cursor selection:  |<->|
-                //                        text after replacement: * * * * X *
-                // adjusted range of subsequent cursor selection:  |<->|
-                continue;
-            }
-            (false, false) => {
-                // case 3:
-                //                       text before replacement: * * * * * * *
-                //                        range of replaced text:  |<--->|
-                //          range of subsequent cursor selection:      |<--->|
-                //                        text after replacement: * X * * *
-                // adjusted range of subsequent cursor selection:    |<->|
-                if let Some(selection_origin) = mod_cursor.selection_origin {
-                    if mod_cursor.pos < selection_origin {
-                        mod_cursor.pos =
-                            replaced_text_range.end + text_replacement_len - replaced_text_len;
-                        mod_cursor.selection_origin =
-                            Some(selection_origin + text_replacement_len - replaced_text_len);
-                    } else {
-                        mod_cursor.selection_origin = Some(
-                            replaced_text_range.end + text_replacement_len - replaced_text_len,
-                        );
-                        mod_cursor.pos = mod_cursor.pos + text_replacement_len - replaced_text_len;
-                    }
-                } else {
-                    panic!("this code should be unreachable")
-                }
-            }
-            (true, true) => {
-                // case 4:
-                //                       text before replacement: * * * * * * *
-                //                        range of replaced text:      |<--->|
-                //          range of subsequent cursor selection:  |<--->|
-                //                        text after replacement: * * * X *
-                // adjusted range of subsequent cursor selection:  |<->|
-                if let Some(selection_origin) = mod_cursor.selection_origin {
-                    if mod_cursor.pos < selection_origin {
-                        mod_cursor.selection_origin = Some(replaced_text_range.start);
-                    } else {
-                        mod_cursor.pos = replaced_text_range.start;
-                    }
-                } else {
-                    panic!("this code should be unreachable")
-                }
-            }
-            (false, true) => {
-                // case 5:
-                //                       text before replacement: * * * * * * *
-                //                        range of replaced text:  |<------->|
-                //          range of subsequent cursor selection:    |<--->|
-                //                        text after replacement: * X *
-                // adjusted range of subsequent cursor selection:    |
-                mod_cursor.pos = replaced_text_range.end + text_replacement_len - replaced_text_len;
-                mod_cursor.selection_origin = Some(mod_cursor.pos);
-            }
-            (true, false) => {
-                // case 6:
-                //                       text before replacement: * * * * * * *
-                //                        range of replaced text:    |<--->|
-                //          range of subsequent cursor selection:  |<------->|
-                //                        text after replacement: * * X * *
-                // adjusted range of subsequent cursor selection:  |<--->|
-                if let Some(selection_origin) = mod_cursor.selection_origin {
-                    if mod_cursor.pos < selection_origin {
-                        mod_cursor.selection_origin =
-                            Some(selection_origin + text_replacement_len - replaced_text_len);
-                    } else {
-                        mod_cursor.pos = mod_cursor.pos + text_replacement_len - replaced_text_len;
-                    }
-                } else {
-                    panic!("this code should be unreachable")
-                }
-            }
-        }
-    }
-}
-
-fn calc_modifications<'a>(
+fn calc_modification<'a>(
     events: &'a [Event], segs: &UnicodeSegs, layouts: &Layouts, galleys: &Galleys, buffer: &Buffer,
     cursor: Cursor, ui_size: Vec2,
-) -> Vec<Modification<'a>> {
+) -> Modification {
     let mut modifications = Vec::new();
     let mut previous_cursor = cursor;
     let mut cursor = cursor;
 
     cursor.fix(false, segs, galleys);
     if cursor != previous_cursor {
-        modifications.push(Modification::Cursor { cursor });
+        modifications.push(SubModification::Cursor { cursor });
         previous_cursor = cursor;
     }
 
@@ -408,7 +186,7 @@ fn calc_modifications<'a>(
             Event::Paste(text) | Event::Text(text) => {
                 cursor.x_target = None;
 
-                modifications.push(Modification::Insert { text });
+                modifications.push(SubModification::Insert { text: text.clone() });
 
                 cursor.selection_origin = None;
             }
@@ -422,7 +200,7 @@ fn calc_modifications<'a>(
                     && cursor.selection().is_none()
                 {
                     // delete layout head (e.g. bullet)
-                    modifications.push(Modification::Delete(layout.head_size_chars(buffer)));
+                    modifications.push(SubModification::Delete(layout.head_size_chars(buffer)));
 
                     // if we deleted an item in a numbered list, decrement subsequent items
                     if let Some(Annotation::Item(ItemType::Numbered(_), indent_level)) =
@@ -458,7 +236,7 @@ fn calc_modifications<'a>(
                             segs,
                         );
 
-                        modifications.push(Modification::Cursor {
+                        modifications.push(SubModification::Cursor {
                             cursor: (begin_of_row_pos, end_of_row_pos).into(),
                         })
                     } else if modifiers.alt {
@@ -467,13 +245,13 @@ fn calc_modifications<'a>(
                         cursor.advance_word(true, buffer, segs, galleys);
                         let begin_of_word_pos = cursor.pos;
 
-                        modifications.push(Modification::Cursor {
+                        modifications.push(SubModification::Cursor {
                             cursor: (begin_of_word_pos, end_of_word_pos).into(),
                         })
                     }
 
                     // delete selected text or one character
-                    modifications.push(Modification::Delete(1.into()));
+                    modifications.push(SubModification::Delete(1.into()));
                 }
 
                 cursor.selection_origin = None;
@@ -481,7 +259,7 @@ fn calc_modifications<'a>(
             Event::Key { key: Key::Enter, pressed: true, modifiers: _ } => {
                 cursor.x_target = None;
 
-                modifications.push(Modification::Insert { text: "\n" });
+                modifications.push(SubModification::Insert { text: "\n".to_string() });
 
                 let layout_idx = layouts.layout_at_char(cursor.pos, segs);
                 let layout = &layouts[layout_idx];
@@ -490,7 +268,7 @@ fn calc_modifications<'a>(
                         && layout.size() - layout.head_size - layout.tail_size == 0
                     {
                         // empty list item -> delete current annotation
-                        modifications.push(Modification::Cursor {
+                        modifications.push(SubModification::Cursor {
                             cursor: Cursor {
                                 pos: segs
                                     .byte_offset_to_char(layout.range.start + layout.head_size),
@@ -500,14 +278,14 @@ fn calc_modifications<'a>(
                                 ..Default::default()
                             },
                         });
-                        modifications.push(Modification::Delete(0.into()));
-                        modifications.push(Modification::Cursor { cursor });
-                        modifications.push(Modification::Insert { text: "\n" });
+                        modifications.push(SubModification::Delete(0.into()));
+                        modifications.push(SubModification::Cursor { cursor });
+                        modifications.push(SubModification::Insert { text: "\n".to_string() });
                     } else {
                         // nonempty list item -> insert new list item
                         match layout.annotation {
                             Some(Annotation::Item(ItemType::Bulleted, _)) => {
-                                modifications.push(Modification::InsertOwned {
+                                modifications.push(SubModification::Insert {
                                     text: layout.head(buffer).to_string(),
                                 });
                             }
@@ -520,7 +298,7 @@ fn calc_modifications<'a>(
                                     .to_string()
                                     + &(cur_number + 1).to_string()
                                     + ". ";
-                                modifications.push(Modification::InsertOwned { text });
+                                modifications.push(SubModification::Insert { text });
 
                                 modifications.extend(increment_numbered_list_items(
                                     layout_idx,
@@ -536,7 +314,7 @@ fn calc_modifications<'a>(
                             Some(Annotation::Item(ItemType::Todo(_), _)) => {
                                 let head = layout.head(buffer);
                                 let text = head[0..head.len() - 4].to_string() + "- [ ]";
-                                modifications.push(Modification::InsertOwned { text });
+                                modifications.push(SubModification::Insert { text });
                             }
                             Some(Annotation::Image(_, _, _)) => {}
                             Some(Annotation::Rule) => {}
@@ -589,7 +367,7 @@ fn calc_modifications<'a>(
 
                                 if can_deindent {
                                     // de-indentation: select text, delete selection, restore cursor
-                                    modifications.push(Modification::Cursor {
+                                    modifications.push(SubModification::Cursor {
                                         cursor: Cursor {
                                             pos: segs.byte_offset_to_char(
                                                 layout.range.start + indent_seq.len(),
@@ -600,8 +378,8 @@ fn calc_modifications<'a>(
                                             ..Default::default()
                                         },
                                     });
-                                    modifications.push(Modification::Delete(0.into()));
-                                    modifications.push(Modification::Cursor { cursor });
+                                    modifications.push(SubModification::Delete(0.into()));
+                                    modifications.push(SubModification::Cursor { cursor });
 
                                     indent_level - 1
                                 } else {
@@ -625,16 +403,16 @@ fn calc_modifications<'a>(
 
                                 if can_indent {
                                     // indentation: set cursor to galley start, insert indentation sequence, restore cursor
-                                    modifications.push(Modification::Cursor {
+                                    modifications.push(SubModification::Cursor {
                                         cursor: Cursor {
                                             pos: segs.byte_offset_to_char(layout.range.start),
                                             ..Default::default()
                                         },
                                     });
-                                    modifications.push(Modification::InsertOwned {
+                                    modifications.push(SubModification::Insert {
                                         text: indent_seq.to_string(),
                                     });
-                                    modifications.push(Modification::Cursor { cursor });
+                                    modifications.push(SubModification::Cursor { cursor });
 
                                     indent_level + 1
                                 } else {
@@ -677,7 +455,7 @@ fn calc_modifications<'a>(
                                     };
 
                                     // replace cur_number with new_number in head
-                                    modifications.push(Modification::Cursor {
+                                    modifications.push(SubModification::Cursor {
                                         cursor: Cursor {
                                             pos: segs.byte_offset_to_char(
                                                 layout.range.start + layout.head_size
@@ -690,10 +468,10 @@ fn calc_modifications<'a>(
                                             ..Default::default()
                                         },
                                     });
-                                    modifications.push(Modification::InsertOwned {
+                                    modifications.push(SubModification::Insert {
                                         text: new_number.to_string() + ". ",
                                     });
-                                    modifications.push(Modification::Cursor { cursor });
+                                    modifications.push(SubModification::Cursor { cursor });
 
                                     if modifiers.shift {
                                         // decrement numbers in old list by this item's old number
@@ -751,7 +529,7 @@ fn calc_modifications<'a>(
                         Annotation::Rule => {}
                     }
                 } else if !modifiers.shift {
-                    modifications.push(Modification::InsertOwned { text: "\t".to_string() });
+                    modifications.push(SubModification::Insert { text: "\t".to_string() });
                 }
             }
             Event::Key { key: Key::A, pressed: true, modifiers } => {
@@ -762,21 +540,21 @@ fn calc_modifications<'a>(
             }
             Event::Key { key: Key::C, pressed: true, modifiers } => {
                 if modifiers.command {
-                    modifications.push(Modification::ToClipboard {
+                    modifications.push(SubModification::ToClipboard {
                         text: cursor.selection_text(buffer, segs).to_string(),
                     });
                 }
             }
             Event::Key { key: Key::X, pressed: true, modifiers } => {
                 if modifiers.command {
-                    modifications.push(Modification::ToClipboard {
+                    modifications.push(SubModification::ToClipboard {
                         text: cursor.selection_text(buffer, segs).to_string(),
                     });
-                    modifications.push(Modification::Delete(0.into()));
+                    modifications.push(SubModification::Delete(0.into()));
                 }
             }
             Event::Key { key: Key::F2, pressed: true, modifiers: _modifiers } => {
-                modifications.push(Modification::DebugToggle);
+                modifications.push(SubModification::DebugToggle);
             }
             Event::PointerButton {
                 pos,
@@ -855,11 +633,14 @@ fn calc_modifications<'a>(
         }
 
         if cursor != previous_cursor {
-            modifications.push(Modification::Cursor { cursor });
+            modifications.push(SubModification::Cursor { cursor });
             previous_cursor = cursor;
         }
     }
 
+    // todo: more thoughtful way to group modifications
+    // modifications must be grouped because operations like deleting an annotation involve several steps but should be undone as one operation
+    // this way to group modifications puts all operations performed in one frame as a single group
     modifications
 }
 
@@ -891,10 +672,10 @@ fn pos_to_char_offset(pos: Pos2, galleys: &Galleys, segs: &UnicodeSegs) -> DocCh
 }
 
 #[allow(clippy::too_many_arguments)]
-fn increment_numbered_list_items<'a>(
+fn increment_numbered_list_items(
     starting_layout_idx: usize, indent_level: u8, amount: usize, decrement: bool,
     segs: &UnicodeSegs, layouts: &Layouts, buffer: &Buffer, cursor: Cursor,
-) -> Vec<Modification<'a>> {
+) -> Modification {
     let mut modifications = Vec::new();
 
     let mut layout_idx = starting_layout_idx;
@@ -915,7 +696,7 @@ fn increment_numbered_list_items<'a>(
                 Ordering::Equal => {
                     if let ItemType::Numbered(cur_number) = item_type {
                         // replace cur_number with next_number in head
-                        modifications.push(Modification::Cursor {
+                        modifications.push(SubModification::Cursor {
                             cursor: Cursor {
                                 pos: segs
                                     .byte_offset_to_char(layout.range.start + layout.head_size),
@@ -935,8 +716,8 @@ fn increment_numbered_list_items<'a>(
                             })
                             .to_string()
                             + ". ";
-                        modifications.push(Modification::InsertOwned { text });
-                        modifications.push(Modification::Cursor { cursor });
+                        modifications.push(SubModification::Insert { text });
+                        modifications.push(SubModification::Cursor { cursor });
                     }
                 }
             }
@@ -946,152 +727,4 @@ fn increment_numbered_list_items<'a>(
     }
 
     modifications
-}
-
-#[cfg(test)]
-mod test {
-    use crate::cursor::Cursor;
-    use crate::events::{apply_modifications, Modification};
-    use crate::unicode_segs;
-
-    #[test]
-    fn apply_modifications_none_empty_doc() {
-        let mut buffer = Default::default();
-        let mut cursor = Default::default();
-        let mut debug = Default::default();
-        let mut segs = unicode_segs::calc(&buffer);
-
-        let modifications = Default::default();
-
-        let (text_updated, _) =
-            apply_modifications(modifications, &mut buffer, &mut segs, &mut cursor, &mut debug);
-
-        assert_eq!(buffer.raw, "");
-        assert_eq!(cursor, Default::default());
-        assert!(!debug.draw_enabled);
-        assert!(!text_updated);
-    }
-
-    #[test]
-    fn apply_modifications_none() {
-        let mut buffer = "document content".into();
-        let mut cursor = 9.into();
-        let mut debug = Default::default();
-        let mut segs = unicode_segs::calc(&buffer);
-
-        let modifications = Default::default();
-
-        let (text_updated, _) =
-            apply_modifications(modifications, &mut buffer, &mut segs, &mut cursor, &mut debug);
-
-        assert_eq!(buffer.raw, "document content");
-        assert_eq!(cursor, 9.into());
-        assert!(!debug.draw_enabled);
-        assert!(!text_updated);
-    }
-
-    #[test]
-    fn apply_modifications_insert() {
-        let mut buffer = "document content".into();
-        let mut cursor = 9.into();
-        let mut debug = Default::default();
-        let mut segs = unicode_segs::calc(&buffer);
-
-        let modifications = vec![Modification::Insert { text: "new " }];
-
-        let (text_updated, _) =
-            apply_modifications(modifications, &mut buffer, &mut segs, &mut cursor, &mut debug);
-
-        assert_eq!(buffer.raw, "document new content");
-        assert_eq!(cursor, 13.into());
-        assert!(!debug.draw_enabled);
-        assert!(text_updated);
-    }
-
-    #[test]
-    fn apply_modifications_selection_insert_twice() {
-        struct Case {
-            cursor_a: (usize, usize),
-            cursor_b: (usize, usize),
-            expected_buffer: &'static str,
-            expected_cursor: (usize, usize),
-        }
-
-        let cases = [
-            Case {
-                cursor_a: (1, 3),
-                cursor_b: (4, 6),
-                expected_buffer: "1a4b7",
-                expected_cursor: (4, 4),
-            },
-            Case {
-                cursor_a: (4, 6),
-                cursor_b: (1, 3),
-                expected_buffer: "1b4a7",
-                expected_cursor: (2, 2),
-            },
-            Case {
-                cursor_a: (1, 5),
-                cursor_b: (2, 6),
-                expected_buffer: "1ab7",
-                expected_cursor: (3, 3),
-            },
-            Case {
-                cursor_a: (2, 6),
-                cursor_b: (1, 5),
-                expected_buffer: "1ba7",
-                expected_cursor: (2, 2),
-            },
-            Case {
-                cursor_a: (1, 6),
-                cursor_b: (2, 5),
-                expected_buffer: "1ab7",
-                expected_cursor: (3, 3),
-            },
-            Case {
-                cursor_a: (2, 5),
-                cursor_b: (1, 6),
-                expected_buffer: "1b7",
-                expected_cursor: (2, 2),
-            },
-            Case {
-                cursor_a: (1, 6),
-                cursor_b: (1, 1),
-                expected_buffer: "1ab7",
-                expected_cursor: (3, 3),
-            },
-        ];
-
-        for case in cases {
-            let mut cursor = Cursor {
-                pos: case.cursor_a.0.into(),
-                selection_origin: Some(case.cursor_a.1.into()),
-                ..Default::default()
-            };
-            let mut buffer = "1234567".into();
-            let mut debug = Default::default();
-            let mut segs = unicode_segs::calc(&buffer);
-
-            let modifications = vec![
-                Modification::Insert { text: "a" },
-                Modification::Cursor {
-                    cursor: Cursor {
-                        pos: case.cursor_b.0.into(),
-                        selection_origin: Some(case.cursor_b.1.into()),
-                        ..Default::default()
-                    },
-                },
-                Modification::Insert { text: "b" },
-            ];
-
-            let (text_updated, _) =
-                apply_modifications(modifications, &mut buffer, &mut segs, &mut cursor, &mut debug);
-
-            assert_eq!(buffer.raw, case.expected_buffer);
-            assert_eq!(cursor.pos.0, case.expected_cursor.0);
-            assert_eq!(cursor.selection_origin, Some(case.expected_cursor.1.into()));
-            assert!(!debug.draw_enabled);
-            assert!(text_updated);
-        }
-    }
 }
