@@ -145,6 +145,10 @@ impl Buffer {
     /// redoes one modification, if able
     pub fn redo(&mut self, debug: &mut DebugInfo) {
         if let Some(modifications) = self.redo_stack.pop() {
+            if let Some(current_text_mod) = &self.current_text_mod {
+                let _ = self.undo_queue.add(current_text_mod.clone());
+            }
+            self.current_text_mod = Some(modifications.clone());
             for m in modifications {
                 self.current.apply_modification(m, debug);
             }
