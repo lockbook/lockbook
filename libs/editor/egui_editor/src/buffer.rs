@@ -55,6 +55,14 @@ pub struct SubBuffer {
     pub segs: UnicodeSegs,
 }
 
+// todo: lazy af name
+#[derive(Debug)]
+pub struct SubBuffer {
+    pub cursor: Cursor,
+    pub text: String,
+    pub segs: UnicodeSegs,
+}
+
 impl From<&str> for Buffer {
     fn from(value: &str) -> Self {
         Self {
