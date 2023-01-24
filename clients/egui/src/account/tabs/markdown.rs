@@ -19,7 +19,7 @@ impl Markdown {
         egui::ScrollArea::vertical()
             .id_source("editor")
             .show(ui, |ui| {
-                ui.centered_and_justified(|ui| {
+                ui.vertical(|ui| {
                     self.editor.ui(ui);
                 });
             });
