@@ -25,10 +25,10 @@ pub enum SubModification {
 #[derive(Debug)]
 pub struct Buffer {
     /// contents of the buffer, as they appear in the editor
-    pub raw: String,
+    pub current: SubBuffer,
 
     /// contents of the buffer MAX_UNDOs modifications ago; after exercising all undo's, the buffer would be this
-    pub undo_base: String,
+    pub undo_base: SubBuffer,
 
     /// modifications made between undo_base and raw;
     pub modification_queue: CircularBuffer<Modification>,
@@ -37,10 +37,18 @@ pub struct Buffer {
     pub modifications_undone: Vec<Modification>,
 }
 
+// todo: lazy af name
+#[derive(Debug)]
+pub struct SubBuffer {
+    pub cursor: Cursor,
+    pub text: String,
+    pub segs: UnicodeSegs,
+}
+
 impl From<&str> for Buffer {
     fn from(value: &str) -> Self {
         Self {
-            raw: value.into(),
+            current: value.into(),
             undo_base: value.into(),
             modification_queue: CircularBuffer::new(MAX_UNDOS),
             modifications_undone: Vec::new(),
@@ -50,30 +58,48 @@ impl From<&str> for Buffer {
 
 impl Buffer {
     pub fn is_empty(&self) -> bool {
-        self.raw.is_empty()
+        self.current.is_empty()
     }
 
     pub fn len(&self) -> usize {
-        self.raw.len()
+        self.current.len()
     }
 
     /// applies `modification` and returns a boolean representing whether text was updated and optionally new contents for clipboard
     pub fn apply(
-        &mut self, modification: Modification, segs: &mut UnicodeSegs, cursor: &mut Cursor,
-        debug: &mut DebugInfo,
+        &mut self, modification: Modification, debug: &mut DebugInfo,
     ) -> (bool, Option<String>) {
-        let _ = self.modification_queue.add(modification.clone()); // todo: less cloning
-        self.apply_modification(modification, segs, cursor, debug)
+        // todo: less cloning of modifications
+        if let Ok(Some(undo_modification)) = self.modification_queue.add(modification.clone()) {
+            // when modifications overflow the queue, apply them to undo_base
+            self.undo_base.apply_modification(undo_modification, debug);
+        }
+        self.current.apply_modification(modification, debug)
+    }
+}
+
+impl From<&str> for SubBuffer {
+    fn from(value: &str) -> Self {
+        Self { text: value.into(), cursor: 0.into(), segs: unicode_segs::calc(value) }
+    }
+}
+
+impl SubBuffer {
+    pub fn is_empty(&self) -> bool {
+        self.text.is_empty()
+    }
+
+    pub fn len(&self) -> usize {
+        self.text.len()
     }
 
     fn apply_modification(
-        &mut self, mut modifications: Modification, segs: &mut UnicodeSegs, cursor: &mut Cursor,
-        debug: &mut DebugInfo,
+        &mut self, mut modifications: Modification, debug: &mut DebugInfo,
     ) -> (bool, Option<String>) {
         let mut text_updated = false;
         let mut to_clipboard = None;
 
-        let mut cur_cursor = *cursor;
+        let mut cur_cursor = self.cursor;
         modifications.reverse();
         while let Some(modification) = modifications.pop() {
             // todo: reduce duplication
@@ -93,8 +119,8 @@ impl Buffer {
                         &mut cur_cursor,
                     );
 
-                    self.replace_range(replaced_text_range, &text_replacement, segs);
-                    *segs = unicode_segs::calc(self);
+                    self.replace_range(replaced_text_range, &text_replacement);
+                    self.segs = unicode_segs::calc(&self.text);
                     text_updated = true;
                 }
                 SubModification::Delete(n_chars) => {
@@ -115,8 +141,8 @@ impl Buffer {
                         &mut cur_cursor,
                     );
 
-                    self.replace_range(replaced_text_range, text_replacement, segs);
-                    *segs = unicode_segs::calc(self);
+                    self.replace_range(replaced_text_range, text_replacement);
+                    self.segs = unicode_segs::calc(&self.text);
                     text_updated = true;
                 }
                 SubModification::DebugToggle => {
@@ -128,7 +154,7 @@ impl Buffer {
             }
         }
 
-        *cursor = cur_cursor;
+        self.cursor = cur_cursor;
         (text_updated, to_clipboard)
     }
 
@@ -259,13 +285,11 @@ impl Buffer {
         }
     }
 
-    pub fn replace_range(
-        &mut self, range: Range<DocCharOffset>, replacement: &str, segs: &UnicodeSegs,
-    ) {
-        self.raw.replace_range(
+    pub fn replace_range(&mut self, range: Range<DocCharOffset>, replacement: &str) {
+        self.text.replace_range(
             Range {
-                start: segs.char_offset_to_byte(range.start).0,
-                end: segs.char_offset_to_byte(range.end).0,
+                start: self.segs.char_offset_to_byte(range.start).0,
+                end: self.segs.char_offset_to_byte(range.end).0,
             },
             replacement,
         );
@@ -274,57 +298,53 @@ impl Buffer {
 
 #[cfg(test)]
 mod test {
-    use crate::buffer::SubModification;
+    use crate::buffer::{SubBuffer, SubModification};
     use crate::cursor::Cursor;
-    use crate::unicode_segs;
 
     #[test]
     fn apply_modifications_none_empty_doc() {
-        let mut buffer = "".into();
-        let mut cursor = Default::default();
+        let mut buffer: SubBuffer = "".into();
+        buffer.cursor = Default::default();
         let mut debug = Default::default();
-        let mut segs = unicode_segs::calc(&buffer);
 
         let modifications = Default::default();
 
-        let (text_updated, _) = buffer.apply(modifications, &mut segs, &mut cursor, &mut debug);
+        let (text_updated, _) = buffer.apply_modification(modifications, &mut debug);
 
-        assert_eq!(buffer.raw, "");
-        assert_eq!(cursor, Default::default());
+        assert_eq!(buffer.text, "");
+        assert_eq!(buffer.cursor, Default::default());
         assert!(!debug.draw_enabled);
         assert!(!text_updated);
     }
 
     #[test]
     fn apply_modifications_none() {
-        let mut buffer = "document content".into();
-        let mut cursor = 9.into();
+        let mut buffer: SubBuffer = "document content".into();
+        buffer.cursor = 9.into();
         let mut debug = Default::default();
-        let mut segs = unicode_segs::calc(&buffer);
 
         let modifications = Default::default();
 
-        let (text_updated, _) = buffer.apply(modifications, &mut segs, &mut cursor, &mut debug);
+        let (text_updated, _) = buffer.apply_modification(modifications, &mut debug);
 
-        assert_eq!(buffer.raw, "document content");
-        assert_eq!(cursor, 9.into());
+        assert_eq!(buffer.text, "document content");
+        assert_eq!(buffer.cursor, 9.into());
         assert!(!debug.draw_enabled);
         assert!(!text_updated);
     }
 
     #[test]
     fn apply_modifications_insert() {
-        let mut buffer = "document content".into();
-        let mut cursor = 9.into();
+        let mut buffer: SubBuffer = "document content".into();
+        buffer.cursor = 9.into();
         let mut debug = Default::default();
-        let mut segs = unicode_segs::calc(&buffer);
 
         let modifications = vec![SubModification::Insert { text: "new ".to_string() }];
 
-        let (text_updated, _) = buffer.apply(modifications, &mut segs, &mut cursor, &mut debug);
+        let (text_updated, _) = buffer.apply_modification(modifications, &mut debug);
 
-        assert_eq!(buffer.raw, "document new content");
-        assert_eq!(cursor, 13.into());
+        assert_eq!(buffer.text, "document new content");
+        assert_eq!(buffer.cursor, 13.into());
         assert!(!debug.draw_enabled);
         assert!(text_updated);
     }
@@ -384,14 +404,13 @@ mod test {
         ];
 
         for case in cases {
-            let mut cursor = Cursor {
+            let mut buffer: SubBuffer = "1234567".into();
+            buffer.cursor = Cursor {
                 pos: case.cursor_a.0.into(),
                 selection_origin: Some(case.cursor_a.1.into()),
                 ..Default::default()
             };
-            let mut buffer = "1234567".into();
             let mut debug = Default::default();
-            let mut segs = unicode_segs::calc(&buffer);
 
             let modifications = vec![
                 SubModification::Insert { text: "a".to_string() },
@@ -405,11 +424,11 @@ mod test {
                 SubModification::Insert { text: "b".to_string() },
             ];
 
-            let (text_updated, _) = buffer.apply(modifications, &mut segs, &mut cursor, &mut debug);
+            let (text_updated, _) = buffer.apply_modification(modifications, &mut debug);
 
-            assert_eq!(buffer.raw, case.expected_buffer);
-            assert_eq!(cursor.pos.0, case.expected_cursor.0);
-            assert_eq!(cursor.selection_origin, Some(case.expected_cursor.1.into()));
+            assert_eq!(buffer.text, case.expected_buffer);
+            assert_eq!(buffer.cursor.pos.0, case.expected_cursor.0);
+            assert_eq!(buffer.cursor.selection_origin, Some(case.expected_cursor.1.into()));
             assert!(!debug.draw_enabled);
             assert!(text_updated);
         }

@@ -1,4 +1,4 @@
-use crate::buffer::{Buffer, Modification, SubModification};
+use crate::buffer::{Buffer, Modification, SubBuffer, SubModification};
 use crate::cursor::Cursor;
 use crate::debug::DebugInfo;
 use crate::element::ItemType;
@@ -11,22 +11,22 @@ use std::cmp::Ordering;
 use std::time::Instant;
 
 /// processes `events` and returns a boolean representing whether text was updated and optionally new contents for clipboard
-#[allow(clippy::too_many_arguments)]
 pub fn process(
     events: &[Event], layouts: &Layouts, galleys: &Galleys, ui_size: Vec2, buffer: &mut Buffer,
-    segs: &mut UnicodeSegs, cursor: &mut Cursor, debug: &mut DebugInfo,
+    debug: &mut DebugInfo,
 ) -> (bool, Option<String>) {
-    let modification = calc_modification(events, segs, layouts, galleys, buffer, *cursor, ui_size);
-    buffer.apply(modification, segs, cursor, debug)
+    let modification = calc_modification(events, layouts, galleys, buffer, ui_size);
+    buffer.apply(modification, debug)
 }
 
 fn calc_modification<'a>(
-    events: &'a [Event], segs: &UnicodeSegs, layouts: &Layouts, galleys: &Galleys, buffer: &Buffer,
-    cursor: Cursor, ui_size: Vec2,
+    events: &'a [Event], layouts: &Layouts, galleys: &Galleys, buffer: &Buffer, ui_size: Vec2,
 ) -> Modification {
     let mut modifications = Vec::new();
-    let mut previous_cursor = cursor;
-    let mut cursor = cursor;
+    let buffer = &buffer.current;
+    let mut previous_cursor = buffer.cursor;
+    let mut cursor = buffer.cursor;
+    let segs = &buffer.segs;
 
     cursor.fix(false, segs, galleys);
     if cursor != previous_cursor {
@@ -334,7 +334,8 @@ fn calc_modification<'a>(
                     match annotation {
                         Annotation::Item(item_type, indent_level) => {
                             // todo: this needs more attention e.g. list items doubly indented using 2-space indents
-                            let layout_text = &buffer.raw[layout.range.start.0..layout.range.end.0];
+                            let layout_text =
+                                &buffer.text[layout.range.start.0..layout.range.end.0];
                             let indent_seq = if layout_text.starts_with('\t') {
                                 "\t"
                             } else if layout_text.starts_with("    ") {
@@ -674,7 +675,7 @@ fn pos_to_char_offset(pos: Pos2, galleys: &Galleys, segs: &UnicodeSegs) -> DocCh
 #[allow(clippy::too_many_arguments)]
 fn increment_numbered_list_items(
     starting_layout_idx: usize, indent_level: u8, amount: usize, decrement: bool,
-    segs: &UnicodeSegs, layouts: &Layouts, buffer: &Buffer, cursor: Cursor,
+    segs: &UnicodeSegs, layouts: &Layouts, buffer: &SubBuffer, cursor: Cursor,
 ) -> Modification {
     let mut modifications = Vec::new();
 
