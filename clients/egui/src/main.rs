@@ -49,6 +49,11 @@ fn main() {
         Box::new(|cc: &eframe::CreationContext| {
             let settings = Arc::new(RwLock::new(settings));
 
+            let mut fonts = egui::FontDefinitions::default();
+            lbeditor::register_fonts(&mut fonts);
+            theme::register_fonts(&mut fonts);
+            cc.egui_ctx.set_fonts(fonts);
+
             theme::init(&settings, &cc.egui_ctx);
 
             let splash = SplashScreen::new(settings, maybe_settings_err);
