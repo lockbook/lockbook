@@ -34,7 +34,7 @@ pub struct Buffer {
     pub undo_queue: CircularBuffer<Vec<Modification>>,
 
     /// additional, most recent element for queue, contains at most one text update, flushed to queue when another text update is applied
-    pub current_text_mod: Option<Vec<Modification>>,
+    pub current_text_mods: Option<Vec<Modification>>,
 
     /// modifications reverted by undo and available for redo; used as a stack
     pub redo_stack: Vec<Vec<Modification>>,
@@ -54,7 +54,7 @@ impl From<&str> for Buffer {
             current: value.into(),
             undo_base: value.into(),
             undo_queue: CircularBuffer::new(MAX_UNDOS),
-            current_text_mod: None,
+            current_text_mods: None,
             redo_stack: Vec::new(),
         }
     }
@@ -79,21 +79,19 @@ impl Buffer {
             .iter()
             .any(|m| matches!(m, SubModification::Insert { .. } | SubModification::Delete(..)))
         {
-            if let Some(ref current_text_modifications) = self.current_text_mod {
-                if let Ok(Some(undo_modifications)) =
-                    self.undo_queue.add(current_text_modifications.clone())
-                {
+            if let Some(ref current_text_mods) = self.current_text_mods {
+                if let Ok(Some(undo_mods)) = self.undo_queue.add(current_text_mods.clone()) {
                     // when modifications overflow the queue, apply them to undo_base
-                    for m in undo_modifications {
+                    for m in undo_mods {
                         self.undo_base.apply_modification(m, debug);
                     }
                 }
             }
-            self.current_text_mod = Some(vec![modification.clone()]);
-        } else if let Some(ref mut current_text_modification) = self.current_text_mod {
-            current_text_modification.push(modification.clone());
+            self.current_text_mods = Some(vec![modification.clone()]);
+        } else if let Some(ref mut current_text_mod) = self.current_text_mods {
+            current_text_mod.push(modification.clone());
         } else {
-            self.current_text_mod = Some(vec![modification.clone()]);
+            self.current_text_mods = Some(vec![modification.clone()]);
         }
 
         self.redo_stack = Vec::new();
@@ -102,54 +100,54 @@ impl Buffer {
 
     /// undoes one modification, if able
     pub fn undo(&mut self, debug: &mut DebugInfo) {
-        if let Some(current_text_modifications) = &self.current_text_mod {
+        if let Some(current_text_mods) = &self.current_text_mods {
             // don't undo cursor-only updates
-            if !current_text_modifications.iter().any(|modification| {
+            if !current_text_mods.iter().any(|modification| {
                 modification.iter().any(|m| {
                     matches!(m, SubModification::Insert { .. } | SubModification::Delete(..))
                 })
             }) {
-                for m in current_text_modifications {
+                for m in current_text_mods {
                     self.current.apply_modification(m.clone(), debug);
                 }
                 return;
             }
 
             // reconstruct the modification queue
-            let mut modifications_to_apply = CircularBuffer::new(MAX_UNDOS);
-            std::mem::swap(&mut modifications_to_apply, &mut self.undo_queue);
+            let mut mods_to_apply = CircularBuffer::new(MAX_UNDOS);
+            std::mem::swap(&mut mods_to_apply, &mut self.undo_queue);
 
             // current starts over from undo base
             self.current = self.undo_base.clone();
 
             // move the (undone) current modification to the redo stack
-            self.redo_stack.push(current_text_modifications.clone());
+            self.redo_stack.push(current_text_mods.clone());
 
             // undo the current modification by applying the whole queue but not the current modification
-            while let Ok(modifications) = modifications_to_apply.remove() {
-                for m in &modifications {
+            while let Ok(mods) = mods_to_apply.remove() {
+                for m in &mods {
                     self.current.apply_modification(m.clone(), debug);
                 }
 
                 // final element of the queue moved from queue to current
-                if modifications_to_apply.size() == 0 {
-                    self.current_text_mod = Some(modifications);
+                if mods_to_apply.size() == 0 {
+                    self.current_text_mods = Some(mods);
                     break;
                 }
 
-                let _ = self.undo_queue.add(modifications);
+                let _ = self.undo_queue.add(mods);
             }
         }
     }
 
     /// redoes one modification, if able
     pub fn redo(&mut self, debug: &mut DebugInfo) {
-        if let Some(modifications) = self.redo_stack.pop() {
-            if let Some(current_text_mod) = &self.current_text_mod {
-                let _ = self.undo_queue.add(current_text_mod.clone());
+        if let Some(mods) = self.redo_stack.pop() {
+            if let Some(current_text_mods) = &self.current_text_mods {
+                let _ = self.undo_queue.add(current_text_mods.clone());
             }
-            self.current_text_mod = Some(modifications.clone());
-            for m in modifications {
+            self.current_text_mods = Some(mods.clone());
+            for m in mods {
                 self.current.apply_modification(m, debug);
             }
         }
@@ -172,14 +170,14 @@ impl SubBuffer {
     }
 
     fn apply_modification(
-        &mut self, mut modifications: Modification, debug: &mut DebugInfo,
+        &mut self, mut mods: Modification, debug: &mut DebugInfo,
     ) -> (bool, Option<String>) {
         let mut text_updated = false;
         let mut to_clipboard = None;
 
         let mut cur_cursor = self.cursor;
-        modifications.reverse();
-        while let Some(modification) = modifications.pop() {
+        mods.reverse();
+        while let Some(modification) = mods.pop() {
             // todo: reduce duplication
             match modification {
                 SubModification::Cursor { cursor: cur } => {
@@ -193,7 +191,7 @@ impl SubBuffer {
                     Self::modify_subsequent_cursors(
                         replaced_text_range.clone(),
                         &text_replacement,
-                        &mut modifications,
+                        &mut mods,
                         &mut cur_cursor,
                     );
 
@@ -215,7 +213,7 @@ impl SubBuffer {
                     Self::modify_subsequent_cursors(
                         replaced_text_range.clone(),
                         text_replacement,
-                        &mut modifications,
+                        &mut mods,
                         &mut cur_cursor,
                     );
 
@@ -238,13 +236,13 @@ impl SubBuffer {
 
     fn modify_subsequent_cursors(
         replaced_text_range: Range<DocCharOffset>, text_replacement: &str,
-        modifications: &mut [SubModification], cur_cursor: &mut Cursor,
+        mods: &mut [SubModification], cur_cursor: &mut Cursor,
     ) {
         let replaced_text_len = replaced_text_range.end - replaced_text_range.start;
         let text_replacement_len =
             UnicodeSegmentation::grapheme_indices(text_replacement, true).count();
 
-        for mod_cursor in modifications
+        for mod_cursor in mods
             .iter_mut()
             .filter_map(|modification| {
                 if let SubModification::Cursor { cursor: cur } = modification {
@@ -380,14 +378,14 @@ mod test {
     use crate::cursor::Cursor;
 
     #[test]
-    fn apply_modifications_none_empty_doc() {
+    fn apply_mods_none_empty_doc() {
         let mut buffer: SubBuffer = "".into();
         buffer.cursor = Default::default();
         let mut debug = Default::default();
 
-        let modifications = Default::default();
+        let mods = Default::default();
 
-        let (text_updated, _) = buffer.apply_modification(modifications, &mut debug);
+        let (text_updated, _) = buffer.apply_modification(mods, &mut debug);
 
         assert_eq!(buffer.text, "");
         assert_eq!(buffer.cursor, Default::default());
@@ -396,14 +394,14 @@ mod test {
     }
 
     #[test]
-    fn apply_modifications_none() {
+    fn apply_mods_none() {
         let mut buffer: SubBuffer = "document content".into();
         buffer.cursor = 9.into();
         let mut debug = Default::default();
 
-        let modifications = Default::default();
+        let mods = Default::default();
 
-        let (text_updated, _) = buffer.apply_modification(modifications, &mut debug);
+        let (text_updated, _) = buffer.apply_modification(mods, &mut debug);
 
         assert_eq!(buffer.text, "document content");
         assert_eq!(buffer.cursor, 9.into());
@@ -412,14 +410,14 @@ mod test {
     }
 
     #[test]
-    fn apply_modifications_insert() {
+    fn apply_mods_insert() {
         let mut buffer: SubBuffer = "document content".into();
         buffer.cursor = 9.into();
         let mut debug = Default::default();
 
-        let modifications = vec![SubModification::Insert { text: "new ".to_string() }];
+        let mods = vec![SubModification::Insert { text: "new ".to_string() }];
 
-        let (text_updated, _) = buffer.apply_modification(modifications, &mut debug);
+        let (text_updated, _) = buffer.apply_modification(mods, &mut debug);
 
         assert_eq!(buffer.text, "document new content");
         assert_eq!(buffer.cursor, 13.into());
@@ -428,7 +426,7 @@ mod test {
     }
 
     #[test]
-    fn apply_modifications_selection_insert_twice() {
+    fn apply_mods_selection_insert_twice() {
         struct Case {
             cursor_a: (usize, usize),
             cursor_b: (usize, usize),
@@ -490,7 +488,7 @@ mod test {
             };
             let mut debug = Default::default();
 
-            let modifications = vec![
+            let mods = vec![
                 SubModification::Insert { text: "a".to_string() },
                 SubModification::Cursor {
                     cursor: Cursor {
@@ -502,7 +500,7 @@ mod test {
                 SubModification::Insert { text: "b".to_string() },
             ];
 
-            let (text_updated, _) = buffer.apply_modification(modifications, &mut debug);
+            let (text_updated, _) = buffer.apply_modification(mods, &mut debug);
 
             assert_eq!(buffer.text, case.expected_buffer);
             assert_eq!(buffer.cursor.pos.0, case.expected_cursor.0);
