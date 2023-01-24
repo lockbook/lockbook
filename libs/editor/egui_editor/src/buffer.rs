@@ -56,7 +56,7 @@ pub struct SubBuffer {
 }
 
 // todo: lazy af name
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct SubBuffer {
     pub cursor: Cursor,
     pub text: String,
