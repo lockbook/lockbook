@@ -120,14 +120,31 @@ public class FrameManager: NSObject, MTKViewDelegate {
     var editorHandle: UnsafeMutableRawPointer
     var loader: TextLoader
     var parent: CustomMTK
+    var timer: Timer?
     
     public init(_ parent: CustomMTK, _ loader: TextLoader) {
         self.parent = parent
         self.loader = loader
         let metalLayer = UnsafeMutableRawPointer(Unmanaged.passRetained(self.parent.layer!).toOpaque())
         self.editorHandle = init_editor(metalLayer, self.loader.loadText())
-        
+
         super.init()
+        DispatchQueue.main.async {
+            async {
+                try await self.checkForChanges()
+            }
+        }
+    }
+    
+    func checkForChanges() async throws {
+        while true {
+            print("checked")
+            if self.loader.textReloadNeeded() {
+                
+                self.reloadText()
+            }
+            try await Task.sleep(nanoseconds: 500000000)
+        }
     }
     
     deinit {
