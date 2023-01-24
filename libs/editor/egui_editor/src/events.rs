@@ -15,10 +15,15 @@ pub fn process(
     events: &[Event], layouts: &Layouts, galleys: &Galleys, ui_size: Vec2, buffer: &mut Buffer,
     debug: &mut DebugInfo,
 ) -> (bool, Option<String>) {
-    let (text_updated_calc, modification) =
+    let (mut text_updated, modification) =
         calc_modification(events, layouts, galleys, buffer, debug, ui_size);
-    let (text_updated_apply, to_clipboard) = buffer.apply(modification, debug);
-    (text_updated_calc || text_updated_apply, to_clipboard)
+    let mut to_clipboard = None;
+    if !modification.is_empty() {
+        let (text_updated_apply, to_clipboard_apply) = buffer.apply(modification, debug);
+        text_updated |= text_updated_apply;
+        to_clipboard = to_clipboard_apply;
+    }
+    (text_updated, to_clipboard)
 }
 
 // note: buffer and debug are mut because undo modifies it directly; todo: factor to make mutating subset of code obvious
@@ -590,7 +595,11 @@ fn calc_modification<'a>(
             Event::Key { key: Key::Z, pressed: true, modifiers } => {
                 if modifiers.command {
                     // mutate buffer directly - undo does not become a modification because it cannot be undone
-                    buffer.undo(debug);
+                    if modifiers.shift {
+                        buffer.redo(debug);
+                    } else {
+                        buffer.undo(debug);
+                    }
                     text_updated = true;
                 }
             }

@@ -31,10 +31,13 @@ pub struct Buffer {
     pub undo_base: SubBuffer,
 
     /// modifications made between undo_base and raw;
-    pub modification_queue: CircularBuffer<Modification>,
+    pub modification_queue: CircularBuffer<Vec<Modification>>,
+
+    /// additional, most recent element for queue, contains at most one text update, flushed to queue when another text update is applied
+    pub current_text_modifications: Option<Vec<Modification>>,
 
     /// modifications reverted by undo and available for redo; used as a stack
-    pub modifications_undone: Vec<Modification>,
+    pub modifications_undone: Vec<Vec<Modification>>,
 }
 
 // todo: lazy af name
@@ -51,6 +54,7 @@ impl From<&str> for Buffer {
             current: value.into(),
             undo_base: value.into(),
             modification_queue: CircularBuffer::new(MAX_UNDOS),
+            current_text_modifications: None,
             modifications_undone: Vec::new(),
         }
     }
@@ -66,41 +70,80 @@ impl Buffer {
     }
 
     /// applies `modification` and returns a boolean representing whether text was updated and optionally new contents for clipboard
+    // todo: less cloning
     pub fn apply(
         &mut self, modification: Modification, debug: &mut DebugInfo,
     ) -> (bool, Option<String>) {
-        if modification.is_empty() {
-            return (false, None);
+        // accumulate modifications into one modification until a non-cursor update is applied (for purposes of undo)
+        if modification
+            .iter()
+            .any(|m| matches!(m, SubModification::Insert { .. } | SubModification::Delete(..)))
+        {
+            if let Some(ref current_text_modifications) = self.current_text_modifications {
+                if let Ok(Some(undo_modifications)) = self
+                    .modification_queue
+                    .add(current_text_modifications.clone())
+                {
+                    // when modifications overflow the queue, apply them to undo_base
+                    for m in undo_modifications {
+                        self.undo_base.apply_modification(m, debug);
+                    }
+                }
+            }
+            self.current_text_modifications = Some(vec![modification.clone()]);
+        } else if let Some(ref mut current_text_modification) = self.current_text_modifications {
+            current_text_modification.push(modification.clone());
+        } else {
+            self.current_text_modifications = Some(vec![modification.clone()]);
         }
 
-        // todo: less cloning of modifications
-        if let Ok(Some(undo_modification)) = self.modification_queue.add(modification.clone()) {
-            // when modifications overflow the queue, apply them to undo_base
-            self.undo_base.apply_modification(undo_modification, debug);
-        }
         self.current.apply_modification(modification, debug)
     }
 
     /// undoes one modification, if able
     pub fn undo(&mut self, debug: &mut DebugInfo) {
-        let mut modifications_to_apply = CircularBuffer::new(MAX_UNDOS);
-        std::mem::swap(&mut modifications_to_apply, &mut self.modification_queue);
+        if let Some(current_text_modifications) = &self.current_text_modifications {
+            // don't undo cursor-only updates
+            if !current_text_modifications.iter().any(|modification| {
+                modification.iter().any(|m| {
+                    matches!(m, SubModification::Insert { .. } | SubModification::Delete(..))
+                })
+            }) {
+                for m in current_text_modifications {
+                    self.current.apply_modification(m.clone(), debug);
+                }
+                return;
+            }
 
-        // current starts over from undo base
-        self.current = self.undo_base.clone();
+            // reconstruct the modification queue
+            let mut modifications_to_apply = CircularBuffer::new(MAX_UNDOS);
+            std::mem::swap(&mut modifications_to_apply, &mut self.modification_queue);
 
-        // all but one modification applied to current and put back in the queue
-        while modifications_to_apply.size() > 1 {
-            if let Ok(modification) = modifications_to_apply.remove() {
-                self.current.apply_modification(modification.clone(), debug);
-                let _ = self.modification_queue.add(modification);
+            // current starts over from undo base
+            self.current = self.undo_base.clone();
+
+            // undo the current modification by applying the whole queue but not the current modification
+            while let Ok(modifications) = modifications_to_apply.remove() {
+                for m in &modifications {
+                    self.current.apply_modification(m.clone(), debug);
+                }
+
+                // final element of the queue moved from queue to current
+                if modifications_to_apply.size() == 0 {
+                    self.current_text_modifications = Some(modifications);
+                    break;
+                }
+
+                let _ = self.modification_queue.add(modifications);
             }
         }
+    }
 
-        // final modification is not applied and is instead added to redo stack
-        if modifications_to_apply.size() > 0 {
-            if let Ok(modification) = modifications_to_apply.remove() {
-                self.modifications_undone.push(modification);
+    /// redoes one modification, if able
+    pub fn redo(&mut self, debug: &mut DebugInfo) {
+        if let Some(modifications) = self.modifications_undone.pop() {
+            for m in modifications {
+                self.current.apply_modification(m, debug);
             }
         }
     }
