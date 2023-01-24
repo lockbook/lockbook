@@ -97,6 +97,7 @@ impl Buffer {
             self.current_text_modifications = Some(vec![modification.clone()]);
         }
 
+        self.modifications_undone = Vec::new();
         self.current.apply_modification(modification, debug)
     }
 
@@ -121,6 +122,10 @@ impl Buffer {
 
             // current starts over from undo base
             self.current = self.undo_base.clone();
+
+            // move the (undone) current modification to the redo stack
+            self.modifications_undone
+                .push(current_text_modifications.clone());
 
             // undo the current modification by applying the whole queue but not the current modification
             while let Ok(modifications) = modifications_to_apply.remove() {
