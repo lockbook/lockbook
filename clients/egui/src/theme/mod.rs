@@ -23,7 +23,6 @@ pub fn init(s: &Arc<RwLock<Settings>>, ctx: &egui::Context) {
     let primary = s.read().unwrap().theme_color;
 
     ctx.set_visuals(egui_visuals(initial_mode, primary));
-    ctx.set_fonts(fonts());
 
     let mut style = (*ctx.style()).clone();
     style.spacing.button_padding = egui::vec2(5.0, 5.0);
@@ -79,9 +78,7 @@ pub fn egui_visuals(m: dark_light::Mode, primary: lb::ColorAlias) -> egui::Visua
     }
 }
 
-pub fn fonts() -> egui::FontDefinitions {
-    let mut fonts = egui::FontDefinitions::default();
-
+pub fn register_fonts(fonts: &mut egui::FontDefinitions) {
     fonts.font_data.insert(
         "material_icons".to_owned(),
         egui::FontData::from_static(icons::MATERIAL_ICON_FONT),
@@ -92,6 +89,4 @@ pub fn fonts() -> egui::FontDefinitions {
         .get_mut(&egui::FontFamily::Monospace)
         .unwrap()
         .push("material_icons".to_owned());
-
-    fonts
 }
