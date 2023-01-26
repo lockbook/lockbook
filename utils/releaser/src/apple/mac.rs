@@ -8,7 +8,8 @@ use std::process::Command;
 pub fn release(asc: &AppStore, gh: &Github) {
     archive();
     notarize(asc);
-    upload(gh);
+    upload_gh(gh);
+    upload_app_store(asc);
 }
 
 fn archive() {
@@ -28,6 +29,7 @@ fn archive() {
         ])
         .assert_success();
 
+    // creates .app to upload to github
     Command::new("xcodebuild")
         .args([
             "-allowProvisioningUpdates",
@@ -36,7 +38,21 @@ fn archive() {
             "-exportPath",
             "clients/apple/build/",
             "-exportOptionsPlist",
-            "clients/apple/exportOptionsMacOS.plist",
+            "clients/apple/exportOptionsGHApp.plist",
+            "-exportArchive",
+        ])
+        .assert_success();
+
+    // creates .pkg to upload to the app store
+    Command::new("xcodebuild")
+        .args([
+            "-allowProvisioningUpdates",
+            "-archivePath",
+            "clients/apple/build/Lockbook-macOS.xcarchive",
+            "-exportPath",
+            "clients/apple/build/",
+            "-exportOptionsPlist",
+            "clients/apple/exportOptions.plist",
             "-exportArchive",
         ])
         .assert_success();
@@ -81,7 +97,7 @@ fn notarize(asc: &AppStore) {
         .assert_success();
 }
 
-fn upload(gh: &Github) {
+fn upload_gh(gh: &Github) {
     let client = ReleaseClient::new(gh.0.clone()).unwrap();
     let release = client
         .get_release_by_tag_name(&lb_repo(), &core_version())
@@ -97,4 +113,21 @@ fn upload(gh: &Github) {
             None,
         )
         .unwrap();
+}
+
+fn upload_app_store(asc: &AppStore) {
+    Command::new("xcrun")
+        .args([
+            "altool",
+            "--upload-app",
+            "-t",
+            "macos",
+            "-f",
+            "clients/apple/build/Lockbook.pkg",
+            "-u",
+            "parth@mehrotra.me",
+            "-p",
+            &asc.0,
+        ])
+        .assert_success();
 }
