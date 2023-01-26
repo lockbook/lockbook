@@ -1,5 +1,6 @@
 use itertools::Itertools;
 use std::collections::HashMap;
+use std::ops::Sub;
 
 use crate::Requester;
 use crate::{CoreResult, RequestContext};
@@ -38,21 +39,19 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
         }
 
         // normalize
-        let millis_read_range = Self::range(
-            &activity_table
-                .values()
-                .map(|f| f.millis_since_read)
-                .collect_vec(),
-        );
-        let millis_write_range = Self::range(
-            &activity_table
-                .values()
-                .map(|f| f.millis_since_written)
-                .collect_vec(),
-        );
-        let read_range = Self::range(&activity_table.values().map(|f| f.read_count).collect_vec());
-        let write_range =
-            Self::range(&activity_table.values().map(|f| f.write_count).collect_vec());
+        let millis_read_range = activity_table.values().map(|f| f.millis_since_read).range();
+
+        let millis_write_range = activity_table
+            .values()
+            .map(|f| f.millis_since_written)
+            .range();
+
+        let millis_write_range = &activity_table
+            .values()
+            .map(|f| f.millis_since_written)
+            .range();
+        let read_range = activity_table.values().map(|f| f.read_count).range();
+        let write_range = &activity_table.values().map(|f| f.write_count).range();
 
         for (_, feat) in activity_table.iter_mut() {
             feat.millis_since_read /= millis_read_range;
@@ -68,7 +67,19 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
         if numbers.is_empty() {
             return 0;
         }
-
         numbers.iter().max().unwrap() - numbers.iter().min().unwrap()
+    }
+}
+
+trait Range: Iterator {
+    fn range(self) -> Self::Item;
+}
+impl<T, F> Range for T
+where
+    T: Iterator<Item = F>,
+    F: Ord + Sub<Output = F>,
+{
+    fn range(self) -> Self::Item {
+        self.max().unwrap() - self.min().unwrap()
     }
 }
