@@ -1,5 +1,6 @@
 mod cli;
 mod core;
+mod editor;
 mod ios;
 mod mac;
 
@@ -11,6 +12,7 @@ use std::path::Path;
 pub fn release_apple(gh: &Github, asc: &AppStore) {
     cli::release(gh);
     core::build();
+    editor::build();
     clean_build_dir();
     ios::release(asc);
     mac::release(asc, gh);
