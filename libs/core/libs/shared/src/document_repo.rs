@@ -2,6 +2,7 @@ use crate::core_config::Config;
 use crate::crypto::*;
 use crate::file_metadata::DocumentHmac;
 use crate::{SharedError, SharedResult};
+use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::convert::TryInto;
 use std::fs::{self, File, OpenOptions};
@@ -9,6 +10,51 @@ use std::io::{ErrorKind, Read, Write};
 use std::path::Path;
 use tracing::*;
 use uuid::Uuid;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum DocEvents {
+    Read(i64),
+    Write(i64),
+}
+#[derive(Default)]
+pub struct DocActivityScore {
+    avg_read_timestamp: i64,
+    avg_write_timestamp: i64,
+    read_count: i64,
+    write_count: i64,
+}
+pub trait Stats: Iterator {
+    fn score(self) -> DocActivityScore;
+}
+impl<T: Iterator<Item = DocEvents>> Stats for T {
+    fn score(self) -> DocActivityScore {
+        let mut read_activity: Vec<i64> = vec![];
+        let mut write_activity: Vec<i64> = vec![];
+        let mut write_sum = 0;
+        let mut read_sum = 0;
+
+        self.for_each(|event| match event {
+            DocEvents::Read(timestamp) => {
+                read_activity.push(timestamp);
+                read_sum += timestamp;
+            }
+            DocEvents::Write(timestamp) => {
+                write_activity.push(timestamp);
+                write_sum += timestamp;
+            }
+        });
+
+        let avg_read_timestamp = read_sum / read_activity.len() as i64;
+        let avg_write_timestamp = write_sum / write_activity.len() as i64;
+
+        DocActivityScore {
+            avg_read_timestamp,
+            avg_write_timestamp,
+            read_count: read_activity.len() as i64,
+            write_count: write_activity.len() as i64,
+        }
+    }
+}
 
 pub fn namespace_path(writeable_path: &str) -> String {
     format!("{}/documents", writeable_path)

@@ -1,85 +1,74 @@
-use itertools::Itertools;
+use lockbook_shared::clock::get_time;
+use lockbook_shared::document_repo::DocActivityScore;
+use lockbook_shared::document_repo::DocEvents;
+use lockbook_shared::document_repo::Stats;
 use std::collections::HashMap;
-use std::ops::Sub;
+use std::iter::Sum;
 
 use crate::Requester;
 use crate::{CoreResult, RequestContext};
-use lockbook_shared::clock::get_time;
-use uuid::Uuid;
 
-#[derive(Default)]
-struct Features {
-    millis_since_read: i64,
-    millis_since_written: i64,
-    read_count: i64,
-    write_count: i64,
-}
+use uuid::Uuid;
 
 impl<Client: Requester> RequestContext<'_, '_, Client> {
     pub fn suggested_docs(&mut self) -> CoreResult<Vec<Uuid>> {
-        let mut activity_table: HashMap<Uuid, Features> = HashMap::new();
-
+        let mut score_table: HashMap<Uuid, DocActivityScore> = HashMap::new();
         let now = get_time().0;
 
         // populate from read
-        for (key, value) in self.tx.read_activity.get_all() {
-            let mut table_entry = activity_table.remove(key).unwrap_or_default();
-            table_entry.read_count = value.len() as i64;
-            table_entry.millis_since_read = now - value.iter().max().copied().unwrap_or(i64::MAX);
-            activity_table.insert(*key, table_entry);
+        for (key, events) in self.tx.doc_events.get_all() {
+            events.iter().score();
+            // write_events.map(|f| {
+            //     if let DocEvents::Write(timestamp) = f {
+            //         timestamp - now
+            //     }
+            // });
         }
 
-        // populate from write
-        for (key, value) in self.tx.write_activity.get_all() {
-            let mut table_entry = activity_table.remove(key).unwrap_or_default();
-            table_entry.write_count = value.len() as i64;
-            table_entry.millis_since_written =
-                now - value.iter().max().copied().unwrap_or(i64::MAX);
-            activity_table.insert(*key, table_entry);
-        }
+        // // populate from write
+        // for (key, value) in self.tx.write_activity.get_all() {
+        //     let mut table_entry = score_table.remove(key).unwrap_or_default();
+        //     table_entry.write_count = value.len() as i64;
+        //     table_entry.avg_write_timestamp = value.iter().sum::<i64>() / value.len() as i64;
+        //     score_table.insert(*key, table_entry);
+        // }
 
-        // normalize
-        let millis_read_range = activity_table.values().map(|f| f.millis_since_read).range();
+        // // normalize
+        // let millis_read_range = score_table.values().map(|f| f.avg_read_timestamp).range();
 
-        let millis_write_range = activity_table
-            .values()
-            .map(|f| f.millis_since_written)
-            .range();
+        // let millis_write_range = score_table.values().map(|f| f.avg_write_timestamp).range();
 
-        let millis_write_range = &activity_table
-            .values()
-            .map(|f| f.millis_since_written)
-            .range();
-        let read_range = activity_table.values().map(|f| f.read_count).range();
-        let write_range = &activity_table.values().map(|f| f.write_count).range();
+        // let millis_write_range = &score_table.values().map(|f| f.avg_write_timestamp).range();
+        // let read_range = score_table.values().map(|f| f.read_count).range();
+        // let write_range = &score_table.values().map(|f| f.write_count).range();
 
-        for (_, feat) in activity_table.iter_mut() {
-            feat.millis_since_read /= millis_read_range;
-            feat.millis_since_written /= millis_write_range;
-            feat.read_count /= read_range;
-            feat.write_count /= write_range;
-        }
+        // for (_, feat) in score_table.iter_mut() {
+        //     feat.avg_read_timestamp /= millis_read_range;
+        //     feat.avg_write_timestamp /= millis_write_range;
+        //     feat.read_count /= read_range;
+        //     feat.write_count /= write_range;
+        // }
 
         Ok(vec![])
     }
 
-    fn range(numbers: &[i64]) -> i64 {
+    fn mean(numbers: &[i64]) -> i64 {
         if numbers.is_empty() {
             return 0;
         }
+
         numbers.iter().max().unwrap() - numbers.iter().min().unwrap()
     }
 }
 
-trait Range: Iterator {
-    fn range(self) -> Self::Item;
-}
-impl<T, F> Range for T
-where
-    T: Iterator<Item = F>,
-    F: Ord + Sub<Output = F>,
-{
-    fn range(self) -> Self::Item {
-        self.max().unwrap() - self.min().unwrap()
-    }
-}
+// trait Stats: Iterator {
+//     fn mean(self) -> i64;
+// }
+// impl<T, F> Stats for T
+// where
+//     T: Iterator<Item = DocEvents>,
+// {
+//     fn mean(self) -> i64 {
+//         1
+//     }
+// }
