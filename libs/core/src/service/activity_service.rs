@@ -10,33 +10,33 @@ use crate::{CoreResult, RequestContext};
 use uuid::Uuid;
 impl<Client: Requester> RequestContext<'_, '_, Client> {
     pub fn suggested_docs(&mut self) -> CoreResult<Vec<Uuid>> {
-        let mut doc_scores: HashMap<Uuid, DocActivityScore> = HashMap::new();
+        let mut doc_scores: Vec<(Uuid, DocActivityScore)> = vec![];
 
         self.tx
             .docs_events
             .get_all()
             .iter()
             .for_each(|(key, doc_events)| {
-                doc_scores.insert(*key, doc_events.iter().score());
+                doc_scores.push((*key, doc_events.iter().score()));
             });
 
         //normalize
         let mut docs_avg_read_timestamps = doc_scores
-            .values()
-            .map(|f| f.avg_read_timestamp)
+            .iter_mut()
+            .map(|f| f.1.avg_read_timestamp)
             .collect_vec();
         docs_avg_read_timestamps.sort_by(|a, b| a.raw.cmp(&b.raw));
 
         let mut docs_avg_write_timestamps = doc_scores
-            .values()
-            .map(|f| f.avg_write_timestamp)
+            .iter_mut()
+            .map(|f| f.1.avg_write_timestamp)
             .collect_vec();
         docs_avg_write_timestamps.sort_by(|a, b| a.raw.cmp(&b.raw));
 
-        let mut docs_read_count = doc_scores.values().map(|f| f.read_count).collect_vec();
+        let mut docs_read_count = doc_scores.iter_mut().map(|f| f.1.read_count).collect_vec();
         docs_read_count.sort_by(|a, b| a.raw.cmp(&b.raw));
 
-        let mut docs_write_count = doc_scores.values().map(|f| f.write_count).collect_vec();
+        let mut docs_write_count = doc_scores.iter_mut().map(|f| f.1.write_count).collect_vec();
         docs_write_count.sort_by(|a, b| a.raw.cmp(&b.raw));
 
         for (_, feat) in doc_scores.iter_mut() {
@@ -62,38 +62,9 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
             );
         }
 
-        Ok(vec![])
+        doc_scores
+            .sort_by(|a, b| DocActivityScore::score(&a.1).cmp(&DocActivityScore::score(&b.1)));
+
+        Ok(doc_scores.into_iter().map(|f| f.0).collect_vec())
     }
 }
-
-// pub trait Range<'a>: Iterator {
-//     fn range(self) -> Self::Item;
-// }
-
-// impl<'a, F, T> Range<'_> for T
-// where
-//     T: Iterator<Item = &'a F>,
-//     F: std::borrow::Borrow<f64> + Ord + 'a,
-//     &'a F: std::ops::Sub<Output = &'a F>,
-// {
-//     fn range(self) -> &'a F {
-//         let mut vec: Vec<&'a F> = self.collect_vec();
-//         vec.sort();
-//         *vec.last().unwrap() - *vec.first().unwrap()
-//     }
-// }
-
-// pub trait Range: Iterator {
-//     fn range(self) -> i64;
-// }
-
-// impl<'a, T> Range for T
-// where
-//     T: Iterator<Item = &'a i64>,
-// {
-//     fn range(self) -> i64 {
-//         let mut vec: Vec<&'a i64> = self.collect_vec();
-//         vec.sort();
-//         *vec.last().unwrap() - *vec.first().unwrap()
-//     }
-// }

@@ -35,7 +35,15 @@ pub struct DocActivityScore {
     pub read_count: StatisticValue,
     pub write_count: StatisticValue,
 }
-
+impl DocActivityScore {
+    pub fn score(&self) -> i64 {
+        (self.avg_read_timestamp.normalized.unwrap() + self.avg_read_timestamp.normalized.unwrap())
+            as i64
+            * 70
+            + (self.read_count.normalized.unwrap() + self.write_count.normalized.unwrap()) as i64
+                * 30
+    }
+}
 pub trait Stats {
     fn score(self) -> DocActivityScore;
 }
