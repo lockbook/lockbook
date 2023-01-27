@@ -16,12 +16,24 @@ pub enum DocEvents {
     Read(i64),
     Write(i64),
 }
+#[derive(Default, Copy, Clone, PartialEq, PartialOrd)]
+pub struct StatisticValue {
+    pub raw: i64,
+    pub normalized: Option<f64>,
+}
+
+impl StatisticValue {
+    pub fn normalize(&mut self, max: StatisticValue, min: StatisticValue) {
+        self.normalized = Some((self.raw - min.raw) as f64 / (max.raw - min.raw) as f64)
+    }
+}
+
 #[derive(Default)]
 pub struct DocActivityScore {
-    pub avg_read_timestamp: i64,
-    pub avg_write_timestamp: i64,
-    pub read_count: i64,
-    pub write_count: i64,
+    pub avg_read_timestamp: StatisticValue,
+    pub avg_write_timestamp: StatisticValue,
+    pub read_count: StatisticValue,
+    pub write_count: StatisticValue,
 }
 
 pub trait Stats {
@@ -52,10 +64,10 @@ where
         let avg_write_timestamp = write_sum / write_activity.len() as i64;
 
         DocActivityScore {
-            avg_read_timestamp,
-            avg_write_timestamp,
-            read_count: read_activity.len() as i64,
-            write_count: write_activity.len() as i64,
+            avg_read_timestamp: StatisticValue { raw: avg_read_timestamp, normalized: None },
+            avg_write_timestamp: StatisticValue { raw: avg_write_timestamp, normalized: None },
+            read_count: StatisticValue { raw: read_activity.len() as i64, normalized: None },
+            write_count: StatisticValue { raw: write_activity.len() as i64, normalized: None },
         }
     }
 }
