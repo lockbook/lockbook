@@ -18,18 +18,18 @@ pub enum DocEvents {
 }
 #[derive(Default)]
 pub struct DocActivityScore {
-    avg_read_timestamp: i64,
-    avg_write_timestamp: i64,
-    read_count: i64,
-    write_count: i64,
+    pub avg_read_timestamp: i64,
+    pub avg_write_timestamp: i64,
+    pub read_count: i64,
+    pub write_count: i64,
 }
 
 pub trait Stats {
     fn score(self) -> DocActivityScore;
 }
-impl<T> Stats for T
+impl<'a, T> Stats for T
 where
-    T: Iterator<Item = DocEvents>,
+    T: Iterator<Item = &'a DocEvents>,
 {
     fn score(self) -> DocActivityScore {
         let mut read_activity: Vec<i64> = vec![];
@@ -39,11 +39,11 @@ where
 
         self.for_each(|event| match event {
             DocEvents::Read(timestamp) => {
-                read_activity.push(timestamp);
+                read_activity.push(*timestamp);
                 read_sum += timestamp;
             }
             DocEvents::Write(timestamp) => {
-                write_activity.push(timestamp);
+                write_activity.push(*timestamp);
                 write_sum += timestamp;
             }
         });
