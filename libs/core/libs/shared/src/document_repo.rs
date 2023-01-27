@@ -23,10 +23,14 @@ pub struct DocActivityScore {
     read_count: i64,
     write_count: i64,
 }
-pub trait Stats: Iterator {
+
+pub trait Stats {
     fn score(self) -> DocActivityScore;
 }
-impl<T: Iterator<Item = DocEvents>> Stats for T {
+impl<T> Stats for T
+where
+    T: Iterator<Item = DocEvents>,
+{
     fn score(self) -> DocActivityScore {
         let mut read_activity: Vec<i64> = vec![];
         let mut write_activity: Vec<i64> = vec![];

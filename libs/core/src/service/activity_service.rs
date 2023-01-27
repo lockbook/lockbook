@@ -1,9 +1,7 @@
 use lockbook_shared::clock::get_time;
 use lockbook_shared::document_repo::DocActivityScore;
-use lockbook_shared::document_repo::DocEvents;
 use lockbook_shared::document_repo::Stats;
 use std::collections::HashMap;
-use std::iter::Sum;
 
 use crate::Requester;
 use crate::{CoreResult, RequestContext};
@@ -15,25 +13,11 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
         let mut score_table: HashMap<Uuid, DocActivityScore> = HashMap::new();
         let now = get_time().0;
 
-        // populate from read
-        for (key, events) in self.tx.doc_events.get_all() {
-            events.iter().score();
-            // write_events.map(|f| {
-            //     if let DocEvents::Write(timestamp) = f {
-            //         timestamp - now
-            //     }
-            // });
+        for (key, doc_events) in self.tx.docs_events.get_all() {
+            let doc_score = (*doc_events).into_iter().score();
         }
 
-        // // populate from write
-        // for (key, value) in self.tx.write_activity.get_all() {
-        //     let mut table_entry = score_table.remove(key).unwrap_or_default();
-        //     table_entry.write_count = value.len() as i64;
-        //     table_entry.avg_write_timestamp = value.iter().sum::<i64>() / value.len() as i64;
-        //     score_table.insert(*key, table_entry);
-        // }
-
-        // // normalize
+        //normalize
         // let millis_read_range = score_table.values().map(|f| f.avg_read_timestamp).range();
 
         // let millis_write_range = score_table.values().map(|f| f.avg_write_timestamp).range();

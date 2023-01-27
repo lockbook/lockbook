@@ -23,7 +23,7 @@ hmdb::schema! {
         base_metadata: <Uuid, SignedFile>,
         public_key_by_username: <String, Owner>,
         username_by_public_key: <Owner, String>,
-        doc_events: <Uuid, Vec<DocEvents>>
+        docs_events: <Uuid, Vec<DocEvents>>
     }
 }
 
