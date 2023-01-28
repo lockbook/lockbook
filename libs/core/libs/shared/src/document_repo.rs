@@ -11,10 +11,18 @@ use std::path::Path;
 use tracing::*;
 use uuid::Uuid;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Ord, PartialEq, PartialOrd, Eq)]
 pub enum DocEvents {
     Read(i64),
     Write(i64),
+}
+impl DocEvents {
+    pub fn timestamp(&self) -> i64 {
+        match *self {
+            DocEvents::Read(x) => x,
+            DocEvents::Write(x) => x,
+        }
+    }
 }
 #[derive(Default, Copy, Clone, PartialEq, PartialOrd)]
 pub struct StatisticValue {

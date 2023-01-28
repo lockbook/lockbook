@@ -2,7 +2,6 @@ use itertools::Itertools;
 use lockbook_shared::document_repo::DocActivityScore;
 use lockbook_shared::document_repo::StatisticValue;
 use lockbook_shared::document_repo::Stats;
-use std::collections::HashMap;
 
 use crate::Requester;
 use crate::{CoreResult, RequestContext};
@@ -21,6 +20,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
             });
 
         //normalize
+        //TODO: make this syntactically more concise
         let mut docs_avg_read_timestamps = doc_scores
             .iter_mut()
             .map(|f| f.1.avg_read_timestamp)
