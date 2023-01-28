@@ -1,5 +1,6 @@
-use crate::{Error, Res};
-use lockbook_core::{base64, AccountFilter, AccountIdentifier, Core, PublicKey};
+use crate::{Error, GooglePlayAccountState, Res, StripeAccountState, UpgradeToPremium};
+use lockbook_core::{base64, AccountFilter, AccountIdentifier, AdminUpgradeToPremiumInfo, Core, PublicKey, AppStoreAccountState};
+use std::str::FromStr;
 
 pub fn list(
     core: &Core, premium: bool, google_play_premium: bool, stripe_premium: bool,
@@ -48,6 +49,46 @@ pub fn info(core: &Core, username: Option<String>, public_key: Option<String>) -
 
     let account_info = core.admin_get_account_info(identifier)?;
     println!("{:#?}", account_info);
+
+    Ok(())
+}
+
+pub fn upgrade_to_premium(core: &Core, premium_info: UpgradeToPremium) -> Res<()> {
+    let premium_info = match premium_info {
+        UpgradeToPremium::Stripe {
+            customer_id,
+            customer_name,
+            payment_method_id,
+            last_4,
+            subscription_id,
+            expiration_time,
+            account_state,
+        } => AdminUpgradeToPremiumInfo::Stripe {
+            customer_id,
+            customer_name,
+            payment_method_id,
+            last_4,
+            subscription_id,
+            expiration_time,
+            account_state: StripeAccountState::from_str(&account_state)?,
+        },
+        UpgradeToPremium::GooglePlay { purchase_token, expiration_time, account_state } => {
+            AdminUpgradeToPremiumInfo::GooglePlay { purchase_token, expiration_time, account_state: GooglePlayAccountState::from_str(&account_state)? }
+        }
+        UpgradeToPremium::AppStore {
+            account_token,
+            original_transaction_id,
+            expiration_time,
+            account_state,
+        } => AdminUpgradeToPremiumInfo::AppStore {
+            account_token,
+            original_transaction_id,
+            expiration_time,
+            account_state: AppStoreAccountState::from_str(&account_state)?,
+        },
+    };
+
+    core.admin_upgrade_to_premium(premium_info)?;
 
     Ok(())
 }

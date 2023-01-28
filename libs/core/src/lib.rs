@@ -18,8 +18,9 @@ pub use uuid::Uuid;
 pub use lockbook_shared::account::Account;
 pub use lockbook_shared::api::ServerIndex;
 pub use lockbook_shared::api::{
-    AccountFilter, AccountIdentifier, AppStoreAccountState, GooglePlayAccountState, PaymentMethod,
-    PaymentPlatform, StripeAccountTier, SubscriptionInfo,
+    AccountFilter, AccountIdentifier, AdminUpgradeToPremiumInfo, AppStoreAccountState,
+    GooglePlayAccountState, PaymentMethod, PaymentPlatform, StripeAccountState, StripeAccountTier,
+    SubscriptionInfo, UnixTimeMillis,
 };
 pub use lockbook_shared::core_config::Config;
 pub use lockbook_shared::crypto::DecryptedDocument;
@@ -605,6 +606,16 @@ impl<Client: Requester> CoreLib<Client> {
         let val = self
             .db
             .transaction(|tx| self.context(tx)?.rebuild_index(index))?;
+        Ok(val?)
+    }
+
+    #[instrument(level = "debug", skip(self, info), err(Debug))]
+    pub fn admin_upgrade_to_premium(
+        &self, info: AdminUpgradeToPremiumInfo,
+    ) -> Result<(), Error<AdminUpgradeToPremiumError>> {
+        let val = self
+            .db
+            .transaction(|tx| self.context(tx)?.upgrade_to_premium(info))?;
         Ok(val?)
     }
 }
