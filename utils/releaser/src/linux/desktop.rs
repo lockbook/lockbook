@@ -13,7 +13,7 @@ pub fn release(gh: &Github) {
 
 pub fn update_snap() {
     let version = core_version();
-    let snap_name = format!("lockbook_{version}_amd64.snap");
+    let snap_name = format!("lockbook_desktop_{version}_amd64.snap");
 
     let new_content = format!(
         r#"
@@ -147,7 +147,6 @@ pkgbase = lockbook-desktop
 	sha256sums = SKIP
 
 pkgname = lockbook-desktop
-
         "#
     );
 
