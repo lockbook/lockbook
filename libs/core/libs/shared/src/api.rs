@@ -784,7 +784,7 @@ impl FromStr for StripeAccountState {
             "Ok" => Ok(StripeAccountState::Ok),
             "Canceled" => Ok(StripeAccountState::Canceled),
             "InvoiceFailed" => Ok(StripeAccountState::InvoiceFailed),
-            _ => Err(())
+            _ => Err(()),
         }
     }
 }
@@ -798,7 +798,7 @@ impl FromStr for GooglePlayAccountState {
             "Canceled" => Ok(GooglePlayAccountState::Canceled),
             "GracePeriod" => Ok(GooglePlayAccountState::GracePeriod),
             "OnHold" => Ok(GooglePlayAccountState::OnHold),
-            _ => Err(())
+            _ => Err(()),
         }
     }
 }
@@ -812,7 +812,7 @@ impl FromStr for AppStoreAccountState {
             "Expired" => Ok(AppStoreAccountState::Expired),
             "GracePeriod" => Ok(AppStoreAccountState::GracePeriod),
             "FailedToRenew" => Ok(AppStoreAccountState::FailedToRenew),
-            _ => Err(())
+            _ => Err(()),
         }
     }
 }

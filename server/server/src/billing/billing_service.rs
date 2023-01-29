@@ -351,8 +351,7 @@ pub async fn cancel_subscription(
 pub async fn admin_upgrade_to_premium(
     context: RequestContext<'_, AdminUpgradeToPremiumRequest>,
 ) -> Result<AdminUpgradeToPremiumResponse, ServerError<AdminUpgradeToPremiumError>> {
-    let (request, server_state) = (&context.request, context.server_state)
-        ;
+    let (request, server_state) = (&context.request, context.server_state);
     let mut account = lock_subscription_profile(server_state, &context.public_key)?;
 
     let billing_config = &server_state.config.billing;

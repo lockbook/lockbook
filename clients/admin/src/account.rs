@@ -1,5 +1,8 @@
 use crate::{Error, GooglePlayAccountState, Res, StripeAccountState, UpgradeToPremium};
-use lockbook_core::{base64, AccountFilter, AccountIdentifier, AdminUpgradeToPremiumInfo, Core, PublicKey, AppStoreAccountState};
+use lockbook_core::{
+    base64, AccountFilter, AccountIdentifier, AdminUpgradeToPremiumInfo, AppStoreAccountState,
+    Core, PublicKey,
+};
 use std::str::FromStr;
 
 pub fn list(
@@ -73,7 +76,11 @@ pub fn upgrade_to_premium(core: &Core, premium_info: UpgradeToPremium) -> Res<()
             account_state: StripeAccountState::from_str(&account_state)?,
         },
         UpgradeToPremium::GooglePlay { purchase_token, expiration_time, account_state } => {
-            AdminUpgradeToPremiumInfo::GooglePlay { purchase_token, expiration_time, account_state: GooglePlayAccountState::from_str(&account_state)? }
+            AdminUpgradeToPremiumInfo::GooglePlay {
+                purchase_token,
+                expiration_time,
+                account_state: GooglePlayAccountState::from_str(&account_state)?,
+            }
         }
         UpgradeToPremium::AppStore {
             account_token,
