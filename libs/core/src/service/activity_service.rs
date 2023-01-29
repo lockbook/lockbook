@@ -1,5 +1,5 @@
 use itertools::Itertools;
-use lockbook_shared::document_repo::DocActivityScore;
+use lockbook_shared::document_repo::DocActivityMetrics;
 use lockbook_shared::document_repo::StatisticValue;
 use lockbook_shared::document_repo::Stats;
 
@@ -9,37 +9,47 @@ use crate::{CoreResult, RequestContext};
 use uuid::Uuid;
 impl<Client: Requester> RequestContext<'_, '_, Client> {
     pub fn suggested_docs(&mut self) -> CoreResult<Vec<Uuid>> {
-        let mut doc_scores: Vec<(Uuid, DocActivityScore)> = vec![];
+        let mut scores: Vec<(Uuid, DocActivityMetrics)> = vec![];
 
         self.tx
             .docs_events
             .get_all()
             .iter()
             .for_each(|(key, doc_events)| {
-                doc_scores.push((*key, doc_events.iter().score()));
+                scores.push((*key, doc_events.iter().get_activity_metrics()));
             });
 
         //normalize
-        //TODO: make this syntactically more concise
-        let mut docs_avg_read_timestamps = doc_scores
+        Self::normalize(&mut scores);
+
+        scores.sort_by(|a, b| {
+            DocActivityMetrics::rank_doc_activity(&a.1)
+                .cmp(&DocActivityMetrics::rank_doc_activity(&b.1))
+        });
+
+        Ok(scores.into_iter().map(|f| f.0).collect_vec())
+    }
+
+    fn normalize(scores: &mut [(Uuid, DocActivityMetrics)]) {
+        let mut docs_avg_read_timestamps = scores
             .iter_mut()
             .map(|f| f.1.avg_read_timestamp)
             .collect_vec();
         docs_avg_read_timestamps.sort_by(|a, b| a.raw.cmp(&b.raw));
 
-        let mut docs_avg_write_timestamps = doc_scores
+        let mut docs_avg_write_timestamps = scores
             .iter_mut()
             .map(|f| f.1.avg_write_timestamp)
             .collect_vec();
         docs_avg_write_timestamps.sort_by(|a, b| a.raw.cmp(&b.raw));
 
-        let mut docs_read_count = doc_scores.iter_mut().map(|f| f.1.read_count).collect_vec();
+        let mut docs_read_count = scores.iter_mut().map(|f| f.1.read_count).collect_vec();
         docs_read_count.sort_by(|a, b| a.raw.cmp(&b.raw));
 
-        let mut docs_write_count = doc_scores.iter_mut().map(|f| f.1.write_count).collect_vec();
+        let mut docs_write_count = scores.iter_mut().map(|f| f.1.write_count).collect_vec();
         docs_write_count.sort_by(|a, b| a.raw.cmp(&b.raw));
 
-        for (_, feat) in doc_scores.iter_mut() {
+        for (_, feat) in scores.iter_mut() {
             StatisticValue::normalize(
                 &mut feat.avg_read_timestamp,
                 *docs_avg_read_timestamps.last().unwrap(),
@@ -61,10 +71,5 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
                 *docs_write_count.first().unwrap(),
             );
         }
-
-        doc_scores
-            .sort_by(|a, b| DocActivityScore::score(&a.1).cmp(&DocActivityScore::score(&b.1)));
-
-        Ok(doc_scores.into_iter().map(|f| f.0).collect_vec())
     }
 }

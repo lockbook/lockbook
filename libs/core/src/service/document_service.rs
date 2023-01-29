@@ -9,6 +9,7 @@ use lockbook_shared::tree_like::TreeLike;
 use uuid::Uuid;
 
 const RATE_LIMIT_MILLIS: i64 = 60 * 1000;
+
 impl<Client: Requester> RequestContext<'_, '_, Client> {
     pub fn read_document(&mut self, id: Uuid) -> CoreResult<DecryptedDocument> {
         let mut tree = (&self.tx.base_metadata)

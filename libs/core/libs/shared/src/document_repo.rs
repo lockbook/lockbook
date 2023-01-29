@@ -24,6 +24,7 @@ impl DocEvents {
         }
     }
 }
+
 #[derive(Default, Copy, Clone, PartialEq, PartialOrd)]
 pub struct StatisticValue {
     pub raw: i64,
@@ -36,15 +37,15 @@ impl StatisticValue {
     }
 }
 
-#[derive(Default)]
-pub struct DocActivityScore {
+#[derive(Default, Copy, Clone)]
+pub struct DocActivityMetrics {
     pub avg_read_timestamp: StatisticValue,
     pub avg_write_timestamp: StatisticValue,
     pub read_count: StatisticValue,
     pub write_count: StatisticValue,
 }
-impl DocActivityScore {
-    pub fn score(&self) -> i64 {
+impl DocActivityMetrics {
+    pub fn rank_doc_activity(&self) -> i64 {
         (self.avg_read_timestamp.normalized.unwrap() + self.avg_read_timestamp.normalized.unwrap())
             as i64
             * 70
@@ -53,13 +54,13 @@ impl DocActivityScore {
     }
 }
 pub trait Stats {
-    fn score(self) -> DocActivityScore;
+    fn get_activity_metrics(self) -> DocActivityMetrics;
 }
 impl<'a, T> Stats for T
 where
     T: Iterator<Item = &'a DocEvents>,
 {
-    fn score(self) -> DocActivityScore {
+    fn get_activity_metrics(self) -> DocActivityMetrics {
         let mut read_activity: Vec<i64> = vec![];
         let mut write_activity: Vec<i64> = vec![];
         let mut write_sum = 0;
@@ -79,7 +80,7 @@ where
         let avg_read_timestamp = read_sum / read_activity.len() as i64;
         let avg_write_timestamp = write_sum / write_activity.len() as i64;
 
-        DocActivityScore {
+        DocActivityMetrics {
             avg_read_timestamp: StatisticValue { raw: avg_read_timestamp, normalized: None },
             avg_write_timestamp: StatisticValue { raw: avg_write_timestamp, normalized: None },
             read_count: StatisticValue { raw: read_activity.len() as i64, normalized: None },
