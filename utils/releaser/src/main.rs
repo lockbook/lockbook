@@ -11,7 +11,7 @@ use crate::secrets::*;
 use crate::utils::root;
 
 use structopt::StructOpt;
-use utils::determine_new_version;
+use utils::{core_version, determine_new_version, edit_cargo_version};
 
 #[derive(PartialEq, StructOpt)]
 #[structopt(name = "basic")]
@@ -36,16 +36,22 @@ fn main() {
     from_args(Releaser::from_args(), None);
 }
 
-fn from_args(releaser: Releaser, version: Option<&str>) {
+fn from_args(releaser: Releaser, new_version: Option<&str>) {
+    let current_version = core_version();
+    let new_version = new_version.unwrap_or(&current_version);
+    edit_cargo_version("libs/core", new_version);
+
     match releaser {
-        Releaser::DeployServer => server::deploy_server(),
-        Releaser::ReleaseApple => apple::release_apple(&Github::env(), &AppStore::env(), version),
-        Releaser::ReleaseAndroid => {
-            android::release_android(&Github::env(), &PlayStore::env(), version)
+        Releaser::DeployServer => server::deploy_server(new_version),
+        Releaser::ReleaseApple => {
+            apple::release_apple(&Github::env(), &AppStore::env(), new_version)
         }
-        Releaser::ReleaseWindows => windows::release(&Github::env(), version),
+        Releaser::ReleaseAndroid => {
+            android::release_android(&Github::env(), &PlayStore::env(), new_version)
+        }
+        Releaser::ReleaseWindows => windows::release(&Github::env(), new_version),
         Releaser::ReleasePublicSite => public_site::release(),
-        Releaser::ReleaseLinux => linux::release_linux(version),
+        Releaser::ReleaseLinux => linux::release_linux(new_version),
         Releaser::All { version_bump } => {
             let releases = if cfg!(target_os = "macos") {
                 vec![Releaser::ReleaseApple]

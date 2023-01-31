@@ -1,15 +1,15 @@
-use crate::utils::CommandRunner;
+use crate::utils::{edit_cargo_version, CommandRunner};
 use std::process::Command;
 use std::thread;
 use std::time::Duration;
 
-pub fn deploy_server() {
+pub fn deploy_server(version: &str) {
     build_server();
     backup_old_server();
     replace_old_server();
-    bump_version();
     restart_server();
     check_server_status();
+    edit_cargo_version("server/server/", version);
 }
 
 fn build_server() {
@@ -52,5 +52,3 @@ fn check_server_status() {
         .args(["https://api.prod.lockbook.net/get-build-info"])
         .assert_success()
 }
-
-pub fn bump_version() {}

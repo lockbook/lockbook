@@ -21,12 +21,12 @@ const STATUS: &str = "completed";
 const DEFAULT_LOC: &str = "en-US";
 const MIME: &str = "application/octet-stream";
 
-pub fn release_android(gh: &Github, ps: &PlayStore, version: Option<&str>) {
+pub fn release_android(gh: &Github, ps: &PlayStore, version: &str) {
     core::build_libs();
     build_android();
     release_gh(gh);
     release_play_store(ps);
-    todo!("upgrade version to {}", version.unwrap());
+    todo!("upgrade version to {}", version);
 }
 
 fn build_android() {

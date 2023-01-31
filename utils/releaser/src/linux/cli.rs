@@ -5,13 +5,13 @@ use std::fs::{File, OpenOptions};
 use std::io::Write;
 use std::process::Command;
 
-pub fn release(gh: &Github, version: Option<&str>) {
+pub fn release(gh: &Github, version: &str) {
     update_aur(version);
     update_snap(version);
     upload(gh);
 }
 
-pub fn update_snap(version: Option<&str>) {
+pub fn update_snap(version: &str) {
     let snap_name = format!("lockbook_{version}_amd64.snap");
 
     let new_content = format!(
@@ -78,14 +78,12 @@ pub fn upload(gh: &Github) {
         .unwrap();
 }
 
-pub fn update_aur(version: Option<&str>) {
-    overwrite_lockbook_pkg();
+pub fn update_aur(version: &str) {
+    overwrite_lockbook_pkg(version);
     push_aur();
 }
 
-pub fn overwrite_lockbook_pkg() {
-    let version = core_version();
-
+pub fn overwrite_lockbook_pkg(version: &str) {
     let new_makepkg_content = format!(
         r#"
 pkgname='lockbook'

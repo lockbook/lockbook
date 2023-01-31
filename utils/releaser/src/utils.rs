@@ -77,7 +77,7 @@ pub fn determine_new_version(bump_type: Option<String>) -> Option<String> {
         .map(|f| f.parse().unwrap())
         .collect();
 
-    let bump_type = bump_type.unwrap_or("patch".to_string());
+    let bump_type = bump_type.unwrap_or_else(|| "patch".to_string());
     match bump_type.as_ref() {
         "major" => current_version[0] += 1,
         "minor" => current_version[1] += 1,
@@ -98,7 +98,7 @@ pub fn determine_new_version(bump_type: Option<String>) -> Option<String> {
 }
 
 pub fn edit_cargo_version(cargo_path: &str, version: &str) {
-    let mut server = fs::read_to_string(cargo_path)
+    let mut server = fs::read_to_string([cargo_path, "Cargo.toml"].join(""))
         .unwrap()
         .parse::<Document>()
         .unwrap();
