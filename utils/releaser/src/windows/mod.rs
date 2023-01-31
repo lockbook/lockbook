@@ -6,13 +6,13 @@ use std::path::Path;
 
 use crate::Github;
 
-pub fn release(gh: &Github, _version: &str) {
+pub fn release(gh: &Github, version: &str) {
     let build_dir = Path::new("windows-build");
     if !build_dir.exists() {
         fs::create_dir("windows-build").unwrap();
     }
-    cli::release(gh);
-    egui::release_installers(gh);
+    cli::release(gh, version);
+    egui::release_installers(gh, version);
 
     fs::remove_dir_all("windows-build").unwrap();
 }

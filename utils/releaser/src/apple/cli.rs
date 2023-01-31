@@ -8,7 +8,7 @@ use std::process::Command;
 
 static CLI_NAME: &str = "lockbook-cli-macos.tar.gz";
 
-pub fn release(gh: &Github) {
+pub fn release(gh: &Github, _version: &str) {
     build_x86();
     build_arm();
     lipo_binaries();

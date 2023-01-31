@@ -11,7 +11,7 @@ use crate::secrets::*;
 use crate::utils::root;
 
 use structopt::StructOpt;
-use utils::{core_version, determine_new_version, edit_cargo_version};
+use utils::{core_version, determine_new_version};
 
 #[derive(PartialEq, StructOpt)]
 #[structopt(name = "basic")]
@@ -39,7 +39,6 @@ fn main() {
 fn from_args(releaser: Releaser, new_version: Option<&str>) {
     let current_version = core_version();
     let new_version = new_version.unwrap_or(&current_version);
-    edit_cargo_version("libs/core", new_version);
 
     match releaser {
         Releaser::DeployServer => server::deploy_server(new_version),

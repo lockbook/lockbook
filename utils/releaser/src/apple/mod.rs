@@ -10,8 +10,8 @@ use std::fs;
 use std::path::Path;
 
 pub fn release_apple(gh: &Github, asc: &AppStore, version: &str) {
-    cli::release(gh);
-    core::build();
+    cli::release(gh, version);
+    core::build(version);
     editor::build();
     clean_build_dir();
     ios::release(asc);

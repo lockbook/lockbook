@@ -4,12 +4,12 @@ use std::thread;
 use std::time::Duration;
 
 pub fn deploy_server(version: &str) {
+    edit_cargo_version("server/server/", version);
     build_server();
     backup_old_server();
     replace_old_server();
     restart_server();
     check_server_status();
-    edit_cargo_version("server/server/", version);
 }
 
 fn build_server() {
