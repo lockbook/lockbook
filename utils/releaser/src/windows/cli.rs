@@ -4,11 +4,10 @@ use std::process::Command;
 
 use gh_release::ReleaseClient;
 
-use crate::utils::{core_version, edit_cargo_version, lb_repo, CommandRunner};
+use crate::utils::{core_version, lb_repo, CommandRunner};
 use crate::Github;
 
-pub fn release(gh: &Github, version: &str) {
-    edit_cargo_version("clients/cli/", version);
+pub fn release(gh: &Github) {
     build();
     zip_binary();
     upload(gh);

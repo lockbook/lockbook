@@ -107,3 +107,35 @@ pub fn edit_cargo_version(cargo_path: &str, version: &str) {
 
     fs::write(cargo_path, server.to_string()).unwrap();
 }
+
+pub fn bump_versions(bump_type: Option<String>) {
+    let new_version = determine_new_version(bump_type).unwrap_or_else(core_version);
+    let new_version = new_version.as_str();
+
+    let cargos_to_update = vec![
+        "/clients/admin/",
+        "/clients/cli/",
+        "/clients/egui/",
+        "/server/server/",
+        "/libs/core/",
+    ];
+    for cargo_path in cargos_to_update {
+        edit_cargo_version(cargo_path, new_version);
+    }
+
+    //apple
+    //TODO figure out what sbuild number and appropriate plist
+    Command::new("/usr/libexec/Plistbuddy").args([
+        "-c",
+        "Set CFBundleVersion $SBUILD_NUMBER",
+        "$PLIST",
+    ]);
+
+    Command::new("/usr/libexec/Plistbuddy").args([
+        "-c",
+        "Set CFBundleShortVersionString $BUNDLE_SHORT_VERSION",
+        "$PLIST",
+    ]);
+    //android
+    Command::new("./gradlew").args(["wrapper", "--gradle-version", &core_version()]);
+}

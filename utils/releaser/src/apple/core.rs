@@ -1,4 +1,4 @@
-use crate::utils::{edit_cargo_version, CommandRunner};
+use crate::utils::CommandRunner;
 use std::fs;
 use std::fs::File;
 use std::io::Write;
@@ -11,8 +11,7 @@ static MAC_LIB_DIR: &str = "clients/apple/CLockbookCore/Sources/CLockbookCore/li
 static LIB: &str = "liblockbook_core.a";
 static HEAD: &str = "lockbook_core.h";
 
-pub fn build(version: &str) {
-    edit_cargo_version("libs/core/", version);
+pub fn build() {
     clean_dirs();
     header();
     build_libs();

@@ -4,16 +4,14 @@ use std::process::Command;
 
 use gh_release::ReleaseClient;
 
-use crate::utils::{core_version, edit_cargo_version, lb_repo, CommandRunner};
+use crate::utils::{core_version, lb_repo, CommandRunner};
 use crate::Github;
 
-pub fn release_installers(gh: &Github, version: &str) {
-    build_x86(gh, version);
+pub fn release_installers(gh: &Github) {
+    build_x86(gh);
 }
 
-fn build_x86(gh: &Github, version: &str) {
-    edit_cargo_version("clients/egui/", version);
-
+fn build_x86(gh: &Github) {
     Command::new("cargo")
         .args(["build", "-p", "lockbook-egui", "--release", "--target=x86_64-pc-windows-msvc"])
         .assert_success();

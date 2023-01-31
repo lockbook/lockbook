@@ -1,10 +1,9 @@
-use crate::utils::{edit_cargo_version, CommandRunner};
+use crate::utils::CommandRunner;
 use std::process::Command;
 use std::thread;
 use std::time::Duration;
 
-pub fn deploy_server(version: &str) {
-    edit_cargo_version("server/server/", version);
+pub fn deploy_server() {
     build_server();
     backup_old_server();
     replace_old_server();
