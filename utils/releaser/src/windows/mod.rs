@@ -6,7 +6,7 @@ use std::path::Path;
 
 use crate::Github;
 
-pub fn release(gh: &Github) {
+pub fn release(gh: &Github, version: Option<&str>) {
     let build_dir = Path::new("windows-build");
     if !build_dir.exists() {
         fs::create_dir("windows-build").unwrap();

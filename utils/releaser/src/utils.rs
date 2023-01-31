@@ -4,6 +4,7 @@ use std::path::PathBuf;
 use std::process::{Command, Output, Stdio};
 use std::{env, fs};
 use toml::Value;
+use toml_edit::{value, Document};
 
 pub trait CommandRunner {
     fn assert_success(&mut self);
@@ -68,4 +69,41 @@ pub fn root() -> PathBuf {
         panic!("releaser not called from project root");
     }
     project_root
+}
+
+pub fn determine_new_version(bump_type: Option<String>) -> Option<String> {
+    let mut current_version: Vec<i32> = core_version()
+        .split('.')
+        .map(|f| f.parse().unwrap())
+        .collect();
+
+    let bump_type = bump_type.unwrap_or("patch".to_string());
+    match bump_type.as_ref() {
+        "major" => current_version[0] += 1,
+        "minor" => current_version[1] += 1,
+        "patch" => current_version[2] += 1,
+        _ => panic!(
+            "{} is an undefined version bump. accepted values are: major, minor, patch",
+            bump_type
+        ),
+    }
+
+    let new_version = current_version
+        .iter()
+        .map(|f| f.to_string())
+        .collect::<Vec<String>>()
+        .join(".");
+
+    Some(new_version)
+}
+
+pub fn edit_cargo_version(cargo_path: &str, version: &str) {
+    let mut server = fs::read_to_string(cargo_path)
+        .unwrap()
+        .parse::<Document>()
+        .unwrap();
+
+    server["package"]["version"] = value(version);
+
+    fs::write(cargo_path, server.to_string()).unwrap();
 }

@@ -11,10 +11,16 @@ use crate::secrets::*;
 use crate::utils::root;
 
 use structopt::StructOpt;
+use utils::determine_new_version;
 
 #[derive(PartialEq, StructOpt)]
+#[structopt(name = "basic")]
 enum Releaser {
-    All,
+    All {
+        // significance of bump. can be major, minor or patch
+        #[structopt(short, long)]
+        version_bump: Option<String>,
+    },
     DeployServer,
     ReleaseApple,
     ReleaseAndroid,
@@ -27,18 +33,20 @@ fn main() {
     // Fail fast if we're invoking from the wrong location
     root();
 
-    from_args(Releaser::from_args());
+    from_args(Releaser::from_args(), None);
 }
 
-fn from_args(releaser: Releaser) {
+fn from_args(releaser: Releaser, version: Option<&str>) {
     match releaser {
         Releaser::DeployServer => server::deploy_server(),
-        Releaser::ReleaseApple => apple::release_apple(&Github::env(), &AppStore::env()),
-        Releaser::ReleaseAndroid => android::release_android(&Github::env(), &PlayStore::env()),
-        Releaser::ReleaseWindows => windows::release(&Github::env()),
+        Releaser::ReleaseApple => apple::release_apple(&Github::env(), &AppStore::env(), version),
+        Releaser::ReleaseAndroid => {
+            android::release_android(&Github::env(), &PlayStore::env(), version)
+        }
+        Releaser::ReleaseWindows => windows::release(&Github::env(), version),
         Releaser::ReleasePublicSite => public_site::release(),
-        Releaser::ReleaseLinux => linux::release_linux(),
-        Releaser::All => {
+        Releaser::ReleaseLinux => linux::release_linux(version),
+        Releaser::All { version_bump } => {
             let releases = if cfg!(target_os = "macos") {
                 vec![Releaser::ReleaseApple]
             } else if cfg!(target_os = "linux") {
@@ -52,8 +60,10 @@ fn from_args(releaser: Releaser) {
                 vec![Releaser::ReleaseWindows]
             };
 
+            let new_version = determine_new_version(version_bump);
+
             for releaser in releases {
-                from_args(releaser);
+                from_args(releaser, new_version.as_deref());
             }
         }
     }
