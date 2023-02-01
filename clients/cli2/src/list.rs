@@ -67,11 +67,7 @@ fn print_node(node: &FileNode, cfg: &LsConfig) {
 fn node_string(node: &FileNode, cfg: &LsConfig) -> String {
     let mut txt = String::new();
     if cfg.long {
-        txt += &format!(
-            "{:<w_id$}  ",
-            &node.id.to_string()[..cfg.w_id],
-            w_id = cfg.w_id,
-        );
+        txt += &format!("{:<w_id$}  ", &node.id.to_string()[..cfg.w_id], w_id = cfg.w_id,);
     }
     let mut np = String::new();
     if cfg.paths {
@@ -95,10 +91,7 @@ fn node_string(node: &FileNode, cfg: &LsConfig) -> String {
 }
 
 fn get_children(
-    core: &Core,
-    files: &[File],
-    parent: Uuid,
-    cfg: &mut LsConfig,
+    core: &Core, files: &[File], parent: Uuid, cfg: &mut LsConfig,
 ) -> Result<Vec<FileNode>, CliError> {
     let mut children = Vec::new();
     for f in files {
@@ -139,20 +132,11 @@ fn get_children(
                 0 => "".to_string(),
                 1 => shared_withs[0].clone(),
                 2 => format!("{} and {}", shared_withs[0], shared_withs[1]),
-                n => format!(
-                    "{}, {}, and {} more",
-                    shared_withs[0],
-                    shared_withs[1],
-                    n - 2
-                ),
+                n => format!("{}, {}, and {} more", shared_withs[0], shared_withs[1], n - 2),
             };
             // Determine column widths.
             {
-                let n = if cfg.paths {
-                    format!("{}{}", dirname, name).len()
-                } else {
-                    name.len()
-                };
+                let n = if cfg.paths { format!("{}{}", dirname, name).len() } else { name.len() };
                 if n > cfg.w_name {
                     cfg.w_name = n;
                 }
@@ -198,11 +182,7 @@ pub fn list(core: &Core, args: ListArgs) -> Result<(), CliError> {
         let _ = files.swap_remove(pos);
     }
 
-    let w_id = if args.ids {
-        Uuid::nil().to_string().len()
-    } else {
-        ID_PREFIX_LEN
-    };
+    let w_id = if args.ids { Uuid::nil().to_string().len() } else { ID_PREFIX_LEN };
 
     let mut cfg = LsConfig {
         my_name: core.get_account()?.username,

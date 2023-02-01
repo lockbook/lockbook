@@ -1,8 +1,8 @@
 use lb::Core;
 use lb::Uuid;
 
-use crate::resolve_target_to_id;
 use crate::maybe_get_by_path;
+use crate::resolve_target_to_id;
 use crate::CliError;
 use crate::ID_PREFIX_LEN;
 
@@ -84,7 +84,8 @@ fn resolve_target_to_pending_share(core: &Core, target: &str) -> Result<lb::File
             0 => Err(CliError(format!("id prefix '{}' did not match any pending shares", target))),
             1 => Ok(possibs[0].clone()),
             n => {
-                let mut err_msg = format!("id prefix '{}' matched the following {} pending shares:\n", target, n);
+                let mut err_msg =
+                    format!("id prefix '{}' matched the following {} pending shares:\n", target, n);
                 err_msg += &share_infos_table(&to_share_infos(possibs), true);
                 Err(CliError(err_msg))
             }
@@ -135,7 +136,8 @@ fn accept(
 
 fn delete(core: &Core, target: &str) -> Result<(), CliError> {
     let share = resolve_target_to_pending_share(core, target)?;
-    core.delete_pending_share(share.id).map_err(|err| (err, share.id))?;
+    core.delete_pending_share(share.id)
+        .map_err(|err| (err, share.id))?;
     Ok(())
 }
 
