@@ -16,17 +16,17 @@ use utils::bump_versions;
 #[derive(PartialEq, StructOpt)]
 #[structopt(name = "basic")]
 enum Releaser {
-    All {
-        // significance of bump. can be major, minor or patch
-        #[structopt(short, long)]
-        version_bump: Option<String>,
-    },
+    All,
     DeployServer,
     ReleaseApple,
     ReleaseAndroid,
     ReleaseWindows,
     ReleasePublicSite,
     ReleaseLinux,
+    BumpVersion {
+        #[structopt(short, long)]
+        bump_type: Option<String>,
+    },
 }
 
 fn main() {
@@ -44,7 +44,8 @@ fn from_args(releaser: Releaser) {
         Releaser::ReleaseWindows => windows::release(&Github::env()),
         Releaser::ReleasePublicSite => public_site::release(),
         Releaser::ReleaseLinux => linux::release_linux(),
-        Releaser::All { version_bump } => {
+        Releaser::BumpVersion { bump_type } => bump_versions(bump_type),
+        Releaser::All => {
             let releases = if cfg!(target_os = "macos") {
                 vec![Releaser::ReleaseApple]
             } else if cfg!(target_os = "linux") {
@@ -57,8 +58,6 @@ fn from_args(releaser: Releaser) {
             } else {
                 vec![Releaser::ReleaseWindows]
             };
-
-            bump_versions(version_bump);
 
             for releaser in releases {
                 from_args(releaser);

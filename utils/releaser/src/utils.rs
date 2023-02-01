@@ -79,8 +79,15 @@ pub fn determine_new_version(bump_type: Option<String>) -> Option<String> {
 
     let bump_type = bump_type.unwrap_or_else(|| "patch".to_string());
     match bump_type.as_ref() {
-        "major" => current_version[0] += 1,
-        "minor" => current_version[1] += 1,
+        "major" => {
+            current_version[0] += 1;
+            current_version[1] = 0;
+            current_version[2] = 0;
+        }
+        "minor" => {
+            current_version[1] += 1;
+            current_version[2] = 0;
+        }
         "patch" => current_version[2] += 1,
         _ => panic!(
             "{} is an undefined version bump. accepted values are: major, minor, patch",
