@@ -8,6 +8,7 @@ members = [
 	"libs/core/libs/test_utils",
 	"libs/editor/egui_editor",
 	"server/server",
+	"clients/cli2",
 	"clients/cli",
 	"clients/egui",
 	"clients/admin",
