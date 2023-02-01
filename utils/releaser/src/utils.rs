@@ -1,7 +1,6 @@
 use gh_release::RepoInfo;
-use regex::{escape, Captures, Regex};
+use regex::{Captures, Regex};
 use sha2::{Digest, Sha256};
-use std::fmt::format;
 use std::path::PathBuf;
 use std::process::{Command, Output, Stdio};
 use std::{env, fs};
