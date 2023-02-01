@@ -1,3 +1,4 @@
+use lb::Core;
 use lb::Uuid;
 
 use crate::resolve_target_to_id;
@@ -40,7 +41,7 @@ pub enum ShareCmd {
     },
 }
 
-pub fn share(core: &lb::Core, cmd: ShareCmd) -> Result<(), CliError> {
+pub fn share(core: &Core, cmd: ShareCmd) -> Result<(), CliError> {
     match cmd {
         ShareCmd::New { target, username, read_only } => new(core, &target, &username, read_only),
         ShareCmd::Pending { full_ids } => pending(core, full_ids),
@@ -49,7 +50,7 @@ pub fn share(core: &lb::Core, cmd: ShareCmd) -> Result<(), CliError> {
     }
 }
 
-fn new(core: &lb::Core, target: &str, username: &str, read_only: bool) -> Result<(), CliError> {
+fn new(core: &Core, target: &str, username: &str, read_only: bool) -> Result<(), CliError> {
     let id = resolve_target_to_id(core, target)?;
     let mode = if read_only { lb::ShareMode::Read } else { lb::ShareMode::Write };
     core.share_file(id, username, mode)?;
@@ -57,7 +58,7 @@ fn new(core: &lb::Core, target: &str, username: &str, read_only: bool) -> Result
     Ok(())
 }
 
-fn pending(core: &lb::Core, full_ids: bool) -> Result<(), CliError> {
+fn pending(core: &Core, full_ids: bool) -> Result<(), CliError> {
     let pending_shares = to_share_infos(core.get_pending_shares()?);
     if pending_shares.is_empty() {
         println!("no pending shares.");
@@ -67,33 +68,34 @@ fn pending(core: &lb::Core, full_ids: bool) -> Result<(), CliError> {
     Ok(())
 }
 
-fn accept(
-    core: &lb::Core, target: &str, dest: &str, maybe_new_name: Option<String>,
-) -> Result<(), CliError> {
+fn resolve_target_to_pending_share(core: &Core, target: &str) -> Result<lb::File, CliError> {
     let pendings = core.get_pending_shares()?;
-
-    let maybe_share = if let Ok(id) = Uuid::parse_str(target) {
-        pendings.iter().find(|f| f.id == id).cloned()
+    if let Ok(id) = Uuid::parse_str(target) {
+        match pendings.iter().find(|f| f.id == id) {
+            Some(f) => Ok(f.clone()),
+            None => Err(CliError(format!("unable to find pending share with id '{}'", id))),
+        }
     } else {
         let possibs: Vec<lb::File> = pendings
             .into_iter()
             .filter(|f| f.id.to_string().starts_with(target))
             .collect();
         match possibs.len() {
-            0 => None,
-            1 => Some(possibs[0].clone()),
+            0 => Err(CliError(format!("id prefix '{}' did not match any pending shares", target))),
+            1 => Ok(possibs[0].clone()),
             n => {
                 let mut err_msg = format!("id prefix '{}' matched the following {} pending shares:\n", target, n);
                 err_msg += &share_infos_table(&to_share_infos(possibs), true);
-                return Err(CliError(err_msg));
+                Err(CliError(err_msg))
             }
         }
-    };
+    }
+}
 
-    let share = match maybe_share {
-        Some(s) => s,
-        None => return Err(CliError(format!("unable to find share with target '{}'", target))),
-    };
+fn accept(
+    core: &Core, target: &str, dest: &str, maybe_new_name: Option<String>,
+) -> Result<(), CliError> {
+    let share = resolve_target_to_pending_share(core, target)?;
 
     // If a destination ID is provided, it must be of an existing directory.
     let parent_id = if let Ok(id) = Uuid::parse_str(dest) {
@@ -131,7 +133,9 @@ fn accept(
     Ok(())
 }
 
-fn delete(core: &lb::Core, target: &str) -> Result<(), CliError> {
+fn delete(core: &Core, target: &str) -> Result<(), CliError> {
+    let share = resolve_target_to_pending_share(core, target)?;
+    core.delete_pending_share(share.id).map_err(|err| (err, share.id))?;
     Ok(())
 }
 

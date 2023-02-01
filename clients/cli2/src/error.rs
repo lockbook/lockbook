@@ -55,6 +55,13 @@ impl_from_lb_errors_for_cli_error!(
     "upgrading via stripe", UpgradeAccountStripeError
 );
 
+impl From<(LbError<lb::DeletePendingShareError>, Uuid)> for CliError {
+    fn from(v: (LbError<lb::DeletePendingShareError>, Uuid)) -> Self {
+        let (err, id) = v;
+        Self(format!("deleting pending share '{}': {:?}", id, err))
+    }
+}
+
 impl From<(LbError<lb::ExportDrawingError>, Uuid)> for CliError {
     fn from(v: (LbError<lb::ExportDrawingError>, Uuid)) -> Self {
         let (err, id) = v;
