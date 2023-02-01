@@ -1,5 +1,7 @@
 use gh_release::RepoInfo;
+use regex::{escape, Captures, Regex};
 use sha2::{Digest, Sha256};
+use std::fmt::format;
 use std::path::PathBuf;
 use std::process::{Command, Output, Stdio};
 use std::{env, fs};
@@ -114,17 +116,42 @@ pub fn edit_cargo_version(cargo_path: &str, version: &str) {
 
     fs::write(cargo_path, server.to_string()).unwrap();
 }
+//TODO: test this out and make sure the regex works
+pub fn edit_android_version(version: &str) {
+    let path = "clients/android/build.gradle";
+    let mut gradle_build = fs::read_to_string(path).unwrap();
+
+    let version_code_re = Regex::new(r"versionCode *(?P<version_code>\d+)").unwrap();
+    let mut version_code = 0;
+    for caps in version_code_re.captures_iter(&gradle_build) {
+        version_code = caps["version_code"].parse().unwrap();
+    }
+    gradle_build = gradle_build.replace(&version_code.to_string(), &(version_code + 1).to_string());
+
+    let version_name_re = Regex::new(r"(versionName) (.*)").unwrap();
+    gradle_build = version_name_re
+        .replace(&gradle_build, |caps: &Captures| format!("{}{}", &caps[1], version))
+        .to_string();
+
+    fs::write(path, gradle_build).unwrap();
+}
 
 pub fn bump_versions(bump_type: Option<String>) {
     let new_version = determine_new_version(bump_type).unwrap_or_else(core_version);
     let new_version = new_version.as_str();
 
     let cargos_to_update = vec![
-        "/clients/admin/",
-        "/clients/cli/",
-        "/clients/egui/",
-        "/server/server/",
-        "/libs/core/",
+        "clients/admin/",
+        "clients/cli/",
+        "clients/egui/",
+        "server/server/",
+        "libs/core/",
+        "libs/core/libs/shared/",
+        "libs/core/libs/test_utils/",
+        "libs/editor/equi_editor",
+        "utils/dev-tool",
+        "utils/releaser",
+        "utils/winstaller",
     ];
     for cargo_path in cargos_to_update {
         edit_cargo_version(cargo_path, new_version);
@@ -143,6 +170,6 @@ pub fn bump_versions(bump_type: Option<String>) {
         "Set CFBundleShortVersionString $BUNDLE_SHORT_VERSION",
         "$PLIST",
     ]);
-    //android
-    Command::new("./gradlew").args(["wrapper", "--gradle-version", &core_version()]);
+
+    edit_android_version(new_version)
 }
