@@ -5,7 +5,9 @@ use crate::{ClientError, ServerError, ServerState};
 use google_androidpublisher3::hyper::body::Bytes;
 use google_androidpublisher3::hyper::header::HeaderValue;
 use libsecp256k1::PublicKey;
-use lockbook_shared::api::{PaymentMethod, StripeAccountTier, UpgradeAccountStripeError};
+use lockbook_shared::api::{
+    PaymentMethod, StripeAccountState, StripeAccountTier, UpgradeAccountStripeError,
+};
 use lockbook_shared::file_metadata::Owner;
 use std::ops::Deref;
 use std::sync::Arc;
@@ -144,6 +146,7 @@ pub async fn create_subscription(
         last_4,
         subscription_id: subscription_id.to_string(),
         expiration_time: subscription_resp.current_period_end as u64,
+        account_state: StripeAccountState::Ok,
     })
 }
 

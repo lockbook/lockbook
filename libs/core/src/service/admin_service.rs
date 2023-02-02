@@ -138,4 +138,26 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
                 _ => core_err_unexpected(err),
             })
     }
+
+    pub fn upgrade_to_premium(&self, info: AdminUpgradeToPremiumInfo) -> CoreResult<()> {
+        let account = self.get_account()?;
+        self.client
+            .request(account, AdminUpgradeToPremiumRequest { info })
+            .map_err(|err| match err {
+                ApiError::Endpoint(AdminUpgradeToPremiumError::NotPermissioned) => {
+                    CoreError::InsufficientPermission
+                }
+                ApiError::Endpoint(AdminUpgradeToPremiumError::UserNotFound) => {
+                    CoreError::UsernameNotFound
+                }
+                ApiError::Endpoint(AdminUpgradeToPremiumError::ExistingRequestPending) => {
+                    CoreError::ExistingRequestPending
+                }
+                ApiError::SendFailed(_) => CoreError::ServerUnreachable,
+                ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,
+                _ => core_err_unexpected(err),
+            })?;
+
+        Ok(())
+    }
 }
