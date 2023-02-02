@@ -2,11 +2,13 @@ mod account;
 mod debug;
 mod edit;
 mod error;
+mod imex;
 mod list;
 mod share;
 
 use std::fmt;
 use std::io::{self, Write};
+use std::path::PathBuf;
 use std::str::FromStr;
 
 use clap::Parser;
@@ -24,8 +26,8 @@ enum LbCli {
     Account(account::AccountCmd),
     /// import files from your file system into lockbook
     Copy {
-        /// path of file on disk
-        disk_file: String,
+        /// paths of file on disk
+        disk_files: Vec<PathBuf>,
         /// lockbook file path or ID destination
         dest: String,
     },
@@ -43,6 +45,13 @@ enum LbCli {
     Edit {
         /// lockbook file path or ID
         target: String,
+    },
+    /// export a lockbook file to your file system
+    Export {
+        /// the path or id of a lockbook folder
+        target: String,
+        /// a filesystem location (defaults to current directory)
+        dest: Option<PathBuf>,
     },
     /// list files and file information
     List(list::ListArgs),
@@ -213,10 +222,11 @@ fn run() -> Result<(), CliError> {
 
     match cmd {
         LbCli::Account(cmd) => account::account(&core, cmd),
-        LbCli::Copy { .. } => Ok(()),
+        LbCli::Copy { disk_files, dest } => imex::copy(&core, &disk_files, &dest),
         LbCli::Debug(cmd) => debug::debug(&core, cmd),
         LbCli::Delete { target, force } => delete(&core, &target, force),
         LbCli::Edit { target } => edit::edit(&core, &target),
+        LbCli::Export { target, dest } => imex::export(&core, &target, dest),
         LbCli::List(args) => list::list(&core, args),
         LbCli::Move { src_target, dest_target } => move_file(&core, &src_target, &dest_target),
         LbCli::New { path } => create(&core, &path),
