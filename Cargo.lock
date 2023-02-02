@@ -723,16 +723,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "cli2"
-version = "0.1.0"
-dependencies = [
- "atty",
- "clap 4.1.4",
- "hotwatch",
- "lockbook-core",
-]
-
-[[package]]
 name = "clipboard-win"
 version = "4.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2897,6 +2887,16 @@ checksum = "327fa5b6a6940e4699ec49a9beae1ea4845c6bab9314e4f84ac68742139d8c53"
 dependencies = [
  "autocfg",
  "scopeguard",
+]
+
+[[package]]
+name = "lockbook-cli"
+version = "0.5.10"
+dependencies = [
+ "atty",
+ "clap 4.1.4",
+ "hotwatch",
+ "lockbook-core",
 ]
 
 [[package]]
