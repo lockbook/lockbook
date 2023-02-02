@@ -107,13 +107,13 @@ pub fn determine_new_version(bump_type: Option<String>) -> Option<String> {
 
 pub fn edit_cargo_version(cargo_path: &str, version: &str) {
     let cargo_path = &[cargo_path, "/Cargo.toml"].join("");
-    let mut server = fs::read_to_string(cargo_path)
+    let mut cargo_toml = fs::read_to_string(cargo_path)
         .unwrap()
         .parse::<Document>()
         .unwrap();
 
-    server["package"]["version"] = value(version);
-    fs::write(cargo_path, server.to_string()).unwrap();
+    cargo_toml["package"]["version"] = value(version);
+    fs::write(cargo_path, cargo_toml.to_string()).unwrap();
 }
 
 pub fn edit_android_version(version_name: &str) {
@@ -161,11 +161,6 @@ pub fn bump_versions(bump_type: Option<String>) {
     //apple
     let plists = ["clients/apple/iOS/info.plist", "clients/apple/macOS/info.plist"];
     for plist in plists {
-        Command::new("/usr/libexec/Plistbuddy")
-            .args(["-c", &format!("Set CFBundleVersion {}", new_version), plist])
-            .spawn()
-            .unwrap();
-
         Command::new("/usr/libexec/Plistbuddy")
             .args(["-c", &format!("Set CFBundleShortVersionString {} ", new_version), plist])
             .spawn()
