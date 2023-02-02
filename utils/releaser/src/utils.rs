@@ -173,6 +173,4 @@ pub fn bump_versions(bump_type: Option<String>) {
     }
 
     edit_android_version(new_version)
-
-    //TODO figure out how to do snap
 }
