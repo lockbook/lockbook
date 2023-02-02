@@ -161,16 +161,15 @@ pub fn bump_versions(bump_type: Option<String>) {
     //apple
     let plists = ["clients/apple/iOS/info.plist", "clients/apple/macOS/info.plist"];
     for plist in plists {
-        Command::new("/usr/libexec/Plistbuddy").args([
-            "-c",
-            &format!("\"Set CFBundleVersion {}\"", new_version),
-            &["\"", plist, "\""].join(""),
-        ]);
-        Command::new("/usr/libexec/Plistbuddy").args([
-            "-c",
-            &format!("\"Set CFBundleShortVersionString {}\"", new_version),
-            &["\"", plist, "\""].join(""),
-        ]);
+        Command::new("/usr/libexec/Plistbuddy")
+            .args(["-c", &format!("Set CFBundleVersion {}", new_version), plist])
+            .spawn()
+            .unwrap();
+
+        Command::new("/usr/libexec/Plistbuddy")
+            .args(["-c", &format!("Set CFBundleShortVersionString {} ", new_version), plist])
+            .spawn()
+            .unwrap();
     }
 
     edit_android_version(new_version)
