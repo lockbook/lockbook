@@ -11,7 +11,9 @@ use structopt::StructOpt;
 
 use crate::error::Error;
 use crate::indexes::CliIndex;
-use lockbook_core::{Config, Core, Uuid};
+use lockbook_core::{
+    Config, Core, GooglePlayAccountState, StripeAccountState, UnixTimeMillis, Uuid,
+};
 
 #[derive(Debug, PartialEq, Eq, StructOpt)]
 pub enum Admin {
@@ -67,6 +69,35 @@ pub enum Admin {
     FileInfo {
         id: Uuid,
     },
+
+    /// Manually upgrade a user's tier and set their subscription information
+    UpgradeToPremium(UpgradeToPremium),
+}
+
+#[derive(Debug, PartialEq, Eq, StructOpt)]
+pub enum UpgradeToPremium {
+    Stripe {
+        customer_id: String,
+        customer_name: Uuid,
+        payment_method_id: String,
+        last_4: String,
+        subscription_id: String,
+        expiration_time: UnixTimeMillis,
+        account_state: String,
+    },
+
+    GooglePlay {
+        purchase_token: String,
+        expiration_time: UnixTimeMillis,
+        account_state: String,
+    },
+
+    AppStore {
+        account_token: String,
+        original_transaction_id: String,
+        expiration_time: UnixTimeMillis,
+        account_state: String,
+    },
 }
 
 type Res<T> = Result<T, Error>;
@@ -92,6 +123,7 @@ pub fn main() {
         Admin::ValidateServer => validate::server(&core),
         Admin::FileInfo { id } => info::file(&core, id),
         Admin::RebuildIndex(index) => indexes::rebuild(&core, index),
+        Admin::UpgradeToPremium(info) => account::upgrade_to_premium(&core, info),
     };
 
     if result.is_err() {

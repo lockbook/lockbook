@@ -1247,6 +1247,36 @@ impl From<CoreError> for Error<FeatureFlagError> {
     }
 }
 
+#[derive(Debug, Serialize, EnumIter)]
+pub enum AdminUpgradeToPremiumError {
+    InsufficientPermission,
+    UsernameNotFound,
+    ExistingRequestPending,
+    CouldNotReachServer,
+    ClientUpdateRequired,
+}
+
+impl From<CoreError> for Error<AdminUpgradeToPremiumError> {
+    fn from(e: CoreError) -> Self {
+        match e {
+            CoreError::InsufficientPermission => {
+                UiError(AdminUpgradeToPremiumError::InsufficientPermission)
+            }
+            CoreError::UsernameNotFound => UiError(AdminUpgradeToPremiumError::UsernameNotFound),
+            CoreError::ServerUnreachable => {
+                UiError(AdminUpgradeToPremiumError::CouldNotReachServer)
+            }
+            CoreError::ClientUpdateRequired => {
+                UiError(AdminUpgradeToPremiumError::ClientUpdateRequired)
+            }
+            CoreError::ExistingRequestPending => {
+                UiError(AdminUpgradeToPremiumError::ExistingRequestPending)
+            }
+            _ => unexpected!("{:#?}", e),
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub enum TestRepoError {
     NoAccount,
