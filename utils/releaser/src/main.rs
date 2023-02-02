@@ -24,7 +24,7 @@ enum Releaser {
     ReleasePublicSite,
     ReleaseLinux,
     BumpVersion {
-        #[structopt(short, long)]
+        #[structopt(short, long, name = "bump type")]
         increment: Option<String>,
     },
 }

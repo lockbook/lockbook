@@ -159,18 +159,21 @@ pub fn bump_versions(bump_type: Option<String>) {
     }
 
     //apple
-    //TODO figure out what sbuild number and appropriate plist
-    Command::new("/usr/libexec/Plistbuddy").args([
-        "-c",
-        "Set CFBundleVersion $SBUILD_NUMBER",
-        "$PLIST",
-    ]);
-
-    Command::new("/usr/libexec/Plistbuddy").args([
-        "-c",
-        "Set CFBundleShortVersionString $BUNDLE_SHORT_VERSION",
-        "$PLIST",
-    ]);
+    let plists = ["clients/apple/iOS/info.plist", "clients/apple/macOS/info.plist"];
+    for plist in plists {
+        Command::new("/usr/libexec/Plistbuddy").args([
+            "-c",
+            &format!("\"Set CFBundleVersion {}\"", new_version),
+            &["\"", plist, "\""].join(""),
+        ]);
+        Command::new("/usr/libexec/Plistbuddy").args([
+            "-c",
+            &format!("\"Set CFBundleShortVersionString {}\"", new_version),
+            &["\"", plist, "\""].join(""),
+        ]);
+    }
 
     edit_android_version(new_version)
+
+    //TODO figure out how to do snap
 }
