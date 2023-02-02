@@ -162,7 +162,7 @@ pub fn bump_versions(bump_type: Option<String>) {
     let plists = ["clients/apple/iOS/info.plist", "clients/apple/macOS/info.plist"];
     for plist in plists {
         Command::new("/usr/libexec/Plistbuddy")
-            .args(["-c", &format!("Set CFBundleShortVersionString {} ", new_version), plist])
+            .args(["-c", &format!("Set CFBundleShortVersionString {}", new_version), plist])
             .spawn()
             .unwrap();
     }
