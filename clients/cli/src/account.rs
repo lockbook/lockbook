@@ -1,5 +1,3 @@
-use std::io::Write;
-
 use lb::Core;
 
 use crate::input;
@@ -41,16 +39,10 @@ pub fn account(core: &Core, cmd: AccountCmd) -> Result<(), CliError> {
 fn new_acct(
     core: &Core, maybe_username: Option<String>, maybe_api_url: Option<String>,
 ) -> Result<(), CliError> {
-    print!("please enter a username: ");
-    std::io::stdout().flush()?;
-
     let username = match maybe_username {
         Some(uname) => uname,
         None => {
-            let mut uname = String::new();
-            std::io::stdin()
-                .read_line(&mut uname)
-                .expect("failed to read from stdin");
+            let mut uname: String = input("please enter a username: ")?;
             uname.retain(|c| c != '\n' && c != '\r');
             uname
         }
