@@ -86,7 +86,6 @@ pub fn update_aur() {
 
 pub fn overwrite_lockbook_pkg() {
     let version = core_version();
-
     let new_makepkg_content = format!(
         r#"
 pkgname='lockbook'
