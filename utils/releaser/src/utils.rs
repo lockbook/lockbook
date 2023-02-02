@@ -106,30 +106,32 @@ pub fn determine_new_version(bump_type: Option<String>) -> Option<String> {
 }
 
 pub fn edit_cargo_version(cargo_path: &str, version: &str) {
-    let mut server = fs::read_to_string([cargo_path, "Cargo.toml"].join(""))
+    let cargo_path = &[cargo_path, "/Cargo.toml"].join("");
+    let mut server = fs::read_to_string(cargo_path)
         .unwrap()
         .parse::<Document>()
         .unwrap();
 
     server["package"]["version"] = value(version);
-
     fs::write(cargo_path, server.to_string()).unwrap();
 }
-//TODO: test this out and make sure the regex works
-pub fn edit_android_version(version: &str) {
-    let path = "clients/android/build.gradle";
+
+pub fn edit_android_version(version_name: &str) {
+    let path = "clients/android/app/build.gradle";
     let mut gradle_build = fs::read_to_string(path).unwrap();
 
-    let version_code_re = Regex::new(r"versionCode *(?P<version_code>\d+)").unwrap();
+    let version_name_re = Regex::new(r"(versionName) (.*)").unwrap();
+    let version_code_re = Regex::new(r"(versionCode) *(?P<version_code>\d+)").unwrap();
     let mut version_code = 0;
     for caps in version_code_re.captures_iter(&gradle_build) {
         version_code = caps["version_code"].parse().unwrap();
     }
-    gradle_build = gradle_build.replace(&version_code.to_string(), &(version_code + 1).to_string());
+    gradle_build = version_code_re
+        .replace(&gradle_build, |caps: &Captures| format!("{} {}", &caps[1], version_code + 1))
+        .to_string();
 
-    let version_name_re = Regex::new(r"(versionName) (.*)").unwrap();
     gradle_build = version_name_re
-        .replace(&gradle_build, |caps: &Captures| format!("{}{}", &caps[1], version))
+        .replace(&gradle_build, |caps: &Captures| format!("{} {}", &caps[1], version_name))
         .to_string();
 
     fs::write(path, gradle_build).unwrap();
@@ -140,14 +142,14 @@ pub fn bump_versions(bump_type: Option<String>) {
     let new_version = new_version.as_str();
 
     let cargos_to_update = vec![
-        "clients/admin/",
-        "clients/cli/",
-        "clients/egui/",
-        "server/server/",
-        "libs/core/",
-        "libs/core/libs/shared/",
-        "libs/core/libs/test_utils/",
-        "libs/editor/equi_editor",
+        "clients/admin",
+        "clients/cli",
+        "clients/egui",
+        "server/server",
+        "libs/core",
+        "libs/core/libs/shared",
+        "libs/core/libs/test_utils",
+        "libs/editor/egui_editor",
         "utils/dev-tool",
         "utils/releaser",
         "utils/winstaller",

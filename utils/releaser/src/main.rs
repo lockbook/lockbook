@@ -25,7 +25,7 @@ enum Releaser {
     ReleaseLinux,
     BumpVersion {
         #[structopt(short, long)]
-        bump_type: Option<String>,
+        increment: Option<String>,
     },
 }
 
@@ -44,7 +44,7 @@ fn from_args(releaser: Releaser) {
         Releaser::ReleaseWindows => windows::release(&Github::env()),
         Releaser::ReleasePublicSite => public_site::release(),
         Releaser::ReleaseLinux => linux::release_linux(),
-        Releaser::BumpVersion { bump_type } => bump_versions(bump_type),
+        Releaser::BumpVersion { increment } => bump_versions(increment),
         Releaser::All => {
             let releases = if cfg!(target_os = "macos") {
                 vec![Releaser::ReleaseApple]
