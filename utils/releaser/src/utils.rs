@@ -131,7 +131,7 @@ pub fn edit_android_version(version_name: &str) {
         .to_string();
 
     gradle_build = version_name_re
-        .replace(&gradle_build, |caps: &Captures| format!("{} {}", &caps[1], version_name))
+        .replace(&gradle_build, |caps: &Captures| format!("{} "{}"", &caps[1], version_name))
         .to_string();
 
     fs::write(path, gradle_build).unwrap();
