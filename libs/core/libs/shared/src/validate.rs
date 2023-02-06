@@ -1,8 +1,7 @@
 use crate::access_info::UserAccessMode;
-use crate::crypto::get_encryption_overhead;
 use crate::file_like::FileLike;
 use crate::file_metadata::{Diff, FileDiff, FileType, Owner};
-use crate::filename::MAX_FILENAME_LENGTH;
+use crate::filename::MAX_ENCRYPTED_FILENAME_LENGTH;
 use crate::lazy::LazyTree;
 use crate::staged::StagedTreeLike;
 use crate::tree_like::TreeLike;
@@ -82,9 +81,7 @@ where
     // note: deleted access keys permissible
     pub fn assert_all_files_decryptable(&mut self, owner: Owner) -> SharedResult<()> {
         for file in self.ids().into_iter().filter_map(|id| self.maybe_find(id)) {
-            if file.secret_name().encrypted_value.value.len()
-                > get_encryption_overhead(MAX_FILENAME_LENGTH)
-            {
+            if file.secret_name().encrypted_value.value.len() > MAX_ENCRYPTED_FILENAME_LENGTH {
                 return Err(SharedError::ValidationFailure(ValidationFailure::FileNameTooLong(
                     *file.id(),
                 )));
