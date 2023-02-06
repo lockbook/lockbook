@@ -1,4 +1,4 @@
-pub const MAX_FILENAME_LENGTH: usize = 50;
+pub const MAX_FILENAME_LENGTH: usize = 32;
 pub const MAX_ENCRYPTED_FILENAME_LENGTH: usize = (MAX_FILENAME_LENGTH / 16 + 1) * 16;
 
 #[derive(Debug)]

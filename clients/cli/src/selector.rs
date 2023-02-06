@@ -145,6 +145,9 @@ fn create_file(core: &Core, name: &str, parent: Uuid) -> Result<File, CliError> 
             LbError::UiError(CreateFileError::FileNameNotAvailable) => {
                 CliError::file_name_taken(name)
             }
+            LbError::UiError(CreateFileError::FileNameTooLong) => {
+                CliError::file_name_too_long(parent_path)
+            }
             LbError::UiError(CreateFileError::InsufficientPermission) => {
                 CliError::no_write_permission(parent_path)
             }

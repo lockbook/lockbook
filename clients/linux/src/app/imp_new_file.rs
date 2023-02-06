@@ -116,7 +116,8 @@ impl super::App {
                                 "Can only create files within folders, not documents."
                             }
                             CouldNotFindAParent => "That parent folder does not exist.",
-                            FileNameNotAvailable => "That file name is alrady taken.",
+                            FileNameTooLong => "file name is too long",
+                            FileNameNotAvailable => "That file name is already taken.",
                             FileNameEmpty => "File names cannot be empty.",
                             FileNameContainsSlash => "File names cannot contain a slash (/).",
                             LinkInSharedFolder => "Can't save a link in a shared folder.",

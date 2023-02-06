@@ -396,6 +396,7 @@ pub enum CreateFileError {
     CouldNotFindAParent,
     FileNameNotAvailable,
     FileNameEmpty,
+    FileNameTooLong,
     FileNameContainsSlash,
     LinkInSharedFolder,
     LinkTargetIsOwned,
@@ -545,6 +546,7 @@ impl From<CoreError> for Error<SaveDocumentToDiskError> {
 pub enum RenameFileError {
     FileDoesNotExist,
     NewNameEmpty,
+    FileNameTooLong,
     NewNameContainsSlash,
     FileNameNotAvailable,
     CannotRenameRoot,

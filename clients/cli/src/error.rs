@@ -153,6 +153,10 @@ impl CliError {
         Self::new(ErrCode::FileNameUnavailable, format!("file name '{}' is not available.", name))
     }
 
+    pub fn file_name_too_long<T: fmt::Display>(name: T) -> Self {
+        Self::new(ErrCode::FileNameTooLong, format!("file name '{}' is too long", name))
+    }
+
     pub fn doc_treated_as_dir<T: fmt::Display>(lb_path: T) -> Self {
         Self::new(
             ErrCode::DocTreatedAsFolder,
@@ -320,6 +324,7 @@ make_errcode_enum!(
     49 => NoRootOps,
     50 => InvalidDrawing,
     51 => FolderTreatedAsDoc,
+    52 => FileNameTooLong,
 
     // Validation errors (53 - 57)
     53 => FileOrphaned,

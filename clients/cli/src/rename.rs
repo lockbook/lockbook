@@ -35,6 +35,7 @@ pub fn rename(
         .map_err(|err| match err {
             LbError::UiError(err) => match err {
                 RenameFileError::NewNameEmpty => CliError::file_name_empty(),
+                RenameFileError::FileNameTooLong => CliError::file_name_too_long(new_name),
                 RenameFileError::CannotRenameRoot => CliError::no_root_ops("rename"),
                 RenameFileError::NewNameContainsSlash => CliError::file_name_has_slash(new_name),
                 RenameFileError::FileNameNotAvailable => CliError::file_name_taken(new_name),
