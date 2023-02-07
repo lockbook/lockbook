@@ -65,6 +65,7 @@ pub struct Appearance {
     pub bullet_radius: Option<f32>,
     pub checkbox_dim: Option<f32>,
     pub checkbox_rounding: Option<f32>,
+    pub checkbox_slash_width: Option<f32>,
     pub rule_height: Option<f32>,
 }
 
@@ -139,6 +140,10 @@ impl Appearance {
 
     pub fn checkbox_rounding(&self) -> f32 {
         self.checkbox_dim.unwrap_or(1.0)
+    }
+
+    pub fn checkbox_slash_width(&self) -> f32 {
+        self.checkbox_dim.unwrap_or(2.0)
     }
 
     pub fn rule_height(&self) -> f32 {

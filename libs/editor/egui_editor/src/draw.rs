@@ -48,6 +48,15 @@ impl Editor {
                                 self.appearance.checkbox_rounding(),
                                 self.appearance.checkbox_bg(),
                             );
+                            if *checked {
+                                ui.painter().line_segment(
+                                    galley.checkbox_slash(&self.appearance),
+                                    Stroke {
+                                        width: self.appearance.checkbox_slash_width(),
+                                        color: self.appearance.text(),
+                                    },
+                                );
+                            }
                         }
                     },
                     Annotation::Rule => {
