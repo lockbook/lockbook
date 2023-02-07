@@ -1,3 +1,4 @@
+use crate::service::api_service::ApiError;
 use crate::{CoreError, CoreResult, OneKey, RequestContext, Requester};
 use hmdb::log::SchemaEvent;
 use hmdb::transaction::TransactionTable;
@@ -6,7 +7,7 @@ use lockbook_shared::access_info::UserAccessMode;
 use lockbook_shared::account::Account;
 use lockbook_shared::api::{
     ChangeDocRequest, GetDocRequest, GetFileIdsRequest, GetUpdatesRequest, GetUpdatesResponse,
-    GetUsernameRequest, UpsertRequest,
+    GetUsernameError, GetUsernameRequest, UpsertRequest,
 };
 use lockbook_shared::core_config::Config;
 use lockbook_shared::file::{File, ShareMode};
@@ -1042,10 +1043,15 @@ where
 
         for owner in all_owners {
             if !self.username_by_public_key.exists(&owner) {
-                let username = self
+                let username_result = self
                     .client
-                    .request(&self.account, GetUsernameRequest { key: owner.0 })?
-                    .username;
+                    .request(&self.account, GetUsernameRequest { key: owner.0 });
+                let username = match username_result {
+                    Err(ApiError::Endpoint(GetUsernameError::UserNotFound)) => {
+                        "<unknown>".to_string()
+                    }
+                    _ => username_result?.username.clone(),
+                };
                 self.username_by_public_key.insert(owner, username.clone());
                 self.public_key_by_username.insert(username, owner);
             }
