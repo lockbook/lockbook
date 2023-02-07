@@ -623,6 +623,24 @@ fn calc_modification(
                                 galley.annotation
                             {
                                 if galley.checkbox_bounds(appearance).contains(*pos) {
+                                    modifications.push(SubModification::Cursor {
+                                        cursor: Cursor {
+                                            pos: buffer.current.segs.byte_offset_to_char(
+                                                galley.range.start + galley.head_size,
+                                            ),
+                                            selection_origin: Some(
+                                                buffer.current.segs.byte_offset_to_char(
+                                                    galley.range.start + galley.head_size - 6,
+                                                ),
+                                            ),
+                                            ..Default::default()
+                                        },
+                                    });
+                                    modifications.push(SubModification::Insert {
+                                        text: if checked { "- [ ] " } else { "- [x] " }.to_string(),
+                                    });
+                                    modifications.push(SubModification::Cursor { cursor });
+
                                     checkbox_click = true;
                                     break;
                                 }
