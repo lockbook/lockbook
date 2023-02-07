@@ -27,8 +27,8 @@ pub fn process(
 }
 
 // note: buffer and debug are mut because undo modifies it directly; todo: factor to make mutating subset of code obvious
-fn calc_modification<'a>(
-    events: &'a [Event], layouts: &Layouts, galleys: &Galleys, buffer: &mut Buffer,
+fn calc_modification(
+    events: &[Event], layouts: &Layouts, galleys: &Galleys, buffer: &mut Buffer,
     debug: &mut DebugInfo, ui_size: Vec2,
 ) -> (bool, Modification) {
     let mut text_updated = false;

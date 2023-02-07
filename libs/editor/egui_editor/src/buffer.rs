@@ -3,7 +3,7 @@ use crate::debug::DebugInfo;
 use crate::offset_types::{DocCharOffset, RelCharOffset};
 use crate::unicode_segs;
 use crate::unicode_segs::UnicodeSegs;
-use queues::{CircularBuffer, IsQueue};
+use std::collections::VecDeque;
 use std::iter;
 use std::ops::Range;
 use std::time::{Duration, Instant};
@@ -35,7 +35,7 @@ pub struct Buffer {
     pub undo_base: SubBuffer,
 
     /// modifications made between undo_base and raw;
-    pub undo_queue: CircularBuffer<Vec<Modification>>,
+    pub undo_queue: VecDeque<Vec<Modification>>,
 
     /// additional, most recent element for queue, contains at most one text update, flushed to queue when another text update is applied
     pub current_text_mods: Option<Vec<Modification>>,
@@ -60,7 +60,7 @@ impl From<&str> for Buffer {
         Self {
             current: value.into(),
             undo_base: value.into(),
-            undo_queue: CircularBuffer::new(MAX_UNDOS),
+            undo_queue: VecDeque::new(),
             current_text_mods: None,
             redo_stack: Vec::new(),
             last_apply: Instant::now(),
@@ -97,10 +97,13 @@ impl Buffer {
                     })
                 }) || now - self.last_apply > UNDO_DEBOUNCE_PERIOD
                 {
-                    if let Ok(Some(undo_mods)) = self.undo_queue.add(current_text_mods.clone()) {
+                    self.undo_queue.push_back(current_text_mods.clone());
+                    if self.undo_queue.len() > MAX_UNDOS {
                         // when modifications overflow the queue, apply them to undo_base
-                        for m in undo_mods {
-                            self.undo_base.apply_modification(m, debug);
+                        if let Some(undo_mods) = self.undo_queue.pop_front() {
+                            for m in undo_mods {
+                                self.undo_base.apply_modification(m, debug);
+                            }
                         }
                     }
                     self.current_text_mods = Some(vec![modification.clone()]);
@@ -137,7 +140,7 @@ impl Buffer {
             }
 
             // reconstruct the modification queue
-            let mut mods_to_apply = CircularBuffer::new(MAX_UNDOS);
+            let mut mods_to_apply = VecDeque::new();
             std::mem::swap(&mut mods_to_apply, &mut self.undo_queue);
 
             // current starts over from undo base
@@ -147,18 +150,18 @@ impl Buffer {
             self.redo_stack.push(current_text_mods.clone());
 
             // undo the current modification by applying the whole queue but not the current modification
-            while let Ok(mods) = mods_to_apply.remove() {
+            while let Some(mods) = mods_to_apply.pop_front() {
                 for m in &mods {
                     self.current.apply_modification(m.clone(), debug);
                 }
 
                 // final element of the queue moved from queue to current
-                if mods_to_apply.size() == 0 {
+                if mods_to_apply.len() == 0 {
                     self.current_text_mods = Some(mods);
                     break;
                 }
 
-                let _ = self.undo_queue.add(mods);
+                let _ = self.undo_queue.push_back(mods);
             }
         }
     }
@@ -167,7 +170,7 @@ impl Buffer {
     pub fn redo(&mut self, debug: &mut DebugInfo) {
         if let Some(mods) = self.redo_stack.pop() {
             if let Some(current_text_mods) = &self.current_text_mods {
-                let _ = self.undo_queue.add(current_text_mods.clone());
+                self.undo_queue.push_back(current_text_mods.clone());
             }
             self.current_text_mods = Some(mods.clone());
             for m in mods {
