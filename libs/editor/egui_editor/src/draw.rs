@@ -42,8 +42,12 @@ impl Editor {
                                 .anchor_rect(Rect::from_min_size(pos.max, galley.size()));
                             ui.painter().galley(rect.min, galley);
                         }
-                        ItemType::Todo(_) => {
-                            // todo
+                        ItemType::Todo(checked) => {
+                            ui.painter().rect_filled(
+                                galley.checkbox_bounds(&self.appearance),
+                                self.appearance.checkbox_rounding(),
+                                self.appearance.checkbox_bg(),
+                            );
                         }
                     },
                     Annotation::Rule => {

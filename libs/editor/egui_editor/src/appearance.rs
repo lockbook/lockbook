@@ -52,6 +52,7 @@ pub struct Appearance {
     // colors
     pub text: Option<ThemedColor>,
     pub selection_bg: Option<ThemedColor>,
+    pub checkbox_bg: Option<ThemedColor>,
     pub heading: Option<ThemedColor>,
     pub heading_line: Option<ThemedColor>,
     pub code: Option<ThemedColor>,
@@ -62,6 +63,8 @@ pub struct Appearance {
 
     // sizes
     pub bullet_radius: Option<f32>,
+    pub checkbox_dim: Option<f32>,
+    pub checkbox_rounding: Option<f32>,
     pub rule_height: Option<f32>,
 }
 
@@ -94,6 +97,10 @@ impl Appearance {
         self.selection_bg.unwrap_or(color).get(self.current_theme)
     }
 
+    pub fn checkbox_bg(&self) -> Color32 {
+        self.checkbox_bg.unwrap_or(GRAY_4).get(self.current_theme)
+    }
+
     pub fn heading(&self) -> Color32 {
         self.heading.unwrap_or(BLACK).get(self.current_theme)
     }
@@ -124,6 +131,14 @@ impl Appearance {
 
     pub fn bullet_radius(&self) -> f32 {
         self.bullet_radius.unwrap_or(2.5)
+    }
+
+    pub fn checkbox_dim(&self) -> f32 {
+        self.checkbox_dim.unwrap_or(12.0)
+    }
+
+    pub fn checkbox_rounding(&self) -> f32 {
+        self.checkbox_dim.unwrap_or(1.0)
     }
 
     pub fn rule_height(&self) -> f32 {
