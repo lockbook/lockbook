@@ -340,7 +340,7 @@ fn calc_modification(
                             }
                             Some(Annotation::Item(ItemType::Todo(_), _)) => {
                                 let head = layout.head(&buffer.current);
-                                let text = head[0..head.len() - 4].to_string() + "- [ ]";
+                                let text = head[0..head.len() - 6].to_string() + "- [ ] ";
                                 modifications.push(SubModification::Insert { text });
                             }
                             Some(Annotation::Image(_, _, _)) => {}
