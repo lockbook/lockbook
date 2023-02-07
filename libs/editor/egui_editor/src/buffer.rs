@@ -156,12 +156,12 @@ impl Buffer {
                 }
 
                 // final element of the queue moved from queue to current
-                if mods_to_apply.len() == 0 {
+                if mods_to_apply.is_empty() {
                     self.current_text_mods = Some(mods);
                     break;
                 }
 
-                let _ = self.undo_queue.push_back(mods);
+                self.undo_queue.push_back(mods);
             }
         }
     }
