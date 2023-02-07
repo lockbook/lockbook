@@ -131,7 +131,7 @@ impl Appearance {
     }
 }
 
-#[derive(Default, Clone, Copy, PartialEq)]
+#[derive(Default, Clone, Copy, PartialEq, Eq)]
 pub enum Theme {
     #[default]
     Dark,
