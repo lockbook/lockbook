@@ -1,4 +1,4 @@
-use crate::buffer::Buffer;
+use crate::buffer::SubBuffer;
 use crate::galleys::{GalleyInfo, Galleys};
 use crate::offset_types::*;
 use crate::unicode_segs::UnicodeSegs;
@@ -113,9 +113,9 @@ impl Cursor {
     }
 
     /// returns the (possibly empty) selected text
-    pub fn selection_text<'b>(&self, buffer: &'b Buffer, segs: &UnicodeSegs) -> &'b str {
+    pub fn selection_text<'b>(&self, buffer: &'b SubBuffer, segs: &UnicodeSegs) -> &'b str {
         if let Some(selection_bytes) = self.selection_bytes(segs) {
-            &buffer.raw[selection_bytes.start.0..selection_bytes.end.0]
+            &buffer.text[selection_bytes.start.0..selection_bytes.end.0]
         } else {
             ""
         }
@@ -184,7 +184,7 @@ impl Cursor {
     }
 
     pub fn advance_word(
-        &mut self, backwards: bool, buffer: &Buffer, segs: &UnicodeSegs, galleys: &Galleys,
+        &mut self, backwards: bool, buffer: &SubBuffer, segs: &UnicodeSegs, galleys: &Galleys,
     ) {
         let (mut galley_idx, mut cursor) = galleys.galley_and_cursor_by_char_offset(self.pos, segs);
         let galley = &galleys[galley_idx];

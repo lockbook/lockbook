@@ -81,7 +81,10 @@ impl Editor {
 
     pub fn draw_cursor(&mut self, ui: &mut Ui) {
         ui.painter().rect(
-            self.cursor.rect(&self.segs, &self.galleys),
+            self.buffer
+                .current
+                .cursor
+                .rect(&self.buffer.current.segs, &self.galleys),
             Rounding::none(),
             Color32::TRANSPARENT,
             Stroke { width: 1.0, color: self.appearance.text() },
@@ -119,17 +122,26 @@ impl Editor {
             ui.ctx().input().screen_rect.height()
         );
 
-        let doc_info = format!("last_cursor_position: {}", self.segs.last_cursor_position().0);
+        let doc_info =
+            format!("last_cursor_position: {}", self.buffer.current.segs.last_cursor_position().0);
 
         let cursor_info = format!(
             "character: {}, byte: {}, x_target: {}, selection_origin: {}",
-            self.cursor.pos.0,
-            self.segs.char_offset_to_byte(self.cursor.pos).0,
-            self.cursor
+            self.buffer.current.cursor.pos.0,
+            self.buffer
+                .current
+                .segs
+                .char_offset_to_byte(self.buffer.current.cursor.pos)
+                .0,
+            self.buffer
+                .current
+                .cursor
                 .x_target
                 .map(|x| x.to_string())
                 .unwrap_or_else(|| "None".to_string()),
-            self.cursor
+            self.buffer
+                .current
+                .cursor
                 .selection_origin
                 .map(|x| x.0.to_string())
                 .unwrap_or_else(|| "None".to_string()),
