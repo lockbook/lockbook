@@ -11,7 +11,7 @@ fn delete_document() {
     let doc = core.create_at_path("test.md").unwrap().id;
     core.sync(None).unwrap();
     let doc1 = core
-        .in_tx(|s| Ok(s.db.local_metadata.data().get(&doc).unwrap().clone()))
+        .in_tx(|s| Ok(s.db.base_metadata.data().get(&doc).unwrap().clone()))
         .unwrap(); // delete document
     let mut doc2 = doc1.clone();
     doc2.timestamped_value.value.is_deleted = true;
@@ -31,7 +31,7 @@ fn delete_document_not_found() {
     let doc = core.create_at_path("test.md").unwrap().id;
     core.sync(None).unwrap();
     let mut doc1 = core
-        .in_tx(|s| Ok(s.db.local_metadata.data().get(&doc).unwrap().clone()))
+        .in_tx(|s| Ok(s.db.base_metadata.data().get(&doc).unwrap().clone()))
         .unwrap();
     doc1.timestamped_value.value.id = Uuid::new_v4();
     // delete document
@@ -104,7 +104,7 @@ fn delete_cannot_delete_root() {
     let account = core.get_account().unwrap();
     let root = core.get_root().unwrap().id;
     let root1 = core
-        .in_tx(|s| Ok(s.db.local_metadata.data().get(&root).unwrap().clone()))
+        .in_tx(|s| Ok(s.db.base_metadata.data().get(&root).unwrap().clone()))
         .unwrap();
 
     let mut root2 = root1.clone();

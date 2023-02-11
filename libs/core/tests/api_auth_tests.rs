@@ -10,16 +10,16 @@ fn upsert_id_takeover() {
     let core1 = test_core_with_account();
     let core2 = test_core_with_account();
 
+    let acc1 = &core1.get_account().unwrap();
+    let acc2 = &core2.get_account().unwrap();
+
     let mut file1 = {
         let id = core1.create_at_path("/test.md").unwrap().id;
         core1.sync(None).unwrap();
         core1
             .in_tx(|s| {
                 Ok(s.client
-                    .request(
-                        &core1.get_account().unwrap(),
-                        GetUpdatesRequest { since_metadata_version: 0 },
-                    )
+                    .request(acc1, GetUpdatesRequest { since_metadata_version: 0 })
                     .unwrap()
                     .file_metadata
                     .iter()
@@ -35,10 +35,9 @@ fn upsert_id_takeover() {
     // If this succeeded account2 would be able to control file1
     core2
         .in_tx(|s| {
-            let result = s.client.request(
-                &core2.get_account().unwrap(),
-                UpsertRequest { updates: vec![FileDiff::new(&file1)] },
-            );
+            let result = s
+                .client
+                .request(acc2, UpsertRequest { updates: vec![FileDiff::new(&file1)] });
             assert_matches!(
                 result,
                 Err(ApiError::<UpsertError>::Endpoint(UpsertError::OldVersionRequired))
@@ -103,10 +102,11 @@ fn change_document_content() {
     let mut file2 = file1.clone();
     file2.timestamped_value.value.document_hmac = Some([0; 32]);
 
+    let acc2 = &core2.get_account().unwrap();
     core2
         .in_tx(|s| {
             let result = s.client.request(
-                &core2.get_account().unwrap(),
+                acc2,
                 ChangeDocRequest {
                     diff: FileDiff::edit(&file1, &file2),
                     new_content: AESEncrypted {
@@ -141,9 +141,10 @@ fn get_someone_else_document() {
 
     let req = GetDocRequest { id: *file.id(), hmac: *file.document_hmac().unwrap() };
 
+    let acc2 = &core2.get_account().unwrap();
     core2
         .in_tx(|s| {
-            let result = s.client.request(&core2.get_account().unwrap(), req);
+            let result = s.client.request(acc2, req);
             assert_matches!(
                 result,
                 Err(ApiError::<GetDocumentError>::Endpoint(GetDocumentError::NotPermissioned))
