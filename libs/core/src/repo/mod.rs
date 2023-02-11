@@ -16,7 +16,7 @@ pub mod schema_v2;
 
 pub type CoreDb = CoreV3;
 
-#[derive(Schema)]
+#[derive(Schema, Debug)]
 pub struct CoreV3 {
     pub account: Single<Account>,
     pub last_synced: Single<i64>,

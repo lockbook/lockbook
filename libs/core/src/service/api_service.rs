@@ -236,5 +236,9 @@ pub mod no_network {
 
             Self { inner }
         }
+
+        pub fn client_config(&self) -> Config {
+            self.inner.lock().unwrap().client.config.clone()
+        }
     }
 }
