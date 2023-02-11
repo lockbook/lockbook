@@ -44,7 +44,7 @@ sublime_fuzzy = "0.7.0"
 crossbeam = "0.8.1"
 lockbook-shared = { path = "libs/shared" }
 qrcode-generator = "4.1.6"
-db-rs = "0.1.9"
+db-rs = { path = "../../../../db-rs/db" }
 db-rs-derive = "0.1.9"
 
 lockbook-server = { path = "../../server/server", optional = true }

@@ -56,7 +56,7 @@ fn whoami(core: &Core) -> Result<(), CliError> {
 
 fn whereami(core: &Core) -> Result<(), CliError> {
     let account = core.get_account()?;
-    let config = &core.config;
+    let config = &core.get_config()?;
     println!("Server: {}", account.api_url);
     println!("Core: {}", config.writeable_path);
     Ok(())

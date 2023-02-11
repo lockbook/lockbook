@@ -1,4 +1,3 @@
-use hmdb::transaction::Transaction;
 use itertools::Itertools;
 use test_utils::*;
 
@@ -53,14 +52,7 @@ fn deleted_path_is_released() {
     let db1 = test_core_with_account();
     let file1 = db1.create_at_path("file1.md").unwrap();
     db1.sync(None).unwrap();
-
-    db1.db
-        .transaction(|tx| {
-            let mut ctx = db1.context(tx).unwrap();
-            ctx.delete(&file1.id).unwrap();
-        })
-        .unwrap();
-
+    db1.delete_file(file1.id).unwrap();
     db1.sync(None).unwrap();
     db1.create_at_path("file1.md").unwrap();
     db1.sync(None).unwrap();

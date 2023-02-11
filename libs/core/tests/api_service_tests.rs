@@ -43,10 +43,14 @@ fn invalid_url() {
     let mut account = core.get_account().unwrap();
     account.api_url = String::from("not a url");
 
-    let result = core
-        .client
-        .request(&account, GetPublicKeyRequest { username: account.username.clone() });
-    assert_matches!(result, Err(ApiError::<GetPublicKeyError>::SendFailed(_)));
+    core.in_tx(|s| {
+        let res = s
+            .client
+            .request(&account, GetPublicKeyRequest { username: account.username.clone() });
+        assert_matches!(res, Err(ApiError::<GetPublicKeyError>::SendFailed(_)));
+        Ok(())
+    })
+    .unwrap();
 }
 
 #[test]
@@ -55,10 +59,14 @@ fn wrong_url() {
     let mut account = core.get_account().unwrap();
     account.api_url = String::from("http://google.com");
 
-    let result = core
-        .client
-        .request(&account, GetPublicKeyRequest { username: account.username.clone() });
-    assert_matches!(result, Err(ApiError::<GetPublicKeyError>::Deserialize(_)));
+    core.in_tx(|s| {
+        let result = s
+            .client
+            .request(&account, GetPublicKeyRequest { username: account.username.clone() });
+        assert_matches!(result, Err(ApiError::<GetPublicKeyError>::Deserialize(_)));
+        Ok(())
+    })
+    .unwrap();
 }
 
 // todo: test for invalid signature, signature mismatch during create account request

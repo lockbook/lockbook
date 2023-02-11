@@ -2,14 +2,13 @@ use crate::file_like::FileLike;
 use crate::tree_like::{TreeLike, TreeLikeMut};
 use hmdb::log::SchemaEvent;
 use hmdb::transaction::TransactionTable;
-use serde::de::DeserializeOwned;
 use serde::Serialize;
 use std::collections::HashSet;
 use uuid::Uuid;
 
 impl<F> TreeLike for db_rs::LookupTable<Uuid, F>
 where
-    F: FileLike + Serialize + DeserializeOwned,
+    F: FileLike + Serialize,
 {
     type F = F;
 
@@ -24,7 +23,7 @@ where
 
 impl<F> TreeLikeMut for db_rs::LookupTable<Uuid, F>
 where
-    F: FileLike + Serialize + DeserializeOwned,
+    F: FileLike + Serialize,
 {
     fn insert(&mut self, f: Self::F) -> Option<Self::F> {
         db_rs::LookupTable::insert(self, *f.id(), f).unwrap() // todo: modify treelikemut

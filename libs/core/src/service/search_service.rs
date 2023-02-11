@@ -1,4 +1,4 @@
-use crate::{CoreError, CoreResult, OneKey, RequestContext, Requester, UnexpectedError};
+use crate::{CoreError, CoreResult, CoreState, Requester, UnexpectedError};
 use crossbeam::channel::{self, Receiver, RecvTimeoutError, Sender};
 use fuzzy_matcher::skim::SkimMatcherV2;
 use fuzzy_matcher::FuzzyMatcher;
@@ -44,20 +44,20 @@ impl PartialOrd for SearchResultItem {
     }
 }
 
-impl<Client: Requester> RequestContext<'_, '_, Client> {
-    pub fn search_file_paths(&mut self, input: &str) -> CoreResult<Vec<SearchResultItem>> {
+impl<Client: Requester> CoreState<Client> {
+    pub(crate) fn search_file_paths(&mut self, input: &str) -> CoreResult<Vec<SearchResultItem>> {
         if input.is_empty() {
             return Ok(Vec::new());
         }
 
-        let mut tree = (&self.tx.base_metadata)
-            .to_staged(&self.tx.local_metadata)
+        let mut tree = (&self.db.base_metadata)
+            .to_staged(&self.db.local_metadata)
             .to_lazy();
 
         let account = self
-            .tx
+            .db
             .account
-            .get(&OneKey {})
+            .data()
             .ok_or(CoreError::AccountNonexistent)?;
         let mut results = Vec::new();
         let matcher = SkimMatcherV2::default();
@@ -81,14 +81,14 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
         Ok(results)
     }
 
-    pub fn start_search(&mut self) -> CoreResult<StartSearchInfo> {
-        let mut tree = (&self.tx.base_metadata)
-            .to_staged(&self.tx.local_metadata)
+    pub(crate) fn start_search(&mut self) -> CoreResult<StartSearchInfo> {
+        let mut tree = (&self.db.base_metadata)
+            .to_staged(&self.db.local_metadata)
             .to_lazy();
         let account = self
-            .tx
+            .db
             .account
-            .get(&OneKey {})
+            .data()
             .ok_or(CoreError::AccountNonexistent)?;
         let mut files_info = Vec::new();
 
@@ -101,7 +101,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
                         &tree.name_using_links(&id, account)?,
                     ) {
                         DocumentType::Text => {
-                            let doc = tree.read_document(self.config, &id, account)?;
+                            let doc = tree.read_document(&self.config, &id, account)?;
                             match String::from_utf8(doc) {
                                 Ok(str) => Some(str),
                                 Err(utf_8) => {
@@ -158,8 +158,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
         let debounce_duration = Duration::from_millis(DEBOUNCE_MILLIS);
 
         loop {
-            let search =
-                RequestContext::<Client>::recv_with_debounce(&search_rx, debounce_duration)?;
+            let search = CoreState::<Client>::recv_with_debounce(&search_rx, debounce_duration)?;
             should_continue.store(false, atomic::Ordering::Relaxed);
 
             match search {
@@ -172,7 +171,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
                     let input = input.clone();
 
                     thread::spawn(move || {
-                        if let Err(search_err) = RequestContext::<Client>::search(
+                        if let Err(search_err) = CoreState::<Client>::search(
                             &results_tx,
                             files_info,
                             should_continue,
@@ -196,7 +195,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
     ) -> Result<(), UnexpectedError> {
         let mut no_matches = true;
 
-        RequestContext::<Client>::search_file_names(
+        CoreState::<Client>::search_file_names(
             results_tx,
             &should_continue,
             &files_info,
@@ -205,7 +204,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
         )?;
 
         if should_continue.load(atomic::Ordering::Relaxed) {
-            RequestContext::<Client>::search_file_contents(
+            CoreState::<Client>::search_file_contents(
                 results_tx,
                 &should_continue,
                 &files_info,
@@ -284,7 +283,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
 
                         if score >= LOWEST_CONTENT_SCORE_THRESHOLD {
                             let (paragraph, matched_indices) =
-                                RequestContext::<Client>::optimize_searched_text(
+                                CoreState::<Client>::optimize_searched_text(
                                     paragraph,
                                     fuzzy_match.matched_indices().cloned().collect(),
                                 )?;

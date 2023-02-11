@@ -1,7 +1,6 @@
 use crate::service::api_service::ApiError;
-use crate::{CoreError, CoreResult, OneKey, RequestContext, Requester};
-use hmdb::log::SchemaEvent;
-use hmdb::transaction::TransactionTable;
+use crate::{CoreError, CoreResult, CoreState, Requester};
+use db_rs::LookupTable;
 use itertools::Itertools;
 use lockbook_shared::access_info::UserAccessMode;
 use lockbook_shared::account::Account;
@@ -70,21 +69,20 @@ fn get_work_units(op: &SyncOperation) -> Vec<WorkUnit> {
     work_units
 }
 
-impl<'a, 'b, Client: Requester> RequestContext<'a, 'b, Client> {
+impl<Client: Requester> CoreState<Client> {
     #[instrument(level = "debug", skip_all, err(Debug))]
-    pub fn calculate_work(&mut self) -> CoreResult<WorkCalculated> {
+    pub(crate) fn calculate_work(&mut self) -> CoreResult<WorkCalculated> {
         let mut work_units: Vec<WorkUnit> = Vec::new();
         let mut sync_context = SyncContext {
             dry_run: true,
             account: self.get_account()?.clone(),
-            root: self.tx.root.get(&OneKey {}).cloned(),
-            last_synced: self.tx.last_synced.get(&OneKey {}).map(|s| *s as u64),
-            base: (&self.tx.base_metadata).to_staged(Vec::new()),
-            local: (&self.tx.local_metadata).to_staged(Vec::new()),
-            username_by_public_key: &mut self.tx.username_by_public_key,
-            public_key_by_username: &mut self.tx.public_key_by_username,
-            client: self.client,
-            config: self.config,
+            root: self.db.root.data().cloned(),
+            last_synced: self.db.last_synced.data().map(|s| *s as u64),
+            base: (&self.db.base_metadata).to_staged(Vec::new()),
+            local: (&self.db.local_metadata).to_staged(Vec::new()),
+            username_by_public_key: &mut self.db.pub_key_lookup,
+            client: &self.client,
+            config: &self.config,
         };
         let update_as_of = sync_context.sync(&mut |op| work_units.extend(get_work_units(&op)))?;
 
@@ -92,7 +90,7 @@ impl<'a, 'b, Client: Requester> RequestContext<'a, 'b, Client> {
     }
 
     #[instrument(level = "debug", skip_all, err(Debug))]
-    pub fn sync<F: Fn(SyncProgress)>(
+    pub(crate) fn sync<F: Fn(SyncProgress)>(
         &mut self, maybe_update_sync_progress: Option<F>,
     ) -> CoreResult<WorkCalculated> {
         let mut work_units: Vec<WorkUnit> = Vec::new();
@@ -107,14 +105,13 @@ impl<'a, 'b, Client: Requester> RequestContext<'a, 'b, Client> {
             let mut sync_context = SyncContext {
                 dry_run: true,
                 account: self.get_account()?.clone(),
-                root: self.tx.root.get(&OneKey {}).cloned(),
-                last_synced: self.tx.last_synced.get(&OneKey {}).map(|s| *s as u64),
-                base: (&self.tx.base_metadata).to_staged(Vec::new()),
-                local: (&self.tx.local_metadata).to_staged(Vec::new()),
-                username_by_public_key: &mut self.tx.username_by_public_key,
-                public_key_by_username: &mut self.tx.public_key_by_username,
-                client: self.client,
-                config: self.config,
+                root: self.db.root.data().cloned(),
+                last_synced: self.db.last_synced.data().map(|s| *s as u64),
+                base: (&self.db.base_metadata).to_staged(Vec::new()),
+                local: (&self.db.local_metadata).to_staged(Vec::new()),
+                username_by_public_key: &mut self.db.pub_key_lookup,
+                client: &self.client,
+                config: &self.config,
             };
             sync_context.sync(&mut |op| match op {
                 SyncOperation::PullMetadataStart
@@ -159,23 +156,22 @@ impl<'a, 'b, Client: Requester> RequestContext<'a, 'b, Client> {
         let mut sync_context = SyncContext {
             dry_run: false,
             account: self.get_account()?.clone(),
-            root: self.tx.root.get(&OneKey {}).cloned(),
-            last_synced: self.tx.last_synced.get(&OneKey {}).map(|s| *s as u64),
-            base: (&mut self.tx.base_metadata).to_staged(Vec::new()),
-            local: (&mut self.tx.local_metadata).to_staged(Vec::new()),
-            username_by_public_key: &mut self.tx.username_by_public_key,
-            public_key_by_username: &mut self.tx.public_key_by_username,
-            client: self.client,
-            config: self.config,
+            root: self.db.root.data().cloned(),
+            last_synced: self.db.last_synced.data().map(|s| *s as u64),
+            base: (&mut self.db.base_metadata).to_staged(Vec::new()),
+            local: (&mut self.db.local_metadata).to_staged(Vec::new()),
+            username_by_public_key: &mut self.db.pub_key_lookup,
+            client: &self.client,
+            config: &self.config,
         };
 
         let update_as_of = sync_context.sync(&mut update_sync_progress)?;
 
         if let Some(root) = sync_context.root {
-            self.tx.root.insert(OneKey {}, root);
+            self.db.root.insert(root)?;
         }
         if let Some(last_synced) = sync_context.last_synced {
-            self.tx.last_synced.insert(OneKey {}, last_synced as i64);
+            self.db.last_synced.insert(last_synced as i64)?;
         }
         sync_context.base.to_lazy().promote();
         sync_context.local.to_lazy().promote();
@@ -184,12 +180,10 @@ impl<'a, 'b, Client: Requester> RequestContext<'a, 'b, Client> {
     }
 }
 
-struct SyncContext<'a, 'b, Base, Local, UsernameByPublicKey, PublicKeyByUsername, Client>
+struct SyncContext<'a, Base, Local, Client>
 where
     Base: TreeLike<F = SignedFile>,
     Local: TreeLike<F = SignedFile>,
-    UsernameByPublicKey: SchemaEvent<Owner, String>,
-    PublicKeyByUsername: SchemaEvent<String, Owner>,
     Client: Requester,
 {
     // when dry_run is true, sync skips document downloads/uploads and disk reads/writes
@@ -203,8 +197,7 @@ where
     local: StagedTree<Local, Vec<SignedFile>>,
 
     // public key cache is written to, dry run or not
-    username_by_public_key: &'a mut TransactionTable<'b, Owner, String, UsernameByPublicKey>,
-    public_key_by_username: &'a mut TransactionTable<'b, String, Owner, PublicKeyByUsername>,
+    username_by_public_key: &'a mut LookupTable<Owner, String>,
 
     // account pre-loaded for convenience
     account: Account,
@@ -214,13 +207,10 @@ where
     config: &'a Config,
 }
 
-impl<'a, 'b, Base, Local, UsernameByPublicKey, PublicKeyByUsername, Client>
-    SyncContext<'a, 'b, Base, Local, UsernameByPublicKey, PublicKeyByUsername, Client>
+impl<'a, Base, Local, Client> SyncContext<'a, Base, Local, Client>
 where
     Base: TreeLike<F = SignedFile>,
     Local: TreeLike<F = SignedFile>,
-    UsernameByPublicKey: SchemaEvent<Owner, String>,
-    PublicKeyByUsername: SchemaEvent<String, Owner>,
     Client: Requester,
 {
     fn sync<F>(&mut self, report_sync_operation: &mut F) -> CoreResult<i64>
@@ -852,7 +842,7 @@ where
         Ok(update_as_of as i64)
     }
 
-    pub fn get_updates(&self) -> CoreResult<GetUpdatesResponse> {
+    pub(crate) fn get_updates(&self) -> CoreResult<GetUpdatesResponse> {
         let last_synced = self.last_synced.unwrap_or_default();
         let remote_changes = self
             .client
@@ -860,7 +850,7 @@ where
         Ok(remote_changes)
     }
 
-    pub fn prune_remote_orphans(
+    pub(crate) fn prune_remote_orphans(
         &mut self, remote_changes: Vec<SignedFile>,
     ) -> CoreResult<Vec<SignedFile>> {
         let me = Owner(self.account.public_key());
@@ -1041,7 +1031,7 @@ where
         }
 
         for owner in all_owners {
-            if !self.username_by_public_key.exists(&owner) {
+            if !self.username_by_public_key.data().contains_key(&owner) {
                 let username_result = self
                     .client
                     .request(&self.account, GetUsernameRequest { key: owner.0 });
@@ -1051,8 +1041,8 @@ where
                     }
                     _ => username_result?.username.clone(),
                 };
-                self.username_by_public_key.insert(owner, username.clone());
-                self.public_key_by_username.insert(username, owner);
+                self.username_by_public_key
+                    .insert(owner, username.clone())?;
             }
         }
 

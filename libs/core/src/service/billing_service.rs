@@ -7,10 +7,10 @@ use lockbook_shared::api::{
 
 use crate::model::errors::core_err_unexpected;
 use crate::service::api_service::ApiError;
-use crate::{CoreError, CoreResult, RequestContext, Requester};
+use crate::{CoreError, CoreResult, CoreState, Requester};
 
-impl<Client: Requester> RequestContext<'_, '_, Client> {
-    pub fn upgrade_account_stripe(&self, account_tier: StripeAccountTier) -> CoreResult<()> {
+impl<Client: Requester> CoreState<Client> {
+    pub(crate) fn upgrade_account_stripe(&self, account_tier: StripeAccountTier) -> CoreResult<()> {
         let account = self.get_account()?;
 
         self.client
@@ -47,7 +47,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
         Ok(())
     }
 
-    pub fn upgrade_account_google_play(
+    pub(crate) fn upgrade_account_google_play(
         &self, purchase_token: &str, account_id: &str,
     ) -> CoreResult<()> {
         let account = self.get_account()?;
@@ -78,7 +78,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
         Ok(())
     }
 
-    pub fn upgrade_account_app_store(
+    pub(crate) fn upgrade_account_app_store(
         &self, original_transaction_id: String, app_account_token: String,
     ) -> CoreResult<()> {
         let account = self.get_account()?;
@@ -109,7 +109,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
         Ok(())
     }
 
-    pub fn cancel_subscription(&self) -> CoreResult<()> {
+    pub(crate) fn cancel_subscription(&self) -> CoreResult<()> {
         let account = self.get_account()?;
 
         self.client
@@ -136,7 +136,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
         Ok(())
     }
 
-    pub fn get_subscription_info(&self) -> CoreResult<Option<SubscriptionInfo>> {
+    pub(crate) fn get_subscription_info(&self) -> CoreResult<Option<SubscriptionInfo>> {
         let account = self.get_account()?;
 
         Ok(self
