@@ -1210,17 +1210,9 @@ checksum = "23d8666cb01533c39dde32bcbab8e227b4ed6679b2c925eba05feabea39508fb"
 
 [[package]]
 name = "db-rs"
-version = "0.1.9"
-dependencies = [
- "bincode",
- "serde",
-]
-
-[[package]]
-name = "db-rs"
-version = "0.1.9"
+version = "0.1.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0e83583ce37d375d70d3cd5dbcb1529fcefa89ca93b8471848f34dd430cdffc9"
+checksum = "ed9427cffc038b52aaa5dc19f98fc60f5b50c2533fc5c7c31970d07d2a10c303"
 dependencies = [
  "bincode",
  "serde",
@@ -1232,7 +1224,7 @@ version = "0.1.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "85a0aa97eef7bf4b23f9255b05fc4d79d739d63b55dae36a0d9d72fce5d406c7"
 dependencies = [
- "db-rs 0.1.9 (registry+https://github.com/rust-lang/crates.io-index)",
+ "db-rs",
  "quote",
  "syn",
 ]
@@ -2874,7 +2866,7 @@ dependencies = [
  "cpuprofiler",
  "criterion",
  "crossbeam",
- "db-rs 0.1.9",
+ "db-rs",
  "db-rs-derive",
  "diffy",
  "fuzzy-matcher",
@@ -2982,7 +2974,7 @@ dependencies = [
  "aes-gcm",
  "base64",
  "bincode",
- "db-rs 0.1.9",
+ "db-rs",
  "flate2",
  "hmac 0.11.0",
  "hmdb",
