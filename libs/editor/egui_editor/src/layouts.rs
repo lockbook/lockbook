@@ -163,8 +163,24 @@ impl LayoutJobInfo {
                 trimmed_text
             };
 
+            // capture unchecked task list annotation
+            if text.starts_with("+ [ ] ")
+                || text.starts_with("* [ ] ")
+                || text.starts_with("- [ ] ")
+            {
+                annotation = Some(Annotation::Item(ItemType::Todo(false), indent_level));
+                head_size += 6;
+            }
+            // capture checked task list annotation
+            else if text.starts_with("+ [x] ")
+                || text.starts_with("* [x] ")
+                || text.starts_with("- [x] ")
+            {
+                annotation = Some(Annotation::Item(ItemType::Todo(true), indent_level));
+                head_size += 6;
+            }
             // capture bulleted list annotation
-            if text.starts_with("+ ") || text.starts_with("* ") || text.starts_with("- ") {
+            else if text.starts_with("+ ") || text.starts_with("* ") || text.starts_with("- ") {
                 annotation = Some(Annotation::Item(ItemType::Bulleted, indent_level));
                 head_size += 2;
             }

@@ -69,6 +69,7 @@ impl Editor {
                 &ui.ctx().input().events,
                 &self.layouts,
                 &self.galleys,
+                &self.appearance,
                 ui_size,
                 &mut self.buffer,
                 &mut self.debug,
