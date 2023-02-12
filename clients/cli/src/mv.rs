@@ -32,7 +32,7 @@ pub fn mv(
                 MoveFileError::FileDoesNotExist => CliError::file_not_found(src_path),
                 MoveFileError::TargetParentDoesNotExist => CliError::file_not_found(dest_path),
                 MoveFileError::FolderMovedIntoItself => CliError::moving_folder_into_itself(),
-                MoveFileError::TargetParentHasChildNamedThat => CliError::file_name_taken(""), //todo
+                MoveFileError::TargetParentHasChildNamedThat => CliError::file_name_taken(""), // todo
                 MoveFileError::DocumentTreatedAsFolder => CliError::doc_treated_as_dir(dest_path)
                     .with_extra(format!("{} cannot be moved to {}", src_meta.name, dest_meta.name)),
                 MoveFileError::LinkInSharedFolder => CliError::link_in_shared(dest_meta.name),

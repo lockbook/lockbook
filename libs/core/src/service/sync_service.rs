@@ -173,8 +173,8 @@ impl<Client: Requester> CoreState<Client> {
         if let Some(last_synced) = sync_context.last_synced {
             self.db.last_synced.insert(last_synced as i64)?;
         }
-        sync_context.base.to_lazy().promote();
-        sync_context.local.to_lazy().promote();
+        sync_context.base.to_lazy().promote()?;
+        sync_context.local.to_lazy().promote()?;
 
         Ok(WorkCalculated { work_units, most_recent_update_from_server: update_as_of as u64 })
     }
@@ -243,7 +243,7 @@ where
             remote_changes = self.prune_remote_orphans(remote_changes)?;
             self.populate_public_key_cache(&remote_changes)?;
 
-            let mut remote = self.base.stage(remote_changes).pruned().to_lazy();
+            let mut remote = self.base.stage(remote_changes).pruned()?.to_lazy();
             report_sync_operation(SyncOperation::PullMetadataEnd(
                 remote.resolve_and_finalize_all(
                     &self.account,
@@ -831,13 +831,13 @@ where
         (&mut self.base)
             .to_staged(remote_changes)
             .to_lazy()
-            .promote();
-        self.local.clear();
+            .promote()?;
+        self.local.clear()?;
         (&mut self.local)
             .to_staged(merge_changes)
             .to_lazy()
-            .promote();
-        self.cleanup_local_metadata();
+            .promote()?;
+        self.cleanup_local_metadata()?;
 
         Ok(update_as_of as i64)
     }
@@ -896,11 +896,11 @@ where
 
         let mut base_staged = (&mut self.base).to_lazy().stage(None);
         base_staged.tree.removed = prunable_ids.clone();
-        base_staged.promote();
+        base_staged.promote()?;
 
         let mut local_staged = (&mut self.local).to_lazy().stage(None);
         local_staged.tree.removed = prunable_ids;
-        local_staged.promote();
+        local_staged.promote()?;
 
         Ok(())
     }
@@ -947,8 +947,8 @@ where
         (&mut self.base)
             .to_lazy()
             .stage(local_changes_no_digests)
-            .promote();
-        self.cleanup_local_metadata();
+            .promote()?;
+        self.cleanup_local_metadata()?;
 
         Ok(())
     }
@@ -1015,8 +1015,8 @@ where
         (&mut self.base)
             .to_lazy()
             .stage(local_changes_digests_only)
-            .promote();
-        self.cleanup_local_metadata();
+            .promote()?;
+        self.cleanup_local_metadata()?;
 
         Ok(())
     }
@@ -1050,7 +1050,8 @@ where
     }
 
     // todo: check only necessary ids
-    fn cleanup_local_metadata(&mut self) {
-        self.base.stage(&mut self.local).prune();
+    fn cleanup_local_metadata(&mut self) -> CoreResult<()> {
+        self.base.stage(&mut self.local).prune()?;
+        Ok(())
     }
 }

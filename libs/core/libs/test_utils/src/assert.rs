@@ -222,7 +222,12 @@ pub fn server_work_paths(core: &Core, expected_paths: &[&'static str]) {
                 )
                 .unwrap()
                 .file_metadata;
-            let mut remote = s.db.base_metadata.stage(remote_changes).pruned().to_lazy();
+            let mut remote =
+                s.db.base_metadata
+                    .stage(remote_changes)
+                    .pruned()
+                    .unwrap()
+                    .to_lazy();
             Ok(remote
                 .tree
                 .staged
