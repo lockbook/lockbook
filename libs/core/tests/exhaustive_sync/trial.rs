@@ -244,7 +244,7 @@ impl Trial {
                             if !device.calculate_work().unwrap().work_units.is_empty() {
                                 self.status = Failed(format!(
                                     "work units not empty, client: {}",
-                                    device.config.writeable_path
+                                    device.get_config().unwrap().writeable_path
                                 ));
                                 break 'steps;
                             }
@@ -255,11 +255,9 @@ impl Trial {
                                 assert_dbs_equal(device, compare_device);
                                 if !dbs_equal(device, compare_device) {
                                     self.status = Failed(format!(
-                                        "db {} is not equal to {} after a sync. Server is {} & {}",
-                                        device.config.writeable_path,
-                                        compare_device.config.writeable_path,
-                                        device.client.config.writeable_path,
-                                        compare_device.client.config.writeable_path
+                                        "db {} is not equal to {} after a sync.",
+                                        device.get_config().unwrap().writeable_path,
+                                        compare_device.get_config().unwrap().writeable_path,
                                     ));
                                     break 'steps;
                                 }
@@ -457,11 +455,12 @@ impl Trial {
 
     fn cleanup(&self) {
         // Delete server
-        fs::remove_dir_all(&self.devices_by_user[0][0].client.config.writeable_path)
+        fs::remove_dir_all(self.devices_by_user[0][0].client_config().writeable_path)
             .unwrap_or_else(|err| {
                 println!(
-                    "failed to cleanup file: {}, error: {}",
-                    &self.devices_by_user[0][0].client.config.writeable_path, err
+                    "failed to cleanup file: {:?}, error: {}",
+                    &self.devices_by_user[0][0].client_config().writeable_path,
+                    err
                 )
             });
 
@@ -469,12 +468,15 @@ impl Trial {
         for user_index in 0..self.target_devices_by_user.len() {
             for device_index in 0..self.target_devices_by_user[user_index] {
                 let client = &self.devices_by_user[user_index][device_index];
-                fs::remove_dir_all(&client.config.writeable_path).unwrap_or_else(|err| {
-                    println!(
-                        "failed to cleanup file: {}, error: {}",
-                        client.config.writeable_path, err
-                    )
-                });
+                fs::remove_dir_all(client.get_config().unwrap().writeable_path).unwrap_or_else(
+                    |err| {
+                        println!(
+                            "failed to cleanup file: {}, error: {}",
+                            client.get_config().unwrap().writeable_path,
+                            err
+                        )
+                    },
+                );
             }
         }
     }

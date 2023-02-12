@@ -10,17 +10,26 @@ fn rename_document() {
     let account = core.get_account().unwrap();
 
     let doc = core.create_at_path("test.md").unwrap().id;
-    let doc = core.db.local_metadata.get(&doc).unwrap().unwrap();
+    let doc = core
+        .in_tx(|s| {
+            let doc = s.db.local_metadata.data().get(&doc).unwrap();
+            s.client
+                .request(&account, UpsertRequest { updates: vec![FileDiff::new(doc)] })
+                .unwrap();
 
-    core.client
-        .request(&account, UpsertRequest { updates: vec![FileDiff::new(&doc)] })
+            Ok(doc.clone())
+        })
         .unwrap();
 
     let old = doc.clone();
     core.rename_file(*doc.id(), &random_name()).unwrap();
-    let new = core.db.local_metadata.get(doc.id()).unwrap().unwrap();
+    core.in_tx(|s| {
+        let new = s.db.local_metadata.data().get(doc.id()).unwrap();
 
-    core.client
-        .request(&account, UpsertRequest { updates: vec![FileDiff::edit(&old, &new)] })
-        .unwrap();
+        s.client
+            .request(&account, UpsertRequest { updates: vec![FileDiff::edit(&old, new)] })
+            .unwrap();
+        Ok(())
+    })
+    .unwrap();
 }

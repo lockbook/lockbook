@@ -1,5 +1,6 @@
 use crate::file_like::FileLike;
 use crate::tree_like::{TreeLike, TreeLikeMut};
+use crate::SharedResult;
 use std::collections::HashSet;
 use uuid::Uuid;
 
@@ -21,7 +22,7 @@ where
 {
     fn staged_mut(&mut self) -> &mut Self::Staged;
 
-    fn prune(&mut self) {
+    fn prune(&mut self) -> SharedResult<()> {
         let mut prunable = vec![];
         for id in self.staged().ids() {
             if let Some(staged) = self.staged().maybe_find(id) {
@@ -34,13 +35,14 @@ where
         }
 
         for id in prunable {
-            self.staged_mut().remove(id);
+            self.staged_mut().remove(id)?;
         }
+        Ok(())
     }
 
-    fn pruned(mut self) -> Self {
-        self.prune();
-        self
+    fn pruned(mut self) -> SharedResult<Self> {
+        self.prune()?;
+        Ok(self)
     }
 }
 
@@ -106,7 +108,7 @@ where
     Base: TreeLike,
     Staged: TreeLikeMut<F = Base::F>,
 {
-    fn insert(&mut self, f: Self::F) -> Option<Self::F> {
+    fn insert(&mut self, f: Self::F) -> SharedResult<Option<Self::F>> {
         self.removed.remove(f.id());
         if let Some(base) = self.base.maybe_find(f.id()) {
             if *base == f {
@@ -117,17 +119,18 @@ where
         self.staged.insert(f)
     }
 
-    fn remove(&mut self, id: Uuid) -> Option<Self::F> {
+    fn remove(&mut self, id: Uuid) -> SharedResult<Option<Self::F>> {
         self.removed.insert(id);
-        if let Some(staged) = self.staged.remove(id) {
-            Some(staged)
+        if let Some(staged) = self.staged.remove(id)? {
+            Ok(Some(staged))
         } else {
-            self.base.maybe_find(&id).cloned()
+            Ok(self.base.maybe_find(&id).cloned())
         }
     }
 
-    fn clear(&mut self) {
+    fn clear(&mut self) -> SharedResult<()> {
         self.removed.extend(self.owned_ids());
+        Ok(())
     }
 }
 

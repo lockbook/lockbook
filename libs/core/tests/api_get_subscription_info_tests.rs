@@ -7,34 +7,35 @@ fn get_subscription_info() {
     let core = test_core_with_account();
     let account = core.get_account().unwrap();
 
-    // get no subscription info
-    assert!(core
-        .client
-        .request(&account, GetSubscriptionInfoRequest {})
-        .unwrap()
-        .subscription_info
-        .is_none());
+    core.in_tx(|s| {
+        assert!(s
+            .client
+            .request(&account, GetSubscriptionInfoRequest {})
+            .unwrap()
+            .subscription_info
+            .is_none());
 
-    // upgrade with stripe
-    core.client
-        .request(
-            &account,
-            UpgradeAccountStripeRequest {
-                account_tier: generate_premium_account_tier(
-                    test_credit_cards::GOOD,
-                    None,
-                    None,
-                    None,
-                ),
-            },
-        )
-        .unwrap();
+        s.client
+            .request(
+                &account,
+                UpgradeAccountStripeRequest {
+                    account_tier: generate_premium_account_tier(
+                        test_credit_cards::GOOD,
+                        None,
+                        None,
+                        None,
+                    ),
+                },
+            )
+            .unwrap();
 
-    // get existent subscription info
-    assert!(core
-        .client
-        .request(&account, GetSubscriptionInfoRequest {})
-        .unwrap()
-        .subscription_info
-        .is_some());
+        assert!(s
+            .client
+            .request(&account, GetSubscriptionInfoRequest {})
+            .unwrap()
+            .subscription_info
+            .is_some());
+        Ok(())
+    })
+    .unwrap();
 }

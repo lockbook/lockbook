@@ -1,8 +1,6 @@
 use crate::{get_dirty_ids, slices_equal_ignore_order, test_core_from};
-use hmdb::transaction::Transaction;
 use lockbook_core::service::api_service::Requester;
 use lockbook_core::Core;
-use lockbook_core::OneKey;
 use lockbook_shared::api::GetUpdatesRequest;
 use lockbook_shared::file_like::FileLike;
 use lockbook_shared::file_metadata::FileType;
@@ -24,15 +22,23 @@ macro_rules! assert_matches (
 );
 
 pub fn cores_equal(left: &Core, right: &Core) {
-    assert_eq!(&left.db.account.get_all().unwrap(), &right.db.account.get_all().unwrap());
-    assert_eq!(&left.db.root.get_all().unwrap(), &right.db.root.get_all().unwrap());
+    assert_eq!(&left.get_account().unwrap(), &right.get_account().unwrap());
+    assert_eq!(&left.get_root().unwrap(), &right.get_root().unwrap());
     assert_eq!(
-        &left.db.local_metadata.get_all().unwrap(),
-        &right.db.local_metadata.get_all().unwrap()
+        &left
+            .in_tx(|s| Ok(s.db.local_metadata.data().clone()))
+            .unwrap(),
+        &right
+            .in_tx(|s| Ok(s.db.local_metadata.data().clone()))
+            .unwrap()
     );
     assert_eq!(
-        &left.db.base_metadata.get_all().unwrap(),
-        &right.db.base_metadata.get_all().unwrap()
+        &left
+            .in_tx(|s| Ok(s.db.base_metadata.data().clone()))
+            .unwrap(),
+        &right
+            .in_tx(|s| Ok(s.db.base_metadata.data().clone()))
+            .unwrap()
     );
 }
 
@@ -174,11 +180,10 @@ pub fn local_work_paths(db: &Core, expected_paths: &[&'static str]) {
 
     let mut expected_paths = expected_paths.to_vec();
     let mut actual_paths = db
-        .db
-        .transaction(|tx| {
-            let account = tx.account.get(&OneKey {}).unwrap();
-            let mut local = tx.base_metadata.stage(&mut tx.local_metadata).to_lazy();
-            dirty
+        .in_tx(|s| {
+            let account = s.db.account.data().unwrap();
+            let mut local = s.db.base_metadata.stage(&mut s.db.local_metadata).to_lazy();
+            Ok(dirty
                 .iter()
                 .filter(|id| !matches!(local.find(id).unwrap().file_type(), FileType::Link { .. }))
                 .collect::<Vec<_>>()
@@ -188,7 +193,7 @@ pub fn local_work_paths(db: &Core, expected_paths: &[&'static str]) {
                 .iter()
                 .map(|id| local.id_to_path(id, account))
                 .collect::<Result<Vec<String>, _>>()
-                .unwrap()
+                .unwrap())
         })
         .unwrap();
     actual_paths.sort_unstable();
@@ -201,36 +206,29 @@ pub fn local_work_paths(db: &Core, expected_paths: &[&'static str]) {
     }
 }
 
-pub fn server_work_paths(db: &Core, expected_paths: &[&'static str]) {
+pub fn server_work_paths(core: &Core, expected_paths: &[&'static str]) {
     let mut expected_paths = expected_paths.to_vec();
-    let mut actual_paths = db
-        .db
-        .transaction(|tx| {
-            let context = db.context(tx).unwrap();
-            let account = context.tx.account.get(&OneKey {}).unwrap();
-            let remote_changes = context
+    let mut actual_paths = core
+        .in_tx(|s| {
+            let account = s.db.account.data().unwrap();
+            let remote_changes = s
                 .client
                 .request(
                     account,
                     GetUpdatesRequest {
-                        since_metadata_version: context
-                            .tx
-                            .last_synced
-                            .get(&OneKey {})
-                            .copied()
-                            .unwrap_or_default()
+                        since_metadata_version: s.db.last_synced.data().copied().unwrap_or_default()
                             as u64,
                     },
                 )
                 .unwrap()
                 .file_metadata;
-            let mut remote = context
-                .tx
-                .base_metadata
-                .stage(remote_changes)
-                .pruned()
-                .to_lazy();
-            remote
+            let mut remote =
+                s.db.base_metadata
+                    .stage(remote_changes)
+                    .pruned()
+                    .unwrap()
+                    .to_lazy();
+            Ok(remote
                 .tree
                 .staged
                 .owned_ids()
@@ -243,7 +241,7 @@ pub fn server_work_paths(db: &Core, expected_paths: &[&'static str]) {
                 .iter()
                 .map(|id| remote.id_to_path(id, account))
                 .collect::<Result<Vec<String>, _>>()
-                .unwrap()
+                .unwrap())
         })
         .unwrap();
     actual_paths.sort_unstable();

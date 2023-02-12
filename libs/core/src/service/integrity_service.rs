@@ -6,25 +6,19 @@ use lockbook_shared::tree_like::TreeLike;
 
 use crate::model::drawing;
 use crate::model::errors::{TestRepoError, Warning};
-use crate::{OneKey, RequestContext, Requester};
+use crate::{CoreState, Requester};
 
 const UTF8_SUFFIXES: [&str; 12] =
     ["md", "txt", "text", "markdown", "sh", "zsh", "bash", "html", "css", "js", "csv", "rs"];
 
-impl<Client: Requester> RequestContext<'_, '_, Client> {
-    pub fn test_repo_integrity(&mut self) -> Result<Vec<Warning>, TestRepoError> {
-        let mut tree = (&self.tx.base_metadata)
-            .to_staged(&self.tx.local_metadata)
+impl<Client: Requester> CoreState<Client> {
+    pub(crate) fn test_repo_integrity(&mut self) -> Result<Vec<Warning>, TestRepoError> {
+        let mut tree = (&self.db.base_metadata)
+            .to_staged(&self.db.local_metadata)
             .to_lazy();
-        let account = self
-            .tx
-            .account
-            .get(&OneKey {})
-            .ok_or(TestRepoError::NoAccount)?;
+        let account = self.db.account.data().ok_or(TestRepoError::NoAccount)?;
 
-        if self.tx.last_synced.get(&OneKey {}).unwrap_or(&0) != &0
-            && self.tx.root.get(&OneKey {}).is_none()
-        {
+        if self.db.last_synced.data().unwrap_or(&0) != &0 && self.db.root.data().is_none() {
             return Err(TestRepoError::NoRootFolder);
         }
 
@@ -47,7 +41,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
             let cont = file.document_hmac().is_some();
             let not_deleted = !tree.calculate_deleted(&id)?;
             if not_deleted && doc && cont {
-                let doc = tree.read_document(self.config, &id, account)?;
+                let doc = tree.read_document(&self.config, &id, account)?;
 
                 if doc.len() as u64 == 0 {
                     warnings.push(Warning::EmptyFile(id));

@@ -18,16 +18,18 @@ fn report_usage() {
     assert!(core.get_usage().unwrap().usages.is_empty(), "Returned non-empty usage!");
 
     core.sync(None).unwrap();
-
     let hmac = core
-        .db
-        .base_metadata
-        .get(&file.id)
-        .unwrap()
-        .unwrap()
-        .document_hmac()
-        .cloned();
-    let local_encrypted = document_repo::get(&core.config, &file.id, hmac.as_ref())
+        .in_tx(|s| {
+            Ok(s.db
+                .base_metadata
+                .data()
+                .get(&file.id)
+                .unwrap()
+                .document_hmac()
+                .cloned())
+        })
+        .unwrap();
+    let local_encrypted = document_repo::get(&core.get_config().unwrap(), &file.id, hmac.as_ref())
         .unwrap()
         .value;
 
@@ -86,14 +88,18 @@ fn usage_go_back_down_after_delete_folder() {
     core.sync(None).unwrap();
 
     let hmac = core
-        .db
-        .base_metadata
-        .get(&file.id)
-        .unwrap()
-        .unwrap()
-        .document_hmac()
-        .cloned();
-    document_repo::get(&core.config, &file.id, hmac.as_ref()).unwrap();
+        .in_tx(|s| {
+            Ok(s.db
+                .base_metadata
+                .data()
+                .get(&file.id)
+                .unwrap()
+                .document_hmac()
+                .cloned())
+        })
+        .unwrap();
+
+    document_repo::get(&core.get_config().unwrap(), &file.id, hmac.as_ref()).unwrap();
 
     let usage = core.get_usage().unwrap_or_else(|err| panic!("{:?}", err));
 

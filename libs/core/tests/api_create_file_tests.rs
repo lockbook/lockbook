@@ -9,11 +9,17 @@ fn create_document() {
     let core = test_core_with_account();
     let account = core.get_account().unwrap();
     let id = core.create_at_path("test.md").unwrap().id;
-    let doc = core.db.local_metadata.get(&id).unwrap().unwrap();
-
-    core.client
-        .request(&account, UpsertRequest { updates: vec![FileDiff::new(&doc)] })
+    let doc = core
+        .in_tx(|s| Ok(s.db.local_metadata.data().get(&id).cloned().unwrap()))
         .unwrap();
+
+    core.in_tx(|s| {
+        s.client
+            .request(&account, UpsertRequest { updates: vec![FileDiff::new(&doc)] })
+            .unwrap();
+        Ok(())
+    })
+    .unwrap();
 }
 
 #[test]
@@ -22,18 +28,24 @@ fn create_document_duplicate_id() {
     let account = core.get_account().unwrap();
 
     let id = core.create_at_path("test.md").unwrap().id;
-    let doc = core.db.local_metadata.get(&id).unwrap().unwrap();
+    let doc = core
+        .in_tx(|s| Ok(s.db.local_metadata.data().get(&id).cloned().unwrap()))
+        .unwrap();
+
     core.sync(None).unwrap();
 
     // create document with same id and key
-    let result = core
-        .client
-        .request(&account, UpsertRequest { updates: vec![FileDiff::new(&doc)] });
-
-    assert_matches!(
-        result,
-        Err(ApiError::<UpsertError>::Endpoint(UpsertError::OldVersionRequired))
-    );
+    core.in_tx(|s| {
+        let result = s
+            .client
+            .request(&account, UpsertRequest { updates: vec![FileDiff::new(&doc)] });
+        assert_matches!(
+            result,
+            Err(ApiError::<UpsertError>::Endpoint(UpsertError::OldVersionRequired))
+        );
+        Ok(())
+    })
+    .unwrap();
 }
 
 #[test]
@@ -43,22 +55,27 @@ fn create_document_duplicate_path() {
 
     // create document
     let id = core.create_at_path("test.md").unwrap().id;
-    let mut doc = core.db.local_metadata.get(&id).unwrap().unwrap();
+    let mut doc = core
+        .in_tx(|s| Ok(s.db.local_metadata.data().get(&id).cloned().unwrap()))
+        .unwrap();
     core.sync(None).unwrap();
 
     // create document with same path
 
     doc.timestamped_value.value.id = Uuid::new_v4();
-    let result = core
-        .client
-        .request(&account, UpsertRequest { updates: vec![FileDiff::new(&doc)] });
-
-    assert_matches!(
-        result,
-        Err(ApiError::<UpsertError>::Endpoint(UpsertError::Validation(
-            ValidationFailure::PathConflict(_)
-        )))
-    );
+    core.in_tx(|s| {
+        let result = s
+            .client
+            .request(&account, UpsertRequest { updates: vec![FileDiff::new(&doc)] });
+        assert_matches!(
+            result,
+            Err(ApiError::<UpsertError>::Endpoint(UpsertError::Validation(
+                ValidationFailure::PathConflict(_)
+            )))
+        );
+        Ok(())
+    })
+    .unwrap();
 }
 
 #[test]
@@ -67,17 +84,21 @@ fn create_document_parent_not_found() {
     let account = core.get_account().unwrap();
     // create document
     let id = core.create_at_path("parent/test.md").unwrap().id;
-    let doc = core.db.local_metadata.get(&id).unwrap().unwrap();
+    let doc = core
+        .in_tx(|s| Ok(s.db.local_metadata.data().get(&id).cloned().unwrap()))
+        .unwrap();
 
-    // create document
-    let result = core
-        .client
-        .request(&account, UpsertRequest { updates: vec![FileDiff::new(&doc)] });
-
-    assert_matches!(
-        result,
-        Err(ApiError::<UpsertError>::Endpoint(UpsertError::Validation(ValidationFailure::Orphan(
-            _
-        ))))
-    );
+    core.in_tx(|s| {
+        let result = s
+            .client
+            .request(&account, UpsertRequest { updates: vec![FileDiff::new(&doc)] });
+        assert_matches!(
+            result,
+            Err(ApiError::<UpsertError>::Endpoint(UpsertError::Validation(
+                ValidationFailure::Orphan(_)
+            )))
+        );
+        Ok(())
+    })
+    .unwrap();
 }

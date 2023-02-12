@@ -1,9 +1,8 @@
-use hmdb::transaction::Transaction;
 use lockbook_shared::access_info::{UserAccessInfo, UserAccessMode};
 use lockbook_shared::file::ShareMode;
 use lockbook_shared::file_metadata::{FileType, Owner};
 use lockbook_shared::tree_like::TreeLike;
-use lockbook_shared::{symkey, SharedError, SharedResult, ValidationFailure};
+use lockbook_shared::{symkey, SharedError, ValidationFailure};
 use test_utils::*;
 use uuid::Uuid;
 
@@ -12,39 +11,35 @@ fn create_two_files_with_same_path() {
     let core = test_core_with_account();
     let account = core.get_account().unwrap();
     let root = core.get_root().unwrap();
-    let result = core
-        .db
-        .transaction::<_, SharedResult<_>>(|tx| {
-            let tree = tx.base_metadata.stage(&mut tx.local_metadata).to_lazy();
-            let mut tree = tree.stage(Vec::new());
-            tree.create_unvalidated(
-                Uuid::new_v4(),
-                symkey::generate_key(),
-                &root.id,
-                "document",
-                FileType::Document,
-                &account,
-            )
-            .unwrap();
-            tree.create_unvalidated(
-                Uuid::new_v4(),
-                symkey::generate_key(),
-                &root.id,
-                "document",
-                FileType::Document,
-                &account,
-            )
-            .unwrap();
-            tree.validate(Owner(account.public_key()))?;
-
-            Ok(())
-        })
+    core.in_tx(|s| {
+        let tree = s.db.base_metadata.stage(&mut s.db.local_metadata).to_lazy();
+        let mut tree = tree.stage(Vec::new());
+        tree.create_unvalidated(
+            Uuid::new_v4(),
+            symkey::generate_key(),
+            &root.id,
+            "document",
+            FileType::Document,
+            &account,
+        )
         .unwrap();
-
-    assert_matches!(
-        result,
-        Err(SharedError::ValidationFailure(ValidationFailure::PathConflict(_)))
-    );
+        tree.create_unvalidated(
+            Uuid::new_v4(),
+            symkey::generate_key(),
+            &root.id,
+            "document",
+            FileType::Document,
+            &account,
+        )
+        .unwrap();
+        let result = tree.validate(Owner(account.public_key()));
+        assert_matches!(
+            result,
+            Err(SharedError::ValidationFailure(ValidationFailure::PathConflict(_)))
+        );
+        Ok(())
+    })
+    .unwrap();
 }
 
 #[test]
@@ -66,17 +61,17 @@ fn directly_shared_link() {
         .create_link_at_path("/link", shared_doc.id)
         .unwrap();
 
-    let result = cores[1]
-        .db
-        .transaction::<_, SharedResult<_>>(|tx| {
+    cores[1]
+        .in_tx(|s| {
             // probably for the best that this is how ugly the code has to get to produce this situation
-            let mut link = tx
-                .local_metadata
-                .get(&link.id)
-                .unwrap()
-                .timestamped_value
-                .value
-                .clone();
+            let mut link =
+                s.db.local_metadata
+                    .data()
+                    .get(&link.id)
+                    .unwrap()
+                    .timestamped_value
+                    .value
+                    .clone();
             link.user_access_keys.push(
                 UserAccessInfo::encrypt(
                     &accounts[1],
@@ -87,18 +82,17 @@ fn directly_shared_link() {
                 )
                 .unwrap(),
             );
-            tx.local_metadata
-                .insert(link.id, link.sign(&accounts[1]).unwrap());
+            s.db.local_metadata
+                .insert(link.id, link.sign(&accounts[1]).unwrap())
+                .unwrap();
 
-            let mut tree = tx.base_metadata.stage(&mut tx.local_metadata).to_lazy();
-            tree.validate(Owner(accounts[1].public_key()))?;
-
+            let mut tree = s.db.base_metadata.stage(&mut s.db.local_metadata).to_lazy();
+            let result = tree.validate(Owner(accounts[1].public_key()));
+            assert_matches!(
+                result,
+                Err(SharedError::ValidationFailure(ValidationFailure::SharedLink { .. }))
+            );
             Ok(())
         })
         .unwrap();
-
-    assert_matches!(
-        result,
-        Err(SharedError::ValidationFailure(ValidationFailure::SharedLink { .. }))
-    );
 }
