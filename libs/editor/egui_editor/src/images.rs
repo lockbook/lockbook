@@ -22,8 +22,14 @@ pub fn calc(
                 result.map.insert(url, cached);
             } else {
                 // download image
-                let image_bytes = download_image(client, &url).unwrap();
-                let image = image::load_from_memory(&image_bytes).unwrap();
+                let image_bytes = match download_image(client, &url) {
+                    Ok(image_bytes) => image_bytes,
+                    Err(_) => continue,
+                };
+                let image = match image::load_from_memory(&image_bytes) {
+                    Ok(image) => image,
+                    Err(_) => continue,
+                };
                 let size_pixels = [image.width() as usize, image.height() as usize];
 
                 let egui_image = egui::ImageData::Color(ColorImage::from_rgba_unmultiplied(

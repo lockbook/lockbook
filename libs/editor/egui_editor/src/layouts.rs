@@ -157,7 +157,6 @@ impl LayoutJobInfo {
                 // capture image annotation
                 annotation =
                     Some(Annotation::Image(*link_type, url.to_string(), title.to_string()));
-                head_size += text.len();
             }
         }
         if style.elements.contains(&Element::Item) {
