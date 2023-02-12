@@ -33,7 +33,7 @@ pub struct LayoutJobInfo {
 #[derive(Clone, Debug, PartialEq)]
 pub enum Annotation {
     Item(ItemType, IndentLevel),
-    Image(LinkType, Url, Title, Vec<u8>),
+    Image(LinkType, Url, Title),
     Rule,
 }
 
@@ -155,9 +155,8 @@ impl LayoutJobInfo {
         for element in &style.elements {
             if let Element::Image(link_type, url, title) = element {
                 // capture image annotation
-                let image = Self::download_image(url).unwrap_or_default();
                 annotation =
-                    Some(Annotation::Image(*link_type, url.to_string(), title.to_string(), image));
+                    Some(Annotation::Image(*link_type, url.to_string(), title.to_string()));
                 head_size += text.len();
             }
         }
@@ -255,13 +254,6 @@ impl LayoutJobInfo {
         UnicodeSegmentation::grapheme_indices(self.head(buffer), true)
             .count()
             .into()
-    }
-
-    // todo: cache
-    fn download_image(url: &str) -> Result<Vec<u8>, reqwest::Error> {
-        let client = reqwest::blocking::Client::new(); // todo: connection pooling
-        let response = client.get(url).send()?.bytes()?.to_vec();
-        Ok(response)
     }
 }
 

@@ -342,7 +342,7 @@ fn calc_modification(
                                 let text = head[0..head.len() - 6].to_string() + "- [ ] ";
                                 modifications.push(SubModification::Insert { text });
                             }
-                            Some(Annotation::Image(_, _, _, _)) => {}
+                            Some(Annotation::Image(_, _, _)) => {}
                             Some(Annotation::Rule) => {}
                             None => {}
                         }

@@ -184,3 +184,6 @@ pub static TEST_MARKDOWN_44: &str = "# Todo\n- partially done\n\t- [x] done\n\t-
 pub static TEST_MARKDOWN_45: &str = r#"# Ambrose Burnside
 ![alt text](https://tile.loc.gov/storage-services/service/pnp/cwpbh/04900/04980r.jpg "title")
 "#;
+pub static TEST_MARKDOWN_46: &str = r#"# Invalid Image URL
+![alt text](https://invalidurl.com "title")
+"#;

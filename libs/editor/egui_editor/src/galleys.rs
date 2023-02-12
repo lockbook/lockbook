@@ -1,11 +1,12 @@
 use crate::appearance::Appearance;
 use crate::buffer::SubBuffer;
+use crate::images::ImageCache;
 use crate::layouts::{Annotation, LayoutJobInfo, Layouts};
 use crate::offset_types::{DocByteOffset, DocCharOffset, RelByteOffset};
 use crate::unicode_segs::UnicodeSegs;
 use egui::epaint::text::cursor::Cursor;
 use egui::text::CCursor;
-use egui::{Galley, Pos2, Rect, Sense, TextFormat, TextureHandle, Ui, Vec2};
+use egui::{Galley, Pos2, Rect, Sense, TextFormat, TextureId, Ui, Vec2};
 use std::ops::{Index, Range};
 use std::sync::Arc;
 
@@ -31,15 +32,17 @@ pub struct GalleyInfo {
 
 pub struct ImageInfo {
     pub location: Rect,
-    pub texture: TextureHandle,
+    pub texture: TextureId,
 }
 
-pub fn calc(layouts: &Layouts, appearance: &Appearance, ui: &mut Ui) -> Galleys {
+pub fn calc(
+    layouts: &Layouts, images: &ImageCache, appearance: &Appearance, ui: &mut Ui,
+) -> Galleys {
     Galleys {
         galleys: layouts
             .layouts
             .iter()
-            .map(|layout| GalleyInfo::from(layout.clone(), appearance, ui))
+            .map(|layout| GalleyInfo::from(layout.clone(), images, appearance, ui))
             .collect(),
     }
 }
@@ -111,25 +114,19 @@ impl Galleys {
 }
 
 impl GalleyInfo {
-    pub fn from(mut job: LayoutJobInfo, appearance: &Appearance, ui: &mut Ui) -> Self {
+    pub fn from(
+        mut job: LayoutJobInfo, images: &ImageCache, appearance: &Appearance, ui: &mut Ui,
+    ) -> Self {
         let offset = Self::annotation_offset(&job.annotation, appearance);
         job.job.wrap.max_width = ui.available_width() - offset.x;
 
-        let image = if let Some(Annotation::Image(_, _, title, image)) = &job.annotation {
-            if !image.is_empty() {
-                // todo: load texture just once
-                // todo: error handling
-                let image = image::load_from_memory(image).unwrap();
-                let size_pixels = [image.width() as _, image.height() as _];
-                let texture = ui.ctx().load_texture(
-                    title,
-                    egui::ColorImage::from_rgba_unmultiplied(size_pixels, &image.to_rgba8()),
-                    Default::default(),
-                );
-
-                let size_coordinates = texture.size_vec2();
-                let width = f32::min(ui.available_width(), size_coordinates.x);
-                let height = size_coordinates.y * width / size_coordinates.x;
+        let image = if let Some(Annotation::Image(_, url, _)) = &job.annotation {
+            if let Some(&texture) = images.map.get(url) {
+                let [image_width, image_height] =
+                    ui.ctx().tex_manager().read().meta(texture).unwrap().size;
+                let [image_width, image_height] = [image_width as f32, image_height as f32];
+                let width = f32::min(ui.available_width(), image_width);
+                let height = image_height * width / image_width;
                 let (location, _) =
                     ui.allocate_exact_size(Vec2::new(width, height), Sense::click_and_drag());
                 Some(ImageInfo { location, texture })
