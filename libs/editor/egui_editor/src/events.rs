@@ -282,16 +282,14 @@ fn calc_modification(
             Event::Key { key: Key::Enter, pressed: true, modifiers: _ } => {
                 cursor.x_target = None;
 
-                modifications.push(SubModification::Insert { text: "\n".to_string() });
-
                 let layout_idx = layouts.layout_at_char(cursor.pos, &buffer.current.segs);
                 let layout = &layouts[layout_idx];
                 if buffer.current.segs.char_offset_to_byte(cursor.pos)
                     == layout.range.end - layout.tail_size
+                    && matches!(layout.annotation, Some(Annotation::Item(..)))
                 {
-                    if matches!(layout.annotation, Some(Annotation::Item(..)))
-                        && layout.size() - layout.head_size - layout.tail_size == 0
-                    {
+                    // cursor at end of list item
+                    if layout.size() - layout.head_size - layout.tail_size == 0 {
                         // empty list item -> delete current annotation
                         modifications.push(SubModification::Cursor {
                             cursor: Cursor {
@@ -307,9 +305,10 @@ fn calc_modification(
                         });
                         modifications.push(SubModification::Delete(0.into()));
                         modifications.push(SubModification::Cursor { cursor });
-                        modifications.push(SubModification::Insert { text: "\n".to_string() });
                     } else {
                         // nonempty list item -> insert new list item
+                        modifications.push(SubModification::Insert { text: "\n".to_string() });
+
                         match layout.annotation {
                             Some(Annotation::Item(ItemType::Bulleted, _)) => {
                                 modifications.push(SubModification::Insert {
@@ -348,6 +347,21 @@ fn calc_modification(
                             None => {}
                         }
                     }
+                } else if buffer.current.segs.char_offset_to_byte(cursor.pos)
+                    == layout.range.start + layout.head_size
+                    && !matches!(layout.annotation, Some(Annotation::Item(..)))
+                {
+                    // cursor at start of non-list item -> insert newline before annotation
+                    modifications.push(SubModification::Cursor {
+                        cursor: Cursor {
+                            pos: buffer.current.segs.byte_offset_to_char(layout.range.start),
+                            ..Default::default()
+                        },
+                    });
+                    modifications.push(SubModification::Insert { text: "\n".to_string() });
+                    modifications.push(SubModification::Cursor { cursor });
+                } else {
+                    modifications.push(SubModification::Insert { text: "\n".to_string() });
                 }
 
                 cursor.selection_origin = None;
