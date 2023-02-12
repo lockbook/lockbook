@@ -69,7 +69,7 @@ impl Editor {
 
                         ui.painter().line_segment(
                             [min, max],
-                            Stroke::new(0.1, self.appearance.heading_line()),
+                            Stroke::new(0.3, self.appearance.heading_line()),
                         );
                     }
                     _ => {}
