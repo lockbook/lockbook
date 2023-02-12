@@ -118,10 +118,9 @@ impl WgpuEditor {
     }
 
     pub fn configure_surface(&self) {
-        let format = self.surface_format();
         let surface_config = wgpu::SurfaceConfiguration {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-            format,
+            format: self.surface_format(),
             width: self.screen.physical_width,
             height: self.screen.physical_height,
             present_mode: wgpu::PresentMode::Fifo,
