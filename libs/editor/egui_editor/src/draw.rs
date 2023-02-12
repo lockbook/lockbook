@@ -72,7 +72,9 @@ impl Editor {
                             Stroke::new(0.3, self.appearance.heading_line()),
                         );
                     }
-                    _ => {}
+                    Annotation::Image(link_type, url, title) => {
+                        println!("draw image: {link_type:?}, {url}, {title}");
+                    }
                 }
             }
 
