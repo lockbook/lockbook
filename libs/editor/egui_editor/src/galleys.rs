@@ -5,8 +5,7 @@ use crate::offset_types::{DocByteOffset, DocCharOffset, RelByteOffset};
 use crate::unicode_segs::UnicodeSegs;
 use egui::epaint::text::cursor::Cursor;
 use egui::text::CCursor;
-use egui::{Galley, Pos2, Rect, Sense, TextFormat, Ui, Vec2};
-use image::GenericImageView;
+use egui::{Galley, Pos2, Rect, Sense, TextFormat, TextureHandle, Ui, Vec2};
 use std::ops::{Index, Range};
 use std::sync::Arc;
 
@@ -24,9 +23,15 @@ pub struct GalleyInfo {
     pub head_size: RelByteOffset,
     pub tail_size: RelByteOffset,
     pub text_location: Pos2,
-    pub ui_location: Rect,
+    pub galley_location: Rect,
+    pub image: Option<ImageInfo>,
 
     pub annotation_text_format: TextFormat,
+}
+
+pub struct ImageInfo {
+    pub location: Rect,
+    pub texture: TextureHandle,
 }
 
 pub fn calc(layouts: &Layouts, appearance: &Appearance, ui: &mut Ui) -> Galleys {
@@ -110,28 +115,38 @@ impl GalleyInfo {
         let offset = Self::annotation_offset(&job.annotation, appearance);
         job.job.wrap.max_width = ui.available_width() - offset.x;
 
-        if let Some(Annotation::Image(_, _, title, image)) = &job.annotation {
+        let image = if let Some(Annotation::Image(_, _, title, image)) = &job.annotation {
             if !image.is_empty() {
                 // todo: load texture just once
                 // todo: error handling
                 let image = image::load_from_memory(image).unwrap();
-                let size = [image.width() as _, image.height() as _];
+                let size_pixels = [image.width() as _, image.height() as _];
                 let texture = ui.ctx().load_texture(
                     title,
-                    egui::ColorImage::from_rgba_unmultiplied(size, &image.to_rgba()),
+                    egui::ColorImage::from_rgba_unmultiplied(size_pixels, &image.to_rgba8()),
                     Default::default(),
                 );
-                ui.image(&texture, texture.size_vec2());
+
+                let size_coordinates = texture.size_vec2();
+                let width = f32::min(ui.available_width(), size_coordinates.x);
+                let height = size_coordinates.y * width / size_coordinates.x;
+                let (location, _) =
+                    ui.allocate_exact_size(Vec2::new(width, height), Sense::click_and_drag());
+                Some(ImageInfo { location, texture })
+            } else {
+                None
             }
-        }
+        } else {
+            None
+        };
 
         let galley = ui.ctx().fonts().layout_job(job.job);
-        let (ui_location, _) = ui.allocate_exact_size(
+        let (galley_location, _) = ui.allocate_exact_size(
             Vec2::new(ui.available_width(), galley.size().y + offset.y),
             Sense::click_and_drag(),
         );
 
-        let text_location = Pos2::new(offset.x + ui_location.min.x, ui_location.min.y);
+        let text_location = Pos2::new(offset.x + galley_location.min.x, galley_location.min.y);
 
         Self {
             range: job.range,
@@ -140,7 +155,8 @@ impl GalleyInfo {
             head_size: job.head_size,
             tail_size: job.tail_size,
             text_location,
-            ui_location,
+            galley_location,
+            image,
             annotation_text_format: job.annotation_text_format,
         }
     }

@@ -758,17 +758,17 @@ fn calc_modification(
 
 fn pos_to_char_offset(pos: Pos2, galleys: &Galleys, segs: &UnicodeSegs) -> DocCharOffset {
     if !galleys.is_empty() {
-        if pos.y < galleys[0].ui_location.min.y {
+        if pos.y < galleys[0].galley_location.min.y {
             // click position is above first galley
             DocCharOffset(0)
-        } else if pos.y >= galleys[galleys.len() - 1].ui_location.max.y {
+        } else if pos.y >= galleys[galleys.len() - 1].galley_location.max.y {
             // click position is below last galley
             segs.last_cursor_position()
         } else {
             let mut result = 0.into();
             for galley_idx in 0..galleys.len() {
                 let galley = &galleys[galley_idx];
-                if galley.ui_location.contains(pos) {
+                if galley.galley_location.contains(pos) {
                     // click position is in a galley
                     let relative_pos = pos - galley.text_location;
                     let new_cursor = galley.galley.cursor_from_pos(relative_pos);
