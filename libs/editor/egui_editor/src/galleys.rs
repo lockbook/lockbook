@@ -174,6 +174,25 @@ impl GalleyInfo {
         Rect { min, max }
     }
 
+    pub fn checkbox_bounds(&self, appearance: &Appearance) -> Rect {
+        let bullet_center = self.bullet_center();
+        let mut min = bullet_center;
+        let mut max = bullet_center;
+
+        let dim = appearance.checkbox_dim();
+        min.x -= dim / 2.0;
+        max.x += dim / 2.0;
+        min.y -= dim / 2.0;
+        max.y += dim / 2.0;
+
+        Rect { min, max }
+    }
+
+    pub fn checkbox_slash(&self, appearance: &Appearance) -> [Pos2; 2] {
+        let bounds = self.checkbox_bounds(appearance);
+        [Pos2 { x: bounds.min.x, y: bounds.max.y }, Pos2 { x: bounds.max.x, y: bounds.min.y }]
+    }
+
     pub fn text<'a>(&self, buffer: &'a SubBuffer) -> &'a str {
         let text_start = self.range.start + self.head_size;
         let text_end = self.range.end - self.tail_size;

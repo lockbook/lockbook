@@ -1,4 +1,4 @@
-pub static TEST_MARKDOWN: &str = TEST_MARKDOWN_0;
+pub static TEST_MARKDOWN: &str = TEST_MARKDOWN_44;
 
 pub static TEST_MARKDOWN_0: &str = "# test";
 pub static TEST_MARKDOWN_1: &str = "a";
@@ -177,3 +177,6 @@ pub static TEST_MARKDOWN_42: &str = r#"# Numbered List Indentation
 3. three
     1. four
         1. five"#;
+
+pub static TEST_MARKDOWN_43: &str = "# Todo\n- [x] done\n- [ ] not done";
+pub static TEST_MARKDOWN_44: &str = "# Todo\n- partially done\n\t- [x] done\n\t- [ ] not done";

@@ -1,3 +1,4 @@
+use crate::appearance::Appearance;
 use crate::buffer::{Buffer, Modification, SubBuffer, SubModification};
 use crate::cursor::Cursor;
 use crate::debug::DebugInfo;
@@ -12,11 +13,11 @@ use std::time::Instant;
 
 /// processes `events` and returns a boolean representing whether text was updated and optionally new contents for clipboard
 pub fn process(
-    events: &[Event], layouts: &Layouts, galleys: &Galleys, ui_size: Vec2, buffer: &mut Buffer,
-    debug: &mut DebugInfo,
+    events: &[Event], layouts: &Layouts, galleys: &Galleys, appearance: &Appearance, ui_size: Vec2,
+    buffer: &mut Buffer, debug: &mut DebugInfo,
 ) -> (bool, Option<String>) {
     let (mut text_updated, modification) =
-        calc_modification(events, layouts, galleys, buffer, debug, ui_size);
+        calc_modification(events, layouts, galleys, appearance, buffer, debug, ui_size);
     let mut to_clipboard = None;
     if !modification.is_empty() {
         let (text_updated_apply, to_clipboard_apply) = buffer.apply(modification, debug);
@@ -28,8 +29,8 @@ pub fn process(
 
 // note: buffer and debug are mut because undo modifies it directly; todo: factor to make mutating subset of code obvious
 fn calc_modification(
-    events: &[Event], layouts: &Layouts, galleys: &Galleys, buffer: &mut Buffer,
-    debug: &mut DebugInfo, ui_size: Vec2,
+    events: &[Event], layouts: &Layouts, galleys: &Galleys, appearance: &Appearance,
+    buffer: &mut Buffer, debug: &mut DebugInfo, ui_size: Vec2,
 ) -> (bool, Modification) {
     let mut text_updated = false;
     let mut modifications = Vec::new();
@@ -339,7 +340,7 @@ fn calc_modification(
                             }
                             Some(Annotation::Item(ItemType::Todo(_), _)) => {
                                 let head = layout.head(&buffer.current);
-                                let text = head[0..head.len() - 4].to_string() + "- [ ]";
+                                let text = head[0..head.len() - 6].to_string() + "- [ ] ";
                                 modifications.push(SubModification::Insert { text });
                             }
                             Some(Annotation::Image(_, _, _)) => {}
@@ -614,54 +615,101 @@ fn calc_modification(
             } => {
                 // do not process scrollbar clicks
                 if pos.x <= ui_size.x {
-                    // record instant for double/triple click
-                    cursor.process_click_instant(Instant::now());
+                    // process checkbox clicks
+                    let checkbox_click = {
+                        let mut checkbox_click = false;
+                        for galley in &galleys.galleys {
+                            if let Some(Annotation::Item(ItemType::Todo(checked), ..)) =
+                                galley.annotation
+                            {
+                                if galley.checkbox_bounds(appearance).contains(*pos) {
+                                    modifications.push(SubModification::Cursor {
+                                        cursor: Cursor {
+                                            pos: buffer.current.segs.byte_offset_to_char(
+                                                galley.range.start + galley.head_size,
+                                            ),
+                                            selection_origin: Some(
+                                                buffer.current.segs.byte_offset_to_char(
+                                                    galley.range.start + galley.head_size - 6,
+                                                ),
+                                            ),
+                                            ..Default::default()
+                                        },
+                                    });
+                                    modifications.push(SubModification::Insert {
+                                        text: if checked { "- [ ] " } else { "- [x] " }.to_string(),
+                                    });
+                                    modifications.push(SubModification::Cursor { cursor });
 
-                    let mut double_click = false;
-                    let mut triple_click = false;
-                    if !modifiers.shift {
-                        // click: end selection
-                        cursor.selection_origin = None;
+                                    checkbox_click = true;
+                                    break;
+                                }
+                            }
+                        }
+                        checkbox_click
+                    };
+                    if !checkbox_click {
+                        // record instant for double/triple click
+                        cursor.process_click_instant(Instant::now());
 
-                        double_click = cursor.double_click();
-                        triple_click = cursor.triple_click();
-                    } else {
-                        // shift+click: begin selection
-                        cursor.set_selection_origin();
-                    }
-                    // any click: begin drag; update cursor
-                    cursor.set_click_and_drag_origin();
-                    if triple_click {
-                        cursor.pos = pos_to_char_offset(*pos, galleys, &buffer.current.segs);
+                        let mut double_click = false;
+                        let mut triple_click = false;
+                        if !modifiers.shift {
+                            // click: end selection
+                            cursor.selection_origin = None;
 
-                        let (galley_idx, cur_cursor) = galleys
-                            .galley_and_cursor_by_char_offset(cursor.pos, &buffer.current.segs);
-                        let galley = &galleys[galley_idx];
-                        let begin_of_row_cursor = galley.galley.cursor_begin_of_row(&cur_cursor);
-                        let end_of_row_cursor = galley.galley.cursor_end_of_row(&cur_cursor);
+                            double_click = cursor.double_click();
+                            triple_click = cursor.triple_click();
+                        } else {
+                            // shift+click: begin selection
+                            cursor.set_selection_origin();
+                        }
+                        // any click: begin drag; update cursor
+                        cursor.set_click_and_drag_origin();
+                        if triple_click {
+                            cursor.pos = pos_to_char_offset(*pos, galleys, &buffer.current.segs);
 
-                        cursor.selection_origin = Some(galleys.char_offset_by_galley_and_cursor(
-                            galley_idx,
-                            &begin_of_row_cursor,
-                            &buffer.current.segs,
-                        ));
-                        cursor.pos = galleys.char_offset_by_galley_and_cursor(
-                            galley_idx,
-                            &end_of_row_cursor,
-                            &buffer.current.segs,
-                        );
-                    } else if double_click {
-                        cursor.pos = pos_to_char_offset(*pos, galleys, &buffer.current.segs);
+                            let (galley_idx, cur_cursor) = galleys
+                                .galley_and_cursor_by_char_offset(cursor.pos, &buffer.current.segs);
+                            let galley = &galleys[galley_idx];
+                            let begin_of_row_cursor =
+                                galley.galley.cursor_begin_of_row(&cur_cursor);
+                            let end_of_row_cursor = galley.galley.cursor_end_of_row(&cur_cursor);
 
-                        cursor.advance_word(false, &buffer.current, &buffer.current.segs, galleys);
-                        let end_of_word_pos = cursor.pos;
-                        cursor.advance_word(true, &buffer.current, &buffer.current.segs, galleys);
-                        let begin_of_word_pos = cursor.pos;
+                            cursor.selection_origin =
+                                Some(galleys.char_offset_by_galley_and_cursor(
+                                    galley_idx,
+                                    &begin_of_row_cursor,
+                                    &buffer.current.segs,
+                                ));
+                            cursor.pos = galleys.char_offset_by_galley_and_cursor(
+                                galley_idx,
+                                &end_of_row_cursor,
+                                &buffer.current.segs,
+                            );
+                        } else if double_click {
+                            cursor.pos = pos_to_char_offset(*pos, galleys, &buffer.current.segs);
 
-                        cursor.selection_origin = Some(begin_of_word_pos);
-                        cursor.pos = end_of_word_pos;
-                    } else {
-                        cursor.pos = pos_to_char_offset(*pos, galleys, &buffer.current.segs);
+                            cursor.advance_word(
+                                false,
+                                &buffer.current,
+                                &buffer.current.segs,
+                                galleys,
+                            );
+                            let end_of_word_pos = cursor.pos;
+                            cursor.advance_word(
+                                true,
+                                &buffer.current,
+                                &buffer.current.segs,
+                                galleys,
+                            );
+                            let begin_of_word_pos = cursor.pos;
+
+                            cursor.selection_origin = Some(begin_of_word_pos);
+                            cursor.pos = end_of_word_pos;
+                        } else {
+                            cursor.pos = pos_to_char_offset(*pos, galleys, &buffer.current.segs);
+                        }
                     }
                 }
             }
