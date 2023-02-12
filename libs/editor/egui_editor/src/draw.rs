@@ -74,6 +74,14 @@ impl Editor {
                     }
                     Annotation::Image(link_type, url, title) => {
                         println!("draw image: {link_type:?}, {url}, {title}");
+                        match Self::download_image(url) {
+                            Ok(_image) => {
+                                // todo: draw the image
+                            }
+                            Err(_err) => {
+                                // todo: draw the title
+                            }
+                        }
                     }
                 }
             }
@@ -104,6 +112,13 @@ impl Editor {
             Color32::TRANSPARENT,
             Stroke { width: 1.0, color: self.appearance.text() },
         );
+    }
+
+    // todo: cache
+    fn download_image(url: &str) -> Result<Vec<u8>, reqwest::Error> {
+        let client = reqwest::blocking::Client::new(); // todo: connection pooling
+        let response = client.get(url).send()?.bytes()?.to_vec();
+        Ok(response)
     }
 
     pub fn draw_debug(&mut self, ui: &mut Ui) {
