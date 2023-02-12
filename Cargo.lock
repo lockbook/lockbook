@@ -1646,7 +1646,6 @@ dependencies = [
  "libc",
  "pollster",
  "pulldown-cmark",
- "reqwest",
  "unicode-segmentation",
 ]
 
