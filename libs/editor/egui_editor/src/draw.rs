@@ -32,7 +32,7 @@ impl Editor {
                             let mut job = LayoutJob::default();
 
                             let mut text_format = galley.annotation_text_format.clone();
-                            Element::Emphasis.apply_style(&mut text_format, &self.appearance);
+                            Element::Strong.apply_style(&mut text_format, &self.appearance);
 
                             job.append(&(num.to_string() + "."), 0.0, text_format);
                             let pos = galley.bullet_bounds(&self.appearance);
