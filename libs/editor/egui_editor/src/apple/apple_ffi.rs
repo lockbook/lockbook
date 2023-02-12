@@ -154,7 +154,7 @@ pub unsafe extern "C" fn dark_mode(obj: *mut c_void, dark: bool) {
 pub unsafe extern "C" fn get_text(obj: *mut c_void) -> *const c_char {
     let obj = &mut *(obj as *mut WgpuEditor);
 
-    let value = obj.editor.buffer.raw.as_str();
+    let value = obj.editor.buffer.current.text.as_str();
 
     CString::new(value)
         .expect("Could not Rust String -> C String")
