@@ -120,6 +120,7 @@ impl GalleyInfo {
         let offset = Self::annotation_offset(&job.annotation, appearance);
         job.job.wrap.max_width = ui.available_width() - offset.x;
 
+        // allocate space for image
         let image = if let Some(Annotation::Image(_, url, _)) = &job.annotation {
             if let Some(&texture) = images.map.get(url) {
                 let [image_width, image_height] =
@@ -141,6 +142,8 @@ impl GalleyInfo {
         };
 
         let galley = ui.ctx().fonts().layout_job(job.job);
+
+        // allocate space for text and non-image annotations
         let (galley_location, _) = ui.allocate_exact_size(
             Vec2::new(ui.available_width(), galley.size().y + offset.y),
             Sense::click_and_drag(),
