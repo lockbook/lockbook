@@ -185,8 +185,8 @@ pub static TEST_MARKDOWN_45: &str = r#"# Ambrose Burnside
 ![alt text](https://tile.loc.gov/storage-services/service/pnp/cwpbh/04900/04980r.jpg "title")
 * qualities
     * good sideburns
-    * bad commander of civil war forces
+    * poor commander of civil war forces
 
 ![alt text](https://invalidurl.com "title")
-* what's up with this image, huh?
+* this image has a broken link
 "#;

@@ -125,10 +125,13 @@ impl GalleyInfo {
                 let [image_width, image_height] =
                     ui.ctx().tex_manager().read().meta(texture).unwrap().size;
                 let [image_width, image_height] = [image_width as f32, image_height as f32];
-                let width = f32::min(ui.available_width(), image_width);
-                let height = image_height * width / image_width;
-                let (location, _) =
-                    ui.allocate_exact_size(Vec2::new(width, height), Sense::click_and_drag());
+                let width =
+                    f32::min(ui.available_width() - appearance.image_padding() * 2.0, image_width);
+                let height = image_height * width / image_width + appearance.image_padding() * 2.0;
+                let (location, _) = ui.allocate_exact_size(
+                    Vec2::new(ui.available_width(), height),
+                    Sense::click_and_drag(),
+                );
                 Some(ImageInfo { location, texture })
             } else {
                 None
@@ -238,5 +241,26 @@ impl GalleyInfo {
 
     pub fn size(&self) -> RelByteOffset {
         self.range.end - self.range.start
+    }
+}
+
+impl ImageInfo {
+    pub fn image_bounds(&self, appearance: &Appearance, ui: &Ui) -> Rect {
+        let [image_width, _] = ui
+            .ctx()
+            .tex_manager()
+            .read()
+            .meta(self.texture)
+            .unwrap()
+            .size;
+        let width =
+            f32::min(ui.available_width() - appearance.image_padding() * 2.0, image_width as f32);
+        let mut result = self.location;
+        let center_x = ui.available_width() / 2.0;
+        result.min.x = center_x - width / 2.0;
+        result.max.x = center_x + width / 2.0;
+        result.min.y += appearance.image_padding();
+        result.max.y -= appearance.image_padding();
+        result
     }
 }

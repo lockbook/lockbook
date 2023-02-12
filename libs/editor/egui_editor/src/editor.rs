@@ -15,7 +15,7 @@ pub struct Editor {
 
     // config
     pub appearance: Appearance,
-    pub client: reqwest::blocking::Client, // todo: non-blocking client
+    pub client: reqwest::blocking::Client, // todo: don't download images on the UI thread
 
     // state
     pub buffer: Buffer,
