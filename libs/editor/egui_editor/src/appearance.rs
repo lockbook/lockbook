@@ -1,4 +1,4 @@
-use egui::color::Hsva;
+use egui::ecolor::Hsva;
 use egui::{Color32, Visuals};
 
 // Apple colors: https://developer.apple.com/design/human-interface-guidelines/foundations/color/

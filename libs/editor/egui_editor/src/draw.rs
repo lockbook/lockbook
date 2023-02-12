@@ -89,7 +89,7 @@ impl Editor {
             .y;
         let (padding_rect, _) = ui.allocate_exact_size(ui_size, Sense::click_and_drag());
         ui.painter()
-            .rect(padding_rect, Rounding::none(), Color32::TRANSPARENT, Stroke::none());
+            .rect(padding_rect, Rounding::none(), Color32::TRANSPARENT, Stroke::NONE);
     }
 
     pub fn draw_cursor(&mut self, ui: &mut Ui) {
