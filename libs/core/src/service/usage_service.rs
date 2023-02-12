@@ -5,8 +5,8 @@ use lockbook_shared::file_like::FileLike;
 use lockbook_shared::tree_like::TreeLike;
 use lockbook_shared::usage::bytes_to_human;
 
-use crate::{CoreError, RequestContext, Requester};
-use crate::{CoreResult, OneKey};
+use crate::{CoreError, Requester};
+use crate::{CoreResult, CoreState};
 
 #[derive(Serialize, Debug)]
 pub struct UsageMetrics {
@@ -21,14 +21,14 @@ pub struct UsageItemMetric {
     pub readable: String,
 }
 
-impl<Client: Requester> RequestContext<'_, '_, Client> {
+impl<Client: Requester> CoreState<Client> {
     fn server_usage(&self) -> CoreResult<GetUsageResponse> {
         let acc = &self.get_account()?;
 
         Ok(self.client.request(acc, GetUsageRequest {})?)
     }
 
-    pub fn get_usage(&self) -> CoreResult<UsageMetrics> {
+    pub(crate) fn get_usage(&self) -> CoreResult<UsageMetrics> {
         let server_usage_and_cap = self.server_usage()?;
 
         let server_usage = server_usage_and_cap.sum_server_usage();
@@ -44,14 +44,14 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
         })
     }
 
-    pub fn get_uncompressed_usage(&mut self) -> CoreResult<UsageItemMetric> {
-        let mut tree = (&self.tx.base_metadata)
-            .to_staged(&self.tx.local_metadata)
+    pub(crate) fn get_uncompressed_usage(&mut self) -> CoreResult<UsageItemMetric> {
+        let mut tree = (&self.db.base_metadata)
+            .to_staged(&self.db.local_metadata)
             .to_lazy();
         let account = self
-            .tx
+            .db
             .account
-            .get(&OneKey {})
+            .data()
             .ok_or(CoreError::AccountNonexistent)?;
 
         let mut local_usage: u64 = 0;
@@ -60,7 +60,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
             let file = tree.find(&id)?;
 
             if !is_file_deleted && file.is_document() {
-                let doc = tree.read_document(self.config, &id, account)?;
+                let doc = tree.read_document(&self.config, &id, account)?;
                 local_usage += doc.len() as u64
             }
         }

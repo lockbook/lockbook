@@ -46,7 +46,7 @@ pub async fn upsert_file_metadata(
 
             let mut tree = tree.stage_diff(request.updates.clone())?;
             tree.validate(req_owner)?;
-            let mut tree = tree.promote();
+            let mut tree = tree.promote()?;
 
             for id in tree.owned_ids() {
                 if tree.find(&id)?.is_document()
@@ -263,7 +263,7 @@ pub async fn change_doc(
         }
 
         tx.sizes.insert(*meta.id(), new_size);
-        tree.stage(vec![new]).promote();
+        tree.stage(vec![new]).promote()?;
         tx.last_seen.insert(owner, get_time().0 as u64);
 
         Ok(())

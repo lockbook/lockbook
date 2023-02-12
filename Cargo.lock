@@ -1215,6 +1215,27 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "23d8666cb01533c39dde32bcbab8e227b4ed6679b2c925eba05feabea39508fb"
 
 [[package]]
+name = "db-rs"
+version = "0.1.12"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5239c72f22f4cd487e0377aec31790b306675df565c9ffe69b26d7c4b7e81bc8"
+dependencies = [
+ "bincode",
+ "serde",
+]
+
+[[package]]
+name = "db-rs-derive"
+version = "0.1.12"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b6649b5ac0aef99da13990d743c48e87ad51bddef98d3fff0a826f4e91085d6f"
+dependencies = [
+ "db-rs",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "dconf_rs"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2911,6 +2932,8 @@ dependencies = [
  "cpuprofiler",
  "criterion",
  "crossbeam",
+ "db-rs",
+ "db-rs-derive",
  "diffy",
  "fuzzy-matcher",
  "hmdb",
@@ -3017,6 +3040,7 @@ dependencies = [
  "aes-gcm",
  "base64",
  "bincode",
+ "db-rs",
  "flate2",
  "hmac 0.11.0",
  "hmdb",
@@ -4041,9 +4065,9 @@ checksum = "a1d01941d82fa2ab50be1e79e6714289dd7cde78eba4c074bc5a4374f650dfe0"
 
 [[package]]
 name = "quote"
-version = "1.0.21"
+version = "1.0.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bbe448f377a7d6961e30f5955f9b8d106c3f5e449d493ee1b125c1d43c2b5179"
+checksum = "8856d8364d252a14d474036ea1358d63c9e6965c8e5c1885c18f73d70bff9c7b"
 dependencies = [
  "proc-macro2",
 ]
