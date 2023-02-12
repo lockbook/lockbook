@@ -6,6 +6,7 @@ use crate::unicode_segs::UnicodeSegs;
 use egui::epaint::text::cursor::Cursor;
 use egui::text::CCursor;
 use egui::{Galley, Pos2, Rect, Sense, TextFormat, Ui, Vec2};
+use image::GenericImageView;
 use std::ops::{Index, Range};
 use std::sync::Arc;
 
@@ -109,8 +110,22 @@ impl GalleyInfo {
         let offset = Self::annotation_offset(&job.annotation, appearance);
         job.job.wrap.max_width = ui.available_width() - offset.x;
 
+        if let Some(Annotation::Image(_, _, title, image)) = &job.annotation {
+            if !image.is_empty() {
+                // todo: load texture just once
+                // todo: error handling
+                let image = image::load_from_memory(image).unwrap();
+                let size = [image.width() as _, image.height() as _];
+                let texture = ui.ctx().load_texture(
+                    title,
+                    egui::ColorImage::from_rgba_unmultiplied(size, &image.to_rgba()),
+                    Default::default(),
+                );
+                ui.image(&texture, texture.size_vec2());
+            }
+        }
+
         let galley = ui.ctx().fonts().layout_job(job.job);
-        // todo: do this during draw
         let (ui_location, _) = ui.allocate_exact_size(
             Vec2::new(ui.available_width(), galley.size().y + offset.y),
             Sense::click_and_drag(),
