@@ -1,5 +1,5 @@
 use eframe::egui;
-use egui_extras::{Size, TableBuilder};
+use egui_extras::{Column, TableBuilder};
 
 #[derive(Default)]
 pub struct HelpModal;
@@ -9,8 +9,8 @@ impl HelpModal {
         TableBuilder::new(ui)
             .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
             .striped(true)
-            .column(Size::exact(120.0))
-            .column(Size::remainder().at_least(60.0))
+            .column(Column::exact(120.0))
+            .column(Column::remainder().at_least(60.0))
             .header(30.0, |mut header| {
                 header.col(|ui| {
                     ui.label(egui::RichText::new("Shortcut").strong().underline());
