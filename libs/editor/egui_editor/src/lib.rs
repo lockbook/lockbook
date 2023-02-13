@@ -1,6 +1,7 @@
 pub use crate::editor::Editor;
 use egui::{FontData, FontDefinitions, FontFamily, Pos2, Rect};
 use egui_wgpu_backend::wgpu;
+use egui_wgpu_backend::wgpu::CompositeAlphaMode;
 use std::iter;
 use std::sync::Arc;
 
@@ -113,7 +114,7 @@ impl WgpuEditor {
     pub fn surface_format(&self) -> wgpu::TextureFormat {
         // todo: is this really fine?
         // from here: https://github.com/hasenbanck/egui_example/blob/master/src/main.rs#L65
-        self.surface.get_supported_formats(&self.adapter)[0]
+        self.surface.get_capabilities(&self.adapter).formats[0]
     }
 
     pub fn configure_surface(&self) {
@@ -123,6 +124,8 @@ impl WgpuEditor {
             width: self.screen.physical_width,
             height: self.screen.physical_height,
             present_mode: wgpu::PresentMode::Fifo,
+            alpha_mode: CompositeAlphaMode::Auto,
+            view_formats: vec![],
         };
         self.surface.configure(&self.device, &surface_config);
     }

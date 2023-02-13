@@ -2,6 +2,7 @@ use crate::apple::keyboard::NSKeys;
 use crate::{Editor, WgpuEditor};
 use egui::PointerButton::{Primary, Secondary};
 use egui::{Context, Event, Pos2, Vec2, Visuals};
+use egui_wgpu_backend::wgpu::CompositeAlphaMode;
 use egui_wgpu_backend::{wgpu, ScreenDescriptor};
 use std::ffi::{c_char, c_void, CStr, CString};
 
@@ -10,22 +11,26 @@ use std::ffi::{c_char, c_void, CStr, CString};
 pub unsafe extern "C" fn init_editor(
     metal_layer: *mut c_void, content: *const c_char,
 ) -> *mut c_void {
-    let backend = wgpu::util::backend_bits_from_env().unwrap_or_else(wgpu::Backends::all);
-    let instance = wgpu::Instance::new(backend);
+    let backends = wgpu::util::backend_bits_from_env().unwrap_or_else(wgpu::Backends::all);
+    let instance_desc = wgpu::InstanceDescriptor { backends, ..Default::default() };
+    let instance = wgpu::Instance::new(instance_desc);
     let surface = instance.create_surface_from_core_animation_layer(metal_layer);
-    let (adapter, device, queue) = pollster::block_on(request_device(&instance, backend, &surface));
-    let surface_format = surface.get_supported_formats(&adapter)[0];
+    let (adapter, device, queue) =
+        pollster::block_on(request_device(&instance, backends, &surface));
+    let format = surface.get_capabilities(&adapter).formats[0];
     let screen =
         ScreenDescriptor { physical_width: 10000, physical_height: 10000, scale_factor: 1.0 };
     let surface_config = wgpu::SurfaceConfiguration {
         usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-        format: surface.get_supported_formats(&adapter)[0],
+        format,
         width: screen.physical_width, // TODO get from context or something
         height: screen.physical_height,
         present_mode: wgpu::PresentMode::Fifo,
+        alpha_mode: CompositeAlphaMode::Auto,
+        view_formats: vec![],
     };
     surface.configure(&device, &surface_config);
-    let rpass = egui_wgpu_backend::RenderPass::new(&device, surface_format, 1);
+    let rpass = egui_wgpu_backend::RenderPass::new(&device, format, 1);
 
     let context = Context::default();
     let mut editor = Editor::default();

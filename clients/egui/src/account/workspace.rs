@@ -121,7 +121,7 @@ fn tab_label(ui: &mut egui::Ui, t: &Tab, is_active: bool) -> Option<TabLabelResp
         } else {
             ui.visuals().widgets.noninteractive.bg_fill
         };
-        ui.painter().rect(rect, 0.0, bg, egui::Stroke::none());
+        ui.painter().rect(rect, 0.0, bg, egui::Stroke::NONE);
 
         let text_pos = egui::pos2(rect.min.x + padding.x, rect.center().y - 0.5 * text.size().y);
 
@@ -132,7 +132,7 @@ fn tab_label(ui: &mut egui::Ui, t: &Tab, is_active: bool) -> Option<TabLabelResp
                 close_btn_rect,
                 0.0,
                 ui.visuals().widgets.hovered.bg_fill,
-                egui::Stroke::none(),
+                egui::Stroke::NONE,
             );
         }
 
