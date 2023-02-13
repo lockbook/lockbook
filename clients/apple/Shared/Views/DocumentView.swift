@@ -3,13 +3,13 @@ import SwiftLockbookCore
 import PencilKit
 
 struct DocumentView: View {
-        
+    
     let meta: File
     
     @EnvironmentObject var model: DocumentLoader
-    #if os(iOS)
+#if os(iOS)
     @EnvironmentObject var toolbar: ToolbarModel
-    #endif
+#endif
     
     var body: some View {
         if meta != model.meta || model.loading {
@@ -31,7 +31,7 @@ struct DocumentView: View {
                             img
                         }.title(meta.name)
                     }
-                #if os(iOS)
+#if os(iOS)
                 case .Drawing:
                     DrawingView(
                         model: model,
@@ -45,16 +45,20 @@ struct DocumentView: View {
                             Spacer()
                         }
                     }
-                #endif
-                
+#endif
+                    
                 case .Markdown:
+                    #if os(iOS)
                     GeometryReader { geo in
                         EditorView(
                             frame: geo.frame(in: .local)
                         )
                     }
                     .title(meta.name)
-                        
+                    #else
+                    EditorView().title(meta.name)
+                    #endif
+                    
                 case .Unknown:
                     Text("\(meta.name) cannot be opened on this device.")
                         .title(meta.name)
@@ -66,10 +70,10 @@ struct DocumentView: View {
 
 extension View {
     func title(_ name: String) -> some View {
-        #if os(macOS)
-            return self.navigationTitle(name)
-        #else
+#if os(macOS)
+        return self.navigationTitle(name)
+#else
         return self.navigationBarTitle(name, displayMode: .inline)
-        #endif
+#endif
     }
 }

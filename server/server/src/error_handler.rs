@@ -221,6 +221,20 @@ impl From<ServerError<LockBillingWorkflowError>> for ServerError<CancelSubscript
     }
 }
 
+impl From<ServerError<LockBillingWorkflowError>> for ServerError<AdminUpgradeToPremiumError> {
+    fn from(err: ServerError<LockBillingWorkflowError>) -> Self {
+        match err {
+            ClientError(LockBillingWorkflowError::ExistingRequestPending) => {
+                ClientError(AdminUpgradeToPremiumError::ExistingRequestPending)
+            }
+            ClientError(LockBillingWorkflowError::UserNotFound) => {
+                ClientError(AdminUpgradeToPremiumError::UserNotFound)
+            }
+            InternalError(msg) => InternalError(msg),
+        }
+    }
+}
+
 impl From<SharedError> for ServerError<DeleteAccountHelperError> {
     fn from(err: SharedError) -> Self {
         internal!("{:?}", err)
@@ -262,6 +276,12 @@ impl From<SharedError> for ServerError<AdminValidateServerError> {
 }
 
 impl From<SharedError> for ServerError<AdminFileInfoError> {
+    fn from(err: SharedError) -> Self {
+        internal!("{:?}", err)
+    }
+}
+
+impl From<SharedError> for ServerError<AdminDisappearFileError> {
     fn from(err: SharedError) -> Self {
         internal!("{:?}", err)
     }

@@ -10,7 +10,7 @@ struct BookView: View {
 
     let currentFolder: File
     let account: Account
-
+    
     #if os(iOS)
     @Environment(\.horizontalSizeClass) var horizontal
     @Environment(\.verticalSizeClass) var vertical
@@ -18,17 +18,21 @@ struct BookView: View {
 
     var body: some View {
         platformFileTree
-                .sheet(isPresented: $onboarding.anAccountWasCreatedThisSession, content: { BeforeYouStart() })
-                .sheet(isPresented: $sheets.creating) {
-                    NewFileSheet(selected: sheets.creatingInfo?.toClientFileTypes() ?? .Document)
+            .iOSOnlySheet(isPresented: $sheets.moving)
+            .sheet(isPresented: $onboarding.anAccountWasCreatedThisSession, content: BeforeYouStart.init)
+            .sheet(isPresented: $sheets.creating) {
+                let fileType = sheets.creatingInfo?.toClientFileTypes() ?? .Document
+                if fileType == .Document {
+                    NewFileSheet(selected: fileType, name: ".md")
+                } else {
+                    NewFileSheet(selected: fileType, name: "")
                 }
-                .iOSOnlySheet(isPresented: $sheets.moving)
-                .sheet(isPresented: $sheets.renaming) {
-                    RenamingSheet()
-                }
-                .toast(isPresenting: Binding(get: { files.successfulAction != nil }, set: { _ in files.successfulAction = nil }), duration: 2, tapToDismiss: true) {
-                    postFileAction()
-                }
+            }
+            .sheet(isPresented: $sheets.renaming, content: RenamingSheet.init)
+            .sheet(isPresented: $sheets.sharingFile, content: ShareFileSheet.init)
+            .toast(isPresenting: Binding(get: { files.successfulAction != nil }, set: { _ in files.successfulAction = nil }), duration: 2, tapToDismiss: true) {
+                postFileAction()
+            }
     }
     
     func postFileAction() -> AlertToast {
@@ -53,12 +57,17 @@ struct BookView: View {
         NavigationView {
             FileListView(currentFolder: currentFolder, account: account)
                     .toolbar {
-                        ToolbarItem(placement: .navigationBarTrailing) {
+                        ToolbarItemGroup {
                             NavigationLink(
-                                    destination: SettingsView().equatable(), isActive: $onboarding.theyChoseToBackup) {
-                                Image(systemName: "gearshape.fill")
-                                        .foregroundColor(.blue)
-                            }
+                                destination: PendingSharesView()) {
+                                    Image(systemName: "shared.with.you").foregroundColor(.blue)
+                                }
+                            
+                            NavigationLink(
+                                destination: SettingsView().equatable(), isActive: $onboarding.theyChoseToBackup) {
+                                    Image(systemName: "gearshape.fill").foregroundColor(.blue)
+                                        .padding(.horizontal, 10)
+                                    }
                         }
                     }
         }
@@ -96,9 +105,7 @@ struct BookView: View {
 extension View {
     func iOSOnlySheet(isPresented: Binding<Bool>) -> some View {
         #if os(iOS)
-        self.sheet(isPresented: isPresented) {
-            MoveSheet()
-        }
+        self.sheet(isPresented: isPresented, content: MoveSheet.init)
         #else
         self
         #endif

@@ -287,7 +287,7 @@ impl super::AccountScreen {
                     self.core.save_drawing(tab.id, &d.drawing).unwrap(); // TODO
                 } else {
                     let maybe_bytes = match content {
-                        TabContent::Markdown(md) => Some(md.content.as_bytes()),
+                        TabContent::Markdown(md) => Some(md.editor.buffer.current.text.as_bytes()),
                         TabContent::PlainText(txt) => Some(txt.content.as_bytes()),
                         _ => None,
                     };
@@ -320,7 +320,7 @@ fn restore_tab(core: &Arc<lb::Core>, tree: &mut FileTree, tab: &mut Tab) {
                 .map_err(TabFailure::from)
         } else {
             let maybe_bytes = match content {
-                TabContent::Markdown(md) => Some(md.content.as_bytes()),
+                TabContent::Markdown(md) => Some(md.editor.buffer.current.text.as_bytes()),
                 TabContent::PlainText(txt) => Some(txt.content.as_bytes()),
                 TabContent::Image(img) => Some(img.bytes.as_slice()),
                 _ => None,

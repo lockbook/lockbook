@@ -1,19 +1,19 @@
+use crate::CoreResult;
+use crate::CoreState;
+use crate::Requester;
 use itertools::Itertools;
 use lockbook_shared::document_repo::DocActivityMetrics;
 use lockbook_shared::document_repo::StatisticValueRange;
 use lockbook_shared::document_repo::Stats;
-
-use crate::Requester;
-use crate::{CoreResult, RequestContext};
 use uuid::Uuid;
 
-impl<Client: Requester> RequestContext<'_, '_, Client> {
-    pub fn suggested_docs(&mut self) -> CoreResult<Vec<Uuid>> {
+impl<Client: Requester> CoreState<Client> {
+    pub(crate) fn suggested_docs(&mut self) -> CoreResult<Vec<Uuid>> {
         let mut scores: Vec<(Uuid, DocActivityMetrics)> = vec![];
 
-        self.tx
-            .docs_events
-            .get_all()
+        self.db
+            .doc_events
+            .data()
             .iter()
             .for_each(|(key, doc_events)| {
                 scores.push((*key, doc_events.iter().get_activity_metrics()));

@@ -7,12 +7,15 @@ class FileService: ObservableObject {
     @Published var root: File? = nil
     @Published var files: [File] = []
     var successfulAction: FileAction? = nil
-    
+        
 
     func childrenOf(_ meta: File?) -> [File] {
         var file: File
         if meta == nil {
-            file = root!
+            guard let theRoot = root else {
+                return []
+            }
+            file = theRoot
         } else {
             file = meta!
         }
@@ -187,7 +190,7 @@ class FileService: ObservableObject {
     }
 }
 
-enum FileAction {
+public enum FileAction {
     case move
     case rename
     case delete

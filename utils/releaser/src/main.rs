@@ -11,8 +11,10 @@ use crate::secrets::*;
 use crate::utils::root;
 
 use structopt::StructOpt;
+use utils::bump_versions;
 
 #[derive(PartialEq, StructOpt)]
+#[structopt(name = "basic")]
 enum Releaser {
     All,
     DeployServer,
@@ -21,6 +23,10 @@ enum Releaser {
     ReleaseWindows,
     ReleasePublicSite,
     ReleaseLinux,
+    BumpVersion {
+        #[structopt(short, long, name = "bump type")]
+        increment: Option<String>,
+    },
 }
 
 fn main() {
@@ -38,6 +44,7 @@ fn from_args(releaser: Releaser) {
         Releaser::ReleaseWindows => windows::release(&Github::env()),
         Releaser::ReleasePublicSite => public_site::release(),
         Releaser::ReleaseLinux => linux::release_linux(),
+        Releaser::BumpVersion { increment } => bump_versions(increment),
         Releaser::All => {
             let releases = if cfg!(target_os = "macos") {
                 vec![Releaser::ReleaseApple]
@@ -46,7 +53,6 @@ fn from_args(releaser: Releaser) {
                     Releaser::DeployServer,
                     Releaser::ReleaseLinux,
                     Releaser::ReleaseAndroid,
-                    Releaser::ReleaseWindows,
                     Releaser::ReleasePublicSite,
                 ]
             } else {

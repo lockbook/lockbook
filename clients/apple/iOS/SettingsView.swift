@@ -7,7 +7,10 @@ struct SettingsView: View, Equatable {
     @EnvironmentObject var settingsState: SettingsService
     @EnvironmentObject var accounts: AccountService
     
+    @Environment(\.presentationMode) var presentationMode
+    
     @State var cancelSubscriptionConfirmation = false
+    @State var deleteAccountConfirmation = false
     
     var body: some View {
         switch accounts.account {
@@ -43,7 +46,7 @@ struct SettingsView: View, Equatable {
                         Text("Reveal QR")
                     }
                 }
-                Section(header:  Text("Usage")) {
+                Section(header:  Text("USAGE")) {
                     if let usage = settingsState.usages {
                         VStack (alignment: .leading) {
                             HStack {
@@ -101,6 +104,24 @@ struct SettingsView: View, Equatable {
                     }
                 }
                 .onAppear(perform: settingsState.calculateUsage)
+                
+                Section(header: Text("PRIVACY")) {
+                    Text("[Privacy Policy](https://lockbook.net/privacy-policy)")
+                        .foregroundColor(.blue)
+
+                    Text("[End User License Agreement](https://lockbook.net/eula)")
+                        .foregroundColor(.blue)
+
+                    Button("Delete Account", role: .destructive) {
+                        deleteAccountConfirmation = true
+                    }
+                    .foregroundColor(.red)
+                    .confirmationDialog("Are you sure you want to delete your account?", isPresented: $deleteAccountConfirmation) {
+                        Button("Delete account", role: .destructive) {
+                            accounts.deleteAccount()
+                        }
+                    }
+                }
             }.navigationBarTitle("Settings")
         }
     }

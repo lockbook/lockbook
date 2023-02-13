@@ -13,7 +13,6 @@ class DataSource: NSObject, NSOutlineViewDataSource, NSPasteboardItemDataProvide
     ) -> Int {
         let file = item as? File
         let children = DI.files.childrenOf(file)
-        print(children.count)
         return children.count
     }
 
@@ -35,7 +34,6 @@ class DataSource: NSObject, NSOutlineViewDataSource, NSPasteboardItemDataProvide
         let parent = item as? File
         let siblings = DI.files.childrenOf(parent)
         let node = siblings[index]
-        print(node.name)
         return node
     }
 
@@ -91,9 +89,11 @@ class TreeDelegate: NSObject, MenuOutlineViewDelegate {
         }
 
         if parent.id != parent.parent {
+            menu.addItem(Share(file: parent))
             menu.addItem(Rename(file: parent))
             menu.addItem(Delete(file: parent))
         }
+        
         return menu
     }
 

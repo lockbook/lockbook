@@ -10,22 +10,22 @@ use lockbook_shared::drawing::{ColorAlias, ColorRGB, Drawing};
 use crate::model::drawing;
 use crate::model::drawing::SupportedImageFormats;
 use crate::model::errors::CoreError;
-use crate::CoreResult;
-use crate::{RequestContext, Requester};
+use crate::Requester;
+use crate::{CoreResult, CoreState};
 
-impl<Client: Requester> RequestContext<'_, '_, Client> {
-    pub fn get_drawing(&mut self, id: Uuid) -> CoreResult<Drawing> {
+impl<Client: Requester> CoreState<Client> {
+    pub(crate) fn get_drawing(&mut self, id: Uuid) -> CoreResult<Drawing> {
         let doc = self.read_document(id)?;
         drawing::parse_drawing(&doc)
     }
 
-    pub fn save_drawing(&mut self, id: Uuid, d: &Drawing) -> CoreResult<()> {
+    pub(crate) fn save_drawing(&mut self, id: Uuid, d: &Drawing) -> CoreResult<()> {
         drawing::validate(d)?;
         let doc = serde_json::to_vec(d)?;
         self.write_document(id, &doc)
     }
 
-    pub fn export_drawing(
+    pub(crate) fn export_drawing(
         &mut self, id: Uuid, format: SupportedImageFormats,
         render_theme: Option<HashMap<ColorAlias, ColorRGB>>,
     ) -> CoreResult<Vec<u8>> {
@@ -33,7 +33,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
         drawing::export_drawing(&doc, format, render_theme)
     }
 
-    pub fn export_drawing_to_disk(
+    pub(crate) fn export_drawing_to_disk(
         &mut self, id: Uuid, format: SupportedImageFormats,
         render_theme: Option<HashMap<ColorAlias, ColorRGB>>, location: &str,
     ) -> CoreResult<()> {

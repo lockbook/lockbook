@@ -18,35 +18,39 @@ fn upgrade_account_google_play_already_premium() {
     let account = core.get_account().unwrap();
 
     // upgrade account tier to premium using stripe
-    core.client
-        .request(
+    core.in_tx(|s| {
+        s.client
+            .request(
+                &account,
+                UpgradeAccountStripeRequest {
+                    account_tier: generate_premium_account_tier(
+                        test_credit_cards::GOOD,
+                        None,
+                        None,
+                        None,
+                    ),
+                },
+            )
+            .unwrap();
+
+        // try to upgrade to premium with android
+        let result = s.client.request(
             &account,
-            UpgradeAccountStripeRequest {
-                account_tier: generate_premium_account_tier(
-                    test_credit_cards::GOOD,
-                    None,
-                    None,
-                    None,
-                ),
+            UpgradeAccountGooglePlayRequest {
+                purchase_token: "".to_string(),
+                account_id: "".to_string(),
             },
-        )
-        .unwrap();
+        );
 
-    // try to upgrade to premium with android
-    let result = core.client.request(
-        &account,
-        UpgradeAccountGooglePlayRequest {
-            purchase_token: "".to_string(),
-            account_id: "".to_string(),
-        },
-    );
-
-    assert_matches!(
-        result,
-        Err(ApiError::<UpgradeAccountGooglePlayError>::Endpoint(
-            UpgradeAccountGooglePlayError::AlreadyPremium
-        ))
-    );
+        assert_matches!(
+            result,
+            Err(ApiError::<UpgradeAccountGooglePlayError>::Endpoint(
+                UpgradeAccountGooglePlayError::AlreadyPremium
+            ))
+        );
+        Ok(())
+    })
+    .unwrap();
 }
 
 #[test]
@@ -55,21 +59,25 @@ fn upgrade_account_google_play_invalid_purchase_token() {
     let core = test_core_with_account();
     let account = core.get_account().unwrap();
 
-    // upgrade with bad purchase token
-    let result = core.client.request(
-        &account,
-        UpgradeAccountGooglePlayRequest {
-            purchase_token: "".to_string(),
-            account_id: "".to_string(),
-        },
-    );
+    core.in_tx(|s| {
+        // upgrade with bad purchase token
+        let result = s.client.request(
+            &account,
+            UpgradeAccountGooglePlayRequest {
+                purchase_token: "".to_string(),
+                account_id: "".to_string(),
+            },
+        );
 
-    assert_matches!(
-        result,
-        Err(ApiError::<UpgradeAccountGooglePlayError>::Endpoint(
-            UpgradeAccountGooglePlayError::InvalidPurchaseToken
-        ))
-    );
+        assert_matches!(
+            result,
+            Err(ApiError::<UpgradeAccountGooglePlayError>::Endpoint(
+                UpgradeAccountGooglePlayError::InvalidPurchaseToken
+            ))
+        );
+        Ok(())
+    })
+    .unwrap()
 }
 
 #[test]
@@ -79,19 +87,23 @@ fn upgrade_account_to_premium() {
     let account = core.get_account().unwrap();
 
     // upgrade account tier to premium
-    core.client
-        .request(
-            &account,
-            UpgradeAccountStripeRequest {
-                account_tier: generate_premium_account_tier(
-                    test_credit_cards::GOOD,
-                    None,
-                    None,
-                    None,
-                ),
-            },
-        )
-        .unwrap();
+    core.in_tx(|s| {
+        s.client
+            .request(
+                &account,
+                UpgradeAccountStripeRequest {
+                    account_tier: generate_premium_account_tier(
+                        test_credit_cards::GOOD,
+                        None,
+                        None,
+                        None,
+                    ),
+                },
+            )
+            .unwrap();
+        Ok(())
+    })
+    .unwrap();
 }
 
 #[test]
@@ -101,8 +113,23 @@ fn new_tier_is_old_tier() {
     let account = core.get_account().unwrap();
 
     // upgrade account tier to premium
-    core.client
-        .request(
+    core.in_tx(|s| {
+        s.client
+            .request(
+                &account,
+                UpgradeAccountStripeRequest {
+                    account_tier: generate_premium_account_tier(
+                        test_credit_cards::GOOD,
+                        None,
+                        None,
+                        None,
+                    ),
+                },
+            )
+            .unwrap();
+
+        // upgrade account tier to premium
+        let result = s.client.request(
             &account,
             UpgradeAccountStripeRequest {
                 account_tier: generate_premium_account_tier(
@@ -112,23 +139,17 @@ fn new_tier_is_old_tier() {
                     None,
                 ),
             },
-        )
-        .unwrap();
+        );
 
-    // upgrade account tier to premium
-    let result = core.client.request(
-        &account,
-        UpgradeAccountStripeRequest {
-            account_tier: generate_premium_account_tier(test_credit_cards::GOOD, None, None, None),
-        },
-    );
-
-    assert_matches!(
-        result,
-        Err(ApiError::<UpgradeAccountStripeError>::Endpoint(
-            UpgradeAccountStripeError::AlreadyPremium
-        ))
-    );
+        assert_matches!(
+            result,
+            Err(ApiError::<UpgradeAccountStripeError>::Endpoint(
+                UpgradeAccountStripeError::AlreadyPremium
+            ))
+        );
+        Ok(())
+    })
+    .unwrap();
 }
 
 #[test]
@@ -138,19 +159,23 @@ fn card_does_not_exist() {
     let account = core.get_account().unwrap();
 
     // upgrade account tier to premium using an "old card"
-    let result = core.client.request(
-        &account,
-        UpgradeAccountStripeRequest {
-            account_tier: StripeAccountTier::Premium(PaymentMethod::OldCard),
-        },
-    );
+    core.in_tx(|s| {
+        let result = s.client.request(
+            &account,
+            UpgradeAccountStripeRequest {
+                account_tier: StripeAccountTier::Premium(PaymentMethod::OldCard),
+            },
+        );
 
-    assert_matches!(
-        result,
-        Err(ApiError::<UpgradeAccountStripeError>::Endpoint(
-            UpgradeAccountStripeError::OldCardDoesNotExist
-        ))
-    );
+        assert_matches!(
+            result,
+            Err(ApiError::<UpgradeAccountStripeError>::Endpoint(
+                UpgradeAccountStripeError::OldCardDoesNotExist
+            ))
+        );
+        Ok(())
+    })
+    .unwrap();
 }
 
 #[test]
@@ -172,19 +197,23 @@ fn card_decline() {
 
     for (card_number, expected_err) in scenarios {
         // upgrade account tier to premium using bad card number
-        let result = core.client.request(
-            &account,
-            UpgradeAccountStripeRequest {
-                account_tier: generate_premium_account_tier(card_number, None, None, None),
-            },
-        );
+        core.in_tx(|s| {
+            let result = s.client.request(
+                &account,
+                UpgradeAccountStripeRequest {
+                    account_tier: generate_premium_account_tier(card_number, None, None, None),
+                },
+            );
 
-        match result {
-            Err(ApiError::<UpgradeAccountStripeError>::Endpoint(err)) => {
-                assert_eq!(err, expected_err)
+            match result {
+                Err(ApiError::<UpgradeAccountStripeError>::Endpoint(err)) => {
+                    assert_eq!(err, expected_err)
+                }
+                other => panic!("expected {:?}, got {:?}", expected_err, other),
             }
-            other => panic!("expected {:?}, got {:?}", expected_err, other),
-        }
+            Ok(())
+        })
+        .unwrap();
     }
 }
 
@@ -227,24 +256,28 @@ fn invalid_cards() {
 
     for (card_number, maybe_exp_year, maybe_exp_month, maybe_cvc, expected_err) in scenarios {
         // upgrade account tier to premium using bad card information
-        let result = core.client.request(
-            &account,
-            UpgradeAccountStripeRequest {
-                account_tier: generate_premium_account_tier(
-                    card_number,
-                    maybe_exp_year,
-                    maybe_exp_month,
-                    maybe_cvc,
-                ),
-            },
-        );
+        core.in_tx(|s| {
+            let result = s.client.request(
+                &account,
+                UpgradeAccountStripeRequest {
+                    account_tier: generate_premium_account_tier(
+                        card_number,
+                        maybe_exp_year,
+                        maybe_exp_month,
+                        maybe_cvc,
+                    ),
+                },
+            );
 
-        match result {
-            Err(ApiError::<UpgradeAccountStripeError>::Endpoint(err)) => {
-                assert_eq!(err, expected_err)
+            match result {
+                Err(ApiError::<UpgradeAccountStripeError>::Endpoint(err)) => {
+                    assert_eq!(err, expected_err)
+                }
+                other => panic!("expected {:?}, got {:?}", expected_err, other),
             }
-            other => panic!("expected {:?}, got {:?}", expected_err, other),
-        }
+            Ok(())
+        })
+        .unwrap();
     }
 }
 
@@ -254,25 +287,29 @@ fn cancel_stripe_subscription() {
     let core = test_core_with_account();
     let account = core.get_account().unwrap();
 
-    // switch account tier to premium
-    core.client
-        .request(
-            &account,
-            UpgradeAccountStripeRequest {
-                account_tier: generate_premium_account_tier(
-                    test_credit_cards::GOOD,
-                    None,
-                    None,
-                    None,
-                ),
-            },
-        )
-        .unwrap();
+    core.in_tx(|s| {
+        // switch account tier to premium
+        s.client
+            .request(
+                &account,
+                UpgradeAccountStripeRequest {
+                    account_tier: generate_premium_account_tier(
+                        test_credit_cards::GOOD,
+                        None,
+                        None,
+                        None,
+                    ),
+                },
+            )
+            .unwrap();
 
-    // cancel stripe subscription
-    core.client
-        .request(&account, CancelSubscriptionRequest {})
-        .unwrap();
+        // cancel stripe subscription
+        s.client
+            .request(&account, CancelSubscriptionRequest {})
+            .unwrap();
+        Ok(())
+    })
+    .unwrap();
 }
 
 #[test]
@@ -300,30 +337,34 @@ fn downgrade_denied() {
         }
     }
 
-    // switch account tier to premium
-    core.client
-        .request(
-            &account,
-            UpgradeAccountStripeRequest {
-                account_tier: generate_premium_account_tier(
-                    test_credit_cards::GOOD,
-                    None,
-                    None,
-                    None,
-                ),
-            },
-        )
-        .unwrap();
+    core.in_tx(|s| {
+        // switch account tier to premium
+        s.client
+            .request(
+                &account,
+                UpgradeAccountStripeRequest {
+                    account_tier: generate_premium_account_tier(
+                        test_credit_cards::GOOD,
+                        None,
+                        None,
+                        None,
+                    ),
+                },
+            )
+            .unwrap();
 
-    // attempt to cancel subscription but fail
-    let result = core.client.request(&account, CancelSubscriptionRequest {});
+        // attempt to cancel subscription but fail
+        let result = s.client.request(&account, CancelSubscriptionRequest {});
 
-    assert_matches!(
-        result,
-        Err(ApiError::<CancelSubscriptionError>::Endpoint(
-            CancelSubscriptionError::UsageIsOverFreeTierDataCap
-        ))
-    );
+        assert_matches!(
+            result,
+            Err(ApiError::<CancelSubscriptionError>::Endpoint(
+                CancelSubscriptionError::UsageIsOverFreeTierDataCap
+            ))
+        );
+        Ok(())
+    })
+    .unwrap();
 
     let children = core.get_children(root.id).unwrap();
 
@@ -338,10 +379,14 @@ fn downgrade_denied() {
         }
     }
 
-    // cancel subscription again
-    core.client
-        .request(&account, CancelSubscriptionRequest {})
-        .unwrap();
+    core.in_tx(|s| {
+        // cancel subscription again
+        s.client
+            .request(&account, CancelSubscriptionRequest {})
+            .unwrap();
+        Ok(())
+    })
+    .unwrap();
 }
 
 #[test]
@@ -350,11 +395,15 @@ fn cancel_subscription_not_premium() {
     let core = test_core_with_account();
     let account = core.get_account().unwrap();
 
-    // cancel subscription but the account is not premium
-    let result = core.client.request(&account, CancelSubscriptionRequest {});
+    core.in_tx(|s| {
+        // cancel subscription but the account is not premium
+        let result = s.client.request(&account, CancelSubscriptionRequest {});
 
-    assert_matches!(
-        result,
-        Err(ApiError::<CancelSubscriptionError>::Endpoint(CancelSubscriptionError::NotPremium))
-    );
+        assert_matches!(
+            result,
+            Err(ApiError::<CancelSubscriptionError>::Endpoint(CancelSubscriptionError::NotPremium))
+        );
+        Ok(())
+    })
+    .unwrap();
 }

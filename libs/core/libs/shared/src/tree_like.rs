@@ -66,9 +66,9 @@ pub trait TreeLike: Sized {
 }
 
 pub trait TreeLikeMut: TreeLike {
-    fn insert(&mut self, f: Self::F) -> Option<Self::F>;
-    fn remove(&mut self, id: Uuid) -> Option<Self::F>;
-    fn clear(&mut self);
+    fn insert(&mut self, f: Self::F) -> SharedResult<Option<Self::F>>;
+    fn remove(&mut self, id: Uuid) -> SharedResult<Option<Self::F>>;
+    fn clear(&mut self) -> SharedResult<()>;
 }
 
 impl<T> TreeLike for &T
@@ -105,15 +105,15 @@ impl<T> TreeLikeMut for &mut T
 where
     T: TreeLikeMut,
 {
-    fn insert(&mut self, f: Self::F) -> Option<Self::F> {
+    fn insert(&mut self, f: Self::F) -> SharedResult<Option<Self::F>> {
         T::insert(self, f)
     }
 
-    fn remove(&mut self, id: Uuid) -> Option<Self::F> {
+    fn remove(&mut self, id: Uuid) -> SharedResult<Option<Self::F>> {
         T::remove(self, id)
     }
 
-    fn clear(&mut self) {
+    fn clear(&mut self) -> SharedResult<()> {
         T::clear(self)
     }
 }
@@ -137,30 +137,31 @@ impl<F> TreeLikeMut for Vec<F>
 where
     F: FileLike,
 {
-    fn insert(&mut self, f: F) -> Option<F> {
+    fn insert(&mut self, f: F) -> SharedResult<Option<F>> {
         for (i, value) in self.iter().enumerate() {
             if value.id() == f.id() {
                 let old = std::mem::replace(&mut self[i], f);
-                return Some(old);
+                return Ok(Some(old));
             }
         }
 
         self.push(f);
 
-        None
+        Ok(None)
     }
 
-    fn remove(&mut self, id: Uuid) -> Option<F> {
+    fn remove(&mut self, id: Uuid) -> SharedResult<Option<F>> {
         for (i, value) in self.iter().enumerate() {
             if *value.id() == id {
-                return Some(self.remove(i));
+                return Ok(Some(self.remove(i)));
             }
         }
 
-        None
+        Ok(None)
     }
 
-    fn clear(&mut self) {
-        self.clear()
+    fn clear(&mut self) -> SharedResult<()> {
+        self.clear();
+        Ok(())
     }
 }

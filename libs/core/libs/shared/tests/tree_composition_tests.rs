@@ -40,7 +40,7 @@ fn test_stage_promote() {
     assert_eq!(files.tree.base.staged.len(), 0);
     assert!(files.tree.staged.is_some());
 
-    let files = files.promote();
+    let files = files.promote().unwrap();
     assert_eq!(files.tree.base.len(), 1);
     assert_eq!(files.tree.staged.len(), 1);
 }

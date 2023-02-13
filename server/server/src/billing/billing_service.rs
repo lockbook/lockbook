@@ -1,6 +1,8 @@
 use crate::account_service::GetUsageHelperError;
 use crate::billing::app_store_model::{NotificationChange, Subtype};
-use crate::billing::billing_model::{AppStoreUserInfo, BillingPlatform};
+use crate::billing::billing_model::{
+    AppStoreUserInfo, BillingPlatform, GooglePlayUserInfo, StripeUserInfo,
+};
 use crate::billing::billing_service::LockBillingWorkflowError::{
     ExistingRequestPending, UserNotFound,
 };
@@ -10,21 +12,19 @@ use crate::billing::{
 };
 use crate::schema::Account;
 use crate::ServerError::ClientError;
-use crate::{
-    account_service, RequestContext, ServerError, ServerState, FREE_TIER_USAGE_SIZE,
-    PREMIUM_TIER_USAGE_SIZE,
-};
+use crate::{account_service, RequestContext, ServerError, ServerState, FREE_TIER_USAGE_SIZE};
 use base64::DecodeError;
 use hmdb::transaction::Transaction;
 use libsecp256k1::PublicKey;
 use lockbook_shared::api::{
-    AppStoreAccountState, CancelSubscriptionError, CancelSubscriptionRequest,
-    CancelSubscriptionResponse, GetSubscriptionInfoError, GetSubscriptionInfoRequest,
-    GetSubscriptionInfoResponse, GooglePlayAccountState, PaymentPlatform, SubscriptionInfo,
-    UpgradeAccountAppStoreError, UpgradeAccountAppStoreRequest, UpgradeAccountAppStoreResponse,
-    UpgradeAccountGooglePlayError, UpgradeAccountGooglePlayRequest,
-    UpgradeAccountGooglePlayResponse, UpgradeAccountStripeError, UpgradeAccountStripeRequest,
-    UpgradeAccountStripeResponse,
+    AdminUpgradeToPremiumError, AdminUpgradeToPremiumInfo, AdminUpgradeToPremiumRequest,
+    AdminUpgradeToPremiumResponse, AppStoreAccountState, CancelSubscriptionError,
+    CancelSubscriptionRequest, CancelSubscriptionResponse, GetSubscriptionInfoError,
+    GetSubscriptionInfoRequest, GetSubscriptionInfoResponse, GooglePlayAccountState,
+    PaymentPlatform, StripeAccountState, SubscriptionInfo, UpgradeAccountAppStoreError,
+    UpgradeAccountAppStoreRequest, UpgradeAccountAppStoreResponse, UpgradeAccountGooglePlayError,
+    UpgradeAccountGooglePlayRequest, UpgradeAccountGooglePlayResponse, UpgradeAccountStripeError,
+    UpgradeAccountStripeRequest, UpgradeAccountStripeResponse,
 };
 use lockbook_shared::clock::get_time;
 use lockbook_shared::file_metadata::Owner;
@@ -85,10 +85,6 @@ pub async fn upgrade_account_app_store(
 
     let mut account = lock_subscription_profile(server_state, &context.public_key)?;
 
-    if account.billing_info.data_cap() == PREMIUM_TIER_USAGE_SIZE {
-        return Err(ClientError(UpgradeAccountAppStoreError::AlreadyPremium));
-    }
-
     debug!("Upgrading the account of a user through app store billing");
 
     if let Some(owner) = server_state
@@ -97,10 +93,12 @@ pub async fn upgrade_account_app_store(
         .get(&request.app_account_token)?
     {
         if let Some(other_account) = server_state.index_db.accounts.get(&owner)? {
-            if let Some(BillingPlatform::AppStore(info)) =
+            if let Some(BillingPlatform::AppStore(ref info)) =
                 other_account.billing_info.billing_platform
             {
-                if info.account_token == request.app_account_token {
+                if info.account_token == request.app_account_token
+                    && other_account.billing_info.is_premium()
+                {
                     return Err(ClientError(
                         UpgradeAccountAppStoreError::AppStoreAccountAlreadyLinked,
                     ));
@@ -109,7 +107,11 @@ pub async fn upgrade_account_app_store(
         }
     }
 
-    let expires = app_store_service::verify_details(
+    if account.billing_info.is_premium() {
+        return Err(ClientError(UpgradeAccountAppStoreError::AlreadyPremium));
+    }
+
+    let (expires, account_state) = app_store_service::verify_details(
         &server_state.app_store_client,
         &server_state.config.billing.apple,
         &request.app_account_token,
@@ -129,7 +131,7 @@ pub async fn upgrade_account_app_store(
             .subscription_product_id
             .clone(),
         expiration_time: expires,
-        account_state: AppStoreAccountState::Ok,
+        account_state,
     }));
 
     server_state
@@ -153,7 +155,7 @@ pub async fn upgrade_account_google_play(
 
     let mut account = lock_subscription_profile(server_state, &context.public_key)?;
 
-    if account.billing_info.data_cap() == PREMIUM_TIER_USAGE_SIZE {
+    if account.billing_info.is_premium() {
         return Err(ClientError(UpgradeAccountGooglePlayError::AlreadyPremium));
     }
 
@@ -206,7 +208,7 @@ pub async fn upgrade_account_stripe(
 
     let mut account = lock_subscription_profile(server_state, &context.public_key)?;
 
-    if account.billing_info.data_cap() == PREMIUM_TIER_USAGE_SIZE {
+    if account.billing_info.is_premium() {
         return Err(ClientError(UpgradeAccountStripeError::AlreadyPremium));
     }
 
@@ -318,7 +320,7 @@ pub async fn cancel_subscription(
             info.account_state = GooglePlayAccountState::Canceled;
             debug!("Successfully canceled google play subscription of user");
         }
-        Some(BillingPlatform::Stripe(ref info)) => {
+        Some(BillingPlatform::Stripe(ref mut info)) => {
             debug!("Canceling stripe subscription of user");
 
             stripe_client::cancel_subscription(
@@ -328,7 +330,7 @@ pub async fn cancel_subscription(
                 .await
                 .map_err::<ServerError<CancelSubscriptionError>, _>(|err| internal!("{:?}", err))?;
 
-            account.billing_info.billing_platform = None;
+            info.account_state = StripeAccountState::Canceled;
 
             debug!("Successfully canceled stripe subscription");
         }
@@ -344,6 +346,73 @@ pub async fn cancel_subscription(
     )?;
 
     Ok(CancelSubscriptionResponse {})
+}
+
+pub async fn admin_upgrade_to_premium(
+    context: RequestContext<'_, AdminUpgradeToPremiumRequest>,
+) -> Result<AdminUpgradeToPremiumResponse, ServerError<AdminUpgradeToPremiumError>> {
+    let (request, server_state) = (&context.request, context.server_state);
+    let mut account = lock_subscription_profile(server_state, &context.public_key)?;
+
+    let billing_config = &server_state.config.billing;
+
+    account.billing_info.billing_platform = match &request.info {
+        AdminUpgradeToPremiumInfo::Stripe {
+            customer_id,
+            customer_name,
+            payment_method_id,
+            last_4,
+            subscription_id,
+            expiration_time,
+            account_state,
+        } => Some(BillingPlatform::Stripe(StripeUserInfo {
+            customer_id: customer_id.to_string(),
+            customer_name: *customer_name,
+            price_id: billing_config.stripe.premium_price_id.to_string(),
+            payment_method_id: payment_method_id.to_string(),
+            last_4: last_4.to_string(),
+            subscription_id: subscription_id.to_string(),
+            expiration_time: *expiration_time,
+            account_state: account_state.clone(),
+        })),
+        AdminUpgradeToPremiumInfo::GooglePlay {
+            purchase_token,
+            expiration_time,
+            account_state,
+        } => Some(BillingPlatform::GooglePlay(GooglePlayUserInfo {
+            purchase_token: purchase_token.clone(),
+            subscription_product_id: billing_config
+                .google
+                .premium_subscription_product_id
+                .to_string(),
+            subscription_offer_id: billing_config
+                .google
+                .premium_subscription_offer_id
+                .to_string(),
+            expiration_time: *expiration_time,
+            account_state: account_state.clone(),
+        })),
+        AdminUpgradeToPremiumInfo::AppStore {
+            account_token,
+            original_transaction_id,
+            expiration_time,
+            account_state,
+        } => Some(BillingPlatform::AppStore(AppStoreUserInfo {
+            account_token: account_token.to_string(),
+            original_transaction_id: original_transaction_id.to_string(),
+            subscription_product_id: billing_config.apple.subscription_product_id.to_string(),
+            expiration_time: *expiration_time,
+            account_state: account_state.clone(),
+        })),
+    };
+
+    release_subscription_profile::<AdminUpgradeToPremiumError>(
+        server_state,
+        &context.public_key,
+        account,
+    )?;
+
+    Ok(AdminUpgradeToPremiumResponse {})
 }
 
 async fn save_subscription_profile<T: Debug, F: Fn(&mut Account) -> Result<(), ServerError<T>>>(
@@ -397,8 +466,18 @@ pub async fn stripe_webhooks(
                 );
 
                 save_subscription_profile(server_state, &public_key, |account| {
-                    account.billing_info.billing_platform = None;
-                    Ok(())
+                    if let Some(BillingPlatform::Stripe(ref mut info)) =
+                        account.billing_info.billing_platform
+                    {
+                        info.account_state = StripeAccountState::InvoiceFailed;
+
+                        Ok(())
+                    } else {
+                        Err(internal!(
+                            "Cannot get any billing info for user. public_key: {:?}",
+                            public_key
+                        ))
+                    }
                 })
                 .await?;
             }
@@ -417,9 +496,20 @@ pub async fn stripe_webhooks(
                     Some(stripe::Expandable::Object(subscription)) => {
                         subscription.current_period_end
                     }
-                    _ => {
+                    Some(stripe::Expandable::Id(subscription_id)) => {
+                        stripe_client::get_subscription(
+                            &server_state.stripe_client,
+                            subscription_id,
+                        )
+                        .await
+                        .map_err::<ServerError<StripeWebhookError>, _>(|err| {
+                            internal!("{:?}", err)
+                        })?
+                        .current_period_end
+                    }
+                    None => {
                         return Err(internal!(
-                            "The subscription should be expanded in this invoice: {:?}",
+                            "The subscription should be included in this invoice: {:?}",
                             invoice
                         ));
                     }
@@ -429,9 +519,16 @@ pub async fn stripe_webhooks(
                     if let Some(BillingPlatform::Stripe(ref mut info)) =
                         account.billing_info.billing_platform
                     {
+                        info.account_state = StripeAccountState::Ok;
                         info.expiration_time = subscription_period_end as u64;
+
+                        Ok(())
+                    } else {
+                        Err(internal!(
+                            "Cannot get any billing info for user. public_key: {:?}",
+                            public_key
+                        ))
                     }
-                    Ok(())
                 })
                 .await?;
             }
@@ -599,14 +696,20 @@ pub async fn app_store_notification_webhook(
 
     let trans = app_store_service::decode_verify_transaction(
         &server_state.config.billing.apple,
-        &resp.clone().data.encoded_transaction_info.unwrap(),
+        &resp
+            .clone()
+            .data
+            .encoded_transaction_info
+            .ok_or(ClientError(AppStoreNotificationError::InvalidJWS))?,
     )?;
     let public_key = app_store_service::get_public_key(server_state, &trans)?;
 
     let owner = Owner(public_key);
+    let maybe_username = server_state.index_db.accounts.get(&owner)?;
 
     info!(
         ?owner,
+        ?maybe_username,
         ?resp.notification_type,
         ?resp.subtype,
         "Updating app store user's subscription profile to match new subscription state"
@@ -648,7 +751,7 @@ pub async fn app_store_notification_webhook(
                     }
                 }
                 NotificationChange::GracePeriodExpired => {
-                    account.billing_info.billing_platform = None;
+                    info.account_state = AppStoreAccountState::Expired
                 }
                 NotificationChange::Refund => {
                     info!(?resp, "A user has requested a refund.");

@@ -14,6 +14,7 @@ public enum ViewType {
 }
 
 class DocumentLoader: ObservableObject {
+    
     let core: LockbookApi
 
     @Published var meta: File?
@@ -54,7 +55,7 @@ class DocumentLoader: ObservableObject {
 
         switch type {
         case .Markdown:
-            loadText()
+            loadMarkdown()
             #if os(iOS)
         case .Drawing:
             loadDrawing()
@@ -80,6 +81,7 @@ class DocumentLoader: ObservableObject {
                         switch operation {
                         case .success(let txt):
                             if txt != self.textDocument {
+                                print("reload true")
                                 self.reloadContent = true
                                 self.textDocument = txt
                             }
@@ -126,7 +128,7 @@ class DocumentLoader: ObservableObject {
                 .store(in: &cancellables)
     }
 
-    private func loadText() {
+    private func loadMarkdown() {
         if let meta = self.meta {
 
             DispatchQueue.global(qos: .userInitiated).async {
@@ -247,3 +249,25 @@ class DocumentLoader: ObservableObject {
         }
     }
 }
+
+#if os(macOS)
+import SwiftEditor
+extension DocumentLoader: TextLoader {
+    func textReloadNeeded() -> Bool {
+        self.reloadContent
+    }
+    
+    func textReloaded() {
+        self.reloadContent = false
+        print("reload false")
+    }
+    
+    func loadText() -> String {
+        self.textDocument!
+    }
+    
+    func documentChanged(s: String) {
+        self.textDocument = s
+    }
+}
+#endif

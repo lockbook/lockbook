@@ -1,6 +1,7 @@
 use std::ffi::{CStr, CString};
 use std::os::raw::c_char;
 
+use lockbook_shared::file::ShareMode;
 use serde::Serialize;
 use serde_json::json;
 use uuid::Uuid;
@@ -41,6 +42,12 @@ unsafe fn file_type_from_ptr(s: *const c_char) -> FileType {
     str_from_ptr(s)
         .parse()
         .expect("Could not String -> FileType")
+}
+
+unsafe fn share_mode_from_ptr(s: *const c_char) -> ShareMode {
+    str_from_ptr(s)
+        .parse()
+        .expect("Could not String -> ShareMode")
 }
 
 unsafe fn filter_from_ptr(s: *const c_char) -> Option<Filter> {
@@ -127,6 +134,17 @@ pub unsafe extern "C" fn get_account() -> *const c_char {
 ///
 /// Be sure to call `release_pointer` on the result of this function to free the data.
 #[no_mangle]
+pub unsafe extern "C" fn delete_account() -> *const c_char {
+    c_string(match static_state::get() {
+        Ok(core) => translate(core.delete_account()),
+        e => translate(e.map(|_| ())),
+    })
+}
+
+/// # Safety
+///
+/// Be sure to call `release_pointer` on the result of this function to free the data.
+#[no_mangle]
 pub unsafe extern "C" fn create_file_at_path(path_and_name: *const c_char) -> *const c_char {
     c_string(match static_state::get() {
         Ok(core) => translate(core.create_at_path(&str_from_ptr(path_and_name))),
@@ -163,6 +181,26 @@ pub unsafe extern "C" fn create_file(
             uuid_from_ptr(parent),
             file_type_from_ptr(file_type),
         )),
+        e => translate(e.map(|_| ())),
+    })
+}
+
+/// # Safety
+///
+/// Be sure to call `release_pointer` on the result of this function to free the data.
+#[no_mangle]
+pub unsafe extern "C" fn create_link(
+    name: *const c_char, parent: *const c_char, target: *const c_char,
+) -> *const c_char {
+    c_string(match static_state::get() {
+        Ok(core) => translate(
+            core.create_file(
+                &str_from_ptr(name),
+                uuid_from_ptr(parent),
+                FileType::Link { target: uuid_from_ptr(target) },
+            )
+            .map(|_| ()),
+        ),
         e => translate(e.map(|_| ())),
     })
 }
@@ -426,6 +464,45 @@ pub unsafe extern "C" fn upgrade_account_app_store(
 pub unsafe extern "C" fn cancel_subscription() -> *const c_char {
     c_string(match static_state::get() {
         Ok(core) => translate(core.cancel_subscription()),
+        e => translate(e.map(|_| ())),
+    })
+}
+
+/// # Safety
+///
+/// Be sure to call `release_pointer` on the result of this function to free the data.
+#[no_mangle]
+pub unsafe extern "C" fn share_file(
+    id: *const c_char, username: *const c_char, share_mode: *const c_char,
+) -> *const c_char {
+    c_string(match static_state::get() {
+        Ok(core) => translate(core.share_file(
+            uuid_from_ptr(id),
+            &str_from_ptr(username),
+            share_mode_from_ptr(share_mode),
+        )),
+        e => translate(e.map(|_| ())),
+    })
+}
+
+/// # Safety
+///
+/// Be sure to call `release_pointer` on the result of this function to free the data.
+#[no_mangle]
+pub unsafe extern "C" fn get_pending_shares() -> *const c_char {
+    c_string(match static_state::get() {
+        Ok(core) => translate(core.get_pending_shares()),
+        e => translate(e.map(|_| ())),
+    })
+}
+
+/// # Safety
+///
+/// Be sure to call `release_pointer` on the result of this function to free the data.
+#[no_mangle]
+pub unsafe extern "C" fn delete_pending_share(id: *const c_char) -> *const c_char {
+    c_string(match static_state::get() {
+        Ok(core) => translate(core.delete_pending_share(uuid_from_ptr(id))),
         e => translate(e.map(|_| ())),
     })
 }

@@ -249,8 +249,18 @@ impl AccountScreen {
 
         // Alt-{1-9} to easily navigate tabs (9 will always go to the last tab).
         for i in 1..10 {
-            if ctx.input_mut().consume_key(ALT, NUM_KEYS[i - 1]) {
+            let mut input = ctx.input_mut();
+            if input.consume_key(ALT, NUM_KEYS[i - 1]) {
                 self.workspace.goto_tab(i);
+                // Remove any text event that's also present this frame so that it doesn't show up
+                // in the editor.
+                if let Some(index) = input
+                    .events
+                    .iter()
+                    .position(|evt| *evt == egui::Event::Text(i.to_string()))
+                {
+                    input.events.remove(index);
+                }
                 if let Some(tab) = self.workspace.current_tab() {
                     frame.set_window_title(&tab.name);
                 }

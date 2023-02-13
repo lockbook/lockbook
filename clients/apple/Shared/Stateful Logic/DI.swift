@@ -12,6 +12,7 @@ class DI {
     static let status = StatusService(core)
     static let files = FileService(core)
     static let sync = SyncService(core)
+    static let share = ShareService(core)
     static let onboarding = OnboardingService(core)
     static let documentLoader = DocumentLoader(core)
     static let sheets: SheetState = SheetState()
@@ -19,6 +20,18 @@ class DI {
     #if os(iOS)
     static let toolbarModel = ToolbarModel()
     #endif
+    
+    public static func accountDeleted() {
+        DI.accounts.account = nil
+        DI.settings.usages = nil
+        DI.files.root = nil
+        DI.files.files = []
+        DI.onboarding.theyChoseToBackup = false
+        DI.onboarding.username = ""
+        DI.documentLoader.meta = nil
+        DI.documentLoader.type = nil
+        DI.currentDoc.selectedItem = nil
+    }
 }
 
 class Mock {
@@ -33,6 +46,7 @@ class Mock {
     static let status = StatusService(core)
     static let files = FileService(core)
     static let sync = SyncService(core)
+    static let share = ShareService(core)
     static let onboarding = OnboardingService(core)
     static let documentLoader = DocumentLoader(core)
     static let sheets: SheetState = SheetState()
@@ -66,6 +80,7 @@ extension View {
             .environmentObject(DI.sheets)
             .environmentObject(DI.currentDoc)
             .environmentObject(DI.billing)
+            .environmentObject(DI.share)
     }
     
     public func mockiOSDI() -> some View {
@@ -92,5 +107,6 @@ extension View {
             .environmentObject(Mock.sheets)
             .environmentObject(Mock.currentDoc)
             .environmentObject(Mock.billing)
+            .environmentObject(Mock.share)
     }
 }
