@@ -24,11 +24,8 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
         let doc = tree.read_document(self.config, &id, account)?;
 
         let mut doc_events = self.tx.docs_events.get(&id).unwrap_or(&Vec::new()).clone();
-        doc_events.sort();
-        let latest_event = doc_events
-            .iter()
-            .filter(|e| matches!(e, DocEvents::Read(_)))
-            .last();
+        doc_events.sort_by(|a, b| b.cmp(a)); //sort in descending order
+        let latest_event = doc_events.iter().find(|e| matches!(e, DocEvents::Read(_)));
 
         let is_capped = match latest_event {
             Some(event) => Utc::now().timestamp() - event.timestamp() > RATE_LIMIT_MILLIS,

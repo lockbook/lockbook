@@ -33,7 +33,7 @@ impl CoreV3 {
 
         if db.account.get_all()?.is_empty() {
             let source = CoreV2::init(writeable_path)?;
-            db.transaction(|tx| {
+            let result = db.transaction(|tx| {
                 for v in source.account.get_all()?.into_values() {
                     tx.account.insert(OneKey {}, v);
                 }
@@ -56,8 +56,12 @@ impl CoreV3 {
                     tx.username_by_public_key.insert(k, v);
                 }
                 Ok::<_, hmdb::errors::Error>(())
-            })
-            .expect("failed to migrate local database from v2 to v3")?;
+            });
+            if result.is_err() {
+                Err(CoreError::Unexpected(
+                    "failed to migrate local database from v2 to v3".to_string(),
+                ))?;
+            }
         }
 
         Ok(db)

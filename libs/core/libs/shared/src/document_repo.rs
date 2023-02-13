@@ -3,6 +3,7 @@ use crate::crypto::*;
 use crate::file_metadata::DocumentHmac;
 use crate::{SharedError, SharedResult};
 use serde::{Deserialize, Serialize};
+use std::cmp::Ordering;
 use std::collections::HashSet;
 use std::convert::TryInto;
 use std::fs::{self, File, OpenOptions};
@@ -25,15 +26,39 @@ impl DocEvents {
     }
 }
 
-#[derive(Default, Copy, Clone, PartialEq, PartialOrd)]
+#[derive(Default, Copy, Clone)]
 pub struct StatisticValue {
     pub raw: i64,
-    pub normalized: Option<f64>,
+    pub normalized: f64,
+}
+impl Ord for StatisticValue {
+    fn cmp(&self, other: &Self) -> Ordering {
+        (self.raw).cmp(&other.raw)
+    }
 }
 
+impl PartialOrd for StatisticValue {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl PartialEq for StatisticValue {
+    fn eq(&self, other: &Self) -> bool {
+        (self.raw, &self.normalized) == (other.raw, &other.normalized)
+    }
+}
+
+impl Eq for StatisticValue {}
+
+#[derive(Clone, Copy)]
+pub struct StatisticValueRange {
+    pub max: StatisticValue,
+    pub min: StatisticValue,
+}
 impl StatisticValue {
-    pub fn normalize(&mut self, max: StatisticValue, min: StatisticValue) {
-        self.normalized = Some((self.raw - min.raw) as f64 / (max.raw - min.raw) as f64)
+    pub fn normalize(&mut self, range: StatisticValueRange) {
+        self.normalized = (self.raw - range.min.raw) as f64 / (range.max.raw - range.min.raw) as f64
     }
 }
 
@@ -45,12 +70,9 @@ pub struct DocActivityMetrics {
     pub write_count: StatisticValue,
 }
 impl DocActivityMetrics {
-    pub fn rank_doc_activity(&self) -> i64 {
-        (self.avg_read_timestamp.normalized.unwrap() + self.avg_read_timestamp.normalized.unwrap())
-            as i64
-            * 70
-            + (self.read_count.normalized.unwrap() + self.write_count.normalized.unwrap()) as i64
-                * 30
+    pub fn rank(&self) -> i64 {
+        (self.avg_read_timestamp.normalized + self.avg_write_timestamp.normalized) as i64 * 70
+            + (self.read_count.normalized + self.write_count.normalized) as i64 * 30
     }
 }
 pub trait Stats {
@@ -81,10 +103,22 @@ where
         let avg_write_timestamp = write_sum / write_activity.len() as i64;
 
         DocActivityMetrics {
-            avg_read_timestamp: StatisticValue { raw: avg_read_timestamp, normalized: None },
-            avg_write_timestamp: StatisticValue { raw: avg_write_timestamp, normalized: None },
-            read_count: StatisticValue { raw: read_activity.len() as i64, normalized: None },
-            write_count: StatisticValue { raw: write_activity.len() as i64, normalized: None },
+            avg_read_timestamp: StatisticValue {
+                raw: avg_read_timestamp,
+                normalized: f64::default(),
+            },
+            avg_write_timestamp: StatisticValue {
+                raw: avg_write_timestamp,
+                normalized: f64::default(),
+            },
+            read_count: StatisticValue {
+                raw: read_activity.len() as i64,
+                normalized: f64::default(),
+            },
+            write_count: StatisticValue {
+                raw: write_activity.len() as i64,
+                normalized: f64::default(),
+            },
         }
     }
 }
