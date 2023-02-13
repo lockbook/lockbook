@@ -60,8 +60,7 @@ macro_rules! internal {
 pub fn handle_version_header<Req: Request>(
     config: &config::Config, version: &Option<String>,
 ) -> Result<(), ErrorWrapper<Req::Error>> {
-    let incompatible_versions = &config.server.incompatible_core_versions;
-
+    let incompatible_versions = &config.server.deprecated_core_versions;
     let v = &version.clone().unwrap_or_default();
     if version.is_none() || incompatible_versions.contains(v) {
         return Err(ErrorWrapper::<Req::Error>::ClientUpdateRequired);
