@@ -60,34 +60,18 @@ macro_rules! internal {
 pub fn handle_version_header<Req: Request>(
     config: &config::Config, version: &Option<String>,
 ) -> Result<(), ErrorWrapper<Req::Error>> {
-    let versions = &config.server.compatible_core_versions;
-    match version {
-        Some(x) if versions.contains(x) => {
-            router_service::CORE_VERSION_COUNTER
-                .with_label_values(&[x])
-                .inc();
-            Ok(())
-        }
-        _ => Err(ErrorWrapper::<Req::Error>::ClientUpdateRequired),
+    let incompatible_versions = &config.server.incompatible_core_versions;
+
+    let v = &version.clone().unwrap_or_default();
+    if version.is_none() || incompatible_versions.contains(v) {
+        return Err(ErrorWrapper::<Req::Error>::ClientUpdateRequired);
     }
+    router_service::CORE_VERSION_COUNTER
+        .with_label_values(&[v])
+        .inc();
+    Ok(())
 }
 
-pub fn handle_version_body<Req: Request>(
-    config: &config::Config, request: &RequestWrapper<Req>,
-) -> Result<(), ErrorWrapper<Req::Error>> {
-    let versions = &config.server.compatible_core_versions;
-    let client_version = &request.client_version;
-
-    match versions.contains(client_version) {
-        true => {
-            router_service::CORE_VERSION_COUNTER
-                .with_label_values(&[client_version.as_str()])
-                .inc();
-            Ok(())
-        }
-        false => Err(ErrorWrapper::<Req::Error>::ClientUpdateRequired),
-    }
-}
 pub fn verify_auth<TRequest: Request + Serialize>(
     server_state: &ServerState, request: &RequestWrapper<TRequest>,
 ) -> Result<(), SharedError> {
