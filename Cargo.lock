@@ -221,25 +221,7 @@ dependencies = [
  "parking_lot",
  "thiserror",
  "winapi 0.3.9",
- "x11rb 0.9.0",
-]
-
-[[package]]
-name = "arboard"
-version = "3.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d6041616acea41d67c4a984709ddab1587fd0b10efe5cc563fee954d2f011854"
-dependencies = [
- "clipboard-win",
- "log 0.4.17",
- "objc",
- "objc-foundation",
- "objc_id",
- "once_cell",
- "parking_lot",
- "thiserror",
- "winapi 0.3.9",
- "x11rb 0.10.1",
+ "x11rb",
 ]
 
 [[package]]
@@ -1568,29 +1550,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "eframe"
-version = "0.20.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5ea929ec5819fef373728bb0e55003ce921975039cfec3ca8305bb024e5b7b32"
-dependencies = [
- "bytemuck",
- "dark-light",
- "egui 0.20.1",
- "egui-winit 0.20.1",
- "egui_glow 0.20.1",
- "glow 0.11.2",
- "glutin 0.30.6",
- "js-sys",
- "percent-encoding 2.1.0",
- "raw-window-handle 0.5.0",
- "tracing",
- "wasm-bindgen",
- "wasm-bindgen-futures",
- "web-sys",
- "winit",
-]
-
-[[package]]
 name = "egui"
 version = "0.20.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1615,23 +1574,7 @@ dependencies = [
  "instant",
  "smithay-clipboard",
  "tracing",
- "webbrowser 0.7.1",
- "winit",
-]
-
-[[package]]
-name = "egui-winit"
-version = "0.20.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5696bdbe60898b81157f07ae34fe02dbfd522174bd6e620942c269cd7307901f"
-dependencies = [
- "accesskit_winit",
- "arboard 3.2.0",
- "egui 0.20.1",
- "instant",
- "smithay-clipboard",
- "tracing",
- "webbrowser 0.8.7",
+ "webbrowser",
  "winit",
 ]
 
@@ -1639,8 +1582,8 @@ dependencies = [
 name = "egui_editor"
 version = "0.5.11"
 dependencies = [
- "eframe 0.20.1",
- "egui 0.20.1",
+ "eframe",
+ "egui",
  "egui_wgpu_backend",
  "image",
  "libc",
@@ -1656,18 +1599,7 @@ version = "0.20.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1975cd88ff7430f93b29e6b9868b648a8ff6a43b08b9ff8474ee0a648bd8f9a6"
 dependencies = [
- "egui 0.19.0",
- "image",
- "serde",
-]
-
-[[package]]
-name = "egui_extras"
-version = "0.20.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1975cd88ff7430f93b29e6b9868b648a8ff6a43b08b9ff8474ee0a648bd8f9a6"
-dependencies = [
- "egui 0.20.1",
+ "egui",
  "image",
  "serde",
 ]
@@ -1694,7 +1626,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1c5312739ff1ef26ce3015926576b0fd2d77a82c44fc214cfb1d6b0864da9b41"
 dependencies = [
  "bytemuck",
- "egui 0.20.1",
+ "egui",
  "wgpu",
 ]
 
@@ -1703,15 +1635,6 @@ name = "either"
 version = "1.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3f107b87b6afc2a64fd13cac55fe06d6c8859f12d4b14cbcdd2c67d0976781be"
-
-[[package]]
-name = "emath"
-version = "0.20.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5277249c8c3430e7127e4f2c40a77485e7baf11ae132ce9b3253a8ed710df0a0"
-dependencies = [
- "bytemuck",
-]
 
 [[package]]
 name = "emath"
@@ -2317,29 +2240,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "glutin"
-version = "0.30.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "68dc39a51f661324ea93bf87066d62ee6e83439c4260332695478186ec318cac"
-dependencies = [
- "bitflags",
- "cfg_aliases",
- "cgl",
- "core-foundation",
- "dispatch",
- "glutin_egl_sys 0.4.0",
- "glutin_glx_sys 0.4.0",
- "glutin_wgl_sys 0.4.0",
- "libloading",
- "objc2",
- "once_cell",
- "raw-window-handle 0.5.0",
- "wayland-sys 0.30.1",
- "windows-sys 0.45.0",
- "x11-dl",
-]
-
-[[package]]
 name = "glutin_egl_sys"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2357,25 +2257,6 @@ checksum = "1b53cb5fe568964aa066a3ba91eac5ecbac869fb0842cd0dc9e412434f1a1494"
 dependencies = [
  "gl_generator",
  "x11-dl",
-]
-
-[[package]]
-name = "glutin_glx_sys"
-version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1b53cb5fe568964aa066a3ba91eac5ecbac869fb0842cd0dc9e412434f1a1494"
-dependencies = [
- "gl_generator",
- "x11-dl",
-]
-
-[[package]]
-name = "glutin_wgl_sys"
-version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ef89398e90033fc6bc65e9bd42fd29bbbfd483bda5b56dc5562f455550618165"
-dependencies = [
- "gl_generator",
 ]
 
 [[package]]
@@ -3005,20 +2886,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "jni"
-version = "0.20.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "039022cdf4d7b1cf548d31f60ae783138e5fd42013f6271049d7df7afadef96c"
-dependencies = [
- "cesu8",
- "combine 4.6.6",
- "jni-sys",
- "log 0.4.17",
- "thiserror",
- "walkdir",
-]
-
-[[package]]
 name = "jni-sys"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3295,10 +3162,10 @@ name = "lockbook-egui"
 version = "0.5.11"
 dependencies = [
  "dark-light",
- "eframe 0.20.1",
- "egui-winit 0.20.1",
+ "eframe",
+ "egui-winit",
  "egui_editor",
- "egui_extras 0.20.0",
+ "egui_extras",
  "image",
  "lockbook-core",
  "serde",
@@ -6237,23 +6104,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "webbrowser"
-version = "0.8.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "97d1fa1e5c829b2bf9eb1e28fb950248b797cd6a04866fbdfa8bc31e5eef4c78"
-dependencies = [
- "core-foundation",
- "dirs",
- "jni 0.20.0",
- "log 0.4.17",
- "ndk-context",
- "objc",
- "raw-window-handle 0.5.0",
- "url 2.2.2",
- "web-sys",
-]
-
-[[package]]
 name = "webpki"
 version = "0.21.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6679,8 +6529,8 @@ dependencies = [
 name = "winstaller"
 version = "0.5.11"
 dependencies = [
- "eframe 0.19.0",
- "egui_extras 0.19.0",
+ "eframe",
+ "egui_extras",
  "image",
  "mslnk",
 ]
@@ -6713,28 +6563,6 @@ dependencies = [
  "lazy_static",
  "libc",
  "pkg-config",
-]
-
-[[package]]
-name = "x11rb"
-version = "0.10.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "592b4883219f345e712b3209c62654ebda0bb50887f330cbd018d0f654bfd507"
-dependencies = [
- "gethostname",
- "nix 0.24.2",
- "winapi 0.3.9",
- "winapi-wsapoll",
- "x11rb-protocol",
-]
-
-[[package]]
-name = "x11rb-protocol"
-version = "0.10.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "56b245751c0ac9db0e006dc812031482784e434630205a93c73cfefcaabeac67"
-dependencies = [
- "nix 0.24.2",
 ]
 
 [[package]]
