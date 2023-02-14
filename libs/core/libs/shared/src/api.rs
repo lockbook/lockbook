@@ -679,7 +679,7 @@ impl Request for AdminFileInfoRequest {
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
-pub enum AdminUpgradeToPremiumInfo {
+pub enum AdminSetUserTierInfo {
     Stripe {
         customer_id: String,
         customer_name: Uuid,
@@ -705,25 +705,26 @@ pub enum AdminUpgradeToPremiumInfo {
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
-pub struct AdminUpgradeToPremiumRequest {
-    pub info: AdminUpgradeToPremiumInfo,
+pub struct AdminSetUserTierRequest {
+    pub username: String,
+    pub info: AdminSetUserTierInfo,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct AdminUpgradeToPremiumResponse {}
+pub struct AdminSetUserTierResponse {}
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
-pub enum AdminUpgradeToPremiumError {
+pub enum AdminSetUserTierError {
     UserNotFound,
     NotPermissioned,
     ExistingRequestPending,
 }
 
-impl Request for AdminUpgradeToPremiumRequest {
-    type Response = AdminUpgradeToPremiumResponse;
-    type Error = AdminUpgradeToPremiumError;
-    const METHOD: Method = Method::GET;
-    const ROUTE: &'static str = "/admin-upgrade-to-premium";
+impl Request for AdminSetUserTierRequest {
+    type Response = AdminSetUserTierResponse;
+    type Error = AdminSetUserTierError;
+    const METHOD: Method = Method::POST;
+    const ROUTE: &'static str = "/admin-set-user-tier";
 }
 
 // number of milliseconds that have elapsed since the unix epoch

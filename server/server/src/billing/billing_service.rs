@@ -17,8 +17,8 @@ use base64::DecodeError;
 use hmdb::transaction::Transaction;
 use libsecp256k1::PublicKey;
 use lockbook_shared::api::{
-    AdminUpgradeToPremiumError, AdminUpgradeToPremiumInfo, AdminUpgradeToPremiumRequest,
-    AdminUpgradeToPremiumResponse, AppStoreAccountState, CancelSubscriptionError,
+    AdminSetUserTierError, AdminSetUserTierInfo, AdminSetUserTierRequest,
+    AdminSetUserTierResponse, AppStoreAccountState, CancelSubscriptionError,
     CancelSubscriptionRequest, CancelSubscriptionResponse, GetSubscriptionInfoError,
     GetSubscriptionInfoRequest, GetSubscriptionInfoResponse, GooglePlayAccountState,
     PaymentPlatform, StripeAccountState, SubscriptionInfo, UpgradeAccountAppStoreError,
@@ -348,16 +348,20 @@ pub async fn cancel_subscription(
     Ok(CancelSubscriptionResponse {})
 }
 
-pub async fn admin_upgrade_to_premium(
-    context: RequestContext<'_, AdminUpgradeToPremiumRequest>,
-) -> Result<AdminUpgradeToPremiumResponse, ServerError<AdminUpgradeToPremiumError>> {
+pub async fn admin_set_user_tier(
+    context: RequestContext<'_, AdminSetUserTierRequest>,
+) -> Result<AdminSetUserTierResponse, ServerError<AdminSetUserTierError>> {
     let (request, server_state) = (&context.request, context.server_state);
-    let mut account = lock_subscription_profile(server_state, &context.public_key)?;
+    let public_key = server_state.index_db.usernames
+        .get(&request.username)?
+        .ok_or(ClientError(AdminSetUserTierError::UserNotFound))?
+        .0;
+    let mut account = lock_subscription_profile(server_state, &public_key)?;
 
     let billing_config = &server_state.config.billing;
 
     account.billing_info.billing_platform = match &request.info {
-        AdminUpgradeToPremiumInfo::Stripe {
+        AdminSetUserTierInfo::Stripe {
             customer_id,
             customer_name,
             payment_method_id,
@@ -375,7 +379,7 @@ pub async fn admin_upgrade_to_premium(
             expiration_time: *expiration_time,
             account_state: account_state.clone(),
         })),
-        AdminUpgradeToPremiumInfo::GooglePlay {
+        AdminSetUserTierInfo::GooglePlay {
             purchase_token,
             expiration_time,
             account_state,
@@ -392,7 +396,7 @@ pub async fn admin_upgrade_to_premium(
             expiration_time: *expiration_time,
             account_state: account_state.clone(),
         })),
-        AdminUpgradeToPremiumInfo::AppStore {
+        AdminSetUserTierInfo::AppStore {
             account_token,
             original_transaction_id,
             expiration_time,
@@ -406,13 +410,13 @@ pub async fn admin_upgrade_to_premium(
         })),
     };
 
-    release_subscription_profile::<AdminUpgradeToPremiumError>(
+    release_subscription_profile::<AdminSetUserTierError>(
         server_state,
         &context.public_key,
         account,
     )?;
 
-    Ok(AdminUpgradeToPremiumResponse {})
+    Ok(AdminSetUserTierResponse {})
 }
 
 async fn save_subscription_profile<T: Debug, F: Fn(&mut Account) -> Result<(), ServerError<T>>>(

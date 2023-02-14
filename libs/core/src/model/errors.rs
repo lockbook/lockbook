@@ -1261,7 +1261,7 @@ impl From<CoreError> for Error<FeatureFlagError> {
 }
 
 #[derive(Debug, Serialize, EnumIter)]
-pub enum AdminUpgradeToPremiumError {
+pub enum AdminSetUserTierError {
     InsufficientPermission,
     UsernameNotFound,
     ExistingRequestPending,
@@ -1269,21 +1269,17 @@ pub enum AdminUpgradeToPremiumError {
     ClientUpdateRequired,
 }
 
-impl From<CoreError> for Error<AdminUpgradeToPremiumError> {
+impl From<CoreError> for Error<AdminSetUserTierError> {
     fn from(e: CoreError) -> Self {
         match e {
             CoreError::InsufficientPermission => {
-                UiError(AdminUpgradeToPremiumError::InsufficientPermission)
+                UiError(AdminSetUserTierError::InsufficientPermission)
             }
-            CoreError::UsernameNotFound => UiError(AdminUpgradeToPremiumError::UsernameNotFound),
-            CoreError::ServerUnreachable => {
-                UiError(AdminUpgradeToPremiumError::CouldNotReachServer)
-            }
-            CoreError::ClientUpdateRequired => {
-                UiError(AdminUpgradeToPremiumError::ClientUpdateRequired)
-            }
+            CoreError::UsernameNotFound => UiError(AdminSetUserTierError::UsernameNotFound),
+            CoreError::ServerUnreachable => UiError(AdminSetUserTierError::CouldNotReachServer),
+            CoreError::ClientUpdateRequired => UiError(AdminSetUserTierError::ClientUpdateRequired),
             CoreError::ExistingRequestPending => {
-                UiError(AdminUpgradeToPremiumError::ExistingRequestPending)
+                UiError(AdminSetUserTierError::ExistingRequestPending)
             }
             _ => unexpected!("{:#?}", e),
         }
