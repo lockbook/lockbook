@@ -137,7 +137,7 @@ pub struct ServerConfig {
     pub pd_api_key: Option<String>,
     pub ssl_cert_location: Option<String>,
     pub ssl_private_key_location: Option<String>,
-    pub compatible_core_versions: Vec<String>,
+    pub deprecated_core_versions: Vec<String>,
 }
 
 impl ServerConfig {
@@ -149,7 +149,7 @@ impl ServerConfig {
         let pd_api_key = env_or_empty("PD_KEY");
         let ssl_cert_location = env_or_empty("SSL_CERT_LOCATION");
         let ssl_private_key_location = env_or_empty("SSL_PRIVATE_KEY_LOCATION");
-        let compatible_core_versions = env_or_panic("CORE_VERSIONS")
+        let deprecated_core_versions = env_or_panic("DEPRECATED_CORE_VERSIONS")
             .split(", ")
             .map(|part| part.to_string())
             .collect();
@@ -169,7 +169,7 @@ impl ServerConfig {
             pd_api_key,
             ssl_cert_location,
             ssl_private_key_location,
-            compatible_core_versions,
+            deprecated_core_versions,
         }
     }
 }

@@ -1,8 +1,8 @@
+use crate::account_service::*;
 use crate::billing::billing_service;
 use crate::billing::billing_service::*;
 use crate::file_service::*;
 use crate::utils::get_build_info;
-use crate::{account_service::*, handle_version_body};
 use crate::{handle_version_header, router_service, verify_auth, ServerError, ServerState};
 use lazy_static::lazy_static;
 use lockbook_shared::api::*;
@@ -345,15 +345,12 @@ pub fn deserialize_and_check<Req>(
 where
     Req: Request + DeserializeOwned + Serialize,
 {
+    handle_version_header::<Req>(&server_state.config, &version)?;
+
     let request = serde_json::from_slice(request.as_ref()).map_err(|err| {
         warn!("Request parsing failure: {}", err);
         ErrorWrapper::<Req::Error>::BadRequest
     })?;
-
-    // todo: get rid of body checking and just rely on header check.
-    if handle_version_header::<Req>(&server_state.config, &version).is_err() {
-        handle_version_body::<Req>(&server_state.config, &request)?;
-    };
 
     verify_auth(server_state, &request).map_err(|err| match err {
         SharedError::SignatureExpired(_) | SharedError::SignatureInTheFuture(_) => {
