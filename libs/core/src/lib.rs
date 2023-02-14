@@ -18,7 +18,7 @@ pub use uuid::Uuid;
 pub use lockbook_shared::account::Account;
 pub use lockbook_shared::api::ServerIndex;
 pub use lockbook_shared::api::{
-    AccountFilter, AccountIdentifier, AdminUpgradeToPremiumInfo, AppStoreAccountState,
+    AccountFilter, AccountIdentifier, AdminSetUserTierInfo, AppStoreAccountState,
     GooglePlayAccountState, PaymentMethod, PaymentPlatform, StripeAccountState, StripeAccountTier,
     SubscriptionInfo, UnixTimeMillis,
 };
@@ -464,10 +464,10 @@ impl<Client: Requester> CoreLib<Client> {
     }
 
     #[instrument(level = "debug", skip(self, info), err(Debug))]
-    pub fn admin_upgrade_to_premium(
-        &self, info: AdminUpgradeToPremiumInfo,
-    ) -> Result<(), Error<AdminUpgradeToPremiumError>> {
-        Ok(self.in_tx(|s| s.upgrade_to_premium(info))?)
+    pub fn admin_set_user_tier(
+        &self, username: &str, info: AdminSetUserTierInfo,
+    ) -> Result<(), Error<AdminSetUserTierError>> {
+        Ok(self.in_tx(|s| s.set_user_tier(username, info))?)
     }
 }
 

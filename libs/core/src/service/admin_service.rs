@@ -141,18 +141,20 @@ impl<Client: Requester> CoreState<Client> {
             })
     }
 
-    pub(crate) fn upgrade_to_premium(&self, info: AdminUpgradeToPremiumInfo) -> CoreResult<()> {
+    pub(crate) fn set_user_tier(
+        &self, username: &str, info: AdminSetUserTierInfo,
+    ) -> CoreResult<()> {
         let account = self.get_account()?;
         self.client
-            .request(account, AdminUpgradeToPremiumRequest { info })
+            .request(account, AdminSetUserTierRequest { username: username.to_string(), info })
             .map_err(|err| match err {
-                ApiError::Endpoint(AdminUpgradeToPremiumError::NotPermissioned) => {
+                ApiError::Endpoint(AdminSetUserTierError::NotPermissioned) => {
                     CoreError::InsufficientPermission
                 }
-                ApiError::Endpoint(AdminUpgradeToPremiumError::UserNotFound) => {
+                ApiError::Endpoint(AdminSetUserTierError::UserNotFound) => {
                     CoreError::UsernameNotFound
                 }
-                ApiError::Endpoint(AdminUpgradeToPremiumError::ExistingRequestPending) => {
+                ApiError::Endpoint(AdminSetUserTierError::ExistingRequestPending) => {
                     CoreError::ExistingRequestPending
                 }
                 ApiError::SendFailed(_) => CoreError::ServerUnreachable,
