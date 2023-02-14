@@ -255,3 +255,45 @@ fn list_metadatas_nested_linked_folders() {
     assert::all_recursive_children_ids(&cores[1], link2.id, &[link2.id, document.id]);
     assert::all_recursive_children_ids(&cores[1], document.id, &[document.id]);
 }
+
+#[test]
+fn inconsistent_share_finalization() {
+    let cores: Vec<Core> =
+        vec![test_core_with_account(), test_core_with_account(), test_core_with_account()];
+    let accounts = cores
+        .iter()
+        .map(|core| core.get_account().unwrap())
+        .collect::<Vec<_>>();
+    let roots = cores
+        .iter()
+        .map(|core| core.get_root().unwrap())
+        .collect::<Vec<_>>();
+
+    let folder = cores[0].create_at_path("folder/").unwrap();
+    cores[0]
+        .share_file(folder.id, &accounts[1].username, ShareMode::Write)
+        .unwrap();
+    cores[0]
+        .share_file(folder.id, &accounts[2].username, ShareMode::Write)
+        .unwrap();
+
+    cores[0].sync(None).unwrap();
+    cores[1].sync(None).unwrap();
+    cores[2].sync(None).unwrap();
+
+    let link1 = cores[1].create_link_at_path("link", folder.id).unwrap();
+    let _link2 = cores[2].create_link_at_path("link", folder.id).unwrap();
+
+    let single_file_finalization = cores[1].get_file_by_id(folder.id).unwrap();
+
+    let mut all_files_finalization = cores[1]
+        .get_and_get_children_recursively(roots[1].id)
+        .unwrap();
+
+    let all_finalization_document = all_files_finalization
+        .iter_mut()
+        .find(|f| f.id == link1.id)
+        .unwrap();
+
+    assert_eq!(single_file_finalization.shares, all_finalization_document.shares);
+}
