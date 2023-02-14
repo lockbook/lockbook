@@ -101,6 +101,10 @@ pub enum SetUserTier {
         expiration_time: UnixTimeMillis,
         account_state: String,
     },
+
+    Free {
+        username: String,
+    },
 }
 
 type Res<T> = Result<T, Error>;

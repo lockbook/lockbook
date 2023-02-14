@@ -1,7 +1,7 @@
-use crate::{Error, GooglePlayAccountState, Res, StripeAccountState, SetUserTier};
+use crate::{Error, GooglePlayAccountState, Res, SetUserTier, StripeAccountState};
 use lockbook_core::{
-    base64, AccountFilter, AccountIdentifier, AdminSetUserTierInfo, AppStoreAccountState,
-    Core, PublicKey,
+    base64, AccountFilter, AccountIdentifier, AdminSetUserTierInfo, AppStoreAccountState, Core,
+    PublicKey,
 };
 use std::str::FromStr;
 
@@ -67,34 +67,42 @@ pub fn set_user_tier(core: &Core, premium_info: SetUserTier) -> Res<()> {
             subscription_id,
             expiration_time,
             account_state,
-        } => (AdminSetUserTierInfo::Stripe {
-            customer_id,
-            customer_name,
-            payment_method_id,
-            last_4,
-            subscription_id,
-            expiration_time,
-            account_state: StripeAccountState::from_str(&account_state)?,
-        }, username),
-        SetUserTier::GooglePlay { username, purchase_token, expiration_time, account_state } => {
-            (AdminSetUserTierInfo::GooglePlay {
+        } => (
+            AdminSetUserTierInfo::Stripe {
+                customer_id,
+                customer_name,
+                payment_method_id,
+                last_4,
+                subscription_id,
+                expiration_time,
+                account_state: StripeAccountState::from_str(&account_state)?,
+            },
+            username,
+        ),
+        SetUserTier::GooglePlay { username, purchase_token, expiration_time, account_state } => (
+            AdminSetUserTierInfo::GooglePlay {
                 purchase_token,
                 expiration_time,
                 account_state: GooglePlayAccountState::from_str(&account_state)?,
-            }, username)
-        }
+            },
+            username,
+        ),
         SetUserTier::AppStore {
             username,
             account_token,
             original_transaction_id,
             expiration_time,
             account_state,
-        } => (AdminSetUserTierInfo::AppStore {
-            account_token,
-            original_transaction_id,
-            expiration_time,
-            account_state: AppStoreAccountState::from_str(&account_state)?,
-        }, username)
+        } => (
+            AdminSetUserTierInfo::AppStore {
+                account_token,
+                original_transaction_id,
+                expiration_time,
+                account_state: AppStoreAccountState::from_str(&account_state)?,
+            },
+            username,
+        ),
+        SetUserTier::Free { username } => (AdminSetUserTierInfo::Free, username),
     };
 
     core.admin_set_user_tier(&username, premium_info)?;

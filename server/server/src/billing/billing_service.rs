@@ -17,14 +17,14 @@ use base64::DecodeError;
 use hmdb::transaction::Transaction;
 use libsecp256k1::PublicKey;
 use lockbook_shared::api::{
-    AdminSetUserTierError, AdminSetUserTierInfo, AdminSetUserTierRequest,
-    AdminSetUserTierResponse, AppStoreAccountState, CancelSubscriptionError,
-    CancelSubscriptionRequest, CancelSubscriptionResponse, GetSubscriptionInfoError,
-    GetSubscriptionInfoRequest, GetSubscriptionInfoResponse, GooglePlayAccountState,
-    PaymentPlatform, StripeAccountState, SubscriptionInfo, UpgradeAccountAppStoreError,
-    UpgradeAccountAppStoreRequest, UpgradeAccountAppStoreResponse, UpgradeAccountGooglePlayError,
-    UpgradeAccountGooglePlayRequest, UpgradeAccountGooglePlayResponse, UpgradeAccountStripeError,
-    UpgradeAccountStripeRequest, UpgradeAccountStripeResponse,
+    AdminSetUserTierError, AdminSetUserTierInfo, AdminSetUserTierRequest, AdminSetUserTierResponse,
+    AppStoreAccountState, CancelSubscriptionError, CancelSubscriptionRequest,
+    CancelSubscriptionResponse, GetSubscriptionInfoError, GetSubscriptionInfoRequest,
+    GetSubscriptionInfoResponse, GooglePlayAccountState, PaymentPlatform, StripeAccountState,
+    SubscriptionInfo, UpgradeAccountAppStoreError, UpgradeAccountAppStoreRequest,
+    UpgradeAccountAppStoreResponse, UpgradeAccountGooglePlayError, UpgradeAccountGooglePlayRequest,
+    UpgradeAccountGooglePlayResponse, UpgradeAccountStripeError, UpgradeAccountStripeRequest,
+    UpgradeAccountStripeResponse,
 };
 use lockbook_shared::clock::get_time;
 use lockbook_shared::file_metadata::Owner;
@@ -352,7 +352,9 @@ pub async fn admin_set_user_tier(
     context: RequestContext<'_, AdminSetUserTierRequest>,
 ) -> Result<AdminSetUserTierResponse, ServerError<AdminSetUserTierError>> {
     let (request, server_state) = (&context.request, context.server_state);
-    let public_key = server_state.index_db.usernames
+    let public_key = server_state
+        .index_db
+        .usernames
         .get(&request.username)?
         .ok_or(ClientError(AdminSetUserTierError::UserNotFound))?
         .0;
@@ -379,23 +381,21 @@ pub async fn admin_set_user_tier(
             expiration_time: *expiration_time,
             account_state: account_state.clone(),
         })),
-        AdminSetUserTierInfo::GooglePlay {
-            purchase_token,
-            expiration_time,
-            account_state,
-        } => Some(BillingPlatform::GooglePlay(GooglePlayUserInfo {
-            purchase_token: purchase_token.clone(),
-            subscription_product_id: billing_config
-                .google
-                .premium_subscription_product_id
-                .to_string(),
-            subscription_offer_id: billing_config
-                .google
-                .premium_subscription_offer_id
-                .to_string(),
-            expiration_time: *expiration_time,
-            account_state: account_state.clone(),
-        })),
+        AdminSetUserTierInfo::GooglePlay { purchase_token, expiration_time, account_state } => {
+            Some(BillingPlatform::GooglePlay(GooglePlayUserInfo {
+                purchase_token: purchase_token.clone(),
+                subscription_product_id: billing_config
+                    .google
+                    .premium_subscription_product_id
+                    .to_string(),
+                subscription_offer_id: billing_config
+                    .google
+                    .premium_subscription_offer_id
+                    .to_string(),
+                expiration_time: *expiration_time,
+                account_state: account_state.clone(),
+            }))
+        }
         AdminSetUserTierInfo::AppStore {
             account_token,
             original_transaction_id,
@@ -408,6 +408,7 @@ pub async fn admin_set_user_tier(
             expiration_time: *expiration_time,
             account_state: account_state.clone(),
         })),
+        AdminSetUserTierInfo::Free => None,
     };
 
     release_subscription_profile::<AdminSetUserTierError>(

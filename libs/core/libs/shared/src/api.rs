@@ -702,6 +702,8 @@ pub enum AdminSetUserTierInfo {
         expiration_time: UnixTimeMillis,
         account_state: AppStoreAccountState,
     },
+
+    Free,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
