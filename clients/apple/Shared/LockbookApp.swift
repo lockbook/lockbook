@@ -33,6 +33,13 @@ import AppKit
             }
             CommandMenu("Lockbook") {
                 Button("Sync", action: { DI.sync.sync() }).keyboardShortcut("S", modifiers: .command)
+                Button("New file", action: {
+                    if let selecteditem = DI.currentDoc.selectedFolder {
+                        DI.sheets.creatingInfo = CreatingInfo(parent: selecteditem, child_type: .Document)
+                    } else if let root = DI.files.root {
+                        DI.sheets.creatingInfo = CreatingInfo(parent: root, child_type: .Document)
+                    }
+                }).keyboardShortcut("N", modifiers: .command)
             }
             SidebarCommands()
         }

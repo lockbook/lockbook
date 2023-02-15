@@ -44,7 +44,7 @@ struct FileCell: View {
             }
                     .isDetailLink(false)
         } else {
-            NavigationLink(destination: DocumentView(meta: meta), tag: meta, selection: $current.selectedItem) {
+            NavigationLink(destination: DocumentView(meta: meta), tag: meta, selection: $current.selectedDocument) {
                 RealFileCell(meta: meta)
             }
         }
