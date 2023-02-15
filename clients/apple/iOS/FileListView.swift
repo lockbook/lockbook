@@ -40,11 +40,11 @@ struct FileListView: View {
                 }
                         .navigationBarTitle(currentFolder.name)
                         .padding(.horizontal, 10)
-                        .onReceive(current.$selectedItem) { _ in
+                        .onReceive(current.$selectedDocument) { _ in
                             print("cleared")
                             // When we return back to this screen, we have to change newFile back to nil regardless
                             // of it's present value, otherwise we won't be able to navigate to new, new files
-                            if current.selectedItem == nil {
+                            if current.selectedDocument == nil {
                                 sheets.created = nil
                             }
                         }

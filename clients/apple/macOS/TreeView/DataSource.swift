@@ -112,8 +112,7 @@ class TreeDelegate: NSObject, MenuOutlineViewDelegate {
 
     func outlineView(_ outlineView: NSOutlineView,
                      shouldSelectItem item: Any) -> Bool {
-        let file = item as! File
-        return file.fileType == .Document
+        return true
     }
 
     func outlineViewSelectionDidChange(_ notification: Notification) {

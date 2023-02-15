@@ -113,7 +113,7 @@ struct NewFileSheet: View {
                 files.successfulAction = .createFolder
                 sheets.created = newMeta
             } else {
-                selection.selectedItem = newMeta
+                selection.selectedDocument = newMeta
             }
             files.refresh()
             status.checkForLocalWork()

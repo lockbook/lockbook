@@ -13,7 +13,11 @@ struct FileTreeView: NSViewRepresentable {
     func makeNSView(context: Context) -> NSScrollView {
         
         delegate.documentSelected = {
-            DI.currentDoc.selectedItem = $0
+            if $0.fileType == .Document {
+                DI.currentDoc.selectedDocument = $0
+            } else {
+                DI.currentDoc.selectedFolder = $0
+            }
         }
         
         scrollView.documentView = treeView
@@ -53,7 +57,7 @@ struct FileTreeView: NSViewRepresentable {
         // Should this happen in the delegate?
         for row in 0...treeView.numberOfRows {
             if let item = treeView.item(atRow: row) as? File {
-                if let selection = DI.currentDoc.selectedItem {
+                if let selection = DI.currentDoc.selectedDocument {
                     if item.id == selection.id {
                         treeView.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
                     }
