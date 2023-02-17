@@ -32,7 +32,7 @@ impl Editor {
                             let mut job = LayoutJob::default();
 
                             let mut text_format = galley.annotation_text_format.clone();
-                            Element::Emphasis.apply_style(&mut text_format, &self.appearance);
+                            Element::Strong.apply_style(&mut text_format, &self.appearance);
 
                             job.append(&(num.to_string() + "."), 0.0, text_format);
                             let pos = galley.bullet_bounds(&self.appearance);
@@ -42,8 +42,21 @@ impl Editor {
                                 .anchor_rect(Rect::from_min_size(pos.max, galley.size()));
                             ui.painter().galley(rect.min, galley);
                         }
-                        ItemType::Todo(_) => {
-                            // todo
+                        ItemType::Todo(checked) => {
+                            ui.painter().rect_filled(
+                                galley.checkbox_bounds(&self.appearance),
+                                self.appearance.checkbox_rounding(),
+                                self.appearance.checkbox_bg(),
+                            );
+                            if *checked {
+                                ui.painter().line_segment(
+                                    galley.checkbox_slash(&self.appearance),
+                                    Stroke {
+                                        width: self.appearance.checkbox_slash_width(),
+                                        color: self.appearance.text(),
+                                    },
+                                );
+                            }
                         }
                     },
                     Annotation::Rule => {
@@ -56,7 +69,7 @@ impl Editor {
 
                         ui.painter().line_segment(
                             [min, max],
-                            Stroke::new(0.1, self.appearance.heading_line()),
+                            Stroke::new(0.3, self.appearance.heading_line()),
                         );
                     }
                     _ => {}
@@ -76,12 +89,15 @@ impl Editor {
             .y;
         let (padding_rect, _) = ui.allocate_exact_size(ui_size, Sense::click_and_drag());
         ui.painter()
-            .rect(padding_rect, Rounding::none(), Color32::TRANSPARENT, Stroke::none());
+            .rect(padding_rect, Rounding::none(), Color32::TRANSPARENT, Stroke::NONE);
     }
 
     pub fn draw_cursor(&mut self, ui: &mut Ui) {
         ui.painter().rect(
-            self.cursor.rect(&self.segs, &self.galleys),
+            self.buffer
+                .current
+                .cursor
+                .rect(&self.buffer.current.segs, &self.galleys),
             Rounding::none(),
             Color32::TRANSPARENT,
             Stroke { width: 1.0, color: self.appearance.text() },
@@ -119,17 +135,26 @@ impl Editor {
             ui.ctx().input().screen_rect.height()
         );
 
-        let doc_info = format!("last_cursor_position: {}", self.segs.last_cursor_position().0);
+        let doc_info =
+            format!("last_cursor_position: {}", self.buffer.current.segs.last_cursor_position().0);
 
         let cursor_info = format!(
             "character: {}, byte: {}, x_target: {}, selection_origin: {}",
-            self.cursor.pos.0,
-            self.segs.char_offset_to_byte(self.cursor.pos).0,
-            self.cursor
+            self.buffer.current.cursor.pos.0,
+            self.buffer
+                .current
+                .segs
+                .char_offset_to_byte(self.buffer.current.cursor.pos)
+                .0,
+            self.buffer
+                .current
+                .cursor
                 .x_target
                 .map(|x| x.to_string())
                 .unwrap_or_else(|| "None".to_string()),
-            self.cursor
+            self.buffer
+                .current
+                .cursor
                 .selection_origin
                 .map(|x| x.0.to_string())
                 .unwrap_or_else(|| "None".to_string()),

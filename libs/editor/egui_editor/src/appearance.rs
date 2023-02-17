@@ -1,4 +1,4 @@
-use egui::color::Hsva;
+use egui::ecolor::Hsva;
 use egui::{Color32, Visuals};
 
 // Apple colors: https://developer.apple.com/design/human-interface-guidelines/foundations/color/
@@ -52,6 +52,7 @@ pub struct Appearance {
     // colors
     pub text: Option<ThemedColor>,
     pub selection_bg: Option<ThemedColor>,
+    pub checkbox_bg: Option<ThemedColor>,
     pub heading: Option<ThemedColor>,
     pub heading_line: Option<ThemedColor>,
     pub code: Option<ThemedColor>,
@@ -62,6 +63,9 @@ pub struct Appearance {
 
     // sizes
     pub bullet_radius: Option<f32>,
+    pub checkbox_dim: Option<f32>,
+    pub checkbox_rounding: Option<f32>,
+    pub checkbox_slash_width: Option<f32>,
     pub rule_height: Option<f32>,
 }
 
@@ -92,6 +96,10 @@ impl Appearance {
         };
 
         self.selection_bg.unwrap_or(color).get(self.current_theme)
+    }
+
+    pub fn checkbox_bg(&self) -> Color32 {
+        self.checkbox_bg.unwrap_or(GRAY_4).get(self.current_theme)
     }
 
     pub fn heading(&self) -> Color32 {
@@ -126,12 +134,24 @@ impl Appearance {
         self.bullet_radius.unwrap_or(2.5)
     }
 
+    pub fn checkbox_dim(&self) -> f32 {
+        self.checkbox_dim.unwrap_or(12.0)
+    }
+
+    pub fn checkbox_rounding(&self) -> f32 {
+        self.checkbox_dim.unwrap_or(1.0)
+    }
+
+    pub fn checkbox_slash_width(&self) -> f32 {
+        self.checkbox_dim.unwrap_or(2.0)
+    }
+
     pub fn rule_height(&self) -> f32 {
         self.rule_height.unwrap_or(10.0)
     }
 }
 
-#[derive(Default, Clone, Copy, PartialEq)]
+#[derive(Default, Clone, Copy, PartialEq, Eq)]
 pub enum Theme {
     #[default]
     Dark,

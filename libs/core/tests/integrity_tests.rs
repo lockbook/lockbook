@@ -1,6 +1,4 @@
-use hmdb::transaction::Transaction;
 use lockbook_core::model::errors::TestRepoError::*;
-use lockbook_core::OneKey;
 use lockbook_core::Warning::*;
 use lockbook_shared::file_like::FileLike;
 use lockbook_shared::file_metadata::FileType::Document;
@@ -31,8 +29,12 @@ fn test_no_account() {
 #[test]
 fn test_no_root() {
     let core = test_core_with_account();
-    core.db.transaction(|tx| tx.base_metadata.clear()).unwrap();
-    core.db.transaction(|tx| tx.root.clear()).unwrap();
+    core.in_tx(|s| {
+        s.db.base_metadata.clear().unwrap();
+        s.db.root.clear().unwrap();
+        Ok(())
+    })
+    .unwrap();
     assert_matches!(core.validate(), Err(NoRootFolder));
 }
 
@@ -44,7 +46,11 @@ fn test_orphaned_children() {
     core.validate().unwrap();
 
     let parent = core.get_by_path("folder1").unwrap().id;
-    core.db.local_metadata.delete(parent).unwrap();
+    core.in_tx(|s| {
+        s.db.local_metadata.remove(&parent).unwrap();
+        Ok(())
+    })
+    .unwrap();
     assert_matches!(core.validate(), Err(FileOrphaned(_)));
 }
 
@@ -52,21 +58,21 @@ fn test_orphaned_children() {
 fn test_invalid_file_name_slash() {
     let core = test_core_with_account();
     let doc = core.create_at_path("document1.md").unwrap();
-    core.db
-        .transaction(|tx| {
-            let mut tree = tx.base_metadata.stage(&mut tx.local_metadata).to_lazy();
-            let key = tree
-                .decrypt_key(&doc.id, tx.account.get(&OneKey {}).unwrap())
-                .unwrap();
-            let parent = tree
-                .decrypt_key(&doc.parent, tx.account.get(&OneKey {}).unwrap())
-                .unwrap();
-            let new_name = SecretFileName::from_str("te/st", &key, &parent).unwrap();
-            let mut doc = tree.find(&doc.id).unwrap().clone();
-            doc.timestamped_value.value.name = new_name;
-            tree.stage(Some(doc)).promote();
-        })
-        .unwrap();
+    core.in_tx(|s| {
+        let mut tree = s.db.base_metadata.stage(&mut s.db.local_metadata).to_lazy();
+        let key = tree
+            .decrypt_key(&doc.id, s.db.account.data().unwrap())
+            .unwrap();
+        let parent = tree
+            .decrypt_key(&doc.parent, s.db.account.data().unwrap())
+            .unwrap();
+        let new_name = SecretFileName::from_str("te/st", &key, &parent).unwrap();
+        let mut doc = tree.find(&doc.id).unwrap().clone();
+        doc.timestamped_value.value.name = new_name;
+        tree.stage(Some(doc)).promote().unwrap();
+        Ok(())
+    })
+    .unwrap();
 
     assert_matches!(core.validate(), Err(FileNameContainsSlash(_)));
 }
@@ -75,21 +81,21 @@ fn test_invalid_file_name_slash() {
 fn empty_filename() {
     let core = test_core_with_account();
     let doc = core.create_at_path("document1.md").unwrap();
-    core.db
-        .transaction(|tx| {
-            let mut tree = tx.base_metadata.stage(&mut tx.local_metadata).to_lazy();
-            let key = tree
-                .decrypt_key(&doc.id, tx.account.get(&OneKey {}).unwrap())
-                .unwrap();
-            let parent = tree
-                .decrypt_key(&doc.parent, tx.account.get(&OneKey {}).unwrap())
-                .unwrap();
-            let new_name = SecretFileName::from_str("", &key, &parent).unwrap();
-            let mut doc = tree.find(&doc.id).unwrap().clone();
-            doc.timestamped_value.value.name = new_name;
-            tree.stage(Some(doc)).promote();
-        })
-        .unwrap();
+    core.in_tx(|s| {
+        let mut tree = s.db.base_metadata.stage(&mut s.db.local_metadata).to_lazy();
+        let key = tree
+            .decrypt_key(&doc.id, s.db.account.data().unwrap())
+            .unwrap();
+        let parent = tree
+            .decrypt_key(&doc.parent, s.db.account.data().unwrap())
+            .unwrap();
+        let new_name = SecretFileName::from_str("", &key, &parent).unwrap();
+        let mut doc = tree.find(&doc.id).unwrap().clone();
+        doc.timestamped_value.value.name = new_name;
+        tree.stage(Some(doc)).promote().unwrap();
+        Ok(())
+    })
+    .unwrap();
 
     assert_matches!(core.validate(), Err(FileNameEmpty(_)));
 }
@@ -99,10 +105,21 @@ fn test_cycle() {
     let core = test_core_with_account();
     core.create_at_path("folder1/folder2/document1.md").unwrap();
     let parent = core.get_by_path("folder1").unwrap().id;
-    let mut parent = core.db.local_metadata.get(&parent).unwrap().unwrap();
+    core.in_tx(|s| {
+        s.db.local_metadata.data().get(&parent).unwrap();
+        Ok(())
+    })
+    .unwrap();
+    let mut parent = core
+        .in_tx(|s| Ok(s.db.local_metadata.data().get(&parent).unwrap().clone()))
+        .unwrap();
     let child = core.get_by_path("folder1/folder2").unwrap();
     parent.timestamped_value.value.parent = child.id;
-    core.db.local_metadata.insert(*parent.id(), parent).unwrap();
+    core.in_tx(|s| {
+        s.db.local_metadata.insert(*parent.id(), parent).unwrap();
+        Ok(())
+    })
+    .unwrap();
     assert_matches!(core.validate(), Err(CycleDetected(_)));
 }
 
@@ -111,9 +128,15 @@ fn test_documents_treated_as_folders() {
     let core = test_core_with_account();
     core.create_at_path("folder1/folder2/document1.md").unwrap();
     let parent = core.get_by_path("folder1").unwrap();
-    let mut parent = core.db.local_metadata.get(&parent.id).unwrap().unwrap();
+    let mut parent = core
+        .in_tx(|s| Ok(s.db.local_metadata.data().get(&parent.id).unwrap().clone()))
+        .unwrap();
     parent.timestamped_value.value.file_type = Document;
-    core.db.local_metadata.insert(*parent.id(), parent).unwrap();
+    core.in_tx(|s| {
+        s.db.local_metadata.insert(*parent.id(), parent).unwrap();
+        Ok(())
+    })
+    .unwrap();
     assert_matches!(core.validate(), Err(DocumentTreatedAsFolder(_)));
 }
 
@@ -122,21 +145,21 @@ fn test_name_conflict() {
     let core = test_core_with_account();
     let doc = core.create_at_path("document1.md").unwrap();
     core.create_at_path("document2.md").unwrap();
-    core.db
-        .transaction(|tx| {
-            let mut tree = tx.base_metadata.stage(&mut tx.local_metadata).to_lazy();
-            let key = tree
-                .decrypt_key(&doc.id, tx.account.get(&OneKey {}).unwrap())
-                .unwrap();
-            let parent = tree
-                .decrypt_key(&doc.parent, tx.account.get(&OneKey {}).unwrap())
-                .unwrap();
-            let new_name = SecretFileName::from_str("document2.md", &key, &parent).unwrap();
-            let mut doc = tree.find(&doc.id).unwrap().clone();
-            doc.timestamped_value.value.name = new_name;
-            tree.stage(Some(doc)).promote();
-        })
-        .unwrap();
+    core.in_tx(|s| {
+        let mut tree = s.db.base_metadata.stage(&mut s.db.local_metadata).to_lazy();
+        let key = tree
+            .decrypt_key(&doc.id, s.db.account.data().unwrap())
+            .unwrap();
+        let parent = tree
+            .decrypt_key(&doc.parent, s.db.account.data().unwrap())
+            .unwrap();
+        let new_name = SecretFileName::from_str("document2.md", &key, &parent).unwrap();
+        let mut doc = tree.find(&doc.id).unwrap().clone();
+        doc.timestamped_value.value.name = new_name;
+        tree.stage(Some(doc)).promote().unwrap();
+        Ok(())
+    })
+    .unwrap();
     assert_matches!(core.validate(), Err(PathConflict(_)));
 }
 

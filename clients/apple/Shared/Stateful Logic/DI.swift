@@ -30,7 +30,7 @@ class DI {
         DI.onboarding.username = ""
         DI.documentLoader.meta = nil
         DI.documentLoader.type = nil
-        DI.currentDoc.selectedItem = nil
+        DI.currentDoc.selectedDocument = nil
     }
 }
 

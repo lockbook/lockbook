@@ -1,11 +1,11 @@
 use crate::service::api_service::ApiError;
-use crate::{core_err_unexpected, CoreError, CoreResult, RequestContext, Requester};
+use crate::{core_err_unexpected, CoreError, CoreResult, CoreState, Requester};
 use lockbook_shared::account::Username;
 use lockbook_shared::api::*;
 use uuid::Uuid;
 
-impl<Client: Requester> RequestContext<'_, '_, Client> {
-    pub fn disappear_account(&self, username: &str) -> CoreResult<()> {
+impl<Client: Requester> CoreState<Client> {
+    pub(crate) fn disappear_account(&self, username: &str) -> CoreResult<()> {
         let account = self.get_account()?;
 
         self.client
@@ -23,7 +23,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
             })
     }
 
-    pub fn disappear_file(&self, id: Uuid) -> CoreResult<()> {
+    pub(crate) fn disappear_file(&self, id: Uuid) -> CoreResult<()> {
         let account = self.get_account()?;
         self.client
             .request(account, AdminDisappearFileRequest { id })
@@ -40,7 +40,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
             })
     }
 
-    pub fn list_users(&self, filter: Option<AccountFilter>) -> CoreResult<Vec<Username>> {
+    pub(crate) fn list_users(&self, filter: Option<AccountFilter>) -> CoreResult<Vec<Username>> {
         let account = self.get_account()?;
 
         Ok(self
@@ -57,7 +57,9 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
             .users)
     }
 
-    pub fn get_account_info(&self, identifier: AccountIdentifier) -> CoreResult<AccountInfo> {
+    pub(crate) fn get_account_info(
+        &self, identifier: AccountIdentifier,
+    ) -> CoreResult<AccountInfo> {
         let account = self.get_account()?;
 
         Ok(self
@@ -77,7 +79,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
             .account)
     }
 
-    pub fn validate_account(&self, username: &str) -> CoreResult<AdminValidateAccount> {
+    pub(crate) fn validate_account(&self, username: &str) -> CoreResult<AdminValidateAccount> {
         let account = self.get_account()?;
         self.client
             .request(account, AdminValidateAccountRequest { username: username.to_string() })
@@ -94,7 +96,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
             })
     }
 
-    pub fn validate_server(&self) -> CoreResult<AdminValidateServer> {
+    pub(crate) fn validate_server(&self) -> CoreResult<AdminValidateServer> {
         let account = self.get_account()?;
         self.client
             .request(account, AdminValidateServerRequest {})
@@ -108,7 +110,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
             })
     }
 
-    pub fn file_info(&self, id: Uuid) -> CoreResult<AdminFileInfoResponse> {
+    pub(crate) fn file_info(&self, id: Uuid) -> CoreResult<AdminFileInfoResponse> {
         let account = self.get_account()?;
         self.client
             .request(account, AdminFileInfoRequest { id })
@@ -125,7 +127,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
             })
     }
 
-    pub fn rebuild_index(&self, index: ServerIndex) -> CoreResult<()> {
+    pub(crate) fn rebuild_index(&self, index: ServerIndex) -> CoreResult<()> {
         let account = self.get_account()?;
         self.client
             .request(account, AdminRebuildIndexRequest { index })
@@ -137,5 +139,29 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
                 ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,
                 _ => core_err_unexpected(err),
             })
+    }
+
+    pub(crate) fn set_user_tier(
+        &self, username: &str, info: AdminSetUserTierInfo,
+    ) -> CoreResult<()> {
+        let account = self.get_account()?;
+        self.client
+            .request(account, AdminSetUserTierRequest { username: username.to_string(), info })
+            .map_err(|err| match err {
+                ApiError::Endpoint(AdminSetUserTierError::NotPermissioned) => {
+                    CoreError::InsufficientPermission
+                }
+                ApiError::Endpoint(AdminSetUserTierError::UserNotFound) => {
+                    CoreError::UsernameNotFound
+                }
+                ApiError::Endpoint(AdminSetUserTierError::ExistingRequestPending) => {
+                    CoreError::ExistingRequestPending
+                }
+                ApiError::SendFailed(_) => CoreError::ServerUnreachable,
+                ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,
+                _ => core_err_unexpected(err),
+            })?;
+
+        Ok(())
     }
 }

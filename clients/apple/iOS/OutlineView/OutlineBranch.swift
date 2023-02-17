@@ -31,7 +31,7 @@ struct OutlineBranch: View {
         ScrollViewReader { scrollView in
             VStack(alignment: .leading) {
                 if level != -1 {
-                    if file == current.selectedItem {
+                    if file == current.selectedDocument {
                         OutlineRow(file: file, level: level, open: $state.open)
                             .background(Color.accentColor)
                             .foregroundColor(Color.white)
@@ -45,7 +45,7 @@ struct OutlineBranch: View {
                                     }
                                 } else {
                                     // Animating this causes editor to load weirdly
-                                    current.selectedItem = file
+                                    current.selectedDocument = file
                                     print("tap")
                                 }
                             }

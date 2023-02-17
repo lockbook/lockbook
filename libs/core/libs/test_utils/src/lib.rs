@@ -98,20 +98,33 @@ pub fn get_dirty_ids(db: &Core, server: bool) -> Vec<Uuid> {
 }
 
 pub fn dbs_equal<Client: Requester>(left: &CoreLib<Client>, right: &CoreLib<Client>) -> bool {
-    left.db.account.get_all().unwrap() == right.db.account.get_all().unwrap()
-        && left.db.root.get_all().unwrap() == right.db.root.get_all().unwrap()
-        && left.db.local_metadata.get_all().unwrap() == right.db.local_metadata.get_all().unwrap()
-        && left.db.base_metadata.get_all().unwrap() == right.db.base_metadata.get_all().unwrap()
+    left.in_tx(|l| {
+        Ok(right
+            .in_tx(|r| {
+                Ok(r.db.account.data() == l.db.account.data()
+                    && r.db.root.data() == l.db.root.data()
+                    && r.db.local_metadata.data() == l.db.local_metadata.data()
+                    && r.db.base_metadata.data() == l.db.base_metadata.data())
+            })
+            .unwrap())
+    })
+    .unwrap()
 }
 
 pub fn assert_dbs_equal<Client: Requester>(left: &CoreLib<Client>, right: &CoreLib<Client>) {
-    assert_eq!(left.db.account.get_all().unwrap(), right.db.account.get_all().unwrap());
-    assert_eq!(left.db.root.get_all().unwrap(), right.db.root.get_all().unwrap());
-    assert_eq!(
-        left.db.local_metadata.get_all().unwrap(),
-        right.db.local_metadata.get_all().unwrap()
-    );
-    assert_eq!(left.db.base_metadata.get_all().unwrap(), right.db.base_metadata.get_all().unwrap());
+    left.in_tx(|l| {
+        right
+            .in_tx(|r| {
+                assert_eq!(l.db.account.data(), r.db.account.data());
+                assert_eq!(l.db.root.data(), r.db.root.data());
+                assert_eq!(l.db.base_metadata.data(), r.db.base_metadata.data());
+                assert_eq!(l.db.local_metadata.data(), r.db.local_metadata.data());
+                Ok(())
+            })
+            .unwrap();
+        Ok(())
+    })
+    .unwrap();
 }
 
 pub fn doc_repo_get_all(config: &Config) -> Vec<EncryptedDocument> {
