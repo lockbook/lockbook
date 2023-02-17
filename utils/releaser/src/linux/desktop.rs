@@ -8,12 +8,13 @@ use std::process::Command;
 pub fn release(gh: &Github) {
     update_aur();
     update_snap();
+    build_x86();
     upload(gh);
 }
 
 pub fn update_snap() {
     let version = core_version();
-    let snap_name = format!("lockbook_desktop_{version}_amd64.snap");
+    let snap_name = format!("lockbook-desktop_{version}_amd64.snap");
 
     let new_content = format!(
         r#"
@@ -34,11 +35,17 @@ parts:
     build-packages:
       - cargo
       - git
+      - libssl-dev
+      - pkg-config
+      - cmake
+      - libfontconfig1-dev
+      - libfontconfig
     rust-path: ["clients/egui"]
 
 apps:
   lockbook-desktop:
-    command: bin/lockbook-desktop
+    command: bin/lockbook-egui
+    extensions: [gnome]
     plugs:
       - network
       - home
@@ -54,11 +61,17 @@ apps:
     file.write_all(new_content.as_bytes()).unwrap();
 
     Command::new("snapcraft")
-        .current_dir("utils/dev/snap-packages/lockbook-desktop/snap")
+        .current_dir("utils/dev/snap-packages/lockbook-desktop/")
         .assert_success();
     Command::new("snapcraft")
         .args(["upload", "--release=stable", &snap_name])
-        .current_dir("utils/dev/snap-packages/lockbook-desktop/snap")
+        .current_dir("utils/dev/snap-packages/lockbook-desktop/")
+        .assert_success();
+}
+
+pub fn build_x86() {
+    Command::new("cargo")
+        .args(["build", "-p", "lockbook-egui", "--release", "--target=x86_64-unknown-linux-gnu"])
         .assert_success();
 }
 
