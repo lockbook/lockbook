@@ -46,7 +46,7 @@ apps:
 
     let mut file = OpenOptions::new()
         .write(true)
-        .create(false)
+        .create(true)
         .truncate(true)
         .open("utils/dev/snap-packages/lockbook/snap/snapcraft.yaml")
         .unwrap();
