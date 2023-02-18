@@ -94,7 +94,7 @@ pkgver={version}
 pkgrel=1
 arch=('x86_64' 'i686')
 url="https://github.com/lockbook/lockbook"
-pkgdesc="A secure, private, minimal, cross-platform document editor."
+pkgdesc="The private, polished note-taking platform."
 license=('BSD-3-Clause')
 makedepends=('rust' 'cargo' 'git')
 provides=('lockbook')
@@ -123,7 +123,7 @@ package_lockbook() {{
     let new_src_info_content = format!(
         r#"
 pkgbase = lockbook
-	pkgdesc = A secure, private, minimal, cross-platform document editor.
+	pkgdesc = The private, polished note-taking platform.
 	pkgver = {version}
 	pkgrel = 1
 	url = https://github.com/lockbook/lockbook
