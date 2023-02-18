@@ -69,6 +69,7 @@ pub async fn create_subscription(
 
                     server_state
                         .index_db
+                        .lock()?
                         .stripe_ids
                         .insert(customer_id, Owner(*public_key))?;
 
@@ -169,8 +170,11 @@ pub fn get_public_key(
 
     let public_key = server
         .index_db
+        .lock()?
         .stripe_ids
-        .get(&customer_id)?
+        .data()
+        .get(&customer_id)
+        .copied()
         .ok_or_else(|| {
             internal!("There is no public_key related to this customer_id: {:?}", customer_id)
         })?;

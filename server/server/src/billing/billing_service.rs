@@ -15,7 +15,6 @@ use crate::ServerError::ClientError;
 use crate::{account_service, RequestContext, ServerError, ServerState, FREE_TIER_USAGE_SIZE};
 use base64::DecodeError;
 use db_rs::Db;
-use hmdb::transaction::Transaction;
 use libsecp256k1::PublicKey;
 use lockbook_shared::api::{
     AdminSetUserTierError, AdminSetUserTierInfo, AdminSetUserTierRequest, AdminSetUserTierResponse,
@@ -31,6 +30,7 @@ use lockbook_shared::clock::get_time;
 use lockbook_shared::file_metadata::Owner;
 use std::collections::HashMap;
 use std::fmt::Debug;
+use std::ops::DerefMut;
 use std::sync::Arc;
 use tracing::*;
 use warp::http::HeaderValue;
@@ -93,21 +93,20 @@ pub async fn upgrade_account_app_store(
 
     debug!("Upgrading the account of a user through app store billing");
 
-    if let Some(owner) = server_state
-        .index_db
-        .app_store_ids
-        .get(&request.app_account_token)?
     {
-        if let Some(other_account) = server_state.index_db.accounts.get(&owner)? {
-            if let Some(BillingPlatform::AppStore(ref info)) =
-                other_account.billing_info.billing_platform
-            {
-                if info.account_token == request.app_account_token
-                    && other_account.billing_info.is_premium()
+        let db = server_state.index_db.lock()?;
+        if let Some(owner) = db.app_store_ids.data().get(&request.app_account_token) {
+            if let Some(other_account) = db.accounts.data().get(owner) {
+                if let Some(BillingPlatform::AppStore(ref info)) =
+                    other_account.billing_info.billing_platform
                 {
-                    return Err(ClientError(
-                        UpgradeAccountAppStoreError::AppStoreAccountAlreadyLinked,
-                    ));
+                    if info.account_token == request.app_account_token
+                        && other_account.billing_info.is_premium()
+                    {
+                        return Err(ClientError(
+                            UpgradeAccountAppStoreError::AppStoreAccountAlreadyLinked,
+                        ));
+                    }
                 }
             }
         }
@@ -142,12 +141,13 @@ pub async fn upgrade_account_app_store(
 
     server_state
         .index_db
+        .lock()?
         .app_store_ids
         .insert(request.app_account_token.clone(), Owner(context.public_key))?;
 
     release_subscription_profile::<UpgradeAccountAppStoreError>(
         server_state,
-        &context.public_key,
+        context.public_key,
         account,
     )?;
 
@@ -191,12 +191,13 @@ pub async fn upgrade_account_google_play(
 
     server_state
         .index_db
+        .lock()?
         .google_play_ids
         .insert(request.account_id.clone(), Owner(context.public_key))?;
 
     release_subscription_profile::<UpgradeAccountGooglePlayError>(
         server_state,
-        &context.public_key,
+        context.public_key,
         account,
     )?;
 
@@ -237,7 +238,7 @@ pub async fn upgrade_account_stripe(
     account.billing_info.billing_platform = Some(BillingPlatform::Stripe(user_info));
     release_subscription_profile::<UpgradeAccountStripeError>(
         server_state,
-        &context.public_key,
+        context.public_key,
         account,
     )?;
 
@@ -249,36 +250,32 @@ pub async fn upgrade_account_stripe(
 pub async fn get_subscription_info(
     context: RequestContext<'_, GetSubscriptionInfoRequest>,
 ) -> Result<GetSubscriptionInfoResponse, ServerError<GetSubscriptionInfoError>> {
-    let account = context
+    let platform = context
         .server_state
         .index_db
+        .lock()?
         .accounts
-        .get(&Owner(context.public_key))?
-        .ok_or(ClientError(GetSubscriptionInfoError::UserNotFound))?;
-
-    let subscription_info = account
+        .data()
+        .get(&Owner(context.public_key))
+        .ok_or(ClientError(GetSubscriptionInfoError::UserNotFound))?
         .billing_info
         .billing_platform
-        .map(|info| match info {
-            BillingPlatform::Stripe(info) => SubscriptionInfo {
-                payment_platform: PaymentPlatform::Stripe {
-                    card_last_4_digits: info.last_4.clone(),
-                },
-                period_end: info.expiration_time,
-            },
-            BillingPlatform::GooglePlay(info) => SubscriptionInfo {
-                payment_platform: PaymentPlatform::GooglePlay {
-                    account_state: info.account_state.clone(),
-                },
-                period_end: info.expiration_time,
-            },
-            BillingPlatform::AppStore(info) => SubscriptionInfo {
-                payment_platform: PaymentPlatform::AppStore {
-                    account_state: info.account_state.clone(),
-                },
-                period_end: info.expiration_time,
-            },
-        });
+        .clone();
+
+    let subscription_info = platform.map(|info| match info {
+        BillingPlatform::Stripe(info) => SubscriptionInfo {
+            payment_platform: PaymentPlatform::Stripe { card_last_4_digits: info.last_4 },
+            period_end: info.expiration_time,
+        },
+        BillingPlatform::GooglePlay(info) => SubscriptionInfo {
+            payment_platform: PaymentPlatform::GooglePlay { account_state: info.account_state },
+            period_end: info.expiration_time,
+        },
+        BillingPlatform::AppStore(info) => SubscriptionInfo {
+            payment_platform: PaymentPlatform::AppStore { account_state: info.account_state },
+            period_end: info.expiration_time,
+        },
+    });
 
     Ok(GetSubscriptionInfoResponse { subscription_info })
 }
@@ -293,15 +290,16 @@ pub async fn cancel_subscription(
         return Err(ClientError(CancelSubscriptionError::NotPremium));
     }
 
-    let usage: u64 = server_state
-        .index_db
-        .transaction(|tx| account_service::get_usage_helper(tx, &context.public_key))?
-        .map_err(|e| match e {
-            GetUsageHelperError::UserNotFound => ClientError(CancelSubscriptionError::NotPremium),
-        })?
-        .iter()
-        .map(|a| a.size_bytes)
-        .sum();
+    let usage: u64 = account_service::get_usage_helper(
+        server_state.index_db.lock()?.deref_mut(),
+        &context.public_key,
+    )
+    .map_err(|e| match e {
+        GetUsageHelperError::UserNotFound => ClientError(CancelSubscriptionError::UserNotFound),
+    })?
+    .iter()
+    .map(|a| a.size_bytes)
+    .sum();
 
     if usage > FREE_TIER_USAGE_SIZE {
         debug!("Cannot downgrade user to free since they are over the data cap");
@@ -347,7 +345,7 @@ pub async fn cancel_subscription(
 
     release_subscription_profile::<CancelSubscriptionError>(
         server_state,
-        &context.public_key,
+        context.public_key,
         account,
     )?;
 
@@ -360,8 +358,10 @@ pub async fn admin_set_user_tier(
     let (request, server_state) = (&context.request, context.server_state);
     let public_key = server_state
         .index_db
+        .lock()?
         .usernames
-        .get(&request.username)?
+        .data()
+        .get(&request.username)
         .ok_or(ClientError(AdminSetUserTierError::UserNotFound))?
         .0;
     let mut account = lock_subscription_profile(server_state, &public_key)?;
@@ -419,7 +419,7 @@ pub async fn admin_set_user_tier(
 
     release_subscription_profile::<AdminSetUserTierError>(
         server_state,
-        &context.public_key,
+        context.public_key,
         account,
     )?;
 
@@ -434,7 +434,7 @@ async fn save_subscription_profile<T: Debug, F: Fn(&mut Account) -> Result<(), S
         match lock_subscription_profile(state, public_key) {
             Ok(ref mut sub_profile) => {
                 update_subscription_profile(sub_profile)?;
-                release_subscription_profile(state, public_key, sub_profile.clone())?;
+                release_subscription_profile(state, *public_key, sub_profile.clone())?;
                 break;
             }
             Err(ClientError(ExistingRequestPending)) => {
@@ -716,7 +716,13 @@ pub async fn app_store_notification_webhook(
     let public_key = app_store_service::get_public_key(server_state, &trans)?;
 
     let owner = Owner(public_key);
-    let maybe_username = server_state.index_db.accounts.get(&owner)?;
+    let maybe_username = server_state
+        .index_db
+        .lock()?
+        .accounts
+        .data()
+        .get(&owner)
+        .map(|acc| acc.username.clone());
 
     info!(
         ?owner,

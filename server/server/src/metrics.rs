@@ -126,7 +126,7 @@ pub async fn start(state: ServerState) -> Result<(), ServerError<MetricsError>> 
                     .with_label_values(&[&username])
                     .set(user_info.total_bytes);
 
-                let billing_info = get_user_billing_info(&mut db, &owner)?;
+                let billing_info = get_user_billing_info(&db, &owner)?;
 
                 if billing_info.is_premium() {
                     premium_users += 1;

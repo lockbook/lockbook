@@ -13,7 +13,6 @@ use crate::account_service::GetUsageHelperError;
 use crate::billing::billing_service::StripeWebhookError;
 use crate::billing::stripe_client::SimplifiedStripeError;
 use crate::billing::stripe_model::{StripeDeclineCodeCatcher, StripeKnownDeclineCode};
-use crate::schema::v3::{transaction, Server};
 use crate::schema::ServerV4;
 use crate::ServerError::ClientError;
 pub use stripe;
@@ -47,8 +46,6 @@ impl<E: Debug> From<Error> for ServerError<E> {
         internal!("hmdb error: {:?}", err)
     }
 }
-
-type Tx<'a> = transaction::Server<'a>;
 
 #[macro_export]
 macro_rules! internal {

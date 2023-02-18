@@ -1,8 +1,8 @@
 #![recursion_limit = "256"]
 
 use db_rs::compacter::BackgroundCompacter;
-use db_rs::Db;
-use hmdb::log::{LogCompacter, Reader};
+use db_rs::{CancelSig, Db};
+use hmdb::log::Reader;
 use hmdb::transaction::Transaction;
 use lockbook_server_lib::billing::google_play_client::get_google_play_client;
 use lockbook_server_lib::config::Config;
@@ -10,7 +10,7 @@ use lockbook_server_lib::router_service::{
     app_store_notification_webhooks, build_info, core_routes, get_metrics,
     google_play_notification_webhooks, stripe_webhooks,
 };
-use lockbook_server_lib::schema::{v2, v3, ServerV4};
+use lockbook_server_lib::schema::{v3, ServerV4};
 use lockbook_server_lib::*;
 use std::sync::{Arc, Mutex};
 use tracing::*;
@@ -45,9 +45,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     let index_db = Arc::new(Mutex::new(index_db));
 
-    index_db
-        .begin_compacter(cfg.index_db.time_between_compacts, CancelSig::Default())
-        .unwrap();
+    index_db.begin_compacter(cfg.index_db.time_between_compacts, CancelSig::default());
 
     let server_state = Arc::new(ServerState {
         config,

@@ -2,7 +2,7 @@ use crate::billing::billing_model::BillingPlatform;
 use crate::schema::{Account, ServerDb};
 use crate::utils::username_is_valid;
 use crate::ServerError::ClientError;
-use crate::{document_service, RequestContext, Server, ServerError, ServerState, Tx};
+use crate::{document_service, RequestContext, ServerError, ServerState};
 use db_rs::Db;
 use libsecp256k1::PublicKey;
 use lockbook_shared::account::Username;
@@ -18,7 +18,7 @@ use lockbook_shared::api::{
 };
 use lockbook_shared::clock::get_time;
 use lockbook_shared::file_like::FileLike;
-use lockbook_shared::file_metadata::{DocumentHmac, Owner};
+use lockbook_shared::file_metadata::Owner;
 use lockbook_shared::server_file::IntoServerFile;
 use lockbook_shared::server_tree::ServerTree;
 use lockbook_shared::tree_like::TreeLike;
@@ -176,34 +176,32 @@ pub async fn delete_account(
 pub async fn admin_disappear_account(
     context: RequestContext<'_, AdminDisappearAccountRequest>,
 ) -> Result<(), ServerError<AdminDisappearAccountError>> {
-    let db = context.server_state.index_db.lock()?;
+    let owner = {
+        let db = context.server_state.index_db.lock()?;
 
-    if !is_admin::<AdminDisappearAccountError>(
-        &db,
-        &context.public_key,
-        &context.server_state.config.admin.admins,
-    )? {
-        return Err(ClientError(AdminDisappearAccountError::NotPermissioned));
-    }
+        if !is_admin::<AdminDisappearAccountError>(
+            &db,
+            &context.public_key,
+            &context.server_state.config.admin.admins,
+        )? {
+            return Err(ClientError(AdminDisappearAccountError::NotPermissioned));
+        }
 
-    let admin_username = db
-        .accounts
-        .data()
-        .get(&Owner(context.public_key))
-        .cloned()
-        .map(|account| account.username)
-        .unwrap_or_else(|| "~unknown~".to_string());
+        let admin_username = db
+            .accounts
+            .data()
+            .get(&Owner(context.public_key))
+            .cloned()
+            .map(|account| account.username)
+            .unwrap_or_else(|| "~unknown~".to_string());
 
-    warn!("admin {} is disappearing account {}", admin_username, context.request.username);
+        warn!("admin {} is disappearing account {}", admin_username, context.request.username);
 
-    let owner = db
-        .usernames
-        .data()
-        .get(&context.request.username)
-        .ok_or(ClientError(AdminDisappearAccountError::UserNotFound))?
-        .clone();
-
-    drop(db);
+        *db.usernames
+            .data()
+            .get(&context.request.username)
+            .ok_or(ClientError(AdminDisappearAccountError::UserNotFound))?
+    };
 
     delete_account_helper(context.server_state, &owner.0, true).await?;
 
@@ -286,7 +284,7 @@ pub async fn admin_get_account_info(
     let mut maybe_root = None;
     if let Some(owned_ids) = db.owned_files.data().get(&owner) {
         for id in owned_ids {
-            if let Some(meta) = db.metas.data().get(&id) {
+            if let Some(meta) = db.metas.data().get(id) {
                 if meta.is_root() {
                     maybe_root = Some(*meta.id());
                 }
@@ -332,7 +330,7 @@ pub async fn admin_get_account_info(
 
     Ok(AdminGetAccountInfoResponse {
         account: AccountInfo {
-            username: account.username.clone(),
+            username: account.username,
             root,
             payment_platform,
             usage: usage_str,
@@ -348,65 +346,67 @@ pub enum DeleteAccountHelperError {
 pub async fn delete_account_helper(
     server_state: &ServerState, public_key: &PublicKey, free_username: bool,
 ) -> Result<(), ServerError<DeleteAccountHelperError>> {
-    let mut lock = server_state.index_db.lock()?;
-    let db = lock.deref_mut();
-    let tx = db.begin_transaction()?;
-
-    let mut tree = ServerTree::new(
-        Owner(*public_key),
-        &mut db.owned_files,
-        &mut db.shared_files,
-        &mut db.file_children,
-        &mut db.metas,
-    )?
-    .to_lazy();
     let mut docs_to_delete = Vec::new();
-    let metas_to_delete = tree.owned_ids();
 
-    for id in metas_to_delete.clone() {
-        if !tree.calculate_deleted(&id)? {
-            let meta = tree.find(&id)?;
-            if meta.is_document() && &(meta.owner().0) == public_key {
-                if let Some(hmac) = meta.document_hmac() {
-                    docs_to_delete.push((*meta.id(), *hmac));
-                    db.sizes.remove(&id)?;
+    {
+        let mut lock = server_state.index_db.lock()?;
+        let db = lock.deref_mut();
+        let tx = db.begin_transaction()?;
+
+        let mut tree = ServerTree::new(
+            Owner(*public_key),
+            &mut db.owned_files,
+            &mut db.shared_files,
+            &mut db.file_children,
+            &mut db.metas,
+        )?
+        .to_lazy();
+        let metas_to_delete = tree.owned_ids();
+
+        for id in metas_to_delete.clone() {
+            if !tree.calculate_deleted(&id)? {
+                let meta = tree.find(&id)?;
+                if meta.is_document() && &(meta.owner().0) == public_key {
+                    if let Some(hmac) = meta.document_hmac() {
+                        docs_to_delete.push((*meta.id(), *hmac));
+                        db.sizes.remove(&id)?;
+                    }
                 }
             }
         }
-    }
-    db.owned_files.clear_key(&Owner(*public_key))?;
-    db.shared_files.clear_key(&Owner(*public_key))?;
-    db.last_seen.remove(&Owner(*public_key))?;
+        db.owned_files.clear_key(&Owner(*public_key))?;
+        db.shared_files.clear_key(&Owner(*public_key))?;
+        db.last_seen.remove(&Owner(*public_key))?;
 
-    for id in metas_to_delete {
-        if let Some(meta) = db.metas.data().get(&id) {
-            if &(meta.owner().0) == public_key {
-                for user_access_key in meta.user_access_keys() {
-                    let sharee = Owner(user_access_key.encrypted_for);
-                    db.shared_files.remove(&sharee, meta.id())?;
+        for id in metas_to_delete {
+            if let Some(meta) = db.metas.data().get(&id) {
+                if &(meta.owner().0) == public_key {
+                    for user_access_key in meta.user_access_keys() {
+                        let sharee = Owner(user_access_key.encrypted_for);
+                        db.shared_files.remove(&sharee, meta.id())?;
+                    }
+                    db.metas.remove(&id)?;
+                    db.file_children.clear_key(&id)?;
                 }
-                db.metas.remove(&id)?;
-                db.file_children.clear_key(&id)?;
             }
         }
-    }
 
-    if free_username {
-        let username = db
-            .accounts
-            .remove(&Owner(*public_key))?
-            .ok_or(ClientError(DeleteAccountHelperError::UserNotFound))?
-            .username;
-        db.usernames.remove(&username)?;
-    }
+        if free_username {
+            let username = db
+                .accounts
+                .remove(&Owner(*public_key))?
+                .ok_or(ClientError(DeleteAccountHelperError::UserNotFound))?
+                .username;
+            db.usernames.remove(&username)?;
+        }
 
-    tx.drop_safely()?;
-    drop(lock);
+        tx.drop_safely()?;
+        drop(lock);
+    }
 
     for (id, version) in docs_to_delete {
         document_service::delete(server_state, &id, &version).await?;
     }
-
     Ok(())
 }
 

@@ -23,49 +23,50 @@ pub async fn upsert_file_metadata(
     let (request, server_state) = (context.request, context.server_state);
     let req_owner = Owner(context.public_key);
 
-    let mut prior_deleted_docs = HashSet::new();
     let mut new_deleted = vec![];
+    {
+        let mut prior_deleted_docs = HashSet::new();
 
-    let mut lock = context.server_state.index_db.lock()?;
-    let db = lock.deref_mut();
-    let tx = db.begin_transaction()?;
+        let mut lock = context.server_state.index_db.lock()?;
+        let db = lock.deref_mut();
+        let tx = db.begin_transaction()?;
 
-    let mut tree = ServerTree::new(
-        req_owner,
-        &mut db.owned_files,
-        &mut db.shared_files,
-        &mut db.file_children,
-        &mut db.metas,
-    )?
-    .to_lazy();
+        let mut tree = ServerTree::new(
+            req_owner,
+            &mut db.owned_files,
+            &mut db.shared_files,
+            &mut db.file_children,
+            &mut db.metas,
+        )?
+        .to_lazy();
 
-    for id in tree.owned_ids() {
-        if tree.find(&id)?.is_document() && tree.calculate_deleted(&id)? {
-            prior_deleted_docs.insert(id);
-        }
-    }
-
-    let mut tree = tree.stage_diff(request.updates.clone())?;
-    tree.validate(req_owner)?;
-    let mut tree = tree.promote()?;
-
-    for id in tree.owned_ids() {
-        if tree.find(&id)?.is_document()
-            && tree.calculate_deleted(&id)?
-            && !prior_deleted_docs.contains(&id)
-        {
-            let meta = tree.find(&id)?;
-            if let Some(hmac) = meta.file.timestamped_value.value.document_hmac {
-                db.sizes.remove(meta.id())?;
-                new_deleted.push((*meta.id(), hmac));
+        for id in tree.owned_ids() {
+            if tree.find(&id)?.is_document() && tree.calculate_deleted(&id)? {
+                prior_deleted_docs.insert(id);
             }
         }
+
+        let mut tree = tree.stage_diff(request.updates.clone())?;
+        tree.validate(req_owner)?;
+        let mut tree = tree.promote()?;
+
+        for id in tree.owned_ids() {
+            if tree.find(&id)?.is_document()
+                && tree.calculate_deleted(&id)?
+                && !prior_deleted_docs.contains(&id)
+            {
+                let meta = tree.find(&id)?;
+                if let Some(hmac) = meta.file.timestamped_value.value.document_hmac {
+                    db.sizes.remove(meta.id())?;
+                    new_deleted.push((*meta.id(), hmac));
+                }
+            }
+        }
+
+        db.last_seen.insert(req_owner, get_time().0 as u64)?;
+
+        tx.drop_safely()?;
     }
-
-    db.last_seen.insert(req_owner, get_time().0 as u64)?;
-
-    tx.drop_safely()?;
-    drop(lock);
 
     for update in request.updates {
         let new = update.new;
@@ -310,45 +311,45 @@ pub async fn get_document(
     context: RequestContext<'_, GetDocRequest>,
 ) -> Result<GetDocumentResponse, ServerError<GetDocumentError>> {
     let (request, server_state) = (&context.request, context.server_state);
+    {
+        let mut lock = server_state.index_db.lock()?;
+        let db = lock.deref_mut();
+        let tx = db.begin_transaction()?;
 
-    let mut lock = server_state.index_db.lock()?;
-    let db = lock.deref_mut();
-    let tx = db.begin_transaction()?;
+        let meta_exists = db.metas.data().get(&request.id).is_some();
 
-    let meta_exists = db.metas.data().get(&request.id).is_some();
+        let mut tree = ServerTree::new(
+            Owner(context.public_key),
+            &mut db.owned_files,
+            &mut db.shared_files,
+            &mut db.file_children,
+            &mut db.metas,
+        )?
+        .to_lazy();
 
-    let mut tree = ServerTree::new(
-        Owner(context.public_key),
-        &mut db.owned_files,
-        &mut db.shared_files,
-        &mut db.file_children,
-        &mut db.metas,
-    )?
-    .to_lazy();
+        let meta = match tree.maybe_find(&request.id) {
+            Some(meta) => Ok(meta),
+            None => Err(if meta_exists {
+                ClientError(GetDocumentError::NotPermissioned)
+            } else {
+                ClientError(GetDocumentError::DocumentNotFound)
+            }),
+        }?;
 
-    let meta = match tree.maybe_find(&request.id) {
-        Some(meta) => Ok(meta),
-        None => Err(if meta_exists {
-            ClientError(GetDocumentError::NotPermissioned)
-        } else {
-            ClientError(GetDocumentError::DocumentNotFound)
-        }),
-    }?;
+        let hmac = meta
+            .document_hmac()
+            .ok_or(ClientError(GetDocumentError::DocumentNotFound))?;
 
-    let hmac = meta
-        .document_hmac()
-        .ok_or(ClientError(GetDocumentError::DocumentNotFound))?;
+        if request.hmac != *hmac {
+            return Err(ClientError(GetDocumentError::DocumentNotFound));
+        }
 
-    if request.hmac != *hmac {
-        return Err(ClientError(GetDocumentError::DocumentNotFound));
+        if tree.calculate_deleted(&request.id)? {
+            return Err(ClientError(GetDocumentError::DocumentNotFound));
+        }
+
+        tx.drop_safely()?;
     }
-
-    if tree.calculate_deleted(&request.id)? {
-        return Err(ClientError(GetDocumentError::DocumentNotFound));
-    }
-
-    tx.drop_safely()?;
-    drop(lock);
 
     let content = document_service::get(server_state, &request.id, &request.hmac).await?;
     Ok(GetDocumentResponse { content })
@@ -423,111 +424,112 @@ pub async fn get_updates(
 pub async fn admin_disappear_file(
     context: RequestContext<'_, AdminDisappearFileRequest>,
 ) -> Result<(), ServerError<AdminDisappearFileError>> {
-    let mut lock = context.server_state.index_db.lock()?;
-    let db = lock.deref_mut();
-    let tx = db.begin_transaction()?;
-
-    if !is_admin::<AdminDisappearFileError>(
-        &db,
-        &context.public_key,
-        &context.server_state.config.admin.admins,
-    )? {
-        return Err(ClientError(AdminDisappearFileError::NotPermissioned));
-    }
-
-    let owner = {
-        let meta = db
-            .metas
-            .data()
-            .get(&context.request.id)
-            .ok_or(ClientError(AdminDisappearFileError::FileNonexistent))?;
-        if meta.is_root() {
-            return Err(ClientError(AdminDisappearFileError::RootModificationInvalid));
-        }
-        meta.owner()
-    };
-    let mut tree = ServerTree::new(
-        owner,
-        &mut db.owned_files,
-        &mut db.shared_files,
-        &mut db.file_children,
-        &mut db.metas,
-    )?
-    .to_lazy();
-
     let mut docs_to_delete = Vec::new();
-    let metas_to_delete = {
-        let mut metas_to_delete = tree.descendants(&context.request.id)?;
-        metas_to_delete.insert(context.request.id);
-        metas_to_delete
-    };
-    for id in metas_to_delete.clone() {
-        if !tree.calculate_deleted(&id)? {
-            let meta = tree.find(&id)?;
-            if meta.is_document() && meta.owner() == owner {
-                if let Some(hmac) = meta.document_hmac() {
-                    docs_to_delete.push((*meta.id(), *hmac));
-                    db.sizes.remove(&id)?;
+
+    {
+        let mut db = context.server_state.index_db.lock()?;
+        let db = db.deref_mut();
+        let tx = db.begin_transaction()?;
+
+        if !is_admin::<AdminDisappearFileError>(
+            db,
+            &context.public_key,
+            &context.server_state.config.admin.admins,
+        )? {
+            return Err(ClientError(AdminDisappearFileError::NotPermissioned));
+        }
+
+        let owner = {
+            let meta = db
+                .metas
+                .data()
+                .get(&context.request.id)
+                .ok_or(ClientError(AdminDisappearFileError::FileNonexistent))?;
+            if meta.is_root() {
+                return Err(ClientError(AdminDisappearFileError::RootModificationInvalid));
+            }
+            meta.owner()
+        };
+        let mut tree = ServerTree::new(
+            owner,
+            &mut db.owned_files,
+            &mut db.shared_files,
+            &mut db.file_children,
+            &mut db.metas,
+        )?
+        .to_lazy();
+
+        let metas_to_delete = {
+            let mut metas_to_delete = tree.descendants(&context.request.id)?;
+            metas_to_delete.insert(context.request.id);
+            metas_to_delete
+        };
+        for id in metas_to_delete.clone() {
+            if !tree.calculate_deleted(&id)? {
+                let meta = tree.find(&id)?;
+                if meta.is_document() && meta.owner() == owner {
+                    if let Some(hmac) = meta.document_hmac() {
+                        docs_to_delete.push((*meta.id(), *hmac));
+                        db.sizes.remove(&id)?;
+                    }
                 }
             }
         }
-    }
 
-    for id in metas_to_delete {
-        let meta = db
-            .metas
-            .remove(&id)?
-            .ok_or(ClientError(AdminDisappearFileError::FileNonexistent))?;
+        for id in metas_to_delete {
+            let meta = db
+                .metas
+                .remove(&id)?
+                .ok_or(ClientError(AdminDisappearFileError::FileNonexistent))?;
 
-        // maintain index: owned_files
-        let owner = meta.owner();
+            // maintain index: owned_files
+            let owner = meta.owner();
 
-        if !db.owned_files.remove(&owner, &id)? {
-            error!(
-                ?id,
-                ?owner,
-                "attempted to disappear a file, owner or id not present in owned_files"
-            );
-        }
-
-        // maintain index: shared_files
-        for user_access_key in meta.user_access_keys() {
-            let sharee = Owner(user_access_key.encrypted_for);
-            if !db.shared_files.remove(&sharee, &id)? {
+            if !db.owned_files.remove(&owner, &id)? {
                 error!(
                     ?id,
-                    ?sharee,
-                    "attempted to disappear a file, a sharee didn't have it shared"
+                    ?owner,
+                    "attempted to disappear a file, owner or id not present in owned_files"
+                );
+            }
+
+            // maintain index: shared_files
+            for user_access_key in meta.user_access_keys() {
+                let sharee = Owner(user_access_key.encrypted_for);
+                if !db.shared_files.remove(&sharee, &id)? {
+                    error!(
+                        ?id,
+                        ?sharee,
+                        "attempted to disappear a file, a sharee didn't have it shared"
+                    );
+                }
+            }
+
+            // maintain index: file_children
+            let parent = *meta.parent();
+            if !db.file_children.remove(meta.parent(), &id)? {
+                error!(
+                    ?id,
+                    ?parent,
+                    "attempted to disappear a file, the parent didn't have it as a child"
                 );
             }
         }
 
-        // maintain index: file_children
-        let parent = *meta.parent();
-        if !db.file_children.remove(meta.parent(), &id)? {
-            error!(
-                ?id,
-                ?parent,
-                "attempted to disappear a file, the parent didn't have it as a child"
-            );
-        }
+        let username = db
+            .accounts
+            .data()
+            .get(&Owner(context.public_key))
+            .map(|account| account.username.clone())
+            .unwrap_or_else(|| "~unknown~".to_string());
+        warn!(?username, ?context.request.id, "Disappeared file");
+
+        tx.drop_safely()?;
     }
-
-    let username = db
-        .accounts
-        .data()
-        .get(&Owner(context.public_key))
-        .map(|account| account.username.clone())
-        .unwrap_or_else(|| "~unknown~".to_string());
-
-    tx.drop_safely()?;
-    drop(lock);
 
     for (id, version) in docs_to_delete {
         document_service::delete(context.server_state, &id, &version).await?;
     }
-
-    warn!(?username, ?context.request.id, "Disappeared file");
 
     Ok(())
 }
@@ -604,7 +606,7 @@ pub async fn admin_validate_server(
     let db = db.deref_mut();
 
     if !is_admin::<AdminValidateServerError>(
-        &db,
+        db,
         &context.public_key,
         &context.server_state.config.admin.admins,
     )? {
@@ -789,7 +791,7 @@ pub async fn admin_file_info(
     let mut db = server_state.index_db.lock()?;
     let db = db.deref_mut();
     if !is_admin::<AdminFileInfoError>(
-        &db,
+        db,
         &context.public_key,
         &context.server_state.config.admin.admins,
     )? {
