@@ -51,6 +51,7 @@ public class CustomMTK: MTKView  {
     public override func mouseUp(with event: NSEvent) {
         let local = viewCoordinates(event)
         mouse_button(editor(), Float(local.x), Float(local.y), false, true)
+        delegate().maybeDirty()
         setNeedsDisplay(self.frame)
     }
     
@@ -72,7 +73,7 @@ public class CustomMTK: MTKView  {
         setNeedsDisplay(self.frame)
     }
     
-    public  override func keyDown(with event: NSEvent) {
+    public override func keyDown(with event: NSEvent) {
         print("down \(event.keyCode), \(event.modifierFlags), \(event.characters)")
         key_event(editor(), event.keyCode, event.modifierFlags.contains(.shift), event.modifierFlags.contains(.control), event.modifierFlags.contains(.option), event.modifierFlags.contains(.command), true, event.characters)
         setNeedsDisplay(self.frame)
