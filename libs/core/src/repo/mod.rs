@@ -64,10 +64,12 @@ impl CoreV3 {
 
             let mut path = PathBuf::from(&config.writeable_path);
             path.push("lockbook_core__repo__schema_v2__CoreV2");
+            // ignore if file is missing
             drop(remove_file(path));
 
             let mut path = PathBuf::from(&config.writeable_path);
             path.push("lockbook_core__repo__schema__CoreV1");
+            // ignore if file is missing
             drop(remove_file(path));
         }
 
