@@ -83,6 +83,7 @@ impl Core {
         log_service::init(config)?;
         let db =
             CoreDb::init_with_migration(config).map_err(|err| unexpected_only!("{:#?}", err))?;
+
         let config = config.clone();
         let client = Network::default();
 

@@ -1,6 +1,8 @@
 use db_rs::{Db, LookupTable, Single};
 use db_rs_derive::Schema;
 use hmdb::log::Reader;
+use std::fs::remove_file;
+use std::path::PathBuf;
 
 use lockbook_shared::account::Account;
 use lockbook_shared::file_metadata::Owner;
@@ -57,6 +59,18 @@ impl CoreV3 {
 
                 tx.drop_safely()?;
             }
+
+            drop(source);
+
+            let mut path = PathBuf::from(&config.writeable_path);
+            path.push("lockbook_core__repo__schema_v2__CoreV2");
+            // ignore if file is missing
+            drop(remove_file(path));
+
+            let mut path = PathBuf::from(&config.writeable_path);
+            path.push("lockbook_core__repo__schema__CoreV1");
+            // ignore if file is missing
+            drop(remove_file(path));
         }
 
         Ok(dest)
