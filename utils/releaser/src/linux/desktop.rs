@@ -8,36 +8,49 @@ use std::process::Command;
 pub fn release(gh: &Github) {
     update_aur();
     update_snap();
+    build_x86();
     upload(gh);
 }
 
 pub fn update_snap() {
     let version = core_version();
-    let snap_name = format!("lockbook_{version}_amd64.snap");
+    let snap_name = format!("lockbook-desktop_{version}_amd64.snap");
 
     let new_content = format!(
         r#"
-name: lockbook
-base: core20
+name: lockbook-desktop
+base: core22
 version: '{version}'
-summary: The CLI version of Lockbook
+summary: The linux gui version of Lockbook
 description: |
   The private, polished note-taking platform.
 grade: stable
 confinement: strict
 
 parts:
-  lockbook:
+  lockbook-desktop:
     plugin: rust
     source: https://github.com/lockbook/lockbook.git
     source-tag: {version}
     build-packages:
+      - cargo
       - git
-    rust-path: ["clients/cli"]
+      - libssl-dev
+      - pkg-config
+      - cmake
+      - libfontconfig1-dev
+      - libfontconfig
+    rust-path: ["clients/egui"]
+    override-pull: |
+      snapcraftctl pull
+      curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+      source "$HOME/.cargo/env"
+      rustup default 1.66
 
 apps:
-  lockbook:
-    command: bin/lockbook
+  lockbook-desktop:
+    command: bin/lockbook-egui
+    extensions: [gnome]
     plugs:
       - network
       - home
@@ -48,16 +61,22 @@ apps:
         .write(true)
         .create(true)
         .truncate(true)
-        .open("utils/dev/snap-packages/lockbook/snap/snapcraft.yaml")
+        .open("utils/dev/snap-packages/lockbook-desktop/snap/snapcraft.yaml")
         .unwrap();
     file.write_all(new_content.as_bytes()).unwrap();
 
     Command::new("snapcraft")
-        .current_dir("utils/dev/snap-packages/lockbook/snap")
+        .current_dir("utils/dev/snap-packages/lockbook-desktop/")
         .assert_success();
     Command::new("snapcraft")
         .args(["upload", "--release=stable", &snap_name])
-        .current_dir("utils/dev/snap-packages/lockbook/snap")
+        .current_dir("utils/dev/snap-packages/lockbook-desktop/")
+        .assert_success();
+}
+
+pub fn build_x86() {
+    Command::new("cargo")
+        .args(["build", "-p", "lockbook-egui", "--release", "--target=x86_64-unknown-linux-gnu"])
         .assert_success();
 }
 
@@ -66,12 +85,12 @@ pub fn upload(gh: &Github) {
     let release = client
         .get_release_by_tag_name(&lb_repo(), &core_version())
         .unwrap();
-    let file = File::open("target/release/lockbook").unwrap();
+    let file = File::open("target/x86_64-unknown-linux-gnu/release/lockbook-egui").unwrap();
     client
         .upload_release_asset(
             &lb_repo(),
             release.id,
-            "lockbook-cli",
+            "lockbook-egui",
             "application/octet-stream",
             file,
             None,
@@ -86,10 +105,11 @@ pub fn update_aur() {
 
 pub fn overwrite_lockbook_pkg() {
     let version = core_version();
+
     let new_makepkg_content = format!(
         r#"
-pkgname='lockbook'
-_pkgname="lockbook"
+pkgname='lockbook-desktop'
+_pkgname="lockbook-desktop"
 pkgver={version}
 pkgrel=1
 arch=('x86_64' 'i686')
@@ -97,32 +117,35 @@ url="https://github.com/lockbook/lockbook"
 pkgdesc="The private, polished note-taking platform."
 license=('BSD-3-Clause')
 makedepends=('rust' 'cargo' 'git')
-provides=('lockbook')
-conflicts=('lockbook')
-source=("git+https://github.com/lockbook/lockbook.git#tag=$pkgver")
-sha256sums=('SKIP')
+depends=()
+provides=('lockbook-desktop')
+conflicts=('lockbook-desktop')
+source=("git+https://github.com/lockbook/aur-lockbook-desktop.git" "git+https://github.com/lockbook/lockbook.git#tag=$pkgver")
+sha256sums=('SKIP' 'SKIP')
 groups=('lockbook')
 
 pkgver() {{
-  cd $srcdir/lockbook/clients/cli
   echo "{version}"
 }}
 
 build() {{
-  cd $srcdir/lockbook/clients/cli
+  echo $_pkgname
+  cd $srcdir/lockbook/clients/egui
+  rustup default 1.66
   cargo build --release --locked
 }}
 
-package_lockbook() {{
-  cd $srcdir/lockbook
-  install -D -m755 "target/release/lockbook" "$pkgdir/usr/bin/lockbook"
+package() {{
+  install -D -m755 "$srcdir/lockbook/target/release/lockbook-egui" "$pkgdir/usr/bin/lockbook-desktop"
+  install -D -m644 "$srcdir/aur-lockbook-desktop/light-1.svg" "$pkgdir/usr/share/pixmaps/light-1.svg"
+  install -D -m644 "$srcdir/aur-lockbook-desktop/lockbook-desktop.desktop" "$pkgdir/usr/share/applications/lockbook-desktop.desktop"
 }}
 "#
     );
 
     let new_src_info_content = format!(
         r#"
-pkgbase = lockbook
+pkgbase = lockbook-desktop
 	pkgdesc = The private, polished note-taking platform.
 	pkgver = {version}
 	pkgrel = 1
@@ -134,12 +157,14 @@ pkgbase = lockbook
 	makedepends = rust
 	makedepends = cargo
 	makedepends = git
-	provides = lockbook
-	conflicts = lockbook
+	provides = lockbook-desktop
+	conflicts = lockbook-desktop
+	source = git+https://github.com/lockbook/aur-lockbook-desktop.git
 	source = git+https://github.com/lockbook/lockbook.git#tag=v{version}
 	sha256sums = SKIP
+	sha256sums = SKIP
 
-pkgname = lockbook
+pkgname = lockbook-desktop
         "#
     );
 
@@ -147,7 +172,7 @@ pkgname = lockbook
         .write(true)
         .create(false)
         .truncate(true)
-        .open("../aur-lockbook/PKGBUILD")
+        .open("../aur-lockbook-desktop/PKGBUILD")
         .unwrap();
     file.write_all(new_makepkg_content.as_bytes()).unwrap();
 
@@ -155,7 +180,7 @@ pkgname = lockbook
         .write(true)
         .create(false)
         .truncate(true)
-        .open("../aur-lockbook/.SRCINFO")
+        .open("../aur-lockbook-desktop/.SRCINFO")
         .unwrap();
     file.write_all(new_src_info_content.as_bytes()).unwrap();
 }
@@ -163,18 +188,18 @@ pkgname = lockbook
 pub fn push_aur() {
     Command::new("git")
         .args(["add", "-A"])
-        .current_dir("../aur-lockbook")
+        .current_dir("../aur-lockbook-desktop")
         .assert_success();
     Command::new("git")
         .args(["commit", "-m", "releaser update"])
-        .current_dir("../aur-lockbook")
+        .current_dir("../aur-lockbook-desktop")
         .assert_success();
     Command::new("git")
         .args(["push", "aur", "master"])
-        .current_dir("../aur-lockbook")
+        .current_dir("../aur-lockbook-desktop")
         .assert_success();
     Command::new("git")
         .args(["push", "github", "master"])
-        .current_dir("../aur-lockbook")
+        .current_dir("../aur-lockbook-desktop")
         .assert_success();
 }
