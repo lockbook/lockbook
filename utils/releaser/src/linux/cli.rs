@@ -136,7 +136,7 @@ pkgbase = lockbook
 	makedepends = git
 	provides = lockbook
 	conflicts = lockbook
-	source = git+https://github.com/lockbook/lockbook.git
+	source = git+https://github.com/lockbook/lockbook.git#tag=v{version}
 	sha256sums = SKIP
 
 pkgname = lockbook

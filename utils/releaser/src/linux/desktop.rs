@@ -120,7 +120,7 @@ makedepends=('rust' 'cargo' 'git')
 depends=()
 provides=('lockbook-desktop')
 conflicts=('lockbook-desktop')
-source=("git+https://github.com/lockbook/aur-lockbook-desktop.git" "git+https://github.com/lockbook/lockbook.git")
+source=("git+https://github.com/lockbook/aur-lockbook-desktop.git" "git+https://github.com/lockbook/lockbook.git#tag=$pkgver")
 sha256sums=('SKIP' 'SKIP')
 groups=('lockbook')
 
@@ -131,13 +131,13 @@ pkgver() {{
 build() {{
   echo $_pkgname
   cd $srcdir/lockbook/clients/egui
-  rustup update stable
+  rustup default 1.66
   cargo build --release --locked
 }}
 
 package() {{
   install -D -m755 "$srcdir/lockbook/target/release/lockbook-egui" "$pkgdir/usr/bin/lockbook-desktop"
-  install -D -m644 "$srcdir/lockbook/graphics/SVGs/dark-1.svg" "$pkgdir/usr/share/pixmaps/dark-1.svg"
+  install -D -m644 "$srcdir/aur-lockbook-desktop/light-1.svg" "$pkgdir/usr/share/pixmaps/light-1.svg"
   install -D -m644 "$srcdir/aur-lockbook-desktop/lockbook-desktop.desktop" "$pkgdir/usr/share/applications/lockbook-desktop.desktop"
 }}
 "#
@@ -160,7 +160,7 @@ pkgbase = lockbook-desktop
 	provides = lockbook-desktop
 	conflicts = lockbook-desktop
 	source = git+https://github.com/lockbook/aur-lockbook-desktop.git
-	source = git+https://github.com/lockbook/lockbook.git
+	source = git+https://github.com/lockbook/lockbook.git#tag=v{version}
 	sha256sums = SKIP
 	sha256sums = SKIP
 
