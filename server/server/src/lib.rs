@@ -2,6 +2,7 @@ use google_androidpublisher3::AndroidPublisher;
 use hmdb::errors::Error;
 use std::env;
 use std::fmt::Debug;
+use std::sync::{Arc, Mutex};
 
 use libsecp256k1::PublicKey;
 use lockbook_shared::api::{ErrorWrapper, Request, RequestWrapper};
@@ -13,6 +14,7 @@ use crate::billing::billing_service::StripeWebhookError;
 use crate::billing::stripe_client::SimplifiedStripeError;
 use crate::billing::stripe_model::{StripeDeclineCodeCatcher, StripeKnownDeclineCode};
 use crate::schema::v3::{transaction, Server};
+use crate::schema::ServerV4;
 use crate::ServerError::ClientError;
 pub use stripe;
 
@@ -21,7 +23,7 @@ static CARGO_PKG_VERSION: &str = env!("CARGO_PKG_VERSION");
 #[derive(Clone)]
 pub struct ServerState {
     pub config: config::Config,
-    pub index_db: Server,
+    pub index_db: Arc<Mutex<ServerV4>>,
     pub stripe_client: stripe::Client,
     pub google_play_client: AndroidPublisher,
     pub app_store_client: reqwest::Client,

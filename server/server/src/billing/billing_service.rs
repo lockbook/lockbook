@@ -14,6 +14,7 @@ use crate::schema::Account;
 use crate::ServerError::ClientError;
 use crate::{account_service, RequestContext, ServerError, ServerState, FREE_TIER_USAGE_SIZE};
 use base64::DecodeError;
+use db_rs::Db;
 use hmdb::transaction::Transaction;
 use libsecp256k1::PublicKey;
 use lockbook_shared::api::{
@@ -45,37 +46,42 @@ fn lock_subscription_profile(
     state: &ServerState, public_key: &PublicKey,
 ) -> Result<Account, ServerError<LockBillingWorkflowError>> {
     let owner = Owner(*public_key);
-    state.index_db.transaction(|tx| {
-        let mut account = tx
-            .accounts
-            .get(&owner)
-            .ok_or(ClientError(UserNotFound))?
-            .clone();
-        let current_time = get_time().0 as u64;
+    let mut db = state.index_db.lock()?;
+    let tx = db.begin_transaction()?;
+    let mut account = db
+        .accounts
+        .remove(&owner)?
+        .ok_or(ClientError(UserNotFound))?;
 
-        if current_time - account.billing_info.last_in_payment_flow < state.config.billing.millis_between_user_payment_flows {
-            warn!(?owner, "User/Webhook is already in payment flow, or not enough time that has elapsed since a failed attempt");
+    let current_time = get_time().0 as u64;
 
-            return Err(ClientError(ExistingRequestPending));
-        }
+    if current_time - account.billing_info.last_in_payment_flow
+        < state.config.billing.millis_between_user_payment_flows
+    {
+        warn!(?owner, "User/Webhook is already in payment flow, or not enough time that has elapsed since a failed attempt");
 
-        account.billing_info.last_in_payment_flow = current_time;
-        tx.accounts.insert(owner, account.clone());
+        return Err(ClientError(ExistingRequestPending));
+    }
 
-        debug!(?owner, "User successfully entered payment flow");
+    account.billing_info.last_in_payment_flow = current_time;
+    db.accounts.insert(owner, account.clone())?;
 
-        Ok(account)
-    })?
+    debug!(?owner, "User successfully entered payment flow");
+
+    tx.drop_safely()?;
+    Ok(account)
 }
 
 fn release_subscription_profile<T: Debug>(
-    server_state: &ServerState, public_key: &PublicKey, account: Account,
+    server_state: &ServerState, public_key: PublicKey, mut account: Account,
 ) -> Result<(), ServerError<T>> {
-    let mut account = account;
-    Ok(server_state.index_db.transaction(|tx| {
-        account.billing_info.last_in_payment_flow = 0;
-        tx.accounts.insert(Owner(*public_key), account);
-    })?)
+    account.billing_info.last_in_payment_flow = 0;
+    server_state
+        .index_db
+        .lock()?
+        .accounts
+        .insert(Owner(public_key), account)?;
+    Ok(())
 }
 
 pub async fn upgrade_account_app_store(

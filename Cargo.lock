@@ -1330,9 +1330,17 @@ checksum = "23d8666cb01533c39dde32bcbab8e227b4ed6679b2c925eba05feabea39508fb"
 
 [[package]]
 name = "db-rs"
-version = "0.1.12"
+version = "0.1.14"
+dependencies = [
+ "bincode",
+ "serde",
+]
+
+[[package]]
+name = "db-rs"
+version = "0.1.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5239c72f22f4cd487e0377aec31790b306675df565c9ffe69b26d7c4b7e81bc8"
+checksum = "852af7f847abd1f46db49997a683992a574451a535599b67086ba5e6714f100c"
 dependencies = [
  "bincode",
  "serde",
@@ -1340,11 +1348,20 @@ dependencies = [
 
 [[package]]
 name = "db-rs-derive"
-version = "0.1.12"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b6649b5ac0aef99da13990d743c48e87ad51bddef98d3fff0a826f4e91085d6f"
+version = "0.1.14"
 dependencies = [
- "db-rs",
+ "db-rs 0.1.14 (registry+https://github.com/rust-lang/crates.io-index)",
+ "quote",
+ "syn",
+]
+
+[[package]]
+name = "db-rs-derive"
+version = "0.1.14"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6d95888531b64ccef6fa65267254fc821f758843883864b053a84ab1779e7445"
+dependencies = [
+ "db-rs 0.1.14 (registry+https://github.com/rust-lang/crates.io-index)",
  "quote",
  "syn",
 ]
@@ -3110,8 +3127,8 @@ dependencies = [
  "cpuprofiler",
  "criterion",
  "crossbeam",
- "db-rs",
- "db-rs-derive",
+ "db-rs 0.1.14 (registry+https://github.com/rust-lang/crates.io-index)",
+ "db-rs-derive 0.1.14 (registry+https://github.com/rust-lang/crates.io-index)",
  "diffy",
  "fuzzy-matcher",
  "hmdb",
@@ -3181,6 +3198,8 @@ dependencies = [
  "bincode",
  "chrono",
  "constant_time_eq 0.2.4",
+ "db-rs 0.1.14",
+ "db-rs-derive 0.1.14",
  "futures",
  "google-androidpublisher3",
  "hmdb",
@@ -3218,7 +3237,7 @@ dependencies = [
  "aes-gcm",
  "base64",
  "bincode",
- "db-rs",
+ "db-rs 0.1.14",
  "flate2",
  "hmac 0.11.0",
  "hmdb",
