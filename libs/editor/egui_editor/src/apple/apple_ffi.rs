@@ -9,7 +9,7 @@ use std::ffi::{c_char, c_void, CStr, CString};
 /// # Safety
 #[no_mangle]
 pub unsafe extern "C" fn init_editor(
-    metal_layer: *mut c_void, content: *const c_char,
+    metal_layer: *mut c_void, content: *const c_char, dark_mode: bool,
 ) -> *mut c_void {
     let backends = wgpu::util::backend_bits_from_env().unwrap_or_else(wgpu::Backends::all);
     let instance_desc = wgpu::InstanceDescriptor { backends, ..Default::default() };
@@ -33,6 +33,7 @@ pub unsafe extern "C" fn init_editor(
     let rpass = egui_wgpu_backend::RenderPass::new(&device, format, 1);
 
     let context = Context::default();
+    context.set_visuals(if dark_mode { Visuals::dark() } else { Visuals::light() });
     let mut editor = Editor::default();
     editor.set_font(&context);
     editor.buffer = CStr::from_ptr(content).to_str().unwrap().into();

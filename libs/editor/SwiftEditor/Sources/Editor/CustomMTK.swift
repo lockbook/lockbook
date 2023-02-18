@@ -127,7 +127,7 @@ public class FrameManager: NSObject, MTKViewDelegate {
         self.parent = parent
         self.loader = loader
         let metalLayer = UnsafeMutableRawPointer(Unmanaged.passRetained(self.parent.layer!).toOpaque())
-        self.editorHandle = init_editor(metalLayer, self.loader.loadText())
+        self.editorHandle = init_editor(metalLayer, self.loader.loadText(), parent.isDarkMode())
 
         super.init()
         DispatchQueue.main.async {
@@ -168,6 +168,7 @@ public class FrameManager: NSObject, MTKViewDelegate {
     
     public func draw(in view: MTKView) {
         let scale = Float(self.parent.window?.backingScaleFactor ?? 1.0)
+        dark_mode(editorHandle, (view as! CustomMTK).isDarkMode())
         set_scale(editorHandle, scale)
         draw_editor(editorHandle)
     }
