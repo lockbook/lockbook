@@ -6,10 +6,10 @@ use std::io::Write;
 use std::process::Command;
 
 pub fn release(gh: &Github) {
-    //update_aur();
+    update_aur();
     update_snap();
-    //build_x86();
-    //upload(gh);
+    build_x86();
+    upload(gh);
 }
 
 pub fn update_snap() {
