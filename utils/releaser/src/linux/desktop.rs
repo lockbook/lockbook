@@ -41,6 +41,11 @@ parts:
       - libfontconfig1-dev
       - libfontconfig
     rust-path: ["clients/egui"]
+    override-pull: |
+      snapcraftctl pull
+      curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+      source "$HOME/.cargo/env"
+      rustup default 1.66
 
 apps:
   lockbook-desktop:
@@ -80,7 +85,7 @@ pub fn upload(gh: &Github) {
     let release = client
         .get_release_by_tag_name(&lb_repo(), &core_version())
         .unwrap();
-    let file = File::open("target/x86_64-unknown-linux-gnu/lockbook-egui").unwrap();
+    let file = File::open("target/x86_64-unknown-linux-gnu/release/lockbook-egui").unwrap();
     client
         .upload_release_asset(
             &lb_repo(),

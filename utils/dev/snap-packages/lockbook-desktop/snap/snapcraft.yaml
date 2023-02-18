@@ -1,6 +1,7 @@
+
 name: lockbook-desktop
 base: core22
-version: '0.5.10'
+version: '0.5.11'
 summary: The linux gui version of Lockbook
 description: |
   The private, polished note-taking platform.
@@ -11,18 +12,27 @@ parts:
   lockbook-desktop:
     plugin: rust
     source: https://github.com/lockbook/lockbook.git
-    source-tag: 0.4.3
+    source-tag: 0.5.11
     build-packages:
       - cargo
       - git
-      - libgtksourceview-5-dev
-      - libgspell-1-dev
-    rust-path: ["clients/linux"]
+      - libssl-dev
+      - pkg-config
+      - cmake
+      - libfontconfig1-dev
+      - libfontconfig
+    rust-path: ["clients/egui"]
+    override-pull: |
+      snapcraftctl pull
+      curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+      source "$HOME/.cargo/env"
+      rustup default 1.66
 
 apps:
   lockbook-desktop:
-    command: bin/lockbook-desktop
+    command: bin/lockbook-egui
     extensions: [gnome]
     plugs:
       - network
       - home
+    
