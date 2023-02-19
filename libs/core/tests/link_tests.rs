@@ -1,4 +1,4 @@
-use lockbook_core::Core;
+use lockbook_core::{Core, File};
 use lockbook_shared::file::ShareMode;
 use std::collections::HashSet;
 use test_utils::*;
@@ -281,18 +281,18 @@ fn inconsistent_share_finalization() {
     cores[1].sync(None).unwrap();
     cores[2].sync(None).unwrap();
 
-    let link1 = cores[1].create_link_at_path("link", folder.id).unwrap();
+    let link = cores[1].create_link_at_path("link", folder.id).unwrap();
 
-    let single_file_finalization = cores[1].get_file_by_id(link1.id).unwrap();
+    let file_single_finalization = cores[1].get_file_by_id(link.id).unwrap();
 
-    let mut all_files_finalization = cores[1]
+    let files_all_finalization = cores[1]
         .get_and_get_children_recursively(roots[1].id)
         .unwrap();
 
-    let all_finalization_document = all_files_finalization
-        .iter_mut()
-        .find(|f| f.id == link1.id)
+    let file_all_finalization: &File = files_all_finalization
+        .iter()
+        .find(|f| f.id == link.id)
         .unwrap();
 
-    assert_eq!(single_file_finalization.shares, all_finalization_document.shares);
+    assert_eq!(file_all_finalization.shares, file_single_finalization.shares);
 }

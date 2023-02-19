@@ -156,6 +156,12 @@ impl<Client: Requester> CoreState<Client> {
             return Err(CoreError::FileNonexistent);
         }
 
-        Ok(tree.finalize(id, account, &mut self.db.pub_key_lookup)?)
+        let file = tree
+            .resolve_and_finalize(account, [*id].into_iter(), &mut self.db.pub_key_lookup)?
+            .get(0)
+            .ok_or_else(|| CoreError::Unexpected("finalization error".to_string()))?
+            .to_owned();
+
+        Ok(file)
     }
 }
