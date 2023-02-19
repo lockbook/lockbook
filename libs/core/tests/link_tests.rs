@@ -282,9 +282,8 @@ fn inconsistent_share_finalization() {
     cores[2].sync(None).unwrap();
 
     let link1 = cores[1].create_link_at_path("link", folder.id).unwrap();
-    let _link2 = cores[2].create_link_at_path("link", folder.id).unwrap();
 
-    let single_file_finalization = cores[1].get_file_by_id(folder.id).unwrap();
+    let single_file_finalization = cores[1].get_file_by_id(link1.id).unwrap();
 
     let mut all_files_finalization = cores[1]
         .get_and_get_children_recursively(roots[1].id)
