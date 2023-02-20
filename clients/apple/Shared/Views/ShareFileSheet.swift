@@ -52,8 +52,6 @@ struct ShareFileSheet: View {
                 
                 Button("Share") {
                     share.shareFile(id: meta.id, username: username, isWrite: isWriteSelected)
-                    sync.sync()
-
                     presentationMode.wrappedValue.dismiss()
                 }
                 .buttonStyle(.borderedProminent)

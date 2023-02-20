@@ -41,8 +41,17 @@ class ShareService: ObservableObject {
     }
     
     func shareFile(id: UUID, username: String, isWrite: Bool) {
-        if case .failure(let err) = core.shareFile(id: id, username: username, isWrite: isWrite) {
-            DI.errors.handleError(err)
+        DispatchQueue.global(qos: .userInitiated).async {
+            let operation = self.core.shareFile(id: id, username: username, isWrite: isWrite)
+
+            DispatchQueue.main.async {
+                switch operation {
+                case .success(_):
+                    DI.sync.sync()
+                case .failure(let error):
+                    DI.errors.handleError(error)
+                }
+            }
         }
     }
     

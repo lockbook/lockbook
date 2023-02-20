@@ -32,6 +32,9 @@ struct FileListView: View {
             VStack {
                 List(files) { meta in
                     FileCell(meta: meta)
+                    // The file cell's metadata will not be repopulated with updated metadata (such as shares) because the id (which is
+                    // the same as the file metadata id) does not change. So we forcably update it by assigning a random value as the id.
+                        .id(UUID())
                 }
                 HStack {
                     BottomBar(onCreating: {
