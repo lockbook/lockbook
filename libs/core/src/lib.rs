@@ -15,12 +15,12 @@ pub use libsecp256k1::PublicKey;
 pub use uuid::Uuid;
 
 pub use lockbook_shared::account::Account;
-pub use lockbook_shared::api::ServerIndex;
 pub use lockbook_shared::api::{
     AccountFilter, AccountIdentifier, AdminSetUserTierInfo, AppStoreAccountState,
-    GooglePlayAccountState, PaymentMethod, PaymentPlatform, StripeAccountState, StripeAccountTier,
-    SubscriptionInfo, UnixTimeMillis,
+    GooglePlayAccountState, PaymentMethod, PaymentPlatform, ServerIndex, StripeAccountState,
+    StripeAccountTier, SubscriptionInfo, UnixTimeMillis,
 };
+pub use lockbook_shared::clock;
 pub use lockbook_shared::core_config::Config;
 pub use lockbook_shared::crypto::DecryptedDocument;
 pub use lockbook_shared::drawing::{ColorAlias, ColorRGB, Drawing, Stroke};
@@ -31,8 +31,7 @@ pub use lockbook_shared::filename::NameComponents;
 pub use lockbook_shared::lazy::LazyTree;
 pub use lockbook_shared::path_ops::Filter;
 pub use lockbook_shared::server_file::ServerFile;
-pub use lockbook_shared::tree_like::TreeLike;
-pub use lockbook_shared::tree_like::TreeLikeMut;
+pub use lockbook_shared::tree_like::{TreeLike, TreeLikeMut};
 pub use lockbook_shared::usage::bytes_to_human;
 pub use lockbook_shared::work_unit::{ClientWorkUnit, WorkUnit};
 
@@ -52,7 +51,6 @@ use lockbook_shared::account::Username;
 use lockbook_shared::api::{
     AccountInfo, AdminFileInfoResponse, AdminValidateAccount, AdminValidateServer,
 };
-use lockbook_shared::clock;
 
 use crate::model::errors::Error::UiError;
 use crate::repo::CoreDb;
