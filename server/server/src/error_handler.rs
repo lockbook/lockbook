@@ -7,11 +7,13 @@ use crate::{
     ClientError, GetUsageHelperError, ServerError, SimplifiedStripeError, StripeWebhookError,
 };
 use base64::DecodeError;
+use db_rs::DbError;
 use jsonwebtoken::errors::ErrorKind;
 use lockbook_shared::api::*;
 use lockbook_shared::SharedError;
 use std::fmt::Debug;
 use std::io::Error;
+use std::sync::PoisonError;
 
 impl<T: Debug> From<Error> for ServerError<T> {
     fn from(err: Error) -> Self {
@@ -334,5 +336,17 @@ impl From<SharedError> for ServerError<GetFileIdsError> {
 impl From<SharedError> for ServerError<GetUpdatesError> {
     fn from(err: SharedError) -> Self {
         internal!("{:?}", err)
+    }
+}
+
+impl<T: Debug> From<DbError> for ServerError<T> {
+    fn from(value: DbError) -> Self {
+        internal!("db-rs error {:?}", value)
+    }
+}
+
+impl<T: Debug, G> From<PoisonError<G>> for ServerError<T> {
+    fn from(value: PoisonError<G>) -> Self {
+        internal!("mutex poisoned {:?}", value)
     }
 }

@@ -44,8 +44,8 @@ sublime_fuzzy = "0.7.0"
 crossbeam = "0.8.1"
 lockbook-shared = { path = "libs/shared" }
 qrcode-generator = "4.1.6"
-db-rs = "0.1.12"
-db-rs-derive = "0.1.12"
+db-rs = "0.1.16"
+db-rs-derive = "0.1.16"
 
 lockbook-server = { path = "../../server/server", optional = true }
 tokio = { version = "1.5.0", optional = true }

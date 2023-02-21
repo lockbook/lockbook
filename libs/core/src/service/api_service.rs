@@ -93,12 +93,11 @@ pub mod no_network {
     use crate::{call, CoreLib, CoreState};
     use crate::{CoreDb, Requester};
     use db_rs::Db;
-    use hmdb::log::Reader;
     use lockbook_server_lib::account_service::*;
     use lockbook_server_lib::billing::google_play_client::get_google_play_client;
     use lockbook_server_lib::config::*;
     use lockbook_server_lib::file_service::*;
-    use lockbook_server_lib::schema::v3;
+    use lockbook_server_lib::schema::ServerV4;
     use lockbook_server_lib::{stripe, ServerError, ServerState};
     use lockbook_shared::account::Account;
     use lockbook_shared::api::*;
@@ -143,8 +142,10 @@ pub mod no_network {
             ));
             let app_store_client = reqwest::Client::new();
 
-            let index_db = v3::Server::init(&server_config.index_db.db_location)
-                .expect("Failed to load index_db");
+            let index_db = Arc::new(Mutex::new(
+                ServerV4::init(db_rs::Config::in_folder(&server_config.index_db.db_location))
+                    .expect("Failed to load index_db"),
+            ));
 
             let internals = InProcessInternals {
                 server_state: ServerState {
