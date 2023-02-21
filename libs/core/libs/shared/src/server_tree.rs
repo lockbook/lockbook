@@ -27,7 +27,7 @@ impl<'a> ServerTree<'a> {
             match (owned_files.data().get(&owner), shared_files.data().get(&owner)) {
                 (Some(owned_ids), Some(shared_ids)) => (owned_ids.clone(), shared_ids.clone()),
                 _ => {
-                    error!("Tree created for user without owned and shared files");
+                    error!("Tree created for user without owned and shared files {:?}", owner);
                     (HashSet::new(), HashSet::new())
                 }
             };

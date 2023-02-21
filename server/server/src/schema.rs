@@ -70,18 +70,21 @@ impl ServerV4 {
         }
 
         for (owner, uuids) in src.owned_files.get_all().clone() {
+            dest.owned_files.create_key(owner).unwrap();
             for uuid in uuids {
                 dest.owned_files.insert(owner, uuid).unwrap();
             }
         }
 
         for (owner, uuids) in src.shared_files.get_all().clone() {
+            dest.shared_files.create_key(owner).unwrap();
             for uuid in uuids {
                 dest.shared_files.insert(owner, uuid).unwrap();
             }
         }
 
         for (parent, children) in src.file_children.get_all().clone() {
+            dest.file_children.create_key(parent).unwrap();
             for child in children {
                 dest.file_children.insert(parent, child).unwrap();
             }
