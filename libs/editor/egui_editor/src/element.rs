@@ -98,7 +98,7 @@ impl Element {
             }
             Element::Paragraph | Element::Item => {}
             Element::Image(_, _, _) => {
-                text_format.color = vis.link();
+                text_format.italics = true;
             }
             Element::Selection => {
                 text_format.background = vis.selection_bg();
