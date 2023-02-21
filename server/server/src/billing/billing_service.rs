@@ -50,8 +50,10 @@ fn lock_subscription_profile(
     let tx = db.begin_transaction()?;
     let mut account = db
         .accounts
-        .remove(&owner)?
-        .ok_or(ClientError(UserNotFound))?;
+        .data()
+        .get(&owner)
+        .ok_or(ClientError(UserNotFound))?
+        .clone();
 
     let current_time = get_time().0 as u64;
 
