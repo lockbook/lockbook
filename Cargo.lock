@@ -970,7 +970,6 @@ dependencies = [
  "jni 0.13.1",
  "lazy_static",
  "lockbook-core",
- "lockbook-shared",
  "serde",
  "serde_json",
  "strum",
