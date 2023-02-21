@@ -5,7 +5,7 @@ use std::io::Write;
 use std::process::{Command, Stdio};
 
 const LIB_NAME_HEADER: &str = "lockbook_core.h";
-const LIB_NAME: &str = "liblockbook_core.a";
+const LIB_NAME: &str = "liblockbook_core_external_interface.a";
 
 pub fn run_swift_tests(tool_env: &ToolEnvironment) {
     dotenv::from_path(utils::local_env_path(&tool_env.root_dir)).unwrap();
@@ -26,16 +26,16 @@ pub fn run_swift_tests(tool_env: &ToolEnvironment) {
 }
 
 pub fn make_swift_test_lib(tool_env: &ToolEnvironment) {
-    let core_dir = utils::core_dir(&tool_env.root_dir);
-    let c_interface_dir = core_dir
-        .join("src/external_interface/c_interface.rs")
+    let ext_iface_dir = utils::core_external_interface_dir(&tool_env.root_dir);
+    let c_interface_file = ext_iface_dir
+        .join("src/c_interface.rs")
         .to_str()
         .unwrap()
         .to_string();
 
     let build_results = Command::new("cbindgen")
-        .args([&c_interface_dir, "-l", "c"])
-        .current_dir(utils::core_dir(&tool_env.root_dir))
+        .args([&c_interface_file, "-l", "c"])
+        .current_dir(utils::core_external_interface_dir(&tool_env.root_dir))
         .stdout(Stdio::piped())
         .assert_success_with_output();
 
@@ -49,7 +49,7 @@ pub fn make_swift_test_lib(tool_env: &ToolEnvironment) {
 
     Command::new("cargo")
         .args(["build", "--release"])
-        .current_dir(utils::core_dir(&tool_env.root_dir))
+        .current_dir(utils::core_external_interface_dir(&tool_env.root_dir))
         .assert_success();
 
     let swift_lib_dir = utils::swift_lib(&tool_env.root_dir);
