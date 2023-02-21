@@ -13,7 +13,7 @@ class SyncAllTest {
         @BeforeClass
         @JvmStatic
         fun loadLib() {
-            System.loadLibrary("lockbook_core")
+            System.loadLibrary("lockbook_core_external_interface")
         }
     }
 

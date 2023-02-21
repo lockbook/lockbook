@@ -21,8 +21,8 @@ where
 
 #[cfg(test)]
 mod unit_tests {
-    use crate::external_interface::json_interface::translate;
-    use crate::UnexpectedError;
+    use crate::json_interface::translate;
+    use lockbook_core::UnexpectedError;
 
     #[test]
     fn sanity_check() {

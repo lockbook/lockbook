@@ -987,6 +987,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "core_external_interface"
+version = "0.1.0"
+dependencies = [
+ "backtrace",
+ "basic-human-duration",
+ "chrono",
+ "crossbeam",
+ "jni 0.13.1",
+ "lazy_static",
+ "lockbook-core",
+ "lockbook-shared",
+ "serde",
+ "serde_json",
+ "strum",
+ "tracing",
+]
+
+[[package]]
 name = "cpufeatures"
 version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3118,8 +3136,6 @@ dependencies = [
  "image",
  "indicatif 0.17.0-rc.11",
  "itertools",
- "jni 0.13.1",
- "lazy_static",
  "libsecp256k1",
  "lockbook-server",
  "lockbook-shared",

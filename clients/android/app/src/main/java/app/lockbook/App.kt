@@ -39,7 +39,7 @@ class App : Application() {
     }
 
     private fun loadLockbookCore() {
-        System.loadLibrary("lockbook_core")
+        System.loadLibrary("lockbook_core_external_interface")
         CoreModel.init(Config(true, false, this.filesDir.absolutePath))
     }
 }

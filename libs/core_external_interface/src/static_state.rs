@@ -1,5 +1,5 @@
-use crate::{unexpected_only, Config, Core, UnexpectedError};
 use lazy_static::lazy_static;
+use lockbook_core::{unexpected_only, Config, Core, UnexpectedError};
 use std::sync::{Arc, RwLock};
 
 lazy_static! {

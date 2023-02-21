@@ -1,17 +1,13 @@
 use std::ffi::{CStr, CString};
 use std::os::raw::c_char;
 
-use lockbook_shared::file::ShareMode;
 use serde::Serialize;
 use serde_json::json;
-use uuid::Uuid;
 
-use lockbook_shared::file_metadata::FileType;
+use lockbook_core::{Config, FileType, ShareMode, SupportedImageFormats, Uuid};
 use lockbook_shared::path_ops::{filter_from_str, Filter};
 
-use crate::external_interface::json_interface::translate;
-use crate::external_interface::static_state;
-use crate::{get_all_error_variants, Config, SupportedImageFormats};
+use crate::{get_all_error_variants, json_interface::translate, static_state};
 
 fn c_string(value: String) -> *const c_char {
     CString::new(value)

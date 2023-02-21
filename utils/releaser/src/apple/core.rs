@@ -8,7 +8,7 @@ use std::process::Command;
 static INC: &str = "clients/apple/CLockbookCore/Sources/CLockbookCore/include/";
 static IOS_LIB_DIR: &str = "clients/apple/CLockbookCore/Sources/CLockbookCore/lib_ios/";
 static MAC_LIB_DIR: &str = "clients/apple/CLockbookCore/Sources/CLockbookCore/lib/";
-static LIB: &str = "liblockbook_core.a";
+static LIB: &str = "liblockbook_core_external_interface.a";
 static HEAD: &str = "lockbook_core.h";
 
 pub fn build() {
@@ -43,7 +43,7 @@ fn clean_dirs() {
 
 fn header() {
     let header = Command::new("cbindgen")
-        .args(["src/external_interface/c_interface.rs", "-l", "c"])
+        .args(["../core_external_interface/src/c_interface.rs", "-l", "c"])
         .current_dir("libs/core")
         .success_output();
 
@@ -74,9 +74,9 @@ fn build_libs() {
         .args([
             "-create",
             "-output",
-            "target/universal-macos/liblockbook_core.a",
-            "target/x86_64-apple-darwin/release/liblockbook_core.a",
-            "target/aarch64-apple-darwin/release/liblockbook_core.a",
+            "target/universal-macos/liblockbook_core_external_interface.a",
+            "target/x86_64-apple-darwin/release/liblockbook_core_external_interface.a",
+            "target/aarch64-apple-darwin/release/liblockbook_core_external_interface.a",
         ])
         .assert_success();
 }
