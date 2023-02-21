@@ -36,6 +36,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         source_index_db
             .transaction(|source_tx| ServerV4::migrate(source_tx, &mut index_db))
             .unwrap();
+
         info!("migration complete");
     }
 
