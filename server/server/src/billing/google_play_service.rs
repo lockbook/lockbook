@@ -30,8 +30,10 @@ pub fn get_public_key(
 
     let public_key: PublicKey = state
         .index_db
+        .lock()?
         .google_play_ids
-        .get(account_id)?
+        .data()
+        .get(account_id)
         .ok_or_else(|| {
             internal!("There is no public_key related to this account_id: {:?}", account_id)
         })?

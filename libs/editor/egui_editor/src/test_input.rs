@@ -190,3 +190,4 @@ pub static TEST_MARKDOWN_45: &str = r#"# Ambrose Burnside
 ![alt text](https://invalidurl.com "title")
 * this image has a broken link
 "#;
+pub static TEST_MARKDOWN_46: &str = "- ”";

@@ -102,7 +102,7 @@ checksum = "aae1277d39aeec15cb388266ecc24b11c80469deae6067e17a1a7aa9e5c1f234"
 
 [[package]]
 name = "admin"
-version = "0.5.11"
+version = "0.6.0"
 dependencies = [
  "backtrace",
  "dialoguer",
@@ -1330,9 +1330,9 @@ checksum = "23d8666cb01533c39dde32bcbab8e227b4ed6679b2c925eba05feabea39508fb"
 
 [[package]]
 name = "db-rs"
-version = "0.1.12"
+version = "0.1.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5239c72f22f4cd487e0377aec31790b306675df565c9ffe69b26d7c4b7e81bc8"
+checksum = "5e7f7674d001d89d9116bf3664fde5809f24ede5deee558dcbc543f79fa27640"
 dependencies = [
  "bincode",
  "serde",
@@ -1340,9 +1340,9 @@ dependencies = [
 
 [[package]]
 name = "db-rs-derive"
-version = "0.1.12"
+version = "0.1.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b6649b5ac0aef99da13990d743c48e87ad51bddef98d3fff0a826f4e91085d6f"
+checksum = "d2920803c011b4a6036738ee8d87f9ac589687d7f1e6aeab70feb533f912df74"
 dependencies = [
  "db-rs",
  "quote",
@@ -1580,7 +1580,7 @@ dependencies = [
 
 [[package]]
 name = "egui_editor"
-version = "0.5.11"
+version = "0.6.0"
 dependencies = [
  "eframe",
  "egui",
@@ -3092,7 +3092,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook-cli"
-version = "0.5.11"
+version = "0.6.0"
 dependencies = [
  "atty",
  "clap 4.1.4",
@@ -3102,7 +3102,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook-core"
-version = "0.5.11"
+version = "0.6.0"
 dependencies = [
  "backtrace",
  "base64",
@@ -3147,7 +3147,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook-dev"
-version = "0.5.11"
+version = "0.6.0"
 dependencies = [
  "dotenv",
  "rand 0.8.5",
@@ -3159,7 +3159,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook-egui"
-version = "0.5.11"
+version = "0.6.0"
 dependencies = [
  "dark-light",
  "eframe",
@@ -3175,7 +3175,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook-server"
-version = "0.5.11"
+version = "0.6.0"
 dependencies = [
  "async-stripe",
  "atomic-counter",
@@ -3183,6 +3183,8 @@ dependencies = [
  "bincode",
  "chrono",
  "constant_time_eq 0.2.4",
+ "db-rs",
+ "db-rs-derive",
  "futures",
  "google-androidpublisher3",
  "hmdb",
@@ -3214,7 +3216,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook-shared"
-version = "0.5.11"
+version = "0.6.0"
 dependencies = [
  "aead",
  "aes-gcm",
@@ -4414,7 +4416,7 @@ checksum = "a3f87b73ce11b1619a3c6332f45341e0047173771e8b8b73f87bfeefb7b56244"
 
 [[package]]
 name = "releaser"
-version = "0.5.11"
+version = "0.6.0"
 dependencies = [
  "fs_extra",
  "gh_release",
@@ -5222,7 +5224,7 @@ dependencies = [
 
 [[package]]
 name = "test_utils"
-version = "0.5.11"
+version = "0.6.0"
 dependencies = [
  "bincode",
  "chrono",
@@ -6527,7 +6529,7 @@ dependencies = [
 
 [[package]]
 name = "winstaller"
-version = "0.5.11"
+version = "0.6.0"
 dependencies = [
  "eframe",
  "egui_extras",

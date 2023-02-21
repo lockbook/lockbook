@@ -38,6 +38,9 @@ pub struct WgpuEditor {
     pub context: egui::Context,
     pub raw_input: egui::RawInput,
 
+    pub from_host: Option<String>,
+    pub from_egui: Option<String>,
+
     pub editor: Editor,
 }
 
@@ -68,6 +71,9 @@ impl WgpuEditor {
         self.editor.draw(&self.context);
         // todo: consider consuming repaint_after
         let full_output = self.context.end_frame();
+        if !full_output.platform_output.copied_text.is_empty() {
+            self.from_egui = Some(full_output.platform_output.copied_text);
+        }
         let paint_jobs = self.context.tessellate(full_output.shapes);
         let mut encoder = self
             .device
