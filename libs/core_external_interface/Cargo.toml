@@ -3,6 +3,10 @@ name = "core_external_interface"
 version = "0.1.0"
 edition = "2021"
 
+[lib]
+name = "lockbook_core_external_interface"
+crate-type = ["lib", "staticlib", "cdylib"]
+
 [dependencies]
 backtrace = "0.3"
 basic-human-duration = "0.1.2"
