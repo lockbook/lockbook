@@ -40,12 +40,12 @@ pub fn run_kotlin_tests(tool_env: &ToolEnvironment) {
 }
 
 pub fn make_android_libs(tool_env: &ToolEnvironment) {
-    let core_dir = utils::core_external_interface_dir(&tool_env.root_dir);
+    let ext_iface_dir = utils::core_external_interface_dir(&tool_env.root_dir);
 
-    build_core_for_android_arch(&core_dir, "aarch64-linux-android");
-    build_core_for_android_arch(&core_dir, "armv7-linux-androideabi");
-    build_core_for_android_arch(&core_dir, "i686-linux-android");
-    build_core_for_android_arch(&core_dir, "x86_64-linux-android");
+    build_core_for_android_arch(&ext_iface_dir, "aarch64-linux-android");
+    build_core_for_android_arch(&ext_iface_dir, "armv7-linux-androideabi");
+    build_core_for_android_arch(&ext_iface_dir, "i686-linux-android");
+    build_core_for_android_arch(&ext_iface_dir, "x86_64-linux-android");
 
     let jni_lib_dir = utils::jni_lib_dir(&tool_env.root_dir);
 
