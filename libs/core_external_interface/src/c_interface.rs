@@ -5,7 +5,6 @@ use serde::Serialize;
 use serde_json::json;
 
 use lockbook_core::{Config, FileType, ShareMode, SupportedImageFormats, Uuid};
-use lockbook_shared::path_ops::{filter_from_str, Filter};
 
 use crate::{get_all_error_variants, json_interface::translate, static_state};
 
@@ -44,10 +43,6 @@ unsafe fn share_mode_from_ptr(s: *const c_char) -> ShareMode {
     str_from_ptr(s)
         .parse()
         .expect("Could not String -> ShareMode")
-}
-
-unsafe fn filter_from_ptr(s: *const c_char) -> Option<Filter> {
-    filter_from_str(&str_from_ptr(s)).expect("Could not String -> Option<Filter>")
 }
 
 #[no_mangle]
@@ -301,17 +296,6 @@ pub unsafe extern "C" fn export_drawing(id: *const c_char) -> *const c_char {
         Ok(core) => {
             translate(core.export_drawing(uuid_from_ptr(id), SupportedImageFormats::Png, None))
         }
-        e => translate(e.map(|_| ())),
-    })
-}
-
-/// # Safety
-///
-/// Be sure to call `release_pointer` on the result of this function to free the data.
-#[no_mangle]
-pub unsafe extern "C" fn list_paths(filter: *const c_char) -> *const c_char {
-    c_string(match static_state::get() {
-        Ok(core) => translate(core.list_paths(filter_from_ptr(filter))),
         e => translate(e.map(|_| ())),
     })
 }
