@@ -19,7 +19,6 @@ path = "src/main.rs"
 egui = "0.20.0"
 egui_wgpu_backend = "0.21.0"
 libc = "0.2"
-pollster = "0.2"
 pulldown-cmark = { version = "0.9.2", default-features = false }
 unicode-segmentation = "1.10.0"
 
