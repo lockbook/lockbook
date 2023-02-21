@@ -33,16 +33,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let source_index_db =
             v3::Server::init(&cfg.index_db.db_location).expect("Failed to load index_db");
 
-        info!("{}", source_index_db.accounts.get_all().unwrap().len());
-        info!("{}", source_index_db.owned_files.get_all().unwrap().len());
-        info!("{}", source_index_db.shared_files.get_all().unwrap().len());
         source_index_db
             .transaction(|source_tx| ServerV4::migrate(source_tx, &mut index_db))
             .unwrap();
 
-        info!("{}", index_db.accounts.data().len());
-        info!("{}", index_db.owned_files.data().len());
-        info!("{}", index_db.shared_files.data().len());
         info!("migration complete");
     }
 
