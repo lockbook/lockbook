@@ -48,8 +48,4 @@ db-rs-derive = "0.1.16"
 shadow-rs = "0.6.2"
 
 [dev-dependencies]
-lockbook-core = { path = "../../libs/core" }
-tokio-test = "0.4.1"
 num_cpus = "1.13.0"
-atomic-counter = "1.0.1"
-indicatif = "0.16.0"
