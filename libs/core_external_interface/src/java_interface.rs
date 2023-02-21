@@ -11,9 +11,9 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 use std::sync::{Arc, Mutex};
 
-use lockbook_core::{unexpected_only, Config, Error, SupportedImageFormats, UnexpectedError, Uuid};
 use lockbook_core::service::search_service::{SearchRequest, SearchResult};
 use lockbook_core::service::sync_service::SyncProgress;
+use lockbook_core::{unexpected_only, Config, Error, SupportedImageFormats, UnexpectedError, Uuid};
 use lockbook_shared::clock;
 use lockbook_shared::drawing::Drawing;
 use lockbook_shared::file::ShareMode;
