@@ -40,7 +40,7 @@ pub fn run_kotlin_tests(tool_env: &ToolEnvironment) {
 }
 
 pub fn make_android_libs(tool_env: &ToolEnvironment) {
-    let core_dir = utils::core_dir(&tool_env.root_dir);
+    let core_dir = utils::core_external_interface_dir(&tool_env.root_dir);
 
     build_core_for_android_arch(&core_dir, "aarch64-linux-android");
     build_core_for_android_arch(&core_dir, "armv7-linux-androideabi");
@@ -91,7 +91,7 @@ pub fn make_android_libs(tool_env: &ToolEnvironment) {
 pub fn make_android_test_lib(tool_env: &ToolEnvironment) {
     Command::new("cargo")
         .args(["build", "--lib", "--release"])
-        .current_dir(&utils::core_dir(&tool_env.root_dir))
+        .current_dir(&utils::core_external_interface_dir(&tool_env.root_dir))
         .assert_success();
 
     let jni_lib_dir = utils::jni_lib_dir(&tool_env.root_dir);
