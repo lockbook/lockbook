@@ -1,4 +1,4 @@
-use crate::account_service::{GetUsageHelperError, is_admin};
+use crate::account_service::{is_admin, GetUsageHelperError};
 use crate::billing::app_store_model::{NotificationChange, Subtype};
 use crate::billing::billing_model::{
     AppStoreUserInfo, BillingPlatform, GooglePlayUserInfo, StripeUserInfo,
@@ -359,12 +359,16 @@ pub async fn admin_set_user_tier(
 ) -> Result<AdminSetUserTierResponse, ServerError<AdminSetUserTierError>> {
     let (request, server_state) = (&context.request, context.server_state);
 
-    if !is_admin::<AdminSetUserTierError>(
-        &server_state.index_db.lock()?,
-        &context.public_key,
-        &context.server_state.config.admin.admins,
-    )? {
-        return Err(ClientError(AdminSetUserTierError::NotPermissioned));
+    {
+        let db = server_state.index_db.lock()?;
+
+        if !is_admin::<AdminSetUserTierError>(
+            &db,
+            &context.public_key,
+            &context.server_state.config.admin.admins,
+        )? {
+            return Err(ClientError(AdminSetUserTierError::NotPermissioned));
+        }
     }
 
     let public_key = server_state
