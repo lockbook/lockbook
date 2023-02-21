@@ -14,8 +14,10 @@ pub(crate) async fn insert<T: Debug>(
     let content = bincode::serialize(content)?;
     let path = get_path(state, id, hmac);
     let mut file = File::create(path.clone()).await?;
-    file.write_all(&content).await.unwrap(); // TODO address
-    file.flush().await.unwrap(); // TODO address
+    file.write_all(&content)
+        .await
+        .map_err(|err| internal!("{:?}", err))?;
+    file.flush().await.map_err(|err| internal!("{:?}", err))?;
     Ok(())
 }
 

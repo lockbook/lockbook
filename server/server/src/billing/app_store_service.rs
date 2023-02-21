@@ -26,8 +26,10 @@ pub fn get_public_key(
 ) -> Result<PublicKey, ServerError<AppStoreNotificationError>> {
     let public_key: PublicKey = state
         .index_db
+        .lock()?
         .app_store_ids
-        .get(&trans.app_account_token)?
+        .data()
+        .get(&trans.app_account_token)
         .ok_or_else(|| {
             internal!("There is no public_key related to this app_account_token: {:?}", trans)
         })?

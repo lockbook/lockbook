@@ -1,7 +1,6 @@
-use crate::{Server, ServerError, ServerState};
+use crate::{ServerError, ServerState};
 use lazy_static::lazy_static;
 
-use hmdb::transaction::Transaction;
 use lockbook_shared::clock::get_time;
 use prometheus::{register_int_gauge_vec, IntGaugeVec};
 use prometheus_static_metric::make_static_metric;
@@ -10,7 +9,7 @@ use tracing::*;
 use uuid::Uuid;
 
 use crate::billing::billing_model::{BillingPlatform, SubscriptionProfile};
-use crate::transaction::Server as TransactionalServer;
+use crate::schema::ServerDb;
 use lockbook_shared::file_like::FileLike;
 use lockbook_shared::file_metadata::Owner;
 use lockbook_shared::server_tree::ServerTree;
@@ -86,7 +85,7 @@ pub async fn start(state: ServerState) -> Result<(), ServerError<MetricsError>> 
     loop {
         info!("Metrics refresh started");
 
-        let public_keys_and_usernames = state.index_db.usernames.get_all()?;
+        let public_keys_and_usernames = state.index_db.lock()?.usernames.data().clone();
 
         let total_users_ever = public_keys_and_usernames.len() as i64;
         let mut total_documents = 0;
@@ -101,47 +100,51 @@ pub async fn start(state: ServerState) -> Result<(), ServerError<MetricsError>> 
         let mut premium_app_store_users = 0;
 
         for (username, owner) in public_keys_and_usernames {
-            let maybe_user_info = get_user_info(&state, owner).await?;
+            {
+                let mut db = state.index_db.lock()?;
+                let maybe_user_info = get_user_info(&mut db, owner)?;
 
-            let user_info = match maybe_user_info {
-                None => {
-                    deleted_users += 1;
-                    continue;
-                }
-                Some(user_info) => user_info,
-            };
-
-            if user_info.is_user_active {
-                active_users += 1;
-            }
-            if user_info.is_user_sharer_or_sharee {
-                share_feature_users += 1;
-            }
-
-            total_documents += user_info.total_documents;
-            total_bytes += user_info.total_bytes;
-
-            METRICS_USAGE_BY_USER_VEC
-                .with_label_values(&[&username])
-                .set(user_info.total_bytes);
-
-            let billing_info = get_user_billing_info(&state.index_db, &owner).await?;
-
-            if billing_info.is_premium() {
-                premium_users += 1;
-
-                match billing_info.billing_platform {
+                let user_info = match maybe_user_info {
                     None => {
-                        return Err(internal!(
-                        "Could not retrieve billing platform although it was used moments before."
-                    ))
+                        deleted_users += 1;
+                        continue;
                     }
-                    Some(billing_platform) => match billing_platform {
-                        BillingPlatform::GooglePlay { .. } => premium_google_play_users += 1,
-                        BillingPlatform::Stripe { .. } => premium_stripe_users += 1,
-                        BillingPlatform::AppStore { .. } => premium_app_store_users += 1,
-                    },
+                    Some(user_info) => user_info,
+                };
+
+                if user_info.is_user_active {
+                    active_users += 1;
                 }
+                if user_info.is_user_sharer_or_sharee {
+                    share_feature_users += 1;
+                }
+
+                total_documents += user_info.total_documents;
+                total_bytes += user_info.total_bytes;
+
+                METRICS_USAGE_BY_USER_VEC
+                    .with_label_values(&[&username])
+                    .set(user_info.total_bytes);
+
+                let billing_info = get_user_billing_info(&db, &owner)?;
+
+                if billing_info.is_premium() {
+                    premium_users += 1;
+
+                    match billing_info.billing_platform {
+                        None => {
+                            return Err(internal!(
+                        "Could not retrieve billing platform although it was used moments before."
+                    ));
+                        }
+                        Some(billing_platform) => match billing_platform {
+                            BillingPlatform::GooglePlay { .. } => premium_google_play_users += 1,
+                            BillingPlatform::Stripe { .. } => premium_stripe_users += 1,
+                            BillingPlatform::AppStore { .. } => premium_app_store_users += 1,
+                        },
+                    }
+                }
+                drop(db);
             }
 
             tokio::time::sleep(state.config.metrics.time_between_metrics).await;
@@ -174,78 +177,77 @@ pub async fn start(state: ServerState) -> Result<(), ServerError<MetricsError>> 
     }
 }
 
-pub async fn get_user_billing_info(
-    db: &Server, owner: &Owner,
+pub fn get_user_billing_info(
+    db: &ServerDb, owner: &Owner,
 ) -> Result<SubscriptionProfile, ServerError<MetricsError>> {
     let account = db
         .accounts
-        .get(owner)?
+        .data()
+        .get(owner)
         .ok_or_else(|| internal!("Could not get user's account during metrics {:?}", owner))?;
 
-    Ok(account.billing_info)
+    Ok(account.billing_info.clone())
 }
 
-pub async fn get_user_info(
-    state: &ServerState, owner: Owner,
+pub fn get_user_info(
+    db: &mut ServerDb, owner: Owner,
 ) -> Result<Option<UserInfo>, ServerError<MetricsError>> {
-    state.index_db.transaction(|tx| {
-        if tx.owned_files.get(&owner).is_none() {
-            return Ok(None);
+    if db.owned_files.data().get(&owner).is_none() {
+        return Ok(None);
+    }
+
+    let mut tree = ServerTree::new(
+        owner,
+        &mut db.owned_files,
+        &mut db.shared_files,
+        &mut db.file_children,
+        &mut db.metas,
+    )?
+    .to_lazy();
+
+    let mut ids = Vec::new();
+
+    let time_two_days_ago = get_time().0 as u64 - TWO_DAYS_IN_MILLIS as u64;
+    let is_user_active = match db.last_seen.data().get(&owner) {
+        Some(x) => *x > time_two_days_ago,
+        None => false,
+    };
+
+    let is_user_sharer_or_sharee = tree
+        .all_files()?
+        .iter()
+        .any(|k| k.owner() != owner || k.is_shared());
+
+    for id in tree.owned_ids() {
+        if !tree.calculate_deleted(&id)? {
+            ids.push(id);
         }
+    }
 
-        let mut tree = ServerTree::new(
-            owner,
-            &mut tx.owned_files,
-            &mut tx.shared_files,
-            &mut tx.file_children,
-            &mut tx.metas,
-        )?
-        .to_lazy();
+    let (total_documents, total_bytes) = get_bytes_and_documents_count(db, owner, ids)?;
 
-        let mut ids = Vec::new();
-
-        let time_two_days_ago = get_time().0 as u64 - TWO_DAYS_IN_MILLIS as u64;
-        let is_user_active = match tx.last_seen.get(&owner) {
-            Some(x) => *x > time_two_days_ago,
-            None => false,
-        };
-
-        let is_user_sharer_or_sharee = tree
-            .all_files()?
-            .iter()
-            .any(|k| k.owner() != owner || k.is_shared());
-
-        for id in tree.owned_ids() {
-            if !tree.calculate_deleted(&id)? {
-                ids.push(id);
-            }
-        }
-
-        let (total_documents, total_bytes) = get_bytes_and_documents_count(tx, owner, ids)?;
-
-        Ok(Some(UserInfo {
-            total_documents,
-            total_bytes: total_bytes as i64,
-            is_user_active,
-            is_user_sharer_or_sharee,
-        }))
-    })?
+    Ok(Some(UserInfo {
+        total_documents,
+        total_bytes: total_bytes as i64,
+        is_user_active,
+        is_user_sharer_or_sharee,
+    }))
 }
 
 fn get_bytes_and_documents_count(
-    db: &mut TransactionalServer, owner: Owner, ids: Vec<Uuid>,
+    db: &mut ServerDb, owner: Owner, ids: Vec<Uuid>,
 ) -> Result<(i64, u64), ServerError<MetricsError>> {
     let mut total_documents = 0;
     let mut total_bytes = 0;
 
     for id in ids {
-        let metadata = db.metas.get(&id).ok_or_else(|| {
+        let metadata = db.metas.data().get(&id).ok_or_else(|| {
             internal!("Could not get file metadata during metrics for {:?}", owner)
         })?;
 
         if metadata.is_document() {
             if metadata.document_hmac().is_some() {
-                let usage = db.sizes.get(&id).ok_or_else(|| {
+                let usage = db.sizes.data().get(&id).ok_or_else(|| {
                     internal!("Could not get file usage during metrics for {:?}", owner)
                 })?;
 

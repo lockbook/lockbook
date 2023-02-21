@@ -77,8 +77,13 @@ macro_rules! core_req {
 
                     debug!("request verified successfully");
                     let req_pk = request.signed_request.public_key;
-                    let username = match state.index_db.accounts.get(&Owner(req_pk)) {
-                        Ok(Some(account)) => account.username,
+                    let username = match state.index_db.lock().map(|db| {
+                        db.accounts
+                            .data()
+                            .get(&Owner(req_pk))
+                            .map(|account| account.username.clone())
+                    }) {
+                        Ok(Some(username)) => username,
                         Ok(None) => "~unknown~".to_string(),
                         Err(error) => {
                             error!(?error, "hmdb error");
