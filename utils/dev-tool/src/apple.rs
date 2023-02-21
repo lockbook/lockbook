@@ -35,7 +35,7 @@ pub fn make_swift_test_lib(tool_env: &ToolEnvironment) {
 
     let build_results = Command::new("cbindgen")
         .args([&c_interface_file, "-l", "c"])
-        .current_dir(utils::core_external_interface_dir(&tool_env.root_dir))
+        .current_dir(&ext_iface_dir)
         .stdout(Stdio::piped())
         .assert_success_with_output();
 
@@ -49,7 +49,7 @@ pub fn make_swift_test_lib(tool_env: &ToolEnvironment) {
 
     Command::new("cargo")
         .args(["build", "--release"])
-        .current_dir(utils::core_external_interface_dir(&tool_env.root_dir))
+        .current_dir(&ext_iface_dir)
         .assert_success();
 
     let swift_lib_dir = utils::swift_lib(&tool_env.root_dir);

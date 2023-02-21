@@ -47,10 +47,6 @@ pub fn swift_lib<P: AsRef<Path>>(root: P) -> PathBuf {
         .join("clients/apple/CLockbookCore/Sources/CLockbookCore/lib")
 }
 
-/*pub fn core_dir<P: AsRef<Path>>(root: P) -> PathBuf {
-    root.as_ref().join("libs/core")
-}*/
-
 pub fn core_external_interface_dir<P: AsRef<Path>>(root: P) -> PathBuf {
     root.as_ref().join("libs/core_external_interface")
 }
