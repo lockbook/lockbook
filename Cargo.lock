@@ -102,7 +102,7 @@ checksum = "aae1277d39aeec15cb388266ecc24b11c80469deae6067e17a1a7aa9e5c1f234"
 
 [[package]]
 name = "admin"
-version = "0.5.11"
+version = "0.6.0"
 dependencies = [
  "backtrace",
  "dialoguer",
@@ -1580,7 +1580,7 @@ dependencies = [
 
 [[package]]
 name = "egui_editor"
-version = "0.5.11"
+version = "0.6.0"
 dependencies = [
  "eframe",
  "egui",
@@ -3090,7 +3090,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook-cli"
-version = "0.5.11"
+version = "0.6.0"
 dependencies = [
  "atty",
  "clap 4.1.4",
@@ -3100,7 +3100,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook-core"
-version = "0.5.11"
+version = "0.6.0"
 dependencies = [
  "backtrace",
  "base64",
@@ -3145,7 +3145,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook-dev"
-version = "0.5.11"
+version = "0.6.0"
 dependencies = [
  "dotenv",
  "rand 0.8.5",
@@ -3157,7 +3157,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook-egui"
-version = "0.5.11"
+version = "0.6.0"
 dependencies = [
  "dark-light",
  "eframe",
@@ -3173,7 +3173,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook-server"
-version = "0.5.11"
+version = "0.6.0"
 dependencies = [
  "async-stripe",
  "atomic-counter",
@@ -3214,7 +3214,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook-shared"
-version = "0.5.11"
+version = "0.6.0"
 dependencies = [
  "aead",
  "aes-gcm",
@@ -4414,7 +4414,7 @@ checksum = "a3f87b73ce11b1619a3c6332f45341e0047173771e8b8b73f87bfeefb7b56244"
 
 [[package]]
 name = "releaser"
-version = "0.5.11"
+version = "0.6.0"
 dependencies = [
  "fs_extra",
  "gh_release",
@@ -5222,7 +5222,7 @@ dependencies = [
 
 [[package]]
 name = "test_utils"
-version = "0.5.11"
+version = "0.6.0"
 dependencies = [
  "bincode",
  "chrono",
@@ -6527,7 +6527,7 @@ dependencies = [
 
 [[package]]
 name = "winstaller"
-version = "0.5.11"
+version = "0.6.0"
 dependencies = [
  "eframe",
  "egui_extras",
