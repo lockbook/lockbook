@@ -6,7 +6,7 @@ A way to circumvent this is dedicating on module to "C code" and importing it in
 
 This is the "C code" module for the Lockbook core library.
 
-It points to the built library file (`liblockbook_core.a`) and exposes its functionality.
+It points to the built library file (`liblockbook_core_external_interface.a`) and exposes its functionality.
 
 The `dummy.c` file is so that Swift thinks this is actually a C library. 
 
