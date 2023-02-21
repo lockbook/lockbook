@@ -19,7 +19,13 @@ impl SubscriptionProfile {
     pub fn data_cap(&self) -> u64 {
         match &self.billing_platform {
             Some(platform) => match platform {
-                BillingPlatform::Stripe(_) => PREMIUM_TIER_USAGE_SIZE,
+                BillingPlatform::Stripe(info) => {
+                    if info.account_state == StripeAccountState::Ok  {
+                        PREMIUM_TIER_USAGE_SIZE
+                    } else {
+                        FREE_TIER_USAGE_SIZE
+                    }
+                },
                 BillingPlatform::GooglePlay(info) => {
                     if info.account_state == GooglePlayAccountState::OnHold {
                         FREE_TIER_USAGE_SIZE

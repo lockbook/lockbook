@@ -595,6 +595,7 @@ pub struct AdminListUsersRequest {
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub enum AccountFilter {
     Premium,
+    ApplePremium,
     StripePremium,
     GooglePlayPremium,
 }
