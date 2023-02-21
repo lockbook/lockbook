@@ -4,8 +4,9 @@
 extern crate tracing;
 
 pub mod model;
-pub mod repo;
 pub mod service;
+
+mod repo;
 
 pub use base64;
 pub use basic_human_duration::ChronoHumanDuration;
