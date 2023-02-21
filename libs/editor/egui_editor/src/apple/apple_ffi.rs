@@ -9,7 +9,7 @@ use std::ffi::{c_char, c_void, CStr, CString};
 /// # Safety
 #[no_mangle]
 pub unsafe extern "C" fn init_editor(
-    metal_layer: *mut c_void, content: *const c_char,
+    metal_layer: *mut c_void, content: *const c_char, dark_mode: bool,
 ) -> *mut c_void {
     let backends = wgpu::util::backend_bits_from_env().unwrap_or_else(wgpu::Backends::all);
     let instance_desc = wgpu::InstanceDescriptor { backends, ..Default::default() };
@@ -33,6 +33,7 @@ pub unsafe extern "C" fn init_editor(
     let rpass = egui_wgpu_backend::RenderPass::new(&device, format, 1);
 
     let context = Context::default();
+    context.set_visuals(if dark_mode { Visuals::dark() } else { Visuals::light() });
     let mut editor = Editor::default();
     editor.set_font(&context);
     editor.buffer = CStr::from_ptr(content).to_str().unwrap().into();
@@ -46,12 +47,13 @@ pub unsafe extern "C" fn init_editor(
         screen,
         context,
         raw_input: Default::default(),
+        from_egui: None,
+        from_host: None,
         editor,
     };
 
     obj.frame();
 
-    // TODO we need to free this memory
     Box::into_raw(Box::new(obj)) as *mut c_void
 }
 
@@ -97,8 +99,16 @@ pub unsafe extern "C" fn key_event(
 
     let key = NSKeys::from(key_code).unwrap();
 
+    let mut clip_event = false;
+    if pressed && key == NSKeys::V && modifiers.command {
+        let clip = obj.from_host.take().unwrap_or_default();
+        obj.raw_input.events.push(Event::Text(clip));
+        clip_event = true
+    }
+
     // Event::Text
-    if pressed && (modifiers.shift_only() || modifiers.is_none()) && key.valid_text() {
+    if !clip_event && pressed && (modifiers.shift_only() || modifiers.is_none()) && key.valid_text()
+    {
         let text = CStr::from_ptr(characters).to_str().unwrap().to_string();
         obj.raw_input.events.push(Event::Text(text));
     }
@@ -164,6 +174,33 @@ pub unsafe extern "C" fn get_text(obj: *mut c_void) -> *const c_char {
     CString::new(value)
         .expect("Could not Rust String -> C String")
         .into_raw()
+}
+
+/// # Safety
+#[no_mangle]
+pub unsafe extern "C" fn has_coppied_text(obj: *mut c_void) -> bool {
+    let obj = &mut *(obj as *mut WgpuEditor);
+    obj.from_egui.is_some()
+}
+
+/// # Safety
+#[no_mangle]
+pub unsafe extern "C" fn get_coppied_text(obj: *mut c_void) -> *const c_char {
+    let obj = &mut *(obj as *mut WgpuEditor);
+
+    let coppied_text = obj.from_egui.take().unwrap_or_default();
+
+    CString::new(coppied_text.as_str())
+        .expect("Could not Rust String -> C String")
+        .into_raw()
+}
+
+/// # Safety
+#[no_mangle]
+pub unsafe extern "C" fn system_clipboard_changed(obj: *mut c_void, content: *const c_char) {
+    let obj = &mut *(obj as *mut WgpuEditor);
+    let content = CStr::from_ptr(content).to_str().unwrap().into();
+    obj.from_host = Some(content)
 }
 
 /// # Safety

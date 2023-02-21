@@ -51,6 +51,7 @@ public class CustomMTK: MTKView  {
     public override func mouseUp(with event: NSEvent) {
         let local = viewCoordinates(event)
         mouse_button(editor(), Float(local.x), Float(local.y), false, true)
+        delegate().maybeDirty()
         setNeedsDisplay(self.frame)
     }
     
@@ -72,7 +73,7 @@ public class CustomMTK: MTKView  {
         setNeedsDisplay(self.frame)
     }
     
-    public  override func keyDown(with event: NSEvent) {
+    public override func keyDown(with event: NSEvent) {
         print("down \(event.keyCode), \(event.modifierFlags), \(event.characters)")
         key_event(editor(), event.keyCode, event.modifierFlags.contains(.shift), event.modifierFlags.contains(.control), event.modifierFlags.contains(.option), event.modifierFlags.contains(.command), true, event.characters)
         setNeedsDisplay(self.frame)
@@ -121,13 +122,13 @@ public class FrameManager: NSObject, MTKViewDelegate {
     var loader: TextLoader
     var parent: CustomMTK
     var timer: Timer?
+    var pasteBoardEventId: Int = 0
     
     public init(_ parent: CustomMTK, _ loader: TextLoader) {
         self.parent = parent
         self.loader = loader
         let metalLayer = UnsafeMutableRawPointer(Unmanaged.passRetained(self.parent.layer!).toOpaque())
-        self.editorHandle = init_editor(metalLayer, self.loader.loadText())
-
+        self.editorHandle = init_editor(metalLayer, self.loader.loadText(), parent.isDarkMode())
         super.init()
         DispatchQueue.main.async {
             async {
@@ -166,9 +167,34 @@ public class FrameManager: NSObject, MTKViewDelegate {
     }
     
     public func draw(in view: MTKView) {
+        if NSPasteboard.general.changeCount != self.pasteBoardEventId {
+            setClipboard()
+        }
+        
         let scale = Float(self.parent.window?.backingScaleFactor ?? 1.0)
+        dark_mode(editorHandle, (view as! CustomMTK).isDarkMode())
         set_scale(editorHandle, scale)
         draw_editor(editorHandle)
+        if has_coppied_text(editorHandle) {
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(getCoppiedText(), forType: .string)
+        }
+    }
+    
+    func setClipboard(){
+        let pasteboardString: String? = NSPasteboard.general.string(forType: .string)
+        if let theString = pasteboardString {
+            print("clipboard contents: \(theString)")
+            system_clipboard_changed(editorHandle, theString)
+        }
+        self.pasteBoardEventId = NSPasteboard.general.changeCount
+    }
+    
+    func getCoppiedText() -> String {
+        let result = get_coppied_text(editorHandle)
+        let str = String(cString: result!)
+        free_text(UnsafeMutablePointer(mutating: result))
+        return str
     }
     
     func maybeDirty() {

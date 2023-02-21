@@ -1,3 +1,4 @@
+#[derive(PartialEq, Eq)]
 pub enum NSKeys {
     A,
     B,
