@@ -53,18 +53,11 @@ pub enum SyncError {
     Minor(String),
 }
 
-impl From<lb::Error<lb::SyncAllError>> for SyncError {
-    fn from(err: lb::Error<lb::SyncAllError>) -> Self {
+impl From<lb::CoreError> for SyncError {
+    fn from(err: lb::CoreError) -> Self {
         match err {
-            lb::Error::UiError(err) => Self::Minor(
-                match err {
-                    lb::SyncAllError::Retry => "Please retry syncing in a few moments.",
-                    lb::SyncAllError::CouldNotReachServer => "Offline.",
-                    lb::SyncAllError::ClientUpdateRequired => "Client upgrade required.",
-                }
-                .to_string(),
-            ),
-            lb::Error::Unexpected(msg) => Self::Major(msg),
+            lb::CoreError::Unexpected(msg) => Self::Major(msg),
+            other => Self::Minor(format!("{:?}", other)),
         }
     }
 }

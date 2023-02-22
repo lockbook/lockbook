@@ -252,17 +252,17 @@ impl<Client: Requester> CoreLib<Client> {
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
-    pub fn calculate_work(&self) -> Result<WorkCalculated, Error<CalculateWorkError>> {
-        Ok(self.in_tx(|s| s.calculate_work())?)
+    pub fn calculate_work(&self) -> Result<WorkCalculated, CoreError> {
+        self.in_tx(|s| s.calculate_work())
     }
 
     // todo: expose work calculated (return value)
     #[instrument(level = "debug", skip_all, err(Debug))]
-    pub fn sync(&self, f: Option<Box<dyn Fn(SyncProgress)>>) -> Result<(), Error<SyncAllError>> {
-        Ok(self.in_tx(|s| {
+    pub fn sync(&self, f: Option<Box<dyn Fn(SyncProgress)>>) -> Result<(), CoreError> {
+        self.in_tx(|s| {
             s.sync(f)?;
             s.cleanup()
-        })?)
+        })
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
@@ -284,13 +284,13 @@ impl<Client: Requester> CoreLib<Client> {
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
-    pub fn get_usage(&self) -> Result<UsageMetrics, Error<GetUsageError>> {
-        Ok(self.in_tx(|s| s.get_usage())?)
+    pub fn get_usage(&self) -> Result<UsageMetrics, CoreError> {
+        self.in_tx(|s| s.get_usage())
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
-    pub fn get_uncompressed_usage(&self) -> Result<UsageItemMetric, Error<GetUsageError>> {
-        Ok(self.in_tx(|s| s.get_uncompressed_usage())?)
+    pub fn get_uncompressed_usage(&self) -> Result<UsageItemMetric, CoreError> {
+        self.in_tx(|s| s.get_uncompressed_usage())
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
@@ -318,8 +318,8 @@ impl<Client: Requester> CoreLib<Client> {
     pub fn export_drawing_to_disk(
         &self, id: Uuid, format: SupportedImageFormats,
         render_theme: Option<HashMap<ColorAlias, ColorRGB>>, location: &str,
-    ) -> Result<(), Error<ExportDrawingToDiskError>> {
-        Ok(self.in_tx(|s| s.export_drawing_to_disk(id, format, render_theme, location))?)
+    ) -> Result<(), CoreError> {
+        self.in_tx(|s| s.export_drawing_to_disk(id, format, render_theme, location))
     }
 
     #[instrument(level = "debug", skip(self, update_status), err(Debug))]

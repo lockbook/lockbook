@@ -45,13 +45,10 @@ macro_rules! impl_from_lb_errors_for_cli_error {
 
 #[rustfmt::skip]
 impl_from_lb_errors_for_cli_error!(
-    "calculating work", CalculateWorkError,
     "canceling subscription", CancelSubscriptionError,
     "feature flag err", FeatureFlagError,
     "getting subscription info", GetSubscriptionInfoError,
-    "getting usage", GetUsageError,
     "sharing file", ShareFileError,
-    "syncing", SyncAllError,
     "upgrading via stripe", UpgradeAccountStripeError
 );
 
