@@ -294,24 +294,24 @@ impl<Client: Requester> CoreLib<Client> {
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
-    pub fn get_drawing(&self, id: Uuid) -> Result<Drawing, Error<GetDrawingError>> {
-        Ok(self.in_tx(|s| s.get_drawing(id))?)
+    pub fn get_drawing(&self, id: Uuid) -> Result<Drawing, CoreError> {
+        self.in_tx(|s| s.get_drawing(id))
     }
 
     #[instrument(level = "debug", skip(self, d), err(Debug))]
-    pub fn save_drawing(&self, id: Uuid, d: &Drawing) -> Result<(), Error<SaveDrawingError>> {
-        Ok(self.in_tx(|s| {
+    pub fn save_drawing(&self, id: Uuid, d: &Drawing) -> Result<(), CoreError> {
+        self.in_tx(|s| {
             s.save_drawing(id, d)?;
             s.cleanup()
-        })?)
+        })
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
     pub fn export_drawing(
         &self, id: Uuid, format: SupportedImageFormats,
         render_theme: Option<HashMap<ColorAlias, ColorRGB>>,
-    ) -> Result<Vec<u8>, Error<ExportDrawingError>> {
-        Ok(self.in_tx(|s| s.export_drawing(id, format, render_theme))?)
+    ) -> Result<Vec<u8>, CoreError> {
+        self.in_tx(|s| s.export_drawing(id, format, render_theme))
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]

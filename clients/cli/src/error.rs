@@ -47,7 +47,6 @@ macro_rules! impl_from_lb_errors_for_cli_error {
 impl_from_lb_errors_for_cli_error!(
     "calculating work", CalculateWorkError,
     "canceling subscription", CancelSubscriptionError,
-    "creating file at path", CreateFileAtPathError,
     "feature flag err", FeatureFlagError,
     "getting subscription info", GetSubscriptionInfoError,
     "getting usage", GetUsageError,
@@ -60,13 +59,6 @@ impl From<(LbError<lb::DeletePendingShareError>, Uuid)> for CliError {
     fn from(v: (LbError<lb::DeletePendingShareError>, Uuid)) -> Self {
         let (err, id) = v;
         Self(format!("deleting pending share '{}': {:?}", id, err))
-    }
-}
-
-impl From<(LbError<lb::ExportDrawingError>, Uuid)> for CliError {
-    fn from(v: (LbError<lb::ExportDrawingError>, Uuid)) -> Self {
-        let (err, id) = v;
-        Self(format!("exporting drawing with id '{}': {:?}", id, err))
     }
 }
 
