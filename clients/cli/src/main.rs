@@ -213,7 +213,7 @@ fn run() -> Result<(), CliError> {
         && !matches!(cmd, LbCli::Account(account::AccountCmd::Import))
     {
         let _ = core.get_account().map_err(|err| match err {
-            lb::Error::UiError(lb::GetAccountError::NoAccount) => {
+            lb::CoreError::AccountNonexistent => {
                 CliError::new("no account! run 'init' or 'init --restore' to get started.")
             }
             err => err.into(),

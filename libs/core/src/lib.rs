@@ -114,18 +114,18 @@ impl<Client: Requester> CoreLib<Client> {
     }
 
     #[instrument(level = "debug", skip_all, err(Debug))]
-    pub fn export_account(&self) -> Result<String, Error<AccountExportError>> {
-        Ok(self.in_tx(|s| s.export_account())?)
+    pub fn export_account(&self) -> Result<String, CoreError> {
+        self.in_tx(|s| s.export_account())
     }
 
     #[instrument(level = "debug", skip_all, err(Debug))]
-    pub fn export_account_qr(&self) -> Result<Vec<u8>, Error<AccountExportError>> {
-        Ok(self.in_tx(|s| s.export_account_qr())?)
+    pub fn export_account_qr(&self) -> Result<Vec<u8>, CoreError> {
+        self.in_tx(|s| s.export_account_qr())
     }
 
     #[instrument(level = "debug", skip_all, err(Debug))]
-    pub fn get_account(&self) -> Result<Account, Error<GetAccountError>> {
-        Ok(self.in_tx(|s| s.get_account().cloned())?)
+    pub fn get_account(&self) -> Result<Account, CoreError> {
+        self.in_tx(|s| s.get_account().cloned())
     }
 
     #[instrument(level = "debug", skip_all, err(Debug))]

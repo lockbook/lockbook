@@ -154,8 +154,8 @@ fn is_signed_in(core: &lb::Core) -> Result<bool, String> {
     match core.get_account() {
         Ok(_acct) => Ok(true),
         Err(err) => match err {
-            lb::Error::UiError(lb::GetAccountError::NoAccount) => Ok(false),
-            lb::Error::Unexpected(msg) => Err(msg),
+            lb::CoreError::AccountNonexistent => Ok(false),
+            err => Err(format!("{:?}", err)), // todo(steve): display
         },
     }
 }

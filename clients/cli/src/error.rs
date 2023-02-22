@@ -45,17 +45,13 @@ macro_rules! impl_from_lb_errors_for_cli_error {
 
 #[rustfmt::skip]
 impl_from_lb_errors_for_cli_error!(
-    "exporting account", AccountExportError,
     "calculating work", CalculateWorkError,
     "canceling subscription", CancelSubscriptionError,
-    "creating account", CreateAccountError,
     "creating file at path", CreateFileAtPathError,
     "feature flag err", FeatureFlagError,
-    "getting account", GetAccountError,
     "getting root", GetRootError,
     "getting subscription info", GetSubscriptionInfoError,
     "getting usage", GetUsageError,
-    "importing account", ImportError,
     "sharing file", ShareFileError,
     "syncing", SyncAllError,
     "upgrading via stripe", UpgradeAccountStripeError
