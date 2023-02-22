@@ -109,8 +109,8 @@ impl<Client: Requester> CoreLib<Client> {
     }
 
     #[instrument(level = "debug", skip_all, err(Debug))]
-    pub fn import_account(&self, account_string: &str) -> Result<Account, Error<ImportError>> {
-        Ok(self.in_tx(|s| s.import_account(account_string))?)
+    pub fn import_account(&self, account_string: &str) -> CoreResult<Account> {
+        self.in_tx(|s| s.import_account(account_string))
     }
 
     #[instrument(level = "debug", skip_all, err(Debug))]

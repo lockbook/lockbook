@@ -1,7 +1,6 @@
 #[cfg(feature = "no-network")]
 #[cfg(test)]
 mod ip_tests {
-    use lockbook_core::model::errors::Error::UiError;
     use lockbook_core::model::errors::*;
     use lockbook_core::service::api_service::no_network::{CoreIP, InProcess};
     use std::default::Default;
@@ -17,7 +16,7 @@ mod ip_tests {
         core1.create_account(&name, "not used", false).unwrap();
         assert_matches!(
             core2.create_account(&name, "not used", false),
-            Err(UiError(CreateAccountError::UsernameTaken))
+            Err(CoreError::UsernameTaken)
         );
     }
 

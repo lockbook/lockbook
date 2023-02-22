@@ -299,8 +299,10 @@ fn create_account_err_to_string(err: lb::CoreError) -> String {
     .to_string()*/
 }
 
-fn import_account_err_to_string(err: lb::Error<lb::ImportError>) -> String {
-    use lb::ImportError::*;
+fn import_account_err_to_string(err: lb::CoreError) -> String {
+    format!("{:?}", err) // todo(steve): switch from debug to display once impled
+
+    /*use lb::ImportError::*;
 
     match err {
         lb::Error::UiError(err) => match err {
@@ -313,7 +315,7 @@ fn import_account_err_to_string(err: lb::Error<lb::ImportError>) -> String {
         }
         .to_string(),
         lb::Error::Unexpected(msg) => msg,
-    }
+    }*/
 }
 
 fn load_account_data(core: &Arc<lb::Core>) -> Result<AccountScreenInitData, String> {

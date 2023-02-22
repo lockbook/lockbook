@@ -1,5 +1,4 @@
-use lockbook_core::model::errors::{CoreError, ImportError};
-use lockbook_core::Error;
+use lockbook_core::CoreError;
 use lockbook_shared::account::Account;
 use lockbook_shared::pubkey;
 use test_utils::*;
@@ -103,10 +102,7 @@ fn import_account_account_exists() {
     core.create_account(&random_name(), &url(), false).unwrap();
     let account_string = core.export_account().unwrap();
 
-    assert!(matches!(
-        core.import_account(&account_string),
-        Err(Error::UiError(ImportError::AccountExistsAlready))
-    ));
+    assert!(matches!(core.import_account(&account_string), Err(CoreError::AccountExists)));
 }
 
 #[test]
@@ -115,7 +111,7 @@ fn import_account_corrupted() {
 
     assert!(matches!(
         core.import_account("clearly a bad account string"),
-        Err(Error::UiError(ImportError::AccountStringCorrupted))
+        Err(CoreError::AccountStringCorrupted)
     ));
 }
 
@@ -126,7 +122,7 @@ fn import_account_corrupted_base64() {
     base64::decode("clearlyabadaccountstring").unwrap();
     assert!(matches!(
         core.import_account("clearlyabadaccountstring"),
-        Err(Error::UiError(ImportError::AccountStringCorrupted))
+        Err(CoreError::AccountStringCorrupted)
     ));
 }
 
@@ -148,10 +144,7 @@ fn import_account_nonexistent() {
     let account_string = core2.export_account().unwrap();
 
     let core3 = test_core();
-    assert!(matches!(
-        core3.import_account(&account_string),
-        Err(Error::UiError(ImportError::AccountDoesNotExist))
-    ));
+    assert!(matches!(core3.import_account(&account_string), Err(CoreError::AccountNonexistent)));
 }
 
 #[test]
@@ -175,7 +168,7 @@ fn import_account_public_key_mismatch() {
 
     assert!(matches!(
         core3.import_account(&bad_account_string),
-        Err(Error::UiError(ImportError::UsernamePKMismatch))
+        Err(CoreError::UsernamePublicKeyMismatch)
     ));
 }
 
