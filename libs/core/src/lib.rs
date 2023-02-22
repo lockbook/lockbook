@@ -325,19 +325,19 @@ impl<Client: Requester> CoreLib<Client> {
     #[instrument(level = "debug", skip(self, update_status), err(Debug))]
     pub fn import_files<F: Fn(ImportStatus)>(
         &self, sources: &[PathBuf], dest: Uuid, update_status: &F,
-    ) -> Result<(), Error<ImportFileError>> {
-        Ok(self.in_tx(|s| {
+    ) -> Result<(), CoreError> {
+        self.in_tx(|s| {
             s.import_files(sources, dest, update_status)?;
             s.cleanup()
-        })?)
+        })
     }
 
     #[instrument(level = "debug", skip(self, export_progress), err(Debug))]
     pub fn export_file(
         &self, id: Uuid, destination: PathBuf, edit: bool,
         export_progress: Option<Box<dyn Fn(ImportExportFileInfo)>>,
-    ) -> Result<(), Error<ExportFileError>> {
-        Ok(self.in_tx(|s| s.export_file(id, destination, edit, export_progress))?)
+    ) -> Result<(), CoreError> {
+        self.in_tx(|s| s.export_file(id, destination, edit, export_progress))
     }
 
     #[instrument(level = "debug", skip(self, input), err(Debug))]

@@ -59,20 +59,6 @@ impl From<(LbError<lb::DeletePendingShareError>, Uuid)> for CliError {
     }
 }
 
-impl From<(LbError<lb::ExportFileError>, PathBuf)> for CliError {
-    fn from(v: (LbError<lb::ExportFileError>, PathBuf)) -> Self {
-        let (err, disk_dir) = v;
-        Self(format!("exporting file to {:?}: {:?}", disk_dir, err))
-    }
-}
-
-impl From<(LbError<lb::ImportFileError>, Uuid)> for CliError {
-    fn from(v: (LbError<lb::ImportFileError>, Uuid)) -> Self {
-        let (err, id) = v;
-        Self(format!("importing file to '{}': {:?}", id, err))
-    }
-}
-
 impl From<io::Error> for CliError {
     fn from(err: io::Error) -> Self {
         Self(format!("{:?}", err))
