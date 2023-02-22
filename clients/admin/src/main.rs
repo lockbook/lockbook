@@ -47,6 +47,9 @@ pub enum Admin {
         premium: bool,
 
         #[structopt(short, long)]
+        app_store_premium: bool,
+
+        #[structopt(short, long)]
         google_play_premium: bool,
 
         #[structopt(short, long)]
@@ -121,8 +124,8 @@ pub fn main() {
 
     let result = match Admin::from_args() {
         Admin::DisappearAccount { username } => disappear::account(&core, username),
-        Admin::ListUsers { premium, google_play_premium, stripe_premium } => {
-            account::list(&core, premium, google_play_premium, stripe_premium)
+        Admin::ListUsers { premium, app_store_premium, google_play_premium, stripe_premium } => {
+            account::list(&core, premium, app_store_premium, google_play_premium, stripe_premium)
         }
         Admin::AccountInfo { username, public_key } => account::info(&core, username, public_key),
         Admin::DisappearFile { id } => disappear::file(&core, id),

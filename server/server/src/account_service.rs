@@ -226,7 +226,12 @@ pub async fn admin_list_users(
     for account in db.accounts.data().values() {
         match &request.filter {
             Some(filter) => match filter {
-                AccountFilter::Premium => match account.billing_info.billing_platform {
+                AccountFilter::Premium => {
+                    if account.billing_info.is_premium() {
+                        users.push(account.username.clone());
+                    }
+                }
+                AccountFilter::AppStorePremium => match account.billing_info.billing_platform {
                     Some(BillingPlatform::AppStore(_)) if account.billing_info.is_premium() => {
                         users.push(account.username.clone());
                     }
