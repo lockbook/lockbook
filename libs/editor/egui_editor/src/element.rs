@@ -96,7 +96,10 @@ impl Element {
                 text_format.font_id.size = 14.0;
                 text_format.color = vis.code();
             }
-            Element::Paragraph | Element::Item | Element::Image(_, _, _) => {}
+            Element::Paragraph | Element::Item => {}
+            Element::Image(_, _, _) => {
+                text_format.italics = true;
+            }
             Element::Selection => {
                 text_format.background = vis.selection_bg();
             }
