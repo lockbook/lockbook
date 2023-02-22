@@ -181,4 +181,13 @@ pub static TEST_MARKDOWN_42: &str = r#"# Numbered List Indentation
 pub static TEST_MARKDOWN_43: &str = "# Todo\n- [x] done\n- [ ] not done";
 pub static TEST_MARKDOWN_44: &str = "# Todo\n- partially done\n\t- [x] done\n\t- [ ] not done";
 
-pub static TEST_MARKDOWN_45: &str = "- ”";
+pub static TEST_MARKDOWN_45: &str = r#"# Ambrose Burnside
+![alt text](https://tile.loc.gov/storage-services/service/pnp/cwpbh/04900/04980r.jpg "title")
+* qualities
+    * good sideburns
+    * poor commander of civil war forces
+
+![alt text](https://invalidurl.com "title")
+* this image has a broken link
+"#;
+pub static TEST_MARKDOWN_46: &str = "- ”";

@@ -3,10 +3,11 @@ use crate::ast::Ast;
 use crate::buffer::Buffer;
 use crate::debug::DebugInfo;
 use crate::galleys::Galleys;
+use crate::images::ImageCache;
 use crate::layouts::Layouts;
 use crate::styles::StyleInfo;
 use crate::test_input::TEST_MARKDOWN;
-use crate::{ast, events, galleys, layouts, register_fonts, styles};
+use crate::{ast, events, galleys, images, layouts, register_fonts, styles};
 use egui::{Context, FontDefinitions, Ui, Vec2};
 
 pub struct Editor {
@@ -14,10 +15,12 @@ pub struct Editor {
 
     // config
     pub appearance: Appearance,
+    pub client: reqwest::blocking::Client, // todo: don't download images on the UI thread
 
     // state
     pub buffer: Buffer,
     pub debug: DebugInfo,
+    pub images: ImageCache,
 
     // cached intermediate state
     pub ast: Ast,
@@ -32,9 +35,11 @@ impl Default for Editor {
             initialized: Default::default(),
 
             appearance: Default::default(),
+            client: Default::default(),
 
             buffer: TEST_MARKDOWN.into(),
             debug: Default::default(),
+            images: Default::default(),
 
             ast: Default::default(),
             styles: Default::default(),
@@ -100,8 +105,9 @@ impl Editor {
                     .selection_bytes(&self.buffer.current.segs),
             );
             self.layouts = layouts::calc(&self.buffer.current, &self.styles, &self.appearance);
+            self.images = images::calc(&self.layouts, &self.images, &self.client, ui);
         }
-        self.galleys = galleys::calc(&self.layouts, &self.appearance, ui);
+        self.galleys = galleys::calc(&self.layouts, &self.images, &self.appearance, ui);
 
         self.initialized = true;
 

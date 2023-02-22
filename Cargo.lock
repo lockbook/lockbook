@@ -1564,8 +1564,10 @@ dependencies = [
  "eframe",
  "egui",
  "egui_wgpu_backend",
+ "image",
  "libc",
  "pulldown-cmark",
+ "reqwest",
  "unicode-segmentation",
 ]
 
