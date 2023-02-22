@@ -1,5 +1,6 @@
+use crate::model::errors::core_err_unexpected;
 use crate::service::api_service::ApiError;
-use crate::{core_err_unexpected, CoreError, CoreResult, CoreState, Requester};
+use crate::{CoreError, CoreResult, CoreState, Requester};
 use lockbook_shared::account::Username;
 use lockbook_shared::api::*;
 use uuid::Uuid;

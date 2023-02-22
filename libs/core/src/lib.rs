@@ -36,7 +36,7 @@ pub use lockbook_shared::usage::bytes_to_human;
 pub use lockbook_shared::work_unit::{ClientWorkUnit, WorkUnit};
 
 pub use crate::model::drawing::SupportedImageFormats;
-pub use crate::model::errors::*;
+pub use crate::model::errors::{CoreError, CoreResult, TestRepoError, UnexpectedError, Warning};
 pub use crate::service::import_export_service::{ImportExportFileInfo, ImportStatus};
 pub use crate::service::sync_service::{SyncProgress, WorkCalculated};
 pub use crate::service::usage_service::{UsageItemMetric, UsageMetrics};
@@ -52,7 +52,6 @@ use lockbook_shared::api::{
     AccountInfo, AdminFileInfoResponse, AdminValidateAccount, AdminValidateServer,
 };
 
-use crate::model::errors::Error::UiError;
 use crate::repo::CoreDb;
 use crate::service::api_service::{Network, Requester};
 use crate::service::log_service;
@@ -388,69 +387,61 @@ impl<Client: Requester> CoreLib<Client> {
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
-    pub fn delete_account(&self) -> Result<(), Error<DeleteAccountError>> {
-        Ok(self.in_tx(|s| s.delete_account())?)
+    pub fn delete_account(&self) -> Result<(), CoreError> {
+        self.in_tx(|s| s.delete_account())
     }
 
     #[instrument(level = "debug", skip(self, username), err(Debug))]
-    pub fn admin_disappear_account(
-        &self, username: &str,
-    ) -> Result<(), Error<AdminDisappearAccount>> {
-        Ok(self.in_tx(|s| s.disappear_account(username))?)
+    pub fn admin_disappear_account(&self, username: &str) -> Result<(), CoreError> {
+        self.in_tx(|s| s.disappear_account(username))
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
-    pub fn admin_disappear_file(&self, id: Uuid) -> Result<(), Error<AdminDisappearFileError>> {
-        Ok(self.in_tx(|s| s.disappear_file(id))?)
+    pub fn admin_disappear_file(&self, id: Uuid) -> Result<(), CoreError> {
+        self.in_tx(|s| s.disappear_file(id))
     }
 
     #[instrument(level = "debug", skip(self, filter), err(Debug))]
     pub fn admin_list_users(
         &self, filter: Option<AccountFilter>,
-    ) -> Result<Vec<Username>, Error<AdminListUsersError>> {
-        Ok(self.in_tx(|s| s.list_users(filter))?)
+    ) -> Result<Vec<Username>, CoreError> {
+        self.in_tx(|s| s.list_users(filter))
     }
 
     #[instrument(level = "debug", skip(self, identifier), err(Debug))]
     pub fn admin_get_account_info(
         &self, identifier: AccountIdentifier,
-    ) -> Result<AccountInfo, Error<AdminGetAccountInfoError>> {
-        Ok(self.in_tx(|s| s.get_account_info(identifier))?)
+    ) -> Result<AccountInfo, CoreError> {
+        self.in_tx(|s| s.get_account_info(identifier))
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
     pub fn admin_validate_account(
         &self, username: &str,
-    ) -> Result<AdminValidateAccount, Error<AdminServerValidateError>> {
-        Ok(self.in_tx(|s| s.validate_account(username))?)
+    ) -> Result<AdminValidateAccount, CoreError> {
+        self.in_tx(|s| s.validate_account(username))
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
-    pub fn admin_validate_server(
-        &self,
-    ) -> Result<AdminValidateServer, Error<AdminServerValidateError>> {
-        Ok(self.in_tx(|s| s.validate_server())?)
+    pub fn admin_validate_server(&self) -> Result<AdminValidateServer, CoreError> {
+        self.in_tx(|s| s.validate_server())
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
-    pub fn admin_file_info(
-        &self, id: Uuid,
-    ) -> Result<AdminFileInfoResponse, Error<AdminFileInfoError>> {
-        Ok(self.in_tx(|s| s.file_info(id))?)
+    pub fn admin_file_info(&self, id: Uuid) -> Result<AdminFileInfoResponse, CoreError> {
+        self.in_tx(|s| s.file_info(id))
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
-    pub fn admin_rebuild_index(
-        &self, index: ServerIndex,
-    ) -> Result<(), Error<AdminRebuildIndexError>> {
-        Ok(self.in_tx(|s| s.rebuild_index(index))?)
+    pub fn admin_rebuild_index(&self, index: ServerIndex) -> Result<(), CoreError> {
+        self.in_tx(|s| s.rebuild_index(index))
     }
 
     #[instrument(level = "debug", skip(self, info), err(Debug))]
     pub fn admin_set_user_tier(
         &self, username: &str, info: AdminSetUserTierInfo,
-    ) -> Result<(), Error<AdminSetUserTierError>> {
-        Ok(self.in_tx(|s| s.set_user_tier(username, info))?)
+    ) -> Result<(), CoreError> {
+        self.in_tx(|s| s.set_user_tier(username, info))
     }
 }
 

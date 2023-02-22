@@ -6,7 +6,7 @@ pub mod java_interface;
 pub mod json_interface;
 pub mod static_state;
 
-use lockbook_core::*;
+use lockbook_core::model::errors::*;
 use serde_json::{json, value::Value};
 use strum::IntoEnumIterator;
 

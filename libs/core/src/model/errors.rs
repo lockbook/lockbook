@@ -14,8 +14,8 @@ use lockbook_shared::api::{
 };
 use lockbook_shared::{SharedError, ValidationFailure};
 
+use self::Error::UiError;
 use crate::service::api_service::ApiError;
-use crate::UiError;
 
 #[derive(Debug)]
 pub struct UnexpectedError(pub String);

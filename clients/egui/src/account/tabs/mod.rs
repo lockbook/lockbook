@@ -37,12 +37,3 @@ impl From<lb::CoreError> for TabFailure {
         }
     }
 }
-
-impl From<lb::Error<lb::SaveDrawingError>> for TabFailure {
-    fn from(err: lb::Error<lb::SaveDrawingError>) -> Self {
-        match err {
-            lb::Error::UiError(err) => Self::SimpleMisc(format!("{:?}", err)),
-            lb::Error::Unexpected(msg) => Self::Unexpected(msg),
-        }
-    }
-}

@@ -1,9 +1,6 @@
 use std::fmt;
 use std::io;
 
-use lb::Error as LbError;
-use lb::Uuid;
-
 pub struct CliError(pub String);
 
 impl CliError {
@@ -27,13 +24,6 @@ impl From<lb::CoreError> for CliError {
 impl From<lb::UnexpectedError> for CliError {
     fn from(err: lb::UnexpectedError) -> Self {
         Self(format!("unexpected: {:?}", err))
-    }
-}
-
-impl From<(LbError<lb::DeletePendingShareError>, Uuid)> for CliError {
-    fn from(v: (LbError<lb::DeletePendingShareError>, Uuid)) -> Self {
-        let (err, id) = v;
-        Self(format!("deleting pending share '{}': {:?}", id, err))
     }
 }
 
