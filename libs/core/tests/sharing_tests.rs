@@ -1,4 +1,4 @@
-use lockbook_core::{CoreError, DeletePendingShareError, Error, ShareFileError};
+use lockbook_core::CoreError;
 use lockbook_shared::file::ShareMode;
 use lockbook_shared::file_metadata::FileType;
 use test_utils::*;
@@ -489,7 +489,7 @@ fn share_file_root() {
     let root = core.get_root().unwrap();
 
     let result = core.share_file(root.id, &sharee_account.username, ShareMode::Read);
-    assert_matches!(result, Err(Error::UiError(ShareFileError::CannotShareRoot)));
+    assert_matches!(result, Err(CoreError::RootModificationInvalid));
 }
 
 #[test]
@@ -499,7 +499,7 @@ fn share_file_nonexistent() {
     let sharee_account = &sharee_core.get_account().unwrap();
 
     let result = core.share_file(Uuid::new_v4(), &sharee_account.username, ShareMode::Read);
-    assert_matches!(result, Err(Error::UiError(ShareFileError::FileNonexistent)));
+    assert_matches!(result, Err(CoreError::FileNonexistent));
 }
 
 #[test]
@@ -530,7 +530,7 @@ fn delete_nonexistent_share() {
         .unwrap();
 
     let result = core.delete_pending_share(document.id);
-    assert_matches!(result, Err(Error::UiError(DeletePendingShareError::ShareNonexistent)));
+    assert_matches!(result, Err(CoreError::ShareNonexistent));
 }
 
 #[test]
@@ -580,7 +580,7 @@ fn share_file_duplicate() {
         .unwrap();
 
     let result = core.share_file(document.id, &sharee_account.username, ShareMode::Read);
-    assert_matches!(result, Err(Error::UiError(ShareFileError::ShareAlreadyExists)));
+    assert_matches!(result, Err(CoreError::ShareAlreadyExists));
 }
 
 #[test]
@@ -631,7 +631,7 @@ fn share_folder_with_link_inside() {
         .unwrap();
 
     let result = cores[1].share_file(folder1.id, &accounts[2].username, ShareMode::Read);
-    assert_matches!(result, Err(Error::UiError(ShareFileError::LinkInSharedFolder)));
+    assert_matches!(result, Err(CoreError::LinkInSharedFolder));
 }
 
 #[test]
@@ -681,7 +681,7 @@ fn share_unowned_file_write() {
     cores[1].sync(None).unwrap();
 
     let result = cores[1].share_file(folder0.id, &accounts[2].username, ShareMode::Write);
-    assert_matches!(result, Err(Error::UiError(ShareFileError::InsufficientPermission)));
+    assert_matches!(result, Err(CoreError::InsufficientPermission));
 }
 
 #[test]
@@ -788,7 +788,7 @@ fn delete_pending_share_root() {
     let root = core.get_root().unwrap();
 
     let result = core.delete_pending_share(root.id);
-    assert_matches!(result, Err(Error::Unexpected(_)));
+    assert_matches!(result, Err(CoreError::Unexpected(_)));
 }
 
 #[test]
@@ -814,7 +814,7 @@ fn delete_pending_share_duplicate() {
     cores[1].delete_pending_share(folder0.id).unwrap();
 
     let result = cores[1].delete_pending_share(folder0.id);
-    assert_matches!(result, Err(Error::UiError(DeletePendingShareError::ShareNonexistent)));
+    assert_matches!(result, Err(CoreError::ShareNonexistent));
 }
 
 #[test]
@@ -840,7 +840,7 @@ fn delete_pending_share_nonexistent() {
     cores[1].delete_pending_share(folder0.id).unwrap();
 
     let result = cores[1].delete_pending_share(folder0.id);
-    assert_matches!(result, Err(Error::UiError(DeletePendingShareError::ShareNonexistent)));
+    assert_matches!(result, Err(CoreError::ShareNonexistent));
 }
 
 #[test]

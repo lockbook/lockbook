@@ -192,10 +192,8 @@ impl<Client: Requester> CoreLib<Client> {
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
-    pub fn share_file(
-        &self, id: Uuid, username: &str, mode: ShareMode,
-    ) -> Result<(), Error<ShareFileError>> {
-        Ok(self.in_tx(|s| s.share_file(id, username, mode))?)
+    pub fn share_file(&self, id: Uuid, username: &str, mode: ShareMode) -> Result<(), CoreError> {
+        self.in_tx(|s| s.share_file(id, username, mode))
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
@@ -204,11 +202,11 @@ impl<Client: Requester> CoreLib<Client> {
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
-    pub fn delete_pending_share(&self, id: Uuid) -> Result<(), Error<DeletePendingShareError>> {
-        Ok(self.in_tx(|s| {
+    pub fn delete_pending_share(&self, id: Uuid) -> Result<(), CoreError> {
+        self.in_tx(|s| {
             let pk = s.get_public_key()?;
             s.delete_share(&id, Some(pk))
-        })?)
+        })
     }
 
     #[instrument(level = "debug", skip_all, err(Debug))]
@@ -357,17 +355,15 @@ impl<Client: Requester> CoreLib<Client> {
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
-    pub fn upgrade_account_stripe(
-        &self, account_tier: StripeAccountTier,
-    ) -> Result<(), Error<UpgradeAccountStripeError>> {
-        Ok(self.in_tx(|s| s.upgrade_account_stripe(account_tier))?)
+    pub fn upgrade_account_stripe(&self, account_tier: StripeAccountTier) -> Result<(), CoreError> {
+        self.in_tx(|s| s.upgrade_account_stripe(account_tier))
     }
 
     #[instrument(level = "debug", skip(self, purchase_token), err(Debug))]
     pub fn upgrade_account_google_play(
         &self, purchase_token: &str, account_id: &str,
-    ) -> Result<(), Error<UpgradeAccountGooglePlayError>> {
-        Ok(self.in_tx(|s| s.upgrade_account_google_play(purchase_token, account_id))?)
+    ) -> Result<(), CoreError> {
+        self.in_tx(|s| s.upgrade_account_google_play(purchase_token, account_id))
     }
 
     #[instrument(
@@ -377,21 +373,18 @@ impl<Client: Requester> CoreLib<Client> {
     )]
     pub fn upgrade_account_app_store(
         &self, original_transaction_id: String, app_account_token: String,
-    ) -> Result<(), Error<UpgradeAccountGooglePlayError>> {
-        Ok(self
-            .in_tx(|s| s.upgrade_account_app_store(original_transaction_id, app_account_token))?)
+    ) -> Result<(), CoreError> {
+        self.in_tx(|s| s.upgrade_account_app_store(original_transaction_id, app_account_token))
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
-    pub fn cancel_subscription(&self) -> Result<(), Error<CancelSubscriptionError>> {
-        Ok(self.in_tx(|s| s.cancel_subscription())?)
+    pub fn cancel_subscription(&self) -> Result<(), CoreError> {
+        self.in_tx(|s| s.cancel_subscription())
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
-    pub fn get_subscription_info(
-        &self,
-    ) -> Result<Option<SubscriptionInfo>, Error<GetSubscriptionInfoError>> {
-        Ok(self.in_tx(|s| s.get_subscription_info())?)
+    pub fn get_subscription_info(&self) -> Result<Option<SubscriptionInfo>, CoreError> {
+        self.in_tx(|s| s.get_subscription_info())
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]

@@ -136,8 +136,7 @@ fn accept(
 
 fn delete(core: &Core, target: &str) -> Result<(), CliError> {
     let share = resolve_target_to_pending_share(core, target)?;
-    core.delete_pending_share(share.id)
-        .map_err(|err| (err, share.id))?;
+    core.delete_pending_share(share.id)?;
     Ok(())
 }
 

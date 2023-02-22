@@ -1,6 +1,5 @@
 use std::fmt;
 use std::io;
-use std::path::PathBuf;
 
 use lb::Error as LbError;
 use lb::Uuid;
@@ -30,27 +29,6 @@ impl From<lb::UnexpectedError> for CliError {
         Self(format!("unexpected: {:?}", err))
     }
 }
-
-macro_rules! impl_from_lb_errors_for_cli_error {
-    ($( $ctx:literal, $uierr:ident ),*) => {
-        $(
-            impl From<LbError<lb::$uierr>> for CliError {
-                fn from(err: LbError<lb::$uierr>) -> Self {
-                    Self(format!("{}: {:?}", $ctx, err))
-                }
-            }
-        )*
-    };
-}
-
-#[rustfmt::skip]
-impl_from_lb_errors_for_cli_error!(
-    "canceling subscription", CancelSubscriptionError,
-    "feature flag err", FeatureFlagError,
-    "getting subscription info", GetSubscriptionInfoError,
-    "sharing file", ShareFileError,
-    "upgrading via stripe", UpgradeAccountStripeError
-);
 
 impl From<(LbError<lb::DeletePendingShareError>, Uuid)> for CliError {
     fn from(v: (LbError<lb::DeletePendingShareError>, Uuid)) -> Self {
