@@ -19,6 +19,12 @@ impl fmt::Display for CliError {
     }
 }
 
+impl From<lb::CoreError> for CliError {
+    fn from(err: lb::CoreError) -> Self {
+        Self(format!("{:?}", err))
+    }
+}
+
 impl From<lb::UnexpectedError> for CliError {
     fn from(err: lb::UnexpectedError) -> Self {
         Self(format!("unexpected: {:?}", err))

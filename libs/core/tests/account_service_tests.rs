@@ -1,4 +1,4 @@
-use lockbook_core::model::errors::{CreateAccountError, ImportError};
+use lockbook_core::model::errors::{CoreError, ImportError};
 use lockbook_core::Error;
 use lockbook_shared::account::Account;
 use lockbook_shared::pubkey;
@@ -24,14 +24,14 @@ fn create_account_success_with_welcome() {
 fn create_account_invalid_url() {
     let core = test_core();
     let result = core.create_account(&random_name(), "https://bad-url.net", false);
-    assert!(matches!(result.unwrap_err(), Error::UiError(CreateAccountError::CouldNotReachServer)))
+    assert!(matches!(result.unwrap_err(), CoreError::ServerUnreachable))
 }
 
 #[test]
 fn create_account_invalid_url_with_welcome() {
     let core = test_core();
     let result = core.create_account(&random_name(), "https://bad-url.net", true);
-    assert!(matches!(result.unwrap_err(), Error::UiError(CreateAccountError::CouldNotReachServer)))
+    assert!(matches!(result.unwrap_err(), CoreError::ServerUnreachable))
 }
 
 #[test]
@@ -45,7 +45,7 @@ fn create_account_username_taken() {
     let err = core2.create_account(&name, &url(), false).unwrap_err();
 
     assert!(
-        matches!(err, Error::UiError(CreateAccountError::UsernameTaken)),
+        matches!(err, CoreError::UsernameTaken),
         "Username \"{}\" should have caused a UsernameTaken error but instead was {:?}",
         &name,
         err
@@ -62,7 +62,7 @@ fn create_account_invalid_username() {
         let err = core.create_account(uname, &url(), false).unwrap_err();
 
         assert!(
-            matches!(err, Error::UiError(CreateAccountError::InvalidUsername)),
+            matches!(err, CoreError::UsernameInvalid),
             "Username \"{}\" should have been InvalidUsername but instead was {:?}",
             uname,
             err
@@ -77,10 +77,7 @@ fn create_account_account_exists() {
     core.create_account(&random_name(), &url(), false).unwrap();
 
     assert!(
-        matches!(
-            core.create_account(&random_name(), &url(), false),
-            Err(Error::UiError(CreateAccountError::AccountExistsAlready))
-        ),
+        matches!(core.create_account(&random_name(), &url(), false), Err(CoreError::AccountExists)),
         "This action should have failed with AccountAlreadyExists!",
     );
 }
@@ -95,7 +92,7 @@ fn create_account_account_exists_case() {
     let core = test_core();
     assert!(matches!(
         core.create_account(&(name.to_uppercase()), &url(), false),
-        Err(Error::UiError(CreateAccountError::UsernameTaken))
+        Err(CoreError::UsernameTaken)
     ));
 }
 

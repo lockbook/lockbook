@@ -104,8 +104,8 @@ impl<Client: Requester> CoreLib<Client> {
     #[instrument(level = "info", skip_all, err(Debug))]
     pub fn create_account(
         &self, username: &str, api_url: &str, welcome_doc: bool,
-    ) -> Result<Account, Error<CreateAccountError>> {
-        Ok(self.in_tx(|s| s.create_account(username, api_url, welcome_doc))?)
+    ) -> CoreResult<Account> {
+        self.in_tx(|s| s.create_account(username, api_url, welcome_doc))
     }
 
     #[instrument(level = "debug", skip_all, err(Debug))]

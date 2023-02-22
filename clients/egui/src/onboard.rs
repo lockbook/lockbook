@@ -282,21 +282,21 @@ impl OnboardScreen {
     }
 }
 
-fn create_account_err_to_string(err: lb::Error<lb::CreateAccountError>) -> String {
-    use lb::CreateAccountError::*;
+fn create_account_err_to_string(err: lb::CoreError) -> String {
+    format!("{:?}", err) // todo(steve): switch from debug to display once impled
 
-    match err {
-        lb::Error::UiError(err) => match err {
-            UsernameTaken => "This username is already taken.",
-            InvalidUsername => "This username is invalid.",
-            CouldNotReachServer => "Could not reach server.",
-            AccountExistsAlready => "An account already exists! Please try restarting your client.",
-            ClientUpdateRequired => "Client update required.",
-            ServerDisabled => "This server has disabled sign ups.",
+    /*match err {
+        lb::CoreError::UsernameTaken => "This username is already taken.",
+        lb::CoreError::UsernameInvalid => "This username is invalid.",
+        lb::CoreError::ServerUnreachable => "Could not reach server.",
+        lb::CoreError::AccountExists => {
+            "An account already exists! Please try restarting your client."
         }
-        .to_string(),
-        lb::Error::Unexpected(msg) => msg,
+        lb::CoreError::ClientUpdateRequired => "Client update required.",
+        lb::CoreError::ServerDisabled => "This server has disabled sign ups.",
+        lb::CoreError::Unexpected(ref msg) => msg,
     }
+    .to_string()*/
 }
 
 fn import_account_err_to_string(err: lb::Error<lb::ImportError>) -> String {
