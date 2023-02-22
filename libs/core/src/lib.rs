@@ -136,21 +136,19 @@ impl<Client: Requester> CoreLib<Client> {
     #[instrument(level = "debug", skip(self, name), err(Debug))]
     pub fn create_file(
         &self, name: &str, parent: Uuid, file_type: FileType,
-    ) -> Result<File, Error<CreateFileError>> {
-        Ok(self.in_tx(|s| s.create_file(name, &parent, file_type))?)
+    ) -> Result<File, CoreError> {
+        self.in_tx(|s| s.create_file(name, &parent, file_type))
     }
 
     #[instrument(level = "debug", skip(self, content), err(Debug))]
-    pub fn write_document(
-        &self, id: Uuid, content: &[u8],
-    ) -> Result<(), Error<WriteToDocumentError>> {
+    pub fn write_document(&self, id: Uuid, content: &[u8]) -> Result<(), CoreError> {
         self.in_tx(|s| s.write_document(id, content))?;
-        Ok(self.in_tx(|s| s.cleanup())?)
+        self.in_tx(|s| s.cleanup())
     }
 
     #[instrument(level = "debug", skip_all, err(Debug))]
-    pub fn get_root(&self) -> Result<File, Error<GetRootError>> {
-        Ok(self.in_tx(|s| s.root())?)
+    pub fn get_root(&self) -> Result<File, CoreError> {
+        self.in_tx(|s| s.root())
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
@@ -159,25 +157,23 @@ impl<Client: Requester> CoreLib<Client> {
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
-    pub fn get_and_get_children_recursively(
-        &self, id: Uuid,
-    ) -> Result<Vec<File>, Error<GetAndGetChildrenError>> {
-        Ok(self.in_tx(|s| s.get_and_get_children_recursively(&id))?)
+    pub fn get_and_get_children_recursively(&self, id: Uuid) -> Result<Vec<File>, CoreError> {
+        self.in_tx(|s| s.get_and_get_children_recursively(&id))
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
-    pub fn get_file_by_id(&self, id: Uuid) -> Result<File, Error<GetFileByIdError>> {
-        Ok(self.in_tx(|s| s.get_file_by_id(&id))?)
+    pub fn get_file_by_id(&self, id: Uuid) -> Result<File, CoreError> {
+        self.in_tx(|s| s.get_file_by_id(&id))
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
-    pub fn delete_file(&self, id: Uuid) -> Result<(), Error<FileDeleteError>> {
-        Ok(self.in_tx(|s| s.delete(&id))?)
+    pub fn delete_file(&self, id: Uuid) -> Result<(), CoreError> {
+        self.in_tx(|s| s.delete(&id))
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
-    pub fn read_document(&self, id: Uuid) -> Result<DecryptedDocument, Error<ReadDocumentError>> {
-        Ok(self.in_tx(|s| s.read_document(id))?)
+    pub fn read_document(&self, id: Uuid) -> Result<DecryptedDocument, CoreError> {
+        self.in_tx(|s| s.read_document(id))
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
@@ -186,13 +182,13 @@ impl<Client: Requester> CoreLib<Client> {
     }
 
     #[instrument(level = "debug", skip(self, new_name), err(Debug))]
-    pub fn rename_file(&self, id: Uuid, new_name: &str) -> Result<(), Error<RenameFileError>> {
-        Ok(self.in_tx(|s| s.rename_file(&id, new_name))?)
+    pub fn rename_file(&self, id: Uuid, new_name: &str) -> Result<(), CoreError> {
+        self.in_tx(|s| s.rename_file(&id, new_name))
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
-    pub fn move_file(&self, id: Uuid, new_parent: Uuid) -> Result<(), Error<MoveFileError>> {
-        Ok(self.in_tx(|s| s.move_file(&id, &new_parent))?)
+    pub fn move_file(&self, id: Uuid, new_parent: Uuid) -> Result<(), CoreError> {
+        self.in_tx(|s| s.move_file(&id, &new_parent))
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
@@ -218,20 +214,18 @@ impl<Client: Requester> CoreLib<Client> {
     #[instrument(level = "debug", skip_all, err(Debug))]
     pub fn create_link_at_path(
         &self, path_and_name: &str, target_id: Uuid,
-    ) -> Result<File, Error<CreateLinkAtPathError>> {
-        Ok(self.in_tx(|s| s.create_link_at_path(path_and_name, target_id))?)
+    ) -> Result<File, CoreError> {
+        self.in_tx(|s| s.create_link_at_path(path_and_name, target_id))
     }
 
     #[instrument(level = "debug", skip_all, err(Debug))]
-    pub fn create_at_path(
-        &self, path_and_name: &str,
-    ) -> Result<File, Error<CreateFileAtPathError>> {
-        Ok(self.in_tx(|s| s.create_at_path(path_and_name))?)
+    pub fn create_at_path(&self, path_and_name: &str) -> Result<File, CoreError> {
+        self.in_tx(|s| s.create_at_path(path_and_name))
     }
 
     #[instrument(level = "debug", skip_all, err(Debug))]
-    pub fn get_by_path(&self, path: &str) -> Result<File, Error<GetFileByPathError>> {
-        Ok(self.in_tx(|s| s.get_by_path(path))?)
+    pub fn get_by_path(&self, path: &str) -> Result<File, CoreError> {
+        self.in_tx(|s| s.get_by_path(path))
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]

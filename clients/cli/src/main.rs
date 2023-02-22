@@ -106,15 +106,15 @@ where
 pub fn maybe_get_by_path(core: &lb::Core, p: &str) -> Result<Option<lb::File>, CliError> {
     match core.get_by_path(p) {
         Ok(f) => Ok(Some(f)),
-        Err(lb::Error::UiError(lb::GetFileByPathError::NoFileAtThatPath)) => Ok(None),
-        Err(err) => Err((err, p).into()),
+        Err(lb::CoreError::FileNonexistent) => Ok(None),
+        Err(err) => Err(err.into()),
     }
 }
 
 fn resolve_target_to_file(core: &Core, t: &str) -> Result<lb::File, CliError> {
     match lb::Uuid::parse_str(t) {
-        Ok(id) => core.get_file_by_id(id).map_err(|err| (err, id).into()),
-        Err(_) => core.get_by_path(t).map_err(|err| (err, t).into()),
+        Ok(id) => core.get_file_by_id(id).map_err(|err| err.into()),
+        Err(_) => core.get_by_path(t).map_err(|err| err.into()),
     }
 }
 
@@ -124,7 +124,7 @@ fn resolve_target_to_id(core: &Core, t: &str) -> Result<lb::Uuid, CliError> {
     }
     match core.get_by_path(t) {
         Ok(f) => Ok(f.id),
-        Err(err) => Err((err, t).into()),
+        Err(err) => Err(err.into()),
     }
 }
 
@@ -134,10 +134,7 @@ fn delete(core: &Core, target: &str, force: bool) -> Result<(), CliError> {
     if !force {
         let mut phrase = format!("delete '{}'", target);
         if f.is_folder() {
-            let count = core
-                .get_and_get_children_recursively(f.id)
-                .map_err(|err| (err, f.id))?
-                .len();
+            let count = core.get_and_get_children_recursively(f.id)?.len();
             phrase = format!("{phrase} and its {count} children")
         }
 
@@ -148,19 +145,20 @@ fn delete(core: &Core, target: &str, force: bool) -> Result<(), CliError> {
         }
     }
 
-    core.delete_file(f.id).map_err(|err| (err, f.id).into())
+    core.delete_file(f.id)?;
+    Ok(())
 }
 
 fn move_file(core: &Core, src: &str, dest: &str) -> Result<(), CliError> {
     let src_id = resolve_target_to_id(core, src)?;
     let dest_id = resolve_target_to_id(core, dest)?;
     core.move_file(src_id, dest_id)
-        .map_err(|err| (err, src_id, dest_id).into())
+        .map_err(|err| CliError(format!("could not move '{}' to '{}': {:?}", src_id, dest_id, err)))
 }
 
 fn print(core: &Core, target: &str) -> Result<(), CliError> {
     let id = resolve_target_to_id(core, target)?;
-    let content = core.read_document(id).map_err(|err| (err, id))?;
+    let content = core.read_document(id)?;
     print!("{}", String::from_utf8_lossy(&content));
     io::stdout().flush()?;
     Ok(())
@@ -168,8 +166,8 @@ fn print(core: &Core, target: &str) -> Result<(), CliError> {
 
 fn rename(core: &Core, target: &str, new_name: &str) -> Result<(), CliError> {
     let id = resolve_target_to_id(core, target)?;
-    core.rename_file(id, new_name)
-        .map_err(|err| (err, id).into())
+    core.rename_file(id, new_name)?;
+    Ok(())
 }
 
 fn sync(core: &Core) -> Result<(), CliError> {
@@ -189,13 +187,11 @@ fn sync(core: &Core) -> Result<(), CliError> {
 fn create(core: &Core, path: &str) -> Result<(), CliError> {
     match core.get_by_path(path) {
         Ok(_f) => Ok(()),
-        Err(lb::Error::UiError(lb::GetFileByPathError::NoFileAtThatPath)) => {
-            match core.create_at_path(path) {
-                Ok(_f) => Ok(()),
-                Err(err) => Err(err.into()),
-            }
-        }
-        Err(err) => Err((err, path).into()),
+        Err(lb::CoreError::FileNonexistent) => match core.create_at_path(path) {
+            Ok(_f) => Ok(()),
+            Err(err) => Err(err.into()),
+        },
+        Err(err) => Err(err.into()),
     }
 }
 

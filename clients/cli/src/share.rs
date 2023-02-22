@@ -100,7 +100,7 @@ fn accept(
 
     // If a destination ID is provided, it must be of an existing directory.
     let parent_id = if let Ok(id) = Uuid::parse_str(dest) {
-        let f = core.get_file_by_id(id).map_err(|err| (err, id))?;
+        let f = core.get_file_by_id(id)?;
         if !f.is_folder() {
             return Err(CliError::new("destination ID must be of an existing folder"));
         }

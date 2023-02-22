@@ -327,8 +327,9 @@ fn restore_tab(core: &Arc<lb::Core>, tree: &mut FileTree, tab: &mut Tab) {
             };
 
             if let Some(bytes) = maybe_bytes {
+                // todo(steve)
                 core.write_document(file.id, bytes)
-                    .map_err(TabFailure::from)
+                    .map_err(|err| TabFailure::Unexpected(format!("{:?}", err)))
             } else {
                 Ok(())
             }
