@@ -61,15 +61,16 @@ impl<Client: Requester> CoreState<Client> {
                 },
             )
             .map_err(|err| match err {
-                ApiError::Endpoint(UpgradeAccountGooglePlayError::AlreadyPremium) => {
-                    CoreError::AlreadyPremium
-                }
-                ApiError::Endpoint(UpgradeAccountGooglePlayError::InvalidPurchaseToken) => {
-                    CoreError::InvalidPurchaseToken
-                }
-                ApiError::Endpoint(UpgradeAccountGooglePlayError::ExistingRequestPending) => {
-                    CoreError::ExistingRequestPending
-                }
+                ApiError::Endpoint(err) => match err {
+                    UpgradeAccountGooglePlayError::AlreadyPremium => CoreError::AlreadyPremium,
+                    UpgradeAccountGooglePlayError::InvalidPurchaseToken => {
+                        CoreError::InvalidPurchaseToken
+                    }
+                    UpgradeAccountGooglePlayError::ExistingRequestPending => {
+                        CoreError::ExistingRequestPending
+                    }
+                    UpgradeAccountGooglePlayError::UserNotFound => core_err_unexpected(err),
+                },
                 ApiError::SendFailed(_) => CoreError::ServerUnreachable,
                 ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,
                 _ => core_err_unexpected(err),
@@ -89,18 +90,19 @@ impl<Client: Requester> CoreState<Client> {
                 UpgradeAccountAppStoreRequest { original_transaction_id, app_account_token },
             )
             .map_err(|err| match err {
-                ApiError::Endpoint(UpgradeAccountAppStoreError::AlreadyPremium) => {
-                    CoreError::AlreadyPremium
-                }
-                ApiError::Endpoint(UpgradeAccountAppStoreError::InvalidAuthDetails) => {
-                    CoreError::InvalidAuthDetails
-                }
-                ApiError::Endpoint(UpgradeAccountAppStoreError::ExistingRequestPending) => {
-                    CoreError::ExistingRequestPending
-                }
-                ApiError::Endpoint(UpgradeAccountAppStoreError::AppStoreAccountAlreadyLinked) => {
-                    CoreError::AppStoreAccountAlreadyLinked
-                }
+                ApiError::Endpoint(err) => match err {
+                    UpgradeAccountAppStoreError::AlreadyPremium => CoreError::AlreadyPremium,
+                    UpgradeAccountAppStoreError::InvalidAuthDetails => {
+                        CoreError::InvalidAuthDetails
+                    }
+                    UpgradeAccountAppStoreError::ExistingRequestPending => {
+                        CoreError::ExistingRequestPending
+                    }
+                    UpgradeAccountAppStoreError::AppStoreAccountAlreadyLinked => {
+                        CoreError::AppStoreAccountAlreadyLinked
+                    }
+                    UpgradeAccountAppStoreError::UserNotFound => core_err_unexpected(err),
+                },
                 ApiError::SendFailed(_) => CoreError::ServerUnreachable,
                 ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,
                 _ => core_err_unexpected(err),
