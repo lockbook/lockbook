@@ -42,11 +42,11 @@ pub use crate::service::search_service::{SearchResultItem, StartSearchInfo};
 pub use crate::service::sync_service::{SyncProgress, WorkCalculated};
 pub use crate::service::usage_service::{UsageItemMetric, UsageMetrics};
 
-use db_rs::Db;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
+use db_rs::Db;
 use itertools::Itertools;
 use lockbook_shared::account::Username;
 use lockbook_shared::api::{

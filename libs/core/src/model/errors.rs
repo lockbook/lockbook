@@ -26,37 +26,31 @@ impl fmt::Display for UnexpectedError {
 
 impl From<CoreError> for UnexpectedError {
     fn from(e: CoreError) -> Self {
-        UnexpectedError(format!("{:?}", e))
-    }
-}
-
-impl From<hmdb::errors::Error> for UnexpectedError {
-    fn from(err: hmdb::errors::Error) -> Self {
-        UnexpectedError(format!("{:#?}", err))
+        Self(format!("{:?}", e))
     }
 }
 
 impl<T> From<std::sync::PoisonError<T>> for UnexpectedError {
     fn from(err: std::sync::PoisonError<T>) -> Self {
-        UnexpectedError(format!("{:#?}", err))
+        Self(format!("{:#?}", err))
     }
 }
 
 impl From<crossbeam::channel::RecvError> for UnexpectedError {
     fn from(err: crossbeam::channel::RecvError) -> Self {
-        UnexpectedError(format!("{:#?}", err))
+        Self(format!("{:#?}", err))
     }
 }
 
 impl From<crossbeam::channel::RecvTimeoutError> for UnexpectedError {
     fn from(err: crossbeam::channel::RecvTimeoutError) -> Self {
-        UnexpectedError(format!("{:#?}", err))
+        Self(format!("{:#?}", err))
     }
 }
 
 impl<T> From<crossbeam::channel::SendError<T>> for UnexpectedError {
     fn from(err: crossbeam::channel::SendError<T>) -> Self {
-        UnexpectedError(format!("{:#?}", err))
+        Self(format!("{:#?}", err))
     }
 }
 
@@ -90,7 +84,7 @@ macro_rules! unexpected_only {
 
 pub type CoreResult<T> = Result<T, CoreError>;
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CoreError {
     AccountExists,
     AccountNonexistent,
