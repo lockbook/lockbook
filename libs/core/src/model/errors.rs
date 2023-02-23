@@ -8,10 +8,7 @@ use serde::ser::SerializeStruct;
 use serde::{Serialize, Serializer};
 use uuid::Uuid;
 
-use lockbook_shared::api::{
-    self, GetFileIdsError, GetPublicKeyError, GetUpdatesError, GetUsernameError, NewAccountError,
-};
-use lockbook_shared::{SharedError, ValidationFailure};
+use lockbook_shared::{api, SharedError, ValidationFailure};
 
 use crate::service::api_service::ApiError;
 
@@ -97,16 +94,12 @@ pub enum CoreError {
     CardHasInsufficientFunds,
     CardNotSupported,
     ClientUpdateRequired,
-    ClientWipeRequired,
     CurrentUsageIsMoreThanNewTier,
     DiskPathInvalid,
     DiskPathTaken,
     DrawingInvalid,
     ExistingRequestPending,
     ExpiredCard,
-    FileExists,
-    FileIsLink,
-    FileNotShared,
     FileNameContainsSlash,
     FileNameEmpty,
     FileNonexistent,
@@ -128,8 +121,6 @@ pub enum CoreError {
     NotPremium,
     OldCardDoesNotExist,
     PathContainsEmptyFileName,
-    PathNonexistent,
-    PathStartsWithNonRoot,
     PathTaken,
     RootModificationInvalid,
     RootNonexistent,
@@ -220,43 +211,47 @@ impl From<serde_json::Error> for CoreError {
     }
 }
 
-impl From<ApiError<NewAccountError>> for CoreError {
-    fn from(err: ApiError<NewAccountError>) -> Self {
+impl From<ApiError<api::NewAccountError>> for CoreError {
+    fn from(err: ApiError<api::NewAccountError>) -> Self {
         match err {
             ApiError::SendFailed(_) => CoreError::ServerUnreachable,
             ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,
-            ApiError::Endpoint(NewAccountError::UsernameTaken) => CoreError::UsernameTaken,
-            ApiError::Endpoint(NewAccountError::InvalidUsername) => CoreError::UsernameInvalid,
-            ApiError::Endpoint(NewAccountError::Disabled) => CoreError::ServerDisabled,
+            ApiError::Endpoint(api::NewAccountError::UsernameTaken) => CoreError::UsernameTaken,
+            ApiError::Endpoint(api::NewAccountError::InvalidUsername) => CoreError::UsernameInvalid,
+            ApiError::Endpoint(api::NewAccountError::Disabled) => CoreError::ServerDisabled,
             e => core_err_unexpected(e),
         }
     }
 }
 
-impl From<ApiError<GetPublicKeyError>> for CoreError {
-    fn from(err: ApiError<GetPublicKeyError>) -> Self {
+impl From<ApiError<api::GetPublicKeyError>> for CoreError {
+    fn from(err: ApiError<api::GetPublicKeyError>) -> Self {
         match err {
             ApiError::SendFailed(_) => CoreError::ServerUnreachable,
             ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,
-            ApiError::Endpoint(GetPublicKeyError::UserNotFound) => CoreError::AccountNonexistent,
+            ApiError::Endpoint(api::GetPublicKeyError::UserNotFound) => {
+                CoreError::AccountNonexistent
+            }
             e => core_err_unexpected(e),
         }
     }
 }
 
-impl From<ApiError<GetUsernameError>> for CoreError {
-    fn from(err: ApiError<GetUsernameError>) -> Self {
+impl From<ApiError<api::GetUsernameError>> for CoreError {
+    fn from(err: ApiError<api::GetUsernameError>) -> Self {
         match err {
             ApiError::SendFailed(_) => CoreError::ServerUnreachable,
             ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,
-            ApiError::Endpoint(GetUsernameError::UserNotFound) => CoreError::AccountNonexistent,
+            ApiError::Endpoint(api::GetUsernameError::UserNotFound) => {
+                CoreError::AccountNonexistent
+            }
             e => core_err_unexpected(e),
         }
     }
 }
 
-impl From<ApiError<GetFileIdsError>> for CoreError {
-    fn from(e: ApiError<GetFileIdsError>) -> Self {
+impl From<ApiError<api::GetFileIdsError>> for CoreError {
+    fn from(e: ApiError<api::GetFileIdsError>) -> Self {
         match e {
             ApiError::SendFailed(_) => CoreError::ServerUnreachable,
             ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,
@@ -265,8 +260,8 @@ impl From<ApiError<GetFileIdsError>> for CoreError {
     }
 }
 
-impl From<ApiError<GetUpdatesError>> for CoreError {
-    fn from(e: ApiError<GetUpdatesError>) -> Self {
+impl From<ApiError<api::GetUpdatesError>> for CoreError {
+    fn from(e: ApiError<api::GetUpdatesError>) -> Self {
         match e {
             ApiError::SendFailed(_) => CoreError::ServerUnreachable,
             ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,
