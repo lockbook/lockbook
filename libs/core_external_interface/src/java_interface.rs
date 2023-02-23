@@ -11,13 +11,13 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 use std::sync::{Arc, Mutex};
 
-use lockbook_core::model::errors::Error;
 use lockbook_core::service::search_service::{SearchRequest, SearchResult};
 use lockbook_core::{
     clock, unexpected_only, ClientWorkUnit, Config, Drawing, FileType, ShareMode,
     SupportedImageFormats, SyncProgress, UnexpectedError, Uuid,
 };
 
+use crate::errors::Error;
 use crate::get_all_error_variants;
 use crate::json_interface::translate;
 use crate::static_state;

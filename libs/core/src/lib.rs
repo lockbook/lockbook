@@ -38,6 +38,7 @@ pub use lockbook_shared::work_unit::{ClientWorkUnit, WorkUnit};
 pub use crate::model::drawing::SupportedImageFormats;
 pub use crate::model::errors::{CoreError, CoreResult, TestRepoError, UnexpectedError, Warning};
 pub use crate::service::import_export_service::{ImportExportFileInfo, ImportStatus};
+pub use crate::service::search_service::{SearchResultItem, StartSearchInfo};
 pub use crate::service::sync_service::{SyncProgress, WorkCalculated};
 pub use crate::service::usage_service::{UsageItemMetric, UsageMetrics};
 
@@ -55,7 +56,6 @@ use lockbook_shared::api::{
 use crate::repo::CoreDb;
 use crate::service::api_service::{Network, Requester};
 use crate::service::log_service;
-use crate::service::search_service::{SearchResultItem, StartSearchInfo};
 
 pub type Core = CoreLib<Network>;
 
