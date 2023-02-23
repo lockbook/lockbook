@@ -8,7 +8,14 @@ use std::process::Command;
 pub fn release(gh: &Github) {
     update_aur();
     update_snap();
+    build_x86();
     upload(gh);
+}
+
+pub fn build_x86() {
+    Command::new("cargo")
+        .args(["build", "-p", "lockbook-cli", "--release", "--target=x86_64-unknown-linux-gnu"])
+        .assert_success();
 }
 
 pub fn update_snap() {
@@ -53,11 +60,11 @@ apps:
     file.write_all(new_content.as_bytes()).unwrap();
 
     Command::new("snapcraft")
-        .current_dir("utils/dev/snap-packages/lockbook/snap")
+        .current_dir("utils/dev/snap-packages/lockbook/")
         .assert_success();
     Command::new("snapcraft")
         .args(["upload", "--release=stable", &snap_name])
-        .current_dir("utils/dev/snap-packages/lockbook/snap")
+        .current_dir("utils/dev/snap-packages/lockbook/")
         .assert_success();
 }
 
@@ -66,7 +73,7 @@ pub fn upload(gh: &Github) {
     let release = client
         .get_release_by_tag_name(&lb_repo(), &core_version())
         .unwrap();
-    let file = File::open("target/release/lockbook").unwrap();
+    let file = File::open("target/x86_64-unknown-linux-gnu/release/lockbook").unwrap();
     client
         .upload_release_asset(
             &lb_repo(),
