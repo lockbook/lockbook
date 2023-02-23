@@ -596,21 +596,21 @@ impl From<CoreError> for Error<UpgradeAccountStripeError> {
             CoreError::OldCardDoesNotExist => {
                 UiError(UpgradeAccountStripeError::OldCardDoesNotExist)
             }
-            CoreError::InvalidCardNumber => UiError(UpgradeAccountStripeError::InvalidCardNumber),
-            CoreError::InvalidCardExpYear => UiError(UpgradeAccountStripeError::InvalidCardExpYear),
-            CoreError::InvalidCardExpMonth => {
+            CoreError::CardInvalidNumber => UiError(UpgradeAccountStripeError::InvalidCardNumber),
+            CoreError::CardInvalidExpYear => UiError(UpgradeAccountStripeError::InvalidCardExpYear),
+            CoreError::CardInvalidExpMonth => {
                 UiError(UpgradeAccountStripeError::InvalidCardExpMonth)
             }
-            CoreError::InvalidCardCvc => UiError(UpgradeAccountStripeError::InvalidCardCvc),
+            CoreError::CardInvalidCvc => UiError(UpgradeAccountStripeError::InvalidCardCvc),
             CoreError::AlreadyPremium => UiError(UpgradeAccountStripeError::AlreadyPremium),
             CoreError::ServerUnreachable => UiError(UpgradeAccountStripeError::CouldNotReachServer),
             CoreError::CardDecline => UiError(UpgradeAccountStripeError::CardDecline),
-            CoreError::CardHasInsufficientFunds => {
+            CoreError::CardInsufficientFunds => {
                 UiError(UpgradeAccountStripeError::CardHasInsufficientFunds)
             }
             CoreError::TryAgain => UiError(UpgradeAccountStripeError::TryAgain),
             CoreError::CardNotSupported => UiError(UpgradeAccountStripeError::CardNotSupported),
-            CoreError::ExpiredCard => UiError(UpgradeAccountStripeError::ExpiredCard),
+            CoreError::CardExpired => UiError(UpgradeAccountStripeError::ExpiredCard),
             CoreError::CurrentUsageIsMoreThanNewTier => {
                 UiError(UpgradeAccountStripeError::CurrentUsageIsMoreThanNewTier)
             }

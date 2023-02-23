@@ -21,19 +21,19 @@ impl<Client: Requester> CoreState<Client> {
                         CoreError::OldCardDoesNotExist
                     }
                     UpgradeAccountStripeError::AlreadyPremium => CoreError::AlreadyPremium,
-                    UpgradeAccountStripeError::InvalidCardNumber => CoreError::InvalidCardNumber,
-                    UpgradeAccountStripeError::InvalidCardExpYear => CoreError::InvalidCardExpYear,
+                    UpgradeAccountStripeError::InvalidCardNumber => CoreError::CardInvalidNumber,
+                    UpgradeAccountStripeError::InvalidCardExpYear => CoreError::CardInvalidExpYear,
                     UpgradeAccountStripeError::InvalidCardExpMonth => {
-                        CoreError::InvalidCardExpMonth
+                        CoreError::CardInvalidExpMonth
                     }
-                    UpgradeAccountStripeError::InvalidCardCvc => CoreError::InvalidCardCvc,
+                    UpgradeAccountStripeError::InvalidCardCvc => CoreError::CardInvalidCvc,
                     UpgradeAccountStripeError::CardDecline => CoreError::CardDecline,
                     UpgradeAccountStripeError::InsufficientFunds => {
-                        CoreError::CardHasInsufficientFunds
+                        CoreError::CardInsufficientFunds
                     }
                     UpgradeAccountStripeError::TryAgain => CoreError::TryAgain,
                     UpgradeAccountStripeError::CardNotSupported => CoreError::CardNotSupported,
-                    UpgradeAccountStripeError::ExpiredCard => CoreError::ExpiredCard,
+                    UpgradeAccountStripeError::ExpiredCard => CoreError::CardExpired,
                     UpgradeAccountStripeError::ExistingRequestPending => {
                         CoreError::ExistingRequestPending
                     }
