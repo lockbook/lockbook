@@ -1,4 +1,4 @@
-use lockbook_core::model::errors::*;
+use lockbook_core::CoreError;
 use lockbook_shared::file_metadata::FileType;
 use lockbook_shared::path_ops::Filter;
 use test_utils::*;

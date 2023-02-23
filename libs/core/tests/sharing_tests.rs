@@ -788,7 +788,7 @@ fn delete_pending_share_root() {
     let root = core.get_root().unwrap();
 
     let result = core.delete_pending_share(root.id);
-    assert_matches!(result, Err(CoreError::Unexpected(_)));
+    assert_matches!(result, Err(CoreError::RootModificationInvalid));
 }
 
 #[test]

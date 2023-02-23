@@ -1,8 +1,8 @@
 #[cfg(feature = "no-network")]
 #[cfg(test)]
 mod ip_tests {
-    use lockbook_core::model::errors::*;
     use lockbook_core::service::api_service::no_network::{CoreIP, InProcess};
+    use lockbook_core::CoreError;
     use std::default::Default;
     use test_utils::test_config;
     use test_utils::*;
