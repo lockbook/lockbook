@@ -7,26 +7,26 @@
 ## About
 _The private, polished note-taking platform._
 
-Privacy shouldn't be a compromise. That's why we made Lockbook, a companion for recording thoughts on all your devices. Record, sync, and share your notes with apps engineered to feel like home on every platform. We collect no personal information and encrypt your notes so even _we_ can’t see them. Don’t take our word for it: Lockbook is 100% open-source.
+Privacy shouldn't be a compromise. That's why we made Lockbook, a secure companion to record, sync, and share your thoughts with apps engineered to feel at home on every platform. We collect no personal information and encrypt your notes so even we can't see them. Don't take our word for it: Lockbook is 100% open-source.
 
 ### Polished
-We built Lockbook for everyday use because we use Lockbook every day. We need a note-taking app that doesn't make trade-offs concerning speed, stability, efficiency, device integration, or delightfulness. The only way to have that is to put in the effort, including writing native apps for every platform, and we can't wait for you to try them.
+We built Lockbook for everyday use because we use Lockbook every day. We need a note-taking app that doesn't make trade-offs concerning speed, stability, efficiency, device integration, or delightfulness. The only way to have that is to put in the effort, including writing native apps for every platform. We can't wait for you to try it.
 
 ### Secure
-Keep your thoughts to yourself. Your notes are encrypted with keys that are generated on your devices and stay on your devices. The only people that can see your notes are you and the users you share them with. No one else, including infrastructure providers, state actors, and Lockbook employees, can see your notes.
+Keep your thoughts to yourself. Your notes are encrypted with keys that are generated on your devices and stay on your devices. The people that can see your notes are you and the users you share them with. The people that can't are everyone else, including infrastructure providers, state actors, and Lockbook employees.
 
 ### Private
-Know your customer? We sure don't. We don't collect your email, phone number, or name. We don't even need a password. Lockbook is for people with better things to worry about than privacy.
+Know your customer? We sure don't. We don't collect your email, phone number, or name. We don't need a password. Lockbook is for people with better things to worry about than privacy.
 
 ### Honest
-Be the customer, not the product. We make money by selling a note-taking app, not your data.
+Be the customer, not the product. We sell a note-taking app, not your data.
 
 | Payment Option | Monthly Fee    |
 |----------------|----------------|
 | Monthly        | $2.99 per 30GB |
 
 ### Developer Friendly
-We also provide a CLI tool that will fit right into your favorite chain of piped-together Unix commands. Search your notes with `fzf`, edit them with `vim`, and schedule backups with `cron`. When scripting doesn't cut it, use our Rust library for a robust programmatic interface with Lockbook.
+The Lockbook CLI will fit right into your favorite chain of piped-together Unix commands. Search your notes with `fzf`, edit them with `vim`, and schedule backups with `cron`. When scripting doesn't cut it, use our Rust library for a robust programmatic interface.
 
 ## How To Install
 ### Mobile
