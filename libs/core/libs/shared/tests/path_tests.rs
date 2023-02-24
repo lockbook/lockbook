@@ -64,7 +64,7 @@ fn test_path_to_id() {
     tree.create_at_path("test1/2/3", root.id(), account, pk)
         .unwrap();
 
-    assert_eq!(tree.path_to_id("/", root.id(), account), Ok(*root.id()));
+    assert_eq!(tree.path_to_id("/", root.id(), account).unwrap(), *root.id());
 
     let test1_id = tree.path_to_id("/test1", root.id(), account).unwrap();
     assert_eq!(tree.name_using_links(&test1_id, account).unwrap(), "test1");
@@ -89,7 +89,7 @@ fn test_path_file_types() {
     tree.create_at_path("test1/2/3", root.id(), account, pk)
         .unwrap();
 
-    assert_eq!(tree.path_to_id("/", root.id(), account), Ok(*root.id()));
+    assert_eq!(tree.path_to_id("/", root.id(), account).unwrap(), *root.id());
 
     let test1_id = tree.path_to_id("/test1", root.id(), account).unwrap();
     assert_eq!(tree.find(&test1_id).unwrap().file_type(), FileType::Folder);

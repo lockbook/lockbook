@@ -2,7 +2,7 @@
 #[cfg(test)]
 mod ip_tests {
     use lockbook_core::service::api_service::no_network::{CoreIP, InProcess};
-    use lockbook_core::CoreError;
+    use lockbook_core::LbErrorKind;
     use std::default::Default;
     use test_utils::test_config;
     use test_utils::*;
@@ -15,8 +15,11 @@ mod ip_tests {
         let name = random_name();
         core1.create_account(&name, "not used", false).unwrap();
         assert_matches!(
-            core2.create_account(&name, "not used", false),
-            Err(CoreError::UsernameTaken)
+            core2
+                .create_account(&name, "not used", false)
+                .unwrap_err()
+                .kind,
+            LbErrorKind::UsernameTaken
         );
     }
 

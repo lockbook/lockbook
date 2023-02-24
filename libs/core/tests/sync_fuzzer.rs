@@ -2,7 +2,7 @@ use std::cmp::Ordering;
 
 use crate::Actions::*;
 use indicatif::{ProgressBar, ProgressStyle};
-use lockbook_core::{Core, CoreError};
+use lockbook_core::{Core, LbError, LbErrorKind};
 use lockbook_shared::file::File;
 use lockbook_shared::file_metadata::FileType::{Document, Folder};
 use rand::distributions::{Alphanumeric, Distribution, Standard};
@@ -126,7 +126,8 @@ impl Actions {
                         let initial_path = client.get_path_by_id(file.id).unwrap();
                         let move_file_result = client.move_file(file.id, new_parent.id);
                         match move_file_result {
-                            Ok(()) | Err(CoreError::FolderMovedIntoSelf) => {}
+                            Ok(())
+                            | Err(LbError { kind: LbErrorKind::FolderMovedIntoSelf, .. }) => {}
                             _ => panic!(
                                 "Unexpected error while moving file: {:#?}",
                                 move_file_result

@@ -2,7 +2,7 @@ use lockbook_shared::access_info::{UserAccessInfo, UserAccessMode};
 use lockbook_shared::file::ShareMode;
 use lockbook_shared::file_metadata::{FileType, Owner};
 use lockbook_shared::tree_like::TreeLike;
-use lockbook_shared::{symkey, SharedError, ValidationFailure};
+use lockbook_shared::{symkey, LbErrorKind, ValidationFailure};
 use test_utils::*;
 use uuid::Uuid;
 
@@ -34,8 +34,8 @@ fn create_two_files_with_same_path() {
         .unwrap();
         let result = tree.validate(Owner(account.public_key()));
         assert_matches!(
-            result,
-            Err(SharedError::ValidationFailure(ValidationFailure::PathConflict(_)))
+            result.unwrap_err().kind,
+            LbErrorKind::ValidationFailure(ValidationFailure::PathConflict(_))
         );
         Ok(())
     })
@@ -89,8 +89,8 @@ fn directly_shared_link() {
             let mut tree = s.db.base_metadata.stage(&mut s.db.local_metadata).to_lazy();
             let result = tree.validate(Owner(accounts[1].public_key()));
             assert_matches!(
-                result,
-                Err(SharedError::ValidationFailure(ValidationFailure::SharedLink { .. }))
+                result.unwrap_err().kind,
+                LbErrorKind::ValidationFailure(ValidationFailure::SharedLink { .. })
             );
             Ok(())
         })

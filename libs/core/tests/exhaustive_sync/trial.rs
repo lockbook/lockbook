@@ -3,7 +3,7 @@ use crate::exhaustive_sync::trial::Action::*;
 use crate::exhaustive_sync::trial::Status::{Failed, Ready, Running, Succeeded};
 use crate::exhaustive_sync::utils::{find_by_name, random_filename, random_utf8};
 use lockbook_core::service::api_service::no_network::{CoreIP, InProcess};
-use lockbook_core::CoreError;
+use lockbook_core::LbErrorKind;
 use lockbook_server_lib::config::AdminConfig;
 use lockbook_shared::file::ShareMode;
 use lockbook_shared::file_metadata::FileType::{Document, Folder, Link};
@@ -170,13 +170,14 @@ impl Trial {
 
                     let move_file_result = db.move_file(non_folder, dest);
                     match move_file_result {
-                        Ok(())
-                        | Err(CoreError::LinkInSharedFolder)
-                        | Err(CoreError::FolderMovedIntoSelf) => {}
-                        Err(err) => {
-                            self.status = Failed(format!("{:#?}", err));
-                            break 'steps;
-                        }
+                        Ok(()) => {}
+                        Err(err) => match err.kind {
+                            LbErrorKind::LinkInSharedFolder | LbErrorKind::FolderMovedIntoSelf => {}
+                            _ => {
+                                self.status = Failed(format!("{:#?}", err));
+                                break 'steps;
+                            }
+                        },
                     }
                 }
                 DeleteFile { user_index, device_index, name } => {
