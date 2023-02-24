@@ -153,9 +153,9 @@ impl SplashScreen {
 fn is_signed_in(core: &lb::Core) -> Result<bool, String> {
     match core.get_account() {
         Ok(_acct) => Ok(true),
-        Err(err) => match err {
-            lb::CoreError::AccountNonexistent => Ok(false),
-            err => Err(format!("{:?}", err)), // todo(steve): display
+        Err(err) => match err.kind {
+            lb::LbErrorKind::AccountNonexistent => Ok(false),
+            _ => Err(format!("{:?}", err)), // todo(steve): display
         },
     }
 }

@@ -334,9 +334,9 @@ impl AccountScreen {
                     Err(err) => {
                         new_tabs.insert(
                             id,
-                            Err(match err {
-                                lb::CoreError::FileNonexistent => TabFailure::DeletedFromSync,
-                                err => TabFailure::Unexpected(format!("{:?}", err)),
+                            Err(match err.kind {
+                                lb::LbErrorKind::FileNonexistent => TabFailure::DeletedFromSync,
+                                _ => TabFailure::Unexpected(format!("{:?}", err)),
                             }),
                         );
                         continue;

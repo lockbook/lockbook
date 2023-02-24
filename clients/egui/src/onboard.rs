@@ -230,7 +230,7 @@ impl OnboardScreen {
 
             let result = core
                 .create_account(&uname, &api_url, true)
-                .map_err(create_account_err_to_string)
+                .map_err(|err| format!("{:?}", err))
                 .and_then(|_| load_account_data(&core));
 
             update_tx.send(Update::AccountCreated(result)).unwrap();
@@ -249,7 +249,7 @@ impl OnboardScreen {
         thread::spawn(move || {
             if let Err(err) = core
                 .import_account(&key)
-                .map_err(import_account_err_to_string)
+                .map_err(|err| format!("{:?}", err))
             {
                 tx.send(Update::AccountImported(Some(err))).unwrap();
                 ctx.request_repaint();
@@ -280,42 +280,6 @@ impl OnboardScreen {
             ctx.request_repaint();
         });
     }
-}
-
-fn create_account_err_to_string(err: lb::CoreError) -> String {
-    format!("{:?}", err) // todo(steve): switch from debug to display once impled
-
-    /*match err {
-        lb::CoreError::UsernameTaken => "This username is already taken.",
-        lb::CoreError::UsernameInvalid => "This username is invalid.",
-        lb::CoreError::ServerUnreachable => "Could not reach server.",
-        lb::CoreError::AccountExists => {
-            "An account already exists! Please try restarting your client."
-        }
-        lb::CoreError::ClientUpdateRequired => "Client update required.",
-        lb::CoreError::ServerDisabled => "This server has disabled sign ups.",
-        lb::CoreError::Unexpected(ref msg) => msg,
-    }
-    .to_string()*/
-}
-
-fn import_account_err_to_string(err: lb::CoreError) -> String {
-    format!("{:?}", err) // todo(steve): switch from debug to display once impled
-
-    /*use lb::ImportError::*;
-
-    match err {
-        lb::Error::UiError(err) => match err {
-            AccountStringCorrupted => "Invalid account secret.",
-            AccountDoesNotExist => "This account doesn't exist on the server.",
-            UsernamePKMismatch => "The username doesn't match the private key.",
-            AccountExistsAlready => "An account already exists! Please try restarting your client.",
-            CouldNotReachServer => "Could not reach server.",
-            ClientUpdateRequired => "Client update required.",
-        }
-        .to_string(),
-        lb::Error::Unexpected(msg) => msg,
-    }*/
 }
 
 fn load_account_data(core: &Arc<lb::Core>) -> Result<AccountScreenInitData, String> {
