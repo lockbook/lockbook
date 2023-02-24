@@ -22,7 +22,7 @@ impl From<LbErrorKind> for LbError {
             LbErrorKind::ValidationFailure(ref vf) => match vf {
                 ValidationFailure::Orphan(_id) => kind,
                 ValidationFailure::Cycle(_) => LbErrorKind::FolderMovedIntoSelf,
-                ValidationFailure::PathConflict(_) => LbErrorKind::PathTaken,
+                // ValidationFailure::PathConflict(_) => LbErrorKind::PathTaken,
                 ValidationFailure::SharedLink { .. } => LbErrorKind::LinkInSharedFolder,
                 ValidationFailure::DuplicateLink { .. } => LbErrorKind::MultipleLinksToSameFile,
                 ValidationFailure::BrokenLink(_) => LbErrorKind::LinkTargetNonexistent,
