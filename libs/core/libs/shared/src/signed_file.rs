@@ -2,7 +2,7 @@ use crate::crypto::ECSigned;
 use crate::file_like::FileLike;
 use crate::file_metadata::FileMetadata;
 use crate::tree_like::{TreeLike, TreeLikeMut};
-use crate::SharedResult;
+use crate::LbResult;
 use std::collections::HashSet;
 use std::fmt::{Display, Formatter};
 use uuid::Uuid;
@@ -54,11 +54,11 @@ impl<F> TreeLikeMut for Option<F>
 where
     F: FileLike,
 {
-    fn insert(&mut self, f: F) -> SharedResult<Option<F>> {
+    fn insert(&mut self, f: F) -> LbResult<Option<F>> {
         Ok(self.replace(f))
     }
 
-    fn remove(&mut self, id: Uuid) -> SharedResult<Option<F>> {
+    fn remove(&mut self, id: Uuid) -> LbResult<Option<F>> {
         if let Some(f) = self {
             if &id == f.id() {
                 Ok(self.take())
@@ -70,7 +70,7 @@ where
         }
     }
 
-    fn clear(&mut self) -> SharedResult<()> {
+    fn clear(&mut self) -> LbResult<()> {
         *self = None;
         Ok(())
     }

@@ -3187,6 +3187,7 @@ dependencies = [
  "rand 0.8.5",
  "serde",
  "serde_bytes",
+ "serde_json",
  "sha2 0.9.9",
  "test_utils",
  "tracing",

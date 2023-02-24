@@ -1,7 +1,7 @@
 use crate::core_config::Config;
 use crate::crypto::*;
 use crate::file_metadata::DocumentHmac;
-use crate::{SharedError, SharedResult};
+use crate::{LbErrorKind, LbResult};
 use std::collections::HashSet;
 use std::convert::TryInto;
 use std::fs::{self, File, OpenOptions};
@@ -22,7 +22,7 @@ pub fn key_path(writeable_path: &str, key: &Uuid, hmac: &DocumentHmac) -> String
 #[instrument(level = "debug", skip(config, document), err(Debug))]
 pub fn insert(
     config: &Config, id: &Uuid, hmac: Option<&DocumentHmac>, document: &EncryptedDocument,
-) -> SharedResult<()> {
+) -> LbResult<()> {
     if let Some(hmac) = hmac {
         let value = &bincode::serialize(document)?;
         let path_str = key_path(&config.writeable_path, id, hmac) + ".pending";
@@ -44,14 +44,14 @@ pub fn insert(
 #[instrument(level = "debug", skip(config), err(Debug))]
 pub fn get(
     config: &Config, id: &Uuid, hmac: Option<&DocumentHmac>,
-) -> SharedResult<EncryptedDocument> {
-    maybe_get(config, id, hmac)?.ok_or(SharedError::FileNonexistent)
+) -> LbResult<EncryptedDocument> {
+    maybe_get(config, id, hmac)?.ok_or_else(|| LbErrorKind::FileNonexistent.into())
 }
 
 #[instrument(level = "debug", skip(config), err(Debug))]
 pub fn maybe_get(
     config: &Config, id: &Uuid, hmac: Option<&DocumentHmac>,
-) -> SharedResult<Option<EncryptedDocument>> {
+) -> LbResult<Option<EncryptedDocument>> {
     if let Some(hmac) = hmac {
         let path_str = key_path(&config.writeable_path, id, hmac);
         let path = Path::new(&path_str);
@@ -78,7 +78,7 @@ pub fn maybe_get(
 }
 
 #[instrument(level = "debug", skip(config), err(Debug))]
-pub fn delete(config: &Config, id: &Uuid, hmac: Option<&DocumentHmac>) -> SharedResult<()> {
+pub fn delete(config: &Config, id: &Uuid, hmac: Option<&DocumentHmac>) -> LbResult<()> {
     if let Some(hmac) = hmac {
         let path_str = key_path(&config.writeable_path, id, hmac);
         let path = Path::new(&path_str);
@@ -92,7 +92,7 @@ pub fn delete(config: &Config, id: &Uuid, hmac: Option<&DocumentHmac>) -> Shared
 }
 
 #[instrument(level = "debug", skip(config), err(Debug))]
-pub fn retain(config: &Config, file_hmacs: HashSet<(&Uuid, &DocumentHmac)>) -> SharedResult<()> {
+pub fn retain(config: &Config, file_hmacs: HashSet<(&Uuid, &DocumentHmac)>) -> LbResult<()> {
     let dir_path = namespace_path(&config.writeable_path);
     fs::create_dir_all(&dir_path)?;
     let entries = fs::read_dir(&dir_path)?;
@@ -101,19 +101,19 @@ pub fn retain(config: &Config, file_hmacs: HashSet<(&Uuid, &DocumentHmac)>) -> S
         let (id_str, hmac_str) = path
             .file_name()
             .and_then(|name| name.to_str())
-            .ok_or(SharedError::Unexpected("document disk file name malformed"))?
+            .ok_or(LbErrorKind::Unexpected("document disk file name malformed".to_string()))?
             .split_at(36); // Uuid's are 36 characters long in string form
         let id = Uuid::parse_str(id_str)
-            .map_err(|_| SharedError::Unexpected("document disk file name malformed"))?;
+            .map_err(|_| LbErrorKind::Unexpected("document disk file name malformed".to_string()))?;
         let hmac: DocumentHmac = base64::decode_config(
             hmac_str
                 .strip_prefix('-')
-                .ok_or(SharedError::Unexpected("document disk file name malformed"))?,
+                .ok_or(LbErrorKind::Unexpected("document disk file name malformed".to_string()))?,
             base64::URL_SAFE,
         )
-        .map_err(|_| SharedError::Unexpected("document disk file name malformed"))?
+        .map_err(|_| LbErrorKind::Unexpected("document disk file name malformed".to_string()))?
         .try_into()
-        .map_err(|_| SharedError::Unexpected("document disk file name malformed"))?;
+        .map_err(|_| LbErrorKind::Unexpected("document disk file name malformed".to_string()))?;
         if !file_hmacs.contains(&(&id, &hmac)) {
             delete(config, &id, Some(&hmac))?;
         }

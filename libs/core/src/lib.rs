@@ -34,6 +34,7 @@ pub use lockbook_shared::server_file::ServerFile;
 pub use lockbook_shared::tree_like::{TreeLike, TreeLikeMut};
 pub use lockbook_shared::usage::bytes_to_human;
 pub use lockbook_shared::work_unit::{ClientWorkUnit, WorkUnit};
+pub use lockbook_shared::{LbError, LbErrorKind, LbResult};
 
 pub use crate::model::drawing::SupportedImageFormats;
 pub use crate::model::errors::{CoreError, CoreResult, TestRepoError, UnexpectedError, Warning};
@@ -89,9 +90,9 @@ impl Core {
 }
 
 impl<Client: Requester> CoreLib<Client> {
-    pub fn in_tx<F, Out>(&self, f: F) -> CoreResult<Out>
+    pub fn in_tx<F, Out>(&self, f: F) -> LbResult<Out>
     where
-        F: FnOnce(&mut CoreState<Client>) -> CoreResult<Out>,
+        F: FnOnce(&mut CoreState<Client>) -> LbResult<Out>,
     {
         let mut inner = self.inner.lock()?;
         let tx = inner.db.begin_transaction()?;
@@ -103,27 +104,27 @@ impl<Client: Requester> CoreLib<Client> {
     #[instrument(level = "info", skip_all, err(Debug))]
     pub fn create_account(
         &self, username: &str, api_url: &str, welcome_doc: bool,
-    ) -> CoreResult<Account> {
+    ) -> LbResult<Account> {
         self.in_tx(|s| s.create_account(username, api_url, welcome_doc))
     }
 
     #[instrument(level = "debug", skip_all, err(Debug))]
-    pub fn import_account(&self, account_string: &str) -> CoreResult<Account> {
+    pub fn import_account(&self, account_string: &str) -> LbResult<Account> {
         self.in_tx(|s| s.import_account(account_string))
     }
 
     #[instrument(level = "debug", skip_all, err(Debug))]
-    pub fn export_account(&self) -> Result<String, CoreError> {
+    pub fn export_account(&self) -> Result<String, LbError> {
         self.in_tx(|s| s.export_account())
     }
 
     #[instrument(level = "debug", skip_all, err(Debug))]
-    pub fn export_account_qr(&self) -> Result<Vec<u8>, CoreError> {
+    pub fn export_account_qr(&self) -> Result<Vec<u8>, LbError> {
         self.in_tx(|s| s.export_account_qr())
     }
 
     #[instrument(level = "debug", skip_all, err(Debug))]
-    pub fn get_account(&self) -> Result<Account, CoreError> {
+    pub fn get_account(&self) -> Result<Account, LbError> {
         self.in_tx(|s| s.get_account().cloned())
     }
 
@@ -135,18 +136,18 @@ impl<Client: Requester> CoreLib<Client> {
     #[instrument(level = "debug", skip(self, name), err(Debug))]
     pub fn create_file(
         &self, name: &str, parent: Uuid, file_type: FileType,
-    ) -> Result<File, CoreError> {
+    ) -> Result<File, LbError> {
         self.in_tx(|s| s.create_file(name, &parent, file_type))
     }
 
     #[instrument(level = "debug", skip(self, content), err(Debug))]
-    pub fn write_document(&self, id: Uuid, content: &[u8]) -> Result<(), CoreError> {
+    pub fn write_document(&self, id: Uuid, content: &[u8]) -> Result<(), LbError> {
         self.in_tx(|s| s.write_document(id, content))?;
         self.in_tx(|s| s.cleanup())
     }
 
     #[instrument(level = "debug", skip_all, err(Debug))]
-    pub fn get_root(&self) -> Result<File, CoreError> {
+    pub fn get_root(&self) -> Result<File, LbError> {
         self.in_tx(|s| s.root())
     }
 
@@ -156,22 +157,22 @@ impl<Client: Requester> CoreLib<Client> {
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
-    pub fn get_and_get_children_recursively(&self, id: Uuid) -> Result<Vec<File>, CoreError> {
+    pub fn get_and_get_children_recursively(&self, id: Uuid) -> Result<Vec<File>, LbError> {
         self.in_tx(|s| s.get_and_get_children_recursively(&id))
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
-    pub fn get_file_by_id(&self, id: Uuid) -> Result<File, CoreError> {
+    pub fn get_file_by_id(&self, id: Uuid) -> Result<File, LbError> {
         self.in_tx(|s| s.get_file_by_id(&id))
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
-    pub fn delete_file(&self, id: Uuid) -> Result<(), CoreError> {
+    pub fn delete_file(&self, id: Uuid) -> Result<(), LbError> {
         self.in_tx(|s| s.delete(&id))
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
-    pub fn read_document(&self, id: Uuid) -> Result<DecryptedDocument, CoreError> {
+    pub fn read_document(&self, id: Uuid) -> Result<DecryptedDocument, LbError> {
         self.in_tx(|s| s.read_document(id))
     }
 
@@ -181,17 +182,17 @@ impl<Client: Requester> CoreLib<Client> {
     }
 
     #[instrument(level = "debug", skip(self, new_name), err(Debug))]
-    pub fn rename_file(&self, id: Uuid, new_name: &str) -> Result<(), CoreError> {
+    pub fn rename_file(&self, id: Uuid, new_name: &str) -> Result<(), LbError> {
         self.in_tx(|s| s.rename_file(&id, new_name))
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
-    pub fn move_file(&self, id: Uuid, new_parent: Uuid) -> Result<(), CoreError> {
+    pub fn move_file(&self, id: Uuid, new_parent: Uuid) -> Result<(), LbError> {
         self.in_tx(|s| s.move_file(&id, &new_parent))
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
-    pub fn share_file(&self, id: Uuid, username: &str, mode: ShareMode) -> Result<(), CoreError> {
+    pub fn share_file(&self, id: Uuid, username: &str, mode: ShareMode) -> Result<(), LbError> {
         self.in_tx(|s| s.share_file(id, username, mode))
     }
 
@@ -201,7 +202,7 @@ impl<Client: Requester> CoreLib<Client> {
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
-    pub fn delete_pending_share(&self, id: Uuid) -> Result<(), CoreError> {
+    pub fn delete_pending_share(&self, id: Uuid) -> Result<(), LbError> {
         self.in_tx(|s| {
             let pk = s.get_public_key()?;
             s.delete_share(&id, Some(pk))
@@ -211,17 +212,17 @@ impl<Client: Requester> CoreLib<Client> {
     #[instrument(level = "debug", skip_all, err(Debug))]
     pub fn create_link_at_path(
         &self, path_and_name: &str, target_id: Uuid,
-    ) -> Result<File, CoreError> {
+    ) -> Result<File, LbError> {
         self.in_tx(|s| s.create_link_at_path(path_and_name, target_id))
     }
 
     #[instrument(level = "debug", skip_all, err(Debug))]
-    pub fn create_at_path(&self, path_and_name: &str) -> Result<File, CoreError> {
+    pub fn create_at_path(&self, path_and_name: &str) -> Result<File, LbError> {
         self.in_tx(|s| s.create_at_path(path_and_name))
     }
 
     #[instrument(level = "debug", skip_all, err(Debug))]
-    pub fn get_by_path(&self, path: &str) -> Result<File, CoreError> {
+    pub fn get_by_path(&self, path: &str) -> Result<File, LbError> {
         self.in_tx(|s| s.get_by_path(path))
     }
 
@@ -249,13 +250,13 @@ impl<Client: Requester> CoreLib<Client> {
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
-    pub fn calculate_work(&self) -> Result<WorkCalculated, CoreError> {
+    pub fn calculate_work(&self) -> Result<WorkCalculated, LbError> {
         self.in_tx(|s| s.calculate_work())
     }
 
     // todo: expose work calculated (return value)
     #[instrument(level = "debug", skip_all, err(Debug))]
-    pub fn sync(&self, f: Option<Box<dyn Fn(SyncProgress)>>) -> Result<(), CoreError> {
+    pub fn sync(&self, f: Option<Box<dyn Fn(SyncProgress)>>) -> Result<(), LbError> {
         self.in_tx(|s| {
             s.sync(f)?;
             s.cleanup()
@@ -281,22 +282,22 @@ impl<Client: Requester> CoreLib<Client> {
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
-    pub fn get_usage(&self) -> Result<UsageMetrics, CoreError> {
+    pub fn get_usage(&self) -> Result<UsageMetrics, LbError> {
         self.in_tx(|s| s.get_usage())
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
-    pub fn get_uncompressed_usage(&self) -> Result<UsageItemMetric, CoreError> {
+    pub fn get_uncompressed_usage(&self) -> Result<UsageItemMetric, LbError> {
         self.in_tx(|s| s.get_uncompressed_usage())
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
-    pub fn get_drawing(&self, id: Uuid) -> Result<Drawing, CoreError> {
+    pub fn get_drawing(&self, id: Uuid) -> Result<Drawing, LbError> {
         self.in_tx(|s| s.get_drawing(id))
     }
 
     #[instrument(level = "debug", skip(self, d), err(Debug))]
-    pub fn save_drawing(&self, id: Uuid, d: &Drawing) -> Result<(), CoreError> {
+    pub fn save_drawing(&self, id: Uuid, d: &Drawing) -> Result<(), LbError> {
         self.in_tx(|s| {
             s.save_drawing(id, d)?;
             s.cleanup()
@@ -307,7 +308,7 @@ impl<Client: Requester> CoreLib<Client> {
     pub fn export_drawing(
         &self, id: Uuid, format: SupportedImageFormats,
         render_theme: Option<HashMap<ColorAlias, ColorRGB>>,
-    ) -> Result<Vec<u8>, CoreError> {
+    ) -> Result<Vec<u8>, LbError> {
         self.in_tx(|s| s.export_drawing(id, format, render_theme))
     }
 
@@ -315,14 +316,14 @@ impl<Client: Requester> CoreLib<Client> {
     pub fn export_drawing_to_disk(
         &self, id: Uuid, format: SupportedImageFormats,
         render_theme: Option<HashMap<ColorAlias, ColorRGB>>, location: &str,
-    ) -> Result<(), CoreError> {
+    ) -> Result<(), LbError> {
         self.in_tx(|s| s.export_drawing_to_disk(id, format, render_theme, location))
     }
 
     #[instrument(level = "debug", skip(self, update_status), err(Debug))]
     pub fn import_files<F: Fn(ImportStatus)>(
         &self, sources: &[PathBuf], dest: Uuid, update_status: &F,
-    ) -> Result<(), CoreError> {
+    ) -> Result<(), LbError> {
         self.in_tx(|s| {
             s.import_files(sources, dest, update_status)?;
             s.cleanup()
@@ -333,7 +334,7 @@ impl<Client: Requester> CoreLib<Client> {
     pub fn export_file(
         &self, id: Uuid, destination: PathBuf, edit: bool,
         export_progress: Option<Box<dyn Fn(ImportExportFileInfo)>>,
-    ) -> Result<(), CoreError> {
+    ) -> Result<(), LbError> {
         self.in_tx(|s| s.export_file(id, destination, edit, export_progress))
     }
 
@@ -350,18 +351,18 @@ impl<Client: Requester> CoreLib<Client> {
     #[instrument(level = "debug", skip(self), err(Debug))]
     pub fn validate(&self) -> Result<Vec<Warning>, TestRepoError> {
         self.in_tx(|s| Ok(s.test_repo_integrity()))
-            .map_err(TestRepoError::Core)?
+            .map_err(TestRepoError::from)?
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
-    pub fn upgrade_account_stripe(&self, account_tier: StripeAccountTier) -> Result<(), CoreError> {
+    pub fn upgrade_account_stripe(&self, account_tier: StripeAccountTier) -> Result<(), LbError> {
         self.in_tx(|s| s.upgrade_account_stripe(account_tier))
     }
 
     #[instrument(level = "debug", skip(self, purchase_token), err(Debug))]
     pub fn upgrade_account_google_play(
         &self, purchase_token: &str, account_id: &str,
-    ) -> Result<(), CoreError> {
+    ) -> Result<(), LbError> {
         self.in_tx(|s| s.upgrade_account_google_play(purchase_token, account_id))
     }
 
@@ -372,75 +373,73 @@ impl<Client: Requester> CoreLib<Client> {
     )]
     pub fn upgrade_account_app_store(
         &self, original_transaction_id: String, app_account_token: String,
-    ) -> Result<(), CoreError> {
+    ) -> Result<(), LbError> {
         self.in_tx(|s| s.upgrade_account_app_store(original_transaction_id, app_account_token))
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
-    pub fn cancel_subscription(&self) -> Result<(), CoreError> {
+    pub fn cancel_subscription(&self) -> Result<(), LbError> {
         self.in_tx(|s| s.cancel_subscription())
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
-    pub fn get_subscription_info(&self) -> Result<Option<SubscriptionInfo>, CoreError> {
+    pub fn get_subscription_info(&self) -> Result<Option<SubscriptionInfo>, LbError> {
         self.in_tx(|s| s.get_subscription_info())
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
-    pub fn delete_account(&self) -> Result<(), CoreError> {
+    pub fn delete_account(&self) -> Result<(), LbError> {
         self.in_tx(|s| s.delete_account())
     }
 
     #[instrument(level = "debug", skip(self, username), err(Debug))]
-    pub fn admin_disappear_account(&self, username: &str) -> Result<(), CoreError> {
+    pub fn admin_disappear_account(&self, username: &str) -> Result<(), LbError> {
         self.in_tx(|s| s.disappear_account(username))
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
-    pub fn admin_disappear_file(&self, id: Uuid) -> Result<(), CoreError> {
+    pub fn admin_disappear_file(&self, id: Uuid) -> Result<(), LbError> {
         self.in_tx(|s| s.disappear_file(id))
     }
 
     #[instrument(level = "debug", skip(self, filter), err(Debug))]
     pub fn admin_list_users(
         &self, filter: Option<AccountFilter>,
-    ) -> Result<Vec<Username>, CoreError> {
+    ) -> Result<Vec<Username>, LbError> {
         self.in_tx(|s| s.list_users(filter))
     }
 
     #[instrument(level = "debug", skip(self, identifier), err(Debug))]
     pub fn admin_get_account_info(
         &self, identifier: AccountIdentifier,
-    ) -> Result<AccountInfo, CoreError> {
+    ) -> Result<AccountInfo, LbError> {
         self.in_tx(|s| s.get_account_info(identifier))
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
-    pub fn admin_validate_account(
-        &self, username: &str,
-    ) -> Result<AdminValidateAccount, CoreError> {
+    pub fn admin_validate_account(&self, username: &str) -> Result<AdminValidateAccount, LbError> {
         self.in_tx(|s| s.validate_account(username))
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
-    pub fn admin_validate_server(&self) -> Result<AdminValidateServer, CoreError> {
+    pub fn admin_validate_server(&self) -> Result<AdminValidateServer, LbError> {
         self.in_tx(|s| s.validate_server())
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
-    pub fn admin_file_info(&self, id: Uuid) -> Result<AdminFileInfoResponse, CoreError> {
+    pub fn admin_file_info(&self, id: Uuid) -> Result<AdminFileInfoResponse, LbError> {
         self.in_tx(|s| s.file_info(id))
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
-    pub fn admin_rebuild_index(&self, index: ServerIndex) -> Result<(), CoreError> {
+    pub fn admin_rebuild_index(&self, index: ServerIndex) -> Result<(), LbError> {
         self.in_tx(|s| s.rebuild_index(index))
     }
 
     #[instrument(level = "debug", skip(self, info), err(Debug))]
     pub fn admin_set_user_tier(
         &self, username: &str, info: AdminSetUserTierInfo,
-    ) -> Result<(), CoreError> {
+    ) -> Result<(), LbError> {
         self.in_tx(|s| s.set_user_tier(username, info))
     }
 }

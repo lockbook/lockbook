@@ -10,14 +10,14 @@ use crate::file_metadata::{FileType, Owner};
 use crate::lazy::LazyStaged1;
 use crate::signed_file::SignedFile;
 use crate::tree_like::{TreeLike, TreeLikeMut};
-use crate::{symkey, validate, SharedError, SharedResult};
+use crate::{symkey, validate, LbErrorKind, LbResult};
 
 impl<Base, Local> LazyStaged1<Base, Local>
 where
     Base: TreeLike<F = SignedFile>,
     Local: TreeLike<F = Base::F>,
 {
-    pub fn path_to_id(&mut self, path: &str, root: &Uuid, account: &Account) -> SharedResult<Uuid> {
+    pub fn path_to_id(&mut self, path: &str, root: &Uuid, account: &Account) -> LbResult<Uuid> {
         let mut current = *root;
         'path: for name in split_path(path) {
             'child: for child in self.children(&if let FileType::Link { target } =
@@ -37,13 +37,13 @@ where
                 }
             }
 
-            return Err(SharedError::FileNonexistent);
+            return Err(LbErrorKind::FileNonexistent.into());
         }
 
         Ok(current)
     }
 
-    pub fn id_to_path(&mut self, id: &Uuid, account: &Account) -> SharedResult<String> {
+    pub fn id_to_path(&mut self, id: &Uuid, account: &Account) -> LbResult<String> {
         let meta = self.find(id)?;
 
         if meta.is_root() {
@@ -68,7 +68,7 @@ where
                 self.find(&current)?
             };
             if self.maybe_find(current_meta.parent()).is_none() {
-                return Err(SharedError::FileParentNonexistent);
+                return Err(LbErrorKind::FileParentNonexistent.into());
             }
             if current_meta.is_root() {
                 return Ok(path);
@@ -82,7 +82,7 @@ where
 
     pub fn list_paths(
         &mut self, filter: Option<Filter>, account: &Account,
-    ) -> SharedResult<Vec<String>> {
+    ) -> LbResult<Vec<String>> {
         // Deal with filter
         let filtered = match filter {
             Some(Filter::DocumentsOnly) => {
@@ -142,7 +142,7 @@ where
 {
     pub fn create_link_at_path(
         &mut self, path: &str, target_id: Uuid, root: &Uuid, account: &Account, pub_key: &PublicKey,
-    ) -> SharedResult<Uuid> {
+    ) -> LbResult<Uuid> {
         validate::path(path)?;
         let file_type = FileType::Link { target: target_id };
         let path_components = split_path(path);
@@ -151,7 +151,7 @@ where
 
     pub fn create_at_path(
         &mut self, path: &str, root: &Uuid, account: &Account, pub_key: &PublicKey,
-    ) -> SharedResult<Uuid> {
+    ) -> LbResult<Uuid> {
         validate::path(path)?;
         let file_type = if path.ends_with('/') { FileType::Folder } else { FileType::Document };
         let path_components = split_path(path);
@@ -161,7 +161,7 @@ where
     fn create_at_path_helper(
         &mut self, file_type: FileType, path_components: Vec<&str>, root: &Uuid, account: &Account,
         pub_key: &PublicKey,
-    ) -> SharedResult<Uuid> {
+    ) -> LbResult<Uuid> {
         let mut current = *root;
         'path: for index in 0..path_components.len() {
             'child: for child in self.children(&current)? {
@@ -171,18 +171,18 @@ where
 
                 if self.name_using_links(&child, account)? == path_components[index] {
                     if index == path_components.len() - 1 {
-                        return Err(SharedError::PathTaken);
+                        return Err(LbErrorKind::PathTaken.into());
                     }
 
                     current = match self.find(&child)?.file_type() {
                         FileType::Document => {
-                            return Err(SharedError::FileNotFolder);
+                            return Err(LbErrorKind::FileNotFolder.into());
                         }
                         FileType::Folder => child,
                         FileType::Link { target } => {
                             let current = self.find(&target)?;
                             if current.access_mode(&Owner(*pub_key)) < Some(UserAccessMode::Write) {
-                                return Err(SharedError::InsufficientPermission);
+                                return Err(LbErrorKind::InsufficientPermission.into());
                             }
                             *current.id()
                         }
@@ -216,13 +216,13 @@ pub enum Filter {
     LeafNodesOnly,
 }
 
-pub fn filter_from_str(input: &str) -> SharedResult<Option<Filter>> {
+pub fn filter_from_str(input: &str) -> LbResult<Option<Filter>> {
     match input {
         "DocumentsOnly" => Ok(Some(Filter::DocumentsOnly)),
         "FoldersOnly" => Ok(Some(Filter::FoldersOnly)),
         "LeafNodesOnly" => Ok(Some(Filter::LeafNodesOnly)),
         "Unfiltered" => Ok(None),
-        _ => Err(SharedError::Unexpected("unknown filter")),
+        _ => Err(LbErrorKind::Unexpected("unknown filter".to_string()).into()),
     }
 }
 

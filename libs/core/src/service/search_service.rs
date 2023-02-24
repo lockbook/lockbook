@@ -1,4 +1,4 @@
-use crate::{CoreError, CoreResult, CoreState, Requester, UnexpectedError};
+use crate::{CoreState, LbErrorKind, LbResult, Requester, UnexpectedError};
 use crossbeam::channel::{self, Receiver, RecvTimeoutError, Sender};
 use fuzzy_matcher::skim::SkimMatcherV2;
 use fuzzy_matcher::FuzzyMatcher;
@@ -45,7 +45,7 @@ impl PartialOrd for SearchResultItem {
 }
 
 impl<Client: Requester> CoreState<Client> {
-    pub(crate) fn search_file_paths(&mut self, input: &str) -> CoreResult<Vec<SearchResultItem>> {
+    pub(crate) fn search_file_paths(&mut self, input: &str) -> LbResult<Vec<SearchResultItem>> {
         if input.is_empty() {
             return Ok(Vec::new());
         }
@@ -58,7 +58,7 @@ impl<Client: Requester> CoreState<Client> {
             .db
             .account
             .data()
-            .ok_or(CoreError::AccountNonexistent)?;
+            .ok_or(LbErrorKind::AccountNonexistent)?;
         let mut results = Vec::new();
         let matcher = SkimMatcherV2::default();
 
@@ -81,7 +81,7 @@ impl<Client: Requester> CoreState<Client> {
         Ok(results)
     }
 
-    pub(crate) fn start_search(&mut self) -> CoreResult<StartSearchInfo> {
+    pub(crate) fn start_search(&mut self) -> LbResult<StartSearchInfo> {
         let mut tree = (&self.db.base_metadata)
             .to_staged(&self.db.local_metadata)
             .to_lazy();
@@ -89,7 +89,7 @@ impl<Client: Requester> CoreState<Client> {
             .db
             .account
             .data()
-            .ok_or(CoreError::AccountNonexistent)?;
+            .ok_or(LbErrorKind::AccountNonexistent)?;
         let mut files_info = Vec::new();
 
         for id in tree.owned_ids() {

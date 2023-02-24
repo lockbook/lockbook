@@ -6,7 +6,8 @@ use std::sync::{Arc, Mutex};
 
 use libsecp256k1::PublicKey;
 use lockbook_shared::api::{ErrorWrapper, Request, RequestWrapper};
-use lockbook_shared::{clock, pubkey, SharedError};
+use lockbook_shared::{clock, pubkey};
+use lockbook_shared::LbError;
 use serde::{Deserialize, Serialize};
 
 use crate::account_service::GetUsageHelperError;
@@ -72,7 +73,7 @@ pub fn handle_version_header<Req: Request>(
 
 pub fn verify_auth<TRequest: Request + Serialize>(
     server_state: &ServerState, request: &RequestWrapper<TRequest>,
-) -> Result<(), SharedError> {
+) -> Result<(), LbError> {
     pubkey::verify(
         &request.signed_request.public_key,
         &request.signed_request,

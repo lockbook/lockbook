@@ -10,7 +10,7 @@ use base64::DecodeError;
 use db_rs::DbError;
 use jsonwebtoken::errors::ErrorKind;
 use lockbook_shared::api::*;
-use lockbook_shared::SharedError;
+use lockbook_shared::{LbError, LbErrorKind};
 use std::fmt::Debug;
 use std::io::Error;
 use std::sync::PoisonError;
@@ -237,8 +237,8 @@ impl From<ServerError<LockBillingWorkflowError>> for ServerError<AdminSetUserTie
     }
 }
 
-impl From<SharedError> for ServerError<DeleteAccountHelperError> {
-    fn from(err: SharedError) -> Self {
+impl From<LbError> for ServerError<DeleteAccountHelperError> {
+    fn from(err: LbError) -> Self {
         internal!("{:?}", err)
     }
 }
@@ -265,76 +265,76 @@ impl From<ServerError<DeleteAccountHelperError>> for ServerError<AdminDisappearA
     }
 }
 
-impl From<SharedError> for ServerError<AdminValidateAccountError> {
-    fn from(err: SharedError) -> Self {
+impl From<LbError> for ServerError<AdminValidateAccountError> {
+    fn from(err: LbError) -> Self {
         internal!("{:?}", err)
     }
 }
 
-impl From<SharedError> for ServerError<AdminValidateServerError> {
-    fn from(err: SharedError) -> Self {
+impl From<LbError> for ServerError<AdminValidateServerError> {
+    fn from(err: LbError) -> Self {
         internal!("{:?}", err)
     }
 }
 
-impl From<SharedError> for ServerError<AdminFileInfoError> {
-    fn from(err: SharedError) -> Self {
+impl From<LbError> for ServerError<AdminFileInfoError> {
+    fn from(err: LbError) -> Self {
         internal!("{:?}", err)
     }
 }
 
-impl From<SharedError> for ServerError<AdminDisappearFileError> {
-    fn from(err: SharedError) -> Self {
+impl From<LbError> for ServerError<AdminDisappearFileError> {
+    fn from(err: LbError) -> Self {
         internal!("{:?}", err)
     }
 }
 
-impl From<SharedError> for ServerError<UpsertError> {
-    fn from(err: SharedError) -> Self {
+impl From<LbError> for ServerError<UpsertError> {
+    fn from(err: LbError) -> Self {
         // panic!("{err}");
         use lockbook_shared::api::UpsertError::*;
-        match err {
-            SharedError::OldVersionIncorrect => ClientError(OldVersionIncorrect),
-            SharedError::OldFileNotFound => ClientError(OldFileNotFound),
-            SharedError::OldVersionRequired => ClientError(OldVersionRequired),
-            SharedError::NotPermissioned => ClientError(NotPermissioned),
-            SharedError::DiffMalformed => ClientError(DiffMalformed),
-            SharedError::HmacModificationInvalid => ClientError(HmacModificationInvalid),
-            SharedError::DeletedFileUpdated(_) => ClientError(DeletedFileUpdated),
-            SharedError::RootModificationInvalid => ClientError(RootModificationInvalid),
-            SharedError::ValidationFailure(fail) => ClientError(Validation(fail)),
-            SharedError::Unexpected(msg) => InternalError(String::from(msg)),
+        match err.kind {
+            LbErrorKind::OldVersionIncorrect => ClientError(OldVersionIncorrect),
+            LbErrorKind::OldFileNotFound => ClientError(OldFileNotFound),
+            LbErrorKind::OldVersionRequired => ClientError(OldVersionRequired),
+            LbErrorKind::InsufficientPermission => ClientError(NotPermissioned),
+            LbErrorKind::DiffMalformed => ClientError(DiffMalformed),
+            LbErrorKind::HmacModificationInvalid => ClientError(HmacModificationInvalid),
+            LbErrorKind::DeletedFileUpdated(_) => ClientError(DeletedFileUpdated),
+            LbErrorKind::RootModificationInvalid => ClientError(RootModificationInvalid),
+            LbErrorKind::ValidationFailure(fail) => ClientError(Validation(fail)),
+            LbErrorKind::Unexpected(msg) => InternalError(msg),
             _ => internal!("{:?}", err),
         }
     }
 }
 
-impl From<SharedError> for ServerError<ChangeDocError> {
-    fn from(err: SharedError) -> Self {
+impl From<LbError> for ServerError<ChangeDocError> {
+    fn from(err: LbError) -> Self {
         internal!("{:?}", err)
     }
 }
 
-impl From<SharedError> for ServerError<MetricsError> {
-    fn from(err: SharedError) -> Self {
+impl From<LbError> for ServerError<MetricsError> {
+    fn from(err: LbError) -> Self {
         internal!("{:?}", err)
     }
 }
 
-impl From<SharedError> for ServerError<GetDocumentError> {
-    fn from(err: SharedError) -> Self {
+impl From<LbError> for ServerError<GetDocumentError> {
+    fn from(err: LbError) -> Self {
         internal!("{:?}", err)
     }
 }
 
-impl From<SharedError> for ServerError<GetFileIdsError> {
-    fn from(err: SharedError) -> Self {
+impl From<LbError> for ServerError<GetFileIdsError> {
+    fn from(err: LbError) -> Self {
         internal!("{:?}", err)
     }
 }
 
-impl From<SharedError> for ServerError<GetUpdatesError> {
-    fn from(err: SharedError) -> Self {
+impl From<LbError> for ServerError<GetUpdatesError> {
+    fn from(err: LbError) -> Self {
         internal!("{:?}", err)
     }
 }

@@ -1,12 +1,12 @@
-use crate::{CoreError, CoreResult};
 use crate::{CoreState, Requester};
+use crate::{LbErrorKind, LbResult};
 use lockbook_shared::file::File;
 use lockbook_shared::path_ops::Filter;
 use lockbook_shared::tree_like::TreeLike;
 use uuid::Uuid;
 
 impl<Client: Requester> CoreState<Client> {
-    pub(crate) fn create_link_at_path(&mut self, path: &str, target_id: Uuid) -> CoreResult<File> {
+    pub(crate) fn create_link_at_path(&mut self, path: &str, target_id: Uuid) -> LbResult<File> {
         let pub_key = self.get_public_key()?;
         let mut tree = (&self.db.base_metadata)
             .to_staged(&mut self.db.local_metadata)
@@ -15,9 +15,9 @@ impl<Client: Requester> CoreState<Client> {
             .db
             .account
             .data()
-            .ok_or(CoreError::AccountNonexistent)?;
+            .ok_or(LbErrorKind::AccountNonexistent)?;
 
-        let root = self.db.root.data().ok_or(CoreError::RootNonexistent)?;
+        let root = self.db.root.data().ok_or(LbErrorKind::RootNonexistent)?;
 
         let id = tree.create_link_at_path(path, target_id, root, account, &pub_key)?;
         let ui_file = tree.finalize(&id, account, &mut self.db.pub_key_lookup)?;
@@ -25,7 +25,7 @@ impl<Client: Requester> CoreState<Client> {
         Ok(ui_file)
     }
 
-    pub(crate) fn create_at_path(&mut self, path: &str) -> CoreResult<File> {
+    pub(crate) fn create_at_path(&mut self, path: &str) -> LbResult<File> {
         let pub_key = self.get_public_key()?;
         let mut tree = (&self.db.base_metadata)
             .to_staged(&mut self.db.local_metadata)
@@ -34,9 +34,9 @@ impl<Client: Requester> CoreState<Client> {
             .db
             .account
             .data()
-            .ok_or(CoreError::AccountNonexistent)?;
+            .ok_or(LbErrorKind::AccountNonexistent)?;
 
-        let root = self.db.root.data().ok_or(CoreError::RootNonexistent)?;
+        let root = self.db.root.data().ok_or(LbErrorKind::RootNonexistent)?;
 
         let id = tree.create_at_path(path, root, account, &pub_key)?;
         let ui_file = tree.finalize(&id, account, &mut self.db.pub_key_lookup)?;
@@ -44,7 +44,7 @@ impl<Client: Requester> CoreState<Client> {
         Ok(ui_file)
     }
 
-    pub(crate) fn get_by_path(&mut self, path: &str) -> CoreResult<File> {
+    pub(crate) fn get_by_path(&mut self, path: &str) -> LbResult<File> {
         let mut tree = (&self.db.base_metadata)
             .to_staged(&self.db.local_metadata)
             .to_lazy();
@@ -52,9 +52,9 @@ impl<Client: Requester> CoreState<Client> {
             .db
             .account
             .data()
-            .ok_or(CoreError::AccountNonexistent)?;
+            .ok_or(LbErrorKind::AccountNonexistent)?;
 
-        let root = self.db.root.data().ok_or(CoreError::RootNonexistent)?;
+        let root = self.db.root.data().ok_or(LbErrorKind::RootNonexistent)?;
 
         let id = tree.path_to_id(path, root, account)?;
 
@@ -63,7 +63,7 @@ impl<Client: Requester> CoreState<Client> {
         Ok(ui_file)
     }
 
-    pub(crate) fn get_path_by_id(&mut self, id: Uuid) -> CoreResult<String> {
+    pub(crate) fn get_path_by_id(&mut self, id: Uuid) -> LbResult<String> {
         let mut tree = (&self.db.base_metadata)
             .to_staged(&self.db.local_metadata)
             .to_lazy();
@@ -71,13 +71,13 @@ impl<Client: Requester> CoreState<Client> {
             .db
             .account
             .data()
-            .ok_or(CoreError::AccountNonexistent)?;
+            .ok_or(LbErrorKind::AccountNonexistent)?;
         let path = tree.id_to_path(&id, account)?;
 
         Ok(path)
     }
 
-    pub(crate) fn list_paths(&mut self, filter: Option<Filter>) -> CoreResult<Vec<String>> {
+    pub(crate) fn list_paths(&mut self, filter: Option<Filter>) -> LbResult<Vec<String>> {
         let mut tree = (&self.db.base_metadata)
             .to_staged(&self.db.local_metadata)
             .to_lazy();
@@ -85,7 +85,7 @@ impl<Client: Requester> CoreState<Client> {
             .db
             .account
             .data()
-            .ok_or(CoreError::AccountNonexistent)?;
+            .ok_or(LbErrorKind::AccountNonexistent)?;
         let paths = tree.list_paths(filter, account)?;
 
         Ok(paths)

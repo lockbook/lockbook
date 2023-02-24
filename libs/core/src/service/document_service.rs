@@ -1,14 +1,15 @@
-use crate::CoreResult;
-use crate::{CoreError, CoreState, Requester};
+use uuid::Uuid;
+
 use lockbook_shared::crypto::DecryptedDocument;
 use lockbook_shared::document_repo;
 use lockbook_shared::file_like::FileLike;
 use lockbook_shared::file_metadata::FileType;
 use lockbook_shared::tree_like::TreeLike;
-use uuid::Uuid;
+
+use crate::{CoreState, LbErrorKind, LbResult, Requester};
 
 impl<Client: Requester> CoreState<Client> {
-    pub(crate) fn read_document(&mut self, id: Uuid) -> CoreResult<DecryptedDocument> {
+    pub(crate) fn read_document(&mut self, id: Uuid) -> LbResult<DecryptedDocument> {
         let mut tree = (&self.db.base_metadata)
             .to_staged(&self.db.local_metadata)
             .to_lazy();
@@ -16,14 +17,14 @@ impl<Client: Requester> CoreState<Client> {
             .db
             .account
             .data()
-            .ok_or(CoreError::AccountNonexistent)?;
+            .ok_or(LbErrorKind::AccountNonexistent)?;
 
         let doc = tree.read_document(&self.config, &id, account)?;
 
         Ok(doc)
     }
 
-    pub(crate) fn write_document(&mut self, id: Uuid, content: &[u8]) -> CoreResult<()> {
+    pub(crate) fn write_document(&mut self, id: Uuid, content: &[u8]) -> LbResult<()> {
         let mut tree = (&self.db.base_metadata)
             .to_staged(&mut self.db.local_metadata)
             .to_lazy();
@@ -31,7 +32,7 @@ impl<Client: Requester> CoreState<Client> {
             .db
             .account
             .data()
-            .ok_or(CoreError::AccountNonexistent)?;
+            .ok_or(LbErrorKind::AccountNonexistent)?;
 
         let id = match tree.find(&id)?.file_type() {
             FileType::Document | FileType::Folder => id,
@@ -44,7 +45,7 @@ impl<Client: Requester> CoreState<Client> {
         Ok(())
     }
 
-    pub(crate) fn cleanup(&mut self) -> CoreResult<()> {
+    pub(crate) fn cleanup(&mut self) -> LbResult<()> {
         self.db
             .base_metadata
             .stage(&mut self.db.local_metadata)

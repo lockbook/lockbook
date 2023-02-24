@@ -13,7 +13,7 @@ use crate::crypto::AESKey;
 use crate::file_like::FileLike;
 use crate::secret_filename::SecretFileName;
 use crate::signed_file::SignedFile;
-use crate::{pubkey, symkey, SharedResult};
+use crate::{pubkey, symkey, LbResult};
 
 pub type DocumentHmac = [u8; 32];
 
@@ -31,7 +31,7 @@ pub struct FileMetadata {
 }
 
 impl FileMetadata {
-    pub fn create_root(account: &Account) -> SharedResult<Self> {
+    pub fn create_root(account: &Account) -> LbResult<Self> {
         let id = Uuid::new_v4();
         let key = symkey::generate_key();
         let pub_key = account.public_key();
@@ -58,7 +58,7 @@ impl FileMetadata {
     pub fn create(
         id: Uuid, key: AESKey, owner: &PublicKey, parent: Uuid, parent_key: &AESKey, name: &str,
         file_type: FileType,
-    ) -> SharedResult<Self> {
+    ) -> LbResult<Self> {
         Ok(FileMetadata {
             id,
             file_type,
@@ -72,7 +72,7 @@ impl FileMetadata {
         })
     }
 
-    pub fn sign(self, account: &Account) -> SharedResult<SignedFile> {
+    pub fn sign(self, account: &Account) -> LbResult<SignedFile> {
         pubkey::sign(&account.private_key, self, get_time)
     }
 }

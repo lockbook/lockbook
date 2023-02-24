@@ -1,6 +1,6 @@
 use crate::account::Account;
 use crate::crypto::{AESEncrypted, AESKey};
-use crate::{pubkey, symkey, SharedResult};
+use crate::{pubkey, symkey, LbResult};
 use libsecp256k1::PublicKey;
 use serde::{Deserialize, Serialize};
 
@@ -36,7 +36,7 @@ impl UserAccessInfo {
     pub fn encrypt(
         account: &Account, encrypted_by: &PublicKey, encrypted_for: &PublicKey, key: &AESKey,
         mode: UserAccessMode,
-    ) -> SharedResult<Self> {
+    ) -> LbResult<Self> {
         let private_key = account.private_key;
         let user_key = pubkey::get_aes_key(&private_key, encrypted_for)?;
         let encrypted_file_key = symkey::encrypt(&user_key, key)?;
@@ -49,7 +49,7 @@ impl UserAccessInfo {
         })
     }
 
-    pub fn decrypt(&self, account: &Account) -> SharedResult<AESKey> {
+    pub fn decrypt(&self, account: &Account) -> LbResult<AESKey> {
         let shared_secret = pubkey::get_aes_key(&account.private_key, &self.encrypted_by)?;
         let encrypted = &self.access_key;
         let decrypted = symkey::decrypt(&shared_secret, encrypted)?;

@@ -9,6 +9,7 @@ pub mod core_tree;
 pub mod crypto;
 pub mod document_repo;
 pub mod drawing;
+pub mod error;
 pub mod file;
 pub mod file_like;
 pub mod file_metadata;
@@ -28,18 +29,117 @@ pub mod usage;
 pub mod validate;
 pub mod work_unit;
 
-use db_rs::DbError;
-pub use lazy::ValidationFailure;
+pub use self::error::{LbError, LbResult};
+pub use self::lazy::ValidationFailure;
+
 use std::io;
 
+use db_rs::DbError;
 use hmac::crypto_mac::{InvalidKeyLength, MacError};
 use uuid::Uuid;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum LbErrorKind {
+    WrongPublicKey,
+    SignatureExpired(u64),
+    SignatureInTheFuture(u64),
+    SignatureInvalid,
+    BincodeError(String),
+    Encryption(aead::Error),
+    HmacCreationError(InvalidKeyLength),
+    Decryption(aead::Error),
+    HmacValidationError(MacError),
+    ParseError(libsecp256k1::Error),
+    DuplicateShare,
+    SharedSecretUnexpectedSize,
+    SharedSecretError(libsecp256k1::Error),
+    ValidationFailure(ValidationFailure),
+
+    /// Arises during a call to upsert, when the caller does not have the correct old version of the
+    /// File they're trying to modify
+    OldVersionIncorrect,
+
+    /// Arises during a call to upsert, when the old file is not known to the server
+    OldFileNotFound,
+
+    /// Arises during a call to upsert, when the caller suggests that a file is new, but the id already
+    /// exists
+    OldVersionRequired,
+
+    /// Arises during a call to upsert, when a diff's new.id != old.id
+    DiffMalformed,
+
+    /// Metas in upsert cannot contain changes to digest
+    HmacModificationInvalid,
+
+    /// Found update to a deleted file
+    DeletedFileUpdated(Uuid),
+
+    Io(String),
+
+    Db(String),
+
+    AccountExists,
+    AccountNonexistent,
+    AccountStringCorrupted,
+    AlreadyCanceled,
+    AlreadyPremium,
+    AppStoreAccountAlreadyLinked,
+    CannotCancelSubscriptionForAppStore,
+    CardDecline,
+    CardExpired,
+    CardInsufficientFunds,
+    CardInvalidCvc,
+    CardInvalidExpMonth,
+    CardInvalidExpYear,
+    CardInvalidNumber,
+    CardNotSupported,
+    ClientUpdateRequired,
+    CurrentUsageIsMoreThanNewTier,
+    DiskPathInvalid,
+    DiskPathTaken,
+    DrawingInvalid,
+    ExistingRequestPending,
+    FileNameContainsSlash,
+    FileNameEmpty,
+    FileNonexistent,
+    FileNotDocument,
+    FileNotFolder,
+    FileParentNonexistent,
+    FolderMovedIntoSelf,
+
+    /// Arises during a call to upsert, when the person making the request is not an owner of the file
+    /// or has not signed the update
+    InsufficientPermission,
+    InvalidPurchaseToken,
+    InvalidAuthDetails,
+    LinkInSharedFolder,
+    LinkTargetIsOwned,
+    LinkTargetNonexistent,
+    MultipleLinksToSameFile,
+    NotPremium,
+    OldCardDoesNotExist,
+    PathContainsEmptyFileName,
+    PathTaken,
+    RootModificationInvalid,
+    RootNonexistent,
+    ServerDisabled,
+    ServerUnreachable,
+    ShareAlreadyExists,
+    ShareNonexistent,
+    TryAgain,
+    UsageIsOverFreeTierDataCap,
+    UsernameInvalid,
+    UsernameNotFound,
+    UsernamePublicKeyMismatch,
+    UsernameTaken,
+    Unexpected(String),
+}
 
 pub type SharedResult<T> = Result<T, SharedError>;
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum SharedError {
-    InsufficientPermission, // todo: this is a duplicate of NotPermissioned
     PathContainsEmptyFileName,
     PathTaken,
     RootNonexistent,
@@ -79,7 +179,7 @@ pub enum SharedError {
 
     /// Arises during a call to upsert, when the person making the request is not an owner of the file
     /// or has not signed the update
-    NotPermissioned,
+    InsufficientPermission,
 
     /// Arises during a call to upsert, when a diff's new.id != old.id
     DiffMalformed,

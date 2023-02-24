@@ -11,7 +11,7 @@ use lockbook_shared::file_metadata::{Diff, Owner};
 use lockbook_shared::server_file::IntoServerFile;
 use lockbook_shared::server_tree::ServerTree;
 use lockbook_shared::tree_like::TreeLike;
-use lockbook_shared::{SharedError, SharedResult};
+use lockbook_shared::{LbErrorKind, LbResult};
 use std::collections::{HashMap, HashSet};
 use std::hash::Hash;
 use std::ops::DerefMut;
@@ -558,7 +558,7 @@ pub async fn admin_validate_account(
 
 pub fn validate_account_helper(
     db: &mut ServerDb, owner: Owner, server_state: &ServerState,
-) -> SharedResult<AdminValidateAccount> {
+) -> LbResult<AdminValidateAccount> {
     let mut result = AdminValidateAccount::default();
 
     let mut tree = ServerTree::new(
@@ -588,11 +588,9 @@ pub fn validate_account_helper(
     let validation_res = tree.stage(None).validate(owner);
     match validation_res {
         Ok(_) => {}
-        Err(SharedError::ValidationFailure(validation)) => {
-            result.tree_validation_failures.push(validation)
-        }
-        Err(err) => {
-            error!(?owner, ?err, "Unexpected error while validating tree")
+        Err(err) => match err.kind {
+            LbErrorKind::ValidationFailure(vf) => result.tree_validation_failures.push(vf),
+            _ => error!(?owner, ?err, "Unexpected error while validating tree"),
         }
     }
 

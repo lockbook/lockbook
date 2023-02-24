@@ -19,7 +19,7 @@ impl<E> From<ErrorWrapper<E>> for ApiError<E> {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug)]
 pub enum ApiError<E> {
     Endpoint(E),
     ClientUpdateRequired,
@@ -27,7 +27,7 @@ pub enum ApiError<E> {
     ExpiredAuth,
     InternalError,
     BadRequest,
-    Sign(lockbook_shared::SharedError),
+    Sign(lockbook_shared::LbError),
     Serialize(String),
     SendFailed(String),
     ReceiveFailed(String),

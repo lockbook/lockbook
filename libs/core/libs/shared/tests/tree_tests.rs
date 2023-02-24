@@ -3,12 +3,12 @@ use lockbook_shared::file_like::FileLike;
 use lockbook_shared::file_metadata::FileMetadata;
 use lockbook_shared::staged::StagedTreeLikeMut;
 use lockbook_shared::tree_like::{TreeLike, TreeLikeMut};
-use lockbook_shared::SharedResult;
+use lockbook_shared::LbResult;
 use test_utils::*;
 use uuid::Uuid;
 
 #[test]
-fn tree_test() -> SharedResult<()> {
+fn tree_test() -> LbResult<()> {
     let account = &Account::new(random_name(), url());
     let file1 = FileMetadata::create_root(account)?;
     let file2 = FileMetadata::create_root(account)?;
@@ -34,7 +34,7 @@ fn tree_test() -> SharedResult<()> {
 }
 
 #[test]
-fn test_stage_insert_reset() -> SharedResult<()> {
+fn test_stage_insert_reset() -> LbResult<()> {
     let account = &Account::new(random_name(), url());
     let file1 = FileMetadata::create_root(account)?;
     let mut file2 = FileMetadata::create_root(account)?;
@@ -63,7 +63,7 @@ fn test_stage_insert_reset() -> SharedResult<()> {
 }
 
 #[test]
-fn test_stage_reset() -> SharedResult<()> {
+fn test_stage_reset() -> LbResult<()> {
     let account = &Account::new(random_name(), url());
     let file1 = FileMetadata::create_root(account)?;
     let file2 = FileMetadata::create_root(account)?;

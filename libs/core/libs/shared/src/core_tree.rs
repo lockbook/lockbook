@@ -1,6 +1,6 @@
 use crate::file_like::FileLike;
 use crate::tree_like::{TreeLike, TreeLikeMut};
-use crate::SharedResult;
+use crate::LbResult;
 use hmdb::log::SchemaEvent;
 use hmdb::transaction::TransactionTable;
 use serde::Serialize;
@@ -26,15 +26,15 @@ impl<F> TreeLikeMut for db_rs::LookupTable<Uuid, F>
 where
     F: FileLike + Serialize,
 {
-    fn insert(&mut self, f: Self::F) -> SharedResult<Option<Self::F>> {
+    fn insert(&mut self, f: Self::F) -> LbResult<Option<Self::F>> {
         Ok(db_rs::LookupTable::insert(self, *f.id(), f)?)
     }
 
-    fn remove(&mut self, id: Uuid) -> SharedResult<Option<Self::F>> {
+    fn remove(&mut self, id: Uuid) -> LbResult<Option<Self::F>> {
         Ok(db_rs::LookupTable::remove(self, &id)?)
     }
 
-    fn clear(&mut self) -> SharedResult<()> {
+    fn clear(&mut self) -> LbResult<()> {
         Ok(db_rs::LookupTable::clear(self)?)
     }
 }
@@ -60,15 +60,15 @@ where
     F: FileLike,
     Log: SchemaEvent<Uuid, F>,
 {
-    fn insert(&mut self, f: F) -> SharedResult<Option<F>> {
+    fn insert(&mut self, f: F) -> LbResult<Option<F>> {
         Ok(TransactionTable::insert(self, *f.id(), f))
     }
 
-    fn remove(&mut self, id: Uuid) -> SharedResult<Option<F>> {
+    fn remove(&mut self, id: Uuid) -> LbResult<Option<F>> {
         Ok(self.delete(id))
     }
 
-    fn clear(&mut self) -> SharedResult<()> {
+    fn clear(&mut self) -> LbResult<()> {
         self.clear();
         Ok(())
     }

@@ -16,38 +16,38 @@ use raqote::{
 use serde::Deserialize;
 use serde_json::error::Category;
 
-use crate::model::errors::core_err_unexpected;
-use crate::{CoreError, CoreResult};
+use crate::model::errors::lb_err_unexpected;
+use crate::{LbErrorKind, LbResult};
 
-pub fn validate(drawing: &Drawing) -> CoreResult<()> {
+pub fn validate(drawing: &Drawing) -> LbResult<()> {
     if drawing.scale <= 0.0 {
-        return Err(CoreError::DrawingInvalid);
+        return Err(LbErrorKind::DrawingInvalid.into());
     }
 
     for stroke in &drawing.strokes {
         if stroke.points_x.len() != stroke.points_y.len()
             || stroke.points_y.len() != stroke.points_girth.len()
         {
-            return Err(CoreError::DrawingInvalid);
+            return Err(LbErrorKind::DrawingInvalid.into());
         }
 
         if stroke.alpha > 1.0 || stroke.alpha < 0.0 {
-            return Err(CoreError::DrawingInvalid);
+            return Err(LbErrorKind::DrawingInvalid.into());
         }
     }
 
     Ok(())
 }
 
-pub fn parse_drawing(drawing_bytes: &[u8]) -> CoreResult<Drawing> {
+pub fn parse_drawing(drawing_bytes: &[u8]) -> LbResult<Drawing> {
     // represent an empty string as an empty drawing, rather than returning an error
     if drawing_bytes.is_empty() {
         return Ok(Drawing::default());
     }
     let drawing =
         serde_json::from_slice::<Drawing>(drawing_bytes).map_err(|err| match err.classify() {
-            Category::Io => CoreError::Unexpected(String::from("json io")),
-            Category::Syntax | Category::Data | Category::Eof => CoreError::DrawingInvalid,
+            Category::Io => LbErrorKind::Unexpected(String::from("json io")),
+            Category::Syntax | Category::Data | Category::Eof => LbErrorKind::DrawingInvalid,
         })?;
     validate(&drawing)?;
     Ok(drawing)
@@ -82,7 +82,7 @@ impl std::str::FromStr for SupportedImageFormats {
 pub fn export_drawing(
     drawing_bytes: &[u8], format: SupportedImageFormats,
     render_theme: Option<HashMap<ColorAlias, ColorRGB>>,
-) -> CoreResult<Vec<u8>> {
+) -> LbResult<Vec<u8>> {
     let drawing = parse_drawing(drawing_bytes)?;
 
     let theme = match render_theme {
@@ -107,31 +107,31 @@ pub fn export_drawing(
     let mut draw_target = DrawTarget::new(width as i32, height as i32);
 
     for stroke in drawing.strokes {
-        let color_rgb = theme
-            .get(&stroke.color)
-            .ok_or_else(|| CoreError::Unexpected(String::from("unable to get color from alias")))?;
+        let color_rgb = theme.get(&stroke.color).ok_or_else(|| {
+            LbErrorKind::Unexpected(String::from("unable to get color from alias"))
+        })?;
 
         for point_index in 0..stroke.points_x.len() - 1 {
             let mut pb = PathBuilder::new();
             let x1 = stroke
                 .points_x
                 .get(point_index)
-                .ok_or(CoreError::DrawingInvalid)?
+                .ok_or(LbErrorKind::DrawingInvalid)?
                 .to_owned();
             let y1 = stroke
                 .points_y
                 .get(point_index)
-                .ok_or(CoreError::DrawingInvalid)?
+                .ok_or(LbErrorKind::DrawingInvalid)?
                 .to_owned();
             let x2 = stroke
                 .points_x
                 .get(point_index + 1)
-                .ok_or(CoreError::DrawingInvalid)?
+                .ok_or(LbErrorKind::DrawingInvalid)?
                 .to_owned();
             let y2 = stroke
                 .points_y
                 .get(point_index + 1)
-                .ok_or(CoreError::DrawingInvalid)?
+                .ok_or(LbErrorKind::DrawingInvalid)?
                 .to_owned();
 
             pb.move_to(x1, y1);
@@ -154,7 +154,7 @@ pub fn export_drawing(
                     width: stroke
                         .points_girth
                         .get(point_index)
-                        .ok_or(CoreError::DrawingInvalid)?
+                        .ok_or(LbErrorKind::DrawingInvalid)?
                         .to_owned(),
                     miter_limit: 10.0,
                     dash_array: Vec::new(),
@@ -214,7 +214,7 @@ pub fn export_drawing(
             ColorType::Rgba8,
         ),
     }
-    .map_err(core_err_unexpected)?;
+    .map_err(lb_err_unexpected)?;
 
     std::mem::drop(buf_writer);
 

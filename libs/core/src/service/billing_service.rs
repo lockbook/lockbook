@@ -5,12 +5,12 @@ use lockbook_shared::api::{
     UpgradeAccountStripeError, UpgradeAccountStripeRequest,
 };
 
-use crate::model::errors::core_err_unexpected;
+use crate::model::errors::lb_err_unexpected;
 use crate::service::api_service::ApiError;
-use crate::{CoreError, CoreResult, CoreState, Requester};
+use crate::{CoreState, LbErrorKind, LbResult, Requester};
 
 impl<Client: Requester> CoreState<Client> {
-    pub(crate) fn upgrade_account_stripe(&self, account_tier: StripeAccountTier) -> CoreResult<()> {
+    pub(crate) fn upgrade_account_stripe(&self, account_tier: StripeAccountTier) -> LbResult<()> {
         let account = self.get_account()?;
 
         self.client
@@ -18,30 +18,32 @@ impl<Client: Requester> CoreState<Client> {
             .map_err(|err| match err {
                 ApiError::Endpoint(err) => match err {
                     UpgradeAccountStripeError::OldCardDoesNotExist => {
-                        CoreError::OldCardDoesNotExist
+                        LbErrorKind::OldCardDoesNotExist
                     }
-                    UpgradeAccountStripeError::AlreadyPremium => CoreError::AlreadyPremium,
-                    UpgradeAccountStripeError::InvalidCardNumber => CoreError::CardInvalidNumber,
-                    UpgradeAccountStripeError::InvalidCardExpYear => CoreError::CardInvalidExpYear,
+                    UpgradeAccountStripeError::AlreadyPremium => LbErrorKind::AlreadyPremium,
+                    UpgradeAccountStripeError::InvalidCardNumber => LbErrorKind::CardInvalidNumber,
+                    UpgradeAccountStripeError::InvalidCardExpYear => {
+                        LbErrorKind::CardInvalidExpYear
+                    }
                     UpgradeAccountStripeError::InvalidCardExpMonth => {
-                        CoreError::CardInvalidExpMonth
+                        LbErrorKind::CardInvalidExpMonth
                     }
-                    UpgradeAccountStripeError::InvalidCardCvc => CoreError::CardInvalidCvc,
-                    UpgradeAccountStripeError::CardDecline => CoreError::CardDecline,
+                    UpgradeAccountStripeError::InvalidCardCvc => LbErrorKind::CardInvalidCvc,
+                    UpgradeAccountStripeError::CardDecline => LbErrorKind::CardDecline,
                     UpgradeAccountStripeError::InsufficientFunds => {
-                        CoreError::CardInsufficientFunds
+                        LbErrorKind::CardInsufficientFunds
                     }
-                    UpgradeAccountStripeError::TryAgain => CoreError::TryAgain,
-                    UpgradeAccountStripeError::CardNotSupported => CoreError::CardNotSupported,
-                    UpgradeAccountStripeError::ExpiredCard => CoreError::CardExpired,
+                    UpgradeAccountStripeError::TryAgain => LbErrorKind::TryAgain,
+                    UpgradeAccountStripeError::CardNotSupported => LbErrorKind::CardNotSupported,
+                    UpgradeAccountStripeError::ExpiredCard => LbErrorKind::CardExpired,
                     UpgradeAccountStripeError::ExistingRequestPending => {
-                        CoreError::ExistingRequestPending
+                        LbErrorKind::ExistingRequestPending
                     }
-                    UpgradeAccountStripeError::UserNotFound => CoreError::AccountNonexistent,
+                    UpgradeAccountStripeError::UserNotFound => LbErrorKind::AccountNonexistent,
                 },
-                ApiError::SendFailed(_) => CoreError::ServerUnreachable,
-                ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,
-                _ => core_err_unexpected(err),
+                ApiError::SendFailed(_) => LbErrorKind::ServerUnreachable,
+                ApiError::ClientUpdateRequired => LbErrorKind::ClientUpdateRequired,
+                _ => lb_err_unexpected(err),
             })?;
 
         Ok(())
@@ -49,7 +51,7 @@ impl<Client: Requester> CoreState<Client> {
 
     pub(crate) fn upgrade_account_google_play(
         &self, purchase_token: &str, account_id: &str,
-    ) -> CoreResult<()> {
+    ) -> LbResult<()> {
         let account = self.get_account()?;
 
         self.client
@@ -62,18 +64,18 @@ impl<Client: Requester> CoreState<Client> {
             )
             .map_err(|err| match err {
                 ApiError::Endpoint(err) => match err {
-                    UpgradeAccountGooglePlayError::AlreadyPremium => CoreError::AlreadyPremium,
+                    UpgradeAccountGooglePlayError::AlreadyPremium => LbErrorKind::AlreadyPremium,
                     UpgradeAccountGooglePlayError::InvalidPurchaseToken => {
-                        CoreError::InvalidPurchaseToken
+                        LbErrorKind::InvalidPurchaseToken
                     }
                     UpgradeAccountGooglePlayError::ExistingRequestPending => {
-                        CoreError::ExistingRequestPending
+                        LbErrorKind::ExistingRequestPending
                     }
-                    UpgradeAccountGooglePlayError::UserNotFound => core_err_unexpected(err),
+                    UpgradeAccountGooglePlayError::UserNotFound => lb_err_unexpected(err),
                 },
-                ApiError::SendFailed(_) => CoreError::ServerUnreachable,
-                ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,
-                _ => core_err_unexpected(err),
+                ApiError::SendFailed(_) => LbErrorKind::ServerUnreachable,
+                ApiError::ClientUpdateRequired => LbErrorKind::ClientUpdateRequired,
+                _ => lb_err_unexpected(err),
             })?;
 
         Ok(())
@@ -81,7 +83,7 @@ impl<Client: Requester> CoreState<Client> {
 
     pub(crate) fn upgrade_account_app_store(
         &self, original_transaction_id: String, app_account_token: String,
-    ) -> CoreResult<()> {
+    ) -> LbResult<()> {
         let account = self.get_account()?;
 
         self.client
@@ -91,63 +93,63 @@ impl<Client: Requester> CoreState<Client> {
             )
             .map_err(|err| match err {
                 ApiError::Endpoint(err) => match err {
-                    UpgradeAccountAppStoreError::AlreadyPremium => CoreError::AlreadyPremium,
+                    UpgradeAccountAppStoreError::AlreadyPremium => LbErrorKind::AlreadyPremium,
                     UpgradeAccountAppStoreError::InvalidAuthDetails => {
-                        CoreError::InvalidAuthDetails
+                        LbErrorKind::InvalidAuthDetails
                     }
                     UpgradeAccountAppStoreError::ExistingRequestPending => {
-                        CoreError::ExistingRequestPending
+                        LbErrorKind::ExistingRequestPending
                     }
                     UpgradeAccountAppStoreError::AppStoreAccountAlreadyLinked => {
-                        CoreError::AppStoreAccountAlreadyLinked
+                        LbErrorKind::AppStoreAccountAlreadyLinked
                     }
-                    UpgradeAccountAppStoreError::UserNotFound => core_err_unexpected(err),
+                    UpgradeAccountAppStoreError::UserNotFound => lb_err_unexpected(err),
                 },
-                ApiError::SendFailed(_) => CoreError::ServerUnreachable,
-                ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,
-                _ => core_err_unexpected(err),
+                ApiError::SendFailed(_) => LbErrorKind::ServerUnreachable,
+                ApiError::ClientUpdateRequired => LbErrorKind::ClientUpdateRequired,
+                _ => lb_err_unexpected(err),
             })?;
 
         Ok(())
     }
 
-    pub(crate) fn cancel_subscription(&self) -> CoreResult<()> {
+    pub(crate) fn cancel_subscription(&self) -> LbResult<()> {
         let account = self.get_account()?;
 
         self.client
             .request(account, CancelSubscriptionRequest {})
             .map_err(|err| match err {
-                ApiError::Endpoint(CancelSubscriptionError::NotPremium) => CoreError::NotPremium,
+                ApiError::Endpoint(CancelSubscriptionError::NotPremium) => LbErrorKind::NotPremium,
                 ApiError::Endpoint(CancelSubscriptionError::AlreadyCanceled) => {
-                    CoreError::AlreadyCanceled
+                    LbErrorKind::AlreadyCanceled
                 }
                 ApiError::Endpoint(CancelSubscriptionError::UsageIsOverFreeTierDataCap) => {
-                    CoreError::UsageIsOverFreeTierDataCap
+                    LbErrorKind::UsageIsOverFreeTierDataCap
                 }
                 ApiError::Endpoint(CancelSubscriptionError::ExistingRequestPending) => {
-                    CoreError::ExistingRequestPending
+                    LbErrorKind::ExistingRequestPending
                 }
                 ApiError::Endpoint(CancelSubscriptionError::CannotCancelForAppStore) => {
-                    CoreError::CannotCancelSubscriptionForAppStore
+                    LbErrorKind::CannotCancelSubscriptionForAppStore
                 }
-                ApiError::SendFailed(_) => CoreError::ServerUnreachable,
-                ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,
-                _ => core_err_unexpected(err),
+                ApiError::SendFailed(_) => LbErrorKind::ServerUnreachable,
+                ApiError::ClientUpdateRequired => LbErrorKind::ClientUpdateRequired,
+                _ => lb_err_unexpected(err),
             })?;
 
         Ok(())
     }
 
-    pub(crate) fn get_subscription_info(&self) -> CoreResult<Option<SubscriptionInfo>> {
+    pub(crate) fn get_subscription_info(&self) -> LbResult<Option<SubscriptionInfo>> {
         let account = self.get_account()?;
 
         Ok(self
             .client
             .request(account, GetSubscriptionInfoRequest {})
             .map_err(|err| match err {
-                ApiError::SendFailed(_) => CoreError::ServerUnreachable,
-                ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,
-                _ => core_err_unexpected(err),
+                ApiError::SendFailed(_) => LbErrorKind::ServerUnreachable,
+                ApiError::ClientUpdateRequired => LbErrorKind::ClientUpdateRequired,
+                _ => lb_err_unexpected(err),
             })?
             .subscription_info)
     }

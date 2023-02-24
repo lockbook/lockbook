@@ -9,7 +9,7 @@ use sha2::{Digest, Sha256};
 use crate::crypto::*;
 
 use crate::clock::{timestamp, TimeGetter};
-use crate::{SharedError, SharedResult};
+use crate::{LbErrorKind, LbResult};
 
 pub fn generate_key() -> SecretKey {
     SecretKey::random(&mut OsRng)
@@ -17,11 +17,11 @@ pub fn generate_key() -> SecretKey {
 
 pub fn sign<T: Serialize>(
     sk: &SecretKey, to_sign: T, time_getter: TimeGetter,
-) -> SharedResult<ECSigned<T>> {
+) -> LbResult<ECSigned<T>> {
     let timestamped = timestamp(to_sign, time_getter);
     let serialized = bincode::serialize(&timestamped)?;
     let digest = Sha256::digest(&serialized);
-    let message = &Message::parse_slice(&digest).map_err(SharedError::ParseError)?;
+    let message = &Message::parse_slice(&digest).map_err(LbErrorKind::ParseError)?;
     let (signature, _) = libsecp256k1::sign(message, sk);
     Ok(ECSigned {
         timestamped_value: timestamped,
@@ -33,9 +33,9 @@ pub fn sign<T: Serialize>(
 pub fn verify<T: Serialize>(
     pk: &PublicKey, signed: &ECSigned<T>, max_delay_ms: u64, max_skew_ms: u64,
     time_getter: TimeGetter,
-) -> SharedResult<()> {
+) -> LbResult<()> {
     if &signed.public_key != pk {
-        return Err(SharedError::WrongPublicKey);
+        return Err(LbErrorKind::WrongPublicKey.into());
     }
 
     let auth_time = signed.timestamped_value.timestamp;
@@ -44,37 +44,37 @@ pub fn verify<T: Serialize>(
     let max_delay_ms = max_delay_ms as i64;
 
     if current_time < auth_time - max_skew_ms {
-        return Err(SharedError::SignatureInTheFuture(
+        return Err(LbErrorKind::SignatureInTheFuture(
             (current_time - (auth_time - max_delay_ms)) as u64,
-        ));
+        ).into());
     }
 
     if current_time > auth_time + max_delay_ms {
-        return Err(SharedError::SignatureExpired(
+        return Err(LbErrorKind::SignatureExpired(
             (auth_time + max_delay_ms - current_time) as u64,
-        ));
+        ).into());
     }
 
     let serialized = bincode::serialize(&signed.timestamped_value)?;
 
     let digest = Sha256::digest(&serialized).to_vec();
-    let message = &Message::parse_slice(&digest).map_err(SharedError::ParseError)?;
+    let message = &Message::parse_slice(&digest).map_err(LbErrorKind::ParseError)?;
     let signature =
-        Signature::parse_standard_slice(&signed.signature).map_err(SharedError::ParseError)?;
+        Signature::parse_standard_slice(&signed.signature).map_err(LbErrorKind::ParseError)?;
 
     if libsecp256k1::verify(message, &signature, &signed.public_key) {
         Ok(())
     } else {
-        Err(SharedError::SignatureInvalid)
+        Err(LbErrorKind::SignatureInvalid.into())
     }
 }
 
-pub fn get_aes_key(sk: &SecretKey, pk: &PublicKey) -> SharedResult<AESKey> {
+pub fn get_aes_key(sk: &SecretKey, pk: &PublicKey) -> LbResult<AESKey> {
     SharedSecret::<Sha256>::new(pk, sk)
-        .map_err(SharedError::SharedSecretError)?
+        .map_err(LbErrorKind::SharedSecretError)?
         .as_ref()
         .try_into()
-        .map_err(|_| SharedError::SharedSecretUnexpectedSize)
+        .map_err(|_| LbErrorKind::SharedSecretUnexpectedSize.into())
 }
 
 #[cfg(test)]
