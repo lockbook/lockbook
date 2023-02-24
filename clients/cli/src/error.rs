@@ -15,8 +15,8 @@ impl fmt::Display for CliError {
     }
 }
 
-impl From<lb::CoreError> for CliError {
-    fn from(err: lb::CoreError) -> Self {
+impl From<lb::LbError> for CliError {
+    fn from(err: lb::LbError) -> Self {
         Self(format!("{:?}", err))
     }
 }

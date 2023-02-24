@@ -106,8 +106,10 @@ where
 pub fn maybe_get_by_path(core: &lb::Core, p: &str) -> Result<Option<lb::File>, CliError> {
     match core.get_by_path(p) {
         Ok(f) => Ok(Some(f)),
-        Err(lb::CoreError::FileNonexistent) => Ok(None),
-        Err(err) => Err(err.into()),
+        Err(err) => match err.kind {
+            lb::LbErrorKind::FileNonexistent => Ok(None),
+            _ => Err(err.into()),
+        },
     }
 }
 
@@ -187,11 +189,13 @@ fn sync(core: &Core) -> Result<(), CliError> {
 fn create(core: &Core, path: &str) -> Result<(), CliError> {
     match core.get_by_path(path) {
         Ok(_f) => Ok(()),
-        Err(lb::CoreError::FileNonexistent) => match core.create_at_path(path) {
-            Ok(_f) => Ok(()),
-            Err(err) => Err(err.into()),
+        Err(err) => match err.kind {
+            lb::LbErrorKind::FileNonexistent => match core.create_at_path(path) {
+                Ok(_f) => Ok(()),
+                Err(err) => Err(err.into()),
+            },
+            _ => Err(err.into()),
         },
-        Err(err) => Err(err.into()),
     }
 }
 
@@ -208,11 +212,11 @@ fn run() -> Result<(), CliError> {
     if !matches!(cmd, LbCli::Account(account::AccountCmd::New { .. }))
         && !matches!(cmd, LbCli::Account(account::AccountCmd::Import))
     {
-        let _ = core.get_account().map_err(|err| match err {
-            lb::CoreError::AccountNonexistent => {
+        let _ = core.get_account().map_err(|err| match err.kind {
+            lb::LbErrorKind::AccountNonexistent => {
                 CliError::new("no account! run 'init' or 'init --restore' to get started.")
             }
-            err => err.into(),
+            _ => err.into(),
         })?;
     }
 

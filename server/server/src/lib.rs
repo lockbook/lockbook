@@ -6,8 +6,8 @@ use std::sync::{Arc, Mutex};
 
 use libsecp256k1::PublicKey;
 use lockbook_shared::api::{ErrorWrapper, Request, RequestWrapper};
-use lockbook_shared::{clock, pubkey};
 use lockbook_shared::LbError;
+use lockbook_shared::{clock, pubkey};
 use serde::{Deserialize, Serialize};
 
 use crate::account_service::GetUsageHelperError;

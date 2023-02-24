@@ -46,13 +46,15 @@ pub fn verify<T: Serialize>(
     if current_time < auth_time - max_skew_ms {
         return Err(LbErrorKind::SignatureInTheFuture(
             (current_time - (auth_time - max_delay_ms)) as u64,
-        ).into());
+        )
+        .into());
     }
 
     if current_time > auth_time + max_delay_ms {
         return Err(LbErrorKind::SignatureExpired(
             (auth_time + max_delay_ms - current_time) as u64,
-        ).into());
+        )
+        .into());
     }
 
     let serialized = bincode::serialize(&signed.timestamped_value)?;

@@ -42,9 +42,7 @@ pub fn insert(
 }
 
 #[instrument(level = "debug", skip(config), err(Debug))]
-pub fn get(
-    config: &Config, id: &Uuid, hmac: Option<&DocumentHmac>,
-) -> LbResult<EncryptedDocument> {
+pub fn get(config: &Config, id: &Uuid, hmac: Option<&DocumentHmac>) -> LbResult<EncryptedDocument> {
     maybe_get(config, id, hmac)?.ok_or_else(|| LbErrorKind::FileNonexistent.into())
 }
 
@@ -103,8 +101,9 @@ pub fn retain(config: &Config, file_hmacs: HashSet<(&Uuid, &DocumentHmac)>) -> L
             .and_then(|name| name.to_str())
             .ok_or(LbErrorKind::Unexpected("document disk file name malformed".to_string()))?
             .split_at(36); // Uuid's are 36 characters long in string form
-        let id = Uuid::parse_str(id_str)
-            .map_err(|_| LbErrorKind::Unexpected("document disk file name malformed".to_string()))?;
+        let id = Uuid::parse_str(id_str).map_err(|_| {
+            LbErrorKind::Unexpected("document disk file name malformed".to_string())
+        })?;
         let hmac: DocumentHmac = base64::decode_config(
             hmac_str
                 .strip_prefix('-')

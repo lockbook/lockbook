@@ -18,10 +18,7 @@ pub struct LbError {
 
 impl From<LbErrorKind> for LbError {
     fn from(kind: LbErrorKind) -> Self {
-        Self {
-            kind,
-            backtrace: Some(Backtrace::capture()),
-        }
+        Self { kind, backtrace: Some(Backtrace::capture()) }
     }
 }
 

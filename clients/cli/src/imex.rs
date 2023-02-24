@@ -43,7 +43,7 @@ pub fn copy(core: &lb::Core, disk_files: &[PathBuf], dest: &str) -> Result<(), C
     let update_status = move |status: ImportStatus| match status {
         ImportStatus::CalculatedTotal(n_files) => total.set(n_files),
         ImportStatus::Error(disk_path, err) => match err {
-            lb::CoreError::DiskPathInvalid => {
+            lb::LbErrorKind::DiskPathInvalid => {
                 eprintln!("invalid disk path '{}'", disk_path.display())
             }
             _ => eprintln!("unexpected error: {:#?}", err),

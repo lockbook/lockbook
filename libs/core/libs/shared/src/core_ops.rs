@@ -157,9 +157,7 @@ where
         Ok((file, id))
     }
 
-    pub fn rename_op(
-        &mut self, id: &Uuid, name: &str, account: &Account,
-    ) -> LbResult<SignedFile> {
+    pub fn rename_op(&mut self, id: &Uuid, name: &str, account: &Account) -> LbResult<SignedFile> {
         let mut file = self.find(id)?.timestamped_value.value.clone();
 
         validate::file_name(name)?;
@@ -377,9 +375,7 @@ where
         Ok(id)
     }
 
-    pub fn rename_unvalidated(
-        &mut self, id: &Uuid, name: &str, account: &Account,
-    ) -> LbResult<()> {
+    pub fn rename_unvalidated(&mut self, id: &Uuid, name: &str, account: &Account) -> LbResult<()> {
         let op = self.rename_op(id, name, account)?;
         self.stage_and_promote(Some(op))?;
         Ok(())
@@ -399,9 +395,7 @@ where
         Ok(())
     }
 
-    pub fn move_file(
-        &mut self, id: &Uuid, new_parent: &Uuid, account: &Account,
-    ) -> LbResult<()> {
+    pub fn move_file(&mut self, id: &Uuid, new_parent: &Uuid, account: &Account) -> LbResult<()> {
         if self.maybe_find(new_parent).is_none() || self.calculate_deleted(new_parent)? {
             return Err(LbErrorKind::FileParentNonexistent.into());
         }

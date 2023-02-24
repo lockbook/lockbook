@@ -591,7 +591,7 @@ pub fn validate_account_helper(
         Err(err) => match err.kind {
             LbErrorKind::ValidationFailure(vf) => result.tree_validation_failures.push(vf),
             _ => error!(?owner, ?err, "Unexpected error while validating tree"),
-        }
+        },
     }
 
     Ok(result)

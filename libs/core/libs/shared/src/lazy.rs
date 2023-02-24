@@ -327,7 +327,8 @@ impl<T: TreeLike> LazyTree<T> {
             if self.name(&id, account).is_err() {
                 return Err(LbErrorKind::ValidationFailure(
                     ValidationFailure::NonDecryptableFileName(id),
-                ).into());
+                )
+                .into());
             }
         }
         Ok(())
@@ -357,9 +358,7 @@ impl<T> LazyTree<T>
 where
     T: TreeLikeMut,
 {
-    pub fn stage_and_promote<S: TreeLikeMut<F = T::F>>(
-        &mut self, mut staged: S,
-    ) -> LbResult<()> {
+    pub fn stage_and_promote<S: TreeLikeMut<F = T::F>>(&mut self, mut staged: S) -> LbResult<()> {
         for id in staged.owned_ids() {
             if let Some(removed) = staged.remove(id)? {
                 self.tree.insert(removed)?;

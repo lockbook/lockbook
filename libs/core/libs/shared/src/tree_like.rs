@@ -16,7 +16,8 @@ pub trait TreeLike: Sized {
     fn maybe_find(&self, id: &Uuid) -> Option<&Self::F>;
 
     fn find(&self, id: &Uuid) -> LbResult<&Self::F> {
-        self.maybe_find(id).ok_or_else(|| LbErrorKind::FileNonexistent.into())
+        self.maybe_find(id)
+            .ok_or_else(|| LbErrorKind::FileNonexistent.into())
     }
 
     fn maybe_find_parent<F2: FileLike>(&self, file: &F2) -> Option<&Self::F> {

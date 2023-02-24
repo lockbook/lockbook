@@ -87,7 +87,9 @@ where
                     .iter()
                     .any(|k| k.encrypted_for == owner.0)
             {
-                return Err(LbErrorKind::ValidationFailure(ValidationFailure::Orphan(*file.id())).into());
+                return Err(
+                    LbErrorKind::ValidationFailure(ValidationFailure::Orphan(*file.id())).into()
+                );
             }
         }
         Ok(())
@@ -99,7 +101,8 @@ where
                 if !parent.is_folder() {
                     return Err(LbErrorKind::ValidationFailure(
                         ValidationFailure::NonFolderWithChildren(*parent.id()),
-                    ).into());
+                    )
+                    .into());
                 }
             }
         }
@@ -118,7 +121,8 @@ where
                 if parent.owner() != file.owner() {
                     return Err(LbErrorKind::ValidationFailure(
                         ValidationFailure::FileWithDifferentOwnerParent(*file.id()),
-                    ).into());
+                    )
+                    .into());
                 }
             }
         }
@@ -142,12 +146,14 @@ where
                     } else {
                         return Err(LbErrorKind::ValidationFailure(ValidationFailure::Cycle(
                             HashSet::from([id]),
-                        )).into());
+                        ))
+                        .into());
                     }
                 } else if ancestors.contains(current_file.parent()) {
                     return Err(LbErrorKind::ValidationFailure(ValidationFailure::Cycle(
                         self.ancestors(current_file.id())?,
-                    )).into());
+                    ))
+                    .into());
                 }
                 ancestors.insert(*current_file.id());
                 current_file = match self.maybe_find_parent(current_file) {
@@ -177,7 +183,8 @@ where
                 if let Some(conflicting) = id_by_name.remove(file.secret_name()) {
                     return Err(LbErrorKind::ValidationFailure(ValidationFailure::PathConflict(
                         HashSet::from([conflicting, *file.id()]),
-                    )).into());
+                    ))
+                    .into());
                 }
                 id_by_name.insert(file.secret_name().clone(), *file.id());
             }
@@ -193,13 +200,15 @@ where
                     return Err(LbErrorKind::ValidationFailure(ValidationFailure::SharedLink {
                         link,
                         shared_ancestor: link,
-                    }).into());
+                    })
+                    .into());
                 }
                 for ancestor in self.ancestors(&link)? {
                     if self.find(&ancestor)?.is_shared() {
                         return Err(LbErrorKind::ValidationFailure(
                             ValidationFailure::SharedLink { link, shared_ancestor: ancestor },
-                        ).into());
+                        )
+                        .into());
                     }
                 }
             }
@@ -217,7 +226,8 @@ where
                 if !linked_targets.insert(target) {
                     return Err(LbErrorKind::ValidationFailure(ValidationFailure::DuplicateLink {
                         target,
-                    }).into());
+                    })
+                    .into());
                 }
             }
         }
@@ -235,7 +245,8 @@ where
                 if !self.calculate_deleted(&link)? && self.maybe_find(&target).is_none() {
                     return Err(LbErrorKind::ValidationFailure(ValidationFailure::BrokenLink(
                         link,
-                    )).into());
+                    ))
+                    .into());
                 }
             }
         }
@@ -249,7 +260,8 @@ where
                     if self.find(&link)?.owner() == target_owner {
                         return Err(LbErrorKind::ValidationFailure(ValidationFailure::OwnedLink(
                             link,
-                        )).into());
+                        ))
+                        .into());
                     }
                 }
             }
@@ -269,7 +281,8 @@ where
             if self.find(&id)?.is_root() {
                 return Err(LbErrorKind::ValidationFailure(ValidationFailure::Cycle(
                     vec![id].into_iter().collect(),
-                )).into());
+                ))
+                .into());
             }
         }
         Ok(())
@@ -358,7 +371,8 @@ where
                             } else {
                                 return Err(LbErrorKind::Unexpected(
                                     "Non-New FileDiff with no old".to_string(),
-                                ).into());
+                                )
+                                .into());
                             };
 
                             // must have parent and have write access to parent
@@ -416,7 +430,8 @@ where
                             } else {
                                 return Err(LbErrorKind::Unexpected(
                                     "Non-New FileDiff with no old".to_string(),
-                                ).into());
+                                )
+                                .into());
                             }
                         };
                         for key in file_diff.new.user_access_keys() {
