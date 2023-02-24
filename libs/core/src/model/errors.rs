@@ -148,7 +148,7 @@ impl From<ApiError<api::UpsertError>> for LbError {
         match e {
             ApiError::Endpoint(api::UpsertError::Validation(vf)) => LbError {
                 kind: LbErrorKind::ValidationFailure(vf),
-                backtrace: Backtrace::capture(),
+                backtrace: Some(std::backtrace::Backtrace::capture()),
             },
             ApiError::SendFailed(_) => LbErrorKind::ServerUnreachable.into(),
             ApiError::ClientUpdateRequired => LbErrorKind::ClientUpdateRequired.into(),
