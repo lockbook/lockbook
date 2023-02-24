@@ -1,7 +1,7 @@
 use serde::Serialize;
 use strum_macros::EnumIter;
 
-use lockbook_core::CoreError;
+use lockbook_core::{LbError, LbErrorKind};
 
 use self::Error::UiError;
 
@@ -32,15 +32,15 @@ pub enum CreateAccountError {
     ServerDisabled,
 }
 
-impl From<CoreError> for Error<CreateAccountError> {
-    fn from(err: CoreError) -> Self {
-        match err {
-            CoreError::AccountExists => UiError(CreateAccountError::AccountExistsAlready),
-            CoreError::UsernameTaken => UiError(CreateAccountError::UsernameTaken),
-            CoreError::UsernameInvalid => UiError(CreateAccountError::InvalidUsername),
-            CoreError::ServerUnreachable => UiError(CreateAccountError::CouldNotReachServer),
-            CoreError::ClientUpdateRequired => UiError(CreateAccountError::ClientUpdateRequired),
-            CoreError::ServerDisabled => UiError(CreateAccountError::ServerDisabled),
+impl From<LbError> for Error<CreateAccountError> {
+    fn from(err: LbError) -> Self {
+        match err.kind {
+            LbErrorKind::AccountExists => UiError(CreateAccountError::AccountExistsAlready),
+            LbErrorKind::UsernameTaken => UiError(CreateAccountError::UsernameTaken),
+            LbErrorKind::UsernameInvalid => UiError(CreateAccountError::InvalidUsername),
+            LbErrorKind::ServerUnreachable => UiError(CreateAccountError::CouldNotReachServer),
+            LbErrorKind::ClientUpdateRequired => UiError(CreateAccountError::ClientUpdateRequired),
+            LbErrorKind::ServerDisabled => UiError(CreateAccountError::ServerDisabled),
             _ => unexpected!("{:#?}", err),
         }
     }
@@ -56,16 +56,16 @@ pub enum ImportError {
     ClientUpdateRequired,
 }
 
-impl From<CoreError> for Error<ImportError> {
-    fn from(e: CoreError) -> Self {
-        match e {
-            CoreError::AccountStringCorrupted => UiError(ImportError::AccountStringCorrupted),
-            CoreError::AccountExists => UiError(ImportError::AccountExistsAlready),
-            CoreError::UsernamePublicKeyMismatch => UiError(ImportError::UsernamePKMismatch),
-            CoreError::ServerUnreachable => UiError(ImportError::CouldNotReachServer),
-            CoreError::AccountNonexistent => UiError(ImportError::AccountDoesNotExist),
-            CoreError::ClientUpdateRequired => UiError(ImportError::ClientUpdateRequired),
-            _ => unexpected!("{:#?}", e),
+impl From<LbError> for Error<ImportError> {
+    fn from(err: LbError) -> Self {
+        match err.kind {
+            LbErrorKind::AccountStringCorrupted => UiError(ImportError::AccountStringCorrupted),
+            LbErrorKind::AccountExists => UiError(ImportError::AccountExistsAlready),
+            LbErrorKind::UsernamePublicKeyMismatch => UiError(ImportError::UsernamePKMismatch),
+            LbErrorKind::ServerUnreachable => UiError(ImportError::CouldNotReachServer),
+            LbErrorKind::AccountNonexistent => UiError(ImportError::AccountDoesNotExist),
+            LbErrorKind::ClientUpdateRequired => UiError(ImportError::ClientUpdateRequired),
+            _ => unexpected!("{:#?}", err),
         }
     }
 }
@@ -75,11 +75,11 @@ pub enum AccountExportError {
     NoAccount,
 }
 
-impl From<CoreError> for Error<AccountExportError> {
-    fn from(e: CoreError) -> Self {
-        match e {
-            CoreError::AccountNonexistent => UiError(AccountExportError::NoAccount),
-            _ => unexpected!("{:#?}", e),
+impl From<LbError> for Error<AccountExportError> {
+    fn from(err: LbError) -> Self {
+        match err.kind {
+            LbErrorKind::AccountNonexistent => UiError(AccountExportError::NoAccount),
+            _ => unexpected!("{:#?}", err),
         }
     }
 }
@@ -89,11 +89,11 @@ pub enum GetAccountError {
     NoAccount,
 }
 
-impl From<CoreError> for Error<GetAccountError> {
-    fn from(e: CoreError) -> Self {
-        match e {
-            CoreError::AccountNonexistent => UiError(GetAccountError::NoAccount),
-            _ => unexpected!("{:#?}", e),
+impl From<LbError> for Error<GetAccountError> {
+    fn from(err: LbError) -> Self {
+        match err.kind {
+            LbErrorKind::AccountNonexistent => UiError(GetAccountError::NoAccount),
+            _ => unexpected!("{:#?}", err),
         }
     }
 }
@@ -107,19 +107,19 @@ pub enum CreateFileAtPathError {
     InsufficientPermission,
 }
 
-impl From<CoreError> for Error<CreateFileAtPathError> {
-    fn from(e: CoreError) -> Self {
-        match e {
-            CoreError::PathContainsEmptyFileName => {
+impl From<LbError> for Error<CreateFileAtPathError> {
+    fn from(err: LbError) -> Self {
+        match err.kind {
+            LbErrorKind::PathContainsEmptyFileName => {
                 UiError(CreateFileAtPathError::PathContainsEmptyFile)
             }
-            CoreError::RootNonexistent => UiError(CreateFileAtPathError::NoRoot),
-            CoreError::PathTaken => UiError(CreateFileAtPathError::FileAlreadyExists),
-            CoreError::FileNotFolder => UiError(CreateFileAtPathError::DocumentTreatedAsFolder),
-            CoreError::InsufficientPermission => {
+            LbErrorKind::RootNonexistent => UiError(CreateFileAtPathError::NoRoot),
+            LbErrorKind::PathTaken => UiError(CreateFileAtPathError::FileAlreadyExists),
+            LbErrorKind::FileNotFolder => UiError(CreateFileAtPathError::DocumentTreatedAsFolder),
+            LbErrorKind::InsufficientPermission => {
                 UiError(CreateFileAtPathError::InsufficientPermission)
             }
-            _ => unexpected!("{:#?}", e),
+            _ => unexpected!("{:#?}", err),
         }
     }
 }
@@ -129,11 +129,11 @@ pub enum GetFileByPathError {
     NoFileAtThatPath,
 }
 
-impl From<CoreError> for Error<GetFileByPathError> {
-    fn from(e: CoreError) -> Self {
-        match e {
-            CoreError::FileNonexistent => UiError(GetFileByPathError::NoFileAtThatPath),
-            _ => unexpected!("{:#?}", e),
+impl From<LbError> for Error<GetFileByPathError> {
+    fn from(err: LbError) -> Self {
+        match err.kind {
+            LbErrorKind::FileNonexistent => UiError(GetFileByPathError::NoFileAtThatPath),
+            _ => unexpected!("{:#?}", err),
         }
     }
 }
@@ -152,21 +152,23 @@ pub enum CreateFileError {
     MultipleLinksToSameFile,
 }
 
-impl From<CoreError> for Error<CreateFileError> {
-    fn from(e: CoreError) -> Self {
-        match e {
-            CoreError::FileNonexistent => UiError(CreateFileError::CouldNotFindAParent),
-            CoreError::PathTaken => UiError(CreateFileError::FileNameNotAvailable),
-            CoreError::FileNotFolder => UiError(CreateFileError::DocumentTreatedAsFolder),
-            CoreError::FileParentNonexistent => UiError(CreateFileError::CouldNotFindAParent),
-            CoreError::FileNameEmpty => UiError(CreateFileError::FileNameEmpty),
-            CoreError::FileNameContainsSlash => UiError(CreateFileError::FileNameContainsSlash),
-            CoreError::LinkInSharedFolder => UiError(CreateFileError::LinkInSharedFolder),
-            CoreError::LinkTargetIsOwned => UiError(CreateFileError::LinkTargetIsOwned),
-            CoreError::LinkTargetNonexistent => UiError(CreateFileError::LinkTargetNonexistent),
-            CoreError::InsufficientPermission => UiError(CreateFileError::InsufficientPermission),
-            CoreError::MultipleLinksToSameFile => UiError(CreateFileError::MultipleLinksToSameFile),
-            _ => unexpected!("{:#?}", e),
+impl From<LbError> for Error<CreateFileError> {
+    fn from(err: LbError) -> Self {
+        match err.kind {
+            LbErrorKind::FileNonexistent => UiError(CreateFileError::CouldNotFindAParent),
+            LbErrorKind::PathTaken => UiError(CreateFileError::FileNameNotAvailable),
+            LbErrorKind::FileNotFolder => UiError(CreateFileError::DocumentTreatedAsFolder),
+            LbErrorKind::FileParentNonexistent => UiError(CreateFileError::CouldNotFindAParent),
+            LbErrorKind::FileNameEmpty => UiError(CreateFileError::FileNameEmpty),
+            LbErrorKind::FileNameContainsSlash => UiError(CreateFileError::FileNameContainsSlash),
+            LbErrorKind::LinkInSharedFolder => UiError(CreateFileError::LinkInSharedFolder),
+            LbErrorKind::LinkTargetIsOwned => UiError(CreateFileError::LinkTargetIsOwned),
+            LbErrorKind::LinkTargetNonexistent => UiError(CreateFileError::LinkTargetNonexistent),
+            LbErrorKind::InsufficientPermission => UiError(CreateFileError::InsufficientPermission),
+            LbErrorKind::MultipleLinksToSameFile => {
+                UiError(CreateFileError::MultipleLinksToSameFile)
+            }
+            _ => unexpected!("{:#?}", err),
         }
     }
 }
@@ -178,15 +180,15 @@ pub enum WriteToDocumentError {
     InsufficientPermission,
 }
 
-impl From<CoreError> for Error<WriteToDocumentError> {
-    fn from(e: CoreError) -> Self {
-        match e {
-            CoreError::FileNonexistent => UiError(WriteToDocumentError::FileDoesNotExist),
-            CoreError::FileNotDocument => UiError(WriteToDocumentError::FolderTreatedAsDocument),
-            CoreError::InsufficientPermission => {
+impl From<LbError> for Error<WriteToDocumentError> {
+    fn from(err: LbError) -> Self {
+        match err.kind {
+            LbErrorKind::FileNonexistent => UiError(WriteToDocumentError::FileDoesNotExist),
+            LbErrorKind::FileNotDocument => UiError(WriteToDocumentError::FolderTreatedAsDocument),
+            LbErrorKind::InsufficientPermission => {
                 UiError(WriteToDocumentError::InsufficientPermission)
             }
-            _ => unexpected!("{:#?}", e),
+            _ => unexpected!("{:#?}", err),
         }
     }
 }
@@ -196,11 +198,11 @@ pub enum GetRootError {
     NoRoot,
 }
 
-impl From<CoreError> for Error<GetRootError> {
-    fn from(e: CoreError) -> Self {
-        match e {
-            CoreError::RootNonexistent => UiError(GetRootError::NoRoot),
-            _ => unexpected!("{:#?}", e),
+impl From<LbError> for Error<GetRootError> {
+    fn from(err: LbError) -> Self {
+        match err.kind {
+            LbErrorKind::RootNonexistent => UiError(GetRootError::NoRoot),
+            _ => unexpected!("{:#?}", err),
         }
     }
 }
@@ -211,12 +213,12 @@ pub enum GetAndGetChildrenError {
     DocumentTreatedAsFolder,
 }
 
-impl From<CoreError> for Error<GetAndGetChildrenError> {
-    fn from(e: CoreError) -> Self {
-        match e {
-            CoreError::FileNonexistent => UiError(GetAndGetChildrenError::FileDoesNotExist),
-            CoreError::FileNotFolder => UiError(GetAndGetChildrenError::DocumentTreatedAsFolder),
-            _ => unexpected!("{:#?}", e),
+impl From<LbError> for Error<GetAndGetChildrenError> {
+    fn from(err: LbError) -> Self {
+        match err.kind {
+            LbErrorKind::FileNonexistent => UiError(GetAndGetChildrenError::FileDoesNotExist),
+            LbErrorKind::FileNotFolder => UiError(GetAndGetChildrenError::DocumentTreatedAsFolder),
+            _ => unexpected!("{:#?}", err),
         }
     }
 }
@@ -226,11 +228,11 @@ pub enum GetFileByIdError {
     NoFileWithThatId,
 }
 
-impl From<CoreError> for Error<GetFileByIdError> {
-    fn from(e: CoreError) -> Self {
-        match e {
-            CoreError::FileNonexistent => UiError(GetFileByIdError::NoFileWithThatId),
-            _ => unexpected!("{:#?}", e),
+impl From<LbError> for Error<GetFileByIdError> {
+    fn from(err: LbError) -> Self {
+        match err.kind {
+            LbErrorKind::FileNonexistent => UiError(GetFileByIdError::NoFileWithThatId),
+            _ => unexpected!("{:#?}", err),
         }
     }
 }
@@ -242,13 +244,13 @@ pub enum FileDeleteError {
     InsufficientPermission,
 }
 
-impl From<CoreError> for Error<FileDeleteError> {
-    fn from(e: CoreError) -> Self {
-        match e {
-            CoreError::RootModificationInvalid => UiError(FileDeleteError::CannotDeleteRoot),
-            CoreError::FileNonexistent => UiError(FileDeleteError::FileDoesNotExist),
-            CoreError::InsufficientPermission => UiError(FileDeleteError::InsufficientPermission),
-            _ => unexpected!("{:#?}", e),
+impl From<LbError> for Error<FileDeleteError> {
+    fn from(err: LbError) -> Self {
+        match err.kind {
+            LbErrorKind::RootModificationInvalid => UiError(FileDeleteError::CannotDeleteRoot),
+            LbErrorKind::FileNonexistent => UiError(FileDeleteError::FileDoesNotExist),
+            LbErrorKind::InsufficientPermission => UiError(FileDeleteError::InsufficientPermission),
+            _ => unexpected!("{:#?}", err),
         }
     }
 }
@@ -259,12 +261,12 @@ pub enum ReadDocumentError {
     FileDoesNotExist,
 }
 
-impl From<CoreError> for Error<ReadDocumentError> {
-    fn from(e: CoreError) -> Self {
-        match e {
-            CoreError::FileNotDocument => UiError(ReadDocumentError::TreatedFolderAsDocument),
-            CoreError::FileNonexistent => UiError(ReadDocumentError::FileDoesNotExist),
-            _ => unexpected!("{:#?}", e),
+impl From<LbError> for Error<ReadDocumentError> {
+    fn from(err: LbError) -> Self {
+        match err.kind {
+            LbErrorKind::FileNotDocument => UiError(ReadDocumentError::TreatedFolderAsDocument),
+            LbErrorKind::FileNonexistent => UiError(ReadDocumentError::FileDoesNotExist),
+            _ => unexpected!("{:#?}", err),
         }
     }
 }
@@ -277,14 +279,16 @@ pub enum SaveDocumentToDiskError {
     FileAlreadyExistsInDisk,
 }
 
-impl From<CoreError> for Error<SaveDocumentToDiskError> {
-    fn from(e: CoreError) -> Self {
-        match e {
-            CoreError::FileNotDocument => UiError(SaveDocumentToDiskError::TreatedFolderAsDocument),
-            CoreError::FileNonexistent => UiError(SaveDocumentToDiskError::FileDoesNotExist),
-            CoreError::DiskPathInvalid => UiError(SaveDocumentToDiskError::BadPath),
-            CoreError::DiskPathTaken => UiError(SaveDocumentToDiskError::FileAlreadyExistsInDisk),
-            _ => unexpected!("{:#?}", e),
+impl From<LbError> for Error<SaveDocumentToDiskError> {
+    fn from(err: LbError) -> Self {
+        match err.kind {
+            LbErrorKind::FileNotDocument => {
+                UiError(SaveDocumentToDiskError::TreatedFolderAsDocument)
+            }
+            LbErrorKind::FileNonexistent => UiError(SaveDocumentToDiskError::FileDoesNotExist),
+            LbErrorKind::DiskPathInvalid => UiError(SaveDocumentToDiskError::BadPath),
+            LbErrorKind::DiskPathTaken => UiError(SaveDocumentToDiskError::FileAlreadyExistsInDisk),
+            _ => unexpected!("{:#?}", err),
         }
     }
 }
@@ -299,16 +303,16 @@ pub enum RenameFileError {
     InsufficientPermission,
 }
 
-impl From<CoreError> for Error<RenameFileError> {
-    fn from(e: CoreError) -> Self {
-        match e {
-            CoreError::FileNonexistent => UiError(RenameFileError::FileDoesNotExist),
-            CoreError::FileNameEmpty => UiError(RenameFileError::NewNameEmpty),
-            CoreError::FileNameContainsSlash => UiError(RenameFileError::NewNameContainsSlash),
-            CoreError::PathTaken => UiError(RenameFileError::FileNameNotAvailable),
-            CoreError::RootModificationInvalid => UiError(RenameFileError::CannotRenameRoot),
-            CoreError::InsufficientPermission => UiError(RenameFileError::InsufficientPermission),
-            _ => unexpected!("{:#?}", e),
+impl From<LbError> for Error<RenameFileError> {
+    fn from(err: LbError) -> Self {
+        match err.kind {
+            LbErrorKind::FileNonexistent => UiError(RenameFileError::FileDoesNotExist),
+            LbErrorKind::FileNameEmpty => UiError(RenameFileError::NewNameEmpty),
+            LbErrorKind::FileNameContainsSlash => UiError(RenameFileError::NewNameContainsSlash),
+            LbErrorKind::PathTaken => UiError(RenameFileError::FileNameNotAvailable),
+            LbErrorKind::RootModificationInvalid => UiError(RenameFileError::CannotRenameRoot),
+            LbErrorKind::InsufficientPermission => UiError(RenameFileError::InsufficientPermission),
+            _ => unexpected!("{:#?}", err),
         }
     }
 }
@@ -325,18 +329,18 @@ pub enum MoveFileError {
     InsufficientPermission,
 }
 
-impl From<CoreError> for Error<MoveFileError> {
-    fn from(e: CoreError) -> Self {
-        match e {
-            CoreError::RootModificationInvalid => UiError(MoveFileError::CannotMoveRoot),
-            CoreError::FileNotFolder => UiError(MoveFileError::DocumentTreatedAsFolder),
-            CoreError::FileNonexistent => UiError(MoveFileError::FileDoesNotExist),
-            CoreError::FolderMovedIntoSelf => UiError(MoveFileError::FolderMovedIntoItself),
-            CoreError::FileParentNonexistent => UiError(MoveFileError::TargetParentDoesNotExist),
-            CoreError::PathTaken => UiError(MoveFileError::TargetParentHasChildNamedThat),
-            CoreError::LinkInSharedFolder => UiError(MoveFileError::LinkInSharedFolder),
-            CoreError::InsufficientPermission => UiError(MoveFileError::InsufficientPermission),
-            _ => unexpected!("{:#?}", e),
+impl From<LbError> for Error<MoveFileError> {
+    fn from(err: LbError) -> Self {
+        match err.kind {
+            LbErrorKind::RootModificationInvalid => UiError(MoveFileError::CannotMoveRoot),
+            LbErrorKind::FileNotFolder => UiError(MoveFileError::DocumentTreatedAsFolder),
+            LbErrorKind::FileNonexistent => UiError(MoveFileError::FileDoesNotExist),
+            LbErrorKind::FolderMovedIntoSelf => UiError(MoveFileError::FolderMovedIntoItself),
+            LbErrorKind::FileParentNonexistent => UiError(MoveFileError::TargetParentDoesNotExist),
+            LbErrorKind::PathTaken => UiError(MoveFileError::TargetParentHasChildNamedThat),
+            LbErrorKind::LinkInSharedFolder => UiError(MoveFileError::LinkInSharedFolder),
+            LbErrorKind::InsufficientPermission => UiError(MoveFileError::InsufficientPermission),
+            _ => unexpected!("{:#?}", err),
         }
     }
 }
@@ -350,15 +354,15 @@ pub enum ShareFileError {
     InsufficientPermission,
 }
 
-impl From<CoreError> for Error<ShareFileError> {
-    fn from(e: CoreError) -> Self {
-        match e {
-            CoreError::RootModificationInvalid => UiError(ShareFileError::CannotShareRoot),
-            CoreError::FileNonexistent => UiError(ShareFileError::FileNonexistent),
-            CoreError::ShareAlreadyExists => UiError(ShareFileError::ShareAlreadyExists),
-            CoreError::LinkInSharedFolder => UiError(ShareFileError::LinkInSharedFolder),
-            CoreError::InsufficientPermission => UiError(ShareFileError::InsufficientPermission),
-            _ => unexpected!("{:#?}", e),
+impl From<LbError> for Error<ShareFileError> {
+    fn from(err: LbError) -> Self {
+        match err.kind {
+            LbErrorKind::RootModificationInvalid => UiError(ShareFileError::CannotShareRoot),
+            LbErrorKind::FileNonexistent => UiError(ShareFileError::FileNonexistent),
+            LbErrorKind::ShareAlreadyExists => UiError(ShareFileError::ShareAlreadyExists),
+            LbErrorKind::LinkInSharedFolder => UiError(ShareFileError::LinkInSharedFolder),
+            LbErrorKind::InsufficientPermission => UiError(ShareFileError::InsufficientPermission),
+            _ => unexpected!("{:#?}", err),
         }
     }
 }
@@ -369,12 +373,12 @@ pub enum DeletePendingShareError {
     ShareNonexistent,
 }
 
-impl From<CoreError> for Error<DeletePendingShareError> {
-    fn from(e: CoreError) -> Self {
-        match e {
-            CoreError::FileNonexistent => UiError(DeletePendingShareError::FileNonexistent),
-            CoreError::ShareNonexistent => UiError(DeletePendingShareError::ShareNonexistent),
-            _ => unexpected!("{:#?}", e),
+impl From<LbError> for Error<DeletePendingShareError> {
+    fn from(err: LbError) -> Self {
+        match err.kind {
+            LbErrorKind::FileNonexistent => UiError(DeletePendingShareError::FileNonexistent),
+            LbErrorKind::ShareNonexistent => UiError(DeletePendingShareError::ShareNonexistent),
+            _ => unexpected!("{:#?}", err),
         }
     }
 }
@@ -390,23 +394,23 @@ pub enum CreateLinkAtPathError {
     MultipleLinksToSameFile,
 }
 
-impl From<CoreError> for Error<CreateLinkAtPathError> {
-    fn from(e: CoreError) -> Self {
-        match e {
-            CoreError::PathContainsEmptyFileName => {
+impl From<LbError> for Error<CreateLinkAtPathError> {
+    fn from(err: LbError) -> Self {
+        match err.kind {
+            LbErrorKind::PathContainsEmptyFileName => {
                 UiError(CreateLinkAtPathError::PathContainsEmptyFile)
             }
-            CoreError::PathTaken => UiError(CreateLinkAtPathError::FileAlreadyExists),
-            CoreError::FileNotFolder => UiError(CreateLinkAtPathError::DocumentTreatedAsFolder),
-            CoreError::LinkInSharedFolder => UiError(CreateLinkAtPathError::LinkInSharedFolder),
-            CoreError::LinkTargetIsOwned => UiError(CreateLinkAtPathError::LinkTargetIsOwned),
-            CoreError::MultipleLinksToSameFile => {
+            LbErrorKind::PathTaken => UiError(CreateLinkAtPathError::FileAlreadyExists),
+            LbErrorKind::FileNotFolder => UiError(CreateLinkAtPathError::DocumentTreatedAsFolder),
+            LbErrorKind::LinkInSharedFolder => UiError(CreateLinkAtPathError::LinkInSharedFolder),
+            LbErrorKind::LinkTargetIsOwned => UiError(CreateLinkAtPathError::LinkTargetIsOwned),
+            LbErrorKind::MultipleLinksToSameFile => {
                 UiError(CreateLinkAtPathError::MultipleLinksToSameFile)
             }
-            CoreError::LinkTargetNonexistent => {
+            LbErrorKind::LinkTargetNonexistent => {
                 UiError(CreateLinkAtPathError::LinkTargetNonexistent)
             }
-            _ => unexpected!("{:#?}", e),
+            _ => unexpected!("{:#?}", err),
         }
     }
 }
@@ -418,13 +422,13 @@ pub enum SyncAllError {
     CouldNotReachServer,
 }
 
-impl From<CoreError> for Error<SyncAllError> {
-    fn from(e: CoreError) -> Self {
-        match e {
+impl From<LbError> for Error<SyncAllError> {
+    fn from(err: LbError) -> Self {
+        match err.kind {
             // TODO figure out under what circumstances a user should retry a sync
-            CoreError::ServerUnreachable => UiError(SyncAllError::CouldNotReachServer),
-            CoreError::ClientUpdateRequired => UiError(SyncAllError::ClientUpdateRequired),
-            _ => unexpected!("{:#?}", e),
+            LbErrorKind::ServerUnreachable => UiError(SyncAllError::CouldNotReachServer),
+            LbErrorKind::ClientUpdateRequired => UiError(SyncAllError::ClientUpdateRequired),
+            _ => unexpected!("{:#?}", err),
         }
     }
 }
@@ -435,12 +439,12 @@ pub enum CalculateWorkError {
     ClientUpdateRequired,
 }
 
-impl From<CoreError> for Error<CalculateWorkError> {
-    fn from(e: CoreError) -> Self {
-        match e {
-            CoreError::ServerUnreachable => UiError(CalculateWorkError::CouldNotReachServer),
-            CoreError::ClientUpdateRequired => UiError(CalculateWorkError::ClientUpdateRequired),
-            _ => unexpected!("{:#?}", e),
+impl From<LbError> for Error<CalculateWorkError> {
+    fn from(err: LbError) -> Self {
+        match err.kind {
+            LbErrorKind::ServerUnreachable => UiError(CalculateWorkError::CouldNotReachServer),
+            LbErrorKind::ClientUpdateRequired => UiError(CalculateWorkError::ClientUpdateRequired),
+            _ => unexpected!("{:#?}", err),
         }
     }
 }
@@ -451,12 +455,12 @@ pub enum GetUsageError {
     ClientUpdateRequired,
 }
 
-impl From<CoreError> for Error<GetUsageError> {
-    fn from(e: CoreError) -> Self {
-        match e {
-            CoreError::ServerUnreachable => UiError(GetUsageError::CouldNotReachServer),
-            CoreError::ClientUpdateRequired => UiError(GetUsageError::ClientUpdateRequired),
-            _ => unexpected!("{:#?}", e),
+impl From<LbError> for Error<GetUsageError> {
+    fn from(err: LbError) -> Self {
+        match err.kind {
+            LbErrorKind::ServerUnreachable => UiError(GetUsageError::CouldNotReachServer),
+            LbErrorKind::ClientUpdateRequired => UiError(GetUsageError::ClientUpdateRequired),
+            _ => unexpected!("{:#?}", err),
         }
     }
 }
@@ -468,13 +472,13 @@ pub enum GetDrawingError {
     FileDoesNotExist,
 }
 
-impl From<CoreError> for Error<GetDrawingError> {
-    fn from(e: CoreError) -> Self {
-        match e {
-            CoreError::DrawingInvalid => UiError(GetDrawingError::InvalidDrawing),
-            CoreError::FileNotDocument => UiError(GetDrawingError::FolderTreatedAsDrawing),
-            CoreError::FileNonexistent => UiError(GetDrawingError::FileDoesNotExist),
-            _ => unexpected!("{:#?}", e),
+impl From<LbError> for Error<GetDrawingError> {
+    fn from(err: LbError) -> Self {
+        match err.kind {
+            LbErrorKind::DrawingInvalid => UiError(GetDrawingError::InvalidDrawing),
+            LbErrorKind::FileNotDocument => UiError(GetDrawingError::FolderTreatedAsDrawing),
+            LbErrorKind::FileNonexistent => UiError(GetDrawingError::FileDoesNotExist),
+            _ => unexpected!("{:#?}", err),
         }
     }
 }
@@ -486,13 +490,13 @@ pub enum SaveDrawingError {
     InvalidDrawing,
 }
 
-impl From<CoreError> for Error<SaveDrawingError> {
-    fn from(e: CoreError) -> Self {
-        match e {
-            CoreError::DrawingInvalid => UiError(SaveDrawingError::InvalidDrawing),
-            CoreError::FileNonexistent => UiError(SaveDrawingError::FileDoesNotExist),
-            CoreError::FileNotDocument => UiError(SaveDrawingError::FolderTreatedAsDrawing),
-            _ => unexpected!("{:#?}", e),
+impl From<LbError> for Error<SaveDrawingError> {
+    fn from(err: LbError) -> Self {
+        match err.kind {
+            LbErrorKind::DrawingInvalid => UiError(SaveDrawingError::InvalidDrawing),
+            LbErrorKind::FileNonexistent => UiError(SaveDrawingError::FileDoesNotExist),
+            LbErrorKind::FileNotDocument => UiError(SaveDrawingError::FolderTreatedAsDrawing),
+            _ => unexpected!("{:#?}", err),
         }
     }
 }
@@ -504,13 +508,13 @@ pub enum ExportDrawingError {
     InvalidDrawing,
 }
 
-impl From<CoreError> for Error<ExportDrawingError> {
-    fn from(e: CoreError) -> Self {
-        match e {
-            CoreError::DrawingInvalid => UiError(ExportDrawingError::InvalidDrawing),
-            CoreError::FileNonexistent => UiError(ExportDrawingError::FileDoesNotExist),
-            CoreError::FileNotDocument => UiError(ExportDrawingError::FolderTreatedAsDrawing),
-            _ => unexpected!("{:#?}", e),
+impl From<LbError> for Error<ExportDrawingError> {
+    fn from(err: LbError) -> Self {
+        match err.kind {
+            LbErrorKind::DrawingInvalid => UiError(ExportDrawingError::InvalidDrawing),
+            LbErrorKind::FileNonexistent => UiError(ExportDrawingError::FileDoesNotExist),
+            LbErrorKind::FileNotDocument => UiError(ExportDrawingError::FolderTreatedAsDrawing),
+            _ => unexpected!("{:#?}", err),
         }
     }
 }
@@ -524,15 +528,19 @@ pub enum ExportDrawingToDiskError {
     FileAlreadyExistsInDisk,
 }
 
-impl From<CoreError> for Error<ExportDrawingToDiskError> {
-    fn from(e: CoreError) -> Self {
-        match e {
-            CoreError::DrawingInvalid => UiError(ExportDrawingToDiskError::InvalidDrawing),
-            CoreError::FileNonexistent => UiError(ExportDrawingToDiskError::FileDoesNotExist),
-            CoreError::FileNotDocument => UiError(ExportDrawingToDiskError::FolderTreatedAsDrawing),
-            CoreError::DiskPathInvalid => UiError(ExportDrawingToDiskError::BadPath),
-            CoreError::DiskPathTaken => UiError(ExportDrawingToDiskError::FileAlreadyExistsInDisk),
-            _ => unexpected!("{:#?}", e),
+impl From<LbError> for Error<ExportDrawingToDiskError> {
+    fn from(err: LbError) -> Self {
+        match err.kind {
+            LbErrorKind::DrawingInvalid => UiError(ExportDrawingToDiskError::InvalidDrawing),
+            LbErrorKind::FileNonexistent => UiError(ExportDrawingToDiskError::FileDoesNotExist),
+            LbErrorKind::FileNotDocument => {
+                UiError(ExportDrawingToDiskError::FolderTreatedAsDrawing)
+            }
+            LbErrorKind::DiskPathInvalid => UiError(ExportDrawingToDiskError::BadPath),
+            LbErrorKind::DiskPathTaken => {
+                UiError(ExportDrawingToDiskError::FileAlreadyExistsInDisk)
+            }
+            _ => unexpected!("{:#?}", err),
         }
     }
 }
@@ -543,12 +551,12 @@ pub enum ImportFileError {
     DocumentTreatedAsFolder,
 }
 
-impl From<CoreError> for Error<ImportFileError> {
-    fn from(e: CoreError) -> Self {
-        match e {
-            CoreError::FileNonexistent => UiError(ImportFileError::ParentDoesNotExist),
-            CoreError::FileNotFolder => UiError(ImportFileError::DocumentTreatedAsFolder),
-            _ => unexpected!("{:#?}", e),
+impl From<LbError> for Error<ImportFileError> {
+    fn from(err: LbError) -> Self {
+        match err.kind {
+            LbErrorKind::FileNonexistent => UiError(ImportFileError::ParentDoesNotExist),
+            LbErrorKind::FileNotFolder => UiError(ImportFileError::DocumentTreatedAsFolder),
+            _ => unexpected!("{:#?}", err),
         }
     }
 }
@@ -560,13 +568,13 @@ pub enum ExportFileError {
     DiskPathInvalid,
 }
 
-impl From<CoreError> for Error<ExportFileError> {
-    fn from(e: CoreError) -> Self {
-        match e {
-            CoreError::FileNonexistent => UiError(ExportFileError::ParentDoesNotExist),
-            CoreError::DiskPathInvalid => UiError(ExportFileError::DiskPathInvalid),
-            CoreError::DiskPathTaken => UiError(ExportFileError::DiskPathTaken),
-            _ => unexpected!("{:#?}", e),
+impl From<LbError> for Error<ExportFileError> {
+    fn from(err: LbError) -> Self {
+        match err.kind {
+            LbErrorKind::FileNonexistent => UiError(ExportFileError::ParentDoesNotExist),
+            LbErrorKind::DiskPathInvalid => UiError(ExportFileError::DiskPathInvalid),
+            LbErrorKind::DiskPathTaken => UiError(ExportFileError::DiskPathTaken),
+            _ => unexpected!("{:#?}", err),
         }
     }
 }
@@ -590,37 +598,41 @@ pub enum UpgradeAccountStripeError {
     ExistingRequestPending,
 }
 
-impl From<CoreError> for Error<UpgradeAccountStripeError> {
-    fn from(e: CoreError) -> Self {
-        match e {
-            CoreError::OldCardDoesNotExist => {
+impl From<LbError> for Error<UpgradeAccountStripeError> {
+    fn from(err: LbError) -> Self {
+        match err.kind {
+            LbErrorKind::OldCardDoesNotExist => {
                 UiError(UpgradeAccountStripeError::OldCardDoesNotExist)
             }
-            CoreError::CardInvalidNumber => UiError(UpgradeAccountStripeError::InvalidCardNumber),
-            CoreError::CardInvalidExpYear => UiError(UpgradeAccountStripeError::InvalidCardExpYear),
-            CoreError::CardInvalidExpMonth => {
+            LbErrorKind::CardInvalidNumber => UiError(UpgradeAccountStripeError::InvalidCardNumber),
+            LbErrorKind::CardInvalidExpYear => {
+                UiError(UpgradeAccountStripeError::InvalidCardExpYear)
+            }
+            LbErrorKind::CardInvalidExpMonth => {
                 UiError(UpgradeAccountStripeError::InvalidCardExpMonth)
             }
-            CoreError::CardInvalidCvc => UiError(UpgradeAccountStripeError::InvalidCardCvc),
-            CoreError::AlreadyPremium => UiError(UpgradeAccountStripeError::AlreadyPremium),
-            CoreError::ServerUnreachable => UiError(UpgradeAccountStripeError::CouldNotReachServer),
-            CoreError::CardDecline => UiError(UpgradeAccountStripeError::CardDecline),
-            CoreError::CardInsufficientFunds => {
+            LbErrorKind::CardInvalidCvc => UiError(UpgradeAccountStripeError::InvalidCardCvc),
+            LbErrorKind::AlreadyPremium => UiError(UpgradeAccountStripeError::AlreadyPremium),
+            LbErrorKind::ServerUnreachable => {
+                UiError(UpgradeAccountStripeError::CouldNotReachServer)
+            }
+            LbErrorKind::CardDecline => UiError(UpgradeAccountStripeError::CardDecline),
+            LbErrorKind::CardInsufficientFunds => {
                 UiError(UpgradeAccountStripeError::CardHasInsufficientFunds)
             }
-            CoreError::TryAgain => UiError(UpgradeAccountStripeError::TryAgain),
-            CoreError::CardNotSupported => UiError(UpgradeAccountStripeError::CardNotSupported),
-            CoreError::CardExpired => UiError(UpgradeAccountStripeError::ExpiredCard),
-            CoreError::CurrentUsageIsMoreThanNewTier => {
+            LbErrorKind::TryAgain => UiError(UpgradeAccountStripeError::TryAgain),
+            LbErrorKind::CardNotSupported => UiError(UpgradeAccountStripeError::CardNotSupported),
+            LbErrorKind::CardExpired => UiError(UpgradeAccountStripeError::ExpiredCard),
+            LbErrorKind::CurrentUsageIsMoreThanNewTier => {
                 UiError(UpgradeAccountStripeError::CurrentUsageIsMoreThanNewTier)
             }
-            CoreError::ExistingRequestPending => {
+            LbErrorKind::ExistingRequestPending => {
                 UiError(UpgradeAccountStripeError::ExistingRequestPending)
             }
-            CoreError::ClientUpdateRequired => {
+            LbErrorKind::ClientUpdateRequired => {
                 UiError(UpgradeAccountStripeError::ClientUpdateRequired)
             }
-            _ => unexpected!("{:#?}", e),
+            _ => unexpected!("{:#?}", err),
         }
     }
 }
@@ -635,26 +647,26 @@ pub enum UpgradeAccountGooglePlayError {
     ClientUpdateRequired,
 }
 
-impl From<CoreError> for Error<UpgradeAccountGooglePlayError> {
-    fn from(e: CoreError) -> Self {
-        match e {
-            CoreError::AlreadyPremium => UiError(UpgradeAccountGooglePlayError::AlreadyPremium),
-            CoreError::InvalidAuthDetails => {
+impl From<LbError> for Error<UpgradeAccountGooglePlayError> {
+    fn from(err: LbError) -> Self {
+        match err.kind {
+            LbErrorKind::AlreadyPremium => UiError(UpgradeAccountGooglePlayError::AlreadyPremium),
+            LbErrorKind::InvalidAuthDetails => {
                 UiError(UpgradeAccountGooglePlayError::InvalidAuthDetails)
             }
-            CoreError::ExistingRequestPending => {
+            LbErrorKind::ExistingRequestPending => {
                 UiError(UpgradeAccountGooglePlayError::ExistingRequestPending)
             }
-            CoreError::ServerUnreachable => {
+            LbErrorKind::ServerUnreachable => {
                 UiError(UpgradeAccountGooglePlayError::CouldNotReachServer)
             }
-            CoreError::ClientUpdateRequired => {
+            LbErrorKind::ClientUpdateRequired => {
                 UiError(UpgradeAccountGooglePlayError::ClientUpdateRequired)
             }
-            CoreError::AppStoreAccountAlreadyLinked => {
+            LbErrorKind::AppStoreAccountAlreadyLinked => {
                 UiError(UpgradeAccountGooglePlayError::AppStoreAccountAlreadyLinked)
             }
-            _ => unexpected!("{:#?}", e),
+            _ => unexpected!("{:#?}", err),
         }
     }
 }
@@ -669,26 +681,26 @@ pub enum UpgradeAccountAppStoreError {
     ClientUpdateRequired,
 }
 
-impl From<CoreError> for Error<UpgradeAccountAppStoreError> {
-    fn from(e: CoreError) -> Self {
-        match e {
-            CoreError::AlreadyPremium => UiError(UpgradeAccountAppStoreError::AlreadyPremium),
-            CoreError::InvalidPurchaseToken => {
+impl From<LbError> for Error<UpgradeAccountAppStoreError> {
+    fn from(err: LbError) -> Self {
+        match err.kind {
+            LbErrorKind::AlreadyPremium => UiError(UpgradeAccountAppStoreError::AlreadyPremium),
+            LbErrorKind::InvalidPurchaseToken => {
                 UiError(UpgradeAccountAppStoreError::InvalidPurchaseToken)
             }
-            CoreError::ExistingRequestPending => {
+            LbErrorKind::ExistingRequestPending => {
                 UiError(UpgradeAccountAppStoreError::ExistingRequestPending)
             }
-            CoreError::ServerUnreachable => {
+            LbErrorKind::ServerUnreachable => {
                 UiError(UpgradeAccountAppStoreError::CouldNotReachServer)
             }
-            CoreError::ClientUpdateRequired => {
+            LbErrorKind::ClientUpdateRequired => {
                 UiError(UpgradeAccountAppStoreError::ClientUpdateRequired)
             }
-            CoreError::AppStoreAccountAlreadyLinked => {
+            LbErrorKind::AppStoreAccountAlreadyLinked => {
                 UiError(UpgradeAccountAppStoreError::AppStoreAccountAlreadyLinked)
             }
-            _ => unexpected!("{:#?}", e),
+            _ => unexpected!("{:#?}", err),
         }
     }
 }
@@ -704,25 +716,25 @@ pub enum CancelSubscriptionError {
     CannotCancelForAppStore,
 }
 
-impl From<CoreError> for Error<CancelSubscriptionError> {
-    fn from(e: CoreError) -> Self {
-        match e {
-            CoreError::NotPremium => UiError(CancelSubscriptionError::NotPremium),
-            CoreError::AlreadyCanceled => UiError(CancelSubscriptionError::AlreadyCanceled),
-            CoreError::UsageIsOverFreeTierDataCap => {
+impl From<LbError> for Error<CancelSubscriptionError> {
+    fn from(err: LbError) -> Self {
+        match err.kind {
+            LbErrorKind::NotPremium => UiError(CancelSubscriptionError::NotPremium),
+            LbErrorKind::AlreadyCanceled => UiError(CancelSubscriptionError::AlreadyCanceled),
+            LbErrorKind::UsageIsOverFreeTierDataCap => {
                 UiError(CancelSubscriptionError::UsageIsOverFreeTierDataCap)
             }
-            CoreError::ExistingRequestPending => {
+            LbErrorKind::ExistingRequestPending => {
                 UiError(CancelSubscriptionError::ExistingRequestPending)
             }
-            CoreError::CannotCancelSubscriptionForAppStore => {
+            LbErrorKind::CannotCancelSubscriptionForAppStore => {
                 UiError(CancelSubscriptionError::CannotCancelForAppStore)
             }
-            CoreError::ServerUnreachable => UiError(CancelSubscriptionError::CouldNotReachServer),
-            CoreError::ClientUpdateRequired => {
+            LbErrorKind::ServerUnreachable => UiError(CancelSubscriptionError::CouldNotReachServer),
+            LbErrorKind::ClientUpdateRequired => {
                 UiError(CancelSubscriptionError::ClientUpdateRequired)
             }
-            _ => unexpected!("{:#?}", e),
+            _ => unexpected!("{:#?}", err),
         }
     }
 }
@@ -733,14 +745,16 @@ pub enum GetSubscriptionInfoError {
     ClientUpdateRequired,
 }
 
-impl From<CoreError> for Error<GetSubscriptionInfoError> {
-    fn from(e: CoreError) -> Self {
-        match e {
-            CoreError::ServerUnreachable => UiError(GetSubscriptionInfoError::CouldNotReachServer),
-            CoreError::ClientUpdateRequired => {
+impl From<LbError> for Error<GetSubscriptionInfoError> {
+    fn from(err: LbError) -> Self {
+        match err.kind {
+            LbErrorKind::ServerUnreachable => {
+                UiError(GetSubscriptionInfoError::CouldNotReachServer)
+            }
+            LbErrorKind::ClientUpdateRequired => {
                 UiError(GetSubscriptionInfoError::ClientUpdateRequired)
             }
-            _ => unexpected!("{:#?}", e),
+            _ => unexpected!("{:#?}", err),
         }
     }
 }
@@ -751,12 +765,12 @@ pub enum DeleteAccountError {
     ClientUpdateRequired,
 }
 
-impl From<CoreError> for Error<DeleteAccountError> {
-    fn from(e: CoreError) -> Self {
-        match e {
-            CoreError::ServerUnreachable => UiError(DeleteAccountError::CouldNotReachServer),
-            CoreError::ClientUpdateRequired => UiError(DeleteAccountError::ClientUpdateRequired),
-            _ => unexpected!("{:#?}", e),
+impl From<LbError> for Error<DeleteAccountError> {
+    fn from(err: LbError) -> Self {
+        match err.kind {
+            LbErrorKind::ServerUnreachable => UiError(DeleteAccountError::CouldNotReachServer),
+            LbErrorKind::ClientUpdateRequired => UiError(DeleteAccountError::ClientUpdateRequired),
+            _ => unexpected!("{:#?}", err),
         }
     }
 }
@@ -769,16 +783,18 @@ pub enum AdminDisappearAccount {
     ClientUpdateRequired,
 }
 
-impl From<CoreError> for Error<AdminDisappearAccount> {
-    fn from(e: CoreError) -> Self {
-        match e {
-            CoreError::InsufficientPermission => {
+impl From<LbError> for Error<AdminDisappearAccount> {
+    fn from(err: LbError) -> Self {
+        match err.kind {
+            LbErrorKind::InsufficientPermission => {
                 UiError(AdminDisappearAccount::InsufficientPermission)
             }
-            CoreError::UsernameNotFound => UiError(AdminDisappearAccount::UsernameNotFound),
-            CoreError::ServerUnreachable => UiError(AdminDisappearAccount::CouldNotReachServer),
-            CoreError::ClientUpdateRequired => UiError(AdminDisappearAccount::ClientUpdateRequired),
-            _ => unexpected!("{:#?}", e),
+            LbErrorKind::UsernameNotFound => UiError(AdminDisappearAccount::UsernameNotFound),
+            LbErrorKind::ServerUnreachable => UiError(AdminDisappearAccount::CouldNotReachServer),
+            LbErrorKind::ClientUpdateRequired => {
+                UiError(AdminDisappearAccount::ClientUpdateRequired)
+            }
+            _ => unexpected!("{:#?}", err),
         }
     }
 }
@@ -791,18 +807,18 @@ pub enum AdminDisappearFileError {
     ClientUpdateRequired,
 }
 
-impl From<CoreError> for Error<AdminDisappearFileError> {
-    fn from(e: CoreError) -> Self {
-        match e {
-            CoreError::InsufficientPermission => {
+impl From<LbError> for Error<AdminDisappearFileError> {
+    fn from(err: LbError) -> Self {
+        match err.kind {
+            LbErrorKind::InsufficientPermission => {
                 UiError(AdminDisappearFileError::InsufficientPermission)
             }
-            CoreError::FileNonexistent => UiError(AdminDisappearFileError::FileNotFound),
-            CoreError::ServerUnreachable => UiError(AdminDisappearFileError::CouldNotReachServer),
-            CoreError::ClientUpdateRequired => {
+            LbErrorKind::FileNonexistent => UiError(AdminDisappearFileError::FileNotFound),
+            LbErrorKind::ServerUnreachable => UiError(AdminDisappearFileError::CouldNotReachServer),
+            LbErrorKind::ClientUpdateRequired => {
                 UiError(AdminDisappearFileError::ClientUpdateRequired)
             }
-            _ => unexpected!("{:#?}", e),
+            _ => unexpected!("{:#?}", err),
         }
     }
 }
@@ -815,17 +831,19 @@ pub enum AdminServerValidateError {
     UserNotFound,
 }
 
-impl From<CoreError> for Error<AdminServerValidateError> {
-    fn from(e: CoreError) -> Self {
-        match e {
-            CoreError::InsufficientPermission => {
+impl From<LbError> for Error<AdminServerValidateError> {
+    fn from(err: LbError) -> Self {
+        match err.kind {
+            LbErrorKind::InsufficientPermission => {
                 UiError(AdminServerValidateError::InsufficientPermission)
             }
-            CoreError::ServerUnreachable => UiError(AdminServerValidateError::CouldNotReachServer),
-            CoreError::ClientUpdateRequired => {
+            LbErrorKind::ServerUnreachable => {
+                UiError(AdminServerValidateError::CouldNotReachServer)
+            }
+            LbErrorKind::ClientUpdateRequired => {
                 UiError(AdminServerValidateError::ClientUpdateRequired)
             }
-            _ => unexpected!("{:#?}", e),
+            _ => unexpected!("{:#?}", err),
         }
     }
 }
@@ -837,15 +855,15 @@ pub enum AdminListUsersError {
     ClientUpdateRequired,
 }
 
-impl From<CoreError> for Error<AdminListUsersError> {
-    fn from(e: CoreError) -> Self {
-        match e {
-            CoreError::InsufficientPermission => {
+impl From<LbError> for Error<AdminListUsersError> {
+    fn from(err: LbError) -> Self {
+        match err.kind {
+            LbErrorKind::InsufficientPermission => {
                 UiError(AdminListUsersError::InsufficientPermission)
             }
-            CoreError::ServerUnreachable => UiError(AdminListUsersError::CouldNotReachServer),
-            CoreError::ClientUpdateRequired => UiError(AdminListUsersError::ClientUpdateRequired),
-            _ => unexpected!("{:#?}", e),
+            LbErrorKind::ServerUnreachable => UiError(AdminListUsersError::CouldNotReachServer),
+            LbErrorKind::ClientUpdateRequired => UiError(AdminListUsersError::ClientUpdateRequired),
+            _ => unexpected!("{:#?}", err),
         }
     }
 }
@@ -857,17 +875,17 @@ pub enum AdminRebuildIndexError {
     ClientUpdateRequired,
 }
 
-impl From<CoreError> for Error<AdminRebuildIndexError> {
-    fn from(e: CoreError) -> Self {
-        match e {
-            CoreError::InsufficientPermission => {
+impl From<LbError> for Error<AdminRebuildIndexError> {
+    fn from(err: LbError) -> Self {
+        match err.kind {
+            LbErrorKind::InsufficientPermission => {
                 UiError(AdminRebuildIndexError::InsufficientPermission)
             }
-            CoreError::ServerUnreachable => UiError(AdminRebuildIndexError::CouldNotReachServer),
-            CoreError::ClientUpdateRequired => {
+            LbErrorKind::ServerUnreachable => UiError(AdminRebuildIndexError::CouldNotReachServer),
+            LbErrorKind::ClientUpdateRequired => {
                 UiError(AdminRebuildIndexError::ClientUpdateRequired)
             }
-            _ => unexpected!("{:#?}", e),
+            _ => unexpected!("{:#?}", err),
         }
     }
 }
@@ -880,18 +898,20 @@ pub enum AdminGetAccountInfoError {
     ClientUpdateRequired,
 }
 
-impl From<CoreError> for Error<AdminGetAccountInfoError> {
-    fn from(e: CoreError) -> Self {
-        match e {
-            CoreError::InsufficientPermission => {
+impl From<LbError> for Error<AdminGetAccountInfoError> {
+    fn from(err: LbError) -> Self {
+        match err.kind {
+            LbErrorKind::InsufficientPermission => {
                 UiError(AdminGetAccountInfoError::InsufficientPermission)
             }
-            CoreError::UsernameNotFound => UiError(AdminGetAccountInfoError::UsernameNotFound),
-            CoreError::ServerUnreachable => UiError(AdminGetAccountInfoError::CouldNotReachServer),
-            CoreError::ClientUpdateRequired => {
+            LbErrorKind::UsernameNotFound => UiError(AdminGetAccountInfoError::UsernameNotFound),
+            LbErrorKind::ServerUnreachable => {
+                UiError(AdminGetAccountInfoError::CouldNotReachServer)
+            }
+            LbErrorKind::ClientUpdateRequired => {
                 UiError(AdminGetAccountInfoError::ClientUpdateRequired)
             }
-            _ => unexpected!("{:#?}", e),
+            _ => unexpected!("{:#?}", err),
         }
     }
 }
@@ -904,16 +924,16 @@ pub enum AdminFileInfoError {
     ClientUpdateRequired,
 }
 
-impl From<CoreError> for Error<AdminFileInfoError> {
-    fn from(e: CoreError) -> Self {
-        match e {
-            CoreError::InsufficientPermission => {
+impl From<LbError> for Error<AdminFileInfoError> {
+    fn from(err: LbError) -> Self {
+        match err.kind {
+            LbErrorKind::InsufficientPermission => {
                 UiError(AdminFileInfoError::InsufficientPermission)
             }
-            CoreError::FileNonexistent => UiError(AdminFileInfoError::FileNotFound),
-            CoreError::ServerUnreachable => UiError(AdminFileInfoError::CouldNotReachServer),
-            CoreError::ClientUpdateRequired => UiError(AdminFileInfoError::ClientUpdateRequired),
-            _ => unexpected!("{:#?}", e),
+            LbErrorKind::FileNonexistent => UiError(AdminFileInfoError::FileNotFound),
+            LbErrorKind::ServerUnreachable => UiError(AdminFileInfoError::CouldNotReachServer),
+            LbErrorKind::ClientUpdateRequired => UiError(AdminFileInfoError::ClientUpdateRequired),
+            _ => unexpected!("{:#?}", err),
         }
     }
 }
@@ -925,13 +945,15 @@ pub enum FeatureFlagError {
     ClientUpdateRequired,
 }
 
-impl From<CoreError> for Error<FeatureFlagError> {
-    fn from(e: CoreError) -> Self {
-        match e {
-            CoreError::InsufficientPermission => UiError(FeatureFlagError::InsufficientPermission),
-            CoreError::ServerUnreachable => UiError(FeatureFlagError::CouldNotReachServer),
-            CoreError::ClientUpdateRequired => UiError(FeatureFlagError::ClientUpdateRequired),
-            _ => unexpected!("{:#?}", e),
+impl From<LbError> for Error<FeatureFlagError> {
+    fn from(err: LbError) -> Self {
+        match err.kind {
+            LbErrorKind::InsufficientPermission => {
+                UiError(FeatureFlagError::InsufficientPermission)
+            }
+            LbErrorKind::ServerUnreachable => UiError(FeatureFlagError::CouldNotReachServer),
+            LbErrorKind::ClientUpdateRequired => UiError(FeatureFlagError::ClientUpdateRequired),
+            _ => unexpected!("{:#?}", err),
         }
     }
 }
@@ -945,19 +967,21 @@ pub enum AdminSetUserTierError {
     ClientUpdateRequired,
 }
 
-impl From<CoreError> for Error<AdminSetUserTierError> {
-    fn from(e: CoreError) -> Self {
-        match e {
-            CoreError::InsufficientPermission => {
+impl From<LbError> for Error<AdminSetUserTierError> {
+    fn from(err: LbError) -> Self {
+        match err.kind {
+            LbErrorKind::InsufficientPermission => {
                 UiError(AdminSetUserTierError::InsufficientPermission)
             }
-            CoreError::UsernameNotFound => UiError(AdminSetUserTierError::UsernameNotFound),
-            CoreError::ServerUnreachable => UiError(AdminSetUserTierError::CouldNotReachServer),
-            CoreError::ClientUpdateRequired => UiError(AdminSetUserTierError::ClientUpdateRequired),
-            CoreError::ExistingRequestPending => {
+            LbErrorKind::UsernameNotFound => UiError(AdminSetUserTierError::UsernameNotFound),
+            LbErrorKind::ServerUnreachable => UiError(AdminSetUserTierError::CouldNotReachServer),
+            LbErrorKind::ClientUpdateRequired => {
+                UiError(AdminSetUserTierError::ClientUpdateRequired)
+            }
+            LbErrorKind::ExistingRequestPending => {
                 UiError(AdminSetUserTierError::ExistingRequestPending)
             }
-            _ => unexpected!("{:#?}", e),
+            _ => unexpected!("{:#?}", err),
         }
     }
 }
