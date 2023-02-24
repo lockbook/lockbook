@@ -26,60 +26,67 @@ Be the customer, not the product. We make money by selling a note-taking app, no
 ### Developer Friendly
 We also provide a CLI tool that will fit right into your favorite chain of piped-together Unix commands. Search your notes with `fzf`, edit them with `vim`, and schedule backups with `cron`. When scripting doesn't cut it, use our Rust library for a robust programmatic interface with Lockbook.
 
+## How To Install
+### Mobile
+iOS/iPadOS:
+- [App Store](https://apps.apple.com/us/app/lockbook/id1526775001)
+- [Build From Source](./guides/build/apple.md)
+
+Android:
+- [Play Store](https://play.google.com/store/apps/details?id=app.lockbook)
+- [Github Releases](https://github.com/lockbook/lockbook/releases)
+- [Build From Source](./guides/build/android.md)
+
+### Desktop
+macOS:
+- [App Store](https://apps.apple.com/us/app/lockbook/id1526775001)
+- [Github Releases](https://github.com/lockbook/lockbook/releases)
+- [Build From Source](./guides/build/apple.md)
+
+Linux:
+- `yay` (Arch): `yay -S lockbook`
+- `snap`: `snap install lockbook` (warning: Snap does not verify package integrity)
+- [Github Releases](https://github.com/lockbook/lockbook/releases)
+- [Build From Source](./guides/build/linux.md)
+
+Windows:
+- [Github Releases](https://github.com/lockbook/lockbook/releases)
+- [Build From Source](./guides/build/windows.md)
+
+### CLI
+macOS:
+- `brew`: `brew tap lockbook/lockbook && brew install lockbook`
+- [Github Releases](https://github.com/lockbook/lockbook/releases)
+- [Build From Source](./guides/build/cli.md)
+
+Linux:
+- `yay` (Arch): `yay -S lockbook`
+- `snap`: `snap install lockbook` (warning: Snap does not verify package integrity)
+- [Github Releases](https://github.com/lockbook/lockbook/releases)
+- [Build From Source](./guides/build/cli.md)
+
+Windows:
+- [Github Releases](https://github.com/lockbook/lockbook/releases)
+- [Build From Source](./guides/build/cli.md)
+
 ## Feature Matrix
 
 <details> 
 <summary>Legend</summary>
 
 + ✅ Done
-+ 🏗 In Progress
-+ 📆 Planned
-+ ⛔️ Not Planned
++ 🏗 Planned
++ ⛔️ Not Supported
 
 </details>
 
-### Account Management
-
-|                    |  [CLI]  |  [Linux]  |  [Android]  |  [Windows]  |  [iOS/iPadOS]  |  [macOS]  |
-|--------------------|:-------:|:---------:|:-----------:|:-----------:|:--------------:|:---------:|
-| New Account        |   ✅     |    ✅     |     ✅      |     ✅       |      ✅        |    ✅     |
-| QR Import          |   ⛔️     |    📆     |     ✅      |     📆       |      ✅        |    📆     |
-| Import Account     |   ✅     |    ✅     |     ✅      |     ✅       |      ✅        |    ✅     |
-| Space Utilized     |   ✅     |    ✅     |     ✅      |     ✅       |      ✅        |    ✅     |
-| Billing            |   ✅     |    ✅     |     ✅      |     📆       |      📆        |    📆     |
-
-### File Operations
-
-|                       |  [CLI]  |  [Linux]  |  [Android]  |  [Windows]  |  [iOS/iPadOS]  |  [macOS]  |
-|-----------------------|:-------:|:---------:|:-----------:|:-----------:|:--------------:|:---------:|
-| Rename                |   ✅     |    ✅     |     ✅      |     ✅       |      ✅        |    ✅     |
-| Move                  |   ✅     |    ✅     |     ✅      |     ✅       |      ✅        |    ✅     |
-| Delete                |   ✅     |    ✅     |     ✅      |     ✅       |      ✅        |    ✅     |
-| Sync                  |   ✅     |    ✅     |     ✅      |     ✅       |      ✅        |    ✅     |
-| Export file to host   |   ✅     |    ✅     |     ✅      |     📆       |      📆        |    📆     |
-| Import file from host |   ✅     |    ✅     |     📆      |     📆       |      📆        |    📆     |
-| Sharing               |   ✅     |    📆     |     📆      |     📆       |      📆        |    📆     |
-
-### Document Types
-
-|                       |  [CLI]  |  [Linux]  |  [Android]  |  [Windows]  |  [iOS/iPadOS]  |  [macOS]  |
-|-----------------------|:-------:|:---------:|:-----------:|:-----------:|:--------------:|:---------:|
-| Text                  |   ✅     |    ✅     |     ✅      |     ✅       |      ✅        |    ✅     |
-| Markdown              |   ✅     |    ✅     |     ✅      |     📆       |      ✅        |    ✅     |
-| Drawings              |   ✅     |    🏗     |     ✅      |     🏗       |      ✅        |    ✅     |
-| Images                |   ✅     |    ✅     |     ✅      |     📆       |      📆        |    📆     |
-| PDFs                  |   📆     |    📆     |     ✅      |     📆       |      📆        |    📆     |
-| Todo lists            |   📆     |    📆     |     📆      |     📆       |      📆        |    📆     |
-| Document Linking      |   📆     |    ✅     |     📆      |     📆       |      📆        |    📆     |
-
-# Further Reading
-
-+ [System Architecture](design-tech/system-architecture.md)
-+ [Data Model and Procedures](design-tech/data_model.md)
-
-[Cli]: guides/install/cli.md
-[Linux]: guides/install/linux.md
-[Android]: guides/install/android.md
-[Windows]: guides/install/windows.md
-[macOS]: guides/install/macos.md
-[iOS/iPadOS]: guides/install/iOS-iPadOS.md
+|                             | iOS/iPadOS | Android | macOS | Linux | Windows | CLI |
+|-----------------------------|------------|---------|-------|-------|---------|-----|
+| Register & Login            | ✅          | ✅      | ✅    | ✅    | ✅      | ✅   |
+| Upgrade To Premium          | ✅          | ✅      | ✅    | ✅    | ✅      | ✅   |
+| Edit & Sync Files           | ✅          | ✅      | ✅    | ✅    | ✅      | ✅   |
+| Import & Export To Device | 🏗          | 🏗      | 🏗    | 🏗    | 🏗      | ✅   |
+| Share Files                 | ✅          | ✅      | ✅    | 🏗    | ✅      | ✅   |
+| Markdown                    | ✅          | ✅      | ✅    | ✅    | ✅      | ✅   |
+| Drawings                    | ✅          | ✅      | 🏗    | ✅    | ✅      | ⛔️   |
+| Images & PDFs               | 🏗          | ✅      | 🏗    | 🏗    | 🏗      | ⛔️   |
