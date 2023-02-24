@@ -74,7 +74,6 @@ pub enum LbErrorKind {
 
     /// Found update to a deleted file
     // DeletedFileUpdated(Uuid),
-
     Io(String),
 
     Db(String),
