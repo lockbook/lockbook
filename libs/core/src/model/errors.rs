@@ -8,7 +8,7 @@ use serde::ser::SerializeStruct;
 use serde::{Serialize, Serializer};
 use uuid::Uuid;
 
-use lockbook_shared::{api, SharedError, ValidationFailure};
+use lockbook_shared::{api, ValidationFailure};
 use lockbook_shared::{LbError, LbErrorKind};
 
 use crate::service::api_service::ApiError;
@@ -22,11 +22,11 @@ impl fmt::Display for UnexpectedError {
     }
 }
 
-impl From<CoreError> for UnexpectedError {
+/*impl From<CoreError> for UnexpectedError {
     fn from(e: CoreError) -> Self {
         Self(format!("{:?}", e))
     }
-}
+}*/
 
 impl<T> From<std::sync::PoisonError<T>> for UnexpectedError {
     fn from(err: std::sync::PoisonError<T>) -> Self {
@@ -196,78 +196,7 @@ macro_rules! unexpected_only {
     }};
 }
 
-pub type CoreResult<T> = Result<T, CoreError>;
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum CoreError {
-    AccountExists,
-    AccountNonexistent,
-    AccountStringCorrupted,
-    AlreadyCanceled,
-    AlreadyPremium,
-    AppStoreAccountAlreadyLinked,
-    CannotCancelSubscriptionForAppStore,
-    CardDecline,
-    CardExpired,
-    CardInsufficientFunds,
-    CardInvalidCvc,
-    CardInvalidExpMonth,
-    CardInvalidExpYear,
-    CardInvalidNumber,
-    CardNotSupported,
-    ClientUpdateRequired,
-    CurrentUsageIsMoreThanNewTier,
-    DiskPathInvalid,
-    DiskPathTaken,
-    DrawingInvalid,
-    ExistingRequestPending,
-    FileNameContainsSlash,
-    FileNameEmpty,
-    FileNonexistent,
-    FileNotDocument,
-    FileNotFolder,
-    FileParentNonexistent,
-    FolderMovedIntoSelf,
-    InsufficientPermission,
-    InvalidPurchaseToken,
-    InvalidAuthDetails,
-    LinkInSharedFolder,
-    LinkTargetIsOwned,
-    LinkTargetNonexistent,
-    MultipleLinksToSameFile,
-    NotPremium,
-    OldCardDoesNotExist,
-    PathContainsEmptyFileName,
-    PathTaken,
-    RootModificationInvalid,
-    RootNonexistent,
-    ServerDisabled,
-    ServerUnreachable,
-    ShareAlreadyExists,
-    ShareNonexistent,
-    TryAgain,
-    UsageIsOverFreeTierDataCap,
-    UsernameInvalid,
-    UsernameNotFound,
-    UsernamePublicKeyMismatch,
-    UsernameTaken,
-    Unexpected(String),
-}
-
-impl fmt::Display for CoreError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::AccountExists => write!(f, "an account already exists"),
-            err => write!(f, "{:?}", err),
-        }
-    }
-}
-
-pub fn core_err_unexpected<T: fmt::Debug>(err: T) -> CoreError {
-    CoreError::Unexpected(format!("{:#?}", err))
-}
-
-impl From<LbError> for CoreError {
+/*impl From<LbError> for CoreError {
     fn from(err: LbError) -> Self {
         match err.kind {
             LbErrorKind::RootNonexistent => Self::RootNonexistent,
@@ -298,9 +227,9 @@ impl From<LbError> for CoreError {
             _ => Self::Unexpected(format!("unexpected shared error {:?}", err)),
         }
     }
-}
+}*/
 
-impl From<db_rs::DbError> for CoreError {
+/*impl From<db_rs::DbError> for CoreError {
     fn from(err: db_rs::DbError) -> Self {
         core_err_unexpected(err)
     }
@@ -433,7 +362,7 @@ impl From<ApiError<api::GetUsageError>> for CoreError {
             e => core_err_unexpected(e),
         }
     }
-}
+}*/
 
 impl From<LbError> for UnexpectedError {
     fn from(err: LbError) -> Self {
@@ -457,9 +386,7 @@ pub enum TestRepoError {
     DuplicateLink { target: Uuid },
     BrokenLink(Uuid),
     OwnedLink(Uuid),
-    DocumentReadError(Uuid, CoreError),
-    Core(CoreError),
-    Shared(SharedError),
+    DocumentReadError(Uuid, LbError),
     Other(LbError),
 }
 
@@ -508,21 +435,19 @@ impl fmt::Display for TestRepoError {
             BrokenLink(id) => write!(f, "broken link '{}'", id),
             OwnedLink(id) => write!(f, "owned link '{}'", id),
             DocumentReadError(id, err) => write!(f, "doc '{}' read err: {:#?}", id, err),
-            Core(err) => write!(f, "core err: {:#?}", err),
-            Shared(err) => write!(f, "shared err: {:#?}", err),
             Other(err) => write!(f, "error: {:#?}", err),
         }
     }
 }
 
-impl From<CoreError> for TestRepoError {
+/*impl From<CoreError> for TestRepoError {
     fn from(err: CoreError) -> Self {
         match err {
             CoreError::AccountNonexistent => Self::NoAccount,
             _ => Self::Core(err),
         }
     }
-}
+}*/
 
 #[derive(Debug, Clone)]
 pub enum Warning {

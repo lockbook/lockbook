@@ -300,7 +300,7 @@ impl From<LbError> for ServerError<UpsertError> {
             LbErrorKind::InsufficientPermission => ClientError(NotPermissioned),
             LbErrorKind::DiffMalformed => ClientError(DiffMalformed),
             LbErrorKind::HmacModificationInvalid => ClientError(HmacModificationInvalid),
-            LbErrorKind::DeletedFileUpdated(_) => ClientError(DeletedFileUpdated),
+            LbErrorKind::FileNonexistent => ClientError(DeletedFileUpdated),
             LbErrorKind::RootModificationInvalid => ClientError(RootModificationInvalid),
             LbErrorKind::ValidationFailure(fail) => ClientError(Validation(fail)),
             LbErrorKind::Unexpected(msg) => InternalError(msg),

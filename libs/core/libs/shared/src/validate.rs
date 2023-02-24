@@ -293,7 +293,7 @@ where
             // already deleted files cannot have updates
             let mut base = self.tree.base().to_lazy();
             if base.maybe_find(&id).is_some() && base.calculate_deleted(&id)? {
-                return Err(LbErrorKind::DeletedFileUpdated(id).into());
+                return Err(LbErrorKind::FileNonexistent.into());
             }
             // newly deleted files cannot have non-deletion updates
             if self.calculate_deleted(&id)? {
@@ -303,7 +303,7 @@ where
                         .iter()
                         .any(|d| d != &Diff::Deleted)
                     {
-                        return Err(LbErrorKind::DeletedFileUpdated(id).into());
+                        return Err(LbErrorKind::FileNonexistent.into());
                     }
                 }
             }

@@ -32,9 +32,9 @@ pub mod work_unit;
 pub use self::error::{LbError, LbResult};
 pub use self::lazy::ValidationFailure;
 
-use std::io;
+// use std::io;
 
-use db_rs::DbError;
+// use db_rs::DbError;
 use hmac::crypto_mac::{InvalidKeyLength, MacError};
 use uuid::Uuid;
 
@@ -73,7 +73,7 @@ pub enum LbErrorKind {
     HmacModificationInvalid,
 
     /// Found update to a deleted file
-    DeletedFileUpdated(Uuid),
+    // DeletedFileUpdated(Uuid),
 
     Io(String),
 
@@ -136,9 +136,7 @@ pub enum LbErrorKind {
     Unexpected(String),
 }
 
-pub type SharedResult<T> = Result<T, SharedError>;
-
-#[derive(Debug, PartialEq, Eq, Clone)]
+/*#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum SharedError {
     PathContainsEmptyFileName,
     PathTaken,
@@ -213,4 +211,4 @@ impl From<io::Error> for SharedError {
     fn from(err: io::Error) -> Self {
         Self::Io(err.to_string())
     }
-}
+}*/
