@@ -88,6 +88,7 @@ Windows:
 | Upgrade To Premium          | ✅          | ✅      | ✅    | ✅    | ✅      | ✅   |
 | Edit & Sync Files           | ✅          | ✅      | ✅    | ✅    | ✅      | ✅   |
 | Import & Export To Device   | 🏗          | 🏗      | 🏗    | 🏗    | 🏗      | ✅   |
+| Search                      | 🏗          | ✅      | 🏗    | 🏗    | 🏗      | 🏗   |
 | Share Files                 | ✅          | ✅      | ✅    | 🏗    | 🏗      | ✅   |
 | Markdown                    | ✅          | ✅      | ✅    | ✅    | ✅      | ✅   |
 | Drawings                    | ✅          | ✅      | 🏗    | ✅    | ✅      | ⛔️   |
