@@ -1,7 +1,5 @@
 use std::collections::HashSet;
 use std::fmt;
-use std::io;
-use std::sync::PoisonError;
 
 use itertools::Itertools;
 use serde::ser::SerializeStruct;
@@ -386,8 +384,8 @@ pub enum TestRepoError {
     DuplicateLink { target: Uuid },
     BrokenLink(Uuid),
     OwnedLink(Uuid),
-    DocumentReadError(Uuid, LbError),
-    Other(LbError),
+    DocumentReadError(Uuid, LbErrorKind),
+    Other(LbErrorKind),
 }
 
 impl From<LbError> for TestRepoError {
@@ -409,7 +407,7 @@ impl From<LbError> for TestRepoError {
                     Self::FileWithDifferentOwnerParent(id)
                 }
             },
-            _ => Self::Other(err),
+            _ => Self::Other(err.kind),
         }
     }
 }
