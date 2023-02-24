@@ -46,8 +46,8 @@ macOS:
 - [Build From Source](./guides/build/apple.md)
 
 Linux:
-- `yay` (Arch): `yay -S lockbook`
-- `snap`: `snap install lockbook` (warning: Snap does not verify package integrity)
+- `yay` (Arch): `yay -S lockbook-desktop`
+- `snap`: `snap install lockbook-desktop` (warning: Snap does not verify package integrity)
 - [Github Releases](https://github.com/lockbook/lockbook/releases)
 - [Build From Source](./guides/build/linux.md)
 
