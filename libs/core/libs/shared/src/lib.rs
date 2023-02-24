@@ -36,7 +36,7 @@ pub use self::lazy::ValidationFailure;
 
 // use db_rs::DbError;
 use hmac::crypto_mac::{InvalidKeyLength, MacError};
-// use uuid::Uuid;
+use uuid::Uuid;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LbErrorKind {
@@ -73,7 +73,8 @@ pub enum LbErrorKind {
     HmacModificationInvalid,
 
     /// Found update to a deleted file
-    // DeletedFileUpdated(Uuid),
+    DeletedFileUpdated(Uuid),
+
     Io(String),
 
     Db(String),

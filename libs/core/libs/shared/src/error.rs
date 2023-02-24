@@ -7,6 +7,7 @@ use db_rs::DbError;
 
 // use crate::api;
 use crate::LbErrorKind;
+use crate::ValidationFailure;
 
 pub type LbResult<T> = Result<T, LbError>;
 
@@ -18,6 +19,21 @@ pub struct LbError {
 
 impl From<LbErrorKind> for LbError {
     fn from(kind: LbErrorKind) -> Self {
+        let kind = match kind {
+            LbErrorKind::DeletedFileUpdated(_) => LbErrorKind::FileNonexistent,
+            LbErrorKind::DuplicateShare => LbErrorKind::ShareAlreadyExists,
+            LbErrorKind::ValidationFailure(vf) => match vf {
+                ValidationFailure::Cycle(_) => LbErrorKind::FolderMovedIntoSelf,
+                ValidationFailure::PathConflict(_) => LbErrorKind::PathTaken,
+                ValidationFailure::SharedLink { .. } => LbErrorKind::LinkInSharedFolder,
+                ValidationFailure::DuplicateLink { .. } => LbErrorKind::MultipleLinksToSameFile,
+                ValidationFailure::BrokenLink(_) => LbErrorKind::LinkTargetNonexistent,
+                ValidationFailure::OwnedLink(_) => LbErrorKind::LinkTargetIsOwned,
+                ValidationFailure::NonFolderWithChildren(_) => LbErrorKind::FileNotFolder,
+                vf => LbErrorKind::Unexpected(format!("unexpected validation failure {:?}", vf)),
+            },
+            _ => kind,
+        };
         Self { kind, backtrace: Some(Backtrace::capture()) }
     }
 }
