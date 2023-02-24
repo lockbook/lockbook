@@ -19,7 +19,8 @@ impl From<LbErrorKind> for LbError {
         let kind = match kind {
             LbErrorKind::DeletedFileUpdated(_) => LbErrorKind::FileNonexistent,
             LbErrorKind::DuplicateShare => LbErrorKind::ShareAlreadyExists,
-            LbErrorKind::ValidationFailure(vf) => match vf {
+            LbErrorKind::ValidationFailure(ref vf) => match vf {
+                ValidationFailure::Orphan(_id) => kind,
                 ValidationFailure::Cycle(_) => LbErrorKind::FolderMovedIntoSelf,
                 ValidationFailure::PathConflict(_) => LbErrorKind::PathTaken,
                 ValidationFailure::SharedLink { .. } => LbErrorKind::LinkInSharedFolder,
