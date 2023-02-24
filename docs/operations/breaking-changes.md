@@ -2,7 +2,7 @@
 
 Evolving the Lockbook code base requires some special considerations. 
 
-## Breaking Changes Between `core` Versions
+## Breaking Changes Between Core Versions
 
 Our clients store and maintain local state because we support offline use. If we update our app, we need to make sure the new version of the app can gracefully interact with the current data on the device. Ultimately, we can always nuke the local state and re-sync with the server. However, we want to avoid doing this where possible for the following reasons:
 
@@ -16,7 +16,7 @@ Therefore, where possible, we should support old functionality. When this is not
 
 Sled (the embedded database that used to live on all client devices) could have breaking changes between versions. The migration process for that is documented [here](https://docs.rs/sled/0.34.4/sled/struct.Db.html#method.export).
 
-## Breaking Changes Between `core` and `server`
+## Breaking Changes Between Core and Server
 
 Our server will explicitly need to keep track of the minimum version client it can service because our clients are installed via arbitrary channels (downloads from our site, package manager, app stores, or compiled from source). We want to be very conservative with incrementing the hard cutoff where our server essentially says "I can't service this request until you update your client." Being forced to update is generally a bad experience, and it is made worse depending on how you need to update.
 
