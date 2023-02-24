@@ -146,14 +146,14 @@ impl From<ApiError<api::GetDocumentError>> for LbError {
 impl From<ApiError<api::UpsertError>> for LbError {
     fn from(e: ApiError<api::UpsertError>) -> Self {
         match e {
-            ApiError::Endpoint(api::UpsertError::Validation(vf)) => {
-                LbErrorKind::ValidationFailure(vf)
-            }
-            ApiError::SendFailed(_) => LbErrorKind::ServerUnreachable,
-            ApiError::ClientUpdateRequired => LbErrorKind::ClientUpdateRequired,
-            e => lb_err_unexpected(e),
+            ApiError::Endpoint(api::UpsertError::Validation(vf)) => LbError {
+                kind: LbErrorKind::ValidationFailure(vf),
+                backtrace: Backtrace::capture(),
+            },
+            ApiError::SendFailed(_) => LbErrorKind::ServerUnreachable.into(),
+            ApiError::ClientUpdateRequired => LbErrorKind::ClientUpdateRequired.into(),
+            e => lb_err_unexpected(e).into(),
         }
-        .into()
     }
 }
 

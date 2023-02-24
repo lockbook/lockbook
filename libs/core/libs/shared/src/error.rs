@@ -28,7 +28,7 @@ impl From<LbErrorKind> for LbError {
                 ValidationFailure::BrokenLink(_) => LbErrorKind::LinkTargetNonexistent,
                 ValidationFailure::OwnedLink(_) => LbErrorKind::LinkTargetIsOwned,
                 ValidationFailure::NonFolderWithChildren(_) => LbErrorKind::FileNotFolder,
-                vf => LbErrorKind::Unexpected(format!("unexpected validation failure {:?}", vf)),
+                _ => kind,
             },
             _ => kind,
         };
