@@ -2,10 +2,7 @@ use std::backtrace::Backtrace;
 use std::io;
 
 use db_rs::DbError;
-// use hmac::crypto_mac::{InvalidKeyLength, MacError};
-// use uuid::Uuid;
 
-// use crate::api;
 use crate::LbErrorKind;
 use crate::ValidationFailure;
 

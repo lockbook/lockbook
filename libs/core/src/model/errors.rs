@@ -20,12 +20,6 @@ impl fmt::Display for UnexpectedError {
     }
 }
 
-/*impl From<CoreError> for UnexpectedError {
-    fn from(e: CoreError) -> Self {
-        Self(format!("{:?}", e))
-    }
-}*/
-
 impl<T> From<std::sync::PoisonError<T>> for UnexpectedError {
     fn from(err: std::sync::PoisonError<T>) -> Self {
         Self(format!("{:#?}", err))
@@ -67,8 +61,6 @@ impl From<UnexpectedError> for String {
         v.0
     }
 }
-
-// FROM API IMPLS
 
 pub fn lb_err_unexpected<T: fmt::Debug>(err: T) -> LbErrorKind {
     LbErrorKind::Unexpected(format!("{:#?}", err))
@@ -194,174 +186,6 @@ macro_rules! unexpected_only {
     }};
 }
 
-/*impl From<LbError> for CoreError {
-    fn from(err: LbError) -> Self {
-        match err.kind {
-            LbErrorKind::RootNonexistent => Self::RootNonexistent,
-            LbErrorKind::FileNonexistent => Self::FileNonexistent,
-            LbErrorKind::FileParentNonexistent => Self::FileParentNonexistent,
-            LbErrorKind::Unexpected(err) => Self::Unexpected(err),
-            LbErrorKind::PathContainsEmptyFileName => Self::PathContainsEmptyFileName,
-            LbErrorKind::PathTaken => Self::PathTaken,
-            LbErrorKind::FileNameContainsSlash => Self::FileNameContainsSlash,
-            LbErrorKind::RootModificationInvalid => Self::RootModificationInvalid,
-            LbErrorKind::DeletedFileUpdated(_) => Self::FileNonexistent,
-            LbErrorKind::FileNameEmpty => Self::FileNameEmpty,
-            LbErrorKind::FileNotFolder => Self::FileNotFolder,
-            LbErrorKind::FileNotDocument => Self::FileNotDocument,
-            LbErrorKind::InsufficientPermission => Self::InsufficientPermission,
-            LbErrorKind::ShareNonexistent => Self::ShareNonexistent,
-            LbErrorKind::DuplicateShare => Self::ShareAlreadyExists,
-            LbErrorKind::ValidationFailure(failure) => match failure {
-                ValidationFailure::Cycle(_) => Self::FolderMovedIntoSelf,
-                ValidationFailure::PathConflict(_) => Self::PathTaken,
-                ValidationFailure::SharedLink { .. } => Self::LinkInSharedFolder,
-                ValidationFailure::DuplicateLink { .. } => Self::MultipleLinksToSameFile,
-                ValidationFailure::BrokenLink(_) => Self::LinkTargetNonexistent,
-                ValidationFailure::OwnedLink(_) => Self::LinkTargetIsOwned,
-                ValidationFailure::NonFolderWithChildren(_) => Self::FileNotFolder,
-                vf => Self::Unexpected(format!("unexpected validation failure {:?}", vf)),
-            },
-            _ => Self::Unexpected(format!("unexpected shared error {:?}", err)),
-        }
-    }
-}*/
-
-/*impl From<db_rs::DbError> for CoreError {
-    fn from(err: db_rs::DbError) -> Self {
-        core_err_unexpected(err)
-    }
-}
-
-impl<G> From<PoisonError<G>> for CoreError {
-    fn from(err: PoisonError<G>) -> Self {
-        core_err_unexpected(err)
-    }
-}
-
-impl From<hmdb::errors::Error> for CoreError {
-    fn from(err: hmdb::errors::Error) -> Self {
-        core_err_unexpected(err)
-    }
-}
-
-impl From<io::Error> for CoreError {
-    fn from(e: io::Error) -> Self {
-        match e.kind() {
-            io::ErrorKind::NotFound
-            | io::ErrorKind::PermissionDenied
-            | io::ErrorKind::InvalidInput => Self::DiskPathInvalid,
-            io::ErrorKind::AlreadyExists => Self::DiskPathTaken,
-            _ => core_err_unexpected(e),
-        }
-    }
-}
-
-impl From<serde_json::Error> for CoreError {
-    fn from(err: serde_json::Error) -> Self {
-        Self::Unexpected(format!("{err}"))
-    }
-}
-
-impl From<ApiError<api::NewAccountError>> for CoreError {
-    fn from(err: ApiError<api::NewAccountError>) -> Self {
-        match err {
-            ApiError::SendFailed(_) => CoreError::ServerUnreachable,
-            ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,
-            ApiError::Endpoint(api::NewAccountError::UsernameTaken) => CoreError::UsernameTaken,
-            ApiError::Endpoint(api::NewAccountError::InvalidUsername) => CoreError::UsernameInvalid,
-            ApiError::Endpoint(api::NewAccountError::Disabled) => CoreError::ServerDisabled,
-            e => core_err_unexpected(e),
-        }
-    }
-}
-
-impl From<ApiError<api::GetPublicKeyError>> for CoreError {
-    fn from(err: ApiError<api::GetPublicKeyError>) -> Self {
-        match err {
-            ApiError::SendFailed(_) => CoreError::ServerUnreachable,
-            ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,
-            ApiError::Endpoint(api::GetPublicKeyError::UserNotFound) => {
-                CoreError::AccountNonexistent
-            }
-            e => core_err_unexpected(e),
-        }
-    }
-}
-
-impl From<ApiError<api::GetUsernameError>> for CoreError {
-    fn from(err: ApiError<api::GetUsernameError>) -> Self {
-        match err {
-            ApiError::SendFailed(_) => CoreError::ServerUnreachable,
-            ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,
-            ApiError::Endpoint(api::GetUsernameError::UserNotFound) => {
-                CoreError::AccountNonexistent
-            }
-            e => core_err_unexpected(e),
-        }
-    }
-}
-
-impl From<ApiError<api::GetFileIdsError>> for CoreError {
-    fn from(e: ApiError<api::GetFileIdsError>) -> Self {
-        match e {
-            ApiError::SendFailed(_) => CoreError::ServerUnreachable,
-            ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,
-            e => core_err_unexpected(e),
-        }
-    }
-}
-
-impl From<ApiError<api::GetUpdatesError>> for CoreError {
-    fn from(e: ApiError<api::GetUpdatesError>) -> Self {
-        match e {
-            ApiError::SendFailed(_) => CoreError::ServerUnreachable,
-            ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,
-            e => core_err_unexpected(e),
-        }
-    }
-}
-
-impl From<ApiError<api::GetDocumentError>> for CoreError {
-    fn from(e: ApiError<api::GetDocumentError>) -> Self {
-        match e {
-            ApiError::SendFailed(_) => CoreError::ServerUnreachable,
-            ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,
-            e => core_err_unexpected(e),
-        }
-    }
-}
-
-impl From<ApiError<api::UpsertError>> for CoreError {
-    fn from(e: ApiError<api::UpsertError>) -> Self {
-        match e {
-            ApiError::SendFailed(_) => CoreError::ServerUnreachable,
-            ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,
-            e => core_err_unexpected(e),
-        }
-    }
-}
-
-impl From<ApiError<api::ChangeDocError>> for CoreError {
-    fn from(e: ApiError<api::ChangeDocError>) -> Self {
-        match e {
-            ApiError::SendFailed(_) => CoreError::ServerUnreachable,
-            ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,
-            e => core_err_unexpected(e),
-        }
-    }
-}
-
-impl From<ApiError<api::GetUsageError>> for CoreError {
-    fn from(e: ApiError<api::GetUsageError>) -> Self {
-        match e {
-            ApiError::SendFailed(_) => CoreError::ServerUnreachable,
-            ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,
-            e => core_err_unexpected(e),
-        }
-    }
-}*/
-
 impl From<LbError> for UnexpectedError {
     fn from(err: LbError) -> Self {
         Self(format!("{:?}", err))
@@ -437,15 +261,6 @@ impl fmt::Display for TestRepoError {
         }
     }
 }
-
-/*impl From<CoreError> for TestRepoError {
-    fn from(err: CoreError) -> Self {
-        match err {
-            CoreError::AccountNonexistent => Self::NoAccount,
-            _ => Self::Core(err),
-        }
-    }
-}*/
 
 #[derive(Debug, Clone)]
 pub enum Warning {
