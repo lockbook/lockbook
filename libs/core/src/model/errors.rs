@@ -146,6 +146,9 @@ impl From<ApiError<api::GetDocumentError>> for LbError {
 impl From<ApiError<api::UpsertError>> for LbError {
     fn from(e: ApiError<api::UpsertError>) -> Self {
         match e {
+            ApiError::Endpoint(api::UpsertError::Validation(vf)) => {
+                LbErrorKind::ValidationFailure(vf)
+            }
             ApiError::SendFailed(_) => LbErrorKind::ServerUnreachable,
             ApiError::ClientUpdateRequired => LbErrorKind::ClientUpdateRequired,
             e => lb_err_unexpected(e),
