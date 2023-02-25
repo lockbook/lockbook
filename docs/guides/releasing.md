@@ -69,6 +69,6 @@ The steps to setup `snapcraft`:
 3. Install `snapcraft` using `snap install --classic snapcraft`.
 4. Login to your ubuntu developer account using `snapcraft login`.
 
-In addition, you must clone the [lockbook aur repository](https://github.com/lockbook/aur-desktop) and the [lockbook desktop aur repository](https://github.com/lockbook/aur-lockbook-desktop). These two repositories must exist in the same directory the lockbook monorepo is located in. You must also set the remote repository aliases, `github` and `aur`, to their respective urls for each repository. 
+In addition, you must clone the [lockbook aur repository](https://github.com/lockbook/aur-lockbook) and the [lockbook desktop aur repository](https://github.com/lockbook/aur-lockbook-desktop). These two repositories must exist in the same directory the lockbook monorepo is located in. You must also set the remote repository aliases, `github` and `aur`, to their respective urls for each repository. 
 
 To release only to linux: run `cargo run -p releaser -- release-linux`.
