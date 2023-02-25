@@ -21,7 +21,7 @@ impl From<LbErrorKind> for LbError {
             LbErrorKind::DuplicateShare => LbErrorKind::ShareAlreadyExists,
             LbErrorKind::ValidationFailure(ref vf) => match vf {
                 ValidationFailure::Orphan(_id) => kind,
-                ValidationFailure::Cycle(_) => LbErrorKind::FolderMovedIntoSelf,
+                // ValidationFailure::Cycle(_) => LbErrorKind::FolderMovedIntoSelf,
                 // ValidationFailure::PathConflict(_) => LbErrorKind::PathTaken,
                 ValidationFailure::SharedLink { .. } => LbErrorKind::LinkInSharedFolder,
                 ValidationFailure::DuplicateLink { .. } => LbErrorKind::MultipleLinksToSameFile,
@@ -32,7 +32,9 @@ impl From<LbErrorKind> for LbError {
             },
             _ => kind,
         };
-        Self { kind, backtrace: Some(Backtrace::capture()) }
+        let bt = Backtrace::capture();
+        println!("{:?}", bt);
+        Self { kind, backtrace: Some(bt) }
     }
 }
 
