@@ -299,7 +299,7 @@ fn write_document_in_rejected_shared_folder_in_share_folder() {
 
     assert_eq!(cores[1].read_document(document.id).unwrap(), b"document content by sharee");
     cores[1].sync(None).unwrap();
-    //cores[1].get_file_by_id(document.id).unwrap();
+    cores[1].get_file_by_id(document.id).unwrap();
     cores[0].sync(None).unwrap();
     assert_eq!(cores[0].read_document(document.id).unwrap(), b"document content by sharee");
 }
