@@ -109,5 +109,3 @@ libs/editor/egui_editor/include
 
 clients/apple/lockbook.xcworkspace/xcshareddata/swiftpm/Package.resolved
 
-
-.pre-commit-config.yaml
