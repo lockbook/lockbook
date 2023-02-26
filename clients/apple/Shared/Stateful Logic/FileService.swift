@@ -7,6 +7,9 @@ class FileService: ObservableObject {
     @Published var root: File? = nil
     @Published var files: [File] = []
     var successfulAction: FileAction? = nil
+    
+    @Published var parent: File? = nil
+    @Published var children: [File] = []
         
 
     func childrenOf(_ meta: File?) -> [File] {
@@ -19,6 +22,7 @@ class FileService: ObservableObject {
         } else {
             file = meta!
         }
+        
 
         var toBeSorted = files.filter {
             $0.parent == file.id && $0.parent != $0.id
@@ -27,6 +31,32 @@ class FileService: ObservableObject {
         toBeSorted.sort()
 
         return toBeSorted
+    }
+    
+    func refreshChildrenAtParent(_ maybeId: UUID?) {
+        var id: UUID
+        
+        if let realId = maybeId {
+            id = realId
+        } else {
+            guard let theRoot = root else {
+                return;
+            }
+            id = theRoot.id
+        }
+
+        var toBeSorted = files.filter {
+            $0.parent == id && $0.parent != $0.id
+        }
+        
+        var parentFile = files.filter {
+            $0.id == id
+        }[0]
+
+        toBeSorted.sort()
+        
+        parent = parentFile
+        children = toBeSorted
     }
 
     func childrenOfRoot() -> [File] {

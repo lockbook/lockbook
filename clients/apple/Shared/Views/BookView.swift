@@ -54,8 +54,7 @@ struct BookView: View {
     
     #if os(iOS)
     var iOS: some View {
-        NavigationView {
-            FileListView(currentFolder: currentFolder, account: account)
+            FileListView()
                     .toolbar {
                         ToolbarItemGroup {
                             NavigationLink(
@@ -69,9 +68,7 @@ struct BookView: View {
                                         .padding(.horizontal, 10)
                                     }
                         }
-                    }
-        }
-                .navigationViewStyle(.stack)
+                    }                
     }
 
     @ViewBuilder

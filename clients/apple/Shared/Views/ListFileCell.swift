@@ -38,11 +38,11 @@ struct FileCell: View {
     @ViewBuilder
     var cell: some View {
         if meta.fileType == .Folder {
-            NavigationLink(
-                    destination: FileListView(currentFolder: meta, account: account.account!)) {
+            Button(action: {
+                fileService.refreshChildrenAtParent(meta.parent)
+            }) {
                 RealFileCell(meta: meta)
             }
-                    .isDetailLink(false)
         } else {
             NavigationLink(destination: DocumentView(meta: meta), tag: meta, selection: $current.selectedDocument) {
                 RealFileCell(meta: meta)
