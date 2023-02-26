@@ -37,11 +37,7 @@ where
         let name = self.name_using_links(id, account)?;
         let parent = *meta.parent();
         let last_modified_by = account.username.clone();
-
-        let id = match file_type {
-            FileType::Folder | FileType::Document => *id,
-            FileType::Link { target } => target,
-        };
+        let id = *id;
 
         let mut shares = Vec::new();
         for user_access_key in meta.user_access_keys() {
@@ -92,7 +88,6 @@ where
             FileType::Link { target } => {
                 let mut target_file = self.decrypt(&target, account, public_key_cache)?;
 
-                target_file.id = finalized.id;
                 target_file.parent = finalized.parent;
                 target_file.name = finalized.name;
 
@@ -123,7 +118,7 @@ where
                 FileType::Document | FileType::Folder => files.push(finalized),
                 FileType::Link { target } => {
                     let mut target_file = self.decrypt(&target, account, public_key_cache)?;
-                    target_file.id = finalized.id;
+
                     target_file.parent = finalized.parent;
                     target_file.name = finalized.name;
 

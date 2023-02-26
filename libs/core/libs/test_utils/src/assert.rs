@@ -233,7 +233,7 @@ pub fn server_work_paths(core: &Core, expected_paths: &[&'static str]) {
                 .staged
                 .owned_ids()
                 .iter()
-                .filter(|id| !matches!(remote.find(id).unwrap().file_type(), FileType::Link { .. }))
+                .filter(|id| !matches!(remote.link(id).unwrap(), None))
                 .collect::<Vec<_>>()
                 .iter()
                 .filter(|id| !remote.in_pending_share(id).unwrap())
