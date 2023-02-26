@@ -285,11 +285,17 @@ where
                 }
 
                 if let Some(remote_hmac) = remote_hmac {
-                    report_sync_operation(SyncOperation::PullDocumentStart(remote.finalize(
-                        &id,
-                        &self.account,
-                        self.username_by_public_key,
-                    )?));
+                    report_sync_operation(SyncOperation::PullDocumentStart(
+                        remote
+                            .resolve_and_finalize_all(
+                                &self.account,
+                                [id].into_iter(),
+                                self.username_by_public_key,
+                            )?
+                            .get(0)
+                            .ok_or_else(|| CoreError::Unexpected("finalization error".to_string()))?
+                            .to_owned(),
+                    ));
 
                     if !self.dry_run {
                         let remote_document = self
@@ -977,11 +983,17 @@ where
 
             let local_change = local_change.sign(&self.account)?;
 
-            report_sync_operation(SyncOperation::PushDocumentStart(local.finalize(
-                &id,
-                &self.account,
-                self.username_by_public_key,
-            )?));
+            report_sync_operation(SyncOperation::PushDocumentStart(
+                local
+                    .resolve_and_finalize_all(
+                        &self.account,
+                        [id].into_iter(),
+                        self.username_by_public_key,
+                    )?
+                    .get(0)
+                    .ok_or_else(|| CoreError::Unexpected("finalization error".to_string()))?
+                    .to_owned(),
+            ));
 
             if !self.dry_run {
                 let local_document_change =

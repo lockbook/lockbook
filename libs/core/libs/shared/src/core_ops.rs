@@ -28,7 +28,7 @@ where
     T: TreeLike<F = SignedFile>,
 {
     // todo: revisit logic for what files can be finalized and how e.g. link substitutions, deleted files, files in pending shares, linked files
-    pub fn finalize(
+    fn finalize(
         &mut self, id: &Uuid, account: &Account, public_key_cache: &mut LookupTable<Owner, String>,
     ) -> SharedResult<File> {
         let meta = self.find(id)?.clone();

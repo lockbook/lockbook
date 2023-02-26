@@ -201,7 +201,12 @@ impl<Client: Requester> CoreState<Client> {
                 ftype,
                 account,
             )?;
-            let file = tree.finalize(&id, account, &mut self.db.pub_key_lookup)?;
+
+            let file = tree
+                .resolve_and_finalize_all(account, [id].into_iter(), &mut self.db.pub_key_lookup)?
+                .get(0)
+                .ok_or_else(|| CoreError::Unexpected("Finalization error".to_string()))?
+                .to_owned();
 
             tree = if ftype == FileType::Document {
                 let doc = fs::read(&disk_path).map_err(CoreError::from)?;

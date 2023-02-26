@@ -23,7 +23,11 @@ impl<Client: Requester> CoreState<Client> {
         let id =
             tree.create(Uuid::new_v4(), symkey::generate_key(), parent, name, file_type, account)?;
 
-        let ui_file = tree.finalize(&id, account, &mut self.db.pub_key_lookup)?;
+        let ui_file = tree
+            .resolve_and_finalize_all(account, [id].into_iter(), &mut self.db.pub_key_lookup)?
+            .get(0)
+            .ok_or_else(|| CoreError::Unexpected("finalization error".to_string()))?
+            .to_owned();
 
         info!("created {:?} with id {id}", file_type);
 
@@ -86,7 +90,11 @@ impl<Client: Requester> CoreState<Client> {
 
         let root_id = self.db.root.data().ok_or(CoreError::RootNonexistent)?;
 
-        let root = tree.finalize(root_id, account, &mut self.db.pub_key_lookup)?;
+        let root = tree
+            .resolve_and_finalize(account, [*root_id].into_iter(), &mut self.db.pub_key_lookup)?
+            .get(0)
+            .ok_or_else(|| CoreError::Unexpected("finalization error".to_string()))?
+            .to_owned();
 
         Ok(root)
     }
@@ -157,7 +165,7 @@ impl<Client: Requester> CoreState<Client> {
         }
 
         let file = tree
-            .resolve_and_finalize(account, [*id].into_iter(), &mut self.db.pub_key_lookup)?
+            .resolve_and_finalize_all(account, [*id].into_iter(), &mut self.db.pub_key_lookup)?
             .get(0)
             .ok_or_else(|| CoreError::Unexpected("finalization error".to_string()))?
             .to_owned();
