@@ -26,7 +26,7 @@ impl<Client: Requester> CoreState<Client> {
         let ui_file = tree
             .resolve_and_finalize_all(account, [id].into_iter(), &mut self.db.pub_key_lookup)?
             .get(0)
-            .ok_or_else(|| CoreError::Unexpected("finalization error".to_string()))?
+            .ok_or_else(|| CoreError::InvalidFinalization)?
             .to_owned();
 
         info!("created {:?} with id {id}", file_type);
@@ -93,7 +93,7 @@ impl<Client: Requester> CoreState<Client> {
         let root = tree
             .resolve_and_finalize(account, [*root_id].into_iter(), &mut self.db.pub_key_lookup)?
             .get(0)
-            .ok_or_else(|| CoreError::Unexpected("finalization error".to_string()))?
+            .ok_or_else(|| CoreError::InvalidFinalization)?
             .to_owned();
 
         Ok(root)
@@ -167,7 +167,7 @@ impl<Client: Requester> CoreState<Client> {
         let file = tree
             .resolve_and_finalize_all(account, [*id].into_iter(), &mut self.db.pub_key_lookup)?
             .get(0)
-            .ok_or_else(|| CoreError::Unexpected("finalization error".to_string()))?
+            .ok_or_else(|| CoreError::InvalidFinalization)?
             .to_owned();
 
         Ok(file)

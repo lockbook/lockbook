@@ -293,7 +293,7 @@ where
                                 self.username_by_public_key,
                             )?
                             .get(0)
-                            .ok_or_else(|| CoreError::Unexpected("finalization error".to_string()))?
+                            .ok_or_else(|| CoreError::InvalidFinalization)?
                             .to_owned(),
                     ));
 
@@ -991,7 +991,7 @@ where
                         self.username_by_public_key,
                     )?
                     .get(0)
-                    .ok_or_else(|| CoreError::Unexpected("finalization error".to_string()))?
+                    .ok_or_else(|| CoreError::InvalidFinalization)?
                     .to_owned(),
             ));
 
