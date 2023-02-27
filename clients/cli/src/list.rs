@@ -101,7 +101,9 @@ fn get_children(
 ) -> Result<Vec<FileNode>, CliError> {
     let mut children = Vec::new();
     for f in files {
-        if f.parent == parent {
+        let is_parent_link = core.get_file_by_id(parent).unwrap().is_link();
+
+        if f.parent == parent || is_parent_link {
             // File name.
             let mut name = f.name.clone();
             if f.is_folder() {
@@ -154,7 +156,11 @@ fn get_children(
                 is_dir: f.is_folder(),
                 shared_with_summary,
                 shared_by,
-                children: get_children(core, files, f.id, cfg)?,
+                children: if is_parent_link {
+                    vec![]
+                } else {
+                    get_children(core, files, f.id, cfg)?
+                },
             };
             children.push(child);
         }
