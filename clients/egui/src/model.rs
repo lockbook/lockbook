@@ -53,11 +53,11 @@ pub enum SyncError {
     Minor(String),
 }
 
-impl From<lb::CoreError> for SyncError {
-    fn from(err: lb::CoreError) -> Self {
-        match err {
+impl From<lb::LbError> for SyncError {
+    fn from(err: lb::LbError) -> Self {
+        match err.kind {
             lb::CoreError::Unexpected(msg) => Self::Major(msg),
-            other => Self::Minor(format!("{:?}", other)),
+            _ => Self::Minor(format!("{:?}", err)),
         }
     }
 }

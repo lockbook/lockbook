@@ -29,11 +29,11 @@ pub enum TabFailure {
     Unexpected(String),
 }
 
-impl From<lb::CoreError> for TabFailure {
-    fn from(err: lb::CoreError) -> Self {
-        match err {
+impl From<lb::LbError> for TabFailure {
+    fn from(err: lb::LbError) -> Self {
+        match err.kind {
             lb::CoreError::Unexpected(msg) => Self::Unexpected(msg),
-            other => Self::SimpleMisc(format!("{:?}", other)),
+            _ => Self::SimpleMisc(format!("{:?}", err)),
         }
     }
 }
