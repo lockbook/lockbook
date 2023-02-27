@@ -17,7 +17,7 @@ fn test_create_delete_read() {
     let core = test_core_with_account();
     let id = core.create_at_path("test.md").unwrap().id;
     core.delete_file(id).unwrap();
-    assert_matches!(core.read_document(id), Err(CoreError::FileNonexistent));
+    assert_matches!(core.read_document(id).unwrap_err().kind, CoreError::FileNonexistent);
 }
 
 #[test]
@@ -26,8 +26,10 @@ fn test_create_delete_write() {
     let id = core.create_at_path("test.md").unwrap().id;
     core.delete_file(id).unwrap();
     assert_matches!(
-        core.write_document(id, "document content".as_bytes()),
-        Err(CoreError::FileNonexistent)
+        core.write_document(id, "document content".as_bytes())
+            .unwrap_err()
+            .kind,
+        CoreError::FileNonexistent
     );
 }
 
@@ -38,8 +40,10 @@ fn test_create_parent_delete_create_in_parent() {
     core.delete_file(id).unwrap();
 
     assert_matches!(
-        core.create_file("document", id, FileType::Document),
-        Err(CoreError::FileParentNonexistent)
+        core.create_file("document", id, FileType::Document)
+            .unwrap_err()
+            .kind,
+        CoreError::FileParentNonexistent
     );
 }
 
@@ -47,7 +51,10 @@ fn test_create_parent_delete_create_in_parent() {
 fn try_to_delete_root() {
     let core = test_core_with_account();
     let root = core.get_root().unwrap();
-    assert_matches!(core.delete_file(root.id), Err(CoreError::RootModificationInvalid));
+    assert_matches!(
+        core.delete_file(root.id).unwrap_err().kind,
+        CoreError::RootModificationInvalid
+    );
 }
 
 #[test]
@@ -57,7 +64,7 @@ fn test_create_parent_delete_parent_read_doc() {
     core.write_document(doc.id, "content".as_bytes()).unwrap();
     assert_eq!(core.read_document(doc.id).unwrap(), "content".as_bytes());
     core.delete_file(doc.parent).unwrap();
-    assert_matches!(core.read_document(doc.id), Err(CoreError::FileNonexistent));
+    assert_matches!(core.read_document(doc.id).unwrap_err().kind, CoreError::FileNonexistent);
 }
 
 #[test]
@@ -65,7 +72,10 @@ fn test_create_parent_delete_parent_rename_doc() {
     let core = test_core_with_account();
     let doc = core.create_at_path("folder/test.md").unwrap();
     core.delete_file(doc.parent).unwrap();
-    assert_matches!(core.rename_file(doc.id, "test2.md"), Err(CoreError::FileNonexistent));
+    assert_matches!(
+        core.rename_file(doc.id, "test2.md").unwrap_err().kind,
+        CoreError::FileNonexistent
+    );
 }
 
 #[test]
@@ -73,7 +83,10 @@ fn test_create_parent_delete_parent_rename_parent() {
     let core = test_core_with_account();
     let doc = core.create_at_path("folder/test.md").unwrap();
     core.delete_file(doc.parent).unwrap();
-    assert_matches!(core.rename_file(doc.parent, "folder2"), Err(CoreError::FileNonexistent));
+    assert_matches!(
+        core.rename_file(doc.parent, "folder2").unwrap_err().kind,
+        CoreError::FileNonexistent
+    );
 }
 
 #[test]
@@ -82,7 +95,10 @@ fn test_folder_move_delete_source_doc() {
     let doc = core.create_at_path("folder/test.md").unwrap();
     let folder2 = core.create_at_path("folder2/").unwrap();
     core.delete_file(doc.parent).unwrap();
-    assert_matches!(core.move_file(doc.id, folder2.id), Err(CoreError::FileNonexistent));
+    assert_matches!(
+        core.move_file(doc.id, folder2.id).unwrap_err().kind,
+        CoreError::FileNonexistent
+    );
 }
 
 #[test]
@@ -91,7 +107,10 @@ fn test_folder_move_delete_source_parent() {
     let doc = core.create_at_path("folder/test.md").unwrap();
     let folder2 = core.create_at_path("folder2/").unwrap();
     core.delete_file(doc.parent).unwrap();
-    assert_matches!(core.move_file(doc.parent, folder2.id), Err(CoreError::FileNonexistent));
+    assert_matches!(
+        core.move_file(doc.parent, folder2.id).unwrap_err().kind,
+        CoreError::FileNonexistent
+    );
 }
 
 #[test]
@@ -100,7 +119,10 @@ fn test_folder_move_delete_destination_parent() {
     let doc = core.create_at_path("folder/test.md").unwrap();
     let folder2 = core.create_at_path("folder2/").unwrap();
     core.delete_file(folder2.id).unwrap();
-    assert_matches!(core.move_file(doc.id, folder2.id), Err(CoreError::FileParentNonexistent));
+    assert_matches!(
+        core.move_file(doc.id, folder2.id).unwrap_err().kind,
+        CoreError::FileParentNonexistent
+    );
 }
 
 #[test]
@@ -109,7 +131,10 @@ fn test_folder_move_delete_destination_doc() {
     let doc = core.create_at_path("folder/test.md").unwrap();
     let folder2 = core.create_at_path("folder2/").unwrap();
     core.delete_file(folder2.id).unwrap();
-    assert_matches!(core.move_file(doc.parent, folder2.id), Err(CoreError::FileParentNonexistent));
+    assert_matches!(
+        core.move_file(doc.parent, folder2.id).unwrap_err().kind,
+        CoreError::FileParentNonexistent
+    );
 }
 
 #[test]

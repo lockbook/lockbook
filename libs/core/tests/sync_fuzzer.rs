@@ -126,11 +126,14 @@ impl Actions {
                         let initial_path = client.get_path_by_id(file.id).unwrap();
                         let move_file_result = client.move_file(file.id, new_parent.id);
                         match move_file_result {
-                            Ok(()) | Err(CoreError::FolderMovedIntoSelf) => {}
-                            _ => panic!(
-                                "Unexpected error while moving file: {:#?}",
-                                move_file_result
-                            ),
+                            Ok(()) => {}
+                            Err(ref err) => match err.kind {
+                                CoreError::FolderMovedIntoSelf => {}
+                                _ => panic!(
+                                    "Unexpected error while moving file: {:#?}",
+                                    move_file_result
+                                ),
+                            },
                         }
                         print!(
                             "[{:?}]\t{:?} to {:?}",

@@ -170,13 +170,14 @@ impl Trial {
 
                     let move_file_result = db.move_file(non_folder, dest);
                     match move_file_result {
-                        Ok(())
-                        | Err(CoreError::LinkInSharedFolder)
-                        | Err(CoreError::FolderMovedIntoSelf) => {}
-                        Err(err) => {
-                            self.status = Failed(format!("{:#?}", err));
-                            break 'steps;
-                        }
+                        Ok(()) => {}
+                        Err(err) => match err.kind {
+                            CoreError::LinkInSharedFolder | CoreError::FolderMovedIntoSelf => {}
+                            _ => {
+                                self.status = Failed(format!("{:#?}", err));
+                                break 'steps;
+                            }
+                        },
                     }
                 }
                 DeleteFile { user_index, device_index, name } => {

@@ -15,8 +15,11 @@ mod ip_tests {
         let name = random_name();
         core1.create_account(&name, "not used", false).unwrap();
         assert_matches!(
-            core2.create_account(&name, "not used", false),
-            Err(CoreError::UsernameTaken)
+            core2
+                .create_account(&name, "not used", false)
+                .unwrap_err()
+                .kind,
+            CoreError::UsernameTaken
         );
     }
 

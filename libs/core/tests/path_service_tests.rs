@@ -56,7 +56,7 @@ fn create_at_path_missing_folders() {
 fn create_at_path_path_contains_empty_file_name() {
     let core = test_core_with_account();
     let result = core.create_at_path("//document");
-    assert_matches!(result, Err(CoreError::PathContainsEmptyFileName));
+    assert_matches!(result.unwrap_err().kind, CoreError::PathContainsEmptyFileName);
 }
 
 #[test]
@@ -64,7 +64,7 @@ fn create_at_path_path_taken() {
     let core = test_core_with_account();
     core.create_at_path("/folder/document").unwrap();
     let result = core.create_at_path("/folder/document");
-    assert_matches!(result, Err(CoreError::PathTaken));
+    assert_matches!(result.unwrap_err().kind, CoreError::PathTaken);
 }
 
 #[test]
@@ -72,7 +72,7 @@ fn create_at_path_not_folder() {
     let core = test_core_with_account();
     core.create_at_path("/not-folder").unwrap();
     let result = core.create_at_path("/not-folder/document");
-    assert_matches!(result, Err(CoreError::FileNotFolder));
+    assert_matches!(result.unwrap_err().kind, CoreError::FileNotFolder);
 }
 
 #[test]

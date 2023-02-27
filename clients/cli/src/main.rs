@@ -216,7 +216,7 @@ fn run() -> Result<(), CliError> {
             lb::CoreError::AccountNonexistent => {
                 CliError::new("no account! run 'init' or 'init --restore' to get started.")
             }
-            err => err.into(),
+            _ => err.into(),
         })?;
     }
 
