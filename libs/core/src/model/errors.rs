@@ -62,12 +62,6 @@ impl From<SharedError> for LbError {
     }
 }
 
-impl From<LbError> for UnexpectedError {
-    fn from(err: LbError) -> Self {
-        Self { msg: format!("{:?}", err.kind), backtrace: err.backtrace }
-    }
-}
-
 #[derive(Debug)]
 pub struct UnexpectedError {
     pub msg: String,
@@ -86,9 +80,9 @@ impl fmt::Display for UnexpectedError {
     }
 }
 
-impl From<CoreError> for UnexpectedError {
-    fn from(e: CoreError) -> Self {
-        Self::new(format!("{:?}", e))
+impl From<LbError> for UnexpectedError {
+    fn from(err: LbError) -> Self {
+        Self { msg: format!("{:?}", err.kind), backtrace: err.backtrace }
     }
 }
 
