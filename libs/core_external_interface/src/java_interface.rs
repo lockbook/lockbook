@@ -639,11 +639,11 @@ lazy_static! {
 fn send_search_request(env: JNIEnv, request: SearchRequest) -> jstring {
     let result = MAYBE_SEARCH_TX
         .lock()
-        .map_err(|_| UnexpectedError("Could not get lock".to_string()))
+        .map_err(|_| UnexpectedError::new("Could not get lock".to_string()))
         .and_then(|maybe_lock| {
             maybe_lock
                 .clone()
-                .ok_or_else(|| UnexpectedError("No search lock.".to_string()))
+                .ok_or_else(|| UnexpectedError::new("No search lock.".to_string()))
         })
         .and_then(|search_tx| search_tx.send(request).map_err(UnexpectedError::from));
 
