@@ -55,4 +55,7 @@ impl File {
     pub fn is_folder(&self) -> bool {
         self.file_type == FileType::Folder
     }
+    pub fn is_link(&self) -> bool {
+        matches!(self.file_type, FileType::Link { target: _ }) || !self.shares.is_empty()
+    }
 }
