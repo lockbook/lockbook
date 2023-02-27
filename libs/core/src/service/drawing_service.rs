@@ -11,15 +11,15 @@ use crate::model::drawing;
 use crate::model::drawing::SupportedImageFormats;
 use crate::model::errors::CoreError;
 use crate::Requester;
-use crate::{CoreResult, CoreState};
+use crate::{CoreState, LbResult};
 
 impl<Client: Requester> CoreState<Client> {
-    pub(crate) fn get_drawing(&mut self, id: Uuid) -> CoreResult<Drawing> {
+    pub(crate) fn get_drawing(&mut self, id: Uuid) -> LbResult<Drawing> {
         let doc = self.read_document(id)?;
         drawing::parse_drawing(&doc)
     }
 
-    pub(crate) fn save_drawing(&mut self, id: Uuid, d: &Drawing) -> CoreResult<()> {
+    pub(crate) fn save_drawing(&mut self, id: Uuid, d: &Drawing) -> LbResult<()> {
         drawing::validate(d)?;
         let doc = serde_json::to_vec(d)?;
         self.write_document(id, &doc)
@@ -28,7 +28,7 @@ impl<Client: Requester> CoreState<Client> {
     pub(crate) fn export_drawing(
         &mut self, id: Uuid, format: SupportedImageFormats,
         render_theme: Option<HashMap<ColorAlias, ColorRGB>>,
-    ) -> CoreResult<Vec<u8>> {
+    ) -> LbResult<Vec<u8>> {
         let doc = self.read_document(id)?;
         drawing::export_drawing(&doc, format, render_theme)
     }
@@ -36,13 +36,13 @@ impl<Client: Requester> CoreState<Client> {
     pub(crate) fn export_drawing_to_disk(
         &mut self, id: Uuid, format: SupportedImageFormats,
         render_theme: Option<HashMap<ColorAlias, ColorRGB>>, location: &str,
-    ) -> CoreResult<()> {
+    ) -> LbResult<()> {
         let doc = self.read_document(id)?;
         let exported_doc = drawing::export_drawing(&doc, format, render_theme)?;
         Self::save_document_to_disk(&exported_doc, location.to_string())
     }
 
-    fn save_document_to_disk(document: &[u8], location: String) -> CoreResult<()> {
+    fn save_document_to_disk(document: &[u8], location: String) -> LbResult<()> {
         OpenOptions::new()
             .write(true)
             .create_new(true)

@@ -6,7 +6,7 @@ use lockbook_shared::tree_like::TreeLike;
 use lockbook_shared::usage::bytes_to_human;
 
 use crate::{CoreError, Requester};
-use crate::{CoreResult, CoreState};
+use crate::{CoreState, LbResult};
 
 #[derive(Serialize, Debug)]
 pub struct UsageMetrics {
@@ -22,13 +22,13 @@ pub struct UsageItemMetric {
 }
 
 impl<Client: Requester> CoreState<Client> {
-    fn server_usage(&self) -> CoreResult<GetUsageResponse> {
+    fn server_usage(&self) -> LbResult<GetUsageResponse> {
         let acc = &self.get_account()?;
 
         Ok(self.client.request(acc, GetUsageRequest {})?)
     }
 
-    pub(crate) fn get_usage(&self) -> CoreResult<UsageMetrics> {
+    pub(crate) fn get_usage(&self) -> LbResult<UsageMetrics> {
         let server_usage_and_cap = self.server_usage()?;
 
         let server_usage = server_usage_and_cap.sum_server_usage();
@@ -44,7 +44,7 @@ impl<Client: Requester> CoreState<Client> {
         })
     }
 
-    pub(crate) fn get_uncompressed_usage(&mut self) -> CoreResult<UsageItemMetric> {
+    pub(crate) fn get_uncompressed_usage(&mut self) -> LbResult<UsageItemMetric> {
         let mut tree = (&self.db.base_metadata)
             .to_staged(&self.db.local_metadata)
             .to_lazy();

@@ -1,3 +1,4 @@
+use std::backtrace::Backtrace;
 use std::collections::HashSet;
 use std::fmt;
 use std::io;
@@ -8,46 +9,81 @@ use serde::ser::SerializeStruct;
 use serde::{Serialize, Serializer};
 use uuid::Uuid;
 
-use lockbook_shared::{api, SharedError, ValidationFailure};
+use lockbook_shared::{api, SharedError, SharedErrorKind, ValidationFailure};
 
 use crate::service::api_service::ApiError;
 
+pub type LbResult<T> = Result<T, LbError>;
+
 #[derive(Debug)]
-pub struct UnexpectedError(pub String);
+pub struct LbError {
+    pub kind: CoreError,
+    pub backtrace: Option<Backtrace>,
+}
+
+impl From<CoreError> for LbError {
+    fn from(kind: CoreError) -> Self {
+        Self { kind, backtrace: Some(Backtrace::capture()) }
+    }
+}
+
+impl From<SharedError> for LbError {
+    fn from(se: SharedError) -> Self {
+        Self { kind: se.kind.into(), backtrace: se.backtrace }
+    }
+}
+
+impl From<LbError> for UnexpectedError {
+    fn from(err: LbError) -> Self {
+        Self { msg: format!("{:?}", err.kind), backtrace: err.backtrace }
+    }
+}
+
+#[derive(Debug)]
+pub struct UnexpectedError {
+    pub msg: String,
+    pub backtrace: Option<Backtrace>,
+}
+
+impl UnexpectedError {
+    pub fn new(s: impl ToString) -> Self {
+        Self { msg: s.to_string(), backtrace: Some(Backtrace::capture()) }
+    }
+}
 
 impl fmt::Display for UnexpectedError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "unexpected error: {}", self.0)
+        write!(f, "unexpected error: {}", self.msg)
     }
 }
 
 impl From<CoreError> for UnexpectedError {
     fn from(e: CoreError) -> Self {
-        Self(format!("{:?}", e))
+        Self::new(format!("{:?}", e))
     }
 }
 
 impl<T> From<std::sync::PoisonError<T>> for UnexpectedError {
     fn from(err: std::sync::PoisonError<T>) -> Self {
-        Self(format!("{:#?}", err))
+        Self::new(format!("{:#?}", err))
     }
 }
 
 impl From<crossbeam::channel::RecvError> for UnexpectedError {
     fn from(err: crossbeam::channel::RecvError) -> Self {
-        Self(format!("{:#?}", err))
+        Self::new(format!("{:#?}", err))
     }
 }
 
 impl From<crossbeam::channel::RecvTimeoutError> for UnexpectedError {
     fn from(err: crossbeam::channel::RecvTimeoutError) -> Self {
-        Self(format!("{:#?}", err))
+        Self::new(format!("{:#?}", err))
     }
 }
 
 impl<T> From<crossbeam::channel::SendError<T>> for UnexpectedError {
     fn from(err: crossbeam::channel::SendError<T>) -> Self {
-        Self(format!("{:#?}", err))
+        Self::new(format!("{:#?}", err))
     }
 }
 
@@ -58,14 +94,14 @@ impl Serialize for UnexpectedError {
     {
         let mut state = serializer.serialize_struct("UnexpectedError", 2)?;
         state.serialize_field("tag", "Unexpected")?;
-        state.serialize_field("content", &self.0)?;
+        state.serialize_field("content", &self.msg)?;
         state.end()
     }
 }
 
 impl From<UnexpectedError> for String {
     fn from(v: UnexpectedError) -> Self {
-        v.0
+        v.msg
     }
 }
 
@@ -75,7 +111,7 @@ macro_rules! unexpected_only {
         debug!($base $(, $args )*);
         debug!("{:?}", backtrace::Backtrace::new());
         debug!($base $(, $args )*);
-        UnexpectedError(format!($base $(, $args )*))
+        UnexpectedError::new(format!($base $(, $args )*))
     }};
 }
 
@@ -141,26 +177,26 @@ pub fn core_err_unexpected<T: fmt::Debug>(err: T) -> CoreError {
     CoreError::Unexpected(format!("{:#?}", err))
 }
 
-impl From<SharedError> for CoreError {
-    fn from(err: SharedError) -> Self {
+impl From<SharedErrorKind> for CoreError {
+    fn from(err: SharedErrorKind) -> Self {
         match err {
-            SharedError::RootNonexistent => Self::RootNonexistent,
-            SharedError::FileNonexistent => Self::FileNonexistent,
-            SharedError::FileParentNonexistent => Self::FileParentNonexistent,
-            SharedError::Unexpected(err) => Self::Unexpected(err.to_string()),
-            SharedError::PathContainsEmptyFileName => Self::PathContainsEmptyFileName,
-            SharedError::PathTaken => Self::PathTaken,
-            SharedError::FileNameContainsSlash => Self::FileNameContainsSlash,
-            SharedError::RootModificationInvalid => Self::RootModificationInvalid,
-            SharedError::DeletedFileUpdated(_) => Self::FileNonexistent,
-            SharedError::FileNameEmpty => Self::FileNameEmpty,
-            SharedError::FileNotFolder => Self::FileNotFolder,
-            SharedError::FileNotDocument => Self::FileNotDocument,
-            SharedError::InsufficientPermission => Self::InsufficientPermission,
-            SharedError::NotPermissioned => Self::InsufficientPermission,
-            SharedError::ShareNonexistent => Self::ShareNonexistent,
-            SharedError::DuplicateShare => Self::ShareAlreadyExists,
-            SharedError::ValidationFailure(failure) => match failure {
+            SharedErrorKind::RootNonexistent => Self::RootNonexistent,
+            SharedErrorKind::FileNonexistent => Self::FileNonexistent,
+            SharedErrorKind::FileParentNonexistent => Self::FileParentNonexistent,
+            SharedErrorKind::Unexpected(err) => Self::Unexpected(err.to_string()),
+            SharedErrorKind::PathContainsEmptyFileName => Self::PathContainsEmptyFileName,
+            SharedErrorKind::PathTaken => Self::PathTaken,
+            SharedErrorKind::FileNameContainsSlash => Self::FileNameContainsSlash,
+            SharedErrorKind::RootModificationInvalid => Self::RootModificationInvalid,
+            SharedErrorKind::DeletedFileUpdated(_) => Self::FileNonexistent,
+            SharedErrorKind::FileNameEmpty => Self::FileNameEmpty,
+            SharedErrorKind::FileNotFolder => Self::FileNotFolder,
+            SharedErrorKind::FileNotDocument => Self::FileNotDocument,
+            SharedErrorKind::InsufficientPermission => Self::InsufficientPermission,
+            SharedErrorKind::NotPermissioned => Self::InsufficientPermission,
+            SharedErrorKind::ShareNonexistent => Self::ShareNonexistent,
+            SharedErrorKind::DuplicateShare => Self::ShareAlreadyExists,
+            SharedErrorKind::ValidationFailure(failure) => match failure {
                 ValidationFailure::Cycle(_) => Self::FolderMovedIntoSelf,
                 ValidationFailure::PathConflict(_) => Self::PathTaken,
                 ValidationFailure::SharedLink { .. } => Self::LinkInSharedFolder,
@@ -175,21 +211,21 @@ impl From<SharedError> for CoreError {
     }
 }
 
-impl From<db_rs::DbError> for CoreError {
+impl From<db_rs::DbError> for LbError {
     fn from(err: db_rs::DbError) -> Self {
-        core_err_unexpected(err)
+        core_err_unexpected(err).into()
     }
 }
 
-impl<G> From<PoisonError<G>> for CoreError {
+impl<G> From<PoisonError<G>> for LbError {
     fn from(err: PoisonError<G>) -> Self {
-        core_err_unexpected(err)
+        core_err_unexpected(err).into()
     }
 }
 
-impl From<hmdb::errors::Error> for CoreError {
+impl From<hmdb::errors::Error> for LbError {
     fn from(err: hmdb::errors::Error) -> Self {
-        core_err_unexpected(err)
+        core_err_unexpected(err).into()
     }
 }
 
@@ -205,13 +241,13 @@ impl From<io::Error> for CoreError {
     }
 }
 
-impl From<serde_json::Error> for CoreError {
+impl From<serde_json::Error> for LbError {
     fn from(err: serde_json::Error) -> Self {
-        Self::Unexpected(format!("{err}"))
+        CoreError::Unexpected(format!("{err}")).into()
     }
 }
 
-impl From<ApiError<api::NewAccountError>> for CoreError {
+impl From<ApiError<api::NewAccountError>> for LbError {
     fn from(err: ApiError<api::NewAccountError>) -> Self {
         match err {
             ApiError::SendFailed(_) => CoreError::ServerUnreachable,
@@ -221,10 +257,11 @@ impl From<ApiError<api::NewAccountError>> for CoreError {
             ApiError::Endpoint(api::NewAccountError::Disabled) => CoreError::ServerDisabled,
             e => core_err_unexpected(e),
         }
+        .into()
     }
 }
 
-impl From<ApiError<api::GetPublicKeyError>> for CoreError {
+impl From<ApiError<api::GetPublicKeyError>> for LbError {
     fn from(err: ApiError<api::GetPublicKeyError>) -> Self {
         match err {
             ApiError::SendFailed(_) => CoreError::ServerUnreachable,
@@ -234,10 +271,11 @@ impl From<ApiError<api::GetPublicKeyError>> for CoreError {
             }
             e => core_err_unexpected(e),
         }
+        .into()
     }
 }
 
-impl From<ApiError<api::GetUsernameError>> for CoreError {
+impl From<ApiError<api::GetUsernameError>> for LbError {
     fn from(err: ApiError<api::GetUsernameError>) -> Self {
         match err {
             ApiError::SendFailed(_) => CoreError::ServerUnreachable,
@@ -247,70 +285,77 @@ impl From<ApiError<api::GetUsernameError>> for CoreError {
             }
             e => core_err_unexpected(e),
         }
+        .into()
     }
 }
 
-impl From<ApiError<api::GetFileIdsError>> for CoreError {
+impl From<ApiError<api::GetFileIdsError>> for LbError {
     fn from(e: ApiError<api::GetFileIdsError>) -> Self {
         match e {
             ApiError::SendFailed(_) => CoreError::ServerUnreachable,
             ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,
             e => core_err_unexpected(e),
         }
+        .into()
     }
 }
 
-impl From<ApiError<api::GetUpdatesError>> for CoreError {
+impl From<ApiError<api::GetUpdatesError>> for LbError {
     fn from(e: ApiError<api::GetUpdatesError>) -> Self {
         match e {
             ApiError::SendFailed(_) => CoreError::ServerUnreachable,
             ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,
             e => core_err_unexpected(e),
         }
+        .into()
     }
 }
 
-impl From<ApiError<api::GetDocumentError>> for CoreError {
+impl From<ApiError<api::GetDocumentError>> for LbError {
     fn from(e: ApiError<api::GetDocumentError>) -> Self {
         match e {
             ApiError::SendFailed(_) => CoreError::ServerUnreachable,
             ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,
             e => core_err_unexpected(e),
         }
+        .into()
     }
 }
 
-impl From<ApiError<api::UpsertError>> for CoreError {
+impl From<ApiError<api::UpsertError>> for LbError {
     fn from(e: ApiError<api::UpsertError>) -> Self {
         match e {
             ApiError::SendFailed(_) => CoreError::ServerUnreachable,
             ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,
             e => core_err_unexpected(e),
         }
+        .into()
     }
 }
 
-impl From<ApiError<api::ChangeDocError>> for CoreError {
+impl From<ApiError<api::ChangeDocError>> for LbError {
     fn from(e: ApiError<api::ChangeDocError>) -> Self {
         match e {
             ApiError::SendFailed(_) => CoreError::ServerUnreachable,
             ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,
             e => core_err_unexpected(e),
         }
+        .into()
     }
 }
 
-impl From<ApiError<api::GetUsageError>> for CoreError {
+impl From<ApiError<api::GetUsageError>> for LbError {
     fn from(e: ApiError<api::GetUsageError>) -> Self {
         match e {
             ApiError::SendFailed(_) => CoreError::ServerUnreachable,
             ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,
             e => core_err_unexpected(e),
         }
+        .into()
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum TestRepoError {
     NoAccount,
     NoRootFolder,
@@ -327,14 +372,14 @@ pub enum TestRepoError {
     BrokenLink(Uuid),
     OwnedLink(Uuid),
     DocumentReadError(Uuid, CoreError),
-    Core(CoreError),
+    Core(LbError),
     Shared(SharedError),
 }
 
 impl From<SharedError> for TestRepoError {
     fn from(err: SharedError) -> Self {
-        match err {
-            SharedError::ValidationFailure(validation) => match validation {
+        match err.kind {
+            SharedErrorKind::ValidationFailure(validation) => match validation {
                 ValidationFailure::Orphan(id) => Self::FileOrphaned(id),
                 ValidationFailure::Cycle(ids) => Self::CycleDetected(ids),
                 ValidationFailure::PathConflict(ids) => Self::PathConflict(ids),
@@ -382,9 +427,9 @@ impl fmt::Display for TestRepoError {
     }
 }
 
-impl From<CoreError> for TestRepoError {
-    fn from(err: CoreError) -> Self {
-        match err {
+impl From<LbError> for TestRepoError {
+    fn from(err: LbError) -> Self {
+        match err.kind {
             CoreError::AccountNonexistent => Self::NoAccount,
             _ => Self::Core(err),
         }

@@ -10,7 +10,7 @@ use base64::DecodeError;
 use db_rs::DbError;
 use jsonwebtoken::errors::ErrorKind;
 use lockbook_shared::api::*;
-use lockbook_shared::SharedError;
+use lockbook_shared::{SharedError, SharedErrorKind};
 use std::fmt::Debug;
 use std::io::Error;
 use std::sync::PoisonError;
@@ -293,17 +293,17 @@ impl From<SharedError> for ServerError<UpsertError> {
     fn from(err: SharedError) -> Self {
         // panic!("{err}");
         use lockbook_shared::api::UpsertError::*;
-        match err {
-            SharedError::OldVersionIncorrect => ClientError(OldVersionIncorrect),
-            SharedError::OldFileNotFound => ClientError(OldFileNotFound),
-            SharedError::OldVersionRequired => ClientError(OldVersionRequired),
-            SharedError::NotPermissioned => ClientError(NotPermissioned),
-            SharedError::DiffMalformed => ClientError(DiffMalformed),
-            SharedError::HmacModificationInvalid => ClientError(HmacModificationInvalid),
-            SharedError::DeletedFileUpdated(_) => ClientError(DeletedFileUpdated),
-            SharedError::RootModificationInvalid => ClientError(RootModificationInvalid),
-            SharedError::ValidationFailure(fail) => ClientError(Validation(fail)),
-            SharedError::Unexpected(msg) => InternalError(String::from(msg)),
+        match err.kind {
+            SharedErrorKind::OldVersionIncorrect => ClientError(OldVersionIncorrect),
+            SharedErrorKind::OldFileNotFound => ClientError(OldFileNotFound),
+            SharedErrorKind::OldVersionRequired => ClientError(OldVersionRequired),
+            SharedErrorKind::NotPermissioned => ClientError(NotPermissioned),
+            SharedErrorKind::DiffMalformed => ClientError(DiffMalformed),
+            SharedErrorKind::HmacModificationInvalid => ClientError(HmacModificationInvalid),
+            SharedErrorKind::DeletedFileUpdated(_) => ClientError(DeletedFileUpdated),
+            SharedErrorKind::RootModificationInvalid => ClientError(RootModificationInvalid),
+            SharedErrorKind::ValidationFailure(fail) => ClientError(Validation(fail)),
+            SharedErrorKind::Unexpected(msg) => InternalError(String::from(msg)),
             _ => internal!("{:?}", err),
         }
     }
