@@ -37,7 +37,7 @@ pub use lockbook_shared::work_unit::{ClientWorkUnit, WorkUnit};
 
 pub use crate::model::drawing::SupportedImageFormats;
 pub use crate::model::errors::{
-    CoreError, CoreResult, LbError, LbResult, TestRepoError, UnexpectedError, Warning,
+    CoreError, LbError, LbResult, TestRepoError, UnexpectedError, Warning,
 };
 pub use crate::service::import_export_service::{ImportExportFileInfo, ImportStatus};
 pub use crate::service::search_service::{SearchResultItem, StartSearchInfo};

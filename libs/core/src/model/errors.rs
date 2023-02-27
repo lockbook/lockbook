@@ -28,8 +28,37 @@ impl From<CoreError> for LbError {
 }
 
 impl From<SharedError> for LbError {
-    fn from(se: SharedError) -> Self {
-        Self { kind: se.kind.into(), backtrace: se.backtrace }
+    fn from(err: SharedError) -> Self {
+        let kind = match err.kind {
+            SharedErrorKind::RootNonexistent => CoreError::RootNonexistent,
+            SharedErrorKind::FileNonexistent => CoreError::FileNonexistent,
+            SharedErrorKind::FileParentNonexistent => CoreError::FileParentNonexistent,
+            SharedErrorKind::Unexpected(err) => CoreError::Unexpected(err.to_string()),
+            SharedErrorKind::PathContainsEmptyFileName => CoreError::PathContainsEmptyFileName,
+            SharedErrorKind::PathTaken => CoreError::PathTaken,
+            SharedErrorKind::FileNameContainsSlash => CoreError::FileNameContainsSlash,
+            SharedErrorKind::RootModificationInvalid => CoreError::RootModificationInvalid,
+            SharedErrorKind::DeletedFileUpdated(_) => CoreError::FileNonexistent,
+            SharedErrorKind::FileNameEmpty => CoreError::FileNameEmpty,
+            SharedErrorKind::FileNotFolder => CoreError::FileNotFolder,
+            SharedErrorKind::FileNotDocument => CoreError::FileNotDocument,
+            SharedErrorKind::InsufficientPermission => CoreError::InsufficientPermission,
+            SharedErrorKind::NotPermissioned => CoreError::InsufficientPermission,
+            SharedErrorKind::ShareNonexistent => CoreError::ShareNonexistent,
+            SharedErrorKind::DuplicateShare => CoreError::ShareAlreadyExists,
+            SharedErrorKind::ValidationFailure(failure) => match failure {
+                ValidationFailure::Cycle(_) => CoreError::FolderMovedIntoSelf,
+                ValidationFailure::PathConflict(_) => CoreError::PathTaken,
+                ValidationFailure::SharedLink { .. } => CoreError::LinkInSharedFolder,
+                ValidationFailure::DuplicateLink { .. } => CoreError::MultipleLinksToSameFile,
+                ValidationFailure::BrokenLink(_) => CoreError::LinkTargetNonexistent,
+                ValidationFailure::OwnedLink(_) => CoreError::LinkTargetIsOwned,
+                ValidationFailure::NonFolderWithChildren(_) => CoreError::FileNotFolder,
+                vf => CoreError::Unexpected(format!("unexpected validation failure {:?}", vf)),
+            },
+            _ => CoreError::Unexpected(format!("unexpected shared error {:?}", err)),
+        };
+        Self { kind, backtrace: err.backtrace }
     }
 }
 
@@ -63,8 +92,8 @@ impl From<CoreError> for UnexpectedError {
     }
 }
 
-impl<T> From<std::sync::PoisonError<T>> for UnexpectedError {
-    fn from(err: std::sync::PoisonError<T>) -> Self {
+impl<T> From<PoisonError<T>> for UnexpectedError {
+    fn from(err: PoisonError<T>) -> Self {
         Self::new(format!("{:#?}", err))
     }
 }
@@ -114,8 +143,6 @@ macro_rules! unexpected_only {
         UnexpectedError::new(format!($base $(, $args )*))
     }};
 }
-
-pub type CoreResult<T> = Result<T, CoreError>;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CoreError {
@@ -175,40 +202,6 @@ pub enum CoreError {
 
 pub fn core_err_unexpected<T: fmt::Debug>(err: T) -> CoreError {
     CoreError::Unexpected(format!("{:#?}", err))
-}
-
-impl From<SharedErrorKind> for CoreError {
-    fn from(err: SharedErrorKind) -> Self {
-        match err {
-            SharedErrorKind::RootNonexistent => Self::RootNonexistent,
-            SharedErrorKind::FileNonexistent => Self::FileNonexistent,
-            SharedErrorKind::FileParentNonexistent => Self::FileParentNonexistent,
-            SharedErrorKind::Unexpected(err) => Self::Unexpected(err.to_string()),
-            SharedErrorKind::PathContainsEmptyFileName => Self::PathContainsEmptyFileName,
-            SharedErrorKind::PathTaken => Self::PathTaken,
-            SharedErrorKind::FileNameContainsSlash => Self::FileNameContainsSlash,
-            SharedErrorKind::RootModificationInvalid => Self::RootModificationInvalid,
-            SharedErrorKind::DeletedFileUpdated(_) => Self::FileNonexistent,
-            SharedErrorKind::FileNameEmpty => Self::FileNameEmpty,
-            SharedErrorKind::FileNotFolder => Self::FileNotFolder,
-            SharedErrorKind::FileNotDocument => Self::FileNotDocument,
-            SharedErrorKind::InsufficientPermission => Self::InsufficientPermission,
-            SharedErrorKind::NotPermissioned => Self::InsufficientPermission,
-            SharedErrorKind::ShareNonexistent => Self::ShareNonexistent,
-            SharedErrorKind::DuplicateShare => Self::ShareAlreadyExists,
-            SharedErrorKind::ValidationFailure(failure) => match failure {
-                ValidationFailure::Cycle(_) => Self::FolderMovedIntoSelf,
-                ValidationFailure::PathConflict(_) => Self::PathTaken,
-                ValidationFailure::SharedLink { .. } => Self::LinkInSharedFolder,
-                ValidationFailure::DuplicateLink { .. } => Self::MultipleLinksToSameFile,
-                ValidationFailure::BrokenLink(_) => Self::LinkTargetNonexistent,
-                ValidationFailure::OwnedLink(_) => Self::LinkTargetIsOwned,
-                ValidationFailure::NonFolderWithChildren(_) => Self::FileNotFolder,
-                vf => Self::Unexpected(format!("unexpected validation failure {:?}", vf)),
-            },
-            _ => Self::Unexpected(format!("unexpected shared error {:?}", err)),
-        }
-    }
 }
 
 impl From<db_rs::DbError> for LbError {
