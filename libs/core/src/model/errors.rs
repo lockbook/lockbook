@@ -408,15 +408,6 @@ impl fmt::Display for TestRepoError {
     }
 }
 
-impl From<LbError> for TestRepoError {
-    fn from(err: LbError) -> Self {
-        match err.kind {
-            CoreError::AccountNonexistent => Self::NoAccount,
-            _ => Self::Core(err),
-        }
-    }
-}
-
 #[derive(Debug, Clone)]
 pub enum Warning {
     EmptyFile(Uuid),
