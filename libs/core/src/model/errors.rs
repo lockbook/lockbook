@@ -43,7 +43,6 @@ impl From<SharedError> for LbError {
             SharedErrorKind::FileNotFolder => CoreError::FileNotFolder,
             SharedErrorKind::FileNotDocument => CoreError::FileNotDocument,
             SharedErrorKind::InsufficientPermission => CoreError::InsufficientPermission,
-            SharedErrorKind::NotPermissioned => CoreError::InsufficientPermission,
             SharedErrorKind::ShareNonexistent => CoreError::ShareNonexistent,
             SharedErrorKind::DuplicateShare => CoreError::ShareAlreadyExists,
             SharedErrorKind::ValidationFailure(failure) => match failure {

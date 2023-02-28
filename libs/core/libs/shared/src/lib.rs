@@ -53,7 +53,6 @@ impl From<SharedErrorKind> for SharedError {
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum SharedErrorKind {
-    InsufficientPermission, // todo: this is a duplicate of NotPermissioned
     PathContainsEmptyFileName,
     PathTaken,
     RootNonexistent,
@@ -93,7 +92,7 @@ pub enum SharedErrorKind {
 
     /// Arises during a call to upsert, when the person making the request is not an owner of the file
     /// or has not signed the update
-    NotPermissioned,
+    InsufficientPermission,
 
     /// Arises during a call to upsert, when a diff's new.id != old.id
     DiffMalformed,

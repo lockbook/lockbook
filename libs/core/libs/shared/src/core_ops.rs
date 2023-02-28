@@ -164,7 +164,7 @@ where
 
         validate::file_name(name)?;
         if self.maybe_find(file.parent()).is_none() {
-            return Err(SharedErrorKind::NotPermissioned.into());
+            return Err(SharedErrorKind::InsufficientPermission.into());
         }
         let parent_key = self.decrypt_key(file.parent(), account)?;
         let key = self.decrypt_key(id, account)?;
