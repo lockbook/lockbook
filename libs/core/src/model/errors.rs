@@ -121,12 +121,6 @@ impl Serialize for UnexpectedError {
     }
 }
 
-impl From<UnexpectedError> for String {
-    fn from(v: UnexpectedError) -> Self {
-        v.msg
-    }
-}
-
 #[macro_export]
 macro_rules! unexpected_only {
     ($base:literal $(, $args:tt )*) => {{
