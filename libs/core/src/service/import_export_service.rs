@@ -1,5 +1,4 @@
-use crate::LbResult;
-use crate::{CoreError, CoreState, Requester};
+use crate::{CoreError, CoreState, LbError, LbResult, Requester};
 use lockbook_shared::account::Account;
 use lockbook_shared::core_config::Config;
 use lockbook_shared::file::File;
@@ -97,7 +96,7 @@ impl<Client: Requester> CoreState<Client> {
         match this_file.file_type() {
             FileType::Folder => {
                 let children = tree.children(this_file.id())?;
-                fs::create_dir(dest_with_new.clone()).map_err(CoreError::from)?;
+                fs::create_dir(dest_with_new.clone()).map_err(LbError::from)?;
 
                 for id in children {
                     if !tree.calculate_deleted(&id)? {
@@ -126,11 +125,11 @@ impl<Client: Requester> CoreState<Client> {
                         .create_new(true)
                         .open(dest_with_new)
                 }
-                .map_err(CoreError::from)?;
+                .map_err(LbError::from)?;
 
                 let doc = tree.read_document(config, this_file.id(), account)?;
 
-                file.write_all(doc.as_slice()).map_err(CoreError::from)?;
+                file.write_all(doc.as_slice()).map_err(LbError::from)?;
             }
             FileType::Link { target } => {
                 if !tree.calculate_deleted(&target)? {
@@ -204,7 +203,7 @@ impl<Client: Requester> CoreState<Client> {
             let file = tree.finalize(&id, account, &mut self.db.pub_key_lookup)?;
 
             tree = if ftype == FileType::Document {
-                let doc = fs::read(&disk_path).map_err(CoreError::from)?;
+                let doc = fs::read(&disk_path).map_err(LbError::from)?;
 
                 let encrypted_document = tree.update_document(&id, &doc, account)?;
                 let hmac = tree.find(&id)?.document_hmac();
@@ -215,10 +214,10 @@ impl<Client: Requester> CoreState<Client> {
             } else {
                 update_status(ImportStatus::FinishedItem(file));
 
-                let entries = fs::read_dir(disk_path).map_err(CoreError::from)?;
+                let entries = fs::read_dir(disk_path).map_err(LbError::from)?;
 
                 for entry in entries {
-                    let child_path = entry.map_err(CoreError::from)?.path();
+                    let child_path = entry.map_err(LbError::from)?.path();
                     disk_paths_with_destinations.push((child_path.clone(), id));
                 }
 
@@ -273,9 +272,9 @@ fn get_total_child_count(paths: &[PathBuf]) -> LbResult<usize> {
 fn get_child_count(path: &Path) -> LbResult<usize> {
     let mut count = 1;
     if path.is_dir() {
-        let children = fs::read_dir(path).map_err(CoreError::from)?;
+        let children = fs::read_dir(path).map_err(LbError::from)?;
         for maybe_child in children {
-            let child_path = maybe_child.map_err(CoreError::from)?.path();
+            let child_path = maybe_child.map_err(LbError::from)?.path();
 
             count += get_child_count(&child_path)?;
         }

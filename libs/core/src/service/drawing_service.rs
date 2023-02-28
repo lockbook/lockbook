@@ -9,9 +9,8 @@ use lockbook_shared::drawing::{ColorAlias, ColorRGB, Drawing};
 
 use crate::model::drawing;
 use crate::model::drawing::SupportedImageFormats;
-use crate::model::errors::CoreError;
 use crate::Requester;
-use crate::{CoreState, LbResult};
+use crate::{CoreState, LbError, LbResult};
 
 impl<Client: Requester> CoreState<Client> {
     pub(crate) fn get_drawing(&mut self, id: Uuid) -> LbResult<Drawing> {
@@ -47,9 +46,9 @@ impl<Client: Requester> CoreState<Client> {
             .write(true)
             .create_new(true)
             .open(Path::new(&location))
-            .map_err(CoreError::from)?
+            .map_err(LbError::from)?
             .write_all(document)
-            .map_err(CoreError::from)?;
+            .map_err(LbError::from)?;
         Ok(())
     }
 }

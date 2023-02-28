@@ -209,15 +209,16 @@ impl From<hmdb::errors::Error> for LbError {
     }
 }
 
-impl From<io::Error> for CoreError {
+impl From<io::Error> for LbError {
     fn from(e: io::Error) -> Self {
         match e.kind() {
             io::ErrorKind::NotFound
             | io::ErrorKind::PermissionDenied
-            | io::ErrorKind::InvalidInput => Self::DiskPathInvalid,
-            io::ErrorKind::AlreadyExists => Self::DiskPathTaken,
+            | io::ErrorKind::InvalidInput => CoreError::DiskPathInvalid,
+            io::ErrorKind::AlreadyExists => CoreError::DiskPathTaken,
             _ => core_err_unexpected(e),
         }
+        .into()
     }
 }
 
