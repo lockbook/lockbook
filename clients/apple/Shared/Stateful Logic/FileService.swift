@@ -3,15 +3,68 @@ import SwiftLockbookCore
 
 class FileService: ObservableObject {
     let core: LockbookApi
+    
+    var successfulAction: FileAction? = nil
 
     @Published var root: File? = nil
     @Published var files: [File] = []
-    var successfulAction: FileAction? = nil
     
+    // File Service takes
+#if os(iOS)
     @Published var parent: File? = nil
     @Published var children: [File] = []
+    
+    @Published var path: [File] = []
+    
+    func upADirectory() {
+        path.removeLast()
+        refreshChildrenAtParent(parent?.parent)
+    }
+    
+    func intoChildDirectory(_ file: File) {
+        if let realParent = parent {
+            path.append(realParent)
+        }
         
+        refreshChildrenAtParent(file.id)
+    }
+    
+    func refreshChildrenAtParent(_ maybeId: UUID?) {
+        var id: UUID
+        
+        if let realId = maybeId {
+            id = realId
+        } else {
+            guard let theRoot = root else {
+                return;
+            }
+            id = theRoot.id
+        }
 
+        var toBeSorted = files.filter {
+            $0.parent == id && $0.parent != $0.id
+        }
+        
+        let parentFile = files.filter {
+            $0.id == id
+        }[0]
+        
+        toBeSorted.sort()
+        
+        parent = parentFile
+        children = toBeSorted
+    }
+    
+    func pathBreadcrumbClicked(_ file: File) {
+        if let firstIndex = path.firstIndex(of: file) {
+            path.removeSubrange(firstIndex...path.count - 1)
+            refreshChildrenAtParent(file.id)
+        }
+        
+    }
+    
+#endif
+    
     func childrenOf(_ meta: File?) -> [File] {
         var file: File
         if meta == nil {
@@ -32,38 +85,12 @@ class FileService: ObservableObject {
 
         return toBeSorted
     }
-    
-    func refreshChildrenAtParent(_ maybeId: UUID?) {
-        var id: UUID
-        
-        if let realId = maybeId {
-            id = realId
-        } else {
-            guard let theRoot = root else {
-                return;
-            }
-            id = theRoot.id
-        }
-
-        var toBeSorted = files.filter {
-            $0.parent == id && $0.parent != $0.id
-        }
-        
-        var parentFile = files.filter {
-            $0.id == id
-        }[0]
-
-        toBeSorted.sort()
-        
-        parent = parentFile
-        children = toBeSorted
-    }
 
     func childrenOfRoot() -> [File] {
         let root = root!
         return childrenOf(root)
     }
-
+    
     init(_ core: LockbookApi) {
         self.core = core
 
@@ -197,6 +224,7 @@ class FileService: ObservableObject {
                             self.root = $0
                         }
                     }
+                    self.refreshChildrenAtParent(self.parent?.id)
                     self.closeOpenFileIfDeleted()
                 case .failure(let error):
                     DI.errors.handleError(error)

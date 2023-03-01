@@ -8,22 +8,26 @@ struct FileListView: View {
     @EnvironmentObject var fileService: FileService
     
     var body: some View {
-        NavigationView {
             ZStack {
                 // The whole active selection concept doesn't handle links that don't exist yet properly
                 // This is a workaround for that scenario.
-                if let newDoc = sheets.created, newDoc.fileType == .Document {
-                    NavigationLink(destination: DocumentView(meta: newDoc), isActive: Binding.constant(true)) {
-                        EmptyView()
-                    }
-                    .hidden()
-                }
                 
                 VStack {
+                    FilePathBreadcrumb()
+                    
+                    if let newDoc = sheets.created, newDoc.fileType == .Document {
+                        NavigationLink(destination: DocumentView(meta: newDoc), isActive: Binding(get: { current.selectedDocument != nil }, set: { _ in current.selectedDocument = nil }) ) {
+                             EmptyView()
+                         }
+                         .hidden()
+                    }
+                    
                     List(fileService.children) { meta in
                         FileCell(meta: meta)
                             .id(UUID())
                     }
+                    .navigationBarTitle(fileService.parent.map{($0.name)} ?? "")
+                    
                     HStack {
                         BottomBar(onCreating: {
                             if let parent = fileService.parent {
@@ -31,7 +35,6 @@ struct FileListView: View {
                             }
                         })
                     }
-                    .navigationBarTitle(fileService.parent.map{($0.name)} ?? "")
                     .padding(.horizontal, 10)
                     .onReceive(current.$selectedDocument) { _ in
                         print("cleared")
@@ -43,7 +46,19 @@ struct FileListView: View {
                     }
                 }
             }
-        }.navigationViewStyle(.stack)
+            .onAppear {
+                if fileService.parent == nil {
+                    fileService.refreshChildrenAtParent(nil)
+                }
+            }
+            .gesture(
+                DragGesture().onEnded({ (value) in
+                    if value.translation.width > 50 && fileService.parent?.isRoot == false {
+                        withAnimation {
+                            fileService.upADirectory()
+                        }
+                    }
+                }))
     }
 }
 
