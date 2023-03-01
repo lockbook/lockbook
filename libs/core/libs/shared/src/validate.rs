@@ -9,10 +9,10 @@ use std::collections::{HashMap, HashSet};
 
 pub fn file_name(name: &str) -> SharedResult<()> {
     if name.is_empty() {
-        return Err(SharedErrorKind::FileNameEmpty.into());
+        Err(SharedErrorKind::FileNameEmpty)?;
     }
     if name.contains('/') {
-        return Err(SharedErrorKind::FileNameContainsSlash.into());
+        Err(SharedErrorKind::FileNameContainsSlash)?;
     }
     Ok(())
 }
@@ -43,7 +43,7 @@ pub fn is_document<F: FileLike>(file: &F) -> SharedResult<()> {
 
 pub fn path(path: &str) -> SharedResult<()> {
     if path.contains("//") || path.is_empty() {
-        return Err(SharedErrorKind::PathContainsEmptyFileName.into());
+        Err(SharedErrorKind::PathContainsEmptyFileName)?;
     }
 
     Ok(())
@@ -86,10 +86,7 @@ where
                     .iter()
                     .any(|k| k.encrypted_for == owner.0)
             {
-                return Err(SharedErrorKind::ValidationFailure(ValidationFailure::Orphan(
-                    *file.id(),
-                ))
-                .into());
+                Err(SharedErrorKind::ValidationFailure(ValidationFailure::Orphan(*file.id())))?;
             }
         }
         Ok(())
@@ -99,10 +96,9 @@ where
         for file in self.all_files()? {
             if let Some(parent) = self.maybe_find(file.parent()) {
                 if !parent.is_folder() {
-                    return Err(SharedErrorKind::ValidationFailure(
+                    Err(SharedErrorKind::ValidationFailure(
                         ValidationFailure::NonFolderWithChildren(*parent.id()),
-                    )
-                    .into());
+                    ))?;
                 }
             }
         }
@@ -119,10 +115,9 @@ where
             let file = self.find(&id)?;
             if let Some(parent) = self.maybe_find(file.parent()) {
                 if parent.owner() != file.owner() {
-                    return Err(SharedErrorKind::ValidationFailure(
+                    Err(SharedErrorKind::ValidationFailure(
                         ValidationFailure::FileWithDifferentOwnerParent(*file.id()),
-                    )
-                    .into());
+                    ))?;
                 }
             }
         }
@@ -144,16 +139,14 @@ where
                         ancestors.insert(*current_file.id());
                         break;
                     } else {
-                        return Err(SharedErrorKind::ValidationFailure(ValidationFailure::Cycle(
+                        Err(SharedErrorKind::ValidationFailure(ValidationFailure::Cycle(
                             HashSet::from([id]),
-                        ))
-                        .into());
+                        )))?;
                     }
                 } else if ancestors.contains(current_file.parent()) {
-                    return Err(SharedErrorKind::ValidationFailure(ValidationFailure::Cycle(
+                    Err(SharedErrorKind::ValidationFailure(ValidationFailure::Cycle(
                         self.ancestors(current_file.id())?,
-                    ))
-                    .into());
+                    )))?;
                 }
                 ancestors.insert(*current_file.id());
                 current_file = match self.maybe_find_parent(current_file) {
@@ -181,10 +174,9 @@ where
                     continue;
                 }
                 if let Some(conflicting) = id_by_name.remove(file.secret_name()) {
-                    return Err(SharedErrorKind::ValidationFailure(
-                        ValidationFailure::PathConflict(HashSet::from([conflicting, *file.id()])),
-                    )
-                    .into());
+                    Err(SharedErrorKind::ValidationFailure(ValidationFailure::PathConflict(
+                        HashSet::from([conflicting, *file.id()]),
+                    )))?;
                 }
                 id_by_name.insert(file.secret_name().clone(), *file.id());
             }
@@ -197,17 +189,17 @@ where
             let meta = self.find(&link)?;
             if let FileType::Link { target: _ } = meta.file_type() {
                 if meta.is_shared() {
-                    return Err(SharedErrorKind::ValidationFailure(
-                        ValidationFailure::SharedLink { link, shared_ancestor: link },
-                    )
-                    .into());
+                    Err(SharedErrorKind::ValidationFailure(ValidationFailure::SharedLink {
+                        link,
+                        shared_ancestor: link,
+                    }))?;
                 }
                 for ancestor in self.ancestors(&link)? {
                     if self.find(&ancestor)?.is_shared() {
-                        return Err(SharedErrorKind::ValidationFailure(
-                            ValidationFailure::SharedLink { link, shared_ancestor: ancestor },
-                        )
-                        .into());
+                        Err(SharedErrorKind::ValidationFailure(ValidationFailure::SharedLink {
+                            link,
+                            shared_ancestor: ancestor,
+                        }))?;
                     }
                 }
             }
@@ -223,10 +215,9 @@ where
             }
             if let FileType::Link { target } = self.find(&link)?.file_type() {
                 if !linked_targets.insert(target) {
-                    return Err(SharedErrorKind::ValidationFailure(
-                        ValidationFailure::DuplicateLink { target },
-                    )
-                    .into());
+                    Err(SharedErrorKind::ValidationFailure(ValidationFailure::DuplicateLink {
+                        target,
+                    }))?;
                 }
             }
         }
@@ -242,10 +233,7 @@ where
         for link in self.owned_ids() {
             if let FileType::Link { target } = self.find(&link)?.file_type() {
                 if !self.calculate_deleted(&link)? && self.maybe_find(&target).is_none() {
-                    return Err(SharedErrorKind::ValidationFailure(ValidationFailure::BrokenLink(
-                        link,
-                    ))
-                    .into());
+                    Err(SharedErrorKind::ValidationFailure(ValidationFailure::BrokenLink(link)))?;
                 }
             }
         }
@@ -257,10 +245,9 @@ where
             if let FileType::Link { target } = self.find(&link)?.file_type() {
                 if let Some(target_owner) = self.maybe_find(&target).map(|f| f.owner()) {
                     if self.find(&link)?.owner() == target_owner {
-                        return Err(SharedErrorKind::ValidationFailure(
-                            ValidationFailure::OwnedLink(link),
-                        )
-                        .into());
+                        Err(SharedErrorKind::ValidationFailure(ValidationFailure::OwnedLink(
+                            link,
+                        )))?;
                     }
                 }
             }
@@ -273,15 +260,14 @@ where
             // already root
             if let Some(base) = self.tree.base().maybe_find(&id) {
                 if base.is_root() {
-                    return Err(SharedErrorKind::RootModificationInvalid.into());
+                    Err(SharedErrorKind::RootModificationInvalid)?;
                 }
             }
             // newly root
             if self.find(&id)?.is_root() {
-                return Err(SharedErrorKind::ValidationFailure(ValidationFailure::Cycle(
+                Err(SharedErrorKind::ValidationFailure(ValidationFailure::Cycle(
                     vec![id].into_iter().collect(),
-                ))
-                .into());
+                )))?;
             }
         }
         Ok(())
@@ -292,7 +278,7 @@ where
             // already deleted files cannot have updates
             let mut base = self.tree.base().to_lazy();
             if base.maybe_find(&id).is_some() && base.calculate_deleted(&id)? {
-                return Err(SharedErrorKind::DeletedFileUpdated(id).into());
+                Err(SharedErrorKind::DeletedFileUpdated(id))?;
             }
             // newly deleted files cannot have non-deletion updates
             if self.calculate_deleted(&id)? {
@@ -302,7 +288,7 @@ where
                         .iter()
                         .any(|d| d != &Diff::Deleted)
                     {
-                        return Err(SharedErrorKind::DeletedFileUpdated(id).into());
+                        Err(SharedErrorKind::DeletedFileUpdated(id))?;
                     }
                 }
             }
@@ -354,11 +340,11 @@ where
                                     < Some(UserAccessMode::Write)
                                 {
                                     // parent is shared with access < write
-                                    return Err(SharedErrorKind::InsufficientPermission.into());
+                                    Err(SharedErrorKind::InsufficientPermission)?;
                                 }
                             } else {
                                 // this file is shared and its parent is not
-                                return Err(SharedErrorKind::InsufficientPermission.into());
+                                Err(SharedErrorKind::InsufficientPermission)?;
                             }
                         }
                     }
@@ -380,11 +366,11 @@ where
                                     < Some(UserAccessMode::Write)
                                 {
                                     // parent is shared with access < write
-                                    return Err(SharedErrorKind::InsufficientPermission.into());
+                                    Err(SharedErrorKind::InsufficientPermission)?;
                                 }
                             } else {
                                 // this file is shared and its parent is not
-                                return Err(SharedErrorKind::InsufficientPermission.into());
+                                Err(SharedErrorKind::InsufficientPermission)?;
                             }
                         }
                         // check access for staged parent
@@ -399,11 +385,11 @@ where
                                         < Some(UserAccessMode::Write)
                                     {
                                         // parent is shared with access < write
-                                        return Err(SharedErrorKind::InsufficientPermission.into());
+                                        Err(SharedErrorKind::InsufficientPermission)?;
                                     }
                                 } else {
                                     // this file is shared and its parent is not
-                                    return Err(SharedErrorKind::InsufficientPermission.into());
+                                    Err(SharedErrorKind::InsufficientPermission)?;
                                 }
                             }
                         }
@@ -411,7 +397,7 @@ where
                     Diff::Hmac => {
                         // check self access
                         if self.access_mode(owner, file_diff.id())? < Some(UserAccessMode::Write) {
-                            return Err(SharedErrorKind::InsufficientPermission.into());
+                            Err(SharedErrorKind::InsufficientPermission)?;
                         }
                     }
                     Diff::UserKeys => {
@@ -447,21 +433,21 @@ where
                                         < Some(UserAccessMode::Write)
                                     && owner.0 != key.encrypted_for
                                 {
-                                    return Err(SharedErrorKind::InsufficientPermission.into());
+                                    Err(SharedErrorKind::InsufficientPermission)?;
                                 }
                                 // cannot grant yourself write access
                                 if staged_mode != base_mode
                                     && self.access_mode(owner, file_diff.id())?
                                         < Some(UserAccessMode::Write)
                                 {
-                                    return Err(SharedErrorKind::InsufficientPermission.into());
+                                    Err(SharedErrorKind::InsufficientPermission)?;
                                 }
                             } else {
                                 // adding a new share
 
                                 // to add a share, need equal access
                                 if self.access_mode(owner, file_diff.id())? < Some(key.mode) {
-                                    return Err(SharedErrorKind::InsufficientPermission.into());
+                                    Err(SharedErrorKind::InsufficientPermission)?;
                                 }
                             }
                         }
