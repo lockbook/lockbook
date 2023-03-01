@@ -4,7 +4,6 @@ use std::fmt;
 use std::io;
 use std::sync::PoisonError;
 
-use itertools::Itertools;
 use serde::ser::SerializeStruct;
 use serde::{Serialize, Serializer};
 use uuid::Uuid;
@@ -389,10 +388,10 @@ impl fmt::Display for TestRepoError {
             NoRootFolder => write!(f, "no root folder"),
             DocumentTreatedAsFolder(id) => write!(f, "doc '{}' treated as folder", id),
             FileOrphaned(id) => write!(f, "orphaned file '{}'", id),
-            CycleDetected(ids) => write!(f, "cycle for files: {}", ids.iter().join(", ")),
+            CycleDetected(ids) => write!(f, "cycle for files: {:?}", ids),
             FileNameEmpty(id) => write!(f, "file '{}' name is empty", id),
             FileNameContainsSlash(id) => write!(f, "file '{}' name contains slash", id),
-            PathConflict(ids) => write!(f, "path conflict between: {}", ids.iter().join(", ")),
+            PathConflict(ids) => write!(f, "path conflict between: {:?}", ids),
             NonDecryptableFileName(id) => write!(f, "can't decrypt file '{}' name", id),
             FileWithDifferentOwnerParent(id) => write!(f, "file '{}' different owner parent", id),
             SharedLink { link, shared_ancestor } => {
