@@ -270,26 +270,6 @@ impl From<LbError> for Error<ReadDocumentError> {
 }
 
 #[derive(Debug, Serialize, EnumIter)]
-pub enum SaveDocumentToDiskError {
-    TreatedFolderAsDocument,
-    FileDoesNotExist,
-    BadPath,
-    FileAlreadyExistsInDisk,
-}
-
-impl From<LbError> for Error<SaveDocumentToDiskError> {
-    fn from(err: LbError) -> Self {
-        match err.kind {
-            CoreError::FileNotDocument => UiError(SaveDocumentToDiskError::TreatedFolderAsDocument),
-            CoreError::FileNonexistent => UiError(SaveDocumentToDiskError::FileDoesNotExist),
-            CoreError::DiskPathInvalid => UiError(SaveDocumentToDiskError::BadPath),
-            CoreError::DiskPathTaken => UiError(SaveDocumentToDiskError::FileAlreadyExistsInDisk),
-            _ => unexpected!("{:#?}", err),
-        }
-    }
-}
-
-#[derive(Debug, Serialize, EnumIter)]
 pub enum RenameFileError {
     FileDoesNotExist,
     NewNameEmpty,

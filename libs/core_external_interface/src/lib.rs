@@ -55,7 +55,6 @@ impl_get_variants!(
     SaveDrawingError,
     ExportDrawingError,
     ExportDrawingToDiskError,
-    SaveDocumentToDiskError,
 );
 
 #[derive(Clone)]
