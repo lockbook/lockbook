@@ -90,6 +90,25 @@ impl Core {
     }
 }
 
+trait LbResultExt {
+    fn expected_errs(self, kinds: &[CoreError]) -> Self;
+}
+
+impl<T> LbResultExt for LbResult<T> {
+    fn expected_errs(self, kinds: &[CoreError]) -> Self {
+        self.map_err(|err| {
+            let LbError { kind, mut backtrace } = err;
+            for k in kinds {
+                if matches!(k, kind) {
+                    backtrace = None;
+                    break;
+                }
+            }
+            LbError { kind, backtrace }
+        })
+    }
+}
+
 impl<Client: Requester> CoreLib<Client> {
     pub fn in_tx<F, Out>(&self, f: F) -> LbResult<Out>
     where
@@ -106,7 +125,17 @@ impl<Client: Requester> CoreLib<Client> {
     pub fn create_account(
         &self, username: &str, api_url: &str, welcome_doc: bool,
     ) -> LbResult<Account> {
-        self.in_tx(|s| s.create_account(username, api_url, welcome_doc))
+        self.in_tx(|s| {
+            s.create_account(username, api_url, welcome_doc)
+                .expected_errs(&[
+                    CoreError::AccountExists,
+                    CoreError::UsernameTaken,
+                    CoreError::UsernameInvalid,
+                    CoreError::ServerUnreachable,
+                    CoreError::ClientUpdateRequired,
+                    CoreError::ServerDisabled,
+                ])
+        })
     }
 
     #[instrument(level = "debug", skip_all, err(Debug))]
