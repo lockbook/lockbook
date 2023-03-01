@@ -99,7 +99,7 @@ impl<T> LbResultExt for LbResult<T> {
         self.map_err(|err| {
             let LbError { kind, mut backtrace } = err;
             for k in kinds {
-                if matches!(k, kind) {
+                if *k == kind {
                     backtrace = None;
                     break;
                 }
