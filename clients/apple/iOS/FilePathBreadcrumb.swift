@@ -9,13 +9,15 @@ struct FilePathBreadcrumb: View {
         ScrollViewReader { scrollHelper in
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack {
-                    ForEach(fileService.path, id: \.self) { file in                        
+                    ForEach(fileService.path, id: \.self) { file in
                         if(fileService.path.last == file) {
                             Button(action: {
                                 withAnimation {
                                     fileService.pathBreadcrumbClicked(file)
                                 }
                             }, label: {
+                                Image(systemName: "folder.fill")
+                                    .foregroundColor(.blue)
                                 Text(file.name)
                             })
                             .padding(.trailing)
@@ -26,14 +28,16 @@ struct FilePathBreadcrumb: View {
                                     fileService.pathBreadcrumbClicked(file)
                                 }
                             }, label: {
+                                Image(systemName: "folder.fill")
+                                    .foregroundColor(.blue)
                                 Text(file.name)
                             })
                             .id(file)
                         }
                         
                         if(fileService.path.last != file) {
-                            Image(systemName: "arrow.forward")
-                                .foregroundColor(.accentColor)
+                            Image(systemName: "chevron.right")
+                                .foregroundColor(.gray)
                         }
                         
                     }
