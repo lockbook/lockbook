@@ -172,14 +172,10 @@ fn get_children(
 }
 
 pub fn list(core: &Core, args: ListArgs) -> Result<(), CliError> {
-    let id = core
-        .get_by_path(&args.directory)
-        .map_err(|err| (err, args.directory.as_str()))?
-        .id;
+    let id = core.get_by_path(&args.directory)?.id;
 
     let mut files = if args.recursive {
-        core.get_and_get_children_recursively(id)
-            .map_err(|err| (err, id))?
+        core.get_and_get_children_recursively(id)?
     } else {
         core.get_children(id)?
     };

@@ -1,5 +1,4 @@
-use lockbook_core::model::errors::CreateFileAtPathError::*;
-use lockbook_core::Error::UiError;
+use lockbook_core::CoreError;
 use lockbook_shared::file_metadata::FileType;
 use lockbook_shared::path_ops::Filter::{DocumentsOnly, FoldersOnly, LeafNodesOnly};
 use test_utils::*;
@@ -57,7 +56,7 @@ fn create_at_path_missing_folders() {
 fn create_at_path_path_contains_empty_file_name() {
     let core = test_core_with_account();
     let result = core.create_at_path("//document");
-    assert_matches!(result, Err(UiError(PathContainsEmptyFile)));
+    assert_matches!(result.unwrap_err().kind, CoreError::PathContainsEmptyFileName);
 }
 
 #[test]
@@ -65,7 +64,7 @@ fn create_at_path_path_taken() {
     let core = test_core_with_account();
     core.create_at_path("/folder/document").unwrap();
     let result = core.create_at_path("/folder/document");
-    assert_matches!(result, Err(UiError(FileAlreadyExists)));
+    assert_matches!(result.unwrap_err().kind, CoreError::PathTaken);
 }
 
 #[test]
@@ -73,7 +72,7 @@ fn create_at_path_not_folder() {
     let core = test_core_with_account();
     core.create_at_path("/not-folder").unwrap();
     let result = core.create_at_path("/not-folder/document");
-    assert_matches!(result, Err(UiError(DocumentTreatedAsFolder)));
+    assert_matches!(result.unwrap_err().kind, CoreError::FileNotFolder);
 }
 
 #[test]

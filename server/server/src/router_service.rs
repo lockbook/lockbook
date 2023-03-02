@@ -7,7 +7,7 @@ use crate::{handle_version_header, router_service, verify_auth, ServerError, Ser
 use lazy_static::lazy_static;
 use lockbook_shared::api::*;
 use lockbook_shared::api::{ErrorWrapper, Request, RequestWrapper};
-use lockbook_shared::SharedError;
+use lockbook_shared::SharedErrorKind;
 use prometheus::{
     register_counter_vec, register_histogram_vec, CounterVec, HistogramVec, TextEncoder,
 };
@@ -357,8 +357,8 @@ where
         ErrorWrapper::<Req::Error>::BadRequest
     })?;
 
-    verify_auth(server_state, &request).map_err(|err| match err {
-        SharedError::SignatureExpired(_) | SharedError::SignatureInTheFuture(_) => {
+    verify_auth(server_state, &request).map_err(|err| match err.kind {
+        SharedErrorKind::SignatureExpired(_) | SharedErrorKind::SignatureInTheFuture(_) => {
             warn!("expired auth");
             ErrorWrapper::<Req::Error>::ExpiredAuth
         }

@@ -1,4 +1,4 @@
-use crate::{CoreError, CoreResult};
+use crate::{CoreError, LbResult};
 use crate::{CoreState, Requester};
 use lockbook_shared::file::File;
 use lockbook_shared::path_ops::Filter;
@@ -6,7 +6,7 @@ use lockbook_shared::tree_like::TreeLike;
 use uuid::Uuid;
 
 impl<Client: Requester> CoreState<Client> {
-    pub(crate) fn create_link_at_path(&mut self, path: &str, target_id: Uuid) -> CoreResult<File> {
+    pub(crate) fn create_link_at_path(&mut self, path: &str, target_id: Uuid) -> LbResult<File> {
         let pub_key = self.get_public_key()?;
         let mut tree = (&self.db.base_metadata)
             .to_staged(&mut self.db.local_metadata)
@@ -25,7 +25,7 @@ impl<Client: Requester> CoreState<Client> {
         Ok(ui_file)
     }
 
-    pub(crate) fn create_at_path(&mut self, path: &str) -> CoreResult<File> {
+    pub(crate) fn create_at_path(&mut self, path: &str) -> LbResult<File> {
         let pub_key = self.get_public_key()?;
         let mut tree = (&self.db.base_metadata)
             .to_staged(&mut self.db.local_metadata)
@@ -44,7 +44,7 @@ impl<Client: Requester> CoreState<Client> {
         Ok(ui_file)
     }
 
-    pub(crate) fn get_by_path(&mut self, path: &str) -> CoreResult<File> {
+    pub(crate) fn get_by_path(&mut self, path: &str) -> LbResult<File> {
         let mut tree = (&self.db.base_metadata)
             .to_staged(&self.db.local_metadata)
             .to_lazy();
@@ -63,7 +63,7 @@ impl<Client: Requester> CoreState<Client> {
         Ok(ui_file)
     }
 
-    pub(crate) fn get_path_by_id(&mut self, id: Uuid) -> CoreResult<String> {
+    pub(crate) fn get_path_by_id(&mut self, id: Uuid) -> LbResult<String> {
         let mut tree = (&self.db.base_metadata)
             .to_staged(&self.db.local_metadata)
             .to_lazy();
@@ -77,7 +77,7 @@ impl<Client: Requester> CoreState<Client> {
         Ok(path)
     }
 
-    pub(crate) fn list_paths(&mut self, filter: Option<Filter>) -> CoreResult<Vec<String>> {
+    pub(crate) fn list_paths(&mut self, filter: Option<Filter>) -> LbResult<Vec<String>> {
         let mut tree = (&self.db.base_metadata)
             .to_staged(&self.db.local_metadata)
             .to_lazy();

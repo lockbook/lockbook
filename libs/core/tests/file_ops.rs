@@ -1,5 +1,4 @@
-use lockbook_core::Error::UiError;
-use lockbook_core::{FileDeleteError, MoveFileError, RenameFileError};
+use lockbook_core::CoreError;
 use test_utils::{assert_matches, test_core_with_account};
 use uuid::Uuid;
 
@@ -16,14 +15,14 @@ fn rename() {
 fn rename_not_found() {
     let core = test_core_with_account();
     let result = core.rename_file(Uuid::new_v4(), "test");
-    assert_matches!(result, Err(UiError(RenameFileError::FileDoesNotExist)));
+    assert_matches!(result.unwrap_err().kind, CoreError::FileNonexistent);
 }
 
 #[test]
 fn rename_not_root() {
     let core = test_core_with_account();
     let result = core.rename_file(core.get_root().unwrap().id, "test");
-    assert_matches!(result, Err(UiError(RenameFileError::CannotRenameRoot)));
+    assert_matches!(result.unwrap_err().kind, CoreError::RootModificationInvalid);
 }
 
 #[test]
@@ -31,8 +30,8 @@ fn apply_rename_invalid_name() {
     let core = test_core_with_account();
     let id = core.create_at_path("doc.md").unwrap().id;
     assert_matches!(
-        core.rename_file(id, "docs/2.md"),
-        Err(UiError(RenameFileError::NewNameContainsSlash))
+        core.rename_file(id, "docs/2.md").unwrap_err().kind,
+        CoreError::FileNameContainsSlash
     );
 }
 
@@ -41,10 +40,7 @@ fn name_taken() {
     let core = test_core_with_account();
     core.create_at_path("doc1.md").unwrap();
     let id = core.create_at_path("doc2.md").unwrap().id;
-    assert_matches!(
-        core.rename_file(id, "doc1.md"),
-        Err(UiError(RenameFileError::FileNameNotAvailable))
-    );
+    assert_matches!(core.rename_file(id, "doc1.md").unwrap_err().kind, CoreError::PathTaken);
 }
 
 #[test]
@@ -52,7 +48,7 @@ fn name_empty() {
     let core = test_core_with_account();
     core.create_at_path("doc1.md").unwrap();
     let id = core.create_at_path("doc2.md").unwrap().id;
-    assert_matches!(core.rename_file(id, ""), Err(UiError(RenameFileError::NewNameEmpty)));
+    assert_matches!(core.rename_file(id, "").unwrap_err().kind, CoreError::FileNameEmpty);
 }
 
 #[test]
@@ -68,8 +64,8 @@ fn mv_not_found_parent() {
     let core = test_core_with_account();
     let id = core.create_at_path("folder/doc1.md").unwrap().id;
     assert_matches!(
-        core.move_file(id, Uuid::new_v4()),
-        Err(UiError(MoveFileError::TargetParentDoesNotExist))
+        core.move_file(id, Uuid::new_v4()).unwrap_err().kind,
+        CoreError::FileParentNonexistent
     );
 }
 
@@ -77,8 +73,10 @@ fn mv_not_found_parent() {
 fn mv_not_found_target() {
     let core = test_core_with_account();
     assert_matches!(
-        core.move_file(Uuid::new_v4(), core.get_root().unwrap().id),
-        Err(UiError(MoveFileError::FileDoesNotExist))
+        core.move_file(Uuid::new_v4(), core.get_root().unwrap().id)
+            .unwrap_err()
+            .kind,
+        CoreError::FileNonexistent
     );
 }
 
@@ -87,10 +85,7 @@ fn move_parent_document() {
     let core = test_core_with_account();
     let id = core.create_at_path("folder/doc1.md").unwrap().id;
     let target = core.create_at_path("doc2.md").unwrap().id;
-    assert_matches!(
-        core.move_file(id, target),
-        Err(UiError(MoveFileError::DocumentTreatedAsFolder))
-    );
+    assert_matches!(core.move_file(id, target).unwrap_err().kind, CoreError::FileNotFolder);
 }
 
 #[test]
@@ -98,8 +93,10 @@ fn move_root() {
     let core = test_core_with_account();
     let id = core.create_at_path("folder/").unwrap().id;
     assert_matches!(
-        core.move_file(core.get_root().unwrap().id, id),
-        Err(UiError(MoveFileError::CannotMoveRoot))
+        core.move_file(core.get_root().unwrap().id, id)
+            .unwrap_err()
+            .kind,
+        CoreError::RootModificationInvalid
     );
 }
 
@@ -108,10 +105,7 @@ fn move_path_conflict() {
     let core = test_core_with_account();
     let dest = core.create_at_path("folder/test.md").unwrap().parent;
     let src = core.create_at_path("test.md").unwrap().id;
-    assert_matches!(
-        core.move_file(src, dest),
-        Err(UiError(MoveFileError::TargetParentHasChildNamedThat))
-    );
+    assert_matches!(core.move_file(src, dest).unwrap_err().kind, CoreError::PathTaken);
 }
 
 #[test]
@@ -119,7 +113,7 @@ fn folder_into_self() {
     let core = test_core_with_account();
     let src = core.create_at_path("folder1/").unwrap().id;
     let dest = core.create_at_path("folder1/folder2/folder3/").unwrap().id;
-    assert_matches!(core.move_file(src, dest), Err(UiError(MoveFileError::FolderMovedIntoItself)));
+    assert_matches!(core.move_file(src, dest).unwrap_err().kind, CoreError::FolderMovedIntoSelf);
 }
 
 #[test]
@@ -136,7 +130,9 @@ fn delete() {
 fn delete_root() {
     let core = test_core_with_account();
     assert_matches!(
-        core.delete_file(core.get_root().unwrap().id),
-        Err(UiError(FileDeleteError::CannotDeleteRoot))
+        core.delete_file(core.get_root().unwrap().id)
+            .unwrap_err()
+            .kind,
+        CoreError::RootModificationInvalid
     );
 }

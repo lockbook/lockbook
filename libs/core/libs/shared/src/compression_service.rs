@@ -4,16 +4,16 @@ use flate2::read::ZlibDecoder;
 use flate2::write::ZlibEncoder;
 use flate2::Compression;
 
-use crate::{SharedError, SharedResult};
+use crate::{SharedErrorKind, SharedResult};
 
 pub fn compress(content: &[u8]) -> SharedResult<Vec<u8>> {
     let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
     encoder
         .write_all(content)
-        .map_err(|_| SharedError::Unexpected("unexpected compression error"))?;
+        .map_err(|_| SharedErrorKind::Unexpected("unexpected compression error"))?;
     encoder
         .finish()
-        .map_err(|_| SharedError::Unexpected("unexpected compression error"))
+        .map_err(|_| SharedErrorKind::Unexpected("unexpected compression error").into())
 }
 
 pub fn decompress(content: &[u8]) -> SharedResult<Vec<u8>> {
@@ -21,7 +21,7 @@ pub fn decompress(content: &[u8]) -> SharedResult<Vec<u8>> {
     let mut result = Vec::<u8>::new();
     decoder
         .read_to_end(&mut result)
-        .map_err(|_| SharedError::Unexpected("unexpected decompression error"))?;
+        .map_err(|_| SharedErrorKind::Unexpected("unexpected decompression error"))?;
     Ok(result)
 }
 

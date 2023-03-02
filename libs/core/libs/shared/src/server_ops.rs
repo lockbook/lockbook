@@ -7,7 +7,7 @@ use crate::server_file::{IntoServerFile, ServerFile};
 use crate::server_tree::ServerTree;
 use crate::signed_file::SignedFile;
 use crate::tree_like::TreeLike;
-use crate::{SharedError, SharedResult};
+use crate::{SharedErrorKind, SharedResult};
 
 type LazyServerStaged1<'a> = LazyStaged1<ServerTree<'a>, Vec<ServerFile>>;
 
@@ -23,7 +23,7 @@ impl<'a> LazyTree<ServerTree<'a>> {
         for change in &changes {
             if let Some(old) = &change.old {
                 if old.id() != change.new.id() {
-                    return Err(SharedError::DiffMalformed);
+                    return Err(SharedErrorKind::DiffMalformed.into());
                 }
             }
         }
@@ -35,12 +35,12 @@ impl<'a> LazyTree<ServerTree<'a>> {
                     if old.timestamped_value.value.document_hmac
                         != change.new.timestamped_value.value.document_hmac
                     {
-                        return Err(SharedError::HmacModificationInvalid);
+                        return Err(SharedErrorKind::HmacModificationInvalid.into());
                     }
                 }
                 None => {
                     if change.new.timestamped_value.value.document_hmac.is_some() {
-                        return Err(SharedError::HmacModificationInvalid);
+                        return Err(SharedErrorKind::HmacModificationInvalid.into());
                     }
                 }
             }
@@ -52,15 +52,15 @@ impl<'a> LazyTree<ServerTree<'a>> {
                 Some(old) => {
                     let current = &self
                         .maybe_find(old.id())
-                        .ok_or(SharedError::OldFileNotFound)?
+                        .ok_or(SharedErrorKind::OldFileNotFound)?
                         .file;
                     if current != old {
-                        return Err(SharedError::OldVersionIncorrect);
+                        return Err(SharedErrorKind::OldVersionIncorrect.into());
                     }
                 }
                 None => {
                     if self.maybe_find(change.new.id()).is_some() {
-                        return Err(SharedError::OldVersionRequired);
+                        return Err(SharedErrorKind::OldVersionRequired.into());
                     }
                 }
             }

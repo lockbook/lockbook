@@ -1,6 +1,6 @@
 use crate::model::errors::core_err_unexpected;
 use crate::service::api_service::ApiError;
-use crate::{CoreError, CoreResult, CoreState, Requester};
+use crate::{CoreError, CoreState, LbResult, Requester};
 use libsecp256k1::PublicKey;
 use lockbook_shared::account::Account;
 use lockbook_shared::api::{DeleteAccountRequest, GetPublicKeyRequest, NewAccountRequest};
@@ -11,11 +11,11 @@ use qrcode_generator::QrCodeEcc;
 impl<Client: Requester> CoreState<Client> {
     pub(crate) fn create_account(
         &mut self, username: &str, api_url: &str, welcome_doc: bool,
-    ) -> CoreResult<Account> {
+    ) -> LbResult<Account> {
         let username = String::from(username).to_lowercase();
 
         if self.db.account.data().is_some() {
-            return Err(CoreError::AccountExists);
+            return Err(CoreError::AccountExists.into());
         }
 
         let account = Account::new(username.clone(), api_url.to_string());
@@ -43,23 +43,23 @@ impl<Client: Requester> CoreState<Client> {
         Ok(account)
     }
 
-    pub(crate) fn import_account(&mut self, account_string: &str) -> CoreResult<Account> {
+    pub(crate) fn import_account(&mut self, account_string: &str) -> LbResult<Account> {
         if self.db.account.data().is_some() {
             warn!("tried to import an account, but account exists already.");
-            return Err(CoreError::AccountExists);
+            return Err(CoreError::AccountExists.into());
         }
 
         let decoded = match base64::decode(account_string) {
             Ok(d) => d,
             Err(_) => {
-                return Err(CoreError::AccountStringCorrupted);
+                return Err(CoreError::AccountStringCorrupted.into());
             }
         };
 
         let account: Account = match bincode::deserialize(&decoded[..]) {
             Ok(a) => a,
             Err(_) => {
-                return Err(CoreError::AccountStringCorrupted);
+                return Err(CoreError::AccountStringCorrupted.into());
             }
         };
 
@@ -71,7 +71,7 @@ impl<Client: Requester> CoreState<Client> {
         let account_public_key = account.public_key();
 
         if account_public_key != server_public_key {
-            return Err(CoreError::UsernamePublicKeyMismatch);
+            return Err(CoreError::UsernamePublicKeyMismatch.into());
         }
 
         self.public_key = Some(account_public_key);
@@ -80,7 +80,7 @@ impl<Client: Requester> CoreState<Client> {
         Ok(account)
     }
 
-    pub(crate) fn export_account(&self) -> CoreResult<String> {
+    pub(crate) fn export_account(&self) -> LbResult<String> {
         let account = self
             .db
             .account
@@ -90,17 +90,20 @@ impl<Client: Requester> CoreState<Client> {
         Ok(base64::encode(encoded))
     }
 
-    pub(crate) fn export_account_qr(&self) -> CoreResult<Vec<u8>> {
+    pub(crate) fn export_account_qr(&self) -> LbResult<Vec<u8>> {
         let acct_secret = self.export_account()?;
         qrcode_generator::to_png_to_vec(acct_secret, QrCodeEcc::Low, 1024)
-            .map_err(core_err_unexpected)
+            .map_err(|err| core_err_unexpected(err).into())
     }
 
-    pub(crate) fn get_account(&self) -> CoreResult<&Account> {
-        self.db.account.data().ok_or(CoreError::AccountNonexistent)
+    pub(crate) fn get_account(&self) -> LbResult<&Account> {
+        self.db
+            .account
+            .data()
+            .ok_or_else(|| CoreError::AccountNonexistent.into())
     }
 
-    pub(crate) fn get_public_key(&mut self) -> CoreResult<PublicKey> {
+    pub(crate) fn get_public_key(&mut self) -> LbResult<PublicKey> {
         match self.public_key {
             Some(pk) => Ok(pk),
             None => {
@@ -112,7 +115,7 @@ impl<Client: Requester> CoreState<Client> {
         }
     }
 
-    pub(crate) fn delete_account(&mut self) -> CoreResult<()> {
+    pub(crate) fn delete_account(&mut self) -> LbResult<()> {
         let account = self.get_account()?;
 
         self.client

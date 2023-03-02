@@ -28,18 +28,31 @@ pub mod usage;
 pub mod validate;
 pub mod work_unit;
 
-use db_rs::DbError;
 pub use lazy::ValidationFailure;
+
+use std::backtrace::Backtrace;
 use std::io;
 
+use db_rs::DbError;
 use hmac::crypto_mac::{InvalidKeyLength, MacError};
 use uuid::Uuid;
 
 pub type SharedResult<T> = Result<T, SharedError>;
 
+#[derive(Debug)]
+pub struct SharedError {
+    pub kind: SharedErrorKind,
+    pub backtrace: Option<Backtrace>,
+}
+
+impl From<SharedErrorKind> for SharedError {
+    fn from(kind: SharedErrorKind) -> Self {
+        Self { kind, backtrace: Some(Backtrace::capture()) }
+    }
+}
+
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub enum SharedError {
-    InsufficientPermission, // todo: this is a duplicate of NotPermissioned
+pub enum SharedErrorKind {
     PathContainsEmptyFileName,
     PathTaken,
     RootNonexistent,
@@ -79,7 +92,7 @@ pub enum SharedError {
 
     /// Arises during a call to upsert, when the person making the request is not an owner of the file
     /// or has not signed the update
-    NotPermissioned,
+    InsufficientPermission,
 
     /// Arises during a call to upsert, when a diff's new.id != old.id
     DiffMalformed,
@@ -99,18 +112,18 @@ pub enum SharedError {
 
 impl From<DbError> for SharedError {
     fn from(value: DbError) -> Self {
-        Self::Db(format!("db error: {:?}", value))
+        SharedErrorKind::Db(format!("db error: {:?}", value)).into()
     }
 }
 
 impl From<bincode::Error> for SharedError {
     fn from(err: bincode::Error) -> Self {
-        Self::BincodeError(err.to_string())
+        SharedErrorKind::BincodeError(err.to_string()).into()
     }
 }
 
 impl From<io::Error> for SharedError {
     fn from(err: io::Error) -> Self {
-        Self::Io(err.to_string())
+        SharedErrorKind::Io(err.to_string()).into()
     }
 }

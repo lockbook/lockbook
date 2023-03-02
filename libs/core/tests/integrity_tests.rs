@@ -1,4 +1,4 @@
-use lockbook_core::model::errors::TestRepoError::*;
+use lockbook_core::TestRepoError::*;
 use lockbook_core::Warning::*;
 use lockbook_shared::file_like::FileLike;
 use lockbook_shared::file_metadata::FileType::Document;

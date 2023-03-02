@@ -29,38 +29,11 @@ pub enum TabFailure {
     Unexpected(String),
 }
 
-impl From<lb::Error<lb::ReadDocumentError>> for TabFailure {
-    fn from(err: lb::Error<lb::ReadDocumentError>) -> Self {
-        match err {
-            lb::Error::UiError(err) => Self::SimpleMisc(format!("{:?}", err)),
-            lb::Error::Unexpected(msg) => Self::Unexpected(msg),
-        }
-    }
-}
-
-impl From<lb::Error<lb::WriteToDocumentError>> for TabFailure {
-    fn from(err: lb::Error<lb::WriteToDocumentError>) -> Self {
-        match err {
-            lb::Error::UiError(err) => Self::SimpleMisc(format!("{:?}", err)),
-            lb::Error::Unexpected(msg) => Self::Unexpected(msg),
-        }
-    }
-}
-
-impl From<lb::Error<lb::GetDrawingError>> for TabFailure {
-    fn from(err: lb::Error<lb::GetDrawingError>) -> Self {
-        match err {
-            lb::Error::UiError(err) => Self::SimpleMisc(format!("{:?}", err)),
-            lb::Error::Unexpected(msg) => Self::Unexpected(msg),
-        }
-    }
-}
-
-impl From<lb::Error<lb::SaveDrawingError>> for TabFailure {
-    fn from(err: lb::Error<lb::SaveDrawingError>) -> Self {
-        match err {
-            lb::Error::UiError(err) => Self::SimpleMisc(format!("{:?}", err)),
-            lb::Error::Unexpected(msg) => Self::Unexpected(msg),
+impl From<lb::LbError> for TabFailure {
+    fn from(err: lb::LbError) -> Self {
+        match err.kind {
+            lb::CoreError::Unexpected(msg) => Self::Unexpected(msg),
+            _ => Self::SimpleMisc(format!("{:?}", err)),
         }
     }
 }

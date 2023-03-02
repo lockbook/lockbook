@@ -1,5 +1,5 @@
 use crate::crypto::*;
-use crate::{SharedError, SharedResult};
+use crate::{SharedErrorKind, SharedResult};
 use aead::{generic_array::GenericArray, Aead, NewAead};
 use aes_gcm::Aes256Gcm;
 use rand::rngs::OsRng;
@@ -20,14 +20,14 @@ pub fn encrypt<T: Serialize + DeserializeOwned>(
     let nonce = &generate_nonce();
     let encrypted = convert_key(key)
         .encrypt(GenericArray::from_slice(nonce), aead::Payload { msg: &serialized, aad: &[] })
-        .map_err(SharedError::Encryption)?;
+        .map_err(SharedErrorKind::Encryption)?;
     Ok(AESEncrypted::new(encrypted, nonce.to_vec()))
 }
 pub fn decrypt<T: DeserializeOwned>(key: &AESKey, to_decrypt: &AESEncrypted<T>) -> SharedResult<T> {
     let nonce = GenericArray::from_slice(&to_decrypt.nonce);
     let decrypted = convert_key(key)
         .decrypt(nonce, aead::Payload { msg: &to_decrypt.value, aad: &[] })
-        .map_err(SharedError::Decryption)?;
+        .map_err(SharedErrorKind::Decryption)?;
     let deserialized = bincode::deserialize(&decrypted)?;
     Ok(deserialized)
 }

@@ -1,5 +1,4 @@
-use lockbook_core::Core;
-use lockbook_core::{Error, ShareFileError};
+use lockbook_core::{Core, CoreError};
 use lockbook_shared::file::ShareMode;
 use test_utils::*;
 
@@ -510,8 +509,11 @@ fn test_share_link_write() {
         .unwrap();
     assert::all_paths(&cores[1], &["/", "/passalong.md"]);
     assert_matches!(
-        cores[1].share_file(link.id, &accounts[2].username, ShareMode::Write), // this succeeded and now correctly fails (was sharing link instead of target)
-        Err(Error::UiError(ShareFileError::InsufficientPermission))
+        cores[1]
+            .share_file(link.id, &accounts[2].username, ShareMode::Write)
+            .unwrap_err()
+            .kind, // this succeeded and now correctly fails (was sharing link instead of target)
+        CoreError::InsufficientPermission
     );
     cores[1].sync(None).unwrap();
 

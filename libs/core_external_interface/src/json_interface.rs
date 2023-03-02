@@ -26,7 +26,7 @@ mod unit_tests {
 
     #[test]
     fn sanity_check() {
-        let a: Result<(), UnexpectedError> = Err(UnexpectedError("test".to_string()));
+        let a: Result<(), UnexpectedError> = Err(UnexpectedError::new("test".to_string()));
         println!("{}", translate(a));
     }
 }

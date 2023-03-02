@@ -19,7 +19,8 @@ impl<E> From<ErrorWrapper<E>> for ApiError<E> {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+// #[derive(Debug, PartialEq, Eq)]
+#[derive(Debug)]
 pub enum ApiError<E> {
     Endpoint(E),
     ClientUpdateRequired,

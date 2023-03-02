@@ -1,6 +1,6 @@
 use crate::crypto::{AESEncrypted, AESKey};
 use crate::symkey::{convert_key, generate_nonce};
-use crate::{SharedError, SharedResult};
+use crate::{SharedErrorKind, SharedResult};
 use aead::{generic_array::GenericArray, Aead};
 use hmac::{Hmac, Mac, NewMac};
 use serde::{Deserialize, Serialize};
@@ -22,8 +22,8 @@ impl SecretFileName {
         let serialized = bincode::serialize(to_encrypt)?;
 
         let hmac = {
-            let mut mac =
-                HmacSha256::new_from_slice(parent_key).map_err(SharedError::HmacCreationError)?;
+            let mut mac = HmacSha256::new_from_slice(parent_key)
+                .map_err(SharedErrorKind::HmacCreationError)?;
             mac.update(serialized.as_ref());
             mac.finalize().into_bytes()
         }
@@ -36,7 +36,7 @@ impl SecretFileName {
                     GenericArray::from_slice(nonce),
                     aead::Payload { msg: &serialized, aad: &[] },
                 )
-                .map_err(SharedError::Encryption)?;
+                .map_err(SharedErrorKind::Encryption)?;
             AESEncrypted::new(encrypted, nonce.to_vec())
         };
 
@@ -47,7 +47,7 @@ impl SecretFileName {
         let nonce = GenericArray::from_slice(&self.encrypted_value.nonce);
         let decrypted = convert_key(key)
             .decrypt(nonce, aead::Payload { msg: &self.encrypted_value.value, aad: &[] })
-            .map_err(SharedError::Decryption)?;
+            .map_err(SharedErrorKind::Decryption)?;
         let deserialized = bincode::deserialize(&decrypted)?;
         Ok(deserialized)
     }
@@ -55,10 +55,10 @@ impl SecretFileName {
     pub fn verify_hmac(&self, key: &AESKey, parent_key: &AESKey) -> SharedResult<()> {
         let decrypted = self.to_string(key)?;
         let mut mac =
-            HmacSha256::new_from_slice(parent_key).map_err(SharedError::HmacCreationError)?;
+            HmacSha256::new_from_slice(parent_key).map_err(SharedErrorKind::HmacCreationError)?;
         mac.update(decrypted.as_ref());
         mac.verify(&self.hmac)
-            .map_err(SharedError::HmacValidationError)?;
+            .map_err(SharedErrorKind::HmacValidationError)?;
         Ok(())
     }
 }

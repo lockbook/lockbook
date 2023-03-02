@@ -12,7 +12,7 @@ use crate::CliError;
 pub fn edit(core: &Core, target: &str) -> Result<(), CliError> {
     let f = resolve_target_to_file(core, target)?;
 
-    let file_content = core.read_document(f.id).map_err(|err| (err, f.id))?;
+    let file_content = core.read_document(f.id)?;
 
     let mut temp_file_path = create_tmp_dir()?;
     temp_file_path.push(f.name);
@@ -168,6 +168,6 @@ fn save_temp_file_contents<P: AsRef<Path>>(core: &Core, id: Uuid, path: P) -> Re
         })?
         .into_bytes();
 
-    core.write_document(id, &secret)
-        .map_err(|err| (err, id).into())
+    core.write_document(id, &secret)?;
+    Ok(())
 }
