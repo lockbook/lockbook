@@ -75,7 +75,7 @@ class FileService: ObservableObject {
         } else {
             file = meta!
         }
-        
+
         var toBeSorted = files.filter {
             $0.parent == file.id && $0.parent != $0.id
         }
@@ -89,6 +89,7 @@ class FileService: ObservableObject {
         let root = root!
         return childrenOf(root)
     }
+
     init(_ core: LockbookApi) {
         self.core = core
 
@@ -96,7 +97,7 @@ class FileService: ObservableObject {
             refresh()
         }
     }
-    
+
     // TODO in the future we should pop one of these bad boys up during this operation
     // https://github.com/elai950/AlertToast
     func moveFile(id: UUID, newParent: UUID) {
