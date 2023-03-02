@@ -13,7 +13,6 @@ struct FileListView: View {
                 // This is a workaround for that scenario.
                 
                 VStack {
-                    FilePathBreadcrumb()
                     
                     if let newDoc = sheets.created, newDoc.fileType == .Document {
                         NavigationLink(destination: DocumentView(meta: newDoc), isActive: Binding(get: { current.selectedDocument != nil }, set: { _ in current.selectedDocument = nil }) ) {
@@ -27,6 +26,8 @@ struct FileListView: View {
                             .id(UUID())
                     }
                     .navigationBarTitle(fileService.parent.map{($0.name)} ?? "")
+                    
+                    FilePathBreadcrumb()
                     
                     HStack {
                         BottomBar(onCreating: {

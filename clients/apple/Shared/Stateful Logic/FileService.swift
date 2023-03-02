@@ -9,7 +9,7 @@ class FileService: ObservableObject {
     @Published var root: File? = nil
     @Published var files: [File] = []
     
-    // File Service takes
+    // File Service keeps track of the children and parent being displayed on iOS. Since this functionality is not used for macOS, it is conditionally compiled.
 #if os(iOS)
     @Published var parent: File? = nil
     @Published var children: [File] = []
@@ -98,7 +98,6 @@ class FileService: ObservableObject {
             refresh()
         }
     }
-
     // TODO in the future we should pop one of these bad boys up during this operation
     // https://github.com/elai950/AlertToast
     func moveFile(id: UUID, newParent: UUID) {

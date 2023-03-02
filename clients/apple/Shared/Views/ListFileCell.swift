@@ -66,7 +66,7 @@ struct RealFileCell: View {
             Text(meta.name)
                     .font(.title3)
             HStack {
-                Image(systemName: meta.fileType == .Folder ? "folder" : "doc")
+                Image(systemName: meta.fileType == .Folder ? "folder.fill" : "doc.fill")
                         .foregroundColor(meta.fileType == .Folder ? .blue : .secondary)
                 Text(intEpochToString(epoch: max(meta.lastModified, meta.lastModified)))
                         .foregroundColor(.secondary)

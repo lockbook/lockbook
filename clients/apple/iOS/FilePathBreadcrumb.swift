@@ -6,17 +6,44 @@ struct FilePathBreadcrumb: View {
     @EnvironmentObject var fileService: FileService
     
     var body: some View {
-        ScrollView(.horizontal) {
-            HStack {
-                ForEach(fileService.path) { file in
-                    Button(action: {
-                        withAnimation {
-                            fileService.pathBreadcrumbClicked(file)
+        ScrollViewReader { scrollHelper in
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack {
+                    ForEach(fileService.path, id: \.self) { file in                        
+                        if(fileService.path.last == file) {
+                            Button(action: {
+                                withAnimation {
+                                    fileService.pathBreadcrumbClicked(file)
+                                }
+                            }, label: {
+                                Text(file.name)
+                            })
+                            .padding(.trailing)
+                            .id(file)
+                        } else {
+                            Button(action: {
+                                withAnimation {
+                                    fileService.pathBreadcrumbClicked(file)
+                                }
+                            }, label: {
+                                Text(file.name)
+                            })
+                            .id(file)
                         }
-                    }, label: {
-                        Text(file.name)
-                    })
-                    Image(systemName: "arrow.right")
+                        
+                        if(fileService.path.last != file) {
+                            Image(systemName: "arrow.forward")
+                                .foregroundColor(.accentColor)
+                        }
+                        
+                    }
+                }
+                .onChange(of: fileService.path.count) { count in
+                    if count > 0 {
+                        withAnimation {
+                            scrollHelper.scrollTo(fileService.path.last, anchor: .trailing)
+                        }
+                    }
                 }
             }
         }
