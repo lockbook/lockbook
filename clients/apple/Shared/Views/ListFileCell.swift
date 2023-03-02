@@ -72,7 +72,6 @@ struct RealFileCell: View {
                         .foregroundColor(.secondary)
                 
                 Spacer()
-                
             }
                     .font(.footnote)
         }
