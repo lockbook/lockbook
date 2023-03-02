@@ -13,10 +13,11 @@ use std::sync::{Arc, Mutex};
 
 use lockbook_core::service::search_service::{SearchRequest, SearchResult};
 use lockbook_core::{
-    clock, unexpected_only, ClientWorkUnit, Config, Drawing, Error, FileType, ShareMode,
+    clock, unexpected_only, ClientWorkUnit, Config, Drawing, FileType, ShareMode,
     SupportedImageFormats, SyncProgress, UnexpectedError, Uuid,
 };
 
+use crate::errors::Error;
 use crate::get_all_error_variants;
 use crate::json_interface::translate;
 use crate::static_state;
@@ -638,11 +639,11 @@ lazy_static! {
 fn send_search_request(env: JNIEnv, request: SearchRequest) -> jstring {
     let result = MAYBE_SEARCH_TX
         .lock()
-        .map_err(|_| UnexpectedError("Could not get lock".to_string()))
+        .map_err(|_| UnexpectedError::new("Could not get lock".to_string()))
         .and_then(|maybe_lock| {
             maybe_lock
                 .clone()
-                .ok_or_else(|| UnexpectedError("No search lock.".to_string()))
+                .ok_or_else(|| UnexpectedError::new("No search lock.".to_string()))
         })
         .and_then(|search_tx| search_tx.send(request).map_err(UnexpectedError::from));
 

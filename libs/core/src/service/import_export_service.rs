@@ -1,5 +1,4 @@
-use crate::CoreResult;
-use crate::{CoreError, CoreState, Requester};
+use crate::{CoreError, CoreState, LbError, LbResult, Requester};
 use lockbook_shared::account::Account;
 use lockbook_shared::core_config::Config;
 use lockbook_shared::file::File;
@@ -27,13 +26,13 @@ pub enum ImportStatus {
 impl<Client: Requester> CoreState<Client> {
     pub(crate) fn import_files<F: Fn(ImportStatus)>(
         &mut self, sources: &[PathBuf], dest: Uuid, update_status: &F,
-    ) -> CoreResult<()> {
+    ) -> LbResult<()> {
         update_status(ImportStatus::CalculatedTotal(get_total_child_count(sources)?));
 
         let tree = self.db.base_metadata.stage(&self.db.local_metadata);
         let parent = tree.find(&dest)?;
         if !parent.is_folder() {
-            return Err(CoreError::FileNotFolder);
+            return Err(CoreError::FileNotFolder.into());
         }
 
         for disk_path in sources {
@@ -46,9 +45,9 @@ impl<Client: Requester> CoreState<Client> {
     pub(crate) fn export_file(
         &mut self, id: Uuid, destination: PathBuf, edit: bool,
         export_progress: Option<Box<dyn Fn(ImportExportFileInfo)>>,
-    ) -> CoreResult<()> {
+    ) -> LbResult<()> {
         if destination.is_file() {
-            return Err(CoreError::DiskPathInvalid);
+            return Err(CoreError::DiskPathInvalid.into());
         }
 
         let mut tree = (&self.db.base_metadata)
@@ -80,7 +79,7 @@ impl<Client: Requester> CoreState<Client> {
         config: &Config, account: &Account, tree: &mut LazyStaged1<Base, Local>,
         this_file: &Base::F, disk_path: &Path, edit: bool,
         export_progress: &Option<Box<dyn Fn(ImportExportFileInfo)>>,
-    ) -> CoreResult<()>
+    ) -> LbResult<()>
     where
         Base: TreeLike<F = SignedFile>,
         Local: TreeLike<F = Base::F>,
@@ -97,7 +96,7 @@ impl<Client: Requester> CoreState<Client> {
         match this_file.file_type() {
             FileType::Folder => {
                 let children = tree.children(this_file.id())?;
-                fs::create_dir(dest_with_new.clone()).map_err(CoreError::from)?;
+                fs::create_dir(dest_with_new.clone()).map_err(LbError::from)?;
 
                 for id in children {
                     if !tree.calculate_deleted(&id)? {
@@ -126,11 +125,11 @@ impl<Client: Requester> CoreState<Client> {
                         .create_new(true)
                         .open(dest_with_new)
                 }
-                .map_err(CoreError::from)?;
+                .map_err(LbError::from)?;
 
                 let doc = tree.read_document(config, this_file.id(), account)?;
 
-                file.write_all(doc.as_slice()).map_err(CoreError::from)?;
+                file.write_all(doc.as_slice()).map_err(LbError::from)?;
             }
             FileType::Link { target } => {
                 if !tree.calculate_deleted(&target)? {
@@ -153,7 +152,7 @@ impl<Client: Requester> CoreState<Client> {
 
     fn import_file_recursively<F: Fn(ImportStatus)>(
         &mut self, disk_path: &Path, dest: &Uuid, update_status: &F,
-    ) -> CoreResult<()> {
+    ) -> LbResult<()> {
         let mut tree = (&self.db.base_metadata)
             .to_staged(&mut self.db.local_metadata)
             .to_lazy();
@@ -173,7 +172,7 @@ impl<Client: Requester> CoreState<Client> {
             };
 
             if !disk_path.exists() {
-                return Err(CoreError::DiskPathInvalid);
+                return Err(CoreError::DiskPathInvalid.into());
             }
 
             let disk_file_name = disk_path
@@ -204,7 +203,7 @@ impl<Client: Requester> CoreState<Client> {
             let file = tree.finalize(&id, account, &mut self.db.pub_key_lookup)?;
 
             tree = if ftype == FileType::Document {
-                let doc = fs::read(&disk_path).map_err(CoreError::from)?;
+                let doc = fs::read(&disk_path).map_err(LbError::from)?;
 
                 let encrypted_document = tree.update_document(&id, &doc, account)?;
                 let hmac = tree.find(&id)?.document_hmac();
@@ -215,10 +214,10 @@ impl<Client: Requester> CoreState<Client> {
             } else {
                 update_status(ImportStatus::FinishedItem(file));
 
-                let entries = fs::read_dir(disk_path).map_err(CoreError::from)?;
+                let entries = fs::read_dir(disk_path).map_err(LbError::from)?;
 
                 for entry in entries {
-                    let child_path = entry.map_err(CoreError::from)?.path();
+                    let child_path = entry.map_err(LbError::from)?.path();
                     disk_paths_with_destinations.push((child_path.clone(), id));
                 }
 
@@ -231,7 +230,7 @@ impl<Client: Requester> CoreState<Client> {
 
     fn generate_non_conflicting_name<Base, Local>(
         tree: &mut LazyStaged1<Base, Local>, account: &Account, parent: &Uuid, proposed_name: &str,
-    ) -> CoreResult<String>
+    ) -> LbResult<String>
     where
         Base: TreeLike<F = SignedFile>,
         Local: TreeLike<F = Base::F>,
@@ -262,7 +261,7 @@ impl<Client: Requester> CoreState<Client> {
     }
 }
 
-fn get_total_child_count(paths: &[PathBuf]) -> CoreResult<usize> {
+fn get_total_child_count(paths: &[PathBuf]) -> LbResult<usize> {
     let mut count = 0;
     for p in paths {
         count += get_child_count(p)?;
@@ -270,12 +269,12 @@ fn get_total_child_count(paths: &[PathBuf]) -> CoreResult<usize> {
     Ok(count)
 }
 
-fn get_child_count(path: &Path) -> CoreResult<usize> {
+fn get_child_count(path: &Path) -> LbResult<usize> {
     let mut count = 1;
     if path.is_dir() {
-        let children = fs::read_dir(path).map_err(CoreError::from)?;
+        let children = fs::read_dir(path).map_err(LbError::from)?;
         for maybe_child in children {
-            let child_path = maybe_child.map_err(CoreError::from)?.path();
+            let child_path = maybe_child.map_err(LbError::from)?.path();
 
             count += get_child_count(&child_path)?;
         }

@@ -230,7 +230,7 @@ impl OnboardScreen {
 
             let result = core
                 .create_account(&uname, &api_url, true)
-                .map_err(create_account_err_to_string)
+                .map_err(|err| format!("{:?}", err))
                 .and_then(|_| load_account_data(&core));
 
             update_tx.send(Update::AccountCreated(result)).unwrap();
@@ -249,7 +249,7 @@ impl OnboardScreen {
         thread::spawn(move || {
             if let Err(err) = core
                 .import_account(&key)
-                .map_err(import_account_err_to_string)
+                .map_err(|err| format!("{:?}", err))
             {
                 tx.send(Update::AccountImported(Some(err))).unwrap();
                 ctx.request_repaint();
@@ -279,40 +279,6 @@ impl OnboardScreen {
 
             ctx.request_repaint();
         });
-    }
-}
-
-fn create_account_err_to_string(err: lb::Error<lb::CreateAccountError>) -> String {
-    use lb::CreateAccountError::*;
-
-    match err {
-        lb::Error::UiError(err) => match err {
-            UsernameTaken => "This username is already taken.",
-            InvalidUsername => "This username is invalid.",
-            CouldNotReachServer => "Could not reach server.",
-            AccountExistsAlready => "An account already exists! Please try restarting your client.",
-            ClientUpdateRequired => "Client update required.",
-            ServerDisabled => "This server has disabled sign ups.",
-        }
-        .to_string(),
-        lb::Error::Unexpected(msg) => msg,
-    }
-}
-
-fn import_account_err_to_string(err: lb::Error<lb::ImportError>) -> String {
-    use lb::ImportError::*;
-
-    match err {
-        lb::Error::UiError(err) => match err {
-            AccountStringCorrupted => "Invalid account secret.",
-            AccountDoesNotExist => "This account doesn't exist on the server.",
-            UsernamePKMismatch => "The username doesn't match the private key.",
-            AccountExistsAlready => "An account already exists! Please try restarting your client.",
-            CouldNotReachServer => "Could not reach server.",
-            ClientUpdateRequired => "Client update required.",
-        }
-        .to_string(),
-        lb::Error::Unexpected(msg) => msg,
     }
 }
 

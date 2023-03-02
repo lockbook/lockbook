@@ -11,7 +11,7 @@ use lockbook_shared::file_metadata::{Diff, Owner};
 use lockbook_shared::server_file::IntoServerFile;
 use lockbook_shared::server_tree::ServerTree;
 use lockbook_shared::tree_like::TreeLike;
-use lockbook_shared::{SharedError, SharedResult};
+use lockbook_shared::{SharedErrorKind, SharedResult};
 use std::collections::{HashMap, HashSet};
 use std::hash::Hash;
 use std::ops::DerefMut;
@@ -588,12 +588,14 @@ pub fn validate_account_helper(
     let validation_res = tree.stage(None).validate(owner);
     match validation_res {
         Ok(_) => {}
-        Err(SharedError::ValidationFailure(validation)) => {
-            result.tree_validation_failures.push(validation)
-        }
-        Err(err) => {
-            error!(?owner, ?err, "Unexpected error while validating tree")
-        }
+        Err(err) => match err.kind {
+            SharedErrorKind::ValidationFailure(validation) => {
+                result.tree_validation_failures.push(validation)
+            }
+            _ => {
+                error!(?owner, ?err, "Unexpected error while validating tree")
+            }
+        },
     }
 
     Ok(result)
