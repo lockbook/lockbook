@@ -53,7 +53,7 @@ fn test_matches() {
     assert_result_paths(&search_results, &["/dir/doc3"]);
 
     let search_results = core.search_file_paths("ad").unwrap();
-    assert_result_paths(&search_results, &["/abcd.md", "/abcde.md", "/abc.md"]);
+    assert_result_paths(&search_results, &["/abc.md", "/abcd.md", "/abcde.md"]);
 }
 
 fn assert_result_paths(results: &[SearchResultItem], paths: &[&str]) {

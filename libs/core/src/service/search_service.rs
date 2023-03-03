@@ -1,7 +1,5 @@
 use crate::{CoreError, CoreState, LbResult, Requester, UnexpectedError};
 use crossbeam::channel::{self, Receiver, RecvTimeoutError, Sender};
-use fuzzy_matcher::skim::SkimMatcherV2;
-use fuzzy_matcher::FuzzyMatcher;
 use lockbook_shared::file_like::FileLike;
 use lockbook_shared::filename::DocumentType;
 use lockbook_shared::tree_like::TreeLike;
@@ -25,7 +23,7 @@ const CONTENT_MATCH_PADDING: usize = 8;
 pub struct SearchResultItem {
     pub id: Uuid,
     pub path: String,
-    pub score: i64,
+    pub score: isize,
 }
 
 impl Ord for SearchResultItem {
@@ -60,7 +58,6 @@ impl<Client: Requester> CoreState<Client> {
             .data()
             .ok_or(CoreError::AccountNonexistent)?;
         let mut results = Vec::new();
-        let matcher = SkimMatcherV2::default();
 
         for id in tree.owned_ids() {
             if !tree.calculate_deleted(&id)? && !tree.in_pending_share(&id)? {
@@ -69,8 +66,11 @@ impl<Client: Requester> CoreState<Client> {
                 if file.is_document() {
                     let path = tree.id_to_path(&id, account)?;
 
-                    if let Some(score) = matcher.fuzzy_match(&path, input) {
-                        results.push(SearchResultItem { id, path, score });
+                    if let Some(m) = FuzzySearch::new(input, &path)
+                        .case_insensitive()
+                        .best_match()
+                    {
+                        results.push(SearchResultItem { id, path, score: m.score() });
                     }
                 }
             }

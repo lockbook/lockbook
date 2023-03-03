@@ -3077,7 +3077,6 @@ dependencies = [
  "db-rs",
  "db-rs-derive",
  "diffy",
- "fuzzy-matcher",
  "hmdb",
  "image",
  "indicatif",
