@@ -18,7 +18,6 @@ use uuid::Uuid;
 
 pub enum ImportStatus {
     CalculatedTotal(usize),
-    Error(PathBuf, CoreError),
     StartingItem(String),
     FinishedItem(File),
 }
