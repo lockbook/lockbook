@@ -9,11 +9,7 @@ struct FileListView: View {
     
     var body: some View {
             ZStack {
-                // The whole active selection concept doesn't handle links that don't exist yet properly
-                // This is a workaround for that scenario.
-                
                 VStack {
-                    
                     if let newDoc = sheets.created, newDoc.fileType == .Document {
                         NavigationLink(destination: DocumentView(meta: newDoc), isActive: Binding(get: { current.selectedDocument != nil }, set: { _ in current.selectedDocument = nil }) ) {
                              EmptyView()

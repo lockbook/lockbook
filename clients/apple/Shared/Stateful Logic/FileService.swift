@@ -9,9 +9,10 @@ class FileService: ObservableObject {
     @Published var root: File? = nil
     @Published var files: [File] = []
     
-    // File Service keeps track of the children and parent being displayed on iOS. Since this functionality is not used for macOS, it is conditionally compiled.
+    // File Service keeps track of the parent being displayed on iOS. Since this functionality is not used for macOS, it is conditionally compiled.
 #if os(iOS)
     @Published var path: [File] = []
+    
     var parent: File? {
         get {
             path.last
@@ -201,7 +202,6 @@ class FileService: ObservableObject {
                             self.root = $0
                         }
                     }
-                    self.childrenOfParent()
                     self.closeOpenFileIfDeleted()
                 case .failure(let error):
                     DI.errors.handleError(error)

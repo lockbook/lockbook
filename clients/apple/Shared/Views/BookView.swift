@@ -71,7 +71,7 @@ struct BookView: View {
                     }
                 }
         }
-        .navigationViewStyle(.stack)
+            .navigationViewStyle(.stack)
     }
 
     @ViewBuilder
