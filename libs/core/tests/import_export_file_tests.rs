@@ -22,12 +22,10 @@ fn import_file_successfully() {
     let root = core.get_root().unwrap();
 
     let f = move |status: ImportStatus| {
-        // only checking if the disk path exists since a lockbook folder that has children won't be created until its first child is
+        // only checking if the disk path exists since a lockbook folder that has children won't
+        // be created until its first child is
         match status {
             ImportStatus::CalculatedTotal(_) => {}
-            ImportStatus::Error(path, err) => {
-                panic!("error importing '{}': {:#?}", path.display(), err)
-            }
             ImportStatus::StartingItem(path_str) => {
                 let disk_path = PathBuf::from(path_str);
                 assert!(disk_path.exists());
