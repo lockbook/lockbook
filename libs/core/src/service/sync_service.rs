@@ -18,7 +18,6 @@ use lockbook_shared::work_unit::{ClientWorkUnit, WorkUnit};
 use lockbook_shared::{document_repo, symkey, SharedErrorKind, ValidationFailure};
 
 use db_rs::LookupTable;
-use itertools::Itertools;
 use serde::Serialize;
 use uuid::Uuid;
 
@@ -735,7 +734,7 @@ where
                                 // pick one local id and generate a non-conflicting filename
                                 let mut progress = false;
                                 for &id in ids {
-                                    if duplicate_file_ids.values().contains(&id) {
+                                    if duplicate_file_ids.values().any(|&dup| dup == id) {
                                         *rename_increments.entry(id).or_insert(0) += 1;
                                         progress = true;
                                         break;
