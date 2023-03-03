@@ -246,7 +246,7 @@ impl FfiCore {
 
     pub fn export_file(
         &self, id: Uuid, destination: PathBuf, edit: bool,
-        export_progress: Option<Box<dyn Fn(ImportExportFileInfo)>>,
+        export_progress: Option<Box<dyn Fn(ExportFileInfo)>>,
     ) -> Result<(), Error<ExportFileError>> {
         Ok(self
             .core
