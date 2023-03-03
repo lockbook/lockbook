@@ -7,4 +7,3 @@ edition = "2021"
 structopt = "0.3.13"
 lockbook-core = { path = "../../libs/core" }
 dialoguer = { version = "0.10.1", features = ["fuzzy-select"] }
-backtrace = "0.3"

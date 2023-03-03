@@ -8,7 +8,6 @@ name = "lockbook_core_external_interface"
 crate-type = ["lib", "staticlib", "cdylib"]
 
 [dependencies]
-backtrace = "0.3"
 basic-human-duration = "0.1.2"
 chrono = "0.4.15"
 crossbeam = "0.8.1"
