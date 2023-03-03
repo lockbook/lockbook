@@ -49,7 +49,6 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
 use db_rs::Db;
-use itertools::Itertools;
 use lockbook_shared::account::Username;
 use lockbook_shared::api::{
     AccountInfo, AdminFileInfoResponse, AdminValidateAccount, AdminValidateServer,
@@ -353,7 +352,7 @@ impl<Client: Requester> CoreLib<Client> {
                 .keys()
                 .into_iter()
                 .copied()
-                .collect_vec())
+                .collect::<Vec<Uuid>>())
         })?)
     }
 
