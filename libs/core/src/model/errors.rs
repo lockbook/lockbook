@@ -22,7 +22,7 @@ pub struct LbError {
 
 impl From<CoreError> for LbError {
     fn from(kind: CoreError) -> Self {
-        Self { kind, backtrace: Some(Backtrace::capture()) }
+        Self { kind, backtrace: Some(Backtrace::force_capture()) }
     }
 }
 
@@ -68,7 +68,7 @@ pub struct UnexpectedError {
 
 impl UnexpectedError {
     pub fn new(s: impl ToString) -> Self {
-        Self { msg: s.to_string(), backtrace: Some(Backtrace::capture()) }
+        Self { msg: s.to_string(), backtrace: Some(Backtrace::force_capture()) }
     }
 }
 
@@ -124,7 +124,7 @@ impl Serialize for UnexpectedError {
 macro_rules! unexpected_only {
     ($base:literal $(, $args:tt )*) => {{
         debug!($base $(, $args )*);
-        debug!("{:?}", backtrace::Backtrace::new());
+        debug!("{:?}", std::backtrace::Backtrace::force_capture());
         debug!($base $(, $args )*);
         UnexpectedError::new(format!($base $(, $args )*))
     }};
