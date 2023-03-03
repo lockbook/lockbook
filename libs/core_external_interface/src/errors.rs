@@ -16,7 +16,7 @@ pub enum Error<U: Serialize> {
 macro_rules! unexpected {
     ($base:literal $(, $args:tt )*) => {{
         debug!($base $(, $args )*);
-        debug!("{:?}", backtrace::Backtrace::new());
+        debug!("{:?}", std::backtrace::Backtrace::force_capture());
         debug!($base $(, $args )*);
         Error::Unexpected(format!($base $(, $args )*))
     }};
