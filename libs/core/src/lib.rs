@@ -39,7 +39,7 @@ pub use crate::model::drawing::SupportedImageFormats;
 pub use crate::model::errors::{
     CoreError, LbError, LbResult, TestRepoError, UnexpectedError, Warning,
 };
-pub use crate::service::import_export_service::{ImportExportFileInfo, ImportStatus};
+pub use crate::service::import_export_service::{ExportFileInfo, ImportStatus};
 pub use crate::service::search_service::{SearchResultItem, StartSearchInfo};
 pub use crate::service::sync_service::{SyncProgress, WorkCalculated};
 pub use crate::service::usage_service::{UsageItemMetric, UsageMetrics};
@@ -467,7 +467,7 @@ impl<Client: Requester> CoreLib<Client> {
     #[instrument(level = "debug", skip(self, export_progress), err(Debug))]
     pub fn export_file(
         &self, id: Uuid, destination: PathBuf, edit: bool,
-        export_progress: Option<Box<dyn Fn(ImportExportFileInfo)>>,
+        export_progress: Option<Box<dyn Fn(ExportFileInfo)>>,
     ) -> Result<(), LbError> {
         self.in_tx(|s| s.export_file(id, destination, edit, export_progress))
             .expected_errs(&[

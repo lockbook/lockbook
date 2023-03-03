@@ -1,4 +1,4 @@
-use lockbook_core::service::import_export_service::{ImportExportFileInfo, ImportStatus};
+use lockbook_core::service::import_export_service::{ExportFileInfo, ImportStatus};
 use lockbook_shared::file_metadata::FileType;
 use rand::Rng;
 
@@ -71,10 +71,10 @@ fn export_file_successfully() {
     core.write_document(file.id, &rand::thread_rng().gen::<[u8; 32]>())
         .unwrap();
 
-    let paths: Arc<Mutex<Vec<ImportExportFileInfo>>> = Arc::new(Mutex::new(Vec::new()));
+    let paths: Arc<Mutex<Vec<ExportFileInfo>>> = Arc::new(Mutex::new(Vec::new()));
     let path_copy = paths.clone();
 
-    let export_progress = move |info: ImportExportFileInfo| {
+    let export_progress = move |info: ExportFileInfo| {
         path_copy.lock().unwrap().push(info);
     };
     core.export_file(file.id, tmp_path.clone(), false, Some(Box::new(export_progress.clone())))

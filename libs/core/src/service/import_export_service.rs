@@ -43,7 +43,7 @@ impl<Client: Requester> CoreState<Client> {
 
     pub(crate) fn export_file(
         &mut self, id: Uuid, destination: PathBuf, edit: bool,
-        export_progress: Option<Box<dyn Fn(ImportExportFileInfo)>>,
+        export_progress: Option<Box<dyn Fn(ExportFileInfo)>>,
     ) -> LbResult<()> {
         if destination.is_file() {
             return Err(CoreError::DiskPathInvalid.into());
@@ -77,7 +77,7 @@ impl<Client: Requester> CoreState<Client> {
     fn export_file_recursively<Base, Local>(
         config: &Config, account: &Account, tree: &mut LazyStaged1<Base, Local>,
         this_file: &Base::F, disk_path: &Path, edit: bool,
-        export_progress: &Option<Box<dyn Fn(ImportExportFileInfo)>>,
+        export_progress: &Option<Box<dyn Fn(ExportFileInfo)>>,
     ) -> LbResult<()>
     where
         Base: TreeLike<F = SignedFile>,
@@ -86,7 +86,7 @@ impl<Client: Requester> CoreState<Client> {
         let dest_with_new = disk_path.join(tree.name_using_links(this_file.id(), account)?);
 
         if let Some(ref func) = export_progress {
-            func(ImportExportFileInfo {
+            func(ExportFileInfo {
                 disk_path: disk_path.to_path_buf(),
                 lockbook_path: tree.id_to_path(this_file.id(), account)?,
             })
@@ -281,7 +281,7 @@ fn get_child_count(path: &Path) -> LbResult<usize> {
     Ok(count)
 }
 
-pub struct ImportExportFileInfo {
+pub struct ExportFileInfo {
     pub disk_path: PathBuf,
     pub lockbook_path: String,
 }
