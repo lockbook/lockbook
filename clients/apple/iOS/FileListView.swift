@@ -21,7 +21,7 @@ struct FileListView: View {
                          .hidden()
                     }
                     
-                    List(fileService.children) { meta in
+                    List(fileService.childrenOfParent()) { meta in
                         FileCell(meta: meta)
                             .id(UUID())
                     }
@@ -45,11 +45,6 @@ struct FileListView: View {
                             sheets.created = nil
                         }
                     }
-                }
-            }
-            .onAppear {
-                if fileService.parent == nil {
-                    fileService.refreshChildrenAtParent(nil)
                 }
             }
             .gesture(

@@ -11,58 +11,36 @@ class FileService: ObservableObject {
     
     // File Service keeps track of the children and parent being displayed on iOS. Since this functionality is not used for macOS, it is conditionally compiled.
 #if os(iOS)
-    @Published var parent: File? = nil
-    @Published var children: [File] = []
-    
     @Published var path: [File] = []
+    var parent: File? {
+        get {
+            path.last
+        }
+    }
+    
+    func childrenOfParent() -> [File] {
+        if(path.isEmpty) {
+            if let realRoot = root {
+                path.append(realRoot)
+            }
+        }
+        
+        return childrenOf(path.last)
+    }
     
     func upADirectory() {
         path.removeLast()
-        refreshChildrenAtParent(parent?.parent)
     }
     
     func intoChildDirectory(_ file: File) {
-        if let realParent = parent {
-            path.append(realParent)
-        }
-        
-        refreshChildrenAtParent(file.id)
+        path.append(file)
     }
-    
-    func refreshChildrenAtParent(_ maybeId: UUID?) {
-        var id: UUID
         
-        if let realId = maybeId {
-            id = realId
-        } else {
-            guard let theRoot = root else {
-                return;
-            }
-            id = theRoot.id
-        }
-
-        var toBeSorted = files.filter {
-            $0.parent == id && $0.parent != $0.id
-        }
-        
-        let parentFile = files.filter {
-            $0.id == id
-        }[0]
-        
-        toBeSorted.sort()
-        
-        parent = parentFile
-        children = toBeSorted
-    }
-    
     func pathBreadcrumbClicked(_ file: File) {
         if let firstIndex = path.firstIndex(of: file) {
-            path.removeSubrange(firstIndex...path.count - 1)
-            refreshChildrenAtParent(file.id)
+            path.removeSubrange(firstIndex + 1...path.count - 1)
         }
-        
     }
-    
 #endif
     
     func childrenOf(_ meta: File?) -> [File] {
@@ -223,7 +201,7 @@ class FileService: ObservableObject {
                             self.root = $0
                         }
                     }
-                    self.refreshChildrenAtParent(self.parent?.id)
+                    self.childrenOfParent()
                     self.closeOpenFileIfDeleted()
                 case .failure(let error):
                     DI.errors.handleError(error)
