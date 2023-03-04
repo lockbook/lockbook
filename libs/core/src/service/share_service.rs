@@ -66,7 +66,7 @@ impl<Client: Requester> CoreState<Client> {
             let file = tree
                 .resolve_and_finalize_all(account, [id].into_iter(), &mut self.db.pub_key_lookup)?
                 .get(0)
-                .ok_or(CoreError::InvalidFinalization)?
+                .ok_or_else(|| CoreError::Unexpected(String::from("finalization")))?
                 .to_owned();
 
             result.push(file);
