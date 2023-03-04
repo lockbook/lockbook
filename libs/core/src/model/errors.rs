@@ -140,7 +140,6 @@ pub enum CoreError {
     FileParentNonexistent,
     FolderMovedIntoSelf,
     InsufficientPermission,
-    InvalidFinalization,
     InvalidCardCvc,
     InvalidCardExpMonth,
     InvalidCardExpYear,

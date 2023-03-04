@@ -75,32 +75,41 @@ where
         Ok(File { id, parent, name, file_type, last_modified, last_modified_by, shares })
     }
 
-    // this variant used when we want to skip certain files e.g. when listing paths
-    pub fn resolve_and_finalize<I>(
-        &mut self, account: &Account, ids: I, public_key_cache: &mut LookupTable<Owner, String>,
-    ) -> SharedResult<Vec<File>>
-    where
-        I: Iterator<Item = Uuid>,
-    {
-        let mut user_visible_ids = Vec::new();
-        for id in ids {
-            if self.calculate_deleted(&id)? {
-                continue;
-            }
-            if self.in_pending_share(&id)? {
-                continue;
-            }
-            if self.link(&id)?.is_some() {
-                continue;
-            }
-            user_visible_ids.push(id);
-        }
-        self.resolve_and_finalize_all(account, user_visible_ids.into_iter(), public_key_cache)
-    }
+    //finalizes one single id.
+    pub fn resolve_and_finalize(
+        &mut self, account: &Account, id: Uuid, public_key_cache: &mut LookupTable<Owner, String>,
+    ) -> SharedResult<File> {
+        let mut file;
+        let mut parent_substitutions = HashMap::new();
 
-    // this variant used when we must include all files e.g. work calculated
+        let finalized = self.finalize(&id, account, public_key_cache)?;
+
+        match finalized.file_type {
+            FileType::Document | FileType::Folder => file = finalized,
+            FileType::Link { target } => {
+                let mut target_file = self.finalize(&target, account, public_key_cache)?;
+                if target_file.is_folder() {
+                    parent_substitutions.insert(target, id);
+                }
+
+                target_file.id = finalized.id;
+                target_file.parent = finalized.parent;
+                target_file.name = finalized.name;
+
+                file = target_file;
+            }
+        }
+
+        if let Some(new_parent) = parent_substitutions.get(&file.parent) {
+            file.parent = *new_parent;
+        }
+
+        Ok(file)
+    }
+    //finalizes multiple ids with the option to include all files or skip over invisible ones (eg useful when listing paths)
     pub fn resolve_and_finalize_all<I>(
         &mut self, account: &Account, ids: I, public_key_cache: &mut LookupTable<Owner, String>,
+        skip_invisible: bool,
     ) -> SharedResult<Vec<File>>
     where
         I: Iterator<Item = Uuid>,
@@ -109,6 +118,10 @@ where
         let mut parent_substitutions = HashMap::new();
 
         for id in ids {
+            if skip_invisible && self.is_invisible_id(id)? {
+                continue;
+            }
+
             let finalized = self.finalize(&id, account, public_key_cache)?;
 
             match finalized.file_type {
@@ -135,6 +148,14 @@ where
         }
 
         Ok(files)
+    }
+
+    fn is_invisible_id(&mut self, id: Uuid) -> SharedResult<bool> {
+        if self.calculate_deleted(&id)? || self.in_pending_share(&id)? || self.link(&id)?.is_some()
+        {
+            return Ok(true);
+        }
+        Ok(false)
     }
 
     pub fn create_op(

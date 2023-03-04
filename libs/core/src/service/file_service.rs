@@ -23,11 +23,7 @@ impl<Client: Requester> CoreState<Client> {
         let id =
             tree.create(Uuid::new_v4(), symkey::generate_key(), parent, name, file_type, account)?;
 
-        let ui_file = tree
-            .resolve_and_finalize_all(account, [id].into_iter(), &mut self.db.pub_key_lookup)?
-            .get(0)
-            .ok_or_else(|| CoreError::Unexpected(String::from("finalization")))?
-            .to_owned();
+        let ui_file = tree.resolve_and_finalize(account, id, &mut self.db.pub_key_lookup)?;
 
         info!("created {:?} with id {id}", file_type);
 
@@ -90,11 +86,7 @@ impl<Client: Requester> CoreState<Client> {
 
         let root_id = self.db.root.data().ok_or(CoreError::RootNonexistent)?;
 
-        let root = tree
-            .resolve_and_finalize(account, [*root_id].into_iter(), &mut self.db.pub_key_lookup)?
-            .get(0)
-            .ok_or_else(|| CoreError::Unexpected(String::from("finalization")))?
-            .to_owned();
+        let root = tree.resolve_and_finalize(account, *root_id, &mut self.db.pub_key_lookup)?;
 
         Ok(root)
     }
@@ -111,7 +103,7 @@ impl<Client: Requester> CoreState<Client> {
 
         let ids = tree.owned_ids().into_iter();
 
-        Ok(tree.resolve_and_finalize(account, ids, &mut self.db.pub_key_lookup)?)
+        Ok(tree.resolve_and_finalize_all(account, ids, &mut self.db.pub_key_lookup, true)?)
     }
 
     pub(crate) fn get_children(&mut self, id: &Uuid) -> CoreResult<Vec<File>> {
@@ -125,7 +117,8 @@ impl<Client: Requester> CoreState<Client> {
             .ok_or(CoreError::AccountNonexistent)?;
 
         let ids = tree.children_using_links(id)?.into_iter();
-        Ok(tree.resolve_and_finalize(account, ids, &mut self.db.pub_key_lookup)?)
+
+        Ok(tree.resolve_and_finalize_all(account, ids, &mut self.db.pub_key_lookup, true)?)
     }
 
     pub(crate) fn get_and_get_children_recursively(&mut self, id: &Uuid) -> CoreResult<Vec<File>> {
@@ -139,10 +132,12 @@ impl<Client: Requester> CoreState<Client> {
             .ok_or(CoreError::AccountNonexistent)?;
 
         let descendants = tree.descendants_using_links(id)?;
-        Ok(tree.resolve_and_finalize(
+
+        Ok(tree.resolve_and_finalize_all(
             account,
             descendants.into_iter().chain(iter::once(*id)),
             &mut self.db.pub_key_lookup,
+            true,
         )?)
     }
 
@@ -164,11 +159,7 @@ impl<Client: Requester> CoreState<Client> {
             return Err(CoreError::FileNonexistent);
         }
 
-        let file = tree
-            .resolve_and_finalize_all(account, [*id].into_iter(), &mut self.db.pub_key_lookup)?
-            .get(0)
-            .ok_or_else(|| CoreError::Unexpected(String::from("finalization")))?
-            .to_owned();
+        let file = tree.resolve_and_finalize(account, *id, &mut self.db.pub_key_lookup)?;
 
         Ok(file)
     }

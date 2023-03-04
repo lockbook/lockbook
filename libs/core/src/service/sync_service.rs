@@ -249,6 +249,7 @@ where
                     &self.account,
                     remote.tree.staged.owned_ids().into_iter(),
                     self.username_by_public_key,
+                    false,
                 )?,
             ));
             let (_, remote_changes) = remote.unstage();
@@ -286,15 +287,11 @@ where
 
                 if let Some(remote_hmac) = remote_hmac {
                     report_sync_operation(SyncOperation::PullDocumentStart(
-                        remote
-                            .resolve_and_finalize_all(
-                                &self.account,
-                                [id].into_iter(),
-                                self.username_by_public_key,
-                            )?
-                            .get(0)
-                            .ok_or_else(|| CoreError::Unexpected(String::from("finalization")))?
-                            .to_owned(),
+                        remote.resolve_and_finalize(
+                            &self.account,
+                            id,
+                            self.username_by_public_key,
+                        )?,
                     ));
 
                     if !self.dry_run {
@@ -940,6 +937,7 @@ where
             &self.account,
             local.tree.staged.owned_ids().into_iter(),
             self.username_by_public_key,
+            false,
         )?));
 
         if !self.dry_run && !updates.is_empty() {
@@ -983,17 +981,11 @@ where
 
             let local_change = local_change.sign(&self.account)?;
 
-            report_sync_operation(SyncOperation::PushDocumentStart(
-                local
-                    .resolve_and_finalize_all(
-                        &self.account,
-                        [id].into_iter(),
-                        self.username_by_public_key,
-                    )?
-                    .get(0)
-                    .ok_or_else(|| CoreError::Unexpected(String::from("finalization")))?
-                    .to_owned(),
-            ));
+            report_sync_operation(SyncOperation::PushDocumentStart(local.resolve_and_finalize(
+                &self.account,
+                id,
+                self.username_by_public_key,
+            )?));
 
             if !self.dry_run {
                 let local_document_change =
