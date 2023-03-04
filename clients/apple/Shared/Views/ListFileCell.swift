@@ -39,13 +39,10 @@ struct FileCell: View {
     var cell: some View {
         if meta.fileType == .Folder {
             Button(action: {
-                withAnimation {
-                    fileService.intoChildDirectory(meta)
-                }
+                fileService.intoChildDirectory(meta)
             }) {
                 RealFileCell(meta: meta)
             }
-            
         } else {
             NavigationLink(destination: DocumentView(meta: meta)) {
                 RealFileCell(meta: meta)

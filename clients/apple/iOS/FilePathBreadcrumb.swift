@@ -33,9 +33,7 @@ struct FilePathBreadcrumb: View {
 
             if(index == lastFileIndex) {
                 Button(action: {
-                    withAnimation {
-                        fileService.pathBreadcrumbClicked(file)
-                    }
+                    fileService.pathBreadcrumbClicked(file)
                 }, label: {
                     Image(systemName: "folder.fill")
                         .foregroundColor(.blue)
@@ -45,9 +43,7 @@ struct FilePathBreadcrumb: View {
                 .id(index)
             } else {
                 Button(action: {
-                    withAnimation {
-                        fileService.pathBreadcrumbClicked(file)
-                    }
+                    fileService.pathBreadcrumbClicked(file)
                 }, label: {
                     Image(systemName: "folder.fill")
                         .foregroundColor(.blue)

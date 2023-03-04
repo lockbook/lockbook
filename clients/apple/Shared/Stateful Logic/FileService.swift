@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 import SwiftLockbookCore
 
 class FileService: ObservableObject {
@@ -12,7 +13,6 @@ class FileService: ObservableObject {
     // File Service keeps track of the parent being displayed on iOS. Since this functionality is not used for macOS, it is conditionally compiled.
 #if os(iOS)
     @Published var path: [File] = []
-    
     var parent: File? {
         get {
             path.last
@@ -20,26 +20,32 @@ class FileService: ObservableObject {
     }
     
     func childrenOfParent() -> [File] {
-        if(path.isEmpty) {
-            if let realRoot = root {
-                path.append(realRoot)
-            }
-        }
-        
         return childrenOf(path.last)
     }
     
     func upADirectory() {
-        path.removeLast()
+        DispatchQueue.main.async {
+            withAnimation {
+                let _ = self.path.removeLast()
+            }
+        }
     }
     
     func intoChildDirectory(_ file: File) {
-        path.append(file)
+        DispatchQueue.main.async {
+            withAnimation {
+                self.path.append(file)
+            }
+        }
     }
         
     func pathBreadcrumbClicked(_ file: File) {
-        if let firstIndex = path.firstIndex(of: file) {
-            path.removeSubrange(firstIndex + 1...path.count - 1)
+        DispatchQueue.main.async {
+            withAnimation {
+                if let firstIndex = self.path.firstIndex(of: file) {
+                    self.path.removeSubrange(firstIndex + 1...self.path.count - 1)
+                }
+            }
         }
     }
 #endif
@@ -200,6 +206,12 @@ class FileService: ObservableObject {
                         self.notifyDocumentChanged($0)
                         if self.root == nil && $0.id == $0.parent {
                             self.root = $0
+                            
+                            #if os(iOS)
+                            if(self.path.isEmpty) {
+                                self.path.append($0)
+                            }
+                            #endif
                         }
                     }
                     self.closeOpenFileIfDeleted()

@@ -19,7 +19,6 @@ struct FileListView: View {
                     
                     List(fileService.childrenOfParent()) { meta in
                         FileCell(meta: meta)
-                            .id(UUID())
                     }
                     .navigationBarTitle(fileService.parent.map{($0.name)} ?? "")
                     
@@ -46,9 +45,7 @@ struct FileListView: View {
             .gesture(
                 DragGesture().onEnded({ (value) in
                     if value.translation.width > 50 && fileService.parent?.isRoot == false {
-                        withAnimation {
-                            fileService.upADirectory()
-                        }
+                        fileService.upADirectory()
                     }
                 }))
     }
