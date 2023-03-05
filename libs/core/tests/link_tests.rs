@@ -304,7 +304,7 @@ fn link_resolving() {
         .iter()
         .map(|core| core.get_account().unwrap())
         .collect::<Vec<_>>();
-    let roots = cores
+    let _roots = cores
         .iter()
         .map(|core| core.get_root().unwrap())
         .collect::<Vec<_>>();
