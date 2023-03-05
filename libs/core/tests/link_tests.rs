@@ -255,3 +255,72 @@ fn list_metadatas_nested_linked_folders() {
     assert::all_recursive_children_ids(&cores[1], link2.id, &[link2.id, document.id]);
     assert::all_recursive_children_ids(&cores[1], document.id, &[document.id]);
 }
+
+#[test]
+fn inconsistent_share_finalization() {
+    let cores: Vec<Core> =
+        vec![test_core_with_account(), test_core_with_account(), test_core_with_account()];
+    let accounts = cores
+        .iter()
+        .map(|core| core.get_account().unwrap())
+        .collect::<Vec<_>>();
+    let roots = cores
+        .iter()
+        .map(|core| core.get_root().unwrap())
+        .collect::<Vec<_>>();
+
+    let folder = cores[0].create_at_path("folder/").unwrap();
+    cores[0]
+        .share_file(folder.id, &accounts[1].username, ShareMode::Write)
+        .unwrap();
+    cores[0]
+        .share_file(folder.id, &accounts[2].username, ShareMode::Write)
+        .unwrap();
+
+    cores[0].sync(None).unwrap();
+    cores[1].sync(None).unwrap();
+    cores[2].sync(None).unwrap();
+
+    let link = cores[1].create_link_at_path("link", folder.id).unwrap();
+
+    let file_single_finalization = cores[1].get_file_by_id(link.id).unwrap();
+
+    let files_all_finalization = cores[1]
+        .get_and_get_children_recursively(roots[1].id)
+        .unwrap();
+
+    let file_all_finalization = files_all_finalization
+        .iter()
+        .find(|f| f.id == link.id)
+        .unwrap();
+
+    assert_eq!(file_all_finalization.shares, file_single_finalization.shares);
+}
+
+#[test]
+fn link_resolving() {
+    let cores: Vec<Core> = vec![test_core_with_account(), test_core_with_account()];
+    let accounts = cores
+        .iter()
+        .map(|core| core.get_account().unwrap())
+        .collect::<Vec<_>>();
+    let roots = cores
+        .iter()
+        .map(|core| core.get_root().unwrap())
+        .collect::<Vec<_>>();
+
+    let folder = cores[0].create_at_path("lockbook/").unwrap();
+    let file = cores[0]
+        .create_file("test.md", folder.id, lockbook_core::FileType::Document)
+        .unwrap();
+    cores[0]
+        .share_file(folder.id, &accounts[1].username, ShareMode::Write)
+        .unwrap();
+
+    cores[0].sync(None).unwrap();
+    cores[1].sync(None).unwrap();
+
+    let link = cores[1].create_link_at_path("link", folder.id).unwrap();
+
+    assert_eq!(cores[1].get_file_by_id(file.id).unwrap().parent, link.id);
+}
