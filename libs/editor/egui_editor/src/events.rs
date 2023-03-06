@@ -621,7 +621,7 @@ fn calc_modification(
             Event::Key { key: Key::F2, pressed: true, modifiers: _modifiers } => {
                 modifications.push(SubModification::DebugToggle);
             }
-            Event::PointerButton {
+            /*Event::PointerButton {
                 pos,
                 button: PointerButton::Primary,
                 pressed: true,
@@ -726,7 +726,7 @@ fn calc_modification(
                         }
                     }
                 }
-            }
+            }*/
             Event::PointerMoved(pos) => {
                 if cursor.click_and_drag_origin.is_some()
                     && !cursor.double_click()
@@ -756,7 +756,7 @@ fn calc_modification(
     (text_updated, modifications)
 }
 
-fn pos_to_char_offset(pos: Pos2, galleys: &Galleys, segs: &UnicodeSegs) -> DocCharOffset {
+pub fn pos_to_char_offset(pos: Pos2, galleys: &Galleys, segs: &UnicodeSegs) -> DocCharOffset {
     if !galleys.is_empty() {
         if pos.y < galleys[0].galley_location.min.y {
             // click position is above first galley
