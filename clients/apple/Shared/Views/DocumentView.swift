@@ -9,6 +9,7 @@ struct DocumentView: View {
     @EnvironmentObject var model: DocumentLoader
 #if os(iOS)
     @EnvironmentObject var toolbar: ToolbarModel
+    @EnvironmentObject var current: CurrentDocument
 #endif
     
     var body: some View {
@@ -65,6 +66,7 @@ struct DocumentView: View {
                 }
             }
         }
+        
     }
 }
 

@@ -15,6 +15,7 @@ public struct File: Codable, Identifiable, Equatable, Hashable, Comparable {
             lhs.id == rhs.id &&
 //            lhs.metadataVersion == rhs.metadataVersion && // TODO don't do this here, do this at the view instead
 //            lhs.contentVersion == rhs.contentVersion &&
+            lhs.shares == rhs.shares &&
             lhs.parent == rhs.parent &&
             lhs.lastModifiedBy == rhs.lastModifiedBy &&
             lhs.name == rhs.name
@@ -75,7 +76,7 @@ public enum ShareMode: String, Codable {
     case Read
 }
 
-public struct Share: Codable {
+public struct Share: Codable, Equatable {
     public var mode: ShareMode
     public var sharedBy: String
     public var sharedWith: String
