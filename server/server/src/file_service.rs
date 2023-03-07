@@ -73,7 +73,7 @@ pub async fn upsert_file_metadata(
         let all_files: Vec<ServerFile> = tree.all_files()?.into_iter().cloned().collect();
         for meta in all_files {
             let id = meta.id();
-            if current_deleted.contains(&id) && !prior_deleted.contains(id) {
+            if current_deleted.contains(id) && !prior_deleted.contains(id) {
                 for user_access_info in meta.user_access_keys() {
                     db.shared_files
                         .remove(&Owner(user_access_info.encrypted_for), id)?;
