@@ -1629,3 +1629,28 @@ fn delete_share() {
     core1.sync(None).unwrap();
     core2.sync(None).unwrap()
 }
+
+#[test]
+fn delete_folder_with_shared_child() {
+    let cores = vec![test_core_with_account(), test_core_with_account()];
+    let accounts = cores
+        .iter()
+        .map(|core| core.get_account().unwrap())
+        .collect::<Vec<_>>();
+
+    let folder = cores[0].create_at_path("folder/").unwrap();
+    let document = cores[0].create_at_path("folder/document").unwrap();
+    cores[0]
+        .write_document(document.id, b"document content")
+        .unwrap();
+    cores[0]
+        .share_file(document.id, &accounts[1].username, ShareMode::Write)
+        .unwrap();
+
+    cores[0].sync(None).unwrap();
+
+    cores[0].delete_file(folder.id).unwrap();
+
+    cores[0].sync(None).unwrap();
+    cores[1].sync(None).unwrap();
+}
