@@ -8,7 +8,7 @@ use lockbook_shared::api::*;
 use lockbook_shared::clock::get_time;
 use lockbook_shared::file_like::FileLike;
 use lockbook_shared::file_metadata::{Diff, Owner};
-use lockbook_shared::server_file::IntoServerFile;
+use lockbook_shared::server_file::{IntoServerFile, ServerFile};
 use lockbook_shared::server_tree::ServerTree;
 use lockbook_shared::tree_like::TreeLike;
 use lockbook_shared::{SharedErrorKind, SharedResult};
@@ -25,7 +25,8 @@ pub async fn upsert_file_metadata(
 
     let mut new_deleted = vec![];
     {
-        let mut prior_deleted_docs = HashSet::new();
+        let mut prior_deleted = HashSet::new();
+        let mut current_deleted = HashSet::new();
 
         let mut lock = context.server_state.index_db.lock()?;
         let db = lock.deref_mut();
@@ -41,8 +42,8 @@ pub async fn upsert_file_metadata(
         .to_lazy();
 
         for id in tree.owned_ids() {
-            if tree.find(&id)?.is_document() && tree.calculate_deleted(&id)? {
-                prior_deleted_docs.insert(id);
+            if tree.calculate_deleted(&id)? {
+                prior_deleted.insert(id);
             }
         }
 
@@ -51,14 +52,31 @@ pub async fn upsert_file_metadata(
         let mut tree = tree.promote()?;
 
         for id in tree.owned_ids() {
+            if tree.calculate_deleted(&id)? {
+                current_deleted.insert(id);
+            }
+        }
+
+        for id in tree.owned_ids() {
             if tree.find(&id)?.is_document()
-                && tree.calculate_deleted(&id)?
-                && !prior_deleted_docs.contains(&id)
+                && current_deleted.contains(&id)
+                && !prior_deleted.contains(&id)
             {
                 let meta = tree.find(&id)?;
                 if let Some(hmac) = meta.file.timestamped_value.value.document_hmac {
                     db.sizes.remove(meta.id())?;
                     new_deleted.push((*meta.id(), hmac));
+                }
+            }
+        }
+
+        let all_files: Vec<ServerFile> = tree.all_files()?.into_iter().cloned().collect();
+        for meta in all_files {
+            let id = meta.id();
+            if current_deleted.contains(&id) && !prior_deleted.contains(id) {
+                for user_access_info in meta.user_access_keys() {
+                    db.shared_files
+                        .remove(&Owner(user_access_info.encrypted_for), id)?;
                 }
             }
         }
@@ -698,6 +716,9 @@ pub async fn admin_validate_server(
                 }
             } else {
                 insert(&mut result.sharees_mapped_to_nonexistent_files, sharee, id);
+            }
+            if deleted_ids.contains(&id) {
+                insert(&mut result.sharees_mapped_for_deleted_files, sharee, id);
             }
         }
     }
