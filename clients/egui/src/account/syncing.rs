@@ -193,7 +193,7 @@ impl super::AccountScreen {
                 }
             };
 
-            let result = core.sync(Some(Box::new(closure))).map_err(SyncError::from);
+            let result = core.sync(Some(Box::new(closure))).map(|_| ()).map_err(SyncError::from);
             update_tx.send(SyncUpdate::Done(result).into()).unwrap();
             ctx.request_repaint();
         });
