@@ -12,3 +12,4 @@ atty = "0.2"
 clap = { version = "4.1.4", features = ["derive"] }
 hotwatch = "0.4.6"
 lb = { path = "../../libs/core", package = "lockbook-core" }
+backtrace = "*"
