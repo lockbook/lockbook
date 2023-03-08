@@ -23,6 +23,6 @@ impl WorkUnit {
 pub enum ClientWorkUnit {
     PullMetadata,
     PushMetadata,
-    PullDocument(String),
-    PushDocument(String),
+    PullDocument(File),
+    PushDocument(File),
 }
