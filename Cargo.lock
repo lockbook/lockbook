@@ -1565,6 +1565,7 @@ dependencies = [
  "egui_wgpu_backend",
  "image",
  "libc",
+ "pollster",
  "pulldown-cmark",
  "reqwest",
  "unicode-segmentation",
@@ -4041,6 +4042,12 @@ dependencies = [
  "wepoll-ffi",
  "winapi 0.3.9",
 ]
+
+[[package]]
+name = "pollster"
+version = "0.2.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5da3b0203fd7ee5720aa0b5e790b591aa5d3f41c3ed2c34a3a393382198af2f7"
 
 [[package]]
 name = "polyval"
