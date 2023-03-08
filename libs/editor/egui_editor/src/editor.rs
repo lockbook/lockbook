@@ -71,8 +71,6 @@ impl Editor {
         // update theme
         let theme_updated = self.appearance.set_theme(ui.visuals());
 
-        println!("{:?}", ui.ctx().input().events);
-
         // process events
         let (text_updated, cursor_pos_updated, selection_updated) = if self.initialized {
             let prior_cursor_pos = self.buffer.current.cursor.pos;
