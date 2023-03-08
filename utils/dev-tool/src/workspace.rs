@@ -18,7 +18,7 @@ pub fn clippy_workspace(tool_env: &ToolEnvironment) {
 
 pub fn udeps_workspace(tool_env: &ToolEnvironment) {
     Command::new("cargo")
-        .args(["udeps", "--all-targets", "--all-features"])
+        .args(["+nightly", "udeps", "--all-targets", "--all-features"])
         .current_dir(&tool_env.root_dir)
         .assert_success();
 }
