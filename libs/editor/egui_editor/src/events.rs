@@ -756,7 +756,7 @@ fn calc_modification(
     (text_updated, modifications)
 }
 
-fn pos_to_char_offset(pos: Pos2, galleys: &Galleys, segs: &UnicodeSegs) -> DocCharOffset {
+pub fn pos_to_char_offset(pos: Pos2, galleys: &Galleys, segs: &UnicodeSegs) -> DocCharOffset {
     if !galleys.is_empty() {
         if pos.y < galleys[0].galley_location.min.y {
             // click position is above first galley
