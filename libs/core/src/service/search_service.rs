@@ -12,6 +12,7 @@ use std::time::Duration;
 use sublime_fuzzy::{FuzzySearch, Scoring};
 use uuid::Uuid;
 
+
 const DEBOUNCE_MILLIS: u64 = 500;
 const LOWEST_CONTENT_SCORE_THRESHOLD: i64 = 170;
 
@@ -19,7 +20,7 @@ const MAX_CONTENT_MATCH_LENGTH: usize = 400;
 const IDEAL_CONTENT_MATCH_LENGTH: usize = 150;
 const CONTENT_MATCH_PADDING: usize = 8;
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Serialize, Debug, Eq, PartialEq)]
 pub struct SearchResultItem {
     pub id: Uuid,
     pub path: String,

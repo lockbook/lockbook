@@ -2,16 +2,24 @@ import SwiftUI
 import SwiftLockbookCore
 
 struct FileListView: View {
+    
+    @EnvironmentObject var search: SearchService
 
     var body: some View {
-        VStack {
-            FileTreeView()
-            VStack (spacing: 3) {
-                BottomBar()
+        ZStack {
+            VStack {
+                FileTreeView()
+                VStack (spacing: 3) {
+                    BottomBar()
+                }
             }
+            
+            DetailView()
         }
         
-        DetailView()
+        if search.isSearching {
+            SearchPathsView()
+        }
     }
 }
 

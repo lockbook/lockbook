@@ -17,6 +17,7 @@ class DI {
     static let documentLoader = DocumentLoader(core)
     static let sheets: SheetState = SheetState()
     static let currentDoc: CurrentDocument = CurrentDocument()
+    static let search = SearchService(core)
     #if os(iOS)
     static let toolbarModel = ToolbarModel()
     #endif
@@ -51,6 +52,7 @@ class Mock {
     static let documentLoader = DocumentLoader(core)
     static let sheets: SheetState = SheetState()
     static let currentDoc: CurrentDocument = CurrentDocument()
+    static let search = SearchService(core)
     #if os(iOS)
     static let toolbarModel = ToolbarModel()
     #endif
@@ -81,6 +83,7 @@ extension View {
             .environmentObject(DI.currentDoc)
             .environmentObject(DI.billing)
             .environmentObject(DI.share)
+            .environmentObject(DI.search)
     }
     
     public func mockiOSDI() -> some View {

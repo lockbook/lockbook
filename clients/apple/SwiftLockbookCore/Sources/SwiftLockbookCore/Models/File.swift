@@ -80,3 +80,9 @@ public struct Share: Codable {
     public var sharedBy: String
     public var sharedWith: String
 }
+
+public struct SearchResultItem: Identifiable, Codable {
+    public var id: UUID
+    public var path: String
+    public var score: UInt64
+}

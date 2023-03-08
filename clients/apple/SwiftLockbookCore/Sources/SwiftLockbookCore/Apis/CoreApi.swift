@@ -136,4 +136,8 @@ public struct CoreApi: LockbookApi {
     public func deletePendingShare(id: UUID) ->FfiResult<Empty, DeletePendingShareError> {
         fromPrimitiveResult(result: delete_pending_share(id.uuidString))
     }
+    
+    public func searchFilePaths(input: String) ->FfiResult<[SearchResultItem], SearchFilePathsError> {
+        fromPrimitiveResult(result: search_file_paths(input))
+    }
 }

@@ -257,3 +257,7 @@ public enum DeletePendingShareError: String, UiError {
     case FileNonexistent
     case ShareNonexistent
 }
+
+public enum SearchFilePathsError: String, UiError {
+    case Stub
+}
