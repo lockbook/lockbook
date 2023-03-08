@@ -258,8 +258,7 @@ fn list_metadatas_nested_linked_folders() {
 
 #[test]
 fn inconsistent_share_finalization() {
-    let cores: Vec<Core> =
-        vec![test_core_with_account(), test_core_with_account(), test_core_with_account()];
+    let cores: Vec<Core> = vec![test_core_with_account(), test_core_with_account()];
     let accounts = cores
         .iter()
         .map(|core| core.get_account().unwrap())
@@ -279,7 +278,6 @@ fn inconsistent_share_finalization() {
 
     cores[0].sync(None).unwrap();
     cores[1].sync(None).unwrap();
-    cores[2].sync(None).unwrap();
 
     let link = cores[1].create_link_at_path("link", folder.id).unwrap();
 
