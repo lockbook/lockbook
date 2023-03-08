@@ -66,6 +66,6 @@ fn build_core_for_android_arch(platform: &str) {
             "build",
             "--release",
         ])
-        .current_dir("libs/core")
+        .current_dir("libs/core_external_interface")
         .assert_success();
 }
