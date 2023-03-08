@@ -179,8 +179,8 @@ fn sync(core: &Core) -> Result<(), CliError> {
         match sp.current_work_unit {
             PullMetadata => println!("pulling file tree updates"),
             PushMetadata => println!("pushing file tree updates"),
-            PullDocument(name) => println!("pulling: {}", name),
-            PushDocument(name) => println!("pushing: {}", name),
+            PullDocument(f) => println!("pulling: {}", f.name),
+            PushDocument(f) => println!("pushing: {}", f.name),
         };
     })))?;
     Ok(())

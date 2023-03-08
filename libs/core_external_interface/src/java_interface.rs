@@ -457,16 +457,16 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_syncAll(
         let (is_pushing, file_name) = match sync_progress.current_work_unit {
             ClientWorkUnit::PullMetadata => (JValue::Bool(0), JValue::Object(JObject::null())),
             ClientWorkUnit::PushMetadata => (JValue::Bool(1), JValue::Object(JObject::null())),
-            ClientWorkUnit::PullDocument(file_name) => {
+            ClientWorkUnit::PullDocument(f) => {
                 let obj = env_c
-                    .new_string(file_name)
+                    .new_string(f.name)
                     .expect("Couldn't create JString from rust string!");
 
                 (JValue::Bool(0), JValue::Object(JObject::from(obj)))
             }
-            ClientWorkUnit::PushDocument(file_name) => {
+            ClientWorkUnit::PushDocument(f) => {
                 let obj = env_c
-                    .new_string(file_name)
+                    .new_string(f.name)
                     .expect("Couldn't create JString from rust string!");
 
                 (JValue::Bool(1), JValue::Object(JObject::from(obj)))
