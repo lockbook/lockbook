@@ -63,6 +63,10 @@ impl Editor {
 
     pub fn ui(&mut self, ui: &mut Ui) -> Response {
         let id = ui.auto_id_with("lbeditor");
+        if ui.memory().has_focus(id) {
+            ui.memory().lock_focus(id, true);
+        }
+
         let rect = ui.available_rect_before_wrap();
         let ui_size = rect.size();
 
