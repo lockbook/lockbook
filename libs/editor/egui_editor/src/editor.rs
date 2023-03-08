@@ -97,6 +97,7 @@ impl Editor {
             }
             (text_updated, cursor_pos_updated, selection_updated)
         } else {
+            ui.memory().request_focus(id);
             (true, true, true)
         };
 
