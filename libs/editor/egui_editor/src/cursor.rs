@@ -194,14 +194,16 @@ impl Cursor {
         let word_bound_indices_with_words = galley_text.split_word_bound_indices();
         let word_bound_indices = word_bound_indices_with_words
             .clone()
-            .map(|(idx, _)| idx)
-            .chain(iter::once((galley_text_range.end - galley_text_range.start).0)) // add last word boundary (note: no corresponding word)
+            .map(|(idx, _)| segs.byte_offset_to_char(DocByteOffset(idx)))
+            .chain(iter::once(galley_text_range.end)) // add last word boundary (note: no corresponding word)
             .collect::<Vec<_>>();
         let words = word_bound_indices_with_words
             .map(|(_, word)| word)
             .collect::<Vec<_>>();
-
-        let i = match (word_bound_indices.binary_search(&cursor.ccursor.index), backwards) {
+        let i = match (
+            word_bound_indices.binary_search(&DocCharOffset(cursor.ccursor.index)),
+            backwards,
+        ) {
             (Ok(i), _) | (Err(i), true) => i,
             (Err(i), false) => i - 1, // when moving forward from middle of word, behave as if from start of word
         };
@@ -212,7 +214,7 @@ impl Cursor {
             for i in i..words.len() {
                 if !words[i].trim().is_empty() {
                     found = true;
-                    cursor.ccursor.index = word_bound_indices[i + 1];
+                    cursor.ccursor.index = word_bound_indices[i + 1].0;
                     break;
                 }
             }
@@ -236,7 +238,7 @@ impl Cursor {
             for i in (0..i).rev() {
                 if !words[i].trim().is_empty() {
                     found = true;
-                    cursor.ccursor.index = word_bound_indices[i];
+                    cursor.ccursor.index = word_bound_indices[i].0;
                     break;
                 }
             }
