@@ -242,25 +242,19 @@ fn calc_modification(
                     }
                 } else {
                     if modifiers.command {
-                        // select line
+                        // select line start to current position
                         let (galley_idx, cur_cursor) = galleys
                             .galley_and_cursor_by_char_offset(cursor.pos, &buffer.current.segs);
                         let galley = &galleys[galley_idx];
                         let begin_of_row_cursor = galley.galley.cursor_begin_of_row(&cur_cursor);
-                        let end_of_row_cursor = galley.galley.cursor_end_of_row(&cur_cursor);
                         let begin_of_row_pos = galleys.char_offset_by_galley_and_cursor(
                             galley_idx,
                             &begin_of_row_cursor,
                             &buffer.current.segs,
                         );
-                        let end_of_row_pos = galleys.char_offset_by_galley_and_cursor(
-                            galley_idx,
-                            &end_of_row_cursor,
-                            &buffer.current.segs,
-                        );
 
                         modifications.push(SubModification::Cursor {
-                            cursor: (begin_of_row_pos, end_of_row_pos).into(),
+                            cursor: (begin_of_row_pos, cursor.pos).into(),
                         })
                     } else if modifiers.alt {
                         // select word
