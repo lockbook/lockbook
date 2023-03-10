@@ -1627,7 +1627,7 @@ fn delete_share() {
         .share_file(f2.id, &core2_name, ShareMode::Write)
         .unwrap();
     core1.sync(None).unwrap();
-    core2.sync(None).unwrap()
+    core2.sync(None).unwrap();
 }
 
 #[test]
