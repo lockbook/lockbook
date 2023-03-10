@@ -33,11 +33,15 @@ where
     ) -> SharedResult<File> {
         let meta = self.find(id)?.clone();
         let file_type = meta.file_type();
-        let parent = *meta.parent();
         let last_modified = meta.timestamped_value.timestamp as u64;
         let name = self.name_using_links(id, account)?;
-        let id = *id;
+        let parent = *meta.parent();
         let last_modified_by = account.username.clone();
+
+        let id = match file_type {
+            FileType::Folder | FileType::Document => *id,
+            FileType::Link { target } => target,
+        };
 
         let mut shares = Vec::new();
         for user_access_key in meta.user_access_keys() {
