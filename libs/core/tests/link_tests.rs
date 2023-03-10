@@ -296,3 +296,31 @@ fn inconsistent_share_finalization() {
 
     assert_eq!(file_all_finalization.shares, file_single_finalization.shares);
 }
+
+#[test]
+fn link_resolving() {
+    let cores: Vec<Core> = vec![test_core_with_account(), test_core_with_account()];
+    let accounts = cores
+        .iter()
+        .map(|core| core.get_account().unwrap())
+        .collect::<Vec<_>>();
+    let roots = cores
+        .iter()
+        .map(|core| core.get_root().unwrap())
+        .collect::<Vec<_>>();
+
+    let folder = cores[0].create_at_path("lockbook/").unwrap();
+    let file = cores[0]
+        .create_file("test.md", folder.id, lockbook_core::FileType::Document)
+        .unwrap();
+    cores[0]
+        .share_file(folder.id, &accounts[1].username, ShareMode::Write)
+        .unwrap();
+
+    cores[0].sync(None).unwrap();
+    cores[1].sync(None).unwrap();
+
+    let link = cores[1].create_link_at_path("link", folder.id).unwrap();
+
+    assert_eq!(cores[1].get_file_by_id(file.id).unwrap().parent, link.id);
+}
