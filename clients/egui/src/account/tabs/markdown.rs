@@ -16,12 +16,8 @@ impl Markdown {
     }
 
     pub fn show(&mut self, ui: &mut egui::Ui) {
-        egui::ScrollArea::vertical()
-            .id_source("editor")
-            .show(ui, |ui| {
-                ui.vertical(|ui| {
-                    self.editor.ui(ui);
-                });
-            });
+        ui.vertical(|ui| {
+            self.editor.scroll_ui(ui);
+        });
     }
 }
