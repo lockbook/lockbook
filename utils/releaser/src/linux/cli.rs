@@ -1,3 +1,4 @@
+use std::fs;
 use crate::utils::{core_version, lb_repo, CommandRunner};
 use crate::Github;
 use gh_release::ReleaseClient;
@@ -50,6 +51,8 @@ apps:
       - home
     "#
     );
+
+    fs::create_dir_all("utils/dev/snap-packages/lockbook/snap").unwrap();
 
     let mut file = OpenOptions::new()
         .write(true)
