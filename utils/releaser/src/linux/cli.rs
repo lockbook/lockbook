@@ -1,7 +1,7 @@
-use std::fs;
 use crate::utils::{core_version, lb_repo, CommandRunner};
 use crate::Github;
 use gh_release::ReleaseClient;
+use std::fs;
 use std::fs::{File, OpenOptions};
 use std::io::Write;
 use std::process::Command;
