@@ -30,9 +30,11 @@ struct DetailView: View {
 
 
     var body: some View {
-        VStack {
-            if let selected = currentSelection.selectedDocument {
-                DocumentView(meta: selected)
+        ZStack {
+            VStack {
+                if let selected = currentSelection.selectedDocument {
+                    DocumentView(meta: selected)
+                }
             }
             
             QuickActionBar<SearchResultItem, SearchResultCellView>(
@@ -60,7 +62,6 @@ struct DetailView: View {
                     search.submitSearch(id: submittedId)
                 }
             }
-            .frame(minWidth: 0, maxWidth: 0,    minHeight: 0, maxHeight: 0)
         }
     }
 }
@@ -79,7 +80,7 @@ struct SearchResultCellView: View {
                 .resizable()
                 .frame(width: 20, height: 25)
                 .padding(.horizontal, 10)
-                .foregroundColor(.purple)
+                .foregroundColor(.gray)
             
             VStack(alignment: .leading) {
                 HStack {
