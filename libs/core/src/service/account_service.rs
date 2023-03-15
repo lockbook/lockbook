@@ -14,6 +14,10 @@ impl<Client: Requester> CoreState<Client> {
     ) -> CoreResult<Account> {
         let username = String::from(username).to_lowercase();
 
+        if username.len() > MAX_USERNAME_LENGTH {
+            return Err(CoreError::UsernameInvalid);
+        }
+
         if self.db.account.data().is_some() {
             return Err(CoreError::AccountExists);
         }

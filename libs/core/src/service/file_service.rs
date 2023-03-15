@@ -15,8 +15,8 @@ impl<Client: Requester> CoreState<Client> {
         if name.len() > MAX_FILENAME_LENGTH {
             return Err(CoreError::FileNameTooLong);
         }
-        let mut tree = (&self.tx.base_metadata)
-            .to_staged(&mut self.tx.local_metadata)
+        let mut tree = (&self.db.base_metadata)
+            .to_staged(&mut self.db.local_metadata)
             .to_lazy();
         let account = self
             .db
