@@ -16,7 +16,7 @@ const RELEASE: &str = "release/app-release";
 
 const RELEASES: &str = "https://github.com/lockbook/lockbook/releases/tag";
 
-const TRACK: &str = "internal";
+const TRACK: &str = "production";
 const STATUS: &str = "completed";
 const DEFAULT_LOC: &str = "en-US";
 const MIME: &str = "application/octet-stream";
