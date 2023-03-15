@@ -38,7 +38,7 @@ struct DetailView: View {
             QuickActionBar<SearchResultItem, SearchResultCellView>(
                 location: .window,
                 visible: $search.isSearching,
-                barWidth: 350,
+                barWidth: 400,
                 showKeyboardShortcuts: true,
                 selectedItem: $selectedFile,
                 placeholderText: "Search files",
@@ -95,7 +95,7 @@ struct SearchResultCellView: View {
                 }
             }
         }
-        .frame(height: 45)
+        .frame(height: 40)
         .padding(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
         .onAppear {
             underlineMatchedSegments()
@@ -106,13 +106,9 @@ struct SearchResultCellView: View {
         let matchedIndicesHash = Set(matchedIndices)
         
         pathModified = Text("")
-        
-        print("Checking the path \(path)")
-        
         for index in 0...path.count - 1 {
-            print("CHECKING PATH INDEX \(index)")
-            
-            var newPart = Text(path[String.Index(encodedOffset: index)...String.Index(encodedOffset: index)])
+            let correctIndex = String.Index(utf16Offset: index, in: path)
+            let newPart = Text(path[correctIndex...correctIndex])
             
             if(matchedIndicesHash.contains(index + 1)) {
                 pathModified = pathModified + newPart.foregroundColor(.black)
@@ -120,15 +116,12 @@ struct SearchResultCellView: View {
                 pathModified = pathModified + newPart.foregroundColor(.gray)
             }
         }
-        
-        print("Checking the name \(name)")
-        
+                
         nameModified = Text("")
         for index in 0...name.count - 1 {
-            print("CHECKING PATH INDEX \(index)")
+            let correctIndex = String.Index(utf16Offset: index, in: name)
+            let newPart = Text(name[correctIndex...correctIndex])
 
-            var newPart = Text(name[String.Index(encodedOffset: index)...String.Index(encodedOffset: index)])
-            
             if(matchedIndicesHash.contains(index + path.count + 2)) {
                 nameModified = nameModified + newPart.foregroundColor(.black)
             } else {
