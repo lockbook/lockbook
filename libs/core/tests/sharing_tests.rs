@@ -1,7 +1,7 @@
 use lockbook_core::Error::UiError;
 use lockbook_core::{
-    CreateFileAtPathError, CreateFileError, CreateLinkAtPathError, DeletePendingShareError, Error,
-    FileDeleteError, MoveFileError, RenameFileError, ShareFileError, WriteToDocumentError,
+    Core, CreateFileAtPathError, CreateFileError, CreateLinkAtPathError, DeletePendingShareError,
+    Error, FileDeleteError, MoveFileError, RenameFileError, ShareFileError, WriteToDocumentError,
 };
 use lockbook_shared::file::ShareMode;
 use lockbook_shared::file_metadata::FileType;
@@ -1062,7 +1062,7 @@ fn create_file_duplicate_link() {
 
 #[test]
 fn create_file_duplicate_link_deleted() {
-    let cores = vec![test_core_with_account(), test_core_with_account()];
+    let cores: Vec<Core> = vec![test_core_with_account(), test_core_with_account()];
     let accounts = cores
         .iter()
         .map(|core| core.get_account().unwrap())
@@ -1084,7 +1084,9 @@ fn create_file_duplicate_link_deleted() {
     let link = cores[1]
         .create_file("link_1", roots[1].id, FileType::Link { target: document.id })
         .unwrap();
+
     cores[1].delete_file(link.id).unwrap();
+
     cores[1]
         .create_file("link_2", roots[1].id, FileType::Link { target: document.id })
         .unwrap();

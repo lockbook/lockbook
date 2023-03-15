@@ -249,9 +249,9 @@ fn list_metadatas_nested_linked_folders() {
     assert::all_recursive_children_ids(
         &cores[1],
         roots[1].id,
-        &[roots[1].id, link1.id, link2.id, document.id],
+        &[roots[1].id, link1.id, folder2.id, link2.id, document.id],
     );
-    assert::all_recursive_children_ids(&cores[1], link1.id, &[link1.id, document.id]); // todo: is this correct?
+    assert::all_recursive_children_ids(&cores[1], link1.id, &[link1.id, folder2.id, document.id]); // todo: is this correct?
     assert::all_recursive_children_ids(&cores[1], link2.id, &[link2.id, document.id]);
     assert::all_recursive_children_ids(&cores[1], document.id, &[document.id]);
 }
@@ -304,7 +304,7 @@ fn link_resolving() {
         .iter()
         .map(|core| core.get_account().unwrap())
         .collect::<Vec<_>>();
-    let roots = cores
+    let _roots = cores
         .iter()
         .map(|core| core.get_root().unwrap())
         .collect::<Vec<_>>();

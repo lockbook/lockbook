@@ -69,7 +69,12 @@ impl<Client: Requester> CoreState<Client> {
             .data()
             .ok_or(CoreError::AccountNonexistent)?;
 
-        tree.delete(id, account)?;
+        let id = match tree.link(id)? {
+            None => *id,
+            Some(target) => target,
+        };
+
+        tree.delete(&id, account)?;
 
         Ok(())
     }
@@ -137,7 +142,7 @@ impl<Client: Requester> CoreState<Client> {
             account,
             descendants.into_iter().chain(iter::once(*id)),
             &mut self.db.pub_key_lookup,
-            true,
+            false,
         )?)
     }
 

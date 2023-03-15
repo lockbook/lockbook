@@ -1,5 +1,5 @@
 use db_rs::LookupTable;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
 use hmac::{Mac, NewMac};
 use libsecp256k1::PublicKey;
@@ -83,8 +83,7 @@ where
     pub fn resolve_and_finalize(
         &mut self, account: &Account, id: Uuid, public_key_cache: &mut LookupTable<Owner, String>,
     ) -> SharedResult<File> {
-        let mut file;
-        let mut parent_substitutions = HashMap::new();
+        let file;
 
         let finalized = self.finalize(&id, account, public_key_cache)?;
 
@@ -92,9 +91,6 @@ where
             FileType::Document | FileType::Folder => file = finalized,
             FileType::Link { target } => {
                 let mut target_file = self.finalize(&target, account, public_key_cache)?;
-                if target_file.is_folder() {
-                    parent_substitutions.insert(target, id);
-                }
 
                 target_file.id = finalized.id;
                 target_file.parent = finalized.parent;
@@ -102,10 +98,6 @@ where
 
                 file = target_file;
             }
-        }
-
-        if let Some(new_parent) = parent_substitutions.get(&file.parent) {
-            file.parent = *new_parent;
         }
 
         Ok(file)
@@ -119,7 +111,6 @@ where
         I: Iterator<Item = Uuid>,
     {
         let mut files = Vec::new();
-        let mut parent_substitutions = HashMap::new();
 
         for id in ids {
             if skip_invisible && self.is_invisible_id(id)? {
@@ -132,10 +123,6 @@ where
                 FileType::Document | FileType::Folder => files.push(finalized),
                 FileType::Link { target } => {
                     let mut target_file = self.finalize(&target, account, public_key_cache)?;
-                    if target_file.is_folder() {
-                        parent_substitutions.insert(target, id);
-                    }
-
                     target_file.id = finalized.id;
                     target_file.parent = finalized.parent;
                     target_file.name = finalized.name;
@@ -145,23 +132,12 @@ where
             }
         }
 
-        for item in &mut files {
-            if let Some(new_parent) = parent_substitutions.get(&item.parent) {
-                item.parent = *new_parent;
-            }
-        }
-
         Ok(files)
     }
 
     fn is_invisible_id(&mut self, id: Uuid) -> SharedResult<bool> {
-        if self.calculate_deleted(&id)? || self.in_pending_share(&id)? || self.link(&id)?.is_some()
-        {
-            return Ok(true);
-        }
-        Ok(false)
+        Ok(self.calculate_deleted(&id)? || self.in_pending_share(&id)? || self.link(&id)?.is_some())
     }
-
     pub fn create_op(
         &mut self, id: Uuid, key: AESKey, parent: &Uuid, name: &str, file_type: FileType,
         account: &Account,
