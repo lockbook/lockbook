@@ -17,6 +17,10 @@ struct DocumentView: View {
             ProgressView()
                 .onAppear {
                     model.startLoading(meta)
+                    
+                    if(current.selectedDocument != meta) {
+                        current.selectedDocument = meta
+                    }
                 }
                 .title(meta.name)
         } else if model.error != "" {

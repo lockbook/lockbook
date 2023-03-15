@@ -10,8 +10,10 @@ struct FileListView: View {
     var body: some View {
             ZStack {
                 VStack {
-                    if let newDoc = sheets.created, newDoc.fileType == .Document {
-                        NavigationLink(destination: DocumentView(meta: newDoc), isActive: Binding(get: { current.selectedDocument != nil }, set: { _ in current.selectedDocument = nil }) ) {
+                    if let meta = current.selectedDocument {
+                        NavigationLink(destination: DocumentView(meta: meta).onAppear {
+                            current.selectedDocument = meta
+                        }, isActive: Binding(get: { current.selectedDocument != nil }, set: { _ in current.selectedDocument = nil }) ) {
                              EmptyView()
                          }
                          .hidden()
