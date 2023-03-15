@@ -25,6 +25,7 @@ pub struct SearchResultItem {
     pub id: Uuid,
     pub path: String,
     pub score: isize,
+    pub matched_indices: Vec<usize>
 }
 
 impl Ord for SearchResultItem {
@@ -71,7 +72,7 @@ impl<Client: Requester> CoreState<Client> {
                         .case_insensitive()
                         .best_match()
                     {
-                        results.push(SearchResultItem { id, path, score: m.score() });
+                        results.push(SearchResultItem { id, path, score: m.score(), matched_indices: m.matched_indices().cloned().collect() });
                     }
                 }
             }

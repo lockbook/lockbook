@@ -11,7 +11,6 @@ struct FileTreeView: NSViewRepresentable {
     @EnvironmentObject var files: FileService
 
     func makeNSView(context: Context) -> NSScrollView {
-        
         delegate.documentSelected = {
             if $0.fileType == .Document {
                 DI.currentDoc.selectedDocument = $0

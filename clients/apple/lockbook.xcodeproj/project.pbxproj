@@ -13,6 +13,7 @@
 		4709DC39296609F100426106 /* PendingSharesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4709DC37296609F100426106 /* PendingSharesView.swift */; };
 		4709DC3E2966260500426106 /* AcceptShareSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4709DC3D2966260500426106 /* AcceptShareSheet.swift */; };
 		4709DC3F2966260500426106 /* AcceptShareSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4709DC3D2966260500426106 /* AcceptShareSheet.swift */; };
+		471A8E1D29BBAD2900E71CAE /* DSFQuickActionBar in Frameworks */ = {isa = PBXBuildFile; productRef = 471A8E1C29BBAD2900E71CAE /* DSFQuickActionBar */; };
 		476436CC29B7DE4E00FBDC59 /* SearchService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 476436CB29B7DE4E00FBDC59 /* SearchService.swift */; };
 		476436CD29B7DE4E00FBDC59 /* SearchService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 476436CB29B7DE4E00FBDC59 /* SearchService.swift */; };
 		477CC4902967A53C00714456 /* ShareFileSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 477CC48F2967A53C00714456 /* ShareFileSheet.swift */; };
@@ -24,7 +25,7 @@
 		47B53838290EFE150012E542 /* BillingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47B53837290EFE150012E542 /* BillingService.swift */; };
 		47B53839290EFE150012E542 /* BillingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47B53837290EFE150012E542 /* BillingService.swift */; };
 		47B67289295F977C00DB0D8E /* ManageSubscriptionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47B67288295F977C00DB0D8E /* ManageSubscriptionView.swift */; };
-		47C05EA529B826EE001C868A /* SearchPathsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47C05EA429B826EE001C868A /* SearchPathsView.swift */; };
+		47C9511529BBB22200BAB039 /* DSFQuickActionBar-static in Frameworks */ = {isa = PBXBuildFile; productRef = 47C9511429BBB22200BAB039 /* DSFQuickActionBar-static */; };
 		5036A0B7393E8C43AAF095A2 /* LBDrawingPKDrawingConversions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5036ACCA149F0864585B7D44 /* LBDrawingPKDrawingConversions.swift */; };
 		5036A72711D09E92A5EE75B1 /* DrawingToolbar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5036AA70E675020A378AE98E /* DrawingToolbar.swift */; };
 		6581A283134323E1AEE45E1D /* RenamingSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B249B9EE282C37AD004F5300 /* RenamingSheet.swift */; };
@@ -146,7 +147,6 @@
 		47A45FBA2969047B00573044 /* ShareService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareService.swift; sourceTree = "<group>"; };
 		47B53837290EFE150012E542 /* BillingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BillingService.swift; sourceTree = "<group>"; };
 		47B67288295F977C00DB0D8E /* ManageSubscriptionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManageSubscriptionView.swift; sourceTree = "<group>"; };
-		47C05EA429B826EE001C868A /* SearchPathsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchPathsView.swift; sourceTree = "<group>"; };
 		5036AA70E675020A378AE98E /* DrawingToolbar.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DrawingToolbar.swift; sourceTree = "<group>"; };
 		5036ACCA149F0864585B7D44 /* LBDrawingPKDrawingConversions.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = LBDrawingPKDrawingConversions.swift; sourceTree = "<group>"; };
 		6581A11CE95C74B01ED30AEB /* MenuItems.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MenuItems.swift; sourceTree = "<group>"; };
@@ -246,9 +246,11 @@
 			buildActionMask = 2147483647;
 			files = (
 				8794F43827D9525200B1B7EB /* Down in Frameworks */,
+				47C9511529BBB22200BAB039 /* DSFQuickActionBar-static in Frameworks */,
 				47B041F52905BFF100A02DA7 /* AlertToast in Frameworks */,
 				B2ADC2492835451000DB8D3D /* Introspect in Frameworks */,
 				EA9EEFD525FC058200E8C790 /* SwiftLockbookCore in Frameworks */,
+				471A8E1D29BBAD2900E71CAE /* DSFQuickActionBar in Frameworks */,
 				B217A97629661F3A002339E0 /* SwiftEditor in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -260,7 +262,6 @@
 			isa = PBXGroup;
 			children = (
 				870DC09E26BDE6F4002E9A92 /* SettingsView.swift */,
-				47C05EA429B826EE001C868A /* SearchPathsView.swift */,
 				870DC0A126BF378F002E9A92 /* AccountSettingsView.swift */,
 				870DC0A326BF37C0002E9A92 /* UsageSettingsView.swift */,
 				47B67288295F977C00DB0D8E /* ManageSubscriptionView.swift */,
@@ -552,6 +553,8 @@
 				B2ADC2482835451000DB8D3D /* Introspect */,
 				47B041F42905BFF100A02DA7 /* AlertToast */,
 				B217A97529661F3A002339E0 /* SwiftEditor */,
+				471A8E1C29BBAD2900E71CAE /* DSFQuickActionBar */,
+				47C9511429BBB22200BAB039 /* DSFQuickActionBar-static */,
 			);
 			productName = "Lockbook (macOS)";
 			productReference = EA5C7D772516606000F7F358 /* Lockbook.app */;
@@ -591,6 +594,7 @@
 				EA82B20A262652F600EE82B9 /* XCRemoteSwiftPackageReference "SwiftUI-Introspect" */,
 				8794F43627D9525200B1B7EB /* XCRemoteSwiftPackageReference "Down" */,
 				47B041F12905BFB100A02DA7 /* XCRemoteSwiftPackageReference "AlertToast" */,
+				471A8E1B29BBACFD00E71CAE /* XCRemoteSwiftPackageReference "DSFQuickActionBar" */,
 			);
 			productRefGroup = EA5C7D702516606000F7F358 /* Products */;
 			projectDirPath = "";
@@ -719,7 +723,6 @@
 				477CC4912967A53C00714456 /* ShareFileSheet.swift in Sources */,
 				872175F126F2850600A77C59 /* DocumentView.swift in Sources */,
 				4709DC3F2966260500426106 /* AcceptShareSheet.swift in Sources */,
-				47C05EA529B826EE001C868A /* SearchPathsView.swift in Sources */,
 				B227B6B427C156CC004CDF87 /* Parser.swift in Sources */,
 				B21AF22B28204D460098C2AB /* CustomNSTextView.swift in Sources */,
 				8715F92927161CC60051689E /* OnboardingView.swift in Sources */,
@@ -1253,6 +1256,14 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
+		471A8E1B29BBACFD00E71CAE /* XCRemoteSwiftPackageReference "DSFQuickActionBar" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/dagronf/DSFQuickActionBar";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 6.0.0;
+			};
+		};
 		47B041F12905BFB100A02DA7 /* XCRemoteSwiftPackageReference "AlertToast" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/elai950/AlertToast";
@@ -1280,6 +1291,11 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		471A8E1C29BBAD2900E71CAE /* DSFQuickActionBar */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 471A8E1B29BBACFD00E71CAE /* XCRemoteSwiftPackageReference "DSFQuickActionBar" */;
+			productName = DSFQuickActionBar;
+		};
 		47B041F22905BFB100A02DA7 /* AlertToast */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = 47B041F12905BFB100A02DA7 /* XCRemoteSwiftPackageReference "AlertToast" */;
@@ -1289,6 +1305,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 47B041F12905BFB100A02DA7 /* XCRemoteSwiftPackageReference "AlertToast" */;
 			productName = AlertToast;
+		};
+		47C9511429BBB22200BAB039 /* DSFQuickActionBar-static */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 471A8E1B29BBACFD00E71CAE /* XCRemoteSwiftPackageReference "DSFQuickActionBar" */;
+			productName = "DSFQuickActionBar-static";
 		};
 		8794F43727D9525200B1B7EB /* Down */ = {
 			isa = XCSwiftPackageProductDependency;
