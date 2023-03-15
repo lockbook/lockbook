@@ -83,14 +83,13 @@ class TreeDelegate: NSObject, MenuOutlineViewDelegate {
     func outlineView(_ outlineView: NSOutlineView, menuForItem item: Any?) -> NSMenu? {
         let menu = NSMenu()
         let parent = item == nil ? DI.files.root! : item as! File
-        
-        menu.addItem(Share(file: parent))
 
         if parent.fileType == .Folder {
             menu.addItem(Create(file: parent))
         }
 
         if parent.id != parent.parent {
+            menu.addItem(Share(file: parent))
             menu.addItem(Rename(file: parent))
             menu.addItem(Delete(file: parent))
         }
@@ -113,8 +112,7 @@ class TreeDelegate: NSObject, MenuOutlineViewDelegate {
 
     func outlineView(_ outlineView: NSOutlineView,
                      shouldSelectItem item: Any) -> Bool {
-        let file = item as! File
-        return file.fileType == .Document
+        return true
     }
 
     func outlineViewSelectionDidChange(_ notification: Notification) {

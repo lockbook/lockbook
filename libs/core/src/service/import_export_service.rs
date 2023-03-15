@@ -1,5 +1,5 @@
-use crate::{CoreError, RequestContext, Requester};
-use crate::{CoreResult, OneKey};
+use crate::CoreResult;
+use crate::{CoreError, CoreState, Requester};
 use lockbook_shared::account::Account;
 use lockbook_shared::core_config::Config;
 use lockbook_shared::file::File;
@@ -24,13 +24,13 @@ pub enum ImportStatus {
     FinishedItem(File),
 }
 
-impl<Client: Requester> RequestContext<'_, '_, Client> {
-    pub fn import_files<F: Fn(ImportStatus)>(
+impl<Client: Requester> CoreState<Client> {
+    pub(crate) fn import_files<F: Fn(ImportStatus)>(
         &mut self, sources: &[PathBuf], dest: Uuid, update_status: &F,
     ) -> CoreResult<()> {
         update_status(ImportStatus::CalculatedTotal(get_total_child_count(sources)?));
 
-        let tree = self.tx.base_metadata.stage(&self.tx.local_metadata);
+        let tree = self.db.base_metadata.stage(&self.db.local_metadata);
         let parent = tree.find(&dest)?;
         if !parent.is_folder() {
             return Err(CoreError::FileNotFolder);
@@ -43,7 +43,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
         Ok(())
     }
 
-    pub fn export_file(
+    pub(crate) fn export_file(
         &mut self, id: Uuid, destination: PathBuf, edit: bool,
         export_progress: Option<Box<dyn Fn(ImportExportFileInfo)>>,
     ) -> CoreResult<()> {
@@ -51,20 +51,20 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
             return Err(CoreError::DiskPathInvalid);
         }
 
-        let mut tree = (&self.tx.base_metadata)
-            .to_staged(&self.tx.local_metadata)
+        let mut tree = (&self.db.base_metadata)
+            .to_staged(&self.db.local_metadata)
             .to_lazy();
 
         let file = tree.find(&id)?.clone();
 
         let account = self
-            .tx
+            .db
             .account
-            .get(&OneKey {})
+            .data()
             .ok_or(CoreError::AccountNonexistent)?;
 
         Self::export_file_recursively(
-            self.config,
+            &self.config,
             account,
             &mut tree,
             &file,
@@ -102,7 +102,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
                 for id in children {
                     if !tree.calculate_deleted(&id)? {
                         let file = tree.find(&id)?.clone();
-                        RequestContext::<Client>::export_file_recursively(
+                        CoreState::<Client>::export_file_recursively(
                             config,
                             account,
                             tree,
@@ -135,7 +135,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
             FileType::Link { target } => {
                 if !tree.calculate_deleted(&target)? {
                     let file = tree.find(&target)?.clone();
-                    RequestContext::<Client>::export_file_recursively(
+                    CoreState::<Client>::export_file_recursively(
                         config,
                         account,
                         tree,
@@ -154,13 +154,13 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
     fn import_file_recursively<F: Fn(ImportStatus)>(
         &mut self, disk_path: &Path, dest: &Uuid, update_status: &F,
     ) -> CoreResult<()> {
-        let mut tree = (&self.tx.base_metadata)
-            .to_staged(&mut self.tx.local_metadata)
+        let mut tree = (&self.db.base_metadata)
+            .to_staged(&mut self.db.local_metadata)
             .to_lazy();
         let account = self
-            .tx
+            .db
             .account
-            .get(&OneKey {})
+            .data()
             .ok_or(CoreError::AccountNonexistent)?;
 
         update_status(ImportStatus::StartingItem(format!("{}", disk_path.display())));
@@ -186,7 +186,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
                 false => FileType::Folder,
             };
 
-            let file_name = RequestContext::<Client>::generate_non_conflicting_name(
+            let file_name = CoreState::<Client>::generate_non_conflicting_name(
                 &mut tree,
                 account,
                 &dest,
@@ -201,14 +201,14 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
                 ftype,
                 account,
             )?;
-            let file = tree.finalize(&id, account, &mut self.tx.username_by_public_key)?;
+            let file = tree.finalize(&id, account, &mut self.db.pub_key_lookup)?;
 
             tree = if ftype == FileType::Document {
                 let doc = fs::read(&disk_path).map_err(CoreError::from)?;
 
                 let encrypted_document = tree.update_document(&id, &doc, account)?;
                 let hmac = tree.find(&id)?.document_hmac();
-                document_repo::insert(self.config, &id, hmac, &encrypted_document)?;
+                document_repo::insert(&self.config, &id, hmac, &encrypted_document)?;
 
                 update_status(ImportStatus::FinishedItem(file));
                 tree

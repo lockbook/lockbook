@@ -53,7 +53,7 @@ fn test_stage_insert_reset() -> SharedResult<()> {
     // Now reset the file
 
     file2.parent = file2.id;
-    files.insert(file2.clone());
+    files.insert(file2.clone()).unwrap();
     assert_eq!(files.find(file2.id())?.parent(), file2.id());
     assert_eq!(files.base.find(file2.id())?.parent(), file2.id());
     assert!(files.staged.maybe_find(file2.id()).is_none());
@@ -71,7 +71,7 @@ fn test_stage_reset() -> SharedResult<()> {
 
     let files = vec![file1, file2.clone(), file3];
 
-    let files = files.stage(Some(file2.clone())).pruned();
+    let files = files.stage(Some(file2.clone())).pruned().unwrap();
 
     assert_eq!(files.find(file2.id())?.parent(), file2.id());
     assert_eq!(files.base.find(file2.id())?.parent(), file2.id());

@@ -144,7 +144,12 @@ fn import_account_nonexistent() {
     let core2 = test_core();
     let account =
         Account { api_url: url(), username: random_name(), private_key: pubkey::generate_key() };
-    core2.db.account.insert(OneKey {}, account).unwrap();
+    core2
+        .in_tx(|s| {
+            s.db.account.insert(account).unwrap();
+            Ok(())
+        })
+        .unwrap();
     let account_string = core2.export_account().unwrap();
 
     let core3 = test_core();
@@ -162,7 +167,12 @@ fn import_account_public_key_mismatch() {
         let account1 = core1.create_account(&random_name(), &url(), false).unwrap();
         let mut account2 = core2.create_account(&random_name(), &url(), false).unwrap();
         account2.username = account1.username;
-        core2.db.account.insert(OneKey {}, account2).unwrap();
+        core2
+            .in_tx(|s| {
+                s.db.account.insert(account2).unwrap();
+                Ok(())
+            })
+            .unwrap();
         core2.export_account().unwrap()
     };
 

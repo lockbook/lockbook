@@ -1,21 +1,19 @@
-use crate::buffer::Buffer;
 use crate::offset_types::{DocByteOffset, DocCharOffset};
 use unicode_segmentation::UnicodeSegmentation;
 
-#[derive(Default, Debug)]
+#[derive(Clone, Default, Debug)]
 pub struct UnicodeSegs {
     pub grapheme_indexes: Vec<DocByteOffset>,
 }
 
-pub fn calc(buffer: &Buffer) -> UnicodeSegs {
+pub fn calc(text: &str) -> UnicodeSegs {
     let mut result = UnicodeSegs::default();
-    if !buffer.is_empty() {
-        result.grapheme_indexes.extend(
-            UnicodeSegmentation::grapheme_indices(buffer.raw.as_str(), true)
-                .map(|t| DocByteOffset(t.0)),
-        );
+    if !text.is_empty() {
+        result
+            .grapheme_indexes
+            .extend(UnicodeSegmentation::grapheme_indices(text, true).map(|t| DocByteOffset(t.0)));
     }
-    result.grapheme_indexes.push(DocByteOffset(buffer.len()));
+    result.grapheme_indexes.push(DocByteOffset(text.len()));
     result
 }
 

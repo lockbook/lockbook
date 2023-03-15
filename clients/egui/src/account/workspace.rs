@@ -121,7 +121,7 @@ fn tab_label(ui: &mut egui::Ui, t: &Tab, is_active: bool) -> Option<TabLabelResp
         } else {
             ui.visuals().widgets.noninteractive.bg_fill
         };
-        ui.painter().rect(rect, 0.0, bg, egui::Stroke::none());
+        ui.painter().rect(rect, 0.0, bg, egui::Stroke::NONE);
 
         let text_pos = egui::pos2(rect.min.x + padding.x, rect.center().y - 0.5 * text.size().y);
 
@@ -132,7 +132,7 @@ fn tab_label(ui: &mut egui::Ui, t: &Tab, is_active: bool) -> Option<TabLabelResp
                 close_btn_rect,
                 0.0,
                 ui.visuals().widgets.hovered.bg_fill,
-                egui::Stroke::none(),
+                egui::Stroke::NONE,
             );
         }
 
@@ -287,7 +287,7 @@ impl super::AccountScreen {
                     self.core.save_drawing(tab.id, &d.drawing).unwrap(); // TODO
                 } else {
                     let maybe_bytes = match content {
-                        TabContent::Markdown(md) => Some(md.editor.buffer.raw.as_bytes()),
+                        TabContent::Markdown(md) => Some(md.editor.buffer.current.text.as_bytes()),
                         TabContent::PlainText(txt) => Some(txt.content.as_bytes()),
                         _ => None,
                     };
@@ -320,7 +320,7 @@ fn restore_tab(core: &Arc<lb::Core>, tree: &mut FileTree, tab: &mut Tab) {
                 .map_err(TabFailure::from)
         } else {
             let maybe_bytes = match content {
-                TabContent::Markdown(md) => Some(md.editor.buffer.raw.as_bytes()),
+                TabContent::Markdown(md) => Some(md.editor.buffer.current.text.as_bytes()),
                 TabContent::PlainText(txt) => Some(txt.content.as_bytes()),
                 TabContent::Image(img) => Some(img.bytes.as_slice()),
                 _ => None,

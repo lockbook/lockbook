@@ -1,4 +1,4 @@
-use crate::{CoreError, CoreResult, OneKey, RequestContext, Requester};
+use crate::{CoreError, CoreResult, CoreState, Requester};
 use libsecp256k1::PublicKey;
 use lockbook_shared::api::GetPublicKeyRequest;
 use lockbook_shared::file::{File, ShareMode};
@@ -7,15 +7,17 @@ use lockbook_shared::file_metadata::Owner;
 use lockbook_shared::tree_like::TreeLike;
 use uuid::Uuid;
 
-impl<Client: Requester> RequestContext<'_, '_, Client> {
-    pub fn share_file(&mut self, id: Uuid, username: &str, mode: ShareMode) -> CoreResult<()> {
-        let mut tree = (&self.tx.base_metadata)
-            .to_staged(&mut self.tx.local_metadata)
+impl<Client: Requester> CoreState<Client> {
+    pub(crate) fn share_file(
+        &mut self, id: Uuid, username: &str, mode: ShareMode,
+    ) -> CoreResult<()> {
+        let mut tree = (&self.db.base_metadata)
+            .to_staged(&mut self.db.local_metadata)
             .to_lazy();
         let account = self
-            .tx
+            .db
             .account
-            .get(&OneKey {})
+            .data()
             .ok_or(CoreError::AccountNonexistent)?;
 
         let sharee = Owner(
@@ -24,12 +26,10 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
                 .map_err(CoreError::from)?
                 .key,
         );
-        self.tx
-            .public_key_by_username
-            .insert(String::from(username), sharee);
-        self.tx
-            .username_by_public_key
-            .insert(sharee, String::from(username));
+
+        self.db
+            .pub_key_lookup
+            .insert(sharee, String::from(username))?;
 
         tree.add_share(id, sharee, mode, account)?;
 
@@ -37,11 +37,11 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
     }
 
     // todo: move to tree
-    pub fn get_pending_shares(&mut self) -> CoreResult<Vec<File>> {
+    pub(crate) fn get_pending_shares(&mut self) -> CoreResult<Vec<File>> {
         let account = &self.get_account()?.clone(); // todo: don't clone
         let owner = Owner(self.get_public_key()?);
-        let mut tree = (&self.tx.base_metadata)
-            .to_staged(&self.tx.local_metadata)
+        let mut tree = (&self.db.base_metadata)
+            .to_staged(&self.db.local_metadata)
             .to_lazy();
 
         let mut result = Vec::new();
@@ -63,21 +63,21 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
                 continue;
             }
 
-            result.push(tree.finalize(&id, account, &mut self.tx.username_by_public_key)?);
+            result.push(tree.finalize(&id, account, &mut self.db.pub_key_lookup)?);
         }
         Ok(result)
     }
 
-    pub fn delete_share(
+    pub(crate) fn delete_share(
         &mut self, id: &Uuid, maybe_encrypted_for: Option<PublicKey>,
     ) -> CoreResult<()> {
-        let mut tree = (&self.tx.base_metadata)
-            .to_staged(&mut self.tx.local_metadata)
+        let mut tree = (&self.db.base_metadata)
+            .to_staged(&mut self.db.local_metadata)
             .to_lazy();
         let account = self
-            .tx
+            .db
             .account
-            .get(&OneKey {})
+            .data()
             .ok_or(CoreError::AccountNonexistent)?;
 
         tree.delete_share(id, maybe_encrypted_for, account)?;

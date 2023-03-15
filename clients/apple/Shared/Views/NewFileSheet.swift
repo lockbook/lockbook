@@ -3,10 +3,10 @@ import SwiftUI
 import SwiftLockbookCore
 
 struct NewFileSheet: View {
-
+    
     @EnvironmentObject var sheets: SheetState
     @EnvironmentObject var selection: CurrentDocument
-
+    
     @State var selected: ClientFileTypes = .Document
     @State var name: String = ".md"
     @State var errors: String = ""
@@ -15,7 +15,7 @@ struct NewFileSheet: View {
     @EnvironmentObject var files: FileService
     @EnvironmentObject var status: StatusService
     @EnvironmentObject var errorService: UnexpectedErrorService
-
+    
     @Environment(\.presentationMode) var presentationMode
     
     var body: some View {
@@ -40,7 +40,9 @@ struct NewFileSheet: View {
                 }
                 Picker(selection: $selected, label: Text(""), content: {
                     Text("Document").tag(ClientFileTypes.Document)
+#if os(iOS)
                     Text("Drawing").tag(ClientFileTypes.Drawing)
+#endif
                     Text("Folder").tag(ClientFileTypes.Folder)
                 }).pickerStyle(SegmentedPickerStyle())
                     .onChange(of: selected, perform: selectionChanged)
@@ -62,7 +64,7 @@ struct NewFileSheet: View {
         }
     }
     
-    #if os(iOS)
+#if os(iOS)
     func handleCursor(textField: UITextField) {
         if !introspected {
             introspected = true
@@ -82,7 +84,7 @@ struct NewFileSheet: View {
             }
         }
     }
-    #else
+#else
     func handleCursor(textField: NSTextField) {
         if !introspected {
             introspected = true
@@ -90,7 +92,7 @@ struct NewFileSheet: View {
             // TODO based on iOS
         }
     }
-    #endif
+#endif
     
     func selectionChanged(selection: ClientFileTypes) {
         introspected = false
@@ -111,7 +113,7 @@ struct NewFileSheet: View {
                 files.successfulAction = .createFolder
                 sheets.created = newMeta
             } else {
-                selection.selectedItem = newMeta
+                selection.selectedDocument = newMeta
             }
             files.refresh()
             status.checkForLocalWork()

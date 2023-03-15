@@ -4,6 +4,7 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
+use std::str::FromStr;
 use uuid::Uuid;
 
 use crate::account::Account;
@@ -455,22 +456,6 @@ pub enum PaymentPlatform {
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
-pub enum GooglePlayAccountState {
-    Ok,
-    Canceled,
-    GracePeriod,
-    OnHold,
-}
-
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
-pub enum AppStoreAccountState {
-    Ok,
-    GracePeriod,
-    FailedToRenew,
-    Expired,
-}
-
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub struct GetSubscriptionInfoResponse {
     pub subscription_info: Option<SubscriptionInfo>,
 }
@@ -610,6 +595,7 @@ pub struct AdminListUsersRequest {
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub enum AccountFilter {
     Premium,
+    AppStorePremium,
     StripePremium,
     GooglePlayPremium,
 }
@@ -693,6 +679,57 @@ impl Request for AdminFileInfoRequest {
     const ROUTE: &'static str = "/admin-file-info";
 }
 
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub enum AdminSetUserTierInfo {
+    Stripe {
+        customer_id: String,
+        customer_name: Uuid,
+        payment_method_id: String,
+        last_4: String,
+        subscription_id: String,
+        expiration_time: UnixTimeMillis,
+        account_state: StripeAccountState,
+    },
+
+    GooglePlay {
+        purchase_token: String,
+        expiration_time: UnixTimeMillis,
+        account_state: GooglePlayAccountState,
+    },
+
+    AppStore {
+        account_token: String,
+        original_transaction_id: String,
+        expiration_time: UnixTimeMillis,
+        account_state: AppStoreAccountState,
+    },
+
+    Free,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub struct AdminSetUserTierRequest {
+    pub username: String,
+    pub info: AdminSetUserTierInfo,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct AdminSetUserTierResponse {}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub enum AdminSetUserTierError {
+    UserNotFound,
+    NotPermissioned,
+    ExistingRequestPending,
+}
+
+impl Request for AdminSetUserTierRequest {
+    type Response = AdminSetUserTierResponse;
+    type Error = AdminSetUserTierError;
+    const METHOD: Method = Method::POST;
+    const ROUTE: &'static str = "/admin-set-user-tier";
+}
+
 // number of milliseconds that have elapsed since the unix epoch
 pub type UnixTimeMillis = u64;
 
@@ -718,4 +755,68 @@ impl Request for AdminRebuildIndexRequest {
     type Error = AdminRebuildIndexError;
     const METHOD: Method = Method::POST;
     const ROUTE: &'static str = "/admin-rebuild-index";
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub enum StripeAccountState {
+    Ok,
+    InvoiceFailed,
+    Canceled,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub enum GooglePlayAccountState {
+    Ok,
+    Canceled,
+    GracePeriod,
+    OnHold,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub enum AppStoreAccountState {
+    Ok,
+    GracePeriod,
+    FailedToRenew,
+    Expired,
+}
+
+impl FromStr for StripeAccountState {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "Ok" => Ok(StripeAccountState::Ok),
+            "Canceled" => Ok(StripeAccountState::Canceled),
+            "InvoiceFailed" => Ok(StripeAccountState::InvoiceFailed),
+            _ => Err(()),
+        }
+    }
+}
+
+impl FromStr for GooglePlayAccountState {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "Ok" => Ok(GooglePlayAccountState::Ok),
+            "Canceled" => Ok(GooglePlayAccountState::Canceled),
+            "GracePeriod" => Ok(GooglePlayAccountState::GracePeriod),
+            "OnHold" => Ok(GooglePlayAccountState::OnHold),
+            _ => Err(()),
+        }
+    }
+}
+
+impl FromStr for AppStoreAccountState {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "Ok" => Ok(AppStoreAccountState::Ok),
+            "Expired" => Ok(AppStoreAccountState::Expired),
+            "GracePeriod" => Ok(AppStoreAccountState::GracePeriod),
+            "FailedToRenew" => Ok(AppStoreAccountState::FailedToRenew),
+            _ => Err(()),
+        }
+    }
 }

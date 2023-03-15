@@ -1,6 +1,6 @@
 [package]
 name = "lockbook-cli"
-version = "0.5.10"
+version = "0.6.0"
 edition = "2021"
 
 [[bin]]
@@ -8,11 +8,7 @@ name = "lockbook"
 path = "src/main.rs"
 
 [dependencies]
-lockbook-core = { path = "../../libs/core" }
-structopt = "0.3.13"
-chrono = "0.4"
-qr2term = "0.3.0"
-hotwatch = "0.4.5"
 atty = "0.2"
-dialoguer = { version = "0.10.1", features = ["fuzzy-select"] }
-indicatif = "0.16.2"
+clap = { version = "4.1.4", features = ["derive"] }
+hotwatch = "0.4.6"
+lb = { path = "../../libs/core", package = "lockbook-core" }

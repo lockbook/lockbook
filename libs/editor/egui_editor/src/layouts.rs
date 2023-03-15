@@ -1,5 +1,5 @@
 use crate::appearance::Appearance;
-use crate::buffer::Buffer;
+use crate::buffer::SubBuffer;
 use crate::element::{Element, IndentLevel, ItemType, Title, Url};
 use crate::offset_types::{DocByteOffset, DocCharOffset, RelByteOffset, RelCharOffset};
 use crate::styles::StyleInfo;
@@ -37,7 +37,7 @@ pub enum Annotation {
     Rule,
 }
 
-pub fn calc(buffer: &Buffer, styles: &[StyleInfo], vis: &Appearance) -> Layouts {
+pub fn calc(buffer: &SubBuffer, styles: &[StyleInfo], vis: &Appearance) -> Layouts {
     let mut layout = Layouts::default();
     let mut current: Option<LayoutJobInfo> = None;
 
@@ -54,8 +54,10 @@ pub fn calc(buffer: &Buffer, styles: &[StyleInfo], vis: &Appearance) -> Layouts 
             || if let Some(next) = styles.get(index + 1) { next.block_start } else { false };
 
         match &mut current {
-            Some(block) => block.append(&buffer.raw, vis, style, absorb_terminal_nl),
-            None => current = Some(LayoutJobInfo::new(&buffer.raw, vis, style, absorb_terminal_nl)),
+            Some(block) => block.append(&buffer.text, vis, style, absorb_terminal_nl),
+            None => {
+                current = Some(LayoutJobInfo::new(&buffer.text, vis, style, absorb_terminal_nl))
+            }
         };
 
         if last_item {
@@ -65,9 +67,9 @@ pub fn calc(buffer: &Buffer, styles: &[StyleInfo], vis: &Appearance) -> Layouts 
         }
     }
 
-    if buffer.raw.ends_with('\n') {
+    if buffer.text.ends_with('\n') {
         layout.layouts.push(LayoutJobInfo::new(
-            &buffer.raw,
+            &buffer.text,
             vis,
             &StyleInfo {
                 block_start: true,
@@ -149,6 +151,14 @@ impl LayoutJobInfo {
     ) -> (Option<Annotation>, RelByteOffset, RelByteOffset) {
         let (mut annotation, mut head_size) = (None, RelByteOffset(0));
         let text = &src[style.range.start.0..style.range.end.0];
+
+        for element in &style.elements {
+            if let Element::Image(link_type, url, title) = element {
+                // capture image annotation
+                annotation =
+                    Some(Annotation::Image(*link_type, url.to_string(), title.to_string()));
+            }
+        }
         if style.elements.contains(&Element::Item) {
             let indent_level = style
                 .elements
@@ -161,8 +171,24 @@ impl LayoutJobInfo {
                 trimmed_text
             };
 
+            // capture unchecked task list annotation
+            if text.starts_with("+ [ ] ")
+                || text.starts_with("* [ ] ")
+                || text.starts_with("- [ ] ")
+            {
+                annotation = Some(Annotation::Item(ItemType::Todo(false), indent_level));
+                head_size += 6;
+            }
+            // capture checked task list annotation
+            else if text.starts_with("+ [x] ")
+                || text.starts_with("* [x] ")
+                || text.starts_with("- [x] ")
+            {
+                annotation = Some(Annotation::Item(ItemType::Todo(true), indent_level));
+                head_size += 6;
+            }
             // capture bulleted list annotation
-            if text.starts_with("+ ") || text.starts_with("* ") || text.starts_with("- ") {
+            else if text.starts_with("+ ") || text.starts_with("* ") || text.starts_with("- ") {
                 annotation = Some(Annotation::Item(ItemType::Bulleted, indent_level));
                 head_size += 2;
             }
@@ -219,11 +245,11 @@ impl LayoutJobInfo {
         self.range.end - self.range.start
     }
 
-    pub fn head<'b>(&self, buffer: &'b Buffer) -> &'b str {
-        &buffer.raw[(self.range.start).0..(self.range.start + self.head_size).0]
+    pub fn head<'b>(&self, buffer: &'b SubBuffer) -> &'b str {
+        &buffer.text[(self.range.start).0..(self.range.start + self.head_size).0]
     }
 
-    pub fn head_size_chars(&self, buffer: &Buffer) -> RelCharOffset {
+    pub fn head_size_chars(&self, buffer: &SubBuffer) -> RelCharOffset {
         UnicodeSegmentation::grapheme_indices(self.head(buffer), true)
             .count()
             .into()
@@ -237,10 +263,12 @@ impl Editor {
             println!(
                 "annotation: {:?},\t{:?}{:?}{:?}",
                 layout.annotation,
-                &self.buffer.raw[layout.range.start.0..layout.range.start.0 + layout.head_size.0],
-                &self.buffer.raw[layout.range.start.0 + layout.head_size.0
+                &self.buffer.current.text
+                    [layout.range.start.0..layout.range.start.0 + layout.head_size.0],
+                &self.buffer.current.text[layout.range.start.0 + layout.head_size.0
                     ..layout.range.end.0 - layout.tail_size.0],
-                &self.buffer.raw[layout.range.end.0 - layout.tail_size.0..layout.range.end.0],
+                &self.buffer.current.text
+                    [layout.range.end.0 - layout.tail_size.0..layout.range.end.0],
             );
         }
     }

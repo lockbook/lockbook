@@ -358,16 +358,19 @@ impl<T> LazyTree<T>
 where
     T: TreeLikeMut,
 {
-    pub fn stage_and_promote<S: TreeLikeMut<F = T::F>>(&mut self, mut staged: S) {
+    pub fn stage_and_promote<S: TreeLikeMut<F = T::F>>(
+        &mut self, mut staged: S,
+    ) -> SharedResult<()> {
         for id in staged.owned_ids() {
-            if let Some(removed) = staged.remove(id) {
-                self.tree.insert(removed);
+            if let Some(removed) = staged.remove(id)? {
+                self.tree.insert(removed)?;
             }
         }
         // todo: incremental cache update
         self.name = HashMap::new();
         self.implicit_deleted = HashMap::new();
         self.children = HashMap::new();
+        Ok(())
     }
 
     pub fn stage_validate_and_promote<S: TreeLikeMut<F = T::F>>(
@@ -376,18 +379,19 @@ where
         StagedTree::new(&self.tree, &mut staged)
             .to_lazy()
             .validate(owner)?;
-        self.stage_and_promote(staged);
+        self.stage_and_promote(staged)?;
         Ok(())
     }
 
-    pub fn stage_removals_and_promote(&mut self, removed: HashSet<Uuid>) {
+    pub fn stage_removals_and_promote(&mut self, removed: HashSet<Uuid>) -> SharedResult<()> {
         for id in removed {
-            self.tree.remove(id);
+            self.tree.remove(id)?;
         }
         // todo: incremental cache update
         self.name = HashMap::new();
         self.implicit_deleted = HashMap::new();
         self.children = HashMap::new();
+        Ok(())
     }
 }
 
@@ -397,25 +401,25 @@ where
     Staged: TreeLikeMut<F = Base::F>,
 {
     // todo: incrementalism
-    pub fn promote(self) -> LazyTree<Base> {
+    pub fn promote(self) -> SharedResult<LazyTree<Base>> {
         let mut staged = self.tree.staged;
         let mut base = self.tree.base;
         for id in staged.owned_ids() {
-            if let Some(removed) = staged.remove(id) {
-                base.insert(removed);
+            if let Some(removed) = staged.remove(id)? {
+                base.insert(removed)?;
             }
         }
         for id in self.tree.removed {
-            base.remove(id);
+            base.remove(id)?;
         }
 
-        LazyTree {
+        Ok(LazyTree {
             tree: base,
             name: HashMap::new(),
             key: self.key,
             implicit_deleted: HashMap::new(),
             children: HashMap::new(),
-        }
+        })
     }
 }
 

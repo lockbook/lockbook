@@ -28,6 +28,7 @@ pub mod usage;
 pub mod validate;
 pub mod work_unit;
 
+use db_rs::DbError;
 pub use lazy::ValidationFailure;
 use std::io;
 
@@ -91,7 +92,15 @@ pub enum SharedError {
 
     Io(String),
 
+    Db(String),
+
     Unexpected(&'static str),
+}
+
+impl From<DbError> for SharedError {
+    fn from(value: DbError) -> Self {
+        Self::Db(format!("db error: {:?}", value))
+    }
 }
 
 impl From<bincode::Error> for SharedError {

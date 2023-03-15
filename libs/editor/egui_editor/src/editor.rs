@@ -1,14 +1,13 @@
 use crate::appearance::Appearance;
 use crate::ast::Ast;
 use crate::buffer::Buffer;
-use crate::cursor::Cursor;
 use crate::debug::DebugInfo;
 use crate::galleys::Galleys;
+use crate::images::ImageCache;
 use crate::layouts::Layouts;
 use crate::styles::StyleInfo;
 use crate::test_input::TEST_MARKDOWN;
-use crate::unicode_segs::UnicodeSegs;
-use crate::{ast, events, galleys, layouts, register_fonts, styles, unicode_segs};
+use crate::{ast, events, galleys, images, layouts, register_fonts, styles};
 use egui::{Context, FontDefinitions, Ui, Vec2};
 
 pub struct Editor {
@@ -16,14 +15,14 @@ pub struct Editor {
 
     // config
     pub appearance: Appearance,
+    pub client: reqwest::blocking::Client, // todo: don't download images on the UI thread
 
     // state
     pub buffer: Buffer,
-    pub cursor: Cursor,
     pub debug: DebugInfo,
+    pub images: ImageCache,
 
     // cached intermediate state
-    pub segs: UnicodeSegs,
     pub ast: Ast,
     pub styles: Vec<StyleInfo>,
     pub layouts: Layouts,
@@ -36,12 +35,12 @@ impl Default for Editor {
             initialized: Default::default(),
 
             appearance: Default::default(),
+            client: Default::default(),
 
             buffer: TEST_MARKDOWN.into(),
-            cursor: Default::default(),
             debug: Default::default(),
+            images: Default::default(),
 
-            segs: Default::default(),
             ast: Default::default(),
             styles: Default::default(),
             layouts: Default::default(),
@@ -69,20 +68,19 @@ impl Editor {
 
         // process events
         let (text_updated, cursor_pos_updated, selection_updated) = if self.initialized {
-            let prior_cursor_pos = self.cursor.pos;
-            let prior_selection = self.cursor.selection();
+            let prior_cursor_pos = self.buffer.current.cursor.pos;
+            let prior_selection = self.buffer.current.cursor.selection();
             let (text_updated, maybe_to_clipboard) = events::process(
                 &ui.ctx().input().events,
                 &self.layouts,
                 &self.galleys,
+                &self.appearance,
                 ui_size,
                 &mut self.buffer,
-                &mut self.segs,
-                &mut self.cursor,
                 &mut self.debug,
             );
-            let cursor_pos_updated = self.cursor.pos != prior_cursor_pos;
-            let selection_updated = self.cursor.selection() != prior_selection;
+            let cursor_pos_updated = self.buffer.current.cursor.pos != prior_cursor_pos;
+            let selection_updated = self.buffer.current.cursor.selection() != prior_selection;
 
             // put cut or copied text in clipboard
             if let Some(to_clipboard) = maybe_to_clipboard {
@@ -90,19 +88,26 @@ impl Editor {
             }
             (text_updated, cursor_pos_updated, selection_updated)
         } else {
-            self.segs = unicode_segs::calc(&self.buffer);
             (true, true, true)
         };
 
         // recalculate dependent state
         if text_updated {
-            self.ast = ast::calc(&self.buffer);
+            self.ast = ast::calc(&self.buffer.current);
         }
         if text_updated || selection_updated || theme_updated {
-            self.styles = styles::calc(&self.ast, &self.cursor.selection_bytes(&self.segs));
-            self.layouts = layouts::calc(&self.buffer, &self.styles, &self.appearance);
+            self.styles = styles::calc(
+                &self.ast,
+                &self
+                    .buffer
+                    .current
+                    .cursor
+                    .selection_bytes(&self.buffer.current.segs),
+            );
+            self.layouts = layouts::calc(&self.buffer.current, &self.styles, &self.appearance);
+            self.images = images::calc(&self.layouts, &self.images, &self.client, ui);
         }
-        self.galleys = galleys::calc(&self.layouts, &self.appearance, ui);
+        self.galleys = galleys::calc(&self.layouts, &self.images, &self.appearance, ui);
 
         self.initialized = true;
 
@@ -115,12 +120,18 @@ impl Editor {
 
         // scroll
         if cursor_pos_updated {
-            ui.scroll_to_rect(self.cursor.rect(&self.segs, &self.galleys), None);
+            ui.scroll_to_rect(
+                self.buffer
+                    .current
+                    .cursor
+                    .rect(&self.buffer.current.segs, &self.galleys),
+                None,
+            );
         }
     }
 
     pub fn set_text(&mut self, new_text: String) {
-        self.buffer.raw = new_text;
+        self.buffer = new_text.as_str().into();
         self.initialized = false;
     }
 

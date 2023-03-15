@@ -187,7 +187,7 @@ impl Editor {
                 style.elements,
                 style.range.start.0,
                 style.range.end.0,
-                &self.buffer.raw[style.range.start.0..style.range.end.0],
+                &self.buffer.current.text[style.range.start.0..style.range.end.0],
             );
         }
     }

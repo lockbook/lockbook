@@ -2,7 +2,8 @@ use crate::config::Config;
 use crate::{ServerError, FREE_TIER_USAGE_SIZE, PREMIUM_TIER_USAGE_SIZE};
 use google_androidpublisher3::api::SubscriptionPurchase;
 use lockbook_shared::api::{
-    AppStoreAccountState, GooglePlayAccountState, UnixTimeMillis, UpgradeAccountGooglePlayError,
+    AppStoreAccountState, GooglePlayAccountState, StripeAccountState, UnixTimeMillis,
+    UpgradeAccountGooglePlayError,
 };
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
@@ -18,7 +19,13 @@ impl SubscriptionProfile {
     pub fn data_cap(&self) -> u64 {
         match &self.billing_platform {
             Some(platform) => match platform {
-                BillingPlatform::Stripe(_) => PREMIUM_TIER_USAGE_SIZE,
+                BillingPlatform::Stripe(info) => {
+                    if info.account_state == StripeAccountState::Ok {
+                        PREMIUM_TIER_USAGE_SIZE
+                    } else {
+                        FREE_TIER_USAGE_SIZE
+                    }
+                }
                 BillingPlatform::GooglePlay(info) => {
                     if info.account_state == GooglePlayAccountState::OnHold {
                         FREE_TIER_USAGE_SIZE
@@ -98,6 +105,7 @@ pub struct StripeUserInfo {
     pub last_4: String,
     pub subscription_id: String,
     pub expiration_time: UnixTimeMillis,
+    pub account_state: StripeAccountState,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

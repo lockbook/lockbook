@@ -2,6 +2,7 @@ use google_androidpublisher3::AndroidPublisher;
 use hmdb::errors::Error;
 use std::env;
 use std::fmt::Debug;
+use std::sync::{Arc, Mutex};
 
 use libsecp256k1::PublicKey;
 use lockbook_shared::api::{ErrorWrapper, Request, RequestWrapper};
@@ -12,7 +13,7 @@ use crate::account_service::GetUsageHelperError;
 use crate::billing::billing_service::StripeWebhookError;
 use crate::billing::stripe_client::SimplifiedStripeError;
 use crate::billing::stripe_model::{StripeDeclineCodeCatcher, StripeKnownDeclineCode};
-use crate::schema::v3::{transaction, Server};
+use crate::schema::ServerV4;
 use crate::ServerError::ClientError;
 pub use stripe;
 
@@ -21,7 +22,7 @@ static CARGO_PKG_VERSION: &str = env!("CARGO_PKG_VERSION");
 #[derive(Clone)]
 pub struct ServerState {
     pub config: config::Config,
-    pub index_db: Server,
+    pub index_db: Arc<Mutex<ServerV4>>,
     pub stripe_client: stripe::Client,
     pub google_play_client: AndroidPublisher,
     pub app_store_client: reqwest::Client,
@@ -46,8 +47,6 @@ impl<E: Debug> From<Error> for ServerError<E> {
     }
 }
 
-type Tx<'a> = transaction::Server<'a>;
-
 #[macro_export]
 macro_rules! internal {
     ($($arg:tt)*) => {{
@@ -60,34 +59,17 @@ macro_rules! internal {
 pub fn handle_version_header<Req: Request>(
     config: &config::Config, version: &Option<String>,
 ) -> Result<(), ErrorWrapper<Req::Error>> {
-    let versions = &config.server.compatible_core_versions;
-    match version {
-        Some(x) if versions.contains(x) => {
-            router_service::CORE_VERSION_COUNTER
-                .with_label_values(&[x])
-                .inc();
-            Ok(())
-        }
-        _ => Err(ErrorWrapper::<Req::Error>::ClientUpdateRequired),
+    let incompatible_versions = &config.server.deprecated_core_versions;
+    let v = &version.clone().unwrap_or_default();
+    if version.is_none() || incompatible_versions.contains(v) {
+        return Err(ErrorWrapper::<Req::Error>::ClientUpdateRequired);
     }
+    router_service::CORE_VERSION_COUNTER
+        .with_label_values(&[v])
+        .inc();
+    Ok(())
 }
 
-pub fn handle_version_body<Req: Request>(
-    config: &config::Config, request: &RequestWrapper<Req>,
-) -> Result<(), ErrorWrapper<Req::Error>> {
-    let versions = &config.server.compatible_core_versions;
-    let client_version = &request.client_version;
-
-    match versions.contains(client_version) {
-        true => {
-            router_service::CORE_VERSION_COUNTER
-                .with_label_values(&[client_version.as_str()])
-                .inc();
-            Ok(())
-        }
-        false => Err(ErrorWrapper::<Req::Error>::ClientUpdateRequired),
-    }
-}
 pub fn verify_auth<TRequest: Request + Serialize>(
     server_state: &ServerState, request: &RequestWrapper<TRequest>,
 ) -> Result<(), SharedError> {

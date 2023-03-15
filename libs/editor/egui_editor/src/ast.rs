@@ -1,4 +1,4 @@
-use crate::buffer::Buffer;
+use crate::buffer::SubBuffer;
 use crate::element::Element;
 use crate::offset_types::DocByteOffset;
 use crate::Editor;
@@ -18,10 +18,10 @@ pub struct AstNode {
     pub children: Vec<usize>,
 }
 
-pub fn calc(buffer: &Buffer) -> Ast {
+pub fn calc(buffer: &SubBuffer) -> Ast {
     let mut options = Options::empty();
     options.insert(Options::ENABLE_STRIKETHROUGH);
-    let parser = Parser::new_ext(&buffer.raw, options);
+    let parser = Parser::new_ext(&buffer.text, options);
     let mut result = Ast {
         nodes: vec![AstNode::new(
             Element::Document,
@@ -29,7 +29,7 @@ pub fn calc(buffer: &Buffer) -> Ast {
         )],
         root: 0,
     };
-    result.push_children(result.root, &mut parser.into_offset_iter(), &buffer.raw);
+    result.push_children(result.root, &mut parser.into_offset_iter(), &buffer.text);
     result
 }
 
@@ -105,8 +105,7 @@ impl Ast {
             }
             let location = end - (modification + 1);
 
-            let maybe_newline = &raw[location.0..location.0 + 1];
-            if maybe_newline == "\n" {
+            if raw.is_char_boundary(location.0) && &raw[location.0..location.0 + 1] == "\n" {
                 modification += 1;
             } else {
                 break;
@@ -212,7 +211,7 @@ impl AstNode {
 impl Editor {
     pub fn print_ast(&self) {
         println!("ast:");
-        self.ast.print(&self.buffer.raw);
+        self.ast.print(&self.buffer.current.text);
     }
 }
 

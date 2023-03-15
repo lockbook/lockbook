@@ -13,34 +13,38 @@ fn get_document() {
     let account = core.get_account().unwrap();
     let id = core.create_at_path("test.md").unwrap().id;
     core.sync(None).unwrap();
-    let old = core.db.base_metadata.get(&id).unwrap().unwrap();
-    let mut new = old.clone();
-    new.timestamped_value.value.document_hmac = Some([0; 32]);
+    core.in_tx(|s| {
+        let old = s.db.base_metadata.data().get(&id).unwrap().clone();
+        let mut new = old.clone();
+        new.timestamped_value.value.document_hmac = Some([0; 32]);
 
-    // update document content
-    core.client
-        .request(
-            &account,
-            ChangeDocRequest {
-                diff: FileDiff::edit(&old, &new),
-                new_content: AESEncrypted {
-                    value: vec![69],
-                    nonce: vec![69],
-                    _t: Default::default(),
+        // update document content
+        s.client
+            .request(
+                &account,
+                ChangeDocRequest {
+                    diff: FileDiff::edit(&old, &new),
+                    new_content: AESEncrypted {
+                        value: vec![69],
+                        nonce: vec![69],
+                        _t: Default::default(),
+                    },
                 },
-            },
-        )
-        .unwrap();
+            )
+            .unwrap();
 
-    // get document
-    let result = &core
-        .client
-        .request(&account, GetDocRequest { id, hmac: *new.document_hmac().unwrap() })
-        .unwrap();
-    assert_eq!(
-        result.content,
-        AESEncrypted { value: vec!(69), nonce: vec!(69), _t: Default::default() }
-    );
+        // get document
+        let result = s
+            .client
+            .request(&account, GetDocRequest { id, hmac: *new.document_hmac().unwrap() })
+            .unwrap();
+        assert_eq!(
+            result.content,
+            AESEncrypted { value: vec!(69), nonce: vec!(69), _t: Default::default() }
+        );
+        Ok(())
+    })
+    .unwrap();
 }
 
 #[test]
@@ -49,17 +53,22 @@ fn get_document_not_found() {
     let account = core.get_account().unwrap();
     let id = core.create_at_path("test.md").unwrap().id;
     core.sync(None).unwrap();
-    let mut old = core.db.base_metadata.get(&id).unwrap().unwrap();
-    old.timestamped_value.value.id = Uuid::new_v4();
-    let mut new = old;
-    new.timestamped_value.value.document_hmac = Some([0; 32]);
+    core.in_tx(|s| {
+        let mut old = s.db.base_metadata.data().get(&id).unwrap().clone();
+        old.timestamped_value.value.id = Uuid::new_v4();
+        let mut new = old;
+        new.timestamped_value.value.document_hmac = Some([0; 32]);
 
-    // get document we never created
-    let result = core
-        .client
-        .request(&account, GetDocRequest { id: *new.id(), hmac: *new.document_hmac().unwrap() });
-    assert_matches!(
-        result,
-        Err(ApiError::<GetDocumentError>::Endpoint(GetDocumentError::DocumentNotFound))
-    );
+        // get document we never created
+        let result = s.client.request(
+            &account,
+            GetDocRequest { id: *new.id(), hmac: *new.document_hmac().unwrap() },
+        );
+        assert_matches!(
+            result,
+            Err(ApiError::<GetDocumentError>::Endpoint(GetDocumentError::DocumentNotFound))
+        );
+        Ok(())
+    })
+    .unwrap();
 }

@@ -120,8 +120,7 @@ impl<'a, T: Copy + PartialEq> ButtonGroup<'a, T> {
                 ui.style().visuals.widgets.inactive.bg_fill
             };
 
-            ui.painter()
-                .rect(rect, rounding, fill, egui::Stroke::none());
+            ui.painter().rect(rect, rounding, fill, egui::Stroke::NONE);
 
             match &btn.1 {
                 ButtonContent::Text(wtxt) => {

@@ -1,258 +1,45 @@
-use crate::buffer::Buffer;
+use crate::appearance::Appearance;
+use crate::buffer::{Buffer, Modification, SubBuffer, SubModification};
 use crate::cursor::Cursor;
 use crate::debug::DebugInfo;
 use crate::element::ItemType;
 use crate::galleys::Galleys;
 use crate::layouts::{Annotation, Layouts};
-use crate::offset_types::{DocCharOffset, RelCharOffset};
-use crate::unicode_segs;
+use crate::offset_types::DocCharOffset;
 use crate::unicode_segs::UnicodeSegs;
 use egui::{Event, Key, PointerButton, Pos2, Vec2};
 use std::cmp::Ordering;
-use std::iter;
-use std::ops::Range;
 use std::time::Instant;
-use unicode_segmentation::UnicodeSegmentation;
 
-/// represents a modification made as a result of event processing
-#[derive(Debug)]
-enum Modification<'a> {
-    Cursor { cursor: Cursor },    // modify the cursor state
-    Insert { text: &'a str },     // insert text at cursor location
-    InsertOwned { text: String }, // insert text at cursor location
-    Delete(RelCharOffset),        // delete selection or characters before cursor
-    DebugToggle,                  // toggle debug overlay
-    ToClipboard { text: String }, // cut or copy text to clipboard
-}
-
-/// processes `events` and returns a boolean representing whether text was updated
-#[allow(clippy::too_many_arguments)]
+/// processes `events` and returns a boolean representing whether text was updated and optionally new contents for clipboard
 pub fn process(
-    events: &[Event], layouts: &Layouts, galleys: &Galleys, ui_size: Vec2, buffer: &mut Buffer,
-    segs: &mut UnicodeSegs, cursor: &mut Cursor, debug: &mut DebugInfo,
+    events: &[Event], layouts: &Layouts, galleys: &Galleys, appearance: &Appearance, ui_size: Vec2,
+    buffer: &mut Buffer, debug: &mut DebugInfo,
 ) -> (bool, Option<String>) {
-    let modifications =
-        calc_modifications(events, segs, layouts, galleys, buffer, *cursor, ui_size);
-    apply_modifications(modifications, buffer, segs, cursor, debug)
-}
-
-fn apply_modifications(
-    mut modifications: Vec<Modification>, buffer: &mut Buffer, segs: &mut UnicodeSegs,
-    cursor: &mut Cursor, debug: &mut DebugInfo,
-) -> (bool, Option<String>) {
-    let mut text_updated = false;
+    let (mut text_updated, modification) =
+        calc_modification(events, layouts, galleys, appearance, buffer, debug, ui_size);
     let mut to_clipboard = None;
-
-    let mut cur_cursor = *cursor;
-    modifications.reverse();
-    while let Some(modification) = modifications.pop() {
-        // todo: reduce duplication
-        match modification {
-            Modification::Cursor { cursor: cur } => {
-                cur_cursor = cur;
-            }
-            Modification::Insert { text: text_replacement } => {
-                let replaced_text_range = cur_cursor
-                    .selection()
-                    .unwrap_or(Range { start: cur_cursor.pos, end: cur_cursor.pos });
-
-                modify_subsequent_cursors(
-                    replaced_text_range.clone(),
-                    text_replacement,
-                    &mut modifications,
-                    &mut cur_cursor,
-                );
-
-                buffer.replace_range(replaced_text_range, text_replacement, segs);
-                *segs = unicode_segs::calc(buffer);
-                text_updated = true;
-            }
-            Modification::InsertOwned { text: text_replacement } => {
-                let replaced_text_range = cur_cursor
-                    .selection()
-                    .unwrap_or(Range { start: cur_cursor.pos, end: cur_cursor.pos });
-
-                modify_subsequent_cursors(
-                    replaced_text_range.clone(),
-                    &text_replacement,
-                    &mut modifications,
-                    &mut cur_cursor,
-                );
-
-                buffer.replace_range(replaced_text_range, &text_replacement, segs);
-                *segs = unicode_segs::calc(buffer);
-                text_updated = true;
-            }
-            Modification::Delete(n_chars) => {
-                let text_replacement = "";
-                let replaced_text_range = cur_cursor.selection().unwrap_or(Range {
-                    start: if cur_cursor.pos.0 == 0 {
-                        DocCharOffset(0)
-                    } else {
-                        cur_cursor.pos - n_chars
-                    },
-                    end: cur_cursor.pos,
-                });
-
-                modify_subsequent_cursors(
-                    replaced_text_range.clone(),
-                    text_replacement,
-                    &mut modifications,
-                    &mut cur_cursor,
-                );
-
-                buffer.replace_range(replaced_text_range, text_replacement, segs);
-                *segs = unicode_segs::calc(buffer);
-                text_updated = true;
-            }
-            Modification::DebugToggle => {
-                debug.draw_enabled = !debug.draw_enabled;
-            }
-            Modification::ToClipboard { text } => {
-                to_clipboard = Some(text);
-            }
-        }
+    if !modification.is_empty() {
+        let (text_updated_apply, to_clipboard_apply) = buffer.apply(modification, debug);
+        text_updated |= text_updated_apply;
+        to_clipboard = to_clipboard_apply;
     }
-
-    *cursor = cur_cursor;
     (text_updated, to_clipboard)
 }
 
-fn modify_subsequent_cursors(
-    replaced_text_range: Range<DocCharOffset>, text_replacement: &str,
-    modifications: &mut [Modification], cur_cursor: &mut Cursor,
-) {
-    let replaced_text_len = replaced_text_range.end - replaced_text_range.start;
-    let text_replacement_len =
-        UnicodeSegmentation::grapheme_indices(text_replacement, true).count();
-
-    for mod_cursor in modifications
-        .iter_mut()
-        .filter_map(|modification| {
-            if let Modification::Cursor { cursor: cur } = modification {
-                Some(cur)
-            } else {
-                None
-            }
-        })
-        .chain(iter::once(cur_cursor))
-    {
-        // adjust subsequent cursor selections; no part of a cursor shall appear inside
-        // text that was not rendered when the cursor was placed (though a selection may
-        // contain it).
-        let cur_selection = mod_cursor
-            .selection()
-            .unwrap_or(Range { start: mod_cursor.pos, end: mod_cursor.pos });
-
-        match (
-            cur_selection.start < replaced_text_range.start,
-            cur_selection.end < replaced_text_range.end,
-        ) {
-            _ if cur_selection.start >= replaced_text_range.end => {
-                // case 1:
-                //                       text before replacement: * * * * * * *
-                //                        range of replaced text:  |<->|
-                //          range of subsequent cursor selection:        |<->|
-                //                        text after replacement: * X * * * *
-                // adjusted range of subsequent cursor selection:      |<->|
-                mod_cursor.pos = mod_cursor.pos + text_replacement_len - replaced_text_len;
-                if let Some(selection_origin) = mod_cursor.selection_origin {
-                    mod_cursor.selection_origin =
-                        Some(selection_origin + text_replacement_len - replaced_text_len);
-                }
-            }
-            _ if cur_selection.end < replaced_text_range.start => {
-                // case 2:
-                //                       text before replacement: * * * * * * *
-                //                        range of replaced text:        |<->|
-                //          range of subsequent cursor selection:  |<->|
-                //                        text after replacement: * * * * X *
-                // adjusted range of subsequent cursor selection:  |<->|
-                continue;
-            }
-            (false, false) => {
-                // case 3:
-                //                       text before replacement: * * * * * * *
-                //                        range of replaced text:  |<--->|
-                //          range of subsequent cursor selection:      |<--->|
-                //                        text after replacement: * X * * *
-                // adjusted range of subsequent cursor selection:    |<->|
-                if let Some(selection_origin) = mod_cursor.selection_origin {
-                    if mod_cursor.pos < selection_origin {
-                        mod_cursor.pos =
-                            replaced_text_range.end + text_replacement_len - replaced_text_len;
-                        mod_cursor.selection_origin =
-                            Some(selection_origin + text_replacement_len - replaced_text_len);
-                    } else {
-                        mod_cursor.selection_origin = Some(
-                            replaced_text_range.end + text_replacement_len - replaced_text_len,
-                        );
-                        mod_cursor.pos = mod_cursor.pos + text_replacement_len - replaced_text_len;
-                    }
-                } else {
-                    panic!("this code should be unreachable")
-                }
-            }
-            (true, true) => {
-                // case 4:
-                //                       text before replacement: * * * * * * *
-                //                        range of replaced text:      |<--->|
-                //          range of subsequent cursor selection:  |<--->|
-                //                        text after replacement: * * * X *
-                // adjusted range of subsequent cursor selection:  |<->|
-                if let Some(selection_origin) = mod_cursor.selection_origin {
-                    if mod_cursor.pos < selection_origin {
-                        mod_cursor.selection_origin = Some(replaced_text_range.start);
-                    } else {
-                        mod_cursor.pos = replaced_text_range.start;
-                    }
-                } else {
-                    panic!("this code should be unreachable")
-                }
-            }
-            (false, true) => {
-                // case 5:
-                //                       text before replacement: * * * * * * *
-                //                        range of replaced text:  |<------->|
-                //          range of subsequent cursor selection:    |<--->|
-                //                        text after replacement: * X *
-                // adjusted range of subsequent cursor selection:    |
-                mod_cursor.pos = replaced_text_range.end + text_replacement_len - replaced_text_len;
-                mod_cursor.selection_origin = Some(mod_cursor.pos);
-            }
-            (true, false) => {
-                // case 6:
-                //                       text before replacement: * * * * * * *
-                //                        range of replaced text:    |<--->|
-                //          range of subsequent cursor selection:  |<------->|
-                //                        text after replacement: * * X * *
-                // adjusted range of subsequent cursor selection:  |<--->|
-                if let Some(selection_origin) = mod_cursor.selection_origin {
-                    if mod_cursor.pos < selection_origin {
-                        mod_cursor.selection_origin =
-                            Some(selection_origin + text_replacement_len - replaced_text_len);
-                    } else {
-                        mod_cursor.pos = mod_cursor.pos + text_replacement_len - replaced_text_len;
-                    }
-                } else {
-                    panic!("this code should be unreachable")
-                }
-            }
-        }
-    }
-}
-
-fn calc_modifications<'a>(
-    events: &'a [Event], segs: &UnicodeSegs, layouts: &Layouts, galleys: &Galleys, buffer: &Buffer,
-    cursor: Cursor, ui_size: Vec2,
-) -> Vec<Modification<'a>> {
+// note: buffer and debug are mut because undo modifies it directly; todo: factor to make mutating subset of code obvious
+fn calc_modification(
+    events: &[Event], layouts: &Layouts, galleys: &Galleys, appearance: &Appearance,
+    buffer: &mut Buffer, debug: &mut DebugInfo, ui_size: Vec2,
+) -> (bool, Modification) {
+    let mut text_updated = false;
     let mut modifications = Vec::new();
-    let mut previous_cursor = cursor;
-    let mut cursor = cursor;
+    let mut previous_cursor = buffer.current.cursor;
+    let mut cursor = buffer.current.cursor;
 
-    cursor.fix(false, segs, galleys);
+    cursor.fix(false, &buffer.current.segs, galleys);
     if cursor != previous_cursor {
-        modifications.push(Modification::Cursor { cursor });
+        modifications.push(SubModification::Cursor { cursor });
         previous_cursor = cursor;
     }
 
@@ -262,42 +49,48 @@ fn calc_modifications<'a>(
                 cursor.x_target = None;
 
                 let (galley_idx, cur_cursor) =
-                    galleys.galley_and_cursor_by_char_offset(cursor.pos, segs);
+                    galleys.galley_and_cursor_by_char_offset(cursor.pos, &buffer.current.segs);
                 if modifiers.shift {
                     cursor.set_selection_origin();
                 } else {
                     cursor.selection_origin = None;
                 }
                 if modifiers.alt {
-                    cursor.advance_word(false, buffer, segs, galleys);
+                    cursor.advance_word(false, &buffer.current, &buffer.current.segs, galleys);
                 } else if modifiers.command {
                     let galley = &galleys[galley_idx];
                     let new_cursor = galley.galley.cursor_end_of_row(&cur_cursor);
-                    cursor.pos =
-                        galleys.char_offset_by_galley_and_cursor(galley_idx, &new_cursor, segs);
+                    cursor.pos = galleys.char_offset_by_galley_and_cursor(
+                        galley_idx,
+                        &new_cursor,
+                        &buffer.current.segs,
+                    );
                 } else {
-                    cursor.advance_char(false, segs, galleys);
+                    cursor.advance_char(false, &buffer.current.segs, galleys);
                 }
             }
             Event::Key { key: Key::ArrowLeft, pressed: true, modifiers } => {
                 cursor.x_target = None;
 
                 let (galley_idx, cur_cursor) =
-                    galleys.galley_and_cursor_by_char_offset(cursor.pos, segs);
+                    galleys.galley_and_cursor_by_char_offset(cursor.pos, &buffer.current.segs);
                 if modifiers.shift {
                     cursor.set_selection_origin();
                 } else {
                     cursor.selection_origin = None;
                 }
                 if modifiers.alt {
-                    cursor.advance_word(true, buffer, segs, galleys);
+                    cursor.advance_word(true, &buffer.current, &buffer.current.segs, galleys);
                 } else if modifiers.command {
                     let galley = &galleys[galley_idx];
                     let new_cursor = galley.galley.cursor_begin_of_row(&cur_cursor);
-                    cursor.pos =
-                        galleys.char_offset_by_galley_and_cursor(galley_idx, &new_cursor, segs);
+                    cursor.pos = galleys.char_offset_by_galley_and_cursor(
+                        galley_idx,
+                        &new_cursor,
+                        &buffer.current.segs,
+                    );
                 } else {
-                    cursor.advance_char(true, segs, galleys);
+                    cursor.advance_char(true, &buffer.current.segs, galleys);
                 }
             }
             Event::Key { key: Key::ArrowDown, pressed: true, modifiers } => {
@@ -307,12 +100,12 @@ fn calc_modifications<'a>(
                     cursor.selection_origin = None;
                 }
                 if modifiers.command {
-                    cursor.pos = segs.last_cursor_position();
-                    cursor.fix(false, segs, galleys);
+                    cursor.pos = buffer.current.segs.last_cursor_position();
+                    cursor.fix(false, &buffer.current.segs, galleys);
                     cursor.x_target = None;
                 } else {
                     let (cur_galley_idx, cur_cursor) =
-                        galleys.galley_and_cursor_by_char_offset(cursor.pos, segs);
+                        galleys.galley_and_cursor_by_char_offset(cursor.pos, &buffer.current.segs);
                     let cur_galley = &galleys[cur_galley_idx];
 
                     // the first time we use an up or down arrow, remember the x we started at
@@ -349,8 +142,11 @@ fn calc_modifications<'a>(
                         cursor.x_target = None;
                     }
 
-                    cursor.pos =
-                        galleys.char_offset_by_galley_and_cursor(new_galley_idx, &new_cursor, segs);
+                    cursor.pos = galleys.char_offset_by_galley_and_cursor(
+                        new_galley_idx,
+                        &new_cursor,
+                        &buffer.current.segs,
+                    );
                 }
             }
             Event::Key { key: Key::ArrowUp, pressed: true, modifiers } => {
@@ -361,11 +157,11 @@ fn calc_modifications<'a>(
                 }
                 if modifiers.command {
                     cursor.pos = DocCharOffset(0);
-                    cursor.fix(false, segs, galleys);
+                    cursor.fix(false, &buffer.current.segs, galleys);
                     cursor.x_target = None;
                 } else {
                     let (cur_galley_idx, cur_cursor) =
-                        galleys.galley_and_cursor_by_char_offset(cursor.pos, segs);
+                        galleys.galley_and_cursor_by_char_offset(cursor.pos, &buffer.current.segs);
                     let cur_galley = &galleys[cur_galley_idx];
 
                     // the first time we use an up or down arrow, remember the x we started at
@@ -401,28 +197,33 @@ fn calc_modifications<'a>(
                         cursor.x_target = None;
                     }
 
-                    cursor.pos =
-                        galleys.char_offset_by_galley_and_cursor(new_galley_idx, &new_cursor, segs);
+                    cursor.pos = galleys.char_offset_by_galley_and_cursor(
+                        new_galley_idx,
+                        &new_cursor,
+                        &buffer.current.segs,
+                    );
                 }
             }
             Event::Paste(text) | Event::Text(text) => {
                 cursor.x_target = None;
 
-                modifications.push(Modification::Insert { text });
+                modifications.push(SubModification::Insert { text: text.clone() });
 
                 cursor.selection_origin = None;
             }
             Event::Key { key: Key::Backspace, pressed: true, modifiers } => {
                 cursor.x_target = None;
 
-                let layout_idx = layouts.layout_at_char(cursor.pos, segs);
+                let layout_idx = layouts.layout_at_char(cursor.pos, &buffer.current.segs);
                 let layout = &layouts[layout_idx];
                 if layout.head_size > 0
-                    && segs.char_offset_to_byte(cursor.pos) == layout.range.start + layout.head_size
+                    && buffer.current.segs.char_offset_to_byte(cursor.pos)
+                        == layout.range.start + layout.head_size
                     && cursor.selection().is_none()
                 {
                     // delete layout head (e.g. bullet)
-                    modifications.push(Modification::Delete(layout.head_size_chars(buffer)));
+                    modifications
+                        .push(SubModification::Delete(layout.head_size_chars(&buffer.current)));
 
                     // if we deleted an item in a numbered list, decrement subsequent items
                     if let Some(Annotation::Item(ItemType::Numbered(_), indent_level)) =
@@ -433,47 +234,47 @@ fn calc_modifications<'a>(
                             indent_level,
                             1,
                             true,
-                            segs,
+                            &buffer.current.segs,
                             layouts,
-                            buffer,
+                            &buffer.current,
                             cursor,
                         ));
                     }
                 } else {
                     if modifiers.command {
                         // select line
-                        let (galley_idx, cur_cursor) =
-                            galleys.galley_and_cursor_by_char_offset(cursor.pos, segs);
+                        let (galley_idx, cur_cursor) = galleys
+                            .galley_and_cursor_by_char_offset(cursor.pos, &buffer.current.segs);
                         let galley = &galleys[galley_idx];
                         let begin_of_row_cursor = galley.galley.cursor_begin_of_row(&cur_cursor);
                         let end_of_row_cursor = galley.galley.cursor_end_of_row(&cur_cursor);
                         let begin_of_row_pos = galleys.char_offset_by_galley_and_cursor(
                             galley_idx,
                             &begin_of_row_cursor,
-                            segs,
+                            &buffer.current.segs,
                         );
                         let end_of_row_pos = galleys.char_offset_by_galley_and_cursor(
                             galley_idx,
                             &end_of_row_cursor,
-                            segs,
+                            &buffer.current.segs,
                         );
 
-                        modifications.push(Modification::Cursor {
+                        modifications.push(SubModification::Cursor {
                             cursor: (begin_of_row_pos, end_of_row_pos).into(),
                         })
                     } else if modifiers.alt {
                         // select word
                         let end_of_word_pos = cursor.pos;
-                        cursor.advance_word(true, buffer, segs, galleys);
+                        cursor.advance_word(true, &buffer.current, &buffer.current.segs, galleys);
                         let begin_of_word_pos = cursor.pos;
 
-                        modifications.push(Modification::Cursor {
+                        modifications.push(SubModification::Cursor {
                             cursor: (begin_of_word_pos, end_of_word_pos).into(),
                         })
                     }
 
                     // delete selected text or one character
-                    modifications.push(Modification::Delete(1.into()));
+                    modifications.push(SubModification::Delete(1.into()));
                 }
 
                 cursor.selection_origin = None;
@@ -481,68 +282,86 @@ fn calc_modifications<'a>(
             Event::Key { key: Key::Enter, pressed: true, modifiers: _ } => {
                 cursor.x_target = None;
 
-                modifications.push(Modification::Insert { text: "\n" });
-
-                let layout_idx = layouts.layout_at_char(cursor.pos, segs);
+                let layout_idx = layouts.layout_at_char(cursor.pos, &buffer.current.segs);
                 let layout = &layouts[layout_idx];
-                if segs.char_offset_to_byte(cursor.pos) == layout.range.end - layout.tail_size {
-                    if matches!(layout.annotation, Some(Annotation::Item(..)))
-                        && layout.size() - layout.head_size - layout.tail_size == 0
-                    {
+                if buffer.current.segs.char_offset_to_byte(cursor.pos)
+                    == layout.range.end - layout.tail_size
+                    && matches!(layout.annotation, Some(Annotation::Item(..)))
+                {
+                    // cursor at end of list item
+                    if layout.size() - layout.head_size - layout.tail_size == 0 {
                         // empty list item -> delete current annotation
-                        modifications.push(Modification::Cursor {
+                        modifications.push(SubModification::Cursor {
                             cursor: Cursor {
-                                pos: segs
+                                pos: buffer
+                                    .current
+                                    .segs
                                     .byte_offset_to_char(layout.range.start + layout.head_size),
                                 selection_origin: Some(
-                                    segs.byte_offset_to_char(layout.range.start),
+                                    buffer.current.segs.byte_offset_to_char(layout.range.start),
                                 ),
                                 ..Default::default()
                             },
                         });
-                        modifications.push(Modification::Delete(0.into()));
-                        modifications.push(Modification::Cursor { cursor });
-                        modifications.push(Modification::Insert { text: "\n" });
+                        modifications.push(SubModification::Delete(0.into()));
+                        modifications.push(SubModification::Cursor { cursor });
                     } else {
                         // nonempty list item -> insert new list item
+                        modifications.push(SubModification::Insert { text: "\n".to_string() });
+
                         match layout.annotation {
                             Some(Annotation::Item(ItemType::Bulleted, _)) => {
-                                modifications.push(Modification::InsertOwned {
-                                    text: layout.head(buffer).to_string(),
+                                modifications.push(SubModification::Insert {
+                                    text: layout.head(&buffer.current).to_string(),
                                 });
                             }
                             Some(Annotation::Item(
                                 ItemType::Numbered(cur_number),
                                 indent_level,
                             )) => {
-                                let head = layout.head(buffer);
+                                let head = layout.head(&buffer.current);
                                 let text = head[0..head.len() - (cur_number).to_string().len() - 2]
                                     .to_string()
                                     + &(cur_number + 1).to_string()
                                     + ". ";
-                                modifications.push(Modification::InsertOwned { text });
+                                modifications.push(SubModification::Insert { text });
 
                                 modifications.extend(increment_numbered_list_items(
                                     layout_idx,
                                     indent_level,
                                     1,
                                     false,
-                                    segs,
+                                    &buffer.current.segs,
                                     layouts,
-                                    buffer,
+                                    &buffer.current,
                                     cursor,
                                 ));
                             }
                             Some(Annotation::Item(ItemType::Todo(_), _)) => {
-                                let head = layout.head(buffer);
-                                let text = head[0..head.len() - 4].to_string() + "- [ ]";
-                                modifications.push(Modification::InsertOwned { text });
+                                let head = layout.head(&buffer.current);
+                                let text = head[0..head.len() - 6].to_string() + "- [ ] ";
+                                modifications.push(SubModification::Insert { text });
                             }
                             Some(Annotation::Image(_, _, _)) => {}
                             Some(Annotation::Rule) => {}
                             None => {}
                         }
                     }
+                } else if buffer.current.segs.char_offset_to_byte(cursor.pos)
+                    == layout.range.start + layout.head_size
+                    && !matches!(layout.annotation, Some(Annotation::Item(..)))
+                {
+                    // cursor at start of non-list item -> insert newline before annotation
+                    modifications.push(SubModification::Cursor {
+                        cursor: Cursor {
+                            pos: buffer.current.segs.byte_offset_to_char(layout.range.start),
+                            ..Default::default()
+                        },
+                    });
+                    modifications.push(SubModification::Insert { text: "\n".to_string() });
+                    modifications.push(SubModification::Cursor { cursor });
+                } else {
+                    modifications.push(SubModification::Insert { text: "\n".to_string() });
                 }
 
                 cursor.selection_origin = None;
@@ -550,13 +369,14 @@ fn calc_modifications<'a>(
             Event::Key { key: Key::Tab, pressed: true, modifiers } => {
                 // if we're in a list item, tab/shift+tab will indent/de-indent
                 // otherwise, tab will insert a tab and shift tab will do nothing
-                let layout_idx = layouts.layout_at_char(cursor.pos, segs);
+                let layout_idx = layouts.layout_at_char(cursor.pos, &buffer.current.segs);
                 let layout = &layouts[layout_idx];
                 if let Some(annotation) = &layout.annotation {
                     match annotation {
                         Annotation::Item(item_type, indent_level) => {
                             // todo: this needs more attention e.g. list items doubly indented using 2-space indents
-                            let layout_text = &buffer.raw[layout.range.start.0..layout.range.end.0];
+                            let layout_text =
+                                &&buffer.current.text[layout.range.start.0..layout.range.end.0];
                             let indent_seq = if layout_text.starts_with('\t') {
                                 "\t"
                             } else if layout_text.starts_with("    ") {
@@ -589,19 +409,22 @@ fn calc_modifications<'a>(
 
                                 if can_deindent {
                                     // de-indentation: select text, delete selection, restore cursor
-                                    modifications.push(Modification::Cursor {
+                                    modifications.push(SubModification::Cursor {
                                         cursor: Cursor {
-                                            pos: segs.byte_offset_to_char(
+                                            pos: buffer.current.segs.byte_offset_to_char(
                                                 layout.range.start + indent_seq.len(),
                                             ),
                                             selection_origin: Some(
-                                                segs.byte_offset_to_char(layout.range.start),
+                                                buffer
+                                                    .current
+                                                    .segs
+                                                    .byte_offset_to_char(layout.range.start),
                                             ),
                                             ..Default::default()
                                         },
                                     });
-                                    modifications.push(Modification::Delete(0.into()));
-                                    modifications.push(Modification::Cursor { cursor });
+                                    modifications.push(SubModification::Delete(0.into()));
+                                    modifications.push(SubModification::Cursor { cursor });
 
                                     indent_level - 1
                                 } else {
@@ -625,16 +448,19 @@ fn calc_modifications<'a>(
 
                                 if can_indent {
                                     // indentation: set cursor to galley start, insert indentation sequence, restore cursor
-                                    modifications.push(Modification::Cursor {
+                                    modifications.push(SubModification::Cursor {
                                         cursor: Cursor {
-                                            pos: segs.byte_offset_to_char(layout.range.start),
+                                            pos: buffer
+                                                .current
+                                                .segs
+                                                .byte_offset_to_char(layout.range.start),
                                             ..Default::default()
                                         },
                                     });
-                                    modifications.push(Modification::InsertOwned {
+                                    modifications.push(SubModification::Insert {
                                         text: indent_seq.to_string(),
                                     });
-                                    modifications.push(Modification::Cursor { cursor });
+                                    modifications.push(SubModification::Cursor { cursor });
 
                                     indent_level + 1
                                 } else {
@@ -677,23 +503,25 @@ fn calc_modifications<'a>(
                                     };
 
                                     // replace cur_number with new_number in head
-                                    modifications.push(Modification::Cursor {
+                                    modifications.push(SubModification::Cursor {
                                         cursor: Cursor {
-                                            pos: segs.byte_offset_to_char(
+                                            pos: buffer.current.segs.byte_offset_to_char(
                                                 layout.range.start + layout.head_size
                                                     - (cur_number).to_string().len()
                                                     - 2,
                                             ),
-                                            selection_origin: Some(segs.byte_offset_to_char(
-                                                layout.range.start + layout.head_size,
-                                            )),
+                                            selection_origin: Some(
+                                                buffer.current.segs.byte_offset_to_char(
+                                                    layout.range.start + layout.head_size,
+                                                ),
+                                            ),
                                             ..Default::default()
                                         },
                                     });
-                                    modifications.push(Modification::InsertOwned {
+                                    modifications.push(SubModification::Insert {
                                         text: new_number.to_string() + ". ",
                                     });
-                                    modifications.push(Modification::Cursor { cursor });
+                                    modifications.push(SubModification::Cursor { cursor });
 
                                     if modifiers.shift {
                                         // decrement numbers in old list by this item's old number
@@ -702,9 +530,9 @@ fn calc_modifications<'a>(
                                             *indent_level,
                                             *cur_number,
                                             true,
-                                            segs,
+                                            &buffer.current.segs,
                                             layouts,
-                                            buffer,
+                                            &buffer.current,
                                             cursor,
                                         ));
 
@@ -714,9 +542,9 @@ fn calc_modifications<'a>(
                                             new_indent_level,
                                             1,
                                             false,
-                                            segs,
+                                            &buffer.current.segs,
                                             layouts,
-                                            buffer,
+                                            &buffer.current,
                                             cursor,
                                         ));
                                     } else {
@@ -726,9 +554,9 @@ fn calc_modifications<'a>(
                                             *indent_level,
                                             1,
                                             true,
-                                            segs,
+                                            &buffer.current.segs,
                                             layouts,
-                                            buffer,
+                                            &buffer.current,
                                             cursor,
                                         ));
 
@@ -738,9 +566,9 @@ fn calc_modifications<'a>(
                                             new_indent_level,
                                             new_number,
                                             false,
-                                            segs,
+                                            &buffer.current.segs,
                                             layouts,
-                                            buffer,
+                                            &buffer.current,
                                             cursor,
                                         ));
                                     }
@@ -751,32 +579,47 @@ fn calc_modifications<'a>(
                         Annotation::Rule => {}
                     }
                 } else if !modifiers.shift {
-                    modifications.push(Modification::InsertOwned { text: "\t".to_string() });
+                    modifications.push(SubModification::Insert { text: "\t".to_string() });
                 }
             }
             Event::Key { key: Key::A, pressed: true, modifiers } => {
                 if modifiers.command {
                     cursor.selection_origin = Some(DocCharOffset(0));
-                    cursor.pos = segs.last_cursor_position();
+                    cursor.pos = buffer.current.segs.last_cursor_position();
                 }
             }
             Event::Key { key: Key::C, pressed: true, modifiers } => {
                 if modifiers.command {
-                    modifications.push(Modification::ToClipboard {
-                        text: cursor.selection_text(buffer, segs).to_string(),
+                    modifications.push(SubModification::ToClipboard {
+                        text: cursor
+                            .selection_text(&buffer.current, &buffer.current.segs)
+                            .to_string(),
                     });
                 }
             }
             Event::Key { key: Key::X, pressed: true, modifiers } => {
                 if modifiers.command {
-                    modifications.push(Modification::ToClipboard {
-                        text: cursor.selection_text(buffer, segs).to_string(),
+                    modifications.push(SubModification::ToClipboard {
+                        text: cursor
+                            .selection_text(&buffer.current, &buffer.current.segs)
+                            .to_string(),
                     });
-                    modifications.push(Modification::Delete(0.into()));
+                    modifications.push(SubModification::Delete(0.into()));
+                }
+            }
+            Event::Key { key: Key::Z, pressed: true, modifiers } => {
+                if modifiers.command {
+                    // mutate buffer directly - undo does not become a modification because it cannot be undone
+                    if modifiers.shift {
+                        buffer.redo(debug);
+                    } else {
+                        buffer.undo(debug);
+                    }
+                    text_updated = true;
                 }
             }
             Event::Key { key: Key::F2, pressed: true, modifiers: _modifiers } => {
-                modifications.push(Modification::DebugToggle);
+                modifications.push(SubModification::DebugToggle);
             }
             Event::PointerButton {
                 pos,
@@ -786,54 +629,101 @@ fn calc_modifications<'a>(
             } => {
                 // do not process scrollbar clicks
                 if pos.x <= ui_size.x {
-                    // record instant for double/triple click
-                    cursor.process_click_instant(Instant::now());
+                    // process checkbox clicks
+                    let checkbox_click = {
+                        let mut checkbox_click = false;
+                        for galley in &galleys.galleys {
+                            if let Some(Annotation::Item(ItemType::Todo(checked), ..)) =
+                                galley.annotation
+                            {
+                                if galley.checkbox_bounds(appearance).contains(*pos) {
+                                    modifications.push(SubModification::Cursor {
+                                        cursor: Cursor {
+                                            pos: buffer.current.segs.byte_offset_to_char(
+                                                galley.range.start + galley.head_size,
+                                            ),
+                                            selection_origin: Some(
+                                                buffer.current.segs.byte_offset_to_char(
+                                                    galley.range.start + galley.head_size - 6,
+                                                ),
+                                            ),
+                                            ..Default::default()
+                                        },
+                                    });
+                                    modifications.push(SubModification::Insert {
+                                        text: if checked { "- [ ] " } else { "- [x] " }.to_string(),
+                                    });
+                                    modifications.push(SubModification::Cursor { cursor });
 
-                    let mut double_click = false;
-                    let mut triple_click = false;
-                    if !modifiers.shift {
-                        // click: end selection
-                        cursor.selection_origin = None;
+                                    checkbox_click = true;
+                                    break;
+                                }
+                            }
+                        }
+                        checkbox_click
+                    };
+                    if !checkbox_click {
+                        // record instant for double/triple click
+                        cursor.process_click_instant(Instant::now());
 
-                        double_click = cursor.double_click();
-                        triple_click = cursor.triple_click();
-                    } else {
-                        // shift+click: begin selection
-                        cursor.set_selection_origin();
-                    }
-                    // any click: begin drag; update cursor
-                    cursor.set_click_and_drag_origin();
-                    if triple_click {
-                        cursor.pos = pos_to_char_offset(*pos, galleys, segs);
+                        let mut double_click = false;
+                        let mut triple_click = false;
+                        if !modifiers.shift {
+                            // click: end selection
+                            cursor.selection_origin = None;
 
-                        let (galley_idx, cur_cursor) =
-                            galleys.galley_and_cursor_by_char_offset(cursor.pos, segs);
-                        let galley = &galleys[galley_idx];
-                        let begin_of_row_cursor = galley.galley.cursor_begin_of_row(&cur_cursor);
-                        let end_of_row_cursor = galley.galley.cursor_end_of_row(&cur_cursor);
+                            double_click = cursor.double_click();
+                            triple_click = cursor.triple_click();
+                        } else {
+                            // shift+click: begin selection
+                            cursor.set_selection_origin();
+                        }
+                        // any click: begin drag; update cursor
+                        cursor.set_click_and_drag_origin();
+                        if triple_click {
+                            cursor.pos = pos_to_char_offset(*pos, galleys, &buffer.current.segs);
 
-                        cursor.selection_origin = Some(galleys.char_offset_by_galley_and_cursor(
-                            galley_idx,
-                            &begin_of_row_cursor,
-                            segs,
-                        ));
-                        cursor.pos = galleys.char_offset_by_galley_and_cursor(
-                            galley_idx,
-                            &end_of_row_cursor,
-                            segs,
-                        );
-                    } else if double_click {
-                        cursor.pos = pos_to_char_offset(*pos, galleys, segs);
+                            let (galley_idx, cur_cursor) = galleys
+                                .galley_and_cursor_by_char_offset(cursor.pos, &buffer.current.segs);
+                            let galley = &galleys[galley_idx];
+                            let begin_of_row_cursor =
+                                galley.galley.cursor_begin_of_row(&cur_cursor);
+                            let end_of_row_cursor = galley.galley.cursor_end_of_row(&cur_cursor);
 
-                        cursor.advance_word(false, buffer, segs, galleys);
-                        let end_of_word_pos = cursor.pos;
-                        cursor.advance_word(true, buffer, segs, galleys);
-                        let begin_of_word_pos = cursor.pos;
+                            cursor.selection_origin =
+                                Some(galleys.char_offset_by_galley_and_cursor(
+                                    galley_idx,
+                                    &begin_of_row_cursor,
+                                    &buffer.current.segs,
+                                ));
+                            cursor.pos = galleys.char_offset_by_galley_and_cursor(
+                                galley_idx,
+                                &end_of_row_cursor,
+                                &buffer.current.segs,
+                            );
+                        } else if double_click {
+                            cursor.pos = pos_to_char_offset(*pos, galleys, &buffer.current.segs);
 
-                        cursor.selection_origin = Some(begin_of_word_pos);
-                        cursor.pos = end_of_word_pos;
-                    } else {
-                        cursor.pos = pos_to_char_offset(*pos, galleys, segs);
+                            cursor.advance_word(
+                                false,
+                                &buffer.current,
+                                &buffer.current.segs,
+                                galleys,
+                            );
+                            let end_of_word_pos = cursor.pos;
+                            cursor.advance_word(
+                                true,
+                                &buffer.current,
+                                &buffer.current.segs,
+                                galleys,
+                            );
+                            let begin_of_word_pos = cursor.pos;
+
+                            cursor.selection_origin = Some(begin_of_word_pos);
+                            cursor.pos = end_of_word_pos;
+                        } else {
+                            cursor.pos = pos_to_char_offset(*pos, galleys, &buffer.current.segs);
+                        }
                     }
                 }
             }
@@ -844,7 +734,7 @@ fn calc_modifications<'a>(
                 {
                     // drag: begin selection; update cursor
                     cursor.set_selection_origin();
-                    cursor.pos = pos_to_char_offset(*pos, galleys, segs);
+                    cursor.pos = pos_to_char_offset(*pos, galleys, &buffer.current.segs);
                 }
             }
             Event::PointerButton { button: PointerButton::Primary, pressed: false, .. } => {
@@ -855,27 +745,30 @@ fn calc_modifications<'a>(
         }
 
         if cursor != previous_cursor {
-            modifications.push(Modification::Cursor { cursor });
+            modifications.push(SubModification::Cursor { cursor });
             previous_cursor = cursor;
         }
     }
 
-    modifications
+    // todo: more thoughtful way to group modifications
+    // modifications must be grouped because operations like deleting an annotation involve several steps but should be undone as one operation
+    // this way to group modifications puts all operations performed in one frame as a single group
+    (text_updated, modifications)
 }
 
 fn pos_to_char_offset(pos: Pos2, galleys: &Galleys, segs: &UnicodeSegs) -> DocCharOffset {
     if !galleys.is_empty() {
-        if pos.y < galleys[0].ui_location.min.y {
+        if pos.y < galleys[0].galley_location.min.y {
             // click position is above first galley
             DocCharOffset(0)
-        } else if pos.y >= galleys[galleys.len() - 1].ui_location.max.y {
+        } else if pos.y >= galleys[galleys.len() - 1].galley_location.max.y {
             // click position is below last galley
             segs.last_cursor_position()
         } else {
             let mut result = 0.into();
             for galley_idx in 0..galleys.len() {
                 let galley = &galleys[galley_idx];
-                if galley.ui_location.contains(pos) {
+                if galley.galley_location.contains(pos) {
                     // click position is in a galley
                     let relative_pos = pos - galley.text_location;
                     let new_cursor = galley.galley.cursor_from_pos(relative_pos);
@@ -891,10 +784,10 @@ fn pos_to_char_offset(pos: Pos2, galleys: &Galleys, segs: &UnicodeSegs) -> DocCh
 }
 
 #[allow(clippy::too_many_arguments)]
-fn increment_numbered_list_items<'a>(
+fn increment_numbered_list_items(
     starting_layout_idx: usize, indent_level: u8, amount: usize, decrement: bool,
-    segs: &UnicodeSegs, layouts: &Layouts, buffer: &Buffer, cursor: Cursor,
-) -> Vec<Modification<'a>> {
+    segs: &UnicodeSegs, layouts: &Layouts, buffer: &SubBuffer, cursor: Cursor,
+) -> Modification {
     let mut modifications = Vec::new();
 
     let mut layout_idx = starting_layout_idx;
@@ -915,7 +808,7 @@ fn increment_numbered_list_items<'a>(
                 Ordering::Equal => {
                     if let ItemType::Numbered(cur_number) = item_type {
                         // replace cur_number with next_number in head
-                        modifications.push(Modification::Cursor {
+                        modifications.push(SubModification::Cursor {
                             cursor: Cursor {
                                 pos: segs
                                     .byte_offset_to_char(layout.range.start + layout.head_size),
@@ -935,8 +828,8 @@ fn increment_numbered_list_items<'a>(
                             })
                             .to_string()
                             + ". ";
-                        modifications.push(Modification::InsertOwned { text });
-                        modifications.push(Modification::Cursor { cursor });
+                        modifications.push(SubModification::Insert { text });
+                        modifications.push(SubModification::Cursor { cursor });
                     }
                 }
             }
@@ -946,152 +839,4 @@ fn increment_numbered_list_items<'a>(
     }
 
     modifications
-}
-
-#[cfg(test)]
-mod test {
-    use crate::cursor::Cursor;
-    use crate::events::{apply_modifications, Modification};
-    use crate::unicode_segs;
-
-    #[test]
-    fn apply_modifications_none_empty_doc() {
-        let mut buffer = Default::default();
-        let mut cursor = Default::default();
-        let mut debug = Default::default();
-        let mut segs = unicode_segs::calc(&buffer);
-
-        let modifications = Default::default();
-
-        let (text_updated, _) =
-            apply_modifications(modifications, &mut buffer, &mut segs, &mut cursor, &mut debug);
-
-        assert_eq!(buffer.raw, "");
-        assert_eq!(cursor, Default::default());
-        assert!(!debug.draw_enabled);
-        assert!(!text_updated);
-    }
-
-    #[test]
-    fn apply_modifications_none() {
-        let mut buffer = "document content".into();
-        let mut cursor = 9.into();
-        let mut debug = Default::default();
-        let mut segs = unicode_segs::calc(&buffer);
-
-        let modifications = Default::default();
-
-        let (text_updated, _) =
-            apply_modifications(modifications, &mut buffer, &mut segs, &mut cursor, &mut debug);
-
-        assert_eq!(buffer.raw, "document content");
-        assert_eq!(cursor, 9.into());
-        assert!(!debug.draw_enabled);
-        assert!(!text_updated);
-    }
-
-    #[test]
-    fn apply_modifications_insert() {
-        let mut buffer = "document content".into();
-        let mut cursor = 9.into();
-        let mut debug = Default::default();
-        let mut segs = unicode_segs::calc(&buffer);
-
-        let modifications = vec![Modification::Insert { text: "new " }];
-
-        let (text_updated, _) =
-            apply_modifications(modifications, &mut buffer, &mut segs, &mut cursor, &mut debug);
-
-        assert_eq!(buffer.raw, "document new content");
-        assert_eq!(cursor, 13.into());
-        assert!(!debug.draw_enabled);
-        assert!(text_updated);
-    }
-
-    #[test]
-    fn apply_modifications_selection_insert_twice() {
-        struct Case {
-            cursor_a: (usize, usize),
-            cursor_b: (usize, usize),
-            expected_buffer: &'static str,
-            expected_cursor: (usize, usize),
-        }
-
-        let cases = [
-            Case {
-                cursor_a: (1, 3),
-                cursor_b: (4, 6),
-                expected_buffer: "1a4b7",
-                expected_cursor: (4, 4),
-            },
-            Case {
-                cursor_a: (4, 6),
-                cursor_b: (1, 3),
-                expected_buffer: "1b4a7",
-                expected_cursor: (2, 2),
-            },
-            Case {
-                cursor_a: (1, 5),
-                cursor_b: (2, 6),
-                expected_buffer: "1ab7",
-                expected_cursor: (3, 3),
-            },
-            Case {
-                cursor_a: (2, 6),
-                cursor_b: (1, 5),
-                expected_buffer: "1ba7",
-                expected_cursor: (2, 2),
-            },
-            Case {
-                cursor_a: (1, 6),
-                cursor_b: (2, 5),
-                expected_buffer: "1ab7",
-                expected_cursor: (3, 3),
-            },
-            Case {
-                cursor_a: (2, 5),
-                cursor_b: (1, 6),
-                expected_buffer: "1b7",
-                expected_cursor: (2, 2),
-            },
-            Case {
-                cursor_a: (1, 6),
-                cursor_b: (1, 1),
-                expected_buffer: "1ab7",
-                expected_cursor: (3, 3),
-            },
-        ];
-
-        for case in cases {
-            let mut cursor = Cursor {
-                pos: case.cursor_a.0.into(),
-                selection_origin: Some(case.cursor_a.1.into()),
-                ..Default::default()
-            };
-            let mut buffer = "1234567".into();
-            let mut debug = Default::default();
-            let mut segs = unicode_segs::calc(&buffer);
-
-            let modifications = vec![
-                Modification::Insert { text: "a" },
-                Modification::Cursor {
-                    cursor: Cursor {
-                        pos: case.cursor_b.0.into(),
-                        selection_origin: Some(case.cursor_b.1.into()),
-                        ..Default::default()
-                    },
-                },
-                Modification::Insert { text: "b" },
-            ];
-
-            let (text_updated, _) =
-                apply_modifications(modifications, &mut buffer, &mut segs, &mut cursor, &mut debug);
-
-            assert_eq!(buffer.raw, case.expected_buffer);
-            assert_eq!(cursor.pos.0, case.expected_cursor.0);
-            assert_eq!(cursor.selection_origin, Some(case.expected_cursor.1.into()));
-            assert!(!debug.draw_enabled);
-            assert!(text_updated);
-        }
-    }
 }

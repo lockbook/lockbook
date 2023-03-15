@@ -1,265 +1,245 @@
-use std::env;
-use std::path::PathBuf;
-
-use structopt::StructOpt;
-
-use lockbook_core::Core;
-use lockbook_core::{Config, Uuid};
-
-use crate::error::CliError;
-
-mod backup;
-mod billing;
-mod copy;
+mod account;
 mod debug;
-mod drawing;
 mod edit;
 mod error;
+mod imex;
 mod list;
-mod mv;
-mod new;
-mod new_account;
-mod print;
-mod private_key;
-mod remove;
-mod rename;
-mod selector;
 mod share;
-mod status;
-mod sync;
-mod usage;
-mod utils;
 
-#[derive(Debug, PartialEq, StructOpt)]
-#[structopt(about = "The private, polished note-taking platform.")]
-enum Lockbook {
-    /// Backup your Lockbook files and structure to the current directory
-    Backup,
+use std::fmt;
+use std::io::{self, Write};
+use std::path::PathBuf;
+use std::str::FromStr;
 
-    /// Commands related to managing premium lockbook subscriptions
-    Billing(billing::Billing),
+use clap::Parser;
 
-    /// Copy a file from your file system into your Lockbook
-    ///
-    /// If neither dest or dest_id is provided an interactive selector will be launched.
+use lb::Core;
+
+use self::error::CliError;
+
+const ID_PREFIX_LEN: usize = 8;
+
+#[derive(Parser, Debug)]
+enum LbCli {
+    /// account related commands
+    #[command(subcommand)]
+    Account(account::AccountCmd),
+    /// import files from your file system into lockbook
     Copy {
-        /// At-least one filesystem location
-        #[structopt(required = true)]
-        disk: Vec<PathBuf>,
-
-        /// The path to a folder within lockbook.
-        dest: Option<String>,
-
-        /// The id of a folder within lockbook.
-        #[structopt(short, long)]
-        dest_id: Option<Uuid>,
+        /// paths of file on disk
+        disk_files: Vec<PathBuf>,
+        /// lockbook file path or ID destination
+        dest: String,
     },
-
-    /// Open a document for editing
-    ///
-    /// Open a document for editing in an external editor. The default editor is vim on unix-like
-    /// systems and vs-code on windows. The editor can be overridden by using the $LOCKBOOK_EDITOR
-    /// environment variable.
-    ///
-    /// If neither path or id is provided an interactive selector will be launched.
-    Edit {
-        /// The lockbook location of a document within lockbook
-        path: Option<String>,
-
-        /// The id of a document within lockbook
-        #[structopt(short, long)]
-        id: Option<Uuid>,
-    },
-
-    /// Export a drawing as an image
-    ///
-    /// If neither path or id is provided an interactive selector will be launched.
-    Drawing {
-        /// Path of the drawing within lockbook
-        path: Option<String>,
-
-        /// The id of a drawing within lockbook
-        #[structopt(short, long)]
-        id: Option<Uuid>,
-
-        /// Format for export format, options are: png, jpeg, bmp, tga, pnm, farbfeld
-        format: String,
-    },
-
-    /// Import or Export a private key
-    PrivateKey {
-        /// Import a private key from stdin
-        #[structopt(short, long)]
-        import: bool,
-
-        /// Export a private key to stdout. If piped, it will print the private key as text. Otherwise, it
-        /// will produce a QR code.
-        #[structopt(short, long)]
-        export: bool,
-    },
-
-    /// Prints uncompressed & compressed local disk utilization, and server disk utilization
-    GetUsage {
-        /// Show machine readable amounts, in bytes
-        #[structopt(long)]
-        exact: bool,
-    },
-
-    /// List the absolute path of all Lockbook leaf nodes
-    List {
-        #[structopt(short, long)]
-        all: bool,
-
-        #[structopt(short, long)]
-        folders: bool,
-
-        #[structopt(short, long)]
-        documents: bool,
-
-        #[structopt(short, long)]
-        ids: bool,
-    },
-
-    /// Change the parent of a file or folder
-    ///
-    /// Source & Destination must exist prior to moving.
-    /// If neither src or src_id is provided an interactive selector will be launched.
-    /// If neither dest or dest_id is provided an interactive selector will be launched.
-    Move {
-        /// Path of the file within lockbook to move
-        src: Option<String>,
-
-        /// Id of the file within lockbook to move
-        #[structopt(short, long)]
-        src_id: Option<Uuid>,
-
-        /// Path to the desired destination folder within lockbook
-        dest: Option<String>,
-
-        /// Id of the desired destination folder within lockbook
-        #[structopt(short, long)]
-        dest_id: Option<Uuid>,
-    },
-
-    /// Create a new document or folder
-    ///
-    /// Can either provide a path or a parent-id + name.
-    /// If neither path, parent or name is provided, an interactive selector will be launched.
-    New {
-        /// Desired path, folders that don't exist will be created. The terminal file type will be
-        /// determined based on whether the last character of the path is a '/' or not
-        path: Option<String>,
-
-        /// Id of the parent you're trying to create the file in
-        #[structopt(short, long)]
-        parent: Option<Uuid>,
-
-        /// Name of the file. file type will be determined based on whether the last character of
-        /// the path is a '/' or not
-        #[structopt(short, long)]
-        name: Option<String>,
-    },
-
-    /// Create a new Lockbook account
-    NewAccount,
-
-    /// Print the contents of a file to stdout
-    ///
-    /// If neither path or id is provided an interactive selector will be launched.
-    Print {
-        /// The lockbook location of a document within lockbook
-        path: Option<String>,
-
-        /// The id of a document within lockbook
-        #[structopt(short, long)]
-        id: Option<Uuid>,
-    },
-
-    /// Delete a file
-    ///
-    /// If neither path or id is provided an interactive selector will be launched.
-    Remove {
-        /// The lockbook location of a file within lockbook
-        path: Option<String>,
-
-        /// The lockbook location of a file within lockbook
-        #[structopt(short, long)]
-        id: Option<Uuid>,
-
-        /// The id of a file within lockbook
-        #[structopt(short, long)]
+    /// investigative commands
+    #[command(subcommand)]
+    Debug(debug::DebugCmd),
+    /// delete a file
+    Delete {
+        /// lockbook file path or ID
+        target: String,
+        /// do not prompt for confirmation before deleting
         force: bool,
     },
-
-    /// Rename a file at a path to a target value
-    ///
-    /// If neither path or id is provided an interactive selector will be launched.
-    /// If name is not provided an interactive selector will be launched.
-    Rename {
-        /// The lockbook location of a file within lockbook
-        path: Option<String>,
-
-        /// The lockbook location of a file within lockbook
-        #[structopt(short, long)]
-        id: Option<Uuid>,
-
-        /// New name
-        name: Option<String>,
+    /// edit a document
+    Edit {
+        /// lockbook file path or ID
+        target: String,
     },
-
-    /// Manage shared documents
-    Share(share::Share),
-
-    /// What operations a sync would perform
-    Status,
-
-    /// Get updates, push changes
+    /// export a lockbook file to your file system
+    Export {
+        /// the path or id of a lockbook folder
+        target: String,
+        /// a filesystem location (defaults to current directory)
+        dest: Option<PathBuf>,
+    },
+    /// list files and file information
+    List(list::ListArgs),
+    /// move a file to a new parent
+    Move {
+        /// lockbook file path or ID of the file to move
+        src_target: String,
+        /// lockbook file path or ID of the new parent
+        dest_target: String,
+    },
+    /// create a new file at the given path or do nothing if it exists
+    New {
+        /// lockbook file path
+        path: String,
+    },
+    /// print a document to stdout
+    Print {
+        /// lockbook file path or ID
+        target: String,
+    },
+    /// rename a file
+    Rename {
+        /// lockbook file path or ID
+        target: String,
+        /// the file's new name
+        new_name: String,
+    },
+    /// sharing related commands
+    #[command(subcommand)]
+    Share(share::ShareCmd),
+    /// file sync
     Sync,
-
-    /// Subcommands that aid in extending Lockbook
-    Debug(debug::Debug),
 }
 
-fn exit_with(err: CliError) -> ! {
-    err.print();
-    std::process::exit(err.code as i32)
+fn input<T>(prompt: impl fmt::Display) -> Result<T, CliError>
+where
+    T: FromStr,
+    <T as FromStr>::Err: fmt::Debug,
+{
+    print!("{}", prompt);
+    io::stdout().flush()?;
+
+    let mut answer = String::new();
+    io::stdin()
+        .read_line(&mut answer)
+        .expect("failed to read from stdin");
+    answer.retain(|c| c != '\n' && c != '\r');
+
+    Ok(answer.parse::<T>().unwrap())
 }
 
-fn parse_and_run() -> Result<(), CliError> {
-    let writeable_path = match (env::var("LOCKBOOK_PATH"), env::var("HOME"), env::var("HOMEPATH")) {
-        (Ok(s), _, _) => s,
-        (Err(_), Ok(s), _) => format!("{}/.lockbook/cli", s),
-        (Err(_), Err(_), Ok(s)) => format!("{}/.lockbook/cli", s),
-        _ => return Err(CliError::no_cli_location()),
+pub fn maybe_get_by_path(core: &lb::Core, p: &str) -> Result<Option<lb::File>, CliError> {
+    match core.get_by_path(p) {
+        Ok(f) => Ok(Some(f)),
+        Err(lb::Error::UiError(lb::GetFileByPathError::NoFileAtThatPath)) => Ok(None),
+        Err(err) => Err((err, p).into()),
+    }
+}
+
+fn resolve_target_to_file(core: &Core, t: &str) -> Result<lb::File, CliError> {
+    match lb::Uuid::parse_str(t) {
+        Ok(id) => core.get_file_by_id(id).map_err(|err| (err, id).into()),
+        Err(_) => core.get_by_path(t).map_err(|err| (err, t).into()),
+    }
+}
+
+fn resolve_target_to_id(core: &Core, t: &str) -> Result<lb::Uuid, CliError> {
+    if let Ok(id) = lb::Uuid::parse_str(t) {
+        return Ok(id);
+    }
+    match core.get_by_path(t) {
+        Ok(f) => Ok(f.id),
+        Err(err) => Err((err, t).into()),
+    }
+}
+
+fn delete(core: &Core, target: &str, force: bool) -> Result<(), CliError> {
+    let f = resolve_target_to_file(core, target)?;
+
+    if !force {
+        let mut phrase = format!("delete '{}'", target);
+        if f.is_folder() {
+            let count = core
+                .get_and_get_children_recursively(f.id)
+                .map_err(|err| (err, f.id))?
+                .len();
+            phrase = format!("{phrase} and its {count} children")
+        }
+
+        let answer: String = input(format!("are you sure you want to {phrase}? [y/n]: "))?;
+        if answer != "y" && answer != "Y" {
+            println!("aborted.");
+            return Ok(());
+        }
+    }
+
+    core.delete_file(f.id).map_err(|err| (err, f.id).into())
+}
+
+fn move_file(core: &Core, src: &str, dest: &str) -> Result<(), CliError> {
+    let src_id = resolve_target_to_id(core, src)?;
+    let dest_id = resolve_target_to_id(core, dest)?;
+    core.move_file(src_id, dest_id)
+        .map_err(|err| (err, src_id, dest_id).into())
+}
+
+fn print(core: &Core, target: &str) -> Result<(), CliError> {
+    let id = resolve_target_to_id(core, target)?;
+    let content = core.read_document(id).map_err(|err| (err, id))?;
+    print!("{}", String::from_utf8_lossy(&content));
+    io::stdout().flush()?;
+    Ok(())
+}
+
+fn rename(core: &Core, target: &str, new_name: &str) -> Result<(), CliError> {
+    let id = resolve_target_to_id(core, target)?;
+    core.rename_file(id, new_name)
+        .map_err(|err| (err, id).into())
+}
+
+fn sync(core: &Core) -> Result<(), CliError> {
+    println!("syncing...");
+    core.sync(Some(Box::new(|sp: lb::SyncProgress| {
+        use lb::ClientWorkUnit::*;
+        match sp.current_work_unit {
+            PullMetadata => println!("pulling file tree updates"),
+            PushMetadata => println!("pushing file tree updates"),
+            PullDocument(name) => println!("pulling: {}", name),
+            PushDocument(name) => println!("pushing: {}", name),
+        };
+    })))?;
+    Ok(())
+}
+
+fn create(core: &Core, path: &str) -> Result<(), CliError> {
+    match core.get_by_path(path) {
+        Ok(_f) => Ok(()),
+        Err(lb::Error::UiError(lb::GetFileByPathError::NoFileAtThatPath)) => {
+            match core.create_at_path(path) {
+                Ok(_f) => Ok(()),
+                Err(err) => Err(err.into()),
+            }
+        }
+        Err(err) => Err((err, path).into()),
+    }
+}
+
+fn run() -> Result<(), CliError> {
+    let writeable_path = match (std::env::var("LOCKBOOK_PATH"), std::env::var("HOME")) {
+        (Ok(s), _) => s,
+        (Err(_), Ok(s)) => format!("{}/.lockbook/cli", s),
+        _ => return Err(CliError::new("no cli location")),
     };
 
-    let core = Core::init(&Config { writeable_path, logs: true, colored_logs: true })?;
+    let core = Core::init(&lb::Config { writeable_path, logs: true, colored_logs: true })?;
 
-    use Lockbook::*;
-    match Lockbook::from_args() {
-        Copy { disk: files, dest, dest_id } => copy::copy(&core, &files, dest, dest_id),
-        Billing(billing) => billing::billing(&core, billing),
-        Edit { path, id } => edit::edit(&core, path, id),
-        PrivateKey { import, export } => private_key::private_key(&core, import, export),
-        NewAccount => new_account::new_account(&core),
-        List { ids, folders, documents, all } => list::list(&core, ids, documents, folders, all),
-        Move { src, src_id, dest, dest_id } => mv::mv(&core, src, src_id, dest, dest_id),
-        New { path, parent, name } => new::new(&core, path, parent, name),
-        Print { path, id } => print::print(&core, path, id),
-        Remove { path, id, force } => remove::remove(&core, path, id, force),
-        Rename { path, id, name } => rename::rename(&core, path, id, name),
-        Share(share) => share::share(&core, share),
-        Status => status::status(&core),
-        Sync => sync::sync(&core),
-        Backup => backup::backup(&core),
-        GetUsage { exact } => usage::usage(&core, exact),
-        Drawing { path, id, format } => drawing::drawing(&core, path, id, &format),
-        Debug(debug) => debug::debug(&core, debug),
+    let cmd = LbCli::parse();
+    if !matches!(cmd, LbCli::Account(account::AccountCmd::New { .. }))
+        && !matches!(cmd, LbCli::Account(account::AccountCmd::Import))
+    {
+        let _ = core.get_account().map_err(|err| match err {
+            lb::Error::UiError(lb::GetAccountError::NoAccount) => {
+                CliError::new("no account! run 'init' or 'init --restore' to get started.")
+            }
+            err => err.into(),
+        })?;
+    }
+
+    match cmd {
+        LbCli::Account(cmd) => account::account(&core, cmd),
+        LbCli::Copy { disk_files, dest } => imex::copy(&core, &disk_files, &dest),
+        LbCli::Debug(cmd) => debug::debug(&core, cmd),
+        LbCli::Delete { target, force } => delete(&core, &target, force),
+        LbCli::Edit { target } => edit::edit(&core, &target),
+        LbCli::Export { target, dest } => imex::export(&core, &target, dest),
+        LbCli::List(args) => list::list(&core, args),
+        LbCli::Move { src_target, dest_target } => move_file(&core, &src_target, &dest_target),
+        LbCli::New { path } => create(&core, &path),
+        LbCli::Print { target } => print(&core, &target),
+        LbCli::Rename { target, new_name } => rename(&core, &target, &new_name),
+        LbCli::Share(cmd) => share::share(&core, cmd),
+        LbCli::Sync => sync(&core),
     }
 }
 
 fn main() {
-    if let Err(err) = parse_and_run() {
-        exit_with(err);
+    if let Err(err) = run() {
+        eprintln!("{}", err);
+        std::process::exit(1)
     }
 }

@@ -90,14 +90,14 @@ impl Requester for Network {
 pub mod no_network {
 
     use crate::service::api_service::ApiError;
-    use crate::{call, CoreLib};
-    use crate::{CoreDb, DataCache, Requester};
-    use hmdb::log::Reader;
+    use crate::{call, CoreLib, CoreState};
+    use crate::{CoreDb, Requester};
+    use db_rs::Db;
     use lockbook_server_lib::account_service::*;
     use lockbook_server_lib::billing::google_play_client::get_google_play_client;
     use lockbook_server_lib::config::*;
     use lockbook_server_lib::file_service::*;
-    use lockbook_server_lib::schema::v3;
+    use lockbook_server_lib::schema::ServerV4;
     use lockbook_server_lib::{stripe, ServerError, ServerState};
     use lockbook_shared::account::Account;
     use lockbook_shared::api::*;
@@ -142,8 +142,10 @@ pub mod no_network {
             ));
             let app_store_client = reqwest::Client::new();
 
-            let index_db = v3::Server::init(&server_config.index_db.db_location)
-                .expect("Failed to load index_db");
+            let index_db = Arc::new(Mutex::new(
+                ServerV4::init(db_rs::Config::in_folder(&server_config.index_db.db_location))
+                    .expect("Failed to load index_db"),
+            ));
 
             let internals = InProcessInternals {
                 server_state: ServerState {
@@ -228,11 +230,16 @@ pub mod no_network {
 
     impl CoreLib<InProcess> {
         pub fn init_in_process(core_config: &Config, client: InProcess) -> Self {
-            let db = CoreDb::init(&core_config.writeable_path).unwrap();
-            let data_cache = Arc::new(Mutex::new(DataCache::default()));
+            let db = CoreDb::init(db_rs::Config::in_folder(&core_config.writeable_path)).unwrap();
             let config = core_config.clone();
+            let state = CoreState { config, public_key: None, db, client };
+            let inner = Arc::new(Mutex::new(state));
 
-            Self { config, data_cache, db, client }
+            Self { inner }
+        }
+
+        pub fn client_config(&self) -> Config {
+            self.inner.lock().unwrap().client.config.clone()
         }
     }
 }

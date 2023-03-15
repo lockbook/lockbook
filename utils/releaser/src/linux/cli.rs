@@ -46,7 +46,7 @@ apps:
 
     let mut file = OpenOptions::new()
         .write(true)
-        .create(false)
+        .create(true)
         .truncate(true)
         .open("utils/dev/snap-packages/lockbook/snap/snapcraft.yaml")
         .unwrap();
@@ -86,7 +86,6 @@ pub fn update_aur() {
 
 pub fn overwrite_lockbook_pkg() {
     let version = core_version();
-
     let new_makepkg_content = format!(
         r#"
 pkgname='lockbook'
@@ -95,7 +94,7 @@ pkgver={version}
 pkgrel=1
 arch=('x86_64' 'i686')
 url="https://github.com/lockbook/lockbook"
-pkgdesc="A secure, private, minimal, cross-platform document editor."
+pkgdesc="The private, polished note-taking platform."
 license=('BSD-3-Clause')
 makedepends=('rust' 'cargo' 'git')
 provides=('lockbook')
@@ -124,7 +123,7 @@ package_lockbook() {{
     let new_src_info_content = format!(
         r#"
 pkgbase = lockbook
-	pkgdesc = A secure, private, minimal, cross-platform document editor.
+	pkgdesc = The private, polished note-taking platform.
 	pkgver = {version}
 	pkgrel = 1
 	url = https://github.com/lockbook/lockbook
@@ -137,7 +136,7 @@ pkgbase = lockbook
 	makedepends = git
 	provides = lockbook
 	conflicts = lockbook
-	source = git+https://github.com/lockbook/lockbook.git
+	source = git+https://github.com/lockbook/lockbook.git#tag=v{version}
 	sha256sums = SKIP
 
 pkgname = lockbook

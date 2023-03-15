@@ -1610,3 +1610,26 @@ fn delete_write_shared_folder() {
     let result = cores[1].delete_file(folder.id);
     assert_matches!(result, Err(UiError(FileDeleteError::InsufficientPermission)));
 }
+
+#[test]
+fn delete_share() {
+    let core1 = test_core_with_account();
+    let core2 = test_core_with_account();
+
+    let core2_name = core2.get_account().unwrap().username;
+
+    let f1 = core1.create_at_path("a.md").unwrap();
+    core1
+        .share_file(f1.id, &core2_name, ShareMode::Write)
+        .unwrap();
+    core1.sync(None).unwrap();
+    core2.sync(None).unwrap();
+
+    core1.delete_file(f1.id).unwrap();
+    let f2 = core1.create_at_path("a.md").unwrap();
+    core1
+        .share_file(f2.id, &core2_name, ShareMode::Write)
+        .unwrap();
+    core1.sync(None).unwrap();
+    core2.sync(None).unwrap()
+}

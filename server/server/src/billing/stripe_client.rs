@@ -294,6 +294,21 @@ pub async fn cancel_subscription(
     Ok(())
 }
 
+pub async fn get_subscription(
+    stripe_client: &stripe::Client, subscription_id: &stripe::SubscriptionId,
+) -> Result<stripe::Subscription, SimplifiedStripeError> {
+    {
+        let subscription_id = subscription_id.as_str();
+        info!(?subscription_id, "Retrieving stripe subscription");
+    }
+
+    let subscription = stripe::Subscription::retrieve(stripe_client, subscription_id, &[]).await?;
+
+    debug!(?subscription, "Retrieved stripe subscription");
+
+    Ok(subscription)
+}
+
 const EXPAND_INVOICE_DETAILS: &[&str] = &["subscription"];
 
 pub async fn retrieve_invoice(

@@ -1,8 +1,7 @@
+use db_rs::LookupTable;
 use std::collections::{HashMap, HashSet};
 
 use hmac::{Mac, NewMac};
-use hmdb::log::SchemaEvent;
-use hmdb::transaction::TransactionTable;
 use libsecp256k1::PublicKey;
 use tracing::debug;
 use uuid::Uuid;
@@ -29,9 +28,8 @@ where
     T: TreeLike<F = SignedFile>,
 {
     // todo: revisit logic for what files can be finalized and how e.g. link substitutions, deleted files, files in pending shares, linked files
-    pub fn finalize<PublicKeyCache: SchemaEvent<Owner, String>>(
-        &mut self, id: &Uuid, account: &Account,
-        public_key_cache: &mut TransactionTable<Owner, String, PublicKeyCache>,
+    pub fn finalize(
+        &mut self, id: &Uuid, account: &Account, public_key_cache: &mut LookupTable<Owner, String>,
     ) -> SharedResult<File> {
         let meta = self.find(id)?.clone();
         let file_type = meta.file_type();
@@ -57,6 +55,7 @@ where
                     account.username.clone()
                 } else {
                     public_key_cache
+                        .data()
                         .get(&Owner(user_access_key.encrypted_by))
                         .cloned()
                         .unwrap_or_else(|| String::from("<unknown>"))
@@ -65,6 +64,7 @@ where
                     account.username.clone()
                 } else {
                     public_key_cache
+                        .data()
                         .get(&Owner(user_access_key.encrypted_for))
                         .cloned()
                         .unwrap_or_else(|| String::from("<unknown>"))
@@ -76,13 +76,11 @@ where
     }
 
     // this variant used when we want to skip certain files e.g. when listing paths
-    pub fn resolve_and_finalize<I, PublicKeyCache>(
-        &mut self, account: &Account, ids: I,
-        public_key_cache: &mut TransactionTable<Owner, String, PublicKeyCache>,
+    pub fn resolve_and_finalize<I>(
+        &mut self, account: &Account, ids: I, public_key_cache: &mut LookupTable<Owner, String>,
     ) -> SharedResult<Vec<File>>
     where
         I: Iterator<Item = Uuid>,
-        PublicKeyCache: SchemaEvent<Owner, String>,
     {
         let mut user_visible_ids = Vec::new();
         for id in ids {
@@ -101,13 +99,11 @@ where
     }
 
     // this variant used when we must include all files e.g. work calculated
-    pub fn resolve_and_finalize_all<I, PublicKeyCache>(
-        &mut self, account: &Account, ids: I,
-        public_key_cache: &mut TransactionTable<Owner, String, PublicKeyCache>,
+    pub fn resolve_and_finalize_all<I>(
+        &mut self, account: &Account, ids: I, public_key_cache: &mut LookupTable<Owner, String>,
     ) -> SharedResult<Vec<File>>
     where
         I: Iterator<Item = Uuid>,
-        PublicKeyCache: SchemaEvent<Owner, String>,
     {
         let mut files = Vec::new();
         let mut parent_substitutions = HashMap::new();
@@ -364,7 +360,7 @@ where
         account: &Account,
     ) -> SharedResult<Uuid> {
         let (op, id) = self.create_op(id, key, parent, name, file_type, account)?;
-        self.stage_and_promote(Some(op));
+        self.stage_and_promote(Some(op))?;
         Ok(id)
     }
 
@@ -385,7 +381,7 @@ where
         &mut self, id: &Uuid, name: &str, account: &Account,
     ) -> SharedResult<()> {
         let op = self.rename_op(id, name, account)?;
-        self.stage_and_promote(Some(op));
+        self.stage_and_promote(Some(op))?;
         Ok(())
     }
 
@@ -399,7 +395,7 @@ where
         &mut self, id: &Uuid, new_parent: &Uuid, account: &Account,
     ) -> SharedResult<()> {
         let op = self.move_op(id, new_parent, account)?;
-        self.stage_and_promote(op);
+        self.stage_and_promote(op)?;
         Ok(())
     }
 
@@ -416,7 +412,7 @@ where
 
     pub fn delete_unvalidated(&mut self, id: &Uuid, account: &Account) -> SharedResult<()> {
         let op = self.delete_op(id, account)?;
-        self.stage_and_promote(Some(op));
+        self.stage_and_promote(Some(op))?;
         Ok(())
     }
 
@@ -430,7 +426,7 @@ where
         &mut self, id: Uuid, sharee: Owner, mode: ShareMode, account: &Account,
     ) -> SharedResult<()> {
         let op = self.add_share_op(id, sharee, mode, account)?;
-        self.stage_and_promote(Some(op));
+        self.stage_and_promote(Some(op))?;
         Ok(())
     }
 
@@ -446,7 +442,7 @@ where
         &mut self, id: &Uuid, maybe_encrypted_for: Option<PublicKey>, account: &Account,
     ) -> SharedResult<()> {
         let op = self.delete_share_op(id, maybe_encrypted_for, account)?;
-        self.stage_and_promote(op);
+        self.stage_and_promote(op)?;
         Ok(())
     }
 
@@ -462,7 +458,7 @@ where
         &mut self, id: &Uuid, document: &[u8], account: &Account,
     ) -> SharedResult<EncryptedDocument> {
         let (op, document) = self.update_document_op(id, document, account)?;
-        self.stage_and_promote(Some(op));
+        self.stage_and_promote(Some(op))?;
         Ok(document)
     }
 

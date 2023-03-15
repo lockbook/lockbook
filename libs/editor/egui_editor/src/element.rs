@@ -59,7 +59,7 @@ impl Element {
     pub fn apply_style(&self, text_format: &mut TextFormat, vis: &Appearance) {
         match &self {
             Element::Document => {
-                text_format.font_id.size = 20.0;
+                text_format.font_id.size = 16.0;
                 text_format.color = vis.text();
             }
             Element::Heading(level) => {
@@ -75,7 +75,7 @@ impl Element {
             Element::InlineCode => {
                 text_format.font_id.family = FontFamily::Monospace;
                 text_format.color = vis.code();
-                text_format.font_id.size = 17.0;
+                text_format.font_id.size = 14.0;
             }
             Element::Strong => {
                 text_format.color = vis.bold();
@@ -93,10 +93,13 @@ impl Element {
             }
             Element::CodeBlock => {
                 text_format.font_id.family = FontFamily::Monospace;
-                text_format.font_id.size = 17.0;
+                text_format.font_id.size = 14.0;
                 text_format.color = vis.code();
             }
-            Element::Paragraph | Element::Item | Element::Image(_, _, _) => {}
+            Element::Paragraph | Element::Item => {}
+            Element::Image(_, _, _) => {
+                text_format.italics = true;
+            }
             Element::Selection => {
                 text_format.background = vis.selection_bg();
             }
@@ -131,11 +134,11 @@ pub type IndentLevel = u8;
 
 fn heading_size(level: &HeadingLevel) -> f32 {
     match level {
-        HeadingLevel::H1 => 40.0,
-        HeadingLevel::H2 => 35.0,
-        HeadingLevel::H3 => 30.0,
-        HeadingLevel::H4 => 26.0,
-        HeadingLevel::H5 => 24.0,
-        HeadingLevel::H6 => 22.0,
+        HeadingLevel::H1 => 32.0,
+        HeadingLevel::H2 => 28.0,
+        HeadingLevel::H3 => 25.0,
+        HeadingLevel::H4 => 22.0,
+        HeadingLevel::H5 => 19.0,
+        HeadingLevel::H6 => 17.0,
     }
 }

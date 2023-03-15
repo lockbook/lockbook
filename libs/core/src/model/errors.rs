@@ -1,6 +1,7 @@
 use std::collections::HashSet;
 use std::fmt;
 use std::io;
+use std::sync::PoisonError;
 
 use itertools::Itertools;
 use serde::ser::SerializeStruct;
@@ -171,7 +172,7 @@ pub enum CoreError {
     Unexpected(String),
 }
 
-pub fn core_err_unexpected<T: std::fmt::Debug>(err: T) -> CoreError {
+pub fn core_err_unexpected<T: fmt::Debug>(err: T) -> CoreError {
     CoreError::Unexpected(format!("{:#?}", err))
 }
 
@@ -206,6 +207,18 @@ impl From<SharedError> for CoreError {
             },
             _ => Self::Unexpected(format!("unexpected shared error {:?}", err)),
         }
+    }
+}
+
+impl From<db_rs::DbError> for CoreError {
+    fn from(err: db_rs::DbError) -> Self {
+        core_err_unexpected(err)
+    }
+}
+
+impl<G> From<PoisonError<G>> for CoreError {
+    fn from(err: PoisonError<G>) -> Self {
+        core_err_unexpected(err)
     }
 }
 
@@ -1245,6 +1258,32 @@ impl From<CoreError> for Error<FeatureFlagError> {
             CoreError::InsufficientPermission => UiError(FeatureFlagError::InsufficientPermission),
             CoreError::ServerUnreachable => UiError(FeatureFlagError::CouldNotReachServer),
             CoreError::ClientUpdateRequired => UiError(FeatureFlagError::ClientUpdateRequired),
+            _ => unexpected!("{:#?}", e),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, EnumIter)]
+pub enum AdminSetUserTierError {
+    InsufficientPermission,
+    UsernameNotFound,
+    ExistingRequestPending,
+    CouldNotReachServer,
+    ClientUpdateRequired,
+}
+
+impl From<CoreError> for Error<AdminSetUserTierError> {
+    fn from(e: CoreError) -> Self {
+        match e {
+            CoreError::InsufficientPermission => {
+                UiError(AdminSetUserTierError::InsufficientPermission)
+            }
+            CoreError::UsernameNotFound => UiError(AdminSetUserTierError::UsernameNotFound),
+            CoreError::ServerUnreachable => UiError(AdminSetUserTierError::CouldNotReachServer),
+            CoreError::ClientUpdateRequired => UiError(AdminSetUserTierError::ClientUpdateRequired),
+            CoreError::ExistingRequestPending => {
+                UiError(AdminSetUserTierError::ExistingRequestPending)
+            }
             _ => unexpected!("{:#?}", e),
         }
     }

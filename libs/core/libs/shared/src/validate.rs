@@ -171,13 +171,12 @@ where
         Ok(())
     }
 
-    // todo: optimize
     pub fn assert_no_path_conflicts(&mut self) -> SharedResult<()> {
         let mut id_by_name = HashMap::new();
         for id in self.owned_ids() {
             if !self.calculate_deleted(&id)? {
                 let file = self.find(&id)?;
-                if file.is_root() {
+                if file.is_root() || self.maybe_find(file.parent()).is_none() {
                     continue;
                 }
                 if let Some(conflicting) = id_by_name.remove(file.secret_name()) {

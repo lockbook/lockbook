@@ -148,7 +148,7 @@ pub struct FileDiff<F: FileLike> {
     pub new: F,
 }
 
-impl<F: FileLike> fmt::Debug for FileDiff<F> {
+impl<F: FileLike> Debug for FileDiff<F> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut result = &mut f.debug_struct("FileDiff");
         result = result.field("id", self.id());

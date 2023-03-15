@@ -1,6 +1,7 @@
 pub use crate::editor::Editor;
 use egui::{FontData, FontDefinitions, FontFamily, Pos2, Rect};
 use egui_wgpu_backend::wgpu;
+use egui_wgpu_backend::wgpu::CompositeAlphaMode;
 use std::iter;
 use std::sync::Arc;
 
@@ -14,6 +15,7 @@ pub mod editor;
 pub mod element;
 pub mod events;
 pub mod galleys;
+pub mod images;
 pub mod layouts;
 pub mod offset_types;
 pub mod styles;
@@ -35,6 +37,9 @@ pub struct WgpuEditor {
 
     pub context: egui::Context,
     pub raw_input: egui::RawInput,
+
+    pub from_host: Option<String>,
+    pub from_egui: Option<String>,
 
     pub editor: Editor,
 }
@@ -66,6 +71,9 @@ impl WgpuEditor {
         self.editor.draw(&self.context);
         // todo: consider consuming repaint_after
         let full_output = self.context.end_frame();
+        if !full_output.platform_output.copied_text.is_empty() {
+            self.from_egui = Some(full_output.platform_output.copied_text);
+        }
         let paint_jobs = self.context.tessellate(full_output.shapes);
         let mut encoder = self
             .device
@@ -113,7 +121,7 @@ impl WgpuEditor {
     pub fn surface_format(&self) -> wgpu::TextureFormat {
         // todo: is this really fine?
         // from here: https://github.com/hasenbanck/egui_example/blob/master/src/main.rs#L65
-        self.surface.get_supported_formats(&self.adapter)[0]
+        self.surface.get_capabilities(&self.adapter).formats[0]
     }
 
     pub fn configure_surface(&self) {
@@ -123,6 +131,8 @@ impl WgpuEditor {
             width: self.screen.physical_width,
             height: self.screen.physical_height,
             present_mode: wgpu::PresentMode::Fifo,
+            alpha_mode: CompositeAlphaMode::Auto,
+            view_formats: vec![],
         };
         self.surface.configure(&self.device, &surface_config);
     }

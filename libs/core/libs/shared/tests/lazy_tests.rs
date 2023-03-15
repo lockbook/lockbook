@@ -70,7 +70,7 @@ fn decrypt_child_name_stage_promote() {
         FileType::Document,
     )
     .unwrap();
-    let mut files = files.stage(Some(child.clone())).promote();
+    let mut files = files.stage(Some(child.clone())).promote().unwrap();
     assert_eq!(files.name_using_links(child.id(), &account).unwrap(), "test");
 }
 
@@ -90,7 +90,7 @@ fn decrypt_child_name_insert() {
         FileType::Document,
     )
     .unwrap();
-    files = files.stage(Some(child.clone())).promote();
+    files = files.stage(Some(child.clone())).promote().unwrap();
     assert_eq!(files.name_using_links(child.id(), &account).unwrap(), "test");
 }
 
@@ -110,7 +110,7 @@ fn name_2dirs() {
         FileType::Folder,
     )
     .unwrap();
-    files = files.stage(Some(child.clone())).promote();
+    files = files.stage(Some(child.clone())).promote().unwrap();
     let key = files.decrypt_key(child.id(), &account).unwrap();
     let child_of_child = FileMetadata::create(
         Uuid::new_v4(),
@@ -122,7 +122,7 @@ fn name_2dirs() {
         FileType::Folder,
     )
     .unwrap();
-    files = files.stage(Some(child_of_child.clone())).promote();
+    files = files.stage(Some(child_of_child.clone())).promote().unwrap();
     assert_eq!(files.name_using_links(root.id(), &account).unwrap(), account.username);
     assert_eq!(files.name_using_links(child.id(), &account).unwrap(), "dir1");
     assert_eq!(
@@ -150,7 +150,7 @@ fn deleted_2dirs() {
     )
     .unwrap();
     child.is_deleted = true;
-    files = files.stage(Some(child.clone())).promote();
+    files = files.stage(Some(child.clone())).promote().unwrap();
     let key = files.decrypt_key(child.id(), &account).unwrap();
     let child_of_child = FileMetadata::create(
         Uuid::new_v4(),
@@ -162,7 +162,7 @@ fn deleted_2dirs() {
         FileType::Folder,
     )
     .unwrap();
-    files = files.stage(Some(child_of_child.clone())).promote();
+    files = files.stage(Some(child_of_child.clone())).promote().unwrap();
 
     assert!(files.calculate_deleted(child.id()).unwrap());
     assert!(files.calculate_deleted(child_of_child.id()).unwrap());
@@ -184,7 +184,7 @@ fn deleted_2dirs2() {
         FileType::Folder,
     )
     .unwrap();
-    files = files.stage(Some(child.clone())).promote();
+    files = files.stage(Some(child.clone())).promote().unwrap();
     let key = files.decrypt_key(child.id(), &account).unwrap();
     let mut child_of_child = FileMetadata::create(
         Uuid::new_v4(),
@@ -197,7 +197,7 @@ fn deleted_2dirs2() {
     )
     .unwrap();
     child_of_child.is_deleted = true;
-    files = files.stage(Some(child_of_child.clone())).promote();
+    files = files.stage(Some(child_of_child.clone())).promote().unwrap();
 
     assert!(!files.calculate_deleted(child.id()).unwrap());
     assert!(files.calculate_deleted(child_of_child.id()).unwrap());

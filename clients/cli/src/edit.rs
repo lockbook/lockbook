@@ -1,64 +1,173 @@
 use std::fs;
 use std::io::Write;
+use std::path::{Path, PathBuf};
 
-use lockbook_core::Core;
-use lockbook_core::Error as LbError;
-use lockbook_core::FileType;
-use lockbook_core::ReadDocumentError;
-use lockbook_core::Uuid;
+use hotwatch::{Event, Hotwatch};
 
-use crate::error::CliError;
-use crate::selector::select_meta;
-use crate::utils::{
-    edit_file_with_editor, get_directory_location, save_temp_file_contents, set_up_auto_save,
-    stop_auto_save,
-};
+use lb::{Core, Uuid};
 
-pub fn edit(core: &Core, lb_path: Option<String>, id: Option<Uuid>) -> Result<(), CliError> {
-    core.get_account()?;
+use crate::resolve_target_to_file;
+use crate::CliError;
 
-    let file = select_meta(core, lb_path, id, Some(FileType::Document), None)?;
+pub fn edit(core: &Core, target: &str) -> Result<(), CliError> {
+    let f = resolve_target_to_file(core, target)?;
 
-    let file_content = core.read_document(file.id).map_err(|err| match err {
-        LbError::UiError(ReadDocumentError::TreatedFolderAsDocument) => {
-            CliError::dir_treated_as_doc(&file)
-        }
-        LbError::UiError(ReadDocumentError::FileDoesNotExist) | LbError::Unexpected(_) => {
-            CliError::unexpected(format!("reading encrypted doc: {:#?}", err))
-        }
-    })?;
+    let file_content = core.read_document(f.id).map_err(|err| (err, f.id))?;
 
-    let mut temp_file_path = get_directory_location()?;
-    temp_file_path.push(file.name);
+    let mut temp_file_path = create_tmp_dir()?;
+    temp_file_path.push(f.name);
 
-    let mut file_handle = fs::File::create(&temp_file_path).map_err(|err| {
-        CliError::unexpected(format!("couldn't open temporary file for writing: {:#?}", err))
-    })?;
+    let mut file_handle = fs::File::create(&temp_file_path)
+        .map_err(|err| CliError(format!("couldn't open temporary file for writing: {:#?}", err)))?;
+    file_handle.write_all(&file_content)?;
+    file_handle.sync_all()?;
 
-    file_handle
-        .write_all(&file_content)
-        .map_err(|err| CliError::os_write_file(&temp_file_path, err))?;
-
-    file_handle
-        .sync_all()
-        .map_err(|err| CliError::os_write_file(&temp_file_path, err))?;
-
-    let watcher = set_up_auto_save(core, file.id, &temp_file_path);
-
+    let maybe_watcher = set_up_auto_save(core, f.id, &temp_file_path);
     let edit_was_successful = edit_file_with_editor(&temp_file_path);
 
-    if let Some(ok) = watcher {
-        stop_auto_save(ok, &temp_file_path);
+    if let Some(mut watcher) = maybe_watcher {
+        watcher
+            .unwatch(&temp_file_path)
+            .unwrap_or_else(|err| eprintln!("file watcher failed to unwatch: {:#?}", err))
     }
 
     if edit_was_successful {
-        match save_temp_file_contents(core, file.id, &temp_file_path) {
+        match save_temp_file_contents(core, f.id, &temp_file_path) {
             Ok(_) => println!("Document encrypted and saved. Cleaning up temporary file."),
-            Err(err) => err.print(),
+            Err(err) => eprintln!("{}", err),
         }
     } else {
         eprintln!("Your editor indicated a problem, aborting and cleaning up");
     }
 
-    fs::remove_file(&temp_file_path).map_err(|err| CliError::os_delete_file(&temp_file_path, err))
+    fs::remove_file(&temp_file_path)?;
+    Ok(())
+}
+
+fn create_tmp_dir() -> Result<PathBuf, CliError> {
+    let mut dir = std::env::temp_dir();
+    dir.push(Uuid::new_v4().to_string());
+    fs::create_dir(&dir)
+        .map_err(|err| CliError(format!("couldn't open temporary file for writing: {:#?}", err)))?;
+    Ok(dir)
+}
+
+// In ascending order of superiority
+#[derive(Debug)]
+enum Editor {
+    Vim,
+    Emacs,
+    Nano,
+    Sublime,
+    Code,
+}
+
+fn get_editor() -> Editor {
+    let default_editor = if cfg!(target_os = "windows") { Editor::Code } else { Editor::Vim };
+    match std::env::var("LOCKBOOK_EDITOR") {
+        Ok(editor) => match editor.to_lowercase().as_str() {
+            "vim" => Editor::Vim,
+            "emacs" => Editor::Emacs,
+            "nano" => Editor::Nano,
+            "subl" | "sublime" => Editor::Sublime,
+            "code" => Editor::Code,
+            _ => {
+                eprintln!(
+                    "{} is not yet supported, make a github issue! Falling back to {:?}.",
+                    editor, default_editor
+                );
+                default_editor
+            }
+        },
+        Err(_) => {
+            eprintln!("LOCKBOOK_EDITOR not set, assuming {:?}", default_editor);
+            default_editor
+        }
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn edit_file_with_editor<S: AsRef<Path>>(path: S) -> bool {
+    let path_str = path.as_ref().display();
+
+    let command = match get_editor() {
+        Editor::Vim | Editor::Emacs | Editor::Nano => {
+            eprintln!("Terminal editors are not supported on windows! Set LOCKBOOK_EDITOR to a visual editor.");
+            return false;
+        }
+        Editor::Sublime => format!("subl --wait {}", path_str),
+        Editor::Code => format!("code --wait {}", path_str),
+    };
+
+    std::process::Command::new("cmd")
+        .arg("/C")
+        .arg(command)
+        .spawn()
+        .expect("Error: Failed to run editor")
+        .wait()
+        .unwrap()
+        .success()
+}
+
+#[cfg(not(target_os = "windows"))]
+fn edit_file_with_editor<S: AsRef<Path>>(path: S) -> bool {
+    let path_str = path.as_ref().display();
+
+    let command = match get_editor() {
+        Editor::Vim => format!("</dev/tty vim {}", path_str),
+        Editor::Emacs => format!("</dev/tty emacs {}", path_str),
+        Editor::Nano => format!("</dev/tty nano {}", path_str),
+        Editor::Sublime => format!("subl --wait {}", path_str),
+        Editor::Code => format!("code --wait {}", path_str),
+    };
+
+    std::process::Command::new("/bin/sh")
+        .arg("-c")
+        .arg(command)
+        .spawn()
+        .expect("Error: Failed to run editor")
+        .wait()
+        .unwrap()
+        .success()
+}
+
+fn set_up_auto_save<P: AsRef<Path>>(core: &Core, id: Uuid, path: P) -> Option<Hotwatch> {
+    match Hotwatch::new_with_custom_delay(core::time::Duration::from_secs(5)) {
+        Ok(mut watcher) => {
+            let core = core.clone();
+            let path = PathBuf::from(path.as_ref());
+
+            watcher
+                .watch(path.clone(), move |event: Event| match event {
+                    Event::NoticeWrite(_) | Event::Write(_) | Event::Create(_) => {
+                        if let Err(err) = save_temp_file_contents(&core, id, &path) {
+                            eprintln!("{}", err);
+                        }
+                    }
+                    _ => {}
+                })
+                .unwrap_or_else(|err| println!("file watcher failed to watch: {:#?}", err));
+
+            Some(watcher)
+        }
+        Err(err) => {
+            println!("file watcher failed to initialize: {:#?}", err);
+            None
+        }
+    }
+}
+
+fn save_temp_file_contents<P: AsRef<Path>>(core: &Core, id: Uuid, path: P) -> Result<(), CliError> {
+    let secret = fs::read_to_string(&path)
+        .map_err(|err| {
+            CliError(format!(
+                "could not read from temporary file, not deleting {}, err: {:#?}",
+                path.as_ref().display(),
+                err
+            ))
+        })?
+        .into_bytes();
+
+    core.write_document(id, &secret)
+        .map_err(|err| (err, id).into())
 }

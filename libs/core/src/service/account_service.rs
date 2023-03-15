@@ -1,7 +1,6 @@
 use crate::model::errors::core_err_unexpected;
 use crate::service::api_service::ApiError;
-use crate::OneKey;
-use crate::{CoreError, CoreResult, RequestContext, Requester};
+use crate::{CoreError, CoreResult, CoreState, Requester};
 use libsecp256k1::PublicKey;
 use lockbook_shared::account::{Account, MAX_USERNAME_LENGTH};
 use lockbook_shared::api::{DeleteAccountRequest, GetPublicKeyRequest, NewAccountRequest};
@@ -9,23 +8,18 @@ use lockbook_shared::file_like::FileLike;
 use lockbook_shared::file_metadata::{FileMetadata, FileType};
 use qrcode_generator::QrCodeEcc;
 
-impl<Client: Requester> RequestContext<'_, '_, Client> {
-    pub fn create_account(
+impl<Client: Requester> CoreState<Client> {
+    pub(crate) fn create_account(
         &mut self, username: &str, api_url: &str, welcome_doc: bool,
     ) -> CoreResult<Account> {
         let username = String::from(username).to_lowercase();
 
-        if username.len() > MAX_USERNAME_LENGTH {
-            return Err(CoreError::UsernameInvalid);
-        }
-
-        if self.tx.account.get(&OneKey {}).is_some() {
+        if self.db.account.data().is_some() {
             return Err(CoreError::AccountExists);
         }
 
         let account = Account::new(username.clone(), api_url.to_string());
-        let public_key = account.public_key();
-        self.data_cache.public_key = Some(public_key);
+        self.public_key = Some(account.public_key());
 
         let root = FileMetadata::create_root(&account)?.sign(&account)?;
         let root_id = *root.id();
@@ -35,10 +29,10 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
             .request(&account, NewAccountRequest::new(&account, &root))?
             .last_synced;
 
-        self.tx.account.insert(OneKey {}, account.clone());
-        self.tx.base_metadata.insert(root_id, root);
-        self.tx.last_synced.insert(OneKey {}, last_synced as i64);
-        self.tx.root.insert(OneKey {}, root_id);
+        self.db.account.insert(account.clone())?;
+        self.db.base_metadata.insert(root_id, root)?;
+        self.db.last_synced.insert(last_synced as i64)?;
+        self.db.root.insert(root_id)?;
 
         if welcome_doc {
             let welcome_doc = self.create_file("welcome.md", &root_id, FileType::Document)?;
@@ -49,8 +43,8 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
         Ok(account)
     }
 
-    pub fn import_account(&mut self, account_string: &str) -> CoreResult<Account> {
-        if self.tx.account.get(&OneKey {}).is_some() {
+    pub(crate) fn import_account(&mut self, account_string: &str) -> CoreResult<Account> {
+        if self.db.account.data().is_some() {
             warn!("tried to import an account, but account exists already.");
             return Err(CoreError::AccountExists);
         }
@@ -80,48 +74,45 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
             return Err(CoreError::UsernamePublicKeyMismatch);
         }
 
-        self.data_cache.public_key = Some(account_public_key);
-        self.tx.account.insert(OneKey {}, account.clone());
+        self.public_key = Some(account_public_key);
+        self.db.account.insert(account.clone())?;
 
         Ok(account)
     }
 
-    pub fn export_account(&self) -> CoreResult<String> {
+    pub(crate) fn export_account(&self) -> CoreResult<String> {
         let account = self
-            .tx
+            .db
             .account
-            .get(&OneKey {})
+            .data()
             .ok_or(CoreError::AccountNonexistent)?;
         let encoded: Vec<u8> = bincode::serialize(&account).map_err(core_err_unexpected)?;
         Ok(base64::encode(encoded))
     }
 
-    pub fn export_account_qr(&self) -> CoreResult<Vec<u8>> {
+    pub(crate) fn export_account_qr(&self) -> CoreResult<Vec<u8>> {
         let acct_secret = self.export_account()?;
         qrcode_generator::to_png_to_vec(acct_secret, QrCodeEcc::Low, 1024)
             .map_err(core_err_unexpected)
     }
 
-    pub fn get_account(&self) -> CoreResult<&Account> {
-        self.tx
-            .account
-            .get(&OneKey {})
-            .ok_or(CoreError::AccountNonexistent)
+    pub(crate) fn get_account(&self) -> CoreResult<&Account> {
+        self.db.account.data().ok_or(CoreError::AccountNonexistent)
     }
 
-    pub fn get_public_key(&mut self) -> CoreResult<PublicKey> {
-        match self.data_cache.public_key {
+    pub(crate) fn get_public_key(&mut self) -> CoreResult<PublicKey> {
+        match self.public_key {
             Some(pk) => Ok(pk),
             None => {
                 let account = self.get_account()?;
                 let pk = account.public_key();
-                self.data_cache.public_key = Some(pk);
+                self.public_key = Some(pk);
                 Ok(pk)
             }
         }
     }
 
-    pub fn delete_account(&mut self) -> CoreResult<()> {
+    pub(crate) fn delete_account(&mut self) -> CoreResult<()> {
         let account = self.get_account()?;
 
         self.client
@@ -132,15 +123,14 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
                 _ => core_err_unexpected(err),
             })?;
 
-        self.tx.account.clear();
-        self.tx.last_synced.clear();
-        self.tx.base_metadata.clear();
-        self.tx.root.clear();
-        self.tx.local_metadata.clear();
-        self.tx.public_key_by_username.clear();
-        self.tx.username_by_public_key.clear();
+        self.db.account.clear()?;
+        self.db.last_synced.clear()?;
+        self.db.base_metadata.clear()?;
+        self.db.root.clear()?;
+        self.db.local_metadata.clear()?;
+        self.db.pub_key_lookup.clear()?;
 
-        self.data_cache.public_key = None;
+        self.public_key = None;
 
         Ok(())
     }

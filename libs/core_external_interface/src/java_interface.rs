@@ -10,21 +10,16 @@ use lazy_static::lazy_static;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use std::sync::{Arc, Mutex};
-use uuid::Uuid;
 
-use crate::{
-    get_all_error_variants, unexpected_only, Config, Error, SupportedImageFormats, UnexpectedError,
+use lockbook_core::service::search_service::{SearchRequest, SearchResult};
+use lockbook_core::{
+    clock, unexpected_only, ClientWorkUnit, Config, Drawing, Error, FileType, ShareMode,
+    SupportedImageFormats, SyncProgress, UnexpectedError, Uuid,
 };
-use lockbook_shared::clock;
-use lockbook_shared::drawing::Drawing;
-use lockbook_shared::file::ShareMode;
-use lockbook_shared::file_metadata::FileType;
-use lockbook_shared::work_unit::ClientWorkUnit;
 
-use crate::external_interface::json_interface::translate;
-use crate::external_interface::static_state;
-use crate::service::search_service::{SearchRequest, SearchResult};
-use crate::service::sync_service::SyncProgress;
+use crate::get_all_error_variants;
+use crate::json_interface::translate;
+use crate::static_state;
 
 fn serialize_to_jstring<U: Serialize>(env: &JNIEnv, result: U) -> jstring {
     let serialized_result =
