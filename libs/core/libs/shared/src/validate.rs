@@ -60,6 +60,7 @@ where
         // point checks
         self.assert_no_root_changes()?;
         self.assert_no_changes_to_deleted_files()?;
+        self.assert_all_filenames_size_limit()?;
         self.assert_all_files_decryptable(owner)?;
         self.assert_only_folders_have_children()?;
         self.assert_all_files_same_owner_as_parent()?;
@@ -77,15 +78,9 @@ where
 
         Ok(())
     }
-
     // note: deleted access keys permissible
     pub fn assert_all_files_decryptable(&mut self, owner: Owner) -> SharedResult<()> {
         for file in self.ids().into_iter().filter_map(|id| self.maybe_find(id)) {
-            if file.secret_name().encrypted_value.value.len() > MAX_ENCRYPTED_FILENAME_LENGTH {
-                return Err(SharedErrorKind::ValidationFailure(
-                    ValidationFailure::FileNameTooLong(*file.id()),
-                ))?;
-            }
             if self.maybe_find_parent(file).is_none()
                 && !file
                     .user_access_keys()
@@ -98,6 +93,16 @@ where
         Ok(())
     }
 
+    pub fn assert_all_filenames_size_limit(&self) -> SharedResult<()> {
+        for file in self.all_files()? {
+            if file.secret_name().encrypted_value.value.len() > MAX_ENCRYPTED_FILENAME_LENGTH {
+                return Err(SharedErrorKind::ValidationFailure(
+                    ValidationFailure::FileNameTooLong(*file.id()),
+                ))?;
+            }
+        }
+        Ok(())
+    }
     pub fn assert_only_folders_have_children(&self) -> SharedResult<()> {
         for file in self.all_files()? {
             if let Some(parent) = self.maybe_find(file.parent()) {
