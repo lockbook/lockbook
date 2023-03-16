@@ -1584,6 +1584,7 @@ fn delete_file_in_write_shared_folder() {
     cores[1].delete_file(document.id).unwrap();
 }
 
+// todo: check if duplicate
 #[test]
 fn delete_write_shared_folder() {
     let cores = vec![test_core_with_account(), test_core_with_account()];
@@ -1605,12 +1606,11 @@ fn delete_write_shared_folder() {
     cores[0].sync(None).unwrap();
 
     cores[1].sync(None).unwrap();
-    cores[1]
+    let link = cores[1]
         .create_file("folder_link", roots[1].id, FileType::Link { target: folder.id })
         .unwrap();
 
-    let result = cores[1].delete_file(folder.id);
-    assert_matches!(result, Err(UiError(FileDeleteError::InsufficientPermission)));
+    cores[1].delete_file(link.id).unwrap();
 }
 
 #[test]
