@@ -111,13 +111,14 @@ struct NewFileSheet: View {
         case .success(let newMeta):
             if newMeta.fileType == .Folder {
                 files.successfulAction = .createFolder
-                sheets.created = newMeta
             } else {
                 selection.selectedDocument = newMeta
             }
             files.refresh()
             status.checkForLocalWork()
             presentationMode.wrappedValue.dismiss()
+            
+            sheets.created = newMeta
         case .failure(let err):
             switch err.kind {
             case .UiError(let uiError):

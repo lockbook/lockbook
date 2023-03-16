@@ -1,6 +1,4 @@
-use lockbook_core::model::errors::{CreateAccountError, ImportError};
-use lockbook_core::Error;
-use lockbook_core::OneKey;
+use lockbook_core::CoreError;
 use lockbook_shared::account::{Account, MAX_USERNAME_LENGTH};
 use lockbook_shared::pubkey;
 use test_utils::*;
@@ -25,14 +23,14 @@ fn create_account_success_with_welcome() {
 fn create_account_invalid_url() {
     let core = test_core();
     let result = core.create_account(&random_name(), "https://bad-url.net", false);
-    assert!(matches!(result.unwrap_err(), Error::UiError(CreateAccountError::CouldNotReachServer)))
+    assert!(matches!(result.unwrap_err().kind, CoreError::ServerUnreachable))
 }
 
 #[test]
 fn create_account_invalid_url_with_welcome() {
     let core = test_core();
     let result = core.create_account(&random_name(), "https://bad-url.net", true);
-    assert!(matches!(result.unwrap_err(), Error::UiError(CreateAccountError::CouldNotReachServer)))
+    assert!(matches!(result.unwrap_err().kind, CoreError::ServerUnreachable))
 }
 
 #[test]
@@ -46,7 +44,7 @@ fn create_account_username_taken() {
     let err = core2.create_account(&name, &url(), false).unwrap_err();
 
     assert!(
-        matches!(err, Error::UiError(CreateAccountError::UsernameTaken)),
+        matches!(err.kind, CoreError::UsernameTaken),
         "Username \"{}\" should have caused a UsernameTaken error but instead was {:?}",
         &name,
         err
@@ -64,7 +62,7 @@ fn create_account_invalid_username() {
         let err = core.create_account(uname, &url(), false).unwrap_err();
 
         assert!(
-            matches!(err, Error::UiError(CreateAccountError::InvalidUsername)),
+            matches!(err.kind, CoreError::UsernameInvalid),
             "Username \"{}\" should have been InvalidUsername but instead was {:?}",
             uname,
             err
@@ -80,8 +78,10 @@ fn create_account_account_exists() {
 
     assert!(
         matches!(
-            core.create_account(&random_name(), &url(), false),
-            Err(Error::UiError(CreateAccountError::AccountExistsAlready))
+            core.create_account(&random_name(), &url(), false)
+                .unwrap_err()
+                .kind,
+            CoreError::AccountExists
         ),
         "This action should have failed with AccountAlreadyExists!",
     );
@@ -96,8 +96,10 @@ fn create_account_account_exists_case() {
 
     let core = test_core();
     assert!(matches!(
-        core.create_account(&(name.to_uppercase()), &url(), false),
-        Err(Error::UiError(CreateAccountError::UsernameTaken))
+        core.create_account(&(name.to_uppercase()), &url(), false)
+            .unwrap_err()
+            .kind,
+        CoreError::UsernameTaken
     ));
 }
 
@@ -109,8 +111,8 @@ fn import_account_account_exists() {
     let account_string = core.export_account().unwrap();
 
     assert!(matches!(
-        core.import_account(&account_string),
-        Err(Error::UiError(ImportError::AccountExistsAlready))
+        core.import_account(&account_string).unwrap_err().kind,
+        CoreError::AccountExists
     ));
 }
 
@@ -119,8 +121,10 @@ fn import_account_corrupted() {
     let core = test_core();
 
     assert!(matches!(
-        core.import_account("clearly a bad account string"),
-        Err(Error::UiError(ImportError::AccountStringCorrupted))
+        core.import_account("clearly a bad account string")
+            .unwrap_err()
+            .kind,
+        CoreError::AccountStringCorrupted
     ));
 }
 
@@ -130,8 +134,10 @@ fn import_account_corrupted_base64() {
 
     base64::decode("clearlyabadaccountstring").unwrap();
     assert!(matches!(
-        core.import_account("clearlyabadaccountstring"),
-        Err(Error::UiError(ImportError::AccountStringCorrupted))
+        core.import_account("clearlyabadaccountstring")
+            .unwrap_err()
+            .kind,
+        CoreError::AccountStringCorrupted
     ));
 }
 
@@ -154,8 +160,8 @@ fn import_account_nonexistent() {
 
     let core3 = test_core();
     assert!(matches!(
-        core3.import_account(&account_string),
-        Err(Error::UiError(ImportError::AccountDoesNotExist))
+        core3.import_account(&account_string).unwrap_err().kind,
+        CoreError::AccountNonexistent
     ));
 }
 
@@ -179,8 +185,8 @@ fn import_account_public_key_mismatch() {
     let core3 = test_core();
 
     assert!(matches!(
-        core3.import_account(&bad_account_string),
-        Err(Error::UiError(ImportError::UsernamePKMismatch))
+        core3.import_account(&bad_account_string).unwrap_err().kind,
+        CoreError::UsernamePublicKeyMismatch
     ));
 }
 

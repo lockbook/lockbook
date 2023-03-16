@@ -36,27 +36,27 @@ pub use lockbook_shared::usage::bytes_to_human;
 pub use lockbook_shared::work_unit::{ClientWorkUnit, WorkUnit};
 
 pub use crate::model::drawing::SupportedImageFormats;
-pub use crate::model::errors::*;
-pub use crate::service::import_export_service::{ImportExportFileInfo, ImportStatus};
+pub use crate::model::errors::{
+    CoreError, LbError, LbResult, TestRepoError, UnexpectedError, Warning,
+};
+pub use crate::service::import_export_service::{ExportFileInfo, ImportStatus};
+pub use crate::service::search_service::{SearchResultItem, StartSearchInfo};
 pub use crate::service::sync_service::{SyncProgress, WorkCalculated};
 pub use crate::service::usage_service::{UsageItemMetric, UsageMetrics};
 
-use db_rs::Db;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
-use itertools::Itertools;
+use db_rs::Db;
 use lockbook_shared::account::Username;
 use lockbook_shared::api::{
     AccountInfo, AdminFileInfoResponse, AdminValidateAccount, AdminValidateServer,
 };
 
-use crate::model::errors::Error::UiError;
 use crate::repo::CoreDb;
 use crate::service::api_service::{Network, Requester};
 use crate::service::log_service;
-use crate::service::search_service::{SearchResultItem, StartSearchInfo};
 
 pub type Core = CoreLib<Network>;
 
@@ -89,10 +89,29 @@ impl Core {
     }
 }
 
+trait LbResultExt {
+    fn expected_errs(self, kinds: &[CoreError]) -> Self;
+}
+
+impl<T> LbResultExt for LbResult<T> {
+    fn expected_errs(self, kinds: &[CoreError]) -> Self {
+        self.map_err(|err| {
+            let LbError { kind, mut backtrace } = err;
+            for k in kinds {
+                if *k == kind {
+                    backtrace = None;
+                    break;
+                }
+            }
+            LbError { kind, backtrace }
+        })
+    }
+}
+
 impl<Client: Requester> CoreLib<Client> {
-    pub fn in_tx<F, Out>(&self, f: F) -> CoreResult<Out>
+    pub fn in_tx<F, Out>(&self, f: F) -> LbResult<Out>
     where
-        F: FnOnce(&mut CoreState<Client>) -> CoreResult<Out>,
+        F: FnOnce(&mut CoreState<Client>) -> LbResult<Out>,
     {
         let mut inner = self.inner.lock()?;
         let tx = inner.db.begin_transaction()?;
@@ -104,28 +123,47 @@ impl<Client: Requester> CoreLib<Client> {
     #[instrument(level = "info", skip_all, err(Debug))]
     pub fn create_account(
         &self, username: &str, api_url: &str, welcome_doc: bool,
-    ) -> Result<Account, Error<CreateAccountError>> {
-        Ok(self.in_tx(|s| s.create_account(username, api_url, welcome_doc))?)
+    ) -> LbResult<Account> {
+        self.in_tx(|s| s.create_account(username, api_url, welcome_doc))
+            .expected_errs(&[
+                CoreError::AccountExists,
+                CoreError::UsernameTaken,
+                CoreError::UsernameInvalid,
+                CoreError::ServerDisabled,
+                CoreError::ServerUnreachable,
+                CoreError::ClientUpdateRequired,
+            ])
     }
 
     #[instrument(level = "debug", skip_all, err(Debug))]
-    pub fn import_account(&self, account_string: &str) -> Result<Account, Error<ImportError>> {
-        Ok(self.in_tx(|s| s.import_account(account_string))?)
+    pub fn import_account(&self, account_string: &str) -> LbResult<Account> {
+        self.in_tx(|s| s.import_account(account_string))
+            .expected_errs(&[
+                CoreError::AccountExists,
+                CoreError::AccountNonexistent,
+                CoreError::AccountStringCorrupted,
+                CoreError::UsernamePublicKeyMismatch,
+                CoreError::ServerUnreachable,
+                CoreError::ClientUpdateRequired,
+            ])
     }
 
     #[instrument(level = "debug", skip_all, err(Debug))]
-    pub fn export_account(&self) -> Result<String, Error<AccountExportError>> {
-        Ok(self.in_tx(|s| s.export_account())?)
+    pub fn export_account(&self) -> Result<String, LbError> {
+        self.in_tx(|s| s.export_account())
+            .expected_errs(&[CoreError::AccountNonexistent])
     }
 
     #[instrument(level = "debug", skip_all, err(Debug))]
-    pub fn export_account_qr(&self) -> Result<Vec<u8>, Error<AccountExportError>> {
-        Ok(self.in_tx(|s| s.export_account_qr())?)
+    pub fn export_account_qr(&self) -> Result<Vec<u8>, LbError> {
+        self.in_tx(|s| s.export_account_qr())
+            .expected_errs(&[CoreError::AccountNonexistent])
     }
 
     #[instrument(level = "debug", skip_all, err(Debug))]
-    pub fn get_account(&self) -> Result<Account, Error<GetAccountError>> {
-        Ok(self.in_tx(|s| s.get_account().cloned())?)
+    pub fn get_account(&self) -> Result<Account, LbError> {
+        self.in_tx(|s| s.get_account().cloned())
+            .expected_errs(&[CoreError::AccountNonexistent])
     }
 
     #[instrument(level = "debug", skip_all, err(Debug))]
@@ -136,21 +174,38 @@ impl<Client: Requester> CoreLib<Client> {
     #[instrument(level = "debug", skip(self, name), err(Debug))]
     pub fn create_file(
         &self, name: &str, parent: Uuid, file_type: FileType,
-    ) -> Result<File, Error<CreateFileError>> {
-        Ok(self.in_tx(|s| s.create_file(name, &parent, file_type))?)
+    ) -> Result<File, LbError> {
+        self.in_tx(|s| s.create_file(name, &parent, file_type))
+            .expected_errs(&[
+                CoreError::FileNameContainsSlash,
+                CoreError::FileNameEmpty,
+                CoreError::FileNonexistent,
+                CoreError::FileNotFolder,
+                CoreError::FileParentNonexistent,
+                CoreError::LinkInSharedFolder,
+                CoreError::LinkTargetIsOwned,
+                CoreError::LinkTargetNonexistent,
+                CoreError::InsufficientPermission,
+                CoreError::MultipleLinksToSameFile,
+                CoreError::PathTaken,
+            ])
     }
 
     #[instrument(level = "debug", skip(self, content), err(Debug))]
-    pub fn write_document(
-        &self, id: Uuid, content: &[u8],
-    ) -> Result<(), Error<WriteToDocumentError>> {
-        self.in_tx(|s| s.write_document(id, content))?;
-        Ok(self.in_tx(|s| s.cleanup())?)
+    pub fn write_document(&self, id: Uuid, content: &[u8]) -> Result<(), LbError> {
+        self.in_tx(|s| s.write_document(id, content))
+            .expected_errs(&[
+                CoreError::FileNonexistent,
+                CoreError::FileNotDocument,
+                CoreError::InsufficientPermission,
+            ])?;
+        self.in_tx(|s| s.cleanup())
     }
 
     #[instrument(level = "debug", skip_all, err(Debug))]
-    pub fn get_root(&self) -> Result<File, Error<GetRootError>> {
-        Ok(self.in_tx(|s| s.root())?)
+    pub fn get_root(&self) -> Result<File, LbError> {
+        self.in_tx(|s| s.root())
+            .expected_errs(&[CoreError::RootNonexistent])
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
@@ -159,25 +214,30 @@ impl<Client: Requester> CoreLib<Client> {
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
-    pub fn get_and_get_children_recursively(
-        &self, id: Uuid,
-    ) -> Result<Vec<File>, Error<GetAndGetChildrenError>> {
-        Ok(self.in_tx(|s| s.get_and_get_children_recursively(&id))?)
+    pub fn get_and_get_children_recursively(&self, id: Uuid) -> Result<Vec<File>, LbError> {
+        self.in_tx(|s| s.get_and_get_children_recursively(&id))
+            .expected_errs(&[CoreError::FileNonexistent, CoreError::FileNotFolder])
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
-    pub fn get_file_by_id(&self, id: Uuid) -> Result<File, Error<GetFileByIdError>> {
-        Ok(self.in_tx(|s| s.get_file_by_id(&id))?)
+    pub fn get_file_by_id(&self, id: Uuid) -> Result<File, LbError> {
+        self.in_tx(|s| s.get_file_by_id(&id))
+            .expected_errs(&[CoreError::FileNonexistent])
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
-    pub fn delete_file(&self, id: Uuid) -> Result<(), Error<FileDeleteError>> {
-        Ok(self.in_tx(|s| s.delete(&id))?)
+    pub fn delete_file(&self, id: Uuid) -> Result<(), LbError> {
+        self.in_tx(|s| s.delete(&id)).expected_errs(&[
+            CoreError::RootModificationInvalid,
+            CoreError::FileNonexistent,
+            CoreError::InsufficientPermission,
+        ])
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
-    pub fn read_document(&self, id: Uuid) -> Result<DecryptedDocument, Error<ReadDocumentError>> {
-        Ok(self.in_tx(|s| s.read_document(id))?)
+    pub fn read_document(&self, id: Uuid) -> Result<DecryptedDocument, LbError> {
+        self.in_tx(|s| s.read_document(id))
+            .expected_errs(&[CoreError::FileNotDocument, CoreError::FileNonexistent])
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
@@ -186,20 +246,43 @@ impl<Client: Requester> CoreLib<Client> {
     }
 
     #[instrument(level = "debug", skip(self, new_name), err(Debug))]
-    pub fn rename_file(&self, id: Uuid, new_name: &str) -> Result<(), Error<RenameFileError>> {
-        Ok(self.in_tx(|s| s.rename_file(&id, new_name))?)
+    pub fn rename_file(&self, id: Uuid, new_name: &str) -> Result<(), LbError> {
+        self.in_tx(|s| s.rename_file(&id, new_name))
+            .expected_errs(&[
+                CoreError::FileNameContainsSlash,
+                CoreError::FileNameEmpty,
+                CoreError::FileNonexistent,
+                CoreError::InsufficientPermission,
+                CoreError::PathTaken,
+                CoreError::RootModificationInvalid,
+            ])
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
-    pub fn move_file(&self, id: Uuid, new_parent: Uuid) -> Result<(), Error<MoveFileError>> {
-        Ok(self.in_tx(|s| s.move_file(&id, &new_parent))?)
+    pub fn move_file(&self, id: Uuid, new_parent: Uuid) -> Result<(), LbError> {
+        self.in_tx(|s| s.move_file(&id, &new_parent))
+            .expected_errs(&[
+                CoreError::FileNonexistent,
+                CoreError::FileNotFolder,
+                CoreError::FileParentNonexistent,
+                CoreError::FolderMovedIntoSelf,
+                CoreError::InsufficientPermission,
+                CoreError::LinkInSharedFolder,
+                CoreError::PathTaken,
+                CoreError::RootModificationInvalid,
+            ])
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
-    pub fn share_file(
-        &self, id: Uuid, username: &str, mode: ShareMode,
-    ) -> Result<(), Error<ShareFileError>> {
-        Ok(self.in_tx(|s| s.share_file(id, username, mode))?)
+    pub fn share_file(&self, id: Uuid, username: &str, mode: ShareMode) -> Result<(), LbError> {
+        self.in_tx(|s| s.share_file(id, username, mode))
+            .expected_errs(&[
+                CoreError::RootModificationInvalid,
+                CoreError::FileNonexistent,
+                CoreError::ShareAlreadyExists,
+                CoreError::LinkInSharedFolder,
+                CoreError::InsufficientPermission,
+            ])
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
@@ -208,30 +291,46 @@ impl<Client: Requester> CoreLib<Client> {
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
-    pub fn delete_pending_share(&self, id: Uuid) -> Result<(), Error<DeletePendingShareError>> {
-        Ok(self.in_tx(|s| {
+    pub fn delete_pending_share(&self, id: Uuid) -> Result<(), LbError> {
+        self.in_tx(|s| {
             let pk = s.get_public_key()?;
             s.delete_share(&id, Some(pk))
-        })?)
+        })
+        .expected_errs(&[CoreError::FileNonexistent, CoreError::ShareNonexistent])
     }
 
     #[instrument(level = "debug", skip_all, err(Debug))]
     pub fn create_link_at_path(
         &self, path_and_name: &str, target_id: Uuid,
-    ) -> Result<File, Error<CreateLinkAtPathError>> {
-        Ok(self.in_tx(|s| s.create_link_at_path(path_and_name, target_id))?)
+    ) -> Result<File, LbError> {
+        self.in_tx(|s| s.create_link_at_path(path_and_name, target_id))
+            .expected_errs(&[
+                CoreError::FileNotFolder,
+                CoreError::PathContainsEmptyFileName,
+                CoreError::PathTaken,
+                CoreError::LinkInSharedFolder,
+                CoreError::LinkTargetIsOwned,
+                CoreError::LinkTargetNonexistent,
+                CoreError::MultipleLinksToSameFile,
+            ])
     }
 
     #[instrument(level = "debug", skip_all, err(Debug))]
-    pub fn create_at_path(
-        &self, path_and_name: &str,
-    ) -> Result<File, Error<CreateFileAtPathError>> {
-        Ok(self.in_tx(|s| s.create_at_path(path_and_name))?)
+    pub fn create_at_path(&self, path_and_name: &str) -> Result<File, LbError> {
+        self.in_tx(|s| s.create_at_path(path_and_name))
+            .expected_errs(&[
+                CoreError::FileNotFolder,
+                CoreError::InsufficientPermission,
+                CoreError::PathContainsEmptyFileName,
+                CoreError::PathTaken,
+                CoreError::RootNonexistent,
+            ])
     }
 
     #[instrument(level = "debug", skip_all, err(Debug))]
-    pub fn get_by_path(&self, path: &str) -> Result<File, Error<GetFileByPathError>> {
-        Ok(self.in_tx(|s| s.get_by_path(path))?)
+    pub fn get_by_path(&self, path: &str) -> Result<File, LbError> {
+        self.in_tx(|s| s.get_by_path(path))
+            .expected_errs(&[CoreError::FileNonexistent])
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
@@ -253,22 +352,25 @@ impl<Client: Requester> CoreLib<Client> {
                 .keys()
                 .into_iter()
                 .copied()
-                .collect_vec())
+                .collect::<Vec<Uuid>>())
         })?)
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
-    pub fn calculate_work(&self) -> Result<WorkCalculated, Error<CalculateWorkError>> {
-        Ok(self.in_tx(|s| s.calculate_work())?)
+    pub fn calculate_work(&self) -> Result<WorkCalculated, LbError> {
+        self.in_tx(|s| s.calculate_work())
+            .expected_errs(&[CoreError::ServerUnreachable, CoreError::ClientUpdateRequired])
     }
 
     // todo: expose work calculated (return value)
     #[instrument(level = "debug", skip_all, err(Debug))]
-    pub fn sync(&self, f: Option<Box<dyn Fn(SyncProgress)>>) -> Result<(), Error<SyncAllError>> {
-        Ok(self.in_tx(|s| {
-            s.sync(f)?;
-            s.cleanup()
-        })?)
+    pub fn sync(&self, f: Option<Box<dyn Fn(SyncProgress)>>) -> Result<WorkCalculated, LbError> {
+        self.in_tx(|s| {
+            let wc = s.sync(f)?;
+            s.cleanup()?;
+            Ok(wc)
+        })
+        .expected_errs(&[CoreError::ServerUnreachable, CoreError::ClientUpdateRequired])
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
@@ -290,60 +392,89 @@ impl<Client: Requester> CoreLib<Client> {
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
-    pub fn get_usage(&self) -> Result<UsageMetrics, Error<GetUsageError>> {
-        Ok(self.in_tx(|s| s.get_usage())?)
+    pub fn get_usage(&self) -> Result<UsageMetrics, LbError> {
+        self.in_tx(|s| s.get_usage())
+            .expected_errs(&[CoreError::ServerUnreachable, CoreError::ClientUpdateRequired])
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
-    pub fn get_uncompressed_usage(&self) -> Result<UsageItemMetric, Error<GetUsageError>> {
-        Ok(self.in_tx(|s| s.get_uncompressed_usage())?)
+    pub fn get_uncompressed_usage(&self) -> Result<UsageItemMetric, LbError> {
+        self.in_tx(|s| s.get_uncompressed_usage())
+            .expected_errs(&[CoreError::ServerUnreachable, CoreError::ClientUpdateRequired])
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
-    pub fn get_drawing(&self, id: Uuid) -> Result<Drawing, Error<GetDrawingError>> {
-        Ok(self.in_tx(|s| s.get_drawing(id))?)
+    pub fn get_drawing(&self, id: Uuid) -> Result<Drawing, LbError> {
+        self.in_tx(|s| s.get_drawing(id)).expected_errs(&[
+            CoreError::DrawingInvalid,
+            CoreError::FileNotDocument,
+            CoreError::FileNonexistent,
+        ])
     }
 
     #[instrument(level = "debug", skip(self, d), err(Debug))]
-    pub fn save_drawing(&self, id: Uuid, d: &Drawing) -> Result<(), Error<SaveDrawingError>> {
-        Ok(self.in_tx(|s| {
+    pub fn save_drawing(&self, id: Uuid, d: &Drawing) -> Result<(), LbError> {
+        self.in_tx(|s| {
             s.save_drawing(id, d)?;
             s.cleanup()
-        })?)
+        })
+        .expected_errs(&[
+            CoreError::DrawingInvalid,
+            CoreError::FileNonexistent,
+            CoreError::FileNotDocument,
+        ])
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
     pub fn export_drawing(
         &self, id: Uuid, format: SupportedImageFormats,
         render_theme: Option<HashMap<ColorAlias, ColorRGB>>,
-    ) -> Result<Vec<u8>, Error<ExportDrawingError>> {
-        Ok(self.in_tx(|s| s.export_drawing(id, format, render_theme))?)
+    ) -> Result<Vec<u8>, LbError> {
+        self.in_tx(|s| s.export_drawing(id, format, render_theme))
+            .expected_errs(&[
+                CoreError::DrawingInvalid,
+                CoreError::FileNonexistent,
+                CoreError::FileNotDocument,
+            ])
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
     pub fn export_drawing_to_disk(
         &self, id: Uuid, format: SupportedImageFormats,
         render_theme: Option<HashMap<ColorAlias, ColorRGB>>, location: &str,
-    ) -> Result<(), Error<ExportDrawingToDiskError>> {
-        Ok(self.in_tx(|s| s.export_drawing_to_disk(id, format, render_theme, location))?)
+    ) -> Result<(), LbError> {
+        self.in_tx(|s| s.export_drawing_to_disk(id, format, render_theme, location))
+            .expected_errs(&[
+                CoreError::DrawingInvalid,
+                CoreError::FileNonexistent,
+                CoreError::FileNotDocument,
+                CoreError::DiskPathInvalid,
+                CoreError::DiskPathTaken,
+            ])
     }
 
     #[instrument(level = "debug", skip(self, update_status), err(Debug))]
     pub fn import_files<F: Fn(ImportStatus)>(
         &self, sources: &[PathBuf], dest: Uuid, update_status: &F,
-    ) -> Result<(), Error<ImportFileError>> {
-        Ok(self.in_tx(|s| {
+    ) -> Result<(), LbError> {
+        self.in_tx(|s| {
             s.import_files(sources, dest, update_status)?;
             s.cleanup()
-        })?)
+        })
+        .expected_errs(&[CoreError::FileNonexistent, CoreError::FileNotFolder])
     }
 
     #[instrument(level = "debug", skip(self, export_progress), err(Debug))]
     pub fn export_file(
         &self, id: Uuid, destination: PathBuf, edit: bool,
-        export_progress: Option<Box<dyn Fn(ImportExportFileInfo)>>,
-    ) -> Result<(), Error<ExportFileError>> {
-        Ok(self.in_tx(|s| s.export_file(id, destination, edit, export_progress))?)
+        export_progress: Option<Box<dyn Fn(ExportFileInfo)>>,
+    ) -> Result<(), LbError> {
+        self.in_tx(|s| s.export_file(id, destination, edit, export_progress))
+            .expected_errs(&[
+                CoreError::FileNonexistent,
+                CoreError::DiskPathInvalid,
+                CoreError::DiskPathTaken,
+            ])
     }
 
     #[instrument(level = "debug", skip(self, input), err(Debug))]
@@ -363,17 +494,40 @@ impl<Client: Requester> CoreLib<Client> {
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
-    pub fn upgrade_account_stripe(
-        &self, account_tier: StripeAccountTier,
-    ) -> Result<(), Error<UpgradeAccountStripeError>> {
-        Ok(self.in_tx(|s| s.upgrade_account_stripe(account_tier))?)
+    pub fn upgrade_account_stripe(&self, account_tier: StripeAccountTier) -> Result<(), LbError> {
+        self.in_tx(|s| s.upgrade_account_stripe(account_tier))
+            .expected_errs(&[
+                CoreError::OldCardDoesNotExist,
+                CoreError::CardInvalidNumber,
+                CoreError::CardInvalidExpYear,
+                CoreError::CardInvalidExpMonth,
+                CoreError::CardInvalidCvc,
+                CoreError::AlreadyPremium,
+                CoreError::ServerUnreachable,
+                CoreError::CardDecline,
+                CoreError::CardInsufficientFunds,
+                CoreError::TryAgain,
+                CoreError::CardNotSupported,
+                CoreError::CardExpired,
+                CoreError::CurrentUsageIsMoreThanNewTier,
+                CoreError::ExistingRequestPending,
+                CoreError::ClientUpdateRequired,
+            ])
     }
 
     #[instrument(level = "debug", skip(self, purchase_token), err(Debug))]
     pub fn upgrade_account_google_play(
         &self, purchase_token: &str, account_id: &str,
-    ) -> Result<(), Error<UpgradeAccountGooglePlayError>> {
-        Ok(self.in_tx(|s| s.upgrade_account_google_play(purchase_token, account_id))?)
+    ) -> Result<(), LbError> {
+        self.in_tx(|s| s.upgrade_account_google_play(purchase_token, account_id))
+            .expected_errs(&[
+                CoreError::AlreadyPremium,
+                CoreError::InvalidAuthDetails,
+                CoreError::ExistingRequestPending,
+                CoreError::ServerUnreachable,
+                CoreError::ClientUpdateRequired,
+                CoreError::AppStoreAccountAlreadyLinked,
+            ])
     }
 
     #[instrument(
@@ -383,87 +537,139 @@ impl<Client: Requester> CoreLib<Client> {
     )]
     pub fn upgrade_account_app_store(
         &self, original_transaction_id: String, app_account_token: String,
-    ) -> Result<(), Error<UpgradeAccountGooglePlayError>> {
-        Ok(self
-            .in_tx(|s| s.upgrade_account_app_store(original_transaction_id, app_account_token))?)
+    ) -> Result<(), LbError> {
+        self.in_tx(|s| s.upgrade_account_app_store(original_transaction_id, app_account_token))
+            .expected_errs(&[
+                CoreError::AlreadyPremium,
+                CoreError::InvalidPurchaseToken,
+                CoreError::ExistingRequestPending,
+                CoreError::ServerUnreachable,
+                CoreError::ClientUpdateRequired,
+                CoreError::AppStoreAccountAlreadyLinked,
+            ])
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
-    pub fn cancel_subscription(&self) -> Result<(), Error<CancelSubscriptionError>> {
-        Ok(self.in_tx(|s| s.cancel_subscription())?)
+    pub fn cancel_subscription(&self) -> Result<(), LbError> {
+        self.in_tx(|s| s.cancel_subscription()).expected_errs(&[
+            CoreError::NotPremium,
+            CoreError::AlreadyCanceled,
+            CoreError::UsageIsOverFreeTierDataCap,
+            CoreError::ExistingRequestPending,
+            CoreError::CannotCancelSubscriptionForAppStore,
+            CoreError::ServerUnreachable,
+            CoreError::ClientUpdateRequired,
+        ])
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
-    pub fn get_subscription_info(
-        &self,
-    ) -> Result<Option<SubscriptionInfo>, Error<GetSubscriptionInfoError>> {
-        Ok(self.in_tx(|s| s.get_subscription_info())?)
+    pub fn get_subscription_info(&self) -> Result<Option<SubscriptionInfo>, LbError> {
+        self.in_tx(|s| s.get_subscription_info())
+            .expected_errs(&[CoreError::ServerUnreachable, CoreError::ClientUpdateRequired])
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
-    pub fn delete_account(&self) -> Result<(), Error<DeleteAccountError>> {
-        Ok(self.in_tx(|s| s.delete_account())?)
+    pub fn delete_account(&self) -> Result<(), LbError> {
+        self.in_tx(|s| s.delete_account())
+            .expected_errs(&[CoreError::ServerUnreachable, CoreError::ClientUpdateRequired])
     }
 
     #[instrument(level = "debug", skip(self, username), err(Debug))]
-    pub fn admin_disappear_account(
-        &self, username: &str,
-    ) -> Result<(), Error<AdminDisappearAccount>> {
-        Ok(self.in_tx(|s| s.disappear_account(username))?)
+    pub fn admin_disappear_account(&self, username: &str) -> Result<(), LbError> {
+        self.in_tx(|s| s.disappear_account(username))
+            .expected_errs(&[
+                CoreError::UsernameNotFound,
+                CoreError::InsufficientPermission,
+                CoreError::ServerUnreachable,
+                CoreError::ClientUpdateRequired,
+            ])
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
-    pub fn admin_disappear_file(&self, id: Uuid) -> Result<(), Error<AdminDisappearFileError>> {
-        Ok(self.in_tx(|s| s.disappear_file(id))?)
+    pub fn admin_disappear_file(&self, id: Uuid) -> Result<(), LbError> {
+        self.in_tx(|s| s.disappear_file(id)).expected_errs(&[
+            CoreError::FileNonexistent,
+            CoreError::InsufficientPermission,
+            CoreError::ServerUnreachable,
+            CoreError::ClientUpdateRequired,
+        ])
     }
 
     #[instrument(level = "debug", skip(self, filter), err(Debug))]
     pub fn admin_list_users(
         &self, filter: Option<AccountFilter>,
-    ) -> Result<Vec<Username>, Error<AdminListUsersError>> {
-        Ok(self.in_tx(|s| s.list_users(filter))?)
+    ) -> Result<Vec<Username>, LbError> {
+        self.in_tx(|s| s.list_users(filter)).expected_errs(&[
+            CoreError::InsufficientPermission,
+            CoreError::ServerUnreachable,
+            CoreError::ClientUpdateRequired,
+        ])
     }
 
     #[instrument(level = "debug", skip(self, identifier), err(Debug))]
     pub fn admin_get_account_info(
         &self, identifier: AccountIdentifier,
-    ) -> Result<AccountInfo, Error<AdminGetAccountInfoError>> {
-        Ok(self.in_tx(|s| s.get_account_info(identifier))?)
+    ) -> Result<AccountInfo, LbError> {
+        self.in_tx(|s| s.get_account_info(identifier))
+            .expected_errs(&[
+                CoreError::UsernameNotFound,
+                CoreError::InsufficientPermission,
+                CoreError::ServerUnreachable,
+                CoreError::ClientUpdateRequired,
+            ])
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
-    pub fn admin_validate_account(
-        &self, username: &str,
-    ) -> Result<AdminValidateAccount, Error<AdminServerValidateError>> {
-        Ok(self.in_tx(|s| s.validate_account(username))?)
+    pub fn admin_validate_account(&self, username: &str) -> Result<AdminValidateAccount, LbError> {
+        self.in_tx(|s| s.validate_account(username))
+            .expected_errs(&[
+                CoreError::UsernameNotFound,
+                CoreError::InsufficientPermission,
+                CoreError::ServerUnreachable,
+                CoreError::ClientUpdateRequired,
+            ])
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
-    pub fn admin_validate_server(
-        &self,
-    ) -> Result<AdminValidateServer, Error<AdminServerValidateError>> {
-        Ok(self.in_tx(|s| s.validate_server())?)
+    pub fn admin_validate_server(&self) -> Result<AdminValidateServer, LbError> {
+        self.in_tx(|s| s.validate_server()).expected_errs(&[
+            CoreError::InsufficientPermission,
+            CoreError::ServerUnreachable,
+            CoreError::ClientUpdateRequired,
+        ])
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
-    pub fn admin_file_info(
-        &self, id: Uuid,
-    ) -> Result<AdminFileInfoResponse, Error<AdminFileInfoError>> {
-        Ok(self.in_tx(|s| s.file_info(id))?)
+    pub fn admin_file_info(&self, id: Uuid) -> Result<AdminFileInfoResponse, LbError> {
+        self.in_tx(|s| s.file_info(id)).expected_errs(&[
+            CoreError::FileNonexistent,
+            CoreError::InsufficientPermission,
+            CoreError::ServerUnreachable,
+            CoreError::ClientUpdateRequired,
+        ])
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
-    pub fn admin_rebuild_index(
-        &self, index: ServerIndex,
-    ) -> Result<(), Error<AdminRebuildIndexError>> {
-        Ok(self.in_tx(|s| s.rebuild_index(index))?)
+    pub fn admin_rebuild_index(&self, index: ServerIndex) -> Result<(), LbError> {
+        self.in_tx(|s| s.rebuild_index(index)).expected_errs(&[
+            CoreError::InsufficientPermission,
+            CoreError::ServerUnreachable,
+            CoreError::ClientUpdateRequired,
+        ])
     }
 
     #[instrument(level = "debug", skip(self, info), err(Debug))]
     pub fn admin_set_user_tier(
         &self, username: &str, info: AdminSetUserTierInfo,
-    ) -> Result<(), Error<AdminSetUserTierError>> {
-        Ok(self.in_tx(|s| s.set_user_tier(username, info))?)
+    ) -> Result<(), LbError> {
+        self.in_tx(|s| s.set_user_tier(username, info))
+            .expected_errs(&[
+                CoreError::UsernameNotFound,
+                CoreError::InsufficientPermission,
+                CoreError::ServerUnreachable,
+                CoreError::ClientUpdateRequired,
+                CoreError::ExistingRequestPending,
+            ])
     }
 }
 

@@ -1,4 +1,4 @@
-pub static TEST_MARKDOWN: &str = TEST_MARKDOWN_45;
+pub static TEST_MARKDOWN: &str = TEST_MARKDOWN_47;
 
 pub static TEST_MARKDOWN_0: &str = "# test";
 pub static TEST_MARKDOWN_1: &str = "a";
@@ -191,3 +191,4 @@ pub static TEST_MARKDOWN_45: &str = r#"# Ambrose Burnside
 * this image has a broken link
 "#;
 pub static TEST_MARKDOWN_46: &str = "- ”";
+pub static TEST_MARKDOWN_47: &str = "” x x";

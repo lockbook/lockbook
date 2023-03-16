@@ -242,25 +242,19 @@ fn calc_modification(
                     }
                 } else {
                     if modifiers.command {
-                        // select line
+                        // select line start to current position
                         let (galley_idx, cur_cursor) = galleys
                             .galley_and_cursor_by_char_offset(cursor.pos, &buffer.current.segs);
                         let galley = &galleys[galley_idx];
                         let begin_of_row_cursor = galley.galley.cursor_begin_of_row(&cur_cursor);
-                        let end_of_row_cursor = galley.galley.cursor_end_of_row(&cur_cursor);
                         let begin_of_row_pos = galleys.char_offset_by_galley_and_cursor(
                             galley_idx,
                             &begin_of_row_cursor,
                             &buffer.current.segs,
                         );
-                        let end_of_row_pos = galleys.char_offset_by_galley_and_cursor(
-                            galley_idx,
-                            &end_of_row_cursor,
-                            &buffer.current.segs,
-                        );
 
                         modifications.push(SubModification::Cursor {
-                            cursor: (begin_of_row_pos, end_of_row_pos).into(),
+                            cursor: (begin_of_row_pos, cursor.pos).into(),
                         })
                     } else if modifiers.alt {
                         // select word
@@ -681,7 +675,11 @@ fn calc_modification(
                         // any click: begin drag; update cursor
                         cursor.set_click_and_drag_origin();
                         if triple_click {
-                            cursor.pos = pos_to_char_offset(*pos, galleys, &buffer.current.segs);
+                            if let Some(click_offset) =
+                                pos_to_char_offset(*pos, galleys, &buffer.current.segs)
+                            {
+                                cursor.pos = click_offset;
+                            }
 
                             let (galley_idx, cur_cursor) = galleys
                                 .galley_and_cursor_by_char_offset(cursor.pos, &buffer.current.segs);
@@ -702,7 +700,11 @@ fn calc_modification(
                                 &buffer.current.segs,
                             );
                         } else if double_click {
-                            cursor.pos = pos_to_char_offset(*pos, galleys, &buffer.current.segs);
+                            if let Some(click_offset) =
+                                pos_to_char_offset(*pos, galleys, &buffer.current.segs)
+                            {
+                                cursor.pos = click_offset;
+                            }
 
                             cursor.advance_word(
                                 false,
@@ -721,8 +723,10 @@ fn calc_modification(
 
                             cursor.selection_origin = Some(begin_of_word_pos);
                             cursor.pos = end_of_word_pos;
-                        } else {
-                            cursor.pos = pos_to_char_offset(*pos, galleys, &buffer.current.segs);
+                        } else if let Some(click_offset) =
+                            pos_to_char_offset(*pos, galleys, &buffer.current.segs)
+                        {
+                            cursor.pos = click_offset;
                         }
                     }
                 }
@@ -734,7 +738,11 @@ fn calc_modification(
                 {
                     // drag: begin selection; update cursor
                     cursor.set_selection_origin();
-                    cursor.pos = pos_to_char_offset(*pos, galleys, &buffer.current.segs);
+                    if let Some(click_offset) =
+                        pos_to_char_offset(*pos, galleys, &buffer.current.segs)
+                    {
+                        cursor.pos = click_offset;
+                    }
                 }
             }
             Event::PointerButton { button: PointerButton::Primary, pressed: false, .. } => {
@@ -756,30 +764,35 @@ fn calc_modification(
     (text_updated, modifications)
 }
 
-fn pos_to_char_offset(pos: Pos2, galleys: &Galleys, segs: &UnicodeSegs) -> DocCharOffset {
+pub fn pos_to_char_offset(
+    pos: Pos2, galleys: &Galleys, segs: &UnicodeSegs,
+) -> Option<DocCharOffset> {
     if !galleys.is_empty() {
         if pos.y < galleys[0].galley_location.min.y {
             // click position is above first galley
-            DocCharOffset(0)
+            Some(DocCharOffset(0))
         } else if pos.y >= galleys[galleys.len() - 1].galley_location.max.y {
             // click position is below last galley
-            segs.last_cursor_position()
+            Some(segs.last_cursor_position())
         } else {
-            let mut result = 0.into();
+            let mut result = None;
             for galley_idx in 0..galleys.len() {
                 let galley = &galleys[galley_idx];
                 if galley.galley_location.contains(pos) {
                     // click position is in a galley
                     let relative_pos = pos - galley.text_location;
                     let new_cursor = galley.galley.cursor_from_pos(relative_pos);
-                    result =
-                        galleys.char_offset_by_galley_and_cursor(galley_idx, &new_cursor, segs);
+                    result = Some(galleys.char_offset_by_galley_and_cursor(
+                        galley_idx,
+                        &new_cursor,
+                        segs,
+                    ));
                 }
             }
             result
         }
     } else {
-        0.into()
+        None
     }
 }
 

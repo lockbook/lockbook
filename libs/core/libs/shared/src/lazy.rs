@@ -5,7 +5,7 @@ use crate::file_like::FileLike;
 use crate::file_metadata::{FileType, Owner};
 use crate::staged::StagedTree;
 use crate::tree_like::{TreeLike, TreeLikeMut};
-use crate::{compression_service, symkey, SharedError, SharedResult};
+use crate::{compression_service, symkey, SharedErrorKind, SharedResult};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use uuid::Uuid;
@@ -111,7 +111,7 @@ impl<T: TreeLike> LazyTree<T> {
                         if !file.user_access_keys().is_empty() {
                             break;
                         } else {
-                            return Err(SharedError::FileParentNonexistent);
+                            return Err(SharedErrorKind::FileParentNonexistent.into());
                         }
                     }
                 }
@@ -161,16 +161,19 @@ impl<T: TreeLike> LazyTree<T> {
             let decrypted_key = {
                 let file = self.find(id)?;
                 let parent = self.find_parent(file)?;
-                let parent_key = self.key.get(parent.id()).ok_or(SharedError::Unexpected(
-                    "parent key should have been populated by prior routine",
-                ))?;
+                let parent_key = self
+                    .key
+                    .get(parent.id())
+                    .ok_or(SharedErrorKind::Unexpected(
+                        "parent key should have been populated by prior routine",
+                    ))?;
                 let encrypted_key = file.folder_access_key();
                 symkey::decrypt(parent_key, encrypted_key)?
             };
             self.key.insert(*id, decrypted_key);
         }
 
-        Ok(*self.key.get(id).ok_or(SharedError::Unexpected(
+        Ok(*self.key.get(id).ok_or(SharedErrorKind::Unexpected(
             "parent key should have been populated by prior routine (2)",
         ))?)
     }
@@ -325,9 +328,10 @@ impl<T: TreeLike> LazyTree<T> {
     pub fn assert_names_decryptable(&mut self, account: &Account) -> SharedResult<()> {
         for id in self.owned_ids() {
             if self.name(&id, account).is_err() {
-                return Err(SharedError::ValidationFailure(
+                return Err(SharedErrorKind::ValidationFailure(
                     ValidationFailure::NonDecryptableFileName(id),
-                ));
+                )
+                .into());
             }
         }
         Ok(())

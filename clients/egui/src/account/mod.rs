@@ -334,11 +334,9 @@ impl AccountScreen {
                     Err(err) => {
                         new_tabs.insert(
                             id,
-                            Err(match err {
-                                lb::Error::UiError(lb::GetFileByIdError::NoFileWithThatId) => {
-                                    TabFailure::DeletedFromSync
-                                }
-                                lb::Error::Unexpected(msg) => TabFailure::Unexpected(msg),
+                            Err(match err.kind {
+                                lb::CoreError::FileNonexistent => TabFailure::DeletedFromSync,
+                                _ => TabFailure::Unexpected(format!("{:?}", err)),
                             }),
                         );
                         continue;
@@ -355,7 +353,7 @@ impl AccountScreen {
                         .map(|drawing| TabContent::Drawing(Drawing::boxed(drawing)))
                 } else {
                     core.read_document(id)
-                        .map_err(TabFailure::from)
+                        .map_err(|err| TabFailure::Unexpected(format!("{:?}", err))) // todo(steve)
                         .map(|bytes| {
                             if ext == "md" {
                                 TabContent::Markdown(Markdown::boxed(&bytes))
@@ -432,7 +430,7 @@ impl AccountScreen {
                     .map(|drawing| TabContent::Drawing(Drawing::boxed(drawing)))
             } else {
                 core.read_document(id)
-                    .map_err(TabFailure::from)
+                    .map_err(|err| TabFailure::Unexpected(format!("{:?}", err))) // todo(steve)
                     .map(|bytes| {
                         if ext == "md" {
                             TabContent::Markdown(Markdown::boxed(&bytes))

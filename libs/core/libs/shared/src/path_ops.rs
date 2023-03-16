@@ -10,7 +10,7 @@ use crate::file_metadata::{FileType, Owner};
 use crate::lazy::LazyStaged1;
 use crate::signed_file::SignedFile;
 use crate::tree_like::{TreeLike, TreeLikeMut};
-use crate::{symkey, validate, SharedError, SharedResult};
+use crate::{symkey, validate, SharedErrorKind, SharedResult};
 
 impl<Base, Local> LazyStaged1<Base, Local>
 where
@@ -37,7 +37,7 @@ where
                 }
             }
 
-            return Err(SharedError::FileNonexistent);
+            return Err(SharedErrorKind::FileNonexistent.into());
         }
 
         Ok(current)
@@ -68,7 +68,7 @@ where
                 self.find(&current)?
             };
             if self.maybe_find(current_meta.parent()).is_none() {
-                return Err(SharedError::FileParentNonexistent);
+                return Err(SharedErrorKind::FileParentNonexistent.into());
             }
             if current_meta.is_root() {
                 return Ok(path);
@@ -172,18 +172,18 @@ where
 
                 if self.name_using_links(&child, account)? == path_components[index] {
                     if index == path_components.len() - 1 {
-                        return Err(SharedError::PathTaken);
+                        return Err(SharedErrorKind::PathTaken.into());
                     }
 
                     current = match self.find(&child)?.file_type() {
                         FileType::Document => {
-                            return Err(SharedError::FileNotFolder);
+                            return Err(SharedErrorKind::FileNotFolder.into());
                         }
                         FileType::Folder => child,
                         FileType::Link { target } => {
                             let current = self.find(&target)?;
                             if current.access_mode(&Owner(*pub_key)) < Some(UserAccessMode::Write) {
-                                return Err(SharedError::InsufficientPermission);
+                                return Err(SharedErrorKind::InsufficientPermission.into());
                             }
                             *current.id()
                         }
@@ -210,21 +210,11 @@ where
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug)]
 pub enum Filter {
     DocumentsOnly,
     FoldersOnly,
     LeafNodesOnly,
-}
-
-pub fn filter_from_str(input: &str) -> SharedResult<Option<Filter>> {
-    match input {
-        "DocumentsOnly" => Ok(Some(Filter::DocumentsOnly)),
-        "FoldersOnly" => Ok(Some(Filter::FoldersOnly)),
-        "LeafNodesOnly" => Ok(Some(Filter::LeafNodesOnly)),
-        "Unfiltered" => Ok(None),
-        _ => Err(SharedError::Unexpected("unknown filter")),
-    }
 }
 
 fn split_path(path: &str) -> Vec<&str> {

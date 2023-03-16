@@ -63,7 +63,7 @@ fn new_account_invalid_username() {
 #[test]
 fn new_account_username_too_long() {
     let mut account = random_account();
-    account.username = "x".repeat(MAX_USERNAME_LENGTH + 1);
+    account.username = "l".repeat(MAX_USERNAME_LENGTH + 1);
 
     assert_matches!(
         test_account(&account),

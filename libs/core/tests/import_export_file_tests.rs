@@ -1,4 +1,4 @@
-use lockbook_core::service::import_export_service::{ImportExportFileInfo, ImportStatus};
+use lockbook_core::service::import_export_service::{ExportFileInfo, ImportStatus};
 use lockbook_shared::file_metadata::FileType;
 use rand::Rng;
 
@@ -22,12 +22,10 @@ fn import_file_successfully() {
     let root = core.get_root().unwrap();
 
     let f = move |status: ImportStatus| {
-        // only checking if the disk path exists since a lockbook folder that has children won't be created until its first child is
+        // only checking if the disk path exists since a lockbook folder that has children won't
+        // be created until its first child is
         match status {
             ImportStatus::CalculatedTotal(_) => {}
-            ImportStatus::Error(path, err) => {
-                panic!("error importing '{}': {:#?}", path.display(), err)
-            }
             ImportStatus::StartingItem(path_str) => {
                 let disk_path = PathBuf::from(path_str);
                 assert!(disk_path.exists());
@@ -73,10 +71,10 @@ fn export_file_successfully() {
     core.write_document(file.id, &rand::thread_rng().gen::<[u8; 32]>())
         .unwrap();
 
-    let paths: Arc<Mutex<Vec<ImportExportFileInfo>>> = Arc::new(Mutex::new(Vec::new()));
+    let paths: Arc<Mutex<Vec<ExportFileInfo>>> = Arc::new(Mutex::new(Vec::new()));
     let path_copy = paths.clone();
 
-    let export_progress = move |info: ImportExportFileInfo| {
+    let export_progress = move |info: ExportFileInfo| {
         path_copy.lock().unwrap().push(info);
     };
     core.export_file(file.id, tmp_path.clone(), false, Some(Box::new(export_progress.clone())))

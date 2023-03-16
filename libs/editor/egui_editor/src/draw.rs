@@ -103,7 +103,7 @@ impl Editor {
             .rect(padding_rect, Rounding::none(), Color32::TRANSPARENT, Stroke::NONE);
     }
 
-    pub fn draw_cursor(&mut self, ui: &mut Ui) {
+    pub fn draw_cursor(&self, ui: &mut Ui) {
         ui.painter().rect(
             self.buffer
                 .current

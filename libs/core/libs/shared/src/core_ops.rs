@@ -18,7 +18,7 @@ use crate::secret_filename::{HmacSha256, SecretFileName};
 use crate::signed_file::SignedFile;
 use crate::staged::{StagedTree, StagedTreeLike};
 use crate::tree_like::{TreeLike, TreeLikeMut};
-use crate::{compression_service, document_repo, symkey, validate, SharedError, SharedResult};
+use crate::{compression_service, document_repo, symkey, validate, SharedErrorKind, SharedResult};
 
 pub type TreeWithOp<Staged> = LazyTree<StagedTree<Staged, Option<SignedFile>>>;
 pub type TreeWithOps<Staged> = LazyTree<StagedTree<Staged, Vec<SignedFile>>>;
@@ -144,7 +144,7 @@ where
         validate::file_name(name)?;
 
         if self.maybe_find(parent).is_none() {
-            return Err(SharedError::FileParentNonexistent);
+            return Err(SharedErrorKind::FileParentNonexistent.into());
         }
         let parent_owner = self.find(parent)?.owner().0;
         let parent_key = self.decrypt_key(parent, account)?;
@@ -164,7 +164,7 @@ where
 
         validate::file_name(name)?;
         if self.maybe_find(file.parent()).is_none() {
-            return Err(SharedError::NotPermissioned);
+            return Err(SharedErrorKind::InsufficientPermission.into());
         }
         let parent_key = self.decrypt_key(file.parent(), account)?;
         let key = self.decrypt_key(id, account)?;
@@ -179,7 +179,7 @@ where
     ) -> SharedResult<Vec<SignedFile>> {
         let mut file = self.find(id)?.timestamped_value.value.clone();
         if self.maybe_find(new_parent).is_none() {
-            return Err(SharedError::FileParentNonexistent);
+            return Err(SharedErrorKind::FileParentNonexistent.into());
         }
         let key = self.decrypt_key(id, account)?;
         let parent_key = self.decrypt_key(new_parent, account)?;
@@ -221,14 +221,14 @@ where
             ShareMode::Read => UserAccessMode::Read,
         };
         if self.calculate_deleted(&id)? {
-            return Err(SharedError::FileNonexistent);
+            return Err(SharedErrorKind::FileNonexistent.into());
         }
         let id =
             if let FileType::Link { target } = self.find(&id)?.file_type() { target } else { id };
         let mut file = self.find(&id)?.timestamped_value.value.clone();
         validate::not_root(&file)?;
         if mode == ShareMode::Write && file.owner.0 != owner.0 {
-            return Err(SharedError::InsufficientPermission);
+            return Err(SharedErrorKind::InsufficientPermission.into());
         }
         // check for and remove duplicate shares
         let mut found = false;
@@ -236,7 +236,7 @@ where
             if user_access.encrypted_for == sharee.0 {
                 found = true;
                 if user_access.mode == access_mode && !user_access.deleted {
-                    return Err(SharedError::DuplicateShare);
+                    return Err(SharedErrorKind::DuplicateShare.into());
                 }
             }
         }
@@ -275,7 +275,7 @@ where
             }
         }
         if !found {
-            return Err(SharedError::ShareNonexistent);
+            return Err(SharedErrorKind::ShareNonexistent.into());
         }
         result.push(file.sign(account)?);
 
@@ -297,7 +297,7 @@ where
         &mut self, config: &Config, id: &Uuid, account: &Account,
     ) -> SharedResult<DecryptedDocument> {
         if self.calculate_deleted(id)? {
-            return Err(SharedError::FileNonexistent);
+            return Err(SharedErrorKind::FileNonexistent.into());
         }
         let (id, meta) = if let FileType::Link { target } = self.find(id)?.file_type() {
             (target, self.find(&target)?)
@@ -317,7 +317,7 @@ where
             };
         let doc = match maybe_encrypted_document {
             Some(doc) => self.decrypt_document(&id, &doc, account)?,
-            None => return Err(SharedError::FileNonexistent),
+            None => return Err(SharedErrorKind::FileNonexistent.into()),
         };
 
         Ok(doc)
@@ -335,7 +335,7 @@ where
         let key = self.decrypt_key(&id, account)?;
         let hmac = {
             let mut mac =
-                HmacSha256::new_from_slice(&key).map_err(SharedError::HmacCreationError)?;
+                HmacSha256::new_from_slice(&key).map_err(SharedErrorKind::HmacCreationError)?;
             mac.update(document);
             mac.finalize().into_bytes()
         }
@@ -369,7 +369,7 @@ where
         account: &Account,
     ) -> SharedResult<Uuid> {
         if self.calculate_deleted(parent)? {
-            return Err(SharedError::FileParentNonexistent);
+            return Err(SharedErrorKind::FileParentNonexistent.into());
         }
 
         let (op, id) = self.create_op(id, key, parent, name, file_type, account)?;
@@ -403,7 +403,7 @@ where
         &mut self, id: &Uuid, new_parent: &Uuid, account: &Account,
     ) -> SharedResult<()> {
         if self.maybe_find(new_parent).is_none() || self.calculate_deleted(new_parent)? {
-            return Err(SharedError::FileParentNonexistent);
+            return Err(SharedErrorKind::FileParentNonexistent.into());
         }
         let op = self.move_op(id, new_parent, account)?;
         self.stage_validate_and_promote(op, Owner(account.public_key()))?;

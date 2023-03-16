@@ -102,9 +102,8 @@ checksum = "aae1277d39aeec15cb388266ecc24b11c80469deae6067e17a1a7aa9e5c1f234"
 
 [[package]]
 name = "admin"
-version = "0.6.0"
+version = "0.7.1"
 dependencies = [
- "backtrace",
  "dialoguer",
  "lockbook-core",
  "structopt",
@@ -963,7 +962,6 @@ dependencies = [
 name = "core_external_interface"
 version = "0.1.0"
 dependencies = [
- "backtrace",
  "basic-human-duration",
  "chrono",
  "crossbeam",
@@ -973,6 +971,7 @@ dependencies = [
  "serde",
  "serde_json",
  "strum",
+ "strum_macros",
  "tracing",
 ]
 
@@ -1559,13 +1558,14 @@ dependencies = [
 
 [[package]]
 name = "egui_editor"
-version = "0.6.0"
+version = "0.7.1"
 dependencies = [
  "eframe",
  "egui",
  "egui_wgpu_backend",
  "image",
  "libc",
+ "pollster",
  "pulldown-cmark",
  "reqwest",
  "unicode-segmentation",
@@ -3057,7 +3057,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook-cli"
-version = "0.6.0"
+version = "0.7.1"
 dependencies = [
  "atty",
  "clap 4.1.4",
@@ -3067,9 +3067,8 @@ dependencies = [
 
 [[package]]
 name = "lockbook-core"
-version = "0.6.0"
+version = "0.7.1"
 dependencies = [
- "backtrace",
  "base64",
  "basic-human-duration",
  "bincode",
@@ -3079,7 +3078,6 @@ dependencies = [
  "db-rs",
  "db-rs-derive",
  "diffy",
- "fuzzy-matcher",
  "hmdb",
  "image",
  "indicatif",
@@ -3094,8 +3092,6 @@ dependencies = [
  "reqwest",
  "serde",
  "serde_json",
- "strum",
- "strum_macros",
  "sublime_fuzzy",
  "tempfile",
  "test_utils",
@@ -3109,7 +3105,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook-dev"
-version = "0.6.0"
+version = "0.7.1"
 dependencies = [
  "dotenv",
  "reqwest",
@@ -3120,7 +3116,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook-egui"
-version = "0.6.0"
+version = "0.7.1"
 dependencies = [
  "dark-light",
  "eframe",
@@ -3136,7 +3132,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook-server"
-version = "0.6.0"
+version = "0.7.1"
 dependencies = [
  "async-stripe",
  "base64",
@@ -3173,7 +3169,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook-shared"
-version = "0.6.0"
+version = "0.7.1"
 dependencies = [
  "aead",
  "aes-gcm",
@@ -4048,6 +4044,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "pollster"
+version = "0.2.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5da3b0203fd7ee5720aa0b5e790b591aa5d3f41c3ed2c34a3a393382198af2f7"
+
+[[package]]
 name = "polyval"
 version = "0.5.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4367,7 +4369,7 @@ checksum = "a3f87b73ce11b1619a3c6332f45341e0047173771e8b8b73f87bfeefb7b56244"
 
 [[package]]
 name = "releaser"
-version = "0.6.0"
+version = "0.7.1"
 dependencies = [
  "fs_extra",
  "gh_release",
@@ -5175,7 +5177,7 @@ dependencies = [
 
 [[package]]
 name = "test_utils"
-version = "0.6.0"
+version = "0.7.1"
 dependencies = [
  "bincode",
  "chrono",
@@ -6467,7 +6469,7 @@ dependencies = [
 
 [[package]]
 name = "winstaller"
-version = "0.6.0"
+version = "0.7.1"
 dependencies = [
  "eframe",
  "egui_extras",
