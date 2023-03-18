@@ -211,7 +211,7 @@ fn calc_modification(
 
                 cursor.selection_origin = None;
             }
-            Event::Key { key: Key::Backspace, pressed: true, modifiers } => {
+            Event::Key { key: Key::Backspace | Key::Delete, pressed: true, modifiers } => {
                 cursor.x_target = None;
 
                 let layout_idx = layouts.layout_at_char(cursor.pos, &buffer.current.segs);
