@@ -2,7 +2,7 @@
 
 Prerequisites:
 1. Computer with macOS
-2. Standard iOS/macOS toolchain (xcode)
+2. Standard iOS/macOS toolchain (Xcode)
 3. Stable rust toolchain
 4. `cbindgen`, which generates header files
 ```
@@ -14,5 +14,5 @@ rustup target add aarch64-apple-ios x86_64-apple-ios aarch64-apple-darwin x86_64
 ```
 
 Steps:
-1. In `/libs/core_external_interface` run `make swift_libs` which will generate Core libs and place them into the correct location within your xcode project.
-2. Open xcode, import the project and hit the Run button.
+1. In `/libs/core_external_interface` run `make swift_libs` which will generate Core libs and place them into the correct location within your Xcode project.
+2. Open Xcode, import the project and hit the Run button.
