@@ -46,8 +46,8 @@ macOS:
 - [Build From Source](./guides/build/apple.md)
 
 Linux:
-- `yay` (Arch): `yay -S lockbook-desktop`
-- `snap`: `snap install lockbook-desktop` (warning: Snap does not verify package integrity)
+- [AUR (Arch)](https://aur.archlinux.org/packages/lockbook-desktop): `yay -S lockbook-desktop`
+- [Snap](https://snapcraft.io/lockbook-desktop): `snap install lockbook-desktop` (warning: Snap does not verify package integrity)
 - [Github Releases](https://github.com/lockbook/lockbook/releases)
 - [Build From Source](./guides/build/linux.md)
 
@@ -62,8 +62,8 @@ macOS:
 - [Build From Source](./guides/build/cli.md)
 
 Linux:
-- `yay` (Arch): `yay -S lockbook`
-- `snap`: `snap install lockbook` (warning: Snap does not verify package integrity)
+- [AUR (Arch)](https://aur.archlinux.org/packages/lockbook): `yay -S lockbook`
+- [Snap](https://snapcraft.io/lockbook): `snap install lockbook` (warning: Snap does not verify package integrity)
 - [Github Releases](https://github.com/lockbook/lockbook/releases)
 - [Build From Source](./guides/build/cli.md)
 
