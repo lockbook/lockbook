@@ -69,6 +69,18 @@ fn calc_modification(
                     cursor.advance_char(false, &buffer.current.segs, galleys);
                 }
             }
+            Event::Key { key: Key::End, pressed: true, .. } => {
+                cursor.x_target = None;
+                let (galley_idx, cur_cursor) =
+                    galleys.galley_and_cursor_by_char_offset(cursor.pos, &buffer.current.segs);
+                let galley = &galleys[galley_idx];
+                let new_cursor = galley.galley.cursor_end_of_row(&cur_cursor);
+                cursor.pos = galleys.char_offset_by_galley_and_cursor(
+                    galley_idx,
+                    &new_cursor,
+                    &buffer.current.segs,
+                );
+            }
             Event::Key { key: Key::ArrowLeft, pressed: true, modifiers } => {
                 cursor.x_target = None;
 
@@ -92,6 +104,18 @@ fn calc_modification(
                 } else {
                     cursor.advance_char(true, &buffer.current.segs, galleys);
                 }
+            }
+            Event::Key { key: Key::Home, pressed: true, .. } => {
+                cursor.x_target = None;
+                let (galley_idx, cur_cursor) =
+                    galleys.galley_and_cursor_by_char_offset(cursor.pos, &buffer.current.segs);
+                let galley = &galleys[galley_idx];
+                let new_cursor = galley.galley.cursor_begin_of_row(&cur_cursor);
+                cursor.pos = galleys.char_offset_by_galley_and_cursor(
+                    galley_idx,
+                    &new_cursor,
+                    &buffer.current.segs,
+                );
             }
             Event::Key { key: Key::ArrowDown, pressed: true, modifiers } => {
                 if modifiers.shift {
