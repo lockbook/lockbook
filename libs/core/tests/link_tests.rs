@@ -41,15 +41,15 @@ fn list_metadatas_link() {
     cores[0].sync(None).unwrap();
     cores[1].sync(None).unwrap();
 
-    let link = cores[1].create_link_at_path("link", document.id).unwrap();
+    cores[1].create_link_at_path("link", document.id).unwrap();
 
     assert_valid_list_metadatas(&cores[0]);
     assert_valid_list_metadatas(&cores[1]);
-    assert::all_ids(&cores[1], &[roots[1].id, link.id]);
+    assert::all_ids(&cores[1], &[roots[1].id, document.id]);
     assert::all_paths(&cores[1], &["/", "/link"]);
-    assert::all_children_ids(&cores[1], roots[1].id, &[link.id]);
-    assert::all_recursive_children_ids(&cores[1], roots[1].id, &[roots[1].id, link.id]);
-    assert::all_recursive_children_ids(&cores[1], link.id, &[link.id]);
+    assert::all_children_ids(&cores[1], roots[1].id, &[document.id]);
+    assert::all_recursive_children_ids(&cores[1], roots[1].id, &[roots[1].id, document.id]);
+    assert::all_recursive_children_ids(&cores[1], document.id, &[document.id]);
 }
 
 #[test]
@@ -73,20 +73,20 @@ fn list_metadatas_linked_folder() {
     cores[0].sync(None).unwrap();
     cores[1].sync(None).unwrap();
 
-    let link = cores[1].create_link_at_path("link", folder.id).unwrap();
+    cores[1].create_link_at_path("link", folder.id).unwrap();
 
     assert_valid_list_metadatas(&cores[0]);
     assert_valid_list_metadatas(&cores[1]);
-    assert::all_ids(&cores[1], &[roots[1].id, link.id, document.id]);
+    assert::all_ids(&cores[1], &[roots[1].id, folder.id, document.id]);
     assert::all_paths(&cores[1], &["/", "/link/", "/link/document"]);
-    assert::all_children_ids(&cores[1], roots[1].id, &[link.id]);
-    assert::all_children_ids(&cores[1], link.id, &[document.id]);
+    assert::all_children_ids(&cores[1], roots[1].id, &[folder.id]);
+    assert::all_children_ids(&cores[1], folder.id, &[document.id]);
     assert::all_recursive_children_ids(
         &cores[1],
         roots[1].id,
-        &[roots[1].id, link.id, document.id],
+        &[roots[1].id, folder.id, document.id],
     );
-    assert::all_recursive_children_ids(&cores[1], link.id, &[link.id, document.id]);
+    assert::all_recursive_children_ids(&cores[1], folder.id, &[folder.id, document.id]);
     assert::all_recursive_children_ids(&cores[1], document.id, &[document.id]);
 }
 
@@ -112,21 +112,25 @@ fn list_metadatas_linked_nested_folder() {
     cores[0].sync(None).unwrap();
     cores[1].sync(None).unwrap();
 
-    let link = cores[1].create_link_at_path("link", folder1.id).unwrap();
+    cores[1].create_link_at_path("link", folder1.id).unwrap();
 
     assert_valid_list_metadatas(&cores[0]);
     assert_valid_list_metadatas(&cores[1]);
-    assert::all_ids(&cores[1], &[roots[1].id, link.id, folder2.id, document.id]);
+    assert::all_ids(&cores[1], &[roots[1].id, folder1.id, folder2.id, document.id]);
     assert::all_paths(&cores[1], &["/", "/link/", "/link/folder/", "/link/folder/document"]);
-    assert::all_children_ids(&cores[1], roots[1].id, &[link.id]);
-    assert::all_children_ids(&cores[1], link.id, &[folder2.id]);
+    assert::all_children_ids(&cores[1], roots[1].id, &[folder1.id]);
+    assert::all_children_ids(&cores[1], folder1.id, &[folder2.id]);
     assert::all_children_ids(&cores[1], folder2.id, &[document.id]);
     assert::all_recursive_children_ids(
         &cores[1],
         roots[1].id,
-        &[roots[1].id, link.id, folder2.id, document.id],
+        &[roots[1].id, folder1.id, folder2.id, document.id],
     );
-    assert::all_recursive_children_ids(&cores[1], link.id, &[link.id, folder2.id, document.id]);
+    assert::all_recursive_children_ids(
+        &cores[1],
+        folder1.id,
+        &[folder1.id, folder2.id, document.id],
+    );
     assert::all_recursive_children_ids(&cores[1], folder2.id, &[folder2.id, document.id]);
     assert::all_recursive_children_ids(&cores[1], document.id, &[document.id]);
 }
@@ -152,20 +156,20 @@ fn list_metadatas_linked_folder_shared_from_folder() {
     cores[0].sync(None).unwrap();
     cores[1].sync(None).unwrap();
 
-    let link = cores[1].create_link_at_path("link", folder2.id).unwrap();
+    cores[1].create_link_at_path("link", folder2.id).unwrap();
 
     assert_valid_list_metadatas(&cores[0]);
     assert_valid_list_metadatas(&cores[1]);
-    assert::all_ids(&cores[1], &[roots[1].id, link.id, document.id]);
+    assert::all_ids(&cores[1], &[roots[1].id, folder2.id, document.id]);
     assert::all_paths(&cores[1], &["/", "/link/", "/link/document"]);
-    assert::all_children_ids(&cores[1], roots[1].id, &[link.id]);
-    assert::all_children_ids(&cores[1], link.id, &[document.id]);
+    assert::all_children_ids(&cores[1], roots[1].id, &[folder2.id]);
+    assert::all_children_ids(&cores[1], folder2.id, &[document.id]);
     assert::all_recursive_children_ids(
         &cores[1],
         roots[1].id,
-        &[roots[1].id, link.id, document.id],
+        &[roots[1].id, folder2.id, document.id],
     );
-    assert::all_recursive_children_ids(&cores[1], link.id, &[link.id, document.id]);
+    assert::all_recursive_children_ids(&cores[1], folder2.id, &[folder2.id, document.id]);
     assert::all_recursive_children_ids(&cores[1], document.id, &[document.id]);
 }
 
@@ -191,24 +195,28 @@ fn list_metadatas_folder_linked_into_folder() {
     cores[1].sync(None).unwrap();
 
     let folder2 = cores[1].create_at_path("folder/").unwrap();
-    let link = cores[1]
+    cores[1]
         .create_link_at_path("folder/link", folder1.id)
         .unwrap();
 
     assert_valid_list_metadatas(&cores[0]);
     assert_valid_list_metadatas(&cores[1]);
-    assert::all_ids(&cores[1], &[roots[1].id, folder2.id, link.id, document.id]);
+    assert::all_ids(&cores[1], &[roots[1].id, folder2.id, folder1.id, document.id]);
     assert::all_paths(&cores[1], &["/", "/folder/", "/folder/link/", "/folder/link/document"]);
     assert::all_children_ids(&cores[1], roots[1].id, &[folder2.id]);
-    assert::all_children_ids(&cores[1], folder2.id, &[link.id]);
-    assert::all_children_ids(&cores[1], link.id, &[document.id]);
+    assert::all_children_ids(&cores[1], folder2.id, &[folder1.id]);
+    assert::all_children_ids(&cores[1], folder1.id, &[document.id]);
     assert::all_recursive_children_ids(
         &cores[1],
         roots[1].id,
-        &[roots[1].id, folder2.id, link.id, document.id],
+        &[roots[1].id, folder2.id, folder1.id, document.id],
     );
-    assert::all_recursive_children_ids(&cores[1], folder2.id, &[folder2.id, link.id, document.id]);
-    assert::all_recursive_children_ids(&cores[1], link.id, &[link.id, document.id]);
+    assert::all_recursive_children_ids(
+        &cores[1],
+        folder2.id,
+        &[folder2.id, folder1.id, document.id],
+    );
+    assert::all_recursive_children_ids(&cores[1], folder1.id, &[folder1.id, document.id]);
     assert::all_recursive_children_ids(&cores[1], document.id, &[document.id]);
 }
 
@@ -237,22 +245,26 @@ fn list_metadatas_nested_linked_folders() {
     cores[0].sync(None).unwrap();
     cores[1].sync(None).unwrap();
 
-    let link1 = cores[1].create_link_at_path("link1", folder1.id).unwrap();
-    let link2 = cores[1].create_link_at_path("link2", folder2.id).unwrap();
+    cores[1].create_link_at_path("link1", folder1.id).unwrap();
+    cores[1].create_link_at_path("link2", folder2.id).unwrap();
 
     assert_valid_list_metadatas(&cores[0]);
     assert_valid_list_metadatas(&cores[1]);
-    assert::all_ids(&cores[1], &[roots[1].id, link1.id, link2.id, document.id]);
+    assert::all_ids(&cores[1], &[roots[1].id, folder1.id, folder2.id, document.id]);
     assert::all_paths(&cores[1], &["/", "/link1/", "/link2/", "/link2/document"]);
-    assert::all_children_ids(&cores[1], roots[1].id, &[link1.id, link2.id]);
-    assert::all_children_ids(&cores[1], link2.id, &[document.id]);
+    assert::all_children_ids(&cores[1], roots[1].id, &[folder1.id, folder2.id]);
+    assert::all_children_ids(&cores[1], folder2.id, &[document.id]);
     assert::all_recursive_children_ids(
         &cores[1],
         roots[1].id,
-        &[roots[1].id, link1.id, folder2.id, link2.id, document.id],
+        &[roots[1].id, folder1.id, folder2.id, folder2.id, document.id],
     );
-    assert::all_recursive_children_ids(&cores[1], link1.id, &[link1.id, folder2.id, document.id]); // todo: is this correct?
-    assert::all_recursive_children_ids(&cores[1], link2.id, &[link2.id, document.id]);
+    assert::all_recursive_children_ids(
+        &cores[1],
+        folder1.id,
+        &[folder1.id, folder2.id, document.id],
+    ); // todo: is this correct?
+    assert::all_recursive_children_ids(&cores[1], folder2.id, &[folder2.id, document.id]);
     assert::all_recursive_children_ids(&cores[1], document.id, &[document.id]);
 }
 
@@ -281,9 +293,9 @@ fn inconsistent_share_finalization() {
     cores[1].sync(None).unwrap();
     cores[2].sync(None).unwrap();
 
-    let link = cores[1].create_link_at_path("link", folder.id).unwrap();
+    cores[1].create_link_at_path("link", folder.id).unwrap();
 
-    let file_single_finalization = cores[1].get_file_by_id(link.id).unwrap();
+    let file_single_finalization = cores[1].get_file_by_id(folder.id).unwrap();
 
     let files_all_finalization = cores[1]
         .get_and_get_children_recursively(roots[1].id)
@@ -291,7 +303,7 @@ fn inconsistent_share_finalization() {
 
     let file_all_finalization: &File = files_all_finalization
         .iter()
-        .find(|f| f.id == link.id)
+        .find(|f| f.id == folder.id)
         .unwrap();
 
     assert_eq!(file_all_finalization.shares, file_single_finalization.shares);
@@ -320,7 +332,7 @@ fn link_resolving() {
     cores[0].sync(None).unwrap();
     cores[1].sync(None).unwrap();
 
-    let link = cores[1].create_link_at_path("link", folder.id).unwrap();
+    cores[1].create_link_at_path("link", folder.id).unwrap();
 
-    assert_eq!(cores[1].get_file_by_id(file.id).unwrap().parent, link.id);
+    assert_eq!(cores[1].get_file_by_id(file.id).unwrap().parent, folder.id);
 }

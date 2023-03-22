@@ -23,7 +23,10 @@ impl<Client: Requester> CoreState<Client> {
         let id =
             tree.create(Uuid::new_v4(), symkey::generate_key(), parent, name, file_type, account)?;
 
-        let ui_file = tree.resolve_and_finalize(account, id, &mut self.db.pub_key_lookup)?;
+        let mut ui_file = tree.resolve_and_finalize(account, id, &mut self.db.pub_key_lookup)?;
+        if matches!(file_type, FileType::Link { .. }) {
+            ui_file.id = id;
+        }
 
         info!("created {:?} with id {id}", file_type);
 

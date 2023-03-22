@@ -21,7 +21,8 @@ impl<Client: Requester> CoreState<Client> {
 
         let id = tree.create_link_at_path(path, target_id, root, account, &pub_key)?;
 
-        let ui_file = tree.resolve_and_finalize(account, id, &mut self.db.pub_key_lookup)?;
+        let mut ui_file = tree.resolve_and_finalize(account, id, &mut self.db.pub_key_lookup)?;
+        ui_file.id = id;
 
         Ok(ui_file)
     }
