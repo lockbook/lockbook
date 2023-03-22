@@ -1,13 +1,15 @@
-use crate::{unexpected_only, Config, Core, UnexpectedError};
 use lazy_static::lazy_static;
+use lockbook_core::{unexpected_only, Config, UnexpectedError};
 use std::sync::{Arc, RwLock};
 
+use crate::FfiCore;
+
 lazy_static! {
-    static ref STATE: Arc<RwLock<Option<Core>>> = Arc::new(RwLock::new(None));
+    static ref STATE: Arc<RwLock<Option<FfiCore>>> = Arc::new(RwLock::new(None));
 }
 
 pub fn init(config: &Config) -> Result<(), UnexpectedError> {
-    let core = Core::init(config)?;
+    let core = FfiCore::init(config)?;
     STATE
         .write()
         .map_err(|err| unexpected_only!("{:#?}", err))?
@@ -15,7 +17,7 @@ pub fn init(config: &Config) -> Result<(), UnexpectedError> {
     Ok(())
 }
 
-pub fn get() -> Result<Core, UnexpectedError> {
+pub fn get() -> Result<FfiCore, UnexpectedError> {
     STATE
         .read()
         .map_err(|err| unexpected_only!("{:#?}", err))?

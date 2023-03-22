@@ -561,6 +561,7 @@ pub struct AdminValidateServer {
     pub sharees_mapped_to_unshared_files: HashMap<Owner, HashSet<Uuid>>,
     pub sharees_mapped_to_nonexistent_files: HashMap<Owner, HashSet<Uuid>>,
     pub sharees_mapped_for_owned_files: HashMap<Owner, HashSet<Uuid>>,
+    pub sharees_mapped_for_deleted_files: HashMap<Owner, HashSet<Uuid>>,
     pub sharees_unmapped_to_shared_files: HashMap<Owner, HashSet<Uuid>>,
     pub sharees_unmapped: HashSet<Owner>,
     pub files_mapped_as_parent_to_non_children: HashMap<Uuid, HashSet<Uuid>>,
@@ -595,6 +596,7 @@ pub struct AdminListUsersRequest {
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub enum AccountFilter {
     Premium,
+    AppStorePremium,
     StripePremium,
     GooglePlayPremium,
 }

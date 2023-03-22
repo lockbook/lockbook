@@ -1,13 +1,15 @@
 use db_rs::{Db, LookupTable, Single};
 use db_rs_derive::Schema;
 use hmdb::log::Reader;
+use std::fs::remove_file;
+use std::path::PathBuf;
 
 use lockbook_shared::account::Account;
 use lockbook_shared::file_metadata::Owner;
 use lockbook_shared::signed_file::SignedFile;
 
 use crate::repo::schema_v2::{CoreV2, OneKey};
-use crate::CoreResult;
+use crate::LbResult;
 use lockbook_shared::core_config::Config;
 use uuid::Uuid;
 
@@ -27,7 +29,7 @@ pub struct CoreV3 {
 }
 
 impl CoreV3 {
-    pub fn init_with_migration(config: &Config) -> CoreResult<CoreV3> {
+    pub fn init_with_migration(config: &Config) -> LbResult<CoreV3> {
         let mut dest = CoreV3::init(db_rs::Config::in_folder(&config.writeable_path))?;
         if dest.account.data().is_none() {
             let source = CoreV2::init(&config.writeable_path)?;
@@ -57,6 +59,18 @@ impl CoreV3 {
 
                 tx.drop_safely()?;
             }
+
+            drop(source);
+
+            let mut path = PathBuf::from(&config.writeable_path);
+            path.push("lockbook_core__repo__schema_v2__CoreV2");
+            // ignore if file is missing
+            drop(remove_file(path));
+
+            let mut path = PathBuf::from(&config.writeable_path);
+            path.push("lockbook_core__repo__schema__CoreV1");
+            // ignore if file is missing
+            drop(remove_file(path));
         }
 
         Ok(dest)

@@ -1,7 +1,7 @@
 use crate::core_config::Config;
 use crate::crypto::*;
 use crate::file_metadata::DocumentHmac;
-use crate::{SharedError, SharedResult};
+use crate::{SharedErrorKind, SharedResult};
 use std::collections::HashSet;
 use std::convert::TryInto;
 use std::fs::{self, File, OpenOptions};
@@ -45,7 +45,7 @@ pub fn insert(
 pub fn get(
     config: &Config, id: &Uuid, hmac: Option<&DocumentHmac>,
 ) -> SharedResult<EncryptedDocument> {
-    maybe_get(config, id, hmac)?.ok_or(SharedError::FileNonexistent)
+    maybe_get(config, id, hmac)?.ok_or_else(|| SharedErrorKind::FileNonexistent.into())
 }
 
 #[instrument(level = "debug", skip(config), err(Debug))]
@@ -101,19 +101,19 @@ pub fn retain(config: &Config, file_hmacs: HashSet<(&Uuid, &DocumentHmac)>) -> S
         let (id_str, hmac_str) = path
             .file_name()
             .and_then(|name| name.to_str())
-            .ok_or(SharedError::Unexpected("document disk file name malformed"))?
+            .ok_or(SharedErrorKind::Unexpected("document disk file name malformed"))?
             .split_at(36); // Uuid's are 36 characters long in string form
         let id = Uuid::parse_str(id_str)
-            .map_err(|_| SharedError::Unexpected("document disk file name malformed"))?;
+            .map_err(|_| SharedErrorKind::Unexpected("document disk file name malformed"))?;
         let hmac: DocumentHmac = base64::decode_config(
             hmac_str
                 .strip_prefix('-')
-                .ok_or(SharedError::Unexpected("document disk file name malformed"))?,
+                .ok_or(SharedErrorKind::Unexpected("document disk file name malformed"))?,
             base64::URL_SAFE,
         )
-        .map_err(|_| SharedError::Unexpected("document disk file name malformed"))?
+        .map_err(|_| SharedErrorKind::Unexpected("document disk file name malformed"))?
         .try_into()
-        .map_err(|_| SharedError::Unexpected("document disk file name malformed"))?;
+        .map_err(|_| SharedErrorKind::Unexpected("document disk file name malformed"))?;
         if !file_hmacs.contains(&(&id, &hmac)) {
             delete(config, &id, Some(&hmac))?;
         }

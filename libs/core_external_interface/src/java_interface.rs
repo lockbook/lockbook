@@ -10,21 +10,17 @@ use lazy_static::lazy_static;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use std::sync::{Arc, Mutex};
-use uuid::Uuid;
 
-use crate::{
-    get_all_error_variants, unexpected_only, Config, Error, SupportedImageFormats, UnexpectedError,
+use lockbook_core::service::search_service::{SearchRequest, SearchResult};
+use lockbook_core::{
+    clock, unexpected_only, ClientWorkUnit, Config, Drawing, FileType, ShareMode,
+    SupportedImageFormats, SyncProgress, UnexpectedError, Uuid,
 };
-use lockbook_shared::clock;
-use lockbook_shared::drawing::Drawing;
-use lockbook_shared::file::ShareMode;
-use lockbook_shared::file_metadata::FileType;
-use lockbook_shared::work_unit::ClientWorkUnit;
 
-use crate::external_interface::json_interface::translate;
-use crate::external_interface::static_state;
-use crate::service::search_service::{SearchRequest, SearchResult};
-use crate::service::sync_service::SyncProgress;
+use crate::errors::Error;
+use crate::get_all_error_variants;
+use crate::json_interface::translate;
+use crate::static_state;
 
 fn serialize_to_jstring<U: Serialize>(env: &JNIEnv, result: U) -> jstring {
     let serialized_result =
@@ -461,16 +457,16 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_syncAll(
         let (is_pushing, file_name) = match sync_progress.current_work_unit {
             ClientWorkUnit::PullMetadata => (JValue::Bool(0), JValue::Object(JObject::null())),
             ClientWorkUnit::PushMetadata => (JValue::Bool(1), JValue::Object(JObject::null())),
-            ClientWorkUnit::PullDocument(file_name) => {
+            ClientWorkUnit::PullDocument(f) => {
                 let obj = env_c
-                    .new_string(file_name)
+                    .new_string(f.name)
                     .expect("Couldn't create JString from rust string!");
 
                 (JValue::Bool(0), JValue::Object(JObject::from(obj)))
             }
-            ClientWorkUnit::PushDocument(file_name) => {
+            ClientWorkUnit::PushDocument(f) => {
                 let obj = env_c
-                    .new_string(file_name)
+                    .new_string(f.name)
                     .expect("Couldn't create JString from rust string!");
 
                 (JValue::Bool(1), JValue::Object(JObject::from(obj)))
@@ -643,11 +639,11 @@ lazy_static! {
 fn send_search_request(env: JNIEnv, request: SearchRequest) -> jstring {
     let result = MAYBE_SEARCH_TX
         .lock()
-        .map_err(|_| UnexpectedError("Could not get lock".to_string()))
+        .map_err(|_| UnexpectedError::new("Could not get lock".to_string()))
         .and_then(|maybe_lock| {
             maybe_lock
                 .clone()
-                .ok_or_else(|| UnexpectedError("No search lock.".to_string()))
+                .ok_or_else(|| UnexpectedError::new("No search lock.".to_string()))
         })
         .and_then(|search_tx| search_tx.send(request).map_err(UnexpectedError::from));
 

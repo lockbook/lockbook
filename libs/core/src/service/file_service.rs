@@ -1,4 +1,4 @@
-use crate::{CoreError, CoreResult, CoreState, Requester};
+use crate::{CoreError, CoreState, LbResult, Requester};
 use lockbook_shared::access_info::UserAccessMode;
 use lockbook_shared::file::File;
 use lockbook_shared::file_metadata::{FileType, Owner};
@@ -10,7 +10,7 @@ use uuid::Uuid;
 impl<Client: Requester> CoreState<Client> {
     pub(crate) fn create_file(
         &mut self, name: &str, parent: &Uuid, file_type: FileType,
-    ) -> CoreResult<File> {
+    ) -> LbResult<File> {
         let mut tree = (&self.db.base_metadata)
             .to_staged(&mut self.db.local_metadata)
             .to_lazy();
@@ -33,7 +33,7 @@ impl<Client: Requester> CoreState<Client> {
         Ok(ui_file)
     }
 
-    pub(crate) fn rename_file(&mut self, id: &Uuid, new_name: &str) -> CoreResult<()> {
+    pub(crate) fn rename_file(&mut self, id: &Uuid, new_name: &str) -> LbResult<()> {
         let mut tree = (&self.db.base_metadata)
             .to_staged(&mut self.db.local_metadata)
             .to_lazy();
@@ -48,7 +48,7 @@ impl<Client: Requester> CoreState<Client> {
         Ok(())
     }
 
-    pub(crate) fn move_file(&mut self, id: &Uuid, new_parent: &Uuid) -> CoreResult<()> {
+    pub(crate) fn move_file(&mut self, id: &Uuid, new_parent: &Uuid) -> LbResult<()> {
         let mut tree = (&self.db.base_metadata)
             .to_staged(&mut self.db.local_metadata)
             .to_lazy();
@@ -67,7 +67,7 @@ impl<Client: Requester> CoreState<Client> {
         Ok(())
     }
 
-    pub(crate) fn delete(&mut self, id: &Uuid) -> CoreResult<()> {
+    pub(crate) fn delete(&mut self, id: &Uuid) -> LbResult<()> {
         let mut tree = (&self.db.base_metadata)
             .to_staged(&mut self.db.local_metadata)
             .to_lazy();
@@ -87,7 +87,7 @@ impl<Client: Requester> CoreState<Client> {
         Ok(())
     }
 
-    pub(crate) fn root(&mut self) -> CoreResult<File> {
+    pub(crate) fn root(&mut self) -> LbResult<File> {
         let mut tree = (&self.db.base_metadata)
             .to_staged(&self.db.local_metadata)
             .to_lazy();
@@ -104,7 +104,7 @@ impl<Client: Requester> CoreState<Client> {
         Ok(root)
     }
 
-    pub(crate) fn list_metadatas(&mut self) -> CoreResult<Vec<File>> {
+    pub(crate) fn list_metadatas(&mut self) -> LbResult<Vec<File>> {
         let mut tree = (&self.db.base_metadata)
             .to_staged(&self.db.local_metadata)
             .to_lazy();
@@ -119,7 +119,7 @@ impl<Client: Requester> CoreState<Client> {
         Ok(tree.resolve_and_finalize_all(account, ids, &mut self.db.pub_key_lookup, true)?)
     }
 
-    pub(crate) fn get_children(&mut self, id: &Uuid) -> CoreResult<Vec<File>> {
+    pub(crate) fn get_children(&mut self, id: &Uuid) -> LbResult<Vec<File>> {
         let mut tree = (&self.db.base_metadata)
             .to_staged(&self.db.local_metadata)
             .to_lazy();
@@ -134,7 +134,7 @@ impl<Client: Requester> CoreState<Client> {
         Ok(tree.resolve_and_finalize_all(account, ids, &mut self.db.pub_key_lookup, true)?)
     }
 
-    pub(crate) fn get_and_get_children_recursively(&mut self, id: &Uuid) -> CoreResult<Vec<File>> {
+    pub(crate) fn get_and_get_children_recursively(&mut self, id: &Uuid) -> LbResult<Vec<File>> {
         let mut tree = (&self.db.base_metadata)
             .to_staged(&self.db.local_metadata)
             .to_lazy();
@@ -154,7 +154,7 @@ impl<Client: Requester> CoreState<Client> {
         )?)
     }
 
-    pub(crate) fn get_file_by_id(&mut self, id: &Uuid) -> CoreResult<File> {
+    pub(crate) fn get_file_by_id(&mut self, id: &Uuid) -> LbResult<File> {
         let mut tree = (&self.db.base_metadata)
             .to_staged(&self.db.local_metadata)
             .to_lazy();
@@ -166,10 +166,10 @@ impl<Client: Requester> CoreState<Client> {
             .ok_or(CoreError::AccountNonexistent)?;
 
         if tree.calculate_deleted(id)? {
-            return Err(CoreError::FileNonexistent);
+            return Err(CoreError::FileNonexistent.into());
         }
         if tree.access_mode(Owner(account.public_key()), id)? < Some(UserAccessMode::Read) {
-            return Err(CoreError::FileNonexistent);
+            return Err(CoreError::FileNonexistent.into());
         }
 
         let file = tree.resolve_and_finalize(account, *id, &mut self.db.pub_key_lookup)?;

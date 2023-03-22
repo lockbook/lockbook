@@ -1,16 +1,16 @@
-use crate::{CoreError, CoreResult, CoreState, Requester};
 use libsecp256k1::PublicKey;
+use uuid::Uuid;
+
 use lockbook_shared::api::GetPublicKeyRequest;
 use lockbook_shared::file::{File, ShareMode};
 use lockbook_shared::file_like::FileLike;
 use lockbook_shared::file_metadata::Owner;
 use lockbook_shared::tree_like::TreeLike;
-use uuid::Uuid;
+
+use crate::{CoreError, CoreState, LbError, LbResult, Requester};
 
 impl<Client: Requester> CoreState<Client> {
-    pub(crate) fn share_file(
-        &mut self, id: Uuid, username: &str, mode: ShareMode,
-    ) -> CoreResult<()> {
+    pub(crate) fn share_file(&mut self, id: Uuid, username: &str, mode: ShareMode) -> LbResult<()> {
         let mut tree = (&self.db.base_metadata)
             .to_staged(&mut self.db.local_metadata)
             .to_lazy();
@@ -23,7 +23,7 @@ impl<Client: Requester> CoreState<Client> {
         let sharee = Owner(
             self.client
                 .request(account, GetPublicKeyRequest { username: String::from(username) })
-                .map_err(CoreError::from)?
+                .map_err(LbError::from)?
                 .key,
         );
 
@@ -37,7 +37,7 @@ impl<Client: Requester> CoreState<Client> {
     }
 
     // todo: move to tree
-    pub(crate) fn get_pending_shares(&mut self) -> CoreResult<Vec<File>> {
+    pub(crate) fn get_pending_shares(&mut self) -> LbResult<Vec<File>> {
         let account = &self.get_account()?.clone(); // todo: don't clone
         let owner = Owner(self.get_public_key()?);
         let mut tree = (&self.db.base_metadata)
@@ -72,7 +72,7 @@ impl<Client: Requester> CoreState<Client> {
 
     pub(crate) fn delete_share(
         &mut self, id: &Uuid, maybe_encrypted_for: Option<PublicKey>,
-    ) -> CoreResult<()> {
+    ) -> LbResult<()> {
         let mut tree = (&self.db.base_metadata)
             .to_staged(&mut self.db.local_metadata)
             .to_lazy();

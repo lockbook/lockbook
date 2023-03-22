@@ -1,17 +1,12 @@
 use std::ffi::{CStr, CString};
 use std::os::raw::c_char;
 
-use lockbook_shared::file::ShareMode;
 use serde::Serialize;
 use serde_json::json;
-use uuid::Uuid;
 
-use lockbook_shared::file_metadata::FileType;
-use lockbook_shared::path_ops::{filter_from_str, Filter};
+use lockbook_core::{Config, FileType, ShareMode, SupportedImageFormats, Uuid};
 
-use crate::external_interface::json_interface::translate;
-use crate::external_interface::static_state;
-use crate::{get_all_error_variants, Config, SupportedImageFormats};
+use crate::{get_all_error_variants, json_interface::translate, static_state};
 
 fn c_string(value: String) -> *const c_char {
     CString::new(value)
@@ -48,10 +43,6 @@ unsafe fn share_mode_from_ptr(s: *const c_char) -> ShareMode {
     str_from_ptr(s)
         .parse()
         .expect("Could not String -> ShareMode")
-}
-
-unsafe fn filter_from_ptr(s: *const c_char) -> Option<Filter> {
-    filter_from_str(&str_from_ptr(s)).expect("Could not String -> Option<Filter>")
 }
 
 #[no_mangle]
@@ -313,17 +304,6 @@ pub unsafe extern "C" fn export_drawing(id: *const c_char) -> *const c_char {
 ///
 /// Be sure to call `release_pointer` on the result of this function to free the data.
 #[no_mangle]
-pub unsafe extern "C" fn list_paths(filter: *const c_char) -> *const c_char {
-    c_string(match static_state::get() {
-        Ok(core) => translate(core.list_paths(filter_from_ptr(filter))),
-        e => translate(e.map(|_| ())),
-    })
-}
-
-/// # Safety
-///
-/// Be sure to call `release_pointer` on the result of this function to free the data.
-#[no_mangle]
 pub unsafe extern "C" fn rename_file(id: *const c_char, new_name: *const c_char) -> *const c_char {
     c_string(match static_state::get() {
         Ok(core) => translate(core.rename_file(uuid_from_ptr(id), &str_from_ptr(new_name))),
@@ -507,27 +487,6 @@ pub unsafe extern "C" fn delete_pending_share(id: *const c_char) -> *const c_cha
     })
 }
 
-/// # Safety
-///
-/// Be sure to call `release_pointer` on the result of this function to free the data.
-#[no_mangle]
-pub unsafe extern "C" fn validate() -> *const c_char {
-    c_string(match static_state::get() {
-        Ok(core) => translate(
-            // Map any warnings to Strings as well as any errors using Debug impl text.
-            core.validate()
-                .map(|warnings| {
-                    warnings
-                        .into_iter()
-                        .map(|w| w.to_string())
-                        .collect::<Vec<String>>()
-                })
-                .map_err(|err| err.to_string()),
-        ),
-        e => translate(e.map(|_| ())),
-    })
-}
-
 // FOR INTEGRATION TESTS ONLY
 /// # Safety
 ///
@@ -545,7 +504,7 @@ mod tests {
             let ffi_val = std::ffi::CStr::from_ptr(super::default_api_location())
                 .to_str()
                 .expect("Could not C String -> Rust str");
-            assert_eq!(crate::DEFAULT_API_LOCATION, ffi_val)
+            assert_eq!(lockbook_core::DEFAULT_API_LOCATION, ffi_val)
         }
     }
 }

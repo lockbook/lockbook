@@ -21,12 +21,12 @@ where
 
 #[cfg(test)]
 mod unit_tests {
-    use crate::external_interface::json_interface::translate;
-    use crate::UnexpectedError;
+    use crate::json_interface::translate;
+    use lockbook_core::UnexpectedError;
 
     #[test]
     fn sanity_check() {
-        let a: Result<(), UnexpectedError> = Err(UnexpectedError("test".to_string()));
+        let a: Result<(), UnexpectedError> = Err(UnexpectedError::new("test".to_string()));
         println!("{}", translate(a));
     }
 }

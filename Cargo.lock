@@ -102,9 +102,8 @@ checksum = "aae1277d39aeec15cb388266ecc24b11c80469deae6067e17a1a7aa9e5c1f234"
 
 [[package]]
 name = "admin"
-version = "0.5.11"
+version = "0.7.1"
 dependencies = [
- "backtrace",
  "dialoguer",
  "lockbook-core",
  "structopt",
@@ -372,27 +371,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "async-stream"
-version = "0.3.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dad5c83079eae9969be7fadefe640a1c566901f05ff91ab221de4b6f68d9507e"
-dependencies = [
- "async-stream-impl",
- "futures-core",
-]
-
-[[package]]
-name = "async-stream-impl"
-version = "0.3.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "10f203db73a71dfa2fb6dd22763990fa26f3d2625a6da2da900d23b87d26be27"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn",
-]
-
-[[package]]
 name = "async-stripe"
 version = "0.15.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -432,12 +410,6 @@ dependencies = [
  "quote",
  "syn",
 ]
-
-[[package]]
-name = "atomic-counter"
-version = "1.0.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "62f447d68cfa5a9ab0c1c862a703da2a65b5ed1b7ce1153c9eb0169506d56019"
 
 [[package]]
 name = "atomic_refcell"
@@ -987,23 +959,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "core_external_interface"
+version = "0.1.0"
+dependencies = [
+ "basic-human-duration",
+ "chrono",
+ "crossbeam",
+ "jni 0.13.1",
+ "lazy_static",
+ "lockbook-core",
+ "serde",
+ "serde_json",
+ "strum",
+ "strum_macros",
+ "tracing",
+]
+
+[[package]]
 name = "cpufeatures"
 version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "59a6001667ab124aebae2a495118e11d30984c3a653e99d86d58971708cf5e4b"
 dependencies = [
  "libc",
-]
-
-[[package]]
-name = "cpuprofiler"
-version = "0.0.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "43f8479dbcfd2bbaa0c0c26779b913052b375981cdf533091f2127ea3d42e52b"
-dependencies = [
- "error-chain",
- "lazy_static",
- "pkg-config",
 ]
 
 [[package]]
@@ -1330,9 +1308,9 @@ checksum = "23d8666cb01533c39dde32bcbab8e227b4ed6679b2c925eba05feabea39508fb"
 
 [[package]]
 name = "db-rs"
-version = "0.1.12"
+version = "0.1.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5239c72f22f4cd487e0377aec31790b306675df565c9ffe69b26d7c4b7e81bc8"
+checksum = "5e7f7674d001d89d9116bf3664fde5809f24ede5deee558dcbc543f79fa27640"
 dependencies = [
  "bincode",
  "serde",
@@ -1340,9 +1318,9 @@ dependencies = [
 
 [[package]]
 name = "db-rs-derive"
-version = "0.1.12"
+version = "0.1.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b6649b5ac0aef99da13990d743c48e87ad51bddef98d3fff0a826f4e91085d6f"
+checksum = "d2920803c011b4a6036738ee8d87f9ac589687d7f1e6aeab70feb533f912df74"
 dependencies = [
  "db-rs",
  "quote",
@@ -1580,14 +1558,16 @@ dependencies = [
 
 [[package]]
 name = "egui_editor"
-version = "0.5.11"
+version = "0.7.1"
 dependencies = [
  "eframe",
  "egui",
  "egui_wgpu_backend",
+ "image",
  "libc",
  "pollster",
  "pulldown-cmark",
+ "reqwest",
  "unicode-segmentation",
 ]
 
@@ -1743,7 +1723,6 @@ version = "0.12.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2d2f06b9cac1506ece98fe3231e3cc9c4410ec3d5b1f24ae1c8946f0742cdefc"
 dependencies = [
- "backtrace",
  "version_check",
 ]
 
@@ -2729,18 +2708,6 @@ dependencies = [
 
 [[package]]
 name = "indicatif"
-version = "0.16.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2d207dc617c7a380ab07ff572a6e52fa202a2a8f355860ac9c38e23f8196be1b"
-dependencies = [
- "console",
- "lazy_static",
- "number_prefix",
- "regex",
-]
-
-[[package]]
-name = "indicatif"
 version = "0.17.0-rc.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4017d0ce94b8e91e29d2c78ed891e57e5ec3dc4371820a9d96abab4af09eb8ad"
@@ -3090,7 +3057,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook-cli"
-version = "0.5.11"
+version = "0.7.1"
 dependencies = [
  "atty",
  "clap 4.1.4",
@@ -3100,26 +3067,21 @@ dependencies = [
 
 [[package]]
 name = "lockbook-core"
-version = "0.5.11"
+version = "0.7.1"
 dependencies = [
- "backtrace",
  "base64",
  "basic-human-duration",
  "bincode",
  "chrono",
- "cpuprofiler",
  "criterion",
  "crossbeam",
  "db-rs",
  "db-rs-derive",
  "diffy",
- "fuzzy-matcher",
  "hmdb",
  "image",
- "indicatif 0.17.0-rc.11",
+ "indicatif",
  "itertools",
- "jni 0.13.1",
- "lazy_static",
  "libsecp256k1",
  "lockbook-server",
  "lockbook-shared",
@@ -3130,8 +3092,6 @@ dependencies = [
  "reqwest",
  "serde",
  "serde_json",
- "strum",
- "strum_macros",
  "sublime_fuzzy",
  "tempfile",
  "test_utils",
@@ -3145,10 +3105,9 @@ dependencies = [
 
 [[package]]
 name = "lockbook-dev"
-version = "0.5.11"
+version = "0.7.1"
 dependencies = [
  "dotenv",
- "rand 0.8.5",
  "reqwest",
  "serde",
  "serde_json",
@@ -3157,7 +3116,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook-egui"
-version = "0.5.11"
+version = "0.7.1"
 dependencies = [
  "dark-light",
  "eframe",
@@ -3173,23 +3132,22 @@ dependencies = [
 
 [[package]]
 name = "lockbook-server"
-version = "0.5.11"
+version = "0.7.1"
 dependencies = [
  "async-stripe",
- "atomic-counter",
  "base64",
  "bincode",
  "chrono",
  "constant_time_eq 0.2.4",
+ "db-rs",
+ "db-rs-derive",
  "futures",
  "google-androidpublisher3",
  "hmdb",
- "indicatif 0.16.2",
  "itertools",
  "jsonwebtoken",
  "lazy_static",
  "libsecp256k1",
- "lockbook-core",
  "lockbook-shared",
  "num_cpus",
  "pagerduty-rs",
@@ -3201,7 +3159,6 @@ dependencies = [
  "sha2 0.10.2",
  "shadow-rs",
  "tokio",
- "tokio-test",
  "tracing",
  "tracing-appender",
  "tracing-subscriber",
@@ -3212,7 +3169,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook-shared"
-version = "0.5.11"
+version = "0.7.1"
 dependencies = [
  "aead",
  "aes-gcm",
@@ -4412,7 +4369,7 @@ checksum = "a3f87b73ce11b1619a3c6332f45341e0047173771e8b8b73f87bfeefb7b56244"
 
 [[package]]
 name = "releaser"
-version = "0.5.11"
+version = "0.7.1"
 dependencies = [
  "fs_extra",
  "gh_release",
@@ -5220,7 +5177,7 @@ dependencies = [
 
 [[package]]
 name = "test_utils"
-version = "0.5.11"
+version = "0.7.1"
 dependencies = [
  "bincode",
  "chrono",
@@ -5442,19 +5399,6 @@ dependencies = [
  "futures-core",
  "pin-project-lite",
  "tokio",
-]
-
-[[package]]
-name = "tokio-test"
-version = "0.4.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "53474327ae5e166530d17f2d956afcb4f8a004de581b3cae10f12006bc8163e3"
-dependencies = [
- "async-stream",
- "bytes",
- "futures-core",
- "tokio",
- "tokio-stream",
 ]
 
 [[package]]
@@ -6525,7 +6469,7 @@ dependencies = [
 
 [[package]]
 name = "winstaller"
-version = "0.5.11"
+version = "0.7.1"
 dependencies = [
  "eframe",
  "egui_extras",

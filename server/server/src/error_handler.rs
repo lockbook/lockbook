@@ -7,11 +7,13 @@ use crate::{
     ClientError, GetUsageHelperError, ServerError, SimplifiedStripeError, StripeWebhookError,
 };
 use base64::DecodeError;
+use db_rs::DbError;
 use jsonwebtoken::errors::ErrorKind;
 use lockbook_shared::api::*;
-use lockbook_shared::SharedError;
+use lockbook_shared::{SharedError, SharedErrorKind};
 use std::fmt::Debug;
 use std::io::Error;
+use std::sync::PoisonError;
 
 impl<T: Debug> From<Error> for ServerError<T> {
     fn from(err: Error) -> Self {
@@ -291,17 +293,17 @@ impl From<SharedError> for ServerError<UpsertError> {
     fn from(err: SharedError) -> Self {
         // panic!("{err}");
         use lockbook_shared::api::UpsertError::*;
-        match err {
-            SharedError::OldVersionIncorrect => ClientError(OldVersionIncorrect),
-            SharedError::OldFileNotFound => ClientError(OldFileNotFound),
-            SharedError::OldVersionRequired => ClientError(OldVersionRequired),
-            SharedError::NotPermissioned => ClientError(NotPermissioned),
-            SharedError::DiffMalformed => ClientError(DiffMalformed),
-            SharedError::HmacModificationInvalid => ClientError(HmacModificationInvalid),
-            SharedError::DeletedFileUpdated(_) => ClientError(DeletedFileUpdated),
-            SharedError::RootModificationInvalid => ClientError(RootModificationInvalid),
-            SharedError::ValidationFailure(fail) => ClientError(Validation(fail)),
-            SharedError::Unexpected(msg) => InternalError(String::from(msg)),
+        match err.kind {
+            SharedErrorKind::OldVersionIncorrect => ClientError(OldVersionIncorrect),
+            SharedErrorKind::OldFileNotFound => ClientError(OldFileNotFound),
+            SharedErrorKind::OldVersionRequired => ClientError(OldVersionRequired),
+            SharedErrorKind::InsufficientPermission => ClientError(NotPermissioned),
+            SharedErrorKind::DiffMalformed => ClientError(DiffMalformed),
+            SharedErrorKind::HmacModificationInvalid => ClientError(HmacModificationInvalid),
+            SharedErrorKind::DeletedFileUpdated(_) => ClientError(DeletedFileUpdated),
+            SharedErrorKind::RootModificationInvalid => ClientError(RootModificationInvalid),
+            SharedErrorKind::ValidationFailure(fail) => ClientError(Validation(fail)),
+            SharedErrorKind::Unexpected(msg) => InternalError(String::from(msg)),
             _ => internal!("{:?}", err),
         }
     }
@@ -334,5 +336,17 @@ impl From<SharedError> for ServerError<GetFileIdsError> {
 impl From<SharedError> for ServerError<GetUpdatesError> {
     fn from(err: SharedError) -> Self {
         internal!("{:?}", err)
+    }
+}
+
+impl<T: Debug> From<DbError> for ServerError<T> {
+    fn from(value: DbError) -> Self {
+        internal!("db-rs error {:?}", value)
+    }
+}
+
+impl<T: Debug, G> From<PoisonError<G>> for ServerError<T> {
+    fn from(value: PoisonError<G>) -> Self {
+        internal!("mutex poisoned {:?}", value)
     }
 }

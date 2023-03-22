@@ -105,8 +105,7 @@ impl Ast {
             }
             let location = end - (modification + 1);
 
-            let maybe_newline = &raw[location.0..location.0 + 1];
-            if maybe_newline == "\n" {
+            if raw.is_char_boundary(location.0) && &raw[location.0..location.0 + 1] == "\n" {
                 modification += 1;
             } else {
                 break;

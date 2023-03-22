@@ -60,12 +60,12 @@ impl Editor {
                         }
                     },
                     Annotation::Rule => {
-                        let mut max = galley.ui_location.max;
+                        let mut max = galley.galley_location.max;
                         max.y -= 7.0;
 
-                        let mut min = galley.ui_location.max;
+                        let mut min = galley.galley_location.max;
                         min.y -= 7.0;
-                        min.x = galley.ui_location.min.x;
+                        min.x = galley.galley_location.min.x;
 
                         ui.painter().line_segment(
                             [min, max],
@@ -74,6 +74,17 @@ impl Editor {
                     }
                     _ => {}
                 }
+            }
+
+            // draw images
+            if let Some(image) = &galley.image {
+                let uv = Rect { min: Pos2 { x: 0.0, y: 0.0 }, max: Pos2 { x: 1.0, y: 1.0 } };
+                ui.painter().image(
+                    image.texture,
+                    image.image_bounds(&self.appearance, ui),
+                    uv,
+                    Color32::WHITE,
+                );
             }
 
             // draw text
@@ -92,7 +103,7 @@ impl Editor {
             .rect(padding_rect, Rounding::none(), Color32::TRANSPARENT, Stroke::NONE);
     }
 
-    pub fn draw_cursor(&mut self, ui: &mut Ui) {
+    pub fn draw_cursor(&self, ui: &mut Ui) {
         ui.painter().rect(
             self.buffer
                 .current

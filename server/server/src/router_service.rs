@@ -7,7 +7,7 @@ use crate::{handle_version_header, router_service, verify_auth, ServerError, Ser
 use lazy_static::lazy_static;
 use lockbook_shared::api::*;
 use lockbook_shared::api::{ErrorWrapper, Request, RequestWrapper};
-use lockbook_shared::SharedError;
+use lockbook_shared::SharedErrorKind;
 use prometheus::{
     register_counter_vec, register_histogram_vec, CounterVec, HistogramVec, TextEncoder,
 };
@@ -77,8 +77,13 @@ macro_rules! core_req {
 
                     debug!("request verified successfully");
                     let req_pk = request.signed_request.public_key;
-                    let username = match state.index_db.accounts.get(&Owner(req_pk)) {
-                        Ok(Some(account)) => account.username,
+                    let username = match state.index_db.lock().map(|db| {
+                        db.accounts
+                            .data()
+                            .get(&Owner(req_pk))
+                            .map(|account| account.username.clone())
+                    }) {
+                        Ok(Some(username)) => username,
                         Ok(None) => "~unknown~".to_string(),
                         Err(error) => {
                             error!(?error, "hmdb error");
@@ -352,8 +357,8 @@ where
         ErrorWrapper::<Req::Error>::BadRequest
     })?;
 
-    verify_auth(server_state, &request).map_err(|err| match err {
-        SharedError::SignatureExpired(_) | SharedError::SignatureInTheFuture(_) => {
+    verify_auth(server_state, &request).map_err(|err| match err.kind {
+        SharedErrorKind::SignatureExpired(_) | SharedErrorKind::SignatureInTheFuture(_) => {
             warn!("expired auth");
             ErrorWrapper::<Req::Error>::ExpiredAuth
         }

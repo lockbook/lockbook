@@ -1,11 +1,12 @@
 use crate::appearance::Appearance;
 use crate::buffer::SubBuffer;
+use crate::images::ImageCache;
 use crate::layouts::{Annotation, LayoutJobInfo, Layouts};
 use crate::offset_types::{DocByteOffset, DocCharOffset, RelByteOffset};
 use crate::unicode_segs::UnicodeSegs;
 use egui::epaint::text::cursor::Cursor;
 use egui::text::CCursor;
-use egui::{Galley, Pos2, Rect, Sense, TextFormat, Ui, Vec2};
+use egui::{Galley, Pos2, Rect, Sense, TextFormat, TextureId, Ui, Vec2};
 use std::ops::{Index, Range};
 use std::sync::Arc;
 
@@ -23,17 +24,25 @@ pub struct GalleyInfo {
     pub head_size: RelByteOffset,
     pub tail_size: RelByteOffset,
     pub text_location: Pos2,
-    pub ui_location: Rect,
+    pub galley_location: Rect,
+    pub image: Option<ImageInfo>,
 
     pub annotation_text_format: TextFormat,
 }
 
-pub fn calc(layouts: &Layouts, appearance: &Appearance, ui: &mut Ui) -> Galleys {
+pub struct ImageInfo {
+    pub location: Rect,
+    pub texture: TextureId,
+}
+
+pub fn calc(
+    layouts: &Layouts, images: &ImageCache, appearance: &Appearance, ui: &mut Ui,
+) -> Galleys {
     Galleys {
         galleys: layouts
             .layouts
             .iter()
-            .map(|layout| GalleyInfo::from(layout.clone(), appearance, ui))
+            .map(|layout| GalleyInfo::from(layout.clone(), images, appearance, ui))
             .collect(),
     }
 }
@@ -105,18 +114,42 @@ impl Galleys {
 }
 
 impl GalleyInfo {
-    pub fn from(mut job: LayoutJobInfo, appearance: &Appearance, ui: &mut Ui) -> Self {
+    pub fn from(
+        mut job: LayoutJobInfo, images: &ImageCache, appearance: &Appearance, ui: &mut Ui,
+    ) -> Self {
         let offset = Self::annotation_offset(&job.annotation, appearance);
         job.job.wrap.max_width = ui.available_width() - offset.x;
 
+        // allocate space for image
+        let image = if let Some(Annotation::Image(_, url, _)) = &job.annotation {
+            if let Some(&texture) = images.map.get(url) {
+                let [image_width, image_height] =
+                    ui.ctx().tex_manager().read().meta(texture).unwrap().size;
+                let [image_width, image_height] = [image_width as f32, image_height as f32];
+                let width =
+                    f32::min(ui.available_width() - appearance.image_padding() * 2.0, image_width);
+                let height = image_height * width / image_width + appearance.image_padding() * 2.0;
+                let (location, _) = ui.allocate_exact_size(
+                    Vec2::new(ui.available_width(), height),
+                    Sense::click_and_drag(),
+                );
+                Some(ImageInfo { location, texture })
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
         let galley = ui.ctx().fonts().layout_job(job.job);
-        // todo: do this during draw
-        let (ui_location, _) = ui.allocate_exact_size(
+
+        // allocate space for text and non-image annotations
+        let (galley_location, _) = ui.allocate_exact_size(
             Vec2::new(ui.available_width(), galley.size().y + offset.y),
             Sense::click_and_drag(),
         );
 
-        let text_location = Pos2::new(offset.x + ui_location.min.x, ui_location.min.y);
+        let text_location = Pos2::new(offset.x + galley_location.min.x, galley_location.min.y);
 
         Self {
             range: job.range,
@@ -125,7 +158,8 @@ impl GalleyInfo {
             head_size: job.head_size,
             tail_size: job.tail_size,
             text_location,
-            ui_location,
+            galley_location,
+            image,
             annotation_text_format: job.annotation_text_format,
         }
     }
@@ -210,5 +244,26 @@ impl GalleyInfo {
 
     pub fn size(&self) -> RelByteOffset {
         self.range.end - self.range.start
+    }
+}
+
+impl ImageInfo {
+    pub fn image_bounds(&self, appearance: &Appearance, ui: &Ui) -> Rect {
+        let [image_width, _] = ui
+            .ctx()
+            .tex_manager()
+            .read()
+            .meta(self.texture)
+            .unwrap()
+            .size;
+        let width =
+            f32::min(ui.available_width() - appearance.image_padding() * 2.0, image_width as f32);
+        let mut result = self.location;
+        let center_x = ui.available_width() / 2.0;
+        result.min.x = center_x - width / 2.0;
+        result.max.x = center_x + width / 2.0;
+        result.min.y += appearance.image_padding();
+        result.max.y -= appearance.image_padding();
+        result
     }
 }

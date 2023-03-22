@@ -93,6 +93,7 @@ containers/devtest.env
 server/server/qa-ca-certificate.crt
 clients/android/core/src/main/jniLibs/
 liblockbook_core.a
+liblockbook_core_external_interface.a
 lockbook_core.h
 *.log
 lockbook_core.dll

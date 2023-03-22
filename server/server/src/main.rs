@@ -1,6 +1,8 @@
 #![recursion_limit = "256"]
 
-use hmdb::log::{LogCompacter, Reader};
+use db_rs::compacter::BackgroundCompacter;
+use db_rs::{CancelSig, Db};
+use hmdb::log::Reader;
 use hmdb::transaction::Transaction;
 use lockbook_server_lib::billing::google_play_client::get_google_play_client;
 use lockbook_server_lib::config::Config;
@@ -8,9 +10,9 @@ use lockbook_server_lib::router_service::{
     app_store_notification_webhooks, build_info, core_routes, get_metrics,
     google_play_notification_webhooks, stripe_webhooks,
 };
-use lockbook_server_lib::schema::{v2, v3};
+use lockbook_server_lib::schema::{v3, ServerV4};
 use lockbook_server_lib::*;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use tracing::*;
 use warp::Filter;
 
@@ -22,28 +24,29 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let config = cfg.clone();
     let stripe_client = stripe::Client::new(&cfg.billing.stripe.stripe_secret);
     let google_play_client = get_google_play_client(&cfg.billing.google.service_account_key).await;
-    let index_db = v3::Server::init(&cfg.index_db.db_location).expect("Failed to load index_db");
+    let mut index_db = ServerV4::init(db_rs::Config::in_folder(&cfg.index_db.db_location))
+        .expect("Failed to load index_db");
     let app_store_client = reqwest::Client::new();
 
-    if index_db.accounts.get_all().unwrap().is_empty() {
+    if index_db.accounts.data().is_empty() {
         info!("starting migration");
         let source_index_db =
-            v2::Server::init(&cfg.index_db.db_location).expect("Failed to load index_db");
+            v3::Server::init(&cfg.index_db.db_location).expect("Failed to load index_db");
 
         source_index_db
-            .transaction(|source_tx| index_db.transaction(|tx| v3::migrate(source_tx, tx)))
-            .expect("Failed to migrate index_db")
-            .expect("Failed to migrate index_db");
+            .transaction(|source_tx| ServerV4::migrate(source_tx, &mut index_db))
+            .unwrap();
+
         info!("migration complete");
     }
 
-    if index_db.incomplete_write() {
-        error!("hmdb indicated that the last write to the log was unsuccessful")
+    if index_db.incomplete_write().unwrap() {
+        error!("dbrs indicated that the last write to the log was unsuccessful")
     }
 
-    index_db
-        .start_background_compacter(cfg.index_db.time_between_compacts)
-        .unwrap();
+    let index_db = Arc::new(Mutex::new(index_db));
+
+    index_db.begin_compacter(cfg.index_db.time_between_compacts, CancelSig::default());
 
     let server_state = Arc::new(ServerState {
         config,
