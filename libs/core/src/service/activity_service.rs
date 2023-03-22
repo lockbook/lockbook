@@ -1,15 +1,14 @@
-use crate::CoreResult;
 use crate::CoreState;
+use crate::LbResult;
 use crate::Requester;
 use chrono::Utc;
-use itertools::Itertools;
 use lockbook_shared::document_repo::DocActivityMetrics;
 use lockbook_shared::document_repo::StatisticValueRange;
 use lockbook_shared::document_repo::Stats;
 use uuid::Uuid;
 
 impl<Client: Requester> CoreState<Client> {
-    pub(crate) fn suggested_docs(&mut self) -> CoreResult<Vec<Uuid>> {
+    pub(crate) fn suggested_docs(&mut self) -> LbResult<Vec<Uuid>> {
         let mut scores: Vec<(Uuid, DocActivityMetrics)> = vec![];
 
         self.db
@@ -24,7 +23,7 @@ impl<Client: Requester> CoreState<Client> {
 
         scores.sort_by(|a, b| DocActivityMetrics::rank(&a.1).cmp(&DocActivityMetrics::rank(&b.1)));
 
-        Ok(scores.into_iter().map(|f| f.0).collect_vec())
+        Ok(scores.into_iter().map(|f| f.0).collect())
     }
     pub(crate) fn is_insertion_capped(&self, id: Uuid) -> bool {
         const RATE_LIMIT_MILLIS: i64 = 60 * 1000;

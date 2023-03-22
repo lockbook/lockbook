@@ -1,7 +1,7 @@
 use crate::core_config::Config;
-use crate::crypto::*;
 use crate::file_metadata::DocumentHmac;
-use crate::{SharedError, SharedResult};
+use crate::SharedResult;
+use crate::{crypto::*, SharedErrorKind};
 use serde::{Deserialize, Serialize};
 use std::cmp::Ordering;
 use std::collections::HashSet;
