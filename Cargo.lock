@@ -1308,9 +1308,9 @@ checksum = "23d8666cb01533c39dde32bcbab8e227b4ed6679b2c925eba05feabea39508fb"
 
 [[package]]
 name = "db-rs"
-version = "0.1.16"
+version = "0.1.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5e7f7674d001d89d9116bf3664fde5809f24ede5deee558dcbc543f79fa27640"
+checksum = "6d0b3239c3fcd5fd1d91e686c089a99be638a72709a21f83c370563b544384f0"
 dependencies = [
  "bincode",
  "serde",
@@ -1318,9 +1318,9 @@ dependencies = [
 
 [[package]]
 name = "db-rs-derive"
-version = "0.1.16"
+version = "0.1.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d2920803c011b4a6036738ee8d87f9ac589687d7f1e6aeab70feb533f912df74"
+checksum = "54096b00595a6a5213cc5a2f881a3a16be7346f18aa76ee6d08af3a7cc12e343"
 dependencies = [
  "db-rs",
  "quote",
