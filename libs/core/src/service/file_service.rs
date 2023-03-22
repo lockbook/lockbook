@@ -55,7 +55,12 @@ impl<Client: Requester> CoreState<Client> {
             .data()
             .ok_or(CoreError::AccountNonexistent)?;
 
-        tree.move_file(id, new_parent, account)?;
+        let id = match tree.link(id)? {
+            None => *id,
+            Some(target) => target,
+        };
+        tree.move_file(&id, new_parent, account)?;
+
         Ok(())
     }
 
