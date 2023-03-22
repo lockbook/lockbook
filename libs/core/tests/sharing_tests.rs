@@ -1058,7 +1058,7 @@ fn create_file_duplicate_link() {
 
 #[test]
 fn create_file_duplicate_link_deleted() {
-    let cores: Vec<Core> = vec![test_core_with_account(), test_core_with_account()];
+    let cores = vec![test_core_with_account(), test_core_with_account()];
     let accounts = cores
         .iter()
         .map(|core| core.get_account().unwrap())
