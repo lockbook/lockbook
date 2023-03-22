@@ -1,4 +1,4 @@
-use db_rs::{Db, LookupTable, Single};
+use db_rs::{Db, LookupList, LookupTable, Single};
 use db_rs_derive::Schema;
 use hmdb::log::Reader;
 
@@ -17,7 +17,7 @@ pub mod schema_v2;
 
 pub type CoreDb = CoreV3;
 
-#[derive(Schema, Debug)]
+#[derive(Schema)]
 pub struct CoreV3 {
     pub account: Single<Account>,
     pub last_synced: Single<i64>,
@@ -25,7 +25,7 @@ pub struct CoreV3 {
     pub local_metadata: LookupTable<Uuid, SignedFile>,
     pub base_metadata: LookupTable<Uuid, SignedFile>,
     pub pub_key_lookup: LookupTable<Owner, String>,
-    pub doc_events: LookupTable<Uuid, Vec<DocEvents>>,
+    pub doc_events: LookupList<Uuid, DocEvents>,
 }
 
 impl CoreV3 {

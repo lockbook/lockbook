@@ -1,4 +1,3 @@
-use crate::CoreError;
 use hmdb::transaction::Transaction;
 use lockbook_shared::account::Account;
 use lockbook_shared::document_repo::DocEvents;

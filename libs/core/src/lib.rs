@@ -250,15 +250,7 @@ impl<Client: Requester> CoreLib<Client> {
 
     #[instrument(level = "debug", skip(self), err(Debug))]
     pub fn get_local_changes(&self) -> Result<Vec<Uuid>, UnexpectedError> {
-        Ok(self.in_tx(|s| {
-            Ok(s.db
-                .local_metadata
-                .data()
-                .keys()
-                .into_iter()
-                .copied()
-                .collect_vec())
-        })?)
+        Ok(self.in_tx(|s| Ok(s.db.local_metadata.data().keys().copied().collect_vec()))?)
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
@@ -294,7 +286,7 @@ impl<Client: Requester> CoreLib<Client> {
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
-    pub fn get_most_active_documents(&self) -> Result<Vec<Uuid>, Error<GetUsageError>> {
+    pub fn suggested_docs(&self) -> Result<Vec<Uuid>, Error<GetUsageError>> {
         Ok(self.in_tx(|s| s.suggested_docs())?)
     }
     #[instrument(level = "debug", skip(self), err(Debug))]

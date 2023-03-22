@@ -12,7 +12,7 @@ use std::path::Path;
 use tracing::*;
 use uuid::Uuid;
 
-#[derive(Debug, Clone, Serialize, Deserialize, Ord, PartialEq, PartialOrd, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, Ord, PartialEq, PartialOrd, Eq, Hash)]
 pub enum DocEvents {
     Read(i64),
     Write(i64),
