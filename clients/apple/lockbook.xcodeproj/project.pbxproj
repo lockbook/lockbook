@@ -13,6 +13,7 @@
 		4709DC39296609F100426106 /* PendingSharesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4709DC37296609F100426106 /* PendingSharesView.swift */; };
 		4709DC3E2966260500426106 /* AcceptShareSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4709DC3D2966260500426106 /* AcceptShareSheet.swift */; };
 		4709DC3F2966260500426106 /* AcceptShareSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4709DC3D2966260500426106 /* AcceptShareSheet.swift */; };
+		473A3DCE29AC354B0017BC6A /* FilePathBreadcrumb.swift in Sources */ = {isa = PBXBuildFile; fileRef = 473A3DCD29AC354B0017BC6A /* FilePathBreadcrumb.swift */; };
 		477CC4902967A53C00714456 /* ShareFileSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 477CC48F2967A53C00714456 /* ShareFileSheet.swift */; };
 		477CC4912967A53C00714456 /* ShareFileSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 477CC48F2967A53C00714456 /* ShareFileSheet.swift */; };
 		47A45FBB2969047B00573044 /* ShareService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47A45FBA2969047B00573044 /* ShareService.swift */; };
@@ -137,6 +138,7 @@
 		1F7E4FBE2521297D0045F606 /* Colors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Colors.swift; sourceTree = "<group>"; };
 		4709DC37296609F100426106 /* PendingSharesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PendingSharesView.swift; sourceTree = "<group>"; };
 		4709DC3D2966260500426106 /* AcceptShareSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AcceptShareSheet.swift; sourceTree = "<group>"; };
+		473A3DCD29AC354B0017BC6A /* FilePathBreadcrumb.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilePathBreadcrumb.swift; sourceTree = "<group>"; };
 		4741C7902939C9220073F24F /* Products.storekit */ = {isa = PBXFileReference; lastKnownFileType = text; path = Products.storekit; sourceTree = "<group>"; };
 		477CC48F2967A53C00714456 /* ShareFileSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareFileSheet.swift; sourceTree = "<group>"; };
 		47A45FBA2969047B00573044 /* ShareService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareService.swift; sourceTree = "<group>"; };
@@ -432,6 +434,7 @@
 				8715F92B271641CF0051689E /* Scanner.swift */,
 				B249B9E4282AC03A004F5300 /* MoveSheet.swift */,
 				B249B9E6282AF4F4004F5300 /* FileTreeView.swift */,
+				473A3DCD29AC354B0017BC6A /* FilePathBreadcrumb.swift */,
 			);
 			path = iOS;
 			sourceTree = "<group>";
@@ -663,6 +666,7 @@
 				8741E8E425AAA524005B7B01 /* BottomBar.swift in Sources */,
 				8737B2BE25D83EE600C93E09 /* DrawingView.swift in Sources */,
 				B249B9E8282AF6B1004F5300 /* OutlineBranch.swift in Sources */,
+				473A3DCE29AC354B0017BC6A /* FilePathBreadcrumb.swift in Sources */,
 				EA4559BE25169F7D003AD80A /* CodeScannerView.swift in Sources */,
 				EAEDCD0B2516FC1C00EBE313 /* BookView.swift in Sources */,
 				B227B6B327C156CC004CDF87 /* Parser.swift in Sources */,

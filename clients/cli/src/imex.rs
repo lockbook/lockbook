@@ -31,8 +31,8 @@ pub fn export(core: &lb::Core, target: &str, maybe_dest: Option<PathBuf>) -> Res
     println!("exporting '{}'...", target_file.name);
     fs::create_dir(&dest)?;
 
-    core.export_file(target_file.id, dest.clone(), false, None)
-        .map_err(|err| (err, dest).into())
+    core.export_file(target_file.id, dest, false, None)?;
+    Ok(())
 }
 
 pub fn copy(core: &lb::Core, disk_files: &[PathBuf], dest: &str) -> Result<(), CliError> {
@@ -42,12 +42,6 @@ pub fn copy(core: &lb::Core, disk_files: &[PathBuf], dest: &str) -> Result<(), C
     let nth_file = Cell::new(0);
     let update_status = move |status: ImportStatus| match status {
         ImportStatus::CalculatedTotal(n_files) => total.set(n_files),
-        ImportStatus::Error(disk_path, err) => match err {
-            lb::CoreError::DiskPathInvalid => {
-                eprintln!("invalid disk path '{}'", disk_path.display())
-            }
-            _ => eprintln!("unexpected error: {:#?}", err),
-        },
         ImportStatus::StartingItem(disk_path) => {
             nth_file.set(nth_file.get() + 1);
             print!("({}/{}) importing: {}... ", nth_file.get(), total.get(), disk_path);
@@ -56,6 +50,6 @@ pub fn copy(core: &lb::Core, disk_files: &[PathBuf], dest: &str) -> Result<(), C
         ImportStatus::FinishedItem(_meta) => println!("done."),
     };
 
-    core.import_files(disk_files, dest_id, &update_status)
-        .map_err(|err| (err, dest_id).into())
+    core.import_files(disk_files, dest_id, &update_status)?;
+    Ok(())
 }

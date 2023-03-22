@@ -1,4 +1,4 @@
-use egui::color::Hsva;
+use egui::ecolor::Hsva;
 use egui::{Color32, Visuals};
 
 // Apple colors: https://developer.apple.com/design/human-interface-guidelines/foundations/color/
@@ -67,6 +67,7 @@ pub struct Appearance {
     pub checkbox_rounding: Option<f32>,
     pub checkbox_slash_width: Option<f32>,
     pub rule_height: Option<f32>,
+    pub image_padding: Option<f32>,
 }
 
 impl Appearance {
@@ -148,6 +149,10 @@ impl Appearance {
 
     pub fn rule_height(&self) -> f32 {
         self.rule_height.unwrap_or(10.0)
+    }
+
+    pub fn image_padding(&self) -> f32 {
+        self.image_padding.unwrap_or(12.0)
     }
 }
 

@@ -26,7 +26,7 @@ impl Drawing {
 
     fn draw_canvas(&mut self, ui: &mut egui::Ui) {
         egui::Frame::canvas(ui.style())
-            .stroke(egui::Stroke::none())
+            .stroke(egui::Stroke::NONE)
             .show(ui, |ui| {
                 let (response, painter) =
                     ui.allocate_painter(ui.available_size_before_wrap(), egui::Sense::drag());

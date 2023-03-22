@@ -1,7 +1,7 @@
 use crate::file_like::FileLike;
 use crate::lazy::LazyTree;
 use crate::staged::StagedTree;
-use crate::{SharedError, SharedResult};
+use crate::{SharedErrorKind, SharedResult};
 use std::collections::HashSet;
 use std::fmt::Debug;
 use uuid::Uuid;
@@ -14,7 +14,8 @@ pub trait TreeLike: Sized {
     fn maybe_find(&self, id: &Uuid) -> Option<&Self::F>;
 
     fn find(&self, id: &Uuid) -> SharedResult<&Self::F> {
-        self.maybe_find(id).ok_or(SharedError::FileNonexistent)
+        self.maybe_find(id)
+            .ok_or_else(|| SharedErrorKind::FileNonexistent.into())
     }
 
     fn maybe_find_parent<F2: FileLike>(&self, file: &F2) -> Option<&Self::F> {
@@ -23,7 +24,7 @@ pub trait TreeLike: Sized {
 
     fn find_parent<F2: FileLike>(&self, file: &F2) -> SharedResult<&Self::F> {
         self.maybe_find_parent(file)
-            .ok_or(SharedError::FileParentNonexistent)
+            .ok_or_else(|| SharedErrorKind::FileParentNonexistent.into())
     }
 
     fn owned_ids(&self) -> HashSet<Uuid> {

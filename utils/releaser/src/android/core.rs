@@ -3,7 +3,7 @@ use std::fs;
 use std::process::Command;
 
 const MIN_NDK_VERSION: u32 = 22;
-const NDK_LIB_NAME: &str = "liblockbook_core.so";
+const NDK_LIB_NAME: &str = "liblockbook_core_external_interface.so";
 const JNI_LIB: &str = "clients/android/core/src/main/jniLibs";
 
 const ARCH64: &str = "aarch64-linux-android";
@@ -66,6 +66,6 @@ fn build_core_for_android_arch(platform: &str) {
             "build",
             "--release",
         ])
-        .current_dir("libs/core")
+        .current_dir("libs/core_external_interface")
         .assert_success();
 }

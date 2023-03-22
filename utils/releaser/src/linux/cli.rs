@@ -1,6 +1,7 @@
 use crate::utils::{core_version, lb_repo, CommandRunner};
 use crate::Github;
 use gh_release::ReleaseClient;
+use std::fs;
 use std::fs::{File, OpenOptions};
 use std::io::Write;
 use std::process::Command;
@@ -8,7 +9,14 @@ use std::process::Command;
 pub fn release(gh: &Github) {
     update_aur();
     update_snap();
+    build_x86();
     upload(gh);
+}
+
+pub fn build_x86() {
+    Command::new("cargo")
+        .args(["build", "-p", "lockbook-cli", "--release", "--target=x86_64-unknown-linux-gnu"])
+        .assert_success();
 }
 
 pub fn update_snap() {
@@ -44,20 +52,22 @@ apps:
     "#
     );
 
+    fs::create_dir_all("utils/dev/snap-packages/lockbook/snap").unwrap();
+
     let mut file = OpenOptions::new()
         .write(true)
-        .create(false)
+        .create(true)
         .truncate(true)
         .open("utils/dev/snap-packages/lockbook/snap/snapcraft.yaml")
         .unwrap();
     file.write_all(new_content.as_bytes()).unwrap();
 
     Command::new("snapcraft")
-        .current_dir("utils/dev/snap-packages/lockbook/snap")
+        .current_dir("utils/dev/snap-packages/lockbook/")
         .assert_success();
     Command::new("snapcraft")
         .args(["upload", "--release=stable", &snap_name])
-        .current_dir("utils/dev/snap-packages/lockbook/snap")
+        .current_dir("utils/dev/snap-packages/lockbook/")
         .assert_success();
 }
 
@@ -66,7 +76,7 @@ pub fn upload(gh: &Github) {
     let release = client
         .get_release_by_tag_name(&lb_repo(), &core_version())
         .unwrap();
-    let file = File::open("target/release/lockbook").unwrap();
+    let file = File::open("target/x86_64-unknown-linux-gnu/release/lockbook").unwrap();
     client
         .upload_release_asset(
             &lb_repo(),
@@ -94,7 +104,7 @@ pkgver={version}
 pkgrel=1
 arch=('x86_64' 'i686')
 url="https://github.com/lockbook/lockbook"
-pkgdesc="A secure, private, minimal, cross-platform document editor."
+pkgdesc="The private, polished note-taking platform."
 license=('BSD-3-Clause')
 makedepends=('rust' 'cargo' 'git')
 provides=('lockbook')
@@ -123,7 +133,7 @@ package_lockbook() {{
     let new_src_info_content = format!(
         r#"
 pkgbase = lockbook
-	pkgdesc = A secure, private, minimal, cross-platform document editor.
+	pkgdesc = The private, polished note-taking platform.
 	pkgver = {version}
 	pkgrel = 1
 	url = https://github.com/lockbook/lockbook
@@ -136,7 +146,7 @@ pkgbase = lockbook
 	makedepends = git
 	provides = lockbook
 	conflicts = lockbook
-	source = git+https://github.com/lockbook/lockbook.git
+	source = git+https://github.com/lockbook/lockbook.git#tag=v{version}
 	sha256sums = SKIP
 
 pkgname = lockbook

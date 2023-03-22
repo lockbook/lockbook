@@ -21,7 +21,7 @@ impl ProgressBar {
 
         if ui.is_rect_visible(rect) {
             let rounding = egui::Rounding::same(self.height / 2.0);
-            let stroke = egui::Stroke::none();
+            let stroke = egui::Stroke::NONE;
 
             // Background (the full line).
             ui.painter().add(epaint::RectShape {

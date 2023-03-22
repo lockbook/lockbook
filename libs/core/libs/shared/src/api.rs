@@ -561,6 +561,7 @@ pub struct AdminValidateServer {
     pub sharees_mapped_to_unshared_files: HashMap<Owner, HashSet<Uuid>>,
     pub sharees_mapped_to_nonexistent_files: HashMap<Owner, HashSet<Uuid>>,
     pub sharees_mapped_for_owned_files: HashMap<Owner, HashSet<Uuid>>,
+    pub sharees_mapped_for_deleted_files: HashMap<Owner, HashSet<Uuid>>,
     pub sharees_unmapped_to_shared_files: HashMap<Owner, HashSet<Uuid>>,
     pub sharees_unmapped: HashSet<Owner>,
     pub files_mapped_as_parent_to_non_children: HashMap<Uuid, HashSet<Uuid>>,
@@ -595,6 +596,7 @@ pub struct AdminListUsersRequest {
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub enum AccountFilter {
     Premium,
+    AppStorePremium,
     StripePremium,
     GooglePlayPremium,
 }
@@ -679,7 +681,7 @@ impl Request for AdminFileInfoRequest {
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
-pub enum AdminUpgradeToPremiumInfo {
+pub enum AdminSetUserTierInfo {
     Stripe {
         customer_id: String,
         customer_name: Uuid,
@@ -702,28 +704,31 @@ pub enum AdminUpgradeToPremiumInfo {
         expiration_time: UnixTimeMillis,
         account_state: AppStoreAccountState,
     },
+
+    Free,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
-pub struct AdminUpgradeToPremiumRequest {
-    pub info: AdminUpgradeToPremiumInfo,
+pub struct AdminSetUserTierRequest {
+    pub username: String,
+    pub info: AdminSetUserTierInfo,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct AdminUpgradeToPremiumResponse {}
+pub struct AdminSetUserTierResponse {}
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
-pub enum AdminUpgradeToPremiumError {
+pub enum AdminSetUserTierError {
     UserNotFound,
     NotPermissioned,
     ExistingRequestPending,
 }
 
-impl Request for AdminUpgradeToPremiumRequest {
-    type Response = AdminUpgradeToPremiumResponse;
-    type Error = AdminUpgradeToPremiumError;
-    const METHOD: Method = Method::GET;
-    const ROUTE: &'static str = "/admin-upgrade-to-premium";
+impl Request for AdminSetUserTierRequest {
+    type Response = AdminSetUserTierResponse;
+    type Error = AdminSetUserTierError;
+    const METHOD: Method = Method::POST;
+    const ROUTE: &'static str = "/admin-set-user-tier";
 }
 
 // number of milliseconds that have elapsed since the unix epoch

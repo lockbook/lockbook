@@ -19,7 +19,7 @@ struct DetailView: View {
     @EnvironmentObject var currentSelection: CurrentDocument
 
     var body: some View {
-        if let selected = currentSelection.selectedItem {
+        if let selected = currentSelection.selectedDocument {
             DocumentView(meta: selected)
         }
     }

@@ -15,7 +15,9 @@ fn open_app_benchmark(c: &mut Criterion) {
 fn get_state_benchmark(c: &mut Criterion) {
     let core = test_core_with_account();
 
-    c.bench_function("open_app_get_state", |b| b.iter(|| Core::init(&core.config).unwrap()));
+    c.bench_function("open_app_get_state", |b| {
+        b.iter(|| Core::init(&core.get_config().unwrap()).unwrap())
+    });
 }
 
 fn get_account_benchmark(c: &mut Criterion) {
@@ -23,7 +25,7 @@ fn get_account_benchmark(c: &mut Criterion) {
 
     c.bench_function("open_app_get_account", |b| {
         b.iter(|| {
-            let core2 = Core::init(&core.config).unwrap();
+            let core2 = Core::init(&core.get_config().unwrap()).unwrap();
             core2.get_account().unwrap();
         })
     });
@@ -55,7 +57,7 @@ fn list_metadatas_benchmark(c: &mut Criterion) {
 
         list_metadatas_group.bench_function(size.to_string(), |b| {
             b.iter(|| {
-                let core2 = Core::init(&core1.config).unwrap();
+                let core2 = Core::init(&core1.get_config().unwrap()).unwrap();
                 core2.list_metadatas().unwrap();
             })
         });
@@ -90,7 +92,7 @@ fn list_paths_benchmark(c: &mut Criterion) {
 
         list_paths_group.bench_function(size.to_string(), |b| {
             b.iter(|| {
-                let core2 = Core::init(&core1.config).unwrap();
+                let core2 = Core::init(&core1.get_config().unwrap()).unwrap();
                 core2.list_paths(None).unwrap();
             })
         });

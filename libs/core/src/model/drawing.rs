@@ -17,29 +17,29 @@ use serde::Deserialize;
 use serde_json::error::Category;
 
 use crate::model::errors::core_err_unexpected;
-use crate::{CoreError, CoreResult};
+use crate::{CoreError, LbResult};
 
-pub fn validate(drawing: &Drawing) -> CoreResult<()> {
+pub fn validate(drawing: &Drawing) -> LbResult<()> {
     if drawing.scale <= 0.0 {
-        return Err(CoreError::DrawingInvalid);
+        return Err(CoreError::DrawingInvalid.into());
     }
 
     for stroke in &drawing.strokes {
         if stroke.points_x.len() != stroke.points_y.len()
             || stroke.points_y.len() != stroke.points_girth.len()
         {
-            return Err(CoreError::DrawingInvalid);
+            return Err(CoreError::DrawingInvalid.into());
         }
 
         if stroke.alpha > 1.0 || stroke.alpha < 0.0 {
-            return Err(CoreError::DrawingInvalid);
+            return Err(CoreError::DrawingInvalid.into());
         }
     }
 
     Ok(())
 }
 
-pub fn parse_drawing(drawing_bytes: &[u8]) -> CoreResult<Drawing> {
+pub fn parse_drawing(drawing_bytes: &[u8]) -> LbResult<Drawing> {
     // represent an empty string as an empty drawing, rather than returning an error
     if drawing_bytes.is_empty() {
         return Ok(Drawing::default());
@@ -82,7 +82,7 @@ impl std::str::FromStr for SupportedImageFormats {
 pub fn export_drawing(
     drawing_bytes: &[u8], format: SupportedImageFormats,
     render_theme: Option<HashMap<ColorAlias, ColorRGB>>,
-) -> CoreResult<Vec<u8>> {
+) -> LbResult<Vec<u8>> {
     let drawing = parse_drawing(drawing_bytes)?;
 
     let theme = match render_theme {

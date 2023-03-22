@@ -38,13 +38,13 @@ struct FileCell: View {
     @ViewBuilder
     var cell: some View {
         if meta.fileType == .Folder {
-            NavigationLink(
-                    destination: FileListView(currentFolder: meta, account: account.account!)) {
+            Button(action: {
+                fileService.intoChildDirectory(meta)
+            }) {
                 RealFileCell(meta: meta)
             }
-                    .isDetailLink(false)
         } else {
-            NavigationLink(destination: DocumentView(meta: meta), tag: meta, selection: $current.selectedItem) {
+            NavigationLink(destination: DocumentView(meta: meta)) {
                 RealFileCell(meta: meta)
             }
         }
@@ -63,15 +63,16 @@ struct RealFileCell: View {
             Text(meta.name)
                     .font(.title3)
             HStack {
-                Image(systemName: meta.fileType == .Folder ? "folder" : "doc")
+                Image(systemName: meta.fileType == .Folder ? "folder.fill" : "doc.fill")
                         .foregroundColor(meta.fileType == .Folder ? .blue : .secondary)
                 Text(intEpochToString(epoch: max(meta.lastModified, meta.lastModified)))
                         .foregroundColor(.secondary)
-
+                
+                Spacer()
             }
                     .font(.footnote)
         }
-                .padding(.vertical, 5)
-                .contentShape(Rectangle()) /// https://stackoverflow.com/questions/57258371/swiftui-increase-tap-drag-area-for-user-interaction
+            .padding(.vertical, 5)
+            .contentShape(Rectangle()) /// https://stackoverflow.com/questions/57258371/swiftui-increase-tap-drag-area-for-user-interaction
     }
 }

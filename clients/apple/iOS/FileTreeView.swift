@@ -30,7 +30,7 @@ struct FileTreeView: View {
                     }
             }
         }
-        if let item = currentDoc.selectedItem {
+        if let item = currentDoc.selectedDocument {
             DocumentView(meta: item)
         } else {
             GeometryReader { geometry in

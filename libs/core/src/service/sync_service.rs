@@ -1,7 +1,5 @@
-use crate::service::api_service::ApiError;
-use crate::{CoreError, CoreResult, CoreState, Requester};
-use db_rs::LookupTable;
-use itertools::Itertools;
+use std::collections::{HashMap, HashSet};
+
 use lockbook_shared::access_info::UserAccessMode;
 use lockbook_shared::account::Account;
 use lockbook_shared::api::{
@@ -17,10 +15,14 @@ use lockbook_shared::signed_file::SignedFile;
 use lockbook_shared::staged::{StagedTree, StagedTreeLikeMut};
 use lockbook_shared::tree_like::{TreeLike, TreeLikeMut};
 use lockbook_shared::work_unit::{ClientWorkUnit, WorkUnit};
-use lockbook_shared::{document_repo, symkey, SharedError, ValidationFailure};
+use lockbook_shared::{document_repo, symkey, SharedErrorKind, ValidationFailure};
+
+use db_rs::LookupTable;
 use serde::Serialize;
-use std::collections::{HashMap, HashSet};
 use uuid::Uuid;
+
+use crate::service::api_service::ApiError;
+use crate::{CoreError, CoreState, LbResult, Requester};
 
 #[derive(Debug, Serialize, Clone)]
 pub struct WorkCalculated {
@@ -71,7 +73,7 @@ fn get_work_units(op: &SyncOperation) -> Vec<WorkUnit> {
 
 impl<Client: Requester> CoreState<Client> {
     #[instrument(level = "debug", skip_all, err(Debug))]
-    pub(crate) fn calculate_work(&mut self) -> CoreResult<WorkCalculated> {
+    pub(crate) fn calculate_work(&mut self) -> LbResult<WorkCalculated> {
         let mut work_units: Vec<WorkUnit> = Vec::new();
         let mut sync_context = SyncContext {
             dry_run: true,
@@ -92,7 +94,7 @@ impl<Client: Requester> CoreState<Client> {
     #[instrument(level = "debug", skip_all, err(Debug))]
     pub(crate) fn sync<F: Fn(SyncProgress)>(
         &mut self, maybe_update_sync_progress: Option<F>,
-    ) -> CoreResult<WorkCalculated> {
+    ) -> LbResult<WorkCalculated> {
         let mut work_units: Vec<WorkUnit> = Vec::new();
         let mut sync_progress =
             SyncProgress { total: 0, progress: 0, current_work_unit: ClientWorkUnit::PullMetadata };
@@ -137,10 +139,10 @@ impl<Client: Requester> CoreState<Client> {
                         sync_progress.current_work_unit = ClientWorkUnit::PushMetadata;
                     }
                     SyncOperation::PullDocumentStart(file) => {
-                        sync_progress.current_work_unit = ClientWorkUnit::PullDocument(file.name);
+                        sync_progress.current_work_unit = ClientWorkUnit::PullDocument(file);
                     }
                     SyncOperation::PushDocumentStart(file) => {
-                        sync_progress.current_work_unit = ClientWorkUnit::PushDocument(file.name);
+                        sync_progress.current_work_unit = ClientWorkUnit::PushDocument(file);
                     }
                     SyncOperation::PullMetadataEnd(_)
                     | SyncOperation::PushMetadataEnd
@@ -213,7 +215,7 @@ where
     Local: TreeLike<F = SignedFile>,
     Client: Requester,
 {
-    fn sync<F>(&mut self, report_sync_operation: &mut F) -> CoreResult<i64>
+    fn sync<F>(&mut self, report_sync_operation: &mut F) -> LbResult<i64>
     where
         F: FnMut(SyncOperation),
     {
@@ -227,7 +229,7 @@ where
 
     /// Pulls remote changes and constructs a changeset Merge such that Stage<Stage<Stage<Base, Remote>, Local>, Merge> is valid.
     /// Promotes Base to Stage<Base, Remote> and Local to Stage<Local, Merge>
-    fn pull<F>(&mut self, report_sync_operation: &mut F) -> CoreResult<i64>
+    fn pull<F>(&mut self, report_sync_operation: &mut F) -> LbResult<i64>
     where
         F: FnMut(SyncOperation),
     {
@@ -356,18 +358,21 @@ where
                                     deletion_creations.remove(&id);
                                     continue 'drain_creations;
                                 }
-                                Err(SharedError::FileParentNonexistent) => {
-                                    continue 'choose_a_creation;
-                                }
-                                Err(_) => {
-                                    result?;
-                                }
+                                Err(ref err) => match err.kind {
+                                    SharedErrorKind::FileParentNonexistent => {
+                                        continue 'choose_a_creation;
+                                    }
+                                    _ => {
+                                        result?;
+                                    }
+                                },
                             }
                         }
                         return Err(CoreError::Unexpected(format!(
                             "sync failed to find a topological order for file creations: {:?}",
                             deletion_creations
-                        )));
+                        ))
+                        .into());
                     }
 
                     // moves (creations happen first in case a file is moved into a new folder)
@@ -432,18 +437,21 @@ where
                                     creations.remove(&id);
                                     continue 'drain_creations;
                                 }
-                                Err(SharedError::FileParentNonexistent) => {
-                                    continue 'choose_a_creation;
-                                }
-                                Err(_) => {
-                                    result?;
-                                }
+                                Err(ref err) => match err.kind {
+                                    SharedErrorKind::FileParentNonexistent => {
+                                        continue 'choose_a_creation;
+                                    }
+                                    _ => {
+                                        result?;
+                                    }
+                                },
                             }
                         }
                         return Err(CoreError::Unexpected(format!(
                             "sync failed to find a topological order for file creations: {:?}",
                             creations
-                        )));
+                        ))
+                        .into());
                     }
 
                     // moves, renames, edits, and shares
@@ -686,7 +694,8 @@ where
                                     return Err(CoreError::Unexpected(format!(
                                         "sync failed to resolve broken link (deletion): {:?}",
                                         link
-                                    )));
+                                    ))
+                                    .into());
                                 }
                             }
                         }
@@ -700,129 +709,138 @@ where
                         let (_, merge_changes) = merge.unstage();
                         break merge_changes;
                     }
-                    Err(SharedError::ValidationFailure(ref vf)) => match vf {
-                        // merge changeset has resolvable validation errors and needs modification
-                        ValidationFailure::Cycle(ids) => {
-                            // revert all local moves in the cycle
-                            let mut progress = false;
-                            for &id in ids {
-                                if self.local.maybe_find(&id).is_some()
-                                    && files_to_unmove.insert(id)
-                                {
-                                    progress = true;
-                                }
-                            }
-                            if !progress {
-                                return Err(CoreError::Unexpected(format!(
-                                    "sync failed to resolve cycle: {:?}",
-                                    ids
-                                )));
-                            }
-                        }
-                        ValidationFailure::PathConflict(ids) => {
-                            // pick one local id and generate a non-conflicting filename
-                            let mut progress = false;
-                            for &id in ids {
-                                if duplicate_file_ids.values().contains(&id) {
-                                    *rename_increments.entry(id).or_insert(0) += 1;
-                                    progress = true;
-                                    break;
-                                }
-                            }
-                            if !progress {
+                    Err(ref err) => match err.kind {
+                        SharedErrorKind::ValidationFailure(ref vf) => match vf {
+                            // merge changeset has resolvable validation errors and needs modification
+                            ValidationFailure::Cycle(ids) => {
+                                // revert all local moves in the cycle
+                                let mut progress = false;
                                 for &id in ids {
-                                    if self.local.maybe_find(&id).is_some() {
+                                    if self.local.maybe_find(&id).is_some()
+                                        && files_to_unmove.insert(id)
+                                    {
+                                        progress = true;
+                                    }
+                                }
+                                if !progress {
+                                    return Err(CoreError::Unexpected(format!(
+                                        "sync failed to resolve cycle: {:?}",
+                                        ids
+                                    ))
+                                    .into());
+                                }
+                            }
+                            ValidationFailure::PathConflict(ids) => {
+                                // pick one local id and generate a non-conflicting filename
+                                let mut progress = false;
+                                for &id in ids {
+                                    if duplicate_file_ids.values().any(|&dup| dup == id) {
                                         *rename_increments.entry(id).or_insert(0) += 1;
                                         progress = true;
                                         break;
                                     }
                                 }
+                                if !progress {
+                                    for &id in ids {
+                                        if self.local.maybe_find(&id).is_some() {
+                                            *rename_increments.entry(id).or_insert(0) += 1;
+                                            progress = true;
+                                            break;
+                                        }
+                                    }
+                                }
+                                if !progress {
+                                    return Err(CoreError::Unexpected(format!(
+                                        "sync failed to resolve path conflict: {:?}",
+                                        ids
+                                    ))
+                                    .into());
+                                }
                             }
-                            if !progress {
-                                return Err(CoreError::Unexpected(format!(
-                                    "sync failed to resolve path conflict: {:?}",
-                                    ids
-                                )));
-                            }
-                        }
-                        ValidationFailure::SharedLink { link, shared_ancestor } => {
-                            // if ancestor is newly shared, delete share, otherwise delete link
-                            let mut progress = false;
-                            if let Some(base_shared_ancestor) = base.maybe_find(shared_ancestor) {
-                                if !base_shared_ancestor.is_shared()
-                                    && files_to_unshare.insert(*shared_ancestor)
+                            ValidationFailure::SharedLink { link, shared_ancestor } => {
+                                // if ancestor is newly shared, delete share, otherwise delete link
+                                let mut progress = false;
+                                if let Some(base_shared_ancestor) = base.maybe_find(shared_ancestor)
                                 {
-                                    progress = true;
-                                }
-                            }
-                            if !progress && links_to_delete.insert(*link) {
-                                progress = true;
-                            }
-                            if !progress {
-                                return Err(CoreError::Unexpected(format!(
-                                    "sync failed to resolve shared link: link: {:?}, shared_ancestor: {:?}",
-                                    link, shared_ancestor
-                                )));
-                            }
-                        }
-                        ValidationFailure::DuplicateLink { target } => {
-                            // delete local link with this target
-                            let mut progress = false;
-                            if let Some(link) = local.link(target)? {
-                                if links_to_delete.insert(link) {
-                                    progress = true;
-                                }
-                            }
-                            if !progress {
-                                return Err(CoreError::Unexpected(format!(
-                                    "sync failed to resolve duplicate link: target: {:?}",
-                                    target
-                                )));
-                            }
-                        }
-                        ValidationFailure::BrokenLink(link) => {
-                            // delete local link with this target
-                            if !links_to_delete.insert(*link) {
-                                return Err(CoreError::Unexpected(format!(
-                                    "sync failed to resolve broken link: {:?}",
-                                    link
-                                )));
-                            }
-                        }
-                        ValidationFailure::OwnedLink(link) => {
-                            // if target is newly owned, unmove target, otherwise delete link
-                            let mut progress = false;
-                            if let Some(remote_link) = remote.maybe_find(link) {
-                                if let FileType::Link { target } = remote_link.file_type() {
-                                    let remote_target = remote.find(&target)?;
-                                    if remote_target.owner() != me && files_to_unmove.insert(target)
+                                    if !base_shared_ancestor.is_shared()
+                                        && files_to_unshare.insert(*shared_ancestor)
                                     {
                                         progress = true;
                                     }
                                 }
+                                if !progress && links_to_delete.insert(*link) {
+                                    progress = true;
+                                }
+                                if !progress {
+                                    return Err(CoreError::Unexpected(format!(
+                                    "sync failed to resolve shared link: link: {:?}, shared_ancestor: {:?}",
+                                    link, shared_ancestor
+                                )).into());
+                                }
                             }
-                            if !progress && links_to_delete.insert(*link) {
-                                progress = true;
+                            ValidationFailure::DuplicateLink { target } => {
+                                // delete local link with this target
+                                let mut progress = false;
+                                if let Some(link) = local.link(target)? {
+                                    if links_to_delete.insert(link) {
+                                        progress = true;
+                                    }
+                                }
+                                if !progress {
+                                    return Err(CoreError::Unexpected(format!(
+                                        "sync failed to resolve duplicate link: target: {:?}",
+                                        target
+                                    ))
+                                    .into());
+                                }
                             }
-                            if !progress {
-                                return Err(CoreError::Unexpected(format!(
-                                    "sync failed to resolve owned link: {:?}",
-                                    link
-                                )));
+                            ValidationFailure::BrokenLink(link) => {
+                                // delete local link with this target
+                                if !links_to_delete.insert(*link) {
+                                    return Err(CoreError::Unexpected(format!(
+                                        "sync failed to resolve broken link: {:?}",
+                                        link
+                                    ))
+                                    .into());
+                                }
                             }
-                        }
-                        // merge changeset has unexpected validation errors
-                        ValidationFailure::Orphan(_)
-                        | ValidationFailure::NonFolderWithChildren(_)
-                        | ValidationFailure::FileWithDifferentOwnerParent(_)
-                        | ValidationFailure::NonDecryptableFileName(_) => {
+                            ValidationFailure::OwnedLink(link) => {
+                                // if target is newly owned, unmove target, otherwise delete link
+                                let mut progress = false;
+                                if let Some(remote_link) = remote.maybe_find(link) {
+                                    if let FileType::Link { target } = remote_link.file_type() {
+                                        let remote_target = remote.find(&target)?;
+                                        if remote_target.owner() != me
+                                            && files_to_unmove.insert(target)
+                                        {
+                                            progress = true;
+                                        }
+                                    }
+                                }
+                                if !progress && links_to_delete.insert(*link) {
+                                    progress = true;
+                                }
+                                if !progress {
+                                    return Err(CoreError::Unexpected(format!(
+                                        "sync failed to resolve owned link: {:?}",
+                                        link
+                                    ))
+                                    .into());
+                                }
+                            }
+                            // merge changeset has unexpected validation errors
+                            ValidationFailure::Orphan(_)
+                            | ValidationFailure::NonFolderWithChildren(_)
+                            | ValidationFailure::FileWithDifferentOwnerParent(_)
+                            | ValidationFailure::NonDecryptableFileName(_) => {
+                                validate_result?;
+                            }
+                        },
+                        // merge changeset has unexpected errors
+                        _ => {
                             validate_result?;
                         }
                     },
-                    // merge changeset has unexpected errors
-                    Err(_) => {
-                        validate_result?;
-                    }
                 }
             }
         };
@@ -842,7 +860,7 @@ where
         Ok(update_as_of as i64)
     }
 
-    pub(crate) fn get_updates(&self) -> CoreResult<GetUpdatesResponse> {
+    pub(crate) fn get_updates(&self) -> LbResult<GetUpdatesResponse> {
         let last_synced = self.last_synced.unwrap_or_default();
         let remote_changes = self
             .client
@@ -852,7 +870,7 @@ where
 
     pub(crate) fn prune_remote_orphans(
         &mut self, remote_changes: Vec<SignedFile>,
-    ) -> CoreResult<Vec<SignedFile>> {
+    ) -> LbResult<Vec<SignedFile>> {
         let me = Owner(self.account.public_key());
         let remote = self.base.stage(remote_changes).to_lazy();
         let mut result = Vec::new();
@@ -870,7 +888,7 @@ where
         Ok(result)
     }
 
-    fn prune(&mut self) -> CoreResult<()> {
+    fn prune(&mut self) -> LbResult<()> {
         let mut local = self.base.stage(&self.local).to_lazy();
         let base_ids = local.tree.base.owned_ids();
         let server_ids = self
@@ -907,7 +925,7 @@ where
 
     /// Updates remote and base metadata to local.
     #[instrument(level = "debug", skip_all, err(Debug))]
-    fn push_metadata<F>(&mut self, report_sync_operation: &mut F) -> CoreResult<()>
+    fn push_metadata<F>(&mut self, report_sync_operation: &mut F) -> LbResult<()>
     where
         F: FnMut(SyncOperation),
     {
@@ -955,7 +973,7 @@ where
 
     /// Updates remote and base files to local. Assumes metadata is already pushed for all new files.
     #[instrument(level = "debug", skip_all, err(Debug))]
-    fn push_documents<F>(&mut self, report_sync_operation: &mut F) -> CoreResult<()>
+    fn push_documents<F>(&mut self, report_sync_operation: &mut F) -> LbResult<()>
     where
         F: FnMut(SyncOperation),
     {
@@ -1021,7 +1039,7 @@ where
         Ok(())
     }
 
-    fn populate_public_key_cache(&mut self, files: &[SignedFile]) -> CoreResult<()> {
+    fn populate_public_key_cache(&mut self, files: &[SignedFile]) -> LbResult<()> {
         let mut all_owners = HashSet::new();
         for file in files {
             for user_access_key in file.user_access_keys() {
@@ -1050,7 +1068,7 @@ where
     }
 
     // todo: check only necessary ids
-    fn cleanup_local_metadata(&mut self) -> CoreResult<()> {
+    fn cleanup_local_metadata(&mut self) -> LbResult<()> {
         self.base.stage(&mut self.local).prune()?;
         Ok(())
     }

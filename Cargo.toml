@@ -6,6 +6,7 @@ members = [
 	"libs/core",
 	"libs/core/libs/shared",
 	"libs/core/libs/test_utils",
+	"libs/core_external_interface",
 	"libs/editor/egui_editor",
 	"server/server",
 	"clients/cli",

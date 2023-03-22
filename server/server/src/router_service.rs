@@ -1,13 +1,13 @@
+use crate::account_service::*;
 use crate::billing::billing_service;
 use crate::billing::billing_service::*;
 use crate::file_service::*;
 use crate::utils::get_build_info;
-use crate::{account_service::*, handle_version_body};
 use crate::{handle_version_header, router_service, verify_auth, ServerError, ServerState};
 use lazy_static::lazy_static;
 use lockbook_shared::api::*;
 use lockbook_shared::api::{ErrorWrapper, Request, RequestWrapper};
-use lockbook_shared::SharedError;
+use lockbook_shared::SharedErrorKind;
 use prometheus::{
     register_counter_vec, register_histogram_vec, CounterVec, HistogramVec, TextEncoder,
 };
@@ -77,8 +77,13 @@ macro_rules! core_req {
 
                     debug!("request verified successfully");
                     let req_pk = request.signed_request.public_key;
-                    let username = match state.index_db.accounts.get(&Owner(req_pk)) {
-                        Ok(Some(account)) => account.username,
+                    let username = match state.index_db.lock().map(|db| {
+                        db.accounts
+                            .data()
+                            .get(&Owner(req_pk))
+                            .map(|account| account.username.clone())
+                    }) {
+                        Ok(Some(username)) => username,
                         Ok(None) => "~unknown~".to_string(),
                         Err(error) => {
                             error!(?error, "hmdb error");
@@ -151,7 +156,7 @@ pub fn core_routes(
         .or(core_req!(AdminValidateServerRequest, admin_validate_server, server_state))
         .or(core_req!(AdminFileInfoRequest, admin_file_info, server_state))
         .or(core_req!(AdminRebuildIndexRequest, admin_rebuild_index, server_state))
-        .or(core_req!(AdminUpgradeToPremiumRequest, admin_upgrade_to_premium, server_state))
+        .or(core_req!(AdminSetUserTierRequest, admin_set_user_tier, server_state))
 }
 
 pub fn build_info() -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone {
@@ -345,18 +350,15 @@ pub fn deserialize_and_check<Req>(
 where
     Req: Request + DeserializeOwned + Serialize,
 {
+    handle_version_header::<Req>(&server_state.config, &version)?;
+
     let request = serde_json::from_slice(request.as_ref()).map_err(|err| {
         warn!("Request parsing failure: {}", err);
         ErrorWrapper::<Req::Error>::BadRequest
     })?;
 
-    // todo: get rid of body checking and just rely on header check.
-    if handle_version_header::<Req>(&server_state.config, &version).is_err() {
-        handle_version_body::<Req>(&server_state.config, &request)?;
-    };
-
-    verify_auth(server_state, &request).map_err(|err| match err {
-        SharedError::SignatureExpired(_) | SharedError::SignatureInTheFuture(_) => {
+    verify_auth(server_state, &request).map_err(|err| match err.kind {
+        SharedErrorKind::SignatureExpired(_) | SharedErrorKind::SignatureInTheFuture(_) => {
             warn!("expired auth");
             ErrorWrapper::<Req::Error>::ExpiredAuth
         }

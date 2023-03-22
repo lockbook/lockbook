@@ -192,7 +192,7 @@ impl TreeNode {
                 ui.visuals().faint_bg_color
             };
 
-            ui.painter().rect(rect, 0.0, bg, egui::Stroke::none());
+            ui.painter().rect(rect, 0.0, bg, egui::Stroke::NONE);
 
             let icon_pos =
                 egui::pos2(rect.min.x + depth_inset, rect.center().y - icon.size().y / 4.0 - 1.0);

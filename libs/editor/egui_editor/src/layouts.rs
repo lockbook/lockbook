@@ -151,6 +151,14 @@ impl LayoutJobInfo {
     ) -> (Option<Annotation>, RelByteOffset, RelByteOffset) {
         let (mut annotation, mut head_size) = (None, RelByteOffset(0));
         let text = &src[style.range.start.0..style.range.end.0];
+
+        for element in &style.elements {
+            if let Element::Image(link_type, url, title) = element {
+                // capture image annotation
+                annotation =
+                    Some(Annotation::Image(*link_type, url.to_string(), title.to_string()));
+            }
+        }
         if style.elements.contains(&Element::Item) {
             let indent_level = style
                 .elements

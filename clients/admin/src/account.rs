@@ -1,15 +1,18 @@
-use crate::{Error, GooglePlayAccountState, Res, StripeAccountState, UpgradeToPremium};
+use crate::{Error, GooglePlayAccountState, Res, SetUserTier, StripeAccountState};
 use lockbook_core::{
-    base64, AccountFilter, AccountIdentifier, AdminUpgradeToPremiumInfo, AppStoreAccountState,
-    Core, PublicKey,
+    base64, AccountFilter, AccountIdentifier, AdminSetUserTierInfo, AppStoreAccountState, Core,
+    PublicKey,
 };
 use std::str::FromStr;
 
 pub fn list(
-    core: &Core, premium: bool, google_play_premium: bool, stripe_premium: bool,
+    core: &Core, premium: bool, app_store_premium: bool, google_play_premium: bool,
+    stripe_premium: bool,
 ) -> Res<()> {
     let filter = if premium {
         Some(AccountFilter::Premium)
+    } else if app_store_premium {
+        Some(AccountFilter::AppStorePremium)
     } else if google_play_premium {
         Some(AccountFilter::GooglePlayPremium)
     } else if stripe_premium {
@@ -24,6 +27,7 @@ pub fn list(
         let msg = match filter {
             None => "There are no users.",
             Some(AccountFilter::Premium) => "There are no premium users.",
+            Some(AccountFilter::AppStorePremium) => "There are no premium app store users.",
             Some(AccountFilter::GooglePlayPremium) => "There are no premium google play users.",
             Some(AccountFilter::StripePremium) => "There are no premium stripe users.",
         };
@@ -56,9 +60,10 @@ pub fn info(core: &Core, username: Option<String>, public_key: Option<String>) -
     Ok(())
 }
 
-pub fn upgrade_to_premium(core: &Core, premium_info: UpgradeToPremium) -> Res<()> {
-    let premium_info = match premium_info {
-        UpgradeToPremium::Stripe {
+pub fn set_user_tier(core: &Core, premium_info: SetUserTier) -> Res<()> {
+    let (premium_info, username) = match premium_info {
+        SetUserTier::Stripe {
+            username,
             customer_id,
             customer_name,
             payment_method_id,
@@ -66,36 +71,45 @@ pub fn upgrade_to_premium(core: &Core, premium_info: UpgradeToPremium) -> Res<()
             subscription_id,
             expiration_time,
             account_state,
-        } => AdminUpgradeToPremiumInfo::Stripe {
-            customer_id,
-            customer_name,
-            payment_method_id,
-            last_4,
-            subscription_id,
-            expiration_time,
-            account_state: StripeAccountState::from_str(&account_state)?,
-        },
-        UpgradeToPremium::GooglePlay { purchase_token, expiration_time, account_state } => {
-            AdminUpgradeToPremiumInfo::GooglePlay {
+        } => (
+            AdminSetUserTierInfo::Stripe {
+                customer_id,
+                customer_name,
+                payment_method_id,
+                last_4,
+                subscription_id,
+                expiration_time,
+                account_state: StripeAccountState::from_str(&account_state)?,
+            },
+            username,
+        ),
+        SetUserTier::GooglePlay { username, purchase_token, expiration_time, account_state } => (
+            AdminSetUserTierInfo::GooglePlay {
                 purchase_token,
                 expiration_time,
                 account_state: GooglePlayAccountState::from_str(&account_state)?,
-            }
-        }
-        UpgradeToPremium::AppStore {
+            },
+            username,
+        ),
+        SetUserTier::AppStore {
+            username,
             account_token,
             original_transaction_id,
             expiration_time,
             account_state,
-        } => AdminUpgradeToPremiumInfo::AppStore {
-            account_token,
-            original_transaction_id,
-            expiration_time,
-            account_state: AppStoreAccountState::from_str(&account_state)?,
-        },
+        } => (
+            AdminSetUserTierInfo::AppStore {
+                account_token,
+                original_transaction_id,
+                expiration_time,
+                account_state: AppStoreAccountState::from_str(&account_state)?,
+            },
+            username,
+        ),
+        SetUserTier::Free { username } => (AdminSetUserTierInfo::Free, username),
     };
 
-    core.admin_upgrade_to_premium(premium_info)?;
+    core.admin_set_user_tier(&username, premium_info)?;
 
     Ok(())
 }

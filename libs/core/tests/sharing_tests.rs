@@ -1,8 +1,4 @@
-use lockbook_core::Error::UiError;
-use lockbook_core::{
-    CreateFileAtPathError, CreateFileError, CreateLinkAtPathError, DeletePendingShareError, Error,
-    FileDeleteError, MoveFileError, RenameFileError, ShareFileError, WriteToDocumentError,
-};
+use lockbook_core::CoreError;
 use lockbook_shared::file::ShareMode;
 use lockbook_shared::file_metadata::FileType;
 use test_utils::*;
@@ -64,7 +60,7 @@ fn write_document_read_share() {
     cores[1].sync(None).unwrap();
 
     let result = cores[1].write_document(document.id, b"document content");
-    assert_matches!(result, Err(Error::UiError(WriteToDocumentError::InsufficientPermission)));
+    assert_matches!(result.unwrap_err().kind, CoreError::InsufficientPermission);
 }
 
 #[test]
@@ -85,7 +81,7 @@ fn write_document_in_read_shared_folder() {
     cores[1].sync(None).unwrap();
 
     let result = cores[1].write_document(document.id, b"document content");
-    assert_matches!(result, Err(Error::UiError(WriteToDocumentError::InsufficientPermission)));
+    assert_matches!(result.unwrap_err().kind, CoreError::InsufficientPermission);
 }
 
 #[test]
@@ -232,7 +228,7 @@ fn write_document_rejected_share() {
     cores[1].delete_pending_share(document.id).unwrap();
 
     let result = cores[1].write_document(document.id, b"document content by sharee");
-    assert_matches!(result, Err(Error::UiError(WriteToDocumentError::InsufficientPermission)));
+    assert_matches!(result.unwrap_err().kind, CoreError::InsufficientPermission);
 }
 
 #[test]
@@ -331,7 +327,7 @@ fn write_document_in_rejected_shared_folder_in_rejected_share_folder() {
     cores[1].delete_pending_share(folder2.id).unwrap();
 
     let result = cores[1].write_document(document.id, b"document content by sharee");
-    assert_matches!(result, Err(Error::UiError(WriteToDocumentError::InsufficientPermission)));
+    assert_matches!(result.unwrap_err().kind, CoreError::InsufficientPermission);
 }
 
 #[test]
@@ -493,7 +489,7 @@ fn share_file_root() {
     let root = core.get_root().unwrap();
 
     let result = core.share_file(root.id, &sharee_account.username, ShareMode::Read);
-    assert_matches!(result, Err(Error::UiError(ShareFileError::CannotShareRoot)));
+    assert_matches!(result.unwrap_err().kind, CoreError::RootModificationInvalid);
 }
 
 #[test]
@@ -503,7 +499,7 @@ fn share_file_nonexistent() {
     let sharee_account = &sharee_core.get_account().unwrap();
 
     let result = core.share_file(Uuid::new_v4(), &sharee_account.username, ShareMode::Read);
-    assert_matches!(result, Err(Error::UiError(ShareFileError::FileNonexistent)));
+    assert_matches!(result.unwrap_err().kind, CoreError::FileNonexistent);
 }
 
 #[test]
@@ -534,7 +530,7 @@ fn delete_nonexistent_share() {
         .unwrap();
 
     let result = core.delete_pending_share(document.id);
-    assert_matches!(result, Err(Error::UiError(DeletePendingShareError::ShareNonexistent)));
+    assert_matches!(result.unwrap_err().kind, CoreError::ShareNonexistent);
 }
 
 #[test]
@@ -584,7 +580,7 @@ fn share_file_duplicate() {
         .unwrap();
 
     let result = core.share_file(document.id, &sharee_account.username, ShareMode::Read);
-    assert_matches!(result, Err(Error::UiError(ShareFileError::ShareAlreadyExists)));
+    assert_matches!(result.unwrap_err().kind, CoreError::ShareAlreadyExists);
 }
 
 #[test]
@@ -635,7 +631,7 @@ fn share_folder_with_link_inside() {
         .unwrap();
 
     let result = cores[1].share_file(folder1.id, &accounts[2].username, ShareMode::Read);
-    assert_matches!(result, Err(Error::UiError(ShareFileError::LinkInSharedFolder)));
+    assert_matches!(result.unwrap_err().kind, CoreError::LinkInSharedFolder);
 }
 
 #[test]
@@ -685,7 +681,7 @@ fn share_unowned_file_write() {
     cores[1].sync(None).unwrap();
 
     let result = cores[1].share_file(folder0.id, &accounts[2].username, ShareMode::Write);
-    assert_matches!(result, Err(Error::UiError(ShareFileError::InsufficientPermission)));
+    assert_matches!(result.unwrap_err().kind, CoreError::InsufficientPermission);
 }
 
 #[test]
@@ -792,7 +788,7 @@ fn delete_pending_share_root() {
     let root = core.get_root().unwrap();
 
     let result = core.delete_pending_share(root.id);
-    assert_matches!(result, Err(Error::Unexpected(_)));
+    assert_matches!(result.unwrap_err().kind, CoreError::RootModificationInvalid);
 }
 
 #[test]
@@ -818,7 +814,7 @@ fn delete_pending_share_duplicate() {
     cores[1].delete_pending_share(folder0.id).unwrap();
 
     let result = cores[1].delete_pending_share(folder0.id);
-    assert_matches!(result, Err(Error::UiError(DeletePendingShareError::ShareNonexistent)));
+    assert_matches!(result.unwrap_err().kind, CoreError::ShareNonexistent);
 }
 
 #[test]
@@ -844,7 +840,7 @@ fn delete_pending_share_nonexistent() {
     cores[1].delete_pending_share(folder0.id).unwrap();
 
     let result = cores[1].delete_pending_share(folder0.id);
-    assert_matches!(result, Err(Error::UiError(DeletePendingShareError::ShareNonexistent)));
+    assert_matches!(result.unwrap_err().kind, CoreError::ShareNonexistent);
 }
 
 #[test]
@@ -865,7 +861,7 @@ fn create_at_path_insufficient_permission() {
         .unwrap();
 
     let result = core1.create_at_path("received-folder/document");
-    assert_matches!(result, Err(UiError(CreateFileAtPathError::InsufficientPermission)));
+    assert_matches!(result.unwrap_err().kind, CoreError::InsufficientPermission);
 }
 
 #[test]
@@ -897,7 +893,7 @@ fn create_link_at_path_target_is_owned() {
         .unwrap();
 
     let result = core.create_link_at_path("link", document.id);
-    assert_matches!(result, Err(UiError(CreateLinkAtPathError::LinkTargetIsOwned)));
+    assert_matches!(result.unwrap_err().kind, CoreError::LinkTargetIsOwned);
 }
 
 #[test]
@@ -905,7 +901,7 @@ fn create_link_at_path_target_nonexistent() {
     let core = test_core_with_account();
 
     let result = core.create_link_at_path("link", Uuid::new_v4());
-    assert_matches!(result, Err(UiError(CreateLinkAtPathError::LinkTargetNonexistent)));
+    assert_matches!(result.unwrap_err().kind, CoreError::LinkTargetNonexistent);
 }
 
 #[test]
@@ -940,7 +936,7 @@ fn create_link_at_path_link_in_shared_folder() {
         .unwrap();
 
     let result = cores[1].create_link_at_path("folder_link/document", document0.id);
-    assert_matches!(result, Err(UiError(CreateLinkAtPathError::LinkInSharedFolder)));
+    assert_matches!(result.unwrap_err().kind, CoreError::LinkInSharedFolder);
 }
 
 #[test]
@@ -969,7 +965,7 @@ fn create_link_at_path_link_duplicate() {
         .unwrap();
 
     let result = cores[1].create_link_at_path("/link2", document0.id);
-    assert_matches!(result, Err(UiError(CreateLinkAtPathError::MultipleLinksToSameFile)));
+    assert_matches!(result.unwrap_err().kind, CoreError::MultipleLinksToSameFile);
 }
 
 #[test]
@@ -978,7 +974,7 @@ fn create_file_link_target_nonexistent() {
     let root = core.get_root().unwrap();
 
     let result = core.create_file("link", root.id, FileType::Link { target: Uuid::new_v4() });
-    assert_matches!(result, Err(UiError(CreateFileError::LinkTargetNonexistent)));
+    assert_matches!(result.unwrap_err().kind, CoreError::LinkTargetNonexistent);
 }
 
 #[test]
@@ -991,7 +987,7 @@ fn create_file_link_target_owned() {
         .unwrap();
 
     let result = core.create_file("link", root.id, FileType::Link { target: document.id });
-    assert_matches!(result, Err(UiError(CreateFileError::LinkTargetIsOwned)));
+    assert_matches!(result.unwrap_err().kind, CoreError::LinkTargetIsOwned);
 }
 
 #[test]
@@ -1027,7 +1023,7 @@ fn create_file_shared_link() {
 
     let result =
         cores[1].create_file("document_link", folder.id, FileType::Link { target: document.id });
-    assert_matches!(result, Err(UiError(CreateFileError::LinkInSharedFolder)));
+    assert_matches!(result.unwrap_err().kind, CoreError::LinkInSharedFolder);
 }
 
 #[test]
@@ -1057,7 +1053,7 @@ fn create_file_duplicate_link() {
 
     let result =
         cores[1].create_file("link_2", roots[1].id, FileType::Link { target: document.id });
-    assert_matches!(result, Err(UiError(CreateFileError::MultipleLinksToSameFile)));
+    assert_matches!(result.unwrap_err().kind, CoreError::MultipleLinksToSameFile);
 }
 
 #[test]
@@ -1116,7 +1112,7 @@ fn create_file_in_read_shared_folder() {
         .unwrap();
 
     let result = cores[1].create_file("document", folder.id, FileType::Document);
-    assert_matches!(result, Err(UiError(CreateFileError::InsufficientPermission)));
+    assert_matches!(result.unwrap_err().kind, CoreError::InsufficientPermission);
 }
 
 #[test]
@@ -1177,7 +1173,7 @@ fn rename_file_in_read_shared_folder() {
         .unwrap();
 
     let result = cores[1].rename_file(document.id, "renamed-document");
-    assert_matches!(result, Err(UiError(RenameFileError::InsufficientPermission)));
+    assert_matches!(result.unwrap_err().kind, CoreError::InsufficientPermission);
 }
 
 #[test]
@@ -1238,7 +1234,7 @@ fn rename_write_shared_folder() {
         .unwrap();
 
     let result = cores[1].rename_file(folder.id, "renamed-folder");
-    assert_matches!(result, Err(UiError(RenameFileError::InsufficientPermission)));
+    assert_matches!(result.unwrap_err().kind, CoreError::InsufficientPermission);
 }
 
 #[test]
@@ -1276,7 +1272,7 @@ fn move_file_shared_link() {
         .unwrap();
 
     let result = cores[1].move_file(document_link.id, folder.id);
-    assert_matches!(result, Err(UiError(MoveFileError::LinkInSharedFolder)));
+    assert_matches!(result.unwrap_err().kind, CoreError::LinkInSharedFolder);
 }
 
 #[test]
@@ -1317,7 +1313,7 @@ fn move_file_shared_link_in_folder_a() {
         .unwrap();
 
     let result = cores[1].move_file(document_link.id, child_folder.id);
-    assert_matches!(result, Err(UiError(MoveFileError::LinkInSharedFolder)));
+    assert_matches!(result.unwrap_err().kind, CoreError::LinkInSharedFolder);
 }
 
 #[test]
@@ -1358,7 +1354,7 @@ fn move_file_shared_link_in_folder_b() {
         .unwrap();
 
     let result = cores[1].move_file(child_folder.id, folder.id);
-    assert_matches!(result, Err(UiError(MoveFileError::LinkInSharedFolder)));
+    assert_matches!(result.unwrap_err().kind, CoreError::LinkInSharedFolder);
 }
 
 #[test]
@@ -1393,7 +1389,7 @@ fn move_file_in_read_shared_folder() {
         .unwrap();
 
     let result = cores[1].move_file(document.id, child_folder.id);
-    assert_matches!(result, Err(UiError(MoveFileError::InsufficientPermission)));
+    assert_matches!(result.unwrap_err().kind, CoreError::InsufficientPermission);
 }
 
 #[test]
@@ -1458,7 +1454,7 @@ fn move_file_into_read_shared_folder() {
         .unwrap();
 
     let result = cores[1].move_file(document.id, folder.id);
-    assert_matches!(result, Err(UiError(MoveFileError::InsufficientPermission)));
+    assert_matches!(result.unwrap_err().kind, CoreError::InsufficientPermission);
 }
 
 #[test]
@@ -1517,7 +1513,7 @@ fn move_write_shared_folder() {
         .unwrap();
 
     let result = cores[1].move_file(folder.id, child_folder.id);
-    assert_matches!(result, Err(UiError(MoveFileError::InsufficientPermission)));
+    assert_matches!(result.unwrap_err().kind, CoreError::InsufficientPermission);
 }
 
 #[test]
@@ -1549,7 +1545,7 @@ fn delete_file_in_read_shared_folder() {
         .unwrap();
 
     let result = cores[1].delete_file(document.id);
-    assert_matches!(result, Err(UiError(FileDeleteError::InsufficientPermission)));
+    assert_matches!(result.unwrap_err().kind, CoreError::InsufficientPermission);
 }
 
 #[test]
@@ -1608,7 +1604,7 @@ fn delete_write_shared_folder() {
         .unwrap();
 
     let result = cores[1].delete_file(folder.id);
-    assert_matches!(result, Err(UiError(FileDeleteError::InsufficientPermission)));
+    assert_matches!(result.unwrap_err().kind, CoreError::InsufficientPermission);
 }
 
 #[test]
@@ -1631,5 +1627,30 @@ fn delete_share() {
         .share_file(f2.id, &core2_name, ShareMode::Write)
         .unwrap();
     core1.sync(None).unwrap();
-    core2.sync(None).unwrap()
+    core2.sync(None).unwrap();
+}
+
+#[test]
+fn delete_folder_with_shared_child() {
+    let cores = vec![test_core_with_account(), test_core_with_account()];
+    let accounts = cores
+        .iter()
+        .map(|core| core.get_account().unwrap())
+        .collect::<Vec<_>>();
+
+    let folder = cores[0].create_at_path("folder/").unwrap();
+    let document = cores[0].create_at_path("folder/document").unwrap();
+    cores[0]
+        .write_document(document.id, b"document content")
+        .unwrap();
+    cores[0]
+        .share_file(document.id, &accounts[1].username, ShareMode::Write)
+        .unwrap();
+
+    cores[0].sync(None).unwrap();
+
+    cores[0].delete_file(folder.id).unwrap();
+
+    cores[0].sync(None).unwrap();
+    cores[1].sync(None).unwrap();
 }

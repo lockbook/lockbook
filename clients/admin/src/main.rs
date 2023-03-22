@@ -47,6 +47,9 @@ pub enum Admin {
         premium: bool,
 
         #[structopt(short, long)]
+        app_store_premium: bool,
+
+        #[structopt(short, long)]
         google_play_premium: bool,
 
         #[structopt(short, long)]
@@ -70,13 +73,14 @@ pub enum Admin {
         id: Uuid,
     },
 
-    /// Manually upgrade a user's tier and set their subscription information
-    UpgradeToPremium(UpgradeToPremium),
+    /// Manually set a user's tier and their subscription information
+    SetUserTier(SetUserTier),
 }
 
 #[derive(Debug, PartialEq, Eq, StructOpt)]
-pub enum UpgradeToPremium {
+pub enum SetUserTier {
     Stripe {
+        username: String,
         customer_id: String,
         customer_name: Uuid,
         payment_method_id: String,
@@ -87,16 +91,22 @@ pub enum UpgradeToPremium {
     },
 
     GooglePlay {
+        username: String,
         purchase_token: String,
         expiration_time: UnixTimeMillis,
         account_state: String,
     },
 
     AppStore {
+        username: String,
         account_token: String,
         original_transaction_id: String,
         expiration_time: UnixTimeMillis,
         account_state: String,
+    },
+
+    Free {
+        username: String,
     },
 }
 
@@ -114,8 +124,8 @@ pub fn main() {
 
     let result = match Admin::from_args() {
         Admin::DisappearAccount { username } => disappear::account(&core, username),
-        Admin::ListUsers { premium, google_play_premium, stripe_premium } => {
-            account::list(&core, premium, google_play_premium, stripe_premium)
+        Admin::ListUsers { premium, app_store_premium, google_play_premium, stripe_premium } => {
+            account::list(&core, premium, app_store_premium, google_play_premium, stripe_premium)
         }
         Admin::AccountInfo { username, public_key } => account::info(&core, username, public_key),
         Admin::DisappearFile { id } => disappear::file(&core, id),
@@ -123,7 +133,7 @@ pub fn main() {
         Admin::ValidateServer => validate::server(&core),
         Admin::FileInfo { id } => info::file(&core, id),
         Admin::RebuildIndex(index) => indexes::rebuild(&core, index),
-        Admin::UpgradeToPremium(info) => account::upgrade_to_premium(&core, info),
+        Admin::SetUserTier(info) => account::set_user_tier(&core, info),
     };
 
     if result.is_err() {
