@@ -311,7 +311,7 @@ fn inconsistent_share_finalization() {
 
 #[test]
 fn link_resolving() {
-    let cores: Vec<Core> = vec![test_core_with_account(), test_core_with_account()];
+    let cores = vec![test_core_with_account(), test_core_with_account()];
     let accounts = cores
         .iter()
         .map(|core| core.get_account().unwrap())
