@@ -17,6 +17,7 @@ pub enum DocEvents {
     Read(i64),
     Write(i64),
 }
+
 impl DocEvents {
     pub fn timestamp(&self) -> i64 {
         match *self {
@@ -26,7 +27,7 @@ impl DocEvents {
     }
 }
 
-#[derive(Default, Copy, Clone)]
+#[derive(Default, Copy, Clone, PartialEq)]
 pub struct StatisticValue {
     pub raw: i64,
     pub normalized: f64,
@@ -40,12 +41,6 @@ impl Ord for StatisticValue {
 impl PartialOrd for StatisticValue {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
-    }
-}
-
-impl PartialEq for StatisticValue {
-    fn eq(&self, other: &Self) -> bool {
-        (self.raw, &self.normalized) == (other.raw, &other.normalized)
     }
 }
 
