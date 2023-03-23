@@ -188,6 +188,7 @@ pub mod no_network {
                 GetUpdatesRequest::ROUTE => call!(get_updates, self, account, request),
                 NewAccountRequest::ROUTE => call!(new_account, self, account, request),
                 GetFileIdsRequest::ROUTE => call!(get_file_ids, self, account, request),
+                GetUsernameRequest::ROUTE => call!(get_username, self, account, request),
                 AdminValidateServerRequest::ROUTE => {
                     call!(admin_validate_server, self, account, request)
                 }
