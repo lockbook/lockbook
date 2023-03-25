@@ -5,7 +5,13 @@ class FileService: ObservableObject {
     let core: LockbookApi
 
     @Published var root: File? = nil
-    @Published var files: [File] = []
+    @Published var idsAndFiles: [UUID:File] = [:]
+    var files: [File] {
+        get {
+            Array(idsAndFiles.values)
+        }
+    }
+    
     var successfulAction: FileAction? = nil
         
 
@@ -152,6 +158,22 @@ class FileService: ObservableObject {
             }
         }
     }
+    
+    func filesToExpand(pathToRoot: [File], currentFile: File) -> [File] {
+        if(currentFile.isRoot) {
+            return []
+        }
+        
+        let parentFile = idsAndFiles[currentFile.parent]!
+        
+        var pathToRoot = filesToExpand(pathToRoot: pathToRoot, currentFile: parentFile)
+        
+        if(currentFile.fileType == .Folder) {
+            pathToRoot.append(currentFile)
+        }
+        
+        return pathToRoot
+    }
 
     func refresh() {
         DispatchQueue.global(qos: .userInteractive).async {
@@ -160,7 +182,7 @@ class FileService: ObservableObject {
             DispatchQueue.main.async {
                 switch allFiles {
                 case .success(let files):
-                    self.files = files
+                    self.idsAndFiles = Dictionary(uniqueKeysWithValues: files.map { ($0.id, $0) })
                     self.files.forEach {
                         self.notifyDocumentChanged($0)
                         if self.root == nil && $0.id == $0.parent {

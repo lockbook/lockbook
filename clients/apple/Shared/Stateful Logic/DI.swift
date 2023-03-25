@@ -26,7 +26,7 @@ class DI {
         DI.accounts.account = nil
         DI.settings.usages = nil
         DI.files.root = nil
-        DI.files.files = []
+        DI.files.idsAndFiles = [:]
         DI.onboarding.theyChoseToBackup = false
         DI.onboarding.username = ""
         DI.documentLoader.meta = nil

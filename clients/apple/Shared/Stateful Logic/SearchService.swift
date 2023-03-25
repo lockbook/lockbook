@@ -26,11 +26,6 @@ class SearchService: ObservableObject {
     }
     
     func submitSearch(id: UUID) {
-        switch core.getFileById(id: id) {
-        case .success(let file):
-            DI.currentDoc.selectedDocument = file
-        case .failure(let err):
-            DI.errors.handleError(err)
-        }        
+        DI.currentDoc.selectedDocument = DI.files.idsAndFiles[id]!
     }
 }

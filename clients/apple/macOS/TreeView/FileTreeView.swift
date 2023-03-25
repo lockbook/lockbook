@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftLockbookCore
+import Combine
 
 struct FileTreeView: NSViewRepresentable {
 
@@ -9,8 +10,11 @@ struct FileTreeView: NSViewRepresentable {
     var dataSource = DataSource()
 
     @EnvironmentObject var files: FileService
-
-    func makeNSView(context: Context) -> NSScrollView {
+    @EnvironmentObject var currentSelection: CurrentDocument
+    
+    let previousFilesHash: Reference<Int?> = Reference(nil)
+            
+    func makeNSView(context: Context) -> NSScrollView {        
         delegate.documentSelected = {
             if $0.fileType == .Document {
                 DI.currentDoc.selectedDocument = $0
@@ -47,12 +51,20 @@ struct FileTreeView: NSViewRepresentable {
         treeView.dataSource = dataSource
         treeView.delegate = delegate
         treeView.stronglyReferencesItems = true
-
+        
         return scrollView
     }
     
     func updateNSView(_ nsView: NSScrollView, context: Context) {
-        treeView.reloadData()
+        if previousFilesHash.value != files.idsAndFiles.hashValue {
+            treeView.reloadData()
+            previousFilesHash.value = files.idsAndFiles.hashValue
+        }
+        
+        if let file = DI.currentDoc.selectedDocument {
+            expandAncestorsOfDocument(file: file)
+        }
+        
         // Should this happen in the delegate?
         for row in 0...treeView.numberOfRows {
             if let item = treeView.item(atRow: row) as? File {
@@ -63,6 +75,21 @@ struct FileTreeView: NSViewRepresentable {
                 }
             }
         }
+    }
+    
+    func expandAncestorsOfDocument(file: File) {
+        if(treeView.row(forItem: file) != -1) {
+            return
+        }
+                
+        var pathToRoot = DI.files.filesToExpand(pathToRoot: [], currentFile: file)
+                
+        for parent in pathToRoot {
+            treeView.animator().expandItem(parent)
+        }
+        
+        
+        treeView.scrollRowToVisible(min(treeView.row(forItem: file) + 2, treeView.numberOfRows))
     }
 }
 
@@ -100,4 +127,9 @@ class MenuOutlineView: NSOutlineView {
         fatalError("init(coder:) has not been implemented")
     }
 
+}
+
+class Reference<T> {
+    var value: T
+    init(_ value: T) { self.value = value }
 }

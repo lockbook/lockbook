@@ -2,11 +2,9 @@ import SwiftUI
 import SwiftLockbookCore
 import DSFQuickActionBar
 
-struct FileListView: View {
-    
-
+struct FileListView: View {    
     var body: some View {
-        VStack {
+        VStack {            
             FileTreeView()
             VStack (spacing: 3) {
                 BottomBar()
@@ -21,14 +19,11 @@ struct FileListView: View {
 
 struct DetailView: View {
     @EnvironmentObject var currentSelection: CurrentDocument
-    
     @EnvironmentObject var search: SearchService
-
     
     @State var quickActionBarVisible = false
     @State var selectedFile: SearchResultItem? = nil
-
-
+    
     var body: some View {
         ZStack {
             VStack {
@@ -53,7 +48,7 @@ struct DetailView: View {
                 },
                 viewForItem: { searchResult, searchTerm in
                     let (name, path) = searchResult.getNameAndPath()
-                    
+                                        
                     return SearchResultCellView(name: name, path: path, matchedIndices: searchResult.matchedIndices)
                 }
             )
@@ -80,7 +75,7 @@ struct SearchResultCellView: View {
                 .resizable()
                 .frame(width: 20, height: 25)
                 .padding(.horizontal, 10)
-                .foregroundColor(.gray)
+                .foregroundColor(.primary)
             
             VStack(alignment: .leading) {
                 HStack {
@@ -106,27 +101,36 @@ struct SearchResultCellView: View {
     func underlineMatchedSegments() {
         let matchedIndicesHash = Set(matchedIndices)
         
-        pathModified = Text("")
-        for index in 0...path.count - 1 {
-            let correctIndex = String.Index(utf16Offset: index, in: path)
-            let newPart = Text(path[correctIndex...correctIndex])
+        var pathOffset = 1;
+        
+        if(path.count - 1 > 0) {
+            pathModified = Text("")
             
-            if(matchedIndicesHash.contains(index + 1)) {
-                pathModified = pathModified + newPart.foregroundColor(.black)
-            } else {
-                pathModified = pathModified + newPart.foregroundColor(.gray)
+            for index in 0...path.count - 1 {
+                let correctIndex = String.Index(utf16Offset: index, in: path)
+                let newPart = Text(path[correctIndex...correctIndex])
+                
+                if(matchedIndicesHash.contains(index + 1)) {
+                    pathModified = pathModified + newPart.bold()
+                } else {
+                    pathModified = pathModified + newPart
+                }
             }
+            
+            pathOffset = 2
         }
                 
-        nameModified = Text("")
-        for index in 0...name.count - 1 {
-            let correctIndex = String.Index(utf16Offset: index, in: name)
-            let newPart = Text(name[correctIndex...correctIndex])
-
-            if(matchedIndicesHash.contains(index + path.count + 2)) {
-                nameModified = nameModified + newPart.foregroundColor(.black)
-            } else {
-                nameModified = nameModified + newPart.foregroundColor(.gray)
+        if(name.count - 1 > 0) {
+            nameModified = Text("")
+            for index in 0...name.count - 1 {
+                let correctIndex = String.Index(utf16Offset: index, in: name)
+                let newPart = Text(name[correctIndex...correctIndex])
+                
+                if(matchedIndicesHash.contains(index + path.count + pathOffset)) {
+                    nameModified = nameModified + newPart.bold()
+                } else {
+                    nameModified = nameModified + newPart
+                }
             }
         }
     }
