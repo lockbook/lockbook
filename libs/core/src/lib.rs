@@ -179,6 +179,7 @@ impl<Client: Requester> CoreLib<Client> {
             .expected_errs(&[
                 CoreError::FileNameContainsSlash,
                 CoreError::FileNameEmpty,
+                CoreError::FileNameTooLong,
                 CoreError::FileNonexistent,
                 CoreError::FileNotFolder,
                 CoreError::FileParentNonexistent,
@@ -251,6 +252,7 @@ impl<Client: Requester> CoreLib<Client> {
             .expected_errs(&[
                 CoreError::FileNameContainsSlash,
                 CoreError::FileNameEmpty,
+                CoreError::FileNameTooLong,
                 CoreError::FileNonexistent,
                 CoreError::InsufficientPermission,
                 CoreError::PathTaken,
