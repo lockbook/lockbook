@@ -4,16 +4,14 @@ import DSFQuickActionBar
 
 struct FileListView: View {    
     var body: some View {
-        VStack {            
+        VStack {
             FileTreeView()
             VStack (spacing: 3) {
                 BottomBar()
             }
         }
         
-        VStack {
-            DetailView()
-        }
+        DetailView()
     }
 }
 
@@ -134,7 +132,4 @@ struct SearchResultCellView: View {
             }
         }
     }
-    
-    
 }
-

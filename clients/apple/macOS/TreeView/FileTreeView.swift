@@ -1,6 +1,5 @@
 import SwiftUI
 import SwiftLockbookCore
-import Combine
 
 struct FileTreeView: NSViewRepresentable {
 
@@ -51,7 +50,7 @@ struct FileTreeView: NSViewRepresentable {
         treeView.dataSource = dataSource
         treeView.delegate = delegate
         treeView.stronglyReferencesItems = true
-        
+
         return scrollView
     }
     
