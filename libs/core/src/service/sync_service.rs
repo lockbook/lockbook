@@ -139,10 +139,10 @@ impl<Client: Requester> CoreState<Client> {
                         sync_progress.current_work_unit = ClientWorkUnit::PushMetadata;
                     }
                     SyncOperation::PullDocumentStart(file) => {
-                        sync_progress.current_work_unit = ClientWorkUnit::PullDocument(file.name);
+                        sync_progress.current_work_unit = ClientWorkUnit::PullDocument(file);
                     }
                     SyncOperation::PushDocumentStart(file) => {
-                        sync_progress.current_work_unit = ClientWorkUnit::PushDocument(file.name);
+                        sync_progress.current_work_unit = ClientWorkUnit::PushDocument(file);
                     }
                     SyncOperation::PullMetadataEnd(_)
                     | SyncOperation::PushMetadataEnd

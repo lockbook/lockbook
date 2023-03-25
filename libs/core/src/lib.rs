@@ -364,10 +364,11 @@ impl<Client: Requester> CoreLib<Client> {
 
     // todo: expose work calculated (return value)
     #[instrument(level = "debug", skip_all, err(Debug))]
-    pub fn sync(&self, f: Option<Box<dyn Fn(SyncProgress)>>) -> Result<(), LbError> {
+    pub fn sync(&self, f: Option<Box<dyn Fn(SyncProgress)>>) -> Result<WorkCalculated, LbError> {
         self.in_tx(|s| {
-            s.sync(f)?;
-            s.cleanup()
+            let wc = s.sync(f)?;
+            s.cleanup()?;
+            Ok(wc)
         })
         .expected_errs(&[CoreError::ServerUnreachable, CoreError::ClientUpdateRequired])
     }

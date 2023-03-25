@@ -209,21 +209,11 @@ where
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug)]
 pub enum Filter {
     DocumentsOnly,
     FoldersOnly,
     LeafNodesOnly,
-}
-
-pub fn filter_from_str(input: &str) -> SharedResult<Option<Filter>> {
-    match input {
-        "DocumentsOnly" => Ok(Some(Filter::DocumentsOnly)),
-        "FoldersOnly" => Ok(Some(Filter::FoldersOnly)),
-        "LeafNodesOnly" => Ok(Some(Filter::LeafNodesOnly)),
-        "Unfiltered" => Ok(None),
-        _ => Err(SharedErrorKind::Unexpected("unknown filter").into()),
-    }
 }
 
 fn split_path(path: &str) -> Vec<&str> {

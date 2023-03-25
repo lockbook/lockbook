@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 import SwiftLockbookCore
 
 class FileService: ObservableObject {
@@ -11,9 +12,47 @@ class FileService: ObservableObject {
             Array(idsAndFiles.values)
         }
     }
-    
     var successfulAction: FileAction? = nil
-        
+
+    // File Service keeps track of the parent being displayed on iOS. Since this functionality is not used for macOS, it is conditionally compiled.
+#if os(iOS)
+    @Published var path: [File] = []
+    var parent: File? {
+        get {
+            path.last
+        }
+    }
+
+    func childrenOfParent() -> [File] {
+        return childrenOf(path.last)
+    }
+
+    func upADirectory() {
+        DispatchQueue.main.async {
+            withAnimation {
+                let _ = self.path.removeLast()
+            }
+        }
+    }
+
+    func intoChildDirectory(_ file: File) {
+        DispatchQueue.main.async {
+            withAnimation {
+                self.path.append(file)
+            }
+        }
+    }
+
+    func pathBreadcrumbClicked(_ file: File) {
+        DispatchQueue.main.async {
+            withAnimation {
+                if let firstIndex = self.path.firstIndex(of: file) {
+                    self.path.removeSubrange(firstIndex + 1...self.path.count - 1)
+                }
+            }
+        }
+    }
+#endif
 
     func childrenOf(_ meta: File?) -> [File] {
         var file: File
@@ -158,20 +197,20 @@ class FileService: ObservableObject {
             }
         }
     }
-    
+
     func filesToExpand(pathToRoot: [File], currentFile: File) -> [File] {
         if(currentFile.isRoot) {
             return []
         }
-        
+
         let parentFile = idsAndFiles[currentFile.parent]!
-        
+
         var pathToRoot = filesToExpand(pathToRoot: pathToRoot, currentFile: parentFile)
-        
+
         if(currentFile.fileType == .Folder) {
             pathToRoot.append(currentFile)
         }
-        
+
         return pathToRoot
     }
 
@@ -187,6 +226,12 @@ class FileService: ObservableObject {
                         self.notifyDocumentChanged($0)
                         if self.root == nil && $0.id == $0.parent {
                             self.root = $0
+
+                            #if os(iOS)
+                            if(self.path.isEmpty) {
+                                self.path.append($0)
+                            }
+                            #endif
                         }
                     }
                     self.closeOpenFileIfDeleted()

@@ -19,6 +19,9 @@ enum Commands {
     /// Check the lint of the workspace
     CheckWorkspaceClippy,
 
+    /// Check if there are any unused deps in the workspace
+    CheckWorkspaceUdeps,
+
     /// Run the server detached
     RunServer,
 
@@ -78,6 +81,7 @@ fn main() {
         VerifyCIEnvironment => setup::verify_ci_environment(),
         CheckWorkspaceFmt => workspace::fmt_workspace(&tool_env),
         CheckWorkspaceClippy => workspace::clippy_workspace(&tool_env),
+        CheckWorkspaceUdeps => workspace::udeps_workspace(&tool_env),
         CheckAndroidFmt => android::fmt_android(&tool_env),
         CheckAndroidLint => android::lint_android(&tool_env),
         MakeKotlinLibs => android::make_android_libs(&tool_env),

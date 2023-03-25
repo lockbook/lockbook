@@ -40,8 +40,8 @@ impl super::AccountScreen {
                 let status = match &progress.current_work_unit {
                     lb::ClientWorkUnit::PullMetadata => "Pulling file tree updates".to_string(),
                     lb::ClientWorkUnit::PushMetadata => "Pushing file tree updates".to_string(),
-                    lb::ClientWorkUnit::PullDocument(name) => format!("Pulling: {}", name),
-                    lb::ClientWorkUnit::PushDocument(name) => format!("Pushing: {}", name),
+                    lb::ClientWorkUnit::PullDocument(f) => format!("Pulling: {}", f.name),
+                    lb::ClientWorkUnit::PushDocument(f) => format!("Pushing: {}", f.name),
                 };
                 self.sync.status = Ok(status);
             }
@@ -193,7 +193,10 @@ impl super::AccountScreen {
                 }
             };
 
-            let result = core.sync(Some(Box::new(closure))).map_err(SyncError::from);
+            let result = core
+                .sync(Some(Box::new(closure)))
+                .map(|_| ())
+                .map_err(SyncError::from);
             update_tx.send(SyncUpdate::Done(result).into()).unwrap();
             ctx.request_repaint();
         });

@@ -6,7 +6,7 @@ command -V cargo
 
 projRoot=$(git rev-parse --show-toplevel)
 
-cd "$projRoot"/core
-. ../containers/local.env
+cd "$projRoot"/libs/core
+. ../../containers/local.env
 
 cargo test --test exhaustive_sync_check --release --features 'no-network' -- --nocapture --ignored

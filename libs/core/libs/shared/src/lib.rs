@@ -47,7 +47,7 @@ pub struct SharedError {
 
 impl From<SharedErrorKind> for SharedError {
     fn from(kind: SharedErrorKind) -> Self {
-        Self { kind, backtrace: Some(Backtrace::capture()) }
+        Self { kind, backtrace: Some(Backtrace::force_capture()) }
     }
 }
 

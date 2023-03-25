@@ -187,7 +187,8 @@ impl FfiCore {
     }
 
     pub fn sync(&self, f: Option<Box<dyn Fn(SyncProgress)>>) -> Result<(), Error<SyncAllError>> {
-        Ok(self.core.sync(f)?)
+        let _ = self.core.sync(f)?;
+        Ok(())
     }
 
     pub fn get_last_synced(&self) -> Result<i64, UnexpectedError> {
