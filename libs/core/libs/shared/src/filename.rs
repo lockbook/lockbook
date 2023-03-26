@@ -1,6 +1,6 @@
 pub const MAX_FILENAME_LENGTH: usize = 40;
 pub const MAX_ENCRYPTED_FILENAME_LENGTH: usize =
-    ((MAX_FILENAME_LENGTH as f32 / 16.0 + 1.0) * 16.0) as usize;
+    MAX_FILENAME_LENGTH + 32 - (MAX_FILENAME_LENGTH % 32);
 
 #[derive(Debug)]
 pub enum DocumentType {
