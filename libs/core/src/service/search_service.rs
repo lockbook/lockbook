@@ -12,7 +12,6 @@ use std::time::Duration;
 use sublime_fuzzy::{FuzzySearch, Scoring};
 use uuid::Uuid;
 
-
 const DEBOUNCE_MILLIS: u64 = 500;
 const LOWEST_CONTENT_SCORE_THRESHOLD: i64 = 170;
 
@@ -25,7 +24,7 @@ pub struct SearchResultItem {
     pub id: Uuid,
     pub path: String,
     pub score: isize,
-    pub matched_indices: Vec<usize>
+    pub matched_indices: Vec<usize>,
 }
 
 impl Ord for SearchResultItem {
@@ -72,7 +71,12 @@ impl<Client: Requester> CoreState<Client> {
                         .case_insensitive()
                         .best_match()
                     {
-                        results.push(SearchResultItem { id, path, score: m.score(), matched_indices: m.matched_indices().cloned().collect() });
+                        results.push(SearchResultItem {
+                            id,
+                            path,
+                            score: m.score(),
+                            matched_indices: m.matched_indices().cloned().collect(),
+                        });
                     }
                 }
             }
