@@ -28,7 +28,7 @@ where
     T: TreeLike<F = SignedFile>,
 {
     // todo: revisit logic for what files can be finalized and how e.g. link substitutions, deleted files, files in pending shares, linked files
-    fn finalize(
+    fn decrypt(
         &mut self, id: &Uuid, account: &Account, public_key_cache: &mut LookupTable<Owner, String>,
     ) -> SharedResult<File> {
         let meta = self.find(id)?.clone();
@@ -80,17 +80,17 @@ where
     }
 
     //finalizes one single id.
-    pub fn resolve_and_finalize(
+    pub fn finalize(
         &mut self, account: &Account, id: Uuid, public_key_cache: &mut LookupTable<Owner, String>,
     ) -> SharedResult<File> {
         let file;
 
-        let finalized = self.finalize(&id, account, public_key_cache)?;
+        let finalized = self.decrypt(&id, account, public_key_cache)?;
 
         match finalized.file_type {
             FileType::Document | FileType::Folder => file = finalized,
             FileType::Link { target } => {
-                let mut target_file = self.finalize(&target, account, public_key_cache)?;
+                let mut target_file = self.decrypt(&target, account, public_key_cache)?;
 
                 target_file.id = finalized.id;
                 target_file.parent = finalized.parent;
@@ -102,8 +102,8 @@ where
 
         Ok(file)
     }
-    //finalizes multiple ids with the option to include all files or skip over invisible ones (eg useful when listing paths)
-    pub fn resolve_and_finalize_all<I>(
+    /// finalizes multiple ids, optionally skipping invisible files (e.g. when listing paths)
+    pub fn finalize_all<I>(
         &mut self, account: &Account, ids: I, public_key_cache: &mut LookupTable<Owner, String>,
         skip_invisible: bool,
     ) -> SharedResult<Vec<File>>
@@ -117,12 +117,12 @@ where
                 continue;
             }
 
-            let finalized = self.finalize(&id, account, public_key_cache)?;
+            let finalized = self.decrypt(&id, account, public_key_cache)?;
 
             match finalized.file_type {
                 FileType::Document | FileType::Folder => files.push(finalized),
                 FileType::Link { target } => {
-                    let mut target_file = self.finalize(&target, account, public_key_cache)?;
+                    let mut target_file = self.decrypt(&target, account, public_key_cache)?;
                     target_file.id = finalized.id;
                     target_file.parent = finalized.parent;
                     target_file.name = finalized.name;
