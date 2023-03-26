@@ -4,25 +4,31 @@ use crate::SharedResult;
 use crate::{crypto::*, SharedErrorKind};
 use serde::{Deserialize, Serialize};
 use std::cmp::Ordering;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::convert::TryInto;
 use std::fs::{self, File, OpenOptions};
+use std::hash::Hash;
 use std::io::{ErrorKind, Read, Write};
 use std::path::Path;
 use tracing::*;
 use uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Ord, PartialEq, PartialOrd, Eq, Hash)]
-pub enum DocEvents {
-    Read(i64),
-    Write(i64),
+pub enum DocEvent {
+    Read(Uuid, i64),
+    Write(Uuid, i64),
 }
-
-impl DocEvents {
+impl DocEvent {
     pub fn timestamp(&self) -> i64 {
         match *self {
-            DocEvents::Read(x) => x,
-            DocEvents::Write(x) => x,
+            DocEvent::Read(_, timestamp) => timestamp,
+            DocEvent::Write(_, timestamp) => timestamp,
+        }
+    }
+    pub fn id(&self) -> Uuid {
+        match *self {
+            DocEvent::Read(id, _) => id,
+            DocEvent::Write(id, _) => id,
         }
     }
 }
@@ -31,6 +37,11 @@ impl DocEvents {
 pub struct StatisticValue {
     pub raw: i64,
     pub normalized: f64,
+}
+impl StatisticValue {
+    fn from_raw(raw: i64) -> StatisticValue {
+        StatisticValue { raw, normalized: f64::default() }
+    }
 }
 impl Ord for StatisticValue {
     fn cmp(&self, other: &Self) -> Ordering {
@@ -59,62 +70,79 @@ impl StatisticValue {
 
 #[derive(Default, Copy, Clone)]
 pub struct DocActivityMetrics {
-    pub avg_read_timestamp: StatisticValue,
-    pub avg_write_timestamp: StatisticValue,
+    pub id: Uuid,
+    pub latest_read_timestamp: StatisticValue,
+    pub latest_write_timestamp: StatisticValue,
     pub read_count: StatisticValue,
     pub write_count: StatisticValue,
 }
 impl DocActivityMetrics {
     pub fn rank(&self) -> i64 {
-        (self.avg_read_timestamp.normalized + self.avg_write_timestamp.normalized) as i64 * 70
+        (self.latest_read_timestamp.normalized + self.latest_write_timestamp.normalized) as i64 * 70
             + (self.read_count.normalized + self.write_count.normalized) as i64 * 30
     }
 }
 pub trait Stats {
-    fn get_activity_metrics(self) -> DocActivityMetrics;
+    fn get_activity_metrics(self) -> Vec<DocActivityMetrics>;
 }
 impl<'a, T> Stats for T
 where
-    T: Iterator<Item = &'a DocEvents>,
+    T: Iterator<Item = &'a DocEvent>,
 {
-    fn get_activity_metrics(self) -> DocActivityMetrics {
-        let mut read_activity: Vec<i64> = vec![];
-        let mut write_activity: Vec<i64> = vec![];
-        let mut write_sum = 0;
-        let mut read_sum = 0;
+    fn get_activity_metrics(self) -> Vec<DocActivityMetrics> {
+        let mut result = Vec::new();
 
-        self.for_each(|event| match event {
-            DocEvents::Read(timestamp) => {
-                read_activity.push(*timestamp);
-                read_sum += timestamp;
+        let mut set = HashMap::new();
+        for event in self {
+            match set.get_mut(&event.id()) {
+                None => {
+                    set.insert(event.id(), vec![event]);
+                }
+                Some(events) => {
+                    events.push(event);
+                }
             }
-            DocEvents::Write(timestamp) => {
-                write_activity.push(*timestamp);
-                write_sum += timestamp;
-            }
-        });
-
-        let avg_read_timestamp = read_sum / read_activity.len() as i64;
-        let avg_write_timestamp = write_sum / write_activity.len() as i64;
-
-        DocActivityMetrics {
-            avg_read_timestamp: StatisticValue {
-                raw: avg_read_timestamp,
-                normalized: f64::default(),
-            },
-            avg_write_timestamp: StatisticValue {
-                raw: avg_write_timestamp,
-                normalized: f64::default(),
-            },
-            read_count: StatisticValue {
-                raw: read_activity.len() as i64,
-                normalized: f64::default(),
-            },
-            write_count: StatisticValue {
-                raw: write_activity.len() as i64,
-                normalized: f64::default(),
-            },
         }
+
+        for pair in set {
+            let read_events: Vec<&&DocEvent> = pair
+                .1
+                .iter()
+                .filter(|e| matches!(e, DocEvent::Read(_, _)))
+                .collect();
+            let latest_read = read_events
+                .iter()
+                .max_by(|x, y| x.timestamp().cmp(&y.timestamp()));
+            let latest_read = match latest_read {
+                None => 0,
+                Some(x) => x.timestamp(),
+            };
+
+            let write_events: Vec<&&DocEvent> = pair
+                .1
+                .iter()
+                .filter(|e| matches!(e, DocEvent::Write(_, _)))
+                .collect();
+
+            let latest_write = write_events
+                .iter()
+                .max_by(|x, y| x.timestamp().cmp(&y.timestamp()));
+            let latest_write = match latest_write {
+                None => 0,
+                Some(x) => x.timestamp(),
+            };
+
+            let metrics = DocActivityMetrics {
+                id: pair.0,
+                latest_read_timestamp: StatisticValue::from_raw(latest_read),
+                latest_write_timestamp: StatisticValue::from_raw(latest_write),
+                read_count: StatisticValue::from_raw(read_events.len() as i64),
+                write_count: StatisticValue::from_raw(write_events.len() as i64),
+            };
+            result.push(metrics);
+        }
+
+        result
     }
 }
 

@@ -1,11 +1,11 @@
-use db_rs::{Db, LookupList, LookupTable, Single};
+use db_rs::{Db, List, LookupTable, Single};
 use db_rs_derive::Schema;
 use hmdb::log::Reader;
 use std::fs::remove_file;
 use std::path::PathBuf;
 
 use lockbook_shared::account::Account;
-use lockbook_shared::document_repo::DocEvents;
+use lockbook_shared::document_repo::DocEvent;
 use lockbook_shared::file_metadata::Owner;
 use lockbook_shared::signed_file::SignedFile;
 
@@ -19,7 +19,7 @@ pub mod schema_v2;
 
 pub type CoreDb = CoreV3;
 
-#[derive(Schema)]
+#[derive(Schema, Debug)]
 pub struct CoreV3 {
     pub account: Single<Account>,
     pub last_synced: Single<i64>,
@@ -27,7 +27,7 @@ pub struct CoreV3 {
     pub local_metadata: LookupTable<Uuid, SignedFile>,
     pub base_metadata: LookupTable<Uuid, SignedFile>,
     pub pub_key_lookup: LookupTable<Owner, String>,
-    pub doc_events: LookupList<Uuid, DocEvents>,
+    pub doc_events: List<DocEvent>,
 }
 
 impl CoreV3 {

@@ -1,91 +1,72 @@
 use crate::CoreState;
 use crate::LbResult;
 use crate::Requester;
-use chrono::Utc;
+use db_rs::DbError;
 use lockbook_shared::document_repo::DocActivityMetrics;
+use lockbook_shared::document_repo::DocEvent;
 use lockbook_shared::document_repo::StatisticValueRange;
 use lockbook_shared::document_repo::Stats;
 use uuid::Uuid;
 
 impl<Client: Requester> CoreState<Client> {
     pub(crate) fn suggested_docs(&mut self) -> LbResult<Vec<Uuid>> {
-        let mut scores: Vec<(Uuid, DocActivityMetrics)> = vec![];
-
-        self.db
-            .doc_events
-            .data()
-            .iter()
-            .for_each(|(key, doc_events)| {
-                scores.push((*key, doc_events.iter().get_activity_metrics()));
-            });
-
-        Self::normalize(&mut scores);
-
-        scores.sort_by(|a, b| DocActivityMetrics::rank(&a.1).cmp(&DocActivityMetrics::rank(&b.1)));
-
-        Ok(scores.into_iter().map(|f| f.0).collect())
-    }
-    pub(crate) fn is_insertion_capped(&self, id: Uuid) -> bool {
-        const RATE_LIMIT_MILLIS: i64 = 60 * 1000;
-
-        let binding = Vec::new();
-        let latest_event = self
+        let mut scores = self
             .db
             .doc_events
             .data()
-            .get(&id)
-            .unwrap_or(&binding)
             .iter()
-            .max();
+            .get_activity_metrics()
+            .iter_mut()
+            .normalize();
 
-        match latest_event {
-            Some(event) => Utc::now().timestamp() - event.timestamp() < RATE_LIMIT_MILLIS,
-            None => false,
-        }
+        scores.sort_by(|a, b| DocActivityMetrics::rank(a).cmp(&DocActivityMetrics::rank(b)));
+
+        Ok(scores.iter().map(|f| f.id).collect())
     }
-    fn normalize(scores: &mut [(Uuid, DocActivityMetrics)]) {
-        let docs_avg_read_timestamps = StatisticValueRange {
-            max: scores
-                .iter()
-                .map(|f| f.1.avg_read_timestamp)
-                .max()
-                .unwrap_or_default(),
-            min: scores
-                .iter()
-                .map(|f| f.1.avg_read_timestamp)
-                .min()
-                .unwrap_or_default(),
-        };
 
-        let docs_avg_write_timestamps = StatisticValueRange {
-            max: scores
-                .iter()
-                .map(|f| f.1.avg_write_timestamp)
-                .max()
-                .unwrap_or_default(),
-            min: scores
-                .iter()
-                .map(|f| f.1.avg_write_timestamp)
-                .min()
-                .unwrap_or_default(),
-        };
+    pub(crate) fn add_doc_event(&mut self, event: DocEvent) -> Result<(), DbError> {
+        let max_stored_events = 1000;
+        let events = &self.db.doc_events;
 
-        let docs_read_count = StatisticValueRange {
-            max: scores.iter().map(|f| f.1.read_count).max().unwrap(),
-            min: scores.iter().map(|f| f.1.read_count).min().unwrap(),
-        };
-
-        let docs_write_count = StatisticValueRange {
-            max: scores.iter().map(|f| f.1.write_count).max().unwrap(),
-            min: scores.iter().map(|f| f.1.write_count).min().unwrap(),
-        };
-
-        for (_, feat) in scores.iter_mut() {
-            feat.avg_read_timestamp.normalize(docs_avg_read_timestamps);
-            feat.avg_write_timestamp
-                .normalize(docs_avg_write_timestamps);
-            feat.read_count.normalize(docs_read_count);
-            feat.write_count.normalize(docs_write_count);
+        if events.data().len() > max_stored_events {
+            // todo: investigate wether this pops the latest, should probably implement it from db-rs
+            events.data().to_vec().pop();
         }
+        self.db.doc_events.push(event)
+    }
+}
+
+trait Normalizer {
+    fn normalize(&mut self) -> Vec<DocActivityMetrics>;
+}
+impl<'a, T> Normalizer for T
+where
+    T: Iterator<Item = &'a mut DocActivityMetrics>,
+{
+    fn normalize(&mut self) -> Vec<DocActivityMetrics> {
+        let read_count_range = StatisticValueRange {
+            max: self.map(|f| f.read_count).max().unwrap(),
+            min: self.map(|f| f.read_count).min().unwrap(),
+        };
+        let write_count_range = StatisticValueRange {
+            max: self.map(|f| f.write_count).max().unwrap(),
+            min: self.map(|f| f.write_count).min().unwrap(),
+        };
+
+        let latest_read_range = StatisticValueRange {
+            max: self.map(|f| f.latest_read_timestamp).max().unwrap(),
+            min: self.map(|f| f.latest_read_timestamp).min().unwrap(),
+        };
+        let latest_write_range = StatisticValueRange {
+            max: self.map(|f| f.latest_write_timestamp).max().unwrap(),
+            min: self.map(|f| f.latest_write_timestamp).min().unwrap(),
+        };
+        self.for_each(|f| {
+            f.read_count.normalize(read_count_range);
+            f.write_count.normalize(write_count_range);
+            f.latest_read_timestamp.normalize(latest_read_range);
+            f.latest_write_timestamp.normalize(latest_write_range);
+        });
+        vec![]
     }
 }

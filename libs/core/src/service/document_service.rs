@@ -21,11 +21,7 @@ impl<Client: Requester> CoreState<Client> {
 
         let doc = tree.read_document(&self.config, &id, account)?;
 
-        if !self.is_insertion_capped(id) {
-            self.db
-                .doc_events
-                .push(id, document_repo::DocEvents::Read(Utc::now().timestamp()))?;
-        }
+        self.add_doc_event(document_repo::DocEvent::Read(id, Utc::now().timestamp()))?;
 
         Ok(doc)
     }
@@ -48,11 +44,8 @@ impl<Client: Requester> CoreState<Client> {
         let hmac = tree.find(&id)?.document_hmac();
         document_repo::insert(&self.config, &id, hmac, &encrypted_document)?;
 
-        if !self.is_insertion_capped(id) {
-            self.db
-                .doc_events
-                .push(id, document_repo::DocEvents::Write(Utc::now().timestamp()))?;
-        }
+        self.add_doc_event(document_repo::DocEvent::Write(id, Utc::now().timestamp()))?;
+
         Ok(())
     }
 

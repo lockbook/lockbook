@@ -1,6 +1,6 @@
 use hmdb::transaction::Transaction;
 use lockbook_shared::account::Account;
-use lockbook_shared::document_repo::DocEvents;
+use lockbook_shared::document_repo::DocEvent;
 use lockbook_shared::file_metadata::Owner;
 use lockbook_shared::signed_file::SignedFile;
 use serde::{Deserialize, Serialize};
@@ -22,7 +22,7 @@ hmdb::schema! {
         base_metadata: <Uuid, SignedFile>,
         public_key_by_username: <String, Owner>,
         username_by_public_key: <Owner, String>,
-        docs_events: <Uuid, Vec<DocEvents>>
+        docs_events: <Uuid, Vec<DocEvent>>
     }
 }
 
