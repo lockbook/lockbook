@@ -40,6 +40,9 @@ class DataSource: NSObject, NSOutlineViewDataSource, NSPasteboardItemDataProvide
     func outlineView(_ outlineView: NSOutlineView,
                      pasteboardWriterForItem item: Any) -> NSPasteboardWriting? {
         let pb = NSPasteboardItem()
+        let file = item as! File
+        
+        pb.setData(try! JSONEncoder().encode(file), forType: NSPasteboard.PasteboardType(Self.REORDER_PASTEBOARD_TYPE))
         pb.setDataProvider(self, forTypes: [NSPasteboard.PasteboardType(Self.REORDER_PASTEBOARD_TYPE), .fileContents])
 
         return pb
@@ -47,7 +50,7 @@ class DataSource: NSObject, NSOutlineViewDataSource, NSPasteboardItemDataProvide
 
     func outlineView(_ outlineView: NSOutlineView, draggingSession session: NSDraggingSession, willBeginAt screenPoint: NSPoint, forItems draggedItems: [Any]) {
         dragged = draggedItems[0] as? File
-        session.draggingPasteboard.setData(Data(), forType: NSPasteboard.PasteboardType(Self.REORDER_PASTEBOARD_TYPE))
+        session.draggingPasteboard.setData(try! JSONEncoder().encode(dragged), forType: NSPasteboard.PasteboardType(Self.REORDER_PASTEBOARD_TYPE))
     }
 
     func outlineView(_ outlineView: NSOutlineView, validateDrop info: NSDraggingInfo, proposedItem item: Any?, proposedChildIndex index: Int) -> NSDragOperation {
@@ -59,7 +62,6 @@ class DataSource: NSObject, NSOutlineViewDataSource, NSPasteboardItemDataProvide
             
             return NSDragOperation.move
         } else {
-
             return NSDragOperation.copy
         }
     }
@@ -81,12 +83,27 @@ class DataSource: NSObject, NSOutlineViewDataSource, NSPasteboardItemDataProvide
         }
     }
     
-    // never called
     func pasteboard(_ pasteboard: NSPasteboard?, item: NSPasteboardItem, provideDataForType type: NSPasteboard.PasteboardType) {
-        let s = "Outline Pasteboard Item"
-        item.setString(s, forType: type)
+        print("CALLING PASTEBOARD")
+        
+        if(type == .fileURL) {
+            let file = try! JSONDecoder().decode(File.self, from: item.data(forType: NSPasteboard.PasteboardType(Self.REORDER_PASTEBOARD_TYPE))!)
+            
+            guard let destination = createTempFile(named: file.name) else {
+                return
+            }
+            
+            let operation = DI.core.exportFile(id: file.id, destination: destination.path())
+            
+            switch operation {
+            case .success(_):
+                item.setData(destination.dataRepresentation, forType: .fileURL)
+            case .failure(_):
+                return
+            }
+        }
     }
-
+    
     func outlineView(_ outlineView: NSOutlineView, draggingSession session: NSDraggingSession, endedAt screenPoint: NSPoint, operation: NSDragOperation) {
         dragged = nil
     }
@@ -144,52 +161,52 @@ class TreeDelegate: NSObject, MenuOutlineViewDelegate {
 
 }
 
-class LBPasteboardItem: NSObject, NSPasteboardWriting, NSPasteboardReading {
-    var file: File
-    
-    init(file: File) {
-        self.file = file
-    }
-    
-    // Implement NSPasteboardWriting
-    func writableTypes(for pasteboard: NSPasteboard) -> [NSPasteboard.PasteboardType] {
-        return [NSPasteboard.PasteboardType(DataSource.REORDER_PASTEBOARD_TYPE), .fileContents]
-    }
-    
-    func pasteboardPropertyList(forType type: NSPasteboard.PasteboardType) -> Any? {
-        if type == NSPasteboard.PasteboardType(DataSource.REORDER_PASTEBOARD_TYPE) {
-            return file
-        } else if type == .fileURL {
-            
-            guard let destination = createTempFile(named: file.name) else {
-                return nil
-            }
-            
-            let operation = DI.core.exportFile(id: file.id, destination: destination.path())
-            
-            switch operation {
-            case .success(_):
-                return destination
-            case .failure(let _):
-                print("Could not export file!")
-                return nil
-            }
-        } else {
-            return nil
-        }
-    }
-    
-    // Implement NSPasteboardReading
-    required init?(pasteboardPropertyList propertyList: Any, ofType type: NSPasteboard.PasteboardType) {
-        if type == NSPasteboard.PasteboardType(DataSource.REORDER_PASTEBOARD_TYPE) {
-            self.file = propertyList as! File
-        } else if type == .fileContents {
-            self.file = propertyList as! File
-        } else {
-            return nil
-        }
-    }
-}
+//class LBPasteboardItem: NSObject, NSPasteboardWriting, NSPasteboardReading {
+//    var file: File
+//
+//    init(file: File) {
+//        self.file = file
+//    }
+//
+//    // Implement NSPasteboardWriting
+//    func writableTypes(for pasteboard: NSPasteboard) -> [NSPasteboard.PasteboardType] {
+//        return [NSPasteboard.PasteboardType(DataSource.REORDER_PASTEBOARD_TYPE), .fileContents]
+//    }
+//
+//    func pasteboardPropertyList(forType type: NSPasteboard.PasteboardType) -> Any? {
+//        if type == NSPasteboard.PasteboardType(DataSource.REORDER_PASTEBOARD_TYPE) {
+//            return file
+//        } else if type == .fileURL {
+//
+//            guard let destination = createTempFile(named: file.name) else {
+//                return nil
+//            }
+//
+//            let operation = DI.core.exportFile(id: file.id, destination: destination.path())
+//
+//            switch operation {
+//            case .success(_):
+//                return destination
+//            case .failure(let _):
+//                print("Could not export file!")
+//                return nil
+//            }
+//        } else {
+//            return nil
+//        }
+//    }
+//
+//    // Implement NSPasteboardReading
+//    required init?(pasteboardPropertyList propertyList: Any, ofType type: NSPasteboard.PasteboardType) {
+//        if type == NSPasteboard.PasteboardType(DataSource.REORDER_PASTEBOARD_TYPE) {
+//            self.file = propertyList as! File
+//        } else if type == .fileContents {
+//            self.file = propertyList as! File
+//        } else {
+//            return nil
+//        }
+//    }
+//}
 
 
 func createTempFile(named fileName: String) -> URL? {
@@ -205,12 +222,8 @@ func createTempFile(named fileName: String) -> URL? {
     
     let newFileURL = newDirectoryURL.appendingPathComponent(fileName)
     
-    do {
-        fileManager.createFile(atPath: newFileURL, contents: nil)
-        return newFileURL
-    } catch {
-        return nil
-    }
+    fileManager.createFile(atPath: newFileURL.path(), contents: nil)
+    return newFileURL
 }
 
 
