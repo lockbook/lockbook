@@ -46,6 +46,8 @@ struct BookView: View {
                 return AlertToast(type: .regular, title: "File moved")
             case .createFolder:
                 return AlertToast(type: .regular, title: "Folder created")
+            case .importFiles:
+                return AlertToast(type: .regular, title: "Imported successfully")
             }
         } else {
             return AlertToast(type: .regular, title: "ERROR")

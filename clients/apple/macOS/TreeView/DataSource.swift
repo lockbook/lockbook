@@ -40,7 +40,7 @@ class DataSource: NSObject, NSOutlineViewDataSource, NSPasteboardItemDataProvide
     func outlineView(_ outlineView: NSOutlineView,
                      pasteboardWriterForItem item: Any) -> NSPasteboardWriting? {
         let pb = NSPasteboardItem()
-        pb.setDataProvider(self, forTypes: [NSPasteboard.PasteboardType(Self.REORDER_PASTEBOARD_TYPE)])
+        pb.setDataProvider(self, forTypes: [NSPasteboard.PasteboardType(Self.REORDER_PASTEBOARD_TYPE), .fileContents])
 
         return pb
     }
@@ -51,18 +51,36 @@ class DataSource: NSObject, NSOutlineViewDataSource, NSPasteboardItemDataProvide
     }
 
     func outlineView(_ outlineView: NSOutlineView, validateDrop info: NSDraggingInfo, proposedItem item: Any?, proposedChildIndex index: Int) -> NSDragOperation {
-        let parent = item == nil ? DI.files.root! : item as! File
-        if parent.fileType == .Document {
-            return []
+        if (info.draggingSource as? NSOutlineView) === outlineView {
+            let parent = item == nil ? DI.files.root! : item as! File
+            if parent.fileType == .Document {
+                return []
+            }
+            
+            return NSDragOperation.move
+        } else {
+
+            return NSDragOperation.copy
         }
-        return NSDragOperation.move
     }
 
     func outlineView(_ outlineView: NSOutlineView, acceptDrop info: NSDraggingInfo, item: Any?, childIndex index: Int) -> Bool {
-        let parent = item == nil ? DI.files.root! : item as! File
-        return DI.files.moveFileSync(id: dragged!.id, newParent: parent.id)
+        if (info.draggingSource as? NSOutlineView) === outlineView {
+            let parent = item == nil ? DI.files.root! : item as! File
+            
+            return DI.files.moveFileSync(id: dragged!.id, newParent: parent.id)
+        } else {
+            
+            guard let urls = info.draggingPasteboard.readObjects(forClasses: [NSURL.self], options: nil) as? [URL] else {
+                return false
+            }
+            
+            let parent = item == nil ? DI.files.root! : item as! File
+            
+            return DI.files.importFilesSync(sources: urls.map({ url in url.path()}), destination: parent.id)
+        }
     }
-
+    
     // never called
     func pasteboard(_ pasteboard: NSPasteboard?, item: NSPasteboardItem, provideDataForType type: NSPasteboard.PasteboardType) {
         let s = "Outline Pasteboard Item"
@@ -74,6 +92,7 @@ class DataSource: NSObject, NSOutlineViewDataSource, NSPasteboardItemDataProvide
     }
 
     static let REORDER_PASTEBOARD_TYPE = "net.lockbook.metadata"
+    static let TMP_DIR = "lb-tmp"
 }
 
 class TreeDelegate: NSObject, MenuOutlineViewDelegate {
@@ -123,6 +142,75 @@ class TreeDelegate: NSObject, MenuOutlineViewDelegate {
         }
     }
 
+}
+
+class LBPasteboardItem: NSObject, NSPasteboardWriting, NSPasteboardReading {
+    var file: File
+    
+    init(file: File) {
+        self.file = file
+    }
+    
+    // Implement NSPasteboardWriting
+    func writableTypes(for pasteboard: NSPasteboard) -> [NSPasteboard.PasteboardType] {
+        return [NSPasteboard.PasteboardType(DataSource.REORDER_PASTEBOARD_TYPE), .fileContents]
+    }
+    
+    func pasteboardPropertyList(forType type: NSPasteboard.PasteboardType) -> Any? {
+        if type == NSPasteboard.PasteboardType(DataSource.REORDER_PASTEBOARD_TYPE) {
+            return file
+        } else if type == .fileURL {
+            
+            guard let destination = createTempFile(named: file.name) else {
+                return nil
+            }
+            
+            let operation = DI.core.exportFile(id: file.id, destination: destination.path())
+            
+            switch operation {
+            case .success(_):
+                return destination
+            case .failure(let _):
+                print("Could not export file!")
+                return nil
+            }
+        } else {
+            return nil
+        }
+    }
+    
+    // Implement NSPasteboardReading
+    required init?(pasteboardPropertyList propertyList: Any, ofType type: NSPasteboard.PasteboardType) {
+        if type == NSPasteboard.PasteboardType(DataSource.REORDER_PASTEBOARD_TYPE) {
+            self.file = propertyList as! File
+        } else if type == .fileContents {
+            self.file = propertyList as! File
+        } else {
+            return nil
+        }
+    }
+}
+
+
+func createTempFile(named fileName: String) -> URL? {
+    let fileManager = FileManager.default
+    let tempDirectoryURL = URL(fileURLWithPath: NSTemporaryDirectory())
+    let newDirectoryURL = tempDirectoryURL.appendingPathComponent(DataSource.TMP_DIR)
+
+    do {
+        try fileManager.createDirectory(at: newDirectoryURL, withIntermediateDirectories: true, attributes: nil)
+    } catch {
+        return nil
+    }
+    
+    let newFileURL = newDirectoryURL.appendingPathComponent(fileName)
+    
+    do {
+        fileManager.createFile(atPath: newFileURL, contents: nil)
+        return newFileURL
+    } catch {
+        return nil
+    }
 }
 
 

@@ -257,3 +257,14 @@ public enum DeletePendingShareError: String, UiError {
     case FileNonexistent
     case ShareNonexistent
 }
+
+public enum ImportFilesError: String, UiError {
+    case FileNonexistent
+    case FileNotFolder
+}
+
+public enum ExportFileError: String, UiError {
+    case FileNonexistent
+    case DiskPathInvalid
+    case DiskPathTaken
+}
