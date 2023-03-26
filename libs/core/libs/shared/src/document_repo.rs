@@ -67,7 +67,11 @@ impl StatisticValue {
         self.normalized = (self.raw - range.min.raw) as f64 / (range.max.raw - range.min.raw) as f64
     }
 }
-
+/// DocActivityMetrics stores key activity features for every doc which are used to recommend relevant documents
+/// latest_read_timestamp: the latests epoch timestamp that the user read a document
+/// latest_write_timestamp: the latests epoch timestamp that the user wrote a document
+/// the total number of times that a user read a document
+/// the total number of times that a user wrote a document   
 #[derive(Default, Copy, Clone)]
 pub struct DocActivityMetrics {
     pub id: Uuid,
