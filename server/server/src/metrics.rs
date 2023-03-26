@@ -208,10 +208,6 @@ pub fn get_user_info(
     let mut ids = Vec::new();
 
     let time_two_days_ago = get_time().0 as u64 - TWO_DAYS_IN_MILLIS as u64;
-    let is_user_active = match db.last_seen.data().get(&owner) {
-        Some(x) => *x > time_two_days_ago,
-        None => false,
-    };
 
     let is_user_sharer_or_sharee = tree
         .all_files()?
@@ -225,6 +221,11 @@ pub fn get_user_info(
     }
 
     let (total_documents, total_bytes) = get_bytes_and_documents_count(db, owner, ids)?;
+
+    let is_user_active = match db.last_seen.data().get(&owner) {
+        Some(x) => *x > time_two_days_ago && total_documents > 2,
+        None => false,
+    };
 
     Ok(Some(UserInfo {
         total_documents,
