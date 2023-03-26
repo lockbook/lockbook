@@ -246,14 +246,12 @@ where
             self.populate_public_key_cache(&remote_changes)?;
 
             let mut remote = self.base.stage(remote_changes).pruned()?.to_lazy();
-            report_sync_operation(SyncOperation::PullMetadataEnd(
-                remote.resolve_and_finalize_all(
-                    &self.account,
-                    remote.tree.staged.owned_ids().into_iter(),
-                    self.username_by_public_key,
-                    false,
-                )?,
-            ));
+            report_sync_operation(SyncOperation::PullMetadataEnd(remote.finalize_all(
+                &self.account,
+                remote.tree.staged.owned_ids().into_iter(),
+                self.username_by_public_key,
+                false,
+            )?));
             let (_, remote_changes) = remote.unstage();
             (remote_changes, update_as_of)
         };
@@ -288,13 +286,11 @@ where
                 }
 
                 if let Some(remote_hmac) = remote_hmac {
-                    report_sync_operation(SyncOperation::PullDocumentStart(
-                        remote.resolve_and_finalize(
-                            &self.account,
-                            id,
-                            self.username_by_public_key,
-                        )?,
-                    ));
+                    report_sync_operation(SyncOperation::PullDocumentStart(remote.finalize(
+                        &self.account,
+                        id,
+                        self.username_by_public_key,
+                    )?));
 
                     if !self.dry_run {
                         let remote_document = self
@@ -951,7 +947,7 @@ where
             updates.push(file_diff);
         }
 
-        report_sync_operation(SyncOperation::PushMetadataStart(local.resolve_and_finalize_all(
+        report_sync_operation(SyncOperation::PushMetadataStart(local.finalize_all(
             &self.account,
             local.tree.staged.owned_ids().into_iter(),
             self.username_by_public_key,
@@ -999,7 +995,7 @@ where
 
             let local_change = local_change.sign(&self.account)?;
 
-            report_sync_operation(SyncOperation::PushDocumentStart(local.resolve_and_finalize(
+            report_sync_operation(SyncOperation::PushDocumentStart(local.finalize(
                 &self.account,
                 id,
                 self.username_by_public_key,

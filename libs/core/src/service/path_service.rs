@@ -21,7 +21,7 @@ impl<Client: Requester> CoreState<Client> {
 
         let id = tree.create_link_at_path(path, target_id, root, account, &pub_key)?;
 
-        let mut ui_file = tree.resolve_and_finalize(account, id, &mut self.db.pub_key_lookup)?;
+        let mut ui_file = tree.finalize(account, id, &mut self.db.pub_key_lookup)?;
         ui_file.id = id;
 
         Ok(ui_file)
@@ -42,7 +42,7 @@ impl<Client: Requester> CoreState<Client> {
 
         let id = tree.create_at_path(path, root, account, &pub_key)?;
 
-        let ui_file = tree.resolve_and_finalize(account, id, &mut self.db.pub_key_lookup)?;
+        let ui_file = tree.finalize(account, id, &mut self.db.pub_key_lookup)?;
 
         Ok(ui_file)
     }
@@ -61,7 +61,7 @@ impl<Client: Requester> CoreState<Client> {
 
         let id = tree.path_to_id(path, root, account)?;
 
-        let ui_file = tree.resolve_and_finalize(account, id, &mut self.db.pub_key_lookup)?;
+        let ui_file = tree.finalize(account, id, &mut self.db.pub_key_lookup)?;
 
         Ok(ui_file)
     }

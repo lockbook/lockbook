@@ -63,7 +63,7 @@ impl<Client: Requester> CoreState<Client> {
                 continue;
             }
 
-            let file = tree.resolve_and_finalize(account, id, &mut self.db.pub_key_lookup)?;
+            let file = tree.finalize(account, id, &mut self.db.pub_key_lookup)?;
 
             result.push(file);
         }
