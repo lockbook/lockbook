@@ -78,17 +78,19 @@ struct FileTreeView: NSViewRepresentable {
     
     func expandAncestorsOfDocument(file: File) {
         if(treeView.row(forItem: file) != -1) {
+            treeView.scrollRowToVisible(min(treeView.row(forItem: file), treeView.numberOfRows))
+
             return
         }
                 
-        var pathToRoot = DI.files.filesToExpand(pathToRoot: [], currentFile: file)
+        let pathToRoot = DI.files.filesToExpand(pathToRoot: [], currentFile: file)
                 
         for parent in pathToRoot {
             treeView.animator().expandItem(parent)
         }
         
         
-        treeView.scrollRowToVisible(min(treeView.row(forItem: file) + 2, treeView.numberOfRows))
+        treeView.scrollRowToVisible(min(treeView.row(forItem: file), treeView.numberOfRows))
     }
 }
 
