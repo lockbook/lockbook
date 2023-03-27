@@ -78,6 +78,7 @@ where
 
         Ok(())
     }
+
     // note: deleted access keys permissible
     pub fn assert_all_files_decryptable(&mut self, owner: Owner) -> SharedResult<()> {
         for file in self.ids().into_iter().filter_map(|id| self.maybe_find(id)) {
@@ -103,6 +104,7 @@ where
         }
         Ok(())
     }
+
     pub fn assert_only_folders_have_children(&self) -> SharedResult<()> {
         for file in self.all_files()? {
             if let Some(parent) = self.maybe_find(file.parent()) {

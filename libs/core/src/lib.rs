@@ -324,6 +324,7 @@ impl<Client: Requester> CoreLib<Client> {
                 CoreError::FileNotFolder,
                 CoreError::InsufficientPermission,
                 CoreError::PathContainsEmptyFileName,
+                CoreError::FileNameTooLong,
                 CoreError::PathTaken,
                 CoreError::RootNonexistent,
             ])
