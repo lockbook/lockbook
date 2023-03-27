@@ -12,6 +12,7 @@ struct FileTreeView: NSViewRepresentable {
     @EnvironmentObject var currentSelection: CurrentDocument
     
     let previousFilesHash: Reference<Int?> = Reference(nil)
+    let previousOpenDocumentHash: Reference<Int?> = Reference(nil)
             
     func makeNSView(context: Context) -> NSScrollView {        
         delegate.documentSelected = {
@@ -60,8 +61,11 @@ struct FileTreeView: NSViewRepresentable {
             previousFilesHash.value = files.idsAndFiles.hashValue
         }
         
-        if let file = DI.currentDoc.selectedDocument {
-            expandAncestorsOfDocument(file: file)
+        if previousOpenDocumentHash.value != currentSelection.selectedDocument?.hashValue {
+            if let file = DI.currentDoc.selectedDocument {
+                scrollAndexpandAncestorsOfDocument(file: file)
+            }
+            previousOpenDocumentHash.value = currentSelection.selectedDocument?.hashValue
         }
         
         // Should this happen in the delegate?
@@ -76,21 +80,16 @@ struct FileTreeView: NSViewRepresentable {
         }
     }
     
-    func expandAncestorsOfDocument(file: File) {
-        if(treeView.row(forItem: file) != -1) {
-            treeView.scrollRowToVisible(min(treeView.row(forItem: file), treeView.numberOfRows))
-
-            return
-        }
-                
-        let pathToRoot = DI.files.filesToExpand(pathToRoot: [], currentFile: file)
-                
-        for parent in pathToRoot {
-            treeView.animator().expandItem(parent)
+    func scrollAndexpandAncestorsOfDocument(file: File) {
+        if(treeView.row(forItem: file) == -1) {
+            let pathToRoot = DI.files.filesToExpand(pathToRoot: [], currentFile: file)
+                    
+            for parent in pathToRoot {
+                treeView.animator().expandItem(parent)
+            }
         }
         
-        
-        treeView.scrollRowToVisible(min(treeView.row(forItem: file), treeView.numberOfRows))
+        treeView.scrollRowToVisible(treeView.row(forItem: file))
     }
 }
 
