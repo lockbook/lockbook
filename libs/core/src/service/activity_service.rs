@@ -29,8 +29,7 @@ impl<Client: Requester> CoreState<Client> {
         let events = &self.db.doc_events;
 
         if events.data().len() > max_stored_events {
-            // todo: investigate wether this pops the latest, should probably implement it from db-rs
-            events.data().to_vec().pop();
+            self.db.doc_events.pop()?;
         }
         self.db.doc_events.push(event)
     }
