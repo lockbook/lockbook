@@ -310,6 +310,7 @@ impl<Client: Requester> CoreLib<Client> {
                 CoreError::FileNotFolder,
                 CoreError::PathContainsEmptyFileName,
                 CoreError::PathTaken,
+                CoreError::FileNameTooLong,
                 CoreError::LinkInSharedFolder,
                 CoreError::LinkTargetIsOwned,
                 CoreError::LinkTargetNonexistent,
@@ -464,7 +465,11 @@ impl<Client: Requester> CoreLib<Client> {
             s.import_files(sources, dest, update_status)?;
             s.cleanup()
         })
-        .expected_errs(&[CoreError::FileNonexistent, CoreError::FileNotFolder])
+        .expected_errs(&[
+            CoreError::FileNonexistent,
+            CoreError::FileNotFolder,
+            CoreError::FileNameTooLong,
+        ])
     }
 
     #[instrument(level = "debug", skip(self, export_progress), err(Debug))]
