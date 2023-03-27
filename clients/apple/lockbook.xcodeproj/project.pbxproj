@@ -13,6 +13,9 @@
 		4709DC39296609F100426106 /* PendingSharesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4709DC37296609F100426106 /* PendingSharesView.swift */; };
 		4709DC3E2966260500426106 /* AcceptShareSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4709DC3D2966260500426106 /* AcceptShareSheet.swift */; };
 		4709DC3F2966260500426106 /* AcceptShareSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4709DC3D2966260500426106 /* AcceptShareSheet.swift */; };
+		47159F4629CFA05B00969DDF /* DSFQuickActionBar in Frameworks */ = {isa = PBXBuildFile; productRef = 47159F4529CFA05B00969DDF /* DSFQuickActionBar */; };
+		476436CC29B7DE4E00FBDC59 /* SearchService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 476436CB29B7DE4E00FBDC59 /* SearchService.swift */; };
+		476436CD29B7DE4E00FBDC59 /* SearchService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 476436CB29B7DE4E00FBDC59 /* SearchService.swift */; };
 		473A3DCE29AC354B0017BC6A /* FilePathBreadcrumb.swift in Sources */ = {isa = PBXBuildFile; fileRef = 473A3DCD29AC354B0017BC6A /* FilePathBreadcrumb.swift */; };
 		477CC4902967A53C00714456 /* ShareFileSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 477CC48F2967A53C00714456 /* ShareFileSheet.swift */; };
 		477CC4912967A53C00714456 /* ShareFileSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 477CC48F2967A53C00714456 /* ShareFileSheet.swift */; };
@@ -140,6 +143,7 @@
 		4709DC3D2966260500426106 /* AcceptShareSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AcceptShareSheet.swift; sourceTree = "<group>"; };
 		473A3DCD29AC354B0017BC6A /* FilePathBreadcrumb.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilePathBreadcrumb.swift; sourceTree = "<group>"; };
 		4741C7902939C9220073F24F /* Products.storekit */ = {isa = PBXFileReference; lastKnownFileType = text; path = Products.storekit; sourceTree = "<group>"; };
+		476436CB29B7DE4E00FBDC59 /* SearchService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SearchService.swift; path = "Shared/Stateful Logic/SearchService.swift"; sourceTree = SOURCE_ROOT; };
 		477CC48F2967A53C00714456 /* ShareFileSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareFileSheet.swift; sourceTree = "<group>"; };
 		47A45FBA2969047B00573044 /* ShareService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareService.swift; sourceTree = "<group>"; };
 		47B53837290EFE150012E542 /* BillingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BillingService.swift; sourceTree = "<group>"; };
@@ -246,6 +250,7 @@
 				47B041F52905BFF100A02DA7 /* AlertToast in Frameworks */,
 				B2ADC2492835451000DB8D3D /* Introspect in Frameworks */,
 				EA9EEFD525FC058200E8C790 /* SwiftLockbookCore in Frameworks */,
+				47159F4629CFA05B00969DDF /* DSFQuickActionBar in Frameworks */,
 				B217A97629661F3A002339E0 /* SwiftEditor in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -290,6 +295,7 @@
 			children = (
 				B2B7E2E125C6411800B9EFAD /* OnboardingState.swift */,
 				87BD383726C020B00030D2B1 /* SettingsService.swift */,
+				476436CB29B7DE4E00FBDC59 /* SearchService.swift */,
 				877FB54926D1788D0008AB3F /* CoreService.swift */,
 				877FB54F26D17FD00008AB3F /* UnexpectedErrorService.swift */,
 				47A45FBA2969047B00573044 /* ShareService.swift */,
@@ -548,6 +554,7 @@
 				B2ADC2482835451000DB8D3D /* Introspect */,
 				47B041F42905BFF100A02DA7 /* AlertToast */,
 				B217A97529661F3A002339E0 /* SwiftEditor */,
+				47159F4529CFA05B00969DDF /* DSFQuickActionBar */,
 			);
 			productName = "Lockbook (macOS)";
 			productReference = EA5C7D772516606000F7F358 /* Lockbook.app */;
@@ -587,6 +594,7 @@
 				EA82B20A262652F600EE82B9 /* XCRemoteSwiftPackageReference "SwiftUI-Introspect" */,
 				8794F43627D9525200B1B7EB /* XCRemoteSwiftPackageReference "Down" */,
 				47B041F12905BFB100A02DA7 /* XCRemoteSwiftPackageReference "AlertToast" */,
+				47159F4429CFA05B00969DDF /* XCRemoteSwiftPackageReference "DSFQuickActionBar" */,
 			);
 			productRefGroup = EA5C7D702516606000F7F358 /* Products */;
 			projectDirPath = "";
@@ -686,6 +694,7 @@
 				B21AF23128218B980098C2AB /* CustomUITextView.swift in Sources */,
 				47A45FBB2969047B00573044 /* ShareService.swift in Sources */,
 				877FB55026D17FD00008AB3F /* UnexpectedErrorService.swift in Sources */,
+				476436CC29B7DE4E00FBDC59 /* SearchService.swift in Sources */,
 				877FB55626D18AA60008AB3F /* AccountService.swift in Sources */,
 				5036A72711D09E92A5EE75B1 /* DrawingToolbar.swift in Sources */,
 				5036A0B7393E8C43AAF095A2 /* LBDrawingPKDrawingConversions.swift in Sources */,
@@ -704,6 +713,7 @@
 				877FB55E26D1B8A10008AB3F /* LBDrawingPKDrawingConversions.swift in Sources */,
 				87BD383926C020B00030D2B1 /* SettingsService.swift in Sources */,
 				B2B7E2E325C6411800B9EFAD /* OnboardingState.swift in Sources */,
+				476436CD29B7DE4E00FBDC59 /* SearchService.swift in Sources */,
 				877FB55126D17FD00008AB3F /* UnexpectedErrorService.swift in Sources */,
 				877FB54B26D1788D0008AB3F /* CoreService.swift in Sources */,
 				877D3CE727C84A10004982CB /* Styler.swift in Sources */,
@@ -1247,6 +1257,14 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
+		47159F4429CFA05B00969DDF /* XCRemoteSwiftPackageReference "DSFQuickActionBar" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/SmailBarkouch/DSFQuickActionBar";
+			requirement = {
+				branch = main;
+				kind = branch;
+			};
+		};
 		47B041F12905BFB100A02DA7 /* XCRemoteSwiftPackageReference "AlertToast" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/elai950/AlertToast";
@@ -1274,6 +1292,11 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		47159F4529CFA05B00969DDF /* DSFQuickActionBar */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 47159F4429CFA05B00969DDF /* XCRemoteSwiftPackageReference "DSFQuickActionBar" */;
+			productName = DSFQuickActionBar;
+		};
 		47B041F22905BFB100A02DA7 /* AlertToast */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = 47B041F12905BFB100A02DA7 /* XCRemoteSwiftPackageReference "AlertToast" */;

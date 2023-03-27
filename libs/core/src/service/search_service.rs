@@ -19,11 +19,12 @@ const MAX_CONTENT_MATCH_LENGTH: usize = 400;
 const IDEAL_CONTENT_MATCH_LENGTH: usize = 150;
 const CONTENT_MATCH_PADDING: usize = 8;
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Serialize, Debug, Eq, PartialEq)]
 pub struct SearchResultItem {
     pub id: Uuid,
     pub path: String,
     pub score: isize,
+    pub matched_indices: Vec<usize>,
 }
 
 impl Ord for SearchResultItem {
@@ -70,7 +71,12 @@ impl<Client: Requester> CoreState<Client> {
                         .case_insensitive()
                         .best_match()
                     {
-                        results.push(SearchResultItem { id, path, score: m.score() });
+                        results.push(SearchResultItem {
+                            id,
+                            path,
+                            score: m.score(),
+                            matched_indices: m.matched_indices().cloned().collect(),
+                        });
                     }
                 }
             }

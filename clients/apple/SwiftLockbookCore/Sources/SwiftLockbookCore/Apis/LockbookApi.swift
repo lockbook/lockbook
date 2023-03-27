@@ -19,6 +19,7 @@ public protocol LockbookApi {
     // Directory
     func getRoot() -> FfiResult<File, GetRootError>
     func listFiles() -> FfiResult<[File], ListMetadatasError>
+    func searchFilePaths(input: String) ->FfiResult<[SearchResultItem], SearchFilePathsError>
     
     // Document
     func getFile(id: UUID) -> FfiResult<String, ReadDocumentError>
@@ -34,6 +35,7 @@ public protocol LockbookApi {
     func shareFile(id: UUID, username: String, isWrite: Bool) -> FfiResult<Empty, ShareFileError>
     func getPendingShares() -> FfiResult<[File], GetPendingShares>
     func deletePendingShare(id: UUID) ->FfiResult<Empty, DeletePendingShareError>
+    func getFileById(id: UUID) -> FfiResult<File, GetFileByIdError>
     
     // Billing
     func newAppleSub(originalTransactionId: String, appAccountToken: String) -> FfiResult<Empty, UpgradeAccountAppStoreError>
