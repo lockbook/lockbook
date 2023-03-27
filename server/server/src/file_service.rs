@@ -88,7 +88,6 @@ pub async fn upsert_file_metadata(
 
     for update in request.updates {
         let new = update.new;
-
         let id = *new.id();
         match update.old {
             None => {
