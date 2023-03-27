@@ -487,6 +487,17 @@ pub unsafe extern "C" fn delete_pending_share(id: *const c_char) -> *const c_cha
     })
 }
 
+/// # Safety
+///
+/// Be sure to call `release_pointer` on the result of this function to free the data.
+#[no_mangle]
+pub unsafe extern "C" fn search_file_paths(input: *const c_char) -> *const c_char {
+    c_string(match static_state::get() {
+        Ok(core) => translate(core.search_file_paths(&str_from_ptr(input))),
+        e => translate(e.map(|_| ())),
+    })
+}
+
 // FOR INTEGRATION TESTS ONLY
 /// # Safety
 ///

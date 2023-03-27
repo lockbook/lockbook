@@ -139,9 +139,7 @@ public class FrameManager: NSObject, MTKViewDelegate {
     
     func checkForChanges() async throws {
         while true {
-            print("checked")
-            if self.loader.textReloadNeeded() {
-                
+            if self.loader.textReloadNeeded() {                
                 self.reloadText()
             }
             try await Task.sleep(nanoseconds: 500000000)
