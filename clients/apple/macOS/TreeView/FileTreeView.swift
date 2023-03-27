@@ -65,18 +65,10 @@ struct FileTreeView: NSViewRepresentable {
             if let file = DI.currentDoc.selectedDocument {
                 scrollAndexpandAncestorsOfDocument(file: file)
             }
+            
+            treeView.selectRowIndexes(IndexSet(integer: treeView.row(forItem: DI.currentDoc.selectedDocument)), byExtendingSelection: false)
+            
             previousOpenDocumentHash.value = currentSelection.selectedDocument?.hashValue
-        }
-        
-        // Should this happen in the delegate?
-        for row in 0...treeView.numberOfRows {
-            if let item = treeView.item(atRow: row) as? File {
-                if let selection = DI.currentDoc.selectedDocument {
-                    if item.id == selection.id {
-                        treeView.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
-                    }
-                }
-            }
         }
     }
     
@@ -89,7 +81,7 @@ struct FileTreeView: NSViewRepresentable {
             }
         }
         
-        treeView.scrollRowToVisible(treeView.row(forItem: file))
+        treeView.animator().scrollRowToVisible(treeView.row(forItem: file))
     }
 }
 
