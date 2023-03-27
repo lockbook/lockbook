@@ -1,8 +1,6 @@
 use crate::ServerError;
-use lockbook_shared::{
-    account::MAX_USERNAME_LENGTH,
-    api::{GetBuildInfoError, GetBuildInfoResponse},
-};
+use lockbook_shared::account::MAX_USERNAME_LENGTH;
+use lockbook_shared::api::{GetBuildInfoError, GetBuildInfoResponse};
 use shadow_rs::shadow;
 
 shadow!(build_info);
