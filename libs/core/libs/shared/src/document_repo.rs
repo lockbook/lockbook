@@ -67,11 +67,12 @@ impl StatisticValue {
         self.normalized = (self.raw - range.min.raw) as f64 / (range.max.raw - range.min.raw) as f64
     }
 }
-/// DocActivityMetrics stores key activity features for every doc which are used to recommend relevant documents
-/// latest_read_timestamp: the latests epoch timestamp that the user read a document
-/// latest_write_timestamp: the latests epoch timestamp that the user wrote a document
-/// the total number of times that a user read a document
-/// the total number of times that a user wrote a document   
+/// DocActivityMetrics stores key document activity features, which are used to recommend relevant documents to the user.
+/// Here's a walkthrough of the recommendation procedure: collect 1k most recent document events (write/read), use that activity to construct a DocActivtyMetrics struct for each document. Min-max normalizes the activity features, then rank the documents.
+/// latest_read_timestamp: the latest epoch timestamp that the user read a document
+/// latest_write_timestamp: the latest epoch timestamp that the user wrote a document
+/// the total number of times that a user reads a document
+/// the total number of times that a user wrote a document
 #[derive(Default, Copy, Clone)]
 pub struct DocActivityMetrics {
     pub id: Uuid,
