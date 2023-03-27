@@ -2,6 +2,8 @@ use crate::{ServerError, ServerState};
 use lazy_static::lazy_static;
 
 use lockbook_shared::clock::get_time;
+use lockbook_shared::lazy::LazyTree;
+use lockbook_shared::server_file::ServerFile;
 use prometheus::{register_int_gauge_vec, IntGaugeVec};
 use prometheus_static_metric::make_static_metric;
 use std::fmt::Debug;
@@ -207,8 +209,6 @@ pub fn get_user_info(
 
     let mut ids = Vec::new();
 
-    let time_two_days_ago = get_time().0 as u64 - TWO_DAYS_IN_MILLIS as u64;
-
     let is_user_sharer_or_sharee = tree
         .all_files()?
         .iter()
@@ -220,12 +220,9 @@ pub fn get_user_info(
         }
     }
 
-    let (total_documents, total_bytes) = get_bytes_and_documents_count(db, owner, ids)?;
+    let is_user_active = is_user_active(tree, &ids)?;
 
-    let is_user_active = match db.last_seen.data().get(&owner) {
-        Some(x) => *x > time_two_days_ago,
-        None => false,
-    };
+    let (total_documents, total_bytes) = get_bytes_and_documents_count(db, owner, ids)?;
 
     Ok(Some(UserInfo {
         total_documents,
@@ -245,7 +242,6 @@ fn get_bytes_and_documents_count(
         let metadata = db.metas.data().get(&id).ok_or_else(|| {
             internal!("Could not get file metadata during metrics for {:?}", owner)
         })?;
-
         if metadata.is_document() {
             if metadata.document_hmac().is_some() {
                 let usage = db.sizes.data().get(&id).ok_or_else(|| {
@@ -260,4 +256,35 @@ fn get_bytes_and_documents_count(
     }
 
     Ok((total_documents, total_bytes))
+}
+
+fn is_user_active<T: lockbook_shared::tree_like::TreeLike<F = ServerFile>>(
+    tree: LazyTree<T>, ids: &Vec<Uuid>,
+) -> Result<bool, ServerError<MetricsError>> {
+    let root = ids
+        .iter()
+        .find(|id| {
+            let file = tree.find(id).unwrap();
+            file.parent() == file.id()
+        })
+        .unwrap();
+    let root_creation_timestamp = tree.find(root)?.clone().file.timestamped_value.timestamp;
+
+    let latest_upsert = tree
+        .all_files()?
+        .iter()
+        .max_by(|x, y| {
+            x.file
+                .timestamped_value
+                .timestamp
+                .cmp(&y.file.timestamped_value.timestamp)
+        })
+        .unwrap()
+        .file
+        .timestamped_value
+        .timestamp;
+
+    let time_diff = root_creation_timestamp - latest_upsert;
+    let delay_buffer_time = 20;
+    Ok(time_diff > delay_buffer_time)
 }

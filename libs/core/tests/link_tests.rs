@@ -255,3 +255,26 @@ fn list_metadatas_nested_linked_folders() {
     assert::all_recursive_children_ids(&cores[1], link2.id, &[link2.id, document.id]);
     assert::all_recursive_children_ids(&cores[1], document.id, &[document.id]);
 }
+
+error: cannot pull with rebase: You have unstaged changes.
+error: please commit or stash them.#[test]
+fn metrics_playground() {
+    let cores: Vec<Core> = vec![test_core_with_account(), test_core_with_account()];
+    let accounts = cores
+        .iter()
+        .map(|core| core.get_account().unwrap())
+        .collect::<Vec<_>>();
+    let roots = cores
+        .iter()
+        .map(|core| core.get_root().unwrap())
+        .collect::<Vec<_>>();
+
+    let folder1 = cores[0].create_at_path("folder/").unwrap();
+    let document1 = cores[0].create_file("hello.md", folder1.id, lockbook_core::FileType::Document);
+
+    cores[0].sync(None).unwrap();
+
+    let link1 = cores[1].create_link_at_path("link1", folder1.id).unwrap();
+    let document2 =
+        cores[1].create_file("from_the_other_side.md", link1.id, lockbook_core::FileType::Document);
+}
