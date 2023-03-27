@@ -1,3 +1,4 @@
+use crate::account_service::get_usage_helper;
 use crate::{ServerError, ServerState};
 use lazy_static::lazy_static;
 
@@ -209,20 +210,20 @@ pub fn get_user_info(
 
     let mut ids = Vec::new();
 
-    let is_user_sharer_or_sharee = tree
-        .all_files()?
-        .iter()
-        .any(|k| k.owner() != owner || k.is_shared());
-
     for id in tree.owned_ids() {
         if !tree.calculate_deleted(&id)? {
             ids.push(id);
         }
     }
 
+    let is_user_sharer_or_sharee = tree
+        .all_files()?
+        .iter()
+        .any(|k| k.owner() != owner || k.is_shared());
+
     let is_user_active = is_user_active(tree, &ids)?;
 
-    let (total_documents, total_bytes) = get_bytes_and_documents_count(db, owner, ids)?;
+    let (total_documents, total_bytes) = get_bytes_and_documents_count(db, owner)?;
 
     Ok(Some(UserInfo {
         total_documents,
@@ -233,27 +234,34 @@ pub fn get_user_info(
 }
 
 fn get_bytes_and_documents_count(
-    db: &mut ServerDb, owner: Owner, ids: Vec<Uuid>,
+    db: &mut ServerDb, owner: Owner,
 ) -> Result<(i64, u64), ServerError<MetricsError>> {
-    let mut total_documents = 0;
-    let mut total_bytes = 0;
+    // let mut total_documents = 0;
+    // let mut total_bytes = 0;
 
-    for id in ids {
-        let metadata = db.metas.data().get(&id).ok_or_else(|| {
-            internal!("Could not get file metadata during metrics for {:?}", owner)
-        })?;
-        if metadata.is_document() {
-            if metadata.document_hmac().is_some() {
-                let usage = db.sizes.data().get(&id).ok_or_else(|| {
-                    internal!("Could not get file usage during metrics for {:?}", owner)
-                })?;
+    // for id in ids {
+    //     let metadata = db.metas.data().get(&id).ok_or_else(|| {
+    //         internal!("Could not get file metadata during metrics for {:?}", owner)
+    //     })?;
+    //     if metadata.is_document() {
+    //         if metadata.document_hmac().is_some() {
+    //             let usage = db.sizes.data().get(&id).ok_or_else(|| {
+    //                 internal!("Could not get file usage during metrics for {:?}", owner)
+    //             })?;
 
-                total_bytes += usage;
-            }
+    //             total_bytes += usage;
+    //         }
 
-            total_documents += 1;
-        }
-    }
+    //         total_documents += 1;
+    //     }
+    // }
+
+    let total_bytes = get_usage_helper(db, &owner.0)
+        .unwrap()
+        .iter()
+        .map(|f| f.size_bytes)
+        .sum();
+    let total_documents = db.owned_files.data().get(&owner).unwrap().len() as i64;
 
     Ok((total_documents, total_bytes))
 }
