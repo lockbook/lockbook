@@ -256,8 +256,7 @@ fn list_metadatas_nested_linked_folders() {
     assert::all_recursive_children_ids(&cores[1], document.id, &[document.id]);
 }
 
-error: cannot pull with rebase: You have unstaged changes.
-error: please commit or stash them.#[test]
+#[test]
 fn metrics_playground() {
     let cores: Vec<Core> = vec![test_core_with_account(), test_core_with_account()];
     let accounts = cores
