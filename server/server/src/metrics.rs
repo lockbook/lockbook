@@ -2,7 +2,6 @@ use crate::account_service::get_usage_helper;
 use crate::{ServerError, ServerState};
 use lazy_static::lazy_static;
 
-use lockbook_shared::clock::get_time;
 use lockbook_shared::lazy::LazyTree;
 use lockbook_shared::server_file::ServerFile;
 use prometheus::{register_int_gauge_vec, IntGaugeVec};
@@ -236,26 +235,6 @@ pub fn get_user_info(
 fn get_bytes_and_documents_count(
     db: &mut ServerDb, owner: Owner,
 ) -> Result<(i64, u64), ServerError<MetricsError>> {
-    // let mut total_documents = 0;
-    // let mut total_bytes = 0;
-
-    // for id in ids {
-    //     let metadata = db.metas.data().get(&id).ok_or_else(|| {
-    //         internal!("Could not get file metadata during metrics for {:?}", owner)
-    //     })?;
-    //     if metadata.is_document() {
-    //         if metadata.document_hmac().is_some() {
-    //             let usage = db.sizes.data().get(&id).ok_or_else(|| {
-    //                 internal!("Could not get file usage during metrics for {:?}", owner)
-    //             })?;
-
-    //             total_bytes += usage;
-    //         }
-
-    //         total_documents += 1;
-    //     }
-    // }
-
     let total_bytes = get_usage_helper(db, &owner.0)
         .unwrap()
         .iter()
@@ -267,7 +246,7 @@ fn get_bytes_and_documents_count(
 }
 
 fn is_user_active<T: lockbook_shared::tree_like::TreeLike<F = ServerFile>>(
-    tree: LazyTree<T>, ids: &Vec<Uuid>,
+    tree: LazyTree<T>, ids: &[Uuid],
 ) -> Result<bool, ServerError<MetricsError>> {
     let root = ids
         .iter()
