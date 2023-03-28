@@ -43,7 +43,7 @@ class DataSource: NSObject, NSOutlineViewDataSource, NSPasteboardItemDataProvide
         let file = item as! File
         
         pb.setData(try! JSONEncoder().encode(file), forType: NSPasteboard.PasteboardType(Self.REORDER_PASTEBOARD_TYPE))
-        pb.setDataProvider(self, forTypes: [NSPasteboard.PasteboardType(Self.REORDER_PASTEBOARD_TYPE), .fileContents])
+        pb.setDataProvider(self, forTypes: [NSPasteboard.PasteboardType(Self.REORDER_PASTEBOARD_TYPE), .fileURL])
 
         return pb
     }
@@ -54,12 +54,12 @@ class DataSource: NSObject, NSOutlineViewDataSource, NSPasteboardItemDataProvide
     }
 
     func outlineView(_ outlineView: NSOutlineView, validateDrop info: NSDraggingInfo, proposedItem item: Any?, proposedChildIndex index: Int) -> NSDragOperation {
+        let parent = item == nil ? DI.files.root! : item as! File
+        if parent.fileType == .Document {
+            return []
+        }
+        
         if (info.draggingSource as? NSOutlineView) === outlineView {
-            let parent = item == nil ? DI.files.root! : item as! File
-            if parent.fileType == .Document {
-                return []
-            }
-            
             return NSDragOperation.move
         } else {
             return NSDragOperation.copy
@@ -67,29 +67,30 @@ class DataSource: NSObject, NSOutlineViewDataSource, NSPasteboardItemDataProvide
     }
 
     func outlineView(_ outlineView: NSOutlineView, acceptDrop info: NSDraggingInfo, item: Any?, childIndex index: Int) -> Bool {
+        let parent = item == nil ? DI.files.root! : item as! File
+        
         if (info.draggingSource as? NSOutlineView) === outlineView {
-            let parent = item == nil ? DI.files.root! : item as! File
-            
             return DI.files.moveFileSync(id: dragged!.id, newParent: parent.id)
         } else {
-            
             guard let urls = info.draggingPasteboard.readObjects(forClasses: [NSURL.self], options: nil) as? [URL] else {
+                return false
+            }
+            
+            if(parent.fileType == .Document) {
                 return false
             }
             
             let parent = item == nil ? DI.files.root! : item as! File
             
-            return DI.files.importFilesSync(sources: urls.map({ url in url.path()}), destination: parent.id)
+            return DI.files.importFilesSync(sources: urls.map({ url in url.path(percentEncoded: false)}), destination: parent.id)
         }
     }
     
     func pasteboard(_ pasteboard: NSPasteboard?, item: NSPasteboardItem, provideDataForType type: NSPasteboard.PasteboardType) {
-        print("CALLING PASTEBOARD")
-        
         if(type == .fileURL) {
             let file = try! JSONDecoder().decode(File.self, from: item.data(forType: NSPasteboard.PasteboardType(Self.REORDER_PASTEBOARD_TYPE))!)
             
-            guard let destination = createTempFile(named: file.name) else {
+            guard let destination = createTempTempDir() else {
                 return
             }
             
@@ -97,8 +98,9 @@ class DataSource: NSObject, NSOutlineViewDataSource, NSPasteboardItemDataProvide
             
             switch operation {
             case .success(_):
-                item.setData(destination.dataRepresentation, forType: .fileURL)
-            case .failure(_):
+                item.setData(destination.appendingPathComponent(file.name).dataRepresentation, forType: .fileURL)
+            case .failure(let error):
+                DI.errors.handleError(error)
                 return
             }
         }
@@ -209,7 +211,7 @@ class TreeDelegate: NSObject, MenuOutlineViewDelegate {
 //}
 
 
-func createTempFile(named fileName: String) -> URL? {
+func createTempFile(_ fileName: String) -> URL? {
     let fileManager = FileManager.default
     let tempDirectoryURL = URL(fileURLWithPath: NSTemporaryDirectory())
     let newDirectoryURL = tempDirectoryURL.appendingPathComponent(DataSource.TMP_DIR)
@@ -226,4 +228,17 @@ func createTempFile(named fileName: String) -> URL? {
     return newFileURL
 }
 
+func createTempTempDir() -> URL? {
+    let fileManager = FileManager.default
+    let tempDirectoryURL = URL(fileURLWithPath: NSTemporaryDirectory())
+    let tempTempURL = tempDirectoryURL.appendingPathComponent(DataSource.TMP_DIR).appendingPathComponent(UUID().uuidString)
+    
+    do {
+        try fileManager.createDirectory(at: tempTempURL, withIntermediateDirectories: true, attributes: nil)
+    } catch {
+        return nil
+    }
+    
+    return tempTempURL
+}
 
