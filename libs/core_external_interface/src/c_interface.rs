@@ -518,7 +518,7 @@ pub unsafe extern "C" fn import_files(
             let sources = serde_json::from_str::<Vec<String>>(&str_from_ptr(sources))
                 .expect("Could not convert Swift Array into Rust Array!")
                 .into_iter()
-                .map(|source| PathBuf::from(source))
+                .map(PathBuf::from)
                 .collect::<Vec<PathBuf>>();
 
             translate(core.import_files(
