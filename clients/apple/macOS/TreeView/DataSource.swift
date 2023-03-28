@@ -40,14 +40,17 @@ class DataSource: NSObject, NSOutlineViewDataSource, NSPasteboardItemDataProvide
     func outlineView(_ outlineView: NSOutlineView,
                      pasteboardWriterForItem item: Any) -> NSPasteboardWriting? {
         let pb = NSPasteboardItem()
-        pb.setDataProvider(self, forTypes: [NSPasteboard.PasteboardType(Self.REORDER_PASTEBOARD_TYPE)])
+        let file = item as! File
+        
+        pb.setData(try! JSONEncoder().encode(file), forType: NSPasteboard.PasteboardType(Self.REORDER_PASTEBOARD_TYPE))
+        pb.setDataProvider(self, forTypes: [NSPasteboard.PasteboardType(Self.REORDER_PASTEBOARD_TYPE), .fileURL])
 
         return pb
     }
 
     func outlineView(_ outlineView: NSOutlineView, draggingSession session: NSDraggingSession, willBeginAt screenPoint: NSPoint, forItems draggedItems: [Any]) {
         dragged = draggedItems[0] as? File
-        session.draggingPasteboard.setData(Data(), forType: NSPasteboard.PasteboardType(Self.REORDER_PASTEBOARD_TYPE))
+        session.draggingPasteboard.setData(try! JSONEncoder().encode(dragged), forType: NSPasteboard.PasteboardType(Self.REORDER_PASTEBOARD_TYPE))
     }
 
     func outlineView(_ outlineView: NSOutlineView, validateDrop info: NSDraggingInfo, proposedItem item: Any?, proposedChildIndex index: Int) -> NSDragOperation {
@@ -55,25 +58,61 @@ class DataSource: NSObject, NSOutlineViewDataSource, NSPasteboardItemDataProvide
         if parent.fileType == .Document {
             return []
         }
-        return NSDragOperation.move
+        
+        if (info.draggingSource as? NSOutlineView) === outlineView {
+            return NSDragOperation.move
+        } else {
+            return NSDragOperation.copy
+        }
     }
 
     func outlineView(_ outlineView: NSOutlineView, acceptDrop info: NSDraggingInfo, item: Any?, childIndex index: Int) -> Bool {
         let parent = item == nil ? DI.files.root! : item as! File
-        return DI.files.moveFileSync(id: dragged!.id, newParent: parent.id)
+        
+        if (info.draggingSource as? NSOutlineView) === outlineView {
+            return DI.files.moveFileSync(id: dragged!.id, newParent: parent.id)
+        } else {
+            guard let urls = info.draggingPasteboard.readObjects(forClasses: [NSURL.self], options: nil) as? [URL] else {
+                return false
+            }
+            
+            if(parent.fileType == .Document) {
+                return false
+            }
+            
+            let parent = item == nil ? DI.files.root! : item as! File
+            
+            return DI.files.importFilesSync(sources: urls.map({ url in url.path(percentEncoded: false)}), destination: parent.id)
+        }
     }
-
-    // never called
+    
     func pasteboard(_ pasteboard: NSPasteboard?, item: NSPasteboardItem, provideDataForType type: NSPasteboard.PasteboardType) {
-        let s = "Outline Pasteboard Item"
-        item.setString(s, forType: type)
+        if(type == .fileURL) {
+            let file = try! JSONDecoder().decode(File.self, from: item.data(forType: NSPasteboard.PasteboardType(Self.REORDER_PASTEBOARD_TYPE))!)
+            
+            guard let destination = createTempTempDir() else {
+                return
+            }
+            
+            let operation = DI.core.exportFile(id: file.id, destination: destination.path())
+            
+            switch operation {
+            case .success(_):
+                item.setData(destination.appendingPathComponent(file.name).dataRepresentation, forType: .fileURL)
+            case .failure(let error):
+                DI.errors.handleError(error)
+            }
+        }
     }
-
+    
     func outlineView(_ outlineView: NSOutlineView, draggingSession session: NSDraggingSession, endedAt screenPoint: NSPoint, operation: NSDragOperation) {
-        dragged = nil
+        if operation == .move {
+            dragged = nil
+        }
     }
 
     static let REORDER_PASTEBOARD_TYPE = "net.lockbook.metadata"
+    static let TMP_DIR = "lb-tmp"
 }
 
 class TreeDelegate: NSObject, MenuOutlineViewDelegate {
@@ -122,7 +161,34 @@ class TreeDelegate: NSObject, MenuOutlineViewDelegate {
             documentSelected(file)
         }
     }
-
 }
 
+func createTempFile(_ fileName: String) -> URL? {
+    let fileManager = FileManager.default
+    let tempDirectoryURL = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent(DataSource.TMP_DIR)
+
+    do {
+        try fileManager.createDirectory(at: tempDirectoryURL, withIntermediateDirectories: true, attributes: nil)
+    } catch {
+        return nil
+    }
+    
+    let newFileURL = tempDirectoryURL.appendingPathComponent(fileName)
+    
+    fileManager.createFile(atPath: newFileURL.path(), contents: nil)
+    return newFileURL
+}
+
+func createTempTempDir() -> URL? {
+    let fileManager = FileManager.default
+    let tempTempURL = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent(DataSource.TMP_DIR).appendingPathComponent(UUID().uuidString)
+    
+    do {
+        try fileManager.createDirectory(at: tempTempURL, withIntermediateDirectories: true, attributes: nil)
+    } catch {
+        return nil
+    }
+    
+    return tempTempURL
+}
 

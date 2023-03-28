@@ -132,6 +132,14 @@ Vestibulum ante ipsum primis in vel.
         .failure(.init(unexpected: "LAZY"))
     }
     
+    public func exportFile(id: UUID, destination: String) ->FfiResult<Empty, ExportFileError> {
+        .failure(.init(unexpected: "LAZY"))
+    }
+    
+    public func importFiles(sources: [String], destination: UUID) ->FfiResult<Empty, ImportFilesError> {
+        .failure(.init(unexpected: "LAZY"))
+    }
+    
     public func searchFilePaths(input: String) ->FfiResult<[SearchResultItem], SearchFilePathsError> {
         .failure(.init(unexpected: "LAZY"))
     }

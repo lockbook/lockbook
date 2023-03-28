@@ -36,12 +36,10 @@ struct FileTreeView: NSViewRepresentable {
 
         treeView.columnAutoresizingStyle = .uniformColumnAutoresizingStyle
 
-        treeView.registerForDraggedTypes([NSPasteboard.PasteboardType(DataSource.REORDER_PASTEBOARD_TYPE)])
-
-        // TODO changing this to true will allow us to accept drops from finder
-        treeView.setDraggingSourceOperationMask(NSDragOperation(), forLocal: false)
-
-        treeView.setDraggingSourceOperationMask(NSDragOperation.move, forLocal: true)
+        treeView.setDraggingSourceOperationMask(.copy, forLocal: false)
+        treeView.setDraggingSourceOperationMask(.move, forLocal: true)
+        
+        treeView.registerForDraggedTypes([NSPasteboard.PasteboardType(DataSource.REORDER_PASTEBOARD_TYPE), .fileURL])
         
         let onlyColumn = NSTableColumn()
         onlyColumn.resizingMask = .autoresizingMask

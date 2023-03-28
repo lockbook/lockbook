@@ -35,6 +35,8 @@ public protocol LockbookApi {
     func shareFile(id: UUID, username: String, isWrite: Bool) -> FfiResult<Empty, ShareFileError>
     func getPendingShares() -> FfiResult<[File], GetPendingShares>
     func deletePendingShare(id: UUID) ->FfiResult<Empty, DeletePendingShareError>
+    func exportFile(id: UUID, destination: String) ->FfiResult<Empty, ExportFileError>
+    func importFiles(sources: [String], destination: UUID) ->FfiResult<Empty, ImportFilesError>
     func getFileById(id: UUID) -> FfiResult<File, GetFileByIdError>
     
     // Billing

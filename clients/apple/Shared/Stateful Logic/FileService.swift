@@ -146,6 +146,23 @@ class FileService: ObservableObject {
             return false
         }
     }
+    
+    func importFilesSync(sources: [String], destination: UUID) -> Bool {
+        print("importing files")
+        let operation = core.importFiles(sources: sources, destination: destination)
+
+        switch operation {
+        case .success(_):
+            self.successfulAction = .importFiles
+            refresh()
+            DI.status.checkForLocalWork()
+            return true
+        case .failure(let error):
+            DI.errors.handleError(error)
+            return false
+        }
+    }
+
 
     func deleteFile(id: UUID) {
         DispatchQueue.global(qos: .userInitiated).async {
@@ -262,4 +279,5 @@ public enum FileAction {
     case rename
     case delete
     case createFolder
+    case importFiles
 }
