@@ -11,7 +11,7 @@ pub fn username_is_valid(username: &str) -> bool {
         && username
             .to_lowercase()
             .chars()
-            .all(|c| ('a'..='z').contains(&c) || ('0'..='9').contains(&c))
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit())
 }
 
 pub fn get_build_info() -> Result<GetBuildInfoResponse, ServerError<GetBuildInfoError>> {

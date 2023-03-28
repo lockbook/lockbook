@@ -354,7 +354,6 @@ impl<Client: Requester> CoreLib<Client> {
                 .local_metadata
                 .data()
                 .keys()
-                .into_iter()
                 .copied()
                 .collect::<Vec<Uuid>>())
         })?)
@@ -393,6 +392,11 @@ impl<Client: Requester> CoreLib<Client> {
         } else {
             "never".to_string()
         })
+    }
+
+    #[instrument(level = "debug", skip(self), err(Debug))]
+    pub fn suggested_docs(&self) -> Result<Vec<Uuid>, UnexpectedError> {
+        Ok(self.in_tx(|s| s.suggested_docs())?)
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
