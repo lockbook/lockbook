@@ -57,6 +57,7 @@ fn create_tmp_dir() -> Result<PathBuf, CliError> {
 enum Editor {
     Vim,
     Emacs,
+    Nvim,
     Nano,
     Sublime,
     Code,
@@ -68,6 +69,7 @@ fn get_editor() -> Editor {
         Ok(editor) => match editor.to_lowercase().as_str() {
             "vim" => Editor::Vim,
             "emacs" => Editor::Emacs,
+            "nvim" => Editor::Nvim,
             "nano" => Editor::Nano,
             "subl" | "sublime" => Editor::Sublime,
             "code" => Editor::Code,
@@ -91,7 +93,7 @@ fn edit_file_with_editor<S: AsRef<Path>>(path: S) -> bool {
     let path_str = path.as_ref().display();
 
     let command = match get_editor() {
-        Editor::Vim | Editor::Emacs | Editor::Nano => {
+        Editor::Vim | Editor::Nvim | Editor::Emacs | Editor::Nano => {
             eprintln!("Terminal editors are not supported on windows! Set LOCKBOOK_EDITOR to a visual editor.");
             return false;
         }
@@ -115,6 +117,7 @@ fn edit_file_with_editor<S: AsRef<Path>>(path: S) -> bool {
 
     let command = match get_editor() {
         Editor::Vim => format!("</dev/tty vim {}", path_str),
+        Editor::Nvim => format!("</dev/tty nvim {}", path_str),
         Editor::Emacs => format!("</dev/tty emacs {}", path_str),
         Editor::Nano => format!("</dev/tty nano {}", path_str),
         Editor::Sublime => format!("subl --wait {}", path_str),
