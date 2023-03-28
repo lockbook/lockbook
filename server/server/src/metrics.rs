@@ -220,7 +220,24 @@ pub fn get_user_info(
         .iter()
         .any(|k| k.owner() != owner || k.is_shared());
 
-    let is_user_active = is_user_active(tree, &ids)?;
+    let files = tree.all_files()?;
+    let root_creation_timestamp = files
+        .iter()
+        .find(|f| f.is_root())
+        .unwrap()
+        .file
+        .timestamped_value
+        .timestamp;
+
+    let last_seen = *db
+        .last_seen
+        .data()
+        .get(&owner)
+        .unwrap_or(&(root_creation_timestamp as u64));
+
+    let time_diff = root_creation_timestamp - last_seen as i64;
+    let delay_buffer_time = 20;
+    let is_user_active = time_diff > delay_buffer_time;
 
     let (total_documents, total_bytes) = get_bytes_and_documents_count(db, owner)?;
 
@@ -243,35 +260,4 @@ fn get_bytes_and_documents_count(
     let total_documents = db.owned_files.data().get(&owner).unwrap().len() as i64;
 
     Ok((total_documents, total_bytes))
-}
-
-fn is_user_active<T: lockbook_shared::tree_like::TreeLike<F = ServerFile>>(
-    tree: LazyTree<T>, ids: &[Uuid],
-) -> Result<bool, ServerError<MetricsError>> {
-    let root = ids
-        .iter()
-        .find(|id| {
-            let file = tree.find(id).unwrap();
-            file.parent() == file.id()
-        })
-        .unwrap();
-    let root_creation_timestamp = tree.find(root)?.clone().file.timestamped_value.timestamp;
-
-    let latest_upsert = tree
-        .all_files()?
-        .iter()
-        .max_by(|x, y| {
-            x.file
-                .timestamped_value
-                .timestamp
-                .cmp(&y.file.timestamped_value.timestamp)
-        })
-        .unwrap()
-        .file
-        .timestamped_value
-        .timestamp;
-
-    let time_diff = root_creation_timestamp - latest_upsert;
-    let delay_buffer_time = 20;
-    Ok(time_diff > delay_buffer_time)
 }
