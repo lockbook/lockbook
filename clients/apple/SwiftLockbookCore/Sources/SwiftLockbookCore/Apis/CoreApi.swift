@@ -150,7 +150,7 @@ public struct CoreApi: LockbookApi {
     public func searchFilePaths(input: String) ->FfiResult<[SearchResultItem], SearchFilePathsError> {
         fromPrimitiveResult(result: search_file_paths(input))
     }
-
+    
     public func getFileById(id: UUID) -> FfiResult<File, GetFileByIdError> {
         fromPrimitiveResult(result: get_file_by_id(id.uuidString))
     }
