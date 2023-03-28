@@ -84,13 +84,13 @@ pub struct DocActivityMetrics {
 impl Eq for DocActivityMetrics {}
 impl Ord for DocActivityMetrics {
     fn cmp(&self, other: &Self) -> Ordering {
-        self.score().cmp(&other.score())
+        other.score().cmp(&self.score())
     }
 }
 
 impl PartialOrd for DocActivityMetrics {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.score().cmp(&other.score()))
+        Some(other.score().cmp(&self.score()))
     }
 }
 
