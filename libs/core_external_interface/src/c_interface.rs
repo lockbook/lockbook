@@ -1,10 +1,11 @@
 use std::ffi::{CStr, CString};
 use std::os::raw::c_char;
+use std::path::PathBuf;
 
 use serde::Serialize;
 use serde_json::json;
 
-use lockbook_core::{Config, FileType, ShareMode, SupportedImageFormats, Uuid};
+use lockbook_core::{Config, FileType, ImportStatus, ShareMode, SupportedImageFormats, Uuid};
 
 use crate::{get_all_error_variants, json_interface::translate, static_state};
 
@@ -483,6 +484,49 @@ pub unsafe extern "C" fn get_pending_shares() -> *const c_char {
 pub unsafe extern "C" fn delete_pending_share(id: *const c_char) -> *const c_char {
     c_string(match static_state::get() {
         Ok(core) => translate(core.delete_pending_share(uuid_from_ptr(id))),
+        e => translate(e.map(|_| ())),
+    })
+}
+
+/// # Safety
+///
+/// Be sure to call `release_pointer` on the result of this function to free the data.
+#[no_mangle]
+pub unsafe extern "C" fn export_file(
+    id: *const c_char, destination: *const c_char,
+) -> *const c_char {
+    c_string(match static_state::get() {
+        Ok(core) => translate(core.export_file(
+            uuid_from_ptr(id),
+            PathBuf::from(&str_from_ptr(destination)),
+            true,
+            None,
+        )),
+        e => translate(e.map(|_| ())),
+    })
+}
+
+/// # Safety
+///
+/// Be sure to call `release_pointer` on the result of this function to free the data.
+#[no_mangle]
+pub unsafe extern "C" fn import_files(
+    sources: *const c_char, destination: *const c_char,
+) -> *const c_char {
+    c_string(match static_state::get() {
+        Ok(core) => {
+            let sources = serde_json::from_str::<Vec<String>>(&str_from_ptr(sources))
+                .expect("Could not convert Swift Array into Rust Array!")
+                .into_iter()
+                .map(PathBuf::from)
+                .collect::<Vec<PathBuf>>();
+
+            translate(core.import_files(
+                &sources,
+                uuid_from_ptr(destination),
+                &|_status: ImportStatus| println!("imported one file"),
+            ))
+        }
         e => translate(e.map(|_| ())),
     })
 }

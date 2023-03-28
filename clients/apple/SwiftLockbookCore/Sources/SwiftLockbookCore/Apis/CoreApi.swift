@@ -136,7 +136,17 @@ public struct CoreApi: LockbookApi {
     public func deletePendingShare(id: UUID) ->FfiResult<Empty, DeletePendingShareError> {
         fromPrimitiveResult(result: delete_pending_share(id.uuidString))
     }
-    
+
+    public func exportFile(id: UUID, destination: String) ->FfiResult<Empty, ExportFileError> {
+        fromPrimitiveResult(result: export_file(id.uuidString, destination))
+    }
+
+    public func importFiles(sources: [String], destination: UUID) ->FfiResult<Empty, ImportFilesError> {
+        let encodedSources = String(data: try! JSONSerialization.data(withJSONObject: sources), encoding: String.Encoding.utf8)
+
+        return fromPrimitiveResult(result: import_files(encodedSources, destination.uuidString))
+    }
+
     public func searchFilePaths(input: String) ->FfiResult<[SearchResultItem], SearchFilePathsError> {
         fromPrimitiveResult(result: search_file_paths(input))
     }
