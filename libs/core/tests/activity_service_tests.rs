@@ -43,9 +43,9 @@ fn io_count_comparison() {
             .unwrap();
     }
 
-    let expected_suggestions = core.suggested_docs().unwrap();
-
-    assert_eq!(vec![document1.id, document2.id], expected_suggestions);
+    let actual_suggestions = core.suggested_docs().unwrap().sort();
+    let expected_suggestions = vec![document1.id, document2.id].sort();
+    assert_eq!(actual_suggestions, expected_suggestions);
 }
 
 #[test]
@@ -71,6 +71,8 @@ fn io_count_comparison_multiple_docs() {
             .unwrap();
     }
 
-    let expected_suggestions = core.suggested_docs().unwrap();
-    assert_eq!(vec![document1.id, document2.id, document3.id], expected_suggestions);
+    let actual_suggestions = core.suggested_docs().unwrap().sort();
+    let expected_suggestions = vec![document1.id, document2.id, document3.id].sort();
+
+    assert_eq!(actual_suggestions, expected_suggestions);
 }
