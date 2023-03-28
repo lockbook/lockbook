@@ -60,8 +60,10 @@ pub struct StatisticValueRange {
 }
 impl StatisticValue {
     pub fn normalize(&mut self, range: StatisticValueRange) {
-        self.normalized =
-            Some((self.raw - range.min.raw) as f64 / (range.max.raw - range.min.raw) as f64)
+        let normalized = (self.raw - range.min.raw)
+            .checked_div(range.max.raw - range.min.raw)
+            .unwrap_or(1);
+        self.normalized = Some(normalized as f64);
     }
 }
 /// DocActivityMetrics stores key document activity features, which are used to recommend relevant documents to the user.

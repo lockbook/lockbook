@@ -4,6 +4,7 @@ use test_utils::*;
 #[test]
 fn base_case() {
     let core: Core = test_core();
+    core.create_account(&random_name(), &url(), false).unwrap();
 
     let document = core.create_at_path("hello.md").unwrap();
     core.write_document(document.id, "hello world".as_bytes())
@@ -21,6 +22,7 @@ fn base_case() {
 #[test]
 fn no_documents_suggestion() {
     let core: Core = test_core();
+    core.create_account(&random_name(), &url(), false).unwrap();
 
     let expected = core.suggested_docs().unwrap();
     let actual: Vec<Uuid> = vec![];
@@ -31,6 +33,7 @@ fn no_documents_suggestion() {
 #[test]
 fn io_count_comparison() {
     let core: Core = test_core();
+    core.create_account(&random_name(), &url(), false).unwrap();
 
     let document = core.create_at_path("hello.md").unwrap();
     for _ in 0..100 {
