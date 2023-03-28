@@ -1,3 +1,8 @@
 # Build Windows
 
-todo
+Prerequisites:
+- Computer with Windows
+- Stable rust toolchain
+
+Steps:
+- In `/clients/egui` run `cargo build`
