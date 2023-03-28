@@ -27,7 +27,7 @@ impl<Client: Requester> CoreState<Client> {
         Ok(())
     }
 
-    pub(crate) fn normalize(&mut self, docs: &mut [DocActivityMetrics]) {
+    fn normalize(&mut self, docs: &mut [DocActivityMetrics]) {
         let read_count_range = StatisticValueRange {
             max: docs.iter().map(|f| f.read_count).max().unwrap_or_default(),
             min: docs.iter().map(|f| f.read_count).min().unwrap_or_default(),
