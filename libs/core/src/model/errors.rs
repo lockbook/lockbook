@@ -154,6 +154,7 @@ pub enum CoreError {
     DrawingInvalid,
     ExistingRequestPending,
     FileNameContainsSlash,
+    FileNameTooLong,
     FileNameEmpty,
     FileNonexistent,
     FileNotDocument,
@@ -343,6 +344,7 @@ pub enum TestRepoError {
     FileOrphaned(Uuid),
     CycleDetected(HashSet<Uuid>),
     FileNameEmpty(Uuid),
+    FileNameTooLong(Uuid),
     FileNameContainsSlash(Uuid),
     PathConflict(HashSet<Uuid>),
     NonDecryptableFileName(Uuid),
@@ -374,6 +376,7 @@ impl From<SharedError> for TestRepoError {
                 ValidationFailure::FileWithDifferentOwnerParent(id) => {
                     Self::FileWithDifferentOwnerParent(id)
                 }
+                ValidationFailure::FileNameTooLong(id) => Self::FileNameTooLong(id),
             },
             _ => Self::Shared(err),
         }
@@ -391,6 +394,7 @@ impl fmt::Display for TestRepoError {
             CycleDetected(ids) => write!(f, "cycle for files: {:?}", ids),
             FileNameEmpty(id) => write!(f, "file '{}' name is empty", id),
             FileNameContainsSlash(id) => write!(f, "file '{}' name contains slash", id),
+            FileNameTooLong(id) => write!(f, "file '{}' name is too long", id),
             PathConflict(ids) => write!(f, "path conflict between: {:?}", ids),
             NonDecryptableFileName(id) => write!(f, "can't decrypt file '{}' name", id),
             FileWithDifferentOwnerParent(id) => write!(f, "file '{}' different owner parent", id),

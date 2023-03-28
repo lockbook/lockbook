@@ -2,7 +2,7 @@ use crate::model::errors::core_err_unexpected;
 use crate::service::api_service::ApiError;
 use crate::{CoreError, CoreState, LbResult, Requester};
 use libsecp256k1::PublicKey;
-use lockbook_shared::account::Account;
+use lockbook_shared::account::{Account, MAX_USERNAME_LENGTH};
 use lockbook_shared::api::{DeleteAccountRequest, GetPublicKeyRequest, NewAccountRequest};
 use lockbook_shared::file_like::FileLike;
 use lockbook_shared::file_metadata::{FileMetadata, FileType};
@@ -13,6 +13,10 @@ impl<Client: Requester> CoreState<Client> {
         &mut self, username: &str, api_url: &str, welcome_doc: bool,
     ) -> LbResult<Account> {
         let username = String::from(username).to_lowercase();
+
+        if username.len() > MAX_USERNAME_LENGTH {
+            return Err(CoreError::UsernameInvalid.into());
+        }
 
         if self.db.account.data().is_some() {
             return Err(CoreError::AccountExists.into());

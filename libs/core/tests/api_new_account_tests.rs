@@ -1,5 +1,5 @@
 use lockbook_core::service::api_service::{ApiError, Network, Requester};
-use lockbook_shared::account::Account;
+use lockbook_shared::account::{Account, MAX_USERNAME_LENGTH};
 use lockbook_shared::api::*;
 use lockbook_shared::file_metadata::FileMetadata;
 use lockbook_shared::pubkey;
@@ -60,6 +60,16 @@ fn new_account_invalid_username() {
     );
 }
 
+#[test]
+fn new_account_username_too_long() {
+    let mut account = random_account();
+    account.username = "l".repeat(MAX_USERNAME_LENGTH + 1);
+
+    assert_matches!(
+        test_account(&account),
+        Err(ApiError::<NewAccountError>::Endpoint(NewAccountError::InvalidUsername))
+    );
+}
 #[test]
 fn create_account_username_case() {
     let core = test_core_with_account();

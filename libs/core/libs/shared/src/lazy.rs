@@ -348,6 +348,7 @@ pub enum ValidationFailure {
     Orphan(Uuid),
     Cycle(HashSet<Uuid>),
     PathConflict(HashSet<Uuid>),
+    FileNameTooLong(Uuid),
     NonFolderWithChildren(Uuid),
     FileWithDifferentOwnerParent(Uuid),
     NonDecryptableFileName(Uuid),

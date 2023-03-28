@@ -144,6 +144,7 @@ pub enum CreateFileError {
     CouldNotFindAParent,
     FileNameNotAvailable,
     FileNameEmpty,
+    FileNameTooLong,
     FileNameContainsSlash,
     LinkInSharedFolder,
     LinkTargetIsOwned,
@@ -165,6 +166,7 @@ impl From<LbError> for Error<CreateFileError> {
             CoreError::LinkTargetIsOwned => UiError(CreateFileError::LinkTargetIsOwned),
             CoreError::LinkTargetNonexistent => UiError(CreateFileError::LinkTargetNonexistent),
             CoreError::InsufficientPermission => UiError(CreateFileError::InsufficientPermission),
+            CoreError::FileNameTooLong => UiError(CreateFileError::FileNameTooLong),
             CoreError::MultipleLinksToSameFile => UiError(CreateFileError::MultipleLinksToSameFile),
             _ => unexpected!("{:#?}", err),
         }
@@ -274,6 +276,7 @@ pub enum RenameFileError {
     FileDoesNotExist,
     NewNameEmpty,
     NewNameContainsSlash,
+    FileNameTooLong,
     FileNameNotAvailable,
     CannotRenameRoot,
     InsufficientPermission,
@@ -284,6 +287,7 @@ impl From<LbError> for Error<RenameFileError> {
         match err.kind {
             CoreError::FileNonexistent => UiError(RenameFileError::FileDoesNotExist),
             CoreError::FileNameEmpty => UiError(RenameFileError::NewNameEmpty),
+            CoreError::FileNameTooLong => UiError(RenameFileError::FileNameTooLong),
             CoreError::FileNameContainsSlash => UiError(RenameFileError::NewNameContainsSlash),
             CoreError::PathTaken => UiError(RenameFileError::FileNameNotAvailable),
             CoreError::RootModificationInvalid => UiError(RenameFileError::CannotRenameRoot),

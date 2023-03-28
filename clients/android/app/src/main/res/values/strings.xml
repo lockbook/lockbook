@@ -191,6 +191,7 @@
     <string name="multiple_links_to_same_file">You cannot link to a file that is already linked to.</string>
     <string name="insufficient_permissions">Error, you have insufficient permissions.</string>
     <string name="cannot_cancel_for_app_store">Cannot cancel an Apple App Store subscription from Android. Please manage your subscription from an Apple device.</string>
+    <string name="file_name_too_long">That file name is too long</string>
 
     <string name="cannot_share_root">You cannot share root.</string>
     <string name="share_already_exists">Error, this file is already shared.</string>

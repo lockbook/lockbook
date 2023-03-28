@@ -195,6 +195,7 @@ enum class CreateFileError : UiCoreError {
     FileNameNotAvailable,
     FileNameContainsSlash,
     FileNameEmpty,
+    FileNameTooLong,
     LinkInSharedFolder,
     LinkTargetIsOwned,
     LinkTargetNonexistent,
@@ -207,6 +208,7 @@ enum class CreateFileError : UiCoreError {
         FileNameNotAvailable -> LbError.newUserError(getString(res, R.string.file_name_not_available))
         FileNameContainsSlash -> LbError.newUserError(getString(res, R.string.file_name_contains_slash))
         FileNameEmpty -> LbError.newUserError(getString(res, R.string.file_name_empty))
+        FileNameTooLong -> LbError.newUserError(getString(res, R.string.file_name_too_long))
         LinkInSharedFolder -> LbError.newUserError(getString(res, R.string.link_in_shared_folder))
         LinkTargetIsOwned -> LbError.newUserError(getString(res, R.string.link_target_is_owned))
         LinkTargetNonexistent -> LbError.newUserError(getString(res, R.string.link_target_nonexistent))
@@ -273,6 +275,7 @@ enum class RenameFileError : UiCoreError {
     FileDoesNotExist,
     NewNameContainsSlash,
     FileNameNotAvailable,
+    FileNameTooLong,
     NewNameEmpty,
     CannotRenameRoot,
     InsufficientPermission;
@@ -281,6 +284,7 @@ enum class RenameFileError : UiCoreError {
         FileDoesNotExist -> LbError.newUserError(getString(res, R.string.file_does_not_exist))
         NewNameContainsSlash -> LbError.newUserError(getString(res, R.string.file_name_contains_slash))
         FileNameNotAvailable -> LbError.newUserError(getString(res, R.string.file_name_not_available))
+        FileNameTooLong -> LbError.newUserError(getString(res, R.string.file_name_too_long))
         NewNameEmpty -> LbError.newUserError(getString(res, R.string.file_name_empty))
         CannotRenameRoot -> LbError.newUserError(getString(res, R.string.cannot_rename_root))
         InsufficientPermission -> LbError.newUserError(getString(res, R.string.insufficient_permissions))
