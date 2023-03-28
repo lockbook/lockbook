@@ -101,13 +101,14 @@ class DataSource: NSObject, NSOutlineViewDataSource, NSPasteboardItemDataProvide
                 item.setData(destination.appendingPathComponent(file.name).dataRepresentation, forType: .fileURL)
             case .failure(let error):
                 DI.errors.handleError(error)
-                return
             }
         }
     }
     
     func outlineView(_ outlineView: NSOutlineView, draggingSession session: NSDraggingSession, endedAt screenPoint: NSPoint, operation: NSDragOperation) {
-        dragged = nil
+        if operation == .move {
+            dragged = nil
+        }
     }
 
     static let REORDER_PASTEBOARD_TYPE = "net.lockbook.metadata"
@@ -160,69 +161,19 @@ class TreeDelegate: NSObject, MenuOutlineViewDelegate {
             documentSelected(file)
         }
     }
-
 }
-
-//class LBPasteboardItem: NSObject, NSPasteboardWriting, NSPasteboardReading {
-//    var file: File
-//
-//    init(file: File) {
-//        self.file = file
-//    }
-//
-//    // Implement NSPasteboardWriting
-//    func writableTypes(for pasteboard: NSPasteboard) -> [NSPasteboard.PasteboardType] {
-//        return [NSPasteboard.PasteboardType(DataSource.REORDER_PASTEBOARD_TYPE), .fileContents]
-//    }
-//
-//    func pasteboardPropertyList(forType type: NSPasteboard.PasteboardType) -> Any? {
-//        if type == NSPasteboard.PasteboardType(DataSource.REORDER_PASTEBOARD_TYPE) {
-//            return file
-//        } else if type == .fileURL {
-//
-//            guard let destination = createTempFile(named: file.name) else {
-//                return nil
-//            }
-//
-//            let operation = DI.core.exportFile(id: file.id, destination: destination.path())
-//
-//            switch operation {
-//            case .success(_):
-//                return destination
-//            case .failure(let _):
-//                print("Could not export file!")
-//                return nil
-//            }
-//        } else {
-//            return nil
-//        }
-//    }
-//
-//    // Implement NSPasteboardReading
-//    required init?(pasteboardPropertyList propertyList: Any, ofType type: NSPasteboard.PasteboardType) {
-//        if type == NSPasteboard.PasteboardType(DataSource.REORDER_PASTEBOARD_TYPE) {
-//            self.file = propertyList as! File
-//        } else if type == .fileContents {
-//            self.file = propertyList as! File
-//        } else {
-//            return nil
-//        }
-//    }
-//}
-
 
 func createTempFile(_ fileName: String) -> URL? {
     let fileManager = FileManager.default
-    let tempDirectoryURL = URL(fileURLWithPath: NSTemporaryDirectory())
-    let newDirectoryURL = tempDirectoryURL.appendingPathComponent(DataSource.TMP_DIR)
+    let tempDirectoryURL = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent(DataSource.TMP_DIR)
 
     do {
-        try fileManager.createDirectory(at: newDirectoryURL, withIntermediateDirectories: true, attributes: nil)
+        try fileManager.createDirectory(at: tempDirectoryURL, withIntermediateDirectories: true, attributes: nil)
     } catch {
         return nil
     }
     
-    let newFileURL = newDirectoryURL.appendingPathComponent(fileName)
+    let newFileURL = tempDirectoryURL.appendingPathComponent(fileName)
     
     fileManager.createFile(atPath: newFileURL.path(), contents: nil)
     return newFileURL
@@ -230,8 +181,7 @@ func createTempFile(_ fileName: String) -> URL? {
 
 func createTempTempDir() -> URL? {
     let fileManager = FileManager.default
-    let tempDirectoryURL = URL(fileURLWithPath: NSTemporaryDirectory())
-    let tempTempURL = tempDirectoryURL.appendingPathComponent(DataSource.TMP_DIR).appendingPathComponent(UUID().uuidString)
+    let tempTempURL = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent(DataSource.TMP_DIR).appendingPathComponent(UUID().uuidString)
     
     do {
         try fileManager.createDirectory(at: tempTempURL, withIntermediateDirectories: true, attributes: nil)
