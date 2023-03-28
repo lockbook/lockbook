@@ -179,6 +179,7 @@ impl<Client: Requester> CoreLib<Client> {
             .expected_errs(&[
                 CoreError::FileNameContainsSlash,
                 CoreError::FileNameEmpty,
+                CoreError::FileNameTooLong,
                 CoreError::FileNonexistent,
                 CoreError::FileNotFolder,
                 CoreError::FileParentNonexistent,
@@ -251,6 +252,7 @@ impl<Client: Requester> CoreLib<Client> {
             .expected_errs(&[
                 CoreError::FileNameContainsSlash,
                 CoreError::FileNameEmpty,
+                CoreError::FileNameTooLong,
                 CoreError::FileNonexistent,
                 CoreError::InsufficientPermission,
                 CoreError::PathTaken,
@@ -308,6 +310,7 @@ impl<Client: Requester> CoreLib<Client> {
                 CoreError::FileNotFolder,
                 CoreError::PathContainsEmptyFileName,
                 CoreError::PathTaken,
+                CoreError::FileNameTooLong,
                 CoreError::LinkInSharedFolder,
                 CoreError::LinkTargetIsOwned,
                 CoreError::LinkTargetNonexistent,
@@ -322,6 +325,7 @@ impl<Client: Requester> CoreLib<Client> {
                 CoreError::FileNotFolder,
                 CoreError::InsufficientPermission,
                 CoreError::PathContainsEmptyFileName,
+                CoreError::FileNameTooLong,
                 CoreError::PathTaken,
                 CoreError::RootNonexistent,
             ])
@@ -350,7 +354,6 @@ impl<Client: Requester> CoreLib<Client> {
                 .local_metadata
                 .data()
                 .keys()
-                .into_iter()
                 .copied()
                 .collect::<Vec<Uuid>>())
         })?)
@@ -389,6 +392,11 @@ impl<Client: Requester> CoreLib<Client> {
         } else {
             "never".to_string()
         })
+    }
+
+    #[instrument(level = "debug", skip(self), err(Debug))]
+    pub fn suggested_docs(&self) -> Result<Vec<Uuid>, UnexpectedError> {
+        Ok(self.in_tx(|s| s.suggested_docs())?)
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
@@ -461,7 +469,11 @@ impl<Client: Requester> CoreLib<Client> {
             s.import_files(sources, dest, update_status)?;
             s.cleanup()
         })
-        .expected_errs(&[CoreError::FileNonexistent, CoreError::FileNotFolder])
+        .expected_errs(&[
+            CoreError::FileNonexistent,
+            CoreError::FileNotFolder,
+            CoreError::FileNameTooLong,
+        ])
     }
 
     #[instrument(level = "debug", skip(self, export_progress), err(Debug))]

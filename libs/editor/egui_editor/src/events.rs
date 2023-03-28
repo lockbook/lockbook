@@ -1,8 +1,9 @@
 use crate::appearance::Appearance;
+use crate::ast::Ast;
 use crate::buffer::{Buffer, Modification, SubBuffer, SubModification};
 use crate::cursor::Cursor;
 use crate::debug::DebugInfo;
-use crate::element::ItemType;
+use crate::element::{Element, ItemType};
 use crate::galleys::Galleys;
 use crate::layouts::{Annotation, Layouts};
 use crate::offset_types::DocCharOffset;
@@ -11,25 +12,31 @@ use egui::{Event, Key, PointerButton, Pos2, Vec2};
 use std::cmp::Ordering;
 use std::time::Instant;
 
-/// processes `events` and returns a boolean representing whether text was updated and optionally new contents for clipboard
+/// processes `events` and returns a boolean representing whether text was updated, new contents for clipboard
+/// (optional), and a link that was opened (optional)
+#[allow(clippy::too_many_arguments)]
 pub fn process(
-    events: &[Event], layouts: &Layouts, galleys: &Galleys, appearance: &Appearance, ui_size: Vec2,
-    buffer: &mut Buffer, debug: &mut DebugInfo,
-) -> (bool, Option<String>) {
+    events: &[Event], ast: &Ast, layouts: &Layouts, galleys: &Galleys, appearance: &Appearance,
+    ui_size: Vec2, buffer: &mut Buffer, debug: &mut DebugInfo,
+) -> (bool, Option<String>, Option<String>) {
     let (mut text_updated, modification) =
-        calc_modification(events, layouts, galleys, appearance, buffer, debug, ui_size);
+        calc_modification(events, ast, layouts, galleys, appearance, buffer, debug, ui_size);
     let mut to_clipboard = None;
+    let mut opened_url = None;
     if !modification.is_empty() {
-        let (text_updated_apply, to_clipboard_apply) = buffer.apply(modification, debug);
+        let (text_updated_apply, to_clipboard_apply, opened_url_apply) =
+            buffer.apply(modification, debug);
         text_updated |= text_updated_apply;
-        to_clipboard = to_clipboard_apply;
+        to_clipboard = to_clipboard_apply.or(to_clipboard);
+        opened_url = opened_url_apply.or(opened_url);
     }
-    (text_updated, to_clipboard)
+    (text_updated, to_clipboard, opened_url)
 }
 
 // note: buffer and debug are mut because undo modifies it directly; todo: factor to make mutating subset of code obvious
+#[allow(clippy::too_many_arguments)]
 fn calc_modification(
-    events: &[Event], layouts: &Layouts, galleys: &Galleys, appearance: &Appearance,
+    events: &[Event], ast: &Ast, layouts: &Layouts, galleys: &Galleys, appearance: &Appearance,
     buffer: &mut Buffer, debug: &mut DebugInfo, ui_size: Vec2,
 ) -> (bool, Modification) {
     let mut text_updated = false;
@@ -680,7 +687,32 @@ fn calc_modification(
                         }
                         checkbox_click
                     };
-                    if !checkbox_click {
+
+                    // process link clicks
+                    let link_click = !checkbox_click && modifiers.command && {
+                        let mut link_click = false;
+                        if let Some(click_char_offset) =
+                            pos_to_char_offset(*pos, galleys, &buffer.current.segs)
+                        {
+                            let click_byte_offset =
+                                buffer.current.segs.char_offset_to_byte(click_char_offset);
+                            for ast_node in &ast.nodes {
+                                if let Element::Link(_, url, _) = &ast_node.element {
+                                    if ast_node.range.contains(&click_byte_offset) {
+                                        modifications.push(SubModification::OpenedUrl {
+                                            url: url.to_string(),
+                                        });
+                                        link_click = true;
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                        link_click
+                    };
+
+                    // process other clicks
+                    if !checkbox_click && !link_click {
                         // record instant for double/triple click
                         cursor.process_click_instant(Instant::now());
 

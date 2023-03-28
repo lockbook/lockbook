@@ -24,6 +24,7 @@ pub enum SubModification {
     Delete(RelCharOffset),        // delete selection or characters before cursor
     DebugToggle,                  // toggle debug overlay
     ToClipboard { text: String }, // cut or copy text to clipboard
+    OpenedUrl { url: String },    // open a url
 }
 
 #[derive(Debug)]
@@ -77,11 +78,12 @@ impl Buffer {
         self.current.len()
     }
 
-    /// applies `modification` and returns a boolean representing whether text was updated and optionally new contents for clipboard
+    /// applies `modification` and returns a boolean representing whether text was updated, new contents for clipboard
+    /// (optional), and a link that was opened (optional)
     // todo: less cloning
     pub fn apply(
         &mut self, modification: Modification, debug: &mut DebugInfo,
-    ) -> (bool, Option<String>) {
+    ) -> (bool, Option<String>, Option<String>) {
         let now = Instant::now();
 
         // accumulate modifications into one modification until a non-cursor update is applied (for purposes of undo)
@@ -197,9 +199,10 @@ impl SubBuffer {
 
     fn apply_modification(
         &mut self, mut mods: Modification, debug: &mut DebugInfo,
-    ) -> (bool, Option<String>) {
+    ) -> (bool, Option<String>, Option<String>) {
         let mut text_updated = false;
         let mut to_clipboard = None;
+        let mut opened_url = None;
 
         let mut cur_cursor = self.cursor;
         mods.reverse();
@@ -253,11 +256,14 @@ impl SubBuffer {
                 SubModification::ToClipboard { text } => {
                     to_clipboard = Some(text);
                 }
+                SubModification::OpenedUrl { url } => {
+                    opened_url = Some(url);
+                }
             }
         }
 
         self.cursor = cur_cursor;
-        (text_updated, to_clipboard)
+        (text_updated, to_clipboard, opened_url)
     }
 
     fn modify_subsequent_cursors(
@@ -411,7 +417,7 @@ mod test {
 
         let mods = Default::default();
 
-        let (text_updated, _) = buffer.apply_modification(mods, &mut debug);
+        let (text_updated, _, _) = buffer.apply_modification(mods, &mut debug);
 
         assert_eq!(buffer.text, "");
         assert_eq!(buffer.cursor, Default::default());
@@ -427,7 +433,7 @@ mod test {
 
         let mods = Default::default();
 
-        let (text_updated, _) = buffer.apply_modification(mods, &mut debug);
+        let (text_updated, _, _) = buffer.apply_modification(mods, &mut debug);
 
         assert_eq!(buffer.text, "document content");
         assert_eq!(buffer.cursor, 9.into());
@@ -443,7 +449,7 @@ mod test {
 
         let mods = vec![SubModification::Insert { text: "new ".to_string() }];
 
-        let (text_updated, _) = buffer.apply_modification(mods, &mut debug);
+        let (text_updated, _, _) = buffer.apply_modification(mods, &mut debug);
 
         assert_eq!(buffer.text, "document new content");
         assert_eq!(buffer.cursor, 13.into());
@@ -526,7 +532,7 @@ mod test {
                 SubModification::Insert { text: "b".to_string() },
             ];
 
-            let (text_updated, _) = buffer.apply_modification(mods, &mut debug);
+            let (text_updated, _, _) = buffer.apply_modification(mods, &mut debug);
 
             assert_eq!(buffer.text, case.expected_buffer);
             assert_eq!(buffer.cursor.pos.0, case.expected_cursor.0);

@@ -1,5 +1,5 @@
 use lockbook_core::CoreError;
-use lockbook_shared::account::Account;
+use lockbook_shared::account::{Account, MAX_USERNAME_LENGTH};
 use lockbook_shared::pubkey;
 use test_utils::*;
 
@@ -55,7 +55,8 @@ fn create_account_username_taken() {
 fn create_account_invalid_username() {
     let core = test_core();
 
-    let invalid_unames = ["", "i/o", "@me", "###", "+1", "💩"];
+    let invalid_unames =
+        ["", "i/o", "@me", "###", "+1", "💩", &"x".repeat(MAX_USERNAME_LENGTH + 1)];
 
     for &uname in &invalid_unames {
         let err = core.create_account(uname, &url(), false).unwrap_err();

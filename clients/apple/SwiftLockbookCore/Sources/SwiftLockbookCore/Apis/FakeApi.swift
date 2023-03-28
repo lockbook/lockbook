@@ -135,11 +135,19 @@ Vestibulum ante ipsum primis in vel.
     public func exportFile(id: UUID, destination: String) ->FfiResult<Empty, ExportFileError> {
         .failure(.init(unexpected: "LAZY"))
     }
-    
+
     public func importFiles(sources: [String], destination: UUID) ->FfiResult<Empty, ImportFilesError> {
         .failure(.init(unexpected: "LAZY"))
     }
-    
+
+    public func searchFilePaths(input: String) ->FfiResult<[SearchResultItem], SearchFilePathsError> {
+        .failure(.init(unexpected: "LAZY"))
+    }
+
+    public func getFileById(id: UUID) -> FfiResult<File, GetFileByIdError> {
+        .failure(.init(unexpected: "LAZY"))
+    }
+
     public let username: Account.Username = "jeff"
     public static let root = File(fileType: .Folder, id: UUID(uuidString: "aa9c473b-79d3-4d11-b6c7-7c82d6fb94cc").unsafelyUnwrapped, parent: UUID(uuidString: "aa9c473b-79d3-4d11-b6c7-7c82d6fb94cc").unsafelyUnwrapped, name: "jeff", lastModifiedBy: "jeff",  lastModified: 1587384000000, shares: [])
     public static let fileMetas = [
