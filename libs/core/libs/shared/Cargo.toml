@@ -17,7 +17,7 @@ bincode = "1.2.1"
 sha2 = "0.9.9"
 hmac = "0.11.0"
 hmdb = "0.2.2"
-db-rs = "0.1.16"
+db-rs = "0.1.18"
 tracing = "0.1.5"
 flate2 = "1.0"
 

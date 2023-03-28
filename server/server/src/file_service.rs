@@ -380,7 +380,7 @@ pub async fn get_file_ids(
     let mut db = context.server_state.index_db.lock()?;
     let db = db.deref_mut();
 
-    let resp = Ok(GetFileIdsResponse {
+    Ok(GetFileIdsResponse {
         ids: ServerTree::new(
             owner,
             &mut db.owned_files,
@@ -389,9 +389,7 @@ pub async fn get_file_ids(
             &mut db.metas,
         )?
         .owned_ids(),
-    });
-
-    resp
+    })
 }
 
 pub async fn get_updates(

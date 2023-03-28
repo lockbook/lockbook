@@ -1,4 +1,5 @@
 pub mod account_service;
+pub mod activity_service;
 pub mod admin_service;
 pub mod api_service;
 pub mod billing_service;

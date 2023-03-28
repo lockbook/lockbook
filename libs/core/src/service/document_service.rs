@@ -1,5 +1,6 @@
 use crate::LbResult;
 use crate::{CoreError, CoreState, Requester};
+use chrono::Utc;
 use lockbook_shared::crypto::DecryptedDocument;
 use lockbook_shared::document_repo;
 use lockbook_shared::file_like::FileLike;
@@ -19,6 +20,8 @@ impl<Client: Requester> CoreState<Client> {
             .ok_or(CoreError::AccountNonexistent)?;
 
         let doc = tree.read_document(&self.config, &id, account)?;
+
+        self.add_doc_event(document_repo::DocEvent::Read(id, Utc::now().timestamp()))?;
 
         Ok(doc)
     }
@@ -40,6 +43,8 @@ impl<Client: Requester> CoreState<Client> {
         let encrypted_document = tree.update_document(&id, content, account)?;
         let hmac = tree.find(&id)?.document_hmac();
         document_repo::insert(&self.config, &id, hmac, &encrypted_document)?;
+
+        self.add_doc_event(document_repo::DocEvent::Write(id, Utc::now().timestamp()))?;
 
         Ok(())
     }
