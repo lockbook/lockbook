@@ -1,7 +1,6 @@
 use crate::CoreState;
 use crate::LbResult;
 use crate::Requester;
-use db_rs::DbError;
 use lockbook_shared::document_repo::DocActivityMetrics;
 use lockbook_shared::document_repo::DocEvent;
 use lockbook_shared::document_repo::StatisticValueRange;
@@ -10,62 +9,80 @@ use uuid::Uuid;
 
 impl<Client: Requester> CoreState<Client> {
     pub(crate) fn suggested_docs(&mut self) -> LbResult<Vec<Uuid>> {
-        let mut scores = self
+        let mut scores: Vec<DocActivityMetrics> = self
             .db
             .doc_events
             .data()
             .iter()
             .get_activity_metrics()
             .iter_mut()
-            .normalize();
+            .normalize()
+            .map(|f| *f)
+            .collect();
 
-        scores.sort_by(|a, b| DocActivityMetrics::rank(a).cmp(&DocActivityMetrics::rank(b)));
+        scores.sort();
 
         Ok(scores.iter().map(|f| f.id).collect())
     }
 
-    pub(crate) fn add_doc_event(&mut self, event: DocEvent) -> Result<(), DbError> {
+    pub(crate) fn add_doc_event(&mut self, event: DocEvent) -> LbResult<()> {
         let max_stored_events = 1000;
         let events = &self.db.doc_events;
 
         if events.data().len() > max_stored_events {
             self.db.doc_events.pop()?;
         }
-        self.db.doc_events.push(event)
+        self.db.doc_events.push(event)?;
+        Ok(())
     }
 }
 
 trait Normalizer {
-    fn normalize(&mut self) -> Vec<DocActivityMetrics>;
+    fn normalize(&mut self) -> &mut Self;
 }
 impl<'a, T> Normalizer for T
 where
     T: Iterator<Item = &'a mut DocActivityMetrics>,
 {
-    fn normalize(&mut self) -> Vec<DocActivityMetrics> {
+    fn normalize(&mut self) -> &mut Self {
         let read_count_range = StatisticValueRange {
-            max: self.map(|f| f.read_count).max().unwrap(),
-            min: self.map(|f| f.read_count).min().unwrap(),
+            max: self.map(|f| f.read_count).max().unwrap_or_default(),
+            min: self.map(|f| f.read_count).min().unwrap_or_default(),
         };
         let write_count_range = StatisticValueRange {
-            max: self.map(|f| f.write_count).max().unwrap(),
-            min: self.map(|f| f.write_count).min().unwrap(),
+            max: self.map(|f| f.write_count).max().unwrap_or_default(),
+            min: self.map(|f| f.write_count).min().unwrap_or_default(),
         };
 
-        let latest_read_range = StatisticValueRange {
-            max: self.map(|f| f.latest_read_timestamp).max().unwrap(),
-            min: self.map(|f| f.latest_read_timestamp).min().unwrap(),
+        let last_read_range = StatisticValueRange {
+            max: self
+                .map(|f| f.last_read_timestamp)
+                .max()
+                .unwrap_or_default(),
+            min: self
+                .map(|f| f.last_read_timestamp)
+                .min()
+                .unwrap_or_default(),
         };
-        let latest_write_range = StatisticValueRange {
-            max: self.map(|f| f.latest_write_timestamp).max().unwrap(),
-            min: self.map(|f| f.latest_write_timestamp).min().unwrap(),
+        let last_write_range = StatisticValueRange {
+            max: self
+                .map(|f| f.last_write_timestamp)
+                .max()
+                .unwrap_or_default(),
+            min: self
+                .map(|f| f.last_write_timestamp)
+                .min()
+                .unwrap_or_default(),
         };
+
         self.for_each(|f| {
             f.read_count.normalize(read_count_range);
             f.write_count.normalize(write_count_range);
-            f.latest_read_timestamp.normalize(latest_read_range);
-            f.latest_write_timestamp.normalize(latest_write_range);
+            f.last_read_timestamp.normalize(last_read_range);
+            f.last_write_timestamp.normalize(last_write_range);
         });
-        vec![]
+
+        self
+        // vec![]
     }
 }

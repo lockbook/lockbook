@@ -36,13 +36,9 @@ impl DocEvent {
 #[derive(Default, Copy, Clone, PartialEq)]
 pub struct StatisticValue {
     pub raw: i64,
-    pub normalized: f64,
+    pub normalized: Option<f64>,
 }
-impl StatisticValue {
-    fn from_raw(raw: i64) -> StatisticValue {
-        StatisticValue { raw, normalized: f64::default() }
-    }
-}
+
 impl Ord for StatisticValue {
     fn cmp(&self, other: &Self) -> Ordering {
         (self.raw).cmp(&other.raw)
@@ -64,27 +60,49 @@ pub struct StatisticValueRange {
 }
 impl StatisticValue {
     pub fn normalize(&mut self, range: StatisticValueRange) {
-        self.normalized = (self.raw - range.min.raw) as f64 / (range.max.raw - range.min.raw) as f64
+        self.normalized =
+            Some((self.raw - range.min.raw) as f64 / (range.max.raw - range.min.raw) as f64)
     }
 }
 /// DocActivityMetrics stores key document activity features, which are used to recommend relevant documents to the user.
 /// Here's a walkthrough of the recommendation procedure: collect 1k most recent document events (write/read), use that activity to construct a DocActivtyMetrics struct for each document. Min-max normalizes the activity features, then rank the documents.
-/// latest_read_timestamp: the latest epoch timestamp that the user read a document
-/// latest_write_timestamp: the latest epoch timestamp that the user wrote a document
-/// the total number of times that a user reads a document
-/// the total number of times that a user wrote a document
-#[derive(Default, Copy, Clone)]
+#[derive(Default, Copy, Clone, PartialEq)]
 pub struct DocActivityMetrics {
     pub id: Uuid,
-    pub latest_read_timestamp: StatisticValue,
-    pub latest_write_timestamp: StatisticValue,
+    /// the latest epoch timestamp that the user read a document
+    pub last_read_timestamp: StatisticValue,
+    /// the latest epoch timestamp that the user wrote a document
+    pub last_write_timestamp: StatisticValue,
+    /// the total number of times that a user reads a document
     pub read_count: StatisticValue,
+    /// the total number of times that a user wrote a document
     pub write_count: StatisticValue,
 }
+
+impl Eq for DocActivityMetrics {}
+impl Ord for DocActivityMetrics {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.score().cmp(&other.score())
+    }
+}
+
+impl PartialOrd for DocActivityMetrics {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.score().cmp(&other.score()))
+    }
+}
+
 impl DocActivityMetrics {
-    pub fn rank(&self) -> i64 {
-        (self.latest_read_timestamp.normalized + self.latest_write_timestamp.normalized) as i64 * 70
-            + (self.read_count.normalized + self.write_count.normalized) as i64 * 30
+    pub fn score(&self) -> i64 {
+        let timestamp_weight = 70;
+        let io_count_weight = 30;
+
+        (self.last_read_timestamp.normalized.unwrap_or_default()
+            + self.last_write_timestamp.normalized.unwrap_or_default()) as i64
+            * timestamp_weight
+            + (self.read_count.normalized.unwrap_or_default()
+                + self.write_count.normalized.unwrap_or_default()) as i64
+                * io_count_weight
     }
 }
 pub trait Stats {
@@ -109,40 +127,34 @@ where
             }
         }
 
-        for pair in set {
-            let read_events: Vec<&&DocEvent> = pair
-                .1
-                .iter()
-                .filter(|e| matches!(e, DocEvent::Read(_, _)))
-                .collect();
-            let latest_read = read_events
-                .iter()
+        for (id, events) in set {
+            let read_events = events.iter().filter(|e| matches!(e, DocEvent::Read(_, _)));
+
+            let last_read = read_events
+                .clone()
                 .max_by(|x, y| x.timestamp().cmp(&y.timestamp()));
-            let latest_read = match latest_read {
+
+            let last_read = match last_read {
                 None => 0,
                 Some(x) => x.timestamp(),
             };
 
-            let write_events: Vec<&&DocEvent> = pair
-                .1
-                .iter()
-                .filter(|e| matches!(e, DocEvent::Write(_, _)))
-                .collect();
+            let write_events = events.iter().filter(|e| matches!(e, DocEvent::Write(_, _)));
 
-            let latest_write = write_events
-                .iter()
+            let last_write = write_events
+                .clone()
                 .max_by(|x, y| x.timestamp().cmp(&y.timestamp()));
-            let latest_write = match latest_write {
+            let last_write = match last_write {
                 None => 0,
                 Some(x) => x.timestamp(),
             };
 
             let metrics = DocActivityMetrics {
-                id: pair.0,
-                latest_read_timestamp: StatisticValue::from_raw(latest_read),
-                latest_write_timestamp: StatisticValue::from_raw(latest_write),
-                read_count: StatisticValue::from_raw(read_events.len() as i64),
-                write_count: StatisticValue::from_raw(write_events.len() as i64),
+                id,
+                last_read_timestamp: StatisticValue { raw: last_read, normalized: None },
+                last_write_timestamp: StatisticValue { raw: last_write, normalized: None },
+                read_count: StatisticValue { raw: read_events.count() as i64, normalized: None },
+                write_count: StatisticValue { raw: write_events.count() as i64, normalized: None },
             };
             result.push(metrics);
         }
