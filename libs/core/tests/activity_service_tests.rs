@@ -33,7 +33,6 @@ fn io_count_comparison() {
     let core: Core = test_core();
 
     let document = core.create_at_path("hello.md").unwrap();
-
     for _ in 0..100 {
         core.write_document(document.id, "hello world".as_bytes())
             .unwrap();
