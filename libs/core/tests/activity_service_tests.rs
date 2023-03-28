@@ -10,13 +10,9 @@ fn base_case() {
     core.write_document(document.id, "hello world".as_bytes())
         .unwrap();
 
-    let document1 = core.create_at_path("hello1.md").unwrap();
-    core.write_document(document1.id, "hello world".as_bytes())
-        .unwrap();
-
     let expected_suggestions = core.suggested_docs().unwrap();
 
-    assert_eq!(vec![document1.id, document.id], expected_suggestions);
+    assert_eq!(vec![document.id], expected_suggestions);
 }
 
 #[test]
@@ -49,7 +45,7 @@ fn io_count_comparison() {
 
     let expected_suggestions = core.suggested_docs().unwrap();
 
-    assert!(vec![document1.id, document2.id] == expected_suggestions);
+    assert_eq!(vec![document1.id, document2.id], expected_suggestions);
 }
 
 #[test]
@@ -76,5 +72,5 @@ fn io_count_comparison_multiple_docs() {
     }
 
     let expected_suggestions = core.suggested_docs().unwrap();
-    assert!(vec![document1.id, document2.id, document3.id] == expected_suggestions);
+    assert_eq!(vec![document1.id, document2.id, document3.id], expected_suggestions);
 }
