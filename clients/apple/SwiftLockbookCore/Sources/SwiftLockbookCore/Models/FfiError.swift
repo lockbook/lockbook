@@ -118,6 +118,7 @@ public enum CreateFileError: String, UiError {
     case FileNameContainsSlash
     case FileNameEmpty
     case FileNameNotAvailable
+    case FileNameTooLong
     case LinkInSharedFolder
     case LinkTargetIsOwned
     case LinkTargetNonexistent
@@ -162,6 +163,7 @@ public enum RenameFileError: String, UiError {
     case CannotRenameRoot
     case FileDoesNotExist
     case FileNameNotAvailable
+    case FileNameTooLong
     case NewNameContainsSlash
     case NewNameEmpty
     case InsufficientPermission

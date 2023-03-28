@@ -1,3 +1,7 @@
+pub const MAX_FILENAME_LENGTH: usize = 40;
+pub const MAX_ENCRYPTED_FILENAME_LENGTH: usize =
+    MAX_FILENAME_LENGTH + 32 - (MAX_FILENAME_LENGTH % 32);
+
 #[derive(Debug)]
 pub enum DocumentType {
     Text,
