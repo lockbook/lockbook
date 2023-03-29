@@ -1,3 +1,5 @@
+use std::{thread::sleep, time::Duration};
+
 use lockbook_core::{Core, Uuid};
 use test_utils::*;
 
@@ -37,15 +39,17 @@ fn io_count_comparison() {
             .unwrap();
     }
 
+    sleep(Duration::from_millis(1));
+
     let document2 = core.create_at_path("hello2.md").unwrap();
     for _ in 0..50 {
         core.write_document(document2.id, "hello world".as_bytes())
             .unwrap();
     }
 
-    let expected_suggestions = core.suggested_docs().unwrap();
-
-    assert_eq!(vec![document1.id, document2.id], expected_suggestions);
+    let actual_suggestions = core.suggested_docs().unwrap();
+    let expected_suggestions = vec![document1.id, document2.id];
+    assert_eq!(actual_suggestions, expected_suggestions);
 }
 
 #[test]
@@ -58,12 +62,14 @@ fn io_count_comparison_multiple_docs() {
         core.write_document(document1.id, "hello world".as_bytes())
             .unwrap();
     }
+    sleep(Duration::from_millis(1));
 
     let document2 = core.create_at_path("hello2.md").unwrap();
     for _ in 0..20 {
         core.write_document(document2.id, "hello world".as_bytes())
             .unwrap();
     }
+    sleep(Duration::from_millis(1));
 
     let document3 = core.create_at_path("hello3.md").unwrap();
     for _ in 0..10 {
@@ -71,6 +77,8 @@ fn io_count_comparison_multiple_docs() {
             .unwrap();
     }
 
-    let expected_suggestions = core.suggested_docs().unwrap();
-    assert_eq!(vec![document1.id, document2.id, document3.id], expected_suggestions);
+    let actual_suggestions = core.suggested_docs().unwrap();
+    let expected_suggestions = vec![document1.id, document2.id, document3.id];
+
+    assert_eq!(actual_suggestions, expected_suggestions);
 }
