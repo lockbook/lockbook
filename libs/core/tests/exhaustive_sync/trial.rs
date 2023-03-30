@@ -253,7 +253,6 @@ impl Trial {
                                 if compare_device_index != device_index {
                                     let compare_device =
                                         &self.devices_by_user[user_index][compare_device_index];
-                                    assert_dbs_equal(device, compare_device);
                                     if !dbs_equal(device, compare_device) {
                                         self.status = Failed(format!(
                                             "db {} is not equal to {} after a sync.",
