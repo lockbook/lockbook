@@ -5,7 +5,7 @@ edition = "2021"
 
 [dependencies]
 structopt = "0.3.13"
-gh_release = "0.1.0"
+gh_release = "0.1.1"
 toml = "0.7.0"
 toml_edit = "0.19.0"
 sha2 = "0.10.2"

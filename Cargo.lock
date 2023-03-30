@@ -2110,9 +2110,9 @@ dependencies = [
 
 [[package]]
 name = "gh_release"
-version = "0.1.0"
+version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "357ffb6dc32993b6d69447cbac823760a5bb2ab006cd3352543eca03f8773c83"
+checksum = "cd6a9e499ad324676bfed60626791a3c37ca633a58146a118276c1adb0fe0a55"
 dependencies = [
  "reqwest",
  "serde",
