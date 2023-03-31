@@ -56,8 +56,8 @@ fn create_tmp_dir() -> Result<PathBuf, CliError> {
 #[derive(Debug)]
 enum Editor {
     Vim,
-    Emacs,
     Nvim,
+    Emacs,
     Nano,
     Sublime,
     Code,
@@ -68,8 +68,8 @@ fn get_editor() -> Editor {
     match std::env::var("LOCKBOOK_EDITOR") {
         Ok(editor) => match editor.to_lowercase().as_str() {
             "vim" => Editor::Vim,
-            "emacs" => Editor::Emacs,
             "nvim" => Editor::Nvim,
+            "emacs" => Editor::Emacs,
             "nano" => Editor::Nano,
             "subl" | "sublime" => Editor::Sublime,
             "code" => Editor::Code,
