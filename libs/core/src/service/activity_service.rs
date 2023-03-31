@@ -1,17 +1,21 @@
+use std::cmp;
+
 use crate::CoreState;
 use crate::LbResult;
 use crate::Requester;
 use lockbook_shared::document_repo::DocActivityMetrics;
 use lockbook_shared::document_repo::DocEvent;
+use lockbook_shared::document_repo::RankingWeights;
 use lockbook_shared::document_repo::StatisticValueRange;
 use lockbook_shared::document_repo::Stats;
 use uuid::Uuid;
 
 impl<Client: Requester> CoreState<Client> {
-    pub(crate) fn suggested_docs(&mut self) -> LbResult<Vec<Uuid>> {
+    pub(crate) fn suggested_docs(&mut self, settings: RankingWeights) -> LbResult<Vec<Uuid>> {
         let mut scores = self.db.doc_events.data().iter().get_activity_metrics();
         self.normalize(&mut scores);
-        scores.sort();
+
+        scores.sort_by_key(|b| cmp::Reverse(b.score(settings)));
 
         Ok(scores.iter().map(|f| f.id).collect())
     }
