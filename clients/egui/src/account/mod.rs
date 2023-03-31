@@ -100,7 +100,8 @@ impl AccountScreen {
         while let Ok(update) = self.update_rx.try_recv() {
             match update {
                 AccountUpdate::OpenModal(open_modal) => match open_modal {
-                    OpenModal::NewFile(maybe_parent) => self.open_new_file_modal(maybe_parent),
+                    OpenModal::NewDoc(maybe_parent) => self.open_new_doc_modal(maybe_parent),
+                    OpenModal::NewFolder(maybe_parent) => self.open_new_folder_modal(maybe_parent),
                     OpenModal::Settings => {
                         self.modals.settings = SettingsModal::open(&self.core, &self.settings);
                     }
@@ -108,21 +109,25 @@ impl AccountScreen {
                         self.modals.confirm_delete = ConfirmDeleteModal::open(files);
                     }
                 },
-                AccountUpdate::FileCreated(result) => {
-                    if let Some(content) = &mut self.modals.new_file {
-                        match result {
-                            Ok(meta) => {
-                                self.modals.new_file = None;
-                                let (id, is_doc) = (meta.id, meta.is_document());
-                                self.tree.root.insert(meta);
-                                if is_doc {
-                                    self.open_file(id, ctx);
-                                }
-                            }
-                            Err(msg) => content.err_msg = Some(msg),
+                AccountUpdate::FileCreated(result) => match result {
+                    Ok(f) => {
+                        let (id, is_doc) = (f.id, f.is_document());
+                        self.tree.root.insert(f);
+                        if is_doc {
+                            self.open_file(id, ctx);
+                        }
+                        // Close whichever new file modal was open.
+                        self.modals.new_doc = None;
+                        self.modals.new_folder = None;
+                    }
+                    Err(msg) => {
+                        if let Some(m) = &mut self.modals.new_doc {
+                            m.err_msg = Some(msg)
+                        } else if let Some(m) = &mut self.modals.new_folder {
+                            m.err_msg = Some(msg)
                         }
                     }
-                }
+                },
                 AccountUpdate::FileLoaded(id, content_result) => {
                     if let Some(tab) = self.workspace.get_mut_tab_by_id(id) {
                         frame.set_window_title(&tab.name);
@@ -199,8 +204,8 @@ impl AccountScreen {
         }
 
         // Ctrl-N pressed while new file modal is not open.
-        if self.modals.new_file.is_none() && ctx.input_mut().consume_key(CTRL, egui::Key::N) {
-            self.open_new_file_modal(None);
+        if self.modals.new_doc.is_none() && ctx.input_mut().consume_key(CTRL, egui::Key::N) {
+            self.open_new_doc_modal(None);
         }
 
         // Ctrl-S to save current tab.
@@ -274,9 +279,16 @@ impl AccountScreen {
             .show(ui, |ui| self.tree.show(ui))
             .inner;
 
-        if let Some(file) = resp.new_file_modal {
+        if let Some(file) = resp.new_doc_modal {
             self.update_tx
-                .send(OpenModal::NewFile(Some(file)).into())
+                .send(OpenModal::NewDoc(Some(file)).into())
+                .unwrap();
+            ui.ctx().request_repaint();
+        }
+
+        if let Some(file) = resp.new_folder_modal {
+            self.update_tx
+                .send(OpenModal::NewFolder(Some(file)).into())
                 .unwrap();
             ui.ctx().request_repaint();
         }
@@ -374,18 +386,33 @@ impl AccountScreen {
         });
     }
 
-    fn open_new_file_modal(&mut self, maybe_parent: Option<lb::File>) {
+    fn open_new_doc_modal(&mut self, maybe_parent: Option<lb::File>) {
+        self.open_new_file_modal(maybe_parent, lb::FileType::Document);
+    }
+
+    fn open_new_folder_modal(&mut self, maybe_parent: Option<lb::File>) {
+        self.open_new_file_modal(maybe_parent, lb::FileType::Folder);
+    }
+
+    fn open_new_file_modal(&mut self, maybe_parent: Option<lb::File>, typ: lb::FileType) {
         let parent_id = match maybe_parent {
-            Some(f) => match f.is_folder() {
-                true => f.id,
-                false => f.parent,
-            },
+            Some(f) => {
+                if f.is_folder() {
+                    f.id
+                } else {
+                    f.parent
+                }
+            }
             None => self.core.get_root().unwrap().id,
         };
 
         let parent_path = self.core.get_path_by_id(parent_id).unwrap();
 
-        self.modals.new_file = Some(Box::new(NewFileModal::new(parent_path)));
+        if typ == lb::FileType::Folder {
+            self.modals.new_folder = Some(Box::new(NewFolderModal::new(parent_path)));
+        } else {
+            self.modals.new_doc = Some(Box::new(NewDocModal::new(parent_path)));
+        }
     }
 
     fn create_file(&mut self, params: modals::NewFileParams) {
@@ -537,7 +564,8 @@ enum AccountUpdate {
 }
 
 enum OpenModal {
-    NewFile(Option<lb::File>),
+    NewDoc(Option<lb::File>),
+    NewFolder(Option<lb::File>),
     Settings,
     ConfirmDelete(Vec<lb::File>),
 }

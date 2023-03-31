@@ -254,8 +254,12 @@ impl TreeNode {
             ui.close_menu();
         }
 
-        if ui.button("New...").clicked() {
-            node_resp.new_file_modal = Some(self.file.clone());
+        if ui.button("New Document").clicked() {
+            node_resp.new_doc_modal = Some(self.file.clone());
+            ui.close_menu();
+        }
+        if ui.button("New Folder").clicked() {
+            node_resp.new_folder_modal = Some(self.file.clone());
             ui.close_menu();
         }
         if ui.button("Rename").clicked() {
