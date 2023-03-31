@@ -96,12 +96,15 @@ impl DocActivityMetrics {
         let timestamp_weight = weights.temporality;
         let io_count_weight = weights.io;
 
-        (self.last_read_timestamp.normalized.unwrap_or_default()
-            + self.last_write_timestamp.normalized.unwrap_or_default()) as i64
-            * timestamp_weight
-            + (self.read_count.normalized.unwrap_or_default()
-                + self.write_count.normalized.unwrap_or_default()) as i64
-                * io_count_weight
+        let temporality_score = (self.last_read_timestamp.normalized.unwrap_or_default()
+            + self.last_write_timestamp.normalized.unwrap_or_default())
+            * timestamp_weight as f64;
+
+        let io_score = (self.read_count.normalized.unwrap_or_default()
+            + self.write_count.normalized.unwrap_or_default())
+            * io_count_weight as f64;
+
+        (io_score + temporality_score).ceil() as i64
     }
 }
 pub trait Stats {

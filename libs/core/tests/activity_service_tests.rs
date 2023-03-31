@@ -65,13 +65,13 @@ fn write_count_multiple_docs() {
     }
 
     let document2 = core.create_at_path("hello2.md").unwrap();
-    for _ in 0..20 {
+    for _ in 0..50 {
         core.write_document(document2.id, "hello world".as_bytes())
             .unwrap();
     }
 
     let document3 = core.create_at_path("hello3.md").unwrap();
-    for _ in 0..100 {
+    for _ in 0..55 {
         core.write_document(document3.id, "hello world".as_bytes())
             .unwrap();
     }
