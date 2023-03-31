@@ -40,6 +40,12 @@ pub struct RankingWeights {
     /// the amount of write and read on a doc
     pub io: i64,
 }
+
+impl Default for RankingWeights {
+    fn default() -> Self {
+        Self { temporality: 60, io: 40 }
+    }
+}
 #[derive(Default, Copy, Clone, PartialEq)]
 pub struct StatisticValue {
     pub raw: i64,
@@ -91,8 +97,7 @@ pub struct DocActivityMetrics {
 }
 
 impl DocActivityMetrics {
-    pub fn score(&self, weights: Option<RankingWeights>) -> i64 {
-        let weights = weights.unwrap_or(RankingWeights { temporality: 60, io: 40 });
+    pub fn score(&self, weights: RankingWeights) -> i64 {
         let timestamp_weight = weights.temporality;
         let io_count_weight = weights.io;
 

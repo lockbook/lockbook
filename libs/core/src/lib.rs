@@ -396,10 +396,8 @@ impl<Client: Requester> CoreLib<Client> {
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
-    pub fn suggested_docs(
-        &self, weights: Option<RankingWeights>,
-    ) -> Result<Vec<Uuid>, UnexpectedError> {
-        Ok(self.in_tx(|s| s.suggested_docs(weights))?)
+    pub fn suggested_docs(&self, settings: RankingWeights) -> Result<Vec<Uuid>, UnexpectedError> {
+        Ok(self.in_tx(|s| s.suggested_docs(settings))?)
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]

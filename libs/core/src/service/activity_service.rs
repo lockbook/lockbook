@@ -11,13 +11,11 @@ use lockbook_shared::document_repo::Stats;
 use uuid::Uuid;
 
 impl<Client: Requester> CoreState<Client> {
-    pub(crate) fn suggested_docs(
-        &mut self, weights: Option<RankingWeights>,
-    ) -> LbResult<Vec<Uuid>> {
+    pub(crate) fn suggested_docs(&mut self, settings: RankingWeights) -> LbResult<Vec<Uuid>> {
         let mut scores = self.db.doc_events.data().iter().get_activity_metrics();
         self.normalize(&mut scores);
 
-        scores.sort_by_key(|b| cmp::Reverse(b.score(weights)));
+        scores.sort_by_key(|b| cmp::Reverse(b.score(settings)));
 
         Ok(scores.iter().map(|f| f.id).collect())
     }
