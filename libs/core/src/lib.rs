@@ -12,6 +12,7 @@ pub use base64;
 pub use basic_human_duration::ChronoHumanDuration;
 pub use chrono::Duration;
 pub use libsecp256k1::PublicKey;
+use lockbook_shared::document_repo::RankingWeights;
 pub use uuid::Uuid;
 
 pub use lockbook_shared::account::Account;
@@ -395,8 +396,10 @@ impl<Client: Requester> CoreLib<Client> {
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
-    pub fn suggested_docs(&self) -> Result<Vec<Uuid>, UnexpectedError> {
-        Ok(self.in_tx(|s| s.suggested_docs())?)
+    pub fn suggested_docs(
+        &self, weights: Option<RankingWeights>,
+    ) -> Result<Vec<Uuid>, UnexpectedError> {
+        Ok(self.in_tx(|s| s.suggested_docs(weights))?)
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]

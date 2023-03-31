@@ -33,6 +33,13 @@ impl DocEvent {
     }
 }
 
+#[derive(Debug, Copy, Clone)]
+pub struct RankingWeights {
+    /// the freshness of a doc as determined by the last activity
+    pub temporality: i64,
+    /// the amount of write and read on a doc
+    pub io: i64,
+}
 #[derive(Default, Copy, Clone, PartialEq)]
 pub struct StatisticValue {
     pub raw: i64,
@@ -60,10 +67,12 @@ pub struct StatisticValueRange {
 }
 impl StatisticValue {
     pub fn normalize(&mut self, range: StatisticValueRange) {
-        let normalized = (self.raw - range.min.raw)
-            .checked_div(range.max.raw - range.min.raw)
-            .unwrap_or(1);
-        self.normalized = Some(normalized as f64);
+        let mut range_distance = range.max.raw - range.min.raw;
+        if range_distance == 0 {
+            range_distance = 1
+        };
+        let normalized = (self.raw - range.min.raw) as f64 / range_distance as f64;
+        self.normalized = Some(normalized);
     }
 }
 /// DocActivityMetrics stores key document activity features, which are used to recommend relevant documents to the user.
@@ -81,23 +90,11 @@ pub struct DocActivityMetrics {
     pub write_count: StatisticValue,
 }
 
-impl Eq for DocActivityMetrics {}
-impl Ord for DocActivityMetrics {
-    fn cmp(&self, other: &Self) -> Ordering {
-        other.score().cmp(&self.score())
-    }
-}
-
-impl PartialOrd for DocActivityMetrics {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(other.score().cmp(&self.score()))
-    }
-}
-
 impl DocActivityMetrics {
-    pub fn score(&self) -> i64 {
-        let timestamp_weight = 70;
-        let io_count_weight = 30;
+    pub fn score(&self, weights: Option<RankingWeights>) -> i64 {
+        let weights = weights.unwrap_or(RankingWeights { temporality: 60, io: 40 });
+        let timestamp_weight = weights.temporality;
+        let io_count_weight = weights.io;
 
         (self.last_read_timestamp.normalized.unwrap_or_default()
             + self.last_write_timestamp.normalized.unwrap_or_default()) as i64
