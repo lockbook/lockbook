@@ -72,6 +72,18 @@ pub fn root() -> PathBuf {
     project_root
 }
 
+pub fn commit_hash() -> String {
+    let hash_bytes = Command::new("git")
+        .args(["rev-parse", "HEAD"])
+        .output()
+        .unwrap()
+        .stdout;
+
+    return String::from_utf8_lossy(hash_bytes.as_slice())
+        .trim()
+        .to_string();
+}
+
 pub fn determine_new_version(bump_type: Option<String>) -> Option<String> {
     let mut current_version: Vec<i32> = core_version()
         .split('.')

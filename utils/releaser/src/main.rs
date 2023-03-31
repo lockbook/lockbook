@@ -1,5 +1,6 @@
 mod android;
 mod apple;
+mod github;
 mod linux;
 mod public_site;
 mod secrets;
@@ -23,6 +24,7 @@ enum Releaser {
     ReleaseWindows,
     ReleasePublicSite,
     ReleaseLinux,
+    CreateGithubRelease,
     BumpVersion {
         #[structopt(short, long, name = "bump type")]
         increment: Option<String>,
@@ -44,6 +46,7 @@ fn from_args(releaser: Releaser) {
         Releaser::ReleaseWindows => windows::release(&Github::env()),
         Releaser::ReleasePublicSite => public_site::release(),
         Releaser::ReleaseLinux => linux::release_linux(),
+        Releaser::CreateGithubRelease => github::create_gh_release(&Github::env()),
         Releaser::BumpVersion { increment } => bump_versions(increment),
         Releaser::All => {
             let releases = if cfg!(target_os = "macos") {
