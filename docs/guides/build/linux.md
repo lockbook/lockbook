@@ -1,7 +1,7 @@
-# Build Windows
+# Build Linux
 
 Prerequisites:
-- Computer with Windows
+- Computer with a linux distro
 - Stable rust toolchain
 
 Steps:
