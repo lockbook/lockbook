@@ -76,3 +76,27 @@ struct RealFileCell: View {
             .contentShape(Rectangle()) /// https://stackoverflow.com/questions/57258371/swiftui-increase-tap-drag-area-for-user-interaction
     }
 }
+
+struct SearchFileCell: View {
+    let meta: File
+    let searchResult: SearchResultItem
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Text(meta.name)
+                    .font(.title3)
+            HStack {
+                Image(systemName: meta.fileType == .Folder ? "folder.fill" : "doc.fill")
+                        .foregroundColor(meta.fileType == .Folder ? .blue : .secondary)
+                Text(intEpochToString(epoch: max(meta.lastModified, meta.lastModified)))
+                        .foregroundColor(.secondary)
+                
+                Spacer()
+            }
+                    .font(.footnote)
+        }
+            .padding(.vertical, 5)
+            .contentShape(Rectangle()) /// https://stackoverflow.com/questions/57258371/swiftui-increase-tap-drag-area-for-user-interaction
+    }
+}
+

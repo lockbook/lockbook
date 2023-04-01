@@ -6,6 +6,9 @@ struct FileListView: View {
     @EnvironmentObject var current: CurrentDocument
     @EnvironmentObject var sheets: SheetState
     @EnvironmentObject var fileService: FileService
+    @EnvironmentObject var search: SearchService
+    
+    @State var searchInput: String = ""
     
     var body: some View {
             ZStack {
@@ -17,10 +20,28 @@ struct FileListView: View {
                          .hidden()
                     }
                     
-                    List(fileService.childrenOfParent()) { meta in
-                        FileCell(meta: meta)
+                    VStack {
+                        if(search.isSearching) {
+                            List(search.filePathInfos) { filePathInfos in
+                                FileCell(meta: filePathInfos.meta)
+                            }
+                        } else {
+                            List(fileService.childrenOfParent()) { meta in
+                                FileCell(meta: meta)
+                            }
+                            
+                        }
+                        
                     }
                     .navigationBarTitle(fileService.parent.map{($0.name)} ?? "")
+                    .searchable(text: $searchInput)
+                    .onChange(of: searchInput) { newInput in
+                        search.isSearching = newInput != ""
+                        
+                        if(search.isSearching) {
+                            search.asyncSearchFilePath(input: searchInput)
+                        }
+                    }
                     
                     FilePathBreadcrumb()
                     
