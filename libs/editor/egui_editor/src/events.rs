@@ -300,7 +300,9 @@ fn calc_modification(
                     modifications.push(SubModification::Cursor {
                         cursor: (begin_of_word_pos, end_of_word_pos).into(),
                     })
-                } else if cursor.pos != buffer.current.segs.last_cursor_position() {
+                } else if cursor.selection().is_none()
+                    && cursor.pos != buffer.current.segs.last_cursor_position()
+                {
                     // select char after cursor
                     modifications.push(SubModification::Cursor {
                         cursor: (cursor.pos, cursor.pos + 1).into(),
