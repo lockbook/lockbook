@@ -7,13 +7,13 @@
 ## About
 _The private, polished note-taking platform._
 
-Privacy shouldn't be a compromise. That's why we made Lockbook, a secure companion to record, sync, and share your thoughts with apps engineered to feel at home on every platform. We collect no personal information and encrypt your notes so even we can't see them. Don't take our word for it: Lockbook is 100% open-source.
+Privacy shouldn't be a compromise. That's why we created Lockbook, a secure note-taking app that lets you record, sync, and share your thoughts. We collect no personal information and encrypt your notes so even we can't see them. Don't take our word for it: Lockbook is 100% open-source.
 
 ### Polished
-We built Lockbook for everyday use because we use Lockbook every day. We need a note-taking app that doesn't make trade-offs concerning speed, stability, efficiency, device integration, or delightfulness. The only way to have that is to put in the effort, including writing native apps for every platform. We can't wait for you to try it.
+We built Lockbook for everyday use because we use Lockbook every day. Our native apps feel at home on every platform, and we've gone the extra mile to ensure they're fast, stable, efficient, and delightful to use. We can't wait for you to try them.
 
 ### Secure
-Keep your thoughts to yourself. Your notes are encrypted with keys that are generated on your devices and stay on your devices. The people that can see your notes are you and the users you share them with. The people that can't are everyone else, including infrastructure providers, state actors, and Lockbook employees.
+Keep your thoughts to yourself. Lockbook encrypts your notes with keys that are generated on your devices and stay on your devices. Only you and the users you share your notes with can see them; no one else, including infrastructure providers, state actors, or Lockbook employees, can access your data.
 
 ### Private
 Know your customer? We sure don't. We don't collect your email, phone number, or name. We don't need a password. Lockbook is for people with better things to worry about than privacy.
