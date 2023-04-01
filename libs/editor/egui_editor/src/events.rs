@@ -761,14 +761,6 @@ fn calc_modification(
                             {
                                 cursor.pos = click_offset;
                             }
-
-                            cursor.advance_word(
-                                false,
-                                &buffer.current,
-                                &buffer.current.segs,
-                                galleys,
-                            );
-                            let end_of_word_pos = cursor.pos;
                             cursor.advance_word(
                                 true,
                                 &buffer.current,
@@ -776,6 +768,13 @@ fn calc_modification(
                                 galleys,
                             );
                             let begin_of_word_pos = cursor.pos;
+                            cursor.advance_word(
+                                false,
+                                &buffer.current,
+                                &buffer.current.segs,
+                                galleys,
+                            );
+                            let end_of_word_pos = cursor.pos;
 
                             cursor.selection_origin = Some(begin_of_word_pos);
                             cursor.pos = end_of_word_pos;
