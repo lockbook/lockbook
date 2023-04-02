@@ -9,7 +9,7 @@ pub struct ImageCache {
 }
 
 pub fn calc(
-    layouts: &Layouts, prior_cache: &ImageCache, client: &reqwest::blocking::Client, ui: &mut Ui,
+    layouts: &Layouts, prior_cache: &ImageCache, client: &reqwest::blocking::Client, ui: &Ui,
 ) -> ImageCache {
     let mut result = ImageCache::default();
 

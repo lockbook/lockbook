@@ -158,7 +158,6 @@ impl Editor {
         self.initialized = true;
 
         // draw
-        // let rect = ui.available_rect_before_wrap();
         self.draw_text(ui_size, ui);
 
         if ui.memory().has_focus(id) {
