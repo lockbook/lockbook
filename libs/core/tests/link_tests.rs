@@ -256,37 +256,3 @@ fn list_metadatas_nested_linked_folders() {
     assert::all_recursive_children_ids(&cores[1], link2.id, &[link2.id, document.id]);
     assert::all_recursive_children_ids(&cores[1], document.id, &[document.id]);
 }
-#[test]
-fn metrics_playground() {
-    let cores: Vec<Core> = vec![test_core(), test_core()];
-    let accounts = vec![
-        cores[0].create_account("adam", &url(), false).unwrap(),
-        cores[1].create_account("parth", &url(), false).unwrap(),
-    ];
-
-    let shared_folder = cores[0].create_at_path("lockbook/").unwrap();
-    let document = cores[0]
-        .create_file("hello.md", shared_folder.id, lockbook_core::FileType::Document)
-        .unwrap();
-    let random_content: Vec<u8> = (0..1024).map(|_| rand::random::<u8>()).collect();
-    cores[0]
-        .write_document(document.id, &random_content)
-        .unwrap();
-
-    cores[0]
-        .share_file(shared_folder.id, accounts[1].username.as_str(), ShareMode::Write)
-        .unwrap();
-    cores[0].sync(None).unwrap();
-    cores[1].sync(None).unwrap();
-
-    //stop check the usage of account parth/adam in metrics | 1059
-
-    cores[1]
-        .create_link_at_path("link", shared_folder.id)
-        .unwrap();
-
-    cores[0].sync(None).unwrap();
-    cores[1].sync(None).unwrap();
-
-    //stop check the usage of account parth/adam in metrics
-}

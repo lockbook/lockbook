@@ -2,13 +2,11 @@ use crate::account_service::get_usage_helper;
 use crate::{ServerError, ServerState};
 use lazy_static::lazy_static;
 
-use lockbook_shared::lazy::LazyTree;
-use lockbook_shared::server_file::ServerFile;
 use prometheus::{register_int_gauge_vec, IntGaugeVec};
 use prometheus_static_metric::make_static_metric;
 use std::fmt::Debug;
+use std::time::Duration;
 use tracing::*;
-use uuid::Uuid;
 
 use crate::billing::billing_model::{BillingPlatform, SubscriptionProfile};
 use crate::schema::ServerDb;
@@ -175,7 +173,9 @@ pub async fn start(state: ServerState) -> Result<(), ServerError<MetricsError>> 
             .with_label_values(&[APP_STORE_LABEL_NAME])
             .set(premium_app_store_users);
 
-        tokio::time::sleep(state.config.metrics.time_between_metrics_refresh).await;
+        //tokio::time::sleep(state.config.metrics.time_between_metrics_refresh).await;
+        // todo: increase reload time to normal before review
+        tokio::time::sleep(Duration::from_secs(5)).await;
     }
 }
 
@@ -220,8 +220,8 @@ pub fn get_user_info(
         .iter()
         .any(|k| k.owner() != owner || k.is_shared());
 
-    let files = tree.all_files()?;
-    let root_creation_timestamp = files
+    let root_creation_timestamp = tree
+        .all_files()?
         .iter()
         .find(|f| f.is_root())
         .unwrap()
@@ -235,8 +235,8 @@ pub fn get_user_info(
         .get(&owner)
         .unwrap_or(&(root_creation_timestamp as u64));
 
-    let time_diff = root_creation_timestamp - last_seen as i64;
-    let delay_buffer_time = 20;
+    let time_diff = last_seen as i64 - root_creation_timestamp;
+    let delay_buffer_time = 500;
     let is_user_active = time_diff > delay_buffer_time;
 
     let (total_documents, total_bytes) = get_bytes_and_documents_count(db, owner)?;
