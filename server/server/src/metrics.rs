@@ -1,12 +1,11 @@
+use crate::account_service::get_usage_helper;
 use crate::{ServerError, ServerState};
 use lazy_static::lazy_static;
 
-use lockbook_shared::clock::get_time;
 use prometheus::{register_int_gauge_vec, IntGaugeVec};
 use prometheus_static_metric::make_static_metric;
 use std::fmt::Debug;
 use tracing::*;
-use uuid::Uuid;
 
 use crate::billing::billing_model::{BillingPlatform, SubscriptionProfile};
 use crate::schema::ServerDb;
@@ -207,24 +206,43 @@ pub fn get_user_info(
 
     let mut ids = Vec::new();
 
-    let time_two_days_ago = get_time().0 as u64 - TWO_DAYS_IN_MILLIS as u64;
-    let is_user_active = match db.last_seen.data().get(&owner) {
-        Some(x) => *x > time_two_days_ago,
-        None => false,
-    };
-
-    let is_user_sharer_or_sharee = tree
-        .all_files()?
-        .iter()
-        .any(|k| k.owner() != owner || k.is_shared());
-
     for id in tree.owned_ids() {
         if !tree.calculate_deleted(&id)? {
             ids.push(id);
         }
     }
 
-    let (total_documents, total_bytes) = get_bytes_and_documents_count(db, owner, ids)?;
+    let is_user_sharer_or_sharee = tree
+        .all_files()?
+        .iter()
+        .any(|k| k.owner() != owner || k.is_shared());
+
+    let root_creation_timestamp = tree
+        .all_files()?
+        .iter()
+        .find(|f| f.is_root())
+        .unwrap()
+        .file
+        .timestamped_value
+        .timestamp;
+
+    let last_seen = *db
+        .last_seen
+        .data()
+        .get(&owner)
+        .unwrap_or(&(root_creation_timestamp as u64));
+
+    let last_seen_since_account_creation = last_seen as i64 - root_creation_timestamp;
+    let delay_buffer_time = 500;
+    let is_user_active = last_seen_since_account_creation > delay_buffer_time;
+
+    let total_bytes: u64 = get_usage_helper(db, &owner.0)
+        .unwrap_or_default()
+        .iter()
+        .map(|f| f.size_bytes)
+        .sum();
+
+    let total_documents = db.owned_files.data().get(&owner).unwrap().len() as i64;
 
     Ok(Some(UserInfo {
         total_documents,
@@ -232,31 +250,4 @@ pub fn get_user_info(
         is_user_active,
         is_user_sharer_or_sharee,
     }))
-}
-
-fn get_bytes_and_documents_count(
-    db: &mut ServerDb, owner: Owner, ids: Vec<Uuid>,
-) -> Result<(i64, u64), ServerError<MetricsError>> {
-    let mut total_documents = 0;
-    let mut total_bytes = 0;
-
-    for id in ids {
-        let metadata = db.metas.data().get(&id).ok_or_else(|| {
-            internal!("Could not get file metadata during metrics for {:?}", owner)
-        })?;
-
-        if metadata.is_document() {
-            if metadata.document_hmac().is_some() {
-                let usage = db.sizes.data().get(&id).ok_or_else(|| {
-                    internal!("Could not get file usage during metrics for {:?}", owner)
-                })?;
-
-                total_bytes += usage;
-            }
-
-            total_documents += 1;
-        }
-    }
-
-    Ok((total_documents, total_bytes))
 }
