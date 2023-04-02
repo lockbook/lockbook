@@ -236,7 +236,13 @@ pub fn get_user_info(
     let delay_buffer_time = 500;
     let is_user_active = last_seen_since_account_creation > delay_buffer_time;
 
-    let (total_documents, total_bytes) = get_bytes_and_documents_count(db, owner)?;
+    let total_bytes: u64 = get_usage_helper(db, &owner.0)
+        .unwrap_or_default()
+        .iter()
+        .map(|f| f.size_bytes)
+        .sum();
+
+    let total_documents = db.owned_files.data().get(&owner).unwrap().len() as i64;
 
     Ok(Some(UserInfo {
         total_documents,
@@ -244,17 +250,4 @@ pub fn get_user_info(
         is_user_active,
         is_user_sharer_or_sharee,
     }))
-}
-
-fn get_bytes_and_documents_count(
-    db: &mut ServerDb, owner: Owner,
-) -> Result<(i64, u64), ServerError<MetricsError>> {
-    let total_bytes = get_usage_helper(db, &owner.0)
-        .unwrap()
-        .iter()
-        .map(|f| f.size_bytes)
-        .sum();
-    let total_documents = db.owned_files.data().get(&owner).unwrap().len() as i64;
-
-    Ok((total_documents, total_bytes))
 }
