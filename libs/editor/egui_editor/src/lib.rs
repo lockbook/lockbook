@@ -16,6 +16,7 @@ pub mod element;
 pub mod events;
 pub mod galleys;
 pub mod images;
+pub mod input;
 pub mod layouts;
 pub mod offset_types;
 pub mod styles;

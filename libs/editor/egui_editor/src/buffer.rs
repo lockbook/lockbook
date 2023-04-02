@@ -3,6 +3,7 @@ use crate::debug::DebugInfo;
 use crate::offset_types::{DocCharOffset, RelCharOffset};
 use crate::unicode_segs;
 use crate::unicode_segs::UnicodeSegs;
+use egui::Pos2;
 use std::collections::VecDeque;
 use std::iter;
 use std::ops::Range;
@@ -16,6 +17,15 @@ static UNDO_DEBOUNCE_PERIOD: Duration = Duration::from_millis(300);
 
 /// represents a modification made as a result of event processing
 pub type Modification = Vec<SubModification>; // todo: tinyvec candidate
+
+/// Edits to the text buffer e.g. cursor, text.
+/// Agnostic to render state.
+/// Basis for undo history.
+#[derive(Clone, Debug)]
+pub enum BufferModification {
+    SetCursor { cursor: (DocCharOffset, DocCharOffset), marked: bool }, // set the cursor
+    Replace { text: String }, // replace the current selection
+}
 
 #[derive(Clone, Debug)]
 pub enum SubModification {
