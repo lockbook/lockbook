@@ -1,6 +1,5 @@
 use lockbook_core::Core;
 use lockbook_shared::file::ShareMode;
-use rand::Rng;
 use std::collections::HashSet;
 use test_utils::*;
 use uuid::Uuid;
