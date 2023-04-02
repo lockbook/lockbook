@@ -13,16 +13,16 @@
         android:orientation="vertical">
 
         <ImageView
-            android:id="@+id/recent_file_icon"
+            android:id="@+id/suggested_doc_icon"
             android:layout_width="30dp"
             android:layout_height="30dp"
             android:layout_marginStart="5dp"
-            android:contentDescription="@string/recent_file_icon"
+            android:contentDescription="@string/suggested_docs_icon"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toTopOf="parent" />
 
         <com.google.android.material.textview.MaterialTextView
-            android:id="@+id/recent_file_name"
+            android:id="@+id/suggested_doc_name"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:textAppearance="?attr/textAppearanceLabelLarge"
@@ -30,10 +30,10 @@
             android:maxLines="1"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@+id/recent_file_folder" />
+            app:layout_constraintTop_toBottomOf="@+id/suggested_docs_parent_folder" />
 
         <com.google.android.material.textview.MaterialTextView
-            android:id="@+id/recent_file_folder"
+            android:id="@+id/suggested_docs_parent_folder"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="10dp"
@@ -42,10 +42,10 @@
             android:textAppearance="?attr/textAppearanceCaption"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@+id/recent_file_icon" />
+            app:layout_constraintTop_toBottomOf="@+id/suggested_doc_icon" />
 
         <com.google.android.material.textview.MaterialTextView
-            android:id="@+id/recent_file_last_edited"
+            android:id="@+id/suggested_doc_last_edited"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:textAppearance="?attr/textAppearanceBodySmall"

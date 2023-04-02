@@ -207,6 +207,10 @@ impl FfiCore {
         })
     }
 
+    pub fn suggested_docs(&self, settings: RankingWeights) -> Result<Vec<Uuid>, UnexpectedError> {
+        self.core.suggested_docs(settings)
+    }
+
     pub fn get_usage(&self) -> Result<UsageMetrics, Error<GetUsageError>> {
         Ok(self.core.get_usage()?)
     }
