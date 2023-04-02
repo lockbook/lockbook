@@ -5,7 +5,6 @@ use lazy_static::lazy_static;
 use prometheus::{register_int_gauge_vec, IntGaugeVec};
 use prometheus_static_metric::make_static_metric;
 use std::fmt::Debug;
-use std::time::Duration;
 use tracing::*;
 
 use crate::billing::billing_model::{BillingPlatform, SubscriptionProfile};
@@ -173,9 +172,7 @@ pub async fn start(state: ServerState) -> Result<(), ServerError<MetricsError>> 
             .with_label_values(&[APP_STORE_LABEL_NAME])
             .set(premium_app_store_users);
 
-        //tokio::time::sleep(state.config.metrics.time_between_metrics_refresh).await;
-        // todo: increase reload time to normal before review
-        tokio::time::sleep(Duration::from_secs(5)).await;
+        tokio::time::sleep(state.config.metrics.time_between_metrics_refresh).await;
     }
 }
 
@@ -235,9 +232,9 @@ pub fn get_user_info(
         .get(&owner)
         .unwrap_or(&(root_creation_timestamp as u64));
 
-    let time_diff = last_seen as i64 - root_creation_timestamp;
+    let last_seen_since_account_creation = last_seen as i64 - root_creation_timestamp;
     let delay_buffer_time = 500;
-    let is_user_active = time_diff > delay_buffer_time;
+    let is_user_active = last_seen_since_account_creation > delay_buffer_time;
 
     let (total_documents, total_bytes) = get_bytes_and_documents_count(db, owner)?;
 
