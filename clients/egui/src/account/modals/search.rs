@@ -18,7 +18,7 @@ pub struct SearchModal {
 }
 
 impl SearchModal {
-    pub fn open(core: &Arc<lb::Core>, etx: &egui::Context) -> Option<Box<Self>> {
+    pub fn new(core: &Arc<lb::Core>, etx: &egui::Context) -> Self {
         let (request_tx, request_rx) = mpsc::channel::<String>();
         let (response_tx, response_rx) = mpsc::channel();
 
@@ -45,7 +45,7 @@ impl SearchModal {
             }
         });
 
-        Some(Box::new(Self {
+        Self {
             requests: request_tx,
             responses: response_rx,
             input: String::new(),
@@ -55,7 +55,7 @@ impl SearchModal {
             errors: Vec::new(),
             arrow_index: None,
             arrowed_path: String::new(),
-        }))
+        }
     }
 
     pub fn focus_select_all(&mut self) {

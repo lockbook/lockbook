@@ -16,13 +16,13 @@ use eframe::egui;
 
 #[derive(Default)]
 pub struct Modals {
-    pub error: Option<Box<ErrorModal>>,
-    pub settings: Option<Box<SettingsModal>>,
-    pub new_doc: Option<Box<NewDocModal>>,
-    pub new_folder: Option<Box<NewFolderModal>>,
-    pub search: Option<Box<SearchModal>>,
-    pub help: Option<Box<HelpModal>>,
-    pub confirm_delete: Option<Box<ConfirmDeleteModal>>,
+    pub error: Option<ErrorModal>,
+    pub settings: Option<SettingsModal>,
+    pub new_doc: Option<NewDocModal>,
+    pub new_folder: Option<NewFolderModal>,
+    pub search: Option<SearchModal>,
+    pub help: Option<HelpModal>,
+    pub confirm_delete: Option<ConfirmDeleteModal>,
 }
 
 impl super::AccountScreen {
@@ -126,7 +126,7 @@ pub trait Modal {
 }
 
 pub fn show<M: Modal>(
-    ctx: &egui::Context, x_offset: f32, maybe_modal: &mut Option<Box<M>>,
+    ctx: &egui::Context, x_offset: f32, maybe_modal: &mut Option<M>,
 ) -> Option<ModalResponse<M::Response>> {
     if let Some(d) = maybe_modal {
         let dr = show_modal(ctx, x_offset, d);
@@ -145,7 +145,7 @@ pub struct ModalResponse<R> {
 }
 
 fn show_modal<M: Modal>(
-    ctx: &egui::Context, x_offset: f32, d: &mut Box<M>,
+    ctx: &egui::Context, x_offset: f32, d: &mut M,
 ) -> ModalResponse<M::Response> {
     let mut is_open = true;
 

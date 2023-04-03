@@ -12,8 +12,8 @@ pub struct ConfirmDeleteModal {
 }
 
 impl ConfirmDeleteModal {
-    pub fn open(file_ids: Vec<lb::File>) -> Option<Box<Self>> {
-        Some(Box::new(Self { state: State::WaitingForAnswer, file_ids }))
+    pub fn new(file_ids: Vec<lb::File>) -> Self {
+        Self { state: State::WaitingForAnswer, file_ids }
     }
 }
 
