@@ -1,5 +1,6 @@
+use image::EncodableLayout;
 use itertools::Itertools;
-use lockbook_shared::file::ShareMode;
+use lockbook_core::{Core, CoreError};
 use test_utils::*;
 
 /// Uncategorized tests.
@@ -48,6 +49,19 @@ fn test_path_conflict2() {
     )
 }
 
+#[test]
+fn over_data_cap() {
+    let core: Core = test_core_with_account();
+    let document = core.create_at_path("hello.md").unwrap();
+    let free_tier_limit = 1024 * 1024;
+    let content: Vec<u8> = (0..(free_tier_limit * 2))
+        .map(|_| rand::random::<u8>())
+        .collect();
+    core.write_document(document.id, content.as_bytes())
+        .unwrap();
+    let result = core.sync(None).unwrap_err().kind;
+    assert_eq!(result, CoreError::UsageIsOverFreeTierDataCap)
+}
 #[test]
 fn deleted_path_is_released() {
     let db1 = test_core_with_account();
