@@ -374,7 +374,11 @@ impl<Client: Requester> CoreLib<Client> {
             s.cleanup()?;
             Ok(wc)
         })
-        .expected_errs(&[CoreError::ServerUnreachable, CoreError::ClientUpdateRequired])
+        .expected_errs(&[
+            CoreError::ServerUnreachable,
+            CoreError::ClientUpdateRequired,
+            CoreError::UsageIsOverFreeTierDataCap,
+        ])
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
