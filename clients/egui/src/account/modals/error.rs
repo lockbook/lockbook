@@ -5,8 +5,8 @@ pub struct ErrorModal {
 }
 
 impl ErrorModal {
-    pub fn open(err: impl ToString) -> Option<Box<Self>> {
-        Some(Box::new(Self { err: err.to_string() }))
+    pub fn new(err: impl ToString) -> Self {
+        Self { err: err.to_string() }
     }
 }
 
