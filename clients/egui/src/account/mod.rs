@@ -209,13 +209,12 @@ impl AccountScreen {
 
         // Ctrl-S to save current tab.
         if ctx.input_mut().consume_key(CTRL, egui::Key::S) {
-            self.save_current_tab();
+            self.save_tab(self.workspace.active_tab);
         }
 
         // Ctrl-W to close current tab.
         if ctx.input_mut().consume_key(CTRL, egui::Key::W) && !self.workspace.is_empty() {
-            self.save_current_tab();
-            self.close_current_tab();
+            self.close_tab(self.workspace.active_tab);
             frame.set_window_title(
                 self.workspace
                     .current_tab()

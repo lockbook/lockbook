@@ -267,8 +267,8 @@ impl super::AccountScreen {
         });
     }
 
-    pub fn save_current_tab(&self) {
-        if let Some(tab) = self.workspace.current_tab() {
+    pub fn save_tab(&self, i: usize) {
+        if let Some(tab) = self.workspace.tabs.get(i) {
             if let Some(content) = &tab.content {
                 if let TabContent::Drawing(d) = content {
                     self.core.save_drawing(tab.id, &d.drawing).unwrap(); // TODO
@@ -278,7 +278,6 @@ impl super::AccountScreen {
                         TabContent::PlainText(txt) => Some(txt.content.as_bytes()),
                         _ => None,
                     };
-
                     if let Some(bytes) = maybe_bytes {
                         self.core.write_document(tab.id, bytes).unwrap(); // TODO
                     }
@@ -288,16 +287,13 @@ impl super::AccountScreen {
     }
 
     pub fn close_tab(&mut self, i: usize) {
+        self.save_tab(i);
         let ws = &mut self.workspace;
         ws.tabs.remove(i);
         let n_tabs = ws.tabs.len();
         if ws.active_tab >= n_tabs && n_tabs > 0 {
             ws.active_tab = n_tabs - 1;
         }
-    }
-
-    pub fn close_current_tab(&mut self) {
-        self.close_tab(self.workspace.active_tab);
     }
 }
 
