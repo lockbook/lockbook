@@ -46,18 +46,6 @@ impl Workspace {
         self.tabs.get(self.active_tab)
     }
 
-    pub fn close_tab(&mut self, i: usize) {
-        self.tabs.remove(i);
-        let n_tabs = self.tabs.len();
-        if self.active_tab >= n_tabs && n_tabs > 0 {
-            self.active_tab = n_tabs - 1;
-        }
-    }
-
-    pub fn close_current_tab(&mut self) {
-        self.close_tab(self.active_tab);
-    }
-
     pub fn goto_tab_id(&mut self, id: lb::Uuid) -> bool {
         for (i, tab) in self.tabs.iter().enumerate() {
             if tab.id == id {
@@ -204,13 +192,12 @@ impl super::AccountScreen {
         ui.vertical(|ui| {
             if self.workspace.tabs.len() > 1 {
                 ui.horizontal(|ui| {
-                    let ws = &mut self.workspace;
-
-                    for (i, maybe_resp) in ws
+                    for (i, maybe_resp) in self
+                        .workspace
                         .tabs
                         .iter()
                         .enumerate()
-                        .map(|(i, t)| tab_label(ui, t, ws.active_tab == i))
+                        .map(|(i, t)| tab_label(ui, t, self.workspace.active_tab == i))
                         .collect::<Vec<Option<TabLabelResponse>>>()
                         .iter()
                         .enumerate()
@@ -218,12 +205,12 @@ impl super::AccountScreen {
                         if let Some(resp) = maybe_resp {
                             match resp {
                                 TabLabelResponse::Clicked => {
-                                    ws.active_tab = i;
-                                    frame.set_window_title(&ws.tabs[i].name);
+                                    self.workspace.active_tab = i;
+                                    frame.set_window_title(&self.workspace.tabs[i].name);
                                 }
                                 TabLabelResponse::Closed => {
-                                    ws.close_tab(i);
-                                    frame.set_window_title(match ws.current_tab() {
+                                    self.close_tab(i);
+                                    frame.set_window_title(match self.workspace.current_tab() {
                                         Some(tab) => &tab.name,
                                         None => "Lockbook",
                                     });
@@ -298,6 +285,19 @@ impl super::AccountScreen {
                 }
             }
         }
+    }
+
+    pub fn close_tab(&mut self, i: usize) {
+        let ws = &mut self.workspace;
+        ws.tabs.remove(i);
+        let n_tabs = ws.tabs.len();
+        if ws.active_tab >= n_tabs && n_tabs > 0 {
+            ws.active_tab = n_tabs - 1;
+        }
+    }
+
+    pub fn close_current_tab(&mut self) {
+        self.close_tab(self.workspace.active_tab);
     }
 }
 

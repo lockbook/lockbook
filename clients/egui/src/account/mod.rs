@@ -162,10 +162,9 @@ impl AccountScreen {
                 AccountUpdate::DoneDeleting => self.modals.confirm_delete = None,
                 AccountUpdate::ReloadTree(root) => self.tree.root = root,
                 AccountUpdate::ReloadTabs(mut new_tabs) => {
-                    let ws = &mut self.workspace;
-                    let active_id = ws.current_tab().map(|t| t.id);
-                    for i in (0..ws.tabs.len()).rev() {
-                        let t = &mut ws.tabs[i];
+                    let active_id = self.workspace.current_tab().map(|t| t.id);
+                    for i in (0..self.workspace.tabs.len()).rev() {
+                        let t = &mut self.workspace.tabs[i];
                         if let Some(new_tab_result) = new_tabs.remove(&t.id) {
                             match new_tab_result {
                                 Ok(new_tab) => {
@@ -181,7 +180,7 @@ impl AccountScreen {
                                 }
                             }
                         } else {
-                            ws.close_tab(i);
+                            self.close_tab(i);
                         }
                     }
                 }
@@ -216,7 +215,7 @@ impl AccountScreen {
         // Ctrl-W to close current tab.
         if ctx.input_mut().consume_key(CTRL, egui::Key::W) && !self.workspace.is_empty() {
             self.save_current_tab();
-            self.workspace.close_current_tab();
+            self.close_current_tab();
             frame.set_window_title(
                 self.workspace
                     .current_tab()
