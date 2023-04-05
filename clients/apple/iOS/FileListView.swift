@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftLockbookCore
 import Foundation
 
 struct FileListView: View {
@@ -21,25 +22,39 @@ struct FileListView: View {
                     }
                     
                     VStack {
-                        if(search.isSearching) {
-                            List(search.filePathInfos) { filePathInfos in
-                                FileCell(meta: filePathInfos.meta)
+                        if(search.isPathAndContentSearching) {
+                            if(search.pathsAndContentSearchResult.isEmpty) {
+                                ProgressView()
+                            } else if(search.pathsAndContentSearchResult[0] is NoMatch) {
+                                Text("NO match")
+                            } else {
+                                 
                             }
                         } else {
                             List(fileService.childrenOfParent()) { meta in
                                 FileCell(meta: meta)
                             }
-                            
                         }
                         
                     }
                     .navigationBarTitle(fileService.parent.map{($0.name)} ?? "")
                     .searchable(text: $searchInput)
                     .onChange(of: searchInput) { newInput in
-                        search.isSearching = newInput != ""
-                        
-                        if(search.isSearching) {
-                            search.asyncSearchFilePath(input: searchInput)
+                        print("NEW INPUT \(newInput)")
+                        if(newInput != "") {
+                            if(!search.isPathAndContentSearching) {
+                                search.startSearchThread()
+                                search.isPathAndContentSearching = true
+                                return
+                            }
+                            search.isPathAndContentSearching = true
+                            search.search(query: newInput)
+                        } else {
+                            if(search.isPathAndContentSearching) {
+                                search.endSearch()
+                            }
+                            
+                            search.isPathAndContentSearching = false
                         }
                     }
                     

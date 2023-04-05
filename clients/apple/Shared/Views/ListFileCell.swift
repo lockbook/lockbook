@@ -77,18 +77,24 @@ struct RealFileCell: View {
     }
 }
 
-struct SearchFileCell: View {
-    let meta: File
-    let searchResult: SearchResultItem
+struct SearchFilePathCell: View {
+    let pathResult: FileNameMatch
 
     var body: some View {
         VStack(alignment: .leading, spacing: 5) {
-            Text(meta.name)
-                    .font(.title3)
             HStack {
-                Image(systemName: meta.fileType == .Folder ? "folder.fill" : "doc.fill")
-                        .foregroundColor(meta.fileType == .Folder ? .blue : .secondary)
-                Text(intEpochToString(epoch: max(meta.lastModified, meta.lastModified)))
+                
+                Image(systemName: "doc.fill")
+                        .foregroundColor(.secondary)
+                
+                Text(pathResult.path)
+                        .font(.title3)
+            }
+            
+            HStack {
+                
+                
+                Text(pathResult.score.formatted())
                         .foregroundColor(.secondary)
                 
                 Spacer()
@@ -97,6 +103,37 @@ struct SearchFileCell: View {
         }
             .padding(.vertical, 5)
             .contentShape(Rectangle()) /// https://stackoverflow.com/questions/57258371/swiftui-increase-tap-drag-area-for-user-interaction
+    }
+}
+
+struct SearchFileContentCell: View {
+    let contentResult: FileContentMatches
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Text(contentResult.path)
+                    .font(.title3)
+            HStack {
+                Image(systemName: "doc.fill")
+                        .foregroundColor(.secondary)
+                
+                Spacer()
+            }
+                    .font(.footnote)
+        }
+            .padding(.vertical, 5)
+            .contentShape(Rectangle()) /// https://stackoverflow.com/questions/57258371/swiftui-increase-tap-drag-area-for-user-interaction
+    }
+}
+
+struct SearchFilePathCell_Previews: PreviewProvider {
+    
+    static var previews: some View {
+        VStack {
+            SearchFilePathCell(pathResult: FileNameMatch())
+            SearchFilePathCell(pathResult: FileNameMatch())
+            SearchFilePathCell(pathResult: FileNameMatch())
+        }
     }
 }
 

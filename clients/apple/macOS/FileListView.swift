@@ -32,7 +32,7 @@ struct DetailView: View {
             
             QuickActionBar<SearchResultItem, SearchResultCellView>(
                 location: .window,
-                visible: $search.isSearching,
+                visible: $search.isPathSearching,
                 barWidth: 400,
                 showKeyboardShortcuts: true,
                 selectedItem: $selectedFile,
@@ -45,7 +45,7 @@ struct DetailView: View {
                     }
                 },
                 viewForItem: { searchResult, searchTerm in
-                    let (name, path) = searchResult.getNameAndPath()
+                    let (name, path) = searchResult.path.getNameAndPath()
                                         
                     return SearchResultCellView(name: name, path: path, matchedIndices: searchResult.matchedIndices)
                 }

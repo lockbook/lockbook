@@ -1,7 +1,9 @@
 use std::ffi::{CStr, CString};
-use std::os::raw::{c_char, c_void};
+use std::os::raw::c_char;
 use std::path::PathBuf;
 use lazy_static::lazy_static;
+use std::sync::{Arc, Mutex};
+use crossbeam::channel::Sender;
 
 use serde::Serialize;
 use serde_json::json;
@@ -547,7 +549,6 @@ pub unsafe extern "C" fn search_file_paths(input: *const c_char) -> *const c_cha
 // SEARCH STUFF
 // ------------------------------------------------------------------------
 
-
 lazy_static! {
     static ref MAYBE_SEARCH_TX: Arc<Mutex<Option<Sender<SearchRequest>>>> =
         Arc::new(Mutex::new(None));
@@ -567,7 +568,7 @@ fn send_search_request(request: SearchRequest) -> *const c_char {
     c_string(translate(result))
 }
 
-pub type UpdateSearchStatus = extern "C" fn(i32, *const c_char);
+pub type UpdateSearchStatus = extern "C" fn(*const c_char, i32, *const c_char);
 // 1 means file name match
 // 2 means content match
 // 3 means no match
@@ -576,7 +577,7 @@ pub type UpdateSearchStatus = extern "C" fn(i32, *const c_char);
 ///
 /// Be sure to call `release_pointer` on the result of this function to free the data.
 #[no_mangle]
-pub unsafe extern "C" fn start_search(update_status: UpdateSearchStatus) -> *const c_char {
+pub unsafe extern "C" fn start_search(context: *const c_char, update_status: UpdateSearchStatus) -> *const c_char {
     let (results_rx, search_tx) = match static_state::get().and_then(|core| core.start_search()) {
         Ok(search_info) => (search_info.results_rx, search_info.search_tx),
         Err(e) => return c_string(translate(Err::<(), _>(e))),
@@ -591,13 +592,15 @@ pub unsafe extern "C" fn start_search(update_status: UpdateSearchStatus) -> *con
 
     while let Ok(results) = results_rx.recv() {
         let result_repr = match results {
-            SearchResult::Error(_) => return c_string(translate(Err::<(), _>(e))),
+            SearchResult::Error(e) => return c_string(translate(Err::<(), _>(e))),
             SearchResult::FileNameMatch { .. } => 1,
             SearchResult::FileContentMatches { .. } => 2,
             SearchResult::NoMatch => 3,
         };
 
-        update_status(result_repr, c_string(serde_json::to_string(&results).unwrap()));
+        println!("PUSHING OUT: {}", serde_json::to_string(&results).unwrap());
+        
+        update_status(context, result_repr, c_string(serde_json::to_string(&results).unwrap()));
     }
 
     match MAYBE_SEARCH_TX.lock() {

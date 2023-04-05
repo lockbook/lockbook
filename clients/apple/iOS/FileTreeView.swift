@@ -8,13 +8,48 @@ struct FileTreeView: View {
     @EnvironmentObject var coreService: CoreService
     @EnvironmentObject var files: FileService
     @EnvironmentObject var onboarding: OnboardingService
+    @EnvironmentObject var search: SearchService
+    
+    @State var searchInput: String = ""
 
     let currentFolder: File
     let account: Account
     
     var body: some View {
         VStack {
-            OutlineSection(root: currentFolder)
+            VStack {
+                if(search.isPathAndContentSearching) {
+                    if(search.pathsAndContentSearchResult.isEmpty) {
+                        ProgressView()
+                    } else if(search.pathsAndContentSearchResult[0] is NoMatch) {
+                        Text("NO match")
+                    } else {
+                        
+                    }
+                } else {
+                    OutlineSection(root: currentFolder)
+                }
+            }
+                .searchable(text: $searchInput)
+                .onChange(of: searchInput) { newInput in
+                    print("NEW INPUT \(newInput)")
+                    if(newInput != "") {
+                        if(!search.isPathAndContentSearching) {
+                            search.startSearchThread()
+                            search.isPathAndContentSearching = true
+                            return
+                        }
+                        search.isPathAndContentSearching = true
+                        search.search(query: newInput)
+                    } else {
+                        if(search.isPathAndContentSearching) {
+                            search.endSearch()
+                        }
+                        
+                        search.isPathAndContentSearching = false
+                    }
+                }
+
             HStack {
                 BottomBar(onCreating: {
                     sheets.creatingInfo = CreatingInfo(parent: currentFolder, child_type: .Document)

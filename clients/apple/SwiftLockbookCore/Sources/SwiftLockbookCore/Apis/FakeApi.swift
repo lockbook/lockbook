@@ -148,19 +148,19 @@ Vestibulum ante ipsum primis in vel.
         .failure(.init(unexpected: "LAZY"))
     }
     
-    func startSearch(updateStatus: @convention(c) (Int32, UnsafePointer<Int8>?) -> Void) -> FfiResult<Empty, GeneralSearchError> {
+    public func startSearch(context: UnsafeRawPointer?, updateStatus: @convention(c) (UnsafePointer<Int8>?, Int32, UnsafePointer<Int8>?) -> Void) -> FfiResult<Empty, GeneralSearchError> {
         .failure(.init(unexpected: "LAZY"))
     }
     
-    func endSearch() -> FfiResult<Empty, GeneralSearchError> {
+    public func endSearch() -> FfiResult<Empty, GeneralSearchError> {
         .failure(.init(unexpected: "LAZY"))
     }
     
-    func search(query: String) -> FfiResult<Empty, GeneralSearchError> {
+    public func searchQuery(query: String) -> FfiResult<Empty, GeneralSearchError> {
         .failure(.init(unexpected: "LAZY"))
     }
     
-    func stopCurrentSearch() -> FfiResult<Empty, GeneralSearchError> {
+    public func stopCurrentSearch() -> FfiResult<Empty, GeneralSearchError> {
         .failure(.init(unexpected: "LAZY"))
     }
     
