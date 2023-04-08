@@ -80,13 +80,19 @@ struct RealFileCell: View {
 struct SearchFilePathCell: View {
     let name: String
     let path: String
+    let matchedIndices: [Int]
     
-    @State var formattedName: Text
-    @State var formattedPath: Text
+    @State var nameModified: Text = Text("")
+    @State var pathModified: Text = Text("")
+    
+    @State var modifiedGenerated = false
+    
+    @Environment(\.horizontalSizeClass) var horizontal
+    @Environment(\.verticalSizeClass) var vertical
     
     var body: some View {
         VStack(alignment: .leading, spacing: 5) {
-            Text(.init(name))
+            nameModified
                 .font(.title3)
             
             HStack {
@@ -94,54 +100,155 @@ struct SearchFilePathCell: View {
                     .foregroundColor(.accentColor)
                     .font(.caption)
                 
-                Text(.init(path))
+                pathModified
                         .foregroundColor(.accentColor)
                         .font(.caption)
             }
         }
-            .padding(.vertical, 5)
             .contentShape(Rectangle()) /// https://stackoverflow.com/questions/57258371/swiftui-increase-tap-drag-area-for-user-interaction
+            .iOSSearchPadding(horizontal: horizontal, vertical: vertical)
+            .onAppear {
+                underlineMatchedSegments()
+            }
     }
     
-//    func formatPathAndName() {
-//        var tempFormattedName = Text("")
-//        var tempFormattedPath = Text("")
-//        
-//        for index in (0...matchedIndices.count - 1).reversed() {
-//            let correctIndex = formattedFullPath.index(formattedFullPath.startIndex, offsetBy: matchedIndices[index])
-//            
-//            formattedFullPath.replaceSubrange(correctIndex...correctIndex, with: "**\(formattedFullPath[correctIndex])**")
-//        }
-//
-//    }
+    func underlineMatchedSegments() {
+        if(modifiedGenerated) {
+            return
+        }
+        
+        modifiedGenerated = true
+        
+        let matchedIndicesHash = Set(matchedIndices)
+        
+        var pathOffset = 1;
+        
+        if(path.count - 1 > 0) {
+            pathModified = Text("")
+            
+            for index in 0...path.count - 1 {
+                let correctIndex = String.Index(utf16Offset: index, in: path)
+                let newPart = Text(path[correctIndex...correctIndex])
+                                
+                if(path[correctIndex...correctIndex] == "/") {
+                    pathModified = pathModified + Text(" > ").foregroundColor(.gray)
+                } else if(matchedIndicesHash.contains(index + 1)) {
+                    pathModified = pathModified + newPart.bold()
+                } else {
+                    pathModified = pathModified + newPart
+                }
+            }
+            
+            pathOffset = 2
+        }
+                
+        if(name.count - 1 > 0) {
+            nameModified = Text("")
+            for index in 0...name.count - 1 {
+                let correctIndex = String.Index(utf16Offset: index, in: name)
+                let newPart = Text(name[correctIndex...correctIndex])
+                
+                if(matchedIndicesHash.contains(index + path.count + pathOffset)) {
+                    nameModified = nameModified + newPart.bold()
+                } else {
+                    nameModified = nameModified + newPart.foregroundColor(.gray)
+                }
+            }
+        }
+    }
 }
 
 struct SearchFileContentCell: View {
     let name: String
     let path: String
     let paragraph: String
+    let matchedIndices: [Int]
+    
+    @State var paragraphModified: Text = Text("")
+    @State var pathModified: Text = Text("")
+    
+    @State var modifiedGenerated = false
+    
+    @Environment(\.horizontalSizeClass) var horizontal
+    @Environment(\.verticalSizeClass) var vertical
 
     var body: some View {
         VStack(alignment: .leading, spacing: 5) {
             Text(name)
                 .font(.title3)
+                .foregroundColor(.gray)
             
             HStack {
                 Image(systemName: "doc")
                     .foregroundColor(.accentColor)
                     .font(.caption2)
                 
-                Text(path)
+                pathModified
                         .foregroundColor(.accentColor)
                         .font(.caption2)
             }
             .padding(.bottom)
             
-            Text(.init(paragraph))
+            paragraphModified
                 .font(.caption)
         }
-            .padding(.vertical, 5)
             .contentShape(Rectangle()) /// https://stackoverflow.com/questions/57258371/swiftui-increase-tap-drag-area-for-user-interaction
+            .iOSSearchPadding(horizontal: horizontal, vertical: vertical)
+            .onAppear {
+                underlineMatchedSegments()
+            }
+    }
+    
+    func underlineMatchedSegments() {
+        if(modifiedGenerated) {
+            return
+        }
+        
+        modifiedGenerated = true
+
+        let matchedIndicesHash = Set(matchedIndices)
+        
+        if(path.count - 1 > 0) {
+            pathModified = Text("")
+            
+            for index in 0...path.count - 1 {
+                let correctIndex = String.Index(utf16Offset: index, in: path)
+                                
+                if(path[correctIndex...correctIndex] == "/") {
+                    pathModified = pathModified + Text(" > ").foregroundColor(.gray)
+                } else {
+                    pathModified = pathModified + Text(path[correctIndex...correctIndex])
+                }
+            }
+        }
+                
+        if(paragraph.count - 1 > 0) {
+            paragraphModified = Text("")
+            
+            for index in 0...paragraph.count - 1 {
+                let correctIndex = String.Index(utf16Offset: index, in: paragraph)
+                let newPart = Text(paragraph[correctIndex...correctIndex])
+                
+                if(matchedIndicesHash.contains(index)) {
+                    paragraphModified = paragraphModified + newPart.bold()
+                } else {
+                    paragraphModified = paragraphModified + newPart.foregroundColor(.gray)
+                }
+            }
+            
+        }
     }
 }
 
+extension View {
+    public func iOSSearchPadding(horizontal: UserInterfaceSizeClass?, vertical: UserInterfaceSizeClass?) -> some View {
+        Group {
+            if horizontal == .regular && vertical == .regular {
+                self
+            } else {
+                self
+                    .padding(.vertical, 5)
+            }
+        }
+    }
+}

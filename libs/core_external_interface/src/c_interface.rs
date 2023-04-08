@@ -598,6 +598,8 @@ pub unsafe extern "C" fn start_search(context: *const c_char, update_status: Upd
             SearchResult::NoMatch => 3,
         };
 
+        println!("PUSHING OUT: {}", serde_json::to_string(&results).unwrap());
+
         update_status(context, result_repr, c_string(serde_json::to_string(&results).unwrap()));
     }
 

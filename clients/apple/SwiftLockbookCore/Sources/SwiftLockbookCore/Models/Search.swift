@@ -26,18 +26,8 @@ public struct FileNameMatch: Decodable, Identifiable {
     public var matchedIndices: [Int]
     public var score: Int
     
-    public func getFormattedNameAndPath() -> (name: String, path: String) {
-        var formattedFullPath = path
-        
-        for index in (0...matchedIndices.count - 1).reversed() {
-            let correctIndex = formattedFullPath.index(formattedFullPath.startIndex, offsetBy: matchedIndices[index])
-            
-            formattedFullPath.replaceSubrange(correctIndex...correctIndex, with: "**\(formattedFullPath[correctIndex])**")
-        }
-
-        print("OLD PATH: \(path) and NEW PATH: \(formattedFullPath)")
-        
-        let components = formattedFullPath.split(separator: "/")
+    public func getNameAndPath() -> (name: String, path: String) {        
+        var components = path.split(separator: "/")
         
         let name = String(components.last ?? "ERROR")
         let path = components.dropLast().joined(separator: "/")
@@ -65,18 +55,6 @@ public struct ContentMatch: Decodable {
     public var paragraph: String
     public var matchedIndices: [Int]
     public var score: Int
-    
-    public func getFormattedParagraph() -> String {
-        var formattedParagraph = paragraph
-        
-        for index in (0...matchedIndices.count - 1).reversed() {
-            let correctIndex = formattedParagraph.index(formattedParagraph.startIndex, offsetBy: matchedIndices[index])
-            
-            formattedParagraph.replaceSubrange(correctIndex...correctIndex, with: "**\(formattedParagraph[correctIndex])**")
-        }
-
-        return formattedParagraph
-    }
 }
 
 public struct NoMatch {

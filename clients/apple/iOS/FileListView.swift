@@ -84,13 +84,13 @@ struct iOSFileItems: View {
             case .SearchSuccessful(let results):
                 List(results) { result in
                     switch result {
-                    case .PathMatch(let meta, let name, let path, _):
+                    case .PathMatch(_, let meta, let name, let path, let matchedIndices, _):
                         NavigationLink(destination: DocumentView(meta: meta)) {
-                            SearchFilePathCell(name: name, path: path)
+                            SearchFilePathCell(name: name, path: path, matchedIndices: matchedIndices)
                         }
-                    case .ContentMatch(let meta, let name, let path, let paragraph, _):
+                    case .ContentMatch(_, let meta, let name, let path, let paragraph, let matchedIndices, _):
                         NavigationLink(destination: DocumentView(meta: meta)) {
-                            SearchFileContentCell(name: name, path: path, paragraph: paragraph)
+                            SearchFileContentCell(name: name, path: path, paragraph: paragraph, matchedIndices: matchedIndices)
                         }
                     }
                 }
