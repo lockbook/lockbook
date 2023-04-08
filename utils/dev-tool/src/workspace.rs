@@ -23,9 +23,9 @@ pub fn udeps_workspace(tool_env: &ToolEnvironment) {
         .assert_success();
 }
 
-pub fn check_lockfile(tool_env: &ToolEnvironment) {
-    Command::new("cargo")
-        .args(["check", "--locked"])
+pub fn assert_git_clean(tool_env: &ToolEnvironment) {
+    Command::new("git")
+        .args(["diff", "--exit-code"])
         .current_dir(&tool_env.root_dir)
         .assert_success();
 }

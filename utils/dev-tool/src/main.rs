@@ -44,7 +44,7 @@ enum Commands {
     PrintServerLogs,
 
     // Check if cargo.lock is in sync with cargo.toml
-    CheckLockFile,
+    AssertGitClean,
 
     /// Kill the server for commit hash
     KillServer,
@@ -92,7 +92,7 @@ fn main() {
         RunKotlinTests => android::run_kotlin_tests(&tool_env),
         RunSwiftTests => apple::run_swift_tests(&tool_env),
         PrintServerLogs => server::print_server_logs(&tool_env),
-        CheckLockFile => workspace::check_lockfile(&tool_env),
+        AssertGitClean => workspace::assert_git_clean(&tool_env),
         KillServer => server::kill_server(&tool_env),
     }
 }
