@@ -578,17 +578,23 @@ pub type UpdateSearchStatus = extern "C" fn(*const c_char, i32, *const c_char);
 /// Be sure to call `release_pointer` on the result of this function to free the data.
 #[no_mangle]
 pub unsafe extern "C" fn start_search(context: *const c_char, update_status: UpdateSearchStatus) -> *const c_char {
-    let (results_rx, search_tx) = match static_state::get().and_then(|core| core.start_search()) {
-        Ok(search_info) => (search_info.results_rx, search_info.search_tx),
-        Err(e) => return c_string(translate(Err::<(), _>(e))),
-    };
+    println!("CALLING START SEARCH");
 
-    match MAYBE_SEARCH_TX.lock() {
-        Ok(mut lock) => *lock = Some(search_tx),
+
+    let results_rx = match MAYBE_SEARCH_TX.lock() {
+        Ok(mut lock) => {
+            let (results_rx, search_tx) = match static_state::get().and_then(|core| core.start_search()) {
+                Ok(search_info) => (search_info.results_rx, search_info.search_tx),
+                Err(e) => return c_string(translate(Err::<(), _>(e))),
+            };
+
+            *lock = Some(search_tx);
+            results_rx
+        },
         Err(_) => {
             return c_string(translate(Err::<(), _>("Cannot get search lock.")))
         }
-    }
+    };
 
     while let Ok(results) = results_rx.recv() {
         let result_repr = match results {
@@ -618,6 +624,7 @@ pub unsafe extern "C" fn start_search(context: *const c_char, update_status: Upd
 /// Be sure to call `release_pointer` on the result of this function to free the data.
 #[no_mangle]
 pub unsafe extern "C" fn search(query: *const c_char) -> *const c_char {
+    println!("MAKING A SEARCH");
     send_search_request(SearchRequest::Search { input: str_from_ptr(query) })
 }
 

@@ -82,10 +82,19 @@ struct SearchFilePathCell: View {
     let path: String
     let matchedIndices: [Int]
     
-    @State var nameModified: Text = Text("")
-    @State var pathModified: Text = Text("")
+    @State var nameModified: Text
+    @State var pathModified: Text
+    @State var modifiedGenerated: Bool
     
-    @State var modifiedGenerated = false
+    init(name: String, path: String, matchedIndices: [Int]) {
+        self.name = name
+        self.path = path
+        self.matchedIndices = matchedIndices
+        
+        self._modifiedGenerated = State(initialValue: false)
+        self._nameModified = State(initialValue: Text(name))
+        self._pathModified = State(initialValue: Text(path))
+    }
     
     @Environment(\.horizontalSizeClass) var horizontal
     @Environment(\.verticalSizeClass) var vertical
@@ -164,10 +173,20 @@ struct SearchFileContentCell: View {
     let paragraph: String
     let matchedIndices: [Int]
     
-    @State var paragraphModified: Text = Text("")
-    @State var pathModified: Text = Text("")
+    @State var paragraphModified: Text
+    @State var pathModified: Text
+    @State var modifiedGenerated: Bool
     
-    @State var modifiedGenerated = false
+    init(name: String, path: String, paragraph: String, matchedIndices: [Int]) {
+        self.name = name
+        self.path = path
+        self.paragraph = paragraph
+        self.matchedIndices = matchedIndices
+        
+        self._modifiedGenerated = State(initialValue: false)
+        self._pathModified = State(initialValue: Text(path))
+        self._paragraphModified = State(initialValue: Text(paragraph))
+    }
     
     @Environment(\.horizontalSizeClass) var horizontal
     @Environment(\.verticalSizeClass) var vertical

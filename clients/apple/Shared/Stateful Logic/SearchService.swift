@@ -73,7 +73,11 @@ class SearchService: ObservableObject {
                         }
                         
                         searchResults = searchResults.sorted { $0.score > $1.score }
-                        searchService.searchPathAndContentState = .SearchSuccessful(searchResults)
+                        if case .Searching = searchService.searchPathAndContentState {
+                            searchService.searchPathAndContentState = .SearchSuccessful(searchResults)
+                        } else if case .SearchSuccessful(_) = searchService.searchPathAndContentState {
+                            searchService.searchPathAndContentState = .SearchSuccessful(searchResults)
+                        }
                     }
                 }) {
                 case .success(_):

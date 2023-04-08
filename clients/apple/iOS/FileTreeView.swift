@@ -18,10 +18,12 @@ struct FileTreeView: View {
     var body: some View {
         VStack {
             iPadFileItems(currentFolder: currentFolder)
-                .searchable(text: $searchInput, placement: .navigationBarDrawer(displayMode: .automatic))
-                .onChange(of: searchInput) { [searchInput] newInput in
-                    if (!newInput.isEmpty && !searchInput.isEmpty) {
+                .searchable(text: $searchInput, placement: .navigationBarDrawer(displayMode: .automatic), prompt: "Search")
+                .onChange(of: searchInput) { newInput in
+                    if (!newInput.isEmpty) {
                         search.search(query: newInput)
+                    } else {
+                        search.searchPathAndContentState = .Idle
                     }
                 }
             HStack {
@@ -30,42 +32,56 @@ struct FileTreeView: View {
                 })
             }
         }
+        
+        VStack {
+            if let item = currentDoc.selectedDocument {
+                DocumentView(meta: item)
+            } else {
+                GeometryReader { geometry in
+                    if geometry.size.height > geometry.size.width {
+                        VStack {
+                            Image(systemName: "rectangle.portrait.lefthalf.inset.filled")
+                                .font(.system(size: 60))
+                                .padding(.bottom, 10)
+                            
+                            
+                            Text("No document is open. Expand the file tree by swiping from the left edge of the screen or clicking the button on the top left corner.")
+                                .font(.title2)
+                                .multilineTextAlignment(.center)
+                                .frame(maxWidth: 350)
+                        }
+                        .padding(.horizontal)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    } else {
+                        EmptyView()
+                    }
+                }
+            }
+        }
         .toolbar {
-            ToolbarItem(placement: .navigationBarTrailing) {
+            ToolbarItemGroup(placement: .navigationBarTrailing) {
+                NavigationLink(
+                    destination: PendingSharesView()) {
+                        Image(systemName: "person.3.fill")
+                            .foregroundColor(.blue)
+                    }
+                    
                 NavigationLink(
                     destination: SettingsView().equatable(), isActive: $onboarding.theyChoseToBackup) {
                         Image(systemName: "gearshape.fill")
                             .foregroundColor(.blue)
+                            .padding(.horizontal, 10)
                     }
             }
         }
-        if let item = currentDoc.selectedDocument {
-            DocumentView(meta: item)
-        } else {
-            GeometryReader { geometry in
-                if geometry.size.height > geometry.size.width {
-                    VStack {
-                        Image(systemName: "rectangle.portrait.lefthalf.inset.filled")
-                            .font(.system(size: 60))
-                            .padding(.bottom, 10)
-
-                        
-                        Text("No document is open. Expand the file tree by swiping from the left edge of the screen or clicking the button on the top left corner.")
-                            .font(.title2)
-                            .multilineTextAlignment(.center)
-                            .frame(maxWidth: 350)
-                    }
-                    .padding(.horizontal)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                }
-            }
-        }
+        
     }
 }
 
 struct iPadFileItems: View {
     @EnvironmentObject var search: SearchService
     @EnvironmentObject var fileService: FileService
+    @EnvironmentObject var current: CurrentDocument
     
     @Environment(\.isSearching) var isSearching
     
@@ -79,7 +95,8 @@ struct iPadFileItems: View {
             case .Idle:
                 Spacer()
             case .NoMatch:
-                Text("NO match")
+                Spacer()
+                Text("No search results")
                 Spacer()
             case .Searching:
                 Spacer()
@@ -89,16 +106,20 @@ struct iPadFileItems: View {
                 List(results) { result in
                     switch result {
                     case .PathMatch(_, let meta, let name, let path, let matchedIndices, _):
-                        NavigationLink(destination: DocumentView(meta: meta)) {
+                        Button(action: {
+                            current.selectedDocument = meta
+                        }) {
                             SearchFilePathCell(name: name, path: path, matchedIndices: matchedIndices)
                         }
                     case .ContentMatch(_, let meta, let name, let path, let paragraph, let matchedIndices, _):
-                        NavigationLink(destination: DocumentView(meta: meta)) {
+                        Button(action: {
+                            current.selectedDocument = meta
+                        }) {
                             SearchFileContentCell(name: name, path: path, paragraph: paragraph, matchedIndices: matchedIndices)
                         }
                     }
-                    Divider()
                 }
+                .listStyle(.inset)
             }
         }
         .onChange(of: isSearching, perform: { newInput in

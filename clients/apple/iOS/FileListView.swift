@@ -24,9 +24,13 @@ struct FileListView: View {
             
                 iOSFileItems()
                     .navigationBarTitle(fileService.parent.map{($0.name)} ?? "")
-                    .searchable(text: $searchInput)
+                    .searchable(text: $searchInput, prompt: "Search")
                     .onChange(of: searchInput) { newInput in
-                        search.search(query: newInput)
+                        if (!newInput.isEmpty) {
+                            search.search(query: newInput)
+                        } else {
+                            search.searchPathAndContentState = .Idle
+                        }
                     }
                 
                 FilePathBreadcrumb()
