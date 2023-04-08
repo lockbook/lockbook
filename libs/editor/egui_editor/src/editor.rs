@@ -4,9 +4,10 @@ use crate::appearance::Appearance;
 use crate::ast::Ast;
 use crate::buffer::Buffer;
 use crate::debug::DebugInfo;
-use crate::events;
 use crate::galleys::Galleys;
 use crate::images::ImageCache;
+use crate::input::cursor::PointerState;
+use crate::input::events;
 use crate::layouts::Layouts;
 use crate::styles::StyleInfo;
 use crate::test_input::TEST_MARKDOWN;
@@ -21,6 +22,7 @@ pub struct Editor {
 
     // state
     pub buffer: Buffer,
+    pub pointer_state: PointerState,
     pub debug: DebugInfo,
     pub images: ImageCache,
 
@@ -40,6 +42,7 @@ impl Default for Editor {
             client: Default::default(),
 
             buffer: TEST_MARKDOWN.into(),
+            pointer_state: Default::default(),
             debug: Default::default(),
             images: Default::default(),
 
@@ -85,6 +88,7 @@ impl Editor {
                     sao.inner_rect.size(),
                     &mut self.buffer,
                     &mut self.debug,
+                    &mut self.pointer_state,
                 );
                 ui.memory().request_focus(id);
                 ui.memory().lock_focus(id, true);
@@ -117,6 +121,7 @@ impl Editor {
                     ui_size,
                     &mut self.buffer,
                     &mut self.debug,
+                    &mut self.pointer_state,
                 )
             } else {
                 (false, None, None)
