@@ -1,3 +1,4 @@
+use chrono::Datelike;
 use gh_release::RepoInfo;
 use regex::{Captures, Regex};
 use sha2::{Digest, Sha256};
@@ -170,11 +171,19 @@ pub fn bump_versions(bump_type: Option<String>) {
         edit_cargo_version(cargo_path, new_version);
     }
 
-    //apple
+    // apple
     let plists = ["clients/apple/iOS/info.plist", "clients/apple/macOS/info.plist"];
     for plist in plists {
         Command::new("/usr/libexec/Plistbuddy")
-            .args(["-c", &format!("Set CFBundleShortVersionString {}", new_version), plist])
+            .args(["-c", &format!("Set CFBundleShortVersionString {new_version}"), plist])
+            .spawn()
+            .unwrap();
+        let now = chrono::Utc::now();
+        let month = now.month();
+        let day = now.day();
+        let year = now.year();
+        Command::new("/usr/libexec/Plistbuddy")
+            .args(["-c", &format!("Set CFBundleVersion {year}{month}{day}"), plist])
             .spawn()
             .unwrap();
     }
