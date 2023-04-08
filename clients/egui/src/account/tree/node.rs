@@ -147,7 +147,9 @@ impl TreeNode {
             if resp.rect.contains(pos) {
                 node_resp.dropped_on =
                     Some(if self.file.is_folder() { self.file.id } else { self.file.parent });
-                state.expanded.insert(self.file.id);
+                if self.file.is_folder() {
+                    state.expanded.insert(self.file.id);
+                }
                 state.dnd.dropped = None;
             }
         }
@@ -164,8 +166,7 @@ impl TreeNode {
         let depth_inset = self.depth_inset() + 5.0;
         let wrap_width = ui.available_width();
 
-        let icon =
-            if state.expanded.contains(&self.file.id) { Icon::FOLDER_OPEN } else { self.icon() };
+        let icon = if self.file.is_folder() { Icon::FOLDER_OPEN } else { self.icon() };
 
         let icon: egui::WidgetText = (&icon).into();
         let icon = icon.into_galley(ui, Some(false), wrap_width, egui::TextStyle::Body);
