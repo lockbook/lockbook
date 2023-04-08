@@ -1,8 +1,9 @@
 use crate::appearance::Appearance;
+use crate::ast::Ast;
 use crate::buffer::{Buffer, Modification, SubBuffer, SubModification};
 use crate::cursor::Cursor;
 use crate::debug::DebugInfo;
-use crate::element::ItemType;
+use crate::element::{Element, ItemType};
 use crate::galleys::Galleys;
 use crate::layouts::{Annotation, Layouts};
 use crate::offset_types::DocCharOffset;
@@ -11,25 +12,31 @@ use egui::{Event, Key, PointerButton, Pos2, Vec2};
 use std::cmp::Ordering;
 use std::time::Instant;
 
-/// processes `events` and returns a boolean representing whether text was updated and optionally new contents for clipboard
+/// processes `events` and returns a boolean representing whether text was updated, new contents for clipboard
+/// (optional), and a link that was opened (optional)
+#[allow(clippy::too_many_arguments)]
 pub fn process(
-    events: &[Event], layouts: &Layouts, galleys: &Galleys, appearance: &Appearance, ui_size: Vec2,
-    buffer: &mut Buffer, debug: &mut DebugInfo,
-) -> (bool, Option<String>) {
+    events: &[Event], ast: &Ast, layouts: &Layouts, galleys: &Galleys, appearance: &Appearance,
+    ui_size: Vec2, buffer: &mut Buffer, debug: &mut DebugInfo,
+) -> (bool, Option<String>, Option<String>) {
     let (mut text_updated, modification) =
-        calc_modification(events, layouts, galleys, appearance, buffer, debug, ui_size);
+        calc_modification(events, ast, layouts, galleys, appearance, buffer, debug, ui_size);
     let mut to_clipboard = None;
+    let mut opened_url = None;
     if !modification.is_empty() {
-        let (text_updated_apply, to_clipboard_apply) = buffer.apply(modification, debug);
+        let (text_updated_apply, to_clipboard_apply, opened_url_apply) =
+            buffer.apply(modification, debug);
         text_updated |= text_updated_apply;
-        to_clipboard = to_clipboard_apply;
+        to_clipboard = to_clipboard_apply.or(to_clipboard);
+        opened_url = opened_url_apply.or(opened_url);
     }
-    (text_updated, to_clipboard)
+    (text_updated, to_clipboard, opened_url)
 }
 
 // note: buffer and debug are mut because undo modifies it directly; todo: factor to make mutating subset of code obvious
+#[allow(clippy::too_many_arguments)]
 fn calc_modification(
-    events: &[Event], layouts: &Layouts, galleys: &Galleys, appearance: &Appearance,
+    events: &[Event], ast: &Ast, layouts: &Layouts, galleys: &Galleys, appearance: &Appearance,
     buffer: &mut Buffer, debug: &mut DebugInfo, ui_size: Vec2,
 ) -> (bool, Modification) {
     let mut text_updated = false;
@@ -294,6 +301,47 @@ fn calc_modification(
                     // delete selected text or one character
                     modifications.push(SubModification::Delete(1.into()));
                 }
+
+                cursor.selection_origin = None;
+            }
+            Event::Key { key: Key::Delete, pressed: true, modifiers } => {
+                cursor.x_target = None;
+
+                if modifiers.command {
+                    // select current position to line end
+                    let (galley_idx, cur_cursor) =
+                        galleys.galley_and_cursor_by_char_offset(cursor.pos, &buffer.current.segs);
+                    let galley = &galleys[galley_idx];
+                    let end_of_row_cursor = galley.galley.cursor_end_of_row(&cur_cursor);
+                    let end_of_row_pos = galleys.char_offset_by_galley_and_cursor(
+                        galley_idx,
+                        &end_of_row_cursor,
+                        &buffer.current.segs,
+                    );
+
+                    modifications.push(SubModification::Cursor {
+                        cursor: (cursor.pos, end_of_row_pos).into(),
+                    })
+                } else if modifiers.alt {
+                    // select word
+                    let begin_of_word_pos = cursor.pos;
+                    cursor.advance_word(false, &buffer.current, &buffer.current.segs, galleys);
+                    let end_of_word_pos = cursor.pos;
+
+                    modifications.push(SubModification::Cursor {
+                        cursor: (begin_of_word_pos, end_of_word_pos).into(),
+                    })
+                } else if cursor.selection().is_none()
+                    && cursor.pos != buffer.current.segs.last_cursor_position()
+                {
+                    // select char after cursor
+                    modifications.push(SubModification::Cursor {
+                        cursor: (cursor.pos, cursor.pos + 1).into(),
+                    })
+                }
+
+                // delete selected text or nothing
+                modifications.push(SubModification::Delete(0.into()));
 
                 cursor.selection_origin = None;
             }
@@ -680,7 +728,32 @@ fn calc_modification(
                         }
                         checkbox_click
                     };
-                    if !checkbox_click {
+
+                    // process link clicks
+                    let link_click = !checkbox_click && modifiers.command && {
+                        let mut link_click = false;
+                        if let Some(click_char_offset) =
+                            pos_to_char_offset(*pos, galleys, &buffer.current.segs)
+                        {
+                            let click_byte_offset =
+                                buffer.current.segs.char_offset_to_byte(click_char_offset);
+                            for ast_node in &ast.nodes {
+                                if let Element::Link(_, url, _) = &ast_node.element {
+                                    if ast_node.range.contains(&click_byte_offset) {
+                                        modifications.push(SubModification::OpenedUrl {
+                                            url: url.to_string(),
+                                        });
+                                        link_click = true;
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                        link_click
+                    };
+
+                    // process other clicks
+                    if !checkbox_click && !link_click {
                         // record instant for double/triple click
                         cursor.process_click_instant(Instant::now());
 
@@ -729,14 +802,6 @@ fn calc_modification(
                             {
                                 cursor.pos = click_offset;
                             }
-
-                            cursor.advance_word(
-                                false,
-                                &buffer.current,
-                                &buffer.current.segs,
-                                galleys,
-                            );
-                            let end_of_word_pos = cursor.pos;
                             cursor.advance_word(
                                 true,
                                 &buffer.current,
@@ -744,6 +809,13 @@ fn calc_modification(
                                 galleys,
                             );
                             let begin_of_word_pos = cursor.pos;
+                            cursor.advance_word(
+                                false,
+                                &buffer.current,
+                                &buffer.current.segs,
+                                galleys,
+                            );
+                            let end_of_word_pos = cursor.pos;
 
                             cursor.selection_origin = Some(begin_of_word_pos);
                             cursor.pos = end_of_word_pos;

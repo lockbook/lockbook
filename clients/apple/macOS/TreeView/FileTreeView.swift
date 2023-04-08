@@ -9,9 +9,12 @@ struct FileTreeView: NSViewRepresentable {
     var dataSource = DataSource()
 
     @EnvironmentObject var files: FileService
-
-    func makeNSView(context: Context) -> NSScrollView {
-        
+    @EnvironmentObject var currentSelection: CurrentDocument
+    
+    let previousFilesHash: Reference<Int?> = Reference(nil)
+    let previousOpenDocumentHash: Reference<Int?> = Reference(nil)
+            
+    func makeNSView(context: Context) -> NSScrollView {        
         delegate.documentSelected = {
             if $0.fileType == .Document {
                 DI.currentDoc.selectedDocument = $0
@@ -33,12 +36,10 @@ struct FileTreeView: NSViewRepresentable {
 
         treeView.columnAutoresizingStyle = .uniformColumnAutoresizingStyle
 
-        treeView.registerForDraggedTypes([NSPasteboard.PasteboardType(DataSource.REORDER_PASTEBOARD_TYPE)])
-
-        // TODO changing this to true will allow us to accept drops from finder
-        treeView.setDraggingSourceOperationMask(NSDragOperation(), forLocal: false)
-
-        treeView.setDraggingSourceOperationMask(NSDragOperation.move, forLocal: true)
+        treeView.setDraggingSourceOperationMask(.copy, forLocal: false)
+        treeView.setDraggingSourceOperationMask(.move, forLocal: true)
+        
+        treeView.registerForDraggedTypes([NSPasteboard.PasteboardType(DataSource.REORDER_PASTEBOARD_TYPE), .fileURL])
         
         let onlyColumn = NSTableColumn()
         onlyColumn.resizingMask = .autoresizingMask
@@ -53,17 +54,32 @@ struct FileTreeView: NSViewRepresentable {
     }
     
     func updateNSView(_ nsView: NSScrollView, context: Context) {
-        treeView.reloadData()
-        // Should this happen in the delegate?
-        for row in 0...treeView.numberOfRows {
-            if let item = treeView.item(atRow: row) as? File {
-                if let selection = DI.currentDoc.selectedDocument {
-                    if item.id == selection.id {
-                        treeView.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
-                    }
-                }
+        if previousFilesHash.value != files.idsAndFiles.hashValue {
+            treeView.reloadData()
+            previousFilesHash.value = files.idsAndFiles.hashValue
+        }
+        
+        if previousOpenDocumentHash.value != currentSelection.selectedDocument?.hashValue {
+            if let file = DI.currentDoc.selectedDocument {
+                scrollAndexpandAncestorsOfDocument(file: file)
+            }
+            
+            treeView.selectRowIndexes(IndexSet(integer: treeView.row(forItem: DI.currentDoc.selectedDocument)), byExtendingSelection: false)
+            
+            previousOpenDocumentHash.value = currentSelection.selectedDocument?.hashValue
+        }
+    }
+    
+    func scrollAndexpandAncestorsOfDocument(file: File) {
+        if(treeView.row(forItem: file) == -1) {
+            let pathToRoot = DI.files.filesToExpand(pathToRoot: [], currentFile: file)
+                    
+            for parent in pathToRoot {
+                treeView.animator().expandItem(parent)
             }
         }
+        
+        treeView.animator().scrollRowToVisible(treeView.row(forItem: file))
     }
 }
 
@@ -101,4 +117,9 @@ class MenuOutlineView: NSOutlineView {
         fatalError("init(coder:) has not been implemented")
     }
 
+}
+
+class Reference<T> {
+    var value: T
+    init(_ value: T) { self.value = value }
 }

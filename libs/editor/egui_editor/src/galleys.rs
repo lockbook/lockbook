@@ -233,12 +233,17 @@ impl GalleyInfo {
         &buffer.text[text_start.0..text_end.0]
     }
 
-    pub fn text_range(&self, segs: &UnicodeSegs) -> Range<DocCharOffset> {
+    pub fn byte_range(&self) -> Range<DocByteOffset> {
         let text_start = self.range.start + self.head_size;
         let text_end = self.range.end - self.tail_size;
+        Range { start: text_start, end: text_end }
+    }
+
+    pub fn text_range(&self, segs: &UnicodeSegs) -> Range<DocCharOffset> {
+        let byte_range = self.byte_range();
         Range {
-            start: segs.byte_offset_to_char(text_start),
-            end: segs.byte_offset_to_char(text_end),
+            start: segs.byte_offset_to_char(byte_range.start),
+            end: segs.byte_offset_to_char(byte_range.end),
         }
     }
 

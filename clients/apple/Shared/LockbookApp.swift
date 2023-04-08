@@ -40,7 +40,7 @@ import AppKit
             }
             CommandMenu("Lockbook") {
                 Button("Sync", action: { DI.sync.sync() }).keyboardShortcut("S", modifiers: .command)
-                
+                Button("Search", action: { DI.search.startSearch() }).keyboardShortcut("O", modifiers: .command)
             }
             SidebarCommands()
         }

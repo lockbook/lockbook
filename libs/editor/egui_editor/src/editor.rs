@@ -78,6 +78,7 @@ impl Editor {
                         pressed: true,
                         modifiers: Default::default(),
                     }],
+                    &self.ast,
                     &self.layouts,
                     &self.galleys,
                     &self.appearance,
@@ -105,9 +106,11 @@ impl Editor {
         let (text_updated, cursor_pos_updated, selection_updated) = if self.initialized {
             let prior_cursor_pos = self.buffer.current.cursor.pos;
             let prior_selection = self.buffer.current.cursor.selection();
-            let (text_updated, maybe_to_clipboard) = if ui.memory().has_focus(id) {
+            let (text_updated, maybe_to_clipboard, maybe_opened_url) = if ui.memory().has_focus(id)
+            {
                 events::process(
                     &ui.ctx().input().events,
+                    &self.ast,
                     &self.layouts,
                     &self.galleys,
                     &self.appearance,
@@ -116,7 +119,7 @@ impl Editor {
                     &mut self.debug,
                 )
             } else {
-                (false, None)
+                (false, None, None)
             };
             let cursor_pos_updated = self.buffer.current.cursor.pos != prior_cursor_pos;
             let selection_updated = self.buffer.current.cursor.selection() != prior_selection;
@@ -124,6 +127,9 @@ impl Editor {
             // put cut or copied text in clipboard
             if let Some(to_clipboard) = maybe_to_clipboard {
                 ui.output().copied_text = to_clipboard;
+            }
+            if let Some(opened_url) = maybe_opened_url {
+                ui.output().open_url = Some(egui::output::OpenUrl::new_tab(opened_url));
             }
             (text_updated, cursor_pos_updated, selection_updated)
         } else {

@@ -146,4 +146,3 @@ swift_lib_ios_sim := ../../clients/apple/CLockbookCore/Sources/CLockbookCore/lib
 
 # Windows Library Location
 windows_lib := ../../clients/windows/core/
-

@@ -8,7 +8,7 @@ mod settings;
 pub use confirm_delete::ConfirmDeleteModal;
 pub use error::ErrorModal;
 pub use help::HelpModal;
-pub use new_file::{NewFileModal, NewFileParams};
+pub use new_file::{NewDocModal, NewFileParams, NewFolderModal};
 pub use search::SearchModal;
 pub use settings::{SettingsModal, SettingsResponse};
 
@@ -16,12 +16,13 @@ use eframe::egui;
 
 #[derive(Default)]
 pub struct Modals {
-    pub error: Option<Box<ErrorModal>>,
-    pub settings: Option<Box<SettingsModal>>,
-    pub new_file: Option<Box<NewFileModal>>,
-    pub search: Option<Box<SearchModal>>,
-    pub help: Option<Box<HelpModal>>,
-    pub confirm_delete: Option<Box<ConfirmDeleteModal>>,
+    pub error: Option<ErrorModal>,
+    pub settings: Option<SettingsModal>,
+    pub new_doc: Option<NewDocModal>,
+    pub new_folder: Option<NewFolderModal>,
+    pub search: Option<SearchModal>,
+    pub help: Option<HelpModal>,
+    pub confirm_delete: Option<ConfirmDeleteModal>,
 }
 
 impl super::AccountScreen {
@@ -50,7 +51,13 @@ impl super::AccountScreen {
             }
         }
 
-        if let Some(response) = show(ctx, x_offset, &mut self.modals.new_file) {
+        if let Some(response) = show(ctx, x_offset, &mut self.modals.new_doc) {
+            if let Some(submission) = response.inner {
+                self.create_file(submission);
+            }
+        }
+
+        if let Some(response) = show(ctx, x_offset, &mut self.modals.new_folder) {
             if let Some(submission) = response.inner {
                 self.create_file(submission);
             }
@@ -70,7 +77,8 @@ impl super::AccountScreen {
     pub fn is_any_modal_open(&self) -> bool {
         let m = &self.modals;
         m.settings.is_some()
-            || m.new_file.is_some()
+            || m.new_doc.is_some()
+            || m.new_folder.is_some()
             || m.search.is_some()
             || m.help.is_some()
             || m.confirm_delete.is_some()
@@ -83,8 +91,12 @@ impl super::AccountScreen {
             self.save_settings();
             return true;
         }
-        if m.new_file.is_some() {
-            m.new_file = None;
+        if m.new_doc.is_some() {
+            m.new_doc = None;
+            return true;
+        }
+        if m.new_folder.is_some() {
+            m.new_folder = None;
             return true;
         }
         if m.search.is_some() {
@@ -114,7 +126,7 @@ pub trait Modal {
 }
 
 pub fn show<M: Modal>(
-    ctx: &egui::Context, x_offset: f32, maybe_modal: &mut Option<Box<M>>,
+    ctx: &egui::Context, x_offset: f32, maybe_modal: &mut Option<M>,
 ) -> Option<ModalResponse<M::Response>> {
     if let Some(d) = maybe_modal {
         let dr = show_modal(ctx, x_offset, d);
@@ -133,7 +145,7 @@ pub struct ModalResponse<R> {
 }
 
 fn show_modal<M: Modal>(
-    ctx: &egui::Context, x_offset: f32, d: &mut Box<M>,
+    ctx: &egui::Context, x_offset: f32, d: &mut M,
 ) -> ModalResponse<M::Response> {
     let mut is_open = true;
 

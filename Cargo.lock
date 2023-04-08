@@ -102,7 +102,7 @@ checksum = "aae1277d39aeec15cb388266ecc24b11c80469deae6067e17a1a7aa9e5c1f234"
 
 [[package]]
 name = "admin"
-version = "0.7.1"
+version = "0.7.2"
 dependencies = [
  "dialoguer",
  "lockbook-core",
@@ -699,9 +699,9 @@ dependencies = [
 
 [[package]]
 name = "chrono"
-version = "0.4.21"
+version = "0.4.24"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3f725f340c3854e3cb3ab736dc21f0cca183303acea3b3ffec30f141503ac8eb"
+checksum = "4e3c5919066adf22df73762e50cffcde3a758f2a848b113b586d1f86728b673b"
 dependencies = [
  "iana-time-zone",
  "js-sys",
@@ -1308,9 +1308,9 @@ checksum = "23d8666cb01533c39dde32bcbab8e227b4ed6679b2c925eba05feabea39508fb"
 
 [[package]]
 name = "db-rs"
-version = "0.1.17"
+version = "0.1.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6d0b3239c3fcd5fd1d91e686c089a99be638a72709a21f83c370563b544384f0"
+checksum = "e38fcdb042edb86b5cea9faa9d6cbc15ecef5c4d9b84b91587d015a0eba9954c"
 dependencies = [
  "bincode",
  "serde",
@@ -1318,9 +1318,9 @@ dependencies = [
 
 [[package]]
 name = "db-rs-derive"
-version = "0.1.17"
+version = "0.1.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "54096b00595a6a5213cc5a2f881a3a16be7346f18aa76ee6d08af3a7cc12e343"
+checksum = "ac307c89ecd5214ef13c5581a1ab0885c7f92cc145a26d06570793b121b2a0bb"
 dependencies = [
  "db-rs",
  "quote",
@@ -1558,7 +1558,7 @@ dependencies = [
 
 [[package]]
 name = "egui_editor"
-version = "0.7.1"
+version = "0.7.2"
 dependencies = [
  "eframe",
  "egui",
@@ -2110,9 +2110,9 @@ dependencies = [
 
 [[package]]
 name = "gh_release"
-version = "0.1.0"
+version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "357ffb6dc32993b6d69447cbac823760a5bb2ab006cd3352543eca03f8773c83"
+checksum = "cd6a9e499ad324676bfed60626791a3c37ca633a58146a118276c1adb0fe0a55"
 dependencies = [
  "reqwest",
  "serde",
@@ -2638,12 +2638,12 @@ dependencies = [
 
 [[package]]
 name = "iana-time-zone"
-version = "0.1.41"
+version = "0.1.46"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1779539f58004e5dba1c1f093d44325ebeb244bfc04b791acdc0aaeca9c04570"
+checksum = "ad2bfd338099682614d3ee3fe0cd72e0b6a41ca6a87f6a74a3bd593c91650501"
 dependencies = [
  "android_system_properties",
- "core-foundation",
+ "core-foundation-sys",
  "js-sys",
  "wasm-bindgen",
  "winapi 0.3.9",
@@ -3057,7 +3057,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook-cli"
-version = "0.7.1"
+version = "0.7.2"
 dependencies = [
  "atty",
  "clap 4.1.4",
@@ -3067,7 +3067,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook-core"
-version = "0.7.1"
+version = "0.7.2"
 dependencies = [
  "base64",
  "basic-human-duration",
@@ -3105,7 +3105,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook-dev"
-version = "0.7.1"
+version = "0.7.2"
 dependencies = [
  "dotenv",
  "reqwest",
@@ -3116,7 +3116,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook-egui"
-version = "0.7.1"
+version = "0.7.2"
 dependencies = [
  "dark-light",
  "eframe",
@@ -3132,7 +3132,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook-server"
-version = "0.7.1"
+version = "0.7.2"
 dependencies = [
  "async-stripe",
  "base64",
@@ -3169,7 +3169,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook-shared"
-version = "0.7.1"
+version = "0.7.2"
 dependencies = [
  "aead",
  "aes-gcm",
@@ -4369,8 +4369,9 @@ checksum = "a3f87b73ce11b1619a3c6332f45341e0047173771e8b8b73f87bfeefb7b56244"
 
 [[package]]
 name = "releaser"
-version = "0.7.1"
+version = "0.7.2"
 dependencies = [
+ "chrono",
  "fs_extra",
  "gh_release",
  "google-androidpublisher3",
@@ -5177,7 +5178,7 @@ dependencies = [
 
 [[package]]
 name = "test_utils"
-version = "0.7.1"
+version = "0.7.2"
 dependencies = [
  "bincode",
  "chrono",
@@ -6469,7 +6470,7 @@ dependencies = [
 
 [[package]]
 name = "winstaller"
-version = "0.7.1"
+version = "0.7.2"
 dependencies = [
  "eframe",
  "egui_extras",

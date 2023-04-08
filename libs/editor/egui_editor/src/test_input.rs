@@ -1,4 +1,4 @@
-pub static TEST_MARKDOWN: &str = TEST_MARKDOWN_47;
+pub static TEST_MARKDOWN: &str = TEST_MARKDOWN_34;
 
 pub static TEST_MARKDOWN_0: &str = "# test";
 pub static TEST_MARKDOWN_1: &str = "a";
@@ -192,3 +192,5 @@ pub static TEST_MARKDOWN_45: &str = r#"# Ambrose Burnside
 "#;
 pub static TEST_MARKDOWN_46: &str = "- ”";
 pub static TEST_MARKDOWN_47: &str = "” x x";
+
+pub static TEST_MARKDOWN_48: &str = "Visit our [website](http://lockbook.net)!";

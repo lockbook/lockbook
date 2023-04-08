@@ -1,3 +1,4 @@
+use chrono::Datelike;
 use gh_release::RepoInfo;
 use regex::{Captures, Regex};
 use sha2::{Digest, Sha256};
@@ -70,6 +71,18 @@ pub fn root() -> PathBuf {
         panic!("releaser not called from project root");
     }
     project_root
+}
+
+pub fn commit_hash() -> String {
+    let hash_bytes = Command::new("git")
+        .args(["rev-parse", "HEAD"])
+        .output()
+        .unwrap()
+        .stdout;
+
+    return String::from_utf8_lossy(hash_bytes.as_slice())
+        .trim()
+        .to_string();
 }
 
 pub fn determine_new_version(bump_type: Option<String>) -> Option<String> {
@@ -158,11 +171,19 @@ pub fn bump_versions(bump_type: Option<String>) {
         edit_cargo_version(cargo_path, new_version);
     }
 
-    //apple
+    // apple
     let plists = ["clients/apple/iOS/info.plist", "clients/apple/macOS/info.plist"];
     for plist in plists {
         Command::new("/usr/libexec/Plistbuddy")
-            .args(["-c", &format!("Set CFBundleShortVersionString {}", new_version), plist])
+            .args(["-c", &format!("Set CFBundleShortVersionString {new_version}"), plist])
+            .spawn()
+            .unwrap();
+        let now = chrono::Utc::now();
+        let month = now.month();
+        let day = now.day();
+        let year = now.year();
+        Command::new("/usr/libexec/Plistbuddy")
+            .args(["-c", &format!("Set CFBundleVersion {year}{month}{day}"), plist])
             .spawn()
             .unwrap();
     }

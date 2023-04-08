@@ -831,6 +831,7 @@ where
                             ValidationFailure::Orphan(_)
                             | ValidationFailure::NonFolderWithChildren(_)
                             | ValidationFailure::FileWithDifferentOwnerParent(_)
+                            | ValidationFailure::FileNameTooLong(_)
                             | ValidationFailure::NonDecryptableFileName(_) => {
                                 validate_result?;
                             }

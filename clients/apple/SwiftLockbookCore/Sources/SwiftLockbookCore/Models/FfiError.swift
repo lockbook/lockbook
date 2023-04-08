@@ -118,6 +118,7 @@ public enum CreateFileError: String, UiError {
     case FileNameContainsSlash
     case FileNameEmpty
     case FileNameNotAvailable
+    case FileNameTooLong
     case LinkInSharedFolder
     case LinkTargetIsOwned
     case LinkTargetNonexistent
@@ -162,6 +163,7 @@ public enum RenameFileError: String, UiError {
     case CannotRenameRoot
     case FileDoesNotExist
     case FileNameNotAvailable
+    case FileNameTooLong
     case NewNameContainsSlash
     case NewNameEmpty
     case InsufficientPermission
@@ -256,4 +258,19 @@ public enum GetPendingShares: String, UiError {
 public enum DeletePendingShareError: String, UiError {
     case FileNonexistent
     case ShareNonexistent
+}
+
+public enum ImportFilesError: String, UiError {
+    case FileNonexistent
+    case FileNotFolder
+}
+
+public enum ExportFileError: String, UiError {
+    case FileNonexistent
+    case DiskPathInvalid
+    case DiskPathTaken
+}
+
+public enum SearchFilePathsError: String, UiError {
+    case Stub
 }

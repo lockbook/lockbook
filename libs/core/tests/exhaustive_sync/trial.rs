@@ -250,16 +250,17 @@ impl Trial {
                             }
 
                             for compare_device_index in 0..self.target_devices_by_user[user_index] {
-                                let compare_device =
-                                    &self.devices_by_user[user_index][compare_device_index];
-                                assert_dbs_equal(device, compare_device);
-                                if !dbs_equal(device, compare_device) {
-                                    self.status = Failed(format!(
-                                        "db {} is not equal to {} after a sync.",
-                                        device.get_config().unwrap().writeable_path,
-                                        compare_device.get_config().unwrap().writeable_path,
-                                    ));
-                                    break 'steps;
+                                if compare_device_index != device_index {
+                                    let compare_device =
+                                        &self.devices_by_user[user_index][compare_device_index];
+                                    if !dbs_equal(device, compare_device) {
+                                        self.status = Failed(format!(
+                                            "db {} is not equal to {} after a sync.",
+                                            device.get_config().unwrap().writeable_path,
+                                            compare_device.get_config().unwrap().writeable_path,
+                                        ));
+                                        break 'steps;
+                                    }
                                 }
                             }
                         }

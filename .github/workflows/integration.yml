@@ -43,8 +43,8 @@ jobs:
     - name: Server Logs
       if: always()
       run: cargo run -p lockbook-dev -- print-server-logs
-    - name: Check Lock File 
-      run: cargo run -p lockbook-dev -- check-lock-file
+    - name: Check Lock File
+      run: cargo run -p lockbook-dev -- assert-git-clean
     - name: Cleanup
       if: always()
       run: cargo run -p lockbook-dev -- kill-server

@@ -12,6 +12,7 @@ pub use base64;
 pub use basic_human_duration::ChronoHumanDuration;
 pub use chrono::Duration;
 pub use libsecp256k1::PublicKey;
+use lockbook_shared::document_repo::RankingWeights;
 pub use uuid::Uuid;
 
 pub use lockbook_shared::account::Account;
@@ -179,6 +180,7 @@ impl<Client: Requester> CoreLib<Client> {
             .expected_errs(&[
                 CoreError::FileNameContainsSlash,
                 CoreError::FileNameEmpty,
+                CoreError::FileNameTooLong,
                 CoreError::FileNonexistent,
                 CoreError::FileNotFolder,
                 CoreError::FileParentNonexistent,
@@ -251,6 +253,7 @@ impl<Client: Requester> CoreLib<Client> {
             .expected_errs(&[
                 CoreError::FileNameContainsSlash,
                 CoreError::FileNameEmpty,
+                CoreError::FileNameTooLong,
                 CoreError::FileNonexistent,
                 CoreError::InsufficientPermission,
                 CoreError::PathTaken,
@@ -308,6 +311,7 @@ impl<Client: Requester> CoreLib<Client> {
                 CoreError::FileNotFolder,
                 CoreError::PathContainsEmptyFileName,
                 CoreError::PathTaken,
+                CoreError::FileNameTooLong,
                 CoreError::LinkInSharedFolder,
                 CoreError::LinkTargetIsOwned,
                 CoreError::LinkTargetNonexistent,
@@ -322,6 +326,7 @@ impl<Client: Requester> CoreLib<Client> {
                 CoreError::FileNotFolder,
                 CoreError::InsufficientPermission,
                 CoreError::PathContainsEmptyFileName,
+                CoreError::FileNameTooLong,
                 CoreError::PathTaken,
                 CoreError::RootNonexistent,
             ])
@@ -350,7 +355,6 @@ impl<Client: Requester> CoreLib<Client> {
                 .local_metadata
                 .data()
                 .keys()
-                .into_iter()
                 .copied()
                 .collect::<Vec<Uuid>>())
         })?)
@@ -389,6 +393,11 @@ impl<Client: Requester> CoreLib<Client> {
         } else {
             "never".to_string()
         })
+    }
+
+    #[instrument(level = "debug", skip(self), err(Debug))]
+    pub fn suggested_docs(&self, settings: RankingWeights) -> Result<Vec<Uuid>, UnexpectedError> {
+        Ok(self.in_tx(|s| s.suggested_docs(settings))?)
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
@@ -461,7 +470,11 @@ impl<Client: Requester> CoreLib<Client> {
             s.import_files(sources, dest, update_status)?;
             s.cleanup()
         })
-        .expected_errs(&[CoreError::FileNonexistent, CoreError::FileNotFolder])
+        .expected_errs(&[
+            CoreError::FileNonexistent,
+            CoreError::FileNotFolder,
+            CoreError::FileNameTooLong,
+        ])
     }
 
     #[instrument(level = "debug", skip(self, export_progress), err(Debug))]

@@ -163,6 +163,7 @@ where
         pub_key: &PublicKey,
     ) -> SharedResult<Uuid> {
         let mut current = *root;
+
         'path: for index in 0..path_components.len() {
             'child: for child in self.children(&current)? {
                 if self.calculate_deleted(&child)? {
