@@ -17,39 +17,13 @@ struct FileTreeView: View {
     
     var body: some View {
         VStack {
-            VStack {
-                switch search.searchPathAndContentState {
-                case .NotSearching:
-                    OutlineSection(root: currentFolder)
-                case .NoMatch:
-                    Text("NO match")
-                case .Searching:
-                    ProgressView()
-                case .SearchSuccessful(let results):
-                    List(results) { result in
-                        switch result {
-                        case .PathMatch(_, let name, let path, _, let matchedIndices):
-                            SearchFilePathCell(name: name, path: path, matchedIndices: matchedIndices)
-                        case .ContentMatch(_, let name, let path, let contentMatch):
-                            SearchFileContentCell(name: name, path: path, paragraph: contentMatch.paragraph, matchedIndices: contentMatch.matchedIndices)
-                        }
-                    }
-                }
-            }
+            iPadFileItems(currentFolder: currentFolder)
                 .searchable(text: $searchInput)
                 .onChange(of: searchInput) { [searchInput] newInput in
-                    if(newInput.isEmpty && !searchInput.isEmpty) {
-                        search.endSearch()
-                    } else if (!newInput.isEmpty && searchInput.isEmpty) {
-                        if(searchInput.isEmpty) {
-                            search.startSearchThread()
-                            return
-                        }
-                        
+                    if (!newInput.isEmpty && !searchInput.isEmpty) {
                         search.search(query: newInput)
                     }
                 }
-
             HStack {
                 BottomBar(onCreating: {
                     sheets.creatingInfo = CreatingInfo(parent: currentFolder, child_type: .Document)
@@ -88,3 +62,51 @@ struct FileTreeView: View {
         }
     }
 }
+
+struct iPadFileItems: View {
+    @EnvironmentObject var search: SearchService
+    @EnvironmentObject var fileService: FileService
+    
+    @Environment(\.isSearching) var isSearching
+    
+    let currentFolder: File
+    
+    var body: some View {
+        VStack {
+            switch search.searchPathAndContentState {
+            case .NotSearching:
+                OutlineSection(root: currentFolder)
+            case .Idle:
+                Spacer()
+            case .NoMatch:
+                Text("NO match")
+                Spacer()
+            case .Searching:
+                Spacer()
+                ProgressView()
+                Spacer()
+            case .SearchSuccessful(let results):
+                List(results) { result in
+                    switch result {
+                    case .PathMatch(let meta, let name, let path, _):
+                        NavigationLink(destination: DocumentView(meta: meta)) {
+                            SearchFilePathCell(name: name, path: path)
+                        }
+                    case .ContentMatch(let meta, let name, let path, let paragraph, _):
+                        NavigationLink(destination: DocumentView(meta: meta)) {
+                            SearchFileContentCell(name: name, path: path, paragraph: paragraph)
+                        }
+                    }
+                }
+            }
+        }
+        .onChange(of: isSearching, perform: { newInput in
+            if newInput {
+                search.startSearchThread()
+            } else {
+                search.endSearch()
+            }
+        })
+    }
+}
+

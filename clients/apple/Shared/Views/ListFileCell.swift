@@ -80,11 +80,13 @@ struct RealFileCell: View {
 struct SearchFilePathCell: View {
     let name: String
     let path: String
-    let matchedIndices: [Int]
+    
+    @State var formattedName: Text
+    @State var formattedPath: Text
     
     var body: some View {
         VStack(alignment: .leading, spacing: 5) {
-            Text(name)
+            Text(.init(name))
                 .font(.title3)
             
             HStack {
@@ -92,7 +94,7 @@ struct SearchFilePathCell: View {
                     .foregroundColor(.accentColor)
                     .font(.caption)
                 
-                Text(path)
+                Text(.init(path))
                         .foregroundColor(.accentColor)
                         .font(.caption)
             }
@@ -100,13 +102,24 @@ struct SearchFilePathCell: View {
             .padding(.vertical, 5)
             .contentShape(Rectangle()) /// https://stackoverflow.com/questions/57258371/swiftui-increase-tap-drag-area-for-user-interaction
     }
+    
+//    func formatPathAndName() {
+//        var tempFormattedName = Text("")
+//        var tempFormattedPath = Text("")
+//        
+//        for index in (0...matchedIndices.count - 1).reversed() {
+//            let correctIndex = formattedFullPath.index(formattedFullPath.startIndex, offsetBy: matchedIndices[index])
+//            
+//            formattedFullPath.replaceSubrange(correctIndex...correctIndex, with: "**\(formattedFullPath[correctIndex])**")
+//        }
+//
+//    }
 }
 
 struct SearchFileContentCell: View {
     let name: String
     let path: String
     let paragraph: String
-    let matchedIndices: [Int]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 5) {
@@ -124,7 +137,7 @@ struct SearchFileContentCell: View {
             }
             .padding(.bottom)
             
-            Text(paragraph)
+            Text(.init(paragraph))
                 .font(.caption)
         }
             .padding(.vertical, 5)

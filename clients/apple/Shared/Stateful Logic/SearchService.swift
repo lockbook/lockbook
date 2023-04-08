@@ -28,7 +28,7 @@ class SearchService: ObservableObject {
     }
     
     func startSearchThread() {
-        searchPathAndContentState = .Searching
+        searchPathAndContentState = .Idle
         
         DispatchQueue.global(qos: .userInitiated).async {
             withUnsafePointer(to: self) { searchServicePtr in
@@ -53,18 +53,20 @@ class SearchService: ObservableObject {
                     switch searchResultType {
                     case 1: // file path match
                         let nameMatch: FileNameMatch = try! decoder.decode(FileNameMatch.self, from: data)
-                        let pathComp = nameMatch.path.getNameAndPath()
+                        let pathComp = nameMatch.getFormattedNameAndPath()
                         
-                        searchResults.append(.PathMatch(meta: DI.files.idsAndFiles[nameMatch.id]!, name: pathComp.name, path: pathComp.path, score: nameMatch.score, matchedIndices: nameMatch.matchedIndices))
+                        searchResults.append(.PathMatch(meta: DI.files.idsAndFiles[nameMatch.id]!, name: pathComp.name, path: pathComp.path, score: nameMatch.score))
                     case 2: // file content match
-                        let contentMatches: FileContentMatches = try! decoder.decode(FileContentMatches.self, from: data)
-                        let pathComp = contentMatches.path.getNameAndPath()
+                        var contentMatches: FileContentMatches = try! decoder.decode(FileContentMatches.self, from: data)
+                        let pathComp = contentMatches.getNameAndPath()
                         
                         for contentMatch in contentMatches.contentMatches {
-                            searchResults.append(.ContentMatch(meta: DI.files.idsAndFiles[contentMatches.id]!, name: pathComp.name, path: pathComp.path, contentMatch: contentMatch))
+                            searchResults.append(.ContentMatch(meta: DI.files.idsAndFiles[contentMatches.id]!, name: pathComp.name, path: pathComp.path, paragraph: contentMatch.getFormattedParagraph(), score: contentMatch.score))
                         }
                     case 3: // no match
-                        searchService.searchPathAndContentState = .NoMatch
+                        DispatchQueue.main.sync {
+                            searchService.searchPathAndContentState = .NoMatch
+                        }
                         return
                     default:
                         print("UNRECOGNIZED SEARCH RETURN")
@@ -72,7 +74,10 @@ class SearchService: ObservableObject {
                     }
                     
                     searchResults = searchResults.sorted { $0.score > $1.score }
-                    searchService.searchPathAndContentState = .SearchSuccessful(searchResults)
+                    DispatchQueue.main.sync {
+                        searchService.searchPathAndContentState = .SearchSuccessful(searchResults)
+                    }
+                    
                 }) {
                 case .success(_):
                     print("Finished search")
@@ -131,29 +136,30 @@ struct FilePathInfo: Identifiable {
 public enum SearchResult: Identifiable {
     public var id: UUID {
         switch self {
-        case .PathMatch(let meta, _, _, _, _):
+        case .PathMatch(let meta, _, _, _):
             return meta.id
-        case .ContentMatch(let meta, _, _, _):
+        case .ContentMatch(let meta, _, _, _, _):
             return meta.id
         }
     }
     
     public var score: Int {
         switch self {
-        case .PathMatch(_, _, _, let score, _):
+        case .PathMatch(_, _, _, let score):
             return score
-        case .ContentMatch(_, _, _, let contentMatch):
-            return contentMatch.score
+        case .ContentMatch(_, _, _, _, let score):
+            return score
         }
         
     }
     
-    case PathMatch(meta: File, name: String, path: String, score: Int, matchedIndices: [Int])
-    case ContentMatch(meta: File, name: String, path: String, contentMatch: ContentMatch)
+    case PathMatch(meta: File, name: String, path: String, score: Int)
+    case ContentMatch(meta: File, name: String, path: String, paragraph: String, score: Int)
 }
 
 public enum SearchPathAndContentState {
     case NotSearching
+    case Idle
     case Searching
     case NoMatch
     case SearchSuccessful([SearchResult])
