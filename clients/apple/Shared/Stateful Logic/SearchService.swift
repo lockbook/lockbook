@@ -9,11 +9,11 @@ class SearchService: ObservableObject {
     }
     
     @Published var isPathSearching: Bool = false
-    @Published var isPathAndContentSearching: Bool = false
     @Published var pathsSearchResult: Array<FilePathInfo> = []
-    @Published var pathsAndContentSearchResult: Array<PathAndContentSearchResult> = []
+    @Published var searchPathAndContentState: SearchPathAndContentState = .NotSearching
     
     #if os(iOS)
+    
     func asyncSearchFilePath(input: String) {
         DispatchQueue.main.async {
             switch self.core.searchFilePaths(input: input) {
@@ -28,6 +28,8 @@ class SearchService: ObservableObject {
     }
     
     func startSearchThread() {
+        searchPathAndContentState = .Searching
+        
         DispatchQueue.global(qos: .userInitiated).async {
             withUnsafePointer(to: self) { searchServicePtr in
                 switch self.core.startSearch(context: searchServicePtr, updateStatus: { context, searchResultType, searchResult in
@@ -41,18 +43,36 @@ class SearchService: ObservableObject {
                                         
                     let data = String(cString: searchResult!).data(using: .utf8)!
                     
+                    var searchResults: [SearchResult] = []
+                    if case .SearchSuccessful(let originalSearchResults) = searchService.searchPathAndContentState {
+                        searchResults = originalSearchResults
+                    } else {
+                        searchResults = []
+                    }
+                    
                     switch searchResultType {
                     case 1: // file path match
-                        searchService.pathsAndContentSearchResult.append(.FileNameMatch(try! decoder.decode(FileNameMatch.self, from: data)))
+                        let nameMatch: FileNameMatch = try! decoder.decode(FileNameMatch.self, from: data)
+                        let pathComp = nameMatch.path.getNameAndPath()
+                        
+                        searchResults.append(.PathMatch(meta: DI.files.idsAndFiles[nameMatch.id]!, name: pathComp.name, path: pathComp.path, score: nameMatch.score, matchedIndices: nameMatch.matchedIndices))
                     case 2: // file content match
-                        searchService.pathsAndContentSearchResult.append(.FileContentMatches(try! decoder.decode(FileContentMatches.self, from: data)))
+                        let contentMatches: FileContentMatches = try! decoder.decode(FileContentMatches.self, from: data)
+                        let pathComp = contentMatches.path.getNameAndPath()
+                        
+                        for contentMatch in contentMatches.contentMatches {
+                            searchResults.append(.ContentMatch(meta: DI.files.idsAndFiles[contentMatches.id]!, name: pathComp.name, path: pathComp.path, contentMatch: contentMatch))
+                        }
                     case 3: // no match
-                        searchService.pathsAndContentSearchResult.append(.NoMatch(NoMatch()))
+                        searchService.searchPathAndContentState = .NoMatch
+                        return
                     default:
                         print("UNRECOGNIZED SEARCH RETURN")
                         return
                     }
                     
+                    searchResults = searchResults.sorted { $0.score > $1.score }
+                    searchService.searchPathAndContentState = .SearchSuccessful(searchResults)
                 }) {
                 case .success(_):
                     print("Finished search")
@@ -65,7 +85,7 @@ class SearchService: ObservableObject {
     }
     
     func search(query: String) {
-        pathsAndContentSearchResult.removeAll()
+        searchPathAndContentState = .Searching
         
         if case .failure(let err) = self.core.searchQuery(query: query) {
             DI.errors.handleError(err)
@@ -76,6 +96,8 @@ class SearchService: ObservableObject {
         if case .failure(let err) = self.core.endSearch() {
             DI.errors.handleError(err)
         }
+        
+        searchPathAndContentState = .NotSearching
     }
     
     #endif
@@ -94,10 +116,6 @@ class SearchService: ObservableObject {
         isPathSearching = true
     }
     
-    func startPathAndContentSearch() {
-        isPathAndContentSearching = true
-    }
-    
     func submitSearch(id: UUID) {
         DI.currentDoc.selectedDocument = DI.files.idsAndFiles[id]!
     }
@@ -109,3 +127,35 @@ struct FilePathInfo: Identifiable {
     let meta: File
     let searchResult: SearchResultItem
 }
+
+public enum SearchResult: Identifiable {
+    public var id: UUID {
+        switch self {
+        case .PathMatch(let meta, _, _, _, _):
+            return meta.id
+        case .ContentMatch(let meta, _, _, _):
+            return meta.id
+        }
+    }
+    
+    public var score: Int {
+        switch self {
+        case .PathMatch(_, _, _, let score, _):
+            return score
+        case .ContentMatch(_, _, _, let contentMatch):
+            return contentMatch.score
+        }
+        
+    }
+    
+    case PathMatch(meta: File, name: String, path: String, score: Int, matchedIndices: [Int])
+    case ContentMatch(meta: File, name: String, path: String, contentMatch: ContentMatch)
+}
+
+public enum SearchPathAndContentState {
+    case NotSearching
+    case Searching
+    case NoMatch
+    case SearchSuccessful([SearchResult])
+}
+

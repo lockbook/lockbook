@@ -78,28 +78,24 @@ struct RealFileCell: View {
 }
 
 struct SearchFilePathCell: View {
-    let pathResult: FileNameMatch
-
+    let name: String
+    let path: String
+    let matchedIndices: [Int]
+    
     var body: some View {
         VStack(alignment: .leading, spacing: 5) {
-            HStack {
-                
-                Image(systemName: "doc.fill")
-                        .foregroundColor(.secondary)
-                
-                Text(pathResult.path)
-                        .font(.title3)
-            }
+            Text(name)
+                .font(.title3)
             
             HStack {
+                Image(systemName: "doc")
+                    .foregroundColor(.accentColor)
+                    .font(.caption)
                 
-                
-                Text(pathResult.score.formatted())
-                        .foregroundColor(.secondary)
-                
-                Spacer()
+                Text(path)
+                        .foregroundColor(.accentColor)
+                        .font(.caption)
             }
-                    .font(.footnote)
         }
             .padding(.vertical, 5)
             .contentShape(Rectangle()) /// https://stackoverflow.com/questions/57258371/swiftui-increase-tap-drag-area-for-user-interaction
@@ -107,33 +103,32 @@ struct SearchFilePathCell: View {
 }
 
 struct SearchFileContentCell: View {
-    let contentResult: FileContentMatches
+    let name: String
+    let path: String
+    let paragraph: String
+    let matchedIndices: [Int]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 5) {
-            Text(contentResult.path)
-                    .font(.title3)
+            Text(name)
+                .font(.title3)
+            
             HStack {
-                Image(systemName: "doc.fill")
-                        .foregroundColor(.secondary)
+                Image(systemName: "doc")
+                    .foregroundColor(.accentColor)
+                    .font(.caption2)
                 
-                Spacer()
+                Text(path)
+                        .foregroundColor(.accentColor)
+                        .font(.caption2)
             }
-                    .font(.footnote)
+            .padding(.bottom)
+            
+            Text(paragraph)
+                .font(.caption)
         }
             .padding(.vertical, 5)
             .contentShape(Rectangle()) /// https://stackoverflow.com/questions/57258371/swiftui-increase-tap-drag-area-for-user-interaction
-    }
-}
-
-struct SearchFilePathCell_Previews: PreviewProvider {
-    
-    static var previews: some View {
-        VStack {
-            SearchFilePathCell(pathResult: FileNameMatch())
-            SearchFilePathCell(pathResult: FileNameMatch())
-            SearchFilePathCell(pathResult: FileNameMatch())
-        }
     }
 }
 

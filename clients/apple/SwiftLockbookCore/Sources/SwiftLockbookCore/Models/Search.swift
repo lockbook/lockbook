@@ -12,29 +12,19 @@ extension String {
         let components = self.split(separator: "/")
         
         let name = String(components.last ?? "ERROR")
-        let path = components.dropLast().joined(separator: "/")
+        let path = components.dropLast().joined(separator: "/").replacingOccurrences(of: "/", with: " > ")
 
         
         return (name, path)
     }
 }
 
-//public protocol PathAndContentSearchResult {
-//
-//}
-
-public struct FileNameMatch: Decodable {
-    public var id: UUID
+public struct FileNameMatch: Decodable, Identifiable {
+    public var id = UUID()
+    
     public var path: String
     public var matchedIndices: [Int]
-    public var score: Int64
-    
-    public init() {
-        self.id = UUID()
-        self.path = "/personal/money/bitcoin.md"
-        self.matchedIndices = [2, 5, 6, 7, 8]
-        self.score = 2
-    }
+    public var score: Int
 }
 
 public struct FileContentMatches: Decodable {
@@ -50,14 +40,5 @@ public struct ContentMatch: Decodable {
 }
 
 public struct NoMatch {
-    public init() {
-        
-    }
+    public init() {}
 }
-
-public enum PathAndContentSearchResult {
-    case FileNameMatch(FileNameMatch)
-    case FileContentMatches(FileContentMatches)
-    case NoMatch(NoMatch)
-}
-

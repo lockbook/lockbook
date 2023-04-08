@@ -18,35 +18,35 @@ struct FileTreeView: View {
     var body: some View {
         VStack {
             VStack {
-                if(search.isPathAndContentSearching) {
-                    if(search.pathsAndContentSearchResult.isEmpty) {
-                        ProgressView()
-                    } else if(search.pathsAndContentSearchResult[0] is NoMatch) {
-                        Text("NO match")
-                    } else {
-                        
-                    }
-                } else {
+                switch search.searchPathAndContentState {
+                case .NotSearching:
                     OutlineSection(root: currentFolder)
+                case .NoMatch:
+                    Text("NO match")
+                case .Searching:
+                    ProgressView()
+                case .SearchSuccessful(let results):
+                    List(results) { result in
+                        switch result {
+                        case .PathMatch(_, let name, let path, _, let matchedIndices):
+                            SearchFilePathCell(name: name, path: path, matchedIndices: matchedIndices)
+                        case .ContentMatch(_, let name, let path, let contentMatch):
+                            SearchFileContentCell(name: name, path: path, paragraph: contentMatch.paragraph, matchedIndices: contentMatch.matchedIndices)
+                        }
+                    }
                 }
             }
                 .searchable(text: $searchInput)
-                .onChange(of: searchInput) { newInput in
-                    print("NEW INPUT \(newInput)")
-                    if(newInput != "") {
-                        if(!search.isPathAndContentSearching) {
+                .onChange(of: searchInput) { [searchInput] newInput in
+                    if(newInput.isEmpty && !searchInput.isEmpty) {
+                        search.endSearch()
+                    } else if (!newInput.isEmpty && searchInput.isEmpty) {
+                        if(searchInput.isEmpty) {
                             search.startSearchThread()
-                            search.isPathAndContentSearching = true
                             return
                         }
-                        search.isPathAndContentSearching = true
-                        search.search(query: newInput)
-                    } else {
-                        if(search.isPathAndContentSearching) {
-                            search.endSearch()
-                        }
                         
-                        search.isPathAndContentSearching = false
+                        search.search(query: newInput)
                     }
                 }
 
