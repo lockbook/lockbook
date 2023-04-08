@@ -36,7 +36,7 @@ pub enum SettingsResponse {
 }
 
 impl SettingsModal {
-    pub fn open(core: &Arc<lb::Core>, s: &Arc<RwLock<Settings>>) -> Option<Box<Self>> {
+    pub fn new(core: &Arc<lb::Core>, s: &Arc<RwLock<Settings>>) -> Self {
         let export_result = core.export_account().map_err(|err| format!("{:?}", err)); // TODO
 
         let sub_info_result = core
@@ -48,7 +48,7 @@ impl SettingsModal {
             .get_uncompressed_usage()
             .map_err(|err| format!("{:?}", err)); // TODO
 
-        Some(Box::new(Self {
+        Self {
             core: core.clone(),
             settings: s.clone(),
             account: AccountSettings::new(export_result),
@@ -59,7 +59,7 @@ impl SettingsModal {
                 upgrading: None,
             },
             active_tab: SettingsTab::Account,
-        }))
+        }
     }
 
     fn show_tab_labels(&mut self, ui: &mut egui::Ui) {
@@ -94,8 +94,8 @@ impl SettingsModal {
                 ui.set_height(height);
 
                 StripBuilder::new(ui)
-                    .size(Size::remainder())
-                    .size(Size::exact(4.0))
+                    .size(Size::remainder()) // Main tab content.
+                    .size(Size::exact(4.0)) // Active bar indicator.
                     .horizontal(|mut strip| {
                         strip.cell(|ui| {
                             ui.vertical_centered(|ui| {

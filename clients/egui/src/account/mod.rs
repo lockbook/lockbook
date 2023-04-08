@@ -103,10 +103,10 @@ impl AccountScreen {
                     OpenModal::NewDoc(maybe_parent) => self.open_new_doc_modal(maybe_parent),
                     OpenModal::NewFolder(maybe_parent) => self.open_new_folder_modal(maybe_parent),
                     OpenModal::Settings => {
-                        self.modals.settings = SettingsModal::open(&self.core, &self.settings);
+                        self.modals.settings = Some(SettingsModal::new(&self.core, &self.settings));
                     }
                     OpenModal::ConfirmDelete(files) => {
-                        self.modals.confirm_delete = ConfirmDeleteModal::open(files);
+                        self.modals.confirm_delete = Some(ConfirmDeleteModal::new(files));
                     }
                 },
                 AccountUpdate::FileCreated(result) => match result {
@@ -162,10 +162,9 @@ impl AccountScreen {
                 AccountUpdate::DoneDeleting => self.modals.confirm_delete = None,
                 AccountUpdate::ReloadTree(root) => self.tree.root = root,
                 AccountUpdate::ReloadTabs(mut new_tabs) => {
-                    let ws = &mut self.workspace;
-                    let active_id = ws.current_tab().map(|t| t.id);
-                    for i in (0..ws.tabs.len()).rev() {
-                        let t = &mut ws.tabs[i];
+                    let active_id = self.workspace.current_tab().map(|t| t.id);
+                    for i in (0..self.workspace.tabs.len()).rev() {
+                        let t = &mut self.workspace.tabs[i];
                         if let Some(new_tab_result) = new_tabs.remove(&t.id) {
                             match new_tab_result {
                                 Ok(new_tab) => {
@@ -181,7 +180,7 @@ impl AccountScreen {
                                 }
                             }
                         } else {
-                            ws.close_tab(i);
+                            self.close_tab(i);
                         }
                     }
                 }
@@ -210,13 +209,12 @@ impl AccountScreen {
 
         // Ctrl-S to save current tab.
         if ctx.input_mut().consume_key(CTRL, egui::Key::S) {
-            self.save_current_tab();
+            self.save_tab(self.workspace.active_tab);
         }
 
         // Ctrl-W to close current tab.
         if ctx.input_mut().consume_key(CTRL, egui::Key::W) && !self.workspace.is_empty() {
-            self.save_current_tab();
-            self.workspace.close_current_tab();
+            self.close_tab(self.workspace.active_tab);
             frame.set_window_title(
                 self.workspace
                     .current_tab()
@@ -234,13 +232,13 @@ impl AccountScreen {
             if let Some(search) = &mut self.modals.search {
                 search.focus_select_all();
             } else {
-                self.modals.search = SearchModal::open(&self.core, ctx);
+                self.modals.search = Some(SearchModal::new(&self.core, ctx));
             }
         }
 
         // Ctrl-, to open settings modal.
         if self.modals.settings.is_none() && consume_key(ctx, ',') {
-            self.modals.settings = SettingsModal::open(&self.core, &self.settings);
+            self.modals.settings = Some(SettingsModal::new(&self.core, &self.settings));
         }
 
         // Alt-H pressed to toggle the help modal.
@@ -248,7 +246,7 @@ impl AccountScreen {
             let d = &mut self.modals.help;
             *d = match d {
                 Some(_) => None,
-                None => Some(Box::default()),
+                None => Some(HelpModal),
             };
         }
 
@@ -317,7 +315,7 @@ impl AccountScreen {
 
     fn save_settings(&mut self) {
         if let Err(err) = self.settings.read().unwrap().to_file() {
-            self.modals.error = ErrorModal::open(err);
+            self.modals.error = Some(ErrorModal::new(err));
         }
     }
 
@@ -409,9 +407,9 @@ impl AccountScreen {
         let parent_path = self.core.get_path_by_id(parent_id).unwrap();
 
         if typ == lb::FileType::Folder {
-            self.modals.new_folder = Some(Box::new(NewFolderModal::new(parent_path)));
+            self.modals.new_folder = Some(NewFolderModal::new(parent_path));
         } else {
-            self.modals.new_doc = Some(Box::new(NewDocModal::new(parent_path)));
+            self.modals.new_doc = Some(NewDocModal::new(parent_path));
         }
     }
 

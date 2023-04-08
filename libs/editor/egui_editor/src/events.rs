@@ -304,6 +304,47 @@ fn calc_modification(
 
                 cursor.selection_origin = None;
             }
+            Event::Key { key: Key::Delete, pressed: true, modifiers } => {
+                cursor.x_target = None;
+
+                if modifiers.command {
+                    // select current position to line end
+                    let (galley_idx, cur_cursor) =
+                        galleys.galley_and_cursor_by_char_offset(cursor.pos, &buffer.current.segs);
+                    let galley = &galleys[galley_idx];
+                    let end_of_row_cursor = galley.galley.cursor_end_of_row(&cur_cursor);
+                    let end_of_row_pos = galleys.char_offset_by_galley_and_cursor(
+                        galley_idx,
+                        &end_of_row_cursor,
+                        &buffer.current.segs,
+                    );
+
+                    modifications.push(SubModification::Cursor {
+                        cursor: (cursor.pos, end_of_row_pos).into(),
+                    })
+                } else if modifiers.alt {
+                    // select word
+                    let begin_of_word_pos = cursor.pos;
+                    cursor.advance_word(false, &buffer.current, &buffer.current.segs, galleys);
+                    let end_of_word_pos = cursor.pos;
+
+                    modifications.push(SubModification::Cursor {
+                        cursor: (begin_of_word_pos, end_of_word_pos).into(),
+                    })
+                } else if cursor.selection().is_none()
+                    && cursor.pos != buffer.current.segs.last_cursor_position()
+                {
+                    // select char after cursor
+                    modifications.push(SubModification::Cursor {
+                        cursor: (cursor.pos, cursor.pos + 1).into(),
+                    })
+                }
+
+                // delete selected text or nothing
+                modifications.push(SubModification::Delete(0.into()));
+
+                cursor.selection_origin = None;
+            }
             Event::Key { key: Key::Enter, pressed: true, modifiers: _ } => {
                 cursor.x_target = None;
 
@@ -761,14 +802,6 @@ fn calc_modification(
                             {
                                 cursor.pos = click_offset;
                             }
-
-                            cursor.advance_word(
-                                false,
-                                &buffer.current,
-                                &buffer.current.segs,
-                                galleys,
-                            );
-                            let end_of_word_pos = cursor.pos;
                             cursor.advance_word(
                                 true,
                                 &buffer.current,
@@ -776,6 +809,13 @@ fn calc_modification(
                                 galleys,
                             );
                             let begin_of_word_pos = cursor.pos;
+                            cursor.advance_word(
+                                false,
+                                &buffer.current,
+                                &buffer.current.segs,
+                                galleys,
+                            );
+                            let end_of_word_pos = cursor.pos;
 
                             cursor.selection_origin = Some(begin_of_word_pos);
                             cursor.pos = end_of_word_pos;

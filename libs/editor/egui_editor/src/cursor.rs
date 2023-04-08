@@ -186,7 +186,7 @@ impl Cursor {
     pub fn advance_word(
         &mut self, backwards: bool, buffer: &SubBuffer, segs: &UnicodeSegs, galleys: &Galleys,
     ) {
-        let (mut galley_idx, mut cursor) = galleys.galley_and_cursor_by_char_offset(self.pos, segs);
+        let mut galley_idx = galleys.galley_at_char(self.pos, segs);
         let galley = &galleys[galley_idx];
         let galley_text = galley.text(buffer);
         let galley_text_range = galley.text_range(segs);
@@ -194,16 +194,15 @@ impl Cursor {
         let word_bound_indices_with_words = galley_text.split_word_bound_indices();
         let word_bound_indices = word_bound_indices_with_words
             .clone()
-            .map(|(idx, _)| segs.byte_offset_to_char(DocByteOffset(idx)))
+            .map(|(idx, _)| {
+                segs.byte_offset_to_char(galley.byte_range().start + RelByteOffset(idx))
+            })
             .chain(iter::once(galley_text_range.end)) // add last word boundary (note: no corresponding word)
             .collect::<Vec<_>>();
         let words = word_bound_indices_with_words
             .map(|(_, word)| word)
             .collect::<Vec<_>>();
-        let i = match (
-            word_bound_indices.binary_search(&DocCharOffset(cursor.ccursor.index)),
-            backwards,
-        ) {
+        let i = match (word_bound_indices.binary_search(&self.pos), backwards) {
             (Ok(i), _) | (Err(i), true) => i,
             (Err(i), false) => i - 1, // when moving forward from middle of word, behave as if from start of word
         };
@@ -214,7 +213,7 @@ impl Cursor {
             for i in i..words.len() {
                 if !words[i].trim().is_empty() {
                     found = true;
-                    cursor.ccursor.index = word_bound_indices[i + 1].0;
+                    self.pos = word_bound_indices[i + 1];
                     break;
                 }
             }
@@ -224,11 +223,13 @@ impl Cursor {
                 // ...advance to the start of the next galley if there is one...
                 if galley_idx + 1 < galleys.len() {
                     galley_idx += 1;
-                    cursor.ccursor.index = 0;
+                    let galley = &galleys[galley_idx];
+                    let galley_text_range = galley.text_range(segs);
+                    self.pos = galley_text_range.start;
                 }
                 // ...or advance to the end of this galley
                 else {
-                    cursor.ccursor.index = (galley_text_range.end - galley_text_range.start).0;
+                    self.pos = galley_text_range.end;
                 }
             }
         }
@@ -238,7 +239,7 @@ impl Cursor {
             for i in (0..i).rev() {
                 if !words[i].trim().is_empty() {
                     found = true;
-                    cursor.ccursor.index = word_bound_indices[i].0;
+                    self.pos = word_bound_indices[i];
                     break;
                 }
             }
@@ -250,16 +251,14 @@ impl Cursor {
                     galley_idx -= 1;
                     let galley = &galleys[galley_idx];
                     let galley_text_range = galley.text_range(segs);
-                    cursor.ccursor.index = (galley_text_range.end - galley_text_range.start).0;
+                    self.pos = galley_text_range.end;
                 }
                 // ...or advance to the start of this galley
                 else {
-                    cursor.ccursor.index = 0;
+                    self.pos = galley_text_range.start;
                 }
             }
         }
-
-        self.pos = galleys.char_offset_by_galley_and_cursor(galley_idx, &cursor, segs);
     }
 
     pub fn process_click_instant(&mut self, t: Instant) {

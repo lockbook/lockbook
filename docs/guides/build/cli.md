@@ -1,4 +1,9 @@
-# CLI Building
+# Build CLI
 
-- Install stable rust toolchain.
-- Go into the [CLI folder](/clients/cli) and `cargo build --release`. To add `lockbook` to your path you can `cargo install --path .`
+Prerequisites:
+- Stable rust toolchain
+
+Steps:
+- In `/clients/cli` run `cargo build`
+
+Note: to install `lockbook` on your PATH you can use `cargo install --path .`
