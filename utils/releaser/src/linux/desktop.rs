@@ -116,7 +116,7 @@ arch=('x86_64' 'i686')
 url="https://github.com/lockbook/lockbook"
 pkgdesc="The private, polished note-taking platform."
 license=('BSD-3-Clause')
-makedepends=('rust' 'cargo' 'git')
+makedepends=('cargo' 'git' 'cmake' 'base-devel')
 depends=()
 provides=('lockbook-desktop')
 conflicts=('lockbook-desktop')
@@ -131,7 +131,6 @@ pkgver() {{
 build() {{
   echo $_pkgname
   cd $srcdir/lockbook/clients/egui
-  rustup default 1.66
   cargo build --release --locked
 }}
 
@@ -150,13 +149,13 @@ pkgbase = lockbook-desktop
 	pkgver = {version}
 	pkgrel = 1
 	url = https://github.com/lockbook/lockbook
-	arch = x86_64
-	arch = i686
+	arch = any
 	groups = lockbook
 	license = BSD-3-Clause
-	makedepends = rust
 	makedepends = cargo
 	makedepends = git
+	makedepends = cmake
+	makedepends = base-devel
 	provides = lockbook-desktop
 	conflicts = lockbook-desktop
 	source = git+https://github.com/lockbook/aur-lockbook-desktop.git

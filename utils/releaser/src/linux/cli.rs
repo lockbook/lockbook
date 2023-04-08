@@ -106,7 +106,7 @@ arch=('x86_64' 'i686')
 url="https://github.com/lockbook/lockbook"
 pkgdesc="The private, polished note-taking platform."
 license=('BSD-3-Clause')
-makedepends=('rust' 'cargo' 'git')
+makedepends=('cargo' 'git')
 provides=('lockbook')
 conflicts=('lockbook')
 source=("git+https://github.com/lockbook/lockbook.git#tag=$pkgver")
@@ -141,7 +141,6 @@ pkgbase = lockbook
 	arch = i686
 	groups = lockbook
 	license = BSD-3-Clause
-	makedepends = rust
 	makedepends = cargo
 	makedepends = git
 	provides = lockbook
