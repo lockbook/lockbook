@@ -1,10 +1,10 @@
+use chrono::Datelike;
 use gh_release::RepoInfo;
 use regex::{Captures, Regex};
 use sha2::{Digest, Sha256};
 use std::path::PathBuf;
 use std::process::{Command, Output, Stdio};
 use std::{env, fs};
-use chrono::Datelike;
 use toml::Value;
 use toml_edit::{value, Document};
 
