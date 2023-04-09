@@ -5,8 +5,8 @@ mod indexes;
 mod info;
 mod validate;
 
-use std::env;
 use clap::{Parser, Subcommand};
+use std::env;
 
 use crate::error::Error;
 use crate::indexes::CliIndex;
@@ -19,23 +19,17 @@ pub enum Admin {
     /// Disappear a user
     ///
     /// Frees up their username
-    DisappearAccount {
-        username: String,
-    },
+    DisappearAccount { username: String },
 
     /// Disappear a file
     ///
     /// When you delete a file you flip that file's is_deleted flag to false. In a disaster recovery
     /// scenario, you may want to *disappear* a file so that it never existed. This is useful in a
     /// scenario where your server let in an invalid file.
-    DisappearFile {
-        id: Uuid,
-    },
+    DisappearFile { id: Uuid },
 
     /// Validates file trees of all users on the server and prints any failures
-    ValidateAccount {
-        username: String,
-    },
+    ValidateAccount { username: String },
 
     /// Performs server-wide integrity checks
     ValidateServer,
@@ -69,9 +63,7 @@ pub enum Admin {
     RebuildIndex(CliIndex),
 
     /// Prints information about a file as it appears on the server
-    FileInfo {
-        id: Uuid,
-    },
+    FileInfo { id: Uuid },
 
     /// Manually set a user's tier and their subscription information
     #[command(subcommand)]

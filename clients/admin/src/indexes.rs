@@ -1,5 +1,5 @@
-use clap::Subcommand;
 use crate::Res;
+use clap::Subcommand;
 
 use lockbook_core::{Core, ServerIndex};
 

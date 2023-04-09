@@ -5,9 +5,9 @@ mod setup;
 mod utils;
 mod workspace;
 
+use clap::Parser;
 use std::fs;
 use std::path::PathBuf;
-use clap::Parser;
 
 #[derive(Debug, PartialEq, Parser)]
 enum Commands {
