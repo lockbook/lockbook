@@ -1,7 +1,6 @@
 #![allow(non_snake_case)]
 
 use basic_human_duration::ChronoHumanDuration;
-use time::Duration;
 use crossbeam::channel::Sender;
 use jni::objects::{JClass, JObject, JString, JValue};
 use jni::sys::{jboolean, jbyteArray, jint, jlong, jstring};
@@ -10,6 +9,7 @@ use lazy_static::lazy_static;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use std::sync::{Arc, Mutex};
+use time::Duration;
 
 use lockbook_core::service::search_service::{SearchRequest, SearchResult};
 use lockbook_core::{

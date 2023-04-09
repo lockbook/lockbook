@@ -54,7 +54,8 @@ pub fn android_version_code() -> i64 {
 
     String::from_utf8_lossy(version_bytes.as_slice())
         .trim()
-        .parse().unwrap()
+        .parse()
+        .unwrap()
 }
 
 pub fn sha_file(file: &str) -> String {
