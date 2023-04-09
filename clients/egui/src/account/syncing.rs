@@ -173,6 +173,10 @@ impl super::AccountScreen {
             return;
         }
 
+        for (i, _) in self.workspace.tabs.iter().enumerate() {
+            self.save_tab(i);
+        }
+
         let sync_lock = self.sync.lock.clone();
         let core = self.core.clone();
         let update_tx = self.update_tx.clone();
