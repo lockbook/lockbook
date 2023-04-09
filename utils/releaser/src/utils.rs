@@ -1,10 +1,10 @@
-use chrono::Datelike;
 use gh_release::RepoInfo;
 use regex::{Captures, Regex};
 use sha2::{Digest, Sha256};
 use std::path::PathBuf;
 use std::process::{Command, Output, Stdio};
 use std::{env, fs};
+use time::OffsetDateTime;
 use toml::Value;
 use toml_edit::{value, Document};
 
@@ -43,7 +43,7 @@ pub fn core_version() -> String {
         .to_string()
 }
 
-pub fn android_version_code() -> String {
+pub fn android_version_code() -> i64 {
     let version_bytes = Command::new("./gradlew")
         .args(["-q", "printVersionCode"])
         .current_dir("clients/android")
@@ -54,7 +54,7 @@ pub fn android_version_code() -> String {
 
     String::from_utf8_lossy(version_bytes.as_slice())
         .trim()
-        .to_string()
+        .parse().unwrap()
 }
 
 pub fn sha_file(file: &str) -> String {
@@ -178,8 +178,8 @@ pub fn bump_versions(bump_type: Option<String>) {
             .args(["-c", &format!("Set CFBundleShortVersionString {new_version}"), plist])
             .spawn()
             .unwrap();
-        let now = chrono::Utc::now();
-        let month = now.month();
+        let now = OffsetDateTime::now_utc();
+        let month = now.month() as u8;
         let day = now.day();
         let year = now.year();
         Command::new("/usr/libexec/Plistbuddy")

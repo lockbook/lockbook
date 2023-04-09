@@ -1,7 +1,7 @@
 #![allow(non_snake_case)]
 
 use basic_human_duration::ChronoHumanDuration;
-use chrono::Duration;
+use time::Duration;
 use crossbeam::channel::Sender;
 use jni::objects::{JClass, JObject, JString, JValue};
 use jni::sys::{jboolean, jbyteArray, jint, jlong, jstring};

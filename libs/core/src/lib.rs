@@ -10,7 +10,7 @@ mod repo;
 
 pub use base64;
 pub use basic_human_duration::ChronoHumanDuration;
-pub use chrono::Duration;
+pub use time::Duration;
 pub use libsecp256k1::PublicKey;
 use lockbook_shared::document_repo::RankingWeights;
 pub use uuid::Uuid;

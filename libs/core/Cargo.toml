@@ -18,9 +18,9 @@ no-network = ["lockbook-server", "tokio"]
 
 [dependencies]
 base64 = "0.13.0"
-basic-human-duration = "0.1.2"
+basic-human-duration = "0.2.0"
 bincode = "1.3.3"
-chrono = "0.4.15"
+time = "0.3.20"
 diffy = "0.2.0"
 image = "0.24.3"
 raqote = { version = "0.8.0", default-features = false }
