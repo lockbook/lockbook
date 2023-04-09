@@ -5,8 +5,8 @@ use std::collections::HashMap;
 use std::fs::{File, OpenOptions};
 use std::io::Write;
 use std::sync::{Arc, Mutex};
-use std::{fs, thread};
 use std::time::Duration;
+use std::{fs, thread};
 use time::Instant;
 use uuid::Uuid;
 
