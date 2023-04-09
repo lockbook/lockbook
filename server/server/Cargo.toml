@@ -40,9 +40,9 @@ tracing-appender = "0.2"
 itertools = "0.10.1"
 reqwest = { version = "0.11", features = ["json"] }
 jsonwebtoken = "8.2.0"
-x509-parser = { version = "0.14.0", features = ["verify", "validate"]}
-db-rs = "0.1.16"
-db-rs-derive = "0.1.16"
+x509-parser = { version = "0.15.0", features = ["verify", "validate"]}
+db-rs = "0.1.18"
+db-rs-derive = "0.1.18"
 
 [build-dependencies]
 shadow-rs = "0.21.0"

@@ -6,8 +6,7 @@ mod info;
 mod validate;
 
 use std::env;
-
-use structopt::StructOpt;
+use clap::{Parser, Subcommand};
 
 use crate::error::Error;
 use crate::indexes::CliIndex;
@@ -15,7 +14,7 @@ use lockbook_core::{
     Config, Core, GooglePlayAccountState, StripeAccountState, UnixTimeMillis, Uuid,
 };
 
-#[derive(Debug, PartialEq, Eq, StructOpt)]
+#[derive(Debug, PartialEq, Eq, Parser)]
 pub enum Admin {
     /// Disappear a user
     ///
@@ -66,6 +65,7 @@ pub enum Admin {
         public_key: Option<String>,
     },
 
+    #[command(subcommand)]
     RebuildIndex(CliIndex),
 
     /// Prints information about a file as it appears on the server
@@ -74,10 +74,11 @@ pub enum Admin {
     },
 
     /// Manually set a user's tier and their subscription information
+    #[command(subcommand)]
     SetUserTier(SetUserTier),
 }
 
-#[derive(Debug, PartialEq, Eq, StructOpt)]
+#[derive(Debug, PartialEq, Eq, Subcommand)]
 pub enum SetUserTier {
     Stripe {
         username: String,
@@ -122,7 +123,7 @@ pub fn main() {
 
     let core = Core::init(&Config { writeable_path, logs: true, colored_logs: true }).unwrap();
 
-    let result = match Admin::from_args() {
+    let result = match Admin::parse() {
         Admin::DisappearAccount { username } => disappear::account(&core, username),
         Admin::ListUsers { premium, app_store_premium, google_play_premium, stripe_premium } => {
             account::list(&core, premium, app_store_premium, google_play_premium, stripe_premium)

@@ -11,10 +11,10 @@ mod windows;
 use crate::secrets::*;
 use crate::utils::root;
 
-use structopt::StructOpt;
+use clap::Parser;
 use utils::bump_versions;
 
-#[derive(PartialEq, StructOpt)]
+#[derive(Parser, PartialEq)]
 #[structopt(name = "basic")]
 enum Releaser {
     All,
@@ -26,7 +26,7 @@ enum Releaser {
     ReleaseLinux,
     CreateGithubRelease,
     BumpVersion {
-        #[structopt(short, long, name = "bump type")]
+        #[arg(short, long, name = "bump type")]
         increment: Option<String>,
     },
 }
@@ -35,7 +35,7 @@ fn main() {
     // Fail fast if we're invoking from the wrong location
     root();
 
-    from_args(Releaser::from_args());
+    from_args(Releaser::parse());
 }
 
 fn from_args(releaser: Releaser) {
