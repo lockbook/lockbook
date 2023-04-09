@@ -86,7 +86,7 @@ macro_rules! core_req {
                         Ok(Some(username)) => username,
                         Ok(None) => "~unknown~".to_string(),
                         Err(error) => {
-                            error!(?error, "hmdb error");
+                            error!(?error, "dbrs error");
                             "~error~".to_string()
                         }
                     };
