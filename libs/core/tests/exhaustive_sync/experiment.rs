@@ -1,13 +1,13 @@
 use crate::exhaustive_sync::trial::Trial;
 use basic_human_duration::ChronoHumanDuration;
-use core::time;
 use itertools::Itertools;
 use std::collections::HashMap;
 use std::fs::{File, OpenOptions};
 use std::io::Write;
 use std::sync::{Arc, Mutex};
-use std::time::Instant;
 use std::{fs, thread};
+use std::time::Duration;
+use time::Instant;
 use uuid::Uuid;
 
 pub type ThreadID = usize;
@@ -93,7 +93,7 @@ impl Experiment {
                             Self::publish_results(thread_id, thread_state.clone(), work, &mutants);
                         }
                         (None, true) => {
-                            thread::sleep(time::Duration::from_millis(100));
+                            thread::sleep(Duration::from_millis(100));
                         }
                         (None, false) => {
                             println!("no work found, stopping");
@@ -124,18 +124,17 @@ impl Experiment {
                     experiments.possibly_stalled()
                 );
             }
-            thread::sleep(time::Duration::from_secs(5));
+            thread::sleep(Duration::from_secs(5));
         }
     }
 
     fn uptime(&self) -> String {
         let duration = self.start_time.elapsed();
-        let duration = chrono::Duration::from_std(duration).unwrap();
         duration.format_human().to_string()
     }
 
     fn trials_per_second(&self) -> u64 {
-        let seconds = self.start_time.elapsed().as_secs();
+        let seconds = self.start_time.elapsed().whole_seconds() as u64;
         let trials = self.done + self.errors;
 
         if seconds == 0 {
@@ -149,12 +148,12 @@ impl Experiment {
         self.running
             .iter()
             .map(|(thread, (start_time, trial_id))| (thread, start_time.elapsed(), trial_id))
-            .filter(|(_, elapsed, _)| elapsed.as_secs() > 10)
+            .filter(|(_, elapsed, _)| elapsed.whole_seconds() > 10)
             .sorted_by(|(_, elapsed_a, _), (_, elapsed_b, _)| Ord::cmp(&elapsed_a, &elapsed_b))
             .rev()
             .take(5)
             .map(|(thread, elapsed, trial)| {
-                format!("{:?}s, {}/{}", elapsed.as_secs(), thread, trial)
+                format!("{:?}s, {}/{}", elapsed.whole_seconds(), thread, trial)
             })
             .collect()
     }
