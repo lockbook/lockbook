@@ -1,5 +1,5 @@
-use crate::cursor::Cursor;
 use crate::debug::DebugInfo;
+use crate::input::cursor::Cursor;
 use crate::offset_types::{DocCharOffset, RelCharOffset};
 use crate::unicode_segs;
 use crate::unicode_segs::UnicodeSegs;
@@ -15,10 +15,20 @@ static MAX_UNDOS: usize = 100; // todo: make this much larger and measure perfor
 static UNDO_DEBOUNCE_PERIOD: Duration = Duration::from_millis(300);
 
 /// represents a modification made as a result of event processing
-pub type Modification = Vec<SubModification>; // todo: tinyvec candidate
+pub type Mutation = Vec<SubMutation>; // todo: tinyvec candidate
 
 #[derive(Clone, Debug)]
-pub enum SubModification {
+pub enum EditorMutation {
+    Buffer(Mutation), // todo: tinyvec candidate
+    Undo,
+    Redo,
+    // todo: redefine
+    // SetCursor { cursor: (DocCharOffset, DocCharOffset), marked: bool }, // set the cursor
+    // Replace { text: String }, // replace the current selection
+}
+
+#[derive(Clone, Debug)]
+pub enum SubMutation {
     Cursor { cursor: Cursor },    // modify the cursor state
     Insert { text: String },      // insert text at cursor location
     Delete(RelCharOffset),        // delete selection or characters before cursor
@@ -36,13 +46,13 @@ pub struct Buffer {
     pub undo_base: SubBuffer,
 
     /// modifications made between undo_base and raw;
-    pub undo_queue: VecDeque<Vec<Modification>>,
+    pub undo_queue: VecDeque<Vec<Mutation>>,
 
     /// additional, most recent element for queue, contains at most one text update, flushed to queue when another text update is applied
-    pub current_text_mods: Option<Vec<Modification>>,
+    pub current_text_mods: Option<Vec<Mutation>>,
 
     /// modifications reverted by undo and available for redo; used as a stack
-    pub redo_stack: Vec<Vec<Modification>>,
+    pub redo_stack: Vec<Vec<Mutation>>,
 
     // instant of last modification application
     pub last_apply: Instant,
@@ -82,21 +92,21 @@ impl Buffer {
     /// (optional), and a link that was opened (optional)
     // todo: less cloning
     pub fn apply(
-        &mut self, modification: Modification, debug: &mut DebugInfo,
+        &mut self, modification: Mutation, debug: &mut DebugInfo,
     ) -> (bool, Option<String>, Option<String>) {
         let now = Instant::now();
 
         // accumulate modifications into one modification until a non-cursor update is applied (for purposes of undo)
         if modification
             .iter()
-            .any(|m| matches!(m, SubModification::Insert { .. } | SubModification::Delete(..)))
+            .any(|m| matches!(m, SubMutation::Insert { .. } | SubMutation::Delete(..)))
         {
             if let Some(ref mut current_text_mods) = self.current_text_mods {
                 // extend current modification until new cursor placement
                 if current_text_mods.iter().any(|modification| {
-                    !modification.iter().any(|m| {
-                        matches!(m, SubModification::Insert { .. } | SubModification::Delete(..))
-                    })
+                    !modification
+                        .iter()
+                        .any(|m| matches!(m, SubMutation::Insert { .. } | SubMutation::Delete(..)))
                 }) || now - self.last_apply > UNDO_DEBOUNCE_PERIOD
                 {
                     self.undo_queue.push_back(current_text_mods.clone());
@@ -131,9 +141,9 @@ impl Buffer {
         if let Some(current_text_mods) = &self.current_text_mods {
             // don't undo cursor-only updates
             if !current_text_mods.iter().any(|modification| {
-                modification.iter().any(|m| {
-                    matches!(m, SubModification::Insert { .. } | SubModification::Delete(..))
-                })
+                modification
+                    .iter()
+                    .any(|m| matches!(m, SubMutation::Insert { .. } | SubMutation::Delete(..)))
             }) {
                 for m in current_text_mods {
                     self.current.apply_modification(m.clone(), debug);
@@ -198,7 +208,7 @@ impl SubBuffer {
     }
 
     fn apply_modification(
-        &mut self, mut mods: Modification, debug: &mut DebugInfo,
+        &mut self, mut mods: Mutation, debug: &mut DebugInfo,
     ) -> (bool, Option<String>, Option<String>) {
         let mut text_updated = false;
         let mut to_clipboard = None;
@@ -209,10 +219,10 @@ impl SubBuffer {
         while let Some(modification) = mods.pop() {
             // todo: reduce duplication
             match modification {
-                SubModification::Cursor { cursor: cur } => {
+                SubMutation::Cursor { cursor: cur } => {
                     cur_cursor = cur;
                 }
-                SubModification::Insert { text: text_replacement } => {
+                SubMutation::Insert { text: text_replacement } => {
                     let replaced_text_range = cur_cursor
                         .selection()
                         .unwrap_or(Range { start: cur_cursor.pos, end: cur_cursor.pos });
@@ -228,7 +238,7 @@ impl SubBuffer {
                     self.segs = unicode_segs::calc(&self.text);
                     text_updated = true;
                 }
-                SubModification::Delete(n_chars) => {
+                SubMutation::Delete(n_chars) => {
                     let text_replacement = "";
                     let replaced_text_range = cur_cursor.selection().unwrap_or(Range {
                         start: if cur_cursor.pos.0 == 0 {
@@ -250,13 +260,13 @@ impl SubBuffer {
                     self.segs = unicode_segs::calc(&self.text);
                     text_updated = true;
                 }
-                SubModification::DebugToggle => {
+                SubMutation::DebugToggle => {
                     debug.draw_enabled = !debug.draw_enabled;
                 }
-                SubModification::ToClipboard { text } => {
+                SubMutation::ToClipboard { text } => {
                     to_clipboard = Some(text);
                 }
-                SubModification::OpenedUrl { url } => {
+                SubMutation::OpenedUrl { url } => {
                     opened_url = Some(url);
                 }
             }
@@ -268,7 +278,7 @@ impl SubBuffer {
 
     fn modify_subsequent_cursors(
         replaced_text_range: Range<DocCharOffset>, text_replacement: &str,
-        mods: &mut [SubModification], cur_cursor: &mut Cursor,
+        mods: &mut [SubMutation], cur_cursor: &mut Cursor,
     ) {
         let replaced_text_len = replaced_text_range.end - replaced_text_range.start;
         let text_replacement_len =
@@ -277,7 +287,7 @@ impl SubBuffer {
         for mod_cursor in mods
             .iter_mut()
             .filter_map(|modification| {
-                if let SubModification::Cursor { cursor: cur } = modification {
+                if let SubMutation::Cursor { cursor: cur } = modification {
                     Some(cur)
                 } else {
                     None
@@ -406,8 +416,8 @@ impl SubBuffer {
 
 #[cfg(test)]
 mod test {
-    use crate::buffer::{SubBuffer, SubModification};
-    use crate::cursor::Cursor;
+    use crate::buffer::{SubBuffer, SubMutation};
+    use crate::input::cursor::Cursor;
 
     #[test]
     fn apply_mods_none_empty_doc() {
@@ -447,7 +457,7 @@ mod test {
         buffer.cursor = 9.into();
         let mut debug = Default::default();
 
-        let mods = vec![SubModification::Insert { text: "new ".to_string() }];
+        let mods = vec![SubMutation::Insert { text: "new ".to_string() }];
 
         let (text_updated, _, _) = buffer.apply_modification(mods, &mut debug);
 
@@ -521,15 +531,15 @@ mod test {
             let mut debug = Default::default();
 
             let mods = vec![
-                SubModification::Insert { text: "a".to_string() },
-                SubModification::Cursor {
+                SubMutation::Insert { text: "a".to_string() },
+                SubMutation::Cursor {
                     cursor: Cursor {
                         pos: case.cursor_b.0.into(),
                         selection_origin: Some(case.cursor_b.1.into()),
                         ..Default::default()
                     },
                 },
-                SubModification::Insert { text: "b".to_string() },
+                SubMutation::Insert { text: "b".to_string() },
             ];
 
             let (text_updated, _, _) = buffer.apply_modification(mods, &mut debug);
