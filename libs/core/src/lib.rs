@@ -77,8 +77,8 @@ impl Core {
     #[instrument(level = "info", skip_all, err(Debug))]
     pub fn init(config: &Config) -> Result<Self, UnexpectedError> {
         log_service::init(config)?;
-        let db =
-            CoreDb::init_with_migration(config).map_err(|err| unexpected_only!("{:#?}", err))?;
+        let db = CoreDb::init(db_rs::Config::in_folder(&config.writeable_path))
+            .map_err(|err| unexpected_only!("{:#?}", err))?;
 
         let config = config.clone();
         let client = Network::default();

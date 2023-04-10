@@ -32,7 +32,6 @@ libsecp256k1 = "0.7.1"
 tracing = "0.1.5"
 tracing-subscriber = "0.3.9"
 tracing-appender = "0.2"
-hmdb = "0.2.2"
 sublime_fuzzy = "0.7.0"
 crossbeam = "0.8.1"
 lockbook-shared = { path = "libs/shared" }

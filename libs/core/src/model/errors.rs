@@ -203,12 +203,6 @@ impl<G> From<PoisonError<G>> for LbError {
     }
 }
 
-impl From<hmdb::errors::Error> for LbError {
-    fn from(err: hmdb::errors::Error) -> Self {
-        core_err_unexpected(err).into()
-    }
-}
-
 impl From<io::Error> for LbError {
     fn from(e: io::Error) -> Self {
         match e.kind() {
