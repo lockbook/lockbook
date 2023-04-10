@@ -1,5 +1,4 @@
 use google_androidpublisher3::AndroidPublisher;
-use hmdb::errors::Error;
 use std::env;
 use std::fmt::Debug;
 use std::sync::{Arc, Mutex};
@@ -39,12 +38,6 @@ pub struct RequestContext<'a, TRequest> {
 pub enum ServerError<U: Debug> {
     ClientError(U),
     InternalError(String),
-}
-
-impl<E: Debug> From<Error> for ServerError<E> {
-    fn from(err: Error) -> Self {
-        internal!("hmdb error: {:?}", err)
-    }
 }
 
 #[macro_export]
