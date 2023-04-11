@@ -113,7 +113,8 @@ struct SearchFilePathCell: View {
                     .font(.caption)
                 
                 pathModified
-                        .font(.caption)
+                    .foregroundColor(.blue)
+                    .font(.caption)
             }
         }
             .contentShape(Rectangle()) /// https://stackoverflow.com/questions/57258371/swiftui-increase-tap-drag-area-for-user-interaction

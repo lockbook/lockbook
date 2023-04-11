@@ -45,7 +45,7 @@ struct DetailView: View {
                     }
                 },
                 viewForItem: { searchResult, searchTerm in
-                    let (name, path) = searchResult.path.getNameAndPath()
+                    let (name, path) = searchResult.getNameAndPath()
                                         
                     return SearchResultCellView(name: name, path: path, matchedIndices: searchResult.matchedIndices)
                 }

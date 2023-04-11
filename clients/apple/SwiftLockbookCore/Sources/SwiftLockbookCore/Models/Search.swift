@@ -5,11 +5,9 @@ public struct SearchResultItem: Identifiable, Codable, Hashable {
     public var path: String
     public var score: Int64
     public var matchedIndices: [Int]
-}
-
-extension String {
+    
     public func getNameAndPath() -> (name: String, path: String) {
-        let components = self.split(separator: "/")
+        let components = path.split(separator: "/")
         
         let name = String(components.last ?? "ERROR")
         let path = components.dropLast().joined(separator: "/")
@@ -27,7 +25,7 @@ public struct FileNameMatch: Decodable, Identifiable {
     public var score: Int
     
     public func getNameAndPath() -> (name: String, path: String) {        
-        var components = path.split(separator: "/")
+        let components = path.split(separator: "/")
         
         let name = String(components.last ?? "ERROR")
         let path = components.dropLast().joined(separator: "/")

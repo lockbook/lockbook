@@ -548,9 +548,6 @@ pub unsafe extern "C" fn search_file_paths(input: *const c_char) -> *const c_cha
     })
 }
 
-// SEARCH STUFF
-// ------------------------------------------------------------------------
-
 lazy_static! {
     static ref MAYBE_SEARCH_TX: Arc<Mutex<Option<Sender<SearchRequest>>>> =
         Arc::new(Mutex::new(None));
@@ -571,9 +568,6 @@ fn send_search_request(request: SearchRequest) -> *const c_char {
 }
 
 pub type UpdateSearchStatus = extern "C" fn(*const c_char, i32, *const c_char);
-// 1 means file name match
-// 2 means content match
-// 3 means no match
 
 /// # Safety
 ///
@@ -638,8 +632,6 @@ pub unsafe extern "C" fn stop_current_search() -> *const c_char {
 pub unsafe extern "C" fn end_search() -> *const c_char {
     send_search_request(SearchRequest::EndSearch)
 }
-
-// ------------------------------------------------------------------------
 
 // FOR INTEGRATION TESTS ONLY
 /// # Safety
