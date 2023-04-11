@@ -34,20 +34,6 @@ object CoreModel {
         }
     }
 
-    private fun <O> SerializersModuleBuilder.createPolyRelationEmptyError(
-        okSerializer: KSerializer<O>,
-    ) {
-        polymorphic(IntermCoreResult::class) {
-            subclass(IntermCoreResult.CoreOk.serializer(okSerializer))
-            subclass(IntermCoreResult.CoreErr.serializer(Unit.serializer()))
-        }
-
-        polymorphic(IntermCoreError::class) {
-            subclass(IntermCoreError.UiError.serializer(Unit.serializer()))
-            subclass(IntermCoreError.Unexpected.serializer())
-        }
-    }
-
     private inline fun <reified C, reified E> Json.tryParse(
         json: String,
         isNullable: Boolean = false
@@ -500,5 +486,16 @@ object CoreModel {
     fun saveDrawing(id: String, drawing: Drawing): Result<Unit, CoreError<SaveDrawingError>> =
         saveDrawingParser.tryParse(
             app.lockbook.core.saveDrawing(id, saveDrawingParser.encodeToString(drawing))
+        )
+
+    private val suggestedDocsParser = Json {
+        serializersModule = SerializersModule {
+            createPolyRelation(ListSerializer(String.serializer()), Empty.serializer())
+        }
+    }
+
+    fun suggestedDocs(): Result<List<String>, CoreError<Empty>> =
+        suggestedDocsParser.tryParse(
+            app.lockbook.core.suggestedDocs()
         )
 }

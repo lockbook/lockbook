@@ -31,6 +31,8 @@ external fun exportDrawingToDisk(id: String, format: String, location: String): 
 external fun getDrawing(id: String): String
 external fun saveDrawing(id: String, drawing: String): String
 
+external fun suggestedDocs(): String
+
 // sync
 external fun syncAll(syncModel: Any): String
 external fun backgroundSync(): String

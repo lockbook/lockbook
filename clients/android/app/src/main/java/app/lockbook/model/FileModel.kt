@@ -6,9 +6,9 @@ import com.github.michaelbull.result.*
 
 class FileModel(
     var parent: File,
-    var files: List<File>,
+    var idsAndFiles: Map<String, File>,
     var children: List<File>,
-    var recentFiles: List<File>,
+    var suggestedDocs: List<File>,
     val fileDir: MutableList<File>,
 ) {
 
@@ -17,25 +17,18 @@ class FileModel(
         fun createAtRoot(context: Context): Result<FileModel?, LbError> {
             return when (val getRootResult = CoreModel.getRoot()) {
                 is Ok -> {
-                    when (val listMetadatasResult = CoreModel.listMetadatas()) {
-                        is Ok -> {
-                            val root = getRootResult.value
-                            val files = listMetadatasResult.value
-                            val recentFiles = getTenMostRecentFiles(files)
+                    val root = getRootResult.value
 
-                            val fileModel = FileModel(
-                                root,
-                                files,
-                                listOf(),
-                                recentFiles,
-                                mutableListOf(root),
-                            )
-                            fileModel.refreshChildren()
+                    val fileModel = FileModel(
+                        root,
+                        emptyMap(),
+                        listOf(),
+                        listOf(),
+                        mutableListOf(root),
+                    )
+                    fileModel.refreshFiles()
 
-                            Ok(fileModel)
-                        }
-                        is Err -> Err(listMetadatasResult.error.toLbError(context.resources))
-                    }
+                    Ok(fileModel)
                 }
                 is Err -> {
                     if ((getRootResult.error as? CoreError.UiError)?.content == GetRootError.NoRoot) {
@@ -47,18 +40,21 @@ class FileModel(
             }
         }
 
-        private fun getTenMostRecentFiles(files: List<File>): List<File> {
-            val intermediateRecentFiles =
-                files.asSequence().filter { it.fileType == FileType.Document }
-                    .sortedBy { it.lastModified }.toList()
-
-            val recentFiles = try {
-                intermediateRecentFiles.takeLast(10)
-            } catch (e: Exception) {
-                intermediateRecentFiles
+        private fun suggestedDocs(idsAndFiles: Map<String, File>): Result<List<File>, CoreError<Empty>> {
+            return when (val suggestedDocsResult = CoreModel.suggestedDocs()) {
+                is Ok -> {
+                    Ok(
+                        suggestedDocsResult.value.filter {
+                            idsAndFiles.containsKey(it)
+                        }.map {
+                            idsAndFiles[it]!!
+                        }
+                    )
+                }
+                is Err -> {
+                    Err(suggestedDocsResult.error)
+                }
             }
-
-            return recentFiles.reversed()
         }
 
         fun sortFiles(files: List<File>): List<File> {
@@ -88,8 +84,10 @@ class FileModel(
 
     fun refreshFiles(): Result<Unit, CoreError<Empty>> {
         return CoreModel.listMetadatas().map { files ->
-            this.files = files
-            recentFiles = getTenMostRecentFiles(files)
+            this.idsAndFiles = files.associateBy { it.id }
+            this.suggestedDocs = suggestedDocs(idsAndFiles).getOrElse { err ->
+                return Err(err)
+            }
             refreshChildren()
         }
     }
@@ -101,13 +99,13 @@ class FileModel(
     }
 
     fun intoParent() {
-        parent = files.filter { it.id == parent.parent }[0]
+        parent = idsAndFiles[parent.parent]!!
         refreshChildren()
         fileDir.removeLast()
     }
 
     fun refreshChildren() {
-        children = files.filter { it.parent == parent.id && it.id != it.parent }
+        children = idsAndFiles.values.filter { it.parent == parent.id && it.id != it.parent }
         sortChildren()
     }
 
