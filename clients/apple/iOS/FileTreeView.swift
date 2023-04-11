@@ -17,15 +17,12 @@ struct FileTreeView: View {
     
     var body: some View {
         VStack {
-            iPadFileItems(currentFolder: currentFolder)
-                .searchable(text: $searchInput, placement: .navigationBarDrawer(displayMode: .automatic), prompt: "Search")
-                .onChange(of: searchInput) { newInput in
-                    if (!newInput.isEmpty) {
-                        search.search(query: newInput)
-                    } else {
-                        search.searchPathAndContentState = .Idle
-                    }
-                }
+            SearchWrapperView(
+                searchInput: $searchInput,
+                mainView: OutlineSection(root: currentFolder),
+                isiPadView: true)
+            .searchable(text: $searchInput, placement: .navigationBarDrawer(displayMode: .automatic), prompt: "Search")
+
             HStack {
                 BottomBar(onCreating: {
                     sheets.creatingInfo = CreatingInfo(parent: currentFolder, child_type: .Document)
@@ -77,58 +74,3 @@ struct FileTreeView: View {
         
     }
 }
-
-struct iPadFileItems: View {
-    @EnvironmentObject var search: SearchService
-    @EnvironmentObject var fileService: FileService
-    @EnvironmentObject var current: CurrentDocument
-    
-    @Environment(\.isSearching) var isSearching
-    
-    let currentFolder: File
-    
-    var body: some View {
-        VStack {
-            switch search.searchPathAndContentState {
-            case .NotSearching:
-                OutlineSection(root: currentFolder)
-            case .Idle:
-                Spacer()
-            case .NoMatch:
-                Spacer()
-                Text("No search results")
-                Spacer()
-            case .Searching:
-                Spacer()
-                ProgressView()
-                Spacer()
-            case .SearchSuccessful(let results):
-                List(results) { result in
-                    switch result {
-                    case .PathMatch(_, let meta, let name, let path, let matchedIndices, _):
-                        Button(action: {
-                            current.selectedDocument = meta
-                        }) {
-                            SearchFilePathCell(name: name, path: path, matchedIndices: matchedIndices)
-                        }
-                    case .ContentMatch(_, let meta, let name, let path, let paragraph, let matchedIndices, _):
-                        Button(action: {
-                            current.selectedDocument = meta
-                        }) {
-                            SearchFileContentCell(name: name, path: path, paragraph: paragraph, matchedIndices: matchedIndices)
-                        }
-                    }
-                }
-                .listStyle(.inset)
-            }
-        }
-        .onChange(of: isSearching, perform: { newInput in
-            if newInput {
-                search.startSearchThread()
-            } else {
-                search.endSearch()
-            }
-        })
-    }
-}
-

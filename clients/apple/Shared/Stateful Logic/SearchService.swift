@@ -14,19 +14,6 @@ class SearchService: ObservableObject {
     
     #if os(iOS)
     
-    func asyncSearchFilePath(input: String) {
-        DispatchQueue.main.async {
-            switch self.core.searchFilePaths(input: input) {
-            case .success(let results):
-                self.pathsSearchResult = results.map() { result in
-                    FilePathInfo(meta: DI.files.idsAndFiles[result.id]!, searchResult: result)
-                }
-            case .failure(let err):
-                DI.errors.handleError(err)
-            }
-        }
-    }
-    
     func startSearchThread() {
         searchPathAndContentState = .Idle
         

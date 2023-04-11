@@ -10,7 +10,6 @@ struct FileListView: View {
     
     @State var searchInput: String = ""
     
-    
     var body: some View {
         ZStack {
             VStack {
@@ -20,18 +19,15 @@ struct FileListView: View {
                         }
                     .hidden()
                 }
-                    
-            
-                iOSFileItems()
-                    .navigationBarTitle(fileService.parent.map{($0.name)} ?? "")
-                    .searchable(text: $searchInput, prompt: "Search")
-                    .onChange(of: searchInput) { newInput in
-                        if (!newInput.isEmpty) {
-                            search.search(query: newInput)
-                        } else {
-                            search.searchPathAndContentState = .Idle
-                        }
-                    }
+                
+                SearchWrapperView(
+                    searchInput: $searchInput,
+                    mainView: List(fileService.childrenOfParent()) { meta in
+                        FileCell(meta: meta)
+                    },
+                    isiPadView: false)
+                .navigationBarTitle(fileService.parent.map{($0.name)} ?? "")
+                .searchable(text: $searchInput, prompt: "Search")
                 
                 FilePathBreadcrumb()
                     
@@ -59,54 +55,6 @@ struct FileListView: View {
                     fileService.upADirectory()
                 }
             }))
-    }
-}
-
-struct iOSFileItems: View {
-    @EnvironmentObject var search: SearchService
-    @EnvironmentObject var fileService: FileService
-    
-    @Environment(\.isSearching) var isSearching
-    
-    var body: some View {
-        VStack {
-            switch search.searchPathAndContentState {
-            case .NotSearching:
-                List(fileService.childrenOfParent()) { meta in
-                    FileCell(meta: meta)
-                }
-            case .Idle:
-                Spacer()
-            case .NoMatch:
-                Spacer()
-                Text("No search results")
-                Spacer()
-            case .Searching:
-                Spacer()
-                ProgressView()
-                Spacer()
-            case .SearchSuccessful(let results):
-                List(results) { result in
-                    switch result {
-                    case .PathMatch(_, let meta, let name, let path, let matchedIndices, _):
-                        NavigationLink(destination: DocumentView(meta: meta)) {
-                            SearchFilePathCell(name: name, path: path, matchedIndices: matchedIndices)
-                        }
-                    case .ContentMatch(_, let meta, let name, let path, let paragraph, let matchedIndices, _):
-                        NavigationLink(destination: DocumentView(meta: meta)) {
-                            SearchFileContentCell(name: name, path: path, paragraph: paragraph, matchedIndices: matchedIndices)
-                        }
-                    }
-                }
-            }
-        }
-        .onChange(of: isSearching, perform: { newInput in
-            if newInput {
-                search.startSearchThread()
-            } else {
-                search.endSearch()
-            }
-        })
     }
 }
 
