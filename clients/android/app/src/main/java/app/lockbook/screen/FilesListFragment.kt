@@ -226,8 +226,8 @@ class FilesListFragment : Fragment(), FilesFragment {
             updateSyncProgress(syncStatus.syncStepInfo)
         }
 
-        if (!model.isRecentFilesVisible) {
-            binding.recentFilesLayout.root.visibility = View.GONE
+        if (!model.isSuggestedDocsVisible) {
+            binding.suggestedDocsLayout.root.visibility = View.GONE
         }
 
         (requireActivity().application as App).billingClientLifecycle.showInAppMessaging(requireActivity())
@@ -372,14 +372,14 @@ class FilesListFragment : Fragment(), FilesFragment {
             }
         }
 
-        binding.recentFilesLayout.recentFilesList.setup {
-            withDataSource(model.recentFiles)
+        binding.suggestedDocsLayout.suggestedDocsList.setup {
+            withDataSource(model.suggestedDocs)
             this.withLayoutManager(LinearLayoutManager(requireContext(), LinearLayoutManager.HORIZONTAL, false))
 
-            withItem<RecentFileViewHolderInfo, RecentFileItemViewHolder>(R.layout.recent_file_item) {
-                onBind(::RecentFileItemViewHolder) { _, item ->
+            withItem<SuggestedDocsViewHolderInfo, SuggestedDocsItemViewHolder>(R.layout.suggested_doc_item) {
+                onBind(::SuggestedDocsItemViewHolder) { _, item ->
                     name.text = item.fileMetadata.name
-                    folderName.text = getString(R.string.recent_files_folder, item.folderName)
+                    folderName.text = getString(R.string.suggested_docs_parent_folder, item.folderName)
                     lastEdited.text = CoreModel.convertToHumanDuration(item.fileMetadata.lastModified)
 
                     val extensionHelper = ExtensionHelper(item.fileMetadata.name)
@@ -519,8 +519,8 @@ class FilesListFragment : Fragment(), FilesFragment {
                     binding.navigationView.getHeaderView(0).findViewById<MaterialTextView>(R.id.filesListServerDirty).text = resources.getQuantityString(R.plurals.files_to_pull, serverDirtyFilesCount, serverDirtyFilesCount)
                 }
             }
-            is UpdateFilesUI.ToggleRecentFilesVisibility -> {
-                binding.recentFilesLayout.root.visibility = if (uiUpdates.show) View.VISIBLE else View.GONE
+            is UpdateFilesUI.ToggleSuggestedDocsVisibility -> {
+                binding.suggestedDocsLayout.root.visibility = if (uiUpdates.show) View.VISIBLE else View.GONE
             }
             is UpdateFilesUI.OutOfSpace -> {
                 val usageRatio = uiUpdates.progress.toFloat() / uiUpdates.max
@@ -634,7 +634,7 @@ sealed class UpdateFilesUI {
     data class NotifyError(val error: LbError) : UpdateFilesUI()
     data class ShowSyncSnackBar(val totalSyncItems: Int) : UpdateFilesUI()
     data class UpdateSideBarInfo(var usageMetrics: UsageMetrics? = null, var lastSynced: String? = null, var localDirtyFilesCount: Int? = null, var serverDirtyFilesCount: Int? = null) : UpdateFilesUI()
-    data class ToggleRecentFilesVisibility(var show: Boolean) : UpdateFilesUI()
+    data class ToggleSuggestedDocsVisibility(var show: Boolean) : UpdateFilesUI()
     object UpToDateSyncSnackBar : UpdateFilesUI()
     object ToggleMenuBar : UpdateFilesUI()
     object ShowBeforeWeStart : UpdateFilesUI()

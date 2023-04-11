@@ -35,8 +35,8 @@
                 app:layout_scrollFlags="scroll|exitUntilCollapsed|snap">
 
                 <include
-                    android:id="@+id/recent_files_layout"
-                    layout="@layout/layout_recent_files" />
+                    android:id="@+id/suggested_docs_layout"
+                    layout="@layout/layout_suggested_docs" />
 
             </FrameLayout>
 

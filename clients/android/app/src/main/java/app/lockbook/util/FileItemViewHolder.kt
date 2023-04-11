@@ -40,20 +40,19 @@ fun List<File>.intoViewHolderInfo(localChanges: HashSet<String>, serverChanges: 
     }
 }
 
-data class RecentFileViewHolderInfo(val fileMetadata: File, val folderName: String)
+data class SuggestedDocsViewHolderInfo(val fileMetadata: File, val folderName: String)
 
-class RecentFileItemViewHolder(itemView: View) : ViewHolder(itemView) {
-    val name: TextView = itemView.findViewById(R.id.recent_file_name)
-    val icon: ImageView = itemView.findViewById(R.id.recent_file_icon)
-    val folderName: TextView = itemView.findViewById(R.id.recent_file_folder)
-    val lastEdited: TextView = itemView.findViewById(R.id.recent_file_last_edited)
+class SuggestedDocsItemViewHolder(itemView: View) : ViewHolder(itemView) {
+    val name: TextView = itemView.findViewById(R.id.suggested_doc_name)
+    val icon: ImageView = itemView.findViewById(R.id.suggested_doc_icon)
+    val folderName: TextView = itemView.findViewById(R.id.suggested_docs_parent_folder)
+    val lastEdited: TextView = itemView.findViewById(R.id.suggested_doc_last_edited)
 }
 
-fun List<File>.intoRecentViewHolderInfo(files: List<File>): List<RecentFileViewHolderInfo> = this.map { fileMetadata ->
-    RecentFileViewHolderInfo(
+fun List<File>.intoSuggestedViewHolderInfo(idsAndFiles: Map<String, File>): List<SuggestedDocsViewHolderInfo> = this.map { fileMetadata ->
+    SuggestedDocsViewHolderInfo(
         fileMetadata,
-        files.filter { fileMetadata.parent == it.id }
-            .getOrNull(0)?.name ?: "DETACHED" // TODO: remove once listMetadatas stops returning pending shares
+        idsAndFiles[fileMetadata.parent]!!.name
     )
 }
 

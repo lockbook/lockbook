@@ -9,11 +9,11 @@
         android:layout_height="wrap_content"
         android:paddingHorizontal="15dp"
         android:paddingBottom="15dp"
-        android:text="@string/recent_documents"
+        android:text="@string/suggested_docs"
         android:textAppearance="?attr/textAppearanceTitleMedium" />
 
     <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/recent_files_list"
+        android:id="@+id/suggested_docs_list"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:paddingHorizontal="20dp"

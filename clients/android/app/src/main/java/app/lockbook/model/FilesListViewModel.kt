@@ -28,7 +28,7 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
     lateinit var fileModel: FileModel
 
     val files = emptySelectableDataSourceTyped<FileViewHolderInfo>()
-    val recentFiles = emptyDataSourceTyped<RecentFileViewHolderInfo>()
+    val suggestedDocs = emptyDataSourceTyped<SuggestedDocsViewHolderInfo>()
 
     var breadcrumbItems = listOf<BreadCrumbItem>()
 
@@ -37,7 +37,7 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
     var serverChanges: HashSet<String>? = null
     var maybeLastSidebarInfo: UpdateFilesUI.UpdateSideBarInfo? = null
 
-    var isRecentFilesVisible = true
+    var isSuggestedDocsVisible = true
 
     init {
         startUpInRoot()
@@ -100,12 +100,15 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
                 } else {
                     fileModel = tempFileModel
 
-                    recentFiles.set(fileModel.recentFiles.intoRecentViewHolderInfo(fileModel.files))
+                    suggestedDocs.set(fileModel.suggestedDocs.intoSuggestedViewHolderInfo(fileModel.idsAndFiles))
                     files.set(fileModel.children.intoViewHolderInfo(localChanges, serverChanges))
                     breadcrumbItems = fileModel.fileDir.map { BreadCrumbItem(it.name) }
 
                     _notifyUpdateFilesUI.postValue(UpdateFilesUI.UpdateBreadcrumbBar(breadcrumbItems))
 
+                    viewModelScope.launch(Dispatchers.IO) {
+                        maybeToggleSuggestedDocs()
+                    }
                     refreshWorkInfo()
                 }
             }
@@ -115,12 +118,12 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
-    private suspend fun maybeToggleRecentFiles() {
-        val newIsRecentFilesVisible = fileModel.parent.parent == fileModel.parent.id
-        if (newIsRecentFilesVisible != isRecentFilesVisible) {
-            isRecentFilesVisible = newIsRecentFilesVisible
+    private suspend fun maybeToggleSuggestedDocs() {
+        val newIsSuggestedDocsVisible = fileModel.parent.parent == fileModel.parent.id && !suggestedDocs.isEmpty()
+        if (newIsSuggestedDocsVisible != isSuggestedDocsVisible) {
+            isSuggestedDocsVisible = newIsSuggestedDocsVisible
             withContext(Dispatchers.Main) {
-                _notifyUpdateFilesUI.value = UpdateFilesUI.ToggleRecentFilesVisibility(isRecentFilesVisible)
+                _notifyUpdateFilesUI.value = UpdateFilesUI.ToggleSuggestedDocsVisibility(isSuggestedDocsVisible)
             }
         }
     }
@@ -152,7 +155,7 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
         viewModelScope.launch(Dispatchers.IO) {
             fileModel.intoFile(folder)
 
-            maybeToggleRecentFiles()
+            maybeToggleSuggestedDocs()
 
             localChanges = CoreModel.getLocalChanges().getOrElse { error ->
                 _notifyUpdateFilesUI.postValue(UpdateFilesUI.NotifyError((error.toLbError(getRes()))))
@@ -171,7 +174,7 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
     fun intoParentFolder() {
         viewModelScope.launch(Dispatchers.IO) {
             fileModel.intoParent()
-            maybeToggleRecentFiles()
+            maybeToggleSuggestedDocs()
 
             viewModelScope.launch(Dispatchers.Main) {
                 files.set(fileModel.children.intoViewHolderInfo(localChanges, serverChanges))
@@ -185,7 +188,7 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
     fun intoAncestralFolder(position: Int) {
         viewModelScope.launch(Dispatchers.IO) {
             fileModel.refreshChildrenAtAncestor(position)
-            maybeToggleRecentFiles()
+            maybeToggleSuggestedDocs()
             breadcrumbItems = fileModel.fileDir.map { BreadCrumbItem(it.name) }
             viewModelScope.launch(Dispatchers.Main) {
                 files.set(fileModel.children.intoViewHolderInfo(localChanges, serverChanges))
@@ -261,7 +264,7 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
         viewModelScope.launch(Dispatchers.Main) {
             files.deselectAll()
             files.set(fileModel.children.intoViewHolderInfo(localChanges, serverChanges))
-            recentFiles.set(fileModel.recentFiles.intoRecentViewHolderInfo(fileModel.files))
+            suggestedDocs.set(fileModel.suggestedDocs.intoSuggestedViewHolderInfo(fileModel.idsAndFiles))
 
             _notifyUpdateFilesUI.value = UpdateFilesUI.ToggleMenuBar
         }

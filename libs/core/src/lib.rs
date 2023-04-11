@@ -12,7 +12,6 @@ pub use base64;
 pub use basic_human_duration::ChronoHumanDuration;
 pub use chrono::Duration;
 pub use libsecp256k1::PublicKey;
-use lockbook_shared::document_repo::RankingWeights;
 pub use uuid::Uuid;
 
 pub use lockbook_shared::account::Account;
@@ -24,6 +23,7 @@ pub use lockbook_shared::api::{
 pub use lockbook_shared::clock;
 pub use lockbook_shared::core_config::Config;
 pub use lockbook_shared::crypto::DecryptedDocument;
+pub use lockbook_shared::document_repo::RankingWeights;
 pub use lockbook_shared::drawing::{ColorAlias, ColorRGB, Drawing, Stroke};
 pub use lockbook_shared::file::{File, Share, ShareMode};
 pub use lockbook_shared::file_like::FileLike;
