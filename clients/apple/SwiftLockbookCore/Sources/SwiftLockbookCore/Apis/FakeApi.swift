@@ -148,7 +148,7 @@ Vestibulum ante ipsum primis in vel.
         .failure(.init(unexpected: "LAZY"))
     }
     
-    public func startSearch(context: UnsafeRawPointer?, updateStatus: @convention(c) (UnsafePointer<Int8>?, Int32, UnsafePointer<Int8>?) -> Void) -> FfiResult<Empty, GeneralSearchError> {
+    public func startSearch(context: UnsafeRawPointer?, updateStatus: @escaping @convention(c) (UnsafePointer<Int8>?, Int32, UnsafePointer<Int8>?) -> Void) -> FfiResult<Empty, GeneralSearchError> {
         .failure(.init(unexpected: "LAZY"))
     }
     

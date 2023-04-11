@@ -44,7 +44,7 @@ public protocol LockbookApi {
     
     // Search
     func searchFilePaths(input: String) ->FfiResult<[SearchResultItem], SearchFilePathsError>
-    func startSearch(context: UnsafeRawPointer?, updateStatus: @convention(c) (UnsafePointer<Int8>?, Int32, UnsafePointer<Int8>?) -> Void) -> FfiResult<Empty, GeneralSearchError>
+    func startSearch(context: UnsafeRawPointer?, updateStatus: @escaping @convention(c) (UnsafePointer<Int8>?, Int32, UnsafePointer<Int8>?) -> Void) -> FfiResult<Empty, GeneralSearchError>
     func endSearch() -> FfiResult<Empty, GeneralSearchError>
     func searchQuery(query: String) -> FfiResult<Empty, GeneralSearchError>
     func stopCurrentSearch() -> FfiResult<Empty, GeneralSearchError>
