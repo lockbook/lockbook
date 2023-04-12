@@ -20,7 +20,8 @@ fn main() {
             app.editor.set_font(&cc.egui_ctx);
             Box::new(app)
         }),
-    ).unwrap();
+    )
+    .unwrap();
 }
 
 #[cfg(not(feature = "debug-window"))]

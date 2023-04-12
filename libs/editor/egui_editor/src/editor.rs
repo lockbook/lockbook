@@ -114,22 +114,22 @@ impl Editor {
         let (text_updated, cursor_pos_updated, selection_updated) = if self.initialized {
             let prior_cursor_pos = self.buffer.current.cursor.pos;
             let prior_selection = self.buffer.current.cursor.selection();
-            let (text_updated, maybe_to_clipboard, maybe_opened_url) = if ui.memory(|m| m.has_focus(id))
-            {
-                events::process(
-                    &ui.ctx().input_mut(|i| i.events.clone()),
-                    &self.ast,
-                    &self.layouts,
-                    &self.galleys,
-                    &self.appearance,
-                    ui_size,
-                    &mut self.buffer,
-                    &mut self.debug,
-                    &mut self.pointer_state,
-                )
-            } else {
-                (false, None, None)
-            };
+            let (text_updated, maybe_to_clipboard, maybe_opened_url) =
+                if ui.memory(|m| m.has_focus(id)) {
+                    events::process(
+                        &ui.ctx().input_mut(|i| i.events.clone()),
+                        &self.ast,
+                        &self.layouts,
+                        &self.galleys,
+                        &self.appearance,
+                        ui_size,
+                        &mut self.buffer,
+                        &mut self.debug,
+                        &mut self.pointer_state,
+                    )
+                } else {
+                    (false, None, None)
+                };
             let cursor_pos_updated = self.buffer.current.cursor.pos != prior_cursor_pos;
             let selection_updated = self.buffer.current.cursor.selection() != prior_selection;
 
