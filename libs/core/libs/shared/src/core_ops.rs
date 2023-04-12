@@ -79,21 +79,19 @@ where
     pub fn finalize(
         &mut self, account: &Account, id: Uuid, public_key_cache: &mut LookupTable<Owner, String>,
     ) -> SharedResult<File> {
-        let file;
-
         let finalized = self.decrypt(&id, account, public_key_cache)?;
 
-        match finalized.file_type {
-            FileType::Document | FileType::Folder => file = finalized,
+        let file = match finalized.file_type {
+            FileType::Document | FileType::Folder => finalized,
             FileType::Link { target } => {
                 let mut target_file = self.decrypt(&target, account, public_key_cache)?;
 
                 target_file.parent = finalized.parent;
                 target_file.name = finalized.name;
 
-                file = target_file;
+                target_file
             }
-        }
+        };
 
         Ok(file)
     }
@@ -105,7 +103,7 @@ where
     where
         I: Iterator<Item = Uuid>,
     {
-        let mut files = Vec::new();
+        let mut files: Vec<File> = Vec::new();
 
         for id in ids {
             if skip_invisible && self.is_invisible_id(id)? {
@@ -114,17 +112,18 @@ where
 
             let finalized = self.decrypt(&id, account, public_key_cache)?;
 
-            match finalized.file_type {
-                FileType::Document | FileType::Folder => files.push(finalized),
+            let file = match finalized.file_type {
+                FileType::Document | FileType::Folder => finalized,
                 FileType::Link { target } => {
                     let mut target_file = self.decrypt(&target, account, public_key_cache)?;
 
                     target_file.parent = finalized.parent;
                     target_file.name = finalized.name;
 
-                    files.push(target_file);
+                    target_file
                 }
-            }
+            };
+            files.push(file);
         }
 
         Ok(files)

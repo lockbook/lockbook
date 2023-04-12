@@ -14,7 +14,7 @@ fn assert_valid_list_metadatas(c: &Core) {
         }
         files.insert(file.id);
     }
-
+    let v = c.list_metadatas().unwrap();
     // no orphans
     for file in c.list_metadatas().unwrap() {
         assert!(files.contains(&file.parent));
@@ -73,7 +73,7 @@ fn list_metadatas_linked_folder() {
     cores[0].sync(None).unwrap();
     cores[1].sync(None).unwrap();
 
-    cores[1].create_link_at_path("link", folder.id).unwrap();
+    let _link = cores[1].create_link_at_path("link", folder.id).unwrap();
 
     assert_valid_list_metadatas(&cores[0]);
     assert_valid_list_metadatas(&cores[1]);
