@@ -139,12 +139,24 @@ Vestibulum ante ipsum primis in vel.
     public func importFiles(sources: [String], destination: UUID) ->FfiResult<Empty, ImportFilesError> {
         .failure(.init(unexpected: "LAZY"))
     }
+
+    public func getFileById(id: UUID) -> FfiResult<File, GetFileByIdError> {
+        .failure(.init(unexpected: "LAZY"))
+    }
     
     public func searchFilePaths(input: String) ->FfiResult<[SearchResultItem], SearchFilePathsError> {
         .failure(.init(unexpected: "LAZY"))
     }
     
-    public func getFileById(id: UUID) -> FfiResult<File, GetFileByIdError> {
+    public func startSearch(context: UnsafeRawPointer?, updateStatus: @escaping @convention(c) (UnsafePointer<Int8>?, Int32, UnsafePointer<Int8>?) -> Void) -> FfiResult<Empty, GeneralSearchError> {
+        .failure(.init(unexpected: "LAZY"))
+    }
+    
+    public func endSearch() -> FfiResult<Empty, GeneralSearchError> {
+        .failure(.init(unexpected: "LAZY"))
+    }
+    
+    public func searchQuery(query: String) -> FfiResult<Empty, GeneralSearchError> {
         .failure(.init(unexpected: "LAZY"))
     }
     

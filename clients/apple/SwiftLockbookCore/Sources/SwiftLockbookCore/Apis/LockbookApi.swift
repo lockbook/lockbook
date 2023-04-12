@@ -19,7 +19,6 @@ public protocol LockbookApi {
     // Directory
     func getRoot() -> FfiResult<File, GetRootError>
     func listFiles() -> FfiResult<[File], ListMetadatasError>
-    func searchFilePaths(input: String) ->FfiResult<[SearchResultItem], SearchFilePathsError>
     
     // Document
     func getFile(id: UUID) -> FfiResult<String, ReadDocumentError>
@@ -42,4 +41,10 @@ public protocol LockbookApi {
     // Billing
     func newAppleSub(originalTransactionId: String, appAccountToken: String) -> FfiResult<Empty, UpgradeAccountAppStoreError>
     func cancelSub() -> FfiResult<Empty, CancelSubscriptionError>
+    
+    // Search
+    func searchFilePaths(input: String) ->FfiResult<[SearchResultItem], SearchFilePathsError>
+    func startSearch(context: UnsafeRawPointer?, updateStatus: @escaping @convention(c) (UnsafePointer<Int8>?, Int32, UnsafePointer<Int8>?) -> Void) -> FfiResult<Empty, GeneralSearchError>
+    func endSearch() -> FfiResult<Empty, GeneralSearchError>
+    func searchQuery(query: String) -> FfiResult<Empty, GeneralSearchError>
 }

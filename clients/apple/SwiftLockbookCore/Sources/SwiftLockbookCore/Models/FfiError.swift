@@ -274,3 +274,7 @@ public enum ExportFileError: String, UiError {
 public enum SearchFilePathsError: String, UiError {
     case Stub
 }
+
+public enum GeneralSearchError: String, UiError {
+    case Stub
+}

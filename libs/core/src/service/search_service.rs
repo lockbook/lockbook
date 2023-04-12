@@ -430,7 +430,8 @@ pub enum SearchRequest {
     StopCurrentSearch,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
+#[serde(untagged)]
 pub enum SearchResult {
     Error(UnexpectedError),
     FileNameMatch { id: Uuid, path: String, matched_indices: Vec<usize>, score: i64 },
@@ -438,7 +439,7 @@ pub enum SearchResult {
     NoMatch,
 }
 
-#[derive(Serialize, Debug)]
+#[derive(Debug, Serialize)]
 pub struct ContentMatch {
     pub paragraph: String,
     pub matched_indices: Vec<usize>,
