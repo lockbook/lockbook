@@ -27,7 +27,7 @@ impl<T> LazyTree<T>
 where
     T: TreeLike<F = SignedFile>,
 {
-    // todo: revisit logic for what files can be finalized and how e.g. link substitutions, deleted files, files in pending shares, linked files
+    ///  decrypt file fields in preparation for converting FileMetadata into File
     fn decrypt(
         &mut self, id: &Uuid, account: &Account, public_key_cache: &mut LookupTable<Owner, String>,
     ) -> SharedResult<File> {
@@ -75,7 +75,7 @@ where
         Ok(File { id, parent, name, file_type, last_modified, last_modified_by, shares })
     }
 
-    //finalizes one single id.
+    /// convert FileMetadata into File. fields have been decrypted, public keys replaced with usernames, deleted files filtered out, etc.
     pub fn finalize(
         &mut self, account: &Account, id: Uuid, public_key_cache: &mut LookupTable<Owner, String>,
     ) -> SharedResult<File> {
@@ -95,7 +95,7 @@ where
 
         Ok(file)
     }
-    /// finalizes multiple ids, optionally skipping invisible files (e.g. when listing paths)
+
     pub fn finalize_all<I>(
         &mut self, account: &Account, ids: I, public_key_cache: &mut LookupTable<Owner, String>,
         skip_invisible: bool,
@@ -132,6 +132,7 @@ where
     fn is_invisible_id(&mut self, id: Uuid) -> SharedResult<bool> {
         Ok(self.calculate_deleted(&id)? || self.in_pending_share(&id)? || self.link(&id)?.is_some())
     }
+
     pub fn create_op(
         &mut self, id: Uuid, key: AESKey, parent: &Uuid, name: &str, file_type: FileType,
         account: &Account,
