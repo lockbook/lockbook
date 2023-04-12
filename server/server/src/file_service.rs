@@ -1,4 +1,4 @@
-use crate::account_service::is_admin;
+use crate::account_service::{get_usage, is_admin};
 use crate::schema::ServerDb;
 use crate::ServerError;
 use crate::ServerError::ClientError;
@@ -169,7 +169,6 @@ pub async fn change_doc(
     if request.diff.diff() != vec![Diff::Hmac] {
         return Err(ClientError(DiffMalformed));
     }
-
     let hmac = if let Some(hmac) = request.diff.new.document_hmac() {
         base64::encode_config(hmac, base64::URL_SAFE)
     } else {
@@ -177,6 +176,14 @@ pub async fn change_doc(
     };
 
     let req_pk = context.public_key;
+
+    //todo: put this in a function called authorization check. refine the logic and call it on upsert_file_metadata
+    let new_content_size = request.new_content.value.len();
+    let cap = get_usage(RequestContext {
+        server_state: context.server_state,
+        request: GetUsageRequest {},
+        public_key: context.public_key,
+    });
 
     {
         let mut lock = context.server_state.index_db.lock()?;
