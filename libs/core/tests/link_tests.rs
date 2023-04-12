@@ -14,7 +14,6 @@ fn assert_valid_list_metadatas(c: &Core) {
         }
         files.insert(file.id);
     }
-    let v = c.list_metadatas().unwrap();
     // no orphans
     for file in c.list_metadatas().unwrap() {
         assert!(files.contains(&file.parent));
