@@ -23,7 +23,7 @@ pub fn init(config: &Config) -> LbResult<()> {
                 .with_filter(lockbook_log_level)
                 .with_filter(filter::filter_fn(|metadata| {
                     metadata.target().starts_with("lockbook")
-                        || metadata.target().starts_with("hmdb")
+                        || metadata.target().starts_with("dbrs")
                 })),
         );
 

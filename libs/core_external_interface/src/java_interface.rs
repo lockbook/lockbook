@@ -13,7 +13,7 @@ use time::Duration;
 
 use lockbook_core::service::search_service::{SearchRequest, SearchResult};
 use lockbook_core::{
-    clock, unexpected_only, ClientWorkUnit, Config, Drawing, FileType, ShareMode,
+    clock, unexpected_only, ClientWorkUnit, Config, Drawing, FileType, RankingWeights, ShareMode,
     SupportedImageFormats, SyncProgress, UnexpectedError, Uuid,
 };
 
@@ -848,6 +848,19 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_saveDrawing(
         &env,
         match static_state::get() {
             Ok(core) => translate(core.save_drawing(id, &drawing)),
+            e => translate(e.map(|_| ())),
+        },
+    )
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_core_CoreKt_suggestedDocs(
+    env: JNIEnv, _: JClass,
+) -> jstring {
+    string_to_jstring(
+        &env,
+        match static_state::get() {
+            Ok(core) => translate(core.suggested_docs(RankingWeights::default())),
             e => translate(e.map(|_| ())),
         },
     )

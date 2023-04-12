@@ -2651,17 +2651,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "hmdb"
-version = "0.2.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a3516f40904df7f69914e8ceae7020ac08f9c2c07f3804af68908eadaf3255b4"
-dependencies = [
- "bincode",
- "serde",
- "tracing",
-]
-
-[[package]]
 name = "hotwatch"
 version = "0.4.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3259,7 +3248,6 @@ dependencies = [
  "db-rs",
  "db-rs-derive",
  "diffy",
- "hmdb",
  "image",
  "indicatif",
  "itertools",
@@ -3324,7 +3312,6 @@ dependencies = [
  "db-rs-derive",
  "futures",
  "google-androidpublisher3 3.1.0+20220307",
- "hmdb",
  "itertools",
  "jsonwebtoken",
  "lazy_static",
@@ -3360,7 +3347,6 @@ dependencies = [
  "db-rs",
  "flate2",
  "hmac 0.11.0",
- "hmdb",
  "http",
  "libsecp256k1",
  "rand 0.8.5",
@@ -5320,7 +5306,6 @@ name = "test_utils"
 version = "0.7.2"
 dependencies = [
  "bincode",
- "hmdb",
  "itertools",
  "lockbook-core",
  "lockbook-shared",

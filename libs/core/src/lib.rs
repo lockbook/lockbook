@@ -11,7 +11,6 @@ mod repo;
 pub use base64;
 pub use basic_human_duration::ChronoHumanDuration;
 pub use libsecp256k1::PublicKey;
-use lockbook_shared::document_repo::RankingWeights;
 pub use time::Duration;
 pub use uuid::Uuid;
 
@@ -24,6 +23,7 @@ pub use lockbook_shared::api::{
 pub use lockbook_shared::clock;
 pub use lockbook_shared::core_config::Config;
 pub use lockbook_shared::crypto::DecryptedDocument;
+pub use lockbook_shared::document_repo::RankingWeights;
 pub use lockbook_shared::drawing::{ColorAlias, ColorRGB, Drawing, Stroke};
 pub use lockbook_shared::file::{File, Share, ShareMode};
 pub use lockbook_shared::file_like::FileLike;
@@ -77,8 +77,8 @@ impl Core {
     #[instrument(level = "info", skip_all, err(Debug))]
     pub fn init(config: &Config) -> Result<Self, UnexpectedError> {
         log_service::init(config)?;
-        let db =
-            CoreDb::init_with_migration(config).map_err(|err| unexpected_only!("{:#?}", err))?;
+        let db = CoreDb::init(db_rs::Config::in_folder(&config.writeable_path))
+            .map_err(|err| unexpected_only!("{:#?}", err))?;
 
         let config = config.clone();
         let client = Network::default();
