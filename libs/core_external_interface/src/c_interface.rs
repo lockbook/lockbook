@@ -1,11 +1,17 @@
+use crossbeam::channel::Sender;
+use lazy_static::lazy_static;
 use std::ffi::{CStr, CString};
 use std::os::raw::c_char;
 use std::path::PathBuf;
+use std::sync::{Arc, Mutex};
 
 use serde::Serialize;
 use serde_json::json;
 
-use lockbook_core::{Config, FileType, ImportStatus, ShareMode, SupportedImageFormats, Uuid};
+use lockbook_core::service::search_service::{SearchRequest, SearchResult};
+use lockbook_core::{
+    Config, FileType, ImportStatus, ShareMode, SupportedImageFormats, UnexpectedError, Uuid,
+};
 
 use crate::{get_all_error_variants, json_interface::translate, static_state};
 
@@ -540,6 +546,83 @@ pub unsafe extern "C" fn search_file_paths(input: *const c_char) -> *const c_cha
         Ok(core) => translate(core.search_file_paths(&str_from_ptr(input))),
         e => translate(e.map(|_| ())),
     })
+}
+
+lazy_static! {
+    static ref MAYBE_SEARCH_TX: Arc<Mutex<Option<Sender<SearchRequest>>>> =
+        Arc::new(Mutex::new(None));
+}
+
+fn send_search_request(request: SearchRequest) -> *const c_char {
+    let result = MAYBE_SEARCH_TX
+        .lock()
+        .map_err(|_| UnexpectedError::new("Could not get lock".to_string()))
+        .and_then(|maybe_lock| {
+            maybe_lock
+                .clone()
+                .ok_or_else(|| UnexpectedError::new("No search lock.".to_string()))
+        })
+        .and_then(|search_tx| search_tx.send(request).map_err(UnexpectedError::from));
+
+    c_string(translate(result))
+}
+
+pub type UpdateSearchStatus = extern "C" fn(*const c_char, i32, *const c_char);
+
+/// # Safety
+///
+/// Be sure to call `release_pointer` on the result of this function to free the data.
+#[no_mangle]
+pub unsafe extern "C" fn start_search(
+    context: *const c_char, update_status: UpdateSearchStatus,
+) -> *const c_char {
+    let results_rx = match MAYBE_SEARCH_TX.lock() {
+        Ok(mut lock) => {
+            let (results_rx, search_tx) =
+                match static_state::get().and_then(|core| core.start_search()) {
+                    Ok(search_info) => (search_info.results_rx, search_info.search_tx),
+                    Err(e) => return c_string(translate(Err::<(), _>(e))),
+                };
+
+            *lock = Some(search_tx);
+            results_rx
+        }
+        Err(_) => return c_string(translate(Err::<(), _>("Cannot get search lock."))),
+    };
+
+    while let Ok(results) = results_rx.recv() {
+        let result_repr = match results {
+            SearchResult::Error(e) => return c_string(translate(Err::<(), _>(e))),
+            SearchResult::FileNameMatch { .. } => 1,
+            SearchResult::FileContentMatches { .. } => 2,
+            SearchResult::NoMatch => 3,
+        };
+
+        update_status(context, result_repr, c_string(serde_json::to_string(&results).unwrap()));
+    }
+
+    match MAYBE_SEARCH_TX.lock() {
+        Ok(mut lock) => *lock = None,
+        Err(_) => return c_string(translate(Err::<(), _>("Cannot get search lock."))),
+    }
+
+    c_string(translate(Ok::<_, ()>(())))
+}
+
+/// # Safety
+///
+/// Be sure to call `release_pointer` on the result of this function to free the data.
+#[no_mangle]
+pub unsafe extern "C" fn search(query: *const c_char) -> *const c_char {
+    send_search_request(SearchRequest::Search { input: str_from_ptr(query) })
+}
+
+/// # Safety
+///
+/// Be sure to call `release_pointer` on the result of this function to free the data.
+#[no_mangle]
+pub unsafe extern "C" fn end_search() -> *const c_char {
+    send_search_request(SearchRequest::EndSearch)
 }
 
 // FOR INTEGRATION TESTS ONLY
