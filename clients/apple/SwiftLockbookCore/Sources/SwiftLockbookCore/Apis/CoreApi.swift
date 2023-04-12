@@ -166,8 +166,4 @@ public struct CoreApi: LockbookApi {
     public func searchQuery(query: String) -> FfiResult<Empty, GeneralSearchError> {
         fromPrimitiveResult(result: search(query))
     }
-    
-    public func stopCurrentSearch() -> FfiResult<Empty, GeneralSearchError> {
-        fromPrimitiveResult(result: stop_current_search())
-    }
 }

@@ -621,14 +621,6 @@ pub unsafe extern "C" fn search(query: *const c_char) -> *const c_char {
 ///
 /// Be sure to call `release_pointer` on the result of this function to free the data.
 #[no_mangle]
-pub unsafe extern "C" fn stop_current_search() -> *const c_char {
-    send_search_request(SearchRequest::StopCurrentSearch)
-}
-
-/// # Safety
-///
-/// Be sure to call `release_pointer` on the result of this function to free the data.
-#[no_mangle]
 pub unsafe extern "C" fn end_search() -> *const c_char {
     send_search_request(SearchRequest::EndSearch)
 }
