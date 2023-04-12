@@ -194,26 +194,25 @@ impl AccountScreen {
 
         // Escape (without modifiers) to close something such as an open modal.
         // We don't want to consume it unless something is closed.
-        if ctx.input().key_pressed(egui::Key::Escape)
-            && ctx.input().modifiers.is_none()
+        if ctx.input(|i| i.key_pressed(egui::Key::Escape))
+            && ctx.input(|i| i.modifiers.is_none())
             && self.close_something()
         {
-            ctx.input_mut()
-                .consume_key(egui::Modifiers::NONE, egui::Key::Escape);
+            ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape));
         }
 
         // Ctrl-N pressed while new file modal is not open.
-        if self.modals.new_doc.is_none() && ctx.input_mut().consume_key(CTRL, egui::Key::N) {
+        if self.modals.new_doc.is_none() && ctx.input_mut(|i| i.consume_key(CTRL, egui::Key::N)) {
             self.open_new_doc_modal(None);
         }
 
         // Ctrl-S to save current tab.
-        if ctx.input_mut().consume_key(CTRL, egui::Key::S) {
+        if ctx.input_mut(|i| i.consume_key(CTRL, egui::Key::S)) {
             self.save_tab(self.workspace.active_tab);
         }
 
         // Ctrl-W to close current tab.
-        if ctx.input_mut().consume_key(CTRL, egui::Key::W) && !self.workspace.is_empty() {
+        if ctx.input_mut(|i| i.consume_key(CTRL, egui::Key::W)) && !self.workspace.is_empty() {
             self.close_tab(self.workspace.active_tab);
             frame.set_window_title(
                 self.workspace
@@ -224,10 +223,9 @@ impl AccountScreen {
         }
 
         // Ctrl-Space or Ctrl-L pressed while search modal is not open.
-        let is_search_open = {
-            let mut input = ctx.input_mut();
-            input.consume_key(CTRL, egui::Key::Space) || input.consume_key(CTRL, egui::Key::L)
-        };
+        let is_search_open = ctx.input_mut(|i| {
+            i.consume_key(CTRL, egui::Key::Space) || i.consume_key(CTRL, egui::Key::L)
+        });
         if is_search_open {
             if let Some(search) = &mut self.modals.search {
                 search.focus_select_all();
@@ -242,7 +240,7 @@ impl AccountScreen {
         }
 
         // Alt-H pressed to toggle the help modal.
-        if ctx.input_mut().consume_key(ALT, egui::Key::H) {
+        if ctx.input_mut(|i| i.consume_key(ALT, egui::Key::H)) {
             let d = &mut self.modals.help;
             *d = match d {
                 Some(_) => None,
@@ -251,25 +249,26 @@ impl AccountScreen {
         }
 
         // Alt-{1-9} to easily navigate tabs (9 will always go to the last tab).
-        for i in 1..10 {
-            let mut input = ctx.input_mut();
-            if input.consume_key(ALT, NUM_KEYS[i - 1]) {
-                self.workspace.goto_tab(i);
-                // Remove any text event that's also present this frame so that it doesn't show up
-                // in the editor.
-                if let Some(index) = input
-                    .events
-                    .iter()
-                    .position(|evt| *evt == egui::Event::Text(i.to_string()))
-                {
-                    input.events.remove(index);
+        ctx.input_mut(|input| {
+            for i in 1..10 {
+                if input.consume_key(ALT, NUM_KEYS[i - 1]) {
+                    self.workspace.goto_tab(i);
+                    // Remove any text event that's also present this frame so that it doesn't show up
+                    // in the editor.
+                    if let Some(index) = input
+                        .events
+                        .iter()
+                        .position(|evt| *evt == egui::Event::Text(i.to_string()))
+                    {
+                        input.events.remove(index);
+                    }
+                    if let Some(tab) = self.workspace.current_tab() {
+                        frame.set_window_title(&tab.name);
+                    }
+                    break;
                 }
-                if let Some(tab) = self.workspace.current_tab() {
-                    frame.set_window_title(&tab.name);
-                }
-                break;
             }
-        }
+        });
     }
 
     fn show_tree(&mut self, ui: &mut egui::Ui) {
@@ -586,17 +585,18 @@ fn is_supported_image_fmt(ext: &str) -> bool {
 }
 
 fn consume_key(ctx: &egui::Context, key: char) -> bool {
-    let mut input = ctx.input_mut();
-    let m = &input.modifiers;
-    if m.ctrl && !m.alt && !m.shift {
-        if let Some(index) = input
-            .events
-            .iter()
-            .position(|evt| *evt == egui::Event::Text(key.to_string()))
-        {
-            input.events.remove(index);
-            return true;
+    ctx.input_mut(|input| {
+        let m = &input.modifiers;
+        if m.ctrl && !m.alt && !m.shift {
+            if let Some(index) = input
+                .events
+                .iter()
+                .position(|evt| *evt == egui::Event::Text(key.to_string()))
+            {
+                input.events.remove(index);
+                return true;
+            }
         }
-    }
-    false
+        false
+    })
 }

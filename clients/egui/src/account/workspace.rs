@@ -97,7 +97,7 @@ fn tab_label(ui: &mut egui::Ui, t: &Tab, is_active: bool) -> Option<TabLabelResp
                 .expand(2.0);
 
         let mut close_hovered = false;
-        let pointer_pos = ui.input().pointer.hover_pos();
+        let pointer_pos = ui.input(|i| i.pointer.hover_pos());
         if let Some(pos) = pointer_pos {
             if close_btn_rect.contains(pos) {
                 close_hovered = true;

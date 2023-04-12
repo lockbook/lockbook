@@ -37,7 +37,7 @@ impl Editor {
                             job.append(&(num.to_string() + "."), 0.0, text_format);
                             let pos = galley.bullet_bounds(&self.appearance);
 
-                            let galley = ui.ctx().fonts().layout_job(job);
+                            let galley = ui.ctx().fonts(|f| f.layout_job(job));
                             let rect = Align2::RIGHT_TOP
                                 .anchor_rect(Rect::from_min_size(pos.max, galley.size()));
                             ui.painter().galley(rect.min, galley);
@@ -142,8 +142,8 @@ impl Editor {
 
         let screen_size = format!(
             "screen: {} x {}",
-            ui.ctx().input().screen_rect.width(),
-            ui.ctx().input().screen_rect.height()
+            ui.ctx().input(|i| i.screen_rect.width()),
+            ui.ctx().input(|i| i.screen_rect.height())
         );
 
         let doc_info =
@@ -175,7 +175,7 @@ impl Editor {
 
         let output = format!("{}\n{}\n{}\n{}", doc_info, cursor_info, screen_size, frames);
 
-        let loc = ui.input().screen_rect.max;
+        let loc = ui.input(|i| i.screen_rect.max);
         ui.painter()
             .text(loc, Align2::RIGHT_BOTTOM, output, FontId::default(), YELLOW.light);
     }

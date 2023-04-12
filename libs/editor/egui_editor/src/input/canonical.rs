@@ -94,7 +94,7 @@ pub fn calc(
     event: &Event, click_checker: impl ClickChecker, pointer_state: &mut PointerState, now: Instant,
 ) -> Option<Modification> {
     Some(match event {
-        Event::Key { key, pressed: true, modifiers }
+        Event::Key { key, pressed: true, modifiers, .. }
             if matches!(key, Key::ArrowUp | Key::ArrowDown) =>
         {
             Modification::Select {
@@ -109,7 +109,7 @@ pub fn calc(
                 },
             }
         }
-        Event::Key { key, pressed: true, modifiers }
+        Event::Key { key, pressed: true, modifiers, .. }
             if matches!(key, Key::ArrowRight | Key::ArrowLeft | Key::Home | Key::End) =>
         {
             Modification::Select {
@@ -127,7 +127,7 @@ pub fn calc(
         Event::Text(text) | Event::Paste(text) => {
             Modification::Replace { region: Region::Selection, text: text.clone() }
         }
-        Event::Key { key, pressed: true, modifiers }
+        Event::Key { key, pressed: true, modifiers, .. }
             if matches!(key, Key::Backspace | Key::Delete) =>
         {
             Modification::Replace {
@@ -138,20 +138,20 @@ pub fn calc(
                 text: "".to_string(),
             }
         }
-        Event::Key { key: Key::Enter, pressed: true, modifiers: _ } => Modification::Newline,
-        Event::Key { key: Key::Tab, pressed: true, modifiers } => {
+        Event::Key { key: Key::Enter, pressed: true, .. } => Modification::Newline,
+        Event::Key { key: Key::Tab, pressed: true, modifiers, .. } => {
             Modification::Indent { deindent: modifiers.shift }
         }
-        Event::Key { key: Key::A, pressed: true, modifiers } if modifiers.command => {
+        Event::Key { key: Key::A, pressed: true, modifiers, .. } if modifiers.command => {
             Modification::Select { region: Region::Bound { bound: Bound::Doc } }
         }
-        Event::Key { key: Key::X, pressed: true, modifiers } if modifiers.command => {
+        Event::Key { key: Key::X, pressed: true, modifiers, .. } if modifiers.command => {
             Modification::Cut
         }
-        Event::Key { key: Key::C, pressed: true, modifiers } if modifiers.command => {
+        Event::Key { key: Key::C, pressed: true, modifiers, .. } if modifiers.command => {
             Modification::Copy
         }
-        Event::Key { key: Key::Z, pressed: true, modifiers } if modifiers.command => {
+        Event::Key { key: Key::Z, pressed: true, modifiers, .. } if modifiers.command => {
             if !modifiers.shift {
                 Modification::Undo
             } else {
