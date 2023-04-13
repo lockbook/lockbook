@@ -91,7 +91,7 @@ impl DrawingPalette {
 
     pub fn get() -> Self {
         match dark_light::detect() {
-            dark_light::Mode::Dark => Self::DARK,
+            dark_light::Mode::Default | dark_light::Mode::Dark => Self::DARK,
             dark_light::Mode::Light => Self::LIGHT,
         }
     }

@@ -63,10 +63,7 @@ impl SearchModal {
     }
 
     fn process_keys(&mut self, etx: &egui::Context) {
-        if etx
-            .input_mut()
-            .consume_key(egui::Modifiers::NONE, egui::Key::ArrowDown)
-        {
+        if etx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::ArrowDown)) {
             self.arrow_index = match self.arrow_index {
                 Some(n) => {
                     if n == self.results.len() - 1 {
@@ -80,10 +77,7 @@ impl SearchModal {
             self.ensure_arrowed_path();
         }
 
-        if etx
-            .input_mut()
-            .consume_key(egui::Modifiers::NONE, egui::Key::ArrowUp)
-        {
+        if etx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::ArrowUp)) {
             self.arrow_index = match self.arrow_index {
                 Some(0) => None,
                 Some(n) => Some(n - 1),
@@ -169,12 +163,11 @@ impl super::Modal for SearchModal {
             }
         }
 
-        if ui
-            .input()
-            .events
-            .iter()
-            .any(|evt| matches!(evt, egui::Event::Text(_)))
-        {
+        if ui.input(|i| {
+            i.events
+                .iter()
+                .any(|evt| matches!(evt, egui::Event::Text(_)))
+        }) {
             self.arrow_index = None;
         }
 
@@ -193,7 +186,7 @@ impl super::Modal for SearchModal {
             .show(ui);
 
         if out.response.lost_focus()
-            && ui.input().key_pressed(egui::Key::Enter)
+            && ui.input(|i| i.key_pressed(egui::Key::Enter))
             && !self.results.is_empty()
         {
             let item = &self.results[self.arrow_index.unwrap_or(0)];
@@ -225,7 +218,7 @@ impl super::Modal for SearchModal {
             for (index, res) in self.results.iter().enumerate() {
                 if self.draw_search_result(ui, res, index).clicked() {
                     let keep_open = {
-                        let m = ui.input().modifiers;
+                        let m = ui.input(|i| i.modifiers);
                         m.ctrl && !m.alt && !m.shift
                     };
                     resp = Some(SearchItemSelection { id: res.id, close: !keep_open });

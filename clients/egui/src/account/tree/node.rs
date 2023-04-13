@@ -72,7 +72,7 @@ impl TreeNode {
                         .response;
 
                     if resp.lost_focus() || resp.clicked_elsewhere() {
-                        if ui.input().key_pressed(egui::Key::Enter) {
+                        if ui.input(|i| i.key_pressed(egui::Key::Enter)) {
                             node_resp.rename_request =
                                 Some((self.file.id, state.renaming.tmp_name.clone()));
                         }
@@ -108,23 +108,26 @@ impl TreeNode {
 
         let mut resp = self.draw_icon_and_text(ui, state);
 
-        if resp.hovered() && ui.input().pointer.any_pressed() && ui.input().pointer.primary_down() {
-            self.primary_press = ui.input().pointer.press_origin();
+        if resp.hovered()
+            && ui.input(|i| i.pointer.any_pressed())
+            && ui.input(|i| i.pointer.primary_down())
+        {
+            self.primary_press = ui.input(|i| i.pointer.press_origin());
 
-            if ui.input().modifiers.ctrl {
+            if ui.input(|i| i.modifiers.ctrl) {
                 state.toggle_selected(self.file.id);
             } else if !state.selected.contains(&self.file.id) {
                 state.selected.clear();
                 state.selected.insert(self.file.id);
             }
-        } else if ui.input().pointer.any_released() {
+        } else if ui.input(|i| i.pointer.any_released()) {
             if let Some(pos) = self.primary_press {
                 // Mouse was released over an item on which it was originally pressed.
                 if resp.hovered()
                     && resp.rect.contains(pos)
                     && state.selected.len() > 1
                     && state.selected.contains(&self.file.id)
-                    && !ui.input().modifiers.ctrl
+                    && !ui.input(|i| i.modifiers.ctrl)
                 {
                     state.selected.retain(|id| *id == self.file.id);
                 }
@@ -251,7 +254,7 @@ impl TreeNode {
         state.selected.clear();
         state.selected.insert(self.file.id);
 
-        if ui.ctx().input().key_pressed(egui::Key::Escape) {
+        if ui.ctx().input(|i| i.key_pressed(egui::Key::Escape)) {
             ui.close_menu();
         }
 

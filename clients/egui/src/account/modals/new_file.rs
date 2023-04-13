@@ -81,7 +81,7 @@ impl super::Modal for NewDocModal {
                         .hint_text("Name...")
                         .show(ui);
 
-                    if out.response.lost_focus() && ui.input().key_pressed(egui::Key::Enter) {
+                    if out.response.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
                         if self.new_name.is_empty() {
                             self.err_msg = Some("File names cannot be empty!".to_string());
                         } else {
@@ -186,7 +186,7 @@ impl super::Modal for NewFolderModal {
                         .hint_text("Name...")
                         .show(ui);
 
-                    if out.response.lost_focus() && ui.input().key_pressed(egui::Key::Enter) {
+                    if out.response.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
                         if self.new_name.is_empty() {
                             self.err_msg = Some("File names cannot be empty!".to_string());
                         } else {

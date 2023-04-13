@@ -51,15 +51,16 @@ impl FileTree {
             let r = egui::Frame::none().show(ui, |ui| self.root.show(ui, &mut self.state).inner);
 
             if self.state.is_dragging() {
-                if ui.input().pointer.any_released() {
+                if ui.input(|i| i.pointer.any_released()) {
                     let maybe_pos = ui.ctx().pointer_interact_pos();
                     self.state.dropped(maybe_pos);
                 } else {
                     self.draw_drag_info_by_cursor(ui);
                 }
-            } else if r.response.hovered() && ui.input().pointer.primary_down() {
+            } else if r.response.hovered() && ui.input(|i| i.pointer.primary_down()) {
+                // todo(steve): prep drag only if a file is clicked
                 self.state.dnd.is_primary_down = true;
-                if ui.input().pointer.is_moving() {
+                if ui.input(|i| i.pointer.is_moving()) {
                     self.state.dnd.has_moved = true;
                 }
             }
@@ -70,7 +71,7 @@ impl FileTree {
     }
 
     fn draw_drag_info_by_cursor(&self, ui: &mut egui::Ui) {
-        ui.output().cursor_icon = egui::CursorIcon::Grabbing;
+        ui.output_mut(|o| o.cursor_icon = egui::CursorIcon::Grabbing);
 
         // Paint a caption under the cursor in a layer above.
         let layer_id = egui::LayerId::new(egui::Order::Tooltip, self.state.id);

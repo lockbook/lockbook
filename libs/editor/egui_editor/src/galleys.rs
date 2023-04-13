@@ -141,7 +141,7 @@ impl GalleyInfo {
             None
         };
 
-        let galley = ui.ctx().fonts().layout_job(job.job);
+        let galley = ui.ctx().fonts(|f| f.layout_job(job.job));
 
         // allocate space for text and non-image annotations
         let (galley_location, _) = ui.allocate_exact_size(

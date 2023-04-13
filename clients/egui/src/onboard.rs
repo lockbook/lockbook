@@ -159,7 +159,9 @@ impl OnboardScreen {
                                     .show(ui)
                                     .response;
 
-                                if resp.lost_focus() && ui.input().key_pressed(egui::Key::Enter) {
+                                if resp.lost_focus()
+                                    && ui.input(|i| i.key_pressed(egui::Key::Enter))
+                                {
                                     self.create_account(ctx);
                                 }
 
@@ -179,7 +181,9 @@ impl OnboardScreen {
                                     .show(ui)
                                     .response;
 
-                                if resp.lost_focus() && ui.input().key_pressed(egui::Key::Enter) {
+                                if resp.lost_focus()
+                                    && ui.input(|i| i.key_pressed(egui::Key::Enter))
+                                {
                                     self.import_account(ctx);
                                 }
 
