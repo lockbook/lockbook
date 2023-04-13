@@ -32,7 +32,7 @@ struct DetailView: View {
             
             QuickActionBar<SearchResultItem, SearchResultCellView>(
                 location: .window,
-                visible: $search.isSearching,
+                visible: $search.isPathSearching,
                 barWidth: 400,
                 showKeyboardShortcuts: true,
                 selectedItem: $selectedFile,
