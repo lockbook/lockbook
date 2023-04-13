@@ -70,11 +70,11 @@ fn usage_bar(
     let used = metrics.server_usage.exact as f32;
     let available = metrics.data_cap.exact as f32;
     let human_usage = lb::bytes_to_human(used as u64);
-    let percent = (used / available) * 100.0;
+    let percent = used / available;
 
     ui.horizontal(|ui| {
         ui.columns(2, |uis| {
-            uis[0].label(&format!("{}    ({:.2} %)", human_usage, percent));
+            uis[0].label(&format!("{}    ({:.2} %)", human_usage, percent * 100.0));
 
             uis[1].with_layout(egui::Layout::right_to_left(egui::Align::Min), |ui| {
                 ui.label(&lb::bytes_to_human(available as u64));
