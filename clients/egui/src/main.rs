@@ -60,7 +60,8 @@ fn main() {
             splash.start_loading_core(&cc.egui_ctx);
             Box::new(Lockbook::Splash(splash))
         }),
-    );
+    )
+    .unwrap();
 }
 
 enum Lockbook {

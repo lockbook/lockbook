@@ -63,9 +63,11 @@ impl Editor {
 
     pub fn scroll_ui(&mut self, ui: &mut Ui) {
         let id = ui.auto_id_with("lbeditor");
-        if ui.memory().has_focus(id) {
-            ui.memory().lock_focus(id, true);
-        }
+        ui.memory_mut(|m| {
+            if m.has_focus(id) {
+                m.lock_focus(id, true);
+            }
+        });
 
         let sao = egui::ScrollArea::vertical().show(ui, |ui| {
             ui.spacing_mut().item_spacing = Vec2::ZERO;
@@ -73,7 +75,7 @@ impl Editor {
         });
         let resp = ui.interact(sao.inner_rect, id, egui::Sense::click_and_drag());
         if let Some(pos) = resp.interact_pointer_pos() {
-            if !ui.memory().has_focus(id) {
+            if !ui.memory(|m| m.has_focus(id)) {
                 events::process(
                     &[egui::Event::PointerButton {
                         pos,
@@ -90,11 +92,13 @@ impl Editor {
                     &mut self.debug,
                     &mut self.pointer_state,
                 );
-                ui.memory().request_focus(id);
-                ui.memory().lock_focus(id, true);
+                ui.memory_mut(|m| {
+                    m.request_focus(id);
+                    m.lock_focus(id, true);
+                });
             }
         } else if resp.clicked_elsewhere() {
-            ui.memory().surrender_focus(id);
+            ui.memory_mut(|m| m.surrender_focus(id));
         }
     }
 
@@ -110,35 +114,35 @@ impl Editor {
         let (text_updated, cursor_pos_updated, selection_updated) = if self.initialized {
             let prior_cursor_pos = self.buffer.current.cursor.pos;
             let prior_selection = self.buffer.current.cursor.selection();
-            let (text_updated, maybe_to_clipboard, maybe_opened_url) = if ui.memory().has_focus(id)
-            {
-                events::process(
-                    &ui.ctx().input().events,
-                    &self.ast,
-                    &self.layouts,
-                    &self.galleys,
-                    &self.appearance,
-                    ui_size,
-                    &mut self.buffer,
-                    &mut self.debug,
-                    &mut self.pointer_state,
-                )
-            } else {
-                (false, None, None)
-            };
+            let (text_updated, maybe_to_clipboard, maybe_opened_url) =
+                if ui.memory(|m| m.has_focus(id)) {
+                    events::process(
+                        &ui.ctx().input_mut(|i| i.events.clone()),
+                        &self.ast,
+                        &self.layouts,
+                        &self.galleys,
+                        &self.appearance,
+                        ui_size,
+                        &mut self.buffer,
+                        &mut self.debug,
+                        &mut self.pointer_state,
+                    )
+                } else {
+                    (false, None, None)
+                };
             let cursor_pos_updated = self.buffer.current.cursor.pos != prior_cursor_pos;
             let selection_updated = self.buffer.current.cursor.selection() != prior_selection;
 
             // put cut or copied text in clipboard
             if let Some(to_clipboard) = maybe_to_clipboard {
-                ui.output().copied_text = to_clipboard;
+                ui.output_mut(|o| o.copied_text = to_clipboard);
             }
             if let Some(opened_url) = maybe_opened_url {
-                ui.output().open_url = Some(egui::output::OpenUrl::new_tab(opened_url));
+                ui.output_mut(|o| o.open_url = Some(egui::output::OpenUrl::new_tab(opened_url)));
             }
             (text_updated, cursor_pos_updated, selection_updated)
         } else {
-            ui.memory().request_focus(id);
+            ui.memory_mut(|m| m.request_focus(id));
             (true, true, true)
         };
 
@@ -165,7 +169,7 @@ impl Editor {
         // draw
         self.draw_text(ui_size, ui);
 
-        if ui.memory().has_focus(id) {
+        if ui.memory(|m| m.has_focus(id)) {
             self.draw_cursor(ui);
         }
 
