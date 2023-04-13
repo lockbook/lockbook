@@ -3184,6 +3184,7 @@ dependencies = [
  "prometheus",
  "prometheus-static-metric",
  "reqwest",
+ "semver",
  "serde",
  "serde_json",
  "sha2 0.10.6",
@@ -4679,6 +4680,12 @@ dependencies = [
  "core-foundation-sys",
  "libc",
 ]
+
+[[package]]
+name = "semver"
+version = "1.0.17"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bebd363326d05ec3e2f532ab7660680f3b02130d780c299bca73469d521bc0ed"
 
 [[package]]
 name = "serde"
