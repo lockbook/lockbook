@@ -262,7 +262,7 @@ fn list_metadatas_nested_linked_folders() {
         &cores[1],
         folder1.id,
         &[folder1.id, folder2.id, document.id],
-    ); // todo: is this correct?
+    );
     assert::all_recursive_children_ids(&cores[1], folder2.id, &[folder2.id, document.id]);
     assert::all_recursive_children_ids(&cores[1], document.id, &[document.id]);
 }

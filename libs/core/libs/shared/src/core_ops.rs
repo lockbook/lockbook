@@ -85,9 +85,7 @@ where
             FileType::Document | FileType::Folder => finalized,
             FileType::Link { target } => {
                 let mut target_file = self.decrypt(&target, account, public_key_cache)?;
-
                 target_file.parent = finalized.parent;
-                target_file.name = finalized.name;
 
                 target_file
             }
@@ -116,9 +114,7 @@ where
                 FileType::Document | FileType::Folder => finalized,
                 FileType::Link { target } => {
                     let mut target_file = self.decrypt(&target, account, public_key_cache)?;
-
                     target_file.parent = finalized.parent;
-                    target_file.name = finalized.name;
 
                     target_file
                 }
