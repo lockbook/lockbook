@@ -4,6 +4,6 @@ version = "0.7.2"
 edition = "2021"
 
 [dependencies]
-structopt = "0.3.13"
+clap = { version = "4.1.4", features = ["derive"] }
 lockbook-core = { path = "../../libs/core" }
 dialoguer = { version = "0.10.1", features = ["fuzzy-select"] }

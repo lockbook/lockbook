@@ -1,3 +1,5 @@
+use is_terminal::IsTerminal;
+
 use lb::Core;
 
 use crate::input;
@@ -60,7 +62,7 @@ fn new_acct(
 }
 
 fn import_acct(core: &Core) -> Result<(), CliError> {
-    if atty::is(atty::Stream::Stdin) {
+    if std::io::stdin().is_terminal() {
         return Err(CliError::new("to import an existing lockbook account, pipe your account string into this command, e.g.:\npbpaste | lockbook account import"));
     }
 

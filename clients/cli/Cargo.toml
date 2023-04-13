@@ -8,7 +8,7 @@ name = "lockbook"
 path = "src/main.rs"
 
 [dependencies]
-atty = "0.2"
+is-terminal = "0.4.7"
 clap = { version = "4.1.4", features = ["derive"] }
 hotwatch = "0.4.6"
 lb = { path = "../../libs/core", package = "lockbook-core" }
