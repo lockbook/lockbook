@@ -6,6 +6,7 @@ use std::sync::{Arc, Mutex};
 use libsecp256k1::PublicKey;
 use lockbook_shared::api::{ErrorWrapper, Request, RequestWrapper};
 use lockbook_shared::{clock, pubkey, SharedError};
+use semver::Version;
 use serde::{Deserialize, Serialize};
 
 use crate::account_service::GetUsageHelperError;
@@ -15,6 +16,7 @@ use crate::billing::stripe_model::{StripeDeclineCodeCatcher, StripeKnownDeclineC
 use crate::schema::ServerV4;
 use crate::ServerError::ClientError;
 pub use stripe;
+use tracing::log::warn;
 
 static CARGO_PKG_VERSION: &str = env!("CARGO_PKG_VERSION");
 
@@ -52,14 +54,17 @@ macro_rules! internal {
 pub fn handle_version_header<Req: Request>(
     config: &config::Config, version: &Option<String>,
 ) -> Result<(), ErrorWrapper<Req::Error>> {
-    let incompatible_versions = &config.server.deprecated_core_versions;
-    let v = &version.clone().unwrap_or_default();
-    if version.is_none() || incompatible_versions.contains(v) {
+    let v = &version.clone().unwrap_or("0.0.0".to_string());
+    let Ok(v) = Version::parse(v) else {
+        warn!("version not parsable, request rejected: {v}");
+        return Err(ErrorWrapper::BadRequest);
+    };
+    router_service::CORE_VERSION_COUNTER
+        .with_label_values(&[&(v.to_string())])
+        .inc();
+    if !config.server.min_core_version.matches(&v) {
         return Err(ErrorWrapper::<Req::Error>::ClientUpdateRequired);
     }
-    router_service::CORE_VERSION_COUNTER
-        .with_label_values(&[v])
-        .inc();
     Ok(())
 }
 

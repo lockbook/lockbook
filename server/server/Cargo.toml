@@ -42,6 +42,7 @@ jsonwebtoken = "8.2.0"
 x509-parser = { version = "0.15.0", features = ["verify", "validate"]}
 db-rs = "0.1.18"
 db-rs-derive = "0.1.18"
+semver = "1.0.17"
 
 [build-dependencies]
 shadow-rs = "0.21.0"

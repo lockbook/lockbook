@@ -1,5 +1,6 @@
 use crate::config::Environment::{Local, Prod, Unknown};
 use lockbook_shared::account::Username;
+use semver::VersionReq;
 use std::collections::HashSet;
 use std::fmt::Display;
 use std::path::PathBuf;
@@ -31,7 +32,7 @@ impl Config {
     }
 
     pub fn is_prod(&self) -> bool {
-        self.server.env == Environment::Prod
+        self.server.env == Prod
     }
 }
 
@@ -137,7 +138,7 @@ pub struct ServerConfig {
     pub pd_api_key: Option<String>,
     pub ssl_cert_location: Option<String>,
     pub ssl_private_key_location: Option<String>,
-    pub deprecated_core_versions: Vec<String>,
+    pub min_core_version: VersionReq,
 }
 
 impl ServerConfig {
@@ -149,10 +150,7 @@ impl ServerConfig {
         let pd_api_key = env_or_empty("PD_KEY");
         let ssl_cert_location = env_or_empty("SSL_CERT_LOCATION");
         let ssl_private_key_location = env_or_empty("SSL_PRIVATE_KEY_LOCATION");
-        let deprecated_core_versions = env_or_panic("DEPRECATED_CORE_VERSIONS")
-            .split(", ")
-            .map(|part| part.to_string())
-            .collect();
+        let min_core_version = VersionReq::parse(&env_or_panic("MIN_CORE_VERSION")).unwrap();
 
         match (&pd_api_key, &ssl_cert_location, &ssl_private_key_location) {
             (Some(_), Some(_), Some(_)) | (None, None, None) => {}
@@ -169,7 +167,7 @@ impl ServerConfig {
             pd_api_key,
             ssl_cert_location,
             ssl_private_key_location,
-            deprecated_core_versions,
+            min_core_version,
         }
     }
 }
