@@ -128,7 +128,11 @@ impl SettingsModal {
             })
             .response;
 
-        let response = response.interact(egui::Sense::click());
+        let response = ui.interact(
+            response.rect,
+            egui::Id::from(format!("tab_label_{}", text)),
+            egui::Sense::click(),
+        );
         if response.clicked() {
             self.active_tab = tab;
         }
