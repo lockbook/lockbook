@@ -59,11 +59,11 @@ impl<Client: Requester> CoreState<Client> {
                 continue;
             }
             // file must not have any links pointing to it
-            if tree.link(&id)?.is_some() {
+            if tree.linked_by(&id)?.is_some() {
                 continue;
             }
 
-            let file = tree.finalize(account, id, &mut self.db.pub_key_lookup)?;
+            let file = tree.decrypt(account, &id, &mut self.db.pub_key_lookup)?;
 
             result.push(file);
         }

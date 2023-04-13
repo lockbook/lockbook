@@ -286,9 +286,9 @@ where
                 }
 
                 if let Some(remote_hmac) = remote_hmac {
-                    report_sync_operation(SyncOperation::PullDocumentStart(remote.finalize(
+                    report_sync_operation(SyncOperation::PullDocumentStart(remote.decrypt(
                         &self.account,
-                        id,
+                        &id,
                         self.username_by_public_key,
                     )?));
 
@@ -780,7 +780,7 @@ where
                             ValidationFailure::DuplicateLink { target } => {
                                 // delete local link with this target
                                 let mut progress = false;
-                                if let Some(link) = local.link(target)? {
+                                if let Some(link) = local.linked_by(target)? {
                                     if links_to_delete.insert(link) {
                                         progress = true;
                                     }
@@ -996,9 +996,9 @@ where
 
             let local_change = local_change.sign(&self.account)?;
 
-            report_sync_operation(SyncOperation::PushDocumentStart(local.finalize(
+            report_sync_operation(SyncOperation::PushDocumentStart(local.decrypt(
                 &self.account,
-                id,
+                &id,
                 self.username_by_public_key,
             )?));
 

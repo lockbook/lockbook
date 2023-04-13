@@ -27,15 +27,15 @@ impl<T> LazyTree<T>
 where
     T: TreeLike<F = SignedFile>,
 {
-    ///  decrypt file fields in preparation for converting FileMetadata into File
-    fn decrypt(
-        &mut self, id: &Uuid, account: &Account, public_key_cache: &mut LookupTable<Owner, String>,
+    /// convert FileMetadata into File. fields have been decrypted, public keys replaced with usernames, deleted files filtered out, etc.
+    pub fn decrypt(
+        &mut self, account: &Account, id: &Uuid, public_key_cache: &mut LookupTable<Owner, String>,
     ) -> SharedResult<File> {
         let meta = self.find(id)?.clone();
         let file_type = meta.file_type();
         let last_modified = meta.timestamped_value.timestamp as u64;
         let name = self.name_using_links(id, account)?;
-        let parent = *meta.parent();
+        let parent = self.parent_using_links(id)?;
         let last_modified_by = account.username.clone();
         let id = *id;
 
@@ -76,23 +76,6 @@ where
     }
 
     /// convert FileMetadata into File. fields have been decrypted, public keys replaced with usernames, deleted files filtered out, etc.
-    pub fn finalize(
-        &mut self, account: &Account, id: Uuid, public_key_cache: &mut LookupTable<Owner, String>,
-    ) -> SharedResult<File> {
-        let finalized = self.decrypt(&id, account, public_key_cache)?;
-
-        let file = match finalized.file_type {
-            FileType::Document | FileType::Folder => finalized,
-            FileType::Link { target } => {
-                let mut target_file = self.decrypt(&target, account, public_key_cache)?;
-                target_file.parent = finalized.parent;
-
-                target_file
-            }
-        };
-
-        Ok(file)
-    }
 
     pub fn finalize_all<I>(
         &mut self, account: &Account, ids: I, public_key_cache: &mut LookupTable<Owner, String>,
@@ -108,25 +91,17 @@ where
                 continue;
             }
 
-            let finalized = self.decrypt(&id, account, public_key_cache)?;
-
-            let file = match finalized.file_type {
-                FileType::Document | FileType::Folder => finalized,
-                FileType::Link { target } => {
-                    let mut target_file = self.decrypt(&target, account, public_key_cache)?;
-                    target_file.parent = finalized.parent;
-
-                    target_file
-                }
-            };
-            files.push(file);
+            let finalized = self.decrypt(account, &id, public_key_cache)?;
+            files.push(finalized);
         }
 
         Ok(files)
     }
 
     fn is_invisible_id(&mut self, id: Uuid) -> SharedResult<bool> {
-        Ok(self.calculate_deleted(&id)? || self.in_pending_share(&id)? || self.link(&id)?.is_some())
+        Ok(self.find(&id)?.is_link()
+            || self.calculate_deleted(&id)?
+            || self.in_pending_share(&id)?)
     }
 
     pub fn create_op(
@@ -274,7 +249,7 @@ where
         // delete any links pointing to file
         if let Some(encrypted_for) = maybe_encrypted_for {
             if encrypted_for == account.public_key() {
-                if let Some(link) = self.link(id)? {
+                if let Some(link) = self.linked_by(id)? {
                     let mut link = self.find(&link)?.timestamped_value.value.clone();
                     link.is_deleted = true;
                     result.push(link.sign(account)?);
