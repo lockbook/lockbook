@@ -8,7 +8,7 @@ const LIB_NAME_HEADER: &str = "lockbook_core.h";
 const LIB_NAME: &str = "liblockbook_core_external_interface.a";
 
 pub fn run_swift_tests(tool_env: &ToolEnvironment) {
-    dotenv::from_path(utils::local_env_path(&tool_env.root_dir)).unwrap();
+    dotenvy::from_path(utils::local_env_path(&tool_env.root_dir)).unwrap();
 
     make_swift_test_lib(tool_env);
 

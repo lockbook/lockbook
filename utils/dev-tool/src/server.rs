@@ -6,7 +6,7 @@ use std::process::{Command, Stdio};
 use std::{env, fs};
 
 pub fn run_server_detached(tool_env: &ToolEnvironment) {
-    dotenv::from_path(utils::local_env_path(&tool_env.root_dir)).unwrap();
+    dotenvy::from_path(utils::local_env_path(&tool_env.root_dir)).unwrap();
 
     let server_log = File::create(utils::server_log(&tool_env.root_dir)).unwrap();
     let out = Stdio::from(server_log);
@@ -34,7 +34,7 @@ pub fn run_server_detached(tool_env: &ToolEnvironment) {
 }
 
 pub fn kill_server(tool_env: &ToolEnvironment) {
-    dotenv::from_path(utils::local_env_path(&tool_env.root_dir)).unwrap();
+    dotenvy::from_path(utils::local_env_path(&tool_env.root_dir)).unwrap();
 
     Command::new("fuser")
         .args(["-k", &format!("{}/tcp", env::var("SERVER_PORT").unwrap())])
@@ -51,7 +51,7 @@ pub fn print_server_logs(tool_env: &ToolEnvironment) {
 }
 
 pub fn run_rust_tests(tool_env: &ToolEnvironment) {
-    dotenv::from_path(utils::local_env_path(&tool_env.root_dir)).unwrap();
+    dotenvy::from_path(utils::local_env_path(&tool_env.root_dir)).unwrap();
 
     Command::new("cargo")
         .args(["test", "--workspace"])

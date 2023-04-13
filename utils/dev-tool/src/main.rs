@@ -5,12 +5,11 @@ mod setup;
 mod utils;
 mod workspace;
 
+use clap::Parser;
 use std::fs;
 use std::path::PathBuf;
-use structopt::StructOpt;
 
-#[derive(Debug, PartialEq, StructOpt)]
-#[structopt(about = "Lockbook's development and ci tool.")]
+#[derive(Debug, PartialEq, Parser)]
 enum Commands {
     // CI steps in order --------------
     /// Check the formatting of the workspace
@@ -77,7 +76,7 @@ fn main() {
     let tool_env = ToolEnvironment { root_dir, target_dir };
 
     use Commands::*;
-    match Commands::from_args() {
+    match Commands::parse() {
         VerifyCIEnvironment => setup::verify_ci_environment(),
         CheckWorkspaceFmt => workspace::fmt_workspace(&tool_env),
         CheckWorkspaceClippy => workspace::clippy_workspace(&tool_env),

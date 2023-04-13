@@ -1,6 +1,5 @@
 pub mod assert;
 
-use chrono::Datelike;
 use itertools::Itertools;
 use lockbook_core::service::api_service::Requester;
 use lockbook_core::{Core, CoreLib};
@@ -15,6 +14,7 @@ use std::fmt::Debug;
 use std::fs;
 use std::hash::Hash;
 use std::path::{Path, PathBuf};
+use time::OffsetDateTime;
 use uuid::Uuid;
 
 pub fn test_config() -> Config {
@@ -181,7 +181,7 @@ pub mod test_card_info {
 }
 
 fn get_next_year() -> i32 {
-    chrono::Utc::now().year() + 1
+    OffsetDateTime::now_utc().year() + 1
 }
 
 pub fn generate_premium_account_tier(

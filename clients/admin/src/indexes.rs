@@ -1,9 +1,9 @@
 use crate::Res;
+use clap::Subcommand;
 
 use lockbook_core::{Core, ServerIndex};
-use structopt::StructOpt;
 
-#[derive(Debug, PartialEq, Eq, StructOpt)]
+#[derive(Debug, PartialEq, Eq, Subcommand)]
 pub enum CliIndex {
     OwnedFiles,
     SharedFiles,

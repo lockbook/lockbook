@@ -5,9 +5,8 @@ mod indexes;
 mod info;
 mod validate;
 
+use clap::{Parser, Subcommand};
 use std::env;
-
-use structopt::StructOpt;
 
 use crate::error::Error;
 use crate::indexes::CliIndex;
@@ -15,28 +14,22 @@ use lockbook_core::{
     Config, Core, GooglePlayAccountState, StripeAccountState, UnixTimeMillis, Uuid,
 };
 
-#[derive(Debug, PartialEq, Eq, StructOpt)]
+#[derive(Debug, PartialEq, Eq, Parser)]
 pub enum Admin {
     /// Disappear a user
     ///
     /// Frees up their username
-    DisappearAccount {
-        username: String,
-    },
+    DisappearAccount { username: String },
 
     /// Disappear a file
     ///
     /// When you delete a file you flip that file's is_deleted flag to false. In a disaster recovery
     /// scenario, you may want to *disappear* a file so that it never existed. This is useful in a
     /// scenario where your server let in an invalid file.
-    DisappearFile {
-        id: Uuid,
-    },
+    DisappearFile { id: Uuid },
 
     /// Validates file trees of all users on the server and prints any failures
-    ValidateAccount {
-        username: String,
-    },
+    ValidateAccount { username: String },
 
     /// Performs server-wide integrity checks
     ValidateServer,
@@ -66,18 +59,18 @@ pub enum Admin {
         public_key: Option<String>,
     },
 
+    #[command(subcommand)]
     RebuildIndex(CliIndex),
 
     /// Prints information about a file as it appears on the server
-    FileInfo {
-        id: Uuid,
-    },
+    FileInfo { id: Uuid },
 
     /// Manually set a user's tier and their subscription information
+    #[command(subcommand)]
     SetUserTier(SetUserTier),
 }
 
-#[derive(Debug, PartialEq, Eq, StructOpt)]
+#[derive(Debug, PartialEq, Eq, Subcommand)]
 pub enum SetUserTier {
     Stripe {
         username: String,
@@ -122,7 +115,7 @@ pub fn main() {
 
     let core = Core::init(&Config { writeable_path, logs: true, colored_logs: true }).unwrap();
 
-    let result = match Admin::from_args() {
+    let result = match Admin::parse() {
         Admin::DisappearAccount { username } => disappear::account(&core, username),
         Admin::ListUsers { premium, app_store_premium, google_play_premium, stripe_premium } => {
             account::list(&core, premium, app_store_premium, google_play_premium, stripe_premium)
