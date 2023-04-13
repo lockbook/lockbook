@@ -135,9 +135,14 @@ fn delete(core: &Core, target: &str, force: bool) -> Result<(), CliError> {
 
     if !force {
         let mut phrase = format!("delete '{}'", target);
-        if f.is_folder() {
-            let count = core.get_and_get_children_recursively(f.id)?.len();
-            phrase = format!("{phrase} and its {count} children")
+        let count = core
+            .get_and_get_children_recursively(f.id)
+            .unwrap_or_default()
+            .len() as u64
+            - 1;
+
+        if f.is_folder() && count > 0 {
+            phrase = format!("{phrase} and its {count} children");
         }
 
         let answer: String = input(format!("are you sure you want to {phrase}? [y/n]: "))?;
