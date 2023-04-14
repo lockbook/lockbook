@@ -20,6 +20,7 @@ use self::error::CliError;
 const ID_PREFIX_LEN: usize = 8;
 
 #[derive(Parser, Debug)]
+#[command(version, about)]
 enum LbCli {
     /// account related commands
     #[command(subcommand)]
