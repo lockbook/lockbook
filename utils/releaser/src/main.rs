@@ -6,13 +6,13 @@ mod public_site;
 mod secrets;
 mod server;
 mod utils;
+mod version;
 mod windows;
 
 use crate::secrets::*;
 use crate::utils::root;
 
 use clap::Parser;
-use utils::bump_versions;
 
 #[derive(Parser, PartialEq)]
 #[structopt(name = "basic")]
@@ -26,8 +26,8 @@ enum Releaser {
     ReleaseLinux,
     CreateGithubRelease,
     BumpVersion {
-        #[arg(short, long, name = "bump type")]
-        increment: Option<String>,
+        #[arg(short, long, name = "bump type", default_value_t)]
+        increment: version::BumpType,
     },
 }
 
@@ -47,7 +47,7 @@ fn from_args(releaser: Releaser) {
         Releaser::ReleasePublicSite => public_site::release(),
         Releaser::ReleaseLinux => linux::release_linux(),
         Releaser::CreateGithubRelease => github::create_gh_release(&Github::env()),
-        Releaser::BumpVersion { increment } => bump_versions(increment),
+        Releaser::BumpVersion { increment } => version::bump(increment),
         Releaser::All => {
             let releases = if cfg!(target_os = "macos") {
                 vec![Releaser::ReleaseApple]
