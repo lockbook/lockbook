@@ -28,6 +28,3 @@ order of priority):
 * `list_paths`
 * `upgrade_account_google_play`
 * `upgrade_account_app_store`
-
-The `search_file_paths` endpoint will not be implemented as it's likely to become obsolete
-in favor of `start_search`.
