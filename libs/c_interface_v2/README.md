@@ -14,6 +14,8 @@ This differs from the current lockbook c_interface (v1) in a few key ways:
 * [UUIDs are passed as 16 byte array values over
   FFI](https://github.com/steverusso/lockbook-x/pull/8) instead of as strings
   that panic if they can't be parsed.
+* uniform error type that contains a message, status code, and a possible
+  backtrace instead of a serialized enum unique to each endpoint.
 
 ## Missing endpoints
 
