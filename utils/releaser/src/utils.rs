@@ -163,6 +163,7 @@ pub fn bump_versions(bump_type: Option<String>) {
         "libs/core",
         "libs/core/libs/shared",
         "libs/core/libs/test_utils",
+        "libs/c_interface_v2",
         "libs/editor/egui_editor",
         "utils/dev-tool",
         "utils/releaser",

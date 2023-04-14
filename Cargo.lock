@@ -743,6 +743,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "c_interface_v2"
+version = "0.7.2"
+dependencies = [
+ "libc",
+ "lockbook-core",
+]
+
+[[package]]
 name = "calloop"
 version = "0.10.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
