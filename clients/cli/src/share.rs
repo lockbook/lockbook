@@ -194,7 +194,7 @@ fn share_infos_table(infos: &[ShareInfo], full_ids: bool) -> String {
     }
     // Print the table column headers.
     let mut ret = format!(
-        " {:<w_id$} | {:<w_mode$} | {:<w_from$} | file",
+        " {:<w_id$} | {:<w_mode$} | {:<w_from$} | file\n",
         "id",
         "mode",
         "from",
@@ -203,7 +203,7 @@ fn share_infos_table(infos: &[ShareInfo], full_ids: bool) -> String {
         w_from = w_from
     );
     ret += &format!(
-        "-{:-<w_id$}-+-{:-<w_mode$}-+-{:-<w_from$}-+-{:-<w_name$}-",
+        "-{:-<w_id$}-+-{:-<w_mode$}-+-{:-<w_from$}-+-{:-<w_name$}-\n",
         "",
         "",
         "",
@@ -216,7 +216,7 @@ fn share_infos_table(infos: &[ShareInfo], full_ids: bool) -> String {
     // Print the table rows of pending share infos.
     for info in infos {
         ret += &format!(
-            " {:<w_id$} | {:<w_mode$} | {:<w_from$} | {}",
+            " {:<w_id$} | {:<w_mode$} | {:<w_from$} | {}\n",
             &info.id.to_string()[..w_id],
             info.mode,
             info.from,
