@@ -125,21 +125,13 @@ fn lb_error_code(kind: CoreError) -> LbErrorCode {
 /// # Safety
 #[no_mangle]
 pub extern "C" fn lb_error_none() -> LbError {
-    LbError {
-        code: LbErrorCode::Success,
-        msg: null_mut(),
-        trace: null_mut(),
-    }
+    LbError { code: LbErrorCode::Success, msg: null_mut(), trace: null_mut() }
 }
 
 /// # Safety
 #[no_mangle]
 pub unsafe extern "C" fn lb_error_copy(err: LbError) -> LbError {
-    LbError {
-        code: err.code,
-        msg: libc::strdup(err.msg),
-        trace: libc::strdup(err.trace),
-    }
+    LbError { code: err.code, msg: libc::strdup(err.msg), trace: libc::strdup(err.trace) }
 }
 
 /// # Safety
@@ -215,10 +207,7 @@ pub struct LbStringResult {
 }
 
 fn lb_string_result_new() -> LbStringResult {
-    LbStringResult {
-        ok: null_mut(),
-        err: lb_error_none(),
-    }
+    LbStringResult { ok: null_mut(), err: lb_error_none() }
 }
 
 /// # Safety
@@ -250,13 +239,7 @@ pub struct LbBytesResult {
 }
 
 fn lb_bytes_result_new() -> LbBytesResult {
-    LbBytesResult {
-        ok: LbBytes {
-            data: null_mut(),
-            size: 0,
-        },
-        err: lb_error_none(),
-    }
+    LbBytesResult { ok: LbBytes { data: null_mut(), size: 0 }, err: lb_error_none() }
 }
 
 /// # Safety
@@ -280,10 +263,7 @@ pub struct LbInitResult {
 /// The returned value must be passed to `lb_error_free` to avoid a memory leak.
 #[no_mangle]
 pub unsafe extern "C" fn lb_init(writeable_path: *const c_char, logs: bool) -> LbInitResult {
-    let mut r = LbInitResult {
-        core: null_mut(),
-        err: lb_error_none(),
-    };
+    let mut r = LbInitResult { core: null_mut(), err: lb_error_none() };
     match Core::init(&Config {
         writeable_path: rstr(writeable_path).to_string(),
         logs,
@@ -313,10 +293,7 @@ pub struct LbStringList {
 }
 
 fn lb_string_list_new() -> LbStringList {
-    LbStringList {
-        data: null_mut(),
-        size: 0,
-    }
+    LbStringList { data: null_mut(), size: 0 }
 }
 
 /// # Safety
@@ -357,10 +334,7 @@ pub unsafe extern "C" fn lb_validate_result_free(r: LbValidateResult) {
 /// `lb_error_free` respectively depending on whether there's an error or not.
 #[no_mangle]
 pub unsafe extern "C" fn lb_validate(core: *mut c_void) -> LbValidateResult {
-    let mut r = LbValidateResult {
-        ok: lb_string_list_new(),
-        err: lb_error_none(),
-    };
+    let mut r = LbValidateResult { ok: lb_string_list_new(), err: lb_error_none() };
     match core!(core).validate() {
         Ok(warnings) => {
             let mut c_warnings = Vec::with_capacity(warnings.len());

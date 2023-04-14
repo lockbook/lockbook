@@ -60,11 +60,7 @@ pub unsafe extern "C" fn lb_calc_work_result_free(r: LbCalcWorkResult) {
 #[no_mangle]
 pub unsafe extern "C" fn lb_calculate_work(core: *mut c_void) -> LbCalcWorkResult {
     let mut r = LbCalcWorkResult {
-        ok: LbWorkCalc {
-            units: null_mut(),
-            num_units: 0,
-            last_server_update_at: 0,
-        },
+        ok: LbWorkCalc { units: null_mut(), num_units: 0, last_server_update_at: 0 },
         err: lb_error_none(),
     };
     match core!(core).calculate_work() {
@@ -124,9 +120,7 @@ pub type LbSyncProgressCallback = unsafe extern "C" fn(LbSyncProgress, *mut c_vo
 /// The returned value must be passed to `lb_error_free` to avoid a memory leak.
 #[no_mangle]
 pub unsafe extern "C" fn lb_sync_all(
-    core: *mut c_void,
-    progress: LbSyncProgressCallback,
-    user_data: *mut c_void,
+    core: *mut c_void, progress: LbSyncProgressCallback, user_data: *mut c_void,
 ) -> LbError {
     match core!(core).sync(Some(Box::new(move |sp| {
         let mut cwu = LbClientWorkUnit {
@@ -173,10 +167,7 @@ pub unsafe extern "C" fn lb_int64_result_free(r: LbInt64Result) {
 /// Alternatively, the `err` value can be passed to `lb_error_free` if there's an error.
 #[no_mangle]
 pub unsafe extern "C" fn lb_get_last_synced(core: *mut c_void) -> LbInt64Result {
-    let mut r = LbInt64Result {
-        ok: 0,
-        err: lb_error_none(),
-    };
+    let mut r = LbInt64Result { ok: 0, err: lb_error_none() };
     match core!(core).get_last_synced() {
         Ok(v) => r.ok = v,
         Err(err) => {
@@ -237,10 +228,7 @@ pub struct LbUsageItemMetric {
 }
 
 fn lb_usage_item_metric_none() -> LbUsageItemMetric {
-    LbUsageItemMetric {
-        exact: 0,
-        readable: null_mut(),
-    }
+    LbUsageItemMetric { exact: 0, readable: null_mut() }
 }
 
 /// # Safety
@@ -285,10 +273,7 @@ pub unsafe extern "C" fn lb_get_usage(core: *mut c_void) -> LbUsageResult {
         Ok(m) => {
             let mut usages = Vec::with_capacity(m.usages.len());
             for fu in m.usages {
-                usages.push(LbFileUsage {
-                    id: fu.file_id.into_bytes(),
-                    size_bytes: fu.size_bytes,
-                });
+                usages.push(LbFileUsage { id: fu.file_id.into_bytes(), size_bytes: fu.size_bytes });
             }
             let mut usages = std::mem::ManuallyDrop::new(usages);
             r.ok.usages = usages.as_mut_ptr();
@@ -326,10 +311,7 @@ pub unsafe extern "C" fn lb_unc_usage_result_free(r: LbUncUsageResult) {
 /// `lb_error_free` respectively depending on whether there's an error or not.
 #[no_mangle]
 pub unsafe extern "C" fn lb_get_uncompressed_usage(core: *mut c_void) -> LbUncUsageResult {
-    let mut r = LbUncUsageResult {
-        ok: lb_usage_item_metric_none(),
-        err: lb_error_none(),
-    };
+    let mut r = LbUncUsageResult { ok: lb_usage_item_metric_none(), err: lb_error_none() };
     match core!(core).get_uncompressed_usage() {
         Ok(im) => {
             r.ok.exact = im.exact;

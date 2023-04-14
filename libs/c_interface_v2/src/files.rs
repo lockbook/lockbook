@@ -76,10 +76,7 @@ pub enum LbFileTypeTag {
 
 #[no_mangle]
 pub extern "C" fn lb_file_type_doc() -> LbFileType {
-    LbFileType {
-        tag: LbFileTypeTag::Document,
-        link_target: [0; 16],
-    }
+    LbFileType { tag: LbFileTypeTag::Document, link_target: [0; 16] }
 }
 
 #[repr(C)]
@@ -101,10 +98,7 @@ unsafe fn lb_share_list_new(shares: Vec<Share>) -> LbShareList {
         });
     }
     let mut list = std::mem::ManuallyDrop::new(list);
-    LbShareList {
-        list: list.as_mut_ptr(),
-        count: list.len(),
-    }
+    LbShareList { list: list.as_mut_ptr(), count: list.len() }
 }
 
 /// # Safety
@@ -149,10 +143,7 @@ fn lb_file_result_new() -> LbFileResult {
             typ: lb_file_type_doc(),
             lastmod_by: null_mut(),
             lastmod: 0,
-            shares: LbShareList {
-                list: std::ptr::null_mut(),
-                count: 0,
-            },
+            shares: LbShareList { list: std::ptr::null_mut(), count: 0 },
         },
         err: lb_error_none(),
     }
@@ -175,13 +166,7 @@ pub struct LbFileListResult {
 }
 
 fn lb_file_list_result_new() -> LbFileListResult {
-    LbFileListResult {
-        ok: LbFileList {
-            list: null_mut(),
-            count: 0,
-        },
-        err: lb_error_none(),
-    }
+    LbFileListResult { ok: LbFileList { list: null_mut(), count: 0 }, err: lb_error_none() }
 }
 
 /// # Safety
@@ -232,18 +217,13 @@ pub unsafe extern "C" fn lb_file_list_free(fl: LbFileList) {
 /// respectively depending on whether there's an error or not.
 #[no_mangle]
 pub unsafe extern "C" fn lb_create_file(
-    core: *mut c_void,
-    name: *const c_char,
-    parent: LbFileId,
-    ft: LbFileType,
+    core: *mut c_void, name: *const c_char, parent: LbFileId, ft: LbFileType,
 ) -> LbFileResult {
     let mut r = lb_file_result_new();
     let ftype = match ft.tag {
         LbFileTypeTag::Document => FileType::Document,
         LbFileTypeTag::Folder => FileType::Folder,
-        LbFileTypeTag::Link => FileType::Link {
-            target: Uuid::from_bytes(ft.link_target),
-        },
+        LbFileTypeTag::Link => FileType::Link { target: Uuid::from_bytes(ft.link_target) },
     };
     match core!(core).create_file(rstr(name), parent.into(), ftype) {
         Ok(f) => r.ok = lb_file_new(f),
@@ -259,8 +239,7 @@ pub unsafe extern "C" fn lb_create_file(
 /// respectively depending on whether there's an error or not.
 #[no_mangle]
 pub unsafe extern "C" fn lb_create_file_at_path(
-    core: *mut c_void,
-    path_and_name: *const c_char,
+    core: *mut c_void, path_and_name: *const c_char,
 ) -> LbFileResult {
     let mut r = lb_file_result_new();
     match core!(core).create_at_path(rstr(path_and_name)) {
@@ -292,8 +271,7 @@ pub unsafe extern "C" fn lb_get_file_by_id(core: *mut c_void, id: LbFileId) -> L
 /// respectively depending on whether there's an error or not.
 #[no_mangle]
 pub unsafe extern "C" fn lb_get_file_by_path(
-    core: *mut c_void,
-    path: *const c_char,
+    core: *mut c_void, path: *const c_char,
 ) -> LbFileResult {
     let mut r = lb_file_result_new();
     match core!(core).get_by_path(rstr(path)) {
@@ -355,8 +333,7 @@ pub unsafe extern "C" fn lb_get_children(core: *mut c_void, id: LbFileId) -> LbF
 /// `lb_error_free` respectively depending on whether there's an error or not.
 #[no_mangle]
 pub unsafe extern "C" fn lb_get_and_get_children_recursively(
-    core: *mut c_void,
-    id: LbFileId,
+    core: *mut c_void, id: LbFileId,
 ) -> LbFileListResult {
     let mut r = lb_file_list_result_new();
     match core!(core).get_and_get_children_recursively(id.into()) {
@@ -406,10 +383,7 @@ pub unsafe extern "C" fn lb_read_document(core: *mut c_void, id: LbFileId) -> Lb
 /// The returned value must be passed to `lb_error_free` to avoid a memory leak.
 #[no_mangle]
 pub unsafe extern "C" fn lb_write_document(
-    core: *mut c_void,
-    id: LbFileId,
-    data: *const u8,
-    len: i32,
+    core: *mut c_void, id: LbFileId, data: *const u8, len: i32,
 ) -> LbError {
     let data = std::slice::from_raw_parts(data, len as usize);
     match core!(core).write_document(id.into(), data) {
@@ -446,19 +420,13 @@ pub type LbImportFileCallback = unsafe extern "C" fn(LbImportFileInfo, *mut c_vo
 /// The returned value must be passed to `lb_error_free` to avoid a memory leak.
 #[no_mangle]
 pub unsafe extern "C" fn lb_import_file(
-    core: *mut c_void,
-    disk_path: *mut c_char,
-    dest: LbFileId,
-    progress: LbImportFileCallback,
+    core: *mut c_void, disk_path: *mut c_char, dest: LbFileId, progress: LbImportFileCallback,
     user_data: *mut c_void,
 ) -> LbError {
     let src = PathBuf::from(rstr(disk_path));
     let func = move |info| {
-        let mut c_info = LbImportFileInfo {
-            total: 0,
-            disk_path: null_mut(),
-            file_done: null_mut(),
-        };
+        let mut c_info =
+            LbImportFileInfo { total: 0, disk_path: null_mut(), file_done: null_mut() };
         match info {
             ImportStatus::CalculatedTotal(total) => c_info.total = total,
             ImportStatus::StartingItem(p) => c_info.disk_path = cstr(p),
@@ -492,10 +460,7 @@ pub type LbExportFileCallback = unsafe extern "C" fn(LbExportFileInfo, *mut c_vo
 /// The returned value must be passed to `lb_error_free` to avoid a memory leak.
 #[no_mangle]
 pub unsafe extern "C" fn lb_export_file(
-    core: *mut c_void,
-    id: LbFileId,
-    dest: *const c_char,
-    progress: LbExportFileCallback,
+    core: *mut c_void, id: LbFileId, dest: *const c_char, progress: LbExportFileCallback,
     user_data: *mut c_void,
 ) -> LbError {
     let mut e = lb_error_none();
@@ -523,9 +488,7 @@ pub unsafe extern "C" fn lb_export_file(
 /// `lb_error_free` respectively depending on whether there's an error or not.
 #[no_mangle]
 pub unsafe extern "C" fn lb_export_drawing(
-    core: *mut c_void,
-    id: LbFileId,
-    fmt_code: u8,
+    core: *mut c_void, id: LbFileId, fmt_code: u8,
 ) -> LbBytesResult {
     let mut r = lb_bytes_result_new();
     // These values are bound together in a unit test in this crate.
@@ -553,10 +516,7 @@ pub unsafe extern "C" fn lb_export_drawing(
 /// The returned value must be passed to `lb_error_free` to avoid a memory leak.
 #[no_mangle]
 pub unsafe extern "C" fn lb_export_drawing_to_disk(
-    core: *mut c_void,
-    id: LbFileId,
-    fmt_code: u8,
-    dest: *mut c_char,
+    core: *mut c_void, id: LbFileId, fmt_code: u8, dest: *mut c_char,
 ) -> LbError {
     // These values are bound together in a unit test in this crate.
     let img_fmt = match get_img_fmt_code(fmt_code) {
@@ -602,9 +562,7 @@ pub unsafe extern "C" fn lb_delete_file(core: *mut c_void, id: LbFileId) -> LbEr
 /// The returned value must be passed to `lb_error_free` to avoid a memory leak.
 #[no_mangle]
 pub unsafe extern "C" fn lb_move_file(
-    core: *mut c_void,
-    id: LbFileId,
-    new_parent: LbFileId,
+    core: *mut c_void, id: LbFileId, new_parent: LbFileId,
 ) -> LbError {
     match core!(core).move_file(id.into(), new_parent.into()) {
         Ok(()) => lb_error_none(),
@@ -617,9 +575,7 @@ pub unsafe extern "C" fn lb_move_file(
 /// The returned value must be passed to `lb_error_free` to avoid a memory leak.
 #[no_mangle]
 pub unsafe extern "C" fn lb_rename_file(
-    core: *mut c_void,
-    id: LbFileId,
-    new_name: *const c_char,
+    core: *mut c_void, id: LbFileId, new_name: *const c_char,
 ) -> LbError {
     match core!(core).rename_file(id.into(), rstr(new_name)) {
         Ok(()) => lb_error_none(),
@@ -632,10 +588,7 @@ pub unsafe extern "C" fn lb_rename_file(
 /// The returned value must be passed to `lb_error_free` to avoid a memory leak.
 #[no_mangle]
 pub unsafe extern "C" fn lb_share_file(
-    core: *mut c_void,
-    id: LbFileId,
-    uname: *const c_char,
-    mode: LbShareMode,
+    core: *mut c_void, id: LbFileId, uname: *const c_char, mode: LbShareMode,
 ) -> LbError {
     let mut e = lb_error_none();
     let mode = match mode {

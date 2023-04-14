@@ -7,10 +7,7 @@ pub struct LbAccount {
 }
 
 fn lb_account_new() -> LbAccount {
-    LbAccount {
-        username: null_mut(),
-        api_url: null_mut(),
-    }
+    LbAccount { username: null_mut(), api_url: null_mut() }
 }
 
 /// # Safety
@@ -27,10 +24,7 @@ pub struct LbAccountResult {
 }
 
 fn lb_account_result_new() -> LbAccountResult {
-    LbAccountResult {
-        ok: lb_account_new(),
-        err: lb_error_none(),
-    }
+    LbAccountResult { ok: lb_account_new(), err: lb_error_none() }
 }
 
 /// # Safety
@@ -50,10 +44,7 @@ pub unsafe extern "C" fn lb_account_result_free(r: LbAccountResult) {
 /// `lb_error_free` respectively depending on whether there's an error or not.
 #[no_mangle]
 pub unsafe extern "C" fn lb_create_account(
-    core: *mut c_void,
-    username: *const c_char,
-    api_url: *const c_char,
-    welcome_doc: bool,
+    core: *mut c_void, username: *const c_char, api_url: *const c_char, welcome_doc: bool,
 ) -> LbAccountResult {
     let mut r = lb_account_result_new();
     match core!(core).create_account(rstr(username), rstr(api_url), welcome_doc) {
@@ -73,8 +64,7 @@ pub unsafe extern "C" fn lb_create_account(
 /// `lb_error_free` respectively depending on whether there's an error or not.
 #[no_mangle]
 pub unsafe extern "C" fn lb_import_account(
-    core: *mut c_void,
-    account_string: *const c_char,
+    core: *mut c_void, account_string: *const c_char,
 ) -> LbAccountResult {
     let mut r = lb_account_result_new();
     match core!(core).import_account(rstr(account_string)) {

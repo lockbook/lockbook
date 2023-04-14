@@ -82,11 +82,7 @@ pub unsafe extern "C" fn lb_upgrade_account_stripe_old_card(core: *mut c_void) -
 /// The returned value must be passed to `lb_error_free` to avoid a memory leak.
 #[no_mangle]
 pub unsafe extern "C" fn lb_upgrade_account_stripe_new_card(
-    core: *mut c_void,
-    num: *const c_char,
-    exp_year: i32,
-    exp_month: i32,
-    cvc: *const c_char,
+    core: *mut c_void, num: *const c_char, exp_year: i32, exp_month: i32, cvc: *const c_char,
 ) -> LbError {
     let mut e = lb_error_none();
     let number = rstr(num).to_string();
