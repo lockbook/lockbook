@@ -40,7 +40,7 @@ fn main() {
 
 fn from_args(releaser: Releaser) {
     match releaser {
-        Releaser::DeployServer => server::deploy_server(),
+        Releaser::DeployServer => server::deploy_server(&Github::env()),
         Releaser::ReleaseApple => apple::release_apple(&Github::env(), &AppStore::env()),
         Releaser::ReleaseAndroid => android::release_android(&Github::env(), &PlayStore::env()),
         Releaser::ReleaseWindows => windows::release(&Github::env()),
