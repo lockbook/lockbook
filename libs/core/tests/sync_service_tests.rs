@@ -310,18 +310,19 @@ fn test_move_folder_with_deleted_file() {
 
 #[test]
 fn test_clean_sync_deleted_link() {
-    let mut cores = vec![
-        test_core_with_account(),
-        test_core_with_account()
-    ];
+    let cores = vec![test_core_with_account(), test_core_with_account()];
 
     let doc = cores[0].create_at_path("welcome.md").unwrap();
-    cores[0].share_file(doc.id, &cores[1].get_account().unwrap().username, ShareMode::Write).unwrap();
+    cores[0]
+        .share_file(doc.id, &cores[1].get_account().unwrap().username, ShareMode::Write)
+        .unwrap();
 
     cores[0].sync(None).unwrap();
     cores[1].sync(None).unwrap();
 
-    let link_doc = cores[1].create_link_at_path("welcome-path.md", doc.id).unwrap();
+    let link_doc = cores[1]
+        .create_link_at_path("welcome-path.md", doc.id)
+        .unwrap();
     cores[1].sync(None).unwrap();
     cores[1].delete_file(link_doc.id).unwrap();
     cores[1].delete_pending_share(doc.id).unwrap();
