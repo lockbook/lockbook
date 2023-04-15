@@ -330,3 +330,20 @@ fn test_clean_sync_deleted_link() {
 
     another_client(&cores[1]).sync(None).unwrap();
 }
+
+#[test]
+fn test_unmergable_conflict_progress_closure() {
+    let mut cores = vec![test_core_with_account()];
+    cores.push(another_client(&cores[0]));
+
+    let doc = cores[0].create_at_path("test.draw").unwrap();
+
+    cores[0].sync(None).unwrap();
+    cores[1].sync(None).unwrap();
+
+    cores[0].write_document(doc.id, b"a").unwrap();
+    cores[1].write_document(doc.id, b"b").unwrap();
+
+    cores[0].sync(None).unwrap();
+    cores[1].sync(Some(Box::new(|_| {}))).unwrap();
+}
