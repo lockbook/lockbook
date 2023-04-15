@@ -336,7 +336,7 @@ fn test_unmergable_conflict_progress_closure() {
     let mut cores = vec![test_core_with_account()];
     cores.push(another_client(&cores[0]));
 
-    let doc = cores[0].create_at_path("test.draw").unwrap();
+    let doc = cores[0].create_at_path("test.md").unwrap();
 
     cores[0].sync(None).unwrap();
     cores[1].sync(None).unwrap();
