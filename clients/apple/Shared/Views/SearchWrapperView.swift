@@ -11,7 +11,7 @@ struct SearchWrapperView<Content: View>: View {
     @Binding var searchInput: String
     
     var mainView: Content
-    var isiPadView: Bool
+    var isiOS: Bool
     
     var body: some View {
         VStack {
@@ -19,7 +19,11 @@ struct SearchWrapperView<Content: View>: View {
             case .NotSearching:
                 mainView
             case .Idle:
+                #if os(iOS)
                 Spacer()
+                #else
+                mainView
+                #endif
             case .NoMatch:
                 Spacer()
                 Text("No search results")
@@ -29,7 +33,7 @@ struct SearchWrapperView<Content: View>: View {
                 ProgressView()
                 Spacer()
             case .SearchSuccessful(let results):
-                if isiPadView {
+                if !isiOS {
                     List(results) { result in
                         switch result {
                         case .PathMatch(_, let meta, let name, let path, let matchedIndices, _):
@@ -46,8 +50,9 @@ struct SearchWrapperView<Content: View>: View {
                             }
                         }
                     }
-                    .listStyle(.inset)
+                    .setiPadOrMacOSSearchListStyle()
                 } else {
+#if os(iOS)
                     List(results) { result in
                         switch result {
                         case .PathMatch(_, let meta, let name, let path, let matchedIndices, _):
@@ -61,8 +66,8 @@ struct SearchWrapperView<Content: View>: View {
                         }
                     }
                     .listStyle(.insetGrouped)
+#endif
                 }
-
             }
         }
         .onChange(of: searchInput) { newInput in
@@ -81,6 +86,17 @@ struct SearchWrapperView<Content: View>: View {
         })
     }
 
+}
+
+extension List {
+    func setiPadOrMacOSSearchListStyle() -> some View {
+        #if os(iOS)
+        self.listStyle(.inset)
+        #else
+        self
+            .listStyle(.automatic)
+        #endif
+    }
 }
 
 struct SearchFilePathCell: View {
@@ -118,6 +134,8 @@ struct SearchFilePathCell: View {
             }
         }
             .contentShape(Rectangle()) /// https://stackoverflow.com/questions/57258371/swiftui-increase-tap-drag-area-for-user-interaction
+            .padding(.vertical, 5)
+
     }
     
     static func underlineMatchedSegments(name: String, path: String, matchedIndices: [Int]) -> (formattedName: Text, formattedPath: Text) {
@@ -197,12 +215,14 @@ struct SearchFileContentCell: View {
                     .foregroundColor(.accentColor)
                     .font(.caption2)
             }
-            .padding(.bottom)
+            .padding(.bottom, 7)
             
             formattedParagraph
                 .font(.caption)
+                .lineLimit(nil)
         }
         .contentShape(Rectangle()) /// https://stackoverflow.com/questions/57258371/swiftui-increase-tap-drag-area-for-user-interaction
+        .padding(.vertical, 5)
     }
     
     static func underlineMatchedSegments(path: String, paragraph: String, matchedIndices: [Int]) -> (formattedPath: Text, formattedParagraph: Text) {

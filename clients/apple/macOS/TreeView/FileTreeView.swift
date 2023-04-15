@@ -2,53 +2,73 @@ import SwiftUI
 import SwiftLockbookCore
 
 struct FileTreeView: NSViewRepresentable {
-
+    
     let scrollView = NSScrollView()
     let treeView = MenuOutlineView()
     let delegate = TreeDelegate()
     var dataSource = DataSource()
+    
+    @Binding var expandedFolders: [File]
 
     @EnvironmentObject var files: FileService
     @EnvironmentObject var currentSelection: CurrentDocument
     
     let previousFilesHash: Reference<Int?> = Reference(nil)
     let previousOpenDocumentHash: Reference<Int?> = Reference(nil)
+    
+    func makeNSView(context: Context) -> NSScrollView {
+        if treeView.numberOfColumns != 1 {
+            delegate.documentSelected = { meta in
+                if meta.fileType == .Document {
+                    DI.currentDoc.selectedDocument = meta
+                } else {
+                    DI.currentDoc.selectedFolder = meta
+                }
+            }
             
-    func makeNSView(context: Context) -> NSScrollView {        
-        delegate.documentSelected = {
-            if $0.fileType == .Document {
-                DI.currentDoc.selectedDocument = $0
-            } else {
-                DI.currentDoc.selectedFolder = $0
+            delegate.folderExpandedCollapsed = { meta, expanded in
+                if(expanded) {
+                    expandedFolders.append(meta)
+                } else {
+                    if let index = expandedFolders.firstIndex(of: meta) {
+                        expandedFolders.remove(at: index)
+                    }
+                }
+                
+                print("NEW LIST: \(expandedFolders.map { $0.name })")
+            }
+                        
+            scrollView.documentView = treeView
+            scrollView.hasVerticalScroller = true
+            scrollView.horizontalScrollElasticity = .none
+            scrollView.hasHorizontalScroller = false
+            scrollView.hasHorizontalRuler = false
+            scrollView.drawsBackground = false
+            
+            treeView.autoresizesOutlineColumn = true
+            treeView.headerView = nil
+            treeView.usesAutomaticRowHeights = true
+            
+            treeView.columnAutoresizingStyle = .uniformColumnAutoresizingStyle
+            
+            treeView.setDraggingSourceOperationMask(.copy, forLocal: false)
+            treeView.setDraggingSourceOperationMask(.move, forLocal: true)
+            
+            treeView.registerForDraggedTypes([NSPasteboard.PasteboardType(DataSource.REORDER_PASTEBOARD_TYPE), .fileURL])
+            
+            let onlyColumn = NSTableColumn()
+            onlyColumn.resizingMask = .autoresizingMask
+            onlyColumn.minWidth = 100
+            treeView.addTableColumn(onlyColumn)
+            
+            treeView.dataSource = dataSource
+            treeView.delegate = delegate
+            treeView.stronglyReferencesItems = true
+            
+            for item in expandedFolders {
+                treeView.expandItem(item)
             }
         }
-        
-        scrollView.documentView = treeView
-        scrollView.hasVerticalScroller = true
-        scrollView.horizontalScrollElasticity = .none
-        scrollView.hasHorizontalScroller = false
-        scrollView.hasHorizontalRuler = false
-        scrollView.drawsBackground = false
-
-        treeView.autoresizesOutlineColumn = true
-        treeView.headerView = nil
-        treeView.usesAutomaticRowHeights = true
-
-        treeView.columnAutoresizingStyle = .uniformColumnAutoresizingStyle
-
-        treeView.setDraggingSourceOperationMask(.copy, forLocal: false)
-        treeView.setDraggingSourceOperationMask(.move, forLocal: true)
-        
-        treeView.registerForDraggedTypes([NSPasteboard.PasteboardType(DataSource.REORDER_PASTEBOARD_TYPE), .fileURL])
-        
-        let onlyColumn = NSTableColumn()
-        onlyColumn.resizingMask = .autoresizingMask
-        onlyColumn.minWidth = 100
-        treeView.addTableColumn(onlyColumn)
-
-        treeView.dataSource = dataSource
-        treeView.delegate = delegate
-        treeView.stronglyReferencesItems = true
 
         return scrollView
     }

@@ -25,7 +25,7 @@ struct FileListView: View {
                     mainView: List(fileService.childrenOfParent()) { meta in
                         FileCell(meta: meta)
                     },
-                    isiPadView: false)
+                    isiOS: true)
                 .navigationBarTitle(fileService.parent.map{($0.name)} ?? "")
                 .searchable(text: $searchInput, prompt: "Search")
                 
