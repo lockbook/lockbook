@@ -13,23 +13,15 @@ use crate::CliError;
 pub fn export(core: &lb::Core, target: &str, maybe_dest: Option<PathBuf>) -> Result<(), CliError> {
     let target_file = resolve_target_to_file(core, target)?;
 
-    let dest = if let Some(path) = maybe_dest {
-        path
-    } else {
-        // If no destination path is provided, it'll be a file with the target name in the current
-        // directory. If it's root, it'll be the account's username.
-        let name = if target_file.id == target_file.parent {
-            core.get_account()?.username
-        } else {
-            target_file.name.clone()
-        };
-        let mut dir = env::current_dir()?;
-        dir.push(name);
-        dir
+    let dest = match maybe_dest {
+        Some(path) => path,
+        None => env::current_dir()?,
     };
 
     println!("exporting '{}'...", target_file.name);
-    fs::create_dir(&dest)?;
+    if !dest.exists() {
+        fs::create_dir(&dest)?;
+    }
 
     core.export_file(target_file.id, dest, false, None)?;
     Ok(())
