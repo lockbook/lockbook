@@ -51,7 +51,7 @@ enum LbCli {
     Export {
         /// the path or id of a lockbook folder
         target: String,
-        /// a filesystem location (defaults to current directory)
+        /// a filesystem directory (defaults to current directory)
         dest: Option<PathBuf>,
     },
     /// list files and file information
