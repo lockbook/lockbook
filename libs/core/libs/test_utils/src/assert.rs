@@ -185,7 +185,7 @@ pub fn local_work_paths(db: &Core, expected_paths: &[&'static str]) {
             let mut local = s.db.base_metadata.stage(&mut s.db.local_metadata).to_lazy();
             Ok(dirty
                 .iter()
-                .filter(|id| !matches!(local.find(id).unwrap().file_type(), FileType::Link { .. }))
+                .filter(|id| !local.find(id).unwrap().is_link())
                 .collect::<Vec<_>>()
                 .iter()
                 .filter(|id| !local.in_pending_share(id).unwrap())

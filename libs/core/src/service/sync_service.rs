@@ -246,13 +246,12 @@ where
             self.populate_public_key_cache(&remote_changes)?;
 
             let mut remote = self.base.stage(remote_changes).pruned()?.to_lazy();
-            report_sync_operation(SyncOperation::PullMetadataEnd(
-                remote.resolve_and_finalize_all(
-                    &self.account,
-                    remote.tree.staged.owned_ids().into_iter(),
-                    self.username_by_public_key,
-                )?,
-            ));
+            report_sync_operation(SyncOperation::PullMetadataEnd(remote.decrypt_all(
+                &self.account,
+                remote.tree.staged.owned_ids().into_iter(),
+                self.username_by_public_key,
+                false,
+            )?));
             let (_, remote_changes) = remote.unstage();
             (remote_changes, update_as_of)
         };
@@ -287,9 +286,9 @@ where
                 }
 
                 if let Some(remote_hmac) = remote_hmac {
-                    report_sync_operation(SyncOperation::PullDocumentStart(remote.finalize(
-                        &id,
+                    report_sync_operation(SyncOperation::PullDocumentStart(remote.decrypt(
                         &self.account,
+                        &id,
                         self.username_by_public_key,
                     )?));
 
@@ -781,7 +780,7 @@ where
                             ValidationFailure::DuplicateLink { target } => {
                                 // delete local link with this target
                                 let mut progress = false;
-                                if let Some(link) = local.link(target)? {
+                                if let Some(link) = local.linked_by(target)? {
                                     if links_to_delete.insert(link) {
                                         progress = true;
                                     }
@@ -949,10 +948,11 @@ where
             updates.push(file_diff);
         }
 
-        report_sync_operation(SyncOperation::PushMetadataStart(local.resolve_and_finalize_all(
+        report_sync_operation(SyncOperation::PushMetadataStart(local.decrypt_all(
             &self.account,
             local.tree.staged.owned_ids().into_iter(),
             self.username_by_public_key,
+            false,
         )?));
 
         if !self.dry_run && !updates.is_empty() {
@@ -996,9 +996,9 @@ where
 
             let local_change = local_change.sign(&self.account)?;
 
-            report_sync_operation(SyncOperation::PushDocumentStart(local.finalize(
-                &id,
+            report_sync_operation(SyncOperation::PushDocumentStart(local.decrypt(
                 &self.account,
+                &id,
                 self.username_by_public_key,
             )?));
 

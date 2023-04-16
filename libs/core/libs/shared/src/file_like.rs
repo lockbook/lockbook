@@ -24,6 +24,10 @@ pub trait FileLike: PartialEq + Debug + Clone + AsRef<FileMetadata> {
         self.file_type() == FileType::Folder
     }
 
+    fn is_link(&self) -> bool {
+        matches!(self.file_type(), FileType::Link { .. })
+    }
+
     fn is_document(&self) -> bool {
         self.file_type() == FileType::Document
     }

@@ -58,7 +58,7 @@ impl<T: TreeLike> LazyTree<T> {
         loop {
             if self.find(&id)?.parent() == self.find(&id)?.id() {
                 return Ok(false); // root
-            } else if let Some(link) = self.link(&id)? {
+            } else if let Some(link) = self.linked_by(&id)? {
                 id = link;
             } else if self.maybe_find(self.find(&id)?.parent()).is_some() {
                 id = *self.find(&id)?.parent();
@@ -189,11 +189,16 @@ impl<T: TreeLike> LazyTree<T> {
     }
 
     pub fn name_using_links(&mut self, id: &Uuid, account: &Account) -> SharedResult<String> {
-        let id = if let Some(link) = self.link(id)? { link } else { *id };
+        let id = if let Some(link) = self.linked_by(id)? { link } else { *id };
         self.name(&id, account)
     }
 
-    pub fn link(&mut self, id: &Uuid) -> SharedResult<Option<Uuid>> {
+    pub fn parent_using_links(&mut self, id: &Uuid) -> SharedResult<Uuid> {
+        let id = if let Some(link) = self.linked_by(id)? { link } else { *id };
+        Ok(*self.find(&id)?.parent())
+    }
+
+    pub fn linked_by(&mut self, id: &Uuid) -> SharedResult<Option<Uuid>> {
         for link_id in self.owned_ids() {
             if let FileType::Link { target } = self.find(&link_id)?.file_type() {
                 if id == &target && !self.calculate_deleted(&link_id)? {
@@ -231,11 +236,16 @@ impl<T: TreeLike> LazyTree<T> {
 
     // todo: cache?
     pub fn children_using_links(&mut self, id: &Uuid) -> SharedResult<HashSet<Uuid>> {
-        let id = match self.find(id)?.file_type() {
-            FileType::Document | FileType::Folder => *id,
-            FileType::Link { target } => target,
-        };
-        self.children(&id)
+        let mut children = HashSet::new();
+        for child in self.children(id)? {
+            if let FileType::Link { target } = self.find(&child)?.file_type() {
+                children.insert(target);
+            } else {
+                children.insert(child);
+            }
+        }
+
+        Ok(children)
     }
 
     /// Returns ids of files for which the argument is an ancestor—the files' children, recursively. Does not include the argument.

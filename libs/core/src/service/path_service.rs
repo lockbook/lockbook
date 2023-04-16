@@ -20,7 +20,8 @@ impl<Client: Requester> CoreState<Client> {
         let root = self.db.root.data().ok_or(CoreError::RootNonexistent)?;
 
         let id = tree.create_link_at_path(path, target_id, root, account, &pub_key)?;
-        let ui_file = tree.finalize(&id, account, &mut self.db.pub_key_lookup)?;
+
+        let ui_file = tree.decrypt(account, &id, &mut self.db.pub_key_lookup)?;
 
         Ok(ui_file)
     }
@@ -39,7 +40,8 @@ impl<Client: Requester> CoreState<Client> {
         let root = self.db.root.data().ok_or(CoreError::RootNonexistent)?;
 
         let id = tree.create_at_path(path, root, account, &pub_key)?;
-        let ui_file = tree.finalize(&id, account, &mut self.db.pub_key_lookup)?;
+
+        let ui_file = tree.decrypt(account, &id, &mut self.db.pub_key_lookup)?;
 
         Ok(ui_file)
     }
@@ -58,7 +60,7 @@ impl<Client: Requester> CoreState<Client> {
 
         let id = tree.path_to_id(path, root, account)?;
 
-        let ui_file = tree.finalize(&id, account, &mut self.db.pub_key_lookup)?;
+        let ui_file = tree.decrypt(account, &id, &mut self.db.pub_key_lookup)?;
 
         Ok(ui_file)
     }

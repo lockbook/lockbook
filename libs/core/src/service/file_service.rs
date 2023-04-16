@@ -27,7 +27,7 @@ impl<Client: Requester> CoreState<Client> {
         let id =
             tree.create(Uuid::new_v4(), symkey::generate_key(), parent, name, file_type, account)?;
 
-        let ui_file = tree.finalize(&id, account, &mut self.db.pub_key_lookup)?;
+        let ui_file = tree.decrypt(account, &id, &mut self.db.pub_key_lookup)?;
 
         info!("created {:?} with id {id}", file_type);
 
@@ -47,6 +47,8 @@ impl<Client: Requester> CoreState<Client> {
             .data()
             .ok_or(CoreError::AccountNonexistent)?;
 
+        let id = &tree.linked_by(id)?.unwrap_or(*id);
+
         tree.rename(id, new_name, account)?;
 
         Ok(())
@@ -62,7 +64,10 @@ impl<Client: Requester> CoreState<Client> {
             .data()
             .ok_or(CoreError::AccountNonexistent)?;
 
+        let id = &tree.linked_by(id)?.unwrap_or(*id);
+
         tree.move_file(id, new_parent, account)?;
+
         Ok(())
     }
 
@@ -75,6 +80,8 @@ impl<Client: Requester> CoreState<Client> {
             .account
             .data()
             .ok_or(CoreError::AccountNonexistent)?;
+
+        let id = &tree.linked_by(id)?.unwrap_or(*id);
 
         tree.delete(id, account)?;
 
@@ -93,7 +100,7 @@ impl<Client: Requester> CoreState<Client> {
 
         let root_id = self.db.root.data().ok_or(CoreError::RootNonexistent)?;
 
-        let root = tree.finalize(root_id, account, &mut self.db.pub_key_lookup)?;
+        let root = tree.decrypt(account, root_id, &mut self.db.pub_key_lookup)?;
 
         Ok(root)
     }
@@ -110,7 +117,7 @@ impl<Client: Requester> CoreState<Client> {
 
         let ids = tree.owned_ids().into_iter();
 
-        Ok(tree.resolve_and_finalize(account, ids, &mut self.db.pub_key_lookup)?)
+        Ok(tree.decrypt_all(account, ids, &mut self.db.pub_key_lookup, true)?)
     }
 
     pub(crate) fn get_children(&mut self, id: &Uuid) -> LbResult<Vec<File>> {
@@ -124,7 +131,8 @@ impl<Client: Requester> CoreState<Client> {
             .ok_or(CoreError::AccountNonexistent)?;
 
         let ids = tree.children_using_links(id)?.into_iter();
-        Ok(tree.resolve_and_finalize(account, ids, &mut self.db.pub_key_lookup)?)
+
+        Ok(tree.decrypt_all(account, ids, &mut self.db.pub_key_lookup, true)?)
     }
 
     pub(crate) fn get_and_get_children_recursively(&mut self, id: &Uuid) -> LbResult<Vec<File>> {
@@ -138,10 +146,12 @@ impl<Client: Requester> CoreState<Client> {
             .ok_or(CoreError::AccountNonexistent)?;
 
         let descendants = tree.descendants_using_links(id)?;
-        Ok(tree.resolve_and_finalize(
+
+        Ok(tree.decrypt_all(
             account,
             descendants.into_iter().chain(iter::once(*id)),
             &mut self.db.pub_key_lookup,
+            false,
         )?)
     }
 
@@ -163,6 +173,8 @@ impl<Client: Requester> CoreState<Client> {
             return Err(CoreError::FileNonexistent.into());
         }
 
-        Ok(tree.finalize(id, account, &mut self.db.pub_key_lookup)?)
+        let file = tree.decrypt(account, id, &mut self.db.pub_key_lookup)?;
+
+        Ok(file)
     }
 }
