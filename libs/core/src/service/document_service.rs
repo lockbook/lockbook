@@ -35,6 +35,7 @@ impl<Client: Requester> CoreState<Client> {
             .account
             .data()
             .ok_or(CoreError::AccountNonexistent)?;
+
         let id = match tree.find(&id)?.file_type() {
             FileType::Document | FileType::Folder => id,
             FileType::Link { target } => target,
