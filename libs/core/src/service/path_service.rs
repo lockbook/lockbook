@@ -21,8 +21,7 @@ impl<Client: Requester> CoreState<Client> {
 
         let id = tree.create_link_at_path(path, target_id, root, account, &pub_key)?;
 
-        let mut ui_file = tree.decrypt(account, &id, &mut self.db.pub_key_lookup)?;
-        ui_file.id = id;
+        let ui_file = tree.decrypt(account, &id, &mut self.db.pub_key_lookup)?;
 
         Ok(ui_file)
     }

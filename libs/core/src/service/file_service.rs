@@ -27,10 +27,7 @@ impl<Client: Requester> CoreState<Client> {
         let id =
             tree.create(Uuid::new_v4(), symkey::generate_key(), parent, name, file_type, account)?;
 
-        let mut ui_file = tree.decrypt(account, &id, &mut self.db.pub_key_lookup)?;
-        if matches!(file_type, FileType::Link { .. }) {
-            ui_file.id = id;
-        }
+        let ui_file = tree.decrypt(account, &id, &mut self.db.pub_key_lookup)?;
 
         info!("created {:?} with id {id}", file_type);
 
