@@ -7,11 +7,14 @@ struct FileListView: View {
     @State var searchInput: String = ""
     @State var expandedFolders: [File] = []
     
+    @StateObject var treeBranchState: BranchState = BranchState()
+    @StateObject var suggestedDocsBranchState: BranchState = BranchState()
+    
     var body: some View {
         VStack {
             SearchWrapperView(
                 searchInput: $searchInput,
-                mainView: FileTreeView(expandedFolders: $expandedFolders),
+                mainView: mainView,
                 isiOS: false)
             .searchable(text: $searchInput, prompt: "Search")
             .keyboardShortcut(.escape)
@@ -22,6 +25,65 @@ struct FileListView: View {
         }
         
         DetailView()
+    }
+    
+    var mainView: some View {
+        VStack {
+            Button(action: {
+                withAnimation {
+                    suggestedDocsBranchState.open.toggle()
+                }
+            }) {
+                HStack {
+                    Text("Suggested Documents")
+                        .bold()
+                        .foregroundColor(.gray)
+                    Spacer()
+                    if suggestedDocsBranchState.open {
+                        Image(systemName: "chevron.down")
+                            .foregroundColor(.gray)
+                    } else {
+                        Image(systemName: "chevron.right")
+                            .foregroundColor(.gray)
+                    }
+                }
+                .padding()
+                .contentShape(Rectangle())
+            }
+            
+            if suggestedDocsBranchState.open {
+                EmptyView()
+            }
+            
+            Button(action: {
+                withAnimation {
+                    treeBranchState.open.toggle()
+                }
+            }) {
+                HStack {
+                    Text("Tree")
+                        .bold()
+                        .foregroundColor(.gray)
+                    Spacer()
+                    if treeBranchState.open {
+                        Image(systemName: "chevron.down")
+                            .foregroundColor(.gray)
+                    } else {
+                        Image(systemName: "chevron.right")
+                            .foregroundColor(.gray)
+                    }
+                }
+                .padding(.horizontal)
+                .contentShape(Rectangle())
+            }
+            
+            if treeBranchState.open {
+                FileTreeView(expandedFolders: $expandedFolders)
+                    .padding(.leading, 4)
+            } else {
+                Spacer()
+            }
+        }
     }
 }
 

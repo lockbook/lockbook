@@ -28,6 +28,8 @@
 		47B53838290EFE150012E542 /* BillingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47B53837290EFE150012E542 /* BillingService.swift */; };
 		47B53839290EFE150012E542 /* BillingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47B53837290EFE150012E542 /* BillingService.swift */; };
 		47B67289295F977C00DB0D8E /* ManageSubscriptionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47B67288295F977C00DB0D8E /* ManageSubscriptionView.swift */; };
+		47FAA4C829EC830600DB606E /* BranchState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47FAA4C729EC830600DB606E /* BranchState.swift */; };
+		47FAA4C929EC830600DB606E /* BranchState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47FAA4C729EC830600DB606E /* BranchState.swift */; };
 		5036A0B7393E8C43AAF095A2 /* LBDrawingPKDrawingConversions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5036ACCA149F0864585B7D44 /* LBDrawingPKDrawingConversions.swift */; };
 		5036A72711D09E92A5EE75B1 /* DrawingToolbar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5036AA70E675020A378AE98E /* DrawingToolbar.swift */; };
 		6581A283134323E1AEE45E1D /* RenamingSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B249B9EE282C37AD004F5300 /* RenamingSheet.swift */; };
@@ -98,7 +100,6 @@
 		B249B9E7282AF4F4004F5300 /* FileTreeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B249B9E6282AF4F4004F5300 /* FileTreeView.swift */; };
 		B249B9E8282AF6B1004F5300 /* OutlineBranch.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8741E90E25AD1565005B7B01 /* OutlineBranch.swift */; };
 		B249B9E9282AF6B4004F5300 /* OutlineSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87F78F6E270785E00001E159 /* OutlineSection.swift */; };
-		B249B9EA282AF6B6004F5300 /* BranchState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87F78F7027078F470001E159 /* BranchState.swift */; };
 		B249B9EC282AF6BC004F5300 /* OutlineRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA349F0125BC7C110016241E /* OutlineRow.swift */; };
 		B249B9ED282AF6BF004F5300 /* OutlineContextMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87F78F742708F1990001E159 /* OutlineContextMenu.swift */; };
 		B249B9EF282C37AD004F5300 /* RenamingSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B249B9EE282C37AD004F5300 /* RenamingSheet.swift */; };
@@ -151,6 +152,7 @@
 		47A45FBA2969047B00573044 /* ShareService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareService.swift; sourceTree = "<group>"; };
 		47B53837290EFE150012E542 /* BillingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BillingService.swift; sourceTree = "<group>"; };
 		47B67288295F977C00DB0D8E /* ManageSubscriptionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManageSubscriptionView.swift; sourceTree = "<group>"; };
+		47FAA4C729EC830600DB606E /* BranchState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BranchState.swift; sourceTree = "<group>"; };
 		5036AA70E675020A378AE98E /* DrawingToolbar.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DrawingToolbar.swift; sourceTree = "<group>"; };
 		5036ACCA149F0864585B7D44 /* LBDrawingPKDrawingConversions.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = LBDrawingPKDrawingConversions.swift; sourceTree = "<group>"; };
 		6581A11CE95C74B01ED30AEB /* MenuItems.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MenuItems.swift; sourceTree = "<group>"; };
@@ -183,7 +185,6 @@
 		87E1C5D627B480960029833D /* EditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorView.swift; sourceTree = "<group>"; };
 		87E1C5DA27B480D70029833D /* EditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorView.swift; sourceTree = "<group>"; };
 		87F78F6E270785E00001E159 /* OutlineSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OutlineSection.swift; sourceTree = "<group>"; };
-		87F78F7027078F470001E159 /* BranchState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BranchState.swift; sourceTree = "<group>"; };
 		87F78F742708F1990001E159 /* OutlineContextMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OutlineContextMenu.swift; sourceTree = "<group>"; };
 		87F78F762709352C0001E159 /* LogoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LogoView.swift; sourceTree = "<group>"; };
 		87F78F7927094A040001E159 /* BeforeYouStart.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BeforeYouStart.swift; sourceTree = "<group>"; };
@@ -303,6 +304,7 @@
 				877FB54F26D17FD00008AB3F /* UnexpectedErrorService.swift */,
 				47A45FBA2969047B00573044 /* ShareService.swift */,
 				877FB55226D1854E0008AB3F /* SyncService.swift */,
+				47FAA4C729EC830600DB606E /* BranchState.swift */,
 				877FB55526D18AA60008AB3F /* AccountService.swift */,
 				877FB55826D18EC80008AB3F /* FileService.swift */,
 				5036ACCA149F0864585B7D44 /* LBDrawingPKDrawingConversions.swift */,
@@ -352,7 +354,6 @@
 			children = (
 				87F78F6E270785E00001E159 /* OutlineSection.swift */,
 				8741E90E25AD1565005B7B01 /* OutlineBranch.swift */,
-				87F78F7027078F470001E159 /* BranchState.swift */,
 				EA349F0125BC7C110016241E /* OutlineRow.swift */,
 				87F78F742708F1990001E159 /* OutlineContextMenu.swift */,
 			);
@@ -654,7 +655,6 @@
 				47B53838290EFE150012E542 /* BillingService.swift in Sources */,
 				87F78F772709352C0001E159 /* LogoView.swift in Sources */,
 				B2ED84972835508100577A1B /* CurrentDocument.swift in Sources */,
-				B249B9EA282AF6B6004F5300 /* BranchState.swift in Sources */,
 				EA831A552534E3C80048CE26 /* AppView.swift in Sources */,
 				EA380B262561FAEF0021C4FA /* FileListView.swift in Sources */,
 				87AA99F3269610D8009E5591 /* NewFileSheet.swift in Sources */,
@@ -671,6 +671,7 @@
 				B249B9ED282AF6BF004F5300 /* OutlineContextMenu.swift in Sources */,
 				87E1C5D727B480960029833D /* EditorView.swift in Sources */,
 				8715F92827161CC60051689E /* OnboardingView.swift in Sources */,
+				47FAA4C829EC830600DB606E /* BranchState.swift in Sources */,
 				877FB56026D2C7D60008AB3F /* StatusService.swift in Sources */,
 				872175F326F2858400A77C59 /* DocumentLoader.swift in Sources */,
 				EA9079C32569960A00E04F5D /* ListFileCell.swift in Sources */,
@@ -734,6 +735,7 @@
 				8715F92927161CC60051689E /* OnboardingView.swift in Sources */,
 				879B81D027D56A800022FE00 /* IndexConverter.swift in Sources */,
 				870DC09F26BDE6F4002E9A92 /* SettingsView.swift in Sources */,
+				47FAA4C929EC830600DB606E /* BranchState.swift in Sources */,
 				47A45FBC2969047B00573044 /* ShareService.swift in Sources */,
 				877FB55726D18AA60008AB3F /* AccountService.swift in Sources */,
 				877FB55426D1854E0008AB3F /* SyncService.swift in Sources */,
