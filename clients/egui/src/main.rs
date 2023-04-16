@@ -121,7 +121,14 @@ impl eframe::App for Lockbook {
     /// modals or dialogs via a window close event.
     fn on_close_event(&mut self) -> bool {
         match self {
-            Self::Account(screen) => !screen.close_something(),
+            Self::Account(screen) => {
+                if !screen.close_something() {
+                    screen.save_all_tabs();
+                    true
+                } else {
+                    false
+                }
+            }
             _ => true,
         }
     }
