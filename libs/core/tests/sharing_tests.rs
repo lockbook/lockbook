@@ -356,8 +356,8 @@ fn write_link_by_sharee() {
     cores[1].sync(None).unwrap();
     cores[0].sync(None).unwrap();
 
-    assert_eq!(cores[1].read_document(link.id).unwrap(), b"document content by sharee");
     assert_eq!(cores[0].read_document(document1.id).unwrap(), b"document content by sharee");
+    assert_eq!(cores[1].read_document(document1.id).unwrap(), b"document content by sharee");
 }
 
 #[test]
@@ -377,7 +377,7 @@ fn write_target_by_sharee() {
     cores[0].sync(None).unwrap();
     cores[1].sync(None).unwrap();
 
-    let link = cores[1]
+    cores[1]
         .create_link_at_path("/link1", document1.id)
         .unwrap();
     cores[1]
@@ -387,8 +387,8 @@ fn write_target_by_sharee() {
     cores[1].sync(None).unwrap();
     cores[0].sync(None).unwrap();
 
-    assert_eq!(cores[1].read_document(link.id).unwrap(), b"document content by sharee");
     assert_eq!(cores[0].read_document(document1.id).unwrap(), b"document content by sharee");
+    assert_eq!(cores[1].read_document(document1.id).unwrap(), b"document content by sharee");
 }
 
 #[test]
@@ -508,6 +508,10 @@ fn get_link_target_children_recursive_by_sharee() {
         .iter()
         .map(|core| core.get_account().unwrap())
         .collect::<Vec<_>>();
+    let roots = cores
+        .iter()
+        .map(|core| core.get_root().unwrap())
+        .collect::<Vec<_>>();
 
     let folder1 = cores[0].create_at_path("/folder/").unwrap();
     cores[0].create_at_path("/folder/folder/").unwrap();
@@ -522,19 +526,28 @@ fn get_link_target_children_recursive_by_sharee() {
     cores[0].sync(None).unwrap();
     cores[1].sync(None).unwrap();
 
-    let link = cores[1].create_link_at_path("/link1", folder1.id).unwrap();
+    cores[1].create_link_at_path("/link1", folder1.id).unwrap();
 
     cores[0].sync(None).unwrap();
     cores[1].sync(None).unwrap();
 
     let result: Vec<Uuid> = cores[1]
-        .get_and_get_children_recursively(link.id)
+        .get_and_get_children_recursively(folder1.id)
         .unwrap()
         .iter()
         .map(|f| f.id)
         .collect();
 
     assert::all_recursive_children_ids(&cores[1], folder1.id, &result);
+
+    let result: Vec<Uuid> = cores[1]
+        .get_and_get_children_recursively(roots[1].id)
+        .unwrap()
+        .iter()
+        .map(|f| f.id)
+        .collect();
+
+    assert::all_recursive_children_ids(&cores[1], roots[1].id, &result);
 }
 
 #[test]
@@ -604,7 +617,6 @@ fn write_document_write_share_by_link() {
         .unwrap();
 
     assert_eq!(cores[1].read_document(document.id).unwrap(), b"document content by sharee");
-    assert_eq!(cores[1].read_document(link.id).unwrap(), b"document content by sharee");
     cores[1].sync(None).unwrap();
     cores[0].sync(None).unwrap();
     assert_eq!(cores[0].read_document(document.id).unwrap(), b"document content by sharee");
@@ -1452,35 +1464,6 @@ fn rename_file_in_write_shared_folder() {
     cores[1]
         .rename_file(document.id, "renamed-document")
         .unwrap();
-}
-
-#[test]
-fn rename_write_shared_folder() {
-    let cores = vec![test_core_with_account(), test_core_with_account()];
-    let accounts = cores
-        .iter()
-        .map(|core| core.get_account().unwrap())
-        .collect::<Vec<_>>();
-    let roots = cores
-        .iter()
-        .map(|core| core.get_root().unwrap())
-        .collect::<Vec<_>>();
-
-    let folder = cores[0]
-        .create_file("folder", roots[0].id, FileType::Folder)
-        .unwrap();
-    cores[0]
-        .share_file(folder.id, &accounts[1].username, ShareMode::Write)
-        .unwrap();
-    cores[0].sync(None).unwrap();
-
-    cores[1].sync(None).unwrap();
-    cores[1]
-        .create_file("link", roots[1].id, FileType::Link { target: folder.id })
-        .unwrap();
-
-    let result = cores[1].rename_file(folder.id, "renamed-folder");
-    assert_matches!(result.unwrap_err().kind, CoreError::InsufficientPermission);
 }
 
 #[test]

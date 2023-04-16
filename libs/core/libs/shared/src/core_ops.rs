@@ -265,11 +265,8 @@ where
         if self.calculate_deleted(id)? {
             return Err(SharedErrorKind::FileNonexistent.into());
         }
-        let (id, meta) = if let FileType::Link { target } = self.find(id)?.file_type() {
-            (target, self.find(&target)?)
-        } else {
-            (*id, self.find(id)?)
-        };
+
+        let meta = self.find(id)?;
 
         validate::is_document(meta)?;
         if meta.document_hmac().is_none() {
