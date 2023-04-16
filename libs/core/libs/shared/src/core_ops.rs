@@ -76,8 +76,7 @@ where
     }
 
     /// convert FileMetadata into File. fields have been decrypted, public keys replaced with usernames, deleted files filtered out, etc.
-
-    pub fn finalize_all<I>(
+    pub fn decrypt_all<I>(
         &mut self, account: &Account, ids: I, public_key_cache: &mut LookupTable<Owner, String>,
         skip_invisible: bool,
     ) -> SharedResult<Vec<File>>

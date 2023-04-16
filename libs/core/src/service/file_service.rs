@@ -123,7 +123,7 @@ impl<Client: Requester> CoreState<Client> {
 
         let ids = tree.owned_ids().into_iter();
 
-        Ok(tree.finalize_all(account, ids, &mut self.db.pub_key_lookup, true)?)
+        Ok(tree.decrypt_all(account, ids, &mut self.db.pub_key_lookup, true)?)
     }
 
     pub(crate) fn get_children(&mut self, id: &Uuid) -> LbResult<Vec<File>> {
@@ -138,7 +138,7 @@ impl<Client: Requester> CoreState<Client> {
 
         let ids = tree.children_using_links(id)?.into_iter();
 
-        Ok(tree.finalize_all(account, ids, &mut self.db.pub_key_lookup, true)?)
+        Ok(tree.decrypt_all(account, ids, &mut self.db.pub_key_lookup, true)?)
     }
 
     pub(crate) fn get_and_get_children_recursively(&mut self, id: &Uuid) -> LbResult<Vec<File>> {
@@ -153,7 +153,7 @@ impl<Client: Requester> CoreState<Client> {
 
         let descendants = tree.descendants_using_links(id)?;
 
-        Ok(tree.finalize_all(
+        Ok(tree.decrypt_all(
             account,
             descendants.into_iter().chain(iter::once(*id)),
             &mut self.db.pub_key_lookup,

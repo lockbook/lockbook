@@ -246,7 +246,7 @@ where
             self.populate_public_key_cache(&remote_changes)?;
 
             let mut remote = self.base.stage(remote_changes).pruned()?.to_lazy();
-            report_sync_operation(SyncOperation::PullMetadataEnd(remote.finalize_all(
+            report_sync_operation(SyncOperation::PullMetadataEnd(remote.decrypt_all(
                 &self.account,
                 remote.tree.staged.owned_ids().into_iter(),
                 self.username_by_public_key,
@@ -948,7 +948,7 @@ where
             updates.push(file_diff);
         }
 
-        report_sync_operation(SyncOperation::PushMetadataStart(local.finalize_all(
+        report_sync_operation(SyncOperation::PushMetadataStart(local.decrypt_all(
             &self.account,
             local.tree.staged.owned_ids().into_iter(),
             self.username_by_public_key,
