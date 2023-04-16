@@ -121,6 +121,7 @@ fn create_path_folder_under_link() {
     assert::all_ids(&cores[1], &[roots[1].id, folder1.id, folder.id]);
     assert::all_paths(&cores[1], &["/", "/link/", "/link/folder/"]);
 }
+
 #[test]
 fn list_metadatas_link() {
     let cores = vec![test_core_with_account(), test_core_with_account()];
