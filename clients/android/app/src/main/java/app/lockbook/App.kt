@@ -98,6 +98,7 @@ class SyncWork(appContext: Context, workerParams: WorkerParameters) :
                     SyncAllError.Retry -> "Retry requested."
                     SyncAllError.ClientUpdateRequired -> "Client update required."
                     SyncAllError.CouldNotReachServer -> "Could not reach server."
+                    SyncAllError.UsageIsOverFreeTierDataCap -> "Usage is now over free tier data cap."
                 }
                 is CoreError.Unexpected -> {
                     "Unable to sync all files: ${error.content}"
