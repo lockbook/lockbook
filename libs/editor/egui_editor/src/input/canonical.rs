@@ -212,6 +212,7 @@ mod test {
     use egui::{Event, Key, Modifiers, Pos2};
     use std::time::Instant;
 
+    #[derive(Default)]
     struct TestClickChecker {
         ui: bool,
         checkbox: Option<usize>,
@@ -242,7 +243,7 @@ mod test {
                     repeat: false,
                     modifiers: Default::default()
                 },
-                TestClickChecker { ui: true, checkbox: None, link: None },
+                TestClickChecker::default(),
                 &mut Default::default(),
                 Instant::now()
             ),
@@ -266,7 +267,7 @@ mod test {
                     repeat: false,
                     modifiers: Modifiers { command: true, ..Default::default() },
                 },
-                TestClickChecker { ui: true, checkbox: None, link: None },
+                TestClickChecker::default(),
                 &mut Default::default(),
                 Instant::now()
             ),
@@ -290,7 +291,7 @@ mod test {
                     repeat: false,
                     modifiers: Modifiers { shift: true, ..Default::default() },
                 },
-                TestClickChecker { ui: true, checkbox: None, link: None },
+                TestClickChecker::default(),
                 &mut Default::default(),
                 Instant::now()
             ),
@@ -314,7 +315,7 @@ mod test {
                     repeat: false,
                     modifiers: Modifiers { command: true, shift: true, ..Default::default() },
                 },
-                TestClickChecker { ui: true, checkbox: None, link: None },
+                TestClickChecker::default(),
                 &mut Default::default(),
                 Instant::now()
             ),
@@ -338,7 +339,7 @@ mod test {
                     repeat: false,
                     modifiers: Default::default()
                 },
-                TestClickChecker { ui: true, checkbox: None, link: None },
+                TestClickChecker::default(),
                 &mut Default::default(),
                 Instant::now()
             ),
@@ -362,7 +363,7 @@ mod test {
                     repeat: false,
                     modifiers: Modifiers { command: true, ..Default::default() },
                 },
-                TestClickChecker { ui: true, checkbox: None, link: None },
+                TestClickChecker::default(),
                 &mut Default::default(),
                 Instant::now()
             ),
@@ -386,7 +387,7 @@ mod test {
                     repeat: false,
                     modifiers: Modifiers { shift: true, ..Default::default() },
                 },
-                TestClickChecker { ui: true, checkbox: None, link: None },
+                TestClickChecker::default(),
                 &mut Default::default(),
                 Instant::now()
             ),
@@ -410,13 +411,397 @@ mod test {
                     repeat: false,
                     modifiers: Modifiers { command: true, shift: true, ..Default::default() },
                 },
-                TestClickChecker { ui: true, checkbox: None, link: None },
+                TestClickChecker::default(),
                 &mut Default::default(),
                 Instant::now()
             ),
             Some(Modification::Select {
                 region: Region::ToOffset {
                     offset: Offset::To(Bound::Doc),
+                    backwards: true,
+                    extend_selection: true,
+                },
+            })
+        ));
+    }
+
+    #[test]
+    fn calc_right() {
+        assert!(matches!(
+            calc(
+                &Event::Key {
+                    key: Key::ArrowRight,
+                    pressed: true,
+                    repeat: false,
+                    modifiers: Modifiers { ..Default::default() },
+                },
+                TestClickChecker::default(),
+                &mut Default::default(),
+                Instant::now()
+            ),
+            Some(Modification::Select {
+                region: Region::ToOffset {
+                    offset: Offset::By(Increment::Char),
+                    backwards: false,
+                    extend_selection: false,
+                },
+            })
+        ));
+    }
+
+    #[test]
+    fn calc_alt_right() {
+        assert!(matches!(
+            calc(
+                &Event::Key {
+                    key: Key::ArrowRight,
+                    pressed: true,
+                    repeat: false,
+                    modifiers: Modifiers { alt: true, ..Default::default() },
+                },
+                TestClickChecker::default(),
+                &mut Default::default(),
+                Instant::now()
+            ),
+            Some(Modification::Select {
+                region: Region::ToOffset {
+                    offset: Offset::To(Bound::Word),
+                    backwards: false,
+                    extend_selection: false,
+                },
+            })
+        ));
+    }
+
+    #[test]
+    fn calc_cmd_right() {
+        assert!(matches!(
+            calc(
+                &Event::Key {
+                    key: Key::ArrowRight,
+                    pressed: true,
+                    repeat: false,
+                    modifiers: Modifiers { command: true, ..Default::default() },
+                },
+                TestClickChecker::default(),
+                &mut Default::default(),
+                Instant::now()
+            ),
+            Some(Modification::Select {
+                region: Region::ToOffset {
+                    offset: Offset::To(Bound::Line),
+                    backwards: false,
+                    extend_selection: false,
+                },
+            })
+        ));
+    }
+
+    #[test]
+    fn calc_shift_right() {
+        assert!(matches!(
+            calc(
+                &Event::Key {
+                    key: Key::ArrowRight,
+                    pressed: true,
+                    repeat: false,
+                    modifiers: Modifiers { shift: true, ..Default::default() },
+                },
+                TestClickChecker::default(),
+                &mut Default::default(),
+                Instant::now()
+            ),
+            Some(Modification::Select {
+                region: Region::ToOffset {
+                    offset: Offset::By(Increment::Char),
+                    backwards: false,
+                    extend_selection: true,
+                },
+            })
+        ));
+    }
+
+    #[test]
+    fn calc_alt_shift_right() {
+        assert!(matches!(
+            calc(
+                &Event::Key {
+                    key: Key::ArrowRight,
+                    pressed: true,
+                    repeat: false,
+                    modifiers: Modifiers { alt: true, shift: true, ..Default::default() },
+                },
+                TestClickChecker::default(),
+                &mut Default::default(),
+                Instant::now()
+            ),
+            Some(Modification::Select {
+                region: Region::ToOffset {
+                    offset: Offset::To(Bound::Word),
+                    backwards: false,
+                    extend_selection: true,
+                },
+            })
+        ));
+    }
+
+    #[test]
+    fn calc_cmd_shift_right() {
+        assert!(matches!(
+            calc(
+                &Event::Key {
+                    key: Key::ArrowRight,
+                    pressed: true,
+                    repeat: false,
+                    modifiers: Modifiers { command: true, shift: true, ..Default::default() },
+                },
+                TestClickChecker::default(),
+                &mut Default::default(),
+                Instant::now()
+            ),
+            Some(Modification::Select {
+                region: Region::ToOffset {
+                    offset: Offset::To(Bound::Line),
+                    backwards: false,
+                    extend_selection: true,
+                },
+            })
+        ));
+    }
+
+    #[test]
+    fn calc_end() {
+        assert!(matches!(
+            calc(
+                &Event::Key {
+                    key: Key::End,
+                    pressed: true,
+                    repeat: false,
+                    modifiers: Modifiers { ..Default::default() },
+                },
+                TestClickChecker::default(),
+                &mut Default::default(),
+                Instant::now()
+            ),
+            Some(Modification::Select {
+                region: Region::ToOffset {
+                    offset: Offset::To(Bound::Line),
+                    backwards: false,
+                    extend_selection: false,
+                },
+            })
+        ));
+    }
+
+    #[test]
+    fn calc_shift_end() {
+        assert!(matches!(
+            calc(
+                &Event::Key {
+                    key: Key::End,
+                    pressed: true,
+                    repeat: false,
+                    modifiers: Modifiers { shift: true, ..Default::default() },
+                },
+                TestClickChecker::default(),
+                &mut Default::default(),
+                Instant::now()
+            ),
+            Some(Modification::Select {
+                region: Region::ToOffset {
+                    offset: Offset::To(Bound::Line),
+                    backwards: false,
+                    extend_selection: true,
+                },
+            })
+        ));
+    }
+
+    #[test]
+    fn calc_left() {
+        assert!(matches!(
+            calc(
+                &Event::Key {
+                    key: Key::ArrowLeft,
+                    pressed: true,
+                    repeat: false,
+                    modifiers: Modifiers { ..Default::default() },
+                },
+                TestClickChecker::default(),
+                &mut Default::default(),
+                Instant::now()
+            ),
+            Some(Modification::Select {
+                region: Region::ToOffset {
+                    offset: Offset::By(Increment::Char),
+                    backwards: true,
+                    extend_selection: false,
+                },
+            })
+        ));
+    }
+
+    #[test]
+    fn calc_alt_left() {
+        assert!(matches!(
+            calc(
+                &Event::Key {
+                    key: Key::ArrowLeft,
+                    pressed: true,
+                    repeat: false,
+                    modifiers: Modifiers { alt: true, ..Default::default() },
+                },
+                TestClickChecker::default(),
+                &mut Default::default(),
+                Instant::now()
+            ),
+            Some(Modification::Select {
+                region: Region::ToOffset {
+                    offset: Offset::To(Bound::Word),
+                    backwards: true,
+                    extend_selection: false,
+                },
+            })
+        ));
+    }
+
+    #[test]
+    fn calc_cmd_left() {
+        assert!(matches!(
+            calc(
+                &Event::Key {
+                    key: Key::ArrowLeft,
+                    pressed: true,
+                    repeat: false,
+                    modifiers: Modifiers { command: true, ..Default::default() },
+                },
+                TestClickChecker::default(),
+                &mut Default::default(),
+                Instant::now()
+            ),
+            Some(Modification::Select {
+                region: Region::ToOffset {
+                    offset: Offset::To(Bound::Line),
+                    backwards: true,
+                    extend_selection: false,
+                },
+            })
+        ));
+    }
+
+    #[test]
+    fn calc_shift_left() {
+        assert!(matches!(
+            calc(
+                &Event::Key {
+                    key: Key::ArrowLeft,
+                    pressed: true,
+                    repeat: false,
+                    modifiers: Modifiers { shift: true, ..Default::default() },
+                },
+                TestClickChecker::default(),
+                &mut Default::default(),
+                Instant::now()
+            ),
+            Some(Modification::Select {
+                region: Region::ToOffset {
+                    offset: Offset::By(Increment::Char),
+                    backwards: true,
+                    extend_selection: true,
+                },
+            })
+        ));
+    }
+
+    #[test]
+    fn calc_alt_shift_left() {
+        assert!(matches!(
+            calc(
+                &Event::Key {
+                    key: Key::ArrowLeft,
+                    pressed: true,
+                    repeat: false,
+                    modifiers: Modifiers { alt: true, shift: true, ..Default::default() },
+                },
+                TestClickChecker::default(),
+                &mut Default::default(),
+                Instant::now()
+            ),
+            Some(Modification::Select {
+                region: Region::ToOffset {
+                    offset: Offset::To(Bound::Word),
+                    backwards: true,
+                    extend_selection: true,
+                },
+            })
+        ));
+    }
+
+    #[test]
+    fn calc_cmd_shift_left() {
+        assert!(matches!(
+            calc(
+                &Event::Key {
+                    key: Key::ArrowLeft,
+                    pressed: true,
+                    repeat: false,
+                    modifiers: Modifiers { command: true, shift: true, ..Default::default() },
+                },
+                TestClickChecker::default(),
+                &mut Default::default(),
+                Instant::now()
+            ),
+            Some(Modification::Select {
+                region: Region::ToOffset {
+                    offset: Offset::To(Bound::Line),
+                    backwards: true,
+                    extend_selection: true,
+                },
+            })
+        ));
+    }
+
+    #[test]
+    fn calc_home() {
+        assert!(matches!(
+            calc(
+                &Event::Key {
+                    key: Key::Home,
+                    pressed: true,
+                    repeat: false,
+                    modifiers: Modifiers { ..Default::default() },
+                },
+                TestClickChecker::default(),
+                &mut Default::default(),
+                Instant::now()
+            ),
+            Some(Modification::Select {
+                region: Region::ToOffset {
+                    offset: Offset::To(Bound::Line),
+                    backwards: true,
+                    extend_selection: false,
+                },
+            })
+        ));
+    }
+
+    #[test]
+    fn calc_shift_home() {
+        assert!(matches!(
+            calc(
+                &Event::Key {
+                    key: Key::Home,
+                    pressed: true,
+                    repeat: false,
+                    modifiers: Modifiers { shift: true, ..Default::default() },
+                },
+                TestClickChecker::default(),
+                &mut Default::default(),
+                Instant::now()
+            ),
+            Some(Modification::Select {
+                region: Region::ToOffset {
+                    offset: Offset::To(Bound::Line),
                     backwards: true,
                     extend_selection: true,
                 },
