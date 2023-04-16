@@ -329,6 +329,7 @@ fn write_document_in_rejected_shared_folder_in_rejected_share_folder() {
     let result = cores[1].write_document(document.id, b"document content by sharee");
     assert_matches!(result.unwrap_err().kind, CoreError::InsufficientPermission);
 }
+
 #[test]
 fn write_link_by_sharee() {
     let cores: Vec<Core> = vec![test_core_with_account(), test_core_with_account()];
