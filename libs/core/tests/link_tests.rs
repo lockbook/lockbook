@@ -37,6 +37,9 @@ fn get_path_document_link() {
     cores[1].sync(None).unwrap();
 
     cores[1].create_link_at_path("link", document.id).unwrap();
+
+    assert_valid_list_metadatas(&cores[0]);
+    assert_valid_list_metadatas(&cores[1]);
     assert_eq!(cores[1].get_by_path("/link").unwrap().id, document.id);
 }
 #[test]
@@ -56,7 +59,66 @@ fn get_path_folder_link() {
     cores[1].sync(None).unwrap();
 
     cores[1].create_link_at_path("link", folder.id).unwrap();
+
+    assert_valid_list_metadatas(&cores[0]);
+    assert_valid_list_metadatas(&cores[1]);
     assert_eq!(cores[1].get_by_path("/link").unwrap().id, folder.id);
+}
+
+#[test]
+fn create_path_doc_under_link() {
+    let cores = vec![test_core_with_account(), test_core_with_account()];
+    let accounts = cores
+        .iter()
+        .map(|core| core.get_account().unwrap())
+        .collect::<Vec<_>>();
+    let roots = cores
+        .iter()
+        .map(|core| core.get_root().unwrap())
+        .collect::<Vec<_>>();
+
+    let folder = cores[0].create_at_path("folder/").unwrap();
+    cores[0]
+        .share_file(folder.id, &accounts[1].username, ShareMode::Write)
+        .unwrap();
+
+    cores[0].sync(None).unwrap();
+    cores[1].sync(None).unwrap();
+
+    cores[1].create_link_at_path("link", folder.id).unwrap();
+
+    let document = cores[1].create_at_path("link/document").unwrap();
+
+    assert::all_ids(&cores[1], &[roots[1].id, document.id, folder.id]);
+    assert::all_paths(&cores[1], &["/", "/link/", "/link/document"]);
+}
+
+#[test]
+fn create_path_folder_under_link() {
+    let cores = vec![test_core_with_account(), test_core_with_account()];
+    let accounts = cores
+        .iter()
+        .map(|core| core.get_account().unwrap())
+        .collect::<Vec<_>>();
+    let roots = cores
+        .iter()
+        .map(|core| core.get_root().unwrap())
+        .collect::<Vec<_>>();
+
+    let folder = cores[0].create_at_path("folder/").unwrap();
+    cores[0]
+        .share_file(folder.id, &accounts[1].username, ShareMode::Write)
+        .unwrap();
+
+    cores[0].sync(None).unwrap();
+    cores[1].sync(None).unwrap();
+
+    cores[1].create_link_at_path("link", folder.id).unwrap();
+
+    let folder1 = cores[1].create_at_path("link/folder/").unwrap();
+
+    assert::all_ids(&cores[1], &[roots[1].id, folder1.id, folder.id]);
+    assert::all_paths(&cores[1], &["/", "/link/", "/link/folder/"]);
 }
 #[test]
 fn list_metadatas_link() {
