@@ -1586,6 +1586,82 @@ fn rename_target_by_sharer() {
 }
 
 #[test]
+fn move_file_under_target() {
+    let cores = vec![test_core_with_account(), test_core_with_account()];
+    let accounts = cores
+        .iter()
+        .map(|core| core.get_account().unwrap())
+        .collect::<Vec<_>>();
+    let roots = cores
+        .iter()
+        .map(|core| core.get_root().unwrap())
+        .collect::<Vec<_>>();
+
+    let folder = cores[0]
+        .create_file("folder", roots[0].id, FileType::Folder)
+        .unwrap();
+
+    cores[0]
+        .share_file(folder.id, &accounts[1].username, ShareMode::Write)
+        .unwrap();
+
+    cores[0].sync(None).unwrap();
+
+    cores[1].sync(None).unwrap();
+    cores[1]
+        .create_file("link", roots[1].id, FileType::Link { target: folder.id })
+        .unwrap();
+
+    let document = cores[1]
+        .create_file("document", roots[1].id, FileType::Document)
+        .unwrap();
+
+    cores[1].move_file(document.id, folder.id).unwrap();
+
+    cores[1].sync(None).unwrap();
+    cores[0].sync(None).unwrap();
+
+    assert::all_paths(&cores[1], &["/", "/link/", "/link/document"]);
+    assert::all_paths(&cores[0], &["/", "/folder/", "/folder/document"])
+}
+
+#[test]
+fn move_file_under_link() {
+    let cores = vec![test_core_with_account(), test_core_with_account()];
+    let accounts = cores
+        .iter()
+        .map(|core| core.get_account().unwrap())
+        .collect::<Vec<_>>();
+    let roots = cores
+        .iter()
+        .map(|core| core.get_root().unwrap())
+        .collect::<Vec<_>>();
+
+    let folder = cores[0]
+        .create_file("folder", roots[0].id, FileType::Folder)
+        .unwrap();
+
+    cores[0]
+        .share_file(folder.id, &accounts[1].username, ShareMode::Write)
+        .unwrap();
+
+    cores[0].sync(None).unwrap();
+
+    cores[1].sync(None).unwrap();
+    let link = cores[1]
+        .create_file("link", roots[1].id, FileType::Link { target: folder.id })
+        .unwrap();
+
+    let document = cores[1]
+        .create_file("document", roots[1].id, FileType::Document)
+        .unwrap();
+
+    let result = cores[1].move_file(document.id, link.id).unwrap_err();
+
+    assert_matches!(result.kind, CoreError::FileNotFolder);
+}
+
+#[test]
 fn move_file_shared_link() {
     let cores = vec![test_core_with_account(), test_core_with_account()];
     let accounts = cores
