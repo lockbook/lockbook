@@ -267,6 +267,12 @@ impl super::AccountScreen {
         });
     }
 
+    pub fn save_all_tabs(&self) {
+        for (i, _) in self.workspace.tabs.iter().enumerate() {
+            self.save_tab(i);
+        }
+    }
+
     pub fn save_tab(&self, i: usize) {
         if let Some(tab) = self.workspace.tabs.get(i) {
             if let Some(content) = &tab.content {
