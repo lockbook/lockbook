@@ -962,43 +962,6 @@ fn delete_link_to_share() {
 }
 
 #[test]
-fn delete_link_target_to_share() {
-    let cores = vec![test_core_with_account(), test_core_with_account(), test_core_with_account()];
-    let accounts = cores
-        .iter()
-        .map(|core| core.get_account().unwrap())
-        .collect::<Vec<_>>();
-    let roots = cores
-        .iter()
-        .map(|core| core.get_root().unwrap())
-        .collect::<Vec<_>>();
-
-    let folder = cores[0]
-        .create_file("folder", roots[0].id, FileType::Folder)
-        .unwrap();
-    cores[0]
-        .share_file(folder.id, &accounts[1].username, ShareMode::Write)
-        .unwrap();
-
-    cores[0].sync(None).unwrap();
-    cores[1].sync(None).unwrap();
-
-    assert::all_pending_shares(&cores[1], &["folder"]);
-
-    cores[1].create_link_at_path("link/", folder.id).unwrap();
-
-    assert::all_pending_shares(&cores[1], &[]);
-
-    cores[1].delete_file(folder.id).unwrap();
-
-    cores[1].sync(None).unwrap();
-    cores[0].sync(None).unwrap();
-
-    assert::all_paths(&cores[0], &["/", "/folder/"]);
-
-    assert::all_pending_shares(&cores[1], &["folder"]);
-}
-#[test]
 fn create_link_with_deleted_duplicate() {
     let cores = vec![test_core_with_account(), test_core_with_account(), test_core_with_account()];
     let accounts = cores

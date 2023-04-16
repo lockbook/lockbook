@@ -20,19 +20,22 @@ where
     pub fn path_to_id(&mut self, path: &str, root: &Uuid, account: &Account) -> SharedResult<Uuid> {
         let mut current = *root;
         'path: for name in split_path(path) {
-            'child: for child in self.children(&if let FileType::Link { target } =
-                self.find(&current)?.file_type()
-            {
+            let id = if let FileType::Link { target } = self.find(&current)?.file_type() {
                 target
             } else {
                 current
-            })? {
+            };
+            'child: for child in self.children(&id)? {
                 if self.calculate_deleted(&child)? {
                     continue 'child;
                 }
 
                 if self.name_using_links(&child, account)? == name {
-                    current = child;
+                    current = match self.find(&child)?.file_type() {
+                        FileType::Link { target } => target,
+                        _ => child,
+                    };
+
                     continue 'path;
                 }
             }

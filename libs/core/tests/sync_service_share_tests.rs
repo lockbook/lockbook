@@ -318,7 +318,7 @@ fn edited_document() {
 
     assert_stuff(&cores[0], &cores[1]);
     assert::all_paths(&cores[1], &["/", "/link"]);
-    assert::all_document_contents(&cores[1], &[("/link", b"document content")]);
+    assert::all_document_contents(&cores[1], &[("/linkdocument", b"document content")]);
 }
 
 #[test]

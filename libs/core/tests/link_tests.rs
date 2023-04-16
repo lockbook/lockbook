@@ -21,6 +21,44 @@ fn assert_valid_list_metadatas(c: &Core) {
 }
 
 #[test]
+fn get_path_document_link() {
+    let cores: Vec<Core> = vec![test_core_with_account(), test_core_with_account()];
+    let accounts = cores
+        .iter()
+        .map(|core| core.get_account().unwrap())
+        .collect::<Vec<_>>();
+
+    let document = cores[0].create_at_path("document").unwrap();
+    cores[0]
+        .share_file(document.id, &accounts[1].username, ShareMode::Write)
+        .unwrap();
+
+    cores[0].sync(None).unwrap();
+    cores[1].sync(None).unwrap();
+
+    cores[1].create_link_at_path("link", document.id).unwrap();
+    assert_eq!(cores[1].get_by_path("/link").unwrap().id, document.id);
+}
+#[test]
+fn get_path_folder_link() {
+    let cores: Vec<Core> = vec![test_core_with_account(), test_core_with_account()];
+    let accounts = cores
+        .iter()
+        .map(|core| core.get_account().unwrap())
+        .collect::<Vec<_>>();
+
+    let folder = cores[0].create_at_path("folder/").unwrap();
+    cores[0]
+        .share_file(folder.id, &accounts[1].username, ShareMode::Write)
+        .unwrap();
+
+    cores[0].sync(None).unwrap();
+    cores[1].sync(None).unwrap();
+
+    cores[1].create_link_at_path("link", folder.id).unwrap();
+    assert_eq!(cores[1].get_by_path("/link").unwrap().id, folder.id);
+}
+#[test]
 fn list_metadatas_link() {
     let cores = vec![test_core_with_account(), test_core_with_account()];
     let accounts = cores

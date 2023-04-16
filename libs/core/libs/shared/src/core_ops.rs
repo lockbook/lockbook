@@ -279,7 +279,7 @@ where
                 None => document_repo::maybe_get(config, meta.id(), meta.document_hmac())?,
             };
         let doc = match maybe_encrypted_document {
-            Some(doc) => self.decrypt_document(&id, &doc, account)?,
+            Some(doc) => self.decrypt_document(id, &doc, account)?,
             None => return Err(SharedErrorKind::FileNonexistent.into()),
         };
 
