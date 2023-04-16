@@ -68,6 +68,8 @@ class SyncService: ObservableObject {
                             case .Retry:
                                 // TODO
                                 DI.errors.handleError(ErrorWithTitle(title: "Retry", message: "SyncService wants retry"))
+                            case .UsageIsOverFreeTierDataCap:
+                                DI.errors.handleError(ErrorWithTitle(title: "Usage", message: "Your total data usage exceeds free tier. Please remove some data."))
                             }
                         default:
                             DI.errors.handleError(error)
