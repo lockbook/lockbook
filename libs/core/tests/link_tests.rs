@@ -249,7 +249,7 @@ fn list_metadatas_nested_linked_folders() {
 
     assert_valid_list_metadatas(&cores[0]);
     assert_valid_list_metadatas(&cores[1]);
-     assert::all_ids(&cores[1], &[roots[1].id, folder1.id, folder2.id, document.id]);
+    assert::all_ids(&cores[1], &[roots[1].id, folder1.id, folder2.id, document.id]);
     assert::all_paths(&cores[1], &["/", "/link1/", "/link2/", "/link2/document"]);
     assert::all_children_ids(&cores[1], roots[1].id, &[folder1.id, folder2.id]);
     assert::all_children_ids(&cores[1], folder2.id, &[document.id]);
