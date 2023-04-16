@@ -531,8 +531,16 @@ fn get_link_target_children_by_sharee() {
     cores[0].sync(None).unwrap();
     cores[1].sync(None).unwrap();
 
-    assert::all_recursive_children_ids(&cores[1], folder1.id, &[folder1.id, folder2.id, document.id]);
-    assert::all_recursive_children_ids(&cores[1], roots[1].id, &[roots[1].id, folder1.id, folder2.id, document.id]);
+    assert::all_recursive_children_ids(
+        &cores[1],
+        folder1.id,
+        &[folder1.id, folder2.id, document.id],
+    );
+    assert::all_recursive_children_ids(
+        &cores[1],
+        roots[1].id,
+        &[roots[1].id, folder1.id, folder2.id, document.id],
+    );
 
     assert::all_children_ids(&cores[1], folder1.id, &[folder2.id]);
     assert::all_children_ids(&cores[1], folder2.id, &[document.id]);
