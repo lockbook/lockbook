@@ -510,7 +510,7 @@ fn get_link_target_children_recursive_by_sharee() {
         .collect::<Vec<_>>();
 
     let folder1 = cores[0].create_at_path("/folder/").unwrap();
-    let folder2 = cores[0].create_at_path("/folder/folder/").unwrap();
+    cores[0].create_at_path("/folder/folder/").unwrap();
     let document = cores[0].create_at_path("/folder/folder/document").unwrap();
     cores[0]
         .write_document(document.id, b"document content by sharer")
@@ -536,9 +536,6 @@ fn get_link_target_children_recursive_by_sharee() {
 
     assert::all_recursive_children_ids(&cores[1], folder1.id, &result);
 }
-
-#[test]
-fn delete_link_by_sharer() {}
 
 #[test]
 fn linked_nested_shared_folders_distinct_path_changes_when_closest_link_deleted() {

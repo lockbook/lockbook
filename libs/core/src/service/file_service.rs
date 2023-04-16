@@ -50,7 +50,12 @@ impl<Client: Requester> CoreState<Client> {
             .data()
             .ok_or(CoreError::AccountNonexistent)?;
 
-        tree.rename(id, new_name, account)?;
+        let id = match tree.linked_by(id)? {
+            None => *id,
+            Some(target) => target,
+        };
+
+        tree.rename(&id, new_name, account)?;
 
         Ok(())
     }
