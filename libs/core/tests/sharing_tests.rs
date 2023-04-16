@@ -502,55 +502,6 @@ fn create_document_in_target_folder_by_sharer() {
 }
 
 #[test]
-fn get_link_target_children_recursive_by_sharee() {
-    let cores = vec![test_core_with_account(), test_core_with_account()];
-    let accounts = cores
-        .iter()
-        .map(|core| core.get_account().unwrap())
-        .collect::<Vec<_>>();
-    let roots = cores
-        .iter()
-        .map(|core| core.get_root().unwrap())
-        .collect::<Vec<_>>();
-
-    let folder1 = cores[0].create_at_path("/folder/").unwrap();
-    cores[0].create_at_path("/folder/folder/").unwrap();
-    let document = cores[0].create_at_path("/folder/folder/document").unwrap();
-    cores[0]
-        .write_document(document.id, b"document content by sharer")
-        .unwrap();
-    cores[0]
-        .share_file(folder1.id, &accounts[1].username, ShareMode::Write)
-        .unwrap();
-
-    cores[0].sync(None).unwrap();
-    cores[1].sync(None).unwrap();
-
-    cores[1].create_link_at_path("/link1", folder1.id).unwrap();
-
-    cores[0].sync(None).unwrap();
-    cores[1].sync(None).unwrap();
-
-    let result: Vec<Uuid> = cores[1]
-        .get_and_get_children_recursively(folder1.id)
-        .unwrap()
-        .iter()
-        .map(|f| f.id)
-        .collect();
-
-    assert::all_recursive_children_ids(&cores[1], folder1.id, &result);
-
-    let result: Vec<Uuid> = cores[1]
-        .get_and_get_children_recursively(roots[1].id)
-        .unwrap()
-        .iter()
-        .map(|f| f.id)
-        .collect();
-
-    assert::all_recursive_children_ids(&cores[1], roots[1].id, &result);
-}
-
-#[test]
 fn get_link_target_children_by_sharee() {
     let cores = vec![test_core_with_account(), test_core_with_account()];
     let accounts = cores
@@ -563,7 +514,7 @@ fn get_link_target_children_by_sharee() {
         .collect::<Vec<_>>();
 
     let folder1 = cores[0].create_at_path("/folder/").unwrap();
-    cores[0].create_at_path("/folder/folder/").unwrap();
+    let folder2 = cores[0].create_at_path("/folder/folder/").unwrap();
     let document = cores[0].create_at_path("/folder/folder/document").unwrap();
     cores[0]
         .write_document(document.id, b"document content by sharer")
@@ -580,23 +531,12 @@ fn get_link_target_children_by_sharee() {
     cores[0].sync(None).unwrap();
     cores[1].sync(None).unwrap();
 
-    let result: Vec<Uuid> = cores[1]
-        .get_children(folder1.id)
-        .unwrap()
-        .iter()
-        .map(|f| f.id)
-        .collect();
+    assert::all_recursive_children_ids(&cores[1], folder1.id, &[folder1.id, folder2.id, document.id]);
+    assert::all_recursive_children_ids(&cores[1], roots[1].id, &[roots[1].id, folder1.id, folder2.id, document.id]);
 
-    assert::all_children_ids(&cores[1], folder1.id, &result);
-
-    let result: Vec<Uuid> = cores[1]
-        .get_children(roots[1].id)
-        .unwrap()
-        .iter()
-        .map(|f| f.id)
-        .collect();
-
-    assert::all_children_ids(&cores[1], roots[1].id, &result);
+    assert::all_children_ids(&cores[1], folder1.id, &[folder2.id]);
+    assert::all_children_ids(&cores[1], folder2.id, &[document.id]);
+    assert::all_children_ids(&cores[1], roots[1].id, &[folder1.id]);
 }
 
 #[test]
