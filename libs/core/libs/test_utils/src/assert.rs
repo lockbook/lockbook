@@ -7,7 +7,6 @@ use lockbook_shared::file_metadata::FileType;
 use lockbook_shared::path_ops::Filter::DocumentsOnly;
 use lockbook_shared::staged::StagedTreeLikeMut;
 use lockbook_shared::tree_like::TreeLike;
-
 use uuid::Uuid;
 
 #[macro_export]
