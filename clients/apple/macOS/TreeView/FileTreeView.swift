@@ -2,7 +2,7 @@ import SwiftUI
 import SwiftLockbookCore
 
 struct FileTreeView: NSViewRepresentable {
-    
+
     let scrollView = NSScrollView()
     let treeView = MenuOutlineView()
     let delegate = TreeDelegate()
@@ -34,8 +34,6 @@ struct FileTreeView: NSViewRepresentable {
                         expandedFolders.remove(at: index)
                     }
                 }
-                
-                print("NEW LIST: \(expandedFolders.map { $0.name })")
             }
                         
             scrollView.documentView = treeView

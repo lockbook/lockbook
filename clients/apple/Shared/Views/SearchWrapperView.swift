@@ -135,7 +135,6 @@ struct SearchFilePathCell: View {
         }
             .contentShape(Rectangle()) /// https://stackoverflow.com/questions/57258371/swiftui-increase-tap-drag-area-for-user-interaction
             .padding(.vertical, 5)
-
     }
     
     static func underlineMatchedSegments(name: String, path: String, matchedIndices: [Int]) -> (formattedName: Text, formattedPath: Text) {

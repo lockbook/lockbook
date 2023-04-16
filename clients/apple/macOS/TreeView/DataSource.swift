@@ -147,8 +147,6 @@ class TreeDelegate: NSObject, MenuOutlineViewDelegate {
         let file = item as! File
         return FileItemView(file: file)
     }
-
-
     
     func outlineViewItemDidExpand(_ notification: Notification) {
         if let item = notification.userInfo?["NSObject"] as? File {
@@ -161,8 +159,6 @@ class TreeDelegate: NSObject, MenuOutlineViewDelegate {
             folderExpandedCollapsed(item, false)
         }
     }
-    
-    
 
     func outlineView(_ outlineView: NSOutlineView,
                      shouldSelectItem item: Any) -> Bool {
