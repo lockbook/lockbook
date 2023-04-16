@@ -42,6 +42,7 @@ fn get_path_document_link() {
     assert_valid_list_metadatas(&cores[1]);
     assert_eq!(cores[1].get_by_path("/link").unwrap().id, document.id);
 }
+
 #[test]
 fn get_path_folder_link() {
     let cores: Vec<Core> = vec![test_core_with_account(), test_core_with_account()];
