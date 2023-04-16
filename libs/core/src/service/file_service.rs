@@ -47,12 +47,9 @@ impl<Client: Requester> CoreState<Client> {
             .data()
             .ok_or(CoreError::AccountNonexistent)?;
 
-        let id = match tree.linked_by(id)? {
-            None => *id,
-            Some(target) => target,
-        };
+        let id = &tree.linked_by(id)?.unwrap_or(*id);
 
-        tree.rename(&id, new_name, account)?;
+        tree.rename(id, new_name, account)?;
 
         Ok(())
     }
@@ -67,11 +64,9 @@ impl<Client: Requester> CoreState<Client> {
             .data()
             .ok_or(CoreError::AccountNonexistent)?;
 
-        let id = match tree.linked_by(id)? {
-            None => *id,
-            Some(target) => target,
-        };
-        tree.move_file(&id, new_parent, account)?;
+        let id = &tree.linked_by(id)?.unwrap_or(*id);
+
+        tree.move_file(id, new_parent, account)?;
 
         Ok(())
     }
@@ -86,12 +81,9 @@ impl<Client: Requester> CoreState<Client> {
             .data()
             .ok_or(CoreError::AccountNonexistent)?;
 
-        let id = match tree.linked_by(id)? {
-            None => *id,
-            Some(target) => target,
-        };
+        let id = &tree.linked_by(id)?.unwrap_or(*id);
 
-        tree.delete(&id, account)?;
+        tree.delete(id, account)?;
 
         Ok(())
     }
