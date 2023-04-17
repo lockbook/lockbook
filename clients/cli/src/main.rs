@@ -6,6 +6,7 @@ mod imex;
 mod list;
 mod share;
 
+use std::cmp::Ordering::{Equal, Greater, Less};
 use std::fmt;
 use std::io::{self, Write};
 use std::path::PathBuf;
@@ -135,14 +136,19 @@ fn delete(core: &Core, target: &str, force: bool) -> Result<(), CliError> {
 
     if !force {
         let mut phrase = format!("delete '{}'", target);
-        let count = core
-            .get_and_get_children_recursively(f.id)
-            .unwrap_or_default()
-            .len() as u64
-            - 1;
 
-        if f.is_folder() && count > 0 {
-            phrase = format!("{phrase} and its {count} children");
+        if f.is_folder() {
+            let count = core
+                .get_and_get_children_recursively(f.id)
+                .unwrap_or_default()
+                .len() as u64
+                - 1;
+
+            phrase = match count.cmp(&1) {
+                Less => format!("{phrase}"),
+                Greater => format!("{phrase} and its {count} children"),
+                Equal => format!("{phrase} and its {count} child"),
+            };
         }
 
         let answer: String = input(format!("are you sure you want to {phrase}? [y/n]: "))?;
