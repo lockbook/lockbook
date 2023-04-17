@@ -109,7 +109,7 @@ checksum = "f26201604c87b1e01bd3d98f8d5d9a8fcbb815e8cedb41ffccbeb4bf593a35fe"
 
 [[package]]
 name = "admin"
-version = "0.7.2"
+version = "0.7.3"
 dependencies = [
  "clap 4.2.1",
  "dialoguer",
@@ -744,7 +744,7 @@ dependencies = [
 
 [[package]]
 name = "c_interface_v2"
-version = "0.7.2"
+version = "0.7.3"
 dependencies = [
  "libc",
  "lockbook-core",
@@ -1097,7 +1097,7 @@ dependencies = [
 
 [[package]]
 name = "core_external_interface"
-version = "0.1.0"
+version = "0.7.3"
 dependencies = [
  "basic-human-duration",
  "crossbeam",
@@ -1630,7 +1630,7 @@ dependencies = [
 
 [[package]]
 name = "egui_editor"
-version = "0.7.2"
+version = "0.7.3"
 dependencies = [
  "eframe",
  "egui",
@@ -3098,7 +3098,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook-cli"
-version = "0.7.2"
+version = "0.7.3"
 dependencies = [
  "clap 4.2.1",
  "hotwatch",
@@ -3108,7 +3108,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook-core"
-version = "0.7.2"
+version = "0.7.3"
 dependencies = [
  "base64 0.13.1",
  "basic-human-duration",
@@ -3145,7 +3145,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook-dev"
-version = "0.7.2"
+version = "0.7.3"
 dependencies = [
  "clap 4.2.1",
  "dotenvy",
@@ -3156,7 +3156,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook-egui"
-version = "0.7.2"
+version = "0.7.3"
 dependencies = [
  "dark-light",
  "eframe",
@@ -3172,7 +3172,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook-server"
-version = "0.7.2"
+version = "0.7.3"
 dependencies = [
  "async-stripe",
  "base64 0.13.1",
@@ -3209,7 +3209,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook-shared"
-version = "0.7.2"
+version = "0.7.3"
 dependencies = [
  "aead",
  "aes-gcm",
@@ -4393,7 +4393,7 @@ checksum = "f162c6dd7b008981e4d40210aca20b4bd0f9b60ca9271061b07f78537722f2e1"
 
 [[package]]
 name = "releaser"
-version = "0.7.2"
+version = "0.7.3"
 dependencies = [
  "clap 4.2.1",
  "fs_extra",
@@ -5154,7 +5154,7 @@ dependencies = [
 
 [[package]]
 name = "test_utils"
-version = "0.7.2"
+version = "0.7.3"
 dependencies = [
  "bincode",
  "itertools",
@@ -6450,7 +6450,7 @@ dependencies = [
 
 [[package]]
 name = "winstaller"
-version = "0.7.2"
+version = "0.7.3"
 dependencies = [
  "eframe",
  "egui_extras",
