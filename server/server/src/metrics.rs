@@ -217,14 +217,12 @@ pub fn get_user_info(
         .iter()
         .any(|k| k.owner() != owner || k.is_shared());
 
-    let root_creation_timestamp = tree
-        .all_files()?
-        .iter()
-        .find(|f| f.is_root())
-        .unwrap()
-        .file
-        .timestamped_value
-        .timestamp;
+    let root_creation_timestamp =
+        if let Some(root_creation_timestamp) = tree.all_files()?.iter().find(|f| f.is_root()) {
+            root_creation_timestamp.file.timestamped_value.timestamp
+        } else {
+            return Ok(None);
+        };
 
     let last_seen = *db
         .last_seen
@@ -242,7 +240,11 @@ pub fn get_user_info(
         .map(|f| f.size_bytes)
         .sum();
 
-    let total_documents = db.owned_files.data().get(&owner).unwrap().len() as i64;
+    let total_documents = if let Some(owned_files) = db.owned_files.data().get(&owner) {
+        owned_files.len() as i64
+    } else {
+        return Ok(None);
+    };
 
     Ok(Some(UserInfo {
         total_documents,
