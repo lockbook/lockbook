@@ -142,12 +142,11 @@ fn delete(core: &Core, target: &str, force: bool) -> Result<(), CliError> {
                 .unwrap_or_default()
                 .len() as u64
                 - 1;
-
-            if count == 1 {
-                phrase = format!("{phrase} and its 1 child");
-            } else if count > 1 {
-                phrase = format!("{phrase} and its {count} children");
-            }
+            match count {
+                0 => {}
+                1 => phrase = format!("{phrase} and its 1 child"),
+                _ => phrase = format!("{phrase} and its {count} children"),
+            };
         }
 
         let answer: String = input(format!("are you sure you want to {phrase}? [y/n]: "))?;
