@@ -22,18 +22,11 @@ pub fn process(
     events
         .iter()
         .filter_map(|e| input::canonical::calc(e, &click_checker, pointer_state, Instant::now()))
-        .map(|m| {
-            println!("modifications: {:?}", m);
-            m
-        })
         .collect::<Vec<Modification>>()
         .into_iter()
         .map(|m| match input::mutation::calc(m, layouts, &buffer.current, galleys) {
             EditorMutation::Buffer(mutations) if mutations.is_empty() => (false, None, None),
-            EditorMutation::Buffer(mutations) => {
-                println!("mutations: {:?}\n", mutations);
-                buffer.apply(mutations, debug)
-            }
+            EditorMutation::Buffer(mutations) => buffer.apply(mutations, debug),
             EditorMutation::Undo => {
                 buffer.undo(debug);
                 (true, None, None)

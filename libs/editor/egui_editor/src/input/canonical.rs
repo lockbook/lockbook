@@ -187,7 +187,6 @@ pub fn calc(
             if !pointer_state.pressed || pointer_state.last_click_type != ClickType::Single {
                 return None;
             } else {
-                println!("DRAG");
                 Modification::Select { region: Region::ToLocation(Location::Pos(*pos)) }
             }
         }
