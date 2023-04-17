@@ -2,10 +2,20 @@ import SwiftUI
 import SwiftLockbookCore
 import DSFQuickActionBar
 
-struct FileListView: View {    
+struct FileListView: View {
+    
+    @State var searchInput: String = ""
+    @State var expandedFolders: [File] = []
+    
     var body: some View {
         VStack {
-            FileTreeView()
+            SearchWrapperView(
+                searchInput: $searchInput,
+                mainView: FileTreeView(expandedFolders: $expandedFolders),
+                isiOS: false)
+            .searchable(text: $searchInput, prompt: "Search")
+            .keyboardShortcut(.escape)
+            
             VStack (spacing: 3) {
                 BottomBar()
             }
