@@ -69,16 +69,14 @@ fn handle_apple(version: &str) {
     for plist in plists {
         Command::new("/usr/libexec/Plistbuddy")
             .args(["-c", &format!("Set CFBundleShortVersionString {version}"), plist])
-            .spawn()
-            .unwrap();
+            .assert_success();
         let now = OffsetDateTime::now_utc();
         let month = now.month() as u8;
         let day = now.day();
         let year = now.year();
         Command::new("/usr/libexec/Plistbuddy")
             .args(["-c", &format!("Set CFBundleVersion {year}{month}{day}"), plist])
-            .spawn()
-            .unwrap();
+            .assert_success();
     }
 }
 
