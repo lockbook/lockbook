@@ -12,8 +12,6 @@ class SearchService: ObservableObject {
     @Published var pathsSearchResult: Array<FilePathInfo> = []
     @Published var searchPathAndContentState: SearchPathAndContentState = .NotSearching
     
-    #if os(iOS)
-    
     func startSearchThread() {
         searchPathAndContentState = .Idle
         
@@ -92,9 +90,7 @@ class SearchService: ObservableObject {
         
         searchPathAndContentState = .NotSearching
     }
-    
-    #endif
-    
+        
     func searchFilePath(input: String) -> [SearchResultItem]? {
         switch core.searchFilePaths(input: input) {
         case .success(let paths):

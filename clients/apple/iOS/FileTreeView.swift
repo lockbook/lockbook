@@ -20,7 +20,7 @@ struct FileTreeView: View {
             SearchWrapperView(
                 searchInput: $searchInput,
                 mainView: OutlineSection(root: currentFolder),
-                isiPadView: true)
+                isiOS: false)
             .searchable(text: $searchInput, placement: .navigationBarDrawer(displayMode: .automatic), prompt: "Search")
 
             HStack {

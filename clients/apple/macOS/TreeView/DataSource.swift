@@ -118,6 +118,9 @@ class DataSource: NSObject, NSOutlineViewDataSource, NSPasteboardItemDataProvide
 class TreeDelegate: NSObject, MenuOutlineViewDelegate {
     var documentSelected: (File) -> Void = { _ in
     }
+    
+    var folderExpandedCollapsed: (File, Bool) -> Void = { _, _ in
+    }
 
     func outlineView(_ outlineView: NSOutlineView, menuForItem item: Any?) -> NSMenu? {
         let menu = NSMenu()
@@ -144,9 +147,17 @@ class TreeDelegate: NSObject, MenuOutlineViewDelegate {
         let file = item as! File
         return FileItemView(file: file)
     }
-
+    
     func outlineViewItemDidExpand(_ notification: Notification) {
-        print("outlineViewItemDidExpand")
+        if let item = notification.userInfo?["NSObject"] as? File {
+            folderExpandedCollapsed(item, true)
+        }
+    }
+
+    func outlineViewItemWillCollapse(_ notification: Notification) {
+        if let item = notification.userInfo?["NSObject"] as? File {
+            folderExpandedCollapsed(item, false)
+        }
     }
 
     func outlineView(_ outlineView: NSOutlineView,
