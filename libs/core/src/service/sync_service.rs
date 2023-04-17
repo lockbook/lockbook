@@ -557,17 +557,17 @@ where
                                 let merge_name = merge.name(&id, &self.account)?;
                                 let document_type =
                                     DocumentType::from_file_name_using_extension(&merge_name);
-                                let base_document = if base_hmac.is_some() {
+                                let base_document = if !self.dry_run && base_hmac.is_some() {
                                     base.read_document(self.config, &id, &self.account)?
                                 } else {
                                     Vec::new()
                                 };
-                                let remote_document = if remote_hmac.is_some() {
+                                let remote_document = if !self.dry_run && remote_hmac.is_some() {
                                     remote.read_document(self.config, &id, &self.account)?
                                 } else {
                                     Vec::new()
                                 };
-                                let local_document = if local_hmac.is_some() {
+                                let local_document = if !self.dry_run && local_hmac.is_some() {
                                     local.read_document(self.config, &id, &self.account)?
                                 } else {
                                     Vec::new()
@@ -651,8 +651,11 @@ where
                                 }
                             } else {
                                 // overwrite (todo: avoid reading/decrypting/encrypting document)
-                                let document =
-                                    local.read_document(self.config, &id, &self.account)?;
+                                let document = if !self.dry_run {
+                                    local.read_document(self.config, &id, &self.account)?
+                                } else {
+                                    Vec::new()
+                                };
                                 merge.update_document_unvalidated(&id, &document, &self.account)?;
                             }
                         }
