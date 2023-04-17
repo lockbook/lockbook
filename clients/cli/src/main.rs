@@ -147,7 +147,7 @@ fn delete(core: &Core, target: &str, force: bool) -> Result<(), CliError> {
             phrase = match count.cmp(&1) {
                 Less => format!("{phrase}"),
                 Greater => format!("{phrase} and its {count} children"),
-                Equal => format!("{phrase} and its {count} child"),
+                Equal => format!("{phrase} and its 1 child"),
             };
         }
 
