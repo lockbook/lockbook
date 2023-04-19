@@ -37,6 +37,7 @@ public protocol LockbookApi {
     func exportFile(id: UUID, destination: String) ->FfiResult<Empty, ExportFileError>
     func importFiles(sources: [String], destination: UUID) ->FfiResult<Empty, ImportFilesError>
     func getFileById(id: UUID) -> FfiResult<File, GetFileByIdError>
+    func suggestedDocs() -> FfiResult<[UUID], SuggestedDocsError>
     
     // Billing
     func newAppleSub(originalTransactionId: String, appAccountToken: String) -> FfiResult<Empty, UpgradeAccountAppStoreError>

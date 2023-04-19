@@ -166,4 +166,8 @@ public struct CoreApi: LockbookApi {
     public func searchQuery(query: String) -> FfiResult<Empty, GeneralSearchError> {
         fromPrimitiveResult(result: search(query))
     }
+    
+    public func suggestedDocs() -> FfiResult<[UUID], SuggestedDocsError> {
+        fromPrimitiveResult(result: suggested_docs())
+    }
 }

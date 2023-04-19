@@ -13,7 +13,7 @@ use lockbook_core::{
     Config, FileType, ImportStatus, ShareMode, SupportedImageFormats, UnexpectedError, Uuid,
 };
 
-use crate::{get_all_error_variants, json_interface::translate, static_state};
+use crate::{get_all_error_variants, json_interface::translate, RankingWeights, static_state};
 
 fn c_string(value: String) -> *const c_char {
     CString::new(value)
@@ -623,6 +623,17 @@ pub unsafe extern "C" fn search(query: *const c_char) -> *const c_char {
 #[no_mangle]
 pub unsafe extern "C" fn end_search() -> *const c_char {
     send_search_request(SearchRequest::EndSearch)
+}
+
+/// # Safety
+///
+/// Be sure to call `release_pointer` on the result of this function to free the data.
+#[no_mangle]
+pub unsafe extern "C" fn suggested_docs() -> *const c_char {
+    c_string(match static_state::get() {
+        Ok(core) => translate(core.suggested_docs(RankingWeights::default())),
+        e => translate(e.map(|_| ())),
+    })
 }
 
 // FOR INTEGRATION TESTS ONLY

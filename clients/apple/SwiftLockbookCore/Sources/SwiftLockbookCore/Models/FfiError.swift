@@ -278,3 +278,7 @@ public enum SearchFilePathsError: String, UiError {
 public enum GeneralSearchError: String, UiError {
     case Stub
 }
+
+public enum SuggestedDocsError: String, UiError {
+    case Stub
+}

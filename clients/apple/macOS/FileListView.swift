@@ -6,10 +6,10 @@ struct FileListView: View {
     
     @State var searchInput: String = ""
     @State var expandedFolders: [File] = []
+    @State var lastOpenDoc: File? = nil
     
-    @StateObject var treeBranchState: BranchState = BranchState()
-    @StateObject var suggestedDocsBranchState: BranchState = BranchState()
-    
+    @StateObject var treeBranchState: BranchState = BranchState(open: true)
+        
     var body: some View {
         VStack {
             SearchWrapperView(
@@ -18,43 +18,24 @@ struct FileListView: View {
                 isiOS: false)
             .searchable(text: $searchInput, prompt: "Search")
             .keyboardShortcut(.escape)
-            
+                
             VStack (spacing: 3) {
                 BottomBar()
             }
         }
-        
+            
         DetailView()
     }
     
     var mainView: some View {
         VStack {
-            Button(action: {
-                withAnimation {
-                    suggestedDocsBranchState.open.toggle()
-                }
-            }) {
-                HStack {
-                    Text("Suggested Documents")
-                        .bold()
-                        .foregroundColor(.gray)
-                    Spacer()
-                    if suggestedDocsBranchState.open {
-                        Image(systemName: "chevron.down")
-                            .foregroundColor(.gray)
-                    } else {
-                        Image(systemName: "chevron.right")
-                            .foregroundColor(.gray)
-                    }
-                }
-                .padding()
-                .contentShape(Rectangle())
-            }
-            
-            if suggestedDocsBranchState.open {
-                EmptyView()
-            }
-            
+            SuggestedDocumentsView()
+            fileTreeView
+        }
+    }
+    
+    var fileTreeView: some View {
+        Group {
             Button(action: {
                 withAnimation {
                     treeBranchState.open.toggle()
@@ -64,8 +45,50 @@ struct FileListView: View {
                     Text("Tree")
                         .bold()
                         .foregroundColor(.gray)
+                        .font(.subheadline)
                     Spacer()
                     if treeBranchState.open {
+                        Image(systemName: "chevron.down")
+                            .foregroundColor(.gray)
+                    } else {
+                        Image(systemName: "chevron.right")
+                            .foregroundColor(.gray)
+                    }
+                }
+                .padding(.top)
+                .padding(.horizontal)
+                .contentShape(Rectangle())
+            }
+            
+            if treeBranchState.open {
+                FileTreeView(expandedFolders: $expandedFolders, lastOpenDoc: $lastOpenDoc)
+                    .padding(.leading, 4)
+            } else {
+                Spacer()
+            }
+        }
+    }
+}
+
+struct SuggestedDocumentsView: View {
+    @StateObject var suggestedDocsBranchState: BranchState = BranchState(open: true)
+    
+    @EnvironmentObject var current: CurrentDocument
+    
+    var body: some View {
+        Group {
+            Button(action: {
+                withAnimation {
+                    suggestedDocsBranchState.open.toggle()
+                }
+            }) {
+                HStack {
+                    Text("Suggested")
+                        .bold()
+                        .foregroundColor(.gray)
+                        .font(.subheadline)
+                    Spacer()
+                    if suggestedDocsBranchState.open {
                         Image(systemName: "chevron.down")
                             .foregroundColor(.gray)
                     } else {
@@ -77,13 +100,19 @@ struct FileListView: View {
                 .contentShape(Rectangle())
             }
             
-            if treeBranchState.open {
-                FileTreeView(expandedFolders: $expandedFolders)
-                    .padding(.leading, 4)
-            } else {
-                Spacer()
+            if suggestedDocsBranchState.open {
+                if let suggestedDocs = DI.files.suggestedDocs(maxCount: 5) {
+                    ForEach(suggestedDocs) { meta in
+                        Button(action: {
+                            current.selectedDocument = meta
+                        }) {
+                            SuggestedDocumentCell(name: meta.name, duration: meta.lastModified)
+                        }
+                    }
+                }
             }
         }
+
     }
 }
 

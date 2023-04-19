@@ -230,6 +230,16 @@ class FileService: ObservableObject {
 
         return pathToRoot
     }
+    
+    func suggestedDocs(maxCount: Int) -> [File]? {
+        switch self.core.suggestedDocs() {
+        case .success(let ids):
+            return Array(ids.map { idsAndFiles[$0]! }.prefix(maxCount))
+        case .failure(let error):
+            DI.errors.handleError(error)
+            return nil
+        }
+    }
 
     func refresh() {
         DispatchQueue.global(qos: .userInteractive).async {

@@ -27,7 +27,7 @@ class FileItemView: NSTableCellView {
             
             image.isTemplate = true
             imageView = NSImageView(image: image)
-            imageView.contentTintColor = .systemGray
+            imageView.contentTintColor = .systemBlue
         } else {
             let image = NSImage(systemSymbolName: "folder.fill", accessibilityDescription: nil)!
             image.isTemplate = true
