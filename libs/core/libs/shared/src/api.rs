@@ -78,6 +78,9 @@ pub enum UpsertError {
     /// Found update to a deleted file
     DeletedFileUpdated,
 
+    /// Over the Free Tier Limit
+    UsageIsOverFreeTierDataCap,
+
     /// Other misc validation failures
     Validation(ValidationFailure),
 }

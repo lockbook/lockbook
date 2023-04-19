@@ -2,6 +2,8 @@ use crate::account_service::{get_usage, is_admin};
 use crate::schema::ServerDb;
 use crate::ServerError;
 use crate::ServerError::ClientError;
+use crate::file_service::UpsertError::UsageIsOverFreeTierDataCap;
+
 use crate::{document_service, RequestContext, ServerState};
 use db_rs::Db;
 use lockbook_shared::api::*;
@@ -28,6 +30,14 @@ pub async fn upsert_file_metadata(
         let mut prior_deleted = HashSet::new();
         let mut current_deleted = HashSet::new();
 
+        let usage_metrics = get_usage(RequestContext {
+            server_state: context.server_state,
+            request: GetUsageRequest {},
+            public_key: context.public_key,
+        })
+        .await
+        .unwrap();
+
         let mut lock = context.server_state.index_db.lock()?;
         let db = lock.deref_mut();
         let tx = db.begin_transaction()?;
@@ -49,6 +59,30 @@ pub async fn upsert_file_metadata(
 
         let mut tree = tree.stage_diff(request.updates.clone())?;
         tree.validate(req_owner)?;
+
+
+        let current_usage = usage_metrics
+            .usages
+            .iter()
+            .map(|f| f.size_bytes)
+            .sum::<u64>();
+
+        //what was their usage before and after  only accept this change if the usage after is lower than before
+        if current_usage > usage_metrics.cap {
+            db.
+            let new_usage = tree
+                .all_files()?
+                .iter()
+                .map(|f| {
+                    if let Some(x) = f.file.document_hmac(){
+                        return x.len() as u64;
+                    }
+                    0
+                }).sum::<u64>();
+            if new_usage > current_usage {
+                return Err(ClientError(UsageIsOverFreeTierDataCap))
+            }
+        }
 
         let mut tree = tree.promote()?;
 
@@ -178,7 +212,6 @@ pub async fn change_doc(
 
     let req_pk = context.public_key;
 
-    //todo: put this in a function called authorization check. refine the logic and call it on upsert_file_metadata
     let usage_metrics = get_usage(RequestContext {
         server_state: context.server_state,
         request: GetUsageRequest {},
@@ -192,9 +225,8 @@ pub async fn change_doc(
         .iter()
         .map(|f| f.size_bytes)
         .sum::<u64>();
-    let new_usage = current_usage + request.new_content.value.len() as u64;
 
-    println!("current_usage: {}\nnew_usage: {}", current_usage, new_usage);
+    let new_usage = current_usage + request.new_content.value.len() as u64;
     if new_usage > usage_metrics.cap {
         return Err(ClientError(UsageIsOverFreeTierDataCap));
     }
