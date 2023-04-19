@@ -96,6 +96,7 @@ pub enum ChangeDocError {
     NotPermissioned,
     OldVersionIncorrect,
     DiffMalformed,
+    UsageIsOverFreeTierDataCap,
 }
 
 impl Request for ChangeDocRequest {
