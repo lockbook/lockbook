@@ -1,6 +1,6 @@
 use image::EncodableLayout;
 use itertools::Itertools;
-use lockbook_core::{Core, CoreError};
+use lockbook_core::Core;
 use test_utils::*;
 
 /// Uncategorized tests.
@@ -59,8 +59,11 @@ fn over_data_cap() {
         .collect();
     core.write_document(document.id, content.as_bytes())
         .unwrap();
-    let result = core.sync(None).unwrap_err().kind;
-    assert_eq!(result, CoreError::UsageIsOverFreeTierDataCap)
+
+    core.sync(None).unwrap();
+
+    let metrics = core.get_usage().unwrap();
+    assert!(metrics.server_usage.exact > metrics.data_cap.exact);
 }
 #[test]
 fn deleted_path_is_released() {
