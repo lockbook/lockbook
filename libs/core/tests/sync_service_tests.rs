@@ -1,8 +1,27 @@
+use image::EncodableLayout;
 use itertools::Itertools;
+use lockbook_core::Core;
 use lockbook_shared::file::ShareMode;
 use test_utils::*;
 
 /// Uncategorized tests.
+
+#[test]
+fn over_data_cap() {
+    let core: Core = test_core_with_account();
+    let document = core.create_at_path("hello.md").unwrap();
+    let free_tier_limit = 1024 * 1024;
+    let content: Vec<u8> = (0..(free_tier_limit * 2))
+        .map(|_| rand::random::<u8>())
+        .collect();
+    core.write_document(document.id, content.as_bytes())
+        .unwrap();
+
+    core.sync(None).unwrap();
+
+    let metrics = core.get_usage().unwrap();
+    assert!(metrics.server_usage.exact > metrics.data_cap.exact);
+}
 
 #[test]
 fn test_path_conflict() {

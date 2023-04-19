@@ -1,4 +1,4 @@
-use crate::account_service::is_admin;
+use crate::account_service::{get_usage, is_admin};
 use crate::schema::ServerDb;
 use crate::ServerError;
 use crate::ServerError::ClientError;
@@ -49,6 +49,7 @@ pub async fn upsert_file_metadata(
 
         let mut tree = tree.stage_diff(request.updates.clone())?;
         tree.validate(req_owner)?;
+
         let mut tree = tree.promote()?;
 
         for id in tree.owned_ids() {
@@ -169,7 +170,6 @@ pub async fn change_doc(
     if request.diff.diff() != vec![Diff::Hmac] {
         return Err(ClientError(DiffMalformed));
     }
-
     let hmac = if let Some(hmac) = request.diff.new.document_hmac() {
         base64::encode_config(hmac, base64::URL_SAFE)
     } else {
@@ -177,6 +177,27 @@ pub async fn change_doc(
     };
 
     let req_pk = context.public_key;
+
+    //todo: put this in a function called authorization check. refine the logic and call it on upsert_file_metadata
+    let usage_metrics = get_usage(RequestContext {
+        server_state: context.server_state,
+        request: GetUsageRequest {},
+        public_key: context.public_key,
+    })
+    .await
+    .unwrap();
+
+    let current_usage = usage_metrics
+        .usages
+        .iter()
+        .map(|f| f.size_bytes)
+        .sum::<u64>();
+    let new_usage = current_usage + request.new_content.value.len() as u64;
+
+    println!("current_usage: {}\nnew_usage: {}", current_usage, new_usage);
+    if new_usage > usage_metrics.cap {
+        return Err(ClientError(UsageIsOverFreeTierDataCap));
+    }
 
     {
         let mut lock = context.server_state.index_db.lock()?;
