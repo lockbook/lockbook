@@ -129,13 +129,7 @@ pub async fn get_usage(
     context: RequestContext<'_, GetUsageRequest>,
 ) -> Result<GetUsageResponse, ServerError<GetUsageError>> {
     let db = context.server_state.index_db.lock()?;
-    let cap = db
-        .accounts
-        .data()
-        .get(&Owner(context.public_key))
-        .ok_or(ClientError(GetUsageError::UserNotFound))?
-        .billing_info
-        .data_cap();
+    let cap = get_cap(&db, &context.public_key)?;
 
     let usages = get_usage_helper(&db, &context.public_key)?;
 
@@ -147,22 +141,36 @@ pub enum GetUsageHelperError {
     UserNotFound,
 }
 
+//todo: sometimes we want the total cost, sometimes we just want the metadata cost
 pub fn get_usage_helper(
     db: &ServerDb, public_key: &PublicKey,
 ) -> Result<Vec<FileUsage>, GetUsageHelperError> {
-    Ok(db
+    //instead of passing in the db, we can pass the ids, deleted and non deleted
+
+    let content_cost = db //this dons't take into account the deletes
         .owned_files
         .data()
         .get(&Owner(*public_key))
         .ok_or(GetUsageHelperError::UserNotFound)?
         .iter()
         .filter_map(|&file_id| {
-            db.sizes
-                .data()
-                .get(&file_id)
-                .map(|&size_bytes| FileUsage { file_id, size_bytes })
+            db.sizes.data().get(&file_id).map(|&content_size| {
+                let metadata_fee = 10;
+                FileUsage { file_id, size_bytes: content_size + metadata_fee }
+            })
         })
-        .collect())
+        .collect();
+    Ok(content_cost)
+}
+
+pub fn get_cap(db: &ServerDb, public_key: &PublicKey) -> Result<u64, GetUsageHelperError> {
+    Ok(db
+        .accounts
+        .data()
+        .get(&Owner(*public_key))
+        .ok_or(GetUsageHelperError::UserNotFound)?
+        .billing_info
+        .data_cap())
 }
 
 pub async fn delete_account(

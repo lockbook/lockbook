@@ -1,8 +1,8 @@
-use crate::account_service::{get_usage, is_admin};
+use crate::account_service::{get_cap, get_usage_helper, is_admin};
+use crate::file_service::UpsertError::UsageIsOverFreeTierDataCap;
 use crate::schema::ServerDb;
 use crate::ServerError;
 use crate::ServerError::ClientError;
-use crate::file_service::UpsertError::UsageIsOverFreeTierDataCap;
 
 use crate::{document_service, RequestContext, ServerState};
 use db_rs::Db;
@@ -18,6 +18,7 @@ use std::collections::{HashMap, HashSet};
 use std::hash::Hash;
 use std::ops::DerefMut;
 use tracing::{debug, error, warn};
+use uuid::Uuid;
 
 pub async fn upsert_file_metadata(
     context: RequestContext<'_, UpsertRequest>,
@@ -30,17 +31,17 @@ pub async fn upsert_file_metadata(
         let mut prior_deleted = HashSet::new();
         let mut current_deleted = HashSet::new();
 
-        let usage_metrics = get_usage(RequestContext {
-            server_state: context.server_state,
-            request: GetUsageRequest {},
-            public_key: context.public_key,
-        })
-        .await
-        .unwrap();
-
         let mut lock = context.server_state.index_db.lock()?;
         let db = lock.deref_mut();
         let tx = db.begin_transaction()?;
+
+        let old_usage = get_usage_helper(db, &context.public_key)
+            .unwrap_or_default()
+            .iter()
+            .map(|f| f.size_bytes)
+            .sum::<u64>();
+
+        let usage_cap = get_cap(db, &context.public_key).unwrap_or_default();
 
         let mut tree = ServerTree::new(
             req_owner,
@@ -58,39 +59,36 @@ pub async fn upsert_file_metadata(
         }
 
         let mut tree = tree.stage_diff(request.updates.clone())?;
-        tree.validate(req_owner)?;
-
-
-        let current_usage = usage_metrics
-            .usages
-            .iter()
-            .map(|f| f.size_bytes)
-            .sum::<u64>();
-
-        //what was their usage before and after  only accept this change if the usage after is lower than before
-        if current_usage > usage_metrics.cap {
-            db.
-            let new_usage = tree
-                .all_files()?
-                .iter()
-                .map(|f| {
-                    if let Some(x) = f.file.document_hmac(){
-                        return x.len() as u64;
-                    }
-                    0
-                }).sum::<u64>();
-            if new_usage > current_usage {
-                return Err(ClientError(UsageIsOverFreeTierDataCap))
-            }
-        }
-
-        let mut tree = tree.promote()?;
-
         for id in tree.owned_ids() {
             if tree.calculate_deleted(&id)? {
                 current_deleted.insert(id);
             }
         }
+
+        tree.validate(req_owner)?;
+
+        let new_usage = tree
+            .ids()
+            .iter()
+            .map(|&&file_id| {
+                let file_size = db.sizes.data().get(&file_id).unwrap_or(&0);
+
+                let deleted_ids = &current_deleted;
+
+                let metadata_fee: u64 = match deleted_ids.contains(&file_id) {
+                    true => 10,
+                    false => 50,
+                };
+                FileUsage { file_id, size_bytes: *file_size + metadata_fee }
+            })
+            .map(|f| f.size_bytes)
+            .sum::<u64>();
+
+        if new_usage > usage_cap && new_usage > old_usage {
+            return Err(ClientError(UsageIsOverFreeTierDataCap));
+        }
+
+        let tree = tree.promote()?;
 
         for id in tree.owned_ids() {
             if tree.find(&id)?.is_document()
@@ -212,28 +210,10 @@ pub async fn change_doc(
 
     let req_pk = context.public_key;
 
-    let usage_metrics = get_usage(RequestContext {
-        server_state: context.server_state,
-        request: GetUsageRequest {},
-        public_key: context.public_key,
-    })
-    .await
-    .unwrap();
-
-    let current_usage = usage_metrics
-        .usages
-        .iter()
-        .map(|f| f.size_bytes)
-        .sum::<u64>();
-
-    let new_usage = current_usage + request.new_content.value.len() as u64;
-    if new_usage > usage_metrics.cap {
-        return Err(ClientError(UsageIsOverFreeTierDataCap));
-    }
-
     {
         let mut lock = context.server_state.index_db.lock()?;
         let db = lock.deref_mut();
+        let usage_cap = get_cap(db, &context.public_key).unwrap_or_default();
 
         let meta = db
             .metas
@@ -241,10 +221,6 @@ pub async fn change_doc(
             .get(request.diff.new.id())
             .ok_or(ClientError(DocumentNotFound))?
             .clone();
-
-        let meta_owner = meta.owner();
-
-        let direct_access = meta_owner.0 == req_pk;
 
         let mut tree = ServerTree::new(
             owner,
@@ -254,6 +230,38 @@ pub async fn change_doc(
             &mut db.metas,
         )?
         .to_lazy();
+
+        let old_usage = tree
+            .ids()
+            .iter()
+            .map(|&&file_id| {
+                let file_size = db.sizes.data().get(&file_id).unwrap_or(&0);
+
+                let deleted_ids = tree
+                    .implicit_deleted
+                    .iter()
+                    .filter(|&x| x.1 == &true)
+                    .map(|x| *x.0)
+                    .collect::<HashSet<Uuid>>();
+
+                let metadata_fee: u64 = match deleted_ids.contains(&file_id) {
+                    true => 10,
+                    false => 50,
+                };
+                FileUsage { file_id, size_bytes: *file_size + metadata_fee }
+            })
+            .map(|f| f.size_bytes)
+            .sum::<u64>();
+
+        let new_usage = old_usage + request.new_content.value.len() as u64;
+
+        if new_usage > usage_cap {
+            return Err(ClientError(UsageIsOverFreeTierDataCap));
+        }
+
+        let meta_owner = meta.owner();
+
+        let direct_access = meta_owner.0 == req_pk;
 
         if tree.maybe_find(request.diff.new.id()).is_none() {
             return Err(ClientError(NotPermissioned));

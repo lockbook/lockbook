@@ -301,6 +301,9 @@ impl From<ApiError<api::UpsertError>> for LbError {
     fn from(e: ApiError<api::UpsertError>) -> Self {
         match e {
             ApiError::SendFailed(_) => CoreError::ServerUnreachable,
+            ApiError::Endpoint(api::UpsertError::UsageIsOverFreeTierDataCap) => {
+                CoreError::UsageIsOverFreeTierDataCap
+            }
             ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,
             e => core_err_unexpected(e),
         }
@@ -312,6 +315,9 @@ impl From<ApiError<api::ChangeDocError>> for LbError {
     fn from(e: ApiError<api::ChangeDocError>) -> Self {
         match e {
             ApiError::SendFailed(_) => CoreError::ServerUnreachable,
+            ApiError::Endpoint(api::ChangeDocError::UsageIsOverFreeTierDataCap) => {
+                CoreError::UsageIsOverFreeTierDataCap
+            }
             ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,
             e => core_err_unexpected(e),
         }

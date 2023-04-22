@@ -1,13 +1,14 @@
 use image::EncodableLayout;
 use itertools::Itertools;
-use lockbook_core::Core;
+use lockbook_core::{Core, CoreError};
 use lockbook_shared::file::ShareMode;
 use test_utils::*;
 
 /// Uncategorized tests.
 
+//todo: maybe these deserve a new home? usage_caps_tests.rs for example
 #[test]
-fn over_data_cap() {
+fn change_doc_over_data_cap() {
     let core: Core = test_core_with_account();
     let document = core.create_at_path("hello.md").unwrap();
     let free_tier_limit = 1024 * 1024;
@@ -17,10 +18,47 @@ fn over_data_cap() {
     core.write_document(document.id, content.as_bytes())
         .unwrap();
 
+    let result = core.sync(None);
+
+    assert_eq!(result.unwrap_err().kind, CoreError::UsageIsOverFreeTierDataCap);
+}
+
+#[test]
+fn change_doc_under_data_cap() {
+    let core = test_core_with_account();
+    let document = core.create_at_path("hello.md").unwrap();
+    let free_tier_limit = 1024.0 * 1024.0;
+    let content: Vec<u8> = (0..((free_tier_limit * 0.8) as i64))
+        .map(|_| rand::random::<u8>())
+        .collect();
+    core.write_document(document.id, content.as_bytes())
+        .unwrap();
+
     core.sync(None).unwrap();
 
-    let metrics = core.get_usage().unwrap();
-    assert!(metrics.server_usage.exact > metrics.data_cap.exact);
+    assert::all_paths(&core, &["/", "/hello.md"]);
+}
+
+#[test]
+fn old_file_and_new_large_one() {
+    let core = test_core_with_account();
+    let document1 = core.create_at_path("document1.md").unwrap();
+    let free_tier_limit = 1024.0 * 1024.0;
+    let content: Vec<u8> = (0..((free_tier_limit * 0.8) as i64))
+        .map(|_| rand::random::<u8>())
+        .collect();
+    core.write_document(document1.id, content.as_bytes())
+        .unwrap();
+
+    core.sync(None).unwrap();
+
+    let document2 = core.create_at_path("document2.md").unwrap();
+    core.write_document(document2.id, content.as_bytes())
+        .unwrap();
+
+    let result = core.sync(None);
+
+    assert_eq!(result.unwrap_err().kind, CoreError::UsageIsOverFreeTierDataCap);
 }
 
 #[test]
