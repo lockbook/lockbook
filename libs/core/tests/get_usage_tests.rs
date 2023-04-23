@@ -8,7 +8,7 @@ use test_utils::*;
 
 #[test]
 fn report_usage() {
-    let core = test_core_with_account();
+    let core: Core = test_core_with_account();
     let root = core.get_root().unwrap();
 
     let file = core
@@ -17,7 +17,9 @@ fn report_usage() {
     core.write_document(file.id, "0000000000".as_bytes())
         .unwrap();
 
-    assert!(core.get_usage().unwrap().usages.is_empty(), "Returned non-empty usage!");
+    println!("\nend");
+    assert!(core.get_usage().unwrap().usages.len() == 1, "Root metadata is counted towards cost");
+    assert_eq!(core.get_usage().unwrap().usages[0].size_bytes, METADATA_FEE);
 
     core.sync(None).unwrap();
     let hmac = core
@@ -35,11 +37,15 @@ fn report_usage() {
         .unwrap()
         .value;
 
-    assert_eq!(core.get_usage().unwrap().usages[0].file_id, file.id);
-    assert_eq!(core.get_usage().unwrap().usages.len(), 1);
+    assert_eq!(core.get_usage().unwrap().usages.len(), 2);
     assert_eq!(
-        core.get_usage().unwrap().usages[0].size_bytes,
-        local_encrypted.len() as u64 + METADATA_FEE
+        core.get_usage()
+            .unwrap()
+            .usages
+            .iter()
+            .map(|f| f.size_bytes)
+            .sum::<u64>(),
+        local_encrypted.len() as u64 + METADATA_FEE * 2
     )
 }
 
@@ -58,7 +64,15 @@ fn usage_go_back_down_after_delete() {
     core.delete_file(file.id).unwrap();
     core.sync(None).unwrap();
 
-    assert_eq!(core.get_usage().unwrap().usages, vec![]);
+    assert_eq!(
+        core.get_usage()
+            .unwrap()
+            .usages
+            .iter()
+            .map(|f| f.size_bytes)
+            .sum::<u64>(),
+        METADATA_FEE * 2
+    );
 }
 
 #[test]
@@ -85,7 +99,7 @@ fn usage_go_back_down_after_delete_folder() {
 
     core.sync(None).unwrap();
     let usages = core.get_usage().unwrap();
-    assert_eq!(usages.usages.len(), 3);
+    assert_eq!(usages.usages.len(), 5);
     core.delete_file(folder.id).unwrap();
     for usage in usages.usages {
         assert_ne!(usage.size_bytes, 0);
@@ -108,7 +122,7 @@ fn usage_go_back_down_after_delete_folder() {
 
     let usage = core.get_usage().unwrap_or_else(|err| panic!("{:?}", err));
 
-    assert_eq!(usage.usages.len(), 1);
+    assert_eq!(usage.usages.len(), 5);
 }
 
 #[test]
@@ -118,7 +132,7 @@ fn usage_new_files_have_no_size() {
     core.create_file(&random_name(), root.id, FileType::Document)
         .unwrap();
 
-    assert!(core.get_usage().unwrap().usages.is_empty(), "Returned non-empty usage!");
+    assert!(core.get_usage().unwrap().usages.len() == 1, "Root metadata is counted towards cost");
 
     core.sync(None).unwrap();
 
@@ -131,7 +145,7 @@ fn usage_new_files_have_no_size() {
         .map(|usage| usage.size_bytes)
         .sum::<u64>();
 
-    assert_eq!(total_usage, 0);
+    assert_eq!(total_usage, METADATA_FEE);
 }
 
 #[test]
@@ -153,7 +167,7 @@ fn change_doc_over_data_cap() {
 fn change_doc_under_data_cap() {
     let core = test_core_with_account();
     let document = core.create_at_path("hello.md").unwrap();
-    let content: Vec<u8> = (0..((FREE_TIER_USAGE_SIZE - METADATA_FEE) as i64))
+    let content: Vec<u8> = (0..((FREE_TIER_USAGE_SIZE - METADATA_FEE * 3) as i64))
         .map(|_| rand::random::<u8>())
         .collect();
     core.write_document(document.id, content.as_bytes())
@@ -191,7 +205,7 @@ fn upsert_meta_over_data_cap() {
 
     let document = core.create_at_path("document.md").unwrap();
 
-    let content: Vec<u8> = (0..(FREE_TIER_USAGE_SIZE - 3 * METADATA_FEE))
+    let content: Vec<u8> = (0..(FREE_TIER_USAGE_SIZE - 5 * METADATA_FEE))
         .map(|_| rand::random::<u8>())
         .collect();
 
@@ -219,16 +233,11 @@ fn upsert_meta_over_data_cap() {
     let file_capacity =
         (FREE_TIER_USAGE_SIZE - local_encrypted.len() as u64) as f64 / METADATA_FEE as f64;
 
-    println!("file capacity :{}", file_capacity as i64);
-
-    for i in 0..file_capacity as i64 {
-        let document = core
-            .create_at_path(format!("document{}.md", i).as_str())
+    for i in 0..file_capacity as i64 - 2 {
+        core.create_at_path(format!("document{}.md", i).as_str())
             .unwrap();
-        core.write_document(document.id, "".as_bytes()).unwrap();
+        core.sync(None).unwrap();
     }
-
-    core.sync(None).unwrap();
 
     core.create_at_path("the_file_that_broke_the_camel's_back.md")
         .unwrap();
@@ -236,6 +245,3 @@ fn upsert_meta_over_data_cap() {
     let result = core.sync(None);
     assert_eq!(result.unwrap_err().kind, CoreError::UsageIsOverDataCap);
 }
-
-#[test]
-fn delete_file_when_over_cap() {}

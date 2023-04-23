@@ -166,23 +166,20 @@ where
     Ok(tree
         .ids()
         .iter()
-        .filter_map(|&&file_id| {
-            let deleted_ids = &tree
+        .map(|&&file_id| {
+            let deleted_tree_ids = &tree
                 .implicit_deleted
                 .iter()
                 .filter(|&x| x.1 == &true)
                 .map(|x| *x.0)
                 .collect::<HashSet<Uuid>>();
 
-            let deleted = deleted.unwrap_or(deleted_ids);
+            let file_size = match deleted.unwrap_or(deleted_tree_ids).contains(&file_id) {
+                true => 0,
+                false => *sizes.get(&file_id).unwrap_or(&0),
+            };
 
-            if deleted.contains(&file_id) {
-                return None;
-            }
-
-            sizes
-                .get(&file_id)
-                .map(|file_size| FileUsage { file_id, size_bytes: file_size + METADATA_FEE })
+            FileUsage { file_id, size_bytes: file_size + METADATA_FEE }
         })
         .collect())
 }
