@@ -1,4 +1,5 @@
 use egui::{Context, FontDefinitions, Ui, Vec2};
+use rand::Rng;
 
 use crate::appearance::Appearance;
 use crate::ast::Ast;
@@ -36,7 +37,6 @@ pub struct Editor {
 
 impl Default for Editor {
     fn default() -> Self {
-        use rand::Rng;
         let id: u32 = rand::thread_rng().gen();
         Self {
             id,
