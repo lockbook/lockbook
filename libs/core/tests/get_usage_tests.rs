@@ -146,7 +146,7 @@ fn change_doc_over_data_cap() {
 
     let result = core.sync(None);
 
-    assert_eq!(result.unwrap_err().kind, CoreError::UsageIsOverFreeTierDataCap);
+    assert_eq!(result.unwrap_err().kind, CoreError::UsageIsOverDataCap);
 }
 
 #[test]
@@ -182,7 +182,7 @@ fn old_file_and_new_large_one() {
 
     let result = core.sync(None);
 
-    assert_eq!(result.unwrap_err().kind, CoreError::UsageIsOverFreeTierDataCap);
+    assert_eq!(result.unwrap_err().kind, CoreError::UsageIsOverDataCap);
 }
 
 #[test]
@@ -234,7 +234,7 @@ fn upsert_meta_over_data_cap() {
         .unwrap();
 
     let result = core.sync(None);
-    assert_eq!(result.unwrap_err().kind, CoreError::UsageIsOverFreeTierDataCap);
+    assert_eq!(result.unwrap_err().kind, CoreError::UsageIsOverDataCap);
 }
 
 #[test]

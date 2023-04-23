@@ -1,5 +1,5 @@
 use crate::account_service::{get_cap, get_usage, is_admin};
-use crate::file_service::UpsertError::UsageIsOverFreeTierDataCap;
+use crate::file_service::UpsertError::UsageIsOverDataCap;
 use crate::schema::ServerDb;
 use crate::ServerError;
 use crate::ServerError::ClientError;
@@ -75,7 +75,7 @@ pub async fn upsert_file_metadata(
         debug!(?old_usage, ?new_usage, ?usage_cap, "usage caps on upsert");
 
         if new_usage > usage_cap && new_usage >= old_usage {
-            return Err(ClientError(UsageIsOverFreeTierDataCap));
+            return Err(ClientError(UsageIsOverDataCap));
         }
 
         let tree = tree.promote()?;
@@ -231,7 +231,7 @@ pub async fn change_doc(
         debug!(?old_usage, ?new_usage, ?usage_cap, "usage caps on change doc");
 
         if new_usage > usage_cap {
-            return Err(ClientError(UsageIsOverFreeTierDataCap));
+            return Err(ClientError(UsageIsOverDataCap));
         }
 
         let meta_owner = meta.owner();

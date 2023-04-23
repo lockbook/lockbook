@@ -79,7 +79,7 @@ pub enum UpsertError {
     DeletedFileUpdated,
 
     /// Over the Free Tier Limit
-    UsageIsOverFreeTierDataCap,
+    UsageIsOverDataCap,
 
     /// Other misc validation failures
     Validation(ValidationFailure),
@@ -99,7 +99,7 @@ pub enum ChangeDocError {
     NotPermissioned,
     OldVersionIncorrect,
     DiffMalformed,
-    UsageIsOverFreeTierDataCap,
+    UsageIsOverDataCap,
 }
 
 impl Request for ChangeDocRequest {
