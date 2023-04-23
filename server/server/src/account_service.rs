@@ -178,12 +178,9 @@ where
                 return None;
             }
 
-            match sizes.get(&file_id) {
-                None => None,
-                Some(file_size) => {
-                    Some(FileUsage { file_id, size_bytes: file_size + METADATA_FEE })
-                }
-            }
+            sizes
+                .get(&file_id)
+                .map(|file_size| FileUsage { file_id, size_bytes: file_size + METADATA_FEE })
         })
         .collect())
 }
