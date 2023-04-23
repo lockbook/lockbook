@@ -1,7 +1,9 @@
+use image::EncodableLayout;
+use lockbook_core::{Core, CoreError};
 use lockbook_shared::document_repo;
 use lockbook_shared::file_like::FileLike;
-use lockbook_shared::file_metadata::FileType;
 use lockbook_shared::file_metadata::FileType::Folder;
+use lockbook_shared::file_metadata::{FileType, METADATA_FEE};
 use test_utils::*;
 
 #[test]
@@ -35,7 +37,10 @@ fn report_usage() {
 
     assert_eq!(core.get_usage().unwrap().usages[0].file_id, file.id);
     assert_eq!(core.get_usage().unwrap().usages.len(), 1);
-    assert_eq!(core.get_usage().unwrap().usages[0].size_bytes, local_encrypted.len() as u64)
+    assert_eq!(
+        core.get_usage().unwrap().usages[0].size_bytes,
+        local_encrypted.len() as u64 + METADATA_FEE
+    )
 }
 
 #[test]
@@ -128,3 +133,73 @@ fn usage_new_files_have_no_size() {
 
     assert_eq!(total_usage, 0);
 }
+
+#[test]
+fn change_doc_over_data_cap() {
+    let core: Core = test_core_with_account();
+    let document = core.create_at_path("hello.md").unwrap();
+    let free_tier_limit = 1024 * 1024;
+    let content: Vec<u8> = (0..(free_tier_limit * 2))
+        .map(|_| rand::random::<u8>())
+        .collect();
+    core.write_document(document.id, content.as_bytes())
+        .unwrap();
+
+    let result = core.sync(None);
+
+    assert_eq!(result.unwrap_err().kind, CoreError::UsageIsOverFreeTierDataCap);
+}
+
+#[test]
+fn change_doc_under_data_cap() {
+    let core = test_core_with_account();
+    let document = core.create_at_path("hello.md").unwrap();
+    let free_tier_limit = 1024.0 * 1024.0;
+    let content: Vec<u8> = (0..((free_tier_limit * 0.8) as i64))
+        .map(|_| rand::random::<u8>())
+        .collect();
+    core.write_document(document.id, content.as_bytes())
+        .unwrap();
+
+    core.sync(None).unwrap();
+
+    assert::all_paths(&core, &["/", "/hello.md"]);
+}
+
+#[test]
+fn old_file_and_new_large_one() {
+    let core = test_core_with_account();
+    let document1 = core.create_at_path("document1.md").unwrap();
+    let free_tier_limit = 1024.0 * 1024.0;
+    let content: Vec<u8> = (0..((free_tier_limit * 0.8) as i64))
+        .map(|_| rand::random::<u8>())
+        .collect();
+    core.write_document(document1.id, content.as_bytes())
+        .unwrap();
+
+    core.sync(None).unwrap();
+
+    let document2 = core.create_at_path("document2.md").unwrap();
+    core.write_document(document2.id, content.as_bytes())
+        .unwrap();
+
+    let result = core.sync(None);
+
+    assert_eq!(result.unwrap_err().kind, CoreError::UsageIsOverFreeTierDataCap);
+}
+
+// todo: figure out how to change the metadata fee during testing.
+// #[test]
+// fn upsert_meta_over_data_cap() {
+//     let core: Core = test_core_with_account();
+//     let free_tier_limit = 1024 * 1024 / METADATA_FEE;
+
+//     for i in 0..(free_tier_limit + 10) {
+//         core.create_at_path(format!("document{}.md", i).as_str())
+//             .unwrap();
+//     }
+
+//     let result = core.sync(None);
+
+//     assert_eq!(result.unwrap_err().kind, CoreError::UsageIsOverFreeTierDataCap);
+// }

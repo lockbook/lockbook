@@ -18,15 +18,17 @@ use lockbook_shared::api::{
 };
 use lockbook_shared::clock::get_time;
 use lockbook_shared::file_like::FileLike;
-use lockbook_shared::file_metadata::Owner;
+use lockbook_shared::file_metadata::{Owner, METADATA_FEE};
+use lockbook_shared::lazy::LazyTree;
 use lockbook_shared::server_file::IntoServerFile;
 use lockbook_shared::server_tree::ServerTree;
 use lockbook_shared::tree_like::TreeLike;
 use lockbook_shared::usage::bytes_to_human;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
 use std::ops::DerefMut;
 use tracing::warn;
+use uuid::Uuid;
 
 /// Create a new account given a username, public_key, and root folder.
 /// Checks that username is valid, and that username, public_key and root_folder are new.
@@ -125,13 +127,25 @@ pub fn username_from_public_key(
         .unwrap_or(Err(ClientError(GetUsernameError::UserNotFound)))
 }
 
-pub async fn get_usage(
+pub async fn get_usage_info(
     context: RequestContext<'_, GetUsageRequest>,
 ) -> Result<GetUsageResponse, ServerError<GetUsageError>> {
-    let db = context.server_state.index_db.lock()?;
-    let cap = get_cap(&db, &context.public_key)?;
+    let mut lock = context.server_state.index_db.lock()?;
+    let db = lock.deref_mut();
 
-    let usages = get_usage_helper(&db, &context.public_key)?;
+    let cap = get_cap(db, &context.public_key)?;
+
+    let tree = ServerTree::new(
+        Owner(context.public_key),
+        &mut db.owned_files,
+        &mut db.shared_files,
+        &mut db.file_children,
+        &mut db.metas,
+    )
+    .unwrap()
+    .to_lazy();
+
+    let usages = get_usage(&tree, db.sizes.data(), None)?;
 
     Ok(GetUsageResponse { usages, cap })
 }
@@ -141,26 +155,37 @@ pub enum GetUsageHelperError {
     UserNotFound,
 }
 
-//todo: sometimes we want the total cost, sometimes we just want the metadata cost
-pub fn get_usage_helper(
-    db: &ServerDb, public_key: &PublicKey,
-) -> Result<Vec<FileUsage>, GetUsageHelperError> {
-    //instead of passing in the db, we can pass the ids, deleted and non deleted
-
-    let content_cost = db //this dons't take into account the deletes
-        .owned_files
-        .data()
-        .get(&Owner(*public_key))
-        .ok_or(GetUsageHelperError::UserNotFound)?
+pub fn get_usage<T>(
+    tree: &LazyTree<T>, sizes: &HashMap<Uuid, u64>, deleted: Option<&HashSet<Uuid>>,
+) -> Result<Vec<FileUsage>, GetUsageHelperError>
+where
+    T: TreeLike,
+{
+    Ok(tree
+        .ids()
         .iter()
-        .filter_map(|&file_id| {
-            db.sizes.data().get(&file_id).map(|&content_size| {
-                let metadata_fee = 10;
-                FileUsage { file_id, size_bytes: content_size + metadata_fee }
-            })
+        .filter_map(|&&file_id| {
+            let deleted_ids = &tree
+                .implicit_deleted
+                .iter()
+                .filter(|&x| x.1 == &true)
+                .map(|x| *x.0)
+                .collect::<HashSet<Uuid>>();
+
+            let deleted = deleted.unwrap_or(deleted_ids);
+
+            if deleted.contains(&file_id) {
+                return None;
+            }
+
+            match sizes.get(&file_id) {
+                None => None,
+                Some(file_size) => {
+                    Some(FileUsage { file_id, size_bytes: file_size + METADATA_FEE })
+                }
+            }
         })
-        .collect();
-    Ok(content_cost)
+        .collect())
 }
 
 pub fn get_cap(db: &ServerDb, public_key: &PublicKey) -> Result<u64, GetUsageHelperError> {
@@ -268,10 +293,11 @@ pub async fn admin_list_users(
 pub async fn admin_get_account_info(
     context: RequestContext<'_, AdminGetAccountInfoRequest>,
 ) -> Result<AdminGetAccountInfoResponse, ServerError<AdminGetAccountInfoError>> {
-    let (db, request) = (context.server_state.index_db.lock()?, &context.request);
+    let (mut lock, request) = (context.server_state.index_db.lock()?, &context.request);
+    let db = lock.deref_mut();
 
     if !is_admin::<AdminGetAccountInfoError>(
-        &db,
+        db,
         &context.public_key,
         &context.server_state.config.admin.admins,
     )? {
@@ -333,7 +359,17 @@ pub async fn admin_get_account_info(
             }
         });
 
-    let usage: u64 = get_usage_helper(&db, &owner.0)
+    let tree = ServerTree::new(
+        owner,
+        &mut db.owned_files,
+        &mut db.shared_files,
+        &mut db.file_children,
+        &mut db.metas,
+    )
+    .unwrap()
+    .to_lazy();
+
+    let usage: u64 = get_usage(&tree, db.sizes.data(), None)
         .map_err(|err| internal!("Cannot find user's usage, owner: {:?}, err: {:?}", owner, err))?
         .iter()
         .map(|a| a.size_bytes)

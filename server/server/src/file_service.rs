@@ -1,4 +1,4 @@
-use crate::account_service::{get_cap, get_usage_helper, is_admin};
+use crate::account_service::{get_cap, get_usage, is_admin};
 use crate::file_service::UpsertError::UsageIsOverFreeTierDataCap;
 use crate::schema::ServerDb;
 use crate::ServerError;
@@ -18,7 +18,6 @@ use std::collections::{HashMap, HashSet};
 use std::hash::Hash;
 use std::ops::DerefMut;
 use tracing::{debug, error, warn};
-use uuid::Uuid;
 
 pub async fn upsert_file_metadata(
     context: RequestContext<'_, UpsertRequest>,
@@ -35,12 +34,6 @@ pub async fn upsert_file_metadata(
         let db = lock.deref_mut();
         let tx = db.begin_transaction()?;
 
-        let old_usage = get_usage_helper(db, &context.public_key)
-            .unwrap_or_default()
-            .iter()
-            .map(|f| f.size_bytes)
-            .sum::<u64>();
-
         let usage_cap = get_cap(db, &context.public_key).unwrap_or_default();
 
         let mut tree = ServerTree::new(
@@ -51,6 +44,12 @@ pub async fn upsert_file_metadata(
             &mut db.metas,
         )?
         .to_lazy();
+
+        let old_usage = get_usage(&tree, db.sizes.data(), None)
+            .unwrap()
+            .iter()
+            .map(|f| f.size_bytes)
+            .sum::<u64>();
 
         for id in tree.owned_ids() {
             if tree.calculate_deleted(&id)? {
@@ -67,23 +66,11 @@ pub async fn upsert_file_metadata(
 
         tree.validate(req_owner)?;
 
-        let new_usage = tree
-            .ids()
+        let new_usage = get_usage(&tree, db.sizes.data(), Some(&current_deleted))
+            .unwrap()
             .iter()
-            .map(|&&file_id| {
-                let file_size = db.sizes.data().get(&file_id).unwrap_or(&0);
-
-                let deleted_ids = &current_deleted;
-
-                let metadata_fee: u64 = match deleted_ids.contains(&file_id) {
-                    true => 10,
-                    false => 50,
-                };
-                FileUsage { file_id, size_bytes: *file_size + metadata_fee }
-            })
             .map(|f| f.size_bytes)
             .sum::<u64>();
-
         if new_usage > usage_cap && new_usage > old_usage {
             return Err(ClientError(UsageIsOverFreeTierDataCap));
         }
@@ -231,28 +218,11 @@ pub async fn change_doc(
         )?
         .to_lazy();
 
-        let old_usage = tree
-            .ids()
+        let old_usage = get_usage(&tree, db.sizes.data(), None)
+            .unwrap()
             .iter()
-            .map(|&&file_id| {
-                let file_size = db.sizes.data().get(&file_id).unwrap_or(&0);
-
-                let deleted_ids = tree
-                    .implicit_deleted
-                    .iter()
-                    .filter(|&x| x.1 == &true)
-                    .map(|x| *x.0)
-                    .collect::<HashSet<Uuid>>();
-
-                let metadata_fee: u64 = match deleted_ids.contains(&file_id) {
-                    true => 10,
-                    false => 50,
-                };
-                FileUsage { file_id, size_bytes: *file_size + metadata_fee }
-            })
             .map(|f| f.size_bytes)
             .sum::<u64>();
-
         let new_usage = old_usage + request.new_content.value.len() as u64;
 
         if new_usage > usage_cap {
