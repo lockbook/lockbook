@@ -1,5 +1,5 @@
 use image::EncodableLayout;
-use lockbook_core::{Core, CoreError};
+use lockbook_core::{Core, CoreError, FREE_TIER_USAGE_SIZE};
 use lockbook_shared::document_repo;
 use lockbook_shared::file_like::FileLike;
 use lockbook_shared::file_metadata::FileType::Folder;
@@ -138,8 +138,7 @@ fn usage_new_files_have_no_size() {
 fn change_doc_over_data_cap() {
     let core: Core = test_core_with_account();
     let document = core.create_at_path("hello.md").unwrap();
-    let free_tier_limit = 1024 * 1024;
-    let content: Vec<u8> = (0..(free_tier_limit * 2))
+    let content: Vec<u8> = (0..(FREE_TIER_USAGE_SIZE * 2))
         .map(|_| rand::random::<u8>())
         .collect();
     core.write_document(document.id, content.as_bytes())
@@ -154,8 +153,7 @@ fn change_doc_over_data_cap() {
 fn change_doc_under_data_cap() {
     let core = test_core_with_account();
     let document = core.create_at_path("hello.md").unwrap();
-    let free_tier_limit = 1024.0 * 1024.0;
-    let content: Vec<u8> = (0..((free_tier_limit * 0.8) as i64))
+    let content: Vec<u8> = (0..((FREE_TIER_USAGE_SIZE - METADATA_FEE) as i64))
         .map(|_| rand::random::<u8>())
         .collect();
     core.write_document(document.id, content.as_bytes())
@@ -170,8 +168,7 @@ fn change_doc_under_data_cap() {
 fn old_file_and_new_large_one() {
     let core = test_core_with_account();
     let document1 = core.create_at_path("document1.md").unwrap();
-    let free_tier_limit = 1024.0 * 1024.0;
-    let content: Vec<u8> = (0..((free_tier_limit * 0.8) as i64))
+    let content: Vec<u8> = (0..((FREE_TIER_USAGE_SIZE as f64 * 0.8) as i64))
         .map(|_| rand::random::<u8>())
         .collect();
     core.write_document(document1.id, content.as_bytes())
@@ -188,18 +185,57 @@ fn old_file_and_new_large_one() {
     assert_eq!(result.unwrap_err().kind, CoreError::UsageIsOverFreeTierDataCap);
 }
 
-// todo: figure out how to change the metadata fee during testing.
-// #[test]
-// fn upsert_meta_over_data_cap() {
-//     let core: Core = test_core_with_account();
-//     let free_tier_limit = 1024 * 1024 / METADATA_FEE;
+#[test]
+fn upsert_meta_over_data_cap() {
+    let core: Core = test_core_with_account();
 
-//     for i in 0..(free_tier_limit + 10) {
-//         core.create_at_path(format!("document{}.md", i).as_str())
-//             .unwrap();
-//     }
+    let document = core.create_at_path("document.md").unwrap();
 
-//     let result = core.sync(None);
+    let content: Vec<u8> = (0..(FREE_TIER_USAGE_SIZE - 3 * METADATA_FEE))
+        .map(|_| rand::random::<u8>())
+        .collect();
 
-//     assert_eq!(result.unwrap_err().kind, CoreError::UsageIsOverFreeTierDataCap);
-// }
+    core.write_document(document.id, content.as_bytes())
+        .unwrap();
+
+    core.sync(None).unwrap();
+
+    let hmac = core
+        .in_tx(|s| {
+            Ok(s.db
+                .base_metadata
+                .data()
+                .get(&document.id)
+                .unwrap()
+                .document_hmac()
+                .cloned())
+        })
+        .unwrap();
+    let local_encrypted =
+        document_repo::get(&core.get_config().unwrap(), &document.id, hmac.as_ref())
+            .unwrap()
+            .value;
+
+    let file_capacity =
+        (FREE_TIER_USAGE_SIZE - local_encrypted.len() as u64) as f64 / METADATA_FEE as f64;
+
+    println!("file capacity :{}", file_capacity as i64);
+
+    for i in 0..file_capacity as i64 {
+        let document = core
+            .create_at_path(format!("document{}.md", i).as_str())
+            .unwrap();
+        core.write_document(document.id, "".as_bytes()).unwrap();
+    }
+
+    core.sync(None).unwrap();
+
+    core.create_at_path("the_file_that_broke_the_camel's_back.md")
+        .unwrap();
+
+    let result = core.sync(None);
+    assert_eq!(result.unwrap_err().kind, CoreError::UsageIsOverFreeTierDataCap);
+}
+
+#[test]
+fn delete_file_when_over_cap() {}

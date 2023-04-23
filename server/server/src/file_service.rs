@@ -71,7 +71,10 @@ pub async fn upsert_file_metadata(
             .iter()
             .map(|f| f.size_bytes)
             .sum::<u64>();
-        if new_usage > usage_cap && new_usage > old_usage {
+
+        debug!(?old_usage, ?new_usage, ?usage_cap, "usage caps on upsert");
+
+        if new_usage > usage_cap && new_usage >= old_usage {
             return Err(ClientError(UsageIsOverFreeTierDataCap));
         }
 
@@ -224,6 +227,8 @@ pub async fn change_doc(
             .map(|f| f.size_bytes)
             .sum::<u64>();
         let new_usage = old_usage + request.new_content.value.len() as u64;
+
+        debug!(?old_usage, ?new_usage, ?usage_cap, "usage caps on change doc");
 
         if new_usage > usage_cap {
             return Err(ClientError(UsageIsOverFreeTierDataCap));
