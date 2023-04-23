@@ -304,24 +304,27 @@ pub async fn cancel_subscription(
             &mut db.shared_files,
             &mut db.file_children,
             &mut db.metas,
-        )
-        .unwrap()
-        .to_lazy();
+        );
 
-        let usage: u64 = account_service::get_usage(&tree, db.sizes.data(), None)
-            .map_err(|e| match e {
-                GetUsageHelperError::UserNotFound => {
-                    ClientError(CancelSubscriptionError::UserNotFound)
+        match tree {
+            Ok(t) => {
+                let usage: u64 = account_service::get_usage(&t.to_lazy(), db.sizes.data(), None)
+                    .map_err(|e| match e {
+                        GetUsageHelperError::UserNotFound => {
+                            ClientError(CancelSubscriptionError::UserNotFound)
+                        }
+                    })?
+                    .iter()
+                    .map(|a| a.size_bytes)
+                    .sum();
+
+                if usage > FREE_TIER_USAGE_SIZE {
+                    debug!("Cannot downgrade user to free since they are over the data cap");
+                    return Err(ClientError(CancelSubscriptionError::UsageIsOverFreeTierDataCap));
                 }
-            })?
-            .iter()
-            .map(|a| a.size_bytes)
-            .sum();
-
-        if usage > FREE_TIER_USAGE_SIZE {
-            debug!("Cannot downgrade user to free since they are over the data cap");
-            return Err(ClientError(CancelSubscriptionError::UsageIsOverFreeTierDataCap));
-        }
+            }
+            Err(_) => return Err(ClientError(CancelSubscriptionError::UserNotFound)),
+        };
     }
 
     match account.billing_info.billing_platform {

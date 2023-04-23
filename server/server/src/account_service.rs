@@ -141,13 +141,15 @@ pub async fn get_usage_info(
         &mut db.shared_files,
         &mut db.file_children,
         &mut db.metas,
-    )
-    .unwrap()
-    .to_lazy();
+    );
 
-    let usages = get_usage(&tree, db.sizes.data(), None)?;
-
-    Ok(GetUsageResponse { usages, cap })
+    match tree {
+        Ok(t) => {
+            let usages = get_usage(&t.to_lazy(), db.sizes.data(), None)?;
+            Ok(GetUsageResponse { usages, cap })
+        }
+        Err(_) => Err(ClientError(GetUsageError::UserNotFound)),
+    }
 }
 
 #[derive(Debug)]
@@ -362,26 +364,30 @@ pub async fn admin_get_account_info(
         &mut db.shared_files,
         &mut db.file_children,
         &mut db.metas,
-    )
-    .unwrap()
-    .to_lazy();
+    );
+    match tree {
+        Ok(t) => {
+            let usage: u64 = get_usage(&t.to_lazy(), db.sizes.data(), None)
+                .map_err(|err| {
+                    internal!("Cannot find user's usage, owner: {:?}, err: {:?}", owner, err)
+                })?
+                .iter()
+                .map(|a| a.size_bytes)
+                .sum();
 
-    let usage: u64 = get_usage(&tree, db.sizes.data(), None)
-        .map_err(|err| internal!("Cannot find user's usage, owner: {:?}, err: {:?}", owner, err))?
-        .iter()
-        .map(|a| a.size_bytes)
-        .sum();
+            let usage_str = bytes_to_human(usage);
 
-    let usage_str = bytes_to_human(usage);
-
-    Ok(AdminGetAccountInfoResponse {
-        account: AccountInfo {
-            username: account.username,
-            root,
-            payment_platform,
-            usage: usage_str,
-        },
-    })
+            Ok(AdminGetAccountInfoResponse {
+                account: AccountInfo {
+                    username: account.username,
+                    root,
+                    payment_platform,
+                    usage: usage_str,
+                },
+            })
+        }
+        Err(_) => Err(ClientError(AdminGetAccountInfoError::UserNotFound)),
+    }
 }
 
 #[derive(Debug)]
