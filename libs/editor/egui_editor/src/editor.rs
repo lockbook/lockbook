@@ -14,6 +14,7 @@ use crate::test_input::TEST_MARKDOWN;
 use crate::{ast, galleys, images, layouts, register_fonts, styles};
 
 pub struct Editor {
+    pub id: u32,
     pub initialized: bool,
 
     // config
@@ -35,7 +36,10 @@ pub struct Editor {
 
 impl Default for Editor {
     fn default() -> Self {
+        use rand::Rng;
+        let id: u32 = rand::thread_rng().gen();
         Self {
+            id,
             initialized: Default::default(),
 
             appearance: Default::default(),
@@ -69,7 +73,7 @@ impl Editor {
             }
         });
 
-        let sao = egui::ScrollArea::vertical().show(ui, |ui| {
+        let sao = egui::ScrollArea::vertical().id_source(self.id).show(ui, |ui| {
             ui.spacing_mut().item_spacing = Vec2::ZERO;
             self.ui(ui, id);
         });
