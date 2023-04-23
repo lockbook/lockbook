@@ -73,10 +73,12 @@ impl Editor {
             }
         });
 
-        let sao = egui::ScrollArea::vertical().id_source(self.id).show(ui, |ui| {
-            ui.spacing_mut().item_spacing = Vec2::ZERO;
-            self.ui(ui, id);
-        });
+        let sao = egui::ScrollArea::vertical()
+            .id_source(self.id)
+            .show(ui, |ui| {
+                ui.spacing_mut().item_spacing = Vec2::ZERO;
+                self.ui(ui, id);
+            });
         let resp = ui.interact(sao.inner_rect, id, egui::Sense::click_and_drag());
         if let Some(pos) = resp.interact_pointer_pos() {
             if !ui.memory(|m| m.has_focus(id)) {
