@@ -89,10 +89,14 @@ impl Appearance {
     pub fn selection_bg(&self) -> Color32 {
         let mut color = BLUE;
 
-        // light mode: use half saturation
         color.light = {
             let mut color_hsva = Hsva::from(color.light);
             color_hsva.s /= 2.0;
+            Color32::from(color_hsva)
+        };
+        color.dark = {
+            let mut color_hsva = Hsva::from(color.dark);
+            color_hsva.a /= 10.0;
             Color32::from(color_hsva)
         };
 
