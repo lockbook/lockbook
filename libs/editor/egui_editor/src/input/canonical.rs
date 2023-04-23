@@ -164,8 +164,10 @@ pub fn calc(
             if let Some(galley_idx) = click_checker.checkbox(*pos) {
                 return Some(Modification::ToggleCheckbox(galley_idx));
             }
-            if let Some(url) = click_checker.link(*pos) {
-                return Some(Modification::OpenUrl(url));
+            if modifiers.command {
+                if let Some(url) = click_checker.link(*pos) {
+                    return Some(Modification::OpenUrl(url));
+                }
             }
 
             let click_type = pointer_state.press(now);
