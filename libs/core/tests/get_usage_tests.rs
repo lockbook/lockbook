@@ -152,7 +152,7 @@ fn usage_new_files_have_no_size() {
 fn change_doc_over_data_cap() {
     let core: Core = test_core_with_account();
     let document = core.create_at_path("hello.md").unwrap();
-    let content: Vec<u8> = (0..(FREE_TIER_USAGE_SIZE - METADATA_FEE * 1))
+    let content: Vec<u8> = (0..(FREE_TIER_USAGE_SIZE - METADATA_FEE * 2))
         .map(|_| rand::random::<u8>())
         .collect();
     core.write_document(document.id, content.as_bytes())
@@ -228,5 +228,20 @@ fn upsert_meta_over_data_cap() {
         .unwrap();
 
     let result = core.sync(None);
+    assert_eq!(result.unwrap_err().kind, CoreError::UsageIsOverDataCap);
+}
+
+#[test]
+fn upsert_meta_empty_folder_over_data_cap() {
+    let core: Core = test_core_with_account();
+    let free_tier_limit = FREE_TIER_USAGE_SIZE / METADATA_FEE;
+    let root = core.get_root().unwrap();
+
+    for _ in 0..(free_tier_limit + 10) {
+        core.create_file(&uuid::Uuid::new_v4().to_string(), root.id, FileType::Document)
+            .unwrap();
+    }
+    let result = core.sync(None);
+
     assert_eq!(result.unwrap_err().kind, CoreError::UsageIsOverDataCap);
 }
