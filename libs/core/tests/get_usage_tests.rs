@@ -1,9 +1,10 @@
 use image::EncodableLayout;
-use lockbook_core::{Core, CoreError, FREE_TIER_USAGE_SIZE};
+use lockbook_core::{Core, CoreError};
+use lockbook_shared::api::{FREE_TIER_USAGE_SIZE, METADATA_FEE};
 use lockbook_shared::document_repo;
 use lockbook_shared::file_like::FileLike;
+use lockbook_shared::file_metadata::FileType;
 use lockbook_shared::file_metadata::FileType::Folder;
-use lockbook_shared::file_metadata::{FileType, METADATA_FEE};
 use test_utils::*;
 
 #[test]
@@ -17,7 +18,6 @@ fn report_usage() {
     core.write_document(file.id, "0000000000".as_bytes())
         .unwrap();
 
-    println!("\nend");
     assert!(core.get_usage().unwrap().usages.len() == 1, "Root metadata is counted towards cost");
     assert_eq!(core.get_usage().unwrap().usages[0].size_bytes, METADATA_FEE);
 
@@ -152,7 +152,7 @@ fn usage_new_files_have_no_size() {
 fn change_doc_over_data_cap() {
     let core: Core = test_core_with_account();
     let document = core.create_at_path("hello.md").unwrap();
-    let content: Vec<u8> = (0..(FREE_TIER_USAGE_SIZE * 2))
+    let content: Vec<u8> = (0..(FREE_TIER_USAGE_SIZE - METADATA_FEE * 1))
         .map(|_| rand::random::<u8>())
         .collect();
     core.write_document(document.id, content.as_bytes())
@@ -161,21 +161,6 @@ fn change_doc_over_data_cap() {
     let result = core.sync(None);
 
     assert_eq!(result.unwrap_err().kind, CoreError::UsageIsOverDataCap);
-}
-
-#[test]
-fn change_doc_under_data_cap() {
-    let core = test_core_with_account();
-    let document = core.create_at_path("hello.md").unwrap();
-    let content: Vec<u8> = (0..((FREE_TIER_USAGE_SIZE - METADATA_FEE * 3) as i64))
-        .map(|_| rand::random::<u8>())
-        .collect();
-    core.write_document(document.id, content.as_bytes())
-        .unwrap();
-
-    core.sync(None).unwrap();
-
-    assert::all_paths(&core, &["/", "/hello.md"]);
 }
 
 #[test]

@@ -17,9 +17,6 @@ use crate::{pubkey, symkey, SharedResult};
 
 pub type DocumentHmac = [u8; 32];
 
-// a fee of 1000 bits allows 1000 file creations under the free tier.
-pub const METADATA_FEE: u64 = 1000;
-
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct FileMetadata {
     pub id: Uuid,

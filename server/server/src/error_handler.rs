@@ -39,6 +39,22 @@ impl<T: Debug> From<serde_json::Error> for ServerError<T> {
     }
 }
 
+impl From<SharedError> for ServerError<CancelSubscriptionError> {
+    fn from(err: SharedError) -> Self {
+        internal!("{:?}", err)
+    }
+}
+impl From<SharedError> for ServerError<AdminGetAccountInfoError> {
+    fn from(err: SharedError) -> Self {
+        internal!("{:?}", err)
+    }
+}
+impl From<SharedError> for ServerError<GetUsageError> {
+    fn from(err: SharedError) -> Self {
+        internal!("{:?}", err)
+    }
+}
+
 impl From<GetUsageHelperError> for ServerError<GetUsageError> {
     fn from(e: GetUsageHelperError) -> Self {
         match e {

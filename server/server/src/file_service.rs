@@ -45,7 +45,7 @@ pub async fn upsert_file_metadata(
         )?
         .to_lazy();
 
-        let old_usage = get_usage(&tree, db.sizes.data(), None)
+        let old_usage = get_usage(&tree, db.sizes.data())
             .unwrap_or_default()
             .iter()
             .map(|f| f.size_bytes)
@@ -66,7 +66,7 @@ pub async fn upsert_file_metadata(
 
         tree.validate(req_owner)?;
 
-        let new_usage = get_usage(&tree, db.sizes.data(), Some(&current_deleted))
+        let new_usage = get_usage(&tree, db.sizes.data())
             .unwrap_or_default()
             .iter()
             .map(|f| f.size_bytes)
@@ -221,7 +221,7 @@ pub async fn change_doc(
         )?
         .to_lazy();
 
-        let old_usage = get_usage(&tree, db.sizes.data(), None)
+        let old_usage = get_usage(&tree, db.sizes.data())
             .unwrap_or_default()
             .iter()
             .map(|f| f.size_bytes)

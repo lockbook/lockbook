@@ -14,11 +14,11 @@ use lockbook_shared::api::{
     AdminListUsersResponse, DeleteAccountError, DeleteAccountRequest, FileUsage, GetPublicKeyError,
     GetPublicKeyRequest, GetPublicKeyResponse, GetUsageError, GetUsageRequest, GetUsageResponse,
     GetUsernameError, GetUsernameRequest, GetUsernameResponse, NewAccountError, NewAccountRequest,
-    NewAccountResponse, PaymentPlatform,
+    NewAccountResponse, PaymentPlatform, METADATA_FEE,
 };
 use lockbook_shared::clock::get_time;
 use lockbook_shared::file_like::FileLike;
-use lockbook_shared::file_metadata::{Owner, METADATA_FEE};
+use lockbook_shared::file_metadata::Owner;
 use lockbook_shared::lazy::LazyTree;
 use lockbook_shared::server_file::IntoServerFile;
 use lockbook_shared::server_tree::ServerTree;
@@ -141,15 +141,11 @@ pub async fn get_usage_info(
         &mut db.shared_files,
         &mut db.file_children,
         &mut db.metas,
-    );
+    )?
+    .to_lazy();
 
-    match tree {
-        Ok(t) => {
-            let usages = get_usage(&t.to_lazy(), db.sizes.data(), None)?;
-            Ok(GetUsageResponse { usages, cap })
-        }
-        Err(_) => Err(ClientError(GetUsageError::UserNotFound)),
-    }
+    let usages = get_usage(&tree, db.sizes.data())?;
+    Ok(GetUsageResponse { usages, cap })
 }
 
 #[derive(Debug)]
@@ -158,7 +154,7 @@ pub enum GetUsageHelperError {
 }
 
 pub fn get_usage<T>(
-    tree: &LazyTree<T>, sizes: &HashMap<Uuid, u64>, deleted: Option<&HashSet<Uuid>>,
+    tree: &LazyTree<T>, sizes: &HashMap<Uuid, u64>,
 ) -> Result<Vec<FileUsage>, GetUsageHelperError>
 where
     T: TreeLike,
@@ -167,14 +163,14 @@ where
         .ids()
         .iter()
         .map(|&&file_id| {
-            let deleted_tree_ids = &tree
+            let deleted = &tree
                 .implicit_deleted
                 .iter()
                 .filter(|&x| x.1 == &true)
                 .map(|x| *x.0)
                 .collect::<HashSet<Uuid>>();
 
-            let file_size = match deleted.unwrap_or(deleted_tree_ids).contains(&file_id) {
+            let file_size = match deleted.contains(&file_id) {
                 true => 0,
                 false => *sizes.get(&file_id).unwrap_or(&0),
             };
@@ -361,30 +357,25 @@ pub async fn admin_get_account_info(
         &mut db.shared_files,
         &mut db.file_children,
         &mut db.metas,
-    );
-    match tree {
-        Ok(t) => {
-            let usage: u64 = get_usage(&t.to_lazy(), db.sizes.data(), None)
-                .map_err(|err| {
-                    internal!("Cannot find user's usage, owner: {:?}, err: {:?}", owner, err)
-                })?
-                .iter()
-                .map(|a| a.size_bytes)
-                .sum();
+    )?
+    .to_lazy();
 
-            let usage_str = bytes_to_human(usage);
+    let usage: u64 = get_usage(&tree, db.sizes.data())
+        .map_err(|err| internal!("Cannot find user's usage, owner: {:?}, err: {:?}", owner, err))?
+        .iter()
+        .map(|a| a.size_bytes)
+        .sum();
 
-            Ok(AdminGetAccountInfoResponse {
-                account: AccountInfo {
-                    username: account.username,
-                    root,
-                    payment_platform,
-                    usage: usage_str,
-                },
-            })
-        }
-        Err(_) => Err(ClientError(AdminGetAccountInfoError::UserNotFound)),
-    }
+    let usage_str = bytes_to_human(usage);
+
+    Ok(AdminGetAccountInfoResponse {
+        account: AccountInfo {
+            username: account.username,
+            root,
+            payment_platform,
+            usage: usage_str,
+        },
+    })
 }
 
 #[derive(Debug)]

@@ -1,10 +1,10 @@
 use image::EncodableLayout;
 use lockbook_core::service::api_service::{ApiError, Requester};
-use lockbook_core::FREE_TIER_USAGE_SIZE;
+
 use lockbook_shared::api::{
     CancelSubscriptionError, CancelSubscriptionRequest, PaymentMethod, StripeAccountTier,
     UpgradeAccountGooglePlayError, UpgradeAccountGooglePlayRequest, UpgradeAccountStripeError,
-    UpgradeAccountStripeRequest,
+    UpgradeAccountStripeRequest, FREE_TIER_USAGE_SIZE,
 };
 use lockbook_shared::file_metadata::FileType;
 use rand::RngCore;
@@ -359,7 +359,7 @@ fn downgrade_denied() {
     })
     .unwrap();
 
-    //go over free tier
+    // go over free tier
     let file = core
         .create_file(&uuid::Uuid::new_v4().to_string(), root.id, FileType::Document)
         .unwrap();
