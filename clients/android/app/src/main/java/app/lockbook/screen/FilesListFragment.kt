@@ -593,6 +593,10 @@ class FilesListFragment : Fragment(), FilesFragment {
     }
 
     override fun onBackPressed(): Boolean = when {
+        binding.fabSpeedDial.isOpen -> {
+            binding.fabSpeedDial.close()
+            false
+        }
         model.files.hasSelection() -> {
             unselectFiles()
             false
@@ -601,7 +605,9 @@ class FilesListFragment : Fragment(), FilesFragment {
             model.intoParentFolder()
             false
         }
-        else -> true
+        else -> {
+            true
+        }
     }
 
     override fun sync(usePreferences: Boolean) {
