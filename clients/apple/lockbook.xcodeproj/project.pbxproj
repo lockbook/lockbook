@@ -28,8 +28,8 @@
 		47B53838290EFE150012E542 /* BillingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47B53837290EFE150012E542 /* BillingService.swift */; };
 		47B53839290EFE150012E542 /* BillingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47B53837290EFE150012E542 /* BillingService.swift */; };
 		47B67289295F977C00DB0D8E /* ManageSubscriptionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47B67288295F977C00DB0D8E /* ManageSubscriptionView.swift */; };
-		47B83A1029EF3649004514C6 /* SuggestedDocumentCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47B83A0F29EF3649004514C6 /* SuggestedDocumentCell.swift */; };
-		47B83A1129EF3649004514C6 /* SuggestedDocumentCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47B83A0F29EF3649004514C6 /* SuggestedDocumentCell.swift */; };
+		47B83A1C29EFAA04004514C6 /* SuggestedDocs.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47B83A1B29EFAA04004514C6 /* SuggestedDocs.swift */; };
+		47B83A1D29EFAA04004514C6 /* SuggestedDocs.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47B83A1B29EFAA04004514C6 /* SuggestedDocs.swift */; };
 		47FAA4C829EC830600DB606E /* BranchState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47FAA4C729EC830600DB606E /* BranchState.swift */; };
 		47FAA4C929EC830600DB606E /* BranchState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47FAA4C729EC830600DB606E /* BranchState.swift */; };
 		5036A0B7393E8C43AAF095A2 /* LBDrawingPKDrawingConversions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5036ACCA149F0864585B7D44 /* LBDrawingPKDrawingConversions.swift */; };
@@ -154,7 +154,7 @@
 		47A45FBA2969047B00573044 /* ShareService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareService.swift; sourceTree = "<group>"; };
 		47B53837290EFE150012E542 /* BillingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BillingService.swift; sourceTree = "<group>"; };
 		47B67288295F977C00DB0D8E /* ManageSubscriptionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManageSubscriptionView.swift; sourceTree = "<group>"; };
-		47B83A0F29EF3649004514C6 /* SuggestedDocumentCell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SuggestedDocumentCell.swift; sourceTree = "<group>"; };
+		47B83A1B29EFAA04004514C6 /* SuggestedDocs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SuggestedDocs.swift; sourceTree = "<group>"; };
 		47FAA4C729EC830600DB606E /* BranchState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BranchState.swift; sourceTree = "<group>"; };
 		5036AA70E675020A378AE98E /* DrawingToolbar.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DrawingToolbar.swift; sourceTree = "<group>"; };
 		5036ACCA149F0864585B7D44 /* LBDrawingPKDrawingConversions.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = LBDrawingPKDrawingConversions.swift; sourceTree = "<group>"; };
@@ -448,6 +448,7 @@
 				B249B9E4282AC03A004F5300 /* MoveSheet.swift */,
 				B249B9E6282AF4F4004F5300 /* FileTreeView.swift */,
 				473A3DCD29AC354B0017BC6A /* FilePathBreadcrumb.swift */,
+				47B83A1B29EFAA04004514C6 /* SuggestedDocs.swift */,
 			);
 			path = iOS;
 			sourceTree = "<group>";
@@ -484,7 +485,6 @@
 				B2459BE928DBAFB800756D71 /* ManageSubscription.swift */,
 				B2459BEC28DBB43100756D71 /* ColorProgressBar.swift */,
 				4709DC37296609F100426106 /* PendingSharesView.swift */,
-				47B83A0F29EF3649004514C6 /* SuggestedDocumentCell.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -663,6 +663,7 @@
 				EA380B262561FAEF0021C4FA /* FileListView.swift in Sources */,
 				87AA99F3269610D8009E5591 /* NewFileSheet.swift in Sources */,
 				B249B9EF282C37AD004F5300 /* RenamingSheet.swift in Sources */,
+				47B83A1C29EFAA04004514C6 /* SuggestedDocs.swift in Sources */,
 				4772A43A29E8656A0032D586 /* SearchWrapperView.swift in Sources */,
 				877FB54A26D1788D0008AB3F /* CoreService.swift in Sources */,
 				872A61DA27BD8A8900AEA1D3 /* Storage.swift in Sources */,
@@ -681,7 +682,6 @@
 				EA9079C32569960A00E04F5D /* ListFileCell.swift in Sources */,
 				87F78F7A27094A040001E159 /* BeforeYouStart.swift in Sources */,
 				879B81CF27D56A800022FE00 /* IndexConverter.swift in Sources */,
-				47B83A1029EF3649004514C6 /* SuggestedDocumentCell.swift in Sources */,
 				8741E8E425AAA524005B7B01 /* BottomBar.swift in Sources */,
 				8737B2BE25D83EE600C93E09 /* DrawingView.swift in Sources */,
 				B249B9E8282AF6B1004F5300 /* OutlineBranch.swift in Sources */,
@@ -720,6 +720,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				47B83A1D29EFAA04004514C6 /* SuggestedDocs.swift in Sources */,
 				47B67289295F977C00DB0D8E /* ManageSubscriptionView.swift in Sources */,
 				877FB55E26D1B8A10008AB3F /* LBDrawingPKDrawingConversions.swift in Sources */,
 				87BD383926C020B00030D2B1 /* SettingsService.swift in Sources */,
@@ -760,7 +761,6 @@
 				B249B9F5282FE566004F5300 /* DataSource.swift in Sources */,
 				870DC0A426BF37C0002E9A92 /* UsageSettingsView.swift in Sources */,
 				87E1C5DB27B480D70029833D /* EditorView.swift in Sources */,
-				47B83A1129EF3649004514C6 /* SuggestedDocumentCell.swift in Sources */,
 				B2459BEE28DBB43100756D71 /* ColorProgressBar.swift in Sources */,
 				872175F426F2858400A77C59 /* DocumentLoader.swift in Sources */,
 				EAF96D0D252E8ED000AA1A14 /* ConfigHelper.swift in Sources */,

@@ -67,6 +67,8 @@ struct FileTreeView: NSViewRepresentable {
             for item in expandedFolders {
                 treeView.expandItem(item)
             }
+            
+            scrollAndSelectCurrentDoc()
         }
 
         return scrollView
@@ -79,14 +81,18 @@ struct FileTreeView: NSViewRepresentable {
         }
         
         if lastOpenDoc != currentSelection.selectedDocument {
-            if let file = currentSelection.selectedDocument {
-                scrollAndexpandAncestorsOfDocument(file: file)
-            }
-            
-            treeView.selectRowIndexes(IndexSet(integer: treeView.row(forItem: DI.currentDoc.selectedDocument)), byExtendingSelection: false)
+            scrollAndSelectCurrentDoc()
             
             lastOpenDoc = currentSelection.selectedDocument
         }
+    }
+    
+    func scrollAndSelectCurrentDoc() {
+        if let file = currentSelection.selectedDocument {
+            scrollAndexpandAncestorsOfDocument(file: file)
+        }
+        
+        treeView.selectRowIndexes(IndexSet(integer: treeView.row(forItem: DI.currentDoc.selectedDocument)), byExtendingSelection: false)
     }
     
     func scrollAndexpandAncestorsOfDocument(file: File) {

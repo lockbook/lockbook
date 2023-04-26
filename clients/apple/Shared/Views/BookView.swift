@@ -15,7 +15,7 @@ struct BookView: View {
     @Environment(\.horizontalSizeClass) var horizontal
     @Environment(\.verticalSizeClass) var vertical
     #endif
-
+    
     var body: some View {
         platformFileTree
             .iOSOnlySheet(isPresented: $sheets.moving)

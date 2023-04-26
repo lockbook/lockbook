@@ -7,6 +7,7 @@ class FileService: ObservableObject {
 
     @Published var root: File? = nil
     @Published var idsAndFiles: [UUID:File] = [:]
+    @Published var suggestedDocs: [File] = []
     var files: [File] {
         get {
             Array(idsAndFiles.values)
@@ -17,6 +18,7 @@ class FileService: ObservableObject {
     // File Service keeps track of the parent being displayed on iOS. Since this functionality is not used for macOS, it is conditionally compiled.
 #if os(iOS)
     @Published var path: [File] = []
+
     var parent: File? {
         get {
             path.last
@@ -231,13 +233,16 @@ class FileService: ObservableObject {
         return pathToRoot
     }
     
-    func suggestedDocs(maxCount: Int) -> [File]? {
-        switch self.core.suggestedDocs() {
-        case .success(let ids):
-            return Array(ids.map { idsAndFiles[$0]! }.prefix(maxCount))
-        case .failure(let error):
-            DI.errors.handleError(error)
-            return nil
+    func suggestedDocs(maxCount: Int) {
+        DispatchQueue.global(qos: .userInitiated).async {
+            switch self.core.suggestedDocs() {
+            case .success(let ids):
+                DispatchQueue.main.async {
+                    self.suggestedDocs = Array(ids.filter{ self.idsAndFiles[$0] != nil }.map { self.idsAndFiles[$0]! }.prefix(maxCount))
+                }
+            case .failure(let error):
+                DI.errors.handleError(error)
+            }
         }
     }
 
@@ -249,6 +254,7 @@ class FileService: ObservableObject {
                 switch allFiles {
                 case .success(let files):
                     self.idsAndFiles = Dictionary(uniqueKeysWithValues: files.map { ($0.id, $0) })
+                    self.suggestedDocs(maxCount: 5)
                     self.files.forEach {
                         self.notifyDocumentChanged($0)
                         if self.root == nil && $0.id == $0.parent {

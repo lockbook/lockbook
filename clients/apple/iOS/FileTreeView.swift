@@ -19,7 +19,7 @@ struct FileTreeView: View {
         VStack {
             SearchWrapperView(
                 searchInput: $searchInput,
-                mainView: OutlineSection(root: currentFolder),
+                mainView: mainView,
                 isiOS: false)
             .searchable(text: $searchInput, placement: .navigationBarDrawer(displayMode: .automatic), prompt: "Search")
 
@@ -72,5 +72,15 @@ struct FileTreeView: View {
             }
         }
         
+    }
+    
+    var mainView: some View {
+        VStack {
+            if files.parent?.isRoot == true {
+                SuggestedDocs(isiOS: false)
+            }
+            
+            OutlineSection(root: currentFolder)
+        }
     }
 }
