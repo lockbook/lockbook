@@ -8,12 +8,45 @@ pub use image_viewer::ImageViewer;
 pub use markdown::Markdown;
 pub use plain_text::PlainText;
 
+use std::time::Instant;
+
+use crate::account::{SaveRequest, SaveRequestContent};
+
 pub struct Tab {
     pub id: lb::Uuid,
     pub name: String,
     pub path: String,
     pub failure: Option<TabFailure>,
     pub content: Option<TabContent>,
+
+    pub last_changed: Instant,
+    pub last_saved: Instant,
+}
+
+impl Tab {
+    pub fn make_save_request(&self) -> Option<SaveRequest> {
+        if let Some(tab_content) = &self.content {
+            let maybe_save_content = match tab_content {
+                TabContent::Drawing(d) => Some(SaveRequestContent::Draw(d.drawing.clone())),
+                TabContent::Markdown(md) => {
+                    Some(SaveRequestContent::Text(md.editor.buffer.current.text.clone()))
+                }
+                TabContent::PlainText(txt) => Some(SaveRequestContent::Text(txt.content.clone())),
+                _ => None,
+            };
+            if let Some(content) = maybe_save_content {
+                Some(SaveRequest { id: self.id, content })
+            } else {
+                None
+            }
+        } else {
+            None
+        }
+    }
+
+    pub fn is_dirty(&self) -> bool {
+        self.last_changed > self.last_saved
+    }
 }
 
 pub enum TabContent {

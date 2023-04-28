@@ -1,4 +1,4 @@
-pub use crate::editor::Editor;
+pub use crate::editor::{Editor, EditorResponse};
 use egui::{FontData, FontDefinitions, FontFamily, Pos2, Rect};
 use egui_wgpu_backend::wgpu;
 use egui_wgpu_backend::wgpu::CompositeAlphaMode;

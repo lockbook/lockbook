@@ -89,7 +89,9 @@ impl eframe::App for Lockbook {
 
                     *self = match maybe_acct_data {
                         Some(acct_data) => {
-                            let acct_scr = AccountScreen::new(settings, core, acct_data);
+                            let mut acct_scr = AccountScreen::new(settings, core, acct_data);
+                            acct_scr.process_save_requests(ctx);
+                            acct_scr.send_auto_save_requests(ctx);
                             Self::Account(Box::new(acct_scr))
                         }
                         None => Self::Onboard(Box::new(OnboardScreen::new(settings, core))),
