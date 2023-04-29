@@ -1,6 +1,6 @@
 use eframe::egui;
 
-use lbeditor::Editor;
+use lbeditor::{Editor, EditorResponse};
 
 pub struct Markdown {
     pub editor: Editor,
@@ -15,9 +15,11 @@ impl Markdown {
         Box::new(Self { editor })
     }
 
-    pub fn show(&mut self, ui: &mut egui::Ui) {
-        ui.vertical(|ui| {
-            self.editor.scroll_ui(ui);
-        });
+    pub fn past_first_frame(&self) -> bool {
+        self.editor.debug.frame_count > 1
+    }
+
+    pub fn show(&mut self, ui: &mut egui::Ui) -> EditorResponse {
+        ui.vertical(|ui| self.editor.scroll_ui(ui)).inner
     }
 }

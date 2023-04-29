@@ -89,7 +89,7 @@ impl eframe::App for Lockbook {
 
                     *self = match maybe_acct_data {
                         Some(acct_data) => {
-                            let acct_scr = AccountScreen::new(settings, core, acct_data);
+                            let acct_scr = AccountScreen::new(settings, core, acct_data, ctx);
                             Self::Account(Box::new(acct_scr))
                         }
                         None => Self::Onboard(Box::new(OnboardScreen::new(settings, core))),
@@ -104,30 +104,37 @@ impl eframe::App for Lockbook {
                 if let Some(handoff) = screen.update(ctx) {
                     let OnboardHandOff { settings, core, acct_data } = handoff;
 
-                    let acct_scr = AccountScreen::new(settings, core, acct_data);
+                    let acct_scr = AccountScreen::new(settings, core, acct_data, ctx);
                     *self = Self::Account(Box::new(acct_scr));
 
                     ctx.request_repaint();
                 }
             }
-            // We don't have any responses to process from the Account screen. However, if we were
-            // to implement something like the ability for a user to wipe their account locally,
-            // we'd take care of that here.
-            Self::Account(screen) => screen.update(ctx, frame),
+            // On the account screen, we're just waiting for it to gracefully shutdown.
+            Self::Account(screen) => {
+                screen.update(ctx, frame);
+                if screen.is_shutdown() {
+                    frame.close();
+                }
+            }
         }
     }
 
-    /// We override `on_close_event` in order to give the Account screen a chance to close any open
-    /// modals or dialogs via a window close event.
+    /// We override `on_close_event` in order to give the Account screen a chance to:
+    /// 1) close any open modals or dialogs via a window close event, or
+    /// 2) to start a graceful shutdown by saving state and cleaning up.
     fn on_close_event(&mut self) -> bool {
         match self {
             Self::Account(screen) => {
-                if !screen.close_something() {
-                    screen.save_all_tabs();
-                    true
-                } else {
-                    false
+                // If the account screen is done shutting down, it's safe to close the app.
+                if screen.is_shutdown() {
+                    return true;
                 }
+                // If the account screen didn't close an open modal, we begin the shutdown process.
+                if !screen.close_something() {
+                    screen.begin_shutdown();
+                }
+                false
             }
             _ => true,
         }
