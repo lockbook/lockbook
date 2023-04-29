@@ -1,4 +1,4 @@
-use crate::account_service::get_usage;
+use crate::account_service::get_usage_helper;
 use crate::{ServerError, ServerState};
 use lazy_static::lazy_static;
 
@@ -237,7 +237,7 @@ pub fn get_user_info(
     let not_the_welcome_doc = last_seen_since_account_creation > delay_buffer_time;
     let is_user_active = not_the_welcome_doc && last_seen > time_two_days_ago;
 
-    let total_bytes: u64 = get_usage(&tree, db.sizes.data())
+    let total_bytes: u64 = get_usage_helper(&mut tree, db.sizes.data())
         .unwrap_or_default()
         .iter()
         .map(|f| f.size_bytes)

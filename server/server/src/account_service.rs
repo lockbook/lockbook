@@ -127,7 +127,7 @@ pub fn username_from_public_key(
         .unwrap_or(Err(ClientError(GetUsernameError::UserNotFound)))
 }
 
-pub async fn get_usage_info(
+pub async fn get_usage(
     context: RequestContext<'_, GetUsageRequest>,
 ) -> Result<GetUsageResponse, ServerError<GetUsageError>> {
     let mut lock = context.server_state.index_db.lock()?;
@@ -135,7 +135,7 @@ pub async fn get_usage_info(
 
     let cap = get_cap(db, &context.public_key)?;
 
-    let tree = ServerTree::new(
+    let mut tree = ServerTree::new(
         Owner(context.public_key),
         &mut db.owned_files,
         &mut db.shared_files,
@@ -144,7 +144,7 @@ pub async fn get_usage_info(
     )?
     .to_lazy();
 
-    let usages = get_usage(&tree, db.sizes.data())?;
+    let usages = get_usage_helper(&mut tree, db.sizes.data())?;
     Ok(GetUsageResponse { usages, cap })
 }
 
@@ -153,31 +153,41 @@ pub enum GetUsageHelperError {
     UserNotFound,
 }
 
-pub fn get_usage<T>(
-    tree: &LazyTree<T>, sizes: &HashMap<Uuid, u64>,
+pub fn get_usage_helper<T>(
+    tree: &mut LazyTree<T>, sizes: &HashMap<Uuid, u64>,
 ) -> Result<Vec<FileUsage>, GetUsageHelperError>
 where
     T: TreeLike,
 {
-    Ok(tree
-        .ids()
+    let ids = tree.owned_ids();
+    let root = ids
         .iter()
-        .map(|&&file_id| {
-            let deleted = &tree
-                .implicit_deleted
-                .iter()
-                .filter(|&x| x.1 == &true)
-                .map(|x| *x.0)
-                .collect::<HashSet<Uuid>>();
+        .find(|file_id| match tree.find(file_id) {
+            Ok(f) => f.is_root(),
+            Err(_) => false,
+        })
+        .ok_or(GetUsageHelperError::UserNotFound)?;
 
-            let file_size = match deleted.contains(&file_id) {
+    let result = ids
+        .iter()
+        .filter_map(|&file_id| {
+            if let Ok(file) = tree.find(&file_id) {
+                if file.owner() != tree.find(root).unwrap().owner() {
+                    return None;
+                }
+            } else {
+                return None;
+            }
+
+            let file_size = match tree.calculate_deleted(&file_id).unwrap_or(true) {
                 true => 0,
                 false => *sizes.get(&file_id).unwrap_or(&0),
             };
 
-            FileUsage { file_id, size_bytes: file_size + METADATA_FEE }
+            Some(FileUsage { file_id, size_bytes: file_size + METADATA_FEE })
         })
-        .collect())
+        .collect();
+    Ok(result)
 }
 
 pub fn get_cap(db: &ServerDb, public_key: &PublicKey) -> Result<u64, GetUsageHelperError> {
@@ -351,7 +361,7 @@ pub async fn admin_get_account_info(
             }
         });
 
-    let tree = ServerTree::new(
+    let mut tree = ServerTree::new(
         owner,
         &mut db.owned_files,
         &mut db.shared_files,
@@ -360,7 +370,7 @@ pub async fn admin_get_account_info(
     )?
     .to_lazy();
 
-    let usage: u64 = get_usage(&tree, db.sizes.data())
+    let usage: u64 = get_usage_helper(&mut tree, db.sizes.data())
         .map_err(|err| internal!("Cannot find user's usage, owner: {:?}, err: {:?}", owner, err))?
         .iter()
         .map(|a| a.size_bytes)

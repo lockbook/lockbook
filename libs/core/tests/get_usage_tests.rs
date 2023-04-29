@@ -1,5 +1,5 @@
 use image::EncodableLayout;
-use lockbook_core::{Core, CoreError};
+use lockbook_core::{Core, CoreError, ShareMode};
 use lockbook_shared::api::{FREE_TIER_USAGE_SIZE, METADATA_FEE};
 use lockbook_shared::document_repo;
 use lockbook_shared::file_like::FileLike;
@@ -18,7 +18,10 @@ fn report_usage() {
     core.write_document(file.id, "0000000000".as_bytes())
         .unwrap();
 
-    assert!(core.get_usage().unwrap().usages.len() == 1, "Root metadata is counted towards cost");
+    assert!(
+        core.get_usage().unwrap().usages.len() == 1,
+        "Didn't account for the cost of root file metadata"
+    );
     assert_eq!(core.get_usage().unwrap().usages[0].size_bytes, METADATA_FEE);
 
     core.sync(None).unwrap();
@@ -132,7 +135,10 @@ fn usage_new_files_have_no_size() {
     core.create_file(&random_name(), root.id, FileType::Document)
         .unwrap();
 
-    assert!(core.get_usage().unwrap().usages.len() == 1, "Root metadata is counted towards cost");
+    assert!(
+        core.get_usage().unwrap().usages.len() == 1,
+        "Didn't account for the cost of root file metadata"
+    );
 
     core.sync(None).unwrap();
 
@@ -244,4 +250,31 @@ fn upsert_meta_empty_folder_over_data_cap() {
     let result = core.sync(None);
 
     assert_eq!(result.unwrap_err().kind, CoreError::UsageIsOverDataCap);
+}
+
+#[test]
+fn shared_docs_excluded() {
+    let cores: Vec<Core> = vec![test_core_with_account(), test_core_with_account()];
+    let accounts = cores
+        .iter()
+        .map(|core| core.get_account().unwrap())
+        .collect::<Vec<_>>();
+
+    let folder = cores[0].create_at_path("folder/").unwrap();
+    cores[0]
+        .create_file("document", folder.id, FileType::Document)
+        .unwrap();
+
+    cores[0]
+        .share_file(folder.id, &accounts[1].username, ShareMode::Write)
+        .unwrap();
+
+    cores[0].sync(None).unwrap();
+    cores[1].sync(None).unwrap();
+
+    cores[1].create_link_at_path("link", folder.id).unwrap();
+
+    cores[1].sync(None).unwrap();
+
+    assert_eq!(cores[1].get_usage().unwrap().usages.len(), 2);
 }

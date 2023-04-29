@@ -298,7 +298,7 @@ pub async fn cancel_subscription(
         let mut lock = server_state.index_db.lock()?;
         let db = lock.deref_mut();
 
-        let tree = ServerTree::new(
+        let mut tree = ServerTree::new(
             Owner(context.public_key),
             &mut db.owned_files,
             &mut db.shared_files,
@@ -307,7 +307,7 @@ pub async fn cancel_subscription(
         )?
         .to_lazy();
 
-        let usage: u64 = account_service::get_usage(&tree, db.sizes.data())
+        let usage: u64 = account_service::get_usage_helper(&mut tree, db.sizes.data())
             .map_err(|e| match e {
                 GetUsageHelperError::UserNotFound => {
                     ClientError(CancelSubscriptionError::UserNotFound)
