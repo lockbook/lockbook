@@ -233,7 +233,13 @@ class FileService: ObservableObject {
         return pathToRoot
     }
     
-    func suggestedDocs(maxCount: Int = 4) {
+    func refreshSuggestedDocs() {
+        #if os(iOS)
+        let maxCount = 8
+        #elseif os(macOS)
+        let maxCount = 4
+        #endif
+        
         DispatchQueue.global(qos: .userInitiated).async {
             switch self.core.suggestedDocs() {
             case .success(let ids):
@@ -265,7 +271,7 @@ class FileService: ObservableObject {
                 switch allFiles {
                 case .success(let files):
                     self.idsAndFiles = Dictionary(uniqueKeysWithValues: files.map { ($0.id, $0) })
-                    self.suggestedDocs()
+                    self.refreshSuggestedDocs()
                     self.files.forEach {
                         self.notifyDocumentChanged($0)
                         if self.root == nil && $0.id == $0.parent {

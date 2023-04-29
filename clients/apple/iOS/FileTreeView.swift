@@ -72,7 +72,7 @@ struct FileTreeView: View {
             }
         }
         .onChange(of: currentDoc.selectedDocument) { _ in
-            DI.files.suggestedDocs()
+            DI.files.refreshSuggestedDocs()
         }
     }
     

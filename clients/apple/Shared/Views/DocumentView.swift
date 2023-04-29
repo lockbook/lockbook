@@ -69,7 +69,7 @@ struct DocumentView: View {
             }
         }
         .onDisappear {
-            DI.files.suggestedDocs(maxCount: 8)
+            DI.files.refreshSuggestedDocs()
         }
     }
 }

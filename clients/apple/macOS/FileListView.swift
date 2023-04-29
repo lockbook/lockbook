@@ -116,7 +116,7 @@ struct DetailView: View {
             }
         }
         .onChange(of: currentSelection.selectedDocument) { _ in
-            DI.files.suggestedDocs()
+            DI.files.refreshSuggestedDocs()
         }
     }
 }
