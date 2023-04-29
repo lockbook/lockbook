@@ -1,5 +1,5 @@
-mod saving;
 mod modals;
+mod saving;
 mod syncing;
 mod tabs;
 mod tree;
@@ -8,7 +8,7 @@ mod workspace;
 use std::collections::HashMap;
 use std::sync::{mpsc, Arc, RwLock};
 use std::thread;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 use eframe::egui;
 
@@ -18,14 +18,12 @@ use crate::theme::Icon;
 use crate::util::NUM_KEYS;
 use crate::widgets::{separator, sidebar_button};
 
-use self::saving::*;
 use self::modals::*;
+use self::saving::*;
 use self::syncing::{SyncPanel, SyncUpdate};
 use self::tabs::{Drawing, ImageViewer, Markdown, PlainText, Tab, TabContent, TabFailure};
 use self::tree::{FileTree, TreeNode};
 use self::workspace::Workspace;
-
-const AUTO_SAVE_INTERVAL: Duration = Duration::from_secs(2);
 
 pub struct AccountScreen {
     settings: Arc<RwLock<Settings>>,
@@ -35,52 +33,72 @@ pub struct AccountScreen {
     update_rx: mpsc::Receiver<AccountUpdate>,
 
     save_req_tx: mpsc::Sender<SaveRequest>,
-    save_req_rx: Option<mpsc::Receiver<SaveRequest>>,
 
     tree: FileTree,
     sync: SyncPanel,
     usage: Result<Usage, String>,
     workspace: Workspace,
     modals: Modals,
+    shutdown: Option<AccountShutdownProgress>,
+}
+
+#[derive(Default)]
+struct AccountShutdownProgress {
+    done_saving: bool,
 }
 
 impl AccountScreen {
     pub fn new(
         settings: Arc<RwLock<Settings>>, core: Arc<lb::Core>, acct_data: AccountScreenInitData,
+        ctx: &egui::Context,
     ) -> Self {
         let (update_tx, update_rx) = mpsc::channel();
         let (save_req_tx, save_req_rx) = mpsc::channel();
 
         let AccountScreenInitData { files, sync_status, usage } = acct_data;
 
-        Self {
+        let mut acct_scr = Self {
             settings,
             core,
             update_tx,
             update_rx,
             save_req_tx,
-            save_req_rx: Some(save_req_rx),
             tree: FileTree::new(files),
             sync: SyncPanel::new(sync_status),
             usage,
             workspace: Workspace::new(),
             modals: Modals::default(),
-        }
+            shutdown: None,
+        };
+        acct_scr.process_save_requests(ctx, save_req_rx);
+        acct_scr.send_auto_save_signals(ctx);
+        acct_scr
     }
 
-    pub fn send_auto_save_requests(&self, ctx: &egui::Context) {
-        let update_tx = self.update_tx.clone();
-        let ctx = ctx.clone();
-        thread::spawn(move || loop {
-            thread::sleep(AUTO_SAVE_INTERVAL);
-            update_tx.send(AccountUpdate::AutoSaveScan).unwrap();
-            ctx.request_repaint();
-        });
+    pub fn begin_shutdown(&mut self) {
+        self.shutdown = Some(AccountShutdownProgress::default());
+        self.save_req_tx.send(SaveRequest::SHUTDOWN_REQ).unwrap();
+    }
+
+    pub fn is_shutdown(&self) -> bool {
+        match &self.shutdown {
+            Some(s) => s.done_saving,
+            None => false,
+        }
     }
 
     pub fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
         self.process_updates(ctx, frame);
         self.process_keys(ctx, frame);
+
+        if self.shutdown.is_some() {
+            egui::CentralPanel::default()
+                .frame(
+                    egui::Frame::default().fill(ctx.style().visuals.widgets.noninteractive.bg_fill),
+                )
+                .show(ctx, |ui| ui.centered_and_justified(|ui| ui.label("Shutting down...")));
+            return;
+        }
 
         let sidebar_width = egui::SidePanel::left("sidebar_panel")
             .frame(egui::Frame::none().fill(ctx.style().visuals.faint_bg_color))
@@ -120,24 +138,23 @@ impl AccountScreen {
     fn process_updates(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
         while let Ok(update) = self.update_rx.try_recv() {
             match update {
-                AccountUpdate::AutoSaveScan => {
+                AccountUpdate::AutoSaveSignal => {
                     for tab in &mut self.workspace.tabs {
                         if tab.is_dirty() {
                             if let Some(save_req) = tab.make_save_request() {
                                 self.save_req_tx.send(save_req).unwrap();
                             }
-                            // print!("saving {}", tab.id);
-                            // tab.last_saved = Instant::now();
-                            // println!(" done");
                         }
                     }
                 }
-                AccountUpdate::Saved(id, time_saved) => {
-                    if let Some(tab) = self.workspace.get_mut_tab_by_id(id) {
-                        tab.last_saved = time_saved;
+                AccountUpdate::SaveResult(id, result) => match result {
+                    Ok(time_saved) => {
+                        if let Some(tab) = self.workspace.get_mut_tab_by_id(id) {
+                            tab.last_saved = time_saved;
+                        }
                     }
-                }
-                AccountUpdate::SaveFailed(_id, _err) => {}
+                    Err(_err) => {}
+                },
                 AccountUpdate::OpenModal(open_modal) => match open_modal {
                     OpenModal::NewDoc(maybe_parent) => self.open_new_doc_modal(maybe_parent),
                     OpenModal::NewFolder(maybe_parent) => self.open_new_folder_modal(maybe_parent),
@@ -221,6 +238,11 @@ impl AccountScreen {
                         } else {
                             self.close_tab(i);
                         }
+                    }
+                }
+                AccountUpdate::SaveRequestsDone => {
+                    if let Some(s) = &mut self.shutdown {
+                        s.done_saving = true;
                     }
                 }
             }
@@ -588,9 +610,8 @@ impl AccountScreen {
 }
 
 enum AccountUpdate {
-    AutoSaveScan,
-    Saved(lb::Uuid, Instant),
-    SaveFailed(lb::Uuid, lb::LbError),
+    AutoSaveSignal,
+    SaveResult(lb::Uuid, Result<Instant, lb::LbError>),
 
     /// To open some modals, we queue an update for the next frame so that the actions used to open
     /// each modal (such as the release of a click that would then be in the "outside" area of the
@@ -612,6 +633,8 @@ enum AccountUpdate {
 
     ReloadTree(TreeNode),
     ReloadTabs(HashMap<lb::Uuid, Result<Tab, TabFailure>>),
+
+    SaveRequestsDone,
 }
 
 enum OpenModal {

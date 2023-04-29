@@ -34,11 +34,7 @@ impl Tab {
                 TabContent::PlainText(txt) => Some(SaveRequestContent::Text(txt.content.clone())),
                 _ => None,
             };
-            if let Some(content) = maybe_save_content {
-                Some(SaveRequest { id: self.id, content })
-            } else {
-                None
-            }
+            maybe_save_content.map(|content| SaveRequest { id: self.id, content })
         } else {
             None
         }
