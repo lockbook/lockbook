@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::time::Instant;
 
 use eframe::egui;
 use egui_extras::RetainedImage;
@@ -24,12 +25,15 @@ impl Workspace {
     }
 
     pub fn open_tab(&mut self, id: lb::Uuid, name: &str, path: &str) {
+        let now = Instant::now();
         self.tabs.push(Tab {
             id,
             name: name.to_owned(),
             path: path.to_owned(),
             failure: None,
             content: None,
+            last_changed: now,
+            last_saved: now,
         });
         self.active_tab = self.tabs.len() - 1;
     }
@@ -255,7 +259,15 @@ impl super::AccountScreen {
                     } else if let Some(content) = &mut tab.content {
                         match content {
                             TabContent::Drawing(draw) => draw.show(ui),
-                            TabContent::Markdown(md) => md.show(ui),
+                            TabContent::Markdown(md) => {
+                                let resp = md.show(ui);
+                                // The editor signals a text change when the buffer is initially
+                                // loaded. Since we use that signal to trigger saves, we need to
+                                // check that this change was not from the initial frame.
+                                if resp.text_updated && md.past_first_frame() {
+                                    tab.last_changed = Instant::now();
+                                }
+                            }
                             TabContent::PlainText(txt) => txt.show(ui),
                             TabContent::Image(img) => img.show(ui),
                         };
@@ -275,18 +287,9 @@ impl super::AccountScreen {
 
     pub fn save_tab(&self, i: usize) {
         if let Some(tab) = self.workspace.tabs.get(i) {
-            if let Some(content) = &tab.content {
-                if let TabContent::Drawing(d) = content {
-                    self.core.save_drawing(tab.id, &d.drawing).unwrap(); // TODO
-                } else {
-                    let maybe_bytes = match content {
-                        TabContent::Markdown(md) => Some(md.editor.buffer.current.text.as_bytes()),
-                        TabContent::PlainText(txt) => Some(txt.content.as_bytes()),
-                        _ => None,
-                    };
-                    if let Some(bytes) = maybe_bytes {
-                        self.core.write_document(tab.id, bytes).unwrap(); // TODO
-                    }
+            if tab.is_dirty() {
+                if let Some(save_req) = tab.make_save_request() {
+                    self.save_req_tx.send(save_req).unwrap();
                 }
             }
         }

@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct Drawing {
     pub scale: f32,
     pub translation_x: f32,
@@ -17,7 +17,7 @@ impl Default for Drawing {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct Stroke {
     pub points_x: Vec<f32>,
     pub points_y: Vec<f32>,
@@ -54,7 +54,7 @@ pub enum ColorAlias {
     White,
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq, Hash)]
 pub struct ColorRGB {
     pub r: u8,
     pub g: u8,
