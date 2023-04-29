@@ -1,5 +1,5 @@
 use db_rs::LookupTable;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
 use hmac::{Mac, NewMac};
 use libsecp256k1::PublicKey;
@@ -27,17 +27,17 @@ impl<T> LazyTree<T>
 where
     T: TreeLike<F = SignedFile>,
 {
-    // todo: revisit logic for what files can be finalized and how e.g. link substitutions, deleted files, files in pending shares, linked files
-    pub fn finalize(
-        &mut self, id: &Uuid, account: &Account, public_key_cache: &mut LookupTable<Owner, String>,
+    /// convert FileMetadata into File. fields have been decrypted, public keys replaced with usernames, deleted files filtered out, etc.
+    pub fn decrypt(
+        &mut self, account: &Account, id: &Uuid, public_key_cache: &mut LookupTable<Owner, String>,
     ) -> SharedResult<File> {
         let meta = self.find(id)?.clone();
         let file_type = meta.file_type();
-        let parent = *meta.parent();
         let last_modified = meta.timestamped_value.timestamp as u64;
         let name = self.name_using_links(id, account)?;
-        let id = *id;
+        let parent = self.parent_using_links(id)?;
         let last_modified_by = account.username.clone();
+        let id = *id;
 
         let mut shares = Vec::new();
         for user_access_key in meta.user_access_keys() {
@@ -75,66 +75,32 @@ where
         Ok(File { id, parent, name, file_type, last_modified, last_modified_by, shares })
     }
 
-    // this variant used when we want to skip certain files e.g. when listing paths
-    pub fn resolve_and_finalize<I>(
+    /// convert FileMetadata into File. fields have been decrypted, public keys replaced with usernames, deleted files filtered out, etc.
+    pub fn decrypt_all<I>(
         &mut self, account: &Account, ids: I, public_key_cache: &mut LookupTable<Owner, String>,
+        skip_invisible: bool,
     ) -> SharedResult<Vec<File>>
     where
         I: Iterator<Item = Uuid>,
     {
-        let mut user_visible_ids = Vec::new();
-        for id in ids {
-            if self.calculate_deleted(&id)? {
-                continue;
-            }
-            if self.in_pending_share(&id)? {
-                continue;
-            }
-            if self.link(&id)?.is_some() {
-                continue;
-            }
-            user_visible_ids.push(id);
-        }
-        self.resolve_and_finalize_all(account, user_visible_ids.into_iter(), public_key_cache)
-    }
-
-    // this variant used when we must include all files e.g. work calculated
-    pub fn resolve_and_finalize_all<I>(
-        &mut self, account: &Account, ids: I, public_key_cache: &mut LookupTable<Owner, String>,
-    ) -> SharedResult<Vec<File>>
-    where
-        I: Iterator<Item = Uuid>,
-    {
-        let mut files = Vec::new();
-        let mut parent_substitutions = HashMap::new();
+        let mut files: Vec<File> = Vec::new();
 
         for id in ids {
-            let finalized = self.finalize(&id, account, public_key_cache)?;
-
-            match finalized.file_type {
-                FileType::Document | FileType::Folder => files.push(finalized),
-                FileType::Link { target } => {
-                    let mut target_file = self.finalize(&target, account, public_key_cache)?;
-                    if target_file.is_folder() {
-                        parent_substitutions.insert(target, id);
-                    }
-
-                    target_file.id = finalized.id;
-                    target_file.parent = finalized.parent;
-                    target_file.name = finalized.name;
-
-                    files.push(target_file);
-                }
+            if skip_invisible && self.is_invisible_id(id)? {
+                continue;
             }
-        }
 
-        for item in &mut files {
-            if let Some(new_parent) = parent_substitutions.get(&item.parent) {
-                item.parent = *new_parent;
-            }
+            let finalized = self.decrypt(account, &id, public_key_cache)?;
+            files.push(finalized);
         }
 
         Ok(files)
+    }
+
+    fn is_invisible_id(&mut self, id: Uuid) -> SharedResult<bool> {
+        Ok(self.find(&id)?.is_link()
+            || self.calculate_deleted(&id)?
+            || self.in_pending_share(&id)?)
     }
 
     pub fn create_op(
@@ -282,7 +248,7 @@ where
         // delete any links pointing to file
         if let Some(encrypted_for) = maybe_encrypted_for {
             if encrypted_for == account.public_key() {
-                if let Some(link) = self.link(id)? {
+                if let Some(link) = self.linked_by(id)? {
                     let mut link = self.find(&link)?.timestamped_value.value.clone();
                     link.is_deleted = true;
                     result.push(link.sign(account)?);
@@ -299,11 +265,8 @@ where
         if self.calculate_deleted(id)? {
             return Err(SharedErrorKind::FileNonexistent.into());
         }
-        let (id, meta) = if let FileType::Link { target } = self.find(id)?.file_type() {
-            (target, self.find(&target)?)
-        } else {
-            (*id, self.find(id)?)
-        };
+
+        let meta = self.find(id)?;
 
         validate::is_document(meta)?;
         if meta.document_hmac().is_none() {
@@ -316,7 +279,7 @@ where
                 None => document_repo::maybe_get(config, meta.id(), meta.document_hmac())?,
             };
         let doc = match maybe_encrypted_document {
-            Some(doc) => self.decrypt_document(&id, &doc, account)?,
+            Some(doc) => self.decrypt_document(id, &doc, account)?,
             None => return Err(SharedErrorKind::FileNonexistent.into()),
         };
 

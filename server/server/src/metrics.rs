@@ -2,6 +2,7 @@ use crate::account_service::get_usage_helper;
 use crate::{ServerError, ServerState};
 use lazy_static::lazy_static;
 
+use lockbook_shared::clock::get_time;
 use prometheus::{register_int_gauge_vec, IntGaugeVec};
 use prometheus_static_metric::make_static_metric;
 use std::fmt::Debug;
@@ -217,14 +218,12 @@ pub fn get_user_info(
         .iter()
         .any(|k| k.owner() != owner || k.is_shared());
 
-    let root_creation_timestamp = tree
-        .all_files()?
-        .iter()
-        .find(|f| f.is_root())
-        .unwrap()
-        .file
-        .timestamped_value
-        .timestamp;
+    let root_creation_timestamp =
+        if let Some(root_creation_timestamp) = tree.all_files()?.iter().find(|f| f.is_root()) {
+            root_creation_timestamp.file.timestamped_value.timestamp
+        } else {
+            return Ok(None);
+        };
 
     let last_seen = *db
         .last_seen
@@ -232,9 +231,11 @@ pub fn get_user_info(
         .get(&owner)
         .unwrap_or(&(root_creation_timestamp as u64));
 
+    let time_two_days_ago = get_time().0 as u64 - TWO_DAYS_IN_MILLIS as u64;
     let last_seen_since_account_creation = last_seen as i64 - root_creation_timestamp;
     let delay_buffer_time = 500;
-    let is_user_active = last_seen_since_account_creation > delay_buffer_time;
+    let not_the_welcome_doc = last_seen_since_account_creation > delay_buffer_time;
+    let is_user_active = not_the_welcome_doc && last_seen > time_two_days_ago;
 
     let total_bytes: u64 = get_usage_helper(db, &owner.0)
         .unwrap_or_default()
@@ -242,7 +243,11 @@ pub fn get_user_info(
         .map(|f| f.size_bytes)
         .sum();
 
-    let total_documents = db.owned_files.data().get(&owner).unwrap().len() as i64;
+    let total_documents = if let Some(owned_files) = db.owned_files.data().get(&owner) {
+        owned_files.len() as i64
+    } else {
+        return Ok(None);
+    };
 
     Ok(Some(UserInfo {
         total_documents,

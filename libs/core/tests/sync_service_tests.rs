@@ -1,4 +1,5 @@
 use itertools::Itertools;
+use lockbook_shared::file::ShareMode;
 use test_utils::*;
 
 /// Uncategorized tests.
@@ -305,4 +306,44 @@ fn test_move_folder_with_deleted_file() {
     cores[0][0].delete_file(voe.id).unwrap();
     let us7 = cores[0][0].create_at_path("US7/").unwrap();
     cores[0][0].move_file(us6.id, us7.id).unwrap();
+}
+
+#[test]
+fn test_clean_sync_deleted_link() {
+    let cores = vec![test_core_with_account(), test_core_with_account()];
+
+    let doc = cores[0].create_at_path("welcome.md").unwrap();
+    cores[0]
+        .share_file(doc.id, &cores[1].get_account().unwrap().username, ShareMode::Write)
+        .unwrap();
+
+    cores[0].sync(None).unwrap();
+    cores[1].sync(None).unwrap();
+
+    let link_doc = cores[1]
+        .create_link_at_path("welcome-path.md", doc.id)
+        .unwrap();
+    cores[1].sync(None).unwrap();
+    cores[1].delete_file(link_doc.id).unwrap();
+    cores[1].delete_pending_share(doc.id).unwrap();
+    cores[1].sync(None).unwrap();
+
+    another_client(&cores[1]).sync(None).unwrap();
+}
+
+#[test]
+fn test_unmergable_conflict_progress_closure() {
+    let mut cores = vec![test_core_with_account()];
+    cores.push(another_client(&cores[0]));
+
+    let doc = cores[0].create_at_path("test.md").unwrap();
+
+    cores[0].sync(None).unwrap();
+    cores[1].sync(None).unwrap();
+
+    cores[0].write_document(doc.id, b"a").unwrap();
+    cores[1].write_document(doc.id, b"b").unwrap();
+
+    cores[0].sync(None).unwrap();
+    cores[1].sync(Some(Box::new(|_| {}))).unwrap();
 }

@@ -20,6 +20,7 @@ use self::error::CliError;
 const ID_PREFIX_LEN: usize = 8;
 
 #[derive(Parser, Debug)]
+#[command(version, about)]
 enum LbCli {
     /// account related commands
     #[command(subcommand)]
@@ -50,7 +51,7 @@ enum LbCli {
     Export {
         /// the path or id of a lockbook folder
         target: String,
-        /// a filesystem location (defaults to current directory)
+        /// a filesystem directory (defaults to current directory)
         dest: Option<PathBuf>,
     },
     /// list files and file information
@@ -135,9 +136,18 @@ fn delete(core: &Core, target: &str, force: bool) -> Result<(), CliError> {
 
     if !force {
         let mut phrase = format!("delete '{}'", target);
+
         if f.is_folder() {
-            let count = core.get_and_get_children_recursively(f.id)?.len();
-            phrase = format!("{phrase} and its {count} children")
+            let count = core
+                .get_and_get_children_recursively(f.id)
+                .unwrap_or_default()
+                .len() as u64
+                - 1;
+            match count {
+                0 => {}
+                1 => phrase = format!("{phrase} and its 1 child"),
+                _ => phrase = format!("{phrase} and its {count} children"),
+            };
         }
 
         let answer: String = input(format!("are you sure you want to {phrase}? [y/n]: "))?;

@@ -20,19 +20,22 @@ where
     pub fn path_to_id(&mut self, path: &str, root: &Uuid, account: &Account) -> SharedResult<Uuid> {
         let mut current = *root;
         'path: for name in split_path(path) {
-            'child: for child in self.children(&if let FileType::Link { target } =
-                self.find(&current)?.file_type()
-            {
+            let id = if let FileType::Link { target } = self.find(&current)?.file_type() {
                 target
             } else {
                 current
-            })? {
+            };
+            'child: for child in self.children(&id)? {
                 if self.calculate_deleted(&child)? {
                     continue 'child;
                 }
 
                 if self.name_using_links(&child, account)? == name {
-                    current = child;
+                    current = match self.find(&child)?.file_type() {
+                        FileType::Link { target } => target,
+                        _ => child,
+                    };
+
                     continue 'path;
                 }
             }
@@ -62,7 +65,7 @@ where
 
         let mut current = *meta.id();
         loop {
-            let current_meta = if let Some(link) = self.link(&current)? {
+            let current_meta = if let Some(link) = self.linked_by(&current)? {
                 self.find(&link)?
             } else {
                 self.find(&current)?
@@ -116,7 +119,7 @@ where
         // remove deleted; include links not linked files
         let mut paths = vec![];
         for id in filtered.clone() {
-            let id = match self.link(&id)? {
+            let id = match self.linked_by(&id)? {
                 None => id,
                 Some(link) => {
                     if filtered.contains(&link) {

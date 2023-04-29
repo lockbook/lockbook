@@ -199,7 +199,8 @@ impl<Client: Requester> CoreState<Client> {
                 ftype,
                 account,
             )?;
-            let file = tree.finalize(&id, account, &mut self.db.pub_key_lookup)?;
+
+            let file = tree.decrypt(account, &id, &mut self.db.pub_key_lookup)?;
 
             tree = if ftype == FileType::Document {
                 let doc = fs::read(&disk_path).map_err(LbError::from)?;
