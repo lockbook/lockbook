@@ -261,7 +261,10 @@ impl super::AccountScreen {
                             TabContent::Drawing(draw) => draw.show(ui),
                             TabContent::Markdown(md) => {
                                 let resp = md.show(ui);
-                                if resp.text_updated {
+                                // The editor signals a text change when the buffer is initially
+                                // loaded. Since we use that signal to trigger saves, we need to
+                                // check that this change was not from the initial frame.
+                                if resp.text_updated && md.past_first_frame() {
                                     tab.last_changed = Instant::now();
                                 }
                             }
@@ -284,8 +287,10 @@ impl super::AccountScreen {
 
     pub fn save_tab(&self, i: usize) {
         if let Some(tab) = self.workspace.tabs.get(i) {
-            if let Some(save_req) = tab.make_save_request() {
-                self.save_req_tx.send(save_req).unwrap();
+            if tab.is_dirty() {
+                if let Some(save_req) = tab.make_save_request() {
+                    self.save_req_tx.send(save_req).unwrap();
+                }
             }
         }
     }

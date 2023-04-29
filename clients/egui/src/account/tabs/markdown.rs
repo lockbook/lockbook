@@ -15,6 +15,10 @@ impl Markdown {
         Box::new(Self { editor })
     }
 
+    pub fn past_first_frame(&self) -> bool {
+        self.editor.debug.frame_count > 1
+    }
+
     pub fn show(&mut self, ui: &mut egui::Ui) -> EditorResponse {
         ui.vertical(|ui| self.editor.scroll_ui(ui)).inner
     }
