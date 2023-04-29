@@ -42,11 +42,6 @@ pub struct AccountScreen {
     shutdown: Option<AccountShutdownProgress>,
 }
 
-#[derive(Default)]
-struct AccountShutdownProgress {
-    done_saving: bool,
-}
-
 impl AccountScreen {
     pub fn new(
         settings: Arc<RwLock<Settings>>, core: Arc<lb::Core>, acct_data: AccountScreenInitData,
@@ -654,6 +649,11 @@ impl From<SyncUpdate> for AccountUpdate {
     fn from(v: SyncUpdate) -> Self {
         Self::SyncUpdate(v)
     }
+}
+
+#[derive(Default)]
+struct AccountShutdownProgress {
+    done_saving: bool,
 }
 
 fn is_supported_image_fmt(ext: &str) -> bool {

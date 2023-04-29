@@ -110,8 +110,7 @@ impl eframe::App for Lockbook {
                     ctx.request_repaint();
                 }
             }
-            //
-            //
+            // On the account screen, we're just waiting for it to gracefully shutdown.
             Self::Account(screen) => {
                 screen.update(ctx, frame);
                 if screen.is_shutdown() {
