@@ -142,14 +142,16 @@ impl AccountScreen {
                         }
                     }
                 }
-                AccountUpdate::SaveResult(id, result) => match result {
-                    Ok(time_saved) => {
-                        if let Some(tab) = self.workspace.get_mut_tab_by_id(id) {
-                            tab.last_saved = time_saved;
+                AccountUpdate::SaveResult(id, result) => {
+                    if let Some(tab) = self.workspace.get_mut_tab_by_id(id) {
+                        match result {
+                            Ok(time_saved) => tab.last_saved = time_saved,
+                            Err(err) => {
+                                tab.failure = Some(TabFailure::Unexpected(format!("{:?}", err)))
+                            }
                         }
                     }
-                    Err(_err) => {}
-                },
+                }
                 AccountUpdate::OpenModal(open_modal) => match open_modal {
                     OpenModal::NewDoc(maybe_parent) => self.open_new_doc_modal(maybe_parent),
                     OpenModal::NewFolder(maybe_parent) => self.open_new_folder_modal(maybe_parent),
