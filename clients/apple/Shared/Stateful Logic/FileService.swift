@@ -7,7 +7,7 @@ class FileService: ObservableObject {
 
     @Published var root: File? = nil
     @Published var idsAndFiles: [UUID:File] = [:]
-    @Published var suggestedDocs: [File] = []
+    @Published var suggestedDocs: [File]? = nil
     var files: [File] {
         get {
             Array(idsAndFiles.values)
@@ -233,12 +233,23 @@ class FileService: ObservableObject {
         return pathToRoot
     }
     
-    func suggestedDocs(maxCount: Int) {
+    func suggestedDocs(maxCount: Int = 4) {
         DispatchQueue.global(qos: .userInitiated).async {
             switch self.core.suggestedDocs() {
             case .success(let ids):
+                var suggestedDocs: [File] = []
+                    
+                for id in ids.filter({ self.idsAndFiles[$0] != nil }).prefix(maxCount) {
+                    switch self.core.getFileById(id: id) {
+                    case .success(let meta):
+                        suggestedDocs.append(meta)
+                    case .failure(let error):
+                        DI.errors.handleError(error)
+                    }
+                }
+                    
                 DispatchQueue.main.async {
-                    self.suggestedDocs = Array(ids.filter{ self.idsAndFiles[$0] != nil }.map { self.idsAndFiles[$0]! }.prefix(maxCount))
+                    self.suggestedDocs = suggestedDocs
                 }
             case .failure(let error):
                 DI.errors.handleError(error)
@@ -254,7 +265,7 @@ class FileService: ObservableObject {
                 switch allFiles {
                 case .success(let files):
                     self.idsAndFiles = Dictionary(uniqueKeysWithValues: files.map { ($0.id, $0) })
-                    self.suggestedDocs(maxCount: 5)
+                    self.suggestedDocs()
                     self.files.forEach {
                         self.notifyDocumentChanged($0)
                         if self.root == nil && $0.id == $0.parent {

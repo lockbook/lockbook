@@ -71,16 +71,31 @@ struct FileTreeView: View {
                     }
             }
         }
-        
+        .onChange(of: currentDoc.selectedDocument) { _ in
+            DI.files.suggestedDocs()
+        }
     }
     
     var mainView: some View {
-        VStack {
-            if files.parent?.isRoot == true {
-                SuggestedDocs(isiOS: false)
+        List {
+            if files.suggestedDocs?.isEmpty != true {
+                Section(header: Text("Suggested")
+                    .bold()
+                    .foregroundColor(.primary)
+                    .textCase(.none)
+                    .font(.headline)
+                    .padding(.bottom, 3)) {
+                    SuggestedDocs(isiOS: false)
+                            .padding(.leading, 7)
+                }
+                    .listRowSeparator(.hidden)
             }
             
-            OutlineSection(root: currentFolder)
+            Section {
+                OutlineSection(root: currentFolder)
+            }
+            .listRowSeparator(.hidden)
         }
+        .listStyle(.plain)
     }
 }

@@ -1,5 +1,6 @@
 import Combine
 import SwiftLockbookCore
+import Foundation
 
 class BranchState: ObservableObject {
     @Published var open: Bool

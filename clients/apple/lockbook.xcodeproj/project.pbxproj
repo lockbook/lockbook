@@ -14,6 +14,8 @@
 		4709DC3E2966260500426106 /* AcceptShareSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4709DC3D2966260500426106 /* AcceptShareSheet.swift */; };
 		4709DC3F2966260500426106 /* AcceptShareSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4709DC3D2966260500426106 /* AcceptShareSheet.swift */; };
 		47159F4629CFA05B00969DDF /* DSFQuickActionBar in Frameworks */ = {isa = PBXBuildFile; productRef = 47159F4529CFA05B00969DDF /* DSFQuickActionBar */; };
+		471E363329FD5EF300A1958A /* SuggestedDocs.swift in Sources */ = {isa = PBXBuildFile; fileRef = 471E363229FD5EF300A1958A /* SuggestedDocs.swift */; };
+		471E363529FD5F5C00A1958A /* FileListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8741E8F925ACBCF9005B7B01 /* FileListView.swift */; };
 		473A3DCE29AC354B0017BC6A /* FilePathBreadcrumb.swift in Sources */ = {isa = PBXBuildFile; fileRef = 473A3DCD29AC354B0017BC6A /* FilePathBreadcrumb.swift */; };
 		476436CC29B7DE4E00FBDC59 /* SearchService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 476436CB29B7DE4E00FBDC59 /* SearchService.swift */; };
 		476436CD29B7DE4E00FBDC59 /* SearchService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 476436CB29B7DE4E00FBDC59 /* SearchService.swift */; };
@@ -29,7 +31,6 @@
 		47B53839290EFE150012E542 /* BillingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47B53837290EFE150012E542 /* BillingService.swift */; };
 		47B67289295F977C00DB0D8E /* ManageSubscriptionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47B67288295F977C00DB0D8E /* ManageSubscriptionView.swift */; };
 		47B83A1C29EFAA04004514C6 /* SuggestedDocs.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47B83A1B29EFAA04004514C6 /* SuggestedDocs.swift */; };
-		47B83A1D29EFAA04004514C6 /* SuggestedDocs.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47B83A1B29EFAA04004514C6 /* SuggestedDocs.swift */; };
 		47FAA4C829EC830600DB606E /* BranchState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47FAA4C729EC830600DB606E /* BranchState.swift */; };
 		47FAA4C929EC830600DB606E /* BranchState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47FAA4C729EC830600DB606E /* BranchState.swift */; };
 		5036A0B7393E8C43AAF095A2 /* LBDrawingPKDrawingConversions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5036ACCA149F0864585B7D44 /* LBDrawingPKDrawingConversions.swift */; };
@@ -54,7 +55,6 @@
 		873559BE26C31210008B3C36 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 873559BD26C31210008B3C36 /* SettingsView.swift */; };
 		8737B2BE25D83EE600C93E09 /* DrawingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8737B2BD25D83EE600C93E09 /* DrawingView.swift */; };
 		8741E8E425AAA524005B7B01 /* BottomBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8741E8E325AAA524005B7B01 /* BottomBar.swift */; };
-		8741E8FA25ACBCF9005B7B01 /* FileListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8741E8F925ACBCF9005B7B01 /* FileListView.swift */; };
 		874A88F526D3E91900F010C8 /* DI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 874A88F426D3E91900F010C8 /* DI.swift */; };
 		874A88F626D3E91900F010C8 /* DI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 874A88F426D3E91900F010C8 /* DI.swift */; };
 		874A88F826D5453C00F010C8 /* ToolbarModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 874A88F726D5453C00F010C8 /* ToolbarModel.swift */; };
@@ -146,6 +146,7 @@
 		1F7E4FBE2521297D0045F606 /* Colors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Colors.swift; sourceTree = "<group>"; };
 		4709DC37296609F100426106 /* PendingSharesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PendingSharesView.swift; sourceTree = "<group>"; };
 		4709DC3D2966260500426106 /* AcceptShareSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AcceptShareSheet.swift; sourceTree = "<group>"; };
+		471E363229FD5EF300A1958A /* SuggestedDocs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SuggestedDocs.swift; sourceTree = "<group>"; };
 		473A3DCD29AC354B0017BC6A /* FilePathBreadcrumb.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilePathBreadcrumb.swift; sourceTree = "<group>"; };
 		4741C7902939C9220073F24F /* Products.storekit */ = {isa = PBXFileReference; lastKnownFileType = text; path = Products.storekit; sourceTree = "<group>"; };
 		476436CB29B7DE4E00FBDC59 /* SearchService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SearchService.swift; path = "Shared/Stateful Logic/SearchService.swift"; sourceTree = SOURCE_ROOT; };
@@ -462,6 +463,7 @@
 				EA5C7D792516606100F7F358 /* Info.plist */,
 				EA5C7D7A2516606100F7F358 /* macOS.entitlements */,
 				B273394E26C8B3EF00303EAE /* Media.xcassets */,
+				471E363229FD5EF300A1958A /* SuggestedDocs.swift */,
 			);
 			path = macOS;
 			sourceTree = "<group>";
@@ -720,7 +722,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				47B83A1D29EFAA04004514C6 /* SuggestedDocs.swift in Sources */,
+				471E363329FD5EF300A1958A /* SuggestedDocs.swift in Sources */,
 				47B67289295F977C00DB0D8E /* ManageSubscriptionView.swift in Sources */,
 				877FB55E26D1B8A10008AB3F /* LBDrawingPKDrawingConversions.swift in Sources */,
 				87BD383926C020B00030D2B1 /* SettingsService.swift in Sources */,
@@ -750,9 +752,9 @@
 				EAEDCD0C2516FC1C00EBE313 /* BookView.swift in Sources */,
 				4772A43B29E8656A0032D586 /* SearchWrapperView.swift in Sources */,
 				87F78F7B27094A040001E159 /* BeforeYouStart.swift in Sources */,
+				471E363529FD5F5C00A1958A /* FileListView.swift in Sources */,
 				EA5C7D7C2516606100F7F358 /* LockbookApp.swift in Sources */,
 				B249B9F2282C6241004F5300 /* FileTreeView.swift in Sources */,
-				8741E8FA25ACBCF9005B7B01 /* FileListView.swift in Sources */,
 				B2ED84982835508100577A1B /* CurrentDocument.swift in Sources */,
 				B2459BEB28DBAFB800756D71 /* ManageSubscription.swift in Sources */,
 				4709DC39296609F100426106 /* PendingSharesView.swift in Sources */,

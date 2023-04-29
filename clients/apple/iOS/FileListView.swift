@@ -23,7 +23,6 @@ struct FileListView: View {
                     searchInput: $searchInput,
                     mainView: mainView,
                     isiOS: true)
-                
                 .searchable(text: $searchInput, prompt: "Search")
                     
                 FilePathBreadcrumb()
@@ -55,11 +54,18 @@ struct FileListView: View {
     
     var mainView: some View {
         List {
-            Section("Suggested") {
-                SuggestedDocs(isiOS: true)
+            if fileService.parent?.isRoot == true && fileService.suggestedDocs?.isEmpty != true {
+                Section(header: Text("Suggested")
+                    .bold()
+                    .foregroundColor(.primary)
+                    .textCase(.none)
+                    .font(.headline)
+                    .padding(.bottom, 3)) {
+                        SuggestedDocs(isiOS: true)
+                    }
             }
-//
-            Section("Files") {
+
+            Section {
                 ForEach(fileService.childrenOfParent()) { meta in
                     FileCell(meta: meta)
                 }

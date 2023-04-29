@@ -13,7 +13,7 @@ use lockbook_core::{
     Config, FileType, ImportStatus, ShareMode, SupportedImageFormats, UnexpectedError, Uuid,
 };
 
-use crate::{get_all_error_variants, json_interface::translate, RankingWeights, static_state};
+use crate::{get_all_error_variants, json_interface::translate, static_state, RankingWeights};
 
 fn c_string(value: String) -> *const c_char {
     CString::new(value)

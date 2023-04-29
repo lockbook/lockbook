@@ -29,7 +29,8 @@ struct FileListView: View {
     
     var mainView: some View {
         VStack {
-            SuggestedDocumentsView()
+            SuggestedDocs()
+            
             fileTreeView
         }
     }
@@ -65,59 +66,11 @@ struct FileListView: View {
             if treeBranchState.open {
                 FileTreeView(expandedFolders: $expandedFolders, lastOpenDoc: $lastOpenDoc)
                     .padding(.leading, 4)
+                Spacer()
             } else {
                 Spacer()
             }
         }
-    }
-}
-
-struct SuggestedDocumentsView: View {
-    @StateObject var suggestedDocsBranchState: BranchState = BranchState(open: false)
-    
-    @EnvironmentObject var current: CurrentDocument
-    @EnvironmentObject var fileService: FileService
-    
-    var body: some View {
-        Group {
-            Button(action: {
-                withAnimation {
-                    suggestedDocsBranchState.open.toggle()
-                }
-            }) {
-                HStack {
-                    Text("Suggested")
-                        .bold()
-                        .foregroundColor(.gray)
-                        .font(.subheadline)
-                    Spacer()
-                    if suggestedDocsBranchState.open {
-                        Image(systemName: "chevron.down")
-                            .foregroundColor(.gray)
-                            .imageScale(.small)
-                    } else {
-                        Image(systemName: "chevron.right")
-                            .foregroundColor(.gray)
-                            .imageScale(.small)
-                    }
-                }
-                .padding(.horizontal)
-                .contentShape(Rectangle())
-            }
-            
-            if suggestedDocsBranchState.open {
-                if !fileService.suggestedDocs.isEmpty {
-                    ForEach(fileService.suggestedDocs, id: \.id) { meta in
-                        Button(action: {
-                            current.selectedDocument = meta
-                        }) {
-                            macOSSuggestedDocCell(name: meta.name, duration: meta.lastModified)
-                        }
-                    }
-                }
-            }
-        }
-
     }
 }
 
@@ -161,6 +114,9 @@ struct DetailView: View {
                     search.submitSearch(id: submittedId)
                 }
             }
+        }
+        .onChange(of: currentSelection.selectedDocument) { _ in
+            DI.files.suggestedDocs()
         }
     }
 }
@@ -239,33 +195,3 @@ struct SearchResultCellView: View {
         }
     }
 }
-
-struct macOSSuggestedDocCell: View {
-    let name: String
-    let duration: UInt64
-    
-    var body: some View {
-        HStack {
-            Image(systemName: "doc.circle")
-                .resizable()
-                .scaledToFill()
-                .frame(width: 21, height: 21)
-                .foregroundColor(.accentColor)
-            
-            VStack(alignment: .leading) {
-                Text(name)
-                    .font(.callout)
-                
-                Text(timeAgo(epoch: duration))
-                    .foregroundColor(.gray)
-                    .font(.callout)
-            }
-            .padding(.leading, 5)
-            
-            Spacer()
-        }
-        .padding(.horizontal)
-        .contentShape(Rectangle()) /// https://stackoverflow.com/questions/57258371/swiftui-increase-tap-drag-area-for-user-interaction
-    }
-}
-
