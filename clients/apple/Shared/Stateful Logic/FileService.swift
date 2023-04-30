@@ -234,23 +234,19 @@ class FileService: ObservableObject {
     }
     
     func refreshSuggestedDocs() {
-        #if os(iOS)
-        let maxCount = 8
-        #elseif os(macOS)
-        let maxCount = 4
-        #endif
-        
         DispatchQueue.global(qos: .userInitiated).async {
             switch self.core.suggestedDocs() {
             case .success(let ids):
                 var suggestedDocs: [File] = []
                     
-                for id in ids.filter({ self.idsAndFiles[$0] != nil }).prefix(maxCount) {
+                for id in ids.filter({ self.idsAndFiles[$0] != nil }) {
                     switch self.core.getFileById(id: id) {
                     case .success(let meta):
                         suggestedDocs.append(meta)
                     case .failure(let error):
-                        DI.errors.handleError(error)
+                        if error.kind != .UiError(.NoFileWithThatId) {
+                            DI.errors.handleError(error)
+                        }
                     }
                 }
                     

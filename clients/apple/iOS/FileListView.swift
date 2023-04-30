@@ -65,7 +65,12 @@ struct FileListView: View {
                     }
             }
 
-            Section {
+            Section(header: Text("Files")
+                .bold()
+                .foregroundColor(.primary)
+                .textCase(.none)
+                .font(.headline)
+                .padding(.bottom, 3)) {
                 ForEach(fileService.childrenOfParent()) { meta in
                     FileCell(meta: meta)
                 }

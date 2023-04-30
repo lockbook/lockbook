@@ -8,7 +8,7 @@ struct FileListView: View {
     @State var expandedFolders: [File] = []
     @State var lastOpenDoc: File? = nil
     
-    @StateObject var treeBranchState: BranchState = BranchState(open: true)
+    @State var treeBranchState: Bool = true
         
     var body: some View {
         VStack {
@@ -30,7 +30,7 @@ struct FileListView: View {
     var mainView: some View {
         VStack {
             SuggestedDocs()
-            
+
             fileTreeView
         }
     }
@@ -39,7 +39,7 @@ struct FileListView: View {
         Group {
             Button(action: {
                 withAnimation {
-                    treeBranchState.open.toggle()
+                    treeBranchState.toggle()
                 }
             }) {
                 HStack {
@@ -48,7 +48,7 @@ struct FileListView: View {
                         .foregroundColor(.gray)
                         .font(.subheadline)
                     Spacer()
-                    if treeBranchState.open {
+                    if treeBranchState {
                         Image(systemName: "chevron.down")
                             .foregroundColor(.gray)
                             .imageScale(.small)
@@ -63,7 +63,7 @@ struct FileListView: View {
                 .contentShape(Rectangle())
             }
             
-            if treeBranchState.open {
+            if treeBranchState {
                 FileTreeView(expandedFolders: $expandedFolders, lastOpenDoc: $lastOpenDoc)
                     .padding(.leading, 4)
                 Spacer()

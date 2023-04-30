@@ -2,7 +2,6 @@ import Foundation
 import CLockbookCore
 
 public struct CoreApi: LockbookApi {
-
     var documentsDirectory: String
     
     public init(_ documentsDirectory: String, logs: Bool) {
@@ -169,5 +168,14 @@ public struct CoreApi: LockbookApi {
     
     public func suggestedDocs() -> FfiResult<[UUID], SuggestedDocsError> {
         fromPrimitiveResult(result: suggested_docs())
+    }
+    
+    public func timeAgo(timeStamp: Int64) -> String {
+        let msgPointer = time_ago(timeStamp)
+        
+        let msg = String(cString: msgPointer!)
+        release_pointer(UnsafeMutablePointer(mutating: msgPointer))
+        
+        return msg
     }
 }

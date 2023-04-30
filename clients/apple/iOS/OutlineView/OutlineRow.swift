@@ -23,7 +23,7 @@ struct OutlineRow: View {
     var body: some View {
         HStack {
             
-            Image(systemName: file.fileType == .Folder ? "folder.fill" : "doc")
+            Image(systemName: file.fileType == .Folder ? "folder.fill" : documentExtensionToImage(name: file.name))
                 .resizable()
                 .scaledToFit()
                 .frame(width: 16, height: 16)

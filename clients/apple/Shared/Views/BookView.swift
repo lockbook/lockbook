@@ -62,7 +62,7 @@ struct BookView: View {
                     ToolbarItemGroup {
                         NavigationLink(
                             destination: PendingSharesView()) {
-                                Image(systemName: "person.3.fill").foregroundColor(.blue)
+                                Image(systemName: "person.2.fill").foregroundColor(.blue)
                             }
                         
                         NavigationLink(

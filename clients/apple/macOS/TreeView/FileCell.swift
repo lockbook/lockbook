@@ -17,13 +17,7 @@ class FileItemView: NSTableCellView {
         if file.fileType == .Document {
             let image: NSImage
             
-            if file.name.hasSuffix(".md") {
-                image = NSImage(systemSymbolName: "doc.plaintext", accessibilityDescription: nil)!
-            } else if file.name.hasSuffix(".draw") {
-                image = NSImage(systemSymbolName: "doc.richtext", accessibilityDescription: nil)!
-            } else {
-                image = NSImage(systemSymbolName: "doc", accessibilityDescription: nil)!
-            }
+            image = NSImage(systemSymbolName: documentExtensionToImage(name: file.name), accessibilityDescription: nil)!
             
             image.isTemplate = true
             imageView = NSImageView(image: image)
@@ -53,5 +47,15 @@ class FileItemView: NSTableCellView {
 
     required init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
+    }
+}
+
+func documentExtensionToImage(name: String) -> String {
+    if name.hasSuffix(".md") {
+        return "doc.plaintext"
+    } else if name.hasSuffix(".draw") {
+        return "doc.richtext"
+    } else {
+        return "doc"
     }
 }

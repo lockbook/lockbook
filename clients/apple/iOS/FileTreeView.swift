@@ -59,7 +59,7 @@ struct FileTreeView: View {
             ToolbarItemGroup(placement: .navigationBarTrailing) {
                 NavigationLink(
                     destination: PendingSharesView()) {
-                        Image(systemName: "person.3.fill")
+                        Image(systemName: "person.2.fill")
                             .foregroundColor(.blue)
                     }
                     
@@ -86,12 +86,16 @@ struct FileTreeView: View {
                     .font(.headline)
                     .padding(.bottom, 3)) {
                     SuggestedDocs(isiOS: false)
-                            .padding(.leading, 7)
                 }
                     .listRowSeparator(.hidden)
             }
             
-            Section {
+            Section(header: Text("Files")
+                .bold()
+                .foregroundColor(.primary)
+                .textCase(.none)
+                .font(.headline)
+                .padding(.bottom, 3)) {
                 OutlineSection(root: currentFolder)
             }
             .listRowSeparator(.hidden)
