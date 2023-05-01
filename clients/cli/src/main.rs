@@ -23,7 +23,7 @@ const ID_PREFIX_LEN: usize = 8;
 #[command(version, about)]
 enum LbCli {
     /// account related commands
-    #[command(subcommand)]
+    #[command(subcommand, alias("acct"))]
     Account(account::AccountCmd),
     /// import files from your file system into lockbook
     Copy {
@@ -36,6 +36,7 @@ enum LbCli {
     #[command(subcommand)]
     Debug(debug::DebugCmd),
     /// delete a file
+    #[command(alias("rm"))]
     Delete {
         /// lockbook file path or ID
         target: String,
@@ -55,8 +56,10 @@ enum LbCli {
         dest: Option<PathBuf>,
     },
     /// list files and file information
+    #[command(alias("ls"))]
     List(list::ListArgs),
     /// move a file to a new parent
+    #[command(alias("mv"))]
     Move {
         /// lockbook file path or ID of the file to move
         src_target: String,
