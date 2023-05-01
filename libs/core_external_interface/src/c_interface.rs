@@ -1,3 +1,4 @@
+use basic_human_duration::ChronoHumanDuration;
 use crossbeam::channel::Sender;
 use lazy_static::lazy_static;
 use std::ffi::{CStr, CString};
@@ -7,13 +8,14 @@ use std::sync::{Arc, Mutex};
 
 use serde::Serialize;
 use serde_json::json;
+use time::Duration;
 
 use lockbook_core::service::search_service::{SearchRequest, SearchResult};
 use lockbook_core::{
-    Config, FileType, ImportStatus, ShareMode, SupportedImageFormats, UnexpectedError, Uuid,
+    clock, Config, FileType, ImportStatus, ShareMode, SupportedImageFormats, UnexpectedError, Uuid,
 };
 
-use crate::{get_all_error_variants, json_interface::translate, static_state};
+use crate::{get_all_error_variants, json_interface::translate, static_state, RankingWeights};
 
 fn c_string(value: String) -> *const c_char {
     CString::new(value)
@@ -623,6 +625,31 @@ pub unsafe extern "C" fn search(query: *const c_char) -> *const c_char {
 #[no_mangle]
 pub unsafe extern "C" fn end_search() -> *const c_char {
     send_search_request(SearchRequest::EndSearch)
+}
+
+/// # Safety
+///
+/// Be sure to call `release_pointer` on the result of this function to free the data.
+#[no_mangle]
+pub unsafe extern "C" fn suggested_docs() -> *const c_char {
+    c_string(match static_state::get() {
+        Ok(core) => translate(core.suggested_docs(RankingWeights::default())),
+        e => translate(e.map(|_| ())),
+    })
+}
+
+/// # Safety
+///
+/// Be sure to call `release_pointer` on the result of this function to free the data.
+#[no_mangle]
+pub unsafe extern "C" fn time_ago(time_stamp: i64) -> *const c_char {
+    c_string(if time_stamp != 0 {
+        Duration::milliseconds(clock::get_time().0 - time_stamp)
+            .format_human()
+            .to_string()
+    } else {
+        "never".to_string()
+    })
 }
 
 // FOR INTEGRATION TESTS ONLY

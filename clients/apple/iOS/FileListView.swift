@@ -11,24 +11,20 @@ struct FileListView: View {
     @State var searchInput: String = ""
     
     var body: some View {
-        ZStack {
-            VStack {
-                if let newDoc = sheets.created, newDoc.fileType == .Document {
-                    NavigationLink(destination: DocumentView(meta: newDoc), isActive: Binding(get: { current.selectedDocument != nil }, set: { _ in current.selectedDocument = nil }) ) {
-                            EmptyView()
-                        }
+        VStack {
+            if let newDoc = sheets.created, newDoc.fileType == .Document {
+                NavigationLink(destination: DocumentView(meta: newDoc), isActive: Binding(get: { current.selectedDocument != nil }, set: { _ in current.selectedDocument = nil }) ) {
+                        EmptyView()
+                    }
                     .hidden()
                 }
-                
+                    
                 SearchWrapperView(
                     searchInput: $searchInput,
-                    mainView: List(fileService.childrenOfParent()) { meta in
-                        FileCell(meta: meta)
-                    },
+                    mainView: mainView,
                     isiOS: true)
-                .navigationBarTitle(fileService.parent.map{($0.name)} ?? "")
                 .searchable(text: $searchInput, prompt: "Search")
-                
+                    
                 FilePathBreadcrumb()
                     
                 HStack {
@@ -42,12 +38,11 @@ struct FileListView: View {
                 .onReceive(current.$selectedDocument) { _ in
                     print("cleared")
                     // When we return back to this screen, we have to change newFile back to nil regardless
-                    // of it's present value, otherwise we won't be able to navigate to new, new files
+                        // of it's present value, otherwise we won't be able to navigate to new, new files
                     if current.selectedDocument == nil {
                         sheets.created = nil
                     }
                 }
-            }
         }
         .gesture(
             DragGesture().onEnded({ (value) in
@@ -55,6 +50,33 @@ struct FileListView: View {
                     fileService.upADirectory()
                 }
             }))
+    }
+    
+    var mainView: some View {
+        List {
+            if fileService.parent?.isRoot == true && fileService.suggestedDocs?.isEmpty != true {
+                Section(header: Text("Suggested")
+                    .bold()
+                    .foregroundColor(.primary)
+                    .textCase(.none)
+                    .font(.headline)
+                    .padding(.bottom, 3)) {
+                        SuggestedDocs(isiOS: true)
+                    }
+            }
+
+            Section(header: Text("Files")
+                .bold()
+                .foregroundColor(.primary)
+                .textCase(.none)
+                .font(.headline)
+                .padding(.bottom, 3)) {
+                ForEach(fileService.childrenOfParent()) { meta in
+                    FileCell(meta: meta)
+                }
+            }
+        }
+        .navigationBarTitle(fileService.parent.map{($0.name)} ?? "")
     }
 }
 

@@ -30,6 +30,11 @@ class SyncService: ObservableObject {
         DI.status.checkForLocalWork()
     }
     
+    func foregroundSync() {
+        DI.files.refreshSuggestedDocs()
+        sync()
+    }
+    
     func postSyncSteps() {
         DI.files.refresh()
         DI.status.setLastSynced()
@@ -40,6 +45,7 @@ class SyncService: ObservableObject {
         if syncing {
             return
         }
+        
         if DI.accounts.account == nil {
             print("tried to sync before having an account, ignoring")
             return
@@ -48,8 +54,8 @@ class SyncService: ObservableObject {
         syncing = true
         
         DispatchQueue.global(qos: .userInteractive).async {
-                let result = self.core.syncAll()
-                
+            let result = self.core.syncAll()
+                        
                 DispatchQueue.main.async {
                     self.syncing = false
                     

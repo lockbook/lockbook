@@ -49,6 +49,10 @@ struct SearchWrapperView<Content: View>: View {
                                 SearchFileContentCell(name: name, path: path, paragraph: paragraph, matchedIndices: matchedIndices)
                             }
                         }
+                        
+#if os(macOS)
+                        Divider()
+#endif
                     }
                     .setiPadOrMacOSSearchListStyle()
                 } else {
@@ -99,6 +103,16 @@ extension List {
     }
 }
 
+extension VStack {
+    func setiOSOrMacOSSearchPadding() -> some View {
+        #if os(iOS)
+        self.padding(.vertical, 5)
+        #else
+        self
+        #endif
+    }
+}
+
 struct SearchFilePathCell: View {
     let name: String
     let path: String
@@ -133,8 +147,8 @@ struct SearchFilePathCell: View {
                     .font(.caption)
             }
         }
+            .setiOSOrMacOSSearchPadding()
             .contentShape(Rectangle()) /// https://stackoverflow.com/questions/57258371/swiftui-increase-tap-drag-area-for-user-interaction
-            .padding(.vertical, 5)
     }
     
     static func underlineMatchedSegments(name: String, path: String, matchedIndices: [Int]) -> (formattedName: Text, formattedPath: Text) {
@@ -220,8 +234,8 @@ struct SearchFileContentCell: View {
                 .font(.caption)
                 .lineLimit(nil)
         }
+        .setiOSOrMacOSSearchPadding()
         .contentShape(Rectangle()) /// https://stackoverflow.com/questions/57258371/swiftui-increase-tap-drag-area-for-user-interaction
-        .padding(.vertical, 5)
     }
     
     static func underlineMatchedSegments(path: String, paragraph: String, matchedIndices: [Int]) -> (formattedPath: Text, formattedParagraph: Text) {
@@ -259,3 +273,4 @@ struct SearchFileContentCell: View {
         return (formattedPath, formattedParagraph)
     }
 }
+

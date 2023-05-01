@@ -7,6 +7,7 @@ class FileService: ObservableObject {
 
     @Published var root: File? = nil
     @Published var idsAndFiles: [UUID:File] = [:]
+    @Published var suggestedDocs: [File]? = nil
     var files: [File] {
         get {
             Array(idsAndFiles.values)
@@ -17,6 +18,7 @@ class FileService: ObservableObject {
     // File Service keeps track of the parent being displayed on iOS. Since this functionality is not used for macOS, it is conditionally compiled.
 #if os(iOS)
     @Published var path: [File] = []
+
     var parent: File? {
         get {
             path.last
@@ -230,6 +232,32 @@ class FileService: ObservableObject {
 
         return pathToRoot
     }
+    
+    func refreshSuggestedDocs() {
+        DispatchQueue.global(qos: .userInitiated).async {
+            switch self.core.suggestedDocs() {
+            case .success(let ids):
+                var suggestedDocs: [File] = []
+                    
+                for id in ids.filter({ self.idsAndFiles[$0] != nil }) {
+                    switch self.core.getFileById(id: id) {
+                    case .success(let meta):
+                        suggestedDocs.append(meta)
+                    case .failure(let error):
+                        if error.kind != .UiError(.NoFileWithThatId) {
+                            DI.errors.handleError(error)
+                        }
+                    }
+                }
+                    
+                DispatchQueue.main.async {
+                    self.suggestedDocs = suggestedDocs
+                }
+            case .failure(let error):
+                DI.errors.handleError(error)
+            }
+        }
+    }
 
     func refresh() {
         DispatchQueue.global(qos: .userInteractive).async {
@@ -239,6 +267,7 @@ class FileService: ObservableObject {
                 switch allFiles {
                 case .success(let files):
                     self.idsAndFiles = Dictionary(uniqueKeysWithValues: files.map { ($0.id, $0) })
+                    self.refreshSuggestedDocs()
                     self.files.forEach {
                         self.notifyDocumentChanged($0)
                         if self.root == nil && $0.id == $0.parent {
