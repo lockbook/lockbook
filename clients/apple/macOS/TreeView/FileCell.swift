@@ -3,7 +3,7 @@ import SwiftLockbookCore
 
 class FileItemView: NSTableCellView {
     init(file: File) {
-        let field = NSTextField(string: file.name)
+        let field = NSTextField(string: " \(file.name)")
         field.isEditable = false
         field.isSelectable = false
         field.isBezeled = false
@@ -15,10 +15,13 @@ class FileItemView: NSTableCellView {
         super.init(frame: .zero)
         var imageView: NSImageView
         if file.fileType == .Document {
-            let image = NSImage(systemSymbolName: "doc.fill", accessibilityDescription: nil)!
+            let image: NSImage
+            
+            image = NSImage(systemSymbolName: documentExtensionToImage(name: file.name), accessibilityDescription: nil)!
+            
             image.isTemplate = true
             imageView = NSImageView(image: image)
-            imageView.contentTintColor = .systemGray
+            imageView.contentTintColor = .systemBlue
         } else {
             let image = NSImage(systemSymbolName: "folder.fill", accessibilityDescription: nil)!
             image.isTemplate = true
@@ -44,5 +47,15 @@ class FileItemView: NSTableCellView {
 
     required init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
+    }
+}
+
+func documentExtensionToImage(name: String) -> String {
+    if name.hasSuffix(".md") {
+        return "doc.plaintext"
+    } else if name.hasSuffix(".draw") {
+        return "doc.richtext"
+    } else {
+        return "doc"
     }
 }

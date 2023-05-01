@@ -38,7 +38,7 @@ struct PendingSharesView: View {
     var noPendingShares: some View {
         VStack {
             Spacer()
-            Image(systemName: "shared.with.you.slash")
+            Image(systemName: "person.2.slash")
                 .padding(.vertical, 5)
                 .imageScale(.large)
             Text("You have no pending shares.")

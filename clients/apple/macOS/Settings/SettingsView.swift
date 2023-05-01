@@ -30,7 +30,7 @@ struct SettingsView: View {
                 
                 PendingSharesView()
                     .tabItem {
-                        Label("Pending Shares", systemImage: "shared.with.you")
+                        Label("Pending Shares", systemImage: "person.2.fill")
                     }
             }
             .padding(20)

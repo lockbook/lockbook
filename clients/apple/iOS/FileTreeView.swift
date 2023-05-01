@@ -19,7 +19,7 @@ struct FileTreeView: View {
         VStack {
             SearchWrapperView(
                 searchInput: $searchInput,
-                mainView: OutlineSection(root: currentFolder),
+                mainView: mainView,
                 isiOS: false)
             .searchable(text: $searchInput, placement: .navigationBarDrawer(displayMode: .automatic), prompt: "Search")
 
@@ -59,7 +59,7 @@ struct FileTreeView: View {
             ToolbarItemGroup(placement: .navigationBarTrailing) {
                 NavigationLink(
                     destination: PendingSharesView()) {
-                        Image(systemName: "person.3.fill")
+                        Image(systemName: "person.2.fill")
                             .foregroundColor(.blue)
                     }
                     
@@ -71,6 +71,35 @@ struct FileTreeView: View {
                     }
             }
         }
-        
+        .onChange(of: currentDoc.selectedDocument) { _ in
+            DI.files.refreshSuggestedDocs()
+        }
+    }
+    
+    var mainView: some View {
+        List {
+            if files.suggestedDocs?.isEmpty != true {
+                Section(header: Text("Suggested")
+                    .bold()
+                    .foregroundColor(.primary)
+                    .textCase(.none)
+                    .font(.headline)
+                    .padding(.bottom, 3)) {
+                    SuggestedDocs(isiOS: false)
+                }
+                    .listRowSeparator(.hidden)
+            }
+            
+            Section(header: Text("Files")
+                .bold()
+                .foregroundColor(.primary)
+                .textCase(.none)
+                .font(.headline)
+                .padding(.bottom, 3)) {
+                OutlineSection(root: currentFolder)
+            }
+            .listRowSeparator(.hidden)
+        }
+        .listStyle(.plain)
     }
 }

@@ -26,7 +26,7 @@ import AppKit
                     DI.sync.sync()
                 }
                 .onForeground {
-                    DI.sync.sync()
+                    DI.sync.foregroundSync()
                 }
         }.commands {
             CommandGroup(replacing: CommandGroupPlacement.newItem) {
