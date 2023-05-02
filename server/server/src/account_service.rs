@@ -134,6 +134,12 @@ pub async fn get_usage(
     let db = lock.deref_mut();
 
     let cap = get_cap(db, &context.public_key)?;
+    let owned_files = db
+        .owned_files
+        .data()
+        .get(&Owner(context.public_key))
+        .ok_or(GetUsageHelperError::UserNotFound)?
+        .clone();
 
     let mut tree = ServerTree::new(
         Owner(context.public_key),
@@ -144,7 +150,7 @@ pub async fn get_usage(
     )?
     .to_lazy();
 
-    let usages = get_usage_helper(&mut tree, db.sizes.data())?;
+    let usages = get_usage_helper(&mut tree, db.sizes.data(), &owned_files)?;
     Ok(GetUsageResponse { usages, cap })
 }
 
@@ -154,28 +160,16 @@ pub enum GetUsageHelperError {
 }
 
 pub fn get_usage_helper<T>(
-    tree: &mut LazyTree<T>, sizes: &HashMap<Uuid, u64>,
+    tree: &mut LazyTree<T>, sizes: &HashMap<Uuid, u64>, owned_files: &HashSet<Uuid>,
 ) -> Result<Vec<FileUsage>, GetUsageHelperError>
 where
     T: TreeLike,
 {
-    let ids = tree.owned_ids();
-    let root = ids
-        .iter()
-        .find(|file_id| match tree.find(file_id) {
-            Ok(f) => f.is_root(),
-            Err(_) => false,
-        })
-        .ok_or(GetUsageHelperError::UserNotFound)?;
-
-    let result = ids
+    let result = tree
+        .owned_ids()
         .iter()
         .filter_map(|&file_id| {
-            if let Ok(file) = tree.find(&file_id) {
-                if file.owner() != tree.find(root).unwrap().owner() {
-                    return None;
-                }
-            } else {
+            if !owned_files.contains(&file_id) {
                 return None;
             }
 
@@ -361,6 +355,13 @@ pub async fn admin_get_account_info(
             }
         });
 
+    let owned_files = db
+        .owned_files
+        .data()
+        .get(&Owner(context.public_key))
+        .ok_or(ClientError(AdminGetAccountInfoError::UserNotFound))?
+        .clone();
+
     let mut tree = ServerTree::new(
         owner,
         &mut db.owned_files,
@@ -370,7 +371,7 @@ pub async fn admin_get_account_info(
     )?
     .to_lazy();
 
-    let usage: u64 = get_usage_helper(&mut tree, db.sizes.data())
+    let usage: u64 = get_usage_helper(&mut tree, db.sizes.data(), &owned_files)
         .map_err(|err| internal!("Cannot find user's usage, owner: {:?}, err: {:?}", owner, err))?
         .iter()
         .map(|a| a.size_bytes)

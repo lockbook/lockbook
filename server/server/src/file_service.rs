@@ -1,4 +1,4 @@
-use crate::account_service::{get_cap, get_usage_helper, is_admin};
+use crate::account_service::{get_cap, get_usage_helper, is_admin, GetUsageHelperError};
 use crate::file_service::UpsertError::UsageIsOverDataCap;
 use crate::schema::ServerDb;
 use crate::ServerError;
@@ -35,6 +35,12 @@ pub async fn upsert_file_metadata(
         let tx = db.begin_transaction()?;
 
         let usage_cap = get_cap(db, &context.public_key).unwrap_or_default();
+        let owned_files = db
+            .owned_files
+            .data()
+            .get(&Owner(context.public_key))
+            .ok_or(ClientError(UpsertError::UserNotFound))?
+            .clone();
 
         let mut tree = ServerTree::new(
             req_owner,
@@ -45,7 +51,7 @@ pub async fn upsert_file_metadata(
         )?
         .to_lazy();
 
-        let old_usage = get_usage_helper(&mut tree, db.sizes.data())
+        let old_usage = get_usage_helper(&mut tree, db.sizes.data(), &owned_files)
             .unwrap_or_default()
             .iter()
             .map(|f| f.size_bytes)
@@ -66,7 +72,7 @@ pub async fn upsert_file_metadata(
 
         tree.validate(req_owner)?;
 
-        let new_usage = get_usage_helper(&mut tree, db.sizes.data())
+        let new_usage = get_usage_helper(&mut tree, db.sizes.data(), &owned_files)
             .unwrap_or_default()
             .iter()
             .map(|f| f.size_bytes)
@@ -212,6 +218,13 @@ pub async fn change_doc(
             .ok_or(ClientError(DocumentNotFound))?
             .clone();
 
+        let owned_files = db
+            .owned_files
+            .data()
+            .get(&Owner(context.public_key))
+            .ok_or(ClientError(ChangeDocError::UserNotFound))?
+            .clone();
+
         let mut tree = ServerTree::new(
             owner,
             &mut db.owned_files,
@@ -221,8 +234,10 @@ pub async fn change_doc(
         )?
         .to_lazy();
 
-        let old_usage = get_usage_helper(&mut tree, db.sizes.data())
-            .unwrap_or_default()
+        let old_usage = get_usage_helper(&mut tree, db.sizes.data(), &owned_files)
+            .map_err(|err| match err {
+                GetUsageHelperError::UserNotFound => ClientError(UserNotFound),
+            })?
             .iter()
             .map(|f| f.size_bytes)
             .sum::<u64>();

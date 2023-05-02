@@ -65,7 +65,9 @@ const GOOGLE_PLAY_LABEL_NAME: &str = "google-play";
 const APP_STORE_LABEL_NAME: &str = "app-store";
 
 #[derive(Debug)]
-pub enum MetricsError {}
+pub enum MetricsError {
+    UserNotFound,
+}
 
 pub const TWO_DAYS_IN_MILLIS: u128 = 1000 * 60 * 60 * 24 * 2;
 
@@ -192,7 +194,10 @@ pub fn get_user_billing_info(
 pub fn get_user_info(
     db: &mut ServerDb, owner: Owner,
 ) -> Result<Option<UserInfo>, ServerError<MetricsError>> {
-    if db.owned_files.data().get(&owner).is_none() {
+    let owned_files;
+    if let Some(files) = db.owned_files.data().get(&owner) {
+        owned_files = files.clone();
+    } else {
         return Ok(None);
     }
 
@@ -237,7 +242,7 @@ pub fn get_user_info(
     let not_the_welcome_doc = last_seen_since_account_creation > delay_buffer_time;
     let is_user_active = not_the_welcome_doc && last_seen > time_two_days_ago;
 
-    let total_bytes: u64 = get_usage_helper(&mut tree, db.sizes.data())
+    let total_bytes: u64 = get_usage_helper(&mut tree, db.sizes.data(), &owned_files)
         .unwrap_or_default()
         .iter()
         .map(|f| f.size_bytes)

@@ -315,6 +315,7 @@ impl From<SharedError> for ServerError<UpsertError> {
             SharedErrorKind::OldVersionRequired => ClientError(OldVersionRequired),
             SharedErrorKind::InsufficientPermission => ClientError(NotPermissioned),
             SharedErrorKind::DiffMalformed => ClientError(DiffMalformed),
+            SharedErrorKind::UserNotFound => ClientError(UserNotFound),
             SharedErrorKind::HmacModificationInvalid => ClientError(HmacModificationInvalid),
             SharedErrorKind::DeletedFileUpdated(_) => ClientError(DeletedFileUpdated),
             SharedErrorKind::RootModificationInvalid => ClientError(RootModificationInvalid),
