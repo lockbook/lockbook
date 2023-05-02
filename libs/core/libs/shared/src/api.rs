@@ -86,8 +86,6 @@ pub enum UpsertError {
     /// Over the User's Tier Limit
     UsageIsOverDataCap,
 
-    UserNotFound,
-
     /// Other misc validation failures
     Validation(ValidationFailure),
 }
@@ -105,7 +103,6 @@ pub enum ChangeDocError {
     DocumentDeleted,
     NotPermissioned,
     OldVersionIncorrect,
-    UserNotFound,
     DiffMalformed,
     UsageIsOverDataCap,
 }
@@ -210,6 +207,7 @@ pub struct FileUsage {
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub enum GetUsageError {
     UserNotFound,
+    NoRootFile,
 }
 
 impl Request for GetUsageRequest {

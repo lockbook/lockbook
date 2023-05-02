@@ -75,7 +75,6 @@ pub enum SharedErrorKind {
     ParseError(libsecp256k1::Error),
     ShareNonexistent,
     DuplicateShare,
-    UserNotFound,
     SharedSecretUnexpectedSize,
     SharedSecretError(libsecp256k1::Error),
     ValidationFailure(ValidationFailure),
