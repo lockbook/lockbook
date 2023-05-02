@@ -207,7 +207,6 @@ pub struct FileUsage {
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub enum GetUsageError {
     UserNotFound,
-    NoRootFile,
 }
 
 impl Request for GetUsageRequest {
