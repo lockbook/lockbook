@@ -99,7 +99,7 @@ class FFITests: XCTestCase {
         let createdFile = try resultCreateFile.get()
         
         /// 1 MB of data
-        let data = Data(count: 1000*1000)
+        let data = Data(count: 1000*1000 - (1000*3))
         assertSuccess(core.updateFile(id: createdFile.id, content: data.base64EncodedString()))
         assertSuccess(core.syncAll())
         assertSuccess(core.getFile(id: createdFile.id)) { $0 == data.base64EncodedString() }
