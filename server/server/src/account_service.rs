@@ -143,7 +143,6 @@ pub async fn get_usage(
         &mut db.metas,
     )?
     .to_lazy();
-
     let usages = get_usage_helper(&mut tree, db.sizes.data())?;
     Ok(GetUsageResponse { usages, cap })
 }
@@ -155,24 +154,25 @@ pub enum GetUsageHelperError {
 
 pub fn get_usage_helper<T>(
     tree: &mut LazyTree<T>, sizes: &HashMap<Uuid, u64>,
-) -> Result<Vec<FileUsage>, GetUsageHelperError>
+) -> Result<Vec<FileUsage>, ServerError<GetUsageHelperError>>
 where
     T: TreeLike,
 {
     let ids = tree.owned_ids();
-    let root = ids
-        .iter()
-        .find(|file_id| match tree.find(file_id) {
-            Ok(f) => f.is_root(),
-            Err(_) => false,
-        })
-        .ok_or(GetUsageHelperError::UserNotFound)?;
+    let root = ids.iter().find(|file_id| match tree.find(file_id) {
+        Ok(f) => f.is_root(),
+        Err(_) => false,
+    });
+
+    if root.is_none() {
+        return Err(internal!("no root found, user is probably deleted"));
+    }
 
     let result = ids
         .iter()
         .filter_map(|&file_id| {
             if let Ok(file) = tree.find(&file_id) {
-                if file.owner() != tree.find(root).unwrap().owner() {
+                if file.owner() != tree.find(root.unwrap()).unwrap().owner() {
                     return None;
                 }
             } else {
@@ -190,12 +190,14 @@ where
     Ok(result)
 }
 
-pub fn get_cap(db: &ServerDb, public_key: &PublicKey) -> Result<u64, GetUsageHelperError> {
+pub fn get_cap(
+    db: &ServerDb, public_key: &PublicKey,
+) -> Result<u64, ServerError<GetUsageHelperError>> {
     Ok(db
         .accounts
         .data()
         .get(&Owner(*public_key))
-        .ok_or(GetUsageHelperError::UserNotFound)?
+        .ok_or(ServerError::ClientError(GetUsageHelperError::UserNotFound))?
         .billing_info
         .data_cap())
 }

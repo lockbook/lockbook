@@ -1,4 +1,4 @@
-use crate::account_service::{is_admin, GetUsageHelperError};
+use crate::account_service::is_admin;
 use crate::billing::app_store_model::{NotificationChange, Subtype};
 use crate::billing::billing_model::{
     AppStoreUserInfo, BillingPlatform, GooglePlayUserInfo, StripeUserInfo,
@@ -307,12 +307,7 @@ pub async fn cancel_subscription(
         )?
         .to_lazy();
 
-        let usage: u64 = account_service::get_usage_helper(&mut tree, db.sizes.data())
-            .map_err(|e| match e {
-                GetUsageHelperError::UserNotFound => {
-                    ClientError(CancelSubscriptionError::UserNotFound)
-                }
-            })?
+        let usage: u64 = account_service::get_usage_helper(&mut tree, db.sizes.data())?
             .iter()
             .map(|a| a.size_bytes)
             .sum();

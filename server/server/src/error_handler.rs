@@ -55,10 +55,24 @@ impl From<SharedError> for ServerError<GetUsageError> {
     }
 }
 
-impl From<GetUsageHelperError> for ServerError<GetUsageError> {
-    fn from(e: GetUsageHelperError) -> Self {
+impl From<ServerError<GetUsageHelperError>> for ServerError<GetUsageError> {
+    fn from(e: ServerError<GetUsageHelperError>) -> Self {
         match e {
-            GetUsageHelperError::UserNotFound => ClientError(GetUsageError::UserNotFound),
+            ServerError::ClientError(GetUsageHelperError::UserNotFound) => {
+                ClientError(GetUsageError::UserNotFound)
+            }
+            _ => internal!("{:?}", e),
+        }
+    }
+}
+
+impl From<ServerError<GetUsageHelperError>> for ServerError<CancelSubscriptionError> {
+    fn from(e: ServerError<GetUsageHelperError>) -> Self {
+        match e {
+            ServerError::ClientError(GetUsageHelperError::UserNotFound) => {
+                ClientError(CancelSubscriptionError::UserNotFound)
+            }
+            _ => internal!("{:?}", e),
         }
     }
 }
