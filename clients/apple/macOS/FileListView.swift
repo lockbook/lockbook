@@ -6,22 +6,71 @@ struct FileListView: View {
     
     @State var searchInput: String = ""
     @State var expandedFolders: [File] = []
+    @State var lastOpenDoc: File? = nil
     
+    @State var treeBranchState: Bool = true
+        
     var body: some View {
         VStack {
             SearchWrapperView(
                 searchInput: $searchInput,
-                mainView: FileTreeView(expandedFolders: $expandedFolders),
+                mainView: mainView,
                 isiOS: false)
             .searchable(text: $searchInput, prompt: "Search")
             .keyboardShortcut(.escape)
-            
+                
             VStack (spacing: 3) {
                 BottomBar()
             }
         }
-        
+            
         DetailView()
+    }
+    
+    var mainView: some View {
+        VStack {
+            SuggestedDocs()
+
+            fileTreeView
+        }
+    }
+    
+    var fileTreeView: some View {
+        Group {
+            Button(action: {
+                withAnimation {
+                    treeBranchState.toggle()
+                }
+            }) {
+                HStack {
+                    Text("Tree")
+                        .bold()
+                        .foregroundColor(.gray)
+                        .font(.subheadline)
+                    Spacer()
+                    if treeBranchState {
+                        Image(systemName: "chevron.down")
+                            .foregroundColor(.gray)
+                            .imageScale(.small)
+                    } else {
+                        Image(systemName: "chevron.right")
+                            .foregroundColor(.gray)
+                            .imageScale(.small)
+                    }
+                }
+                .padding(.top)
+                .padding(.horizontal)
+                .contentShape(Rectangle())
+            }
+            
+            if treeBranchState {
+                FileTreeView(expandedFolders: $expandedFolders, lastOpenDoc: $lastOpenDoc)
+                    .padding(.leading, 4)
+                Spacer()
+            } else {
+                Spacer()
+            }
+        }
     }
 }
 
@@ -65,6 +114,9 @@ struct DetailView: View {
                     search.submitSearch(id: submittedId)
                 }
             }
+        }
+        .onChange(of: currentSelection.selectedDocument) { _ in
+            DI.files.refreshSuggestedDocs()
         }
     }
 }

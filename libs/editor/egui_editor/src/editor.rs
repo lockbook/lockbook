@@ -1,4 +1,5 @@
 use egui::{Context, FontDefinitions, Ui, Vec2};
+use rand::Rng;
 
 use crate::appearance::Appearance;
 use crate::ast::Ast;
@@ -13,7 +14,12 @@ use crate::styles::StyleInfo;
 use crate::test_input::TEST_MARKDOWN;
 use crate::{ast, galleys, images, layouts, register_fonts, styles};
 
+pub struct EditorResponse {
+    pub text_updated: bool,
+}
+
 pub struct Editor {
+    pub id: u32,
     pub initialized: bool,
 
     // config
@@ -35,7 +41,9 @@ pub struct Editor {
 
 impl Default for Editor {
     fn default() -> Self {
+        let id: u32 = rand::thread_rng().gen();
         Self {
+            id,
             initialized: Default::default(),
 
             appearance: Default::default(),
@@ -61,7 +69,7 @@ impl Editor {
         });
     }
 
-    pub fn scroll_ui(&mut self, ui: &mut Ui) {
+    pub fn scroll_ui(&mut self, ui: &mut Ui) -> EditorResponse {
         let id = ui.auto_id_with("lbeditor");
         ui.memory_mut(|m| {
             if m.has_focus(id) {
@@ -69,10 +77,12 @@ impl Editor {
             }
         });
 
-        let sao = egui::ScrollArea::vertical().show(ui, |ui| {
-            ui.spacing_mut().item_spacing = Vec2::ZERO;
-            self.ui(ui, id);
-        });
+        let sao = egui::ScrollArea::vertical()
+            .id_source(self.id)
+            .show(ui, |ui| {
+                ui.spacing_mut().item_spacing = Vec2::ZERO;
+                self.ui(ui, id)
+            });
         let resp = ui.interact(sao.inner_rect, id, egui::Sense::click_and_drag());
         if let Some(pos) = resp.interact_pointer_pos() {
             if !ui.memory(|m| m.has_focus(id)) {
@@ -100,9 +110,11 @@ impl Editor {
         } else if resp.clicked_elsewhere() {
             ui.memory_mut(|m| m.surrender_focus(id));
         }
+
+        sao.inner
     }
 
-    pub fn ui(&mut self, ui: &mut Ui, id: egui::Id) {
+    pub fn ui(&mut self, ui: &mut Ui, id: egui::Id) -> EditorResponse {
         let ui_size = ui.available_rect_before_wrap().size();
 
         self.debug.frame_start();
@@ -187,6 +199,8 @@ impl Editor {
                 None,
             );
         }
+
+        EditorResponse { text_updated }
     }
 
     pub fn set_text(&mut self, new_text: String) {

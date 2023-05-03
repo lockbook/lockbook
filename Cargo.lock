@@ -1639,6 +1639,7 @@ dependencies = [
  "libc",
  "pollster",
  "pulldown-cmark",
+ "rand 0.8.5",
  "reqwest",
  "unicode-segmentation",
 ]
