@@ -12,7 +12,7 @@ class SettingsService: ObservableObject {
     let core: LockbookApi
     @Published var offline: Bool = false
     @Published var usages: PrerequisiteInformation?
-
+    
     var usageProgress: Double {
         switch usages {
         case .some(let usage):

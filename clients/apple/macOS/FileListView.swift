@@ -9,6 +9,8 @@ struct FileListView: View {
     @State var lastOpenDoc: File? = nil
     
     @State var treeBranchState: Bool = true
+    
+    @EnvironmentObject var settings: SettingsService
         
     var body: some View {
         VStack {
@@ -19,9 +21,10 @@ struct FileListView: View {
             .searchable(text: $searchInput, prompt: "Search")
             .keyboardShortcut(.escape)
                 
-            VStack (spacing: 3) {
+            VStack {
                 BottomBar()
             }
+            .padding()
         }
             
         DetailView()

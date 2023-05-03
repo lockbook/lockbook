@@ -5,6 +5,7 @@ struct BottomBar: View {
     
     @EnvironmentObject var sync: SyncService
     @EnvironmentObject var status: StatusService
+    @EnvironmentObject var settings: SettingsService
     
 #if os(iOS)
     var onCreating: () -> Void = {}
@@ -90,6 +91,80 @@ struct BottomBar: View {
             }
         }
     }
+        
+    @ViewBuilder
+    var usageBar: some View {
+        if let usage = settings.usages {
+            VStack {
+                ColorProgressBar(value: settings.usageProgress)
+                
+                HStack {
+                    if settings.usageProgress > 0.8 {
+                        Button(action: {
+                            let previousWindow = NSApplication.shared.windows.last
+                            
+                            let overlayWindow = NSWindow(
+                                contentRect: NSRect(x: 0, y: 0, width: 300, height: 200),
+                                styleMask: [.titled, .closable, .miniaturizable, .resizable],
+                                backing: .buffered,
+                                defer: false
+                            )
+                            
+                            if let previousFrame = previousWindow?.frame {
+                                let windowSize = overlayWindow.frame.size
+                                let x = previousFrame.origin.x + (previousFrame.size.width - windowSize.width) / 2
+                                let y = previousFrame.origin.y + (previousFrame.size.height - windowSize.height) / 2
+                                overlayWindow.setFrame(NSRect(x: x, y: y, width: windowSize.width, height: windowSize.height), display: true)
+                            }
+
+                            
+                            overlayWindow.isReleasedWhenClosed = false
+                            overlayWindow.contentView = NSHostingView(rootView: UpgradeToPremium())
+                            overlayWindow.makeKeyAndOrderFront(nil)
+                        }, label: {
+                            Text("Upgrade")
+                                .foregroundColor(.accentColor)
+                                .font(.callout)
+                        })
+                        
+                        Spacer()
+                    }
+                    
+                    Text("\(usage.serverUsages.serverUsage.readable) out of \(usage.serverUsages.dataCap.readable) used")
+                        .foregroundColor(.gray)
+                        .font(.callout)
+                    
+                    if settings.usageProgress <= 0.8 {
+                        Image(systemName: "plus.circle.fill")
+                            .foregroundColor(.gray)
+                        
+                        Spacer()
+                    }
+                }
+            }
+        } else {
+            VStack {
+                HStack(alignment: .firstTextBaseline) {
+                    RoundedRectangle(cornerSize: CGSize(width: 5, height: 5))
+                        .fill(.gray)
+                        .opacity(0.1)
+                        .cornerRadius(5)
+                        .frame(width: 70, height: 16)
+                    
+                    RoundedRectangle(cornerSize: CGSize(width: 5, height: 5))
+                        .fill(.gray)
+                        .opacity(0.1)
+                        .cornerRadius(5)
+                        .frame(width: 40, height: 16)
+                    
+                    Spacer()
+                }
+            }
+            .onAppear {
+                settings.calculateUsage()
+            }
+        }
+    }
     
     var body: some View {
 #if os(iOS)
@@ -100,10 +175,12 @@ struct BottomBar: View {
         menu
 #else
         Divider()
-        statusText
-            .padding(4)
-        syncButton
-            .padding(.bottom, 7)
+        HStack {
+            statusText
+            Spacer()
+            syncButton
+        }
+        usageBar
 #endif
     }
 }
