@@ -400,6 +400,7 @@ pub enum SyncAllError {
     Retry,
     ClientUpdateRequired,
     CouldNotReachServer,
+    UsageIsOverDataCap,
 }
 
 impl From<LbError> for Error<SyncAllError> {
@@ -407,7 +408,8 @@ impl From<LbError> for Error<SyncAllError> {
         match err.kind {
             // TODO figure out under what circumstances a user should retry a sync
             CoreError::ServerUnreachable => UiError(SyncAllError::CouldNotReachServer),
-            CoreError::ClientUpdateRequired => UiError(SyncAllError::ClientUpdateRequired),
+            CoreError::ClientUpdateRequired => UiError(SyncAllError::ClientUpdateRequired)
+            CoreError::UsageIsOverDataCap => UiError(SyncAllError::UsageIsOverDataCap),
             _ => unexpected!("{:#?}", err),
         }
     }
