@@ -377,7 +377,7 @@ impl<Client: Requester> CoreLib<Client> {
         .expected_errs(&[
             CoreError::ServerUnreachable,
             CoreError::ClientUpdateRequired,
-            CoreError::UsageIsOverFreeTierDataCap,
+            CoreError::UsageIsOverDataCap,
         ])
     }
 

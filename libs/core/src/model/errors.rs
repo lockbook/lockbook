@@ -180,6 +180,7 @@ pub enum CoreError {
     ShareNonexistent,
     TryAgain,
     UsageIsOverFreeTierDataCap,
+    UsageIsOverDataCap,
     UsernameInvalid,
     UsernameNotFound,
     UsernamePublicKeyMismatch,
@@ -308,6 +309,9 @@ impl From<ApiError<api::UpsertError>> for LbError {
         match e {
             ApiError::SendFailed(_) => CoreError::ServerUnreachable,
             ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,
+            ApiError::Endpoint(api::UpsertError::UsageIsOverDataCap) => {
+                CoreError::UsageIsOverDataCap
+            }
             e => core_err_unexpected(e),
         }
         .into()
@@ -319,6 +323,9 @@ impl From<ApiError<api::ChangeDocError>> for LbError {
         match e {
             ApiError::SendFailed(_) => CoreError::ServerUnreachable,
             ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,
+            ApiError::Endpoint(api::ChangeDocError::UsageIsOverDataCap) => {
+                CoreError::UsageIsOverDataCap
+            }
             e => core_err_unexpected(e),
         }
         .into()
