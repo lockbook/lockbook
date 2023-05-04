@@ -51,6 +51,7 @@ pub struct Appearance {
 
     // colors
     pub text: Option<ThemedColor>,
+    pub cursor: Option<ThemedColor>,
     pub selection_bg: Option<ThemedColor>,
     pub checkbox_bg: Option<ThemedColor>,
     pub heading: Option<ThemedColor>,
@@ -84,6 +85,10 @@ impl Appearance {
 
     pub fn text(&self) -> Color32 {
         self.text.unwrap_or(BLACK).get(self.current_theme)
+    }
+
+    pub fn cursor(&self) -> Color32 {
+        self.cursor.unwrap_or(BLUE).get(self.current_theme)
     }
 
     pub fn selection_bg(&self) -> Color32 {

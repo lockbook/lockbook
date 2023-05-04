@@ -1,13 +1,12 @@
 use crate::appearance::Appearance;
-use crate::buffer::SubBuffer;
 use crate::images::ImageCache;
 use crate::layouts::{Annotation, LayoutJobInfo, Layouts};
-use crate::offset_types::{DocByteOffset, DocCharOffset, RelByteOffset};
-use crate::unicode_segs::UnicodeSegs;
+use crate::offset_types::{DocCharOffset, RangeExt, RelCharOffset};
+use crate::Editor;
 use egui::epaint::text::cursor::Cursor;
 use egui::text::CCursor;
 use egui::{Galley, Pos2, Rect, Sense, TextFormat, TextureId, Ui, Vec2};
-use std::ops::{Index, Range};
+use std::ops::Index;
 use std::sync::Arc;
 
 #[derive(Default)]
@@ -15,14 +14,15 @@ pub struct Galleys {
     pub galleys: Vec<GalleyInfo>,
 }
 
+#[derive(Debug)]
 pub struct GalleyInfo {
-    pub range: Range<DocByteOffset>,
+    pub range: (DocCharOffset, DocCharOffset),
     pub galley: Arc<Galley>,
     pub annotation: Option<Annotation>,
 
     // is it better to store this information in Annotation?
-    pub head_size: RelByteOffset,
-    pub tail_size: RelByteOffset,
+    pub head_size: RelCharOffset,
+    pub tail_size: RelCharOffset,
     pub text_location: Pos2,
     pub galley_location: Rect,
     pub image: Option<ImageInfo>,
@@ -30,14 +30,23 @@ pub struct GalleyInfo {
     pub annotation_text_format: TextFormat,
 }
 
+#[derive(Debug)]
 pub struct ImageInfo {
     pub location: Rect,
     pub texture: TextureId,
 }
 
 pub fn calc(
-    layouts: &Layouts, images: &ImageCache, appearance: &Appearance, ui: &mut Ui,
+    layouts: &Layouts, images: &ImageCache, appearance: &Appearance, ui_size: Vec2, ui: &mut Ui,
 ) -> Galleys {
+    // draw start-of-text padding so that selection handles in touch mode aren't out of view
+    // todo: don't allocate space for galleys when creating them (or something else so that we can allocate this padding in draw.rs)
+    {
+        let mut ui_size = ui_size;
+        ui_size.y = 10.0;
+        ui.allocate_exact_size(ui_size, Sense::hover());
+    }
+
     Galleys {
         galleys: layouts
             .layouts
@@ -55,8 +64,6 @@ impl Index<usize> for Galleys {
     }
 }
 
-// todo: simplify by storing DocByteOffset in GalleyInfo range
-// todo: simplify fn and parameter names
 impl Galleys {
     pub fn is_empty(&self) -> bool {
         self.galleys.is_empty()
@@ -66,27 +73,24 @@ impl Galleys {
         self.galleys.len()
     }
 
-    pub fn galley_at_char(&self, char_index: DocCharOffset, segs: &UnicodeSegs) -> usize {
-        let byte_offset = segs.char_offset_to_byte(char_index);
+    pub fn galley_at_char(&self, offset: DocCharOffset) -> usize {
         for i in 0..self.galleys.len() {
             let galley = &self.galleys[i];
-            if galley.range.start <= byte_offset && byte_offset < galley.range.end {
+            if galley.range.contains(offset) {
                 return i;
             }
         }
         self.galleys.len() - 1
     }
 
-    pub fn galley_and_cursor_by_char_offset(
-        &self, char_offset: DocCharOffset, segs: &UnicodeSegs,
-    ) -> (usize, Cursor) {
-        let galley_index = self.galley_at_char(char_offset, segs);
+    pub fn galley_and_cursor_by_char_offset(&self, char_offset: DocCharOffset) -> (usize, Cursor) {
+        let galley_index = self.galley_at_char(char_offset);
         let galley = &self.galleys[galley_index];
-        let galley_text_range = galley.text_range(segs);
+        let galley_text_range = galley.text_range();
         let cursor = galley.galley.from_ccursor(CCursor {
-            index: (char_offset.clamp(galley_text_range.start, galley_text_range.end)
-                - galley_text_range.start)
-                .0,
+            index: (char_offset.clamp(galley_text_range.start(), galley_text_range.end())
+                - galley_text_range.start())
+            .0,
             prefer_next_row: true,
         });
 
@@ -94,15 +98,15 @@ impl Galleys {
     }
 
     pub fn char_offset_by_galley_and_cursor(
-        &self, galley_idx: usize, cursor: &Cursor, segs: &UnicodeSegs,
+        &self, galley_idx: usize, cursor: &Cursor,
     ) -> DocCharOffset {
         let galley = &self.galleys[galley_idx];
-        let galley_text_range = galley.text_range(segs);
-        let mut result = galley_text_range.start + cursor.ccursor.index;
+        let galley_text_range = galley.text_range();
+        let mut result = galley_text_range.start() + cursor.ccursor.index;
 
         // correct for prefer_next_row behavior
         let read_cursor = galley.galley.from_ccursor(CCursor {
-            index: (result - galley_text_range.start).0,
+            index: (result - galley_text_range.start()).0,
             prefer_next_row: true,
         });
         if read_cursor.rcursor.row > cursor.rcursor.row {
@@ -129,10 +133,8 @@ impl GalleyInfo {
                 let width =
                     f32::min(ui.available_width() - appearance.image_padding() * 2.0, image_width);
                 let height = image_height * width / image_width + appearance.image_padding() * 2.0;
-                let (location, _) = ui.allocate_exact_size(
-                    Vec2::new(ui.available_width(), height),
-                    Sense::click_and_drag(),
-                );
+                let (location, _) =
+                    ui.allocate_exact_size(Vec2::new(ui.available_width(), height), Sense::hover());
                 Some(ImageInfo { location, texture })
             } else {
                 None
@@ -146,7 +148,7 @@ impl GalleyInfo {
         // allocate space for text and non-image annotations
         let (galley_location, _) = ui.allocate_exact_size(
             Vec2::new(ui.available_width(), galley.size().y + offset.y),
-            Sense::click_and_drag(),
+            Sense::hover(),
         );
 
         let text_location = Pos2::new(offset.x + galley_location.min.x, galley_location.min.y);
@@ -227,28 +229,20 @@ impl GalleyInfo {
         [Pos2 { x: bounds.min.x, y: bounds.max.y }, Pos2 { x: bounds.max.x, y: bounds.min.y }]
     }
 
-    pub fn text<'a>(&self, buffer: &'a SubBuffer) -> &'a str {
-        let text_start = self.range.start + self.head_size;
-        let text_end = self.range.end - self.tail_size;
-        &buffer.text[text_start.0..text_end.0]
+    pub fn text_range(&self) -> (DocCharOffset, DocCharOffset) {
+        (self.range.0 + self.head_size, self.range.1 - self.tail_size)
     }
+}
 
-    pub fn byte_range(&self) -> Range<DocByteOffset> {
-        let text_start = self.range.start + self.head_size;
-        let text_end = self.range.end - self.tail_size;
-        Range { start: text_start, end: text_end }
-    }
-
-    pub fn text_range(&self, segs: &UnicodeSegs) -> Range<DocCharOffset> {
-        let byte_range = self.byte_range();
-        Range {
-            start: segs.byte_offset_to_char(byte_range.start),
-            end: segs.byte_offset_to_char(byte_range.end),
+impl Editor {
+    pub fn print_galleys(&self) {
+        println!("layouts:");
+        for galley in &self.galleys.galleys {
+            println!(
+                "galley: range: {:?}, annotation: {:?}, head: {:?}, tail: {:?}",
+                galley.range, galley.annotation, galley.head_size, galley.tail_size
+            );
         }
-    }
-
-    pub fn size(&self) -> RelByteOffset {
-        self.range.end - self.range.start
     }
 }
 
