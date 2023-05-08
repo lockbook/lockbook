@@ -233,7 +233,7 @@ pub fn get_user_info(
 
     let time_two_days_ago = get_time().0 as u64 - TWO_DAYS_IN_MILLIS as u64;
     let last_seen_since_account_creation = last_seen as i64 - root_creation_timestamp;
-    let delay_buffer_time = 500;
+    let delay_buffer_time = 5000;
     let not_the_welcome_doc = last_seen_since_account_creation > delay_buffer_time;
     let is_user_active = not_the_welcome_doc && last_seen > time_two_days_ago;
 
