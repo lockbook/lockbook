@@ -11,6 +11,7 @@ members = [
 	"libs/editor/egui_editor",
 	"server/server",
 	"clients/cli",
+	"clients/cli-x",
 	"clients/egui",
 	"clients/admin",
 	"utils/dev-tool",

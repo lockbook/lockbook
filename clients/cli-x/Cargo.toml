@@ -1,16 +1,20 @@
 [package]
-name = "lockbook-cli"
+name = "lockbook-cli-x"
 version = "0.7.3"
 edition = "2021"
-description = "The private, polished note-taking platform."
+description = "experimental cli with completion"
 
 [[bin]]
-name = "lockbook"
+name = "x-lockbook"
 path = "src/main.rs"
+
 
 [dependencies]
 is-terminal = "0.4.7"
 clap = { version = "4.1.4", features = ["derive"] }
-clap_complete = "4.2.0"
+clap_complete = {version = "4.2.1", features= ["unstable-dynamic"] }
 hotwatch = "0.4.6"
 lb = { path = "../../libs/core", package = "lockbook-core" }
+
+
+
