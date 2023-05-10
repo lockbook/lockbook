@@ -318,12 +318,15 @@ enum class MoveFileError : UiCoreError {
 enum class SyncAllError : UiCoreError {
     Retry,
     CouldNotReachServer,
-    ClientUpdateRequired;
+    ClientUpdateRequired,
+    UsageIsOverFreeTierDataCap;
 
     override fun toLbError(res: Resources): LbError = when (this) {
         Retry -> LbError.newUserError(getString(res, R.string.retry_sync))
         CouldNotReachServer -> LbError.newUserError(getString(res, R.string.could_not_reach_server))
         ClientUpdateRequired -> LbError.newUserError(getString(res, R.string.client_update_required))
+        UsageIsOverFreeTierDataCap -> LbError.newUserError(getString(res,
+R.string.usage_is_over_free_tier_data_cap))
     }
 }
 
