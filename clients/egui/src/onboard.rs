@@ -301,7 +301,7 @@ fn load_account_data(core: &Arc<lb::Core>) -> Result<AccountScreenInitData, Stri
         .get_last_synced_human_string()
         .map_err(|err| format!("{:?}", err));
 
-    Ok(AccountScreenInitData { files, sync_status, usage })
+    Ok(AccountScreenInitData { sync_status, files, usage })
 }
 
 #[derive(Clone, Copy, PartialEq)]
