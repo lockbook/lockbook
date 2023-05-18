@@ -1,6 +1,6 @@
 pub struct AccountScreenInitData {
-    pub files: Vec<lb::File>,
     pub sync_status: Result<String, String>,
+    pub files: Vec<lb::File>,
     pub usage: Result<Usage, String>,
 }
 
