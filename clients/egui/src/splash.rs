@@ -76,6 +76,16 @@ impl SplashScreen {
             };
 
             if is_signed_in {
+                tx.send(SplashUpdate::Status("Syncing...".to_string()))
+                    .unwrap();
+
+                let sync_status = match core.sync(None) {
+                    Ok(_) => core
+                        .get_last_synced_human_string()
+                        .map_err(|err| format!("{:?}", err)),
+                    Err(err) => Err(format!("{:?}", err)),
+                };
+
                 tx.send(SplashUpdate::Status("Loading files...".to_string()))
                     .unwrap();
 
@@ -88,13 +98,6 @@ impl SplashScreen {
                     }
                 };
 
-                tx.send(SplashUpdate::Status("Getting sync status...".to_string()))
-                    .unwrap();
-
-                let sync_status = core
-                    .get_last_synced_human_string()
-                    .map_err(|err| format!("{:?}", err));
-
                 tx.send(SplashUpdate::Status("Getting usage data...".to_string()))
                     .unwrap();
 
@@ -103,7 +106,7 @@ impl SplashScreen {
                     .map(|metrics| metrics.into())
                     .map_err(|err| format!("{:?}", err));
 
-                let acct_data = AccountScreenInitData { files, sync_status, usage };
+                let acct_data = AccountScreenInitData { sync_status, files, usage };
 
                 tx.send(SplashUpdate::Done((core, Some(acct_data))))
                     .unwrap();

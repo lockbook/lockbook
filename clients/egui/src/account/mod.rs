@@ -50,7 +50,7 @@ impl AccountScreen {
         let (update_tx, update_rx) = mpsc::channel();
         let (save_req_tx, save_req_rx) = mpsc::channel();
 
-        let AccountScreenInitData { files, sync_status, usage } = acct_data;
+        let AccountScreenInitData { sync_status, files, usage } = acct_data;
 
         let mut acct_scr = Self {
             settings,
