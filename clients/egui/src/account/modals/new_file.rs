@@ -1,7 +1,5 @@
 use eframe::egui;
 
-use crate::widgets::ButtonGroup;
-
 pub struct NewFileParams {
     pub ftype: lb::FileType,
     pub parent_path: String,
@@ -42,13 +40,17 @@ impl super::Modal for NewDocModal {
 
         // File type selection.
         ui.horizontal(|ui| {
-            if let Some(_type_selected) = ButtonGroup::toggle_mut(&mut self.ftype)
-                .btn(NewDocType::Markdown, "Markdown")
-                .btn(NewDocType::Drawing, "Drawing")
-                .btn(NewDocType::PlainText, "Plain Text")
-                .show(ui)
+            if ui
+                .selectable_label(self.ftype == NewDocType::Markdown, "Markdown")
+                .clicked()
             {
-                self.name_field_needs_focus = true;
+                self.ftype = NewDocType::Markdown;
+            }
+            if ui
+                .selectable_label(self.ftype == NewDocType::Drawing, "Drawing")
+                .clicked()
+            {
+                self.ftype = NewDocType::Drawing;
             }
         });
 
@@ -121,7 +123,6 @@ impl super::Modal for NewDocModal {
 enum NewDocType {
     Markdown,
     Drawing,
-    PlainText,
 }
 
 impl NewDocType {
@@ -129,7 +130,6 @@ impl NewDocType {
         match self {
             Self::Markdown => ".md",
             Self::Drawing => ".draw",
-            Self::PlainText => "",
         }
     }
 }

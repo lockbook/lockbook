@@ -1,26 +1,20 @@
 use eframe::{egui, epaint};
 
-pub struct ButtonGroup<'a, T: Copy + PartialEq> {
-    value: Option<ToggleValue<'a, T>>,
+pub struct ButtonGroup<T: Copy + PartialEq> {
+    value: Option<ToggleValue<T>>,
     buttons: Vec<(T, ButtonContent)>,
     center: bool,
 }
 
-impl<'a, T: Copy + PartialEq> Default for ButtonGroup<'a, T> {
+impl<T: Copy + PartialEq> Default for ButtonGroup<T> {
     fn default() -> Self {
         Self { value: None, buttons: Vec::new(), center: false }
     }
 }
 
-impl<'a, T: Copy + PartialEq> ButtonGroup<'a, T> {
+impl<T: Copy + PartialEq> ButtonGroup<T> {
     pub fn toggle(value_copy: T) -> Self {
         let value = Some(ToggleValue::Copied(value_copy));
-
-        Self { value, ..Self::default() }
-    }
-
-    pub fn toggle_mut(value_mut: &'a mut T) -> Self {
-        let value = Some(ToggleValue::RefMut(value_mut));
 
         Self { value, ..Self::default() }
     }
@@ -155,9 +149,6 @@ impl<'a, T: Copy + PartialEq> ButtonGroup<'a, T> {
 
         if resp.clicked() {
             clicked = Some(btn.0);
-            if let Some(ToggleValue::RefMut(value)) = &mut self.value {
-                **value = btn.0;
-            }
         }
 
         if index != self.buttons.len() - 1 {
@@ -189,7 +180,6 @@ impl<'a, T: Copy + PartialEq> ButtonGroup<'a, T> {
         if let Some(value) = &self.value {
             match value {
                 ToggleValue::Copied(value) => *value == v,
-                ToggleValue::RefMut(value) => **value == v,
             }
         } else {
             false
@@ -197,9 +187,8 @@ impl<'a, T: Copy + PartialEq> ButtonGroup<'a, T> {
     }
 }
 
-enum ToggleValue<'a, T> {
+enum ToggleValue<T> {
     Copied(T),
-    RefMut(&'a mut T),
 }
 
 enum ButtonContent {
