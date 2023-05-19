@@ -9,8 +9,6 @@ struct FileListView: View {
     @State var lastOpenDoc: File? = nil
     
     @State var treeBranchState: Bool = true
-    
-    @EnvironmentObject var settings: SettingsService
         
     var body: some View {
         VStack {

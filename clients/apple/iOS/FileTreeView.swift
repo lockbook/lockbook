@@ -2,15 +2,19 @@ import SwiftUI
 import SwiftLockbookCore
 
 struct FileTreeView: View {
-
     @EnvironmentObject var sheets: SheetState
     @EnvironmentObject var currentDoc: CurrentDocument
     @EnvironmentObject var coreService: CoreService
     @EnvironmentObject var files: FileService
     @EnvironmentObject var onboarding: OnboardingService
     @EnvironmentObject var search: SearchService
+    @EnvironmentObject var sync: SyncService
+    
+    @State var suggestedDocBranchState: Bool = true
+    @State var navigateToManageSub: Bool = false
     
     @State var searchInput: String = ""
+    @State private var hideOutOfSpaceAlert = UserDefaults.standard.bool(forKey: "hideOutOfSpaceAlert")
 
     let currentFolder: File
     let account: Account
@@ -22,7 +26,7 @@ struct FileTreeView: View {
                 mainView: mainView,
                 isiOS: false)
             .searchable(text: $searchInput, placement: .navigationBarDrawer(displayMode: .automatic), prompt: "Search")
-
+            
             HStack {
                 BottomBar(onCreating: {
                     sheets.creatingInfo = CreatingInfo(parent: currentFolder, child_type: .Document)
@@ -71,35 +75,81 @@ struct FileTreeView: View {
                     }
             }
         }
+        .alert(isPresented: Binding(get: { sync.outOfSpace && !hideOutOfSpaceAlert }, set: {_ in sync.outOfSpace = false })) {
+            Alert(
+                title: Text("Out of Space"),
+                message: Text("You have run out of space!"),
+                primaryButton: .default(Text("Upgrade now"), action: {
+                    navigateToManageSub = true
+                }),
+                secondaryButton: .default(Text("Don't show me this again"), action: {
+                    hideOutOfSpaceAlert = true
+                    UserDefaults.standard.set(hideOutOfSpaceAlert, forKey: "hideOutOfSpaceAlert")
+                })
+            )
+        }
+        .background(
+            NavigationLink(destination: ManageSubscription(), isActive: $navigateToManageSub, label: {
+                EmptyView()
+            })
+            .hidden()
+        )
         .onChange(of: currentDoc.selectedDocument) { _ in
             DI.files.refreshSuggestedDocs()
         }
     }
     
     var mainView: some View {
-        List {
-            if files.suggestedDocs?.isEmpty != true {
-                Section(header: Text("Suggested")
-                    .bold()
-                    .foregroundColor(.primary)
-                    .textCase(.none)
-                    .font(.headline)
-                    .padding(.bottom, 3)) {
-                    SuggestedDocs(isiOS: false)
-                }
-                    .listRowSeparator(.hidden)
-            }
+        VStack(alignment: .leading) {
+            suggestedDocs
             
-            Section(header: Text("Files")
+            Text("Files")
                 .bold()
                 .foregroundColor(.primary)
                 .textCase(.none)
                 .font(.headline)
-                .padding(.bottom, 3)) {
-                OutlineSection(root: currentFolder)
-            }
-            .listRowSeparator(.hidden)
+                .padding(.vertical)
+            
+            OutlineSection(root: currentFolder)
         }
-        .listStyle(.plain)
+        .padding(.horizontal)
+    }
+    
+    var suggestedDocs: some View {
+        Group {
+            Button(action: {
+                withAnimation {
+                    suggestedDocBranchState.toggle()
+                }
+            }) {
+                HStack {
+                    Text("Suggested")
+                        .bold()
+                        .foregroundColor(.primary)
+                        .textCase(.none)
+                        .font(.headline)
+                        .padding(.bottom)
+                    Spacer()
+                    if suggestedDocBranchState {
+                        Image(systemName: "chevron.down")
+                            .foregroundColor(.gray)
+                            .imageScale(.small)
+                    } else {
+                        Image(systemName: "chevron.right")
+                            .foregroundColor(.gray)
+                            .imageScale(.small)
+                    }
+                }
+                .padding(.top)
+                .contentShape(Rectangle())
+            }
+            
+            if suggestedDocBranchState {
+                SuggestedDocs(isiOS: false)
+                Spacer()
+            } else {
+                Spacer()
+            }
+        }
     }
 }

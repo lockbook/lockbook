@@ -76,8 +76,8 @@ struct FileTreeView: NSViewRepresentable {
     
     func updateNSView(_ nsView: NSScrollView, context: Context) {        
         if previousFilesHash.value != files.idsAndFiles.hashValue {
-            treeView.reloadData()
             previousFilesHash.value = files.idsAndFiles.hashValue
+            treeView.reloadData()
         }
         
         if lastOpenDoc != currentSelection.selectedDocument {

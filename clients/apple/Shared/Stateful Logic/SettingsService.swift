@@ -90,6 +90,10 @@ class SettingsService: ObservableObject {
                         print("Recalculated usage with \(uncompressedUsage.exact)")
                         DispatchQueue.main.async {
                             self.usages = PrerequisiteInformation(serverUsages: usages, uncompressedUsage: uncompressedUsage)
+                            
+                            if self.usageProgress < 0.8 && UserDefaults.standard.bool(forKey: "hideOutOfSpaceAlert") {
+                                UserDefaults.standard.set(false, forKey: "hideOutOfSpaceAlert")
+                            }
                         }
                     case .failure(let err):
                         // TODO handle an explicit offline mode here

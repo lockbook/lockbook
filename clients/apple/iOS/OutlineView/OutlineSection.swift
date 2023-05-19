@@ -19,7 +19,7 @@ struct OutlineSection: View {
             }
             .listStyle(SidebarListStyle())
             .frame(minWidth: 10, maxWidth: .infinity, maxHeight: .infinity)
-            .padding()
+            .padding(.horizontal)
             // A hack for list row insets not working. This hack also applies to the section header though.
         }.contextMenu {
             OutlineContextMenu (meta: root, branchState: nil)

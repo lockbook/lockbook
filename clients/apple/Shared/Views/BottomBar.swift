@@ -59,39 +59,7 @@ struct BottomBar: View {
             }
         }
     }
-#endif
     
-    var localChangeText: String {
-        if status.work == 0 { // not shown in this situation
-            return ""
-        } else if status.work == 1 {
-            return "1 unsynced change"
-        } else {
-            return "\(status.work) unsynced changes"
-        }
-    }
-    
-    @ViewBuilder
-    var statusText: some View {
-        if sync.upgrade {
-            Text("Update required")
-                .foregroundColor(.secondary)
-        } else if sync.syncing {
-            Text("Syncing...")
-                .foregroundColor(.secondary)
-        } else {
-            if sync.offline {
-                Text("Offline")
-                    .foregroundColor(.secondary)
-            } else {
-                Text(status.work == 0 ? "Last update: \(status.lastSynced)" : localChangeText)
-                    .font(.callout)
-                    .foregroundColor(.secondary)
-                    .bold()
-            }
-        }
-    }
-        
     @ViewBuilder
     var usageBar: some View {
         if let usage = settings.usages {
@@ -119,7 +87,7 @@ struct BottomBar: View {
 
                             
                             overlayWindow.isReleasedWhenClosed = false
-                            overlayWindow.contentView = NSHostingView(rootView: UpgradeToPremium())
+                            overlayWindow.contentView = NSHostingView(rootView: UpgradeToPremium().realDI())
                             overlayWindow.makeKeyAndOrderFront(nil)
                         }, label: {
                             Text("Upgrade")
@@ -162,6 +130,41 @@ struct BottomBar: View {
             }
             .onAppear {
                 settings.calculateUsage()
+            }
+        }
+    }
+#endif
+    
+    var localChangeText: String {
+        if status.work == 0 { // not shown in this situation
+            return ""
+        } else if status.work == 1 {
+            return "1 unsynced change"
+        } else {
+            return "\(status.work) unsynced changes"
+        }
+    }
+    
+    @ViewBuilder
+    var statusText: some View {
+        if sync.upgrade {
+            Text("Update required")
+                .foregroundColor(.secondary)
+        } else if sync.syncing {
+            Text("Syncing...")
+                .foregroundColor(.secondary)
+        } else if sync.outOfSpace {
+            Text("Out of space")
+                .foregroundColor(.secondary)
+        } else {
+            if sync.offline {
+                Text("Offline")
+                    .foregroundColor(.secondary)
+            } else {
+                Text(status.work == 0 ? "Last update: \(status.lastSynced)" : localChangeText)
+                    .font(.callout)
+                    .foregroundColor(.secondary)
+                    .bold()
             }
         }
     }

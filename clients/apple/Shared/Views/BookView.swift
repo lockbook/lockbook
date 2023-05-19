@@ -7,6 +7,7 @@ struct BookView: View {
     @EnvironmentObject var sheets: SheetState
     @EnvironmentObject var onboarding: OnboardingService
     @EnvironmentObject var files: FileService
+    @EnvironmentObject var sync: SyncService
 
     let currentFolder: File
     let account: Account

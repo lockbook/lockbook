@@ -8,6 +8,8 @@ class SyncService: ObservableObject {
     @Published var offline: Bool = false
     @Published var upgrade: Bool = false
     
+    @Published var outOfSpace: Bool = false
+    
     private var syncTimer: Timer? = nil
     
     init(_ core: LockbookApi) {
@@ -52,34 +54,40 @@ class SyncService: ObservableObject {
         }
         
         syncing = true
-        
+                
         DispatchQueue.global(qos: .userInteractive).async {
+            print("Syncing...")
             let result = self.core.syncAll()
-                        
-                DispatchQueue.main.async {
-                    self.syncing = false
-                    
-                    switch result {
-                    case .success(_):
-                        self.offline = false
-                        self.postSyncSteps()
-                    case .failure(let error):
-                        switch error.kind {
-                        case .UiError(let uiError):
-                            switch uiError {
-                            case .CouldNotReachServer:
-                                self.offline = true
-                            case .ClientUpdateRequired:
-                                self.upgrade = true
-                            case .Retry:
-                                // TODO
-                                DI.errors.handleError(ErrorWithTitle(title: "Retry", message: "SyncService wants retry"))
-                            }
-                        default:
-                            DI.errors.handleError(error)
+            print("Finished syncing...")
+
+            DispatchQueue.main.async {
+                self.syncing = false
+                
+                switch result {
+                case .success(_):
+                    self.outOfSpace = false
+                    self.offline = false
+                    self.postSyncSteps()
+                case .failure(let error):
+                    switch error.kind {
+                    case .UiError(let uiError):
+                        switch uiError {
+                        case .CouldNotReachServer:
+                            self.offline = true
+                        case .ClientUpdateRequired:
+                            self.upgrade = true
+                        case .Retry:
+                            // TODO
+                            DI.errors.handleError(ErrorWithTitle(title: "Retry", message: "SyncService wants retry"))
+                        case .UsageIsOverDataCap:
+                            // TODO
+                            self.outOfSpace = true
                         }
+                    default:
+                        DI.errors.handleError(error)
                     }
                 }
+            }
         }
     }
 }
