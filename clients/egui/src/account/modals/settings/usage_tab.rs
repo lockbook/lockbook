@@ -9,15 +9,21 @@ use crate::widgets::{separator, subscription};
 use super::SettingsResponse;
 
 pub struct UsageSettings {
-    pub sub_info_result: Result<Option<lb::SubscriptionInfo>, String>,
-    pub metrics_result: Result<lb::UsageMetrics, String>,
-    pub uncompressed_result: Result<lb::UsageItemMetric, String>,
+    pub info: Option<UsageSettingsInfo>,
+    pub info_rx: mpsc::Receiver<UsageSettingsInfo>,
+    pub info_tx: mpsc::Sender<UsageSettingsInfo>,
     pub upgrading: Option<Upgrading>,
 }
 
+pub struct UsageSettingsInfo {
+    pub sub_info_result: Result<Option<lb::SubscriptionInfo>, String>,
+    pub metrics_result: Result<lb::UsageMetrics, String>,
+    pub uncompressed_result: Result<lb::UsageItemMetric, String>,
+}
+
 pub struct Upgrading {
-    update_rx: mpsc::Receiver<Result<UsageSettings, String>>,
-    update_tx: mpsc::Sender<Result<UsageSettings, String>>,
+    update_rx: mpsc::Receiver<Result<UsageSettingsInfo, String>>,
+    update_tx: mpsc::Sender<Result<UsageSettingsInfo, String>>,
     stage: UpgradingStage,
     card: CardInput,
     payment_method: Option<lb::PaymentMethod>,
@@ -52,10 +58,8 @@ impl super::SettingsModal {
         if let Some(u) = &mut self.usage.upgrading {
             while let Ok(result) = u.update_rx.try_recv() {
                 match result {
-                    Ok(new_usage_data) => {
-                        self.usage.sub_info_result = new_usage_data.sub_info_result;
-                        self.usage.metrics_result = new_usage_data.metrics_result;
-                        self.usage.uncompressed_result = new_usage_data.uncompressed_result;
+                    Ok(new_usage_info) => {
+                        self.usage.info = Some(new_usage_info);
                         u.done = Some(Ok(()));
                         resp = Some(SettingsResponse::SuccessfullyUpgraded);
                     }
@@ -95,11 +99,10 @@ impl super::SettingsModal {
                                         .get_uncompressed_usage()
                                         .map_err(|err| format!("{:?}", err)); // TODO
 
-                                    let new_usage_data = UsageSettings {
+                                    let new_usage_data = UsageSettingsInfo {
                                         sub_info_result,
                                         metrics_result,
                                         uncompressed_result,
-                                        upgrading: None,
                                     };
 
                                     update_tx.send(Ok(new_usage_data)).unwrap();
@@ -117,8 +120,8 @@ impl super::SettingsModal {
                     }
                 }
             }
-        } else {
-            let metrics = match &self.usage.metrics_result {
+        } else if let Some(info) = &self.usage.info {
+            let metrics = match &info.metrics_result {
                 Ok(m) => m,
                 Err(err) => {
                     ui.label(err);
@@ -126,7 +129,7 @@ impl super::SettingsModal {
                 }
             };
 
-            let uncompressed = match &self.usage.uncompressed_result {
+            let uncompressed = match &info.uncompressed_result {
                 Ok(v) => v,
                 Err(err) => {
                     ui.label(err);
@@ -134,7 +137,7 @@ impl super::SettingsModal {
                 }
             };
 
-            match &self.usage.sub_info_result {
+            match &info.sub_info_result {
                 Ok(maybe_info) => {
                     subscription(ui, maybe_info, metrics, Some(uncompressed));
 
@@ -159,6 +162,12 @@ impl super::SettingsModal {
                     ui.label(err);
                 }
             };
+        } else {
+            while let Ok(usage_info) = self.usage.info_rx.try_recv() {
+                self.usage.info = Some(usage_info);
+                ui.ctx().request_repaint();
+            }
+            ui.centered_and_justified(|ui| ui.spinner());
         }
 
         resp
