@@ -3,7 +3,7 @@ mod appearance_tab;
 mod general_tab;
 mod usage_tab;
 
-use std::sync::{Arc, RwLock};
+use std::sync::{mpsc, Arc, RwLock};
 
 use eframe::egui;
 use egui_extras::{Size, StripBuilder};
@@ -39,25 +39,34 @@ impl SettingsModal {
     pub fn new(core: &Arc<lb::Core>, s: &Arc<RwLock<Settings>>) -> Self {
         let export_result = core.export_account().map_err(|err| format!("{:?}", err)); // TODO
 
-        let sub_info_result = core
-            .get_subscription_info()
-            .map_err(|err| format!("{:?}", err)); // TODO
+        let (info_tx, info_rx) = mpsc::channel();
 
-        let metrics_result = core.get_usage().map_err(|err| format!("{:?}", err)); // TODO
-        let uncompressed_result = core
-            .get_uncompressed_usage()
-            .map_err(|err| format!("{:?}", err)); // TODO
+        std::thread::spawn({
+            let core = core.clone();
+            let info_tx = info_tx.clone();
+
+            move || {
+                let sub_info_result = core
+                    .get_subscription_info()
+                    .map_err(|err| format!("{:?}", err)); // TODO
+
+                let metrics_result = core.get_usage().map_err(|err| format!("{:?}", err)); // TODO
+                let uncompressed_result = core
+                    .get_uncompressed_usage()
+                    .map_err(|err| format!("{:?}", err)); // TODO
+
+                let usage_info =
+                    UsageSettingsInfo { sub_info_result, metrics_result, uncompressed_result };
+
+                info_tx.send(usage_info).unwrap();
+            }
+        });
 
         Self {
             core: core.clone(),
             settings: s.clone(),
             account: AccountSettings::new(export_result),
-            usage: UsageSettings {
-                sub_info_result,
-                metrics_result,
-                uncompressed_result,
-                upgrading: None,
-            },
+            usage: UsageSettings { info: None, info_tx, info_rx, upgrading: None },
             active_tab: SettingsTab::Account,
         }
     }
