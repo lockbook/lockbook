@@ -47,15 +47,14 @@ struct UpgradeToPremium: View {
                 }
                 .padding(.bottom, 100)
                 
-                Button("Upgrade now", action: {
+                Button {
                     showManageSub = true
-                })
-                .frame(maxWidth: .infinity)
-                .buttonStyle(.borderless)
+                } label: {
+                    Text("Upgrade now")
+                        .frame(maxWidth: .infinity)
+                }
                 .padding(8)
-                .background(Color.blue)
-                .foregroundColor(.white)
-                .cornerRadius(10)
+                .buttonStyle(.borderedProminent)
                 
             }
             .padding()

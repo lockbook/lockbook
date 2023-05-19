@@ -108,7 +108,8 @@ struct FileTreeView: View {
                 .foregroundColor(.primary)
                 .textCase(.none)
                 .font(.headline)
-                .padding(.vertical)
+                .padding(.top)
+                .padding(.bottom, 5)
             
             OutlineSection(root: currentFolder)
         }
@@ -128,8 +129,9 @@ struct FileTreeView: View {
                         .foregroundColor(.primary)
                         .textCase(.none)
                         .font(.headline)
-                        .padding(.bottom)
+                    
                     Spacer()
+                    
                     if suggestedDocBranchState {
                         Image(systemName: "chevron.down")
                             .foregroundColor(.gray)
@@ -141,6 +143,7 @@ struct FileTreeView: View {
                     }
                 }
                 .padding(.top)
+                .padding(.bottom, 5)
                 .contentShape(Rectangle())
             }
             
