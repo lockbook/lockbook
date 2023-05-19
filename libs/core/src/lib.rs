@@ -469,6 +469,7 @@ impl<Client: Requester> CoreLib<Client> {
             s.cleanup()
         })
         .expected_errs(&[
+            CoreError::DiskPathInvalid,
             CoreError::FileNonexistent,
             CoreError::FileNotFolder,
             CoreError::FileNameTooLong,
