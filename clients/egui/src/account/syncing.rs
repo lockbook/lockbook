@@ -6,6 +6,8 @@ use crate::model::{SyncError, Usage};
 use crate::theme::Icon;
 use crate::widgets::{Button, ProgressBar};
 
+use super::AccountUpdate;
+
 pub struct SyncPanel {
     status: Result<String, String>,
     lock: Arc<Mutex<()>>,
@@ -200,6 +202,22 @@ impl super::AccountScreen {
                 .map(|_| ())
                 .map_err(SyncError::from);
             update_tx.send(SyncUpdate::Done(result).into()).unwrap();
+            ctx.request_repaint();
+        });
+    }
+
+    pub fn perform_final_sync(&self, ctx: &egui::Context) {
+        let sync_lock = self.sync.lock.clone();
+        let core = self.core.clone();
+        let update_tx = self.update_tx.clone();
+        let ctx = ctx.clone();
+
+        std::thread::spawn(move || {
+            let _lock = sync_lock.lock().unwrap();
+            if let Err(err) = core.sync(None) {
+                eprintln!("error: final sync: {:?}", err);
+            }
+            update_tx.send(AccountUpdate::FinalSyncAttemptDone).unwrap();
             ctx.request_repaint();
         });
     }

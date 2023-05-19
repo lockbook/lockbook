@@ -72,12 +72,13 @@ impl AccountScreen {
 
     pub fn begin_shutdown(&mut self) {
         self.shutdown = Some(AccountShutdownProgress::default());
+        self.save_all_tabs();
         self.save_req_tx.send(SaveRequest::SHUTDOWN_REQ).unwrap();
     }
 
     pub fn is_shutdown(&self) -> bool {
         match &self.shutdown {
-            Some(s) => s.done_saving,
+            Some(s) => s.done_saving && s.done_syncing,
             None => false,
         }
     }
@@ -240,6 +241,12 @@ impl AccountScreen {
                 AccountUpdate::SaveRequestsDone => {
                     if let Some(s) = &mut self.shutdown {
                         s.done_saving = true;
+                        self.perform_final_sync(ctx);
+                    }
+                }
+                AccountUpdate::FinalSyncAttemptDone => {
+                    if let Some(s) = &mut self.shutdown {
+                        s.done_syncing = true;
                     }
                 }
             }
@@ -632,6 +639,7 @@ enum AccountUpdate {
     ReloadTabs(HashMap<lb::Uuid, Result<Tab, TabFailure>>),
 
     SaveRequestsDone,
+    FinalSyncAttemptDone,
 }
 
 enum OpenModal {
@@ -656,6 +664,7 @@ impl From<SyncUpdate> for AccountUpdate {
 #[derive(Default)]
 struct AccountShutdownProgress {
     done_saving: bool,
+    done_syncing: bool,
 }
 
 fn is_supported_image_fmt(ext: &str) -> bool {
