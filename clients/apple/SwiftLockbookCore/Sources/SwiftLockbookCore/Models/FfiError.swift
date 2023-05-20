@@ -184,7 +184,7 @@ public enum SyncAllError: String, UiError {
     case ClientUpdateRequired
     case CouldNotReachServer
     case Retry
-    case UsageIsOverFreeTierDataCap
+    case UsageIsOverDataCap
 }
 public enum CalculateWorkError: String, UiError {
     case CouldNotReachServer
