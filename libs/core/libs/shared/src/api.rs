@@ -78,6 +78,8 @@ pub enum UpsertError {
     /// Found update to a deleted file
     DeletedFileUpdated,
 
+    UsageIsOverDataCap,
+
     /// Other misc validation failures
     Validation(ValidationFailure),
 }
@@ -96,6 +98,7 @@ pub enum ChangeDocError {
     NotPermissioned,
     OldVersionIncorrect,
     DiffMalformed,
+    UsageIsOverDataCap,
 }
 
 impl Request for ChangeDocRequest {

@@ -19,9 +19,10 @@ struct FileListView: View {
             .searchable(text: $searchInput, prompt: "Search")
             .keyboardShortcut(.escape)
                 
-            VStack (spacing: 3) {
+            VStack {
                 BottomBar()
             }
+            .padding()
         }
             
         DetailView()

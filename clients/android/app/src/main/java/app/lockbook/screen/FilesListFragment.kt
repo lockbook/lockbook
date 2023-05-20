@@ -442,6 +442,28 @@ class FilesListFragment : Fragment(), FilesFragment {
                 binding.syncText.text = resources.getString(R.string.list_files_sync_snackbar, uiUpdates.totalSyncItems.toString())
                 binding.syncHolder.visibility = View.VISIBLE
             }
+            UpdateFilesUI.OutOfSpaceSyncSnackBar -> {
+                binding.listFilesRefresh.isRefreshing = false
+
+                binding.syncText.text = getString(R.string.out_of_space)
+
+                if (binding.syncProgressIndicator.isVisible) {
+                    binding.syncProgressIndicator.visibility = View.GONE
+                }
+
+                if (!binding.syncHolder.isVisible) {
+                    binding.syncHolder.visibility = View.VISIBLE
+                }
+
+                Handler(Looper.getMainLooper()).postDelayed(
+                    {
+                        binding.syncHolder.visibility = View.GONE
+                        binding.syncCheck.visibility = View.GONE
+                        binding.syncProgressIndicator.visibility = View.VISIBLE
+                    },
+                    3000L
+                )
+            }
             UpdateFilesUI.UpToDateSyncSnackBar -> {
                 binding.listFilesRefresh.isRefreshing = false
 
@@ -636,6 +658,7 @@ sealed class UpdateFilesUI {
     data class UpdateSideBarInfo(var usageMetrics: UsageMetrics? = null, var lastSynced: String? = null, var localDirtyFilesCount: Int? = null, var serverDirtyFilesCount: Int? = null) : UpdateFilesUI()
     data class ToggleSuggestedDocsVisibility(var show: Boolean) : UpdateFilesUI()
     object UpToDateSyncSnackBar : UpdateFilesUI()
+    object OutOfSpaceSyncSnackBar : UpdateFilesUI()
     object ToggleMenuBar : UpdateFilesUI()
     object ShowBeforeWeStart : UpdateFilesUI()
     object SyncImport : UpdateFilesUI()

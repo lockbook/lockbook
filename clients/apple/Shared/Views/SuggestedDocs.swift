@@ -24,17 +24,19 @@ struct SuggestedDocs: View {
             LazyHStack {
                 if let suggestedDocs = fileService.suggestedDocs {
                     ForEach(suggestedDocs) { meta in
-                        if isiOS {
-                            NavigationLink(destination: DocumentView(meta: meta)) {
-                                SuggestedDocCell(name: meta.name, parentName: "\(fileService.idsAndFiles[meta.parent]!.name)/", duration: meta.lastModified, isiOS: isiOS)
-                                    .padding(.trailing, 5)
-                            }
-                        } else {
-                            HStack {
-                                Button(action: {
-                                    current.selectedDocument = meta
-                                }) {
-                                    SuggestedDocCell(name: meta.name, parentName: "\(fileService.idsAndFiles[meta.parent]!.name)/", duration: meta.lastModified, isiOS: isiOS)
+                        if let parentMeta = fileService.idsAndFiles[meta.parent] {
+                            if isiOS {
+                                NavigationLink(destination: DocumentView(meta: meta)) {
+                                    SuggestedDocCell(name: meta.name, parentName: "\(parentMeta.name)/", duration: meta.lastModified, isiOS: isiOS)
+                                        .padding(.trailing, 5)
+                                }
+                            } else {
+                                HStack {
+                                    Button(action: {
+                                        current.selectedDocument = meta
+                                    }) {
+                                        SuggestedDocCell(name: meta.name, parentName: "\(parentMeta.name)/", duration: meta.lastModified, isiOS: isiOS)
+                                    }
                                 }
                             }
                         }

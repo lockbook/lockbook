@@ -318,12 +318,19 @@ enum class MoveFileError : UiCoreError {
 enum class SyncAllError : UiCoreError {
     Retry,
     CouldNotReachServer,
-    ClientUpdateRequired;
+    ClientUpdateRequired,
+    UsageIsOverDataCap;
 
     override fun toLbError(res: Resources): LbError = when (this) {
         Retry -> LbError.newUserError(getString(res, R.string.retry_sync))
         CouldNotReachServer -> LbError.newUserError(getString(res, R.string.could_not_reach_server))
         ClientUpdateRequired -> LbError.newUserError(getString(res, R.string.client_update_required))
+        UsageIsOverDataCap -> LbError.newUserError(
+            getString(
+                res,
+                R.string.usage_is_over_data_cap
+            )
+        )
     }
 }
 
@@ -368,7 +375,7 @@ enum class CancelSubscriptionError : UiCoreError {
     override fun toLbError(res: Resources): LbError = when (this) {
         NotPremium -> LbError.newUserError(getString(res, R.string.not_premium))
         AlreadyCanceled -> LbError.newUserError(getString(res, R.string.already_canceled))
-        UsageIsOverFreeTierDataCap -> LbError.newUserError(getString(res, R.string.usage_is_over_free_tier_data_cap))
+        UsageIsOverFreeTierDataCap -> LbError.newUserError(getString(res, R.string.usage_is_over_data_cap))
         ExistingRequestPending -> LbError.newUserError(getString(res, R.string.existing_request_pending))
         CouldNotReachServer -> LbError.newUserError(getString(res, R.string.could_not_reach_server))
         ClientUpdateRequired -> LbError.newUserError(getString(res, R.string.client_update_required))
