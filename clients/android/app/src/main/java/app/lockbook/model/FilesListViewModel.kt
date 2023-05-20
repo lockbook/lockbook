@@ -223,17 +223,28 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
-    private fun sync() {
+    private suspend fun sync() {
         serverChanges = null
         when (val syncResult = syncModel.trySync()) {
-            is Ok -> _notifyUpdateFilesUI.postValue(UpdateFilesUI.UpToDateSyncSnackBar)
-            is Err -> _notifyUpdateFilesUI.postValue(
-                UpdateFilesUI.NotifyError(
-                    syncResult.error.toLbError(
-                        getRes()
+            is Ok -> {
+                _notifyUpdateFilesUI.postValue(UpdateFilesUI.UpToDateSyncSnackBar)
+            }
+            is Err -> {
+                if ((syncResult.error as? CoreError.UiError)?.content == SyncAllError.UsageIsOverDataCap) {
+                    withContext(Dispatchers.Main) {
+                        _notifyUpdateFilesUI.value = UpdateFilesUI.OutOfSpaceSyncSnackBar
+                        _notifyUpdateFilesUI.value = UpdateFilesUI.OutOfSpace(100, 100)
+                    }
+                } else {
+                    _notifyUpdateFilesUI.postValue(
+                        UpdateFilesUI.NotifyError(
+                            syncResult.error.toLbError(
+                                getRes()
+                            )
+                        )
                     )
-                )
-            )
+                }
+            }
         }.exhaustive
     }
 

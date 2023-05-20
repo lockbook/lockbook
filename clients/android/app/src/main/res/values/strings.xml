@@ -183,7 +183,7 @@
     <string name="existing_request_pending">You are accessing billing too quickly. Please try again in a minute.</string>
     <string name="not_premium">Error, you are not premium.</string>
     <string name="already_canceled">You have already canceled your subscription.</string>
-    <string name="usage_is_over_free_tier_data_cap">Your total data usage exceeds free tier. Please remove some data.</string>
+    <string name="usage_is_over_data_cap">Your total data usage exceeds free tier. Please remove some data.</string>
     <string name="retry_sync">Please retry syncing.</string>
     <string name="link_in_shared_folder">You cannot share a folder that contains a link.</string>
     <string name="link_target_is_owned">You cannot create a link to a file you own.</string>
