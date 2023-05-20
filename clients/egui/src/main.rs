@@ -41,7 +41,7 @@ fn main() {
             initial_window_size: Some(egui::vec2(1300.0, 800.0)),
             icon_data: Some(eframe::IconData {
                 rgba: include_bytes!("../lockbook.ico").to_vec(),
-                width: 32,
+                width: 31,
                 height: 32,
             }),
             ..Default::default()
