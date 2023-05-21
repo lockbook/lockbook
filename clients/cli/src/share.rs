@@ -10,7 +10,7 @@ use crate::ID_PREFIX_LEN;
 pub enum ShareCmd {
     /// share a file with another lockbook user
     New {
-        /// ID of a pending share
+        /// ID or path of the file you will share
         target: String,
         /// username of who you would like to share with
         username: String,

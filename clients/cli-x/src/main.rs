@@ -30,7 +30,6 @@ enum Cli {
     Edit { target: String },
 }
 
-
 fn print_completions<G: Generator>(gen: G, cmd: &mut Command) {
     generate(gen, cmd, "lockbook-x", &mut io::stdout());
 }

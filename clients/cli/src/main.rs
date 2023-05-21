@@ -1,4 +1,5 @@
 mod account;
+mod completions;
 mod debug;
 mod edit;
 mod error;
@@ -13,6 +14,7 @@ use std::str::FromStr;
 
 use clap::Parser;
 
+use clap_complete::Shell;
 use lb::Core;
 
 use self::error::CliError;
@@ -21,7 +23,7 @@ const ID_PREFIX_LEN: usize = 8;
 
 #[derive(Parser, Debug)]
 #[command(version, about)]
-enum LbCli {
+pub enum LbCli {
     /// account related commands
     #[command(subcommand, alias("acct"))]
     Account(account::AccountCmd),
@@ -88,6 +90,12 @@ enum LbCli {
     Share(share::ShareCmd),
     /// file sync
     Sync,
+
+    /// generate cli completions
+    Completions { shell: Shell },
+
+    #[command(hide(true))]
+    Complete { input: String, current: i32 },
 }
 
 fn input<T>(prompt: impl fmt::Display) -> Result<T, CliError>
@@ -247,6 +255,8 @@ fn run() -> Result<(), CliError> {
         LbCli::Rename { target, new_name } => rename(&core, &target, &new_name),
         LbCli::Share(cmd) => share::share(&core, cmd),
         LbCli::Sync => sync(&core),
+        LbCli::Completions { shell } => completions::generate_completions(shell),
+        LbCli::Complete { input, current } => completions::complete(&core, input, current),
     }
 }
 

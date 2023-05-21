@@ -14,31 +14,31 @@ use crate::ID_PREFIX_LEN;
 pub struct ListArgs {
     /// include all children of the given directory, recursively
     #[clap(short, long)]
-    recursive: bool,
+    pub recursive: bool,
 
     /// include more info (such as the file ID)
     #[clap(short, long)]
-    long: bool,
+    pub long: bool,
 
     /// display absolute paths instead of just names
     #[clap(long)]
-    paths: bool,
+    pub paths: bool,
 
     /// only show directories
     #[clap(long)]
-    dirs: bool,
+    pub dirs: bool,
 
     /// only show documents
     #[clap(long)]
-    docs: bool,
+    pub docs: bool,
 
     /// print full UUIDs instead of truncated ones
     #[clap(long)]
-    ids: bool,
+    pub ids: bool,
 
     /// file path location whose files will be listed
     #[clap(default_value = "/")]
-    directory: String,
+    pub directory: String,
 }
 
 struct LsConfig {
