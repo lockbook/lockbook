@@ -1,6 +1,6 @@
 [package]
 name = "lockbook-cli"
-version = "0.7.4"
+version = "0.7.5"
 edition = "2021"
 description = "The private, polished note-taking platform."
 
