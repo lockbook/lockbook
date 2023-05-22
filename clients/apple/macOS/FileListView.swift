@@ -78,6 +78,7 @@ struct FileListView: View {
 struct DetailView: View {
     @EnvironmentObject var currentSelection: CurrentDocument
     @EnvironmentObject var search: SearchService
+    @EnvironmentObject var share: ShareService
     
     @State var quickActionBarVisible = false
     @State var selectedFile: SearchResultItem? = nil
@@ -85,7 +86,9 @@ struct DetailView: View {
     var body: some View {
         ZStack {
             VStack {
-                if let selected = currentSelection.selectedDocument {
+                if currentSelection.isPendingSharesOpen {
+                    PendingSharesView()
+                }else if let selected = currentSelection.selectedDocument {
                     DocumentView(meta: selected)
                 }
             }
@@ -118,6 +121,16 @@ struct DetailView: View {
         }
         .onChange(of: currentSelection.selectedDocument) { _ in
             DI.files.refreshSuggestedDocs()
+        }
+        .toolbar {
+            ToolbarItemGroup {
+                Button(action: {
+                    currentSelection.isPendingSharesOpen = true
+                }) {
+                    pendingShareToolbarIcon(isiOS: false, isPendingSharesEmpty: share.pendingShares.isEmpty)
+                    
+                }
+            }
         }
     }
 }
