@@ -27,11 +27,9 @@ struct FileTreeView: View {
                 isiOS: false)
             .searchable(text: $searchInput, placement: .navigationBarDrawer(displayMode: .automatic), prompt: "Search")
             
-            HStack {
-                BottomBar(onCreating: {
-                    sheets.creatingInfo = CreatingInfo(parent: currentFolder, child_type: .Document)
-                })
-            }
+            BottomBar(onCreating: {
+                sheets.creatingInfo = CreatingInfo(parent: currentFolder, child_type: .Document)
+            })
         }
         
         VStack {
