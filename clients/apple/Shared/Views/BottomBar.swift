@@ -18,7 +18,7 @@ struct BottomBar: View {
         }) {
             Image(systemName: "plus.circle.fill")
                 .imageScale(.large)
-                .foregroundColor(.blue)
+                .foregroundColor(.accentColor)
                 .frame(width: 40, height: 40, alignment: .center)
         }
     }
@@ -35,7 +35,7 @@ struct BottomBar: View {
             }) {
                 Image(systemName: "arrow.triangle.2.circlepath.circle.fill")
                     .imageScale(.large)
-                    .foregroundColor(.blue)
+                    .foregroundColor(.accentColor)
                     .frame(width: 40, height: 40, alignment: .center)
             }
         }
