@@ -30,18 +30,15 @@ struct FileListView: View {
                     
                 FilePathBreadcrumb()
                     
-                HStack {
-                    BottomBar(onCreating: {
-                        if let parent = fileService.parent {
-                            sheets.creatingInfo = CreatingInfo(parent: parent, child_type: .Document)
-                        }
-                    })
-                }
-                .padding(.horizontal, 10)
+                BottomBar(onCreating: {
+                    if let parent = fileService.parent {
+                        sheets.creatingInfo = CreatingInfo(parent: parent, child_type: .Document)
+                    }
+                })
                 .onReceive(current.$selectedDocument) { _ in
                     print("cleared")
                     // When we return back to this screen, we have to change newFile back to nil regardless
-                        // of it's present value, otherwise we won't be able to navigate to new, new files
+                    // of it's present value, otherwise we won't be able to navigate to new, new files
                     if current.selectedDocument == nil {
                         sheets.created = nil
                     }

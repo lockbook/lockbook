@@ -3,7 +3,6 @@ import SwiftLockbookCore
 import DSFQuickActionBar
 
 struct FileListView: View {
-    
     @State var searchInput: String = ""
     @State var expandedFolders: [File] = []
     @State var lastOpenDoc: File? = nil
@@ -19,10 +18,7 @@ struct FileListView: View {
             .searchable(text: $searchInput, prompt: "Search")
             .keyboardShortcut(.escape)
                 
-            VStack {
-                BottomBar()
-            }
-            .padding()
+            BottomBar()
         }
             
         DetailView()
