@@ -170,21 +170,30 @@ struct BottomBar: View {
     }
     
     var body: some View {
+        
 #if os(iOS)
-        syncButton
-        Spacer()
-        statusText
-        Spacer()
-        menu
-#else
-        Divider()
         HStack {
+            syncButton
+            Spacer()
             statusText
             Spacer()
-            syncButton
+            menu
         }
-        usageBar
+        .padding(.horizontal, 10)
+#else
+        VStack {
+            Divider()
+            HStack {
+                statusText
+                Spacer()
+                syncButton
+            }
+            usageBar
+        }
+        .padding(.bottom)
+        .padding(.horizontal)
 #endif
+        
     }
 }
 
