@@ -27,7 +27,7 @@ struct OutlineRow: View {
                 .resizable()
                 .scaledToFit()
                 .frame(width: 16, height: 16)
-                .foregroundColor(file.fileType == .Folder ? .blue : .secondary)
+                .foregroundColor(file.fileType == .Folder ? .accentColor : .secondary)
             
             Text(file.name)
                 .lineLimit(1) // If lineLimit is not specified, non-leaf names will wrap
@@ -42,7 +42,7 @@ struct OutlineRow: View {
                     .scaledToFit()
                     .frame(width: 10, height: 10)
                     .rotationEffect(Angle.degrees(open ? 90 : 0))
-                    .foregroundColor(Color.blue)
+                    .foregroundColor(.accentColor)
                     .onTapGesture {
                         open.toggle()
                     }
