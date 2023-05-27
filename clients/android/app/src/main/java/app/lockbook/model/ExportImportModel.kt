@@ -8,7 +8,7 @@ import com.github.michaelbull.result.Result
 import java.io.File
 import kotlin.collections.ArrayList
 
-class ShareModel(
+class ExportImportModel(
     private val _updateMainScreenUI: SingleMutableLiveData<UpdateMainScreenUI>
 ) {
     var isLoadingOverlayVisible = false
@@ -33,7 +33,7 @@ class ShareModel(
         }
     }
 
-    fun shareDocuments(selectedFiles: List<app.lockbook.util.File>, appDataDir: File): Result<Unit, CoreError<out UiCoreError>> {
+    fun exportDocuments(selectedFiles: List<app.lockbook.util.File>, appDataDir: File): Result<Unit, CoreError<out UiCoreError>> {
         val cacheDir = getMainShareFolder(appDataDir)
 
         isLoadingOverlayVisible = true

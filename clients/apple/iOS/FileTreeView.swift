@@ -9,6 +9,7 @@ struct FileTreeView: View {
     @EnvironmentObject var onboarding: OnboardingService
     @EnvironmentObject var search: SearchService
     @EnvironmentObject var sync: SyncService
+    @EnvironmentObject var share: ShareService
     
     @State var suggestedDocBranchState: Bool = true
     @State var navigateToManageSub: Bool = false
@@ -61,8 +62,7 @@ struct FileTreeView: View {
             ToolbarItemGroup(placement: .navigationBarTrailing) {
                 NavigationLink(
                     destination: PendingSharesView()) {
-                        Image(systemName: "person.2.fill")
-                            .foregroundColor(.blue)
+                        pendingShareToolbarIcon(isiOS: true, isPendingSharesEmpty: share.pendingShares.isEmpty)
                     }
                     
                 NavigationLink(

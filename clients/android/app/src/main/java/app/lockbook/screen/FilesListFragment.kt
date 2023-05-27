@@ -7,12 +7,16 @@ import android.os.Handler
 import android.os.Looper
 import android.text.method.LinkMovementMethod
 import android.view.*
+import android.widget.ImageView
+import android.widget.LinearLayout
 import androidx.core.content.ContextCompat
 import androidx.core.content.res.ResourcesCompat
 import androidx.core.view.isVisible
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
 import androidx.fragment.app.viewModels
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
 import androidx.preference.PreferenceManager
 import androidx.recyclerview.widget.LinearLayoutManager
 import app.futured.donut.DonutProgressView
@@ -93,8 +97,21 @@ class FilesListFragment : Fragment(), FilesFragment {
         }
     }
 
-    private val model: FilesListViewModel by viewModels()
     private val activityModel: StateViewModel by activityViewModels()
+    private val model: FilesListViewModel by viewModels(
+        factoryProducer = {
+            object : ViewModelProvider.Factory {
+                override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                    if (modelClass.isAssignableFrom(FilesListViewModel::class.java))
+                        return FilesListViewModel(
+                            requireActivity().application,
+                            activityModel.syncModel
+                        ) as T
+                    throw IllegalArgumentException("Unknown ViewModel class")
+                }
+            }
+        }
+    )
 
     private val alertModel by lazy {
         AlertModel(WeakReference(requireActivity()))
@@ -237,19 +254,19 @@ class FilesListFragment : Fragment(), FilesFragment {
         binding.filesToolbar.setNavigationOnClickListener {
             binding.drawerLayout.open()
         }
-        binding.navigationView.setNavigationItemSelectedListener { item ->
-            when (item.itemId) {
-                R.id.menu_files_list_settings -> {
-                    activityModel.launchActivityScreen(ActivityScreen.Settings())
-                }
-                R.id.menu_files_list_sharing -> {
-                    activityModel.launchActivityScreen(ActivityScreen.Shares)
-                }
+
+        binding.navigationView.getHeaderView(0).let { header ->
+            header.findViewById<LinearLayout>(R.id.launch_pending_shares).setOnClickListener {
+                activityModel.launchActivityScreen(ActivityScreen.Shares)
+                binding.drawerLayout.close()
             }
 
-            binding.drawerLayout.close()
-            true
+            header.findViewById<LinearLayout>(R.id.launch_settings).setOnClickListener {
+                activityModel.launchActivityScreen(ActivityScreen.Settings())
+                binding.drawerLayout.close()
+            }
         }
+
         binding.filesToolbar.setOnMenuItemClickListener { item ->
             when (item.itemId) {
                 R.id.menu_files_list_search -> {
@@ -511,11 +528,13 @@ class FilesListFragment : Fragment(), FilesFragment {
                 (activity as MainScreenActivity).syncImportAccount()
             }
             is UpdateFilesUI.UpdateSideBarInfo -> {
+                val header = binding.navigationView.getHeaderView(0)
+
                 uiUpdates.usageMetrics?.let { usageMetrics ->
                     val dataCap = usageMetrics.dataCap.exact.toFloat()
                     val usage = usageMetrics.serverUsage.exact.toFloat()
 
-                    val donut = binding.navigationView.getHeaderView(0).findViewById<DonutProgressView>(R.id.filesListUsageDonut)
+                    val donut = header.findViewById<DonutProgressView>(R.id.filesListUsageDonut)
                     donut.cap = dataCap
 
                     val usageSection = DonutSection(
@@ -526,19 +545,29 @@ class FilesListFragment : Fragment(), FilesFragment {
 
                     donut.submitData(listOf(usageSection))
 
-                    binding.navigationView.getHeaderView(0).findViewById<MaterialTextView>(R.id.filesListUsage).text = getString(R.string.free_space, usageMetrics.serverUsage.readable, usageMetrics.dataCap.readable)
+                    header.findViewById<MaterialTextView>(R.id.filesListUsage).text = getString(R.string.free_space, usageMetrics.serverUsage.readable, usageMetrics.dataCap.readable)
                 }
 
                 uiUpdates.lastSynced?.let { lastSynced ->
-                    binding.navigationView.getHeaderView(0).findViewById<MaterialTextView>(R.id.filesListLastSynced).text = getString(R.string.last_sync, lastSynced)
+                    header.findViewById<MaterialTextView>(R.id.filesListLastSynced).text = getString(R.string.last_sync, lastSynced)
                 }
 
                 uiUpdates.localDirtyFilesCount?.let { localDirtyFilesCount ->
-                    binding.navigationView.getHeaderView(0).findViewById<MaterialTextView>(R.id.filesListLocalDirty).text = resources.getQuantityString(R.plurals.files_to_push, localDirtyFilesCount, localDirtyFilesCount)
+                    header.findViewById<MaterialTextView>(R.id.filesListLocalDirty).text = resources.getQuantityString(R.plurals.files_to_push, localDirtyFilesCount, localDirtyFilesCount)
                 }
 
                 uiUpdates.serverDirtyFilesCount?.let { serverDirtyFilesCount ->
-                    binding.navigationView.getHeaderView(0).findViewById<MaterialTextView>(R.id.filesListServerDirty).text = resources.getQuantityString(R.plurals.files_to_pull, serverDirtyFilesCount, serverDirtyFilesCount)
+                    header.findViewById<MaterialTextView>(R.id.filesListServerDirty).text = resources.getQuantityString(R.plurals.files_to_pull, serverDirtyFilesCount, serverDirtyFilesCount)
+                }
+
+                uiUpdates.hasPendingShares?.let { hasPendingShares ->
+                    header.findViewById<ImageView>(R.id.pending_shares_icon).setImageResource(
+                        if (hasPendingShares) {
+                            R.drawable.ic_outline_folder_shared_notif_24
+                        } else {
+                            R.drawable.ic_outline_folder_shared_24
+                        }
+                    )
                 }
             }
             is UpdateFilesUI.ToggleSuggestedDocsVisibility -> {
@@ -661,7 +690,7 @@ sealed class UpdateFilesUI {
     data class UpdateBreadcrumbBar(val breadcrumbItems: List<BreadCrumbItem>) : UpdateFilesUI()
     data class NotifyError(val error: LbError) : UpdateFilesUI()
     data class ShowSyncSnackBar(val totalSyncItems: Int) : UpdateFilesUI()
-    data class UpdateSideBarInfo(var usageMetrics: UsageMetrics? = null, var lastSynced: String? = null, var localDirtyFilesCount: Int? = null, var serverDirtyFilesCount: Int? = null) : UpdateFilesUI()
+    data class UpdateSideBarInfo(var usageMetrics: UsageMetrics? = null, var lastSynced: String? = null, var localDirtyFilesCount: Int? = null, var serverDirtyFilesCount: Int? = null, var hasPendingShares: Boolean? = null) : UpdateFilesUI()
     data class ToggleSuggestedDocsVisibility(var show: Boolean) : UpdateFilesUI()
     object UpToDateSyncSnackBar : UpdateFilesUI()
     object OutOfSpaceSyncSnackBar : UpdateFilesUI()

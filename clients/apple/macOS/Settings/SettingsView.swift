@@ -27,11 +27,6 @@ struct SettingsView: View {
                     .tabItem {
                         Label("Premium", systemImage: "banknote")
                     }
-                
-                PendingSharesView()
-                    .tabItem {
-                        Label("Pending Shares", systemImage: "person.2.fill")
-                    }
             }
             .padding(20)
             .frame(width: 600)

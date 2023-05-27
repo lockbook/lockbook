@@ -28,9 +28,6 @@ struct PendingSharesView: View {
         }
         .background(.clear)
         .navigationTitle("Pending Shares")
-        .onAppear {
-                share.calculatePendingShares()
-            }
         .sheet(isPresented: $sheets.acceptingShare, content: AcceptShareSheet.init)
     }
     
@@ -45,14 +42,10 @@ struct PendingSharesView: View {
             Spacer()
         }
         .navigationTitle("Pending Shares")
-        .onAppear {
-                share.calculatePendingShares()
-            }
     }
 }
 
 struct SharedFileCell: View {
-    
     @EnvironmentObject var sheets: SheetState
     @EnvironmentObject var share: ShareService
     

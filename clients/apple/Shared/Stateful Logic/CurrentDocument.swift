@@ -7,8 +7,11 @@ class CurrentDocument: ObservableObject {
     @Published var selectedDocument: File? {
         didSet {
             selectedFolder = nil
+            isPendingSharesOpen = false
         }
     }
+    
+    @Published var isPendingSharesOpen: Bool = false
 
     @Published var selectedFolder: File?
 }

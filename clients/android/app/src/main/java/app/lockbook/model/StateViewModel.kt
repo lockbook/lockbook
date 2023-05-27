@@ -34,7 +34,8 @@ class StateViewModel(application: Application) : AndroidViewModel(application) {
     val updateMainScreenUI: LiveData<UpdateMainScreenUI>
         get() = _updateMainScreenUI
 
-    val shareModel = ShareModel(_updateMainScreenUI)
+    val exportImportModel = ExportImportModel(_updateMainScreenUI)
+    val syncModel = SyncModel()
 
     fun launchActivityScreen(screen: ActivityScreen) {
         activityScreen = screen
@@ -57,11 +58,11 @@ class StateViewModel(application: Application) : AndroidViewModel(application) {
 
     fun shareSelectedFiles(selectedFiles: List<app.lockbook.util.File>, appDataDir: File) {
         viewModelScope.launch(Dispatchers.IO) {
-            val shareResult = shareModel.shareDocuments(selectedFiles, appDataDir)
-            if (shareResult is Err) {
+            val exportResult = exportImportModel.exportDocuments(selectedFiles, appDataDir)
+            if (exportResult is Err) {
                 _updateMainScreenUI.postValue(
                     UpdateMainScreenUI.NotifyError(
-                        shareResult.error.toLbError(
+                        exportResult.error.toLbError(
                             getRes()
                         )
                     )
