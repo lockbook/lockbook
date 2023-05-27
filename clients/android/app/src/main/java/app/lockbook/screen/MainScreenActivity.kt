@@ -55,7 +55,7 @@ class MainScreenActivity : AppCompatActivity() {
     private val onExport =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
             updateMainScreenUI(UpdateMainScreenUI.ShowHideProgressOverlay(false))
-            model.shareModel.isLoadingOverlayVisible = false
+            model.exportImportModel.isLoadingOverlayVisible = false
 
             getFilesFragment().unselectFiles()
         }
@@ -87,8 +87,8 @@ class MainScreenActivity : AppCompatActivity() {
             }
         }
 
-        if (model.shareModel.isLoadingOverlayVisible) {
-            updateMainScreenUI(UpdateMainScreenUI.ShowHideProgressOverlay(model.shareModel.isLoadingOverlayVisible))
+        if (model.exportImportModel.isLoadingOverlayVisible) {
+            updateMainScreenUI(UpdateMainScreenUI.ShowHideProgressOverlay(model.exportImportModel.isLoadingOverlayVisible))
         }
 
         binding.slidingPaneLayout.addPanelSlideListener(object :

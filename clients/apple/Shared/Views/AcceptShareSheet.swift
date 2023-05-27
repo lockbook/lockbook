@@ -12,30 +12,45 @@ struct AcceptShareSheet: View {
     
     var body: some View {
         if let meta = sheets.acceptingShareInfo {
-            let root = fileService.files.first(where: { $0.parent == $0.id })!
-            let wc = WithChild(root, fileService.files, { $0.id == $1.parent && $0.id != $1.id && $1.fileType == .Folder })
-            
-            ScrollView {
-                VStack {
-                    Text("Accepting \(meta.name)").font(.headline)
-                    NestedList(
-                        node: wc,
-                        row: { dest in
-                            Button(action: {
-                                share.acceptShare(targetMeta: meta, parent: dest.id)
-                                fileService.refresh()
-                                share.calculatePendingShares()
-                                
-                                presentationMode.wrappedValue.dismiss()
-                            }, label: {
-                                Label(dest.name, systemImage: "folder")
-                            })
-                        }
-                    )
-                    Spacer()
-                }.padding()
+            Group {
+                let root = fileService.files.first(where: { $0.parent == $0.id })!
+                let wc = WithChild(root, fileService.files, { $0.id == $1.parent && $0.id != $1.id && $1.fileType == .Folder })
+                
+                ScrollView {
+                    VStack {
+                        Text("Accepting \(meta.name)").font(.headline)
+                        NestedList(
+                            node: wc,
+                            row: { dest in
+                                Button(action: {
+                                    share.acceptShare(targetMeta: meta, parent: dest.id)
+                                    fileService.refresh()
+                                    share.calculatePendingShares()
+                                    
+                                    presentationMode.wrappedValue.dismiss()
+                                }, label: {
+                                    Label(dest.name, systemImage: "folder")
+                                })
+                            }
+                        )
+                        Spacer()
+                    }.padding()
+                }
             }
+            .setAcceptShareSheetFraming()
         }
+    }
+}
+
+extension View {
+    @ViewBuilder
+    func setAcceptShareSheetFraming() -> some View {
+        #if os(iOS)
+        self
+        #elseif os(macOS)
+        self
+            .frame(width: 800, height: 600)
+        #endif
     }
 }
 

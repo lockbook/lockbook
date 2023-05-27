@@ -41,6 +41,7 @@ class SyncService: ObservableObject {
         DI.files.refresh()
         DI.status.setLastSynced()
         DI.status.checkForLocalWork()
+        DI.share.calculatePendingShares()
     }
     
     func sync() {

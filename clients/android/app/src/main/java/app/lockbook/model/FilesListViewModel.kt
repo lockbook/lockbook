@@ -18,7 +18,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-class FilesListViewModel(application: Application) : AndroidViewModel(application) {
+class FilesListViewModel(application: Application, val syncModel: SyncModel) : AndroidViewModel(application) {
 
     private val _notifyUpdateFilesUI = SingleMutableLiveData<UpdateFilesUI>()
 
@@ -32,7 +32,6 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
 
     var breadcrumbItems = listOf<BreadCrumbItem>()
 
-    val syncModel = SyncModel()
     var localChanges: HashSet<String> = hashSetOf()
     var serverChanges: HashSet<String>? = null
     var maybeLastSidebarInfo: UpdateFilesUI.UpdateSideBarInfo? = null
@@ -320,6 +319,13 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
             is Err -> if ((calculateWorkResult.error as? CoreError.UiError)?.content != CalculateWorkError.CouldNotReachServer) {
                 _notifyUpdateFilesUI.postValue(UpdateFilesUI.NotifyError(calculateWorkResult.error.toLbError(getRes())))
             }
+        }
+
+        _notifyUpdateFilesUI.postValue(sidebarInfo)
+
+        when (val pendingSharesResult = CoreModel.getPendingShares()) {
+            is Ok -> sidebarInfo.hasPendingShares = pendingSharesResult.value.isNotEmpty()
+            is Err -> _notifyUpdateFilesUI.postValue(UpdateFilesUI.NotifyError(pendingSharesResult.error.toLbError(getRes())))
         }
 
         _notifyUpdateFilesUI.postValue(sidebarInfo)
