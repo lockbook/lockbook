@@ -12,6 +12,7 @@ use egui::{Event, Rect};
 use std::time::Instant;
 
 /// combines `events` and `custom_events` into a single set of events
+#[allow(clippy::too_many_arguments)]
 pub fn combine(
     events: &[Event], custom_events: &[Modification], ast: &Ast, galleys: &Galleys,
     appearance: &Appearance, ui_rect: Rect, buffer: &mut Buffer, pointer_state: &mut PointerState,
@@ -35,7 +36,7 @@ pub fn process(
     debug: &mut DebugInfo,
 ) -> (bool, Option<String>, Option<String>) {
     combined_events
-        .into_iter()
+        .iter()
         .cloned()
         .map(|m| match input::mutation::calc(m, layouts, &buffer.current, galleys) {
             EditorMutation::Buffer(mutations) if mutations.is_empty() => (false, None, None),
