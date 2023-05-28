@@ -1,13 +1,14 @@
 use crate::input::click_checker::ClickChecker;
 use crate::input::cursor::{ClickType, PointerState};
-use crate::offset_types::DocCharOffset;
+use crate::offset_types::{DocCharOffset, RelCharOffset};
+use crate::{CTextPosition, CTextRange};
 use egui::{Event, Key, Modifiers, PointerButton, Pos2};
 use std::time::Instant;
 
 /// text location
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Location {
-    CurrentCursor, // start or end of current selection depending on context
+    CurrentCursor,
     DocCharOffset(DocCharOffset),
     Pos(Pos2),
 }
@@ -43,6 +44,9 @@ pub enum Region {
     /// text from secondary cursor to location. preserves selection.
     ToLocation(Location),
 
+    /// text from one location to another
+    BetweenLocations { start: Location, end: Location },
+
     /// currently selected text
     Selection,
 
@@ -65,7 +69,8 @@ pub enum Region {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Modification {
     Select { region: Region },
-    Mark { start: DocCharOffset, end: DocCharOffset },
+    StageMarked { highlighted: (RelCharOffset, RelCharOffset), text: String },
+    CommitMarked,
     Replace { region: Region, text: String },
     Newline, // distinct from replace because it triggers auto-bullet, etc
     Indent { deindent: bool },
@@ -91,13 +96,14 @@ impl From<&Modifiers> for Offset {
 }
 
 pub fn calc(
-    event: &Event, click_checker: impl ClickChecker, pointer_state: &mut PointerState, now: Instant,
+    event: &Event, click_checker: impl ClickChecker, pointer_state: &mut PointerState,
+    now: Instant, touch_mode: bool,
 ) -> Option<Modification> {
-    Some(match event {
+    match event {
         Event::Key { key, pressed: true, modifiers, .. }
             if matches!(key, Key::ArrowUp | Key::ArrowDown) =>
         {
-            Modification::Select {
+            Some(Modification::Select {
                 region: Region::ToOffset {
                     offset: if modifiers.command {
                         Offset::To(Bound::Doc)
@@ -107,12 +113,12 @@ pub fn calc(
                     backwards: key == &Key::ArrowUp,
                     extend_selection: modifiers.shift,
                 },
-            }
+            })
         }
         Event::Key { key, pressed: true, modifiers, .. }
             if matches!(key, Key::ArrowRight | Key::ArrowLeft | Key::Home | Key::End) =>
         {
-            Modification::Select {
+            Some(Modification::Select {
                 region: Region::ToOffset {
                     offset: if matches!(key, Key::Home | Key::End) {
                         Offset::To(Bound::Line)
@@ -122,87 +128,141 @@ pub fn calc(
                     backwards: matches!(key, Key::ArrowLeft | Key::Home),
                     extend_selection: modifiers.shift,
                 },
-            }
+            })
         }
         Event::Text(text) | Event::Paste(text) => {
-            Modification::Replace { region: Region::Selection, text: text.clone() }
+            Some(Modification::Replace { region: Region::Selection, text: text.clone() })
         }
         Event::Key { key, pressed: true, modifiers, .. }
             if matches!(key, Key::Backspace | Key::Delete) =>
         {
-            Modification::Replace {
+            Some(Modification::Replace {
                 region: Region::SelectionOrOffset {
                     offset: Offset::from(modifiers),
                     backwards: key == &Key::Backspace,
                 },
                 text: "".to_string(),
-            }
+            })
         }
-        Event::Key { key: Key::Enter, pressed: true, .. } => Modification::Newline,
+        Event::Key { key: Key::Enter, pressed: true, .. } => Some(Modification::Newline),
         Event::Key { key: Key::Tab, pressed: true, modifiers, .. } => {
-            Modification::Indent { deindent: modifiers.shift }
+            Some(Modification::Indent { deindent: modifiers.shift })
         }
         Event::Key { key: Key::A, pressed: true, modifiers, .. } if modifiers.command => {
-            Modification::Select { region: Region::Bound { bound: Bound::Doc } }
+            Some(Modification::Select { region: Region::Bound { bound: Bound::Doc } })
         }
         Event::Key { key: Key::X, pressed: true, modifiers, .. } if modifiers.command => {
-            Modification::Cut
+            Some(Modification::Cut)
         }
         Event::Key { key: Key::C, pressed: true, modifiers, .. } if modifiers.command => {
-            Modification::Copy
+            Some(Modification::Copy)
         }
         Event::Key { key: Key::Z, pressed: true, modifiers, .. } if modifiers.command => {
             if !modifiers.shift {
-                Modification::Undo
+                Some(Modification::Undo)
             } else {
-                Modification::Redo
+                Some(Modification::Redo)
             }
         }
         Event::PointerButton { pos, button: PointerButton::Primary, pressed: true, modifiers }
             if click_checker.ui(*pos) =>
         {
             if let Some(galley_idx) = click_checker.checkbox(*pos) {
-                return Some(Modification::ToggleCheckbox(galley_idx));
-            }
-            if modifiers.command {
+                Some(Modification::ToggleCheckbox(galley_idx))
+            } else if modifiers.command {
                 if let Some(url) = click_checker.link(*pos) {
-                    return Some(Modification::OpenUrl(url));
-                }
-            }
-
-            let click_type = pointer_state.press(now);
-            let location = Location::Pos(*pos);
-            Modification::Select {
-                region: if modifiers.shift {
-                    Region::ToLocation(location)
+                    Some(Modification::OpenUrl(url))
                 } else {
-                    match click_type {
-                        ClickType::Single => Region::Location(location),
-                        ClickType::Double => Region::BoundAt { bound: Bound::Word, location },
-                        ClickType::Triple => Region::BoundAt { bound: Bound::Line, location },
-                        ClickType::Quadruple => Region::BoundAt { bound: Bound::Doc, location },
-                    }
-                },
+                    pointer_state.press(now, *pos, *modifiers);
+                    None
+                }
+            } else {
+                pointer_state.press(now, *pos, *modifiers);
+                None
             }
         }
         Event::PointerMoved(pos) if click_checker.ui(*pos) => {
-            if !pointer_state.pressed || pointer_state.last_click_type != ClickType::Single {
-                return None;
+            pointer_state.drag(now, *pos);
+            if pointer_state.click_pos.is_some() && !touch_mode {
+                if pointer_state.click_mods.unwrap_or_default().shift {
+                    Some(Modification::Select { region: Region::ToLocation(Location::Pos(*pos)) })
+                } else if let Some(click_pos) = pointer_state.click_pos {
+                    Some(Modification::Select {
+                        region: Region::BetweenLocations {
+                            start: Location::Pos(click_pos),
+                            end: Location::Pos(*pos),
+                        },
+                    })
+                } else {
+                    Some(Modification::Select { region: Region::ToLocation(Location::Pos(*pos)) })
+                }
             } else {
-                Modification::Select { region: Region::ToLocation(Location::Pos(*pos)) }
+                None
             }
         }
         Event::PointerButton { pos, button: PointerButton::Primary, pressed: false, .. }
             if click_checker.ui(*pos) =>
         {
+            let click_type = pointer_state.click_type.unwrap_or_default();
+            let click_pos = pointer_state.click_pos.unwrap_or_default();
+            let click_mods = pointer_state.click_mods.unwrap_or_default();
+            let click_dragged = pointer_state.click_dragged.unwrap_or_default();
             pointer_state.release();
-            return None;
+            let location = Location::Pos(*pos);
+
+            Some(Modification::Select {
+                region: if click_mods.shift {
+                    Region::ToLocation(location)
+                } else {
+                    match click_type {
+                        ClickType::Single => {
+                            if touch_mode {
+                                if !click_dragged {
+                                    Region::Location(location)
+                                } else {
+                                    return None;
+                                }
+                            } else {
+                                Region::BetweenLocations {
+                                    start: Location::Pos(click_pos),
+                                    end: location,
+                                }
+                            }
+                        }
+                        ClickType::Double => Region::BoundAt { bound: Bound::Word, location },
+                        ClickType::Triple => Region::BoundAt { bound: Bound::Line, location },
+                        ClickType::Quadruple => Region::BoundAt { bound: Bound::Doc, location },
+                    }
+                },
+            })
         }
-        Event::Key { key: Key::F2, pressed: true, .. } => Modification::ToggleDebug,
-        _ => {
-            return None;
-        }
-    })
+        Event::Key { key: Key::F2, pressed: true, .. } => Some(Modification::ToggleDebug),
+        _ => None,
+    }
+}
+
+impl From<CTextRange> for (DocCharOffset, DocCharOffset) {
+    fn from(value: CTextRange) -> Self {
+        (value.start.pos.into(), value.end.pos.into())
+    }
+}
+
+impl From<CTextRange> for (RelCharOffset, RelCharOffset) {
+    fn from(value: CTextRange) -> Self {
+        (value.start.pos.into(), value.end.pos.into())
+    }
+}
+
+impl From<CTextRange> for Region {
+    fn from(value: CTextRange) -> Self {
+        Region::BetweenLocations { start: value.start.into(), end: value.end.into() }
+    }
+}
+
+impl From<CTextPosition> for Location {
+    fn from(value: CTextPosition) -> Self {
+        Self::DocCharOffset(value.pos.into())
+    }
 }
 
 #[cfg(test)]
@@ -246,7 +306,8 @@ mod test {
                 },
                 TestClickChecker::default(),
                 &mut Default::default(),
-                Instant::now()
+                Instant::now(),
+                false
             ),
             Some(Modification::Select {
                 region: Region::ToOffset {
@@ -270,7 +331,8 @@ mod test {
                 },
                 TestClickChecker::default(),
                 &mut Default::default(),
-                Instant::now()
+                Instant::now(),
+                false
             ),
             Some(Modification::Select {
                 region: Region::ToOffset {
@@ -294,7 +356,8 @@ mod test {
                 },
                 TestClickChecker::default(),
                 &mut Default::default(),
-                Instant::now()
+                Instant::now(),
+                false
             ),
             Some(Modification::Select {
                 region: Region::ToOffset {
@@ -318,7 +381,8 @@ mod test {
                 },
                 TestClickChecker::default(),
                 &mut Default::default(),
-                Instant::now()
+                Instant::now(),
+                false
             ),
             Some(Modification::Select {
                 region: Region::ToOffset {
@@ -342,7 +406,8 @@ mod test {
                 },
                 TestClickChecker::default(),
                 &mut Default::default(),
-                Instant::now()
+                Instant::now(),
+                false
             ),
             Some(Modification::Select {
                 region: Region::ToOffset {
@@ -366,7 +431,8 @@ mod test {
                 },
                 TestClickChecker::default(),
                 &mut Default::default(),
-                Instant::now()
+                Instant::now(),
+                false
             ),
             Some(Modification::Select {
                 region: Region::ToOffset {
@@ -390,7 +456,8 @@ mod test {
                 },
                 TestClickChecker::default(),
                 &mut Default::default(),
-                Instant::now()
+                Instant::now(),
+                false
             ),
             Some(Modification::Select {
                 region: Region::ToOffset {
@@ -414,7 +481,8 @@ mod test {
                 },
                 TestClickChecker::default(),
                 &mut Default::default(),
-                Instant::now()
+                Instant::now(),
+                false
             ),
             Some(Modification::Select {
                 region: Region::ToOffset {
@@ -438,7 +506,8 @@ mod test {
                 },
                 TestClickChecker::default(),
                 &mut Default::default(),
-                Instant::now()
+                Instant::now(),
+                false
             ),
             Some(Modification::Select {
                 region: Region::ToOffset {
@@ -462,7 +531,8 @@ mod test {
                 },
                 TestClickChecker::default(),
                 &mut Default::default(),
-                Instant::now()
+                Instant::now(),
+                false
             ),
             Some(Modification::Select {
                 region: Region::ToOffset {
@@ -486,7 +556,8 @@ mod test {
                 },
                 TestClickChecker::default(),
                 &mut Default::default(),
-                Instant::now()
+                Instant::now(),
+                false
             ),
             Some(Modification::Select {
                 region: Region::ToOffset {
@@ -510,7 +581,8 @@ mod test {
                 },
                 TestClickChecker::default(),
                 &mut Default::default(),
-                Instant::now()
+                Instant::now(),
+                false
             ),
             Some(Modification::Select {
                 region: Region::ToOffset {
@@ -534,7 +606,8 @@ mod test {
                 },
                 TestClickChecker::default(),
                 &mut Default::default(),
-                Instant::now()
+                Instant::now(),
+                false
             ),
             Some(Modification::Select {
                 region: Region::ToOffset {
@@ -558,7 +631,8 @@ mod test {
                 },
                 TestClickChecker::default(),
                 &mut Default::default(),
-                Instant::now()
+                Instant::now(),
+                false
             ),
             Some(Modification::Select {
                 region: Region::ToOffset {
@@ -582,7 +656,8 @@ mod test {
                 },
                 TestClickChecker::default(),
                 &mut Default::default(),
-                Instant::now()
+                Instant::now(),
+                false
             ),
             Some(Modification::Select {
                 region: Region::ToOffset {
@@ -606,7 +681,8 @@ mod test {
                 },
                 TestClickChecker::default(),
                 &mut Default::default(),
-                Instant::now()
+                Instant::now(),
+                false
             ),
             Some(Modification::Select {
                 region: Region::ToOffset {
@@ -630,7 +706,8 @@ mod test {
                 },
                 TestClickChecker::default(),
                 &mut Default::default(),
-                Instant::now()
+                Instant::now(),
+                false
             ),
             Some(Modification::Select {
                 region: Region::ToOffset {
@@ -654,7 +731,8 @@ mod test {
                 },
                 TestClickChecker::default(),
                 &mut Default::default(),
-                Instant::now()
+                Instant::now(),
+                false
             ),
             Some(Modification::Select {
                 region: Region::ToOffset {
@@ -678,7 +756,8 @@ mod test {
                 },
                 TestClickChecker::default(),
                 &mut Default::default(),
-                Instant::now()
+                Instant::now(),
+                false
             ),
             Some(Modification::Select {
                 region: Region::ToOffset {
@@ -702,7 +781,8 @@ mod test {
                 },
                 TestClickChecker::default(),
                 &mut Default::default(),
-                Instant::now()
+                Instant::now(),
+                false
             ),
             Some(Modification::Select {
                 region: Region::ToOffset {
@@ -726,7 +806,8 @@ mod test {
                 },
                 TestClickChecker::default(),
                 &mut Default::default(),
-                Instant::now()
+                Instant::now(),
+                false
             ),
             Some(Modification::Select {
                 region: Region::ToOffset {
@@ -750,7 +831,8 @@ mod test {
                 },
                 TestClickChecker::default(),
                 &mut Default::default(),
-                Instant::now()
+                Instant::now(),
+                false
             ),
             Some(Modification::Select {
                 region: Region::ToOffset {
@@ -774,7 +856,8 @@ mod test {
                 },
                 TestClickChecker::default(),
                 &mut Default::default(),
-                Instant::now()
+                Instant::now(),
+                false
             ),
             Some(Modification::Select {
                 region: Region::ToOffset {
@@ -798,7 +881,8 @@ mod test {
                 },
                 TestClickChecker::default(),
                 &mut Default::default(),
-                Instant::now()
+                Instant::now(),
+                false
             ),
             Some(Modification::Select {
                 region: Region::ToOffset {

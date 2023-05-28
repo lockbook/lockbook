@@ -1,9 +1,8 @@
 use crate::buffer::SubBuffer;
 use crate::element::Element;
-use crate::offset_types::DocByteOffset;
+use crate::offset_types::{DocCharOffset, RangeExt};
 use crate::Editor;
 use pulldown_cmark::{Event, OffsetIter, Options, Parser};
-use std::ops::Range;
 
 #[derive(Default, Debug)]
 pub struct Ast {
@@ -14,7 +13,7 @@ pub struct Ast {
 #[derive(Default, Debug)]
 pub struct AstNode {
     pub element: Element,
-    pub range: Range<DocByteOffset>,
+    pub range: (DocCharOffset, DocCharOffset),
     pub children: Vec<usize>,
 }
 
@@ -25,34 +24,39 @@ pub fn calc(buffer: &SubBuffer) -> Ast {
     let mut result = Ast {
         nodes: vec![AstNode::new(
             Element::Document,
-            Range { start: DocByteOffset(0), end: DocByteOffset(buffer.len()) },
+            (0.into(), buffer.segs.last_cursor_position()),
         )],
         root: 0,
     };
-    result.push_children(result.root, &mut parser.into_offset_iter(), &buffer.text);
+    result.push_children(result.root, &mut parser.into_offset_iter(), buffer);
     result
 }
 
 impl Ast {
-    fn push_children(&mut self, current_idx: usize, iter: &mut OffsetIter, raw: &str) {
+    fn push_children(&mut self, current_idx: usize, iter: &mut OffsetIter, buffer: &SubBuffer) {
         while let Some((event, range)) = iter.next() {
-            let mut range =
-                Range { start: DocByteOffset(range.start), end: DocByteOffset(range.end) };
+            let mut range = buffer
+                .segs
+                .range_to_char((range.start.into(), range.end.into()));
             match event {
                 Event::Start(new_child) => {
                     if let Some(new_child) = Element::from_tag(new_child) {
                         if new_child == Element::Item {
-                            range.start -= Self::look_back_whitespace(raw, range.start);
-                            range.end -= Self::look_back_newlines(raw, range.end);
+                            range = (
+                                range.start() - Self::look_back_whitespace(buffer, range.start()),
+                                range.end() - Self::look_back_newlines(buffer, range.end()),
+                            );
                         }
                         if new_child == Element::CodeBlock {
-                            range.end +=
-                                Self::capture_codeblock_newline(raw, range.start, range.end);
+                            range = (
+                                range.start(),
+                                range.end() + Self::capture_codeblock_newline(buffer, range),
+                            );
                         }
 
                         let new_child_idx =
                             self.push_child(current_idx, AstNode::new(new_child, range));
-                        self.push_children(new_child_idx, iter, raw);
+                        self.push_children(new_child_idx, iter, buffer);
                     }
                 }
                 Event::Code(_) => {
@@ -78,7 +82,7 @@ impl Ast {
     }
 
     // capture this many spaces or tabs from before a list item
-    fn look_back_whitespace(raw: &str, start: DocByteOffset) -> usize {
+    fn look_back_whitespace(buffer: &SubBuffer, start: DocCharOffset) -> usize {
         let mut modification = 0;
         loop {
             if start < modification + 1 {
@@ -86,7 +90,7 @@ impl Ast {
             }
             let location = start - (modification + 1);
 
-            let white_maybe = &raw[location.0..location.0 + 1];
+            let white_maybe = &buffer[(location, location + 1)];
             if white_maybe == " " || white_maybe == "\t" {
                 modification += 1;
             } else {
@@ -97,7 +101,7 @@ impl Ast {
     }
 
     // release this many newlines from the end of a list item
-    fn look_back_newlines(raw: &str, end: DocByteOffset) -> usize {
+    fn look_back_newlines(buffer: &SubBuffer, end: DocCharOffset) -> usize {
         let mut modification = 0;
         loop {
             if end < modification + 1 {
@@ -105,7 +109,7 @@ impl Ast {
             }
             let location = end - (modification + 1);
 
-            if raw.is_char_boundary(location.0) && &raw[location.0..location.0 + 1] == "\n" {
+            if &buffer[(location, location + 1)] == "\n" {
                 modification += 1;
             } else {
                 break;
@@ -118,27 +122,29 @@ impl Ast {
         modification
     }
 
-    fn capture_codeblock_newline(raw: &str, start: DocByteOffset, end: DocByteOffset) -> usize {
-        if raw.len() < end.0 + 1 {
+    fn capture_codeblock_newline(
+        buffer: &SubBuffer, range: (DocCharOffset, DocCharOffset),
+    ) -> usize {
+        if buffer.segs.last_cursor_position() < range.end() + 1 {
             return 0;
         }
 
-        if &raw[start.0..start.0 + 1] != "`" {
+        if &buffer[(range.start(), range.start() + 1)] != "`" {
             return 0;
         }
 
-        if &raw[end.0..end.0 + 1] == "\n" {
+        if &buffer[(range.end(), range.end() + 1)] == "\n" {
             return 1;
         }
 
         0
     }
 
-    pub fn print(&self, raw: &str) {
-        Self::print_recursive(self, self.root, raw, "");
+    pub fn print(&self, buffer: &SubBuffer) {
+        Self::print_recursive(self, self.root, buffer, "");
     }
 
-    fn print_recursive(ast: &Ast, node_idx: usize, raw: &str, prefix: &str) {
+    fn print_recursive(ast: &Ast, node_idx: usize, buffer: &SubBuffer, prefix: &str) {
         let node = &ast.nodes[node_idx];
         let prefix = format!("{}[{:?} {:?}]", prefix, node_idx, node.element);
 
@@ -146,64 +152,47 @@ impl Ast {
             println!(
                 "{}: {:?}..{:?} ({:?})",
                 prefix,
-                node.range.start.0,
-                node.range.end.0,
-                &raw[node.range.start.0..node.range.end.0]
+                node.range.start(),
+                node.range.end(),
+                &buffer[node.range],
             );
         } else {
-            let head_range =
-                Range { start: node.range.start.0, end: ast.nodes[node.children[0]].range.start.0 };
-            if !head_range.is_empty() {
-                println!(
-                    "{}: {:?}..{:?} ({:?})",
-                    prefix,
-                    head_range.start,
-                    head_range.end,
-                    &raw[head_range.start..head_range.end]
-                );
+            let head = (node.range.start(), ast.nodes[node.children[0]].range.start());
+            if !head.is_empty() {
+                println!("{}: {:?}..{:?} ({:?})", prefix, head.start(), head.end(), &buffer[head]);
             }
             for child_idx in 0..node.children.len() {
                 let child = node.children[child_idx];
-                Self::print_recursive(ast, child, raw, &prefix);
+                Self::print_recursive(ast, child, buffer, &prefix);
                 if child_idx != node.children.len() - 1 {
                     let next_child = node.children[child_idx + 1];
-                    let mid_range = Range {
-                        start: ast.nodes[child].range.end.0,
-                        end: ast.nodes[next_child].range.start.0,
-                    };
-                    if !mid_range.is_empty() {
+                    let mid = (ast.nodes[child].range.end(), ast.nodes[next_child].range.start());
+                    if !mid.is_empty() {
                         println!(
                             "{}: {:?}..{:?} ({:?})",
                             prefix,
-                            mid_range.start,
-                            mid_range.end,
-                            &raw[mid_range.start..mid_range.end]
+                            mid.start(),
+                            mid.end(),
+                            &buffer[mid]
                         );
                     }
                 }
             }
-            let tail_range = Range {
-                start: ast.nodes[node.children[node.children.len() - 1]]
+            let tail = (
+                ast.nodes[node.children[node.children.len() - 1]]
                     .range
-                    .end
-                    .0,
-                end: node.range.end.0,
-            };
-            if !tail_range.is_empty() {
-                println!(
-                    "{}: {:?}..{:?} ({:?})",
-                    prefix,
-                    tail_range.start,
-                    tail_range.end,
-                    &raw[tail_range.start..tail_range.end]
-                );
+                    .end(),
+                node.range.end(),
+            );
+            if tail.is_empty() {
+                println!("{}: {:?}..{:?} ({:?})", prefix, tail.start(), tail.end(), &buffer[tail]);
             }
         }
     }
 }
 
 impl AstNode {
-    pub fn new(element: Element, range: Range<DocByteOffset>) -> Self {
+    pub fn new(element: Element, range: (DocCharOffset, DocCharOffset)) -> Self {
         Self { element, range, children: vec![] }
     }
 }
@@ -211,7 +200,7 @@ impl AstNode {
 impl Editor {
     pub fn print_ast(&self) {
         println!("ast:");
-        self.ast.print(&self.buffer.current.text);
+        self.ast.print(&self.buffer.current);
     }
 }
 

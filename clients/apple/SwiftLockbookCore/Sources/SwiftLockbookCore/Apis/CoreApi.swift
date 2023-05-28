@@ -137,7 +137,7 @@ public struct CoreApi: LockbookApi {
     }
 
     public func exportFile(id: UUID, destination: String) ->FfiResult<Empty, ExportFileError> {
-        fromPrimitiveResult(result: export_file(id.uuidString, destination))
+        fromPrimitiveResult(result:  export_file(id.uuidString, destination))
     }
 
     public func importFiles(sources: [String], destination: UUID) ->FfiResult<Empty, ImportFilesError> {
