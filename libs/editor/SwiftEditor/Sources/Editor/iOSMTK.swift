@@ -15,11 +15,12 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     override init(frame frameRect: CGRect, device: MTLDevice?) {
         super.init(frame: frameRect, device: device)
         
-        self.isPaused = true
+        self.isPaused = false
         self.enableSetNeedsDisplay = true
         self.delegate = self
         self.editMenuInteraction = UIEditMenuInteraction(delegate: self)
         self.addInteraction(self.editMenuInteraction!)
+        self.preferredFramesPerSecond = 120
     }
     
     public func setInitialContent(_ s: String) {
@@ -29,7 +30,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     
     public func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {
         resize_editor(editorHandle, Float(size.width), Float(size.height), Float(self.contentScaleFactor))
-        self.setNeedsDisplay(self.frame)
+        self.setNeedsDisplay()
     }
     
     public func draw(in view: MTKView) {
@@ -151,8 +152,8 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     }
     
     public func unmarkText() {
-        unimplemented()
-        print("\(#function)")
+        unmark_text(editorHandle)
+        self.setNeedsDisplay()
     }
     
     public var beginningOfDocument: UITextPosition {
