@@ -3,6 +3,7 @@ import SwiftLockbookCore
 import Combine
 import PencilKit
 import SwiftUI
+import SwiftEditor
 
 public enum ViewType {
     case Markdown
@@ -16,7 +17,7 @@ public enum ViewType {
 class DocumentLoader: ObservableObject {
     
     let core: LockbookApi
-
+    
     @Published var meta: File?
     @Published var type: ViewType?
     @Published var deleted: Bool = false
@@ -24,7 +25,7 @@ class DocumentLoader: ObservableObject {
     @Published var reloadContent: Bool = false
     @Published var error: String = ""
 
-    @Published var textDocument: String?
+    @Published var textDocument: EditorState?
     @Published var drawing: PKDrawing?
     @Published var image: Image? = .none
 
@@ -32,7 +33,7 @@ class DocumentLoader: ObservableObject {
 
     init(_ core: LockbookApi) {
         self.core = core
-        setupAutoSavers()
+        drawingAutosaver()
     }
 
     func startLoading(_ meta: File) {
@@ -76,14 +77,14 @@ class DocumentLoader: ObservableObject {
             case .Markdown: // For markdown we're able to do a check before reloading the doc
                 DispatchQueue.global(qos: .userInitiated).async {
                     let operation = self.core.getFile(id: meta.id)
-
                     DispatchQueue.main.async {
                         switch operation {
                         case .success(let txt):
-                            if txt != self.textDocument {
-                                print("reload true")
-                                self.reloadContent = true
-                                self.textDocument = txt
+                            if let editor = self.textDocument {
+                                if editor.text != txt {
+                                    editor.reload = true
+                                    editor.text = txt
+                                }
                             }
                         case .failure(let err):
                             print(err)
@@ -107,17 +108,8 @@ class DocumentLoader: ObservableObject {
 
     }
 
-    private func setupAutoSavers() {
+    private func drawingAutosaver() {
         print("autosaver setup")
-        $textDocument
-            .debounce(for: .milliseconds(100), scheduler: DispatchQueue.global(qos: .userInitiated))
-                .sink(receiveValue: {
-                    if let text = $0 { // TODO don't write if a reload or delete is required
-                        self.writeDocument(content: text)
-                    }
-                })
-                .store(in: &cancellables)
-
         $drawing
                 .debounce(for: .milliseconds(100), scheduler: DispatchQueue.global(qos: .userInitiated))
                 .sink(receiveValue: {
@@ -130,14 +122,21 @@ class DocumentLoader: ObservableObject {
 
     private func loadMarkdown() {
         if let meta = self.meta {
-
             DispatchQueue.global(qos: .userInitiated).async {
                 let operation = self.core.getFile(id: meta.id)
 
                 DispatchQueue.main.async {
                     switch operation {
                     case .success(let txt):
-                        self.textDocument = txt
+                        self.textDocument = EditorState(text: txt)
+                        self
+                            .textDocument!
+                            .$text
+                            .debounce(for: .milliseconds(100), scheduler: DispatchQueue.global(qos: .userInitiated))
+                            .sink(receiveValue: {
+                                self.writeDocument(content: $0)
+                            })
+                            .store(in: &self.cancellables)
                     case .failure(let err):
                         self.error = err.description
                     }
@@ -145,12 +144,10 @@ class DocumentLoader: ObservableObject {
                 }
             }
         }
-
     }
 
     private func writeDocument(content: String) {
         if let meta = self.meta {
-            print("write called: \(meta.name)")
             let operation = self.core.updateFile(id: meta.id, content: content)
             DispatchQueue.main.async {
                 switch operation {
@@ -249,25 +246,3 @@ class DocumentLoader: ObservableObject {
         }
     }
 }
-
-#if os(macOS)
-import SwiftEditor
-extension DocumentLoader: TextLoader {
-    func textReloadNeeded() -> Bool {
-        self.reloadContent
-    }
-    
-    func textReloaded() {
-        self.reloadContent = false
-        print("reload false")
-    }
-    
-    func loadText() -> String {
-        self.textDocument!
-    }
-    
-    func documentChanged(s: String) {
-        self.textDocument = s
-    }
-}
-#endif

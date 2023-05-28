@@ -1,15 +1,14 @@
 use crate::appearance::Appearance;
 use crate::buffer::SubBuffer;
 use crate::element::{Element, IndentLevel, ItemType, Title, Url};
-use crate::offset_types::{DocByteOffset, DocCharOffset, RelByteOffset, RelCharOffset};
+use crate::offset_types::{DocCharOffset, IntoRangeExt, RangeExt, RelCharOffset};
 use crate::styles::StyleInfo;
-use crate::unicode_segs::UnicodeSegs;
 use crate::Editor;
 use egui::text::LayoutJob;
 use egui::TextFormat;
 use pulldown_cmark::{HeadingLevel, LinkType};
 use std::cmp::max;
-use std::ops::{Index, Range};
+use std::ops::Index;
 use unicode_segmentation::UnicodeSegmentation;
 
 #[derive(Default)]
@@ -19,13 +18,13 @@ pub struct Layouts {
 
 #[derive(Clone, Default, PartialEq)]
 pub struct LayoutJobInfo {
-    pub range: Range<DocByteOffset>,
+    pub range: (DocCharOffset, DocCharOffset),
     pub job: LayoutJob,
     pub annotation: Option<Annotation>,
 
     // is it better to store this information in Annotation?
-    pub head_size: RelByteOffset,
-    pub tail_size: RelByteOffset,
+    pub head_size: RelCharOffset,
+    pub tail_size: RelCharOffset,
 
     pub annotation_text_format: TextFormat,
 }
@@ -54,10 +53,8 @@ pub fn calc(buffer: &SubBuffer, styles: &[StyleInfo], vis: &Appearance) -> Layou
             || if let Some(next) = styles.get(index + 1) { next.block_start } else { false };
 
         match &mut current {
-            Some(block) => block.append(&buffer.text, vis, style, absorb_terminal_nl),
-            None => {
-                current = Some(LayoutJobInfo::new(&buffer.text, vis, style, absorb_terminal_nl))
-            }
+            Some(block) => block.append(buffer, vis, style, absorb_terminal_nl),
+            None => current = Some(LayoutJobInfo::new(buffer, vis, style, absorb_terminal_nl)),
         };
 
         if last_item {
@@ -69,14 +66,11 @@ pub fn calc(buffer: &SubBuffer, styles: &[StyleInfo], vis: &Appearance) -> Layou
 
     if buffer.text.ends_with('\n') {
         layout.layouts.push(LayoutJobInfo::new(
-            &buffer.text,
+            buffer,
             vis,
             &StyleInfo {
                 block_start: true,
-                range: Range {
-                    start: DocByteOffset(buffer.len()),
-                    end: DocByteOffset(buffer.len()),
-                },
+                range: buffer.segs.last_cursor_position().into_range(),
                 elements: vec![Element::Document, Element::Paragraph],
             },
             true,
@@ -103,11 +97,9 @@ impl Layouts {
         self.layouts.len()
     }
 
-    pub fn layout_at_char(&self, char_index: DocCharOffset, segs: &UnicodeSegs) -> usize {
-        let byte_offset = segs.char_offset_to_byte(char_index);
+    pub fn layout_at_char(&self, offset: DocCharOffset) -> usize {
         for i in 0..self.layouts.len() {
-            let galley = &self.layouts[i];
-            if galley.range.start <= byte_offset && byte_offset < galley.range.end {
+            if self.layouts[i].range.contains(offset) {
                 return i;
             }
         }
@@ -116,41 +108,43 @@ impl Layouts {
 }
 
 impl LayoutJobInfo {
-    pub fn new(src: &str, vis: &Appearance, style: &StyleInfo, absorb_terminal_nl: bool) -> Self {
+    pub fn new(
+        buffer: &SubBuffer, vis: &Appearance, style: &StyleInfo, absorb_terminal_nl: bool,
+    ) -> Self {
         let (annotation, head_size, tail_size) =
-            Self::annotation_and_head_tail_size(style, src, absorb_terminal_nl);
+            Self::annotation_and_head_tail_size(style, buffer, absorb_terminal_nl);
         let text_format = style.text_format(vis);
         let mut result = Self {
-            range: style.range.clone(),
+            range: style.range,
             job: Default::default(),
             annotation,
             head_size,
             tail_size,
             annotation_text_format: text_format.clone(),
         };
-        let range = Range {
-            start: (style.range.start + head_size).0,
-            end: (style.range.end - tail_size).0,
-        };
-        result.job.append(&src[range], 0.0, text_format);
+        let range = (style.range.start() + head_size, style.range.end() - tail_size);
+        result.job.append(&buffer[range], 0.0, text_format);
         result
     }
 
-    fn append(&mut self, src: &str, vis: &Appearance, style: &StyleInfo, absorb_terminal_nl: bool) {
-        self.range.end = max(self.range.end, style.range.end);
-        self.tail_size = Self::tail_size(style, src, absorb_terminal_nl);
+    fn append(
+        &mut self, buffer: &SubBuffer, vis: &Appearance, style: &StyleInfo,
+        absorb_terminal_nl: bool,
+    ) {
+        self.range = (self.range.0, max(self.range.end(), style.range.end()));
+        self.tail_size = Self::tail_size(style, buffer, absorb_terminal_nl);
         self.job.append(
-            &src[style.range.start.0..(style.range.end - self.tail_size).0],
+            &buffer[(style.range.start(), style.range.end() - self.tail_size)],
             0.0,
             style.text_format(vis),
         );
     }
 
     fn annotation_and_head_tail_size(
-        style: &StyleInfo, src: &str, absorb_terminal_nl: bool,
-    ) -> (Option<Annotation>, RelByteOffset, RelByteOffset) {
-        let (mut annotation, mut head_size) = (None, RelByteOffset(0));
-        let text = &src[style.range.start.0..style.range.end.0];
+        style: &StyleInfo, buffer: &SubBuffer, absorb_terminal_nl: bool,
+    ) -> (Option<Annotation>, RelCharOffset, RelCharOffset) {
+        let (mut annotation, mut head_size) = (None, RelCharOffset(0));
+        let text = &buffer[style.range];
 
         for element in &style.elements {
             if let Element::Image(link_type, url, title) = element {
@@ -167,7 +161,7 @@ impl LayoutJobInfo {
                 .count() as IndentLevel;
             let text = {
                 let trimmed_text = text.trim_start();
-                head_size = RelByteOffset(text.len() - trimmed_text.len());
+                head_size = RelCharOffset(text.len() - trimmed_text.len());
                 trimmed_text
             };
 
@@ -229,30 +223,28 @@ impl LayoutJobInfo {
             }
         }
 
-        (annotation, head_size, Self::tail_size(style, src, absorb_terminal_nl))
+        (annotation, head_size, Self::tail_size(style, buffer, absorb_terminal_nl))
     }
 
-    fn tail_size(style: &StyleInfo, src: &str, absorb_terminal_nl: bool) -> RelByteOffset {
+    fn tail_size(style: &StyleInfo, buffer: &SubBuffer, absorb_terminal_nl: bool) -> RelCharOffset {
         usize::from(
-            style.range.end > style.range.start
+            style.range.end() > style.range.start()
                 && absorb_terminal_nl
-                && src[style.range.start.0..style.range.end.0].ends_with('\n'),
+                && buffer[style.range].ends_with('\n'),
         )
         .into()
     }
 
-    pub fn size(&self) -> RelByteOffset {
-        self.range.end - self.range.start
+    pub fn size(&self) -> RelCharOffset {
+        self.range.end() - self.range.start()
     }
 
     pub fn head<'b>(&self, buffer: &'b SubBuffer) -> &'b str {
-        &buffer.text[(self.range.start).0..(self.range.start + self.head_size).0]
+        &buffer[(self.range.start(), self.range.start() + self.head_size)]
     }
 
     pub fn head_size_chars(&self, buffer: &SubBuffer) -> RelCharOffset {
-        UnicodeSegmentation::grapheme_indices(self.head(buffer), true)
-            .count()
-            .into()
+        self.head(buffer).grapheme_indices(true).count().into()
     }
 }
 
@@ -263,12 +255,13 @@ impl Editor {
             println!(
                 "annotation: {:?},\t{:?}{:?}{:?}",
                 layout.annotation,
-                &self.buffer.current.text
-                    [layout.range.start.0..layout.range.start.0 + layout.head_size.0],
-                &self.buffer.current.text[layout.range.start.0 + layout.head_size.0
-                    ..layout.range.end.0 - layout.tail_size.0],
-                &self.buffer.current.text
-                    [layout.range.end.0 - layout.tail_size.0..layout.range.end.0],
+                &self.buffer.current
+                    [(layout.range.start(), layout.range.start() + layout.head_size)],
+                &self.buffer.current[(
+                    layout.range.start() + layout.head_size,
+                    layout.range.end() - layout.tail_size
+                )],
+                &self.buffer.current[(layout.range.end() - layout.tail_size, layout.range.end())],
             );
         }
     }

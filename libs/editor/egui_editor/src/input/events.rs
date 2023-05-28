@@ -8,22 +8,36 @@ use crate::input::canonical::Modification;
 use crate::input::click_checker::EditorClickChecker;
 use crate::input::cursor::PointerState;
 use crate::layouts::Layouts;
-use egui::{Event, Vec2};
+use egui::{Event, Rect};
 use std::time::Instant;
 
-/// processes `events` and returns a boolean representing whether text was updated, new contents for clipboard
-/// (optional), and a link that was opened (optional)
+/// combines `events` and `custom_events` into a single set of events
 #[allow(clippy::too_many_arguments)]
-pub fn process(
-    events: &[Event], ast: &Ast, layouts: &Layouts, galleys: &Galleys, appearance: &Appearance,
-    ui_size: Vec2, buffer: &mut Buffer, debug: &mut DebugInfo, pointer_state: &mut PointerState,
-) -> (bool, Option<String>, Option<String>) {
-    let click_checker = EditorClickChecker { ui_size, galleys, buffer, ast, appearance };
-    events
+pub fn combine(
+    events: &[Event], custom_events: &[Modification], ast: &Ast, galleys: &Galleys,
+    appearance: &Appearance, ui_rect: Rect, buffer: &mut Buffer, pointer_state: &mut PointerState,
+    touch_mode: bool,
+) -> Vec<Modification> {
+    let click_checker = EditorClickChecker { ui_rect, galleys, buffer, ast, appearance };
+    let canonical_egui_events = events.iter().filter_map(|e| {
+        input::canonical::calc(e, &click_checker, pointer_state, Instant::now(), touch_mode)
+    });
+    custom_events
         .iter()
-        .filter_map(|e| input::canonical::calc(e, &click_checker, pointer_state, Instant::now()))
+        .cloned()
+        .chain(canonical_egui_events)
         .collect::<Vec<Modification>>()
-        .into_iter()
+}
+
+/// processes `combined_events` and returns a boolean representing whether text was updated, new contents for clipboard
+/// (optional), and a link that was opened (optional)
+pub fn process(
+    combined_events: &[Modification], layouts: &Layouts, galleys: &Galleys, buffer: &mut Buffer,
+    debug: &mut DebugInfo,
+) -> (bool, Option<String>, Option<String>) {
+    combined_events
+        .iter()
+        .cloned()
         .map(|m| match input::mutation::calc(m, layouts, &buffer.current, galleys) {
             EditorMutation::Buffer(mutations) if mutations.is_empty() => (false, None, None),
             EditorMutation::Buffer(mutations) => buffer.apply(mutations, debug),

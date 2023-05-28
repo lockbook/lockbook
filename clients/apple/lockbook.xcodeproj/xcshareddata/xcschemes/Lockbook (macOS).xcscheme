@@ -68,6 +68,11 @@
             isEnabled = "YES">
          </EnvironmentVariable>
          <EnvironmentVariable
+            key = "RUST_BACKTRACE"
+            value = "1"
+            isEnabled = "YES">
+         </EnvironmentVariable>
+         <EnvironmentVariable
             key = "LOCKBOOK_LOCATION"
             value = "/tmp/lockbook_macos"
             isEnabled = "NO">

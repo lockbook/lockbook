@@ -1,6 +1,7 @@
 import SwiftUI
 import SwiftLockbookCore
 import PencilKit
+import SwiftEditor
 
 struct DocumentView: View {
     
@@ -48,19 +49,11 @@ struct DocumentView: View {
                             }
                         }
 #endif
-                        
+
                     case .Markdown:
-#if os(iOS)
-                        GeometryReader { geo in
-                            EditorView(
-                                frame: geo.frame(in: .local)
-                            )
+                        if let editorState = model.textDocument {
+                            EditorView(editorState).title(meta.name)
                         }
-                        .title(meta.name)
-#else
-                        EditorView().title(meta.name)
-#endif
-                        
                     case .Unknown:
                         Text("\(meta.name) cannot be opened on this device.")
                             .title(meta.name)

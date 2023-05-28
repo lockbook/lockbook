@@ -44,27 +44,56 @@ pub enum NSKeys {
     Backspace,
     CapsLock,
     Comma,
-    Command,
-    Control,
     Delete,
     Equals,
     Escape,
     FrontSlash,
     LeftBracket,
     Minus,
-    Option,
     Period,
     Return,
     RightBracket,
     Semicolon,
-    Shift,
     Tab,
     Space,
+
+    Shift,
+    Control,
+    Command,
+    Option,
+    Fn,
 
     Up,
     Left,
     Down,
     Right,
+
+    F1,
+    F2,
+    F3,
+    F4,
+    F5,
+    F6,
+    F7,
+    F8,
+    F9,
+    F10,
+    F11,
+    F12,
+    F13,
+    F14,
+    F15,
+    F16,
+    F17,
+    F18,
+    F19,
+    F20,
+
+    Home,
+    End,
+    PageUp,
+    PageDown,
+    Insert,
 }
 
 impl NSKeys {
@@ -114,13 +143,14 @@ impl NSKeys {
             39 => Apostrophe,
             40 => K,
             41 => Semicolon,
-            42 => FrontSlash,
+            42 => Backslash,
             43 => Comma,
-            44 => Backslash,
+            44 => FrontSlash,
             45 => N,
             46 => M,
             47 => Period,
             48 => Tab,
+            49 => Space,
             50 => BackApostrophe,
             51 => Backspace,
             53 => Escape,
@@ -129,13 +159,67 @@ impl NSKeys {
             57 => CapsLock,
             58 => Option,
             59 => Control,
-            126 => Up,
-            125 => Down,
+            60 => Shift,   // Right
+            61 => Option,  // Right
+            62 => Control, // Right
+            63 => Fn,
+            64 => F17,
+            65 => Period, // Keypad
+
+            79 => F18,
+            80 => F19,
+            81 => Equals, // Keypad
+            82 => Num0,   // Keypad
+            83 => Num1,   // Keypad
+            84 => Num2,   // Keypad
+            85 => Num3,   // Keypad
+            86 => Num4,   // Keypad
+            87 => Num5,   // Keypad
+            88 => Num6,   // Keypad
+            89 => Num7,   // Keypad
+            90 => F20,
+            91 => Num8, // Keypad
+            92 => Num9, // Keypad
+            96 => F5,
+            97 => F6,
+            98 => F7,
+            99 => F3,
+            100 => F8,
+            101 => F9,
+            103 => F11,
+            105 => F13,
+            106 => F16,
+            107 => F14,
+            109 => F10,
+            111 => F12,
+            113 => F15,
+            115 => Home,
+            116 => PageUp,
+            118 => F4,
+            119 => End,
+            120 => F2,
+            121 => PageDown,
+            122 => F1,
             123 => Left,
             124 => Right,
-            0x31 => Space,
+            125 => Down,
+            126 => Up,
             _ => return None,
         };
+
+        // esoteric, ignored for now
+
+        // 67 => KeypadMultiply,
+        // 69 => KeypadPlus,
+        // 71 => KeypadClear,
+        // 72 => VolumeUp,
+        // 73 => VolumeDown,
+        // 74 => Mute,
+        // 75 => KeypadDivide,
+        // 76 => KeypadEnter,
+        // 78 => KeypadMinus,
+        // 114 => Help,
+        // 117 => ForwardDelete,
 
         Some(key)
     }
@@ -149,7 +233,9 @@ impl NSKeys {
             | LeftBracket | Minus | Period | RightBracket | Semicolon | Space => true,
 
             CapsLock | Command | Control | Delete | Escape | Option | Return | Shift | Tab | Up
-            | Left | Down | Right | Backspace => false,
+            | Left | Down | Right | Backspace | Fn | F1 | F2 | F3 | F4 | F5 | F6 | F7 | F8 | F9
+            | F10 | F11 | F12 | F13 | F14 | F15 | F16 | F17 | F18 | F19 | F20 | Home | End
+            | PageUp | PageDown | Insert => false,
         }
     }
 
@@ -202,9 +288,34 @@ impl NSKeys {
             Down => egui::Key::ArrowDown,
             Space => egui::Key::Space,
             Backspace => egui::Key::Backspace,
+            F1 => egui::Key::F1,
+            F2 => egui::Key::F2,
+            F3 => egui::Key::F3,
+            F4 => egui::Key::F4,
+            F5 => egui::Key::F5,
+            F6 => egui::Key::F6,
+            F7 => egui::Key::F7,
+            F8 => egui::Key::F8,
+            F9 => egui::Key::F9,
+            F10 => egui::Key::F10,
+            F11 => egui::Key::F11,
+            F12 => egui::Key::F12,
+            F13 => egui::Key::F13,
+            F14 => egui::Key::F14,
+            F15 => egui::Key::F15,
+            F16 => egui::Key::F16,
+            F17 => egui::Key::F17,
+            F18 => egui::Key::F18,
+            F19 => egui::Key::F19,
+            F20 => egui::Key::F20,
+            Home => egui::Key::Home,
+            End => egui::Key::End,
+            PageUp => egui::Key::PageUp,
+            PageDown => egui::Key::PageDown,
+            Insert => egui::Key::Insert,
             Apostrophe | Comma | BackApostrophe | Backslash | CapsLock | Command | Control
             | Equals | FrontSlash | LeftBracket | Minus | Option | Period | RightBracket
-            | Semicolon | Shift => return None,
+            | Semicolon | Shift | Fn => return None,
         };
 
         Some(key)

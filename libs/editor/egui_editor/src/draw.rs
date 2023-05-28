@@ -1,6 +1,8 @@
 use crate::appearance::YELLOW;
 use crate::element::{Element, ItemType};
+use crate::input::canonical::{Location, Modification, Region};
 use crate::layouts::Annotation;
+use crate::offset_types::RangeExt;
 use crate::Editor;
 use egui::text::LayoutJob;
 use egui::{Align2, Color32, FontId, Pos2, Rect, Rounding, Sense, Stroke, Ui, Vec2};
@@ -98,21 +100,83 @@ impl Editor {
             .rect
             .size()
             .y;
-        let (padding_rect, _) = ui.allocate_exact_size(ui_size, Sense::click_and_drag());
-        ui.painter()
-            .rect(padding_rect, Rounding::none(), Color32::TRANSPARENT, Stroke::NONE);
+        ui.allocate_exact_size(ui_size, Sense::hover());
     }
 
-    pub fn draw_cursor(&self, ui: &mut Ui) {
+    pub fn draw_cursor(&mut self, ui: &mut Ui, touch_mode: bool) {
+        let color = if touch_mode { self.appearance.cursor() } else { self.appearance.text() };
+
+        let cursor = self.buffer.current.cursor;
+        let selection_start_rect = cursor.start_rect(&self.galleys);
+        let selection_end_rect = cursor.end_rect(&self.galleys);
+
+        // draw cursor for selection end
         ui.painter().rect(
-            self.buffer
-                .current
-                .cursor
-                .rect(&self.buffer.current.segs, &self.galleys),
+            selection_end_rect,
             Rounding::none(),
             Color32::TRANSPARENT,
-            Stroke { width: 1.0, color: self.appearance.text() },
+            Stroke { width: 1.0, color },
         );
+
+        if touch_mode {
+            // draw cursor for selection start
+            ui.painter().rect(
+                selection_start_rect,
+                Rounding::none(),
+                Color32::TRANSPARENT,
+                Stroke { width: 1.0, color },
+            );
+
+            // draw selection handles
+            // handles invisible but still draggable when selection is empty
+            // we must allocate handles to check if they were dragged last frame
+            if !cursor.selection.is_empty() {
+                let selection_start_center =
+                    Pos2 { x: selection_start_rect.min.x, y: selection_start_rect.min.y - 5.0 };
+                ui.painter()
+                    .circle_filled(selection_start_center, 5.0, color);
+                let selection_end_center =
+                    Pos2 { x: selection_end_rect.max.x, y: selection_end_rect.max.y + 5.0 };
+                ui.painter().circle_filled(selection_end_center, 5.0, color);
+            }
+
+            // allocate rects to capture selection handle drag
+            let selection_start_handle_rect = Rect {
+                min: Pos2 {
+                    x: selection_start_rect.min.x - 5.0,
+                    y: selection_start_rect.min.y - 10.0,
+                },
+                max: Pos2 { x: selection_start_rect.min.x + 5.0, y: selection_start_rect.min.y },
+            };
+            let start_response = ui.allocate_rect(selection_start_handle_rect, Sense::drag());
+            let selection_end_handle_rect = Rect {
+                min: Pos2 { x: selection_end_rect.max.x - 5.0, y: selection_end_rect.max.y },
+                max: Pos2 { x: selection_end_rect.max.x + 5.0, y: selection_end_rect.max.y + 10.0 },
+            };
+            let end_response = ui.allocate_rect(selection_end_handle_rect, Sense::drag());
+
+            // adjust cursor based on selection handle drag
+            if start_response.dragged() {
+                self.custom_events.push(Modification::Select {
+                    region: Region::BetweenLocations {
+                        start: Location::Pos(ui.input(|i| {
+                            i.pointer.interact_pos().unwrap_or_default() + Vec2 { x: 0.0, y: 10.0 }
+                        })),
+                        end: Location::DocCharOffset(cursor.selection.1),
+                    },
+                })
+            }
+            if end_response.dragged() {
+                self.custom_events.push(Modification::Select {
+                    region: Region::BetweenLocations {
+                        start: Location::DocCharOffset(cursor.selection.0),
+                        end: Location::Pos(ui.input(|i| {
+                            i.pointer.interact_pos().unwrap_or_default() - Vec2 { x: 0.0, y: 10.0 }
+                        })),
+                    },
+                })
+            }
+        }
     }
 
     pub fn draw_debug(&mut self, ui: &mut Ui) {
@@ -134,7 +198,7 @@ impl Editor {
             ui.painter().text(
                 line_pt_2,
                 Align2::LEFT_CENTER,
-                format!("{}-{}", galley.range.start.0, galley.range.end.0),
+                format!("{:?}-{:?}", galley.range.start(), galley.range.end()),
                 FontId::default(),
                 YELLOW.light,
             );
@@ -147,27 +211,21 @@ impl Editor {
         );
 
         let doc_info =
-            format!("last_cursor_position: {}", self.buffer.current.segs.last_cursor_position().0);
+            format!("last_cursor_position: {:?}", self.buffer.current.segs.last_cursor_position());
 
         let cursor_info = format!(
-            "character: {}, byte: {}, x_target: {}, selection_origin: {}",
-            self.buffer.current.cursor.pos.0,
+            "selection: ({:?}, {:?}), byte: {:?}, x_target: {}",
+            self.buffer.current.cursor.selection.0,
+            self.buffer.current.cursor.selection.1,
             self.buffer
                 .current
                 .segs
-                .char_offset_to_byte(self.buffer.current.cursor.pos)
-                .0,
+                .offset_to_byte(self.buffer.current.cursor.selection.1),
             self.buffer
                 .current
                 .cursor
                 .x_target
                 .map(|x| x.to_string())
-                .unwrap_or_else(|| "None".to_string()),
-            self.buffer
-                .current
-                .cursor
-                .selection_origin
-                .map(|x| x.0.to_string())
                 .unwrap_or_else(|| "None".to_string()),
         );
 

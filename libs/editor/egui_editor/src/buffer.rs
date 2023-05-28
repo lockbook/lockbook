@@ -1,11 +1,11 @@
 use crate::debug::DebugInfo;
 use crate::input::cursor::Cursor;
-use crate::offset_types::{DocCharOffset, RelCharOffset};
+use crate::offset_types::{DocByteOffset, DocCharOffset, RangeExt, RelCharOffset};
 use crate::unicode_segs;
 use crate::unicode_segs::UnicodeSegs;
 use std::collections::VecDeque;
 use std::iter;
-use std::ops::Range;
+use std::ops::{Index, Range};
 use std::time::{Duration, Instant};
 use unicode_segmentation::UnicodeSegmentation;
 
@@ -82,10 +82,6 @@ impl From<&str> for Buffer {
 impl Buffer {
     pub fn is_empty(&self) -> bool {
         self.current.is_empty()
-    }
-
-    pub fn len(&self) -> usize {
-        self.current.len()
     }
 
     /// applies `modification` and returns a boolean representing whether text was updated, new contents for clipboard
@@ -203,10 +199,6 @@ impl SubBuffer {
         self.text.is_empty()
     }
 
-    pub fn len(&self) -> usize {
-        self.text.len()
-    }
-
     fn apply_modification(
         &mut self, mut mods: Mutation, debug: &mut DebugInfo,
     ) -> (bool, Option<String>, Option<String>) {
@@ -223,9 +215,7 @@ impl SubBuffer {
                     cur_cursor = cur;
                 }
                 SubMutation::Insert { text: text_replacement } => {
-                    let replaced_text_range = cur_cursor
-                        .selection()
-                        .unwrap_or(Range { start: cur_cursor.pos, end: cur_cursor.pos });
+                    let replaced_text_range = cur_cursor.selection_or_position();
 
                     Self::modify_subsequent_cursors(
                         replaced_text_range.clone(),
@@ -241,12 +231,8 @@ impl SubBuffer {
                 SubMutation::Delete(n_chars) => {
                     let text_replacement = "";
                     let replaced_text_range = cur_cursor.selection().unwrap_or(Range {
-                        start: if cur_cursor.pos.0 == 0 {
-                            DocCharOffset(0)
-                        } else {
-                            cur_cursor.pos - n_chars
-                        },
-                        end: cur_cursor.pos,
+                        start: cur_cursor.selection.1 - n_chars,
+                        end: cur_cursor.selection.1,
                     });
 
                     Self::modify_subsequent_cursors(
@@ -280,9 +266,7 @@ impl SubBuffer {
         replaced_text_range: Range<DocCharOffset>, text_replacement: &str,
         mods: &mut [SubMutation], cur_cursor: &mut Cursor,
     ) {
-        let replaced_text_len = replaced_text_range.end - replaced_text_range.start;
-        let text_replacement_len =
-            UnicodeSegmentation::grapheme_indices(text_replacement, true).count();
+        let text_replacement_len = text_replacement.grapheme_indices(true).count();
 
         for mod_cursor in mods
             .iter_mut()
@@ -295,38 +279,55 @@ impl SubBuffer {
             })
             .chain(iter::once(cur_cursor))
         {
+            Self::modify_subsequent_range(
+                (replaced_text_range.start, replaced_text_range.end),
+                text_replacement_len.into(),
+                Some(&mut mod_cursor.selection),
+            );
+            Self::modify_subsequent_range(
+                (replaced_text_range.start, replaced_text_range.end),
+                text_replacement_len.into(),
+                mod_cursor.mark.as_mut(),
+            );
+            Self::modify_subsequent_range(
+                (replaced_text_range.start, replaced_text_range.end),
+                text_replacement_len.into(),
+                mod_cursor.mark_highlight.as_mut(),
+            );
+        }
+    }
+
+    fn modify_subsequent_range(
+        replaced_text_range: (DocCharOffset, DocCharOffset), text_replacement_len: RelCharOffset,
+        maybe_range: Option<&mut (DocCharOffset, DocCharOffset)>,
+    ) {
+        if let Some(range) = maybe_range {
+            let replaced_text_len = replaced_text_range.end() - replaced_text_range.start();
+
             // adjust subsequent cursor selections; no part of a cursor shall appear inside
             // text that was not rendered when the cursor was placed (though a selection may
             // contain it).
-            let cur_selection = mod_cursor
-                .selection()
-                .unwrap_or(Range { start: mod_cursor.pos, end: mod_cursor.pos });
-
             match (
-                cur_selection.start < replaced_text_range.start,
-                cur_selection.end < replaced_text_range.end,
+                range.start() < replaced_text_range.start(),
+                range.end() < replaced_text_range.end(),
             ) {
-                _ if cur_selection.start >= replaced_text_range.end => {
+                _ if range.start() >= replaced_text_range.end() => {
                     // case 1:
                     //                       text before replacement: * * * * * * *
                     //                        range of replaced text:  |<->|
                     //          range of subsequent cursor selection:        |<->|
                     //                        text after replacement: * X * * * *
                     // adjusted range of subsequent cursor selection:      |<->|
-                    mod_cursor.pos = mod_cursor.pos + text_replacement_len - replaced_text_len;
-                    if let Some(selection_origin) = mod_cursor.selection_origin {
-                        mod_cursor.selection_origin =
-                            Some(selection_origin + text_replacement_len - replaced_text_len);
-                    }
+                    range.1 = range.1 + text_replacement_len - replaced_text_len;
+                    range.0 = range.0 + text_replacement_len - replaced_text_len;
                 }
-                _ if cur_selection.end < replaced_text_range.start => {
+                _ if range.end() < replaced_text_range.start() => {
                     // case 2:
                     //                       text before replacement: * * * * * * *
                     //                        range of replaced text:        |<->|
                     //          range of subsequent cursor selection:  |<->|
                     //                        text after replacement: * * * * X *
                     // adjusted range of subsequent cursor selection:  |<->|
-                    continue;
                 }
                 (false, false) => {
                     // case 3:
@@ -335,21 +336,14 @@ impl SubBuffer {
                     //          range of subsequent cursor selection:      |<--->|
                     //                        text after replacement: * X * * *
                     // adjusted range of subsequent cursor selection:    |<->|
-                    if let Some(selection_origin) = mod_cursor.selection_origin {
-                        if mod_cursor.pos < selection_origin {
-                            mod_cursor.pos =
-                                replaced_text_range.end + text_replacement_len - replaced_text_len;
-                            mod_cursor.selection_origin =
-                                Some(selection_origin + text_replacement_len - replaced_text_len);
-                        } else {
-                            mod_cursor.selection_origin = Some(
-                                replaced_text_range.end + text_replacement_len - replaced_text_len,
-                            );
-                            mod_cursor.pos =
-                                mod_cursor.pos + text_replacement_len - replaced_text_len;
-                        }
+                    if range.1 < range.0 {
+                        range.1 =
+                            replaced_text_range.end() + text_replacement_len - replaced_text_len;
+                        range.0 = range.0 + text_replacement_len - replaced_text_len;
                     } else {
-                        panic!("this code should be unreachable")
+                        range.0 =
+                            replaced_text_range.end() + text_replacement_len - replaced_text_len;
+                        range.1 = range.1 + text_replacement_len - replaced_text_len;
                     }
                 }
                 (true, true) => {
@@ -359,14 +353,10 @@ impl SubBuffer {
                     //          range of subsequent cursor selection:  |<--->|
                     //                        text after replacement: * * * X *
                     // adjusted range of subsequent cursor selection:  |<->|
-                    if let Some(selection_origin) = mod_cursor.selection_origin {
-                        if mod_cursor.pos < selection_origin {
-                            mod_cursor.selection_origin = Some(replaced_text_range.start);
-                        } else {
-                            mod_cursor.pos = replaced_text_range.start;
-                        }
+                    if range.1 < range.0 {
+                        range.0 = replaced_text_range.start();
                     } else {
-                        panic!("this code should be unreachable")
+                        range.1 = replaced_text_range.start();
                     }
                 }
                 (false, true) => {
@@ -376,9 +366,8 @@ impl SubBuffer {
                     //          range of subsequent cursor selection:    |<--->|
                     //                        text after replacement: * X *
                     // adjusted range of subsequent cursor selection:    |
-                    mod_cursor.pos =
-                        replaced_text_range.end + text_replacement_len - replaced_text_len;
-                    mod_cursor.selection_origin = Some(mod_cursor.pos);
+                    range.1 = replaced_text_range.end() + text_replacement_len - replaced_text_len;
+                    range.0 = range.1;
                 }
                 (true, false) => {
                     // case 6:
@@ -387,30 +376,41 @@ impl SubBuffer {
                     //          range of subsequent cursor selection:  |<------->|
                     //                        text after replacement: * * X * *
                     // adjusted range of subsequent cursor selection:  |<--->|
-                    if let Some(selection_origin) = mod_cursor.selection_origin {
-                        if mod_cursor.pos < selection_origin {
-                            mod_cursor.selection_origin =
-                                Some(selection_origin + text_replacement_len - replaced_text_len);
-                        } else {
-                            mod_cursor.pos =
-                                mod_cursor.pos + text_replacement_len - replaced_text_len;
-                        }
+                    if range.1 < range.0 {
+                        range.0 = range.0 + text_replacement_len - replaced_text_len;
                     } else {
-                        panic!("this code should be unreachable")
+                        range.1 = range.1 + text_replacement_len - replaced_text_len;
                     }
                 }
             }
         }
     }
 
-    pub fn replace_range(&mut self, range: Range<DocCharOffset>, replacement: &str) {
+    fn replace_range(&mut self, range: Range<DocCharOffset>, replacement: &str) {
         self.text.replace_range(
             Range {
-                start: self.segs.char_offset_to_byte(range.start).0,
-                end: self.segs.char_offset_to_byte(range.end).0,
+                start: self.segs.offset_to_byte(range.start).0,
+                end: self.segs.offset_to_byte(range.end).0,
             },
             replacement,
         );
+    }
+}
+
+impl Index<(DocByteOffset, DocByteOffset)> for SubBuffer {
+    type Output = str;
+
+    fn index(&self, index: (DocByteOffset, DocByteOffset)) -> &Self::Output {
+        &self.text[index.0 .0..index.1 .0]
+    }
+}
+
+impl Index<(DocCharOffset, DocCharOffset)> for SubBuffer {
+    type Output = str;
+
+    fn index(&self, index: (DocCharOffset, DocCharOffset)) -> &Self::Output {
+        let index = self.segs.range_to_byte(index);
+        &self.text[index.0 .0..index.1 .0]
     }
 }
 
@@ -470,52 +470,52 @@ mod test {
     #[test]
     fn apply_mods_selection_insert_twice() {
         struct Case {
-            cursor_a: (usize, usize),
-            cursor_b: (usize, usize),
+            cursor_a: Cursor,
+            cursor_b: Cursor,
             expected_buffer: &'static str,
             expected_cursor: (usize, usize),
         }
 
         let cases = [
             Case {
-                cursor_a: (1, 3),
-                cursor_b: (4, 6),
+                cursor_a: (1, 3).into(),
+                cursor_b: (4, 6).into(),
                 expected_buffer: "1a4b7",
                 expected_cursor: (4, 4),
             },
             Case {
-                cursor_a: (4, 6),
-                cursor_b: (1, 3),
+                cursor_a: (4, 6).into(),
+                cursor_b: (1, 3).into(),
                 expected_buffer: "1b4a7",
                 expected_cursor: (2, 2),
             },
             Case {
-                cursor_a: (1, 5),
-                cursor_b: (2, 6),
+                cursor_a: (1, 5).into(),
+                cursor_b: (2, 6).into(),
                 expected_buffer: "1ab7",
                 expected_cursor: (3, 3),
             },
             Case {
-                cursor_a: (2, 6),
-                cursor_b: (1, 5),
+                cursor_a: (2, 6).into(),
+                cursor_b: (1, 5).into(),
                 expected_buffer: "1ba7",
                 expected_cursor: (2, 2),
             },
             Case {
-                cursor_a: (1, 6),
-                cursor_b: (2, 5),
+                cursor_a: (1, 6).into(),
+                cursor_b: (2, 5).into(),
                 expected_buffer: "1ab7",
                 expected_cursor: (3, 3),
             },
             Case {
-                cursor_a: (2, 5),
-                cursor_b: (1, 6),
+                cursor_a: (2, 5).into(),
+                cursor_b: (1, 6).into(),
                 expected_buffer: "1b7",
                 expected_cursor: (2, 2),
             },
             Case {
-                cursor_a: (1, 6),
-                cursor_b: (1, 1),
+                cursor_a: (1, 6).into(),
+                cursor_b: (1, 1).into(),
                 expected_buffer: "1ab7",
                 expected_cursor: (3, 3),
             },
@@ -523,30 +523,21 @@ mod test {
 
         for case in cases {
             let mut buffer: SubBuffer = "1234567".into();
-            buffer.cursor = Cursor {
-                pos: case.cursor_a.0.into(),
-                selection_origin: Some(case.cursor_a.1.into()),
-                ..Default::default()
-            };
+            buffer.cursor = case.cursor_a;
+
             let mut debug = Default::default();
 
             let mods = vec![
                 SubMutation::Insert { text: "a".to_string() },
-                SubMutation::Cursor {
-                    cursor: Cursor {
-                        pos: case.cursor_b.0.into(),
-                        selection_origin: Some(case.cursor_b.1.into()),
-                        ..Default::default()
-                    },
-                },
+                SubMutation::Cursor { cursor: case.cursor_b },
                 SubMutation::Insert { text: "b".to_string() },
             ];
 
             let (text_updated, _, _) = buffer.apply_modification(mods, &mut debug);
 
             assert_eq!(buffer.text, case.expected_buffer);
-            assert_eq!(buffer.cursor.pos.0, case.expected_cursor.0);
-            assert_eq!(buffer.cursor.selection_origin, Some(case.expected_cursor.1.into()));
+            assert_eq!(buffer.cursor.selection.1 .0, case.expected_cursor.0);
+            assert_eq!(buffer.cursor.selection.0, case.expected_cursor.1);
             assert!(!debug.draw_enabled);
             assert!(text_updated);
         }

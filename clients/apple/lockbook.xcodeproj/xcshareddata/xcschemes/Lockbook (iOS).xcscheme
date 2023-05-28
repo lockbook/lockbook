@@ -59,6 +59,11 @@
             isEnabled = "YES">
          </EnvironmentVariable>
          <EnvironmentVariable
+            key = "RUST_BACKTRACE=1"
+            value = ""
+            isEnabled = "YES">
+         </EnvironmentVariable>
+         <EnvironmentVariable
             key = "LOCKBOOK_LOCATION"
             value = "/tmp/lockbook_ios"
             isEnabled = "NO">
