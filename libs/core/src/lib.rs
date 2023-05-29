@@ -1,5 +1,3 @@
-#![recursion_limit = "256"]
-
 #[macro_use]
 extern crate tracing;
 
@@ -475,6 +473,7 @@ impl<Client: Requester> CoreLib<Client> {
             s.cleanup()
         })
         .expected_errs(&[
+            CoreError::DiskPathInvalid,
             CoreError::FileNonexistent,
             CoreError::FileNotFolder,
             CoreError::FileNameTooLong,

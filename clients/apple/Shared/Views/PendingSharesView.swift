@@ -28,9 +28,6 @@ struct PendingSharesView: View {
         }
         .background(.clear)
         .navigationTitle("Pending Shares")
-        .onAppear {
-                share.calculatePendingShares()
-            }
         .sheet(isPresented: $sheets.acceptingShare, content: AcceptShareSheet.init)
     }
     
@@ -38,21 +35,17 @@ struct PendingSharesView: View {
     var noPendingShares: some View {
         VStack {
             Spacer()
-            Image(systemName: "shared.with.you.slash")
+            Image(systemName: "person.2.slash")
                 .padding(.vertical, 5)
                 .imageScale(.large)
             Text("You have no pending shares.")
             Spacer()
         }
         .navigationTitle("Pending Shares")
-        .onAppear {
-                share.calculatePendingShares()
-            }
     }
 }
 
 struct SharedFileCell: View {
-    
     @EnvironmentObject var sheets: SheetState
     @EnvironmentObject var share: ShareService
     

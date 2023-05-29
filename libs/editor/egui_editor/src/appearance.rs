@@ -51,6 +51,7 @@ pub struct Appearance {
 
     // colors
     pub text: Option<ThemedColor>,
+    pub cursor: Option<ThemedColor>,
     pub selection_bg: Option<ThemedColor>,
     pub checkbox_bg: Option<ThemedColor>,
     pub heading: Option<ThemedColor>,
@@ -86,13 +87,21 @@ impl Appearance {
         self.text.unwrap_or(BLACK).get(self.current_theme)
     }
 
+    pub fn cursor(&self) -> Color32 {
+        self.cursor.unwrap_or(BLUE).get(self.current_theme)
+    }
+
     pub fn selection_bg(&self) -> Color32 {
         let mut color = BLUE;
 
-        // light mode: use half saturation
         color.light = {
             let mut color_hsva = Hsva::from(color.light);
             color_hsva.s /= 2.0;
+            Color32::from(color_hsva)
+        };
+        color.dark = {
+            let mut color_hsva = Hsva::from(color.dark);
+            color_hsva.a /= 10.0;
             Color32::from(color_hsva)
         };
 

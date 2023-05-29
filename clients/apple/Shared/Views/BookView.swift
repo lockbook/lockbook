@@ -7,6 +7,7 @@ struct BookView: View {
     @EnvironmentObject var sheets: SheetState
     @EnvironmentObject var onboarding: OnboardingService
     @EnvironmentObject var files: FileService
+    @EnvironmentObject var share: ShareService
 
     let currentFolder: File
     let account: Account
@@ -15,7 +16,7 @@ struct BookView: View {
     @Environment(\.horizontalSizeClass) var horizontal
     @Environment(\.verticalSizeClass) var vertical
     #endif
-
+    
     var body: some View {
         platformFileTree
             .iOSOnlySheet(isPresented: $sheets.moving)
@@ -62,7 +63,7 @@ struct BookView: View {
                     ToolbarItemGroup {
                         NavigationLink(
                             destination: PendingSharesView()) {
-                                Image(systemName: "person.3.fill").foregroundColor(.blue)
+                                pendingShareToolbarIcon(isiOS: true, isPendingSharesEmpty: share.pendingShares.isEmpty)
                             }
                         
                         NavigationLink(
@@ -111,6 +112,35 @@ extension View {
         #else
         self
         #endif
+    }
+}
+
+@ViewBuilder
+func pendingShareToolbarIcon(isiOS: Bool, isPendingSharesEmpty: Bool) -> some View {
+    if isiOS {
+        ZStack {
+            Image(systemName: "person.2.fill")
+                .foregroundColor(.blue)
+                                        
+            if !isPendingSharesEmpty {
+                Circle()
+                    .foregroundColor(.red)
+                    .frame(width: 12, height: 12)
+                    .offset(x: 12, y: 5)
+            }
+        }
+    } else {
+        ZStack {
+            Image(systemName: "person.2.fill")
+                .foregroundColor(.blue)
+                                        
+            if !isPendingSharesEmpty {
+                Circle()
+                    .foregroundColor(.red)
+                    .frame(width: 7, height: 7)
+                    .offset(x: 7, y: 3)
+            }
+        }
     }
 }
 

@@ -1,6 +1,6 @@
 [package]
 name = "core_external_interface"
-version = "0.7.3"
+version = "0.7.5"
 edition = "2021"
 
 [lib]

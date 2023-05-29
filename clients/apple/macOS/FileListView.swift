@@ -3,31 +3,78 @@ import SwiftLockbookCore
 import DSFQuickActionBar
 
 struct FileListView: View {
-    
     @State var searchInput: String = ""
     @State var expandedFolders: [File] = []
+    @State var lastOpenDoc: File? = nil
     
+    @State var treeBranchState: Bool = true
+        
     var body: some View {
         VStack {
             SearchWrapperView(
                 searchInput: $searchInput,
-                mainView: FileTreeView(expandedFolders: $expandedFolders),
+                mainView: mainView,
                 isiOS: false)
             .searchable(text: $searchInput, prompt: "Search")
             .keyboardShortcut(.escape)
+                
+            BottomBar()
+        }
             
-            VStack (spacing: 3) {
-                BottomBar()
+        DetailView()
+    }
+    
+    var mainView: some View {
+        VStack {
+            SuggestedDocs()
+
+            fileTreeView
+        }
+    }
+    
+    var fileTreeView: some View {
+        Group {
+            Button(action: {
+                withAnimation {
+                    treeBranchState.toggle()
+                }
+            }) {
+                HStack {
+                    Text("Tree")
+                        .bold()
+                        .foregroundColor(.gray)
+                        .font(.subheadline)
+                    Spacer()
+                    if treeBranchState {
+                        Image(systemName: "chevron.down")
+                            .foregroundColor(.gray)
+                            .imageScale(.small)
+                    } else {
+                        Image(systemName: "chevron.right")
+                            .foregroundColor(.gray)
+                            .imageScale(.small)
+                    }
+                }
+                .padding(.top)
+                .padding(.horizontal)
+                .contentShape(Rectangle())
+            }
+            
+            if treeBranchState {
+                FileTreeView(expandedFolders: $expandedFolders, lastOpenDoc: $lastOpenDoc)
+                    .padding(.leading, 4)
+                Spacer()
+            } else {
+                Spacer()
             }
         }
-        
-        DetailView()
     }
 }
 
 struct DetailView: View {
     @EnvironmentObject var currentSelection: CurrentDocument
     @EnvironmentObject var search: SearchService
+    @EnvironmentObject var share: ShareService
     
     @State var quickActionBarVisible = false
     @State var selectedFile: SearchResultItem? = nil
@@ -35,7 +82,9 @@ struct DetailView: View {
     var body: some View {
         ZStack {
             VStack {
-                if let selected = currentSelection.selectedDocument {
+                if currentSelection.isPendingSharesOpen {
+                    PendingSharesView()
+                }else if let selected = currentSelection.selectedDocument {
                     DocumentView(meta: selected)
                 }
             }
@@ -63,6 +112,19 @@ struct DetailView: View {
             .onChange(of: selectedFile) { newValue in
                 if let submittedId = newValue?.id {
                     search.submitSearch(id: submittedId)
+                }
+            }
+        }
+        .onChange(of: currentSelection.selectedDocument) { _ in
+            DI.files.refreshSuggestedDocs()
+        }
+        .toolbar {
+            ToolbarItemGroup {
+                Button(action: {
+                    currentSelection.isPendingSharesOpen = true
+                }) {
+                    pendingShareToolbarIcon(isiOS: false, isPendingSharesEmpty: share.pendingShares.isEmpty)
+                    
                 }
             }
         }

@@ -1,7 +1,7 @@
 import SwiftUI
 import AlertToast
 
-struct ManageSubscription: View {    
+struct ManageSubscription: View {
     @EnvironmentObject var billing: BillingService
     @EnvironmentObject var settings: SettingsService
     
@@ -22,7 +22,6 @@ struct ManageSubscription: View {
                     billing.purchasePremium()
                 }
                 .buttonStyle(.borderedProminent)
-                .font(.title2)
                 .padding(.top)
                 .disabled(billing.purchaseResult == .some(.inFlow))
                 
@@ -58,6 +57,7 @@ struct ManageSubscription: View {
                 }
             }
             .onAppear {
+                settings.calculateUsage()
                 billing.launchBillingBackgroundTasks()
             }
     }

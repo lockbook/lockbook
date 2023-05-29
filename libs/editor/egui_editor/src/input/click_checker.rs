@@ -5,7 +5,8 @@ use crate::element::{Element, ItemType};
 use crate::galleys::Galleys;
 use crate::input::mutation::pos_to_char_offset;
 use crate::layouts::Annotation;
-use egui::{Pos2, Vec2};
+use crate::offset_types::RangeExt;
+use egui::{Pos2, Rect};
 
 pub trait ClickChecker {
     fn ui(&self, pos: Pos2) -> bool; // was the click even in the ui?
@@ -14,7 +15,7 @@ pub trait ClickChecker {
 }
 
 pub struct EditorClickChecker<'a> {
-    pub ui_size: Vec2,
+    pub ui_rect: Rect,
     pub galleys: &'a Galleys,
     pub buffer: &'a Buffer,
     pub ast: &'a Ast,
@@ -23,7 +24,7 @@ pub struct EditorClickChecker<'a> {
 
 impl<'a> ClickChecker for &'a EditorClickChecker<'a> {
     fn ui(&self, pos: Pos2) -> bool {
-        pos.x < self.ui_size.x && pos.y < self.ui_size.y
+        self.ui_rect.contains(pos)
     }
 
     fn checkbox(&self, pos: Pos2) -> Option<usize> {
@@ -38,15 +39,10 @@ impl<'a> ClickChecker for &'a EditorClickChecker<'a> {
     }
 
     fn link(&self, pos: Pos2) -> Option<String> {
-        let click_char_offset = pos_to_char_offset(pos, self.galleys, &self.buffer.current.segs);
-        let click_byte_offset = self
-            .buffer
-            .current
-            .segs
-            .char_offset_to_byte(click_char_offset);
+        let offset = pos_to_char_offset(pos, self.galleys, &self.buffer.current.segs);
         for ast_node in &self.ast.nodes {
             if let Element::Link(_, url, _) = &ast_node.element {
-                if ast_node.range.contains(&click_byte_offset) {
+                if ast_node.range.contains(offset) {
                     return Some(url.to_string());
                 }
             }

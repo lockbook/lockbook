@@ -2,15 +2,20 @@ import SwiftUI
 import SwiftLockbookCore
 
 struct FileTreeView: View {
-
     @EnvironmentObject var sheets: SheetState
     @EnvironmentObject var currentDoc: CurrentDocument
     @EnvironmentObject var coreService: CoreService
     @EnvironmentObject var files: FileService
     @EnvironmentObject var onboarding: OnboardingService
     @EnvironmentObject var search: SearchService
+    @EnvironmentObject var sync: SyncService
+    @EnvironmentObject var share: ShareService
+    
+    @State var suggestedDocBranchState: Bool = true
+    @State var navigateToManageSub: Bool = false
     
     @State var searchInput: String = ""
+    @State private var hideOutOfSpaceAlert = UserDefaults.standard.bool(forKey: "hideOutOfSpaceAlert")
 
     let currentFolder: File
     let account: Account
@@ -19,15 +24,13 @@ struct FileTreeView: View {
         VStack {
             SearchWrapperView(
                 searchInput: $searchInput,
-                mainView: OutlineSection(root: currentFolder),
+                mainView: mainView,
                 isiOS: false)
             .searchable(text: $searchInput, placement: .navigationBarDrawer(displayMode: .automatic), prompt: "Search")
-
-            HStack {
-                BottomBar(onCreating: {
-                    sheets.creatingInfo = CreatingInfo(parent: currentFolder, child_type: .Document)
-                })
-            }
+            
+            BottomBar(onCreating: {
+                sheets.creatingInfo = CreatingInfo(parent: currentFolder, child_type: .Document)
+            })
         }
         
         VStack {
@@ -59,8 +62,7 @@ struct FileTreeView: View {
             ToolbarItemGroup(placement: .navigationBarTrailing) {
                 NavigationLink(
                     destination: PendingSharesView()) {
-                        Image(systemName: "person.3.fill")
-                            .foregroundColor(.blue)
+                        pendingShareToolbarIcon(isiOS: true, isPendingSharesEmpty: share.pendingShares.isEmpty)
                     }
                     
                 NavigationLink(
@@ -71,6 +73,84 @@ struct FileTreeView: View {
                     }
             }
         }
-        
+        .alert(isPresented: Binding(get: { sync.outOfSpace && !hideOutOfSpaceAlert }, set: {_ in sync.outOfSpace = false })) {
+            Alert(
+                title: Text("Out of Space"),
+                message: Text("You have run out of space!"),
+                primaryButton: .default(Text("Upgrade now"), action: {
+                    navigateToManageSub = true
+                }),
+                secondaryButton: .default(Text("Don't show me this again"), action: {
+                    hideOutOfSpaceAlert = true
+                    UserDefaults.standard.set(hideOutOfSpaceAlert, forKey: "hideOutOfSpaceAlert")
+                })
+            )
+        }
+        .background(
+            NavigationLink(destination: ManageSubscription(), isActive: $navigateToManageSub, label: {
+                EmptyView()
+            })
+            .hidden()
+        )
+        .onChange(of: currentDoc.selectedDocument) { _ in
+            DI.files.refreshSuggestedDocs()
+        }
+    }
+    
+    var mainView: some View {
+        VStack(alignment: .leading) {
+            suggestedDocs
+            
+            Text("Files")
+                .bold()
+                .foregroundColor(.primary)
+                .textCase(.none)
+                .font(.headline)
+                .padding(.top)
+                .padding(.bottom, 5)
+            
+            OutlineSection(root: currentFolder)
+        }
+        .padding(.horizontal)
+    }
+    
+    var suggestedDocs: some View {
+        Group {
+            Button(action: {
+                withAnimation {
+                    suggestedDocBranchState.toggle()
+                }
+            }) {
+                HStack {
+                    Text("Suggested")
+                        .bold()
+                        .foregroundColor(.primary)
+                        .textCase(.none)
+                        .font(.headline)
+                    
+                    Spacer()
+                    
+                    if suggestedDocBranchState {
+                        Image(systemName: "chevron.down")
+                            .foregroundColor(.gray)
+                            .imageScale(.small)
+                    } else {
+                        Image(systemName: "chevron.right")
+                            .foregroundColor(.gray)
+                            .imageScale(.small)
+                    }
+                }
+                .padding(.top)
+                .padding(.bottom, 5)
+                .contentShape(Rectangle())
+            }
+            
+            if suggestedDocBranchState {
+                SuggestedDocs(isiOS: false)
+                Spacer()
+            } else {
+                Spacer()
+            }
+        }
     }
 }

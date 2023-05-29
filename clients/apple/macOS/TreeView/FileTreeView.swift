@@ -9,6 +9,7 @@ struct FileTreeView: NSViewRepresentable {
     var dataSource = DataSource()
     
     @Binding var expandedFolders: [File]
+    @Binding var lastOpenDoc: File?
 
     @EnvironmentObject var files: FileService
     @EnvironmentObject var currentSelection: CurrentDocument
@@ -66,6 +67,8 @@ struct FileTreeView: NSViewRepresentable {
             for item in expandedFolders {
                 treeView.expandItem(item)
             }
+            
+            scrollAndSelectCurrentDoc()
         }
 
         return scrollView
@@ -73,19 +76,23 @@ struct FileTreeView: NSViewRepresentable {
     
     func updateNSView(_ nsView: NSScrollView, context: Context) {
         if previousFilesHash.value != files.idsAndFiles.hashValue {
-            treeView.reloadData()
             previousFilesHash.value = files.idsAndFiles.hashValue
+            treeView.reloadData()
         }
         
-        if previousOpenDocumentHash.value != currentSelection.selectedDocument?.hashValue {
-            if let file = DI.currentDoc.selectedDocument {
-                scrollAndexpandAncestorsOfDocument(file: file)
-            }
+        if lastOpenDoc != currentSelection.selectedDocument {
+            scrollAndSelectCurrentDoc()
             
-            treeView.selectRowIndexes(IndexSet(integer: treeView.row(forItem: DI.currentDoc.selectedDocument)), byExtendingSelection: false)
-            
-            previousOpenDocumentHash.value = currentSelection.selectedDocument?.hashValue
+            lastOpenDoc = currentSelection.selectedDocument
         }
+    }
+    
+    func scrollAndSelectCurrentDoc() {
+        if let file = currentSelection.selectedDocument {
+            scrollAndexpandAncestorsOfDocument(file: file)
+        }
+        
+        treeView.selectRowIndexes(IndexSet(integer: treeView.row(forItem: DI.currentDoc.selectedDocument)), byExtendingSelection: false)
     }
     
     func scrollAndexpandAncestorsOfDocument(file: File) {

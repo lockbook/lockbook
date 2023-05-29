@@ -1,9 +1,10 @@
-pub use crate::editor::Editor;
+pub use crate::editor::{Editor, EditorResponse};
 use egui::{FontData, FontDefinitions, FontFamily, Pos2, Rect};
 use egui_wgpu_backend::wgpu;
 use egui_wgpu_backend::wgpu::CompositeAlphaMode;
 use std::iter;
 use std::sync::Arc;
+use std::time::Instant;
 
 pub mod appearance;
 pub mod ast;
@@ -24,8 +25,46 @@ pub mod unicode_segs;
 #[cfg(target_vendor = "apple")]
 pub mod apple;
 
+/// https://developer.apple.com/documentation/uikit/uitextrange
+#[repr(C)]
+#[derive(Debug, Default)]
+pub struct CTextRange {
+    /// used to represent a non-existent state of this struct
+    none: bool,
+    start: CTextPosition,
+    end: CTextPosition,
+}
+
+#[repr(C)]
+#[derive(Debug, Default)]
+pub struct CTextPosition {
+    /// used to represent a non-existent state of this struct
+    none: bool,
+    pos: usize, // represents a grapheme index
+}
+
+#[repr(C)]
+#[derive(Debug)]
+pub enum CTextLayoutDirection {
+    Right = 2,
+    Left = 3,
+    Up = 4,
+    Down = 5,
+}
+
+#[repr(C)]
+#[derive(Debug)]
+pub struct CRect {
+    pub min_x: f64,
+    pub min_y: f64,
+    pub max_x: f64,
+    pub max_y: f64,
+}
+
 #[repr(C)]
 pub struct WgpuEditor {
+    pub start_time: Instant,
+
     pub device: wgpu::Device,
     pub queue: wgpu::Queue,
     pub surface: wgpu::Surface,
@@ -43,8 +82,17 @@ pub struct WgpuEditor {
     pub editor: Editor,
 }
 
+#[repr(C)]
+#[derive(Debug, Default)]
+pub struct IntegrationOutput {
+    pub redraw: bool,
+
+    pub editor_response: EditorResponse,
+}
+
 impl WgpuEditor {
-    pub fn frame(&mut self) {
+    pub fn frame(&mut self) -> IntegrationOutput {
+        let mut out = IntegrationOutput::default();
         self.configure_surface();
         let output_frame = match self.surface.get_current_texture() {
             Ok(frame) => frame,
@@ -52,11 +100,12 @@ impl WgpuEditor {
                 // This error occurs when the app is minimized on Windows.
                 // Silently return here to prevent spamming the console with:
                 // "The underlying surface has changed, and therefore the swap chain must be updated"
-                panic!("wgpu surface outdated")
+                eprintln!("wgpu::SurfaceError::Outdated");
+                return out;
             }
             Err(e) => {
                 eprintln!("Dropped frame with error: {}", e);
-                panic!()
+                return out;
             }
         };
         let output_view = output_frame
@@ -65,12 +114,12 @@ impl WgpuEditor {
 
         // can probably use run
         self.set_egui_screen();
-
+        self.raw_input.time = Some(self.start_time.elapsed().as_secs_f64());
         self.context.begin_frame(self.raw_input.take());
-        self.editor.draw(&self.context);
-        // todo: consider consuming repaint_after
+        out.editor_response = self.editor.draw(&self.context);
         let full_output = self.context.end_frame();
         if !full_output.platform_output.copied_text.is_empty() {
+            // todo: can this go in output?
             self.from_egui = Some(full_output.platform_output.copied_text);
         }
         let paint_jobs = self.context.tessellate(full_output.shapes);
@@ -104,6 +153,9 @@ impl WgpuEditor {
         self.rpass
             .remove_textures(tdelta)
             .expect("remove texture ok");
+
+        out.redraw = full_output.repaint_after.as_millis() < 100;
+        out
     }
 
     pub fn set_egui_screen(&mut self) {

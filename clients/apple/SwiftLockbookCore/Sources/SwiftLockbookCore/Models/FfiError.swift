@@ -184,6 +184,7 @@ public enum SyncAllError: String, UiError {
     case ClientUpdateRequired
     case CouldNotReachServer
     case Retry
+    case UsageIsOverDataCap
 }
 public enum CalculateWorkError: String, UiError {
     case CouldNotReachServer
@@ -276,5 +277,9 @@ public enum SearchFilePathsError: String, UiError {
 }
 
 public enum GeneralSearchError: String, UiError {
+    case Stub
+}
+
+public enum SuggestedDocsError: String, UiError {
     case Stub
 }
