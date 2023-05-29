@@ -25,5 +25,37 @@ public struct MetalView: UIViewRepresentable {
             editorState.reload = false
         }
     }
+    
+    public func header() {
+        mtkView.header()
+    }
+    
+    public func bulletedList() {
+        mtkView.bulletedList()
+    }
+    
+    public func numberedList() {
+        mtkView.numberedList()
+    }
+    
+    public func checkedList() {
+        mtkView.checkedList()
+    }
+    
+    public func bold() {
+        mtkView.bold()
+    }
+    
+    public func italic() {
+        mtkView.italic()
+    }
+    
+    public func underline() {
+        mtkView.underline()
+    }
+    
+    public func tab() {
+        mtkView.tab()
+    }
 }
 #endif

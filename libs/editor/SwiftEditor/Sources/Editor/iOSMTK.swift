@@ -23,6 +23,38 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
         self.preferredFramesPerSecond = 120
     }
     
+    public func header() {
+        header_at_cursor(editorHandle)
+    }
+    
+    public func bulletedList() {
+        bulleted_list_at_cursor(editorHandle)
+    }
+    
+    public func numberedList() {
+        numbered_list_at_cursor(editorHandle)
+    }
+    
+    public func checkedList() {
+        checked_list_at_cursor(editorHandle)
+    }
+    
+    public func bold() {
+        bold_at_cursor(editorHandle)
+    }
+    
+    public func italic() {
+        italic_at_cursor(editorHandle)
+    }
+    
+    public func underline() {
+        underline_at_cursor(editorHandle)
+    }
+    
+    public func tab() {
+        tab_at_cursor(editorHandle)
+    }
+    
     public func setInitialContent(_ s: String) {
         let metalLayer = UnsafeMutableRawPointer(Unmanaged.passUnretained(self.layer).toOpaque())
         self.editorHandle = init_editor(metalLayer, s, isDarkMode())
