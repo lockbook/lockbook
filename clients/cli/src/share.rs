@@ -1,6 +1,7 @@
 use lb::Core;
 use lb::Uuid;
 
+use crate::completions::DynValueName::{LbAnyPath, LbFolderPath, PendingShareId};
 use crate::maybe_get_by_path;
 use crate::resolve_target_to_id;
 use crate::CliError;
@@ -11,6 +12,7 @@ pub enum ShareCmd {
     /// share a file with another lockbook user
     New {
         /// ID or path of the file you will share
+        #[arg(value_name = LbAnyPath.as_ref())]
         target: String,
         /// username of who you would like to share with
         username: String,
@@ -27,9 +29,10 @@ pub enum ShareCmd {
     /// accept a pending by adding it to your file tree
     Accept {
         /// ID (full or prefix) of a pending share
+        #[arg(value_name = PendingShareId.as_ref())]
         target: String,
         /// lockbook file path or ID
-        #[clap(default_value = "/")]
+        #[clap(default_value = "/", value_name = LbFolderPath.as_ref())]
         dest: String,
         #[clap(long)]
         name: Option<String>,

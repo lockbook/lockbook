@@ -12,5 +12,7 @@ path = "src/main.rs"
 is-terminal = "0.4.7"
 clap = { version = "4.1.4", features = ["derive"] }
 clap_complete = "4.2.0"
+strum = "0.24"
+strum_macros = "0.24.3"
 hotwatch = "0.4.6"
 lb = { path = "../../libs/core", package = "lockbook-core" }

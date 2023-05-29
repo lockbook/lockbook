@@ -1,8 +1,9 @@
-use std::any::Any;
+use std::str::FromStr;
 
-use clap::{ArgMatches, Command, Parser, Subcommand};
+use clap::{Command, CommandFactory, Subcommand};
 use clap_complete::Shell;
 use lb::Core;
+use strum_macros::{AsRefStr, EnumString};
 
 use crate::{
     error::CliError,
@@ -23,6 +24,15 @@ _lockbook_complete_()
 complete -o nospace -F _lockbook_complete_ lockbook
 ";
 
+#[derive(EnumString, AsRefStr)]
+#[strum(serialize_all = "UPPERCASE")]
+pub enum DynValueName {
+    LbFilePath,
+    LbAnyPath,
+    LbFolderPath,
+    PendingShareId,
+}
+
 pub fn generate_completions(shell: Shell) -> Result<(), CliError> {
     match shell {
         Shell::Bash | Shell::Zsh => print!("{}", BASH_COMPLETIONS),
@@ -36,96 +46,79 @@ pub fn generate_completions(shell: Shell) -> Result<(), CliError> {
 pub fn complete(core: &Core, input: String, current: i32) -> Result<(), CliError> {
     // todo: use shellwords instead https://crates.io/crates/shellwords
     let splitted = input.split_ascii_whitespace();
+    // let selected_arg_value_name = splitted.nth(current as usize).unwrap();
 
-    let cli = Command::new("Built CLI");
-
+    // manoeuver to switch from declarative to imperative pattern.
+    let cli = Command::new("");
     let cli = LbCli::augment_subcommands(cli);
+    let matches = cli.try_get_matches_from(splitted);
 
-    let matches = cli.get_matches_from(splitted);
-//is there a way to get the type of an arg during the parsing process 
+    if matches.is_err() {
+        return Ok(());
+    };
+    let matches = matches.unwrap();
 
-    matches.ids().for_each(|f| println!("{}", f.to_string()));
+    let binding = LbCli::command();
+    let selected_arg = binding
+        .find_subcommand(matches.subcommand().unwrap().0)
+        .unwrap()
+        .get_arguments()
+        .nth(current as usize - 2)
+        .unwrap();
 
-    let is_file_path = matches
+    let selected_arg_value_name = selected_arg.get_value_names().unwrap().get(0).unwrap();
+    let selected_arg_value = matches
         .subcommand()
         .unwrap()
         .1
-        .ids()
-        .any(|f| f.eq("target"));
+        .get_one::<String>(selected_arg.get_id().as_str())
+        .unwrap_or(&"/".to_string())
+        .to_string();
 
-    if is_file_path {
-        list::list(
-            core,
-            ListArgs {
-                recursive: false,
-                long: false,
-                paths: true,
-                dirs: false,
-                docs: false,
-                ids: false,
-                directory: matches
-                    .subcommand()
-                    .unwrap()
-                    .1
-                    .get_one::<String>("target")
-                    .unwrap_or(&"/".to_string())
-                    .to_string(),
-            },
-        )
-        .ok()
-        .unwrap_or(());
+    match DynValueName::from_str(selected_arg_value_name).unwrap() {
+        DynValueName::LbAnyPath => {
+            list(core, selected_arg_value, false, false)?;
+        }
+        DynValueName::LbFolderPath => {
+            list(core, selected_arg_value, true, false)?;
+        }
+        DynValueName::LbFilePath => {
+            list(core, selected_arg_value, false, true)?;
+        }
+        DynValueName::PendingShareId => {
+            todo!()
+        }
     }
-    //for each arg that is a struct of type lbfile, output the completions.
 
-    // if let Some(matches) = matches.get_("edit") {
-    //     list::list(
-    //         core,
-    //         ListArgs {
-    //             recursive: false,
-    //             long: false,
-    //             paths: true,
-    //             dirs: false,
-    //             docs: false,
-    //             ids: false,
-    //             directory: matches
-    //                 .get_one::<String>("target")
-    //                 .unwrap_or(&"/".to_string())
-    //                 .to_string(),
-    //         },
-    //     )
-    //     .ok()
-    //     .unwrap_or(())
-    // }
-    //this matches the command, but i don't really care about that. i'm more concerned with the arg. one solution is to exist declarative paradigm in favor of imperative for increased control.
-    // match LbCli::parse_from(splitted) {
-    //     LbCli::Account(_) => todo!(),
-    //     LbCli::Copy { disk_files, dest } => todo!(), // LbFolder
-    //     LbCli::Debug(_) => todo!(),
-    //     LbCli::Delete { target, force } => todo!(), // LbFile | LbFolder
-    //     LbCli::Edit { target } => list::list(
-    //         core,
-    //         ListArgs {
-    //             recursive: false,
-    //             long: false,
-    //             paths: true,
-    //             dirs: false,
-    //             docs: false,
-    //             ids: false,
-    //             directory: target,
-    //         },
-    //     )
-    //     .ok()
-    //     .unwrap_or(()), // LbFile
-    //     LbCli::Export { target, dest } => todo!(),  // LbFile | LbFolder
-    //     LbCli::List(_) => todo!(),                  //LbFile | LbFolder
-    //     LbCli::Move { src_target, dest_target } => todo!(), // LbFile | LbFolder, LbFolder
-    //     LbCli::New { path } => todo!(),             // LbNewFile | lbNewFolder
-    //     LbCli::Print { target } => todo!(),         // LbFile
-    //     LbCli::Rename { target, new_name } => todo!(), // LbFile | LbFolder
-    //     LbCli::Share(_) => todo!(),                 // LbFile | LbFolder, PendingShareId
-    //     LbCli::Sync => todo!(),
-    //     LbCli::Completions { shell } => todo!(),
-    //     LbCli::Complete { input, current } => todo!(),
-    // }
+    Ok(())
+}
+
+fn list(core: &Core, input: String, dirs: bool, docs: bool) -> Result<(), CliError> {
+    let mut tokens = input
+        .split('/')
+        .map(|s| s.to_string())
+        .collect::<Vec<String>>();
+    let working_path = match tokens.len().cmp(&1) {
+        std::cmp::Ordering::Less | std::cmp::Ordering::Equal => "/".to_string(),
+        std::cmp::Ordering::Greater => {
+            tokens.remove(tokens.len() - 1);
+            tokens.join("/")
+        }
+    };
+
+    println!("{}", working_path);
+    list::list(
+        core,
+        ListArgs {
+            recursive: false,
+            long: false,
+            paths: true,
+            dirs,
+            docs,
+            ids: false,
+            directory: working_path,
+        },
+    )?;
+
     Ok(())
 }
