@@ -16,7 +16,7 @@ use crate::settings::{Settings, ThemeMode};
 pub fn init(s: &Arc<RwLock<Settings>>, ctx: &egui::Context) {
     let initial_mode = match s.read().unwrap().theme_mode {
         ThemeMode::System => dark_light::detect(),
-        ThemeMode::Dark => dark_light::Mode::Light,
+        ThemeMode::Dark => dark_light::Mode::Dark,
         ThemeMode::Light => dark_light::Mode::Light,
     };
 
