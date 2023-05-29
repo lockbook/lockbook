@@ -52,7 +52,7 @@ struct DocumentView: View {
 
                     case .Markdown:
                         if let editorState = model.textDocument {
-                            EditorView(editorState).title(meta.name)
+                            MarkdownEditor(editorState: editorState, documentName: meta.name)
                         }
                     case .Unknown:
                         Text("\(meta.name) cannot be opened on this device.")
@@ -74,5 +74,147 @@ extension View {
 #else
         return self.navigationBarTitle(name, displayMode: .inline)
 #endif
+    }
+}
+
+struct MarkdownEditor: View {
+    var editorState: EditorState
+    var documentName: String
+    
+    var body: some View {
+        VStack {
+            #if os(iOS)
+            editor
+            
+            toolbar
+            #else
+            toolbar
+            
+            editor
+            #endif
+        }
+        .title(documentName)
+    }
+    
+    var editor: EditorView {
+        EditorView(editorState)
+    }
+    
+    var toolbar: some View {
+        #if os(iOS)
+        ScrollView(.horizontal) {
+            HStack(spacing: 35) {
+                Button(action: {
+                    editor.header()
+                }) {
+                    Image(systemName: "h.square")
+                }
+                
+                Button(action: {
+                    editor.bulletedList()
+                }) {
+                    Image(systemName: "list.bullet")
+                }
+                
+                Button(action: {
+                    editor.numberedList()
+                }) {
+                    Image(systemName: "list.number")
+                }
+                
+                Button(action: {
+                    editor.checkedList()
+                }) {
+                    Image(systemName: "checklist")
+                }
+                
+                Button(action: {
+                    editor.bold()
+                }) {
+                    Image(systemName: "bold")
+                }
+                
+                Button(action: {
+                    editor.underline()
+                }) {
+                    Image(systemName: "underline")
+                }
+                
+                Button(action: {
+                    editor.italic()
+                }) {
+                    Image(systemName: "italic")
+                }
+                
+                Button(action: {
+                    editor.tab()
+                }) {
+                    Image(systemName: "arrow.right.to.line")
+                }
+            }
+            .padding()
+        }
+        .frame(height: 35)
+        #else
+        HStack(alignment: .center, spacing: 30) {
+                Button(action: {
+                    editor.header()
+                }) {
+                    Image(systemName: "h.square")
+                        .imageScale(.large)
+                }
+                
+                Button(action: {
+                    editor.bulletedList()
+                }) {
+                    Image(systemName: "list.bullet")
+                        .imageScale(.large)
+                }
+                
+                Button(action: {
+                    editor.numberedList()
+                }) {
+                    Image(systemName: "list.number")
+                        .imageScale(.large)
+                }
+                
+                Button(action: {
+                    editor.checkedList()
+                }) {
+                    Image(systemName: "checklist")
+                        .imageScale(.large)
+                }
+                
+                Button(action: {
+                    editor.bold()
+                }) {
+                    Image(systemName: "bold")
+                        .imageScale(.large)
+                }
+                
+                Button(action: {
+                    editor.underline()
+                }) {
+                    Image(systemName: "underline")
+                        .imageScale(.large)
+                }
+                
+                Button(action: {
+                    editor.italic()
+                }) {
+                    Image(systemName: "italic")
+                        .imageScale(.large)
+                }
+                
+                Button(action: {
+                    editor.tab()
+                }) {
+                    Image(systemName: "arrow.right.to.line")
+                        .imageScale(.large)
+                }
+            }
+        .padding(.top, 12)
+        .padding(.bottom, 3)
+        #endif
     }
 }

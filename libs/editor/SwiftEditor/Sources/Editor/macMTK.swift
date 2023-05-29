@@ -28,11 +28,42 @@ public class MacMTK: MTKView, MTKViewDelegate {
         self.addTrackingArea(trackingArea!)
     }
     
-    
-    
     required init(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
+    
+    public func header() {
+        header_at_cursor(editorHandle)
+    }
+    
+    public func bulletedList() {
+        bulleted_list_at_cursor(editorHandle)
+    }
+    
+    public func numberedList() {
+        numbered_list_at_cursor(editorHandle)
+    }
+    
+    public func checkedList() {
+        checked_list_at_cursor(editorHandle)
+    }
+    
+    public func bold() {
+        bold_at_cursor(editorHandle)
+    }
+    
+    public func italic() {
+        italic_at_cursor(editorHandle)
+    }
+    
+    public func underline() {
+        underline_at_cursor(editorHandle)
+    }
+    
+    public func tab() {
+        tab_at_cursor(editorHandle)
+    }
+
     
     public override var acceptsFirstResponder: Bool {
         return true

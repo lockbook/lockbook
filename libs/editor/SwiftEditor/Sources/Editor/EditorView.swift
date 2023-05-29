@@ -11,10 +11,46 @@ public struct EditorView: View {
     }
     
     public var body: some View {
-        MetalView(editorState: editorState)
+        metalView
             .focused($focused)
             .onAppear {
                 focused = true
             }
+    }
+    
+    public var metalView: MetalView {
+        MetalView(editorState: editorState)
+    }
+    
+    public func header() {
+        metalView.header()
+    }
+    
+    public func bulletedList() {
+        metalView.bulletedList()
+    }
+    
+    public func numberedList() {
+        metalView.numberedList()
+    }
+    
+    public func checkedList() {
+        metalView.checkedList()
+    }
+    
+    public func bold() {
+        metalView.bold()
+    }
+    
+    public func italic() {
+        metalView.italic()
+    }
+    
+    public func underline() {
+        metalView.underline()
+    }
+    
+    public func tab() {
+        metalView.tab()
     }
 }

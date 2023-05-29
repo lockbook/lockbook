@@ -174,3 +174,59 @@ async fn request_device(
         Ok((device, queue)) => (adapter, device, queue),
     }
 }
+
+/// # Safety
+/// obj must be a valid pointer to WgpuEditor
+#[no_mangle]
+pub unsafe extern "C" fn header_at_cursor(obj: *mut c_void) {
+    println!("header clicked!");
+}
+
+/// # Safety
+/// obj must be a valid pointer to WgpuEditor
+#[no_mangle]
+pub unsafe extern "C" fn bulleted_list_at_cursor(obj: *mut c_void) {
+    println!("bulleted list clicked!");
+}
+
+/// # Safety
+/// obj must be a valid pointer to WgpuEditor
+#[no_mangle]
+pub unsafe extern "C" fn numbered_list_at_cursor(obj: *mut c_void) {
+    println!("numbered list clicked!");
+}
+
+/// # Safety
+/// obj must be a valid pointer to WgpuEditor
+#[no_mangle]
+pub unsafe extern "C" fn checked_list_at_cursor(obj: *mut c_void) {
+    println!("checked list clicked!");
+}
+
+/// # Safety
+/// obj must be a valid pointer to WgpuEditor
+#[no_mangle]
+pub unsafe extern "C" fn bold_at_cursor(obj: *mut c_void) {
+    println!("bold clicked!");
+}
+
+/// # Safety
+/// obj must be a valid pointer to WgpuEditor
+#[no_mangle]
+pub unsafe extern "C" fn italic_at_cursor(obj: *mut c_void) {
+    println!("italic clicked!");
+}
+
+/// # Safety
+/// obj must be a valid pointer to WgpuEditor
+#[no_mangle]
+pub unsafe extern "C" fn underline_at_cursor(obj: *mut c_void) {
+    println!("underline clicked!");
+}
+
+/// # Safety
+/// obj must be a valid pointer to WgpuEditor
+#[no_mangle]
+pub unsafe extern "C" fn tab_at_cursor(obj: *mut c_void) {
+    println!("tab clicked!");
+}
