@@ -26,8 +26,8 @@ public struct MetalView: UIViewRepresentable {
         }
     }
     
-    public func header() {
-        mtkView.header()
+    public func header(headingSize: UInt32) {
+        mtkView.header(headingSize: headingSize)
     }
     
     public func bulletedList() {
@@ -48,10 +48,6 @@ public struct MetalView: UIViewRepresentable {
     
     public func italic() {
         mtkView.italic()
-    }
-    
-    public func underline() {
-        mtkView.underline()
     }
     
     public func tab() {

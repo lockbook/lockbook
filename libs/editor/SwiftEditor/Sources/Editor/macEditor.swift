@@ -31,8 +31,8 @@ public struct MetalView: NSViewRepresentable {
         }
     }
     
-    public func header() {
-        mtkView.header()
+    public func header(headingSize: UInt32) {
+        mtkView.header(headingSize: headingSize)
     }
     
     public func bulletedList() {
