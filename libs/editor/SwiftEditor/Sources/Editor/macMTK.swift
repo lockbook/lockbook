@@ -56,10 +56,6 @@ public class MacMTK: MTKView, MTKViewDelegate {
         italic_at_cursor(editorHandle)
     }
     
-    public func underline() {
-        underline_at_cursor(editorHandle)
-    }
-    
     public func tab() {
         tab_at_cursor(editorHandle)
     }

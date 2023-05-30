@@ -46,10 +46,6 @@ public struct EditorView: View {
         metalView.italic()
     }
     
-    public func underline() {
-        metalView.underline()
-    }
-    
     public func tab() {
         metalView.tab()
     }

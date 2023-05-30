@@ -220,13 +220,6 @@ pub unsafe extern "C" fn italic_at_cursor(obj: *mut c_void) {
 /// # Safety
 /// obj must be a valid pointer to WgpuEditor
 #[no_mangle]
-pub unsafe extern "C" fn underline_at_cursor(obj: *mut c_void) {
-    println!("underline clicked!");
-}
-
-/// # Safety
-/// obj must be a valid pointer to WgpuEditor
-#[no_mangle]
 pub unsafe extern "C" fn tab_at_cursor(obj: *mut c_void) {
     println!("tab clicked!");
 }
