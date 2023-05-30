@@ -22,8 +22,8 @@ public struct EditorView: View {
         MetalView(editorState: editorState)
     }
     
-    public func header() {
-        metalView.header()
+    public func header(headingSize: UInt32) {
+        metalView.header(headingSize: headingSize)
     }
     
     public func bulletedList() {

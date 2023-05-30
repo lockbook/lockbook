@@ -23,8 +23,8 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
         self.preferredFramesPerSecond = 120
     }
     
-    public func header() {
-        header_at_cursor(editorHandle)
+    public func header(headingSize: UInt32) {
+        header_at_cursor(editorHandle, headingSize)
     }
     
     public func bulletedList() {
@@ -45,10 +45,6 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     
     public func italic() {
         italic_at_cursor(editorHandle)
-    }
-    
-    public func underline() {
-        underline_at_cursor(editorHandle)
     }
     
     public func tab() {

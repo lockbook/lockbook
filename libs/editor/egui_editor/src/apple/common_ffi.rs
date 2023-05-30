@@ -178,8 +178,8 @@ async fn request_device(
 /// # Safety
 /// obj must be a valid pointer to WgpuEditor
 #[no_mangle]
-pub unsafe extern "C" fn header_at_cursor(obj: *mut c_void) {
-    println!("header clicked!");
+pub unsafe extern "C" fn header_at_cursor(obj: *mut c_void, heading_size: u32) {
+    println!("header clicked! {}", heading_size);
 }
 
 /// # Safety

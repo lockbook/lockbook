@@ -32,8 +32,8 @@ public class MacMTK: MTKView, MTKViewDelegate {
         fatalError("init(coder:) has not been implemented")
     }
     
-    public func header() {
-        header_at_cursor(editorHandle)
+    public func header(headingSize: UInt32) {
+        header_at_cursor(editorHandle, headingSize)
     }
     
     public func bulletedList() {
