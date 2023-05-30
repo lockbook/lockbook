@@ -94,13 +94,12 @@ struct MarkdownEditor: View {
         }
         .title(documentName)
         #else
-        ZStack {
+        VStack {
             toolbar
             
             editor
-            
-            
         }
+        .title(documentName)
         #endif
         
     }
@@ -174,22 +173,6 @@ struct MarkdownEditor: View {
         }
         .frame(height: 35)
         #else
-        macOSToolbar()
-        #endif
-    }
-    
-    #if os(macOS)
-    
-    @ViewBuilder
-    func macOSToolbar() -> some View {
-        if isToolbarExpanded {
-            expandedToolbar
-        } else {
-            hiddenToolbar
-        }
-    }
-    
-    var expandedToolbar: some View {
         HStack(alignment: .center, spacing: 30) {
             Menu(content: {
                 Button("Heading 1") {
@@ -209,85 +192,47 @@ struct MarkdownEditor: View {
                 }
             }, label: {
                 Image(systemName: "h.square")
+                    .imageScale(.large)
             })
-                
-            Button(action: {
-                editor.bulletedList()
-            }) {
-                Image(systemName: "list.bullet")
-            }
-                
-            Button(action: {
-                editor.numberedList()
-            }) {
-            Image(systemName: "list.number")
-            }
-            
-            Button(action: {
-                editor.checkedList()
-            }) {
-                Image(systemName: "checklist")
-            }
             
             Button(action: {
                 editor.bold()
             }) {
                 Image(systemName: "bold")
-            }
-            
-            Button(action: {
-                editor.underline()
-            }) {
-                Image(systemName: "underline")
+                    .imageScale(.large)
             }
             
             Button(action: {
                 editor.italic()
             }) {
                 Image(systemName: "italic")
-            }
-            
-            Divider()
-                .frame(height: 20)
-                    
-            Button(action: {
-                isToolbarExpanded = false
-            }) {
-                Image(systemName: "eye.slash")
-                    .foregroundColor(.accentColor)
-            }
-        }
-        .padding()
-        .background(.white)
-        .cornerRadius(3)
-        .overlay(
-            RoundedRectangle(cornerRadius: 8)
-                .stroke(.gray, lineWidth: 0.05)
-        )
-        .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
-    }
-    
-    var hiddenToolbar: some View {
-        HStack {
-            Spacer()
-            
-            Button(action: {
-                isToolbarExpanded = true
-            }) {
-                Image(systemName: "eye")
                     .imageScale(.large)
             }
-            .padding()
-            .background(Color.white)
-            .cornerRadius(3)
-            .overlay(
-                RoundedRectangle(cornerRadius: 8)
-                    .stroke(Color.black, lineWidth: 0.5)
-            )
-            .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
 
+            Button(action: {
+                editor.bulletedList()
+            }) {
+                Image(systemName: "list.bullet")
+                    .imageScale(.large)
+            }
+
+            Button(action: {
+                editor.numberedList()
+            }) {
+                Image(systemName: "list.number")
+                    .imageScale(.large)
+            }
+
+            Button(action: {
+                editor.checkedList()
+            }) {
+                Image(systemName: "checklist")
+                    .imageScale(.large)
+            }
         }
+        .padding(.top, 12)
+        .padding(.bottom, 3)
+
+        #endif
     }
-    
-    #endif
 }

@@ -55,10 +55,6 @@ public struct MetalView: NSViewRepresentable {
         mtkView.italic()
     }
     
-    public func underline() {
-        mtkView.underline()
-    }
-    
     public func tab() {
         mtkView.tab()
     }
