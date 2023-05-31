@@ -32,3 +32,18 @@ impl From<io::Error> for CliError {
         Self(format!("{:?}", err))
     }
 }
+
+impl From<shellwords::MismatchedQuotes> for CliError {
+    fn from(value: shellwords::MismatchedQuotes) -> Self {
+        CliError(format!(
+            "shell input couldn't be parse as it doesn't follow UNIX standards{}",
+            value
+        ))
+    }
+}
+
+impl From<clap::Error> for CliError {
+    fn from(value: clap::Error) -> Self {
+        CliError(value.to_string())
+    }
+}

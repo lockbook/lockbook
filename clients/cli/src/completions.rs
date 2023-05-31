@@ -1,9 +1,10 @@
 use std::str::FromStr;
 
-use clap::{Command, CommandFactory, Subcommand};
+use clap::{builder::Str, Command, CommandFactory, Subcommand};
 use clap_complete::Shell;
 use lb::Core;
-use strum_macros::{AsRefStr, EnumString};
+use shellwords::split;
+use strum::{AsRefStr, EnumString};
 
 use crate::{
     error::CliError,
@@ -44,32 +45,35 @@ pub fn generate_completions(shell: Shell) -> Result<(), CliError> {
 }
 
 pub fn complete(core: &Core, input: String, current: i32) -> Result<(), CliError> {
-    // todo: use shellwords instead https://crates.io/crates/shellwords
-    let splitted = input.split_ascii_whitespace();
-    // let selected_arg_value_name = splitted.nth(current as usize).unwrap();
+    let splitted = split(&input)?;
 
     // manoeuver to switch from declarative to imperative pattern.
     let cli = Command::new("");
     let cli = LbCli::augment_subcommands(cli);
-    let matches = cli.try_get_matches_from(splitted);
+    let matches = cli.try_get_matches_from(splitted)?;
 
-    if matches.is_err() {
-        return Ok(());
-    };
-    let matches = matches.unwrap();
+    let matched_subcommand = matches
+        .subcommand()
+        .ok_or(CliError("no subcommand provided in input".to_string()))?;
 
     let binding = LbCli::command();
+
+    //the argument to provide completions for
     let selected_arg = binding
-        .find_subcommand(matches.subcommand().unwrap().0)
-        .unwrap()
+        .find_subcommand(matched_subcommand.0)
+        .ok_or(CliError("subcommand undefined".to_string()))?
         .get_arguments()
         .nth(current as usize - 2)
-        .unwrap();
+        .ok_or(CliError("shell index out of bounds".to_string()))?;
 
-    let selected_arg_value_name = selected_arg.get_value_names().unwrap().get(0).unwrap();
-    let selected_arg_value = matches
-        .subcommand()
-        .unwrap()
+    let binding = Str::default();
+    let selected_arg_value_name = selected_arg
+        .get_value_names()
+        .unwrap_or_default()
+        .get(0)
+        .unwrap_or(&binding);
+
+    let selected_arg_value = matched_subcommand
         .1
         .get_one::<String>(selected_arg.get_id().as_str())
         .unwrap_or(&"/".to_string())
@@ -98,6 +102,8 @@ fn list(core: &Core, input: String, dirs: bool, docs: bool) -> Result<(), CliErr
         .split('/')
         .map(|s| s.to_string())
         .collect::<Vec<String>>();
+
+    // remove one level from input. ex:  /lockbook/marketing/foo => /lockbook/marketing/
     let working_path = match tokens.len().cmp(&1) {
         std::cmp::Ordering::Less | std::cmp::Ordering::Equal => "/".to_string(),
         std::cmp::Ordering::Greater => {
