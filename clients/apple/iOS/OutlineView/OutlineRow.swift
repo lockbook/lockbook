@@ -43,10 +43,6 @@ struct OutlineRow: View {
                     .frame(width: 10, height: 10)
                     .rotationEffect(Angle.degrees(open ? 90 : 0))
                     .foregroundColor(.accentColor)
-                    .onTapGesture {
-                        open.toggle()
-                    }
-                
             }
         }
         .padding(.vertical, 4)
