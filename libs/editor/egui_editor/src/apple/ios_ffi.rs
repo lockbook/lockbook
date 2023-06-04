@@ -454,3 +454,11 @@ pub unsafe extern "C" fn cursor_rect_at_position(obj: *mut c_void, pos: CTextPos
         max_y: (rect.max.y - scroll.y) as f64,
     }
 }
+
+/// # Safety
+/// obj must be a valid pointer to WgpuEditor
+#[no_mangle]
+pub unsafe extern "C" fn indent_at_cursor(obj: *mut c_void, deindent: bool) {
+    let obj = &mut *(obj as *mut WgpuEditor);
+    obj.editor.custom_events.push(Modification::Indent { deindent });
+}

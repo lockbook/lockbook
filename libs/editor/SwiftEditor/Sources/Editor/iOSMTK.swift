@@ -55,30 +55,37 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     
     public func header(headingSize: UInt32) {
         header_at_cursor(editorHandle, headingSize)
+        self.setNeedsDisplay(self.frame)
     }
     
     public func bulletedList() {
         bulleted_list_at_cursor(editorHandle)
+        self.setNeedsDisplay(self.frame)
     }
     
     public func numberedList() {
         numbered_list_at_cursor(editorHandle)
+        self.setNeedsDisplay(self.frame)
     }
     
     public func checkedList() {
         checked_list_at_cursor(editorHandle)
+        self.setNeedsDisplay(self.frame)
     }
     
     public func bold() {
         bold_at_cursor(editorHandle)
+        self.setNeedsDisplay(self.frame)
     }
     
     public func italic() {
         italic_at_cursor(editorHandle)
+        self.setNeedsDisplay(self.frame)
     }
     
-    public func tab() {
-        tab_at_cursor(editorHandle)
+    public func tab(deindent: Bool) {
+        indent_at_cursor(editorHandle, deindent)
+        self.setNeedsDisplay(self.frame)
     }
     
     public func setInitialContent(_ s: String) {
@@ -494,7 +501,9 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     }
     
     deinit {
-        print("editor deinited")
+        withUnsafePointer(to: self) { pointer in
+            print("editor deinited: \(self.editorHandle)")
+        }
         deinit_editor(editorHandle)
     }
     

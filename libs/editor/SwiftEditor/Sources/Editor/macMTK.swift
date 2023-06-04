@@ -34,32 +34,33 @@ public class MacMTK: MTKView, MTKViewDelegate {
     
     public func header(headingSize: UInt32) {
         header_at_cursor(editorHandle, headingSize)
+        setNeedsDisplay(self.frame)
     }
     
     public func bulletedList() {
         bulleted_list_at_cursor(editorHandle)
+        setNeedsDisplay(self.frame)
     }
     
     public func numberedList() {
         numbered_list_at_cursor(editorHandle)
+        setNeedsDisplay(self.frame)
     }
     
     public func checkedList() {
         checked_list_at_cursor(editorHandle)
+        setNeedsDisplay(self.frame)
     }
     
     public func bold() {
         bold_at_cursor(editorHandle)
+        setNeedsDisplay(self.frame)
     }
     
     public func italic() {
         italic_at_cursor(editorHandle)
+        setNeedsDisplay(self.frame)
     }
-    
-    public func tab() {
-        tab_at_cursor(editorHandle)
-    }
-
     
     public override var acceptsFirstResponder: Bool {
         return true
@@ -108,7 +109,7 @@ public class MacMTK: MTKView, MTKViewDelegate {
     }
     
     public override func scrollWheel(with event: NSEvent) {
-        scroll_wheel(editorHandle, Float(event.scrollingDeltaY))
+        scroll_wheel(editorHandle, Float(event.scrollingDeltaY)) 
         setNeedsDisplay(self.frame)
     }
     

@@ -83,6 +83,12 @@ pub enum Modification {
     ToggleDebug,
     ToggleCheckbox(usize),
     OpenUrl(String),
+    Heading(u32),
+    Bold,
+    Italic,
+    BulletListItem,
+    NumberListItem,
+    CheckListItem,
 }
 
 impl From<&Modifiers> for Offset {

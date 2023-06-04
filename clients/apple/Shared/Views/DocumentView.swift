@@ -52,7 +52,7 @@ struct DocumentView: View {
 
                     case .Markdown:
                         if let editorState = model.textDocument {
-                            MarkdownEditor(editorState: editorState, documentName: meta.name)
+                            MarkdownEditor(editorState, meta.name)
                         }
                     case .Unknown:
                         Text("\(meta.name) cannot be opened on this device.")
@@ -83,8 +83,15 @@ struct MarkdownEditor: View {
     
     @Environment(\.colorScheme) var colorScheme
     
-    @State var isToolbarExpanded: Bool = true
+    let editor: EditorView
     
+    public init(_ editorState: EditorState, _ documentName: String) {
+        self.editorState = editorState
+        self.documentName = documentName
+        
+        self.editor = EditorView(self.editorState)
+    }
+        
     var body: some View {
         #if os(iOS)
         VStack {
@@ -102,10 +109,6 @@ struct MarkdownEditor: View {
         .title(documentName)
         #endif
         
-    }
-    
-    var editor: EditorView {
-        EditorView(editorState)
     }
     
     var toolbar: some View {
@@ -164,9 +167,15 @@ struct MarkdownEditor: View {
                 }
                 
                 Button(action: {
-                    editor.tab()
+                    editor.tab(deindent: false)
                 }) {
                     Image(systemName: "arrow.right.to.line")
+                }
+                
+                Button(action: {
+                    editor.tab(deindent: true)
+                }) {
+                    Image(systemName: "arrow.left.to.line")
                 }
             }
             .padding()

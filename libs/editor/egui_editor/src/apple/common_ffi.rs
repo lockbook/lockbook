@@ -1,9 +1,10 @@
 use crate::{Editor, IntegrationOutput, WgpuEditor};
-use egui::{Context, Visuals};
+use egui::{Context, Event, Visuals};
 use egui_wgpu_backend::wgpu::CompositeAlphaMode;
 use egui_wgpu_backend::{wgpu, ScreenDescriptor};
 use std::ffi::{c_char, c_void, CStr, CString};
 use std::time::Instant;
+use crate::input::canonical::Modification;
 
 /// # Safety
 #[no_mangle]
@@ -179,6 +180,11 @@ async fn request_device(
 /// obj must be a valid pointer to WgpuEditor
 #[no_mangle]
 pub unsafe extern "C" fn header_at_cursor(obj: *mut c_void, heading_size: u32) {
+    let obj = &mut *(obj as *mut WgpuEditor);
+
+    obj.editor.custom_events.push(Modification::Heading(heading_size));
+    obj.raw_input.events.push(Event::Copy);
+
     println!("header clicked! {}", heading_size);
 }
 
@@ -186,6 +192,12 @@ pub unsafe extern "C" fn header_at_cursor(obj: *mut c_void, heading_size: u32) {
 /// obj must be a valid pointer to WgpuEditor
 #[no_mangle]
 pub unsafe extern "C" fn bulleted_list_at_cursor(obj: *mut c_void) {
+    let obj = &mut *(obj as *mut WgpuEditor);
+
+    obj.editor
+        .custom_events
+        .push(Modification::BulletListItem);
+
     println!("bulleted list clicked!");
 }
 
@@ -193,6 +205,12 @@ pub unsafe extern "C" fn bulleted_list_at_cursor(obj: *mut c_void) {
 /// obj must be a valid pointer to WgpuEditor
 #[no_mangle]
 pub unsafe extern "C" fn numbered_list_at_cursor(obj: *mut c_void) {
+    let obj = &mut *(obj as *mut WgpuEditor);
+
+    obj.editor
+        .custom_events
+        .push(Modification::NumberListItem);
+
     println!("numbered list clicked!");
 }
 
@@ -200,6 +218,12 @@ pub unsafe extern "C" fn numbered_list_at_cursor(obj: *mut c_void) {
 /// obj must be a valid pointer to WgpuEditor
 #[no_mangle]
 pub unsafe extern "C" fn checked_list_at_cursor(obj: *mut c_void) {
+    let obj = &mut *(obj as *mut WgpuEditor);
+
+    obj.editor
+        .custom_events
+        .push(Modification::CheckListItem);
+
     println!("checked list clicked!");
 }
 
@@ -207,6 +231,12 @@ pub unsafe extern "C" fn checked_list_at_cursor(obj: *mut c_void) {
 /// obj must be a valid pointer to WgpuEditor
 #[no_mangle]
 pub unsafe extern "C" fn bold_at_cursor(obj: *mut c_void) {
+    let obj = &mut *(obj as *mut WgpuEditor);
+
+    obj.editor
+        .custom_events
+        .push(Modification::Bold);
+
     println!("bold clicked!");
 }
 
@@ -214,12 +244,11 @@ pub unsafe extern "C" fn bold_at_cursor(obj: *mut c_void) {
 /// obj must be a valid pointer to WgpuEditor
 #[no_mangle]
 pub unsafe extern "C" fn italic_at_cursor(obj: *mut c_void) {
-    println!("italic clicked!");
-}
+    let obj = &mut *(obj as *mut WgpuEditor);
 
-/// # Safety
-/// obj must be a valid pointer to WgpuEditor
-#[no_mangle]
-pub unsafe extern "C" fn tab_at_cursor(obj: *mut c_void) {
-    println!("tab clicked!");
+    obj.editor
+        .custom_events
+        .push(Modification::Italic);
+
+    println!("italic clicked!");
 }
