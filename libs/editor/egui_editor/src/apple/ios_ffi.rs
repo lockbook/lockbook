@@ -418,3 +418,11 @@ pub unsafe extern "C" fn clipboard_paste(obj: *mut c_void) {
     let clip = obj.from_host.clone().unwrap_or_default();
     obj.raw_input.events.push(Event::Paste(clip));
 }
+
+/// # Safety
+/// obj must be a valid pointer to WgpuEditor
+#[no_mangle]
+pub unsafe extern "C" fn indent_at_cursor(obj: *mut c_void, deindent: bool) {
+    let obj = &mut *(obj as *mut WgpuEditor);
+    obj.editor.custom_events.push(Modification::Indent { deindent });
+}

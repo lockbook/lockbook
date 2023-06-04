@@ -16,7 +16,7 @@ public struct MetalView: UIViewRepresentable {
     }
 
     public func makeUIView(context: Context) -> iOSMTK {
-        mtkView
+        return mtkView
     }
     
     public func updateUIView(_ uiView: iOSMTK, context: Context) {
@@ -27,6 +27,9 @@ public struct MetalView: UIViewRepresentable {
     }
     
     public func header(headingSize: UInt32) {
+        withUnsafePointer(to: self) { pointer in
+            print("CALLING HEADER at MetalView: \(pointer)")
+        }
         mtkView.header(headingSize: headingSize)
     }
     
@@ -50,8 +53,8 @@ public struct MetalView: UIViewRepresentable {
         mtkView.italic()
     }
     
-    public func tab() {
-        mtkView.tab()
+    public func tab(deindent: Bool) {
+        mtkView.tab(deindent: deindent)
     }
 }
 #endif

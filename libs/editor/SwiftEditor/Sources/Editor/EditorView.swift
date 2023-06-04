@@ -3,11 +3,13 @@ import SwiftUI
 
 public struct EditorView: View {
     
-    @State var editorState: EditorState
+    @ObservedObject var editorState: EditorState
     @FocusState var focused: Bool
+    private let metalView: MetalView
     
     public init(_ editorState: EditorState) {
         self.editorState = editorState
+        self.metalView = MetalView(editorState: editorState)
     }
     
     public var body: some View {
@@ -16,10 +18,6 @@ public struct EditorView: View {
             .onAppear {
                 focused = true
             }
-    }
-    
-    public var metalView: MetalView {
-        MetalView(editorState: editorState)
     }
     
     public func header(headingSize: UInt32) {
@@ -46,7 +44,9 @@ public struct EditorView: View {
         metalView.italic()
     }
     
-    public func tab() {
-        metalView.tab()
+    #if os(iOS)
+    public func tab(deindent: Bool) {
+        metalView.tab(deindent: deindent)
     }
+    #endif
 }
