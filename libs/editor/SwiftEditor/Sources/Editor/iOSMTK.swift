@@ -390,7 +390,12 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     @objc func clipboardPaste() {
         self.setClipboard()
         clipboard_paste(self.editorHandle)
-        self.setNeedsDisplay(self.frame)
+        self.setNeedsDisplay()
+    }
+    
+    @objc func keyboardSelectAll() {
+        select_all(self.editorHandle)
+        self.setNeedsDisplay()
     }
 
     func updateText(_ s: String) {
@@ -427,6 +432,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
             UIKeyCommand(input: "c", modifierFlags: .command, action: #selector(clipboardCopy)),
             UIKeyCommand(input: "x", modifierFlags: .command, action: #selector(clipboardCut)),
             UIKeyCommand(input: "v", modifierFlags: .command, action: #selector(clipboardPaste)),
+            UIKeyCommand(input: "a", modifierFlags: .command, action: #selector(keyboardSelectAll)),
         ]
     }
     
