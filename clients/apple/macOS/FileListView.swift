@@ -16,7 +16,6 @@ struct FileListView: View {
                 mainView: mainView,
                 isiOS: false)
             .searchable(text: $searchInput, prompt: "Search")
-            .keyboardShortcut(.escape)
                 
             BottomBar()
         }

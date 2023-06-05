@@ -40,7 +40,14 @@ import AppKit
             }
             CommandMenu("Lockbook") {
                 Button("Sync", action: { DI.sync.sync() }).keyboardShortcut("S", modifiers: .command)
-                Button("Search", action: { DI.search.startPathSearch() }).keyboardShortcut("O", modifiers: .command)
+                Button("Search Paths", action: { DI.search.startPathSearch() }).keyboardShortcut("O", modifiers: .command)
+                #if os(macOS)
+                Button("Search Paths And Content") {
+                    if let toolbar = NSApp.keyWindow?.toolbar, let search = toolbar.items.first(where: { $0.itemIdentifier.rawValue == "com.apple.SwiftUI.search" }) as? NSSearchToolbarItem {
+                            search.beginSearchInteraction()
+                        }
+                }.keyboardShortcut("f", modifiers: [.command, .shift])
+                #endif
             }
             SidebarCommands()
         }
