@@ -23,7 +23,7 @@ fn main() {
     // following issues:
     //  1. window decorations are non-native.
     //  2. dragging & dropping from the system doesn't work.
-    std::env::set_var("WINIT_UNIX_BACKEND", "x11");
+    //std::env::set_var("WINIT_UNIX_BACKEND", "x11");
 
     // We load the settings this early because some of them adjust certain launch behaviors such
     // as maximizing the window on startup or theming. For example, a user's splash screen should
