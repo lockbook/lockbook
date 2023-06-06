@@ -67,7 +67,7 @@ impl AccountScreen {
         };
         acct_scr.process_save_requests(ctx, save_req_rx);
         acct_scr.send_auto_save_signals(ctx);
-        acct_scr 
+        acct_scr
     }
 
     pub fn begin_shutdown(&mut self) {
