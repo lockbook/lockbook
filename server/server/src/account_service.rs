@@ -150,6 +150,7 @@ pub async fn get_usage(
 #[derive(Debug)]
 pub enum GetUsageHelperError {
     UserNotFound,
+    UserDeleted,
 }
 
 pub fn get_usage_helper<T>(
@@ -159,20 +160,24 @@ where
     T: TreeLike,
 {
     let ids = tree.owned_ids();
-    let root = ids.iter().find(|file_id| match tree.find(file_id) {
-        Ok(f) => f.is_root(),
-        Err(_) => false,
-    });
+    let root_id = ids
+        .iter()
+        .find(|file_id| match tree.find(file_id) {
+            Ok(f) => f.is_root(),
+            Err(_) => false,
+        })
+        .ok_or(ClientError(GetUsageHelperError::UserDeleted))?;
 
-    if root.is_none() {
-        return Err(internal!("no root found, user is probably deleted"));
-    }
+    let root_owner = tree
+        .maybe_find(root_id)
+        .ok_or(ClientError(GetUsageHelperError::UserDeleted))?
+        .owner();
 
     let result = ids
         .iter()
         .filter_map(|&file_id| {
             if let Ok(file) = tree.find(&file_id) {
-                if file.owner() != tree.find(root.unwrap()).unwrap().owner() {
+                if file.owner() != root_owner {
                     return None;
                 }
             } else {

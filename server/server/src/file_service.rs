@@ -34,7 +34,7 @@ pub async fn upsert_file_metadata(
         let db = lock.deref_mut();
         let tx = db.begin_transaction()?;
 
-        let usage_cap = get_cap(db, &context.public_key).unwrap_or_default();
+        let usage_cap = get_cap(db, &context.public_key).map_err(|err| internal!("{:?}", err))?;
 
         let mut tree = ServerTree::new(
             req_owner,
@@ -203,7 +203,7 @@ pub async fn change_doc(
     {
         let mut lock = context.server_state.index_db.lock()?;
         let db = lock.deref_mut();
-        let usage_cap = get_cap(db, &context.public_key).unwrap_or_default();
+        let usage_cap = get_cap(db, &context.public_key).map_err(|err| internal!("{:?}", err))?;
 
         let meta = db
             .metas

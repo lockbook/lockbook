@@ -9,7 +9,7 @@ use test_utils::*;
 
 #[test]
 fn report_usage() {
-    let core: Core = test_core_with_account();
+    let core = test_core_with_account();
     let root = core.get_root().unwrap();
 
     let file = core
