@@ -61,7 +61,11 @@
 
 ## File Operations
 
+<details>
+
 ![file-menu-light.png](file-menu-light.png)
 ![rename-document-light.png](rename-document-light.png)
 ![new-document-light.png](new-document-light.png)
 ![new-document-dark.png](new-document-dark.png)
+
+</details>
