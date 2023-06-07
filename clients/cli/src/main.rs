@@ -29,13 +29,13 @@ pub enum LbCli {
     #[command(subcommand, alias("acct"))]
     Account(account::AccountCmd),
     /// import files from your file system into lockbook
-    Copy {
-        /// paths of file on disk
-        disk_files: Vec<PathBuf>,
-        /// lockbook file path or ID destination
-        #[arg(value_name = LbFolderPath.as_ref())]
-        dest: String,
-    },
+    // Copy {
+    //     /// paths of file on disk
+    //     disk_files: Vec<PathBuf>,
+    //     /// lockbook file path or ID destination
+    //     #[arg(value_name = LbFolderPath.as_ref())]
+    //     dest: String,
+    // },
     /// investigative commands
     #[command(subcommand)]
     Debug(debug::DebugCmd),
@@ -45,8 +45,8 @@ pub enum LbCli {
         /// lockbook file path or ID
         #[arg(value_name = LbAnyPath.as_ref())]
         target: String,
-        /// do not prompt for confirmation before deleting
-        force: bool,
+        // do not prompt for confirmation before deleting
+        // force: bool,
     },
     /// edit a document
     Edit {
@@ -253,9 +253,9 @@ fn run() -> Result<(), CliError> {
 
     match cmd {
         LbCli::Account(cmd) => account::account(&core, cmd),
-        LbCli::Copy { disk_files, dest } => imex::copy(&core, &disk_files, &dest),
+        // LbCli::Copy { disk_files, dest } => imex::copy(&core, &disk_files, &dest),
         LbCli::Debug(cmd) => debug::debug(&core, cmd),
-        LbCli::Delete { target, force } => delete(&core, &target, force),
+        LbCli::Delete { target } => delete(&core, &target, false),
         LbCli::Edit { target } => edit::edit(&core, &target),
         LbCli::Export { target, dest } => imex::export(&core, &target, dest),
         LbCli::List(args) => list::list(&core, args),

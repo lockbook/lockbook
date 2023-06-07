@@ -1,7 +1,7 @@
-use std::str::FromStr;
+use std::{io, str::FromStr};
 
 use clap::{builder::Str, Command, CommandFactory, Subcommand};
-use clap_complete::Shell;
+use clap_complete::{generate, Shell};
 use lb::Core;
 use shellwords::split;
 use strum::{AsRefStr, EnumString};
@@ -40,6 +40,7 @@ pub fn generate_completions(shell: Shell) -> Result<(), CliError> {
         Shell::Fish => todo!(),
         _ => todo!(),
     }
+    generate(Shell::Zsh, &mut LbCli::command(), "lockbook", &mut io::stdout());
 
     Ok(())
 }
