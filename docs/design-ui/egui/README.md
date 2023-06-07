@@ -15,6 +15,8 @@
 
 ![import-account-dark](import-account-dark.png)
 ![import-account-light](import-account-light.png)
+![initial-sync-light](initial-sync-light.png)
+![initial-sync-dark](initial-sync-dark.png)
 
 </details>
 
@@ -31,7 +33,8 @@
 
 <details>
 
-![editor](editor-dark.png)
+![editor-dark](editor-dark.png)
+![editor-light](editor-dark.png)
 
 </details>
 
@@ -55,3 +58,10 @@
 ![settings-2.png](settings-usage-dark.png)
 
 </details>
+
+## File Operations
+
+![file-menu-light.png](file-menu-light.png)
+![rename-document-light.png](rename-document-light.png)
+![new-document-light.png](new-document-light.png)
+![new-document-dark.png](new-document-dark.png)
