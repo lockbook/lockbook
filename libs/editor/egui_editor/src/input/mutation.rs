@@ -1,7 +1,7 @@
 use crate::buffer::{EditorMutation, Mutation, SubBuffer, SubMutation};
 use crate::element::ItemType;
 use crate::galleys::Galleys;
-use crate::input::canonical::{Bound, Increment, Location, Modification, Offset, Region};
+use crate::input::canonical::{Bound, Location, Modification, Offset, Region};
 use crate::input::cursor::Cursor;
 use crate::layouts::{Annotation, Layouts};
 use crate::offset_types::{DocCharOffset, RangeExt};
@@ -24,173 +24,91 @@ pub fn calc(
                 .collect();
 
             mutation.push(SubMutation::Cursor {
-                cursor: region_to_cursor(Region::ToOffset {
-                    offset: Offset::To(Bound::Line),
-                    backwards: true,
-                    extend_selection: false
-                }, current_cursor, buffer, galleys)
+                cursor: region_to_cursor(
+                    Region::ToOffset {
+                        offset: Offset::To(Bound::Line),
+                        backwards: true,
+                        extend_selection: false,
+                    },
+                    current_cursor,
+                    buffer,
+                    galleys,
+                ),
             });
+            mutation.push(SubMutation::Insert { text: headings, advance_cursor: true });
 
-            mutation.push(SubMutation::Insert {
-                text: headings
-            });
-
-            mutation.push(SubMutation::Cursor {
-                cursor: current_cursor
-            });
+            mutation.push(SubMutation::Cursor { cursor: current_cursor });
         }
         Modification::Bold => {
-            mutation.push(SubMutation::Cursor {
-                cursor: (
-                    current_cursor.selection.0,
-                    current_cursor.selection.0,
-                )
-                    .into(),
-            });
+            // insert markdown syntax characters
+            mutation.push(SubMutation::Cursor { cursor: current_cursor.selection.start().into() });
+            mutation.push(SubMutation::Insert { text: "__".to_string(), advance_cursor: true });
+            mutation.push(SubMutation::Cursor { cursor: current_cursor.selection.end().into() });
+            mutation.push(SubMutation::Insert { text: "__".to_string(), advance_cursor: false });
 
-            mutation.push(SubMutation::Insert {
-                text: "__".to_string()
-            });
-
-            mutation.push(SubMutation::Cursor {
-                cursor: (
-                    current_cursor.selection.1,
-                    current_cursor.selection.1,
-                )
-                    .into(),
-            });
-
-            mutation.push(SubMutation::Insert {
-                text: "__".to_string()
-            });
-
-            let new_cursor = if current_cursor.selection.is_empty() {
-                let first_incr = region_to_cursor(Region::ToOffset {
-                    offset: Offset::By(Increment::Char),
-                    backwards: false,
-                    extend_selection: false
-                }, current_cursor, buffer, galleys);
-
-                region_to_cursor(Region::ToOffset {
-                    offset: Offset::By(Increment::Char),
-                    backwards: false,
-                    extend_selection: false
-                }, first_incr, buffer, galleys)
-            } else {
-                let first_decr = region_to_cursor(Region::ToOffset {
-                    offset: Offset::By(Increment::Char),
-                    backwards: true,
-                    extend_selection: false
-                }, (current_cursor.selection.1, current_cursor.selection.1).into(), buffer, galleys);
-
-                region_to_cursor(Region::ToOffset {
-                    offset: Offset::By(Increment::Char),
-                    backwards: true,
-                    extend_selection: false
-                }, first_decr, buffer, galleys)
-            };
-
-            mutation.push(SubMutation::Cursor {
-                cursor: new_cursor
-            });
+            // set cursor to original text
+            mutation.push(SubMutation::Cursor { cursor: current_cursor });
         }
         Modification::Italic => {
-            mutation.push(SubMutation::Cursor {
-                cursor: (
-                    current_cursor.selection.0,
-                    current_cursor.selection.0,
-                )
-                    .into(),
-            });
+            // insert markdown syntax characters
+            mutation.push(SubMutation::Cursor { cursor: current_cursor.selection.start().into() });
+            mutation.push(SubMutation::Insert { text: "_".to_string(), advance_cursor: true });
+            mutation.push(SubMutation::Cursor { cursor: current_cursor.selection.end().into() });
+            mutation.push(SubMutation::Insert { text: "_".to_string(), advance_cursor: false });
 
-            mutation.push(SubMutation::Insert {
-                text: "_".to_string()
-            });
-
-            mutation.push(SubMutation::Cursor {
-                cursor: (
-                    current_cursor.selection.1,
-                    current_cursor.selection.1,
-                )
-                    .into(),
-            });
-
-            mutation.push(SubMutation::Insert {
-                text: "_".to_string()
-            });
-
-            let new_cursor = if current_cursor.selection.is_empty() {
-                region_to_cursor(Region::ToOffset {
-                    offset: Offset::By(Increment::Char),
-                    backwards: false,
-                    extend_selection: false
-                }, current_cursor, buffer, galleys)
-            } else {
-                let mut new_cursor = current_cursor.clone();
-
-                // new_cursor.selection.1 = region_to_cursor(Region::ToOffset {
-                //     offset: Offset::By(Increment::Char),
-                //     backwards: true,
-                //     extend_selection: false
-                // }, (current_cursor.selection.1, current_cursor.selection.1).into(), buffer, galleys).selection.1;
-
-                new_cursor
-            };
-
-            mutation.push(SubMutation::Cursor {
-                cursor: new_cursor
-            });
+            // set cursor to original text
+            mutation.push(SubMutation::Cursor { cursor: current_cursor });
         }
         Modification::BulletListItem => {
             mutation.push(SubMutation::Cursor {
-                cursor: region_to_cursor(Region::ToOffset {
-                    offset: Offset::To(Bound::Line),
-                    backwards: true,
-                    extend_selection: false
-                }, current_cursor, buffer, galleys)
+                cursor: region_to_cursor(
+                    Region::ToOffset {
+                        offset: Offset::To(Bound::Line),
+                        backwards: true,
+                        extend_selection: false,
+                    },
+                    current_cursor,
+                    buffer,
+                    galleys,
+                ),
             });
+            mutation.push(SubMutation::Insert { text: "+ ".to_string(), advance_cursor: true });
 
-            mutation.push(SubMutation::Insert {
-                text: "+ ".to_string()
-            });
-
-            mutation.push(SubMutation::Cursor {
-                cursor: current_cursor
-            });
+            mutation.push(SubMutation::Cursor { cursor: current_cursor });
         }
         Modification::NumberListItem => {
             mutation.push(SubMutation::Cursor {
-                cursor: region_to_cursor(Region::ToOffset {
-                    offset: Offset::To(Bound::Line),
-                    backwards: true,
-                    extend_selection: false
-                }, current_cursor, buffer, galleys)
+                cursor: region_to_cursor(
+                    Region::ToOffset {
+                        offset: Offset::To(Bound::Line),
+                        backwards: true,
+                        extend_selection: false,
+                    },
+                    current_cursor,
+                    buffer,
+                    galleys,
+                ),
             });
+            mutation.push(SubMutation::Insert { text: "1. ".to_string(), advance_cursor: true });
 
-            mutation.push(SubMutation::Insert {
-                text: "1. ".to_string()
-            });
-
-            mutation.push(SubMutation::Cursor {
-                cursor: current_cursor
-            });
+            mutation.push(SubMutation::Cursor { cursor: current_cursor });
         }
         Modification::CheckListItem => {
             mutation.push(SubMutation::Cursor {
-                cursor: region_to_cursor(Region::ToOffset {
-                    offset: Offset::To(Bound::Line),
-                    backwards: true,
-                    extend_selection: false
-                }, current_cursor, buffer, galleys)
+                cursor: region_to_cursor(
+                    Region::ToOffset {
+                        offset: Offset::To(Bound::Line),
+                        backwards: true,
+                        extend_selection: false,
+                    },
+                    current_cursor,
+                    buffer,
+                    galleys,
+                ),
             });
+            mutation.push(SubMutation::Insert { text: "- [ ] ".to_string(), advance_cursor: true });
 
-            mutation.push(SubMutation::Insert {
-                text: "- [ ] ".to_string()
-            });
-
-            mutation.push(SubMutation::Cursor {
-                cursor: current_cursor
-            });
+            mutation.push(SubMutation::Cursor { cursor: current_cursor });
         }
         Modification::Select { region } => mutation.push(SubMutation::Cursor {
             cursor: region_to_cursor(region, current_cursor, buffer, galleys),
@@ -215,7 +133,7 @@ pub fn calc(
             ));
 
             mutation.push(SubMutation::Cursor { cursor });
-            mutation.push(SubMutation::Insert { text });
+            mutation.push(SubMutation::Insert { text, advance_cursor: true });
         }
         Modification::CommitMarked => {
             let mut cursor = current_cursor;
@@ -226,10 +144,10 @@ pub fn calc(
             mutation.push(SubMutation::Cursor {
                 cursor: region_to_cursor(region, current_cursor, buffer, galleys),
             });
-            mutation.push(SubMutation::Insert { text });
+            mutation.push(SubMutation::Insert { text, advance_cursor: true });
             mutation.push(SubMutation::Cursor { cursor: current_cursor });
         }
-        Modification::Newline => {
+        Modification::Newline { advance_cursor } => {
             let mut cursor = current_cursor;
             let layout_idx = layouts.layout_at_char(cursor.selection.1);
             let layout = &layouts[layout_idx];
@@ -247,12 +165,14 @@ pub fn calc(
                     mutation.push(SubMutation::Cursor { cursor });
                 } else {
                     // nonempty list item -> insert new list item
-                    mutation.push(SubMutation::Insert { text: "\n".to_string() });
+                    mutation
+                        .push(SubMutation::Insert { text: "\n".to_string(), advance_cursor: true });
 
                     match layout.annotation {
                         Some(Annotation::Item(ItemType::Bulleted, _)) => {
                             mutation.push(SubMutation::Insert {
                                 text: layout.head(buffer).to_string(),
+                                advance_cursor: true,
                             });
                         }
                         Some(Annotation::Item(ItemType::Numbered(cur_number), indent_level)) => {
@@ -261,7 +181,7 @@ pub fn calc(
                                 .to_string()
                                 + &(cur_number + 1).to_string()
                                 + ". ";
-                            mutation.push(SubMutation::Insert { text });
+                            mutation.push(SubMutation::Insert { text, advance_cursor: true });
 
                             mutation.extend(increment_numbered_list_items(
                                 layout_idx,
@@ -276,7 +196,7 @@ pub fn calc(
                         Some(Annotation::Item(ItemType::Todo(_), _)) => {
                             let head = layout.head(buffer);
                             let text = head[0..head.len() - 6].to_string() + "- [ ] ";
-                            mutation.push(SubMutation::Insert { text });
+                            mutation.push(SubMutation::Insert { text, advance_cursor: true });
                         }
                         Some(Annotation::Image(_, _, _)) => {}
                         Some(Annotation::Rule) => {}
@@ -288,10 +208,10 @@ pub fn calc(
             {
                 // cursor at start of non-list item -> insert newline before annotation
                 mutation.push(SubMutation::Cursor { cursor: layout.range.start().into() });
-                mutation.push(SubMutation::Insert { text: "\n".to_string() });
+                mutation.push(SubMutation::Insert { text: "\n".to_string(), advance_cursor: true });
                 mutation.push(SubMutation::Cursor { cursor });
             } else {
-                mutation.push(SubMutation::Insert { text: "\n".to_string() });
+                mutation.push(SubMutation::Insert { text: "\n".to_string(), advance_cursor });
             }
 
             cursor.selection.0 = cursor.selection.1;
@@ -372,7 +292,10 @@ pub fn calc(
                                 mutation.push(SubMutation::Cursor {
                                     cursor: layout.range.start().into(),
                                 });
-                                mutation.push(SubMutation::Insert { text: indent_seq.to_string() });
+                                mutation.push(SubMutation::Insert {
+                                    text: indent_seq.to_string(),
+                                    advance_cursor: true,
+                                });
                                 mutation.push(SubMutation::Cursor { cursor: current_cursor });
 
                                 indent_level + 1
@@ -427,6 +350,7 @@ pub fn calc(
                                 });
                                 mutation.push(SubMutation::Insert {
                                     text: new_number.to_string() + ". ",
+                                    advance_cursor: true,
                                 });
                                 mutation.push(SubMutation::Cursor { cursor: current_cursor });
 
@@ -482,7 +406,7 @@ pub fn calc(
                     Annotation::Rule => {}
                 }
             } else if !deindent {
-                mutation.push(SubMutation::Insert { text: "\t".to_string() });
+                mutation.push(SubMutation::Insert { text: "\t".to_string(), advance_cursor: true });
             }
         }
         Modification::Undo => {
@@ -495,7 +419,7 @@ pub fn calc(
             mutation.push(SubMutation::ToClipboard {
                 text: current_cursor.selection_text(buffer).to_string(),
             });
-            mutation.push(SubMutation::Insert { text: "".to_string() });
+            mutation.push(SubMutation::Insert { text: "".to_string(), advance_cursor: true });
         }
         Modification::Copy => {
             mutation.push(SubMutation::ToClipboard {
@@ -520,6 +444,7 @@ pub fn calc(
                 });
                 mutation.push(SubMutation::Insert {
                     text: if checked { "- [ ] " } else { "- [x] " }.to_string(),
+                    advance_cursor: true,
                 });
                 mutation.push(SubMutation::Cursor { cursor: current_cursor });
             }
@@ -655,7 +580,7 @@ pub fn increment_numbered_list_items(
                             })
                             .to_string()
                             + ". ";
-                        modifications.push(SubMutation::Insert { text });
+                        modifications.push(SubMutation::Insert { text, advance_cursor: true });
                         modifications.push(SubMutation::Cursor { cursor });
                     }
                 }
