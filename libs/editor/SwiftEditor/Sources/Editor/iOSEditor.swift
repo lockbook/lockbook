@@ -27,9 +27,6 @@ public struct MetalView: UIViewRepresentable {
     }
     
     public func header(headingSize: UInt32) {
-        withUnsafePointer(to: self) { pointer in
-            print("CALLING HEADER at MetalView: \(pointer)")
-        }
         mtkView.header(headingSize: headingSize)
     }
     
