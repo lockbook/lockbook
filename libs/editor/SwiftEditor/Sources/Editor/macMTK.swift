@@ -109,7 +109,7 @@ public class MacMTK: MTKView, MTKViewDelegate {
     }
     
     public override func scrollWheel(with event: NSEvent) {
-        scroll_wheel(editorHandle, Float(event.scrollingDeltaY)) 
+        scroll_wheel(editorHandle, Float(event.scrollingDeltaY))
         setNeedsDisplay(self.frame)
     }
     

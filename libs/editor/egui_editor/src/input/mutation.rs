@@ -40,23 +40,19 @@ pub fn calc(
             mutation.push(SubMutation::Cursor { cursor: current_cursor });
         }
         Modification::Bold => {
-            // insert markdown syntax characters
             mutation.push(SubMutation::Cursor { cursor: current_cursor.selection.start().into() });
             mutation.push(SubMutation::Insert { text: "__".to_string(), advance_cursor: true });
             mutation.push(SubMutation::Cursor { cursor: current_cursor.selection.end().into() });
             mutation.push(SubMutation::Insert { text: "__".to_string(), advance_cursor: false });
 
-            // set cursor to original text
             mutation.push(SubMutation::Cursor { cursor: current_cursor });
         }
         Modification::Italic => {
-            // insert markdown syntax characters
             mutation.push(SubMutation::Cursor { cursor: current_cursor.selection.start().into() });
             mutation.push(SubMutation::Insert { text: "_".to_string(), advance_cursor: true });
             mutation.push(SubMutation::Cursor { cursor: current_cursor.selection.end().into() });
             mutation.push(SubMutation::Insert { text: "_".to_string(), advance_cursor: false });
 
-            // set cursor to original text
             mutation.push(SubMutation::Cursor { cursor: current_cursor });
         }
         Modification::BulletListItem => {
