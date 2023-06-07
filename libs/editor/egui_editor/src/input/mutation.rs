@@ -26,7 +26,7 @@ pub fn calc(
             mutation.push(SubMutation::Cursor {
                 cursor: region_to_cursor(
                     Region::ToOffset {
-                        offset: Offset::To(Bound::Line),
+                        offset: Offset::To(Bound::Paragraph),
                         backwards: true,
                         extend_selection: false,
                     },
@@ -59,7 +59,7 @@ pub fn calc(
             mutation.push(SubMutation::Cursor {
                 cursor: region_to_cursor(
                     Region::ToOffset {
-                        offset: Offset::To(Bound::Line),
+                        offset: Offset::To(Bound::Paragraph),
                         backwards: true,
                         extend_selection: false,
                     },
@@ -76,7 +76,7 @@ pub fn calc(
             mutation.push(SubMutation::Cursor {
                 cursor: region_to_cursor(
                     Region::ToOffset {
-                        offset: Offset::To(Bound::Line),
+                        offset: Offset::To(Bound::Paragraph),
                         backwards: true,
                         extend_selection: false,
                     },
@@ -93,7 +93,7 @@ pub fn calc(
             mutation.push(SubMutation::Cursor {
                 cursor: region_to_cursor(
                     Region::ToOffset {
-                        offset: Offset::To(Bound::Line),
+                        offset: Offset::To(Bound::Paragraph),
                         backwards: true,
                         extend_selection: false,
                     },

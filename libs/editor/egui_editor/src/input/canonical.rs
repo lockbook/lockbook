@@ -18,6 +18,7 @@ pub enum Location {
 pub enum Bound {
     Word,
     Line,
+    Paragraph,
     Doc,
 }
 
