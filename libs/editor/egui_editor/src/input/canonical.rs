@@ -74,7 +74,7 @@ pub enum Modification {
     StageMarked { highlighted: (RelCharOffset, RelCharOffset), text: String },
     CommitMarked,
     Replace { region: Region, text: String },
-    Newline, // distinct from replace because it triggers auto-bullet, etc
+    Newline { advance_cursor: bool }, // distinct from replace because it triggers auto-bullet, etc
     Indent { deindent: bool },
     Undo,
     Redo,
@@ -152,7 +152,9 @@ pub fn calc(
                 text: "".to_string(),
             })
         }
-        Event::Key { key: Key::Enter, pressed: true, .. } => Some(Modification::Newline),
+        Event::Key { key: Key::Enter, pressed: true, modifiers, .. } => {
+            Some(Modification::Newline { advance_cursor: !modifiers.shift })
+        }
         Event::Key { key: Key::Tab, pressed: true, modifiers, .. } => {
             Some(Modification::Indent { deindent: modifiers.shift })
         }
