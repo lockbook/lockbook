@@ -11,7 +11,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     var hasSelection: Bool = false
     
     var pasteBoardEventId: Int = 0
-    
+    var lastKnownTapLocation: Float? = nil
     override init(frame frameRect: CGRect, device: MTLDevice?) {
         super.init(frame: frameRect, device: device)
         
@@ -21,6 +21,36 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
         self.editMenuInteraction = UIEditMenuInteraction(delegate: self)
         self.addInteraction(self.editMenuInteraction!)
         self.preferredFramesPerSecond = 120
+        
+        // ipad trackpad support
+        let tap = UIPanGestureRecognizer(target: self, action: #selector(self.handleTrackpadScroll(_:)))
+        tap.allowedScrollTypesMask = .all
+        tap.maximumNumberOfTouches  = 0
+        self.addGestureRecognizer(tap)
+    }
+    
+    @objc func handleTrackpadScroll(_ sender: UIPanGestureRecognizer? = nil) {
+        if let event = sender {
+            
+            if event.state == .ended || event.state == .cancelled || event.state == .failed {
+                // todo: evaluate fling when desired
+                lastKnownTapLocation = nil
+                return
+            }
+            
+            let location = event.translation(in: self)
+            
+            let y = Float(location.y)
+            
+            if lastKnownTapLocation == nil {
+                lastKnownTapLocation = y
+            }
+            scroll_wheel(editorHandle, y - lastKnownTapLocation!)
+            
+            lastKnownTapLocation = y
+            self.setNeedsDisplay()
+        }
+        
     }
     
     public func setInitialContent(_ s: String) {
@@ -78,7 +108,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     }
     
     public func insertText(_ text: String) {
-//        print("\(#function)(\(text))")
+        //        print("\(#function)(\(text))")
         insert_text(editorHandle, text)
         self.setNeedsDisplay(self.frame)
     }
@@ -114,7 +144,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
                 //                print("get \(#function) -> nil")
                 return nil
             } else {
-//                print("get \(#function) -> \(range)")
+                //                print("get \(#function) -> \(range)")
             }
             return LBTextRange(c: range)
         }
@@ -185,10 +215,10 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
         let start = (position as! LBTextPos).c
         let new = position_offset(editorHandle, start, Int32(offset))
         if new.none {
-//            print("\(#function)(\(start), \(offset)) -> nil")
+            //            print("\(#function)(\(start), \(offset)) -> nil")
             return nil
         }
-//        print("\(#function)(\(start), \(offset)) -> \(new)")
+        //        print("\(#function)(\(start), \(offset)) -> \(new)")
         return LBTextPos(c: new)
     }
     
@@ -245,8 +275,8 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     }
     
     public func baseWritingDirection(for position: UITextPosition, in direction: UITextStorageDirection) -> NSWritingDirection {
-//        print("\(#function)")
-//        unimplemented()
+        //        print("\(#function)")
+        //        unimplemented()
         return NSWritingDirection.leftToRight
     }
     
@@ -254,7 +284,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
         if writingDirection != .leftToRight {
             unimplemented()
         }
-//        print("\(#function)")
+        //        print("\(#function)")
     }
     
     public func firstRect(for range: UITextRange) -> CGRect {
@@ -330,7 +360,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
         touches_ended(editorHandle, value, Float(location.x), Float(location.y), Float(touches.first?.force ?? 0))
         self.setNeedsDisplay(self.frame)
     }
-
+    
     
     public override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
         let point = Unmanaged.passUnretained(touches.first!).toOpaque()
@@ -339,7 +369,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
         touches_cancelled(editorHandle, value, Float(location.x), Float(location.y), Float(touches.first?.force ?? 0))
         self.setNeedsDisplay(self.frame)
     }
-     
+    
     public func editMenuInteraction(_ interaction: UIEditMenuInteraction, menuFor configuration: UIEditMenuConfiguration, suggestedActions: [UIMenuElement]) -> UIMenu? {
         
         var actions = suggestedActions
@@ -397,7 +427,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
         select_all(self.editorHandle)
         self.setNeedsDisplay()
     }
-
+    
     func updateText(_ s: String) {
         set_text(editorHandle, s)
         setNeedsDisplay(self.frame)
