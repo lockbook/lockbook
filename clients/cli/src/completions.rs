@@ -22,7 +22,7 @@ _lockbook_complete_()
     COMPREPLY=($( echo -n \"$_COMP_OUTPUTSTR\" ))
 }
 
-complete -o nospace -F _lockbook_complete_ lockbook
+complete -o nospace -F _lockbook_complete_ lockbook -E
 ";
 
 #[derive(EnumString, AsRefStr)]

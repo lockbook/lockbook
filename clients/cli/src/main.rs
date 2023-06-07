@@ -51,7 +51,7 @@ pub enum LbCli {
     /// edit a document
     Edit {
         /// lockbook file path or ID
-        #[arg(value_name = LbAnyPath.as_ref())]
+        #[arg(default_value="/", value_name = LbAnyPath.as_ref())]
         target: String,
     },
     /// export a lockbook file to your file system
