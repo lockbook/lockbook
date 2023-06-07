@@ -54,32 +54,32 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     }
     
     public func header(headingSize: UInt32) {
-        header_at_cursor(editorHandle, headingSize)
+        apply_style_to_selection_header(editorHandle, headingSize)
         self.setNeedsDisplay(self.frame)
     }
     
     public func bulletedList() {
-        bulleted_list_at_cursor(editorHandle)
+        apply_style_to_selection_bulleted_list(editorHandle)
         self.setNeedsDisplay(self.frame)
     }
     
     public func numberedList() {
-        numbered_list_at_cursor(editorHandle)
+        apply_style_to_selection_numbered_list(editorHandle)
         self.setNeedsDisplay(self.frame)
     }
     
     public func checkedList() {
-        checked_list_at_cursor(editorHandle)
+        apply_style_to_selection_todo_list(editorHandle)
         self.setNeedsDisplay(self.frame)
     }
     
     public func bold() {
-        bold_at_cursor(editorHandle)
+        apply_style_to_selection_bold(editorHandle)
         self.setNeedsDisplay(self.frame)
     }
     
     public func italic() {
-        italic_at_cursor(editorHandle)
+        apply_style_to_selection_italic(editorHandle)
         self.setNeedsDisplay(self.frame)
     }
     
@@ -121,13 +121,13 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
             self.textChanged()
         }
         
-        if has_coppied_text(editorHandle) {
+        if has_copied_text(editorHandle) {
             UIPasteboard.general.string = getCoppiedText()
         }
     }
     
     func getCoppiedText() -> String {
-        let result = get_coppied_text(editorHandle)
+        let result = get_copied_text(editorHandle)
         let str = String(cString: result!)
         free_text(UnsafeMutablePointer(mutating: result))
         return str
