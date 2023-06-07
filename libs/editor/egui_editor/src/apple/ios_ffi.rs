@@ -16,7 +16,9 @@ pub unsafe extern "C" fn insert_text(obj: *mut c_void, content: *const c_char) {
     let content = CStr::from_ptr(content).to_str().unwrap().into();
 
     if content == "\n" {
-        obj.editor.custom_events.push(Modification::Newline);
+        obj.editor
+            .custom_events
+            .push(Modification::Newline { advance_cursor: true });
     } else {
         obj.raw_input.events.push(Event::Text(content))
     }
@@ -424,5 +426,7 @@ pub unsafe extern "C" fn clipboard_paste(obj: *mut c_void) {
 #[no_mangle]
 pub unsafe extern "C" fn indent_at_cursor(obj: *mut c_void, deindent: bool) {
     let obj = &mut *(obj as *mut WgpuEditor);
-    obj.editor.custom_events.push(Modification::Indent { deindent });
+    obj.editor
+        .custom_events
+        .push(Modification::Indent { deindent });
 }
