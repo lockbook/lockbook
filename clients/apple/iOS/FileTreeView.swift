@@ -16,6 +16,7 @@ struct FileTreeView: View {
     
     @State var searchInput: String = ""
     @State private var hideOutOfSpaceAlert = UserDefaults.standard.bool(forKey: "hideOutOfSpaceAlert")
+    @State private var searchBar: UISearchBar?
 
     let currentFolder: File
     let account: Account
@@ -27,6 +28,18 @@ struct FileTreeView: View {
                 mainView: mainView,
                 isiOS: false)
             .searchable(text: $searchInput, placement: .navigationBarDrawer(displayMode: .automatic), prompt: "Search")
+            .background(
+                Button("Search Paths And Content") {
+                    focusSearchBar()
+                }
+                .keyboardShortcut("f", modifiers: [.command, .shift])
+                .hidden()
+            )
+            .introspectNavigationController { nav in
+                searchBar = nav.navigationBar.subviews.first { view in
+                    view is UISearchBar
+                } as? UISearchBar
+            }
             
             BottomBar(onCreating: {
                 sheets.creatingInfo = CreatingInfo(parent: currentFolder, child_type: .Document)
@@ -152,5 +165,9 @@ struct FileTreeView: View {
                 Spacer()
             }
         }
+    }
+    
+    func focusSearchBar() {
+        searchBar?.becomeFirstResponder()
     }
 }
