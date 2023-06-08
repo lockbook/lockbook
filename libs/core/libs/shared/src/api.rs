@@ -15,6 +15,11 @@ use crate::server_file::ServerFile;
 use crate::signed_file::SignedFile;
 use crate::ValidationFailure;
 
+pub const FREE_TIER_USAGE_SIZE: u64 = 1000000;
+pub const PREMIUM_TIER_USAGE_SIZE: u64 = 30000000000;
+/// a fee of 1000 bytes allows 1000 file creations under the free tier.
+pub const METADATA_FEE: u64 = 1000;
+
 pub trait Request: Serialize + 'static {
     type Response: Debug + DeserializeOwned + Clone;
     type Error: Debug + DeserializeOwned + Clone;
@@ -78,6 +83,7 @@ pub enum UpsertError {
     /// Found update to a deleted file
     DeletedFileUpdated,
 
+    /// Over the User's Tier Limit
     UsageIsOverDataCap,
 
     /// Other misc validation failures
