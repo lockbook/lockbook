@@ -1,7 +1,8 @@
 use crate::input::canonical::{Bound, Increment, Modification, Offset, Region};
 use crate::input::cursor::Cursor;
+use crate::input::mutation;
 use crate::offset_types::{DocCharOffset, RangeExt};
-use crate::{CRect, CTextLayoutDirection, CTextPosition, CTextRange, WgpuEditor};
+use crate::{CPoint, CRect, CTextLayoutDirection, CTextPosition, CTextRange, WgpuEditor};
 use egui::{Event, Key, PointerButton, Pos2, TouchDeviceId, TouchId, TouchPhase};
 use std::cmp;
 use std::ffi::{c_char, c_void, CStr, CString};
@@ -417,4 +418,39 @@ pub unsafe extern "C" fn clipboard_paste(obj: *mut c_void) {
     let obj = &mut *(obj as *mut WgpuEditor);
     let clip = obj.from_host.clone().unwrap_or_default();
     obj.raw_input.events.push(Event::Paste(clip));
+}
+
+/// # Safety
+/// obj must be a valid pointer to WgpuEditor
+#[no_mangle]
+pub unsafe extern "C" fn position_at_point(obj: *mut c_void, point: CPoint) -> CTextPosition {
+    let obj = &mut *(obj as *mut WgpuEditor);
+    let segs = &obj.editor.buffer.current.segs;
+    let galleys = &obj.editor.galleys;
+
+    let scroll = obj.editor.scroll_area_offset;
+    let offset = mutation::pos_to_char_offset(
+        Pos2 { x: point.x as f32 + scroll.x, y: point.y as f32 + scroll.y },
+        galleys,
+        segs,
+    );
+    CTextPosition { none: false, pos: offset.0 }
+}
+
+/// # Safety
+/// obj must be a valid pointer to WgpuEditor
+#[no_mangle]
+pub unsafe extern "C" fn cursor_rect_at_position(obj: *mut c_void, pos: CTextPosition) -> CRect {
+    let obj = &mut *(obj as *mut WgpuEditor);
+    let galleys = &obj.editor.galleys;
+
+    let cursor: Cursor = pos.pos.into();
+    let rect = cursor.start_rect(galleys);
+    let scroll = obj.editor.scroll_area_offset;
+    CRect {
+        min_x: (rect.min.x - scroll.x) as f64,
+        min_y: (rect.min.y - scroll.y) as f64,
+        max_x: (rect.max.x - scroll.x) as f64,
+        max_y: (rect.max.y - scroll.y) as f64,
+    }
 }
