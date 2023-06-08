@@ -13,6 +13,7 @@ members = [
 	"clients/cli",
 	"clients/egui",
 	"clients/admin",
+	"clients/drive",
 	"utils/dev-tool",
 	"utils/releaser",
 	"utils/winstaller",
