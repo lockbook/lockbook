@@ -290,14 +290,13 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     public func firstRect(for range: UITextRange) -> CGRect {
         let range = (range as! LBTextRange).c
         let result = first_rect(editorHandle, range)
-        let result2 = CGRect(x: result.min_x, y: result.min_y, width: result.max_x-result.min_x, height: result.max_y-result.min_y)
-        print("\(#function)(\(range)) -> \(result2)")
-        return result2
+        return CGRect(x: result.min_x, y: result.min_y, width: result.max_x-result.min_x, height: result.max_y-result.min_y)
     }
     
     public func caretRect(for position: UITextPosition) -> CGRect {
-        print("\(#function)")
-        return CGRect(origin: CGPoint(x: 10, y: 10), size: CGSize(width: 10, height: 100))
+        let position = (position as! LBTextPos).c
+        let result = cursor_rect_at_position(editorHandle, position)
+        return CGRect(x: result.min_x, y: result.min_y, width: result.max_x-result.min_x, height: result.max_y-result.min_y)
     }
     
     public func selectionRects(for range: UITextRange) -> [UITextSelectionRect] {
@@ -307,9 +306,9 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     }
     
     public func closestPosition(to point: CGPoint) -> UITextPosition? {
-        print("\(#function)")
-        unimplemented()
-        return nil
+        let point = CPoint(x: point.x, y: point.y)
+        let result = position_at_point(editorHandle, point)
+        return LBTextPos(c: result)
     }
     
     public func closestPosition(to point: CGPoint, within range: UITextRange) -> UITextPosition? {
