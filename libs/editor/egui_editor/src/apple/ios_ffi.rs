@@ -425,14 +425,14 @@ pub unsafe extern "C" fn clipboard_paste(obj: *mut c_void) {
 #[no_mangle]
 pub unsafe extern "C" fn position_at_point(obj: *mut c_void, point: CPoint) -> CTextPosition {
     let obj = &mut *(obj as *mut WgpuEditor);
-    let buffer = &obj.editor.buffer.current;
+    let segs = &obj.editor.buffer.current.segs;
     let galleys = &obj.editor.galleys;
 
-    // todo: does this account for scrolling?
+    let scroll = obj.editor.scroll_area_offset;
     let offset = mutation::pos_to_char_offset(
-        Pos2 { x: point.x as f32, y: point.y as f32 },
-        &galleys,
-        &buffer.segs,
+        Pos2 { x: point.x as f32 + scroll.x, y: point.y as f32 + scroll.y },
+        galleys,
+        segs,
     );
     CTextPosition { none: false, pos: offset.0 }
 }
@@ -446,10 +446,11 @@ pub unsafe extern "C" fn cursor_rect_at_position(obj: *mut c_void, pos: CTextPos
 
     let cursor: Cursor = pos.pos.into();
     let rect = cursor.start_rect(galleys);
+    let scroll = obj.editor.scroll_area_offset;
     CRect {
-        min_x: rect.min.x as f64,
-        min_y: rect.min.y as f64,
-        max_x: rect.max.x as f64,
-        max_y: rect.max.y as f64,
+        min_x: (rect.min.x - scroll.x) as f64,
+        min_y: (rect.min.y - scroll.y) as f64,
+        max_x: (rect.max.x - scroll.x) as f64,
+        max_y: (rect.max.y - scroll.y) as f64,
     }
 }

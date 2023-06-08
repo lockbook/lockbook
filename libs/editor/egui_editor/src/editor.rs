@@ -64,7 +64,10 @@ pub struct Editor {
     pub custom_events: Vec<Modification>,
 
     // hacky egui focus workaround
-    pub sao_inner_rect_last_frame: Rect,
+    pub scroll_area_rect: Rect,
+
+    // assists in adjusting screen coordinates to scroll area coordinates for ffi
+    pub scroll_area_offset: Vec2,
 }
 
 impl Default for Editor {
@@ -97,7 +100,8 @@ impl Default for Editor {
 
             custom_events: Default::default(),
 
-            sao_inner_rect_last_frame: Rect { min: Default::default(), max: Default::default() },
+            scroll_area_rect: Rect { min: Default::default(), max: Default::default() },
+            scroll_area_offset: Default::default(),
         }
     }
 }
@@ -116,14 +120,14 @@ impl Editor {
 
         // create id (even though we don't use interact response)
         let id = ui.auto_id_with("lbeditor");
-        ui.interact(self.sao_inner_rect_last_frame, id, Sense::focusable_noninteractive());
+        ui.interact(self.scroll_area_rect, id, Sense::focusable_noninteractive());
 
         // calculate focus
         let mut request_focus = ui.memory(|m| m.has_focus(id));
         let mut surrender_focus = false;
         for event in &events {
             if let Event::PointerButton { pos, pressed: true, .. } = event {
-                if ui.is_enabled() && self.sao_inner_rect_last_frame.contains(*pos) {
+                if ui.is_enabled() && self.scroll_area_rect.contains(*pos) {
                     request_focus = true;
                 } else {
                     surrender_focus = true;
@@ -168,7 +172,8 @@ impl Editor {
         }
 
         // remember scroll area rect for focus next frame
-        self.sao_inner_rect_last_frame = sao.inner_rect;
+        self.scroll_area_rect = sao.inner_rect;
+        self.scroll_area_offset = sao.state.offset;
 
         sao.inner
     }
