@@ -28,7 +28,6 @@ extension FFITests {
         ("testSimple", testSimple),
         ("testSimpleDelete", testSimpleDelete),
         ("testSimpleImportExport", testSimpleImportExport),
-        ("testSimpleUsage", testSimpleUsage),
         ("testUpdateContent10MB", testUpdateContent10MB),
         ("testUpdateContent1KB", testUpdateContent1KB),
         ("testUpdateContent1MB", testUpdateContent1MB),

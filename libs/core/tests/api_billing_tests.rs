@@ -1,8 +1,10 @@
+use image::EncodableLayout;
 use lockbook_core::service::api_service::{ApiError, Requester};
+
 use lockbook_shared::api::{
     CancelSubscriptionError, CancelSubscriptionRequest, PaymentMethod, StripeAccountTier,
     UpgradeAccountGooglePlayError, UpgradeAccountGooglePlayRequest, UpgradeAccountStripeError,
-    UpgradeAccountStripeRequest,
+    UpgradeAccountStripeRequest, FREE_TIER_USAGE_SIZE,
 };
 use lockbook_shared::file_metadata::FileType;
 use rand::RngCore;
@@ -325,16 +327,17 @@ fn downgrade_denied() {
 
         rand::thread_rng().fill_bytes(&mut bytes);
 
+        if core.get_usage().unwrap().server_usage.exact > (FREE_TIER_USAGE_SIZE as f64 * 0.5) as u64
+        {
+            break;
+        }
+
         let file = core
             .create_file(&uuid::Uuid::new_v4().to_string(), root.id, FileType::Document)
             .unwrap();
         core.write_document(file.id, &bytes).unwrap();
-        core.sync(None).unwrap();
 
-        // TODO: Currently a users data cap isn't enforced by the server. When it is, this code needs to be updated to not violate usage before upgrading.
-        if core.get_usage().unwrap().server_usage.exact > 1000000 {
-            break;
-        }
+        core.sync(None).unwrap();
     }
 
     core.in_tx(|s| {
@@ -352,7 +355,22 @@ fn downgrade_denied() {
                 },
             )
             .unwrap();
+        Ok(())
+    })
+    .unwrap();
 
+    // go over free tier
+    let file = core
+        .create_file(&uuid::Uuid::new_v4().to_string(), root.id, FileType::Document)
+        .unwrap();
+
+    let content: Vec<u8> = (0..(FREE_TIER_USAGE_SIZE))
+        .map(|_| rand::random::<u8>())
+        .collect();
+    core.write_document(file.id, content.as_bytes()).unwrap();
+    core.sync(None).unwrap();
+
+    core.in_tx(|s| {
         // attempt to cancel subscription but fail
         let result = s.client.request(&account, CancelSubscriptionRequest {});
 
@@ -374,7 +392,7 @@ fn downgrade_denied() {
 
         core.sync(None).unwrap();
 
-        if core.get_usage().unwrap().server_usage.exact < 1000000 {
+        if core.get_usage().unwrap().server_usage.exact < FREE_TIER_USAGE_SIZE {
             break;
         }
     }

@@ -205,16 +205,6 @@ class FFITests: XCTestCase {
 
         assertSuccess(resultCalculate) { $0.count == 0 }
     }
-    
-    func testSimpleUsage() throws {
-        let core = freshCore()
-        let _ = try core.createAccount(username: randomName(), apiLocation: url(), welcomeDoc: false).get()
-                
-        let resultUsage = core.getUsage()
-        assertSuccess(resultUsage) { usages in
-            usages.serverUsage.exact == 0
-        }
-    }
 }
 
 func url() -> String {

@@ -14,19 +14,21 @@ use lockbook_shared::api::{
     AdminListUsersResponse, DeleteAccountError, DeleteAccountRequest, FileUsage, GetPublicKeyError,
     GetPublicKeyRequest, GetPublicKeyResponse, GetUsageError, GetUsageRequest, GetUsageResponse,
     GetUsernameError, GetUsernameRequest, GetUsernameResponse, NewAccountError, NewAccountRequest,
-    NewAccountResponse, PaymentPlatform,
+    NewAccountResponse, PaymentPlatform, METADATA_FEE,
 };
 use lockbook_shared::clock::get_time;
 use lockbook_shared::file_like::FileLike;
 use lockbook_shared::file_metadata::Owner;
+use lockbook_shared::lazy::LazyTree;
 use lockbook_shared::server_file::IntoServerFile;
 use lockbook_shared::server_tree::ServerTree;
 use lockbook_shared::tree_like::TreeLike;
 use lockbook_shared::usage::bytes_to_human;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
 use std::ops::DerefMut;
 use tracing::warn;
+use uuid::Uuid;
 
 /// Create a new account given a username, public_key, and root folder.
 /// Checks that username is valid, and that username, public_key and root_folder are new.
@@ -128,41 +130,81 @@ pub fn username_from_public_key(
 pub async fn get_usage(
     context: RequestContext<'_, GetUsageRequest>,
 ) -> Result<GetUsageResponse, ServerError<GetUsageError>> {
-    let db = context.server_state.index_db.lock()?;
-    let cap = db
-        .accounts
-        .data()
-        .get(&Owner(context.public_key))
-        .ok_or(ClientError(GetUsageError::UserNotFound))?
-        .billing_info
-        .data_cap();
+    let mut lock = context.server_state.index_db.lock()?;
+    let db = lock.deref_mut();
 
-    let usages = get_usage_helper(&db, &context.public_key)?;
+    let cap = get_cap(db, &context.public_key)?;
 
+    let mut tree = ServerTree::new(
+        Owner(context.public_key),
+        &mut db.owned_files,
+        &mut db.shared_files,
+        &mut db.file_children,
+        &mut db.metas,
+    )?
+    .to_lazy();
+    let usages = get_usage_helper(&mut tree, db.sizes.data())?;
     Ok(GetUsageResponse { usages, cap })
 }
 
 #[derive(Debug)]
 pub enum GetUsageHelperError {
     UserNotFound,
+    UserDeleted,
 }
 
-pub fn get_usage_helper(
-    db: &ServerDb, public_key: &PublicKey,
-) -> Result<Vec<FileUsage>, GetUsageHelperError> {
-    Ok(db
-        .owned_files
-        .data()
-        .get(&Owner(*public_key))
-        .ok_or(GetUsageHelperError::UserNotFound)?
+pub fn get_usage_helper<T>(
+    tree: &mut LazyTree<T>, sizes: &HashMap<Uuid, u64>,
+) -> Result<Vec<FileUsage>, ServerError<GetUsageHelperError>>
+where
+    T: TreeLike,
+{
+    let ids = tree.owned_ids();
+    let root_id = ids
+        .iter()
+        .find(|file_id| match tree.find(file_id) {
+            Ok(f) => f.is_root(),
+            Err(_) => false,
+        })
+        .ok_or(ClientError(GetUsageHelperError::UserDeleted))?;
+
+    let root_owner = tree
+        .maybe_find(root_id)
+        .ok_or(ClientError(GetUsageHelperError::UserDeleted))?
+        .owner();
+
+    let result = ids
         .iter()
         .filter_map(|&file_id| {
-            db.sizes
-                .data()
-                .get(&file_id)
-                .map(|&size_bytes| FileUsage { file_id, size_bytes })
+            if let Ok(file) = tree.find(&file_id) {
+                if file.owner() != root_owner {
+                    return None;
+                }
+            } else {
+                return None;
+            }
+
+            let file_size = match tree.calculate_deleted(&file_id).unwrap_or(true) {
+                true => 0,
+                false => *sizes.get(&file_id).unwrap_or(&0),
+            };
+
+            Some(FileUsage { file_id, size_bytes: file_size + METADATA_FEE })
         })
-        .collect())
+        .collect();
+    Ok(result)
+}
+
+pub fn get_cap(
+    db: &ServerDb, public_key: &PublicKey,
+) -> Result<u64, ServerError<GetUsageHelperError>> {
+    Ok(db
+        .accounts
+        .data()
+        .get(&Owner(*public_key))
+        .ok_or(ServerError::ClientError(GetUsageHelperError::UserNotFound))?
+        .billing_info
+        .data_cap())
 }
 
 pub async fn delete_account(
@@ -260,10 +302,11 @@ pub async fn admin_list_users(
 pub async fn admin_get_account_info(
     context: RequestContext<'_, AdminGetAccountInfoRequest>,
 ) -> Result<AdminGetAccountInfoResponse, ServerError<AdminGetAccountInfoError>> {
-    let (db, request) = (context.server_state.index_db.lock()?, &context.request);
+    let (mut lock, request) = (context.server_state.index_db.lock()?, &context.request);
+    let db = lock.deref_mut();
 
     if !is_admin::<AdminGetAccountInfoError>(
-        &db,
+        db,
         &context.public_key,
         &context.server_state.config.admin.admins,
     )? {
@@ -325,7 +368,16 @@ pub async fn admin_get_account_info(
             }
         });
 
-    let usage: u64 = get_usage_helper(&db, &owner.0)
+    let mut tree = ServerTree::new(
+        owner,
+        &mut db.owned_files,
+        &mut db.shared_files,
+        &mut db.file_children,
+        &mut db.metas,
+    )?
+    .to_lazy();
+
+    let usage: u64 = get_usage_helper(&mut tree, db.sizes.data())
         .map_err(|err| internal!("Cannot find user's usage, owner: {:?}, err: {:?}", owner, err))?
         .iter()
         .map(|a| a.size_bytes)
