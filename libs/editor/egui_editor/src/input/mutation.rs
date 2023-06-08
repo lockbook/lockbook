@@ -382,14 +382,23 @@ pub fn region_to_cursor(
             }
         }
         Region::ToOffset { offset, backwards, extend_selection } => {
-            let mut cursor = current_cursor;
-            cursor.advance(offset, backwards, buffer, galleys);
-            if extend_selection {
-                cursor.selection.0 = current_cursor.selection.0;
+            if extend_selection
+                || current_cursor.selection.is_empty()
+                || matches!(offset, Offset::To(..))
+            {
+                let mut cursor = current_cursor;
+                cursor.advance(offset, backwards, buffer, galleys);
+                if extend_selection {
+                    cursor.selection.0 = current_cursor.selection.0;
+                } else {
+                    cursor.selection.0 = cursor.selection.1;
+                }
+                cursor
+            } else if backwards {
+                current_cursor.selection.start().into()
             } else {
-                cursor.selection.0 = cursor.selection.1;
+                current_cursor.selection.end().into()
             }
-            cursor
         }
         Region::Bound { bound } => {
             let mut cursor = current_cursor;
