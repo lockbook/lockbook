@@ -54,6 +54,13 @@ pub enum CTextLayoutDirection {
 
 #[repr(C)]
 #[derive(Debug)]
+pub struct CPoint {
+    pub x: f64,
+    pub y: f64,
+}
+
+#[repr(C)]
+#[derive(Debug)]
 pub struct CRect {
     pub min_x: f64,
     pub min_y: f64,
