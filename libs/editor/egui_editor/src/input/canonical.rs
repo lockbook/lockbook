@@ -42,26 +42,28 @@ pub enum Region {
     /// 0-length region starting and ending at location
     Location(Location),
 
-    /// text from secondary cursor to location. preserves selection.
+    /// Text from secondary cursor to location. preserves selection.
     ToLocation(Location),
 
-    /// text from one location to another
+    /// Text from one location to another
     BetweenLocations { start: Location, end: Location },
 
-    /// currently selected text
+    /// Currently selected text
     Selection,
 
-    /// currently selected text, or if the selection is empty, text from the primary cursor
-    /// to one char/line before/after or to start/end of word/line/doc
+    /// Currently selected text, or if the selection is empty, text from the primary cursor to one char/line
+    /// before/after or to start/end of word/line/doc
     SelectionOrOffset { offset: Offset, backwards: bool },
 
-    /// text from primary cursor to one char/line before/after or to start/end of word/line/doc.
+    /// Text from primary cursor to one char/line before/after or to start/end of word/line/paragraph/doc. In some
+    /// situations this instead represents the start of selection (if `backwards`) or end of selection, based on what
+    /// feels intuitive when using arrow keys to navigate a document.
     ToOffset { offset: Offset, backwards: bool, extend_selection: bool },
 
-    /// current word/line/doc
+    /// Current word/line/paragraph/doc
     Bound { bound: Bound },
 
-    /// word/line/doc at a location
+    /// Word/line/paragraph/doc at a location
     BoundAt { bound: Bound, location: Location },
 }
 

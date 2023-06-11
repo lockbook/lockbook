@@ -13,41 +13,41 @@ public struct EditorView: View {
     }
     
     public var body: some View {
-        metalView
+        MetalView(editorState: editorState)
             .focused($focused)
             .onAppear {
                 focused = true
             }
     }
-    
+
     public func header(headingSize: UInt32) {
         metalView.header(headingSize: headingSize)
     }
-    
+
     public func bulletedList() {
         metalView.bulletedList()
     }
-    
+
     public func numberedList() {
         metalView.numberedList()
     }
-    
-    public func checkedList() {
-        metalView.checkedList()
+
+    public func todoList() {
+        metalView.todoList()
     }
-    
+
     public func bold() {
         metalView.bold()
     }
-    
+
     public func italic() {
         metalView.italic()
     }
-    
-    public func code() {
-        metalView.code()
+
+    public func inlineCode() {
+        metalView.inlineCode()
     }
-    
+
     #if os(iOS)
     public func tab(deindent: Bool) {
         metalView.tab(deindent: deindent)

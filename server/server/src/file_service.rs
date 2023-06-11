@@ -1,7 +1,9 @@
-use crate::account_service::is_admin;
+use crate::account_service::{get_cap, get_usage_helper, is_admin};
+use crate::file_service::UpsertError::UsageIsOverDataCap;
 use crate::schema::ServerDb;
 use crate::ServerError;
 use crate::ServerError::ClientError;
+
 use crate::{document_service, RequestContext, ServerState};
 use db_rs::Db;
 use lockbook_shared::api::*;
@@ -32,6 +34,8 @@ pub async fn upsert_file_metadata(
         let db = lock.deref_mut();
         let tx = db.begin_transaction()?;
 
+        let usage_cap = get_cap(db, &context.public_key).map_err(|err| internal!("{:?}", err))?;
+
         let mut tree = ServerTree::new(
             req_owner,
             &mut db.owned_files,
@@ -41,6 +45,12 @@ pub async fn upsert_file_metadata(
         )?
         .to_lazy();
 
+        let old_usage = get_usage_helper(&mut tree, db.sizes.data())
+            .map_err(|err| internal!("{:?}", err))?
+            .iter()
+            .map(|f| f.size_bytes)
+            .sum::<u64>();
+
         for id in tree.owned_ids() {
             if tree.calculate_deleted(&id)? {
                 prior_deleted.insert(id);
@@ -48,14 +58,27 @@ pub async fn upsert_file_metadata(
         }
 
         let mut tree = tree.stage_diff(request.updates.clone())?;
-        tree.validate(req_owner)?;
-        let mut tree = tree.promote()?;
-
         for id in tree.owned_ids() {
             if tree.calculate_deleted(&id)? {
                 current_deleted.insert(id);
             }
         }
+
+        tree.validate(req_owner)?;
+
+        let new_usage = get_usage_helper(&mut tree, db.sizes.data())
+            .map_err(|err| internal!("{:?}", err))?
+            .iter()
+            .map(|f| f.size_bytes)
+            .sum::<u64>();
+
+        debug!(?old_usage, ?new_usage, ?usage_cap, "usage caps on upsert");
+
+        if new_usage > usage_cap && new_usage >= old_usage {
+            return Err(ClientError(UsageIsOverDataCap));
+        }
+
+        let tree = tree.promote()?;
 
         for id in tree.owned_ids() {
             if tree.find(&id)?.is_document()
@@ -169,7 +192,6 @@ pub async fn change_doc(
     if request.diff.diff() != vec![Diff::Hmac] {
         return Err(ClientError(DiffMalformed));
     }
-
     let hmac = if let Some(hmac) = request.diff.new.document_hmac() {
         base64::encode_config(hmac, base64::URL_SAFE)
     } else {
@@ -181,6 +203,7 @@ pub async fn change_doc(
     {
         let mut lock = context.server_state.index_db.lock()?;
         let db = lock.deref_mut();
+        let usage_cap = get_cap(db, &context.public_key).map_err(|err| internal!("{:?}", err))?;
 
         let meta = db
             .metas
@@ -188,10 +211,6 @@ pub async fn change_doc(
             .get(request.diff.new.id())
             .ok_or(ClientError(DocumentNotFound))?
             .clone();
-
-        let meta_owner = meta.owner();
-
-        let direct_access = meta_owner.0 == req_pk;
 
         let mut tree = ServerTree::new(
             owner,
@@ -201,6 +220,26 @@ pub async fn change_doc(
             &mut db.metas,
         )?
         .to_lazy();
+
+        let old_usage = get_usage_helper(&mut tree, db.sizes.data())
+            .map_err(|err| internal!("{:?}", err))?
+            .iter()
+            .map(|f| f.size_bytes)
+            .sum::<u64>();
+        let old_size = db.sizes.data().get(request.diff.id()).unwrap_or(&0);
+        let new_size = request.new_content.value.len() as u64;
+
+        let new_usage = old_usage - old_size + new_size;
+
+        debug!(?old_usage, ?new_usage, ?usage_cap, "usage caps on change doc");
+
+        if new_usage > usage_cap {
+            return Err(ClientError(UsageIsOverDataCap));
+        }
+
+        let meta_owner = meta.owner();
+
+        let direct_access = meta_owner.0 == req_pk;
 
         if tree.maybe_find(request.diff.new.id()).is_none() {
             return Err(ClientError(NotPermissioned));

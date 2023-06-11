@@ -8,12 +8,12 @@ use crate::appearance::Appearance;
 use crate::ast::Ast;
 use crate::buffer::Buffer;
 use crate::debug::DebugInfo;
-use crate::galleys::{GalleyInfo, Galleys};
+use crate::galleys::Galleys;
 use crate::images::ImageCache;
 use crate::input::canonical::{Bound, Modification, Offset, Region};
 use crate::input::cursor::{Cursor, PointerState};
 use crate::input::events;
-use crate::layouts::{Annotation, LayoutJobInfo, Layouts};
+use crate::layouts::{Annotation, Layouts};
 use crate::offset_types::RangeExt;
 use crate::styles::StyleInfo;
 use crate::test_input::TEST_MARKDOWN;
@@ -33,7 +33,10 @@ pub struct EditorResponse {
     pub cursor_in_heading: bool,
     pub cursor_in_bullet_list: bool,
     pub cursor_in_number_list: bool,
-    pub cursor_in_todo_list: bool
+    pub cursor_in_todo_list: bool,
+    pub cursor_in_bold: bool,
+    pub cursor_in_italic: bool,
+    pub cursor_in_inline_code: bool,
 }
 
 pub struct Editor {
@@ -70,7 +73,10 @@ pub struct Editor {
     pub custom_events: Vec<Modification>,
 
     // hacky egui focus workaround
-    pub sao_inner_rect_last_frame: Rect,
+    pub scroll_area_rect: Rect,
+
+    // assists in adjusting screen coordinates to scroll area coordinates for ffi
+    pub scroll_area_offset: Vec2,
 }
 
 impl Default for Editor {
@@ -103,7 +109,8 @@ impl Default for Editor {
 
             custom_events: Default::default(),
 
-            sao_inner_rect_last_frame: Rect { min: Default::default(), max: Default::default() },
+            scroll_area_rect: Rect { min: Default::default(), max: Default::default() },
+            scroll_area_offset: Default::default(),
         }
     }
 }
@@ -122,14 +129,14 @@ impl Editor {
 
         // create id (even though we don't use interact response)
         let id = ui.auto_id_with("lbeditor");
-        ui.interact(self.sao_inner_rect_last_frame, id, Sense::focusable_noninteractive());
+        ui.interact(self.scroll_area_rect, id, Sense::focusable_noninteractive());
 
         // calculate focus
         let mut request_focus = ui.memory(|m| m.has_focus(id));
         let mut surrender_focus = false;
         for event in &events {
             if let Event::PointerButton { pos, pressed: true, .. } = event {
-                if ui.is_enabled() && self.sao_inner_rect_last_frame.contains(*pos) {
+                if ui.is_enabled() && self.scroll_area_rect.contains(*pos) {
                     request_focus = true;
                 } else {
                     surrender_focus = true;
@@ -174,7 +181,8 @@ impl Editor {
         }
 
         // remember scroll area rect for focus next frame
-        self.sao_inner_rect_last_frame = sao.inner_rect;
+        self.scroll_area_rect = sao.inner_rect;
+        self.scroll_area_offset = sao.state.offset;
 
         sao.inner
     }
@@ -254,28 +262,42 @@ impl Editor {
             ui.scroll_to_rect(self.buffer.current.cursor.end_rect(&self.galleys), None);
         }
 
-        let galley_idx = self.galleys.galley_at_char(self.buffer.current.cursor.selection.start());
-        let galley = &self.galleys.galleys[galley_idx];
-
+        // determine cursor markup location
         let mut cursor_in_heading = false;
         let mut cursor_in_bullet_list = false;
         let mut cursor_in_number_list = false;
         let mut cursor_in_todo_list = false;
+        let mut cursor_in_bold = false;
+        let mut cursor_in_italic = false;
+        let mut cursor_in_inline_code = false;
 
-        match galley.annotation {
-            Some(Annotation::Item(ItemType::Todo(_), ..)) => {
-                cursor_in_todo_list = true;
-            }
-            Some(Annotation::Item(ItemType::Numbered(_), ..)) => {
-                cursor_in_number_list = true;
-            }
-            Some(Annotation::Item(ItemType::Bulleted, ..)) => {
-                cursor_in_bullet_list = true;
-            }
+        let ast_node_idx = self.ast.ast_node_at_char(self.buffer.current.cursor.selection.start());
+        let ast_node = &self.ast.nodes[ast_node_idx];
+
+        println!("THE ELEMENT IS: {:?} at node {} with {}", ast_node.element, ast_node_idx, self.buffer.current.cursor.selection.start().0);
+        match ast_node.element {
+            Element::Heading(_) => cursor_in_heading = true,
+            Element::InlineCode => cursor_in_inline_code = true,
+            Element::Strong => cursor_in_bold = true,
+            Element::Emphasis => cursor_in_italic = true,
             _ => {
-                cursor_in_heading = galley.head_size.0 != 0;
+                let galley_idx = self.galleys.galley_at_char(self.buffer.current.cursor.selection.start());
+                let galley = &self.galleys.galleys[galley_idx];
+
+                match galley.annotation {
+                    Some(Annotation::Item(ItemType::Todo(_), ..)) => {
+                        cursor_in_todo_list = true;
+                    }
+                    Some(Annotation::Item(ItemType::Numbered(_), ..)) => {
+                        cursor_in_number_list = true;
+                    }
+                    Some(Annotation::Item(ItemType::Bulleted, ..)) => {
+                        cursor_in_bullet_list = true;
+                    }
+                    _ => {}
+                };
             }
-        };
+        }
 
         EditorResponse {
             text_updated,
@@ -286,7 +308,10 @@ impl Editor {
             cursor_in_heading,
             cursor_in_bullet_list,
             cursor_in_number_list,
-            cursor_in_todo_list
+            cursor_in_todo_list,
+            cursor_in_bold,
+            cursor_in_italic,
+            cursor_in_inline_code,
         }
     }
 

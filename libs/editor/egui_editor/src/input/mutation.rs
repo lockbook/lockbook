@@ -1,6 +1,6 @@
 use crate::buffer::{EditorMutation, Mutation, SubBuffer, SubMutation};
 use crate::element::ItemType;
-use crate::galleys::{GalleyInfo, Galleys};
+use crate::galleys::Galleys;
 use crate::input::canonical::{Bound, Location, Modification, Offset, Region};
 use crate::input::cursor::Cursor;
 use crate::layouts::{Annotation, Layouts};
@@ -90,10 +90,10 @@ pub fn calc(
 
             match &galley.annotation {
                 Some(Annotation::Item(ItemType::Bulleted, _)) => {
-                    list_mutation_replacement(&mut mutation, buffer, galleys, galley, current_cursor, ItemType::Bulleted, None);
+                    list_mutation_replacement(&mut mutation, buffer, galleys, current_cursor, ItemType::Bulleted, None);
                 }
                 Some(Annotation::Item(item_type, _)) => {
-                    list_mutation_replacement(&mut mutation, buffer, galleys, galley, current_cursor, *item_type, Some(ItemType::Bulleted));
+                    list_mutation_replacement(&mut mutation, buffer, galleys, current_cursor, *item_type, Some(ItemType::Bulleted));
                 }
                 _ => {
                     mutation.push(SubMutation::Cursor {
@@ -120,10 +120,10 @@ pub fn calc(
 
             match &galley.annotation {
                 Some(Annotation::Item(ItemType::Numbered(num), _)) => {
-                    list_mutation_replacement(&mut mutation, buffer, galleys, galley, current_cursor, ItemType::Numbered(*num), None);
+                    list_mutation_replacement(&mut mutation, buffer, galleys, current_cursor, ItemType::Numbered(*num), None);
                 }
                 Some(Annotation::Item(item_type, _)) => {
-                    list_mutation_replacement(&mut mutation, buffer, galleys, galley, current_cursor, *item_type, Some(ItemType::Numbered(1)));
+                    list_mutation_replacement(&mut mutation, buffer, galleys, current_cursor, *item_type, Some(ItemType::Numbered(1)));
                 }
                 _ => {
                     mutation.push(SubMutation::Cursor {
@@ -150,10 +150,10 @@ pub fn calc(
 
             match &galley.annotation {
                 Some(Annotation::Item(ItemType::Todo(checked), _)) => {
-                    list_mutation_replacement(&mut mutation, buffer, galleys, galley, current_cursor, ItemType::Todo(*checked), None);
+                    list_mutation_replacement(&mut mutation, buffer, galleys, current_cursor, ItemType::Todo(*checked), None);
                 }
                 Some(Annotation::Item(item_type, _)) => {
-                    list_mutation_replacement(&mut mutation, buffer, galleys, galley, current_cursor, *item_type, Some(ItemType::Todo(false)));
+                    list_mutation_replacement(&mut mutation, buffer, galleys, current_cursor, *item_type, Some(ItemType::Todo(false)));
                 }
                 _ => {
                     mutation.push(SubMutation::Cursor {
@@ -517,7 +517,7 @@ pub fn calc(
     EditorMutation::Buffer(mutation)
 }
 
-pub fn list_mutation_replacement(mutation: &mut Vec<SubMutation>, buffer: &SubBuffer, galleys: &Galleys, galley: &GalleyInfo, current_cursor: Cursor, from: ItemType, to: Option<ItemType>) {
+pub fn list_mutation_replacement(mutation: &mut Vec<SubMutation>, buffer: &SubBuffer, galleys: &Galleys, current_cursor: Cursor, from: ItemType, to: Option<ItemType>) {
     let from_size = match from {
         ItemType::Bulleted => 2,
         ItemType::Numbered(num) => num.to_string().len() + 2,
@@ -586,14 +586,23 @@ pub fn region_to_cursor(
             }
         }
         Region::ToOffset { offset, backwards, extend_selection } => {
-            let mut cursor = current_cursor;
-            cursor.advance(offset, backwards, buffer, galleys);
-            if extend_selection {
-                cursor.selection.0 = current_cursor.selection.0;
+            if extend_selection
+                || current_cursor.selection.is_empty()
+                || matches!(offset, Offset::To(..))
+            {
+                let mut cursor = current_cursor;
+                cursor.advance(offset, backwards, buffer, galleys);
+                if extend_selection {
+                    cursor.selection.0 = current_cursor.selection.0;
+                } else {
+                    cursor.selection.0 = cursor.selection.1;
+                }
+                cursor
+            } else if backwards {
+                current_cursor.selection.start().into()
             } else {
-                cursor.selection.0 = cursor.selection.1;
+                current_cursor.selection.end().into()
             }
-            cursor
         }
         Region::Bound { bound } => {
             let mut cursor = current_cursor;

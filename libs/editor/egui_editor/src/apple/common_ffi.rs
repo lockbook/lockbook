@@ -236,7 +236,7 @@ pub unsafe extern "C" fn apply_style_to_selection_italic(obj: *mut c_void) {
 /// # Safety
 /// obj must be a valid pointer to WgpuEditor
 #[no_mangle]
-pub unsafe extern "C" fn apply_style_to_selection_code(obj: *mut c_void) {
+pub unsafe extern "C" fn apply_style_to_selection_inline_code(obj: *mut c_void) {
     let obj = &mut *(obj as *mut WgpuEditor);
 
     obj.editor.custom_events.push(Modification::Code);

@@ -84,7 +84,7 @@ struct MarkdownEditor: View {
     let editor: EditorView
     
     @Environment(\.colorScheme) var colorScheme
-            
+    
     var body: some View {
         #if os(iOS)
         VStack {
@@ -103,12 +103,11 @@ struct MarkdownEditor: View {
                 .padding(.top, 9)
                 .padding(.horizontal)
 //                .padding(.bottom, 3)
-            
+
             editor
         }
         .title(documentName)
         #endif
-        
     }
     
     var toolbar: some View {
@@ -118,15 +117,15 @@ struct MarkdownEditor: View {
                     Button("Heading 1") {
                         editor.header(headingSize: 1)
                     }
-                    
+
                     Button("Heading 2") {
                         editor.header(headingSize: 2)
                     }
-                    
+
                     Button("Heading 3") {
                         editor.header(headingSize: 3)
                     }
-                    
+
                     Button("Heading 4") {
                         editor.header(headingSize: 4)
                     }
@@ -141,37 +140,37 @@ struct MarkdownEditor: View {
                 .background(editorState.isHeadingSelected ? .gray.opacity(0.2) : .clear)
                 .cornerRadius(5)
             }
-            
+
             Divider()
                 .frame(height: 20)
-            
+
             HStack(spacing: 15) {
                 Button(action: {
                     editor.bold()
                 }) {
-                    MarkdownEditorImage(systemImageName: "bold", isSelected: false)
+                    MarkdownEditorImage(systemImageName: "bold", isSelected: editor.editorState.isBoldSelected)
                 }
                 .buttonStyle(.borderless)
-                
+
                 Button(action: {
                     editor.italic()
                 }) {
-                    MarkdownEditorImage(systemImageName: "italic", isSelected: false)
+                    MarkdownEditorImage(systemImageName: "italic", isSelected: editorState.isItalicSelected)
                 }
                 .buttonStyle(.borderless)
-                
+
                 Button(action: {
-                    editor.code()
+                    editor.inlineCode()
                 }) {
-                    MarkdownEditorImage(systemImageName: "greaterthan.square", isSelected: false)
+                    MarkdownEditorImage(systemImageName: "greaterthan.square", isSelected: editorState.isInlineCodeSelected)
                 }
                 .buttonStyle(.borderless)
-                
+
             }
-            
+
             Divider()
                 .frame(height: 20)
-                        
+
             HStack(spacing: 15) {
                 Button(action: {
                     editor.bulletedList()
@@ -179,36 +178,36 @@ struct MarkdownEditor: View {
                     MarkdownEditorImage(systemImageName: "list.bullet", isSelected: editorState.isBulletListSelected)
                 }
                 .buttonStyle(.borderless)
-                
+
                 Button(action: {
                     editor.numberedList()
                 }) {
                     MarkdownEditorImage(systemImageName: "list.number", isSelected: editorState.isNumberListSelected)
                 }
                 .buttonStyle(.borderless)
-                
+
                 Button(action: {
-                    editor.checkedList()
+                    editor.todoList()
                 }) {
-                    MarkdownEditorImage(systemImageName: "checklist", isSelected: editorState.isChecklistSelected)
+                    MarkdownEditorImage(systemImageName: "checklist", isSelected: editorState.isTodoListSelected)
                 }
                 .buttonStyle(.borderless)
             }
-            
+
             #if os(iOS)
-            
+
             Divider()
                 .frame(height: 20)
-            
+
             HStack(spacing: 15) {
-                
+
                 Button(action: {
                     editor.tab(deindent: false)
                 }) {
                     MarkdownEditorImage(systemImageName: "arrow.right.to.line.compact", isSelected: false)
                 }
                 .buttonStyle(.borderless)
-                
+
                 Button(action: {
                     editor.tab(deindent: true)
                 }) {
@@ -216,9 +215,9 @@ struct MarkdownEditor: View {
                 }
                 .buttonStyle(.borderless)
             }
-            
+
             #endif
-            
+
             Spacer()
         }
     }
@@ -227,7 +226,7 @@ struct MarkdownEditor: View {
 struct MarkdownEditorImage: View {
     let systemImageName: String
     var isSelected: Bool
-    
+
     var body: some View {
         Image(systemName: systemImageName)
             .padding(5)

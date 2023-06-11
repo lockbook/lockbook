@@ -16,7 +16,7 @@ public struct MetalView: UIViewRepresentable {
     }
 
     public func makeUIView(context: Context) -> iOSMTK {
-        return mtkView
+        mtkView
     }
     
     public func updateUIView(_ uiView: iOSMTK, context: Context) {
@@ -25,35 +25,35 @@ public struct MetalView: UIViewRepresentable {
             editorState.reload = false
         }
     }
-    
+
     public func header(headingSize: UInt32) {
         mtkView.header(headingSize: headingSize)
     }
-    
+
     public func bulletedList() {
         mtkView.bulletedList()
     }
-    
+
     public func numberedList() {
         mtkView.numberedList()
     }
-    
-    public func checkedList() {
-        mtkView.checkedList()
+
+    public func todoList() {
+        mtkView.todoList()
     }
-    
+
     public func bold() {
         mtkView.bold()
     }
-    
+
     public func italic() {
         mtkView.italic()
     }
-    
-    public func code() {
-        mtkView.code()
+
+    public func inlineCode() {
+        mtkView.inlineCode()
     }
-    
+
     public func tab(deindent: Bool) {
         mtkView.tab(deindent: deindent)
     }
