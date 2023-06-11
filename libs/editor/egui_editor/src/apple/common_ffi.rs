@@ -212,7 +212,7 @@ pub unsafe extern "C" fn apply_style_to_selection_numbered_list(obj: *mut c_void
 pub unsafe extern "C" fn apply_style_to_selection_todo_list(obj: *mut c_void) {
     let obj = &mut *(obj as *mut WgpuEditor);
 
-    obj.editor.custom_events.push(Modification::CheckListItem);
+    obj.editor.custom_events.push(Modification::TodoListItem);
 }
 
 /// # Safety
@@ -231,4 +231,13 @@ pub unsafe extern "C" fn apply_style_to_selection_italic(obj: *mut c_void) {
     let obj = &mut *(obj as *mut WgpuEditor);
 
     obj.editor.custom_events.push(Modification::Italic);
+}
+
+/// # Safety
+/// obj must be a valid pointer to WgpuEditor
+#[no_mangle]
+pub unsafe extern "C" fn apply_style_to_selection_code(obj: *mut c_void) {
+    let obj = &mut *(obj as *mut WgpuEditor);
+
+    obj.editor.custom_events.push(Modification::Code);
 }

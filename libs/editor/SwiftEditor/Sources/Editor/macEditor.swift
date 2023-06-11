@@ -54,5 +54,9 @@ public struct MetalView: NSViewRepresentable {
     public func italic() {
         mtkView.italic()
     }
+    
+    public func code() {
+        mtkView.code()
+    }
 }
 #endif

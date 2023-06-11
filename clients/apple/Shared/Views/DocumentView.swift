@@ -52,7 +52,7 @@ struct DocumentView: View {
 
                     case .Markdown:
                         if let editorState = model.textDocument {
-                            MarkdownEditor(editorState, meta.name)
+                            MarkdownEditor(documentName: meta.name, editorState: editorState, editor: EditorView(editorState))
                         }
                     case .Unknown:
                         Text("\(meta.name) cannot be opened on this device.")
@@ -78,31 +78,31 @@ extension View {
 }
 
 struct MarkdownEditor: View {
-    var editorState: EditorState
     var documentName: String
     
-    @Environment(\.colorScheme) var colorScheme
-    
+    @ObservedObject var editorState: EditorState
     let editor: EditorView
     
-    public init(_ editorState: EditorState, _ documentName: String) {
-        self.editorState = editorState
-        self.documentName = documentName
-        
-        self.editor = EditorView(self.editorState)
-    }
-        
+    @Environment(\.colorScheme) var colorScheme
+            
     var body: some View {
         #if os(iOS)
         VStack {
             editor
                 
-            toolbar
+            ScrollView(.horizontal) {
+                toolbar
+                    .padding(.bottom, 8)
+                    .padding(.horizontal)
+            }
         }
         .title(documentName)
         #else
         VStack {
             toolbar
+                .padding(.top, 9)
+                .padding(.horizontal)
+//                .padding(.bottom, 3)
             
             editor
         }
@@ -112,9 +112,8 @@ struct MarkdownEditor: View {
     }
     
     var toolbar: some View {
-        #if os(iOS)
-        ScrollView(.horizontal) {
-            HStack(spacing: 35) {
+        HStack(spacing: 20) {
+            HStack(spacing: 15) {
                 Menu(content: {
                     Button("Heading 1") {
                         editor.header(headingSize: 1)
@@ -133,115 +132,108 @@ struct MarkdownEditor: View {
                     }
                 }, label: {
                     Image(systemName: "h.square")
-                        .imageScale(.large)
+                        .foregroundColor(.primary)
+                        .padding(2)
                 })
-                
+                .menuStyle(.borderlessButton)
+                .frame(width: 30)
+                .padding(3)
+                .background(editorState.isHeadingSelected ? .gray.opacity(0.2) : .clear)
+                .cornerRadius(5)
+            }
+            
+            Divider()
+                .frame(height: 20)
+            
+            HStack(spacing: 15) {
                 Button(action: {
                     editor.bold()
                 }) {
-                    Image(systemName: "bold")
+                    MarkdownEditorImage(systemImageName: "bold", isSelected: false)
                 }
+                .buttonStyle(.borderless)
                 
                 Button(action: {
                     editor.italic()
                 }) {
-                    Image(systemName: "italic")
+                    MarkdownEditorImage(systemImageName: "italic", isSelected: false)
                 }
+                .buttonStyle(.borderless)
                 
+                Button(action: {
+                    editor.code()
+                }) {
+                    MarkdownEditorImage(systemImageName: "greaterthan.square", isSelected: false)
+                }
+                .buttonStyle(.borderless)
+                
+            }
+            
+            Divider()
+                .frame(height: 20)
+                        
+            HStack(spacing: 15) {
                 Button(action: {
                     editor.bulletedList()
                 }) {
-                    Image(systemName: "list.bullet")
+                    MarkdownEditorImage(systemImageName: "list.bullet", isSelected: editorState.isBulletListSelected)
                 }
+                .buttonStyle(.borderless)
                 
                 Button(action: {
                     editor.numberedList()
                 }) {
-                    Image(systemName: "list.number")
+                    MarkdownEditorImage(systemImageName: "list.number", isSelected: editorState.isNumberListSelected)
                 }
+                .buttonStyle(.borderless)
                 
                 Button(action: {
                     editor.checkedList()
                 }) {
-                    Image(systemName: "checklist")
+                    MarkdownEditorImage(systemImageName: "checklist", isSelected: editorState.isChecklistSelected)
                 }
+                .buttonStyle(.borderless)
+            }
+            
+            #if os(iOS)
+            
+            Divider()
+                .frame(height: 20)
+            
+            HStack(spacing: 15) {
                 
                 Button(action: {
                     editor.tab(deindent: false)
                 }) {
-                    Image(systemName: "arrow.right.to.line")
+                    MarkdownEditorImage(systemImageName: "arrow.right.to.line.compact", isSelected: false)
                 }
+                .buttonStyle(.borderless)
                 
                 Button(action: {
                     editor.tab(deindent: true)
                 }) {
-                    Image(systemName: "arrow.left.to.line")
+                    MarkdownEditorImage(systemImageName: "arrow.left.to.line.compact", isSelected: false)
                 }
-            }
-            .padding()
-        }
-        .frame(height: 35)
-        #else
-        HStack(alignment: .center, spacing: 30) {
-            Menu(content: {
-                Button("Heading 1") {
-                    editor.header(headingSize: 1)
-                }
-                
-                Button("Heading 2") {
-                    editor.header(headingSize: 2)
-                }
-                
-                Button("Heading 3") {
-                    editor.header(headingSize: 3)
-                }
-                
-                Button("Heading 4") {
-                    editor.header(headingSize: 4)
-                }
-            }, label: {
-                Image(systemName: "h.square")
-                    .imageScale(.large)
-            })
-            
-            Button(action: {
-                editor.bold()
-            }) {
-                Image(systemName: "bold")
-                    .imageScale(.large)
+                .buttonStyle(.borderless)
             }
             
-            Button(action: {
-                editor.italic()
-            }) {
-                Image(systemName: "italic")
-                    .imageScale(.large)
-            }
-
-            Button(action: {
-                editor.bulletedList()
-            }) {
-                Image(systemName: "list.bullet")
-                    .imageScale(.large)
-            }
-
-            Button(action: {
-                editor.numberedList()
-            }) {
-                Image(systemName: "list.number")
-                    .imageScale(.large)
-            }
-
-            Button(action: {
-                editor.checkedList()
-            }) {
-                Image(systemName: "checklist")
-                    .imageScale(.large)
-            }
+            #endif
+            
+            Spacer()
         }
-        .padding(.top, 12)
-        .padding(.bottom, 3)
+    }
+}
 
-        #endif
+struct MarkdownEditorImage: View {
+    let systemImageName: String
+    var isSelected: Bool
+    
+    var body: some View {
+        Image(systemName: systemImageName)
+            .padding(5)
+            .foregroundColor(.primary)
+//            .foregroundColor(isSelected ? .blue : .primary)
+            .background(isSelected ? .gray.opacity(0.2) : .clear)
+            .cornerRadius(5)
     }
 }

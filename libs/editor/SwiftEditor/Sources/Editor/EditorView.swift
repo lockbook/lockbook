@@ -3,7 +3,7 @@ import SwiftUI
 
 public struct EditorView: View {
     
-    @ObservedObject var editorState: EditorState
+    @State public var editorState: EditorState
     @FocusState var focused: Bool
     private let metalView: MetalView
     
@@ -42,6 +42,10 @@ public struct EditorView: View {
     
     public func italic() {
         metalView.italic()
+    }
+    
+    public func code() {
+        metalView.code()
     }
     
     #if os(iOS)

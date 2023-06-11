@@ -33,33 +33,38 @@ public class MacMTK: MTKView, MTKViewDelegate {
     }
     
     public func header(headingSize: UInt32) {
-        header_at_cursor(editorHandle, headingSize)
+        apply_style_to_selection_header(editorHandle, headingSize)
         setNeedsDisplay(self.frame)
     }
     
     public func bulletedList() {
-        bulleted_list_at_cursor(editorHandle)
+        apply_style_to_selection_bulleted_list(editorHandle)
         setNeedsDisplay(self.frame)
     }
     
     public func numberedList() {
-        numbered_list_at_cursor(editorHandle)
+        apply_style_to_selection_numbered_list(editorHandle)
         setNeedsDisplay(self.frame)
     }
     
     public func checkedList() {
-        checked_list_at_cursor(editorHandle)
+        apply_style_to_selection_todo_list(editorHandle)
         setNeedsDisplay(self.frame)
     }
     
     public func bold() {
-        bold_at_cursor(editorHandle)
+        apply_style_to_selection_bold(editorHandle)
         setNeedsDisplay(self.frame)
     }
     
     public func italic() {
-        italic_at_cursor(editorHandle)
+        apply_style_to_selection_italic(editorHandle)
         setNeedsDisplay(self.frame)
+    }
+    
+    public func code() {
+        apply_style_to_selection_code(editorHandle)
+        self.setNeedsDisplay(self.frame)
     }
     
     public override var acceptsFirstResponder: Bool {
@@ -145,7 +150,7 @@ public class MacMTK: MTKView, MTKViewDelegate {
     }
     
     func getCoppiedText() -> String {
-        let result = get_coppied_text(editorHandle)
+        let result = get_copied_text(editorHandle)
         let str = String(cString: result!)
         free_text(UnsafeMutablePointer(mutating: result))
         return str
@@ -174,9 +179,15 @@ public class MacMTK: MTKView, MTKViewDelegate {
         dark_mode(editorHandle, isDarkMode())
         set_scale(editorHandle, scale)
         let output = draw_editor(editorHandle)
+        
+        editorState?.isHeadingSelected = output.editor_response.cursor_in_heading;
+        editorState?.isChecklistSelected = output.editor_response.cursor_in_todo_list;
+        editorState?.isBulletListSelected = output.editor_response.cursor_in_bullet_list;
+        editorState?.isNumberListSelected = output.editor_response.cursor_in_number_list;
+        
         view.isPaused = !output.redraw
         print(view.isPaused)
-        if has_coppied_text(editorHandle) {
+        if has_copied_text(editorHandle) {
             NSPasteboard.general.clearContents()
             NSPasteboard.general.setString(getCoppiedText(), forType: .string)
         }

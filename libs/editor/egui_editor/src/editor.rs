@@ -8,16 +8,17 @@ use crate::appearance::Appearance;
 use crate::ast::Ast;
 use crate::buffer::Buffer;
 use crate::debug::DebugInfo;
-use crate::galleys::Galleys;
+use crate::galleys::{GalleyInfo, Galleys};
 use crate::images::ImageCache;
 use crate::input::canonical::{Bound, Modification, Offset, Region};
 use crate::input::cursor::{Cursor, PointerState};
 use crate::input::events;
-use crate::layouts::Layouts;
+use crate::layouts::{Annotation, LayoutJobInfo, Layouts};
 use crate::offset_types::RangeExt;
 use crate::styles::StyleInfo;
 use crate::test_input::TEST_MARKDOWN;
 use crate::{ast, galleys, images, layouts, register_fonts, styles};
+use crate::element::{Element, ItemType};
 
 #[repr(C)]
 #[derive(Debug, Default)]
@@ -28,6 +29,11 @@ pub struct EditorResponse {
     pub has_selection: bool,
     pub edit_menu_x: f32,
     pub edit_menu_y: f32,
+
+    pub cursor_in_heading: bool,
+    pub cursor_in_bullet_list: bool,
+    pub cursor_in_number_list: bool,
+    pub cursor_in_todo_list: bool
 }
 
 pub struct Editor {
@@ -248,12 +254,39 @@ impl Editor {
             ui.scroll_to_rect(self.buffer.current.cursor.end_rect(&self.galleys), None);
         }
 
+        let galley_idx = self.galleys.galley_at_char(self.buffer.current.cursor.selection.start());
+        let galley = &self.galleys.galleys[galley_idx];
+
+        let mut cursor_in_heading = false;
+        let mut cursor_in_bullet_list = false;
+        let mut cursor_in_number_list = false;
+        let mut cursor_in_todo_list = false;
+
+        match galley.annotation {
+            Some(Annotation::Item(ItemType::Todo(_), ..)) => {
+                cursor_in_todo_list = true;
+            }
+            Some(Annotation::Item(ItemType::Numbered(_), ..)) => {
+                cursor_in_number_list = true;
+            }
+            Some(Annotation::Item(ItemType::Bulleted, ..)) => {
+                cursor_in_bullet_list = true;
+            }
+            _ => {
+                cursor_in_heading = galley.head_size.0 != 0;
+            }
+        };
+
         EditorResponse {
             text_updated,
             show_edit_menu: self.maybe_menu_location.is_some(),
             has_selection: self.buffer.current.cursor.selection().is_some(),
             edit_menu_x: self.maybe_menu_location.map(|p| p.x).unwrap_or_default(),
             edit_menu_y: self.maybe_menu_location.map(|p| p.y).unwrap_or_default(),
+            cursor_in_heading,
+            cursor_in_bullet_list,
+            cursor_in_number_list,
+            cursor_in_todo_list
         }
     }
 

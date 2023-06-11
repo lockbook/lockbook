@@ -50,6 +50,10 @@ public struct MetalView: UIViewRepresentable {
         mtkView.italic()
     }
     
+    public func code() {
+        mtkView.code()
+    }
+    
     public func tab(deindent: Bool) {
         mtkView.tab(deindent: deindent)
     }

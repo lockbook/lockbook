@@ -2,6 +2,7 @@
 import UIKit
 import MetalKit
 import Bridge
+import SwiftUI
 
 public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractionDelegate {
     
@@ -9,7 +10,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     var editorState: EditorState?
     var editMenuInteraction: UIEditMenuInteraction?
     var hasSelection: Bool = false
-    
+        
     var pasteBoardEventId: Int = 0
     
     override init(frame frameRect: CGRect, device: MTLDevice?) {
@@ -53,6 +54,11 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
         self.setNeedsDisplay(self.frame)
     }
     
+    public func code() {
+        apply_style_to_selection_code(editorHandle)
+        self.setNeedsDisplay(self.frame)
+    }
+    
     public func tab(deindent: Bool) {
         indent_at_cursor(editorHandle, deindent)
         self.setNeedsDisplay(self.frame)
@@ -74,6 +80,11 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
         let output = draw_editor(editorHandle)
         self.isPaused = !output.redraw
         
+        editorState?.isHeadingSelected = output.editor_response.cursor_in_heading;
+        editorState?.isChecklistSelected = output.editor_response.cursor_in_todo_list;
+        editorState?.isBulletListSelected = output.editor_response.cursor_in_bullet_list;
+        editorState?.isNumberListSelected = output.editor_response.cursor_in_number_list;
+                
         if output.editor_response.show_edit_menu {
             self.hasSelection = output.editor_response.has_selection
             let location = CGPoint(

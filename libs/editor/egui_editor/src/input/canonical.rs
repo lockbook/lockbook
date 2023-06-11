@@ -85,9 +85,10 @@ pub enum Modification {
     Heading(u32),
     Bold,
     Italic,
+    Code,
     BulletListItem,
     NumberListItem,
-    CheckListItem,
+    TodoListItem,
 }
 
 impl From<&Modifiers> for Offset {

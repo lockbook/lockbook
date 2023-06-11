@@ -107,7 +107,7 @@ impl Element {
     }
 }
 
-#[derive(Clone, Debug, Eq)]
+#[derive(Clone, Copy, Debug, Eq)]
 pub enum ItemType {
     Bulleted,
     Numbered(usize),
