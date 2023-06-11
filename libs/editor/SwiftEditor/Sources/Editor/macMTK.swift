@@ -117,7 +117,7 @@ public class MacMTK: MTKView, MTKViewDelegate {
     }
     
     func getCoppiedText() -> String {
-        let result = get_coppied_text(editorHandle)
+        let result = get_copied_text(editorHandle)
         let str = String(cString: result!)
         free_text(UnsafeMutablePointer(mutating: result))
         return str
@@ -148,7 +148,7 @@ public class MacMTK: MTKView, MTKViewDelegate {
         let output = draw_editor(editorHandle)
         view.isPaused = !output.redraw
         print(view.isPaused)
-        if has_coppied_text(editorHandle) {
+        if has_copied_text(editorHandle) {
             NSPasteboard.general.clearContents()
             NSPasteboard.general.setString(getCoppiedText(), forType: .string)
         }
