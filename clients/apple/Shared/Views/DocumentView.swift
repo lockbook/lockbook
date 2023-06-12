@@ -119,12 +119,22 @@ struct MarkdownEditor: View {
     
     var toolbar: some View {
         HStack(spacing: 20) {
-            HStack(spacing: 15) {
+            HStack(spacing: 0) {
+                
+                // hack for the heading 1 shortcut since the shortcut in the menu is not recognized
+                Button(action: {
+                    editor.header(headingSize: 1)
+                }) {
+                    EmptyView()
+                }
+                .frame(width: 0, height: 0)
+                .keyboardShortcut("h", modifiers: [.command, .shift])
+                
                 Menu(content: {
                     Button("Heading 1") {
                         editor.header(headingSize: 1)
                     }
-                    .keyboardShortcut("h", modifiers: .command)
+                    .keyboardShortcut("h", modifiers: [.command, .shift])
 
                     Button("Heading 2") {
                         editor.header(headingSize: 2)
