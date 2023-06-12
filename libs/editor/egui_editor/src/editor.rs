@@ -274,7 +274,6 @@ impl Editor {
         let ast_node_idx = self.ast.ast_node_at_char(self.buffer.current.cursor.selection.start());
         let ast_node = &self.ast.nodes[ast_node_idx];
 
-        println!("THE ELEMENT IS: {:?} at node {} with {}", ast_node.element, ast_node_idx, self.buffer.current.cursor.selection.start().0);
         match ast_node.element {
             Element::Heading(_) => cursor_in_heading = true,
             Element::InlineCode => cursor_in_inline_code = true,

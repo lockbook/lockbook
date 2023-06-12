@@ -52,7 +52,7 @@ struct DocumentView: View {
 
                     case .Markdown:
                         if let editorState = model.textDocument {
-                            MarkdownEditor(documentName: meta.name, editorState: editorState, editor: EditorView(editorState))
+                            MarkdownEditor(editorState, meta.name)
                         }
                     case .Unknown:
                         Text("\(meta.name) cannot be opened on this device.")
@@ -82,6 +82,14 @@ struct MarkdownEditor: View {
     
     @ObservedObject var editorState: EditorState
     let editor: EditorView
+    
+    public init(_ editorState: EditorState, _ documentName: String) {
+        self.editorState = editorState
+        self.documentName = documentName
+
+        self.editor = EditorView(editorState)
+    }
+
     
     @Environment(\.colorScheme) var colorScheme
     
@@ -117,6 +125,7 @@ struct MarkdownEditor: View {
                     Button("Heading 1") {
                         editor.header(headingSize: 1)
                     }
+                    .keyboardShortcut("h", modifiers: .command)
 
                     Button("Heading 2") {
                         editor.header(headingSize: 2)
@@ -130,12 +139,19 @@ struct MarkdownEditor: View {
                         editor.header(headingSize: 4)
                     }
                 }, label: {
-                    Image(systemName: "h.square")
-                        .foregroundColor(.primary)
-                        .padding(2)
+                    HStack {
+                        Image(systemName: "h.square")
+                            .foregroundColor(.primary)
+                            .padding(.vertical, 2)
+                            .padding(.leading, 2)
+                        
+                        Image(systemName: "chevron.down")
+                            .imageScale(.small)
+                            .foregroundColor(.primary)
+                            .padding(.trailing, 2)
+                    }
+                    .contentShape(Rectangle())
                 })
-                .menuStyle(.borderlessButton)
-                .frame(width: 30)
                 .padding(3)
                 .background(editorState.isHeadingSelected ? .gray.opacity(0.2) : .clear)
                 .cornerRadius(5)
@@ -148,9 +164,10 @@ struct MarkdownEditor: View {
                 Button(action: {
                     editor.bold()
                 }) {
-                    MarkdownEditorImage(systemImageName: "bold", isSelected: editor.editorState.isBoldSelected)
+                    MarkdownEditorImage(systemImageName: "bold", isSelected: editorState.isBoldSelected)
                 }
                 .buttonStyle(.borderless)
+                .keyboardShortcut("b", modifiers: .command)
 
                 Button(action: {
                     editor.italic()
@@ -158,6 +175,7 @@ struct MarkdownEditor: View {
                     MarkdownEditorImage(systemImageName: "italic", isSelected: editorState.isItalicSelected)
                 }
                 .buttonStyle(.borderless)
+                .keyboardShortcut("i", modifiers: .command)
 
                 Button(action: {
                     editor.inlineCode()
@@ -165,6 +183,7 @@ struct MarkdownEditor: View {
                     MarkdownEditorImage(systemImageName: "greaterthan.square", isSelected: editorState.isInlineCodeSelected)
                 }
                 .buttonStyle(.borderless)
+                .keyboardShortcut("c", modifiers: .command)
 
             }
 
@@ -178,6 +197,7 @@ struct MarkdownEditor: View {
                     MarkdownEditorImage(systemImageName: "list.bullet", isSelected: editorState.isBulletListSelected)
                 }
                 .buttonStyle(.borderless)
+                .keyboardShortcut("b", modifiers: [.command, .shift])
 
                 Button(action: {
                     editor.numberedList()
@@ -185,6 +205,7 @@ struct MarkdownEditor: View {
                     MarkdownEditorImage(systemImageName: "list.number", isSelected: editorState.isNumberListSelected)
                 }
                 .buttonStyle(.borderless)
+                .keyboardShortcut("n", modifiers: [.command, .shift])
 
                 Button(action: {
                     editor.todoList()
@@ -192,6 +213,7 @@ struct MarkdownEditor: View {
                     MarkdownEditorImage(systemImageName: "checklist", isSelected: editorState.isTodoListSelected)
                 }
                 .buttonStyle(.borderless)
+                .keyboardShortcut("c", modifiers: [.command, .shift])
             }
 
             #if os(iOS)

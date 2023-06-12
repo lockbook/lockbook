@@ -13,7 +13,7 @@ public struct EditorView: View {
     }
     
     public var body: some View {
-        MetalView(editorState: editorState)
+        metalView
             .focused($focused)
             .onAppear {
                 focused = true
