@@ -2,7 +2,7 @@ use rand::Rng;
 use std::mem;
 
 use egui::os::OperatingSystem;
-use egui::{Context, Event, FontDefinitions, Pos2, Rect, Sense, Ui, Vec2};
+use egui::{Context, Event, FontDefinitions, Frame, Layout, Margin, Pos2, Rect, Sense, Ui, Vec2};
 
 use crate::appearance::Appearance;
 use crate::ast::Ast;
@@ -159,9 +159,23 @@ impl Editor {
                     }
                 });
 
-                self.ui(ui, id, touch_mode, &events)
+                let editor_rect = ui.max_rect();
+                let text_rect = Rect {
+                    min: Pos2 { x: editor_rect.left() + 100.0, y: editor_rect.top() },
+                    max: Pos2 { x: editor_rect.right() - 100.0, y: editor_rect.top() },
+                };
+
+                println!("{:#?}", ui.clip_rect());
+                println!("{:#?}", ui.max_rect());
+                println!("{:#?}", ui.min_rect());
+                println!("{:#?}", text_rect);
+                println!("----\n\n\n");
+
+                self.ui_rect = text_rect;
+                ui.allocate_ui_at_rect(text_rect, |ui| self.ui(ui, id, touch_mode, &events))
             });
-        self.ui_rect = sao.inner_rect;
+        println!("{:#?}", sao.inner_rect);
+        // self.ui_rect = sao.inner_rect;
 
         // set focus again because egui clears it for our widget for some reason
         if focus {
@@ -175,7 +189,7 @@ impl Editor {
         self.scroll_area_rect = sao.inner_rect;
         self.scroll_area_offset = sao.state.offset;
 
-        sao.inner
+        sao.inner.inner
     }
 
     pub fn ui(
