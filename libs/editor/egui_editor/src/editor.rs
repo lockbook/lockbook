@@ -142,7 +142,6 @@ impl Editor {
             .id_source(self.id)
             .show(ui, |ui| {
                 ui.spacing_mut().item_spacing = Vec2::ZERO;
-
                 // set focus
                 if request_focus {
                     ui.memory_mut(|m| {
@@ -171,11 +170,11 @@ impl Editor {
                 println!("{:#?}", text_rect);
                 println!("----\n\n\n");
 
-                self.ui_rect = text_rect;
+                
                 ui.allocate_ui_at_rect(text_rect, |ui| self.ui(ui, id, touch_mode, &events))
             });
         println!("{:#?}", sao.inner_rect);
-        // self.ui_rect = sao.inner_rect;
+        //self.ui_rect = sao.inner_rect;
 
         // set focus again because egui clears it for our widget for some reason
         if focus {
