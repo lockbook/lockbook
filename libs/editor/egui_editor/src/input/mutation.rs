@@ -17,163 +17,6 @@ pub fn calc(
     let current_cursor = buffer.cursor;
     let mut mutation = Vec::new();
     match modification {
-        Modification::Heading(heading_size) => {
-            let galley_idx = galleys.galley_at_char(current_cursor.selection.start());
-            let galley = &galleys.galleys[galley_idx];
-
-            let headings: String = std::iter::repeat("#")
-                .take(heading_size as usize)
-                .chain(std::iter::once(" "))
-                .collect();
-
-            let line_cursor = region_to_cursor(
-                Region::ToOffset {
-                    offset: Offset::To(Bound::Line),
-                    backwards: true,
-                    extend_selection: false,
-                },
-                current_cursor,
-                buffer,
-                galleys,
-            );
-
-            mutation.push(SubMutation::Cursor {
-                cursor: (
-                    line_cursor.selection.start() - galley.head_size,
-                    line_cursor.selection.start(),
-                )
-                    .into(),
-            });
-
-            //     mutation.push(SubMutation::Cursor {
-            //         cursor: (
-            //             galley.range.start() + galley.head_size - from_size,
-            //             galley.range.start() + galley.head_size,
-            //         )
-            //             .into(),
-            //     });
-
-            mutation.push(SubMutation::Insert {
-                text: headings,
-                advance_cursor: true,
-            });
-
-            mutation.push(SubMutation::Cursor { cursor: current_cursor });
-        }
-        Modification::Bold => {
-            mutation.push(SubMutation::Cursor { cursor: current_cursor.selection.start().into() });
-            mutation.push(SubMutation::Insert { text: "__".to_string(), advance_cursor: true });
-            mutation.push(SubMutation::Cursor { cursor: current_cursor.selection.end().into() });
-            mutation.push(SubMutation::Insert { text: "__".to_string(), advance_cursor: false });
-
-            mutation.push(SubMutation::Cursor { cursor: current_cursor });
-        }
-        Modification::Italic => {
-            mutation.push(SubMutation::Cursor { cursor: current_cursor.selection.start().into() });
-            mutation.push(SubMutation::Insert { text: "_".to_string(), advance_cursor: true });
-            mutation.push(SubMutation::Cursor { cursor: current_cursor.selection.end().into() });
-            mutation.push(SubMutation::Insert { text: "_".to_string(), advance_cursor: false });
-
-            mutation.push(SubMutation::Cursor { cursor: current_cursor });
-        }
-        Modification::Code => {
-            mutation.push(SubMutation::Cursor { cursor: current_cursor.selection.start().into() });
-            mutation.push(SubMutation::Insert { text: "`".to_string(), advance_cursor: true });
-            mutation.push(SubMutation::Cursor { cursor: current_cursor.selection.end().into() });
-            mutation.push(SubMutation::Insert { text: "`".to_string(), advance_cursor: false });
-
-            mutation.push(SubMutation::Cursor { cursor: current_cursor });
-        }
-        Modification::BulletListItem => {
-            let galley_idx = galleys.galley_at_char(current_cursor.selection.start());
-            let galley = &galleys.galleys[galley_idx];
-
-            match &galley.annotation {
-                Some(Annotation::Item(ItemType::Bulleted, _)) => {
-                    list_mutation_replacement(&mut mutation, buffer, galleys, current_cursor, ItemType::Bulleted, None);
-                }
-                Some(Annotation::Item(item_type, _)) => {
-                    list_mutation_replacement(&mut mutation, buffer, galleys, current_cursor, *item_type, Some(ItemType::Bulleted));
-                }
-                _ => {
-                    mutation.push(SubMutation::Cursor {
-                        cursor: region_to_cursor(
-                            Region::ToOffset {
-                                offset: Offset::To(Bound::Paragraph),
-                                backwards: true,
-                                extend_selection: false,
-                            },
-                            current_cursor,
-                            buffer,
-                            galleys,
-                        ),
-                    });
-                    mutation.push(SubMutation::Insert { text: "+ ".to_string(), advance_cursor: true });
-
-                    mutation.push(SubMutation::Cursor { cursor: current_cursor });
-                }
-            }
-        }
-        Modification::NumberListItem => {
-            let galley_idx = galleys.galley_at_char(current_cursor.selection.start());
-            let galley = &galleys.galleys[galley_idx];
-
-            match &galley.annotation {
-                Some(Annotation::Item(ItemType::Numbered(num), _)) => {
-                    list_mutation_replacement(&mut mutation, buffer, galleys, current_cursor, ItemType::Numbered(*num), None);
-                }
-                Some(Annotation::Item(item_type, _)) => {
-                    list_mutation_replacement(&mut mutation, buffer, galleys, current_cursor, *item_type, Some(ItemType::Numbered(1)));
-                }
-                _ => {
-                    mutation.push(SubMutation::Cursor {
-                        cursor: region_to_cursor(
-                            Region::ToOffset {
-                                offset: Offset::To(Bound::Paragraph),
-                                backwards: true,
-                                extend_selection: false,
-                            },
-                            current_cursor,
-                            buffer,
-                            galleys,
-                        ),
-                    });
-                    mutation.push(SubMutation::Insert { text: "1. ".to_string(), advance_cursor: true });
-
-                    mutation.push(SubMutation::Cursor { cursor: current_cursor });
-                }
-            }
-        }
-        Modification::TodoListItem => {
-            let galley_idx = galleys.galley_at_char(current_cursor.selection.start());
-            let galley = &galleys.galleys[galley_idx];
-
-            match &galley.annotation {
-                Some(Annotation::Item(ItemType::Todo(checked), _)) => {
-                    list_mutation_replacement(&mut mutation, buffer, galleys, current_cursor, ItemType::Todo(*checked), None);
-                }
-                Some(Annotation::Item(item_type, _)) => {
-                    list_mutation_replacement(&mut mutation, buffer, galleys, current_cursor, *item_type, Some(ItemType::Todo(false)));
-                }
-                _ => {
-                    mutation.push(SubMutation::Cursor {
-                        cursor: region_to_cursor(
-                            Region::ToOffset {
-                                offset: Offset::To(Bound::Paragraph),
-                                backwards: true,
-                                extend_selection: false,
-                            },
-                            current_cursor,
-                            buffer,
-                            galleys,
-                        ),
-                    });
-                    mutation.push(SubMutation::Insert { text: "- [ ] ".to_string(), advance_cursor: true });
-
-                    mutation.push(SubMutation::Cursor { cursor: current_cursor });
-                }
-            }
-        }
         Modification::Select { region } => mutation.push(SubMutation::Cursor {
             cursor: region_to_cursor(region, current_cursor, buffer, galleys),
         }),
@@ -513,11 +356,209 @@ pub fn calc(
                 mutation.push(SubMutation::Cursor { cursor: current_cursor });
             }
         }
+        Modification::Heading(heading_size) => {
+            let galley_idx = galleys.galley_at_char(current_cursor.selection.start());
+            let galley = &galleys.galleys[galley_idx];
+
+            let headings: String = std::iter::repeat("#")
+                .take(heading_size as usize)
+                .chain(std::iter::once(" "))
+                .collect();
+
+            let line_cursor = region_to_cursor(
+                Region::ToOffset {
+                    offset: Offset::To(Bound::Line),
+                    backwards: true,
+                    extend_selection: false,
+                },
+                current_cursor,
+                buffer,
+                galleys,
+            );
+
+            mutation.push(SubMutation::Cursor {
+                cursor: (
+                    line_cursor.selection.start() - galley.head_size,
+                    line_cursor.selection.start(),
+                )
+                    .into(),
+            });
+
+            mutation.push(SubMutation::Insert { text: headings, advance_cursor: true });
+
+            mutation.push(SubMutation::Cursor { cursor: current_cursor });
+        }
+        Modification::Bold => {
+            mutation.push(SubMutation::Cursor { cursor: current_cursor.selection.start().into() });
+            mutation.push(SubMutation::Insert { text: "__".to_string(), advance_cursor: true });
+            mutation.push(SubMutation::Cursor { cursor: current_cursor.selection.end().into() });
+            mutation.push(SubMutation::Insert { text: "__".to_string(), advance_cursor: false });
+
+            mutation.push(SubMutation::Cursor { cursor: current_cursor });
+        }
+        Modification::Italic => {
+            mutation.push(SubMutation::Cursor { cursor: current_cursor.selection.start().into() });
+            mutation.push(SubMutation::Insert { text: "_".to_string(), advance_cursor: true });
+            mutation.push(SubMutation::Cursor { cursor: current_cursor.selection.end().into() });
+            mutation.push(SubMutation::Insert { text: "_".to_string(), advance_cursor: false });
+
+            mutation.push(SubMutation::Cursor { cursor: current_cursor });
+        }
+        Modification::Code => {
+            mutation.push(SubMutation::Cursor { cursor: current_cursor.selection.start().into() });
+            mutation.push(SubMutation::Insert { text: "`".to_string(), advance_cursor: true });
+            mutation.push(SubMutation::Cursor { cursor: current_cursor.selection.end().into() });
+            mutation.push(SubMutation::Insert { text: "`".to_string(), advance_cursor: false });
+
+            mutation.push(SubMutation::Cursor { cursor: current_cursor });
+        }
+        Modification::BulletListItem => {
+            let galley_idx = galleys.galley_at_char(current_cursor.selection.start());
+            let galley = &galleys.galleys[galley_idx];
+
+            match &galley.annotation {
+                Some(Annotation::Item(ItemType::Bulleted, _)) => {
+                    list_mutation_replacement(
+                        &mut mutation,
+                        buffer,
+                        galleys,
+                        current_cursor,
+                        ItemType::Bulleted,
+                        None,
+                    );
+                }
+                Some(Annotation::Item(item_type, _)) => {
+                    list_mutation_replacement(
+                        &mut mutation,
+                        buffer,
+                        galleys,
+                        current_cursor,
+                        *item_type,
+                        Some(ItemType::Bulleted),
+                    );
+                }
+                _ => {
+                    mutation.push(SubMutation::Cursor {
+                        cursor: region_to_cursor(
+                            Region::ToOffset {
+                                offset: Offset::To(Bound::Paragraph),
+                                backwards: true,
+                                extend_selection: false,
+                            },
+                            current_cursor,
+                            buffer,
+                            galleys,
+                        ),
+                    });
+                    mutation
+                        .push(SubMutation::Insert { text: "+ ".to_string(), advance_cursor: true });
+
+                    mutation.push(SubMutation::Cursor { cursor: current_cursor });
+                }
+            }
+        }
+        Modification::NumberListItem => {
+            let galley_idx = galleys.galley_at_char(current_cursor.selection.start());
+            let galley = &galleys.galleys[galley_idx];
+
+            match &galley.annotation {
+                Some(Annotation::Item(ItemType::Numbered(num), _)) => {
+                    list_mutation_replacement(
+                        &mut mutation,
+                        buffer,
+                        galleys,
+                        current_cursor,
+                        ItemType::Numbered(*num),
+                        None,
+                    );
+                }
+                Some(Annotation::Item(item_type, _)) => {
+                    list_mutation_replacement(
+                        &mut mutation,
+                        buffer,
+                        galleys,
+                        current_cursor,
+                        *item_type,
+                        Some(ItemType::Numbered(1)),
+                    );
+                }
+                _ => {
+                    mutation.push(SubMutation::Cursor {
+                        cursor: region_to_cursor(
+                            Region::ToOffset {
+                                offset: Offset::To(Bound::Paragraph),
+                                backwards: true,
+                                extend_selection: false,
+                            },
+                            current_cursor,
+                            buffer,
+                            galleys,
+                        ),
+                    });
+                    mutation.push(SubMutation::Insert {
+                        text: "1. ".to_string(),
+                        advance_cursor: true,
+                    });
+
+                    mutation.push(SubMutation::Cursor { cursor: current_cursor });
+                }
+            }
+        }
+        Modification::TodoListItem => {
+            let galley_idx = galleys.galley_at_char(current_cursor.selection.start());
+            let galley = &galleys.galleys[galley_idx];
+
+            match &galley.annotation {
+                Some(Annotation::Item(ItemType::Todo(checked), _)) => {
+                    list_mutation_replacement(
+                        &mut mutation,
+                        buffer,
+                        galleys,
+                        current_cursor,
+                        ItemType::Todo(*checked),
+                        None,
+                    );
+                }
+                Some(Annotation::Item(item_type, _)) => {
+                    list_mutation_replacement(
+                        &mut mutation,
+                        buffer,
+                        galleys,
+                        current_cursor,
+                        *item_type,
+                        Some(ItemType::Todo(false)),
+                    );
+                }
+                _ => {
+                    mutation.push(SubMutation::Cursor {
+                        cursor: region_to_cursor(
+                            Region::ToOffset {
+                                offset: Offset::To(Bound::Paragraph),
+                                backwards: true,
+                                extend_selection: false,
+                            },
+                            current_cursor,
+                            buffer,
+                            galleys,
+                        ),
+                    });
+                    mutation.push(SubMutation::Insert {
+                        text: "- [ ] ".to_string(),
+                        advance_cursor: true,
+                    });
+
+                    mutation.push(SubMutation::Cursor { cursor: current_cursor });
+                }
+            }
+        }
     }
     EditorMutation::Buffer(mutation)
 }
 
-pub fn list_mutation_replacement(mutation: &mut Vec<SubMutation>, buffer: &SubBuffer, galleys: &Galleys, current_cursor: Cursor, from: ItemType, to: Option<ItemType>) {
+pub fn list_mutation_replacement(
+    mutation: &mut Vec<SubMutation>, buffer: &SubBuffer, galleys: &Galleys, current_cursor: Cursor,
+    from: ItemType, to: Option<ItemType>,
+) {
     let from_size = match from {
         ItemType::Bulleted => 2,
         ItemType::Numbered(num) => num.to_string().len() + 2,
@@ -543,17 +584,10 @@ pub fn list_mutation_replacement(mutation: &mut Vec<SubMutation>, buffer: &SubBu
     );
 
     mutation.push(SubMutation::Cursor {
-        cursor: (
-            line_cursor.selection.start() - from_size,
-            line_cursor.selection.start(),
-        )
-            .into(),
+        cursor: (line_cursor.selection.start() - from_size, line_cursor.selection.start()).into(),
     });
 
-    mutation.push(SubMutation::Insert {
-        text: to_text,
-        advance_cursor: false,
-    });
+    mutation.push(SubMutation::Insert { text: to_text, advance_cursor: false });
     mutation.push(SubMutation::Cursor { cursor: current_cursor });
 }
 

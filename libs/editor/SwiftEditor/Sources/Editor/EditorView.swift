@@ -3,7 +3,7 @@ import SwiftUI
 
 public struct EditorView: View {
     
-    @State public var editorState: EditorState
+    @State var editorState: EditorState
     @FocusState var focused: Bool
     private let metalView: MetalView
     

@@ -110,7 +110,6 @@ struct MarkdownEditor: View {
             toolbar
                 .padding(.top, 9)
                 .padding(.horizontal)
-//                .padding(.bottom, 3)
 
             editor
         }
@@ -253,7 +252,6 @@ struct MarkdownEditorImage: View {
         Image(systemName: systemImageName)
             .padding(5)
             .foregroundColor(.primary)
-//            .foregroundColor(isSelected ? .blue : .primary)
             .background(isSelected ? .gray.opacity(0.2) : .clear)
             .cornerRadius(5)
     }

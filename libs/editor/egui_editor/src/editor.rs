@@ -8,6 +8,7 @@ use crate::appearance::Appearance;
 use crate::ast::Ast;
 use crate::buffer::Buffer;
 use crate::debug::DebugInfo;
+use crate::element::{Element, ItemType};
 use crate::galleys::Galleys;
 use crate::images::ImageCache;
 use crate::input::canonical::{Bound, Modification, Offset, Region};
@@ -18,7 +19,6 @@ use crate::offset_types::RangeExt;
 use crate::styles::StyleInfo;
 use crate::test_input::TEST_MARKDOWN;
 use crate::{ast, galleys, images, layouts, register_fonts, styles};
-use crate::element::{Element, ItemType};
 
 #[repr(C)]
 #[derive(Debug, Default)]
@@ -271,7 +271,9 @@ impl Editor {
         let mut cursor_in_italic = false;
         let mut cursor_in_inline_code = false;
 
-        let ast_node_idx = self.ast.ast_node_at_char(self.buffer.current.cursor.selection.start());
+        let ast_node_idx = self
+            .ast
+            .ast_node_at_char(self.buffer.current.cursor.selection.start());
         let ast_node = &self.ast.nodes[ast_node_idx];
 
         match ast_node.element {
@@ -280,7 +282,9 @@ impl Editor {
             Element::Strong => cursor_in_bold = true,
             Element::Emphasis => cursor_in_italic = true,
             _ => {
-                let galley_idx = self.galleys.galley_at_char(self.buffer.current.cursor.selection.start());
+                let galley_idx = self
+                    .galleys
+                    .galley_at_char(self.buffer.current.cursor.selection.start());
                 let galley = &self.galleys.galleys[galley_idx];
 
                 match galley.annotation {

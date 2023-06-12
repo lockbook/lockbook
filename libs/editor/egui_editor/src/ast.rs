@@ -38,7 +38,9 @@ impl Ast {
         let smallest_chosen_ast_range = usize::MAX;
 
         for i in 0..self.nodes.len() {
-            if self.nodes[i].range.contains(offset) && self.nodes[i].range.len().0 < smallest_chosen_ast_range {
+            if self.nodes[i].range.contains(offset)
+                && self.nodes[i].range.len().0 < smallest_chosen_ast_range
+            {
                 chosen = i;
             }
         }
