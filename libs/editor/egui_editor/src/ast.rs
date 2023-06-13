@@ -35,13 +35,14 @@ pub fn calc(buffer: &SubBuffer) -> Ast {
 impl Ast {
     pub fn ast_node_at_char(&self, offset: DocCharOffset) -> usize {
         let mut chosen = 0;
-        let smallest_chosen_ast_range = usize::MAX;
+        let mut smallest_chosen_ast_range = usize::MAX;
 
         for i in 0..self.nodes.len() {
             if self.nodes[i].range.contains(offset)
                 && self.nodes[i].range.len().0 < smallest_chosen_ast_range
             {
                 chosen = i;
+                smallest_chosen_ast_range = self.nodes[i].range.len().0;
             }
         }
 
