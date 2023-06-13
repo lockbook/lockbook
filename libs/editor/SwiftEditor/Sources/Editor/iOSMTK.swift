@@ -86,13 +86,13 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
             self.textChanged()
         }
         
-        if has_copied_text(editorHandle) {
+        if has_coppied_text(editorHandle) {
             UIPasteboard.general.string = getCoppiedText()
         }
     }
     
     func getCoppiedText() -> String {
-        let result = get_copied_text(editorHandle)
+        let result = get_coppied_text(editorHandle)
         let str = String(cString: result!)
         free_text(UnsafeMutablePointer(mutating: result))
         return str
