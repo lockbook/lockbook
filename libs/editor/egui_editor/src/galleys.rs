@@ -42,9 +42,9 @@ pub fn calc(
     // draw start-of-text padding so that selection handles in touch mode aren't out of view
     // todo: don't allocate space for galleys when creating them (or something else so that we can allocate this padding in draw.rs)
     {
-        let mut ui_size = ui_size;
-        ui_size.y = 10.0;
-        ui.allocate_exact_size(ui_size, Sense::hover());
+        // let mut ui_size = ui_size;
+        // ui_size.y = 200.0;
+        // ui.allocate_exact_size(ui_size, Sense::hover());
     }
 
     Galleys {
