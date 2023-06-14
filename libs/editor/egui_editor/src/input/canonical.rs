@@ -16,6 +16,7 @@ pub enum Location {
 /// text unit that has a start and end location
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Bound {
+    Char,
     Word,
     Line,
     Paragraph,
@@ -60,11 +61,11 @@ pub enum Region {
     /// feels intuitive when using arrow keys to navigate a document.
     ToOffset { offset: Offset, backwards: bool, extend_selection: bool },
 
-    /// Current word/line/paragraph/doc
-    Bound { bound: Bound },
+    /// Current word/line/paragraph/doc, preferring previous word if `backwards`
+    Bound { bound: Bound, backwards: bool },
 
-    /// Word/line/paragraph/doc at a location
-    BoundAt { bound: Bound, location: Location },
+    /// Word/line/paragraph/doc at a location, preferring previous word if `backwards`
+    BoundAt { bound: Bound, location: Location, backwards: bool },
 }
 
 /// Standardized edits to any editor state e.g. buffer, clipboard, debug state.
@@ -161,7 +162,9 @@ pub fn calc(
             Some(Modification::Indent { deindent: modifiers.shift })
         }
         Event::Key { key: Key::A, pressed: true, modifiers, .. } if modifiers.command => {
-            Some(Modification::Select { region: Region::Bound { bound: Bound::Doc } })
+            Some(Modification::Select {
+                region: Region::Bound { bound: Bound::Doc, backwards: true },
+            })
         }
         Event::Key { key: Key::X, pressed: true, modifiers, .. } if modifiers.command => {
             Some(Modification::Cut)
@@ -241,9 +244,15 @@ pub fn calc(
                                 }
                             }
                         }
-                        ClickType::Double => Region::BoundAt { bound: Bound::Word, location },
-                        ClickType::Triple => Region::BoundAt { bound: Bound::Line, location },
-                        ClickType::Quadruple => Region::BoundAt { bound: Bound::Doc, location },
+                        ClickType::Double => {
+                            Region::BoundAt { bound: Bound::Word, location, backwards: true }
+                        }
+                        ClickType::Triple => {
+                            Region::BoundAt { bound: Bound::Line, location, backwards: true }
+                        }
+                        ClickType::Quadruple => {
+                            Region::BoundAt { bound: Bound::Doc, location, backwards: true }
+                        }
                     }
                 },
             })

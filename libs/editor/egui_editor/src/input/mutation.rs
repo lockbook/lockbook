@@ -638,19 +638,19 @@ pub fn region_to_cursor(
                 current_cursor.selection.end().into()
             }
         }
-        Region::Bound { bound } => {
+        Region::Bound { bound, backwards } => {
             let mut cursor = current_cursor;
-            cursor.advance(Offset::To(bound), true, buffer, galleys);
+            cursor.advance(Offset::To(bound), backwards, buffer, galleys);
             cursor.selection.0 = cursor.selection.1;
-            cursor.advance(Offset::To(bound), false, buffer, galleys);
+            cursor.advance(Offset::To(bound), !backwards, buffer, galleys);
             cursor
         }
-        Region::BoundAt { bound, location } => {
+        Region::BoundAt { bound, location, backwards } => {
             let mut cursor: Cursor =
                 location_to_char_offset(location, current_cursor, galleys, &buffer.segs).into();
-            cursor.advance(Offset::To(bound), true, buffer, galleys);
+            cursor.advance(Offset::To(bound), backwards, buffer, galleys);
             cursor.selection.0 = cursor.selection.1;
-            cursor.advance(Offset::To(bound), false, buffer, galleys);
+            cursor.advance(Offset::To(bound), !backwards, buffer, galleys);
             cursor
         }
     }

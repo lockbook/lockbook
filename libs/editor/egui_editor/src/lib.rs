@@ -61,6 +61,17 @@ pub struct CPoint {
 
 #[repr(C)]
 #[derive(Debug)]
+pub enum CTextGranularity {
+    Character = 0,
+    Word = 1,
+    Sentence = 2,
+    Paragraph = 3,
+    Line = 4,
+    Document = 5,
+}
+
+#[repr(C)]
+#[derive(Debug)]
 pub struct CRect {
     pub min_x: f64,
     pub min_y: f64,
