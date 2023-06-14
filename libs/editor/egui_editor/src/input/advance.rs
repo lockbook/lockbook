@@ -18,6 +18,7 @@ impl DocCharOffset {
                 .advance_to_word_bound(backwards, buffer, galleys)
                 .fix(backwards, galleys),
             Offset::To(Bound::Line) => self.advance_to_line_bound(backwards, galleys),
+            Offset::To(Bound::Paragraph) => self.advance_to_paragraph_bound(backwards, galleys),
             Offset::To(Bound::Doc) => self.advance_to_doc_bound(backwards, &buffer.segs),
             Offset::By(Increment::Char) => self
                 .advance_by_char(backwards, &buffer.segs)
@@ -182,6 +183,17 @@ impl DocCharOffset {
             galley.galley.cursor_end_of_row(&ecursor)
         };
         galleys.char_offset_by_galley_and_cursor(galley_idx, &ecursor)
+    }
+
+    fn advance_to_paragraph_bound(self, backwards: bool, galleys: &Galleys) -> Self {
+        // todo: is this the right definition of a paragraph?
+        let galley_idx = galleys.galley_at_char(self);
+        let galley_text_range = &galleys[galley_idx].text_range();
+        if backwards {
+            galley_text_range.start()
+        } else {
+            galley_text_range.end()
+        }
     }
 
     fn advance_to_doc_bound(self, backwards: bool, segs: &UnicodeSegs) -> Self {

@@ -1,5 +1,6 @@
+use crate::input::canonical::Modification;
 use crate::{Editor, IntegrationOutput, WgpuEditor};
-use egui::{Context, Visuals};
+use egui::{Context, Event, Visuals};
 use egui_wgpu_backend::wgpu::CompositeAlphaMode;
 use egui_wgpu_backend::{wgpu, ScreenDescriptor};
 use std::ffi::{c_char, c_void, CStr, CString};
@@ -108,19 +109,19 @@ pub unsafe extern "C" fn get_text(obj: *mut c_void) -> *const c_char {
 
 /// # Safety
 #[no_mangle]
-pub unsafe extern "C" fn has_coppied_text(obj: *mut c_void) -> bool {
+pub unsafe extern "C" fn has_copied_text(obj: *mut c_void) -> bool {
     let obj = &mut *(obj as *mut WgpuEditor);
     obj.from_egui.is_some()
 }
 
 /// # Safety
 #[no_mangle]
-pub unsafe extern "C" fn get_coppied_text(obj: *mut c_void) -> *const c_char {
+pub unsafe extern "C" fn get_copied_text(obj: *mut c_void) -> *const c_char {
     let obj = &mut *(obj as *mut WgpuEditor);
 
-    let coppied_text = obj.from_egui.take().unwrap_or_default();
+    let copied_text = obj.from_egui.take().unwrap_or_default();
 
-    CString::new(coppied_text.as_str())
+    CString::new(copied_text.as_str())
         .expect("Could not Rust String -> C String")
         .into_raw()
 }
@@ -173,4 +174,70 @@ async fn request_device(
         }
         Ok((device, queue)) => (adapter, device, queue),
     }
+}
+
+/// # Safety
+/// obj must be a valid pointer to WgpuEditor
+#[no_mangle]
+pub unsafe extern "C" fn apply_style_to_selection_header(obj: *mut c_void, heading_size: u32) {
+    let obj = &mut *(obj as *mut WgpuEditor);
+
+    obj.editor
+        .custom_events
+        .push(Modification::Heading(heading_size));
+    obj.raw_input.events.push(Event::Copy);
+}
+
+/// # Safety
+/// obj must be a valid pointer to WgpuEditor
+#[no_mangle]
+pub unsafe extern "C" fn apply_style_to_selection_bulleted_list(obj: *mut c_void) {
+    let obj = &mut *(obj as *mut WgpuEditor);
+
+    obj.editor.custom_events.push(Modification::BulletListItem);
+}
+
+/// # Safety
+/// obj must be a valid pointer to WgpuEditor
+#[no_mangle]
+pub unsafe extern "C" fn apply_style_to_selection_numbered_list(obj: *mut c_void) {
+    let obj = &mut *(obj as *mut WgpuEditor);
+
+    obj.editor.custom_events.push(Modification::NumberListItem);
+}
+
+/// # Safety
+/// obj must be a valid pointer to WgpuEditor
+#[no_mangle]
+pub unsafe extern "C" fn apply_style_to_selection_todo_list(obj: *mut c_void) {
+    let obj = &mut *(obj as *mut WgpuEditor);
+
+    obj.editor.custom_events.push(Modification::TodoListItem);
+}
+
+/// # Safety
+/// obj must be a valid pointer to WgpuEditor
+#[no_mangle]
+pub unsafe extern "C" fn apply_style_to_selection_bold(obj: *mut c_void) {
+    let obj = &mut *(obj as *mut WgpuEditor);
+
+    obj.editor.custom_events.push(Modification::Bold);
+}
+
+/// # Safety
+/// obj must be a valid pointer to WgpuEditor
+#[no_mangle]
+pub unsafe extern "C" fn apply_style_to_selection_italic(obj: *mut c_void) {
+    let obj = &mut *(obj as *mut WgpuEditor);
+
+    obj.editor.custom_events.push(Modification::Italic);
+}
+
+/// # Safety
+/// obj must be a valid pointer to WgpuEditor
+#[no_mangle]
+pub unsafe extern "C" fn apply_style_to_selection_inline_code(obj: *mut c_void) {
+    let obj = &mut *(obj as *mut WgpuEditor);
+
+    obj.editor.custom_events.push(Modification::Code);
 }

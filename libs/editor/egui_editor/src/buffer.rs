@@ -29,12 +29,12 @@ pub enum EditorMutation {
 
 #[derive(Clone, Debug)]
 pub enum SubMutation {
-    Cursor { cursor: Cursor },    // modify the cursor state
-    Insert { text: String },      // insert text at cursor location
-    Delete(RelCharOffset),        // delete selection or characters before cursor
-    DebugToggle,                  // toggle debug overlay
-    ToClipboard { text: String }, // cut or copy text to clipboard
-    OpenedUrl { url: String },    // open a url
+    Cursor { cursor: Cursor },                     // modify the cursor state
+    Insert { text: String, advance_cursor: bool }, // insert text at cursor location
+    Delete(RelCharOffset),                         // delete selection or characters before cursor
+    DebugToggle,                                   // toggle debug overlay
+    ToClipboard { text: String },                  // cut or copy text to clipboard
+    OpenedUrl { url: String },                     // open a url
 }
 
 #[derive(Debug)]
@@ -214,12 +214,13 @@ impl SubBuffer {
                 SubMutation::Cursor { cursor: cur } => {
                     cur_cursor = cur;
                 }
-                SubMutation::Insert { text: text_replacement } => {
+                SubMutation::Insert { text: text_replacement, advance_cursor } => {
                     let replaced_text_range = cur_cursor.selection_or_position();
 
                     Self::modify_subsequent_cursors(
                         replaced_text_range.clone(),
                         &text_replacement,
+                        advance_cursor,
                         &mut mods,
                         &mut cur_cursor,
                     );
@@ -238,6 +239,7 @@ impl SubBuffer {
                     Self::modify_subsequent_cursors(
                         replaced_text_range.clone(),
                         text_replacement,
+                        false,
                         &mut mods,
                         &mut cur_cursor,
                     );
@@ -263,7 +265,7 @@ impl SubBuffer {
     }
 
     fn modify_subsequent_cursors(
-        replaced_text_range: Range<DocCharOffset>, text_replacement: &str,
+        replaced_text_range: Range<DocCharOffset>, text_replacement: &str, advance_cursor: bool,
         mods: &mut [SubMutation], cur_cursor: &mut Cursor,
     ) {
         let text_replacement_len = text_replacement.grapheme_indices(true).count();
@@ -279,110 +281,153 @@ impl SubBuffer {
             })
             .chain(iter::once(cur_cursor))
         {
-            Self::modify_subsequent_range(
+            Self::adjust_subsequent_range(
                 (replaced_text_range.start, replaced_text_range.end),
                 text_replacement_len.into(),
+                advance_cursor,
                 Some(&mut mod_cursor.selection),
             );
-            Self::modify_subsequent_range(
+            Self::adjust_subsequent_range(
                 (replaced_text_range.start, replaced_text_range.end),
                 text_replacement_len.into(),
+                advance_cursor,
                 mod_cursor.mark.as_mut(),
             );
-            Self::modify_subsequent_range(
+            Self::adjust_subsequent_range(
                 (replaced_text_range.start, replaced_text_range.end),
                 text_replacement_len.into(),
+                advance_cursor,
                 mod_cursor.mark_highlight.as_mut(),
             );
         }
     }
 
-    fn modify_subsequent_range(
-        replaced_text_range: (DocCharOffset, DocCharOffset), text_replacement_len: RelCharOffset,
-        maybe_range: Option<&mut (DocCharOffset, DocCharOffset)>,
+    /// Adjust a range based on a text replacement. Positions before the replacement generally are not adjusted,
+    /// positions after the replacement generally are, and positions within the replacement are adjusted to the end of
+    /// the replacement if `prefer_advance` is true or are adjusted to the start of the replacement otherwise.
+    fn adjust_subsequent_range(
+        replaced_range: (DocCharOffset, DocCharOffset), replacement_len: RelCharOffset,
+        prefer_advance: bool, maybe_range: Option<&mut (DocCharOffset, DocCharOffset)>,
     ) {
         if let Some(range) = maybe_range {
-            let replaced_text_len = replaced_text_range.end() - replaced_text_range.start();
+            for position in [&mut range.0, &mut range.1] {
+                Self::adjust_subsequent_position(
+                    replaced_range,
+                    replacement_len,
+                    prefer_advance,
+                    position,
+                );
+            }
+        }
+    }
 
-            // adjust subsequent cursor selections; no part of a cursor shall appear inside
-            // text that was not rendered when the cursor was placed (though a selection may
-            // contain it).
-            match (
-                range.start() < replaced_text_range.start(),
-                range.end() < replaced_text_range.end(),
-            ) {
-                _ if range.start() >= replaced_text_range.end() => {
-                    // case 1:
-                    //                       text before replacement: * * * * * * *
-                    //                        range of replaced text:  |<->|
-                    //          range of subsequent cursor selection:        |<->|
-                    //                        text after replacement: * X * * * *
-                    // adjusted range of subsequent cursor selection:      |<->|
-                    range.1 = range.1 + text_replacement_len - replaced_text_len;
-                    range.0 = range.0 + text_replacement_len - replaced_text_len;
-                }
-                _ if range.end() < replaced_text_range.start() => {
-                    // case 2:
-                    //                       text before replacement: * * * * * * *
-                    //                        range of replaced text:        |<->|
-                    //          range of subsequent cursor selection:  |<->|
-                    //                        text after replacement: * * * * X *
-                    // adjusted range of subsequent cursor selection:  |<->|
-                }
-                (false, false) => {
-                    // case 3:
-                    //                       text before replacement: * * * * * * *
-                    //                        range of replaced text:  |<--->|
-                    //          range of subsequent cursor selection:      |<--->|
-                    //                        text after replacement: * X * * *
-                    // adjusted range of subsequent cursor selection:    |<->|
-                    if range.1 < range.0 {
-                        range.1 =
-                            replaced_text_range.end() + text_replacement_len - replaced_text_len;
-                        range.0 = range.0 + text_replacement_len - replaced_text_len;
-                    } else {
-                        range.0 =
-                            replaced_text_range.end() + text_replacement_len - replaced_text_len;
-                        range.1 = range.1 + text_replacement_len - replaced_text_len;
-                    }
-                }
-                (true, true) => {
-                    // case 4:
-                    //                       text before replacement: * * * * * * *
-                    //                        range of replaced text:      |<--->|
-                    //          range of subsequent cursor selection:  |<--->|
-                    //                        text after replacement: * * * X *
-                    // adjusted range of subsequent cursor selection:  |<->|
-                    if range.1 < range.0 {
-                        range.0 = replaced_text_range.start();
-                    } else {
-                        range.1 = replaced_text_range.start();
-                    }
-                }
-                (false, true) => {
-                    // case 5:
-                    //                       text before replacement: * * * * * * *
-                    //                        range of replaced text:  |<------->|
-                    //          range of subsequent cursor selection:    |<--->|
-                    //                        text after replacement: * X *
-                    // adjusted range of subsequent cursor selection:    |
-                    range.1 = replaced_text_range.end() + text_replacement_len - replaced_text_len;
-                    range.0 = range.1;
-                }
-                (true, false) => {
-                    // case 6:
-                    //                       text before replacement: * * * * * * *
-                    //                        range of replaced text:    |<--->|
-                    //          range of subsequent cursor selection:  |<------->|
-                    //                        text after replacement: * * X * *
-                    // adjusted range of subsequent cursor selection:  |<--->|
-                    if range.1 < range.0 {
-                        range.0 = range.0 + text_replacement_len - replaced_text_len;
-                    } else {
-                        range.1 = range.1 + text_replacement_len - replaced_text_len;
-                    }
+    /// Adjust a position based on a text replacement. Positions before the replacement generally are not adjusted,
+    /// positions after the replacement generally are, and positions within the replacement are adjusted to the end of
+    /// the replacement if `prefer_advance` is true or are adjusted to the start of the replacement otherwise.
+    fn adjust_subsequent_position(
+        replaced_range: (DocCharOffset, DocCharOffset), replacement_len: RelCharOffset,
+        prefer_advance: bool, position: &mut DocCharOffset,
+    ) {
+        let replaced_len = replaced_range.len();
+        let replacement_start = replaced_range.start();
+        let replacement_end = replacement_start + replacement_len;
+
+        enum Mode {
+            Insert,
+            Replace,
+        }
+        let mode = if replaced_range.is_empty() { Mode::Insert } else { Mode::Replace };
+
+        let sorted_bounds = {
+            let mut bounds = vec![replaced_range.start(), replaced_range.end(), *position];
+            bounds.sort();
+            bounds
+        };
+        let bind = |start: &DocCharOffset, end: &DocCharOffset, pos: &DocCharOffset| {
+            start == &replaced_range.start() && end == &replaced_range.end() && pos == &*position
+        };
+
+        *position = match (mode, &sorted_bounds[..]) {
+            // case 1: position at point of text insertion
+            //                       text before replacement: * *
+            //                        range of replaced text:  |
+            //          range of subsequent cursor selection:  |
+            //                        text after replacement: * X *
+            // advance:
+            // adjusted range of subsequent cursor selection:    |
+            // don't advance:
+            // adjusted range of subsequent cursor selection:  |
+            (Mode::Insert, [start, end, pos]) if bind(start, end, pos) && end == pos => {
+                if prefer_advance {
+                    replacement_end
+                } else {
+                    replacement_start
                 }
             }
+
+            // case 2: position at start of text replacement
+            //                       text before replacement: * * * *
+            //                        range of replaced text:  |<->|
+            //          range of subsequent cursor selection:  |
+            //                        text after replacement: * X *
+            // adjusted range of subsequent cursor selection:  |
+            (Mode::Replace, [start, pos, end]) if bind(start, end, pos) && start == pos => {
+                if prefer_advance {
+                    replacement_end
+                } else {
+                    replacement_start
+                }
+            }
+
+            // case 3: position at end of text replacement
+            //                       text before replacement: * * * *
+            //                        range of replaced text:  |<->|
+            //          range of subsequent cursor selection:      |
+            //                        text after replacement: * X *
+            // adjusted range of subsequent cursor selection:    |
+            (Mode::Replace, [start, end, pos]) if bind(start, end, pos) && end == pos => {
+                if prefer_advance {
+                    replacement_end
+                } else {
+                    replacement_start
+                }
+            }
+
+            // case 4: position before point/start of text insertion/replacement
+            //                       text before replacement: * * * * *
+            //                        range of replaced text:    |<->|
+            //          range of subsequent cursor selection:  |
+            //                        text after replacement: * * X *
+            // adjusted range of subsequent cursor selection:  |
+            (_, [pos, start, end]) if bind(start, end, pos) => *position,
+
+            // case 5: position within text replacement
+            //                       text before replacement: * * * *
+            //                        range of replaced text:  |<->|
+            //          range of subsequent cursor selection:    |
+            //                        text after replacement: * X *
+            // advance:
+            // adjusted range of subsequent cursor selection:    |
+            // don't advance:
+            // adjusted range of subsequent cursor selection:  |
+            (Mode::Replace, [start, pos, end]) if bind(start, end, pos) => {
+                if prefer_advance {
+                    replacement_end
+                } else {
+                    replacement_start
+                }
+            }
+
+            // case 6: position after point/end of text insertion/replacement
+            //                       text before replacement: * * * * *
+            //                        range of replaced text:  |<->|
+            //          range of subsequent cursor selection:        |
+            //                        text after replacement: * X * *
+            // adjusted range of subsequent cursor selection:      |
+            (_, [start, end, pos]) if bind(start, end, pos) => {
+                *position + replacement_len - replaced_len
+            }
+            _ => unreachable!(),
         }
     }
 
@@ -457,12 +502,28 @@ mod test {
         buffer.cursor = 9.into();
         let mut debug = Default::default();
 
-        let mods = vec![SubMutation::Insert { text: "new ".to_string() }];
+        let mods = vec![SubMutation::Insert { text: "new ".to_string(), advance_cursor: true }];
 
         let (text_updated, _, _) = buffer.apply_modification(mods, &mut debug);
 
         assert_eq!(buffer.text, "document new content");
         assert_eq!(buffer.cursor, 13.into());
+        assert!(!debug.draw_enabled);
+        assert!(text_updated);
+    }
+
+    #[test]
+    fn apply_mods_insert_no_advance() {
+        let mut buffer: SubBuffer = "document content".into();
+        buffer.cursor = 9.into();
+        let mut debug = Default::default();
+
+        let mods = vec![SubMutation::Insert { text: "new ".to_string(), advance_cursor: false }];
+
+        let (text_updated, _, _) = buffer.apply_modification(mods, &mut debug);
+
+        assert_eq!(buffer.text, "document new content");
+        assert_eq!(buffer.cursor, 9.into());
         assert!(!debug.draw_enabled);
         assert!(text_updated);
     }
@@ -477,6 +538,12 @@ mod test {
         }
 
         let cases = [
+            Case {
+                cursor_a: 0.into(),
+                cursor_b: 0.into(),
+                expected_buffer: "ab1234567",
+                expected_cursor: (2, 2),
+            },
             Case {
                 cursor_a: (1, 3).into(),
                 cursor_b: (4, 6).into(),
@@ -498,7 +565,7 @@ mod test {
             Case {
                 cursor_a: (2, 6).into(),
                 cursor_b: (1, 5).into(),
-                expected_buffer: "1ba7",
+                expected_buffer: "1b7",
                 expected_cursor: (2, 2),
             },
             Case {
@@ -528,9 +595,9 @@ mod test {
             let mut debug = Default::default();
 
             let mods = vec![
-                SubMutation::Insert { text: "a".to_string() },
+                SubMutation::Insert { text: "a".to_string(), advance_cursor: true },
                 SubMutation::Cursor { cursor: case.cursor_b },
-                SubMutation::Insert { text: "b".to_string() },
+                SubMutation::Insert { text: "b".to_string(), advance_cursor: true },
             ];
 
             let (text_updated, _, _) = buffer.apply_modification(mods, &mut debug);
