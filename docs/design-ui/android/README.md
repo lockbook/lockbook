@@ -1,6 +1,7 @@
 # Android
 
 ## New Account
+
 <details>
 
 <img src="new-account-light.png"  width="30%" height="30%">
@@ -8,6 +9,7 @@
 </details>
 
 ## Import Account
+
 <details>
 
 <img src="import-account-light.png"  width="30%" height="30%">
@@ -15,6 +17,7 @@
 </details>
 
 ## Main Screen
+
 <details>
 
 <img src="main-screen-light.png"  width="30%" height="30%">
@@ -25,6 +28,7 @@
 </details>
 
 ## Editor
+
 <details>
 
 <img src="editor-light.png"  width="30%" height="30%">
@@ -35,6 +39,7 @@
 </details>
 
 ## Drawing
+
 <details>
 
 <img src="drawing-light.png"  width="30%" height="30%">
@@ -44,7 +49,8 @@
 <img src="drawing-tablet-dark.jpg"  width="80%" height="80%">
 </details>
 
-## Search 
+## Search
+
 <details>
 
 <img src="search-light.png"  width="30%" height="30%">
@@ -55,6 +61,7 @@
 </details>
 
 ## Billing
+
 <details>
 
 <img src="billing-light.png"  width="30%" height="30%">
@@ -62,8 +69,36 @@
 </details>
 
 ## Settings
+
 <details>
 
-<img src="settings-light.png"  width="30%" height="30%">
-<img src="settings-dark.png"  width="30%" height="30%">
+![rename-document-dark.jpg](settings-dark.jpg)
+![rename-document-dark2.jpg](settings-dark2.jpg)
+![rename-document-dark2.jpg](settings-dark3.jpg)
+
+</details>
+
+## Rename
+
+<details>
+
+![rename-document-dark.jpg](rename-document-dark.jpg)
+![rename-document-dark2.jpg](rename-document-dark2.jpg)
+
+</details>
+
+## Share
+
+<details>
+
+![share-dark.jpg](share-dark.jpg)
+
+</details>
+
+## Move
+
+<details>
+
+![move-dark.jpg](move-dark.jpg)
+
 </details>
