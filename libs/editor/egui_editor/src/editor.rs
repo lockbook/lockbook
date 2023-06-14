@@ -1,9 +1,8 @@
 use rand::Rng;
 use std::mem;
-use std::ops::Add;
 
 use egui::os::OperatingSystem;
-use egui::{Context, Event, FontDefinitions, Frame, Layout, Margin, Pos2, Rect, Sense, Ui, Vec2};
+use egui::{Context, Event, FontDefinitions, Frame, Margin, Pos2, Rect, Sense, Ui, Vec2};
 
 use crate::appearance::Appearance;
 use crate::ast::Ast;
@@ -159,30 +158,12 @@ impl Editor {
                     }
                 });
 
-                let editor_rect = ui.max_rect();
-                let text_rect = Rect {
-                    min: Pos2 { x: editor_rect.left() + 200.0, y: editor_rect.top() },
-                    max: Pos2 { x: editor_rect.right() - 200.0, y: editor_rect.bottom() },
-                };
-
                 Frame::default()
                     .inner_margin(Margin::symmetric(400.0, 0.0))
-                    .show(ui, |ui| {
-                        println!("{:#?}", ui.clip_rect());
-                        println!("{:#?}", ui.max_rect());
-                        println!("{:#?}", ui.min_rect());
-                        println!("{:#?}", text_rect);
-                        println!("----\n\n\n");
-                        self.ui(ui, id, touch_mode, &events)
-                    })
+                    .show(ui, |ui| self.ui(ui, id, touch_mode, &events))
             });
 
-        // let mut rect = sao.inner_rect;
-        // rect.min.x += 200.0;
-        // rect.max.x -= 600.0;
-        let rect = Rect { min: Pos2 { x: 500.0, y: 0.0 }, max: Pos2 { x: 1708.0, y: 1200.0 } };
         self.ui_rect = sao.inner_rect;
-        println!("{:#?}", self.ui_rect);
 
         // set focus again because egui clears it for our widget for some reason
         if focus {
@@ -238,8 +219,7 @@ impl Editor {
             self.layouts = layouts::calc(&self.buffer.current, &self.styles, &self.appearance);
             self.images = images::calc(&self.layouts, &self.images, &self.client, ui);
         }
-        self.galleys =
-            galleys::calc(&self.layouts, &self.images, &self.appearance, self.ui_rect.size(), ui);
+        self.galleys = galleys::calc(&self.layouts, &self.images, &self.appearance, ui);
         self.initialized = true;
 
         // draw

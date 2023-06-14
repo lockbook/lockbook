@@ -37,16 +37,8 @@ pub struct ImageInfo {
 }
 
 pub fn calc(
-    layouts: &Layouts, images: &ImageCache, appearance: &Appearance, ui_size: Vec2, ui: &mut Ui,
+    layouts: &Layouts, images: &ImageCache, appearance: &Appearance, ui: &mut Ui,
 ) -> Galleys {
-    // draw start-of-text padding so that selection handles in touch mode aren't out of view
-    // todo: don't allocate space for galleys when creating them (or something else so that we can allocate this padding in draw.rs)
-    {
-        // let mut ui_size = ui_size;
-        // ui_size.y = 200.0;
-        // ui.allocate_exact_size(ui_size, Sense::hover());
-    }
-
     Galleys {
         galleys: layouts
             .layouts
