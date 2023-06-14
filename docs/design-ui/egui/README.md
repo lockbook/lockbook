@@ -34,7 +34,7 @@
 <details>
 
 ![editor-dark](editor-dark.png)
-![editor-light](editor-dark.png)
+![editor-light](editor-light.png)
 
 </details>
 
