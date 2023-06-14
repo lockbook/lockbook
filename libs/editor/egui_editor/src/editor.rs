@@ -142,6 +142,7 @@ impl Editor {
             .id_source(self.id)
             .show(ui, |ui| {
                 ui.spacing_mut().item_spacing = Vec2::ZERO;
+
                 // set focus
                 if request_focus {
                     ui.memory_mut(|m| {
@@ -158,16 +159,12 @@ impl Editor {
                     }
                 });
 
-                let mut margin = clamp(50.0, 0.25, 1000.0, ui.max_rect().width());
-                if ui.max_rect().width() < 800.0 {
-                    margin = clamp(0.0, 0.04, 500.0, ui.max_rect().width());
-                }
+                let margin = clamp(0.04, 0.1, 0.25, ui.max_rect().width());
 
                 Frame::default()
                     .inner_margin(Margin::symmetric(margin, 0.0))
                     .show(ui, |ui| self.ui(ui, id, touch_mode, &events))
             });
-
         self.ui_rect = sao.inner_rect;
 
         // set focus again because egui clears it for our widget for some reason
@@ -346,13 +343,11 @@ impl Editor {
     }
 }
 
-fn clamp(min: f32, percent: f32, max: f32, viewport_width: f32) -> f32 {
-    let calculated_percent = viewport_width * percent;
-
-    if calculated_percent > max {
-        return max;
-    } else if calculated_percent < min {
-        return min;
+fn clamp(min: f32, mid: f32, max: f32, viewport_width: f32) -> f32 {
+    if viewport_width > 800.0 {
+        return viewport_width * max;
+    } else if viewport_width < 400.0 {
+        return viewport_width * min;
     }
-    calculated_percent
+    viewport_width * mid
 }
