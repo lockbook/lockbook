@@ -98,7 +98,7 @@ impl FileTree {
         //     })
         //     .response;
         let hover_pos = ui.input(|i| i.pointer.hover_pos().unwrap());
-        let mut end = hover_pos.clone();
+        let mut end = hover_pos;
         end.x += 70.0;
         end.y += 5.0;
 
