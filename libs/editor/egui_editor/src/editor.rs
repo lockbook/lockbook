@@ -158,8 +158,13 @@ impl Editor {
                     }
                 });
 
+                let mut margin = clamp(50.0, 0.25, 1000.0, ui.max_rect().width());
+                if ui.max_rect().width() < 800.0 {
+                    margin = clamp(0.0, 0.04, 500.0, ui.max_rect().width());
+                }
+
                 Frame::default()
-                    .inner_margin(Margin::symmetric(400.0, 0.0))
+                    .inner_margin(Margin::symmetric(margin, 0.0))
                     .show(ui, |ui| self.ui(ui, id, touch_mode, &events))
             });
 
@@ -339,4 +344,15 @@ impl Editor {
         register_fonts(&mut fonts);
         ctx.set_fonts(fonts);
     }
+}
+
+fn clamp(min: f32, percent: f32, max: f32, viewport_width: f32) -> f32 {
+    let calculated_percent = viewport_width * percent;
+
+    if calculated_percent > max {
+        return max;
+    } else if calculated_percent < min {
+        return min;
+    }
+    calculated_percent
 }
