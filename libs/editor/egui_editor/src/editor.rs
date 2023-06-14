@@ -159,10 +159,11 @@ impl Editor {
                     }
                 });
 
-                let margin = clamp(0.04, 0.1, 0.25, ui.max_rect().width());
-
                 Frame::default()
-                    .inner_margin(Margin::symmetric(margin, 0.0))
+                    .inner_margin(Margin::symmetric(
+                        clamp(0.04, 0.1, 0.25, ui.max_rect().width()),
+                        0.0,
+                    ))
                     .show(ui, |ui| self.ui(ui, id, touch_mode, &events))
             });
         self.ui_rect = sao.inner_rect;
