@@ -309,7 +309,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     
     public var inputDelegate: UITextInputDelegate?
     
-    public lazy var tokenizer: UITextInputTokenizer = UITextInputStringTokenizer(textInput: self)
+    public lazy var tokenizer: UITextInputTokenizer = LBTokenizer(editorHandle: self.editorHandle)
     
     public func position(within range: UITextRange, farthestIn direction: UITextLayoutDirection) -> UITextPosition? {
         print("\(#function)")
@@ -561,6 +561,44 @@ class LBTextPos: UITextPosition {
     
     init(c: CTextPosition) {
         self.c = c
+    }
+}
+
+class LBTokenizer: NSObject, UITextInputTokenizer {
+    let editorHandle: UnsafeMutableRawPointer?
+    
+    init(editorHandle: UnsafeMutableRawPointer?) {
+        self.editorHandle = editorHandle
+    }
+    
+    func isPosition(_ position: UITextPosition, atBoundary granularity: UITextGranularity, inDirection direction: UITextDirection) -> Bool {
+        let position = (position as! LBTextPos).c
+        let granularity = CTextGranularity(rawValue: UInt32(granularity.rawValue))
+        let backwards = direction.rawValue == 1
+        return is_position_at_bound(editorHandle, position, granularity, backwards)
+    }
+    
+    func isPosition(_ position: UITextPosition, withinTextUnit granularity: UITextGranularity, inDirection direction: UITextDirection) -> Bool {
+        let position = (position as! LBTextPos).c
+        let granularity = CTextGranularity(rawValue: UInt32(granularity.rawValue))
+        let backwards = direction.rawValue == 1
+        return is_position_within_bound(editorHandle, position, granularity, backwards)
+    }
+    
+    func position(from position: UITextPosition, toBoundary granularity: UITextGranularity, inDirection direction: UITextDirection) -> UITextPosition? {
+        let position = (position as! LBTextPos).c
+        let granularity = CTextGranularity(rawValue: UInt32(granularity.rawValue))
+        let backwards = direction.rawValue == 1
+        let result = bound_from_position(editorHandle, position, granularity, backwards)
+        return LBTextPos(c: result)
+    }
+    
+    func rangeEnclosingPosition(_ position: UITextPosition, with granularity: UITextGranularity, inDirection direction: UITextDirection) -> UITextRange? {
+        let position = (position as! LBTextPos).c
+        let granularity = CTextGranularity(rawValue: UInt32(granularity.rawValue))
+        let backwards = direction.rawValue == 1
+        let result = bound_at_position(editorHandle, position, granularity, backwards)
+        return LBTextRange(c: result)
     }
 }
 #endif

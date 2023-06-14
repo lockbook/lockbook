@@ -1,8 +1,10 @@
-use crate::input::canonical::{Bound, Increment, Modification, Offset, Region};
+use crate::input::canonical::{Bound, Increment, Location, Modification, Offset, Region};
 use crate::input::cursor::Cursor;
 use crate::input::mutation;
 use crate::offset_types::{DocCharOffset, RangeExt};
-use crate::{CPoint, CRect, CTextLayoutDirection, CTextPosition, CTextRange, WgpuEditor};
+use crate::{
+    CPoint, CRect, CTextGranularity, CTextLayoutDirection, CTextPosition, CTextRange, WgpuEditor,
+};
 use egui::{Event, Key, PointerButton, Pos2, TouchDeviceId, TouchId, TouchPhase};
 use std::cmp;
 use std::ffi::{c_char, c_void, CStr, CString};
@@ -140,9 +142,9 @@ pub unsafe extern "C" fn set_selected(obj: *mut c_void, range: CTextRange) {
 pub unsafe extern "C" fn select_current_word(obj: *mut c_void) {
     let obj = &mut *(obj as *mut WgpuEditor);
 
-    obj.editor
-        .custom_events
-        .push(Modification::Select { region: Region::Bound { bound: Bound::Word } });
+    obj.editor.custom_events.push(Modification::Select {
+        region: Region::Bound { bound: Bound::Word, backwards: true },
+    });
 }
 
 /// # Safety
@@ -151,9 +153,9 @@ pub unsafe extern "C" fn select_current_word(obj: *mut c_void) {
 pub unsafe extern "C" fn select_all(obj: *mut c_void) {
     let obj = &mut *(obj as *mut WgpuEditor);
 
-    obj.editor
-        .custom_events
-        .push(Modification::Select { region: Region::Bound { bound: Bound::Doc } });
+    obj.editor.custom_events.push(Modification::Select {
+        region: Region::Bound { bound: Bound::Doc, backwards: true },
+    });
 }
 
 /// # Safety
@@ -364,6 +366,105 @@ pub unsafe extern "C" fn position_offset_in_direction(
         cursor.advance(offset_type, backwards, buffer, galleys);
     }
     CTextPosition { none: start.none, pos: cursor.selection.1 .0 }
+}
+
+/// # Safety
+/// obj must be a valid pointer to WgpuEditor
+///
+/// https://developer.apple.com/documentation/uikit/uitextinputtokenizer/1614553-isposition
+#[no_mangle]
+pub unsafe extern "C" fn is_position_at_bound(
+    obj: *mut c_void, pos: CTextPosition, granularity: CTextGranularity, backwards: bool,
+) -> bool {
+    let obj = &mut *(obj as *mut WgpuEditor);
+    let buffer = &obj.editor.buffer.current;
+    let galleys = &obj.editor.galleys;
+
+    // if advancing the cursor then advancing it back leaves it in the original position, it's at a bound
+    let mut cursor: Cursor = pos.pos.into();
+    let bound = match granularity {
+        CTextGranularity::Character => Bound::Char,
+        CTextGranularity::Word => Bound::Word,
+        CTextGranularity::Sentence => Bound::Paragraph, // note: sentence handled as paragraph
+        CTextGranularity::Paragraph => Bound::Paragraph,
+        CTextGranularity::Line => Bound::Line,
+        CTextGranularity::Document => Bound::Doc,
+    };
+    cursor.advance(Offset::To(bound), !backwards, buffer, galleys);
+    cursor.advance(Offset::To(bound), backwards, buffer, galleys);
+
+    cursor.selection.1 == pos.pos
+}
+
+/// # Safety
+/// obj must be a valid pointer to WgpuEditor
+///
+/// https://developer.apple.com/documentation/uikit/uitextinputtokenizer/1614491-isposition
+#[no_mangle]
+pub unsafe extern "C" fn is_position_within_bound(
+    _obj: *mut c_void, _pos: CTextPosition, _granularity: CTextGranularity, _backwards: bool,
+) -> bool {
+    true // aren't we always within a bound of each type?
+}
+
+/// # Safety
+/// obj must be a valid pointer to WgpuEditor
+///
+/// https://developer.apple.com/documentation/uikit/uitextinputtokenizer/1614491-isposition
+#[no_mangle]
+pub unsafe extern "C" fn bound_from_position(
+    obj: *mut c_void, pos: CTextPosition, granularity: CTextGranularity, backwards: bool,
+) -> CTextPosition {
+    let obj = &mut *(obj as *mut WgpuEditor);
+    let buffer = &obj.editor.buffer.current;
+    let galleys = &obj.editor.galleys;
+
+    let mut cursor: Cursor = pos.pos.into();
+    let bound = match granularity {
+        CTextGranularity::Character => Bound::Char,
+        CTextGranularity::Word => Bound::Word,
+        CTextGranularity::Sentence => Bound::Paragraph, // note: sentence handled as paragraph
+        CTextGranularity::Paragraph => Bound::Paragraph,
+        CTextGranularity::Line => Bound::Line,
+        CTextGranularity::Document => Bound::Doc,
+    };
+    cursor.advance(Offset::To(bound), backwards, buffer, galleys);
+
+    CTextPosition { none: false, pos: cursor.selection.1 .0 }
+}
+
+/// # Safety
+/// obj must be a valid pointer to WgpuEditor
+///
+/// https://developer.apple.com/documentation/uikit/uitextinputtokenizer/1614464-rangeenclosingposition
+#[no_mangle]
+pub unsafe extern "C" fn bound_at_position(
+    obj: *mut c_void, pos: CTextPosition, granularity: CTextGranularity, backwards: bool,
+) -> CTextRange {
+    let obj = &mut *(obj as *mut WgpuEditor);
+    let buffer = &obj.editor.buffer.current;
+    let galleys = &obj.editor.galleys;
+
+    let bound = match granularity {
+        CTextGranularity::Character => Bound::Char,
+        CTextGranularity::Word => Bound::Word,
+        CTextGranularity::Sentence => Bound::Paragraph, // note: sentence handled as paragraph
+        CTextGranularity::Paragraph => Bound::Paragraph,
+        CTextGranularity::Line => Bound::Line,
+        CTextGranularity::Document => Bound::Doc,
+    };
+    let cursor = mutation::region_to_cursor(
+        Region::BoundAt { bound, location: Location::DocCharOffset(pos.pos.into()), backwards },
+        buffer.cursor,
+        buffer,
+        galleys,
+    );
+
+    CTextRange {
+        none: false,
+        start: CTextPosition { none: false, pos: cursor.selection.start().0 },
+        end: CTextPosition { none: false, pos: cursor.selection.end().0 },
+    }
 }
 
 /// # Safety
