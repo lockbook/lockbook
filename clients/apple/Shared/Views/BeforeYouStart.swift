@@ -21,7 +21,7 @@ struct BeforeYouStart: View {
                     #if os(iOS)
                     DI.onboarding.theyChoseToBackup = true
                     #else
-                    NSApp.sendAction(Selector(("showPreferencesWindow:")), to: nil, from: nil)
+                    NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
                     #endif
                     presentationMode.wrappedValue.dismiss()
                 }.foregroundColor(.blue)
