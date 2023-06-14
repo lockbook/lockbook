@@ -32,6 +32,7 @@ pub enum DynValueName {
     LbAnyPath,
     LbFolderPath,
     PendingShareId,
+    None,
 }
 
 pub fn generate_completions(shell: Shell) -> Result<(), CliError> {
@@ -50,7 +51,12 @@ pub fn complete(core: &Core, input: String, current: i32) -> Result<(), CliError
     // manoeuver to switch from declarative to imperative pattern.
     let cli = Command::new("");
     let cli = LbCli::augment_subcommands(cli);
-    let matches = cli.try_get_matches_from(splitted)?;
+    let matches = cli.try_get_matches_from(splitted);
+
+    if matches.is_err() {
+        return Ok(());
+    }
+    let matches = matches.unwrap();
 
     let matched_subcommand = matches
         .subcommand()
@@ -79,7 +85,7 @@ pub fn complete(core: &Core, input: String, current: i32) -> Result<(), CliError
         .unwrap_or(&"/".to_string())
         .to_string();
 
-    match DynValueName::from_str(selected_arg_value_name).unwrap() {
+    match DynValueName::from_str(selected_arg_value_name).unwrap_or(DynValueName::None) {
         DynValueName::LbAnyPath => {
             list(core, selected_arg_value, false, false)?;
         }
@@ -92,6 +98,7 @@ pub fn complete(core: &Core, input: String, current: i32) -> Result<(), CliError
         DynValueName::PendingShareId => {
             todo!()
         }
+        DynValueName::None => (),
     }
 
     Ok(())
