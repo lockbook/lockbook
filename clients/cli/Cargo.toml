@@ -11,7 +11,7 @@ path = "src/main.rs"
 [dependencies]
 is-terminal = "0.4.7"
 clap = { version = "4.1.4", features = ["derive"] }
-clap_complete = "4.3.1"
+clap_complete = "4.2.0"
 strum = { version = "0.24", features = ["derive"] }
 shellwords = "1.1.0"
 hotwatch = "0.4.6"
