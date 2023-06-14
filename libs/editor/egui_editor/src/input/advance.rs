@@ -14,6 +14,7 @@ impl DocCharOffset {
         buffer: &SubBuffer, galleys: &Galleys,
     ) -> Self {
         match offset {
+            Offset::To(Bound::Char) => self,
             Offset::To(Bound::Word) => self
                 .advance_to_word_bound(backwards, buffer, galleys)
                 .fix(backwards, galleys),
@@ -190,6 +191,16 @@ impl DocCharOffset {
         let galley_idx = galleys.galley_at_char(self);
         let galley_text_range = &galleys[galley_idx].text_range();
         if backwards {
+            if self == galley_text_range.start() && galley_idx != 0 {
+                // backwards from start of galley -> end of previous galley
+                let galley_text_range = &galleys[galley_idx - 1].text_range();
+                galley_text_range.end()
+            } else {
+                galley_text_range.start()
+            }
+        } else if self == galley_text_range.end() && galley_idx != galleys.len() - 1 {
+            // forwards from end of galley -> start of next galley
+            let galley_text_range = &galleys[galley_idx + 1].text_range();
             galley_text_range.start()
         } else {
             galley_text_range.end()
