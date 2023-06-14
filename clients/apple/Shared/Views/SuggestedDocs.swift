@@ -4,12 +4,10 @@ import SwiftLockbookCore
 struct SuggestedDocs: View {
     @EnvironmentObject var fileService: FileService
     @EnvironmentObject var current: CurrentDocument
-
+    
     var isiOS: Bool = false
     
-    #if os(macOS)
     @State var branchState: Bool = true
-    #endif
     
     var body: some View {
         #if os(iOS)
@@ -19,9 +17,56 @@ struct SuggestedDocs: View {
         #endif
     }
     
+    #if os(iOS)
     var iOSSuggestedDocs: some View {
+        Group {
+            if isiOS {
+                iOSSuggestedDocsBase
+            } else {
+                if fileService.suggestedDocs?.isEmpty != true {
+                    Button(action: {
+                        withAnimation {
+                            branchState.toggle()
+                        }
+                    }) {
+                        HStack {
+                            Text("Suggested")
+                                .bold()
+                                .foregroundColor(.primary)
+                                .textCase(.none)
+                                .font(.headline)
+                            
+                            Spacer()
+                            
+                            if branchState {
+                                Image(systemName: "chevron.down")
+                                    .foregroundColor(.gray)
+                                    .imageScale(.small)
+                            } else {
+                                Image(systemName: "chevron.right")
+                                    .foregroundColor(.gray)
+                                    .imageScale(.small)
+                            }
+                        }
+                        .padding(.top)
+                        .padding(.bottom, 5)
+                        .contentShape(Rectangle())
+                    }
+                    
+                    if branchState {
+                        iOSSuggestedDocsBase
+                        Spacer()
+                    } else {
+                        Spacer()
+                    }
+                }
+            }
+        }
+    }
+    
+    var iOSSuggestedDocsBase: some View {
         ScrollView(.horizontal) {
-            LazyHStack {
+            HStack {
                 if let suggestedDocs = fileService.suggestedDocs {
                     ForEach(suggestedDocs) { meta in
                         if let parentMeta = fileService.idsAndFiles[meta.parent] {
@@ -48,70 +93,73 @@ struct SuggestedDocs: View {
                 }
             }
             .setSuggestedDocsFraming(isiOS: isiOS)
-            
         }
         .listRowBackground(Color.clear)
         .listRowInsets(EdgeInsets())
     }
     
-    #if os(macOS)
+    #else
     var macOSSuggestedDocs: some View {
-        VStack {
-            Button(action: {
-                withAnimation {
-                    branchState.toggle()
-                }
-            }) {
-                HStack {
-                    Text("Suggested")
-                        .bold()
-                        .foregroundColor(.gray)
-                        .font(.subheadline)
-                    Spacer()
-                    if branchState {
-                        Image(systemName: "chevron.down")
-                            .foregroundColor(.gray)
-                            .imageScale(.small)
-                    } else {
-                        Image(systemName: "chevron.right")
-                            .foregroundColor(.gray)
-                            .imageScale(.small)
+        Group {
+            if fileService.suggestedDocs?.isEmpty != true {
+                VStack {
+                    Button(action: {
+                        withAnimation {
+                            branchState.toggle()
+                        }
+                    }) {
+                        HStack {
+                            Text("Suggested")
+                                .bold()
+                                .foregroundColor(.gray)
+                                .font(.subheadline)
+                            Spacer()
+                            if branchState {
+                                Image(systemName: "chevron.down")
+                                    .foregroundColor(.gray)
+                                    .imageScale(.small)
+                            } else {
+                                Image(systemName: "chevron.right")
+                                    .foregroundColor(.gray)
+                                    .imageScale(.small)
+                            }
+                        }
+                        .padding(.horizontal)
+                        .contentShape(Rectangle())
                     }
-                }
-                .padding(.horizontal)
-                .contentShape(Rectangle())
-            }
-            
-            if branchState {
-                ScrollView(.horizontal) {
-                    LazyHStack {
-                        if let suggestedDocs = fileService.suggestedDocs {
-                            ForEach(suggestedDocs) { meta in
-                                if let parentMeta = fileService.idsAndFiles[meta.parent] {
-                                    Button(action: {
-                                        current.selectedDocument = meta
-                                    }) {
-                                        SuggestedDocCell(name: meta.name, parentName: "\(parentMeta.name)/", duration: meta.lastModified)
+                    
+                    if branchState {
+                        ScrollView(.horizontal) {
+                            HStack {
+                                if let suggestedDocs = fileService.suggestedDocs {
+                                    ForEach(suggestedDocs) { meta in
+                                        if let parentMeta = fileService.idsAndFiles[meta.parent] {
+                                            Button(action: {
+                                                current.selectedDocument = meta
+                                            }) {
+                                                SuggestedDocCell(name: meta.name, parentName: "\(parentMeta.name)/", duration: meta.lastModified)
+                                            }
+                                        }
+                                    }
+                                } else {
+                                    ForEach(0...2, id: \.self) { index in
+                                        SuggestedDocLoadingCell()
                                     }
                                 }
                             }
-                        } else {
-                            ForEach(0...2, id: \.self) { index in
-                                SuggestedDocLoadingCell()
-                            }
+                            .setSuggestedDocsFraming(isiOS: isiOS)
                         }
+                        .listRowBackground(Color.clear)
+                        .listRowInsets(EdgeInsets())
                     }
-                    .setSuggestedDocsFraming(isiOS: isiOS)
                 }
-                .listRowBackground(Color.clear)
-                .listRowInsets(EdgeInsets())
             }
         }
     }
     #endif
 }
 
-extension LazyHStack {
+extension HStack {
     @ViewBuilder
     func setSuggestedDocsFraming(isiOS: Bool) -> some View {
         #if os(iOS)
