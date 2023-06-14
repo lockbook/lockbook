@@ -2,6 +2,7 @@
 import UIKit
 import MetalKit
 import Bridge
+import SwiftUI
 
 public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractionDelegate {
     
@@ -9,7 +10,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     var editorState: EditorState?
     var editMenuInteraction: UIEditMenuInteraction?
     var hasSelection: Bool = false
-    
+
     var pasteBoardEventId: Int = 0
     var lastKnownTapLocation: Float? = nil
     override init(frame frameRect: CGRect, device: MTLDevice?) {
@@ -53,6 +54,46 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
         
     }
     
+    public func header(headingSize: UInt32) {
+        apply_style_to_selection_header(editorHandle, headingSize)
+        self.setNeedsDisplay(self.frame)
+    }
+    
+    public func bulletedList() {
+        apply_style_to_selection_bulleted_list(editorHandle)
+        self.setNeedsDisplay(self.frame)
+    }
+    
+    public func numberedList() {
+        apply_style_to_selection_numbered_list(editorHandle)
+        self.setNeedsDisplay(self.frame)
+    }
+    
+    public func todoList() {
+        apply_style_to_selection_todo_list(editorHandle)
+        self.setNeedsDisplay(self.frame)
+    }
+    
+    public func bold() {
+        apply_style_to_selection_bold(editorHandle)
+        self.setNeedsDisplay(self.frame)
+    }
+    
+    public func italic() {
+        apply_style_to_selection_italic(editorHandle)
+        self.setNeedsDisplay(self.frame)
+    }
+    
+    public func inlineCode() {
+        apply_style_to_selection_inline_code(editorHandle)
+        self.setNeedsDisplay(self.frame)
+    }
+    
+    public func tab(deindent: Bool) {
+        indent_at_cursor(editorHandle, deindent)
+        self.setNeedsDisplay(self.frame)
+    }
+    
     public func setInitialContent(_ s: String) {
         let metalLayer = UnsafeMutableRawPointer(Unmanaged.passUnretained(self.layer).toOpaque())
         self.editorHandle = init_editor(metalLayer, s, isDarkMode())
@@ -69,6 +110,14 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
         let output = draw_editor(editorHandle)
         self.isPaused = !output.redraw
         
+        editorState?.isHeadingSelected = output.editor_response.cursor_in_heading;
+        editorState?.isTodoListSelected = output.editor_response.cursor_in_todo_list;
+        editorState?.isBulletListSelected = output.editor_response.cursor_in_bullet_list;
+        editorState?.isNumberListSelected = output.editor_response.cursor_in_number_list;
+        editorState?.isInlineCodeSelected = output.editor_response.cursor_in_inline_code;
+        editorState?.isBoldSelected = output.editor_response.cursor_in_bold;
+        editorState?.isItalicSelected = output.editor_response.cursor_in_italic;
+
         if output.editor_response.show_edit_menu {
             self.hasSelection = output.editor_response.has_selection
             let location = CGPoint(
@@ -86,13 +135,13 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
             self.textChanged()
         }
         
-        if has_coppied_text(editorHandle) {
+        if has_copied_text(editorHandle) {
             UIPasteboard.general.string = getCoppiedText()
         }
     }
     
     func getCoppiedText() -> String {
-        let result = get_coppied_text(editorHandle)
+        let result = get_copied_text(editorHandle)
         let str = String(cString: result!)
         free_text(UnsafeMutablePointer(mutating: result))
         return str
@@ -466,7 +515,9 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     }
     
     deinit {
-        print("editor deinited")
+        withUnsafePointer(to: self) { pointer in
+            print("editor deinited: \(self.editorHandle)")
+        }
         deinit_editor(editorHandle)
     }
     

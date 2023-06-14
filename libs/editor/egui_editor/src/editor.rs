@@ -8,12 +8,13 @@ use crate::appearance::Appearance;
 use crate::ast::Ast;
 use crate::buffer::Buffer;
 use crate::debug::DebugInfo;
+use crate::element::{Element, ItemType};
 use crate::galleys::Galleys;
 use crate::images::ImageCache;
 use crate::input::canonical::{Bound, Modification, Offset, Region};
 use crate::input::cursor::{Cursor, PointerState};
 use crate::input::events;
-use crate::layouts::Layouts;
+use crate::layouts::{Annotation, Layouts};
 use crate::offset_types::RangeExt;
 use crate::styles::StyleInfo;
 use crate::test_input::TEST_MARKDOWN;
@@ -28,6 +29,14 @@ pub struct EditorResponse {
     pub has_selection: bool,
     pub edit_menu_x: f32,
     pub edit_menu_y: f32,
+
+    pub cursor_in_heading: bool,
+    pub cursor_in_bullet_list: bool,
+    pub cursor_in_number_list: bool,
+    pub cursor_in_todo_list: bool,
+    pub cursor_in_bold: bool,
+    pub cursor_in_italic: bool,
+    pub cursor_in_inline_code: bool,
 }
 
 pub struct Editor {
@@ -253,12 +262,59 @@ impl Editor {
             ui.scroll_to_rect(self.buffer.current.cursor.end_rect(&self.galleys), None);
         }
 
+        // determine cursor markup location
+        let mut cursor_in_heading = false;
+        let mut cursor_in_bullet_list = false;
+        let mut cursor_in_number_list = false;
+        let mut cursor_in_todo_list = false;
+        let mut cursor_in_bold = false;
+        let mut cursor_in_italic = false;
+        let mut cursor_in_inline_code = false;
+
+        let ast_node_idx = self
+            .ast
+            .ast_node_at_char(self.buffer.current.cursor.selection.start());
+        let ast_node = &self.ast.nodes[ast_node_idx];
+
+        match ast_node.element {
+            Element::Heading(_) => cursor_in_heading = true,
+            Element::InlineCode => cursor_in_inline_code = true,
+            Element::Strong => cursor_in_bold = true,
+            Element::Emphasis => cursor_in_italic = true,
+            _ => {
+                let galley_idx = self
+                    .galleys
+                    .galley_at_char(self.buffer.current.cursor.selection.start());
+                let galley = &self.galleys.galleys[galley_idx];
+
+                match galley.annotation {
+                    Some(Annotation::Item(ItemType::Todo(_), ..)) => {
+                        cursor_in_todo_list = true;
+                    }
+                    Some(Annotation::Item(ItemType::Numbered(_), ..)) => {
+                        cursor_in_number_list = true;
+                    }
+                    Some(Annotation::Item(ItemType::Bulleted, ..)) => {
+                        cursor_in_bullet_list = true;
+                    }
+                    _ => {}
+                };
+            }
+        }
+
         EditorResponse {
             text_updated,
             show_edit_menu: self.maybe_menu_location.is_some(),
             has_selection: self.buffer.current.cursor.selection().is_some(),
             edit_menu_x: self.maybe_menu_location.map(|p| p.x).unwrap_or_default(),
             edit_menu_y: self.maybe_menu_location.map(|p| p.y).unwrap_or_default(),
+            cursor_in_heading,
+            cursor_in_bullet_list,
+            cursor_in_number_list,
+            cursor_in_todo_list,
+            cursor_in_bold,
+            cursor_in_italic,
+            cursor_in_inline_code,
         }
     }
 
