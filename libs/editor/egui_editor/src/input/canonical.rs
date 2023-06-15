@@ -96,9 +96,15 @@ pub enum Modification {
 
 impl From<&Modifiers> for Offset {
     fn from(modifiers: &Modifiers) -> Self {
-        if modifiers.command {
+        let line = modifiers.mac_cmd;
+
+        let apple_word = cfg!(target_vendor = "apple") && modifiers.alt;
+        let non_apple_word = !cfg!(target_vendor = "apple") && modifiers.ctrl;
+        let word = apple_word || non_apple_word;
+
+        if line {
             Offset::To(Bound::Line)
-        } else if modifiers.alt {
+        } else if word {
             Offset::To(Bound::Word)
         } else {
             Offset::By(Increment::Char)
@@ -116,7 +122,7 @@ pub fn calc(
         {
             Some(Modification::Select {
                 region: Region::ToOffset {
-                    offset: if modifiers.command {
+                    offset: if modifiers.mac_cmd {
                         Offset::To(Bound::Doc)
                     } else {
                         Offset::By(Increment::Line)
