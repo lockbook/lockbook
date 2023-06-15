@@ -96,9 +96,16 @@ pub enum Modification {
 
 impl From<&Modifiers> for Offset {
     fn from(modifiers: &Modifiers) -> Self {
-        if modifiers.command {
+        let should_jump_line = modifiers.mac_cmd;
+
+        let is_apple = cfg!(target_vendor = "apple");
+        let is_apple_alt = is_apple && modifiers.alt;
+        let is_non_apple_ctrl = !is_apple && modifiers.ctrl;
+        let should_jump_word = is_apple_alt || is_non_apple_ctrl;
+
+        if should_jump_line {
             Offset::To(Bound::Line)
-        } else if modifiers.alt {
+        } else if should_jump_word {
             Offset::To(Bound::Word)
         } else {
             Offset::By(Increment::Char)
@@ -116,7 +123,7 @@ pub fn calc(
         {
             Some(Modification::Select {
                 region: Region::ToOffset {
-                    offset: if modifiers.command {
+                    offset: if modifiers.mac_cmd {
                         Offset::To(Bound::Doc)
                     } else {
                         Offset::By(Increment::Line)
@@ -348,7 +355,7 @@ mod test {
                     key: Key::ArrowDown,
                     pressed: true,
                     repeat: false,
-                    modifiers: Modifiers { command: true, ..Default::default() },
+                    modifiers: Modifiers { mac_cmd: true, ..Default::default() },
                 },
                 TestClickChecker::default(),
                 &mut Default::default(),
@@ -398,7 +405,7 @@ mod test {
                     key: Key::ArrowDown,
                     pressed: true,
                     repeat: false,
-                    modifiers: Modifiers { command: true, shift: true, ..Default::default() },
+                    modifiers: Modifiers { mac_cmd: true, shift: true, ..Default::default() },
                 },
                 TestClickChecker::default(),
                 &mut Default::default(),
@@ -448,7 +455,7 @@ mod test {
                     key: Key::ArrowUp,
                     pressed: true,
                     repeat: false,
-                    modifiers: Modifiers { command: true, ..Default::default() },
+                    modifiers: Modifiers { mac_cmd: true, ..Default::default() },
                 },
                 TestClickChecker::default(),
                 &mut Default::default(),
@@ -498,7 +505,7 @@ mod test {
                     key: Key::ArrowUp,
                     pressed: true,
                     repeat: false,
-                    modifiers: Modifiers { command: true, shift: true, ..Default::default() },
+                    modifiers: Modifiers { mac_cmd: true, shift: true, ..Default::default() },
                 },
                 TestClickChecker::default(),
                 &mut Default::default(),
@@ -541,6 +548,7 @@ mod test {
     }
 
     #[test]
+    #[cfg(target_vendor = "Apple")]
     fn calc_alt_right() {
         assert!(matches!(
             calc(
@@ -573,7 +581,7 @@ mod test {
                     key: Key::ArrowRight,
                     pressed: true,
                     repeat: false,
-                    modifiers: Modifiers { command: true, ..Default::default() },
+                    modifiers: Modifiers { mac_cmd: true, ..Default::default() },
                 },
                 TestClickChecker::default(),
                 &mut Default::default(),
@@ -616,6 +624,7 @@ mod test {
     }
 
     #[test]
+    #[cfg(target_vendor = "Apple")]
     fn calc_alt_shift_right() {
         assert!(matches!(
             calc(
@@ -648,7 +657,7 @@ mod test {
                     key: Key::ArrowRight,
                     pressed: true,
                     repeat: false,
-                    modifiers: Modifiers { command: true, shift: true, ..Default::default() },
+                    modifiers: Modifiers { mac_cmd: true, shift: true, ..Default::default() },
                 },
                 TestClickChecker::default(),
                 &mut Default::default(),
@@ -741,6 +750,7 @@ mod test {
     }
 
     #[test]
+    #[cfg(target_vendor = "Apple")]
     fn calc_alt_left() {
         assert!(matches!(
             calc(
@@ -773,7 +783,7 @@ mod test {
                     key: Key::ArrowLeft,
                     pressed: true,
                     repeat: false,
-                    modifiers: Modifiers { command: true, ..Default::default() },
+                    modifiers: Modifiers { mac_cmd: true, ..Default::default() },
                 },
                 TestClickChecker::default(),
                 &mut Default::default(),
@@ -816,6 +826,7 @@ mod test {
     }
 
     #[test]
+    #[cfg(target_vendor = "Apple")]
     fn calc_alt_shift_left() {
         assert!(matches!(
             calc(
@@ -848,7 +859,7 @@ mod test {
                     key: Key::ArrowLeft,
                     pressed: true,
                     repeat: false,
-                    modifiers: Modifiers { command: true, shift: true, ..Default::default() },
+                    modifiers: Modifiers { mac_cmd: true, shift: true, ..Default::default() },
                 },
                 TestClickChecker::default(),
                 &mut Default::default(),
