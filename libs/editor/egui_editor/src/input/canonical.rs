@@ -96,15 +96,16 @@ pub enum Modification {
 
 impl From<&Modifiers> for Offset {
     fn from(modifiers: &Modifiers) -> Self {
-        let line = modifiers.mac_cmd;
+        let should_jump_line = modifiers.mac_cmd;
 
-        let apple_word = cfg!(target_vendor = "apple") && modifiers.alt;
-        let non_apple_word = !cfg!(target_vendor = "apple") && modifiers.ctrl;
-        let word = apple_word || non_apple_word;
+        let is_apple = cfg!(target_vendor = "apple");
+        let is_apple_alt = is_apple && modifiers.alt;
+        let is_non_apple_ctrl = !is_apple && modifiers.ctrl;
+        let should_jump_word = is_apple_alt || is_non_apple_ctrl;
 
-        if line {
+        if should_jump_line {
             Offset::To(Bound::Line)
-        } else if word {
+        } else if should_jump_word {
             Offset::To(Bound::Word)
         } else {
             Offset::By(Increment::Char)
