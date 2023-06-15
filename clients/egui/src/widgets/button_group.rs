@@ -1,4 +1,5 @@
-use eframe::{egui, epaint};
+use eframe::egui::{self, TextStyle};
+use eframe::epaint::{self, Color32};
 
 pub struct ButtonGroup<T: Copy + PartialEq> {
     value: Option<ToggleValue<T>>,
@@ -107,7 +108,7 @@ impl<T: Copy + PartialEq> ButtonGroup<T> {
             let rounding = egui::Rounding { nw: west, ne: east, sw: west, se: east };
 
             let fill = if self.value_is(btn.0) {
-                ui.style().visuals.faint_bg_color
+                ui.style().visuals.widgets.active.bg_fill
             } else if resp.hovered() {
                 ui.style().visuals.widgets.hovered.bg_fill
             } else {
@@ -118,24 +119,20 @@ impl<T: Copy + PartialEq> ButtonGroup<T> {
 
             match &btn.1 {
                 ButtonContent::Text(wtxt) => {
-                    let text = wtxt.clone().into_galley(
-                        ui,
-                        Some(false),
-                        wrap_width,
-                        egui::TextStyle::Body,
-                    );
+                    let mut txt = wtxt.clone();
+                    if self.value_is(btn.0) {
+                        txt = txt.color(Color32::WHITE);
+                    }
 
+                    let text = txt.into_galley(ui, Some(false), wrap_width, TextStyle::Body);
                     let text_pos = rect.center() - text.size() / 2.0;
 
                     text.paint_with_visuals(ui.painter(), text_pos, visuals);
                 }
                 ButtonContent::Icon(wtxt) => {
-                    let text = wtxt.clone().into_galley(
-                        ui,
-                        Some(false),
-                        wrap_width,
-                        egui::TextStyle::Body,
-                    );
+                    let text =
+                        wtxt.clone()
+                            .into_galley(ui, Some(false), wrap_width, TextStyle::Body);
 
                     let text_pos = egui::pos2(
                         rect.center().x - text.size().x / 2.0,
@@ -203,11 +200,11 @@ impl ButtonContent {
         match self {
             ButtonContent::Text(wtxt) => wtxt
                 .clone()
-                .into_galley(ui, Some(false), wrap_width, egui::TextStyle::Body)
+                .into_galley(ui, Some(false), wrap_width, TextStyle::Body)
                 .size(),
             ButtonContent::Icon(wtxt) => wtxt
                 .clone()
-                .into_galley(ui, Some(false), wrap_width, egui::TextStyle::Body)
+                .into_galley(ui, Some(false), wrap_width, TextStyle::Body)
                 .size(),
             //ButtonContent::Widget { size, .. } => *size,
         }
