@@ -2,7 +2,7 @@ use rand::Rng;
 use std::mem;
 
 use egui::os::OperatingSystem;
-use egui::{Context, Event, FontDefinitions, Pos2, Rect, Sense, Ui, Vec2};
+use egui::{Context, Event, FontDefinitions, Frame, Margin, Pos2, Rect, Sense, Ui, Vec2};
 
 use crate::appearance::Appearance;
 use crate::ast::Ast;
@@ -168,7 +168,12 @@ impl Editor {
                     }
                 });
 
-                self.ui(ui, id, touch_mode, &events)
+                Frame::default()
+                    .inner_margin(Margin::symmetric(
+                        clamp(0.04, 0.1, 0.25, ui.max_rect().width()),
+                        0.0,
+                    ))
+                    .show(ui, |ui| self.ui(ui, id, touch_mode, &events))
             });
         self.ui_rect = sao.inner_rect;
 
@@ -184,7 +189,7 @@ impl Editor {
         self.scroll_area_rect = sao.inner_rect;
         self.scroll_area_offset = sao.state.offset;
 
-        sao.inner
+        sao.inner.inner
     }
 
     pub fn ui(
@@ -226,8 +231,7 @@ impl Editor {
             self.layouts = layouts::calc(&self.buffer.current, &self.styles, &self.appearance);
             self.images = images::calc(&self.layouts, &self.images, &self.client, ui);
         }
-        self.galleys =
-            galleys::calc(&self.layouts, &self.images, &self.appearance, self.ui_rect.size(), ui);
+        self.galleys = galleys::calc(&self.layouts, &self.images, &self.appearance, ui);
         self.initialized = true;
 
         // draw
@@ -394,4 +398,13 @@ impl Editor {
         register_fonts(&mut fonts);
         ctx.set_fonts(fonts);
     }
+}
+
+fn clamp(min: f32, mid: f32, max: f32, viewport_width: f32) -> f32 {
+    if viewport_width > 800.0 {
+        return viewport_width * max;
+    } else if viewport_width < 400.0 {
+        return viewport_width * min;
+    }
+    viewport_width * mid
 }
