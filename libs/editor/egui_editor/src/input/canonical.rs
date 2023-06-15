@@ -354,7 +354,7 @@ mod test {
                     key: Key::ArrowDown,
                     pressed: true,
                     repeat: false,
-                    modifiers: Modifiers { command: true, ..Default::default() },
+                    modifiers: Modifiers { mac_cmd: true, ..Default::default() },
                 },
                 TestClickChecker::default(),
                 &mut Default::default(),
@@ -404,7 +404,7 @@ mod test {
                     key: Key::ArrowDown,
                     pressed: true,
                     repeat: false,
-                    modifiers: Modifiers { command: true, shift: true, ..Default::default() },
+                    modifiers: Modifiers { mac_cmd: true, shift: true, ..Default::default() },
                 },
                 TestClickChecker::default(),
                 &mut Default::default(),
@@ -454,7 +454,7 @@ mod test {
                     key: Key::ArrowUp,
                     pressed: true,
                     repeat: false,
-                    modifiers: Modifiers { command: true, ..Default::default() },
+                    modifiers: Modifiers { mac_cmd: true, ..Default::default() },
                 },
                 TestClickChecker::default(),
                 &mut Default::default(),
@@ -504,7 +504,7 @@ mod test {
                     key: Key::ArrowUp,
                     pressed: true,
                     repeat: false,
-                    modifiers: Modifiers { command: true, shift: true, ..Default::default() },
+                    modifiers: Modifiers { mac_cmd: true, shift: true, ..Default::default() },
                 },
                 TestClickChecker::default(),
                 &mut Default::default(),
@@ -547,6 +547,7 @@ mod test {
     }
 
     #[test]
+    #[cfg(target_vendor = "Apple")]
     fn calc_alt_right() {
         assert!(matches!(
             calc(
@@ -579,7 +580,7 @@ mod test {
                     key: Key::ArrowRight,
                     pressed: true,
                     repeat: false,
-                    modifiers: Modifiers { command: true, ..Default::default() },
+                    modifiers: Modifiers { mac_cmd: true, ..Default::default() },
                 },
                 TestClickChecker::default(),
                 &mut Default::default(),
@@ -622,6 +623,7 @@ mod test {
     }
 
     #[test]
+    #[cfg(target_vendor = "Apple")]
     fn calc_alt_shift_right() {
         assert!(matches!(
             calc(
@@ -654,7 +656,7 @@ mod test {
                     key: Key::ArrowRight,
                     pressed: true,
                     repeat: false,
-                    modifiers: Modifiers { command: true, shift: true, ..Default::default() },
+                    modifiers: Modifiers { mac_cmd: true, shift: true, ..Default::default() },
                 },
                 TestClickChecker::default(),
                 &mut Default::default(),
@@ -747,6 +749,7 @@ mod test {
     }
 
     #[test]
+    #[cfg(target_vendor = "Apple")]
     fn calc_alt_left() {
         assert!(matches!(
             calc(
@@ -779,7 +782,7 @@ mod test {
                     key: Key::ArrowLeft,
                     pressed: true,
                     repeat: false,
-                    modifiers: Modifiers { command: true, ..Default::default() },
+                    modifiers: Modifiers { mac_cmd: true, ..Default::default() },
                 },
                 TestClickChecker::default(),
                 &mut Default::default(),
@@ -822,6 +825,7 @@ mod test {
     }
 
     #[test]
+    #[cfg(target_vendor = "Apple")]
     fn calc_alt_shift_left() {
         assert!(matches!(
             calc(
@@ -854,7 +858,7 @@ mod test {
                     key: Key::ArrowLeft,
                     pressed: true,
                     repeat: false,
-                    modifiers: Modifiers { command: true, shift: true, ..Default::default() },
+                    modifiers: Modifiers { mac_cmd: true, shift: true, ..Default::default() },
                 },
                 TestClickChecker::default(),
                 &mut Default::default(),
