@@ -192,7 +192,7 @@ impl Editor {
         sao.inner.inner
     }
 
-    pub fn ui(
+    fn ui(
         &mut self, ui: &mut Ui, id: egui::Id, touch_mode: bool, events: &[Event],
     ) -> EditorResponse {
         self.debug.frame_start();
