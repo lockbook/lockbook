@@ -18,7 +18,7 @@ class DocumentLoader: ObservableObject {
     
     let core: LockbookApi
     
-    var meta: File?
+    @Published var meta: File?
     @Published var type: ViewType?
     @Published var deleted: Bool = false
     @Published var loading: Bool = true
