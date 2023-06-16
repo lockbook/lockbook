@@ -7,7 +7,7 @@ edition = "2021"
 
 [dependencies]
 is-terminal = "0.4.7"
-clap = { version = "4.1.4", features = ["derive"] }
+clap = { version = "4.1.4", features = ["derive"]}
 hotwatch = "0.4.6"
 lb = { path = "../../libs/core", package = "lockbook-core" }
 reqwest = "0.11"
