@@ -8,6 +8,7 @@ use std::time::Instant;
 
 pub mod appearance;
 pub mod ast;
+pub mod bounds;
 pub mod buffer;
 pub mod debug;
 pub mod draw;
