@@ -189,7 +189,6 @@ public class MacMTK: MTKView, MTKViewDelegate {
         editorState?.isItalicSelected = output.editor_response.cursor_in_italic;
 
         view.isPaused = !output.redraw
-        print(view.isPaused)
         if has_copied_text(editorHandle) {
             NSPasteboard.general.clearContents()
             NSPasteboard.general.setString(getCoppiedText(), forType: .string)
