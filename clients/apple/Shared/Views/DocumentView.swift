@@ -89,7 +89,6 @@ struct MarkdownEditor: View {
 
         self.editor = EditorView(editorState)
     }
-
     
     @Environment(\.colorScheme) var colorScheme
     
@@ -121,32 +120,59 @@ struct MarkdownEditor: View {
         HStack(spacing: 20) {
             HStack(spacing: 0) {
                 
-                // hack for the heading 1 shortcut since the shortcut in the menu is not recognized
+                // hack for the heading 1-4 shortcut since the shortcuts in the menu won't work unless opened
                 Button(action: {
                     editor.header(headingSize: 1)
                 }) {
                     EmptyView()
                 }
                 .frame(width: 0, height: 0)
-                .keyboardShortcut("h", modifiers: [.command, .shift])
+                .keyboardShortcut("1", modifiers: [.command, .control])
+                
+                Button(action: {
+                    editor.header(headingSize: 2)
+                }) {
+                    EmptyView()
+                }
+                .frame(width: 0, height: 0)
+                .keyboardShortcut("2", modifiers: [.command, .control])
+                
+                Button(action: {
+                    editor.header(headingSize: 3)
+                }) {
+                    EmptyView()
+                }
+                .frame(width: 0, height: 0)
+                .keyboardShortcut("3", modifiers: [.command, .control])
+                
+                Button(action: {
+                    editor.header(headingSize: 4)
+                }) {
+                    EmptyView()
+                }
+                .frame(width: 0, height: 0)
+                .keyboardShortcut("4", modifiers: [.command, .control])
                 
                 Menu(content: {
                     Button("Heading 1") {
                         editor.header(headingSize: 1)
                     }
-                    .keyboardShortcut("h", modifiers: [.command, .shift])
+                    .keyboardShortcut("1", modifiers: [.command, .control])
 
                     Button("Heading 2") {
                         editor.header(headingSize: 2)
                     }
+                    .keyboardShortcut("2", modifiers: [.command, .control])
 
                     Button("Heading 3") {
                         editor.header(headingSize: 3)
                     }
+                    .keyboardShortcut("3", modifiers: [.command, .control])
 
                     Button("Heading 4") {
                         editor.header(headingSize: 4)
                     }
+                    .keyboardShortcut("4", modifiers: [.command, .control])
                 }, label: {
                     HStack {
                         Image(systemName: "h.square")
@@ -192,7 +218,7 @@ struct MarkdownEditor: View {
                     MarkdownEditorImage(systemImageName: "greaterthan.square", isSelected: editorState.isInlineCodeSelected)
                 }
                 .buttonStyle(.borderless)
-                .keyboardShortcut("c", modifiers: .command)
+                .keyboardShortcut("c", modifiers: [.command, .shift])
 
             }
 
@@ -201,20 +227,20 @@ struct MarkdownEditor: View {
 
             HStack(spacing: 15) {
                 Button(action: {
-                    editor.bulletedList()
-                }) {
-                    MarkdownEditorImage(systemImageName: "list.bullet", isSelected: editorState.isBulletListSelected)
-                }
-                .buttonStyle(.borderless)
-                .keyboardShortcut("b", modifiers: [.command, .shift])
-
-                Button(action: {
                     editor.numberedList()
                 }) {
                     MarkdownEditorImage(systemImageName: "list.number", isSelected: editorState.isNumberListSelected)
                 }
                 .buttonStyle(.borderless)
-                .keyboardShortcut("n", modifiers: [.command, .shift])
+                .keyboardShortcut("7", modifiers: [.command, .shift])
+                
+                Button(action: {
+                    editor.bulletedList()
+                }) {
+                    MarkdownEditorImage(systemImageName: "list.bullet", isSelected: editorState.isBulletListSelected)
+                }
+                .buttonStyle(.borderless)
+                .keyboardShortcut("8", modifiers: [.command, .shift])
 
                 Button(action: {
                     editor.todoList()
@@ -222,7 +248,7 @@ struct MarkdownEditor: View {
                     MarkdownEditorImage(systemImageName: "checklist", isSelected: editorState.isTodoListSelected)
                 }
                 .buttonStyle(.borderless)
-                .keyboardShortcut("c", modifiers: [.command, .shift])
+                .keyboardShortcut("9", modifiers: [.command, .shift])
             }
 
             #if os(iOS)
