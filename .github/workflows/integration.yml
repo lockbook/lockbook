@@ -17,7 +17,7 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     - name: Set Rust Version
-      run: rustup default 1.67
+      run: rustup default 1.69
     - name: Install Nightly
       run: rustup toolchain install nightly
     - name: Install udeps
