@@ -218,7 +218,7 @@ struct MarkdownEditor: View {
                     MarkdownEditorImage(systemImageName: "greaterthan.square", isSelected: editorState.isInlineCodeSelected)
                 }
                 .buttonStyle(.borderless)
-                .keyboardShortcut("c", modifiers: [.command, .control])
+                .keyboardShortcut("c", modifiers: [.command, .shift])
 
             }
 
@@ -227,20 +227,20 @@ struct MarkdownEditor: View {
 
             HStack(spacing: 15) {
                 Button(action: {
-                    editor.bulletedList()
-                }) {
-                    MarkdownEditorImage(systemImageName: "list.bullet", isSelected: editorState.isBulletListSelected)
-                }
-                .buttonStyle(.borderless)
-                .keyboardShortcut("b", modifiers: [.command, .shift])
-
-                Button(action: {
                     editor.numberedList()
                 }) {
                     MarkdownEditorImage(systemImageName: "list.number", isSelected: editorState.isNumberListSelected)
                 }
                 .buttonStyle(.borderless)
-                .keyboardShortcut("n", modifiers: [.command, .shift])
+                .keyboardShortcut("7", modifiers: [.command, .shift])
+                
+                Button(action: {
+                    editor.bulletedList()
+                }) {
+                    MarkdownEditorImage(systemImageName: "list.bullet", isSelected: editorState.isBulletListSelected)
+                }
+                .buttonStyle(.borderless)
+                .keyboardShortcut("8", modifiers: [.command, .shift])
 
                 Button(action: {
                     editor.todoList()
@@ -248,7 +248,7 @@ struct MarkdownEditor: View {
                     MarkdownEditorImage(systemImageName: "checklist", isSelected: editorState.isTodoListSelected)
                 }
                 .buttonStyle(.borderless)
-                .keyboardShortcut("c", modifiers: [.command, .shift])
+                .keyboardShortcut("9", modifiers: [.command, .shift])
             }
 
             #if os(iOS)
