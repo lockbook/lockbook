@@ -328,7 +328,7 @@ impl AstNode {
 }
 
 #[derive(Clone, Debug)]
-enum AstTextRangeType {
+pub enum AstTextRangeType {
     /// Text between `node.range.0` and `node.text_range.0` i.e. leading syntax characters for a node.
     /// Occurs at most once per node.
     Head,
@@ -344,11 +344,11 @@ enum AstTextRangeType {
 
 #[derive(Clone, Debug)]
 pub struct AstTextRange {
-    range_type: AstTextRangeType,
-    range: (DocCharOffset, DocCharOffset),
+    pub range_type: AstTextRangeType,
+    pub range: (DocCharOffset, DocCharOffset),
 
     /// Indexes of all AST nodes containing this range, ordered from root to leaf.
-    ancestors: Vec<usize>,
+    pub ancestors: Vec<usize>,
 }
 
 pub struct AstTextRangeIter<'ast> {

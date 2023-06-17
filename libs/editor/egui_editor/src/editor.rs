@@ -6,6 +6,7 @@ use egui::{Context, Event, FontDefinitions, Frame, Margin, Pos2, Rect, Sense, Ui
 
 use crate::appearance::Appearance;
 use crate::ast::Ast;
+use crate::bounds::Words;
 use crate::buffer::Buffer;
 use crate::debug::DebugInfo;
 use crate::element::{Element, ItemType};
@@ -18,7 +19,7 @@ use crate::layouts::{Annotation, Layouts};
 use crate::offset_types::RangeExt;
 use crate::styles::StyleInfo;
 use crate::test_input::TEST_MARKDOWN;
-use crate::{ast, galleys, images, layouts, register_fonts, styles};
+use crate::{ast, bounds, galleys, images, layouts, register_fonts, styles};
 
 #[repr(C)]
 #[derive(Debug, Default)]
@@ -55,6 +56,7 @@ pub struct Editor {
 
     // cached intermediate state
     pub ast: Ast,
+    pub words: Words,
     pub styles: Vec<StyleInfo>,
     pub layouts: Layouts,
     pub galleys: Galleys,
@@ -95,6 +97,7 @@ impl Default for Editor {
             images: Default::default(),
 
             ast: Default::default(),
+            words: Default::default(),
             styles: Default::default(),
             layouts: Default::default(),
             galleys: Default::default(),
@@ -225,7 +228,7 @@ impl Editor {
         // recalculate dependent state
         if text_updated {
             self.ast = ast::calc(&self.buffer.current);
-            self.print_ast(); //todo: remove
+            self.words = bounds::calc_words(&self.buffer.current, &self.ast);
         }
         if text_updated || selection_updated || theme_updated {
             self.styles = styles::calc(&self.ast, self.buffer.current.cursor);
