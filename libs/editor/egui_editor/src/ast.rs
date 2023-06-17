@@ -142,10 +142,9 @@ impl Ast {
         // the characters between range.0 and text_range.0 are the head characters
         // the characters between text_range.1 and range.1 are the tail characters
         // the head and tail characters are those that are modified when styles are adjusted
+        // assumption: syntax characters are single-byte unicode sequences
         let text_range = {
             let mut text_range = range;
-
-            // release annotations
             match &element {
                 Element::Heading(h) => {
                     // # heading

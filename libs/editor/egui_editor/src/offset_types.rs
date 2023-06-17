@@ -4,22 +4,22 @@ use std::ops::{Add, AddAssign, Sub, SubAssign};
 
 /// A byte position in a buffer
 #[repr(transparent)]
-#[derive(Default, Copy, Clone, PartialEq, PartialOrd, Eq, Ord)]
+#[derive(Default, Copy, Clone, PartialEq, PartialOrd, Eq, Ord, Hash)]
 pub struct DocByteOffset(pub usize);
 
 /// A byte offset from a position in a buffer or a distance between two positions
 #[repr(transparent)]
-#[derive(Default, Copy, Clone, PartialEq, PartialOrd, Eq, Ord)]
+#[derive(Default, Copy, Clone, PartialEq, PartialOrd, Eq, Ord, Hash)]
 pub struct RelByteOffset(pub usize);
 
 /// A character position in a buffer
 #[repr(transparent)]
-#[derive(Default, Copy, Clone, PartialEq, PartialOrd, Eq, Ord)]
+#[derive(Default, Copy, Clone, PartialEq, PartialOrd, Eq, Ord, Hash)]
 pub struct DocCharOffset(pub usize);
 
 /// A character offset from a position in a buffer or a distance between two positions
 #[repr(transparent)]
-#[derive(Default, Copy, Clone, PartialEq, PartialOrd, Eq, Ord)]
+#[derive(Default, Copy, Clone, PartialEq, PartialOrd, Eq, Ord, Hash)]
 pub struct RelCharOffset(pub usize);
 
 // rel +/- rel = rel, doc +/- rel = doc, doc - doc = rel

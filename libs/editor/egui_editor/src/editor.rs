@@ -6,7 +6,7 @@ use egui::{Context, Event, FontDefinitions, Frame, Margin, Pos2, Rect, Sense, Ui
 
 use crate::appearance::Appearance;
 use crate::ast::Ast;
-use crate::bounds::Words;
+use crate::bounds::{Lines, Paragraphs, Words};
 use crate::buffer::Buffer;
 use crate::debug::DebugInfo;
 use crate::element::{Element, ItemType};
@@ -57,6 +57,8 @@ pub struct Editor {
     // cached intermediate state
     pub ast: Ast,
     pub words: Words,
+    pub lines: Lines,
+    pub paragraphs: Paragraphs,
     pub styles: Vec<StyleInfo>,
     pub layouts: Layouts,
     pub galleys: Galleys,
@@ -98,9 +100,11 @@ impl Default for Editor {
 
             ast: Default::default(),
             words: Default::default(),
+            paragraphs: Default::default(),
             styles: Default::default(),
             layouts: Default::default(),
             galleys: Default::default(),
+            lines: Default::default(),
 
             ui_rect: Rect { min: Default::default(), max: Default::default() },
 
@@ -229,6 +233,7 @@ impl Editor {
         if text_updated {
             self.ast = ast::calc(&self.buffer.current);
             self.words = bounds::calc_words(&self.buffer.current, &self.ast);
+            self.paragraphs = bounds::calc_paragraphs(&self.buffer.current, &self.ast);
         }
         if text_updated || selection_updated || theme_updated {
             self.styles = styles::calc(&self.ast, self.buffer.current.cursor);
