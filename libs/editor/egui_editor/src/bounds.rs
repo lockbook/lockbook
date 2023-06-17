@@ -113,10 +113,8 @@ pub fn calc_paragraphs(buffer: &SubBuffer, ast: &Ast) -> Paragraphs {
             continue;
         }
 
-        if !buffer[(prev_char_offset, char_offset)].trim().is_empty() {
-            // whitespace-only sequences don't count as paragraphs
-            result.push((prev_char_offset, char_offset));
-        }
+        // note: paragraphs can be empty
+        result.push((prev_char_offset, char_offset));
 
         prev_char_offset = char_offset + 1 // skip the matched newline;
     }
