@@ -1,4 +1,4 @@
-pub static TEST_MARKDOWN: &str = TEST_MARKDOWN_49;
+pub static TEST_MARKDOWN: &str = TEST_MARKDOWN_45;
 
 pub static TEST_MARKDOWN_0: &str = "# test";
 pub static TEST_MARKDOWN_1: &str = "a";

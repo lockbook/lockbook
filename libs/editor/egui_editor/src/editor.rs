@@ -238,7 +238,7 @@ impl Editor {
         if text_updated || selection_updated || theme_updated {
             self.styles = styles::calc(&self.ast, self.buffer.current.cursor);
             self.layouts = layouts::calc(&self.buffer.current, &self.styles, &self.appearance);
-            self.images = images::calc(&self.layouts, &self.images, &self.client, ui);
+            self.images = images::calc(&self.ast, &self.images, &self.client, ui);
         }
         self.galleys = galleys::calc(&self.layouts, &self.images, &self.appearance, ui);
         self.initialized = true;
