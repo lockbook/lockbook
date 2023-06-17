@@ -95,7 +95,7 @@ impl Default for Editor {
 
             buffer: TEST_MARKDOWN.into(),
             pointer_state: Default::default(),
-            debug: Default::default(),
+            debug: DebugInfo { draw_enabled: true, ..Default::default() },
             images: Default::default(),
 
             ast: Default::default(),
@@ -240,7 +240,14 @@ impl Editor {
             self.layouts = layouts::calc(&self.buffer.current, &self.styles, &self.appearance);
             self.images = images::calc(&self.ast, &self.images, &self.client, ui);
         }
-        self.galleys = galleys::calc(&self.layouts, &self.images, &self.appearance, ui);
+        self.galleys = galleys::calc(
+            &self.ast,
+            &self.buffer.current,
+            &self.paragraphs,
+            &self.images,
+            &self.appearance,
+            ui,
+        );
         self.initialized = true;
 
         // draw

@@ -16,7 +16,7 @@ pub struct Layouts {
     pub layouts: Vec<LayoutJobInfo>,
 }
 
-#[derive(Clone, Default, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct LayoutJobInfo {
     pub range: (DocCharOffset, DocCharOffset),
     pub job: LayoutJob,

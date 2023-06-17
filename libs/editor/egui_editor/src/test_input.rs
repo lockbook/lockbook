@@ -1,4 +1,4 @@
-pub static TEST_MARKDOWN: &str = TEST_MARKDOWN_45;
+pub static TEST_MARKDOWN: &str = TEST_MARKDOWN_38;
 
 pub static TEST_MARKDOWN_0: &str = "# test";
 pub static TEST_MARKDOWN_1: &str = "a";
@@ -207,3 +207,14 @@ code block
     code block
 
 fin"#;
+pub static TEST_MARKDOWN_50: &str = r#"# Title
+list
+* item
+
+* item
+  * indented item
+
+* item
+  * indented item
+    * double indented item
+"#;

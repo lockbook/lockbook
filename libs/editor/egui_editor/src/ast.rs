@@ -1,8 +1,9 @@
 use crate::buffer::SubBuffer;
 use crate::element::{Element, ItemType};
+use crate::layouts::Annotation;
 use crate::offset_types::{DocCharOffset, RangeExt};
 use crate::{element, Editor};
-use pulldown_cmark::{Event, LinkType, OffsetIter, Options, Parser, Tag};
+use pulldown_cmark::{Event, HeadingLevel, LinkType, OffsetIter, Options, Parser, Tag};
 
 #[derive(Default, Debug, PartialEq)]
 pub struct Ast {
@@ -131,12 +132,22 @@ impl Ast {
             return None;
         }
 
-        // trim whitespace from range
-        // operations that adjust styles will not add or remove leading or trailing whitespace
-        let range = (
-            cmark_range.0 + (buffer[cmark_range].len() - buffer[cmark_range].trim_start().len()),
-            cmark_range.1 - (buffer[cmark_range].len() - buffer[cmark_range].trim_end().len()),
-        );
+        let range = {
+            let mut range = cmark_range;
+
+            // trim trailing whitespace from range
+            // operations that adjust styles will not add or remove trailing whitespace
+            range.1 -= buffer[cmark_range].len() - buffer[cmark_range].trim_end().len();
+
+            // capture leading whitespace for list items and code blocks (affects non-fenced code blocks only)
+            if matches!(element, Element::Item(..) | Element::CodeBlock) {
+                while range.0 > 0 && !buffer[(range.0 - 1, range.1)].starts_with('\n') {
+                    range.0 -= 1;
+                }
+            }
+
+            range
+        };
 
         // trim syntax characters from text range
         // the characters between range.0 and text_range.0 are the head characters
@@ -166,10 +177,17 @@ impl Ast {
                         text_range.0 += 4;
                         text_range.1 -= 4;
                     } else {
-                        //    code block
+                        /*
+                            code block
+                        */
+                        text_range.0 += buffer[range].len() - buffer[range].trim_start().len();
                     }
                 }
                 Element::Item(item_type, _) => {
+                    // * item
+                    //   1. item
+                    //     - [ ] item
+                    text_range.0 += buffer[range].len() - buffer[range].trim_start().len();
                     text_range.0 += match item_type {
                         ItemType::Bulleted => 2,
                         ItemType::Numbered(n) => 2 + n.to_string().len(),
@@ -265,65 +283,6 @@ impl AstNode {
     ) -> Self {
         Self { element, range, text_range, children: vec![] }
     }
-
-    // capture this many spaces or tabs from before a list item
-    fn look_back_whitespace(buffer: &SubBuffer, start: DocCharOffset) -> usize {
-        let mut modification = 0;
-        loop {
-            if start < modification + 1 {
-                break;
-            }
-            let location = start - (modification + 1);
-
-            let white_maybe = &buffer[(location, location + 1)];
-            if white_maybe == " " || white_maybe == "\t" {
-                modification += 1;
-            } else {
-                break;
-            }
-        }
-        modification
-    }
-
-    // release this many newlines from the end of a list item
-    fn look_back_newlines(buffer: &SubBuffer, end: DocCharOffset) -> usize {
-        let mut modification = 0;
-        loop {
-            if end < modification + 1 {
-                break;
-            }
-            let location = end - (modification + 1);
-
-            if &buffer[(location, location + 1)] == "\n" {
-                modification += 1;
-            } else {
-                break;
-            }
-        }
-
-        // leave up to one newline
-        modification = modification.saturating_sub(1);
-
-        modification
-    }
-
-    fn capture_codeblock_newline(
-        buffer: &SubBuffer, range: (DocCharOffset, DocCharOffset),
-    ) -> usize {
-        if buffer.segs.last_cursor_position() < range.end() + 1 {
-            return 0;
-        }
-
-        if &buffer[(range.start(), range.start() + 1)] != "`" {
-            return 0;
-        }
-
-        if &buffer[(range.end(), range.end() + 1)] == "\n" {
-            return 1;
-        }
-
-        0
-    }
 }
 
 #[derive(Clone, Debug)]
@@ -348,6 +307,25 @@ pub struct AstTextRange {
 
     /// Indexes of all AST nodes containing this range, ordered from root to leaf.
     pub ancestors: Vec<usize>,
+}
+
+impl AstTextRange {
+    pub fn annotation(&self, ast: &Ast) -> Option<Annotation> {
+        match self
+            .ancestors
+            .last()
+            .map(|&idx| ast.nodes[idx].element.clone())
+        {
+            Some(Element::Heading(HeadingLevel::H1)) => Some(Annotation::Rule),
+            Some(Element::Image(link_type, url, title)) => {
+                Some(Annotation::Image(link_type, url, title))
+            }
+            Some(Element::Item(item_type, indent_level)) => {
+                Some(Annotation::Item(item_type, indent_level))
+            }
+            _ => None,
+        }
+    }
 }
 
 pub struct AstTextRangeIter<'ast> {
