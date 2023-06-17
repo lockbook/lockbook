@@ -18,7 +18,7 @@ impl StyleInfo {
     pub fn item_count(&self) -> usize {
         self.elements
             .iter()
-            .filter(|el| matches!(el, Element::Item))
+            .filter(|el| matches!(el, Element::Item(_, _)))
             .count()
     }
 
@@ -49,7 +49,8 @@ fn calc_recursive(
     let mut elements = Vec::from(parent_elements);
     elements.push(node.element.clone());
 
-    let should_start_block = node.element == Element::Item || should_start_block_for_ancestor;
+    let should_start_block =
+        matches!(node.element, Element::Item(..)) || should_start_block_for_ancestor;
     let children_start_blocks = elements == [Element::Document];
     let mut did_start_block = false;
 
@@ -184,130 +185,5 @@ impl Editor {
                 &self.buffer.current.text[style.range.start().0..style.range.end().0],
             );
         }
-    }
-}
-
-#[cfg(test)]
-mod test {
-    use crate::ast::{Ast, AstNode};
-    use crate::element::Element;
-    use crate::styles::{calc, StyleInfo};
-    use pulldown_cmark::HeadingLevel::H1;
-
-    #[test]
-    fn calc_title_with_newline() {
-        let nodes = vec![
-            AstNode { element: Element::Document, range: (0.into(), 9.into()), children: vec![1] },
-            AstNode {
-                element: Element::Heading(H1),
-                range: (0.into(), 8.into()),
-                children: vec![],
-            },
-        ];
-        let ast = Ast { nodes, root: 0 };
-        let expected_styles: Vec<StyleInfo> = vec![
-            StyleInfo {
-                block_start: true,
-                range: (0.into(), 8.into()),
-                elements: vec![Element::Document, Element::Heading(H1)],
-            },
-            StyleInfo {
-                block_start: true,
-                range: (8.into(), 9.into()),
-                elements: vec![Element::Document],
-            },
-        ];
-
-        let actual_styles = calc(&ast, 0.into());
-
-        assert_eq!(actual_styles, expected_styles);
-    }
-
-    #[test]
-    fn calc_nested_bullet_with_code() {
-        let nodes = vec![
-            AstNode { element: Element::Document, range: (0.into(), 14.into()), children: vec![1] },
-            AstNode { element: Element::Item, range: (0.into(), 14.into()), children: vec![2] },
-            AstNode { element: Element::Item, range: (6.into(), 14.into()), children: vec![3] },
-            AstNode {
-                element: Element::InlineCode,
-                range: (9.into(), 14.into()),
-                children: vec![],
-            },
-        ];
-        let ast = Ast { nodes, root: 0 };
-        let expected_styles: Vec<StyleInfo> = vec![
-            StyleInfo {
-                block_start: true,
-                range: (0.into(), 6.into()),
-                elements: vec![Element::Document, Element::Item],
-            },
-            StyleInfo {
-                block_start: true,
-                range: (6.into(), 9.into()),
-                elements: vec![Element::Document, Element::Item, Element::Item],
-            },
-            StyleInfo {
-                block_start: false,
-                range: (9.into(), 14.into()),
-                elements: vec![
-                    Element::Document,
-                    Element::Item,
-                    Element::Item,
-                    Element::InlineCode,
-                ],
-            },
-        ];
-
-        let actual_styles = calc(&ast, 0.into());
-
-        assert_eq!(actual_styles, expected_styles);
-    }
-
-    #[test]
-    fn calc_bullets_with_intervening_newline() {
-        let nodes = vec![
-            AstNode {
-                element: Element::Document,
-                range: (0.into(), 12.into()),
-                children: vec![1, 3],
-            },
-            AstNode { element: Element::Item, range: (0.into(), 6.into()), children: vec![2] },
-            AstNode { element: Element::Paragraph, range: (2.into(), 6.into()), children: vec![] },
-            AstNode { element: Element::Item, range: (7.into(), 12.into()), children: vec![4] },
-            AstNode { element: Element::Paragraph, range: (9.into(), 12.into()), children: vec![] },
-        ];
-        let ast = Ast { nodes, root: 0 };
-        let expected_styles: Vec<StyleInfo> = vec![
-            StyleInfo {
-                block_start: true,
-                range: (0.into(), 2.into()),
-                elements: vec![Element::Document, Element::Item],
-            },
-            StyleInfo {
-                block_start: false,
-                range: (2.into(), 6.into()),
-                elements: vec![Element::Document, Element::Item, Element::Paragraph],
-            },
-            StyleInfo {
-                block_start: true,
-                range: (6.into(), 7.into()),
-                elements: vec![Element::Document],
-            },
-            StyleInfo {
-                block_start: true,
-                range: (7.into(), 9.into()),
-                elements: vec![Element::Document, Element::Item],
-            },
-            StyleInfo {
-                block_start: false,
-                range: (9.into(), 12.into()),
-                elements: vec![Element::Document, Element::Item, Element::Paragraph],
-            },
-        ];
-
-        let actual_styles = calc(&ast, 0.into());
-
-        assert_eq!(actual_styles, expected_styles);
     }
 }

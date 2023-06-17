@@ -1,7 +1,6 @@
 use crate::buffer::SubBuffer;
 use crate::galleys::Galleys;
 use crate::offset_types::{DocByteOffset, DocCharOffset};
-use std::iter;
 use unicode_segmentation::UnicodeSegmentation;
 
 #[derive(Default)]

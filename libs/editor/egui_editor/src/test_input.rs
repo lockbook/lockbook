@@ -194,3 +194,16 @@ pub static TEST_MARKDOWN_46: &str = "- ”";
 pub static TEST_MARKDOWN_47: &str = "” x x";
 
 pub static TEST_MARKDOWN_48: &str = "Visit our [website](http://lockbook.net)!";
+
+pub static TEST_MARKDOWN_49: &str = r#"# Title
+list
+* __bold__ bulleted list item
+  - [x] indented todo list item
+
+```
+code block
+```
+
+    code block
+
+fin"#;

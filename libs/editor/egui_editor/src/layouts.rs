@@ -153,11 +153,16 @@ impl LayoutJobInfo {
                     Some(Annotation::Image(*link_type, url.to_string(), title.to_string()));
             }
         }
-        if style.elements.contains(&Element::Item) {
+
+        if style
+            .elements
+            .iter()
+            .any(|e| matches!(e, &Element::Item(..)))
+        {
             let indent_level = style
                 .elements
                 .iter()
-                .filter(|&e| e == &Element::Item)
+                .filter(|&e| matches!(e, &Element::Item(..)))
                 .count() as IndentLevel;
             let text = {
                 let trimmed_text = text.trim_start();
