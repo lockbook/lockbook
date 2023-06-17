@@ -101,6 +101,8 @@ pub fn calc(
                 annotation_text_format = text_format.clone();
                 match text_range_portion.range_type {
                     AstTextRangeType::Head => {
+                        layout.append("", 0.0, text_format); // apply style e.g. doc contents '# '
+
                         if emit_galley {
                             head_size = text_range_portion.range.len();
                         }
@@ -111,6 +113,7 @@ pub fn calc(
                     }
                     AstTextRangeType::Text => {
                         layout.append(&buffer[(text_range_portion.range)], 0.0, text_format);
+
                         tail_size = 0.into();
                     }
                 }
@@ -118,7 +121,7 @@ pub fn calc(
         }
 
         if emit_galley || maybe_text_range.is_none() {
-            if layout.text.is_empty() {
+            if layout.is_empty() {
                 // dummy text with document style
                 let mut text_format = Default::default();
                 Element::Document.apply_style(&mut text_format, appearance);

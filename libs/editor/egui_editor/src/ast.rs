@@ -146,8 +146,8 @@ impl Ast {
                 }
             }
 
-            // capture up to one trailing space for list items
-            if matches!(element, Element::Item(..))
+            // capture up to one trailing space for list items and headings
+            if matches!(element, Element::Item(..) | Element::Heading(..))
                 && range.1 < buffer.segs.last_cursor_position()
                 && buffer[(range.0, range.1 + 1)].ends_with(' ')
             {
@@ -167,7 +167,17 @@ impl Ast {
             match element.clone() {
                 Element::Heading(h) => {
                     // # heading
-                    text_range.0 += h as usize + 1;
+                    let original_text_range_0 = text_range.0;
+
+                    text_range.0 += h as usize;
+
+                    // correct cmark behavior with no space in syntax chars
+                    if buffer[text_range].starts_with(' ') {
+                        text_range.0 += 1;
+                    } else {
+                        element = Element::Paragraph;
+                        text_range.0 = original_text_range_0;
+                    }
                 }
                 Element::QuoteBlock => {}
                 Element::CodeBlock => {
@@ -192,11 +202,11 @@ impl Ast {
                     }
                 }
                 Element::Item(item_type, _) => {
-                    let original_text_range_0 = text_range.0;
-
                     // * item
                     //   1. item
                     //     - [ ] item
+                    let original_text_range_0 = text_range.0;
+
                     text_range.0 += buffer[range].len() - buffer[range].trim_start().len();
                     text_range.0 += match item_type {
                         ItemType::Bulleted => 1,
@@ -204,7 +214,7 @@ impl Ast {
                         ItemType::Todo(_) => 5,
                     };
 
-                    // correct cmark bulleted list behavior
+                    // correct cmark behavior with no space in syntax chars
                     if buffer[text_range].starts_with(' ') {
                         text_range.0 += 1;
                     } else {
@@ -228,9 +238,9 @@ impl Ast {
                     text_range.1 -= 1;
                 }
                 Element::Strikethrough => {
-                    // ~strikethrough~
-                    text_range.0 += 1;
-                    text_range.1 -= 1;
+                    // ~~strikethrough~~
+                    text_range.0 += 2;
+                    text_range.1 -= 2;
                 }
                 Element::Link(LinkType::Inline, url, title) => {
                     // [title](http://url.com "title")
