@@ -87,12 +87,11 @@ pub enum ItemType {
 }
 
 pub fn item_type(text: &str) -> ItemType {
-    if text.starts_with("+ [ ] ") || text.starts_with("* [ ] ") || text.starts_with("- [ ] ") {
+    if text.starts_with("+ [ ]") || text.starts_with("* [ ]") || text.starts_with("- [ ]") {
         ItemType::Todo(false)
-    } else if text.starts_with("+ [x] ") || text.starts_with("* [x] ") || text.starts_with("- [x] ")
-    {
+    } else if text.starts_with("+ [x]") || text.starts_with("* [x]") || text.starts_with("- [x]") {
         ItemType::Todo(true)
-    } else if let Some(prefix) = text.split(". ").next() {
+    } else if let Some(prefix) = text.split('.').next() {
         if let Ok(num) = prefix.parse::<usize>() {
             ItemType::Numbered(num)
         } else {

@@ -124,7 +124,7 @@ impl Ast {
     }
 
     fn push_child(
-        &mut self, parent_idx: usize, element: Element,
+        &mut self, parent_idx: usize, mut element: Element,
         cmark_range: (DocCharOffset, DocCharOffset), buffer: &SubBuffer,
     ) -> Option<usize> {
         // assumption: whitespace-only elements have no children
@@ -141,9 +141,17 @@ impl Ast {
 
             // capture leading whitespace for list items and code blocks (affects non-fenced code blocks only)
             if matches!(element, Element::Item(..) | Element::CodeBlock) {
-                while range.0 > 0 && !buffer[(range.0 - 1, range.1)].starts_with('\n') {
+                while range.0 > 0 && buffer[(range.0 - 1, range.1)].starts_with(' ') {
                     range.0 -= 1;
                 }
+            }
+
+            // capture up to one trailing space for list items
+            if matches!(element, Element::Item(..))
+                && range.1 < buffer.segs.last_cursor_position()
+                && buffer[(range.0, range.1 + 1)].ends_with(' ')
+            {
+                range.1 += 1;
             }
 
             range
@@ -156,10 +164,10 @@ impl Ast {
         // assumption: syntax characters are single-byte unicode sequences
         let text_range = {
             let mut text_range = range;
-            match &element {
+            match element.clone() {
                 Element::Heading(h) => {
                     // # heading
-                    text_range.0 += *h as usize + 1;
+                    text_range.0 += h as usize + 1;
                 }
                 Element::QuoteBlock => {}
                 Element::CodeBlock => {
@@ -184,14 +192,24 @@ impl Ast {
                     }
                 }
                 Element::Item(item_type, _) => {
+                    let original_text_range_0 = text_range.0;
+
                     // * item
                     //   1. item
                     //     - [ ] item
                     text_range.0 += buffer[range].len() - buffer[range].trim_start().len();
                     text_range.0 += match item_type {
-                        ItemType::Bulleted => 2,
-                        ItemType::Numbered(n) => 2 + n.to_string().len(),
-                        ItemType::Todo(_) => 6,
+                        ItemType::Bulleted => 1,
+                        ItemType::Numbered(n) => 1 + n.to_string().len(),
+                        ItemType::Todo(_) => 5,
+                    };
+
+                    // correct cmark bulleted list behavior
+                    if buffer[text_range].starts_with(' ') {
+                        text_range.0 += 1;
+                    } else {
+                        element = Element::Paragraph;
+                        text_range.0 = original_text_range_0;
                     }
                 }
                 Element::InlineCode => {
