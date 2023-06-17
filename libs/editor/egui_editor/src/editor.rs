@@ -225,6 +225,7 @@ impl Editor {
         // recalculate dependent state
         if text_updated {
             self.ast = ast::calc(&self.buffer.current);
+            self.print_ast(); //todo: remove
         }
         if text_updated || selection_updated || theme_updated {
             self.styles = styles::calc(&self.ast, self.buffer.current.cursor);

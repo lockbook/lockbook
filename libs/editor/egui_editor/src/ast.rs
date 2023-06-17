@@ -226,75 +226,35 @@ impl Ast {
         Some(new_child_idx)
     }
 
-    pub fn print(&self, buffer: &SubBuffer) {
-        Self::print_recursive(self, self.root, buffer, "");
+    pub fn iter_text_ranges(&self) -> AstTextRangeIter {
+        AstTextRangeIter {
+            ast: self,
+            maybe_current_range: Some(AstTextRange {
+                range_type: AstTextRangeType::Head,
+                range: (0.into(), 0.into()),
+                ancestors: vec![0],
+            }),
+        }
     }
 
-    fn print_recursive(ast: &Ast, node_idx: usize, buffer: &SubBuffer, prefix: &str) {
-        let node = &ast.nodes[node_idx];
-        let prefix = format!("{}[{:?} {:?}]", prefix, node_idx, node.element);
-
-        if node.children.is_empty() {
+    pub fn print(&self, buffer: &SubBuffer) {
+        for range in self.iter_text_ranges() {
             println!(
-                "{}: {:?}..{:?}\t{:?}\t{:?}",
-                prefix,
-                node.text_range.start(),
-                node.text_range.end(),
-                &buffer[node.range],
-                &buffer[node.text_range],
-            );
-        } else {
-            let head = (node.range.start(), ast.nodes[node.children[0]].range.start());
-            let text_head = (node.text_range.start(), ast.nodes[node.children[0]].range.start());
-            if !head.is_empty() {
-                println!(
-                    "{}: {:?}..{:?}\t{:?}\t{:?}",
-                    prefix,
-                    head.start(),
-                    head.end(),
-                    &buffer[head],
-                    &buffer[text_head]
-                );
-            }
-            for child_idx in 0..node.children.len() {
-                let child = node.children[child_idx];
-                Self::print_recursive(ast, child, buffer, &prefix);
-                if child_idx != node.children.len() - 1 {
-                    let next_child = node.children[child_idx + 1];
-                    let mid = (ast.nodes[child].range.end(), ast.nodes[next_child].range.start());
-                    if !mid.is_empty() {
-                        println!(
-                            "{}: {:?}..{:?}\t{:?}",
-                            prefix,
-                            mid.start(),
-                            mid.end(),
-                            &buffer[mid]
-                        );
-                    }
+                "{:?} {:?}: {:?}..{:?}\t{:?}",
+                range.range_type,
+                range
+                    .ancestors
+                    .iter()
+                    .map(|&i| format!("[{:?} {:?}]", i, self.nodes[i].element))
+                    .collect::<Vec<_>>(),
+                range.range.0,
+                range.range.1,
+                match range.range_type {
+                    AstTextRangeType::Head => &buffer[range.range],
+                    AstTextRangeType::Text => &buffer[range.range],
+                    AstTextRangeType::Tail => &buffer[range.range],
                 }
-            }
-            let tail = (
-                ast.nodes[node.children[node.children.len() - 1]]
-                    .range
-                    .end(),
-                node.range.end(),
             );
-            let text_tail = (
-                ast.nodes[node.children[node.children.len() - 1]]
-                    .range
-                    .end(),
-                node.text_range.end(),
-            );
-            if !tail.is_empty() {
-                println!(
-                    "{}: {:?}..{:?}\t{:?}\t{:?}",
-                    prefix,
-                    tail.start(),
-                    tail.end(),
-                    &buffer[tail],
-                    &buffer[text_tail]
-                );
-            }
         }
     }
 }
@@ -364,6 +324,162 @@ impl AstNode {
         }
 
         0
+    }
+}
+
+#[derive(Clone, Debug)]
+enum AstTextRangeType {
+    /// Text between `node.range.0` and `node.text_range.0` i.e. leading syntax characters for a node.
+    /// Occurs at most once per node.
+    Head,
+
+    /// Text between node.text_range.0 and node.text_range.1, excluding ranges captured by child nodes.
+    /// Can occur any number of times per node because child nodes slice node text into multiple parts.
+    Text,
+
+    /// Text between `node.text_range.1` and `node.range.1` i.e. trailing syntax characters for a node.
+    /// Occurs at most once per node.
+    Tail,
+}
+
+#[derive(Clone, Debug)]
+pub struct AstTextRange {
+    range_type: AstTextRangeType,
+    range: (DocCharOffset, DocCharOffset),
+
+    /// Indexes of all AST nodes containing this range, ordered from root to leaf.
+    ancestors: Vec<usize>,
+}
+
+pub struct AstTextRangeIter<'ast> {
+    /// AST being iterated
+    ast: &'ast Ast,
+
+    /// Element last emitted by the iterator
+    maybe_current_range: Option<AstTextRange>,
+}
+
+impl<'ast> Iterator for AstTextRangeIter<'ast> {
+    type Item = AstTextRange;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some(current_range) = &self.maybe_current_range {
+            // find the next nonempty range
+            let mut current_range = current_range.clone();
+            let next_range = loop {
+                let current_idx = current_range.ancestors.last().copied().unwrap_or_default();
+                let current = &self.ast.nodes[current_idx];
+
+                // where were we in the current node?
+                current_range = match current_range.range_type {
+                    AstTextRangeType::Head => {
+                        // head -> advance to own text
+
+                        // current range should have ended at start of current node's text range
+                        #[cfg(debug)]
+                        assert_eq!(current_range.range.1, current.text_range.0);
+
+                        AstTextRange {
+                            range_type: AstTextRangeType::Text,
+                            range: (
+                                current.text_range.0,
+                                if current.children.is_empty() {
+                                    current.text_range.1
+                                } else {
+                                    let first_child = &self.ast.nodes[current.children[0]];
+                                    first_child.range.0
+                                },
+                            ),
+                            ancestors: current_range.ancestors.clone(),
+                        }
+                    }
+                    AstTextRangeType::Text => {
+                        // text -> advance to next child head or advance to own tail
+                        let maybe_next_child_idx = current.children.iter().find(|&&child_idx| {
+                            // child of the current node starting at end of current range
+                            self.ast.nodes[child_idx].range.0 == current_range.range.1
+                        });
+
+                        if let Some(&next_child_idx) = maybe_next_child_idx {
+                            // next child's head
+                            let next_child = &self.ast.nodes[next_child_idx];
+                            let ancestors = {
+                                let mut ancestors = current_range.ancestors.clone();
+                                ancestors.push(next_child_idx);
+                                ancestors
+                            };
+
+                            AstTextRange {
+                                range_type: AstTextRangeType::Head,
+                                range: (next_child.range.0, next_child.text_range.0),
+                                ancestors,
+                            }
+                        } else {
+                            // own tail
+
+                            // current range should have ended at end of current node's text range
+                            #[cfg(debug)]
+                            assert_eq!(current_range.range.1, current.text_range.1);
+
+                            AstTextRange {
+                                range_type: AstTextRangeType::Tail,
+                                range: (current.text_range.1, current.range.1),
+                                ancestors: current_range.ancestors.clone(),
+                            }
+                        }
+                    }
+                    AstTextRangeType::Tail => {
+                        // current range should have ended at end of current node's range
+                        #[cfg(debug)]
+                        assert_eq!(current_range.range.1, current.range.1);
+
+                        // tail -> advance to parent text
+                        // find next child of parent
+                        let ancestors = {
+                            let mut ancestors = current_range.ancestors.clone();
+                            if ancestors.pop().is_none() {
+                                break None;
+                            };
+                            ancestors
+                        };
+                        let parent_idx = ancestors.last().copied().unwrap_or_default();
+                        let parent = &self.ast.nodes[parent_idx];
+                        let maybe_next_child_idx = parent.children.iter().find(|&&child_idx| {
+                            // first child of the parent node starting after end of current range
+                            self.ast.nodes[child_idx].range.0 >= current_range.range.1
+                        });
+
+                        if let Some(&next_child_idx) = maybe_next_child_idx {
+                            // range in parent node from end of current range to beginning of next child's range
+                            let next_child = &self.ast.nodes[next_child_idx];
+
+                            AstTextRange {
+                                range_type: AstTextRangeType::Text,
+                                range: (current_range.range.1, next_child.range.0),
+                                ancestors,
+                            }
+                        } else {
+                            // range in parent node from end of current range to end of parent node text
+
+                            AstTextRange {
+                                range_type: AstTextRangeType::Text,
+                                range: (current_range.range.1, parent.text_range.1),
+                                ancestors,
+                            }
+                        }
+                    }
+                };
+
+                if !current_range.range.is_empty() {
+                    break Some(current_range);
+                }
+            };
+
+            self.maybe_current_range = next_range.clone();
+            next_range
+        } else {
+            None
+        }
     }
 }
 
