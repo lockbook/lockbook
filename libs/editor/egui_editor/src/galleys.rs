@@ -152,14 +152,14 @@ pub fn calc(
                         } else {
                             // for other elements, apply the syntax style to head/tail characters
                             Element::Syntax.apply_style(&mut text_format, appearance);
-                            layout.append(&buffer[(text_range_portion.range)], 0.0, text_format);
+                            layout.append(&buffer[text_range_portion.range], 0.0, text_format);
                         }
                         tail_size = 0.into();
                     }
                     AstTextRangeType::Tail => {
                         // there aren't any captured tail characters, so apply syntax style to all tail characters
                         Element::Syntax.apply_style(&mut text_format, appearance);
-                        layout.append(&buffer[(text_range_portion.range)], 0.0, text_format);
+                        layout.append(&buffer[text_range_portion.range], 0.0, text_format);
 
                         // note, the tail of a galley is always zero
                         // it used to be nonzero when newlines were included in galleys and captured in tail
@@ -171,7 +171,7 @@ pub fn calc(
                         text_range_portion
                             .element(ast)
                             .apply_style(&mut text_format, appearance);
-                        layout.append(&buffer[(text_range_portion.range)], 0.0, text_format);
+                        layout.append(&buffer[text_range_portion.range], 0.0, text_format);
 
                         tail_size = 0.into();
                     }
