@@ -95,7 +95,7 @@ impl Default for Editor {
 
             buffer: TEST_MARKDOWN.into(),
             pointer_state: Default::default(),
-            debug: DebugInfo { draw_enabled: true, ..Default::default() },
+            debug: Default::default(),
             images: Default::default(),
 
             ast: Default::default(),

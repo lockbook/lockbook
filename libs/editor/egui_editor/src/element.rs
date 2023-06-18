@@ -25,6 +25,9 @@ pub enum Element {
 
     // Cursor-based
     Selection,
+
+    // Head/tail characters of ast node e.g. underscores in '__bold__'
+    Syntax,
 }
 
 impl Element {
@@ -74,6 +77,9 @@ impl Element {
             }
             Element::Selection => {
                 text_format.background = vis.selection_bg();
+            }
+            Element::Syntax => {
+                text_format.color = vis.syntax();
             }
         }
     }

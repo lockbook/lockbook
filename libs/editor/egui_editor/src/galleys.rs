@@ -59,6 +59,8 @@ pub fn calc(
     let mut text_range_iter = ast.iter_text_ranges();
     let mut maybe_text_range = text_range_iter.next();
 
+    // combine ast text ranges and paragraphs
+    // each paragraph gets a galley; ast text ranges determine styles and captured characters
     loop {
         let paragraph = paragraphs.paragraphs[paragraph_idx];
         if let Some(text_range) = maybe_text_range.clone() {
@@ -88,30 +90,52 @@ pub fn calc(
                     text_range_portion
                 };
 
-                let text_format = {
-                    let mut text_format = TextFormat::default();
-                    for &node_idx in &text_range_portion.ancestors {
-                        ast.nodes[node_idx]
-                            .element
-                            .apply_style(&mut text_format, appearance);
-                    }
-                    text_format
-                };
+                // construct text format using all styles except the last (current node)
+                // only actual text (not head/tail) of each element gets the actual element style
+                let mut text_format = TextFormat::default();
+                for &node_idx in
+                    &text_range_portion.ancestors[0..text_range_portion.ancestors.len() - 1]
+                {
+                    ast.nodes[node_idx]
+                        .element
+                        .apply_style(&mut text_format, appearance);
+                }
+
                 annotation = annotation.or(text_range_portion.annotation(ast));
                 annotation_text_format = text_format.clone();
                 match text_range_portion.range_type {
                     AstTextRangeType::Head => {
-                        layout.append("", 0.0, text_format); // apply style e.g. doc contents '# '
-
-                        if emit_galley {
+                        if matches!(
+                            text_range_portion.element(ast),
+                            Element::Heading(..) | Element::Item(..)
+                        ) {
+                            // these elements have syntax characters captured
                             head_size = text_range_portion.range.len();
+
+                            // apply style e.g. so empty headers still have big font
+                            layout.append("", 0.0, text_format);
+                        } else {
+                            // for other elements, apply the syntax style to head/tail characters
+                            Element::Syntax.apply_style(&mut text_format, appearance);
+                            layout.append(&buffer[(text_range_portion.range)], 0.0, text_format);
                         }
                         tail_size = 0.into();
                     }
                     AstTextRangeType::Tail => {
+                        // there aren't any captured tail characters, so apply syntax style to all tail characters
+                        Element::Syntax.apply_style(&mut text_format, appearance);
+                        layout.append(&buffer[(text_range_portion.range)], 0.0, text_format);
+
+                        // note, the tail of a galley is always zero
+                        // it used to be nonzero when newlines were included in galleys and captured in tail
+                        // now, newlines are omitted from galley ranges and exist in-between galleys
+                        // this code is still here for when we start capturing more syntax characters e.g. line ends in `code`
                         tail_size = text_range_portion.range.len();
                     }
                     AstTextRangeType::Text => {
+                        text_range_portion
+                            .element(ast)
+                            .apply_style(&mut text_format, appearance);
                         layout.append(&buffer[(text_range_portion.range)], 0.0, text_format);
 
                         tail_size = 0.into();

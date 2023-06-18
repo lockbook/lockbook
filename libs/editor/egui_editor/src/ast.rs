@@ -338,6 +338,12 @@ pub struct AstTextRange {
 }
 
 impl AstTextRange {
+    pub fn element(&self, ast: &Ast) -> Element {
+        ast.nodes[self.ancestors.last().copied().unwrap_or_default()]
+            .element
+            .clone()
+    }
+
     pub fn annotation(&self, ast: &Ast) -> Option<Annotation> {
         match self
             .ancestors
