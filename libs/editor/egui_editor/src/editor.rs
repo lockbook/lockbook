@@ -17,9 +17,8 @@ use crate::input::cursor::{Cursor, PointerState};
 use crate::input::events;
 use crate::layouts::Annotation;
 use crate::offset_types::RangeExt;
-use crate::styles::StyleInfo;
 use crate::test_input::TEST_MARKDOWN;
-use crate::{ast, bounds, galleys, images, register_fonts, styles};
+use crate::{ast, bounds, galleys, images, register_fonts};
 
 #[repr(C)]
 #[derive(Debug, Default)]
@@ -59,7 +58,6 @@ pub struct Editor {
     pub words: Words,
     pub lines: Lines,
     pub paragraphs: Paragraphs,
-    pub styles: Vec<StyleInfo>,
     pub galleys: Galleys,
 
     // computed state from last frame
@@ -100,7 +98,6 @@ impl Default for Editor {
             ast: Default::default(),
             words: Default::default(),
             paragraphs: Default::default(),
-            styles: Default::default(),
             galleys: Default::default(),
             lines: Default::default(),
 
@@ -234,7 +231,6 @@ impl Editor {
             self.paragraphs = bounds::calc_paragraphs(&self.buffer.current, &self.ast);
         }
         if text_updated || selection_updated || theme_updated {
-            self.styles = styles::calc(&self.ast, self.buffer.current.cursor);
             self.images = images::calc(&self.ast, &self.images, &self.client, ui);
         }
         self.galleys = galleys::calc(

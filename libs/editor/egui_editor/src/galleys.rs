@@ -49,6 +49,8 @@ pub fn calc(
 
     let mut emit_galley = false;
     let mut paragraph_idx = 0;
+    let mut past_selection_start = false;
+    let mut past_selection_end = false;
 
     let mut head_size = Default::default();
     let mut tail_size = Default::default();
@@ -59,8 +61,8 @@ pub fn calc(
     let mut text_range_iter = ast.iter_text_ranges();
     let mut maybe_text_range = text_range_iter.next();
 
-    // combine ast text ranges and paragraphs
-    // each paragraph gets a galley; ast text ranges determine styles and captured characters
+    // combine ast text ranges, paragraphs, and selection
+    // each paragraph gets a galley; ast text ranges and selection determine styles and captured characters
     loop {
         let paragraph = paragraphs.paragraphs[paragraph_idx];
         if let Some(text_range) = maybe_text_range.clone() {
@@ -72,22 +74,48 @@ pub fn calc(
                 maybe_text_range = text_range_iter.next();
             } else {
                 // paragraph and text range overlap -> add non-syntax range text to layout
-                let text_range_portion = {
+                let (text_range_portion, in_selection) = {
                     let mut text_range_portion = text_range.clone();
+                    let mut in_selection = false;
 
                     // truncate text range to fit in paragraph
                     text_range_portion.range.0 = cmp::max(text_range_portion.range.0, paragraph.0);
                     text_range_portion.range.1 = cmp::min(text_range_portion.range.1, paragraph.1);
 
-                    // advance either or both of text range and paragraph if they were completed
-                    if text_range.range.1 <= paragraph.1 {
-                        maybe_text_range = text_range_iter.next();
-                    }
-                    if paragraph.1 <= text_range.range.1 {
-                        emit_galley = true;
+                    // truncate text range to fit before, in, or after selection
+                    if !past_selection_start {
+                        // before selection start
+                        text_range_portion.range.1 =
+                            cmp::min(text_range_portion.range.1, buffer.cursor.selection.start());
+                    } else if !past_selection_end {
+                        // in selection
+                        text_range_portion.range.0 =
+                            cmp::max(text_range_portion.range.0, buffer.cursor.selection.start());
+                        text_range_portion.range.1 =
+                            cmp::min(text_range_portion.range.1, buffer.cursor.selection.end());
+
+                        in_selection = true;
+                    } else {
+                        // after selection end
+                        text_range_portion.range.0 =
+                            cmp::max(text_range_portion.range.0, buffer.cursor.selection.end());
                     }
 
-                    text_range_portion
+                    // advance text range, paragraph, and cursor if they were completed
+                    if text_range_portion.range.1 >= text_range.range.1 {
+                        maybe_text_range = text_range_iter.next();
+                    }
+                    if text_range_portion.range.1 >= paragraph.1 {
+                        emit_galley = true;
+                    }
+                    if text_range_portion.range.1 >= buffer.cursor.selection.start() {
+                        past_selection_start = true;
+                    }
+                    if text_range_portion.range.1 >= buffer.cursor.selection.end() {
+                        past_selection_end = true;
+                    }
+
+                    (text_range_portion, in_selection)
                 };
 
                 // construct text format using all styles except the last (current node)
@@ -99,6 +127,9 @@ pub fn calc(
                     ast.nodes[node_idx]
                         .element
                         .apply_style(&mut text_format, appearance);
+                }
+                if in_selection {
+                    Element::Selection.apply_style(&mut text_format, appearance);
                 }
 
                 // only the first portion of a text range gets that range's annotation
@@ -294,7 +325,7 @@ impl GalleyInfo {
     fn annotation_offset(annotation: &Option<Annotation>, appearance: &Appearance) -> Vec2 {
         let mut offset = Vec2::ZERO;
         if let Some(Annotation::Item(_, indent_level)) = annotation {
-            offset.x = *indent_level as f32 * 20.0 + 15.0
+            offset.x = *indent_level as f32 * 20.0 + 20.0
         }
 
         if let Some(Annotation::Rule) = annotation {
