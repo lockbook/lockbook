@@ -1,6 +1,5 @@
 use crate::ast::{Ast, AstTextRangeType};
 use crate::buffer::SubBuffer;
-use crate::galleys::Galleys;
 use crate::offset_types::{DocByteOffset, DocCharOffset, RelByteOffset};
 use crate::Editor;
 use std::collections::HashSet;
@@ -48,28 +47,6 @@ impl Editor {
             "words: {:?}",
             self.words
                 .words
-                .iter()
-                .map(|&range| self.buffer.current[range].to_string())
-                .collect::<Vec<_>>()
-        );
-    }
-}
-
-#[derive(Default)]
-pub struct Lines {
-    pub lines: Vec<(DocCharOffset, DocCharOffset)>,
-}
-
-pub fn calc_lines(buffer: &SubBuffer, galleys: &Galleys) -> Lines {
-    todo!()
-}
-
-impl Editor {
-    pub fn print_lines(&self) {
-        println!(
-            "lines: {:?}",
-            self.lines
-                .lines
                 .iter()
                 .map(|&range| self.buffer.current[range].to_string())
                 .collect::<Vec<_>>()

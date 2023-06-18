@@ -1,3 +1,4 @@
+use crate::bounds::Paragraphs;
 use crate::buffer::SubBuffer;
 use crate::galleys::{GalleyInfo, Galleys};
 use crate::input::canonical::{Bound, Increment, Offset};
@@ -11,7 +12,7 @@ use unicode_segmentation::UnicodeSegmentation;
 impl DocCharOffset {
     pub fn advance(
         self, maybe_x_target: &mut Option<f32>, offset: Offset, backwards: bool,
-        buffer: &SubBuffer, galleys: &Galleys,
+        buffer: &SubBuffer, galleys: &Galleys, paragraphs: &Paragraphs,
     ) -> Self {
         match offset {
             Offset::To(Bound::Char) => self,
@@ -19,7 +20,7 @@ impl DocCharOffset {
                 .advance_to_word_bound(backwards, buffer, galleys)
                 .fix(backwards, galleys),
             Offset::To(Bound::Line) => self.advance_to_line_bound(backwards, galleys),
-            Offset::To(Bound::Paragraph) => self.advance_to_paragraph_bound(backwards, galleys),
+            Offset::To(Bound::Paragraph) => self.advance_to_paragraph_bound(backwards, paragraphs),
             Offset::To(Bound::Doc) => self.advance_to_doc_bound(backwards, &buffer.segs),
             Offset::By(Increment::Char) => self
                 .advance_by_char(backwards, &buffer.segs)
@@ -186,25 +187,30 @@ impl DocCharOffset {
         galleys.char_offset_by_galley_and_cursor(galley_idx, &ecursor)
     }
 
-    fn advance_to_paragraph_bound(self, backwards: bool, galleys: &Galleys) -> Self {
-        // todo: is this the right definition of a paragraph?
-        let galley_idx = galleys.galley_at_char(self);
-        let galley_text_range = &galleys[galley_idx].text_range();
-        if backwards {
-            if self == galley_text_range.start() && galley_idx != 0 {
-                // backwards from start of galley -> end of previous galley
-                let galley_text_range = &galleys[galley_idx - 1].text_range();
-                galley_text_range.end()
-            } else {
-                galley_text_range.start()
+    fn advance_to_paragraph_bound(self, backwards: bool, paragraphs: &Paragraphs) -> Self {
+        // in a paragraph -> go to start or end
+        for &paragraph in &paragraphs.paragraphs {
+            if paragraph.contains(self) {
+                return if backwards { paragraph.start() } else { paragraph.end() };
             }
-        } else if self == galley_text_range.end() && galley_idx != galleys.len() - 1 {
-            // forwards from end of galley -> start of next galley
-            let galley_text_range = &galleys[galley_idx + 1].text_range();
-            galley_text_range.start()
-        } else {
-            galley_text_range.end()
         }
+
+        // not in a paragraph -> go to end or start of previous or next paragraph
+        if backwards {
+            for &paragraph in paragraphs.paragraphs.iter().rev() {
+                if paragraph.end() < self {
+                    return paragraph.end();
+                }
+            }
+        } else {
+            for &paragraph in &paragraphs.paragraphs {
+                if paragraph.start() > self {
+                    return paragraph.start();
+                }
+            }
+        }
+
+        self
     }
 
     fn advance_to_doc_bound(self, backwards: bool, segs: &UnicodeSegs) -> Self {

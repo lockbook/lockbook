@@ -93,6 +93,7 @@ pub enum ItemType {
 }
 
 pub fn item_type(text: &str) -> ItemType {
+    let text = text.trim_start();
     if text.starts_with("+ [ ]") || text.starts_with("* [ ]") || text.starts_with("- [ ]") {
         ItemType::Todo(false)
     } else if text.starts_with("+ [x]") || text.starts_with("* [x]") || text.starts_with("- [x]") {

@@ -6,7 +6,7 @@ use egui::{Context, Event, FontDefinitions, Frame, Margin, Pos2, Rect, Sense, Ui
 
 use crate::appearance::Appearance;
 use crate::ast::Ast;
-use crate::bounds::{Lines, Paragraphs, Words};
+use crate::bounds::{Paragraphs, Words};
 use crate::buffer::Buffer;
 use crate::debug::DebugInfo;
 use crate::element::{Element, ItemType};
@@ -56,7 +56,6 @@ pub struct Editor {
     // cached intermediate state
     pub ast: Ast,
     pub words: Words,
-    pub lines: Lines,
     pub paragraphs: Paragraphs,
     pub galleys: Galleys,
 
@@ -99,7 +98,6 @@ impl Default for Editor {
             words: Default::default(),
             paragraphs: Default::default(),
             galleys: Default::default(),
-            lines: Default::default(),
 
             ui_rect: Rect { min: Default::default(), max: Default::default() },
 
@@ -260,6 +258,7 @@ impl Editor {
                 true,
                 &self.buffer.current,
                 &self.galleys,
+                &self.paragraphs,
             );
             let start = select_all_cursor.selection.1;
             select_all_cursor.advance(
@@ -267,6 +266,7 @@ impl Editor {
                 false,
                 &self.buffer.current,
                 &self.galleys,
+                &self.paragraphs,
             );
             let end = select_all_cursor.selection.1;
             (start, end)
@@ -346,8 +346,13 @@ impl Editor {
             &mut self.pointer_state,
             touch_mode,
         );
-        let (text_updated, maybe_to_clipboard, maybe_opened_url) =
-            events::process(&combined_events, &self.galleys, &mut self.buffer, &mut self.debug);
+        let (text_updated, maybe_to_clipboard, maybe_opened_url) = events::process(
+            &combined_events,
+            &self.galleys,
+            &self.paragraphs,
+            &mut self.buffer,
+            &mut self.debug,
+        );
 
         // in touch mode, check if we should open the menu
         if touch_mode {
@@ -360,7 +365,11 @@ impl Editor {
                     .any(|e| matches!(e, Modification::Select { region: Region::Location(..) }));
             let touched_selection = current_selection.is_empty()
                 && prior_selection.contains(current_selection.1)
-                && !current_cursor.at_line_bound(&self.buffer.current, &self.galleys)
+                && !current_cursor.at_line_bound(
+                    &self.buffer.current,
+                    &self.galleys,
+                    &self.paragraphs,
+                )
                 && combined_events
                     .iter()
                     .any(|e| matches!(e, Modification::Select { region: Region::Location(..) }));

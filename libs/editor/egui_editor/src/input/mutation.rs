@@ -1,3 +1,4 @@
+use crate::bounds::Paragraphs;
 use crate::buffer::{EditorMutation, Mutation, SubBuffer, SubMutation};
 use crate::element::ItemType;
 use crate::galleys::Galleys;
@@ -10,12 +11,14 @@ use egui::Pos2;
 use std::cmp::Ordering;
 use unicode_segmentation::UnicodeSegmentation;
 
-pub fn calc(modification: Modification, buffer: &SubBuffer, galleys: &Galleys) -> EditorMutation {
+pub fn calc(
+    modification: Modification, buffer: &SubBuffer, galleys: &Galleys, paragraphs: &Paragraphs,
+) -> EditorMutation {
     let current_cursor = buffer.cursor;
     let mut mutation = Vec::new();
     match modification {
         Modification::Select { region } => mutation.push(SubMutation::Cursor {
-            cursor: region_to_cursor(region, current_cursor, buffer, galleys),
+            cursor: region_to_cursor(region, current_cursor, buffer, galleys, paragraphs),
         }),
         Modification::StageMarked { highlighted, text } => {
             let mut cursor = current_cursor;
@@ -46,7 +49,7 @@ pub fn calc(modification: Modification, buffer: &SubBuffer, galleys: &Galleys) -
         }
         Modification::Replace { region, text } => {
             mutation.push(SubMutation::Cursor {
-                cursor: region_to_cursor(region, current_cursor, buffer, galleys),
+                cursor: region_to_cursor(region, current_cursor, buffer, galleys, paragraphs),
             });
             mutation.push(SubMutation::Insert { text, advance_cursor: true });
             mutation.push(SubMutation::Cursor { cursor: current_cursor });
@@ -371,6 +374,7 @@ pub fn calc(modification: Modification, buffer: &SubBuffer, galleys: &Galleys) -
                 current_cursor,
                 buffer,
                 galleys,
+                paragraphs,
             );
 
             mutation.push(SubMutation::Cursor {
@@ -419,6 +423,7 @@ pub fn calc(modification: Modification, buffer: &SubBuffer, galleys: &Galleys) -
                         &mut mutation,
                         buffer,
                         galleys,
+                        paragraphs,
                         current_cursor,
                         ItemType::Bulleted,
                         None,
@@ -429,6 +434,7 @@ pub fn calc(modification: Modification, buffer: &SubBuffer, galleys: &Galleys) -
                         &mut mutation,
                         buffer,
                         galleys,
+                        paragraphs,
                         current_cursor,
                         *item_type,
                         Some(ItemType::Bulleted),
@@ -445,6 +451,7 @@ pub fn calc(modification: Modification, buffer: &SubBuffer, galleys: &Galleys) -
                             current_cursor,
                             buffer,
                             galleys,
+                            paragraphs,
                         ),
                     });
                     mutation
@@ -464,6 +471,7 @@ pub fn calc(modification: Modification, buffer: &SubBuffer, galleys: &Galleys) -
                         &mut mutation,
                         buffer,
                         galleys,
+                        paragraphs,
                         current_cursor,
                         ItemType::Numbered(*num),
                         None,
@@ -474,6 +482,7 @@ pub fn calc(modification: Modification, buffer: &SubBuffer, galleys: &Galleys) -
                         &mut mutation,
                         buffer,
                         galleys,
+                        paragraphs,
                         current_cursor,
                         *item_type,
                         Some(ItemType::Numbered(1)),
@@ -490,6 +499,7 @@ pub fn calc(modification: Modification, buffer: &SubBuffer, galleys: &Galleys) -
                             current_cursor,
                             buffer,
                             galleys,
+                            paragraphs,
                         ),
                     });
                     mutation.push(SubMutation::Insert {
@@ -511,6 +521,7 @@ pub fn calc(modification: Modification, buffer: &SubBuffer, galleys: &Galleys) -
                         &mut mutation,
                         buffer,
                         galleys,
+                        paragraphs,
                         current_cursor,
                         ItemType::Todo(*checked),
                         None,
@@ -521,6 +532,7 @@ pub fn calc(modification: Modification, buffer: &SubBuffer, galleys: &Galleys) -
                         &mut mutation,
                         buffer,
                         galleys,
+                        paragraphs,
                         current_cursor,
                         *item_type,
                         Some(ItemType::Todo(false)),
@@ -537,6 +549,7 @@ pub fn calc(modification: Modification, buffer: &SubBuffer, galleys: &Galleys) -
                             current_cursor,
                             buffer,
                             galleys,
+                            paragraphs,
                         ),
                     });
                     mutation.push(SubMutation::Insert {
@@ -553,8 +566,8 @@ pub fn calc(modification: Modification, buffer: &SubBuffer, galleys: &Galleys) -
 }
 
 pub fn list_mutation_replacement(
-    mutation: &mut Vec<SubMutation>, buffer: &SubBuffer, galleys: &Galleys, current_cursor: Cursor,
-    from: ItemType, to: Option<ItemType>,
+    mutation: &mut Vec<SubMutation>, buffer: &SubBuffer, galleys: &Galleys,
+    paragraphs: &Paragraphs, current_cursor: Cursor, from: ItemType, to: Option<ItemType>,
 ) {
     let from_size = match from {
         ItemType::Bulleted => 2,
@@ -578,6 +591,7 @@ pub fn list_mutation_replacement(
         current_cursor,
         buffer,
         galleys,
+        paragraphs,
     );
 
     mutation.push(SubMutation::Cursor {
@@ -590,6 +604,7 @@ pub fn list_mutation_replacement(
 
 pub fn region_to_cursor(
     region: Region, current_cursor: Cursor, buffer: &SubBuffer, galleys: &Galleys,
+    paragraphs: &Paragraphs,
 ) -> Cursor {
     match region {
         Region::Location(location) => {
@@ -609,7 +624,7 @@ pub fn region_to_cursor(
         Region::SelectionOrOffset { offset, backwards } => {
             if current_cursor.selection().is_none() {
                 let mut cursor = current_cursor;
-                cursor.advance(offset, backwards, buffer, galleys);
+                cursor.advance(offset, backwards, buffer, galleys, paragraphs);
                 cursor.selection.0 = current_cursor.selection.1;
                 cursor
             } else {
@@ -622,7 +637,7 @@ pub fn region_to_cursor(
                 || matches!(offset, Offset::To(..))
             {
                 let mut cursor = current_cursor;
-                cursor.advance(offset, backwards, buffer, galleys);
+                cursor.advance(offset, backwards, buffer, galleys, paragraphs);
                 if extend_selection {
                     cursor.selection.0 = current_cursor.selection.0;
                 } else {
@@ -637,17 +652,17 @@ pub fn region_to_cursor(
         }
         Region::Bound { bound, backwards } => {
             let mut cursor = current_cursor;
-            cursor.advance(Offset::To(bound), backwards, buffer, galleys);
+            cursor.advance(Offset::To(bound), backwards, buffer, galleys, paragraphs);
             cursor.selection.0 = cursor.selection.1;
-            cursor.advance(Offset::To(bound), !backwards, buffer, galleys);
+            cursor.advance(Offset::To(bound), !backwards, buffer, galleys, paragraphs);
             cursor
         }
         Region::BoundAt { bound, location, backwards } => {
             let mut cursor: Cursor =
                 location_to_char_offset(location, current_cursor, galleys, &buffer.segs).into();
-            cursor.advance(Offset::To(bound), backwards, buffer, galleys);
+            cursor.advance(Offset::To(bound), backwards, buffer, galleys, paragraphs);
             cursor.selection.0 = cursor.selection.1;
-            cursor.advance(Offset::To(bound), !backwards, buffer, galleys);
+            cursor.advance(Offset::To(bound), !backwards, buffer, galleys, paragraphs);
             cursor
         }
     }
