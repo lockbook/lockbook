@@ -4,7 +4,7 @@ use crate::bounds::Paragraphs;
 use crate::buffer::SubBuffer;
 use crate::element::Element;
 use crate::images::ImageCache;
-use crate::layouts::{Annotation, LayoutJobInfo, Layouts};
+use crate::layouts::{Annotation, LayoutJobInfo};
 use crate::offset_types::{DocCharOffset, RangeExt, RelCharOffset};
 use crate::Editor;
 use egui::epaint::text::cursor::Cursor;
@@ -101,8 +101,12 @@ pub fn calc(
                         .apply_style(&mut text_format, appearance);
                 }
 
-                annotation = annotation.or(text_range_portion.annotation(ast));
-                annotation_text_format = text_format.clone();
+                // only the first portion of a text range gets that range's annotation
+                if text_range.range.0 == text_range_portion.range.0 {
+                    annotation = text_range_portion.annotation(ast).or(annotation);
+                    annotation_text_format = text_format.clone();
+                }
+
                 match text_range_portion.range_type {
                     AstTextRangeType::Head => {
                         if matches!(
@@ -130,7 +134,7 @@ pub fn calc(
                         // it used to be nonzero when newlines were included in galleys and captured in tail
                         // now, newlines are omitted from galley ranges and exist in-between galleys
                         // this code is still here for when we start capturing more syntax characters e.g. line ends in `code`
-                        tail_size = text_range_portion.range.len();
+                        // tail_size = text_range_portion.range.len();
                     }
                     AstTextRangeType::Text => {
                         text_range_portion
@@ -348,6 +352,14 @@ impl GalleyInfo {
         [Pos2 { x: bounds.min.x, y: bounds.max.y }, Pos2 { x: bounds.max.x, y: bounds.min.y }]
     }
 
+    pub fn size(&self) -> RelCharOffset {
+        self.range.end() - self.range.start()
+    }
+
+    pub fn head<'b>(&self, buffer: &'b SubBuffer) -> &'b str {
+        &buffer[(self.range.start(), self.range.start() + self.head_size)]
+    }
+
     pub fn text_range(&self) -> (DocCharOffset, DocCharOffset) {
         (self.range.0 + self.head_size, self.range.1 - self.tail_size)
     }
@@ -359,7 +371,10 @@ impl Editor {
         for galley in &self.galleys.galleys {
             println!(
                 "galley: range: {:?}, annotation: {:?}, head: {:?}, tail: {:?}",
-                galley.range, galley.annotation, galley.head_size, galley.tail_size
+                &self.buffer.current[galley.range],
+                galley.annotation,
+                galley.head_size,
+                galley.tail_size
             );
         }
     }

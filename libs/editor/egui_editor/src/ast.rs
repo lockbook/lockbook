@@ -141,7 +141,10 @@ impl Ast {
 
             // capture leading whitespace for list items and code blocks (affects non-fenced code blocks only)
             if matches!(element, Element::Item(..) | Element::CodeBlock) {
-                while range.0 > 0 && buffer[(range.0 - 1, range.1)].starts_with(' ') {
+                while range.0 > 0
+                    && buffer[(range.0 - 1, range.1)]
+                        .starts_with(|c: char| c.is_whitespace() && c != '\n')
+                {
                     range.0 -= 1;
                 }
             }
@@ -345,16 +348,10 @@ impl AstTextRange {
     }
 
     pub fn annotation(&self, ast: &Ast) -> Option<Annotation> {
-        match self
-            .ancestors
-            .last()
-            .map(|&idx| ast.nodes[idx].element.clone())
-        {
-            Some(Element::Heading(HeadingLevel::H1)) => Some(Annotation::Rule),
-            Some(Element::Image(link_type, url, title)) => {
-                Some(Annotation::Image(link_type, url, title))
-            }
-            Some(Element::Item(item_type, indent_level)) => {
+        match self.element(ast) {
+            Element::Heading(HeadingLevel::H1) => Some(Annotation::Rule),
+            Element::Image(link_type, url, title) => Some(Annotation::Image(link_type, url, title)),
+            Element::Item(item_type, indent_level) => {
                 Some(Annotation::Item(item_type, indent_level))
             }
             _ => None,

@@ -426,9 +426,9 @@ impl<T> RangeExt<T> for (T, T)
 where
     T: Ord + Sized + Copy + Sub<T>,
 {
-    /// returns whether the range includes the value, treating the (start, end) bounds as (inclusive, exclusive)
+    /// returns whether the range includes the value, treating the (start, end) bounds as (inclusive, inclusive)
     fn contains(&self, value: T) -> bool {
-        self.start() <= value && value < self.end()
+        self.start() <= value && value <= self.end()
     }
 
     fn start(&self) -> T {

@@ -15,11 +15,11 @@ use crate::images::ImageCache;
 use crate::input::canonical::{Bound, Modification, Offset, Region};
 use crate::input::cursor::{Cursor, PointerState};
 use crate::input::events;
-use crate::layouts::{Annotation, Layouts};
+use crate::layouts::Annotation;
 use crate::offset_types::RangeExt;
 use crate::styles::StyleInfo;
 use crate::test_input::TEST_MARKDOWN;
-use crate::{ast, bounds, galleys, images, layouts, register_fonts, styles};
+use crate::{ast, bounds, galleys, images, register_fonts, styles};
 
 #[repr(C)]
 #[derive(Debug, Default)]
@@ -60,7 +60,6 @@ pub struct Editor {
     pub lines: Lines,
     pub paragraphs: Paragraphs,
     pub styles: Vec<StyleInfo>,
-    pub layouts: Layouts,
     pub galleys: Galleys,
 
     // computed state from last frame
@@ -102,7 +101,6 @@ impl Default for Editor {
             words: Default::default(),
             paragraphs: Default::default(),
             styles: Default::default(),
-            layouts: Default::default(),
             galleys: Default::default(),
             lines: Default::default(),
 
@@ -237,7 +235,6 @@ impl Editor {
         }
         if text_updated || selection_updated || theme_updated {
             self.styles = styles::calc(&self.ast, self.buffer.current.cursor);
-            self.layouts = layouts::calc(&self.buffer.current, &self.styles, &self.appearance);
             self.images = images::calc(&self.ast, &self.images, &self.client, ui);
         }
         self.galleys = galleys::calc(
@@ -353,13 +350,8 @@ impl Editor {
             &mut self.pointer_state,
             touch_mode,
         );
-        let (text_updated, maybe_to_clipboard, maybe_opened_url) = events::process(
-            &combined_events,
-            &self.layouts,
-            &self.galleys,
-            &mut self.buffer,
-            &mut self.debug,
-        );
+        let (text_updated, maybe_to_clipboard, maybe_opened_url) =
+            events::process(&combined_events, &self.galleys, &mut self.buffer, &mut self.debug);
 
         // in touch mode, check if we should open the menu
         if touch_mode {
