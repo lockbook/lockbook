@@ -144,7 +144,7 @@ pub fn calc(modification: Modification, buffer: &SubBuffer, galleys: &Galleys) -
                         // indent or de-indent if able
                         let new_indent_level = if deindent {
                             let mut can_deindent = true;
-                            if *indent_level == 1 {
+                            if *indent_level == 0 {
                                 can_deindent = false; // cannot de-indent un-indented list item
                             } else if galley_idx != galleys.len() - 1 {
                                 let next_galley = &galleys[galley_idx + 1];
