@@ -44,11 +44,19 @@
             android:layout_marginHorizontal="10dp"
             android:layout_marginTop="10dp" />
 
+        <com.google.android.material.textview.MaterialTextView
+            android:id="@+id/premium_usage_info"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginVertical="10dp"
+            android:text="@string/default_value" />
+
         <com.google.android.material.button.MaterialButton
             android:id="@+id/upgrade_account"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginVertical="10dp"
             android:text="@string/update_to_premium" />
+
     </LinearLayout>
 </LinearLayout>
