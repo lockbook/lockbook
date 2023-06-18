@@ -7,6 +7,9 @@ enum Tier {
     case Premium
 }
 
+let PREMIUM_TIER_USAGE_CAP = 30000000000
+let FREE_TIER_USAGE_CAP = 1000000
+
 class SettingsService: ObservableObject {
     
     let core: LockbookApi
@@ -25,7 +28,7 @@ class SettingsService: ObservableObject {
     var premiumProgress: Double {
         switch usages {
         case .some(let usage):
-            return min(1.0, Double(usage.serverUsages.serverUsage.exact) / Double(30000000))
+            return min(1.0, Double(usage.serverUsages.serverUsage.exact) / Double(PREMIUM_TIER_USAGE_CAP))
         case .none:
             return 0
         }
@@ -36,7 +39,7 @@ class SettingsService: ObservableObject {
         case .none:
             return .Unknown
         case .some(let wrapped):
-            if wrapped.serverUsages.dataCap.exact == 1000000 {
+            if wrapped.serverUsages.dataCap.exact == FREE_TIER_USAGE_CAP {
                 return .Trial
             } else {
                 return .Premium
