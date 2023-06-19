@@ -624,7 +624,9 @@ pub fn region_to_cursor(
         Region::SelectionOrOffset { offset, backwards } => {
             if current_cursor.selection().is_none() {
                 let mut cursor = current_cursor;
-                cursor.advance(offset, backwards, buffer, galleys, paragraphs);
+                // note: this is only used for backspace
+                // advance_for_edit won't leave the cursor in captured characters if we delete the selected characters
+                cursor.advance_for_edit(offset, backwards, buffer, galleys, paragraphs);
                 cursor.selection.0 = current_cursor.selection.1;
                 cursor
             } else {

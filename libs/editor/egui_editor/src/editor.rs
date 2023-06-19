@@ -12,7 +12,7 @@ use crate::debug::DebugInfo;
 use crate::element::{Element, ItemType};
 use crate::galleys::Galleys;
 use crate::images::ImageCache;
-use crate::input::canonical::{Bound, Modification, Offset, Region};
+use crate::input::canonical::{Bound, Increment, Modification, Offset, Region};
 use crate::input::cursor::{Cursor, PointerState};
 use crate::input::events;
 use crate::layouts::Annotation;
@@ -221,6 +221,16 @@ impl Editor {
             }
         } else {
             ui.memory_mut(|m| m.request_focus(id));
+
+            // put the cursor at the first valid cursor position
+            self.custom_events.push(Modification::Select {
+                region: Region::ToOffset {
+                    offset: Offset::To(Bound::Doc),
+                    backwards: false,
+                    extend_selection: false,
+                },
+            });
+
             (true, true)
         };
 

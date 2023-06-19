@@ -106,6 +106,24 @@ impl Cursor {
             &mut self.x_target,
             offset,
             backwards,
+            true,
+            buffer,
+            galleys,
+            paragraphs,
+        );
+    }
+
+    /// use to put the cursor in a place that's invalid for it to be at the end of the frame e.g. inside captured characters
+    /// use only if you're sure your modifications will leave the cursor in a valid place at the end of the frame
+    pub fn advance_for_edit(
+        &mut self, offset: Offset, backwards: bool, buffer: &SubBuffer, galleys: &Galleys,
+        paragraphs: &Paragraphs,
+    ) {
+        self.selection.1 = self.selection.1.advance(
+            &mut self.x_target,
+            offset,
+            backwards,
+            false,
             buffer,
             galleys,
             paragraphs,
