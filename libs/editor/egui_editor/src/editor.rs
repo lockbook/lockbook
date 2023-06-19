@@ -6,6 +6,7 @@ use egui::{Color32, Context, Event, FontDefinitions, Frame, Margin, Pos2, Rect, 
 
 use crate::appearance::Appearance;
 use crate::ast::Ast;
+use crate::bounds::{Paragraphs, Words};
 use crate::buffer::Buffer;
 use crate::debug::DebugInfo;
 use crate::element::{Element, ItemType};
@@ -14,11 +15,10 @@ use crate::images::ImageCache;
 use crate::input::canonical::{Bound, Modification, Offset, Region};
 use crate::input::cursor::{Cursor, PointerState};
 use crate::input::events;
-use crate::layouts::{Annotation, Layouts};
+use crate::layouts::Annotation;
 use crate::offset_types::RangeExt;
-use crate::styles::StyleInfo;
 use crate::test_input::TEST_MARKDOWN;
-use crate::{ast, galleys, images, layouts, register_fonts, styles};
+use crate::{ast, bounds, galleys, images, register_fonts};
 
 #[repr(C)]
 #[derive(Debug, Default)]
@@ -55,8 +55,8 @@ pub struct Editor {
 
     // cached intermediate state
     pub ast: Ast,
-    pub styles: Vec<StyleInfo>,
-    pub layouts: Layouts,
+    pub words: Words,
+    pub paragraphs: Paragraphs,
     pub galleys: Galleys,
 
     // computed state from last frame
@@ -95,8 +95,8 @@ impl Default for Editor {
             images: Default::default(),
 
             ast: Default::default(),
-            styles: Default::default(),
-            layouts: Default::default(),
+            words: Default::default(),
+            paragraphs: Default::default(),
             galleys: Default::default(),
 
             ui_rect: Rect { min: Default::default(), max: Default::default() },
@@ -227,13 +227,20 @@ impl Editor {
         // recalculate dependent state
         if text_updated {
             self.ast = ast::calc(&self.buffer.current);
+            self.words = bounds::calc_words(&self.buffer.current, &self.ast);
+            self.paragraphs = bounds::calc_paragraphs(&self.buffer.current, &self.ast);
         }
         if text_updated || selection_updated || theme_updated {
-            self.styles = styles::calc(&self.ast, self.buffer.current.cursor);
-            self.layouts = layouts::calc(&self.buffer.current, &self.styles, &self.appearance);
-            self.images = images::calc(&self.layouts, &self.images, &self.client, ui);
+            self.images = images::calc(&self.ast, &self.images, &self.client, ui);
         }
-        self.galleys = galleys::calc(&self.layouts, &self.images, &self.appearance, ui);
+        self.galleys = galleys::calc(
+            &self.ast,
+            &self.buffer.current,
+            &self.paragraphs,
+            &self.images,
+            &self.appearance,
+            ui,
+        );
         self.initialized = true;
 
         // draw
@@ -253,6 +260,7 @@ impl Editor {
                 true,
                 &self.buffer.current,
                 &self.galleys,
+                &self.paragraphs,
             );
             let start = select_all_cursor.selection.1;
             select_all_cursor.advance(
@@ -260,6 +268,7 @@ impl Editor {
                 false,
                 &self.buffer.current,
                 &self.galleys,
+                &self.paragraphs,
             );
             let end = select_all_cursor.selection.1;
             (start, end)
@@ -341,8 +350,8 @@ impl Editor {
         );
         let (text_updated, maybe_to_clipboard, maybe_opened_url) = events::process(
             &combined_events,
-            &self.layouts,
             &self.galleys,
+            &self.paragraphs,
             &mut self.buffer,
             &mut self.debug,
         );
@@ -358,7 +367,11 @@ impl Editor {
                     .any(|e| matches!(e, Modification::Select { region: Region::Location(..) }));
             let touched_selection = current_selection.is_empty()
                 && prior_selection.contains(current_selection.1)
-                && !current_cursor.at_line_bound(&self.buffer.current, &self.galleys)
+                && !current_cursor.at_line_bound(
+                    &self.buffer.current,
+                    &self.galleys,
+                    &self.paragraphs,
+                )
                 && combined_events
                     .iter()
                     .any(|e| matches!(e, Modification::Select { region: Region::Location(..) }));

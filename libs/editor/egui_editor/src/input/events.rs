@@ -1,5 +1,6 @@
 use crate::appearance::Appearance;
 use crate::ast::Ast;
+use crate::bounds::Paragraphs;
 use crate::buffer::{Buffer, EditorMutation};
 use crate::debug::DebugInfo;
 use crate::galleys::Galleys;
@@ -7,7 +8,6 @@ use crate::input;
 use crate::input::canonical::Modification;
 use crate::input::click_checker::EditorClickChecker;
 use crate::input::cursor::PointerState;
-use crate::layouts::Layouts;
 use egui::{Event, Rect};
 use std::time::Instant;
 
@@ -32,13 +32,13 @@ pub fn combine(
 /// processes `combined_events` and returns a boolean representing whether text was updated, new contents for clipboard
 /// (optional), and a link that was opened (optional)
 pub fn process(
-    combined_events: &[Modification], layouts: &Layouts, galleys: &Galleys, buffer: &mut Buffer,
-    debug: &mut DebugInfo,
+    combined_events: &[Modification], galleys: &Galleys, paragraphs: &Paragraphs,
+    buffer: &mut Buffer, debug: &mut DebugInfo,
 ) -> (bool, Option<String>, Option<String>) {
     combined_events
         .iter()
         .cloned()
-        .map(|m| match input::mutation::calc(m, layouts, &buffer.current, galleys) {
+        .map(|m| match input::mutation::calc(m, &buffer.current, galleys, paragraphs) {
             EditorMutation::Buffer(mutations) if mutations.is_empty() => (false, None, None),
             EditorMutation::Buffer(mutations) => buffer.apply(mutations, debug),
             EditorMutation::Undo => {

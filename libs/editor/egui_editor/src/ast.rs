@@ -1,19 +1,28 @@
 use crate::buffer::SubBuffer;
-use crate::element::Element;
+use crate::element::{Element, ItemType};
+use crate::layouts::Annotation;
 use crate::offset_types::{DocCharOffset, RangeExt};
-use crate::Editor;
-use pulldown_cmark::{Event, OffsetIter, Options, Parser};
+use crate::{element, Editor};
+use pulldown_cmark::{Event, HeadingLevel, LinkType, OffsetIter, Options, Parser, Tag};
 
-#[derive(Default, Debug)]
+#[derive(Default, Debug, PartialEq)]
 pub struct Ast {
     pub nodes: Vec<AstNode>,
     pub root: usize,
 }
 
-#[derive(Default, Debug)]
+#[derive(Default, Debug, PartialEq)]
 pub struct AstNode {
+    /// Type of syntax element e.g. heading and relevant information e.g. heading level
     pub element: Element,
+
+    /// Range of source text captured
     pub range: (DocCharOffset, DocCharOffset),
+
+    /// Range of source text still rendered after syntax characters are captured/interpreted
+    pub text_range: (DocCharOffset, DocCharOffset),
+
+    /// Indexes of sub-elements in the vector containing this node
     pub children: Vec<usize>,
 }
 
@@ -24,6 +33,7 @@ pub fn calc(buffer: &SubBuffer) -> Ast {
     let mut result = Ast {
         nodes: vec![AstNode::new(
             Element::Document,
+            (0.into(), buffer.segs.last_cursor_position()),
             (0.into(), buffer.segs.last_cursor_position()),
         )],
         root: 0,
@@ -50,39 +60,62 @@ impl Ast {
     }
 
     fn push_children(&mut self, current_idx: usize, iter: &mut OffsetIter, buffer: &SubBuffer) {
+        let mut skipped = 0;
         while let Some((event, range)) = iter.next() {
-            let mut range = buffer
+            let range = buffer
                 .segs
                 .range_to_char((range.start.into(), range.end.into()));
             match event {
-                Event::Start(new_child) => {
-                    if let Some(new_child) = Element::from_tag(new_child) {
-                        if new_child == Element::Item {
-                            range = (
-                                range.start() - Self::look_back_whitespace(buffer, range.start()),
-                                range.end() - Self::look_back_newlines(buffer, range.end()),
-                            );
-                        }
-                        if new_child == Element::CodeBlock {
-                            range = (
-                                range.start(),
-                                range.end() + Self::capture_codeblock_newline(buffer, range),
-                            );
-                        }
+                Event::Start(child_tag) => {
+                    let new_child_element = match child_tag {
+                        Tag::Paragraph => Element::Paragraph,
+                        Tag::Heading(level, _, _) => Element::Heading(level),
+                        Tag::BlockQuote => Element::QuoteBlock,
+                        Tag::CodeBlock(_) => Element::CodeBlock,
+                        Tag::Item => {
+                            let item_type = element::item_type(&buffer[range]);
+                            let mut indent_level = 0;
+                            let mut ancestor_idx = current_idx;
+                            while ancestor_idx != 0 {
+                                if matches!(self.nodes[current_idx].element, Element::Item(..)) {
+                                    indent_level += 1;
+                                }
 
-                        let new_child_idx =
-                            self.push_child(current_idx, AstNode::new(new_child, range));
+                                // advance to parent
+                                ancestor_idx = self
+                                    .nodes
+                                    .iter()
+                                    .enumerate()
+                                    .find(|(_, n)| n.children.contains(&ancestor_idx))
+                                    .map(|(idx, _)| idx)
+                                    .unwrap_or_default();
+                            }
+                            Element::Item(item_type, indent_level)
+                        }
+                        Tag::Emphasis => Element::Emphasis,
+                        Tag::Strong => Element::Strong,
+                        Tag::Strikethrough => Element::Strikethrough,
+                        Tag::Link(l, u, t) => Element::Link(l, u.to_string(), t.to_string()),
+                        Tag::Image(l, u, t) => Element::Image(l, u.to_string(), t.to_string()),
+                        _ => {
+                            skipped += 1;
+                            continue;
+                        }
+                    };
+                    if let Some(new_child_idx) =
+                        self.push_child(current_idx, new_child_element, range, buffer)
+                    {
                         self.push_children(new_child_idx, iter, buffer);
                     }
                 }
                 Event::Code(_) => {
-                    self.push_child(current_idx, AstNode::new(Element::InlineCode, range));
+                    self.push_child(current_idx, Element::InlineCode, range, buffer);
                 }
-                Event::End(done) => {
-                    if let Some(done) = Element::from_tag(done) {
-                        if done == self.nodes[current_idx].element {
-                            break;
-                        }
+                Event::End(_) => {
+                    if skipped == 0 {
+                        break;
+                    } else {
+                        skipped -= 1;
                     }
                 }
                 _ => {} // todo: there are some interesting events ignored (rules, tables, etc)
@@ -90,126 +123,379 @@ impl Ast {
         }
     }
 
-    fn push_child(&mut self, parent_idx: usize, node: AstNode) -> usize {
+    fn push_child(
+        &mut self, parent_idx: usize, mut element: Element,
+        cmark_range: (DocCharOffset, DocCharOffset), buffer: &SubBuffer,
+    ) -> Option<usize> {
+        // assumption: whitespace-only elements have no children
+        if buffer[cmark_range].trim().is_empty() {
+            return None;
+        }
+
+        let range = {
+            let mut range = cmark_range;
+
+            // trim trailing whitespace from range
+            // operations that adjust styles will not add or remove trailing whitespace
+            range.1 -= buffer[cmark_range].len() - buffer[cmark_range].trim_end().len();
+
+            // capture leading whitespace for list items and code blocks (affects non-fenced code blocks only)
+            if matches!(element, Element::Item(..) | Element::CodeBlock) {
+                while range.0 > 0
+                    && buffer[(range.0 - 1, range.1)]
+                        .starts_with(|c: char| c.is_whitespace() && c != '\n')
+                {
+                    range.0 -= 1;
+                }
+            }
+
+            // capture up to one trailing space for list items and headings
+            if matches!(element, Element::Item(..) | Element::Heading(..))
+                && range.1 < buffer.segs.last_cursor_position()
+                && buffer[(range.0, range.1 + 1)].ends_with(' ')
+            {
+                range.1 += 1;
+            }
+
+            range
+        };
+
+        // trim syntax characters from text range
+        // the characters between range.0 and text_range.0 are the head characters
+        // the characters between text_range.1 and range.1 are the tail characters
+        // the head and tail characters are those that are modified when styles are adjusted
+        // assumption: syntax characters are single-byte unicode sequences
+        let text_range = {
+            let mut text_range = range;
+            match element.clone() {
+                Element::Heading(h) => {
+                    // # heading
+                    let original_text_range_0 = text_range.0;
+
+                    text_range.0 += h as usize;
+
+                    // correct cmark behavior with no space in syntax chars
+                    if buffer[text_range].starts_with(' ') {
+                        text_range.0 += 1;
+                    } else {
+                        element = Element::Paragraph;
+                        text_range.0 = original_text_range_0;
+                    }
+                }
+                Element::QuoteBlock => {
+                    // >quote block
+                    // > quote block
+                    if buffer[text_range].starts_with("> ") {
+                        text_range.0 += 2;
+                    } else if buffer[text_range].starts_with('>') {
+                        text_range.0 += 1;
+                    }
+                }
+                Element::CodeBlock => {
+                    if (buffer[range].starts_with("```\n") && buffer[range].ends_with("\n```"))
+                        || (buffer[range].starts_with("~~~\n") && buffer[range].ends_with("\n~~~"))
+                    {
+                        /*
+                        ```
+                        code block
+                        ```
+                        ~~~
+                        code block
+                        ~~~
+                         */
+                        text_range.0 += 4;
+                        text_range.1 -= 4;
+                    } else {
+                        /*
+                            code block
+                        */
+                        text_range.0 += buffer[range].len() - buffer[range].trim_start().len();
+                    }
+                }
+                Element::Item(item_type, _) => {
+                    // * item
+                    //   1. item
+                    //     - [ ] item
+                    let original_text_range_0 = text_range.0;
+
+                    text_range.0 += buffer[range].len() - buffer[range].trim_start().len();
+                    text_range.0 += match item_type {
+                        ItemType::Bulleted => 1,
+                        ItemType::Numbered(n) => 1 + n.to_string().len(),
+                        ItemType::Todo(_) => 5,
+                    };
+
+                    // correct cmark behavior with no space in syntax chars
+                    if buffer[text_range].starts_with(' ') {
+                        text_range.0 += 1;
+                    } else {
+                        element = Element::Paragraph;
+                        text_range.0 = original_text_range_0;
+                    }
+                }
+                Element::InlineCode => {
+                    // `code`
+                    text_range.0 += 1;
+                    text_range.1 -= 1;
+                }
+                Element::Strong => {
+                    // __strong__
+                    text_range.0 += 2;
+                    text_range.1 -= 2;
+                }
+                Element::Emphasis => {
+                    // _emphasis_
+                    text_range.0 += 1;
+                    text_range.1 -= 1;
+                }
+                Element::Strikethrough => {
+                    // ~~strikethrough~~
+                    text_range.0 += 2;
+                    text_range.1 -= 2;
+                }
+                Element::Link(LinkType::Inline, url, title) => {
+                    // [title](http://url.com "title")
+                    text_range.0 += 1;
+                    text_range.1 -= url.len() + 3;
+                    if !title.is_empty() {
+                        text_range.1 -= title.len() + 3;
+                    }
+                }
+                Element::Image(LinkType::Inline, url, title) => {
+                    // ![title](http://url.com)
+                    text_range.0 += 2;
+                    text_range.1 -= url.len() + 3;
+                    if !title.is_empty() {
+                        text_range.1 -= title.len() + 3;
+                    }
+                }
+                _ => {}
+            };
+
+            text_range
+        };
+
+        let node = AstNode::new(element, range, text_range);
         let new_child_idx = self.nodes.len();
         self.nodes.push(node);
         self.nodes[parent_idx].children.push(new_child_idx);
-        new_child_idx
+        Some(new_child_idx)
     }
 
-    // capture this many spaces or tabs from before a list item
-    fn look_back_whitespace(buffer: &SubBuffer, start: DocCharOffset) -> usize {
-        let mut modification = 0;
-        loop {
-            if start < modification + 1 {
-                break;
-            }
-            let location = start - (modification + 1);
-
-            let white_maybe = &buffer[(location, location + 1)];
-            if white_maybe == " " || white_maybe == "\t" {
-                modification += 1;
-            } else {
-                break;
-            }
+    pub fn iter_text_ranges(&self) -> AstTextRangeIter {
+        AstTextRangeIter {
+            ast: self,
+            maybe_current_range: Some(AstTextRange {
+                range_type: AstTextRangeType::Head,
+                range: (0.into(), 0.into()),
+                ancestors: vec![0],
+            }),
         }
-        modification
-    }
-
-    // release this many newlines from the end of a list item
-    fn look_back_newlines(buffer: &SubBuffer, end: DocCharOffset) -> usize {
-        let mut modification = 0;
-        loop {
-            if end < modification + 1 {
-                break;
-            }
-            let location = end - (modification + 1);
-
-            if &buffer[(location, location + 1)] == "\n" {
-                modification += 1;
-            } else {
-                break;
-            }
-        }
-
-        // leave up to one newline
-        modification = modification.saturating_sub(1);
-
-        modification
-    }
-
-    fn capture_codeblock_newline(
-        buffer: &SubBuffer, range: (DocCharOffset, DocCharOffset),
-    ) -> usize {
-        if buffer.segs.last_cursor_position() < range.end() + 1 {
-            return 0;
-        }
-
-        if &buffer[(range.start(), range.start() + 1)] != "`" {
-            return 0;
-        }
-
-        if &buffer[(range.end(), range.end() + 1)] == "\n" {
-            return 1;
-        }
-
-        0
     }
 
     pub fn print(&self, buffer: &SubBuffer) {
-        Self::print_recursive(self, self.root, buffer, "");
-    }
-
-    fn print_recursive(ast: &Ast, node_idx: usize, buffer: &SubBuffer, prefix: &str) {
-        let node = &ast.nodes[node_idx];
-        let prefix = format!("{}[{:?} {:?}]", prefix, node_idx, node.element);
-
-        if node.children.is_empty() {
+        for range in self.iter_text_ranges() {
             println!(
-                "{}: {:?}..{:?} ({:?})",
-                prefix,
-                node.range.start(),
-                node.range.end(),
-                &buffer[node.range],
-            );
-        } else {
-            let head = (node.range.start(), ast.nodes[node.children[0]].range.start());
-            if !head.is_empty() {
-                println!("{}: {:?}..{:?} ({:?})", prefix, head.start(), head.end(), &buffer[head]);
-            }
-            for child_idx in 0..node.children.len() {
-                let child = node.children[child_idx];
-                Self::print_recursive(ast, child, buffer, &prefix);
-                if child_idx != node.children.len() - 1 {
-                    let next_child = node.children[child_idx + 1];
-                    let mid = (ast.nodes[child].range.end(), ast.nodes[next_child].range.start());
-                    if !mid.is_empty() {
-                        println!(
-                            "{}: {:?}..{:?} ({:?})",
-                            prefix,
-                            mid.start(),
-                            mid.end(),
-                            &buffer[mid]
-                        );
-                    }
+                "{:?} {:?}: {:?}..{:?}\t{:?}",
+                range.range_type,
+                range
+                    .ancestors
+                    .iter()
+                    .map(|&i| format!("[{:?} {:?}]", i, self.nodes[i].element))
+                    .collect::<Vec<_>>(),
+                range.range.0,
+                range.range.1,
+                match range.range_type {
+                    AstTextRangeType::Head => &buffer[range.range],
+                    AstTextRangeType::Text => &buffer[range.range],
+                    AstTextRangeType::Tail => &buffer[range.range],
                 }
-            }
-            let tail = (
-                ast.nodes[node.children[node.children.len() - 1]]
-                    .range
-                    .end(),
-                node.range.end(),
             );
-            if tail.is_empty() {
-                println!("{}: {:?}..{:?} ({:?})", prefix, tail.start(), tail.end(), &buffer[tail]);
-            }
         }
     }
 }
 
 impl AstNode {
-    pub fn new(element: Element, range: (DocCharOffset, DocCharOffset)) -> Self {
-        Self { element, range, children: vec![] }
+    pub fn new(
+        element: Element, range: (DocCharOffset, DocCharOffset),
+        text_range: (DocCharOffset, DocCharOffset),
+    ) -> Self {
+        Self { element, range, text_range, children: vec![] }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub enum AstTextRangeType {
+    /// Text between `node.range.0` and `node.text_range.0` i.e. leading syntax characters for a node.
+    /// Occurs at most once per node.
+    Head,
+
+    /// Text between node.text_range.0 and node.text_range.1, excluding ranges captured by child nodes.
+    /// Can occur any number of times per node because child nodes slice node text into multiple parts.
+    Text,
+
+    /// Text between `node.text_range.1` and `node.range.1` i.e. trailing syntax characters for a node.
+    /// Occurs at most once per node.
+    Tail,
+}
+
+#[derive(Clone, Debug)]
+pub struct AstTextRange {
+    pub range_type: AstTextRangeType,
+    pub range: (DocCharOffset, DocCharOffset),
+
+    /// Indexes of all AST nodes containing this range, ordered from root to leaf.
+    pub ancestors: Vec<usize>,
+}
+
+impl AstTextRange {
+    pub fn element(&self, ast: &Ast) -> Element {
+        ast.nodes[self.ancestors.last().copied().unwrap_or_default()]
+            .element
+            .clone()
+    }
+
+    pub fn annotation(&self, ast: &Ast) -> Option<Annotation> {
+        match self.element(ast) {
+            Element::Heading(HeadingLevel::H1) => Some(Annotation::Rule),
+            Element::Image(link_type, url, title) => Some(Annotation::Image(link_type, url, title)),
+            Element::Item(item_type, indent_level) => {
+                Some(Annotation::Item(item_type, indent_level))
+            }
+            _ => None,
+        }
+    }
+}
+
+pub struct AstTextRangeIter<'ast> {
+    /// AST being iterated
+    ast: &'ast Ast,
+
+    /// Element last emitted by the iterator
+    maybe_current_range: Option<AstTextRange>,
+}
+
+impl<'ast> Iterator for AstTextRangeIter<'ast> {
+    type Item = AstTextRange;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some(current_range) = &self.maybe_current_range {
+            // find the next nonempty range
+            let mut current_range = current_range.clone();
+            let next_range = loop {
+                let current_idx = current_range.ancestors.last().copied().unwrap_or_default();
+                let current = &self.ast.nodes[current_idx];
+
+                // where were we in the current node?
+                current_range = match current_range.range_type {
+                    AstTextRangeType::Head => {
+                        // head -> advance to own text
+
+                        // current range should have ended at start of current node's text range
+                        #[cfg(debug)]
+                        assert_eq!(current_range.range.1, current.text_range.0);
+
+                        AstTextRange {
+                            range_type: AstTextRangeType::Text,
+                            range: (
+                                current.text_range.0,
+                                if current.children.is_empty() {
+                                    current.text_range.1
+                                } else {
+                                    let first_child = &self.ast.nodes[current.children[0]];
+                                    first_child.range.0
+                                },
+                            ),
+                            ancestors: current_range.ancestors.clone(),
+                        }
+                    }
+                    AstTextRangeType::Text => {
+                        // text -> advance to next child head or advance to own tail
+                        let maybe_next_child_idx = current.children.iter().find(|&&child_idx| {
+                            // child of the current node starting at end of current range
+                            self.ast.nodes[child_idx].range.0 == current_range.range.1
+                        });
+
+                        if let Some(&next_child_idx) = maybe_next_child_idx {
+                            // next child's head
+                            let next_child = &self.ast.nodes[next_child_idx];
+                            let ancestors = {
+                                let mut ancestors = current_range.ancestors.clone();
+                                ancestors.push(next_child_idx);
+                                ancestors
+                            };
+
+                            AstTextRange {
+                                range_type: AstTextRangeType::Head,
+                                range: (next_child.range.0, next_child.text_range.0),
+                                ancestors,
+                            }
+                        } else {
+                            // own tail
+
+                            // current range should have ended at end of current node's text range
+                            #[cfg(debug)]
+                            assert_eq!(current_range.range.1, current.text_range.1);
+
+                            AstTextRange {
+                                range_type: AstTextRangeType::Tail,
+                                range: (current.text_range.1, current.range.1),
+                                ancestors: current_range.ancestors.clone(),
+                            }
+                        }
+                    }
+                    AstTextRangeType::Tail => {
+                        // current range should have ended at end of current node's range
+                        #[cfg(debug)]
+                        assert_eq!(current_range.range.1, current.range.1);
+
+                        // tail -> advance to parent text
+                        // find next child of parent
+                        let ancestors = {
+                            let mut ancestors = current_range.ancestors.clone();
+                            if ancestors.pop().is_none() {
+                                break None;
+                            };
+                            ancestors
+                        };
+                        let parent_idx = ancestors.last().copied().unwrap_or_default();
+                        let parent = &self.ast.nodes[parent_idx];
+                        let maybe_next_child_idx = parent.children.iter().find(|&&child_idx| {
+                            // first child of the parent node starting after end of current range
+                            self.ast.nodes[child_idx].range.0 >= current_range.range.1
+                        });
+
+                        if let Some(&next_child_idx) = maybe_next_child_idx {
+                            // range in parent node from end of current range to beginning of next child's range
+                            let next_child = &self.ast.nodes[next_child_idx];
+
+                            AstTextRange {
+                                range_type: AstTextRangeType::Text,
+                                range: (current_range.range.1, next_child.range.0),
+                                ancestors,
+                            }
+                        } else {
+                            // range in parent node from end of current range to end of parent node text
+
+                            AstTextRange {
+                                range_type: AstTextRangeType::Text,
+                                range: (current_range.range.1, parent.text_range.1),
+                                ancestors,
+                            }
+                        }
+                    }
+                };
+
+                if !current_range.range.is_empty() {
+                    break Some(current_range);
+                }
+            };
+
+            self.maybe_current_range = next_range.clone();
+            next_range
+        } else {
+            None
+        }
     }
 }
 

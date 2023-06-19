@@ -232,37 +232,41 @@ pub fn calc(
             pointer_state.release();
             let location = Location::Pos(*pos);
 
-            Some(Modification::Select {
-                region: if click_mods.shift {
-                    Region::ToLocation(location)
-                } else {
-                    match click_type {
-                        ClickType::Single => {
-                            if touch_mode {
-                                if !click_dragged {
-                                    Region::Location(location)
+            if click_checker.checkbox(*pos).is_none() && click_checker.link(*pos).is_none() {
+                Some(Modification::Select {
+                    region: if click_mods.shift {
+                        Region::ToLocation(location)
+                    } else {
+                        match click_type {
+                            ClickType::Single => {
+                                if touch_mode {
+                                    if !click_dragged {
+                                        Region::Location(location)
+                                    } else {
+                                        return None;
+                                    }
                                 } else {
-                                    return None;
-                                }
-                            } else {
-                                Region::BetweenLocations {
-                                    start: Location::Pos(click_pos),
-                                    end: location,
+                                    Region::BetweenLocations {
+                                        start: Location::Pos(click_pos),
+                                        end: location,
+                                    }
                                 }
                             }
+                            ClickType::Double => {
+                                Region::BoundAt { bound: Bound::Word, location, backwards: true }
+                            }
+                            ClickType::Triple => {
+                                Region::BoundAt { bound: Bound::Line, location, backwards: true }
+                            }
+                            ClickType::Quadruple => {
+                                Region::BoundAt { bound: Bound::Doc, location, backwards: true }
+                            }
                         }
-                        ClickType::Double => {
-                            Region::BoundAt { bound: Bound::Word, location, backwards: true }
-                        }
-                        ClickType::Triple => {
-                            Region::BoundAt { bound: Bound::Line, location, backwards: true }
-                        }
-                        ClickType::Quadruple => {
-                            Region::BoundAt { bound: Bound::Doc, location, backwards: true }
-                        }
-                    }
-                },
-            })
+                    },
+                })
+            } else {
+                None
+            }
         }
         Event::Key { key: Key::F2, pressed: true, .. } => Some(Modification::ToggleDebug),
         _ => None,

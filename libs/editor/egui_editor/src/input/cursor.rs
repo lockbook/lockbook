@@ -1,3 +1,4 @@
+use crate::bounds::Paragraphs;
 use crate::buffer::SubBuffer;
 use crate::galleys::Galleys;
 use crate::input::canonical::{Bound, Offset};
@@ -99,11 +100,16 @@ impl Cursor {
 
     pub fn advance(
         &mut self, offset: Offset, backwards: bool, buffer: &SubBuffer, galleys: &Galleys,
+        paragraphs: &Paragraphs,
     ) {
-        self.selection.1 =
-            self.selection
-                .1
-                .advance(&mut self.x_target, offset, backwards, buffer, galleys);
+        self.selection.1 = self.selection.1.advance(
+            &mut self.x_target,
+            offset,
+            backwards,
+            buffer,
+            galleys,
+            paragraphs,
+        );
     }
 
     pub fn start_rect(&self, galleys: &Galleys) -> Rect {
@@ -128,11 +134,13 @@ impl Cursor {
         self.selection.0 == self.selection.1
     }
 
-    pub fn at_line_bound(&self, buffer: &SubBuffer, galleys: &Galleys) -> bool {
+    pub fn at_line_bound(
+        &self, buffer: &SubBuffer, galleys: &Galleys, paragraphs: &Paragraphs,
+    ) -> bool {
         let mut line_start = *self;
         let mut line_end = *self;
-        line_start.advance(Offset::To(Bound::Line), true, buffer, galleys);
-        line_end.advance(Offset::To(Bound::Line), false, buffer, galleys);
+        line_start.advance(Offset::To(Bound::Line), true, buffer, galleys, paragraphs);
+        line_end.advance(Offset::To(Bound::Line), false, buffer, galleys, paragraphs);
         self.selection.1 == line_start.selection.1 || self.selection.1 == line_end.selection.1
     }
 }
