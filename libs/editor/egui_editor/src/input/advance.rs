@@ -6,7 +6,7 @@ use crate::offset_types::{DocCharOffset, RangeExt, RelByteOffset};
 use crate::unicode_segs::UnicodeSegs;
 use egui::epaint::text::cursor::Cursor as EguiCursor;
 use egui::{Pos2, Vec2};
-use std::iter;
+use std::{iter, mem};
 use unicode_segmentation::UnicodeSegmentation;
 
 impl DocCharOffset {
@@ -14,6 +14,7 @@ impl DocCharOffset {
         self, maybe_x_target: &mut Option<f32>, offset: Offset, backwards: bool,
         buffer: &SubBuffer, galleys: &Galleys, paragraphs: &Paragraphs,
     ) -> Self {
+        let maybe_x_target_value = mem::take(maybe_x_target);
         match offset {
             Offset::To(Bound::Char) => self,
             Offset::To(Bound::Word) => self
@@ -26,7 +27,7 @@ impl DocCharOffset {
                 .advance_by_char(backwards, &buffer.segs)
                 .fix(backwards, galleys),
             Offset::By(Increment::Line) => {
-                let x_target = maybe_x_target.unwrap_or(self.x(galleys));
+                let x_target = maybe_x_target_value.unwrap_or(self.x(galleys));
                 let result = self.advance_by_line(x_target, backwards, galleys);
                 if self != 0 && self != buffer.segs.last_cursor_position() {
                     *maybe_x_target = Some(x_target);
