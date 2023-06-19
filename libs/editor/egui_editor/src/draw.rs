@@ -18,7 +18,7 @@ impl Editor {
                         ItemType::Bulleted => {
                             let bullet_point = galley.bullet_center();
                             match indent_level {
-                                1 => ui.painter().circle_filled(
+                                0 => ui.painter().circle_filled(
                                     bullet_point,
                                     bullet_radius,
                                     self.appearance.text(),

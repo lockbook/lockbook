@@ -61,6 +61,7 @@ pub struct Appearance {
     pub italics: Option<ThemedColor>,
     pub strikethrough: Option<ThemedColor>,
     pub link: Option<ThemedColor>,
+    pub syntax: Option<ThemedColor>,
 
     // sizes
     pub bullet_radius: Option<f32>,
@@ -138,6 +139,10 @@ impl Appearance {
 
     pub fn link(&self) -> Color32 {
         self.link.unwrap_or(BLUE).get(self.current_theme)
+    }
+
+    pub fn syntax(&self) -> Color32 {
+        self.syntax.unwrap_or(GRAY).get(self.current_theme)
     }
 
     pub fn bullet_radius(&self) -> f32 {
