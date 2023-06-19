@@ -66,10 +66,10 @@ pub fn calc(
     loop {
         let paragraph = paragraphs.paragraphs[paragraph_idx];
         if let Some(text_range) = maybe_text_range.clone() {
-            if paragraph.1 <= text_range.range.0 {
+            if paragraph.1 < text_range.range.0 {
                 // paragraph ends before text_range starts -> emit galley
                 emit_galley = true;
-            } else if text_range.range.1 <= paragraph.0 {
+            } else if text_range.range.1 < paragraph.0 {
                 // text range ends before paragraph starts -> skip text range
                 maybe_text_range = text_range_iter.next();
             } else {
