@@ -9,37 +9,39 @@ struct FileCell: View {
     @EnvironmentObject var sheets: SheetState
     @EnvironmentObject var fileService: FileService
     @EnvironmentObject var account: AccountService
+    
+    let enterFolderAnim: () -> Void
 
     var body: some View {
         cell
-                .contextMenu(menuItems: {
-                    // TODO: disast: https://stackoverflow.com/questions/70159437/context-menu-not-updating-in-swiftui
-                    Button(action: handleDelete) {
-                        Label("Delete", systemImage: "trash.fill")
-                    }
-                    Button(action: {
-                        sheets.movingInfo = meta
-                    }, label: {
-                        Label("Move", systemImage: "arrow.up.and.down.and.arrow.left.and.right")
-                    })
-                    Button(action: {
-                        sheets.renamingInfo = meta
-                    }, label: {
-                        Label("Rename", systemImage: "questionmark.folder")
-                    })
-                    Button(action: {
-                        sheets.sharingFileInfo = meta
-                    }, label: {
-                        Label("Share", systemImage: "shareplay")
-                    })
+            .contextMenu(menuItems: {
+                // TODO: disast: https://stackoverflow.com/questions/70159437/context-menu-not-updating-in-swiftui
+                Button(action: handleDelete) {
+                    Label("Delete", systemImage: "trash.fill")
+                }
+                Button(action: {
+                    sheets.movingInfo = meta
+                }, label: {
+                    Label("Move", systemImage: "arrow.up.and.down.and.arrow.left.and.right")
                 })
+                Button(action: {
+                    sheets.renamingInfo = meta
+                }, label: {
+                    Label("Rename", systemImage: "questionmark.folder")
+                })
+                Button(action: {
+                    sheets.sharingFileInfo = meta
+                }, label: {
+                    Label("Share", systemImage: "shareplay")
+                })
+            })
     }
 
     @ViewBuilder
     var cell: some View {
         if meta.fileType == .Folder {
             Button(action: {
-                fileService.intoChildDirectory(meta)
+                enterFolderAnim()
             }) {
                 RealFileCell(meta: meta)
             }

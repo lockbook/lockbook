@@ -44,12 +44,6 @@ struct FileListView: View {
                     }
                 }
         }
-        .gesture(
-            DragGesture().onEnded({ (value) in
-                if value.translation.width > 50 && fileService.parent?.isRoot == false {
-                    fileService.upADirectory()
-                }
-            }))
         .alert(isPresented: Binding(get: { sync.outOfSpace && !hideOutOfSpaceAlert }, set: {_ in sync.outOfSpace = false })) {
             Alert(
                 title: Text("Out of Space"),
@@ -71,6 +65,9 @@ struct FileListView: View {
         )
     }
     
+    @State private var offset = CGSize.zero
+    @State private var opacity: Double = 1
+    
     var mainView: some View {
         List {
             if fileService.parent?.isRoot == true && fileService.suggestedDocs?.isEmpty != true {
@@ -91,11 +88,74 @@ struct FileListView: View {
                 .font(.headline)
                 .padding(.bottom, 3)) {
                 ForEach(fileService.childrenOfParent()) { meta in
-                    FileCell(meta: meta)
+                    FileCell(meta: meta) {
+                        withAnimation(.easeOut(duration: 0.2)) {
+                            offset.width = -500
+                        }
+                        
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                            
+                            opacity = 0
+                            offset.width = 500
+                            
+                            fileService.intoChildDirectory(meta)
+                            
+                            withAnimation(.easeOut(duration: 0.1)) {
+                                offset.width = 0
+                                opacity = 1
+                            }
+                        }
+                    }
                 }
             }
         }
         .navigationBarTitle(fileService.parent.map{($0.name)} ?? "")
+        .offset(offset)
+        .opacity(opacity)
+        .gesture(DragGesture()
+
+            .onChanged { gesture in
+                if fileService.parent?.isRoot == false && gesture.translation.width < 150 && gesture.translation.width > 0 {
+                    offset.width = gesture.translation.width
+                }
+            }
+            .onEnded { gesture in
+                if gesture.translation.width > 100 && fileService.parent?.isRoot == false {
+//                    withAnimation(.linear(duration: 2.0)) {
+//                        offset.width = 500
+//                        opacity = 0
+//                    }
+//                    fileService.upADirectory()
+//                    offset.width = -500
+//                    opacity = 1
+//                    withAnimation(.linear(duration: 2.0)) {
+//                        offset.width = 0
+//                    }
+//
+//                    withAnimation(.linear(duration: 0.2)) {
+//                        offset.width = -500
+//                    }
+                    
+                    withAnimation(.easeOut(duration: 0.2)) {
+                        offset.width = 500
+                        opacity = 0
+                    }
+                    
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                        offset.width = -500
+                        opacity = 1
+                        
+                        fileService.upADirectory()
+                        
+                        withAnimation(.easeOut(duration: 0.1)) {
+                            offset.width = 0
+                        }
+                    }
+                }
+                
+                
+            }
+        )
     }
 }
 
