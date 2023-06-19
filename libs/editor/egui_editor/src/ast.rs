@@ -182,7 +182,15 @@ impl Ast {
                         text_range.0 = original_text_range_0;
                     }
                 }
-                Element::QuoteBlock => {}
+                Element::QuoteBlock => {
+                    // >quote block
+                    // > quote block
+                    if buffer[text_range].starts_with("> ") {
+                        text_range.0 += 2;
+                    } else if buffer[text_range].starts_with('>') {
+                        text_range.0 += 1;
+                    }
+                }
                 Element::CodeBlock => {
                     if (buffer[range].starts_with("```\n") && buffer[range].ends_with("\n```"))
                         || (buffer[range].starts_with("~~~\n") && buffer[range].ends_with("\n~~~"))
