@@ -153,6 +153,7 @@ impl AccountScreen {
                 AccountUpdate::OpenModal(open_modal) => match open_modal {
                     OpenModal::NewDoc(maybe_parent) => self.open_new_doc_modal(maybe_parent),
                     OpenModal::NewFolder(maybe_parent) => self.open_new_folder_modal(maybe_parent),
+                    OpenModal::InitiateShare(maybe_parent) => self.open_share_modal(maybe_parent),
                     OpenModal::Settings => {
                         self.modals.settings = Some(SettingsModal::new(&self.core, &self.settings));
                     }
@@ -352,6 +353,13 @@ impl AccountScreen {
             ui.ctx().request_repaint();
         }
 
+        if let Some(file) = resp.initiate_share_modal {
+            self.update_tx
+                .send(OpenModal::InitiateShare(Some(file)).into())
+                .unwrap();
+            ui.ctx().request_repaint();
+        }
+
         if let Some(rename_req) = resp.rename_request {
             self.rename_file(rename_req, ui.ctx());
         }
@@ -462,6 +470,10 @@ impl AccountScreen {
 
     fn open_new_folder_modal(&mut self, maybe_parent: Option<lb::File>) {
         self.open_new_file_modal(maybe_parent, lb::FileType::Folder);
+    }
+
+    fn open_share_modal(&mut self, maybe_parent: Option<lb::File>) {
+        self.modals.initiate_share = Some(InitiateShareModal::new(maybe_parent.unwrap()));
     }
 
     fn open_new_file_modal(&mut self, maybe_parent: Option<lb::File>, typ: lb::FileType) {
@@ -642,6 +654,7 @@ enum AccountUpdate {
 enum OpenModal {
     NewDoc(Option<lb::File>),
     NewFolder(Option<lb::File>),
+    InitiateShare(Option<lb::File>),
     Settings,
     ConfirmDelete(Vec<lb::File>),
 }

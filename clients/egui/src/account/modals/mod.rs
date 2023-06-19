@@ -1,6 +1,7 @@
 mod confirm_delete;
 mod error;
 mod help;
+mod initiate_share;
 mod new_file;
 mod search;
 mod settings;
@@ -8,6 +9,7 @@ mod settings;
 pub use confirm_delete::ConfirmDeleteModal;
 pub use error::ErrorModal;
 pub use help::HelpModal;
+pub use initiate_share::InitiateShareModal;
 pub use new_file::{NewDocModal, NewFileParams, NewFolderModal};
 pub use search::SearchModal;
 pub use settings::{SettingsModal, SettingsResponse};
@@ -20,6 +22,7 @@ pub struct Modals {
     pub settings: Option<SettingsModal>,
     pub new_doc: Option<NewDocModal>,
     pub new_folder: Option<NewFolderModal>,
+    pub initiate_share: Option<InitiateShareModal>,
     pub search: Option<SearchModal>,
     pub help: Option<HelpModal>,
     pub confirm_delete: Option<ConfirmDeleteModal>,
@@ -63,6 +66,12 @@ impl super::AccountScreen {
             }
         }
 
+        if let Some(response) = show(ctx, x_offset, &mut self.modals.initiate_share) {
+            if let Some(_) = response.inner {
+                println!("new thread for share");
+            }
+        }
+
         if let Some(response) = show(ctx, x_offset, &mut self.modals.confirm_delete) {
             if let Some((answer, files)) = response.inner {
                 if answer {
@@ -79,6 +88,7 @@ impl super::AccountScreen {
         m.settings.is_some()
             || m.new_doc.is_some()
             || m.new_folder.is_some()
+            || m.initiate_share.is_some()
             || m.search.is_some()
             || m.help.is_some()
             || m.confirm_delete.is_some()
@@ -97,6 +107,10 @@ impl super::AccountScreen {
         }
         if m.new_folder.is_some() {
             m.new_folder = None;
+            return true;
+        }
+        if m.initiate_share.is_some() {
+            m.initiate_share = None;
             return true;
         }
         if m.search.is_some() {
@@ -130,6 +144,7 @@ pub fn show<M: Modal>(
 ) -> Option<ModalResponse<M::Response>> {
     if let Some(d) = maybe_modal {
         let dr = show_modal(ctx, x_offset, d);
+
         if dr.closed {
             *maybe_modal = None;
         }

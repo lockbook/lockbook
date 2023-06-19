@@ -1,6 +1,7 @@
 use std::cmp::Ordering;
 
 use eframe::egui;
+use egui_winit::egui::RichText;
 
 use crate::model::DocType;
 use crate::theme::Icon;
@@ -258,6 +259,8 @@ impl TreeNode {
             ui.close_menu();
         }
 
+        ui.spacing_mut().button_padding = egui::vec2(4.0, 4.0);
+
         if ui.button("New Document").clicked() {
             node_resp.new_doc_modal = Some(self.file.clone());
             ui.close_menu();
@@ -266,6 +269,9 @@ impl TreeNode {
             node_resp.new_folder_modal = Some(self.file.clone());
             ui.close_menu();
         }
+
+        ui.separator();
+
         if ui.button("Rename").clicked() {
             state.renaming = NodeRenamingState::new(&self.file);
 
@@ -281,12 +287,25 @@ impl TreeNode {
 
             ui.close_menu();
         }
-        if ui.button("Export").clicked() {
-            ui.close_menu();
-        }
+
         if ui.button("Delete").clicked() {
             node_resp.delete_request = true;
             ui.close_menu();
+        }
+
+        ui.separator();
+
+        // if ui.button("Export").clicked() {
+        //     ui.close_menu();
+        // }
+
+        let share = ui.add(egui::Button::new(
+            RichText::new("Share").color(ui.style().visuals.hyperlink_color),
+        ));
+
+        if share.clicked() {
+            node_resp.initiate_share_modal = Some(self.file.clone());
+            ui.close_menu()
         }
     }
 
