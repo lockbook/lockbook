@@ -148,6 +148,9 @@ pub fn calc(
                             head_size = text_range_portion.range.len();
 
                             // apply style e.g. so empty headers still have big font
+                            text_range_portion
+                                .element(ast)
+                                .apply_style(&mut text_format, appearance);
                             layout.append("", 0.0, text_format);
                         } else {
                             // for other elements, apply the syntax style to head/tail characters
