@@ -10,6 +10,7 @@ use std::iter;
 use unicode_segmentation::UnicodeSegmentation;
 
 impl DocCharOffset {
+    #[allow(clippy::too_many_arguments)]
     pub fn advance(
         self, maybe_x_target: &mut Option<f32>, offset: Offset, backwards: bool, fix: bool,
         buffer: &SubBuffer, galleys: &Galleys, paragraphs: &Paragraphs,

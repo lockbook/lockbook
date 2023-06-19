@@ -12,7 +12,7 @@ use crate::debug::DebugInfo;
 use crate::element::{Element, ItemType};
 use crate::galleys::Galleys;
 use crate::images::ImageCache;
-use crate::input::canonical::{Bound, Increment, Modification, Offset, Region};
+use crate::input::canonical::{Bound, Modification, Offset, Region};
 use crate::input::cursor::{Cursor, PointerState};
 use crate::input::events;
 use crate::layouts::Annotation;
