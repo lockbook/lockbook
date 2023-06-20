@@ -58,9 +58,7 @@ pub fn calc(
             let mut cursor = current_cursor;
             let galley_idx = galleys.galley_at_char(cursor.selection.1);
             let galley = &galleys[galley_idx];
-            if cursor.selection.1 == galley.range.end() - galley.tail_size
-                && matches!(galley.annotation, Some(Annotation::Item(..)))
-            {
+            if matches!(galley.annotation, Some(Annotation::Item(..))) {
                 // cursor at end of list item
                 if galley.size() - galley.head_size - galley.tail_size == 0 {
                     // empty list item -> delete current annotation

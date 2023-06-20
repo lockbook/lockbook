@@ -324,7 +324,7 @@ impl AstNode {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum AstTextRangeType {
     /// Text between `node.range.0` and `node.text_range.0` i.e. leading syntax characters for a node.
     /// Occurs at most once per node.
