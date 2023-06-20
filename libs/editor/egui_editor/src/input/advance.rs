@@ -176,7 +176,7 @@ impl DocCharOffset {
         self
     }
 
-    fn advance_to_line_bound(self, backwards: bool, galleys: &Galleys) -> Self {
+    pub fn advance_to_line_bound(self, backwards: bool, galleys: &Galleys) -> Self {
         let (galley_idx, ecursor) = galleys.galley_and_cursor_by_char_offset(self);
         let galley = &galleys[galley_idx];
         let ecursor = if backwards {

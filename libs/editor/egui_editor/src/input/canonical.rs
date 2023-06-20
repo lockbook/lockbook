@@ -308,6 +308,7 @@ mod test {
     #[derive(Default)]
     struct TestClickChecker {
         ui: bool,
+        text: Option<usize>,
         checkbox: Option<usize>,
         link: Option<String>,
     }
@@ -315,6 +316,10 @@ mod test {
     impl ClickChecker for TestClickChecker {
         fn ui(&self, _pos: Pos2) -> bool {
             self.ui
+        }
+
+        fn text(&self, _pos: Pos2) -> Option<usize> {
+            self.text
         }
 
         fn checkbox(&self, _pos: Pos2) -> Option<usize> {

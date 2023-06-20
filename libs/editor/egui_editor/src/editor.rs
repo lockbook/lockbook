@@ -13,6 +13,7 @@ use crate::element::{Element, ItemType};
 use crate::galleys::Galleys;
 use crate::images::ImageCache;
 use crate::input::canonical::{Bound, Modification, Offset, Region};
+use crate::input::click_checker::{ClickChecker, EditorClickChecker};
 use crate::input::cursor::{Cursor, PointerState};
 use crate::input::events;
 use crate::layouts::Annotation;
@@ -72,10 +73,8 @@ pub struct Editor {
     // events not supported by egui; integrations push to this vec and editor processes and clears it
     pub custom_events: Vec<Modification>,
 
-    // hacky egui focus workaround
+    // state for detecting clicks and converting global to local coordinates
     pub scroll_area_rect: Rect,
-
-    // assists in adjusting screen coordinates to scroll area coordinates for ffi
     pub scroll_area_offset: Vec2,
 }
 
@@ -337,16 +336,19 @@ impl Editor {
         &mut self, events: &[Event], custom_events: &[Modification], touch_mode: bool,
     ) {
         let prior_selection = self.buffer.current.cursor.selection;
+        let click_checker = EditorClickChecker {
+            ui_rect: self.ui_rect,
+            galleys: &self.galleys,
+            buffer: &self.buffer,
+            ast: &self.ast,
+            appearance: &self.appearance,
+        };
         let combined_events = events::combine(
             events,
             custom_events,
-            &self.ast,
-            &self.galleys,
-            &self.appearance,
-            self.ui_rect,
-            &mut self.buffer,
-            &mut self.pointer_state,
+            &click_checker,
             touch_mode,
+            &mut self.pointer_state,
         );
         let (text_updated, maybe_to_clipboard, maybe_opened_url) = events::process(
             &combined_events,
@@ -357,25 +359,41 @@ impl Editor {
         );
 
         // in touch mode, check if we should open the menu
+        let click_checker = EditorClickChecker {
+            ui_rect: self.ui_rect,
+            galleys: &self.galleys,
+            buffer: &self.buffer,
+            ast: &self.ast,
+            appearance: &self.appearance,
+        };
         if touch_mode {
             let current_cursor = self.buffer.current.cursor;
             let current_selection = current_cursor.selection;
+
+            let touched_a_galley = events.iter().any(|e| {
+                if let Event::Touch { pos, .. } | Event::PointerButton { pos, .. } = e {
+                    (&click_checker).text(*pos).is_some()
+                } else {
+                    false
+                }
+            });
+
             let touched_cursor = current_selection.is_empty()
                 && prior_selection == current_selection
+                && touched_a_galley
                 && combined_events
                     .iter()
                     .any(|e| matches!(e, Modification::Select { region: Region::Location(..) }));
+
             let touched_selection = current_selection.is_empty()
                 && prior_selection.contains(current_selection.1)
-                && !current_cursor.at_line_bound(
-                    &self.buffer.current,
-                    &self.galleys,
-                    &self.paragraphs,
-                )
+                && touched_a_galley
                 && combined_events
                     .iter()
                     .any(|e| matches!(e, Modification::Select { region: Region::Location(..) }));
+
             let double_touched_for_selection = !current_selection.is_empty()
+                && touched_a_galley
                 && combined_events.iter().any(|e| {
                     matches!(
                         e,
