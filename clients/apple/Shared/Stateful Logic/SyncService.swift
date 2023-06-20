@@ -42,6 +42,7 @@ class SyncService: ObservableObject {
         DI.status.setLastSynced()
         DI.status.checkForLocalWork()
         DI.share.calculatePendingShares()
+        DI.settings.calculateUsage()
     }
     
     func sync() {

@@ -60,6 +60,29 @@ struct BottomBar: View {
         }
     }
     
+    func showUpgradeToPremium() {
+        let previousWindow = NSApplication.shared.windows.last
+        
+        let overlayWindow = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 300, height: 200),
+            styleMask: [.titled, .closable, .miniaturizable, .resizable],
+            backing: .buffered,
+            defer: false
+        )
+        
+        if let previousFrame = previousWindow?.frame {
+            let windowSize = overlayWindow.frame.size
+            let x = previousFrame.origin.x + (previousFrame.size.width - windowSize.width) / 2
+            let y = previousFrame.origin.y + (previousFrame.size.height - windowSize.height) / 2
+            overlayWindow.setFrame(NSRect(x: x, y: y, width: windowSize.width, height: windowSize.height), display: true)
+        }
+
+        
+        overlayWindow.isReleasedWhenClosed = false
+        overlayWindow.contentView = NSHostingView(rootView: UpgradeToPremium().realDI())
+        overlayWindow.makeKeyAndOrderFront(nil)
+    }
+    
     @ViewBuilder
     var usageBar: some View {
         if let usage = settings.usages {
@@ -69,26 +92,7 @@ struct BottomBar: View {
                 HStack {
                     if settings.usageProgress > 0.8 {
                         Button(action: {
-                            let previousWindow = NSApplication.shared.windows.last
-                            
-                            let overlayWindow = NSWindow(
-                                contentRect: NSRect(x: 0, y: 0, width: 300, height: 200),
-                                styleMask: [.titled, .closable, .miniaturizable, .resizable],
-                                backing: .buffered,
-                                defer: false
-                            )
-                            
-                            if let previousFrame = previousWindow?.frame {
-                                let windowSize = overlayWindow.frame.size
-                                let x = previousFrame.origin.x + (previousFrame.size.width - windowSize.width) / 2
-                                let y = previousFrame.origin.y + (previousFrame.size.height - windowSize.height) / 2
-                                overlayWindow.setFrame(NSRect(x: x, y: y, width: windowSize.width, height: windowSize.height), display: true)
-                            }
-
-                            
-                            overlayWindow.isReleasedWhenClosed = false
-                            overlayWindow.contentView = NSHostingView(rootView: UpgradeToPremium().realDI())
-                            overlayWindow.makeKeyAndOrderFront(nil)
+                            showUpgradeToPremium()
                         }, label: {
                             Text("Upgrade")
                                 .foregroundColor(.accentColor)
@@ -103,8 +107,12 @@ struct BottomBar: View {
                         .font(.callout)
                     
                     if settings.usageProgress <= 0.8 {
-                        Image(systemName: "plus.circle.fill")
-                            .foregroundColor(.gray)
+                        Button(action: {
+                            showUpgradeToPremium()
+                        }, label: {
+                            Image(systemName: "plus.circle.fill")
+                                .foregroundColor(.gray)
+                        })
                         
                         Spacer()
                     }
