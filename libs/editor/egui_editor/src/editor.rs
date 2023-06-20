@@ -220,6 +220,16 @@ impl Editor {
             }
         } else {
             ui.memory_mut(|m| m.request_focus(id));
+
+            // put the cursor at the first valid cursor position
+            self.custom_events.push(Modification::Select {
+                region: Region::ToOffset {
+                    offset: Offset::To(Bound::Doc),
+                    backwards: false,
+                    extend_selection: false,
+                },
+            });
+
             (true, true)
         };
 
