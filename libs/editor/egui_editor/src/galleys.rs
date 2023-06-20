@@ -132,8 +132,10 @@ pub fn calc(
                     Element::Selection.apply_style(&mut text_format, appearance);
                 }
 
-                // only the first portion of a text range gets that range's annotation
-                if text_range.range.0 == text_range_portion.range.0 {
+                // only the first portion of a head text range gets that range's annotation
+                if text_range.range_type == AstTextRangeType::Head
+                    && text_range.range.0 == text_range_portion.range.0
+                {
                     annotation = text_range_portion.annotation(ast).or(annotation);
                     annotation_text_format = text_format.clone();
                 }
