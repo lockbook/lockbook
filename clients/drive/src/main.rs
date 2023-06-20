@@ -1,11 +1,18 @@
 use clap::Parser;
+use is_terminal::IsTerminal;
+use std::fs::File;
 use std::path::{Path, PathBuf};
+use std::thread;
+use std::time::Duration;
 
 //extern crate notify;
 
 use notify::{Config, RecommendedWatcher, RecursiveMode, Watcher};
+use notify::EventKind::Remove;
 use std::sync::mpsc::channel;
 //use std::time::Duration;
+//use lockbook_core::CoreLib;
+//use lockbook_shared;
 
 use lb::Core;
 //use self::error::CliError;
@@ -14,17 +21,38 @@ use lb::Core;
 #[command(version, about)]
 enum Command {
     LocalSync { location: PathBuf },
+    Import
 }
 
 fn main() {
-    core();
+    let c = core();
     let cmd = Command::parse();
     match cmd {
+        Command::Import => import_acct(&c),
         Command::LocalSync { location } => {
+            c.get_account().unwrap();
             println!("{:?}", location);
-            check_for_changes().unwrap();
+            check_for_changes(&c, location).unwrap();
         }
     }
+}
+
+fn import_acct(core: &Core){
+    if std::io::stdin().is_terminal() {
+        panic!("to import an existing lockbook account, pipe your account string into this command, e.g.:\npbpaste | drive import");
+    }
+
+    let mut account_string = String::new();
+    std::io::stdin()
+        .read_line(&mut account_string)
+        .expect("failed to read from stdin");
+    account_string.retain(|c| !c.is_whitespace());
+
+    println!("importing account...");
+    core.import_account(&account_string).unwrap();
+
+    println!("account imported!");
+
 }
 
 fn core() -> Core {
@@ -33,20 +61,43 @@ fn core() -> Core {
     Core::init(&lb::Config { writeable_path, logs: true, colored_logs: true }).unwrap()
 }
 
-fn check_for_changes() -> notify::Result<()> {
+fn check_for_changes(core: &Core, mut dest: PathBuf) -> notify::Result<()> {
+    //sync(&core).unwrap();
+    core.sync(Some(Box::new(|sp: lb::SyncProgress| {
+        use lb::ClientWorkUnit::*;
+        match sp.current_work_unit {
+            PullMetadata => println!("pulling file tree updates"),
+            PushMetadata => println!("pushing file tree updates"),
+            PullDocument(f) => println!("pulling: {}", f.name),
+            PushDocument(f) => println!("pushing: {}", f.name),
+        };
+    }))).unwrap();
+    //Ok(());
+
+    core.export_file(core.get_root().unwrap().id, dest.clone(), false, None).unwrap();
+    File::open(&dest).unwrap().sync_all().unwrap();
     // Create a channel to receive file events
     let (tx, rx) = channel();
-    let filepath: &str = "example.txt";
+    //let filepath: &str = "example.txt";
+    dest.push(core.get_root().unwrap().name);
     // Create a new watcher object
     let mut watcher = RecommendedWatcher::new(tx, Config::default())?;
     // Register the file for watching
-    watcher.watch(Path::new(filepath), RecursiveMode::Recursive)?;
+    watcher.watch(&dest, RecursiveMode::Recursive)?;
 
-    println!("Watching for changes in {filepath}");
+    println!("Watching for changes in {:?}", dest);
 
     for res in rx {
         match res {
-            Ok(event) => println!("changed: {:?}", event),
+            Ok(event) => {
+                // if let notify::Remove(path) = event {
+                //     println!("File deleted");
+                // }
+                println!("{:?}", event.info());
+                //else{
+                println!("changed: {:?}", event)
+                //}
+            }
             Err(e) => println!("watch error: {:?}", e),
         }
     }
@@ -55,10 +106,10 @@ fn check_for_changes() -> notify::Result<()> {
 }
 
 // Step 1: Either make sure directory is empty or empty it
-// Step 2: Initialize a core - Core::Init pointed at .lockbook, location = .lockbook/drive
-// Step 3: Determine whether they are signed in - core.get_account
-// Step 4: Initially they shouldn't be signed in - provide another subcommand where they can import their account
-// Step 4.5: If you import an account rn, call core.sync
+// ✅Step 2: Initialize a core - Core::Init pointed at .lockbook, location = .lockbook/drive
+// ✅Step 3: Determine whether they are signed in - core.get_account
+// ✅Step 4: Initially they shouldn't be signed in - provide another subcommand where they can import their account
+// ✅Step 4.5: If you import an account rn, call core.sync
 // Step 5: Write them to the user specified location
 // Step 6: On this user specified location, watch for changes
 // Step 7: Based on what happens, do the corresponding thing inside core (eg if they create file, call core.create)
@@ -71,3 +122,5 @@ fn check_for_changes() -> notify::Result<()> {
 // Naive approach: detect shutdown, delete everything
 // Better approach: Put the file system into a read only state when we shutdown
 // Step 10: Work on the UI
+
+// In check for changes, lockbook.sync, lockbook export, watch for changes, and replicate something
