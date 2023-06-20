@@ -10,21 +10,18 @@ use std::iter;
 use unicode_segmentation::UnicodeSegmentation;
 
 impl DocCharOffset {
+    #[allow(clippy::too_many_arguments)]
     pub fn advance(
-        self, maybe_x_target: &mut Option<f32>, offset: Offset, backwards: bool,
+        self, maybe_x_target: &mut Option<f32>, offset: Offset, backwards: bool, fix: bool,
         buffer: &SubBuffer, galleys: &Galleys, paragraphs: &Paragraphs,
     ) -> Self {
         match offset {
             Offset::To(Bound::Char) => self,
-            Offset::To(Bound::Word) => self
-                .advance_to_word_bound(backwards, buffer, galleys)
-                .fix(backwards, galleys),
+            Offset::To(Bound::Word) => self.advance_to_word_bound(backwards, buffer, galleys),
             Offset::To(Bound::Line) => self.advance_to_line_bound(backwards, galleys),
             Offset::To(Bound::Paragraph) => self.advance_to_paragraph_bound(backwards, paragraphs),
             Offset::To(Bound::Doc) => self.advance_to_doc_bound(backwards, &buffer.segs),
-            Offset::By(Increment::Char) => self
-                .advance_by_char(backwards, &buffer.segs)
-                .fix(backwards, galleys),
+            Offset::By(Increment::Char) => self.advance_by_char(backwards, &buffer.segs),
             Offset::By(Increment::Line) => {
                 let x_target = maybe_x_target.unwrap_or(self.x(galleys));
                 let result = self.advance_by_line(x_target, backwards, galleys);
@@ -33,8 +30,8 @@ impl DocCharOffset {
                 }
                 result
             }
-            .fix(backwards, galleys),
         }
+        .fix(backwards, fix, galleys)
     }
 
     fn advance_by_char(mut self, backwards: bool, segs: &UnicodeSegs) -> Self {
@@ -221,26 +218,40 @@ impl DocCharOffset {
         }
     }
 
-    fn fix(self, prefer_backwards: bool, galleys: &Galleys) -> Self {
+    fn fix(self, prefer_backwards: bool, fix: bool, galleys: &Galleys) -> Self {
         let galley_idx = galleys.galley_at_char(self);
         let galley = &galleys[galley_idx];
         let galley_text_range = galley.text_range();
 
         if self < galley_text_range.start() {
-            if !prefer_backwards || galley_idx == 0 {
+            if prefer_backwards {
+                if !fix && galley_idx == 0 {
+                    // move cursor to beginning of annotation text (invalid at end of frame)
+                    galley.range.start()
+                } else if galley_idx == 0 {
+                    self
+                } else {
+                    // move cursor backwards into text of preceding galley
+                    galleys[galley_idx - 1].text_range().end()
+                }
+            } else {
                 // move cursor forwards into galley text
                 galley_text_range.start()
-            } else {
-                // move cursor backwards into text of preceding galley
-                galleys[galley_idx - 1].text_range().end()
             }
         } else if self > galley_text_range.end() {
-            if prefer_backwards || galley_idx == galleys.len() - 1 {
+            if !prefer_backwards {
+                if !fix && galley_idx == galleys.len() - 1 {
+                    // move cursor to end of annotation text (invalid at end of frame)
+                    galley.range.end()
+                } else if galley_idx == galleys.len() - 1 {
+                    self
+                } else {
+                    // move cursor forwards into text of next galley
+                    galleys[galley_idx + 1].text_range().start()
+                }
+            } else {
                 // move cursor backwards into galley text
                 galley_text_range.end()
-            } else {
-                // move cursor forwards into text of next galley
-                galleys[galley_idx + 1].text_range().start()
             }
         } else {
             self
