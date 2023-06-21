@@ -79,7 +79,7 @@ class UsageBarPreference(context: Context, attributeSet: AttributeSet?) : Prefer
             premiumUsageBar.max = (PAID_TIER_USAGE_BYTES / ROUND_DECIMAL_PLACES).toInt()
             premiumUsageBar.progress = (usage.serverUsage.exact / ROUND_DECIMAL_PLACES).toInt()
 
-            premiumUsageInfo.text = usage.serverUsage.readable + " / " + context.resources.getString(R.string.premium_gb)
+            premiumUsageInfo.text = context.resources.getString(R.string.out_of_premium_gb, usage.serverUsage.readable)
         }
 
         usageInfo.text = spannable {
