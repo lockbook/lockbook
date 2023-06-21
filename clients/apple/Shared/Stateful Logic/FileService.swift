@@ -34,7 +34,7 @@ class FileService: ObservableObject {
     }
 
     func intoChildDirectory(_ file: File) {
-                self.path.append(file)
+        self.path.append(file)
     }
 
     func pathBreadcrumbClicked(_ file: File) {
