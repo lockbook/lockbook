@@ -107,7 +107,7 @@ impl FileTree {
             .response;
 
         if let Some(pointer_pos) = ui.ctx().pointer_interact_pos() {
-            ui.scroll_to_cursor(Some(egui::Align::Center));
+            ui.scroll_to_rect(response.rect, None);
 
             let mut delta = pointer_pos - response.rect.center();
             delta.y -= ui.text_style_height(&egui::TextStyle::Body);
