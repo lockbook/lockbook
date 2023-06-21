@@ -247,6 +247,7 @@ impl AccountScreen {
                         s.done_syncing = true;
                     }
                 }
+                AccountUpdate::FileShared(_) => self.modals.initiate_share = None,
             }
         }
     }
@@ -509,6 +510,17 @@ impl AccountScreen {
             update_tx.send(AccountUpdate::FileCreated(result)).unwrap();
         });
     }
+    fn initiate_share(&mut self, params: InitiateShareParams) {
+        let core = self.core.clone();
+        let update_tx = self.update_tx.clone();
+
+        thread::spawn(move || {
+            let result = core
+                .share_file(params.id, &params.username, params.mode)
+                .map_err(|err| format!("{:?}", err));
+            update_tx.send(AccountUpdate::FileShared(result)).unwrap();
+        });
+    }
 
     fn open_file(&mut self, id: lb::Uuid, ctx: &egui::Context) {
         if self.workspace.goto_tab_id(id) {
@@ -632,6 +644,7 @@ enum AccountUpdate {
     OpenModal(OpenModal),
 
     FileCreated(Result<lb::File, String>),
+    FileShared(Result<(), String>),
     FileLoaded(lb::Uuid, Result<TabContent, TabFailure>),
     FileRenamed {
         id: lb::Uuid,
@@ -639,7 +652,6 @@ enum AccountUpdate {
         new_child_paths: HashMap<lb::Uuid, String>,
     },
     FileDeleted(lb::File),
-
     SyncUpdate(SyncUpdate),
 
     DoneDeleting,

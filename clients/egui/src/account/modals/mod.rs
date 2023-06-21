@@ -10,6 +10,7 @@ pub use confirm_delete::ConfirmDeleteModal;
 pub use error::ErrorModal;
 pub use help::HelpModal;
 pub use initiate_share::InitiateShareModal;
+pub use initiate_share::InitiateShareParams;
 pub use new_file::{NewDocModal, NewFileParams, NewFolderModal};
 pub use search::SearchModal;
 pub use settings::{SettingsModal, SettingsResponse};
@@ -67,8 +68,8 @@ impl super::AccountScreen {
         }
 
         if let Some(response) = show(ctx, x_offset, &mut self.modals.initiate_share) {
-            if let Some(_) = response.inner {
-                println!("new thread for share");
+            if let Some(submission) = response.inner {
+                self.initiate_share(submission)
             }
         }
 
