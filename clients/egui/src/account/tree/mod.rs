@@ -80,23 +80,7 @@ impl FileTree {
 
         // Paint a caption under the cursor in a layer above.
         let layer_id = egui::LayerId::new(egui::Order::Tooltip, self.state.id);
-        // let response = ui
-        //     .with_layer_id(layer_id, |ui| {
-        //         egui::Frame::none()
-        //             .rounding(3.0)
-        //             .inner_margin(1.0)
-        //             .fill(ui.visuals().widgets.active.fg_stroke.color)
-        //             .show(ui, |ui| {
-        //                 egui::Frame::none()
-        //                     .rounding(3.0)
-        //                     .inner_margin(egui::style::Margin::symmetric(12.0, 7.0))
-        //                     .fill(ui.visuals().faint_bg_color)
-        //                     .show(ui, |ui| {
-        //                         ui.label(self.state.drag_caption());
-        //                     });
-        //             });
-        //     })
-        //     .response;
+
         let hover_pos = ui.input(|i| i.pointer.hover_pos().unwrap());
         let mut end = hover_pos;
         end.x += 70.0;
@@ -123,9 +107,7 @@ impl FileTree {
             .response;
 
         if let Some(pointer_pos) = ui.ctx().pointer_interact_pos() {
-            // This is to prevent only part of the drag caption tooltip from being painted. I'm
-            // unsure why, but it gets cut off as the user uses the drag to horizontally scroll.
-            response.scroll_to_me(None);
+            ui.scroll_to_cursor(Some(egui::Align::Center));
 
             let mut delta = pointer_pos - response.rect.center();
             delta.y -= ui.text_style_height(&egui::TextStyle::Body);
