@@ -21,6 +21,7 @@ class UsageBarPreference(context: Context, attributeSet: AttributeSet?) : Prefer
     lateinit var premiumInfoForFree: LinearLayout
     lateinit var upgradeAccount: Button
     lateinit var usageInfo: TextView
+    lateinit var premiumUsageInfo: TextView
 
     init {
         layoutResource = R.layout.preference_usage_bar
@@ -39,6 +40,7 @@ class UsageBarPreference(context: Context, attributeSet: AttributeSet?) : Prefer
         premiumInfoForFree = holder.itemView.findViewById(R.id.premium_info_for_free)
         upgradeAccount = holder.itemView.findViewById(R.id.upgrade_account)
         usageInfo = holder.itemView.findViewById(R.id.usage_info)
+        premiumUsageInfo = holder.itemView.findViewById(R.id.premium_usage_info)
 
         getSettingsFragment().model.determineSettingsInfo.observe(getSettingsFragment()) { settingsInfo ->
             setUpUsagePreference(settingsInfo.usage, settingsInfo.uncompressedUsage)
@@ -76,6 +78,8 @@ class UsageBarPreference(context: Context, attributeSet: AttributeSet?) : Prefer
 
             premiumUsageBar.max = (PAID_TIER_USAGE_BYTES / ROUND_DECIMAL_PLACES).toInt()
             premiumUsageBar.progress = (usage.serverUsage.exact / ROUND_DECIMAL_PLACES).toInt()
+
+            premiumUsageInfo.text = context.resources.getString(R.string.out_of_premium_gb, usage.serverUsage.readable)
         }
 
         usageInfo.text = spannable {

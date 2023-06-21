@@ -244,6 +244,7 @@
     <string name="subscribe">Subscribe</string>
     <string name="free_tier_current">Free (Current)</string>
     <string name="premium_gb">30 GB</string>
+    <string name="out_of_premium_gb">%s / 30 GB</string>
     <string name="per_month">/ month</string>
     <string name="one_mb">1 MB</string>
     <string name="premium_price">$2.99</string>
