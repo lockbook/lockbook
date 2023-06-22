@@ -8,6 +8,7 @@ use std::time::Instant;
 
 pub mod appearance;
 pub mod ast;
+pub mod bounds;
 pub mod buffer;
 pub mod debug;
 pub mod draw;
@@ -18,7 +19,6 @@ pub mod images;
 pub mod input;
 pub mod layouts;
 pub mod offset_types;
-pub mod styles;
 pub mod test_input;
 pub mod unicode_segs;
 
@@ -50,6 +50,24 @@ pub enum CTextLayoutDirection {
     Left = 3,
     Up = 4,
     Down = 5,
+}
+
+#[repr(C)]
+#[derive(Debug)]
+pub struct CPoint {
+    pub x: f64,
+    pub y: f64,
+}
+
+#[repr(C)]
+#[derive(Debug)]
+pub enum CTextGranularity {
+    Character = 0,
+    Word = 1,
+    Sentence = 2,
+    Paragraph = 3,
+    Line = 4,
+    Document = 5,
 }
 
 #[repr(C)]

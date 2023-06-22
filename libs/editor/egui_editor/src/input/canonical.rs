@@ -16,8 +16,10 @@ pub enum Location {
 /// text unit that has a start and end location
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Bound {
+    Char,
     Word,
     Line,
+    Paragraph,
     Doc,
 }
 
@@ -41,27 +43,29 @@ pub enum Region {
     /// 0-length region starting and ending at location
     Location(Location),
 
-    /// text from secondary cursor to location. preserves selection.
+    /// Text from secondary cursor to location. preserves selection.
     ToLocation(Location),
 
-    /// text from one location to another
+    /// Text from one location to another
     BetweenLocations { start: Location, end: Location },
 
-    /// currently selected text
+    /// Currently selected text
     Selection,
 
-    /// currently selected text, or if the selection is empty, text from the primary cursor
-    /// to one char/line before/after or to start/end of word/line/doc
+    /// Currently selected text, or if the selection is empty, text from the primary cursor to one char/line
+    /// before/after or to start/end of word/line/doc
     SelectionOrOffset { offset: Offset, backwards: bool },
 
-    /// text from primary cursor to one char/line before/after or to start/end of word/line/doc.
+    /// Text from primary cursor to one char/line before/after or to start/end of word/line/paragraph/doc. In some
+    /// situations this instead represents the start of selection (if `backwards`) or end of selection, based on what
+    /// feels intuitive when using arrow keys to navigate a document.
     ToOffset { offset: Offset, backwards: bool, extend_selection: bool },
 
-    /// current word/line/doc
-    Bound { bound: Bound },
+    /// Current word/line/paragraph/doc, preferring previous word if `backwards`
+    Bound { bound: Bound, backwards: bool },
 
-    /// word/line/doc at a location
-    BoundAt { bound: Bound, location: Location },
+    /// Word/line/paragraph/doc at a location, preferring previous word if `backwards`
+    BoundAt { bound: Bound, location: Location, backwards: bool },
 }
 
 /// Standardized edits to any editor state e.g. buffer, clipboard, debug state.
@@ -72,7 +76,7 @@ pub enum Modification {
     StageMarked { highlighted: (RelCharOffset, RelCharOffset), text: String },
     CommitMarked,
     Replace { region: Region, text: String },
-    Newline, // distinct from replace because it triggers auto-bullet, etc
+    Newline { advance_cursor: bool }, // distinct from replace because it triggers auto-bullet, etc
     Indent { deindent: bool },
     Undo,
     Redo,
@@ -81,13 +85,27 @@ pub enum Modification {
     ToggleDebug,
     ToggleCheckbox(usize),
     OpenUrl(String),
+    Heading(u32),
+    Bold,
+    Italic,
+    Code,
+    BulletListItem,
+    NumberListItem,
+    TodoListItem,
 }
 
 impl From<&Modifiers> for Offset {
     fn from(modifiers: &Modifiers) -> Self {
-        if modifiers.command {
+        let should_jump_line = modifiers.mac_cmd;
+
+        let is_apple = cfg!(target_vendor = "apple");
+        let is_apple_alt = is_apple && modifiers.alt;
+        let is_non_apple_ctrl = !is_apple && modifiers.ctrl;
+        let should_jump_word = is_apple_alt || is_non_apple_ctrl;
+
+        if should_jump_line {
             Offset::To(Bound::Line)
-        } else if modifiers.alt {
+        } else if should_jump_word {
             Offset::To(Bound::Word)
         } else {
             Offset::By(Increment::Char)
@@ -105,7 +123,7 @@ pub fn calc(
         {
             Some(Modification::Select {
                 region: Region::ToOffset {
-                    offset: if modifiers.command {
+                    offset: if modifiers.mac_cmd {
                         Offset::To(Bound::Doc)
                     } else {
                         Offset::By(Increment::Line)
@@ -144,12 +162,16 @@ pub fn calc(
                 text: "".to_string(),
             })
         }
-        Event::Key { key: Key::Enter, pressed: true, .. } => Some(Modification::Newline),
+        Event::Key { key: Key::Enter, pressed: true, modifiers, .. } => {
+            Some(Modification::Newline { advance_cursor: !modifiers.shift })
+        }
         Event::Key { key: Key::Tab, pressed: true, modifiers, .. } => {
             Some(Modification::Indent { deindent: modifiers.shift })
         }
         Event::Key { key: Key::A, pressed: true, modifiers, .. } if modifiers.command => {
-            Some(Modification::Select { region: Region::Bound { bound: Bound::Doc } })
+            Some(Modification::Select {
+                region: Region::Bound { bound: Bound::Doc, backwards: true },
+            })
         }
         Event::Key { key: Key::X, pressed: true, modifiers, .. } if modifiers.command => {
             Some(Modification::Cut)
@@ -210,31 +232,41 @@ pub fn calc(
             pointer_state.release();
             let location = Location::Pos(*pos);
 
-            Some(Modification::Select {
-                region: if click_mods.shift {
-                    Region::ToLocation(location)
-                } else {
-                    match click_type {
-                        ClickType::Single => {
-                            if touch_mode {
-                                if !click_dragged {
-                                    Region::Location(location)
+            if click_checker.checkbox(*pos).is_none() && click_checker.link(*pos).is_none() {
+                Some(Modification::Select {
+                    region: if click_mods.shift {
+                        Region::ToLocation(location)
+                    } else {
+                        match click_type {
+                            ClickType::Single => {
+                                if touch_mode {
+                                    if !click_dragged {
+                                        Region::Location(location)
+                                    } else {
+                                        return None;
+                                    }
                                 } else {
-                                    return None;
-                                }
-                            } else {
-                                Region::BetweenLocations {
-                                    start: Location::Pos(click_pos),
-                                    end: location,
+                                    Region::BetweenLocations {
+                                        start: Location::Pos(click_pos),
+                                        end: location,
+                                    }
                                 }
                             }
+                            ClickType::Double => {
+                                Region::BoundAt { bound: Bound::Word, location, backwards: true }
+                            }
+                            ClickType::Triple => {
+                                Region::BoundAt { bound: Bound::Line, location, backwards: true }
+                            }
+                            ClickType::Quadruple => {
+                                Region::BoundAt { bound: Bound::Doc, location, backwards: true }
+                            }
                         }
-                        ClickType::Double => Region::BoundAt { bound: Bound::Word, location },
-                        ClickType::Triple => Region::BoundAt { bound: Bound::Line, location },
-                        ClickType::Quadruple => Region::BoundAt { bound: Bound::Doc, location },
-                    }
-                },
-            })
+                    },
+                })
+            } else {
+                None
+            }
         }
         Event::Key { key: Key::F2, pressed: true, .. } => Some(Modification::ToggleDebug),
         _ => None,
@@ -276,6 +308,7 @@ mod test {
     #[derive(Default)]
     struct TestClickChecker {
         ui: bool,
+        text: Option<usize>,
         checkbox: Option<usize>,
         link: Option<String>,
     }
@@ -283,6 +316,10 @@ mod test {
     impl ClickChecker for TestClickChecker {
         fn ui(&self, _pos: Pos2) -> bool {
             self.ui
+        }
+
+        fn text(&self, _pos: Pos2) -> Option<usize> {
+            self.text
         }
 
         fn checkbox(&self, _pos: Pos2) -> Option<usize> {
@@ -327,7 +364,7 @@ mod test {
                     key: Key::ArrowDown,
                     pressed: true,
                     repeat: false,
-                    modifiers: Modifiers { command: true, ..Default::default() },
+                    modifiers: Modifiers { mac_cmd: true, ..Default::default() },
                 },
                 TestClickChecker::default(),
                 &mut Default::default(),
@@ -377,7 +414,7 @@ mod test {
                     key: Key::ArrowDown,
                     pressed: true,
                     repeat: false,
-                    modifiers: Modifiers { command: true, shift: true, ..Default::default() },
+                    modifiers: Modifiers { mac_cmd: true, shift: true, ..Default::default() },
                 },
                 TestClickChecker::default(),
                 &mut Default::default(),
@@ -427,7 +464,7 @@ mod test {
                     key: Key::ArrowUp,
                     pressed: true,
                     repeat: false,
-                    modifiers: Modifiers { command: true, ..Default::default() },
+                    modifiers: Modifiers { mac_cmd: true, ..Default::default() },
                 },
                 TestClickChecker::default(),
                 &mut Default::default(),
@@ -477,7 +514,7 @@ mod test {
                     key: Key::ArrowUp,
                     pressed: true,
                     repeat: false,
-                    modifiers: Modifiers { command: true, shift: true, ..Default::default() },
+                    modifiers: Modifiers { mac_cmd: true, shift: true, ..Default::default() },
                 },
                 TestClickChecker::default(),
                 &mut Default::default(),
@@ -520,6 +557,7 @@ mod test {
     }
 
     #[test]
+    #[cfg(target_vendor = "Apple")]
     fn calc_alt_right() {
         assert!(matches!(
             calc(
@@ -552,7 +590,7 @@ mod test {
                     key: Key::ArrowRight,
                     pressed: true,
                     repeat: false,
-                    modifiers: Modifiers { command: true, ..Default::default() },
+                    modifiers: Modifiers { mac_cmd: true, ..Default::default() },
                 },
                 TestClickChecker::default(),
                 &mut Default::default(),
@@ -595,6 +633,7 @@ mod test {
     }
 
     #[test]
+    #[cfg(target_vendor = "Apple")]
     fn calc_alt_shift_right() {
         assert!(matches!(
             calc(
@@ -627,7 +666,7 @@ mod test {
                     key: Key::ArrowRight,
                     pressed: true,
                     repeat: false,
-                    modifiers: Modifiers { command: true, shift: true, ..Default::default() },
+                    modifiers: Modifiers { mac_cmd: true, shift: true, ..Default::default() },
                 },
                 TestClickChecker::default(),
                 &mut Default::default(),
@@ -720,6 +759,7 @@ mod test {
     }
 
     #[test]
+    #[cfg(target_vendor = "Apple")]
     fn calc_alt_left() {
         assert!(matches!(
             calc(
@@ -752,7 +792,7 @@ mod test {
                     key: Key::ArrowLeft,
                     pressed: true,
                     repeat: false,
-                    modifiers: Modifiers { command: true, ..Default::default() },
+                    modifiers: Modifiers { mac_cmd: true, ..Default::default() },
                 },
                 TestClickChecker::default(),
                 &mut Default::default(),
@@ -795,6 +835,7 @@ mod test {
     }
 
     #[test]
+    #[cfg(target_vendor = "Apple")]
     fn calc_alt_shift_left() {
         assert!(matches!(
             calc(
@@ -827,7 +868,7 @@ mod test {
                     key: Key::ArrowLeft,
                     pressed: true,
                     repeat: false,
-                    modifiers: Modifiers { command: true, shift: true, ..Default::default() },
+                    modifiers: Modifiers { mac_cmd: true, shift: true, ..Default::default() },
                 },
                 TestClickChecker::default(),
                 &mut Default::default(),

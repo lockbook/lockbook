@@ -4,22 +4,22 @@ use std::ops::{Add, AddAssign, Sub, SubAssign};
 
 /// A byte position in a buffer
 #[repr(transparent)]
-#[derive(Default, Copy, Clone, PartialEq, PartialOrd, Eq, Ord)]
+#[derive(Default, Copy, Clone, PartialEq, PartialOrd, Eq, Ord, Hash)]
 pub struct DocByteOffset(pub usize);
 
 /// A byte offset from a position in a buffer or a distance between two positions
 #[repr(transparent)]
-#[derive(Default, Copy, Clone, PartialEq, PartialOrd, Eq, Ord)]
+#[derive(Default, Copy, Clone, PartialEq, PartialOrd, Eq, Ord, Hash)]
 pub struct RelByteOffset(pub usize);
 
 /// A character position in a buffer
 #[repr(transparent)]
-#[derive(Default, Copy, Clone, PartialEq, PartialOrd, Eq, Ord)]
+#[derive(Default, Copy, Clone, PartialEq, PartialOrd, Eq, Ord, Hash)]
 pub struct DocCharOffset(pub usize);
 
 /// A character offset from a position in a buffer or a distance between two positions
 #[repr(transparent)]
-#[derive(Default, Copy, Clone, PartialEq, PartialOrd, Eq, Ord)]
+#[derive(Default, Copy, Clone, PartialEq, PartialOrd, Eq, Ord, Hash)]
 pub struct RelCharOffset(pub usize);
 
 // rel +/- rel = rel, doc +/- rel = doc, doc - doc = rel
@@ -414,20 +414,21 @@ impl Debug for RelCharOffset {
     }
 }
 
-pub trait RangeExt<Element>: Ord + Sized {
+pub trait RangeExt<Element: Sub<Element>>: Ord + Sized {
     fn contains(&self, value: Element) -> bool;
     fn start(&self) -> Element;
     fn end(&self) -> Element;
+    fn len(&self) -> <Element as Sub>::Output;
     fn is_empty(&self) -> bool;
 }
 
 impl<T> RangeExt<T> for (T, T)
 where
-    T: Ord + Sized + Copy,
+    T: Ord + Sized + Copy + Sub<T>,
 {
-    /// returns whether the range includes the value, treating the (start, end) bounds as (inclusive, exclusive)
+    /// returns whether the range includes the value, treating the (start, end) bounds as (inclusive, inclusive)
     fn contains(&self, value: T) -> bool {
-        self.start() <= value && value < self.end()
+        self.start() <= value && value <= self.end()
     }
 
     fn start(&self) -> T {
@@ -436,6 +437,10 @@ where
 
     fn end(&self) -> T {
         *max(&self.0, &self.1)
+    }
+
+    fn len(&self) -> <T as Sub>::Output {
+        self.end() - self.start()
     }
 
     fn is_empty(&self) -> bool {

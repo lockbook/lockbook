@@ -80,9 +80,6 @@ pub fn verify_auth<TRequest: Request + Serialize>(
     )
 }
 
-pub const FREE_TIER_USAGE_SIZE: u64 = 1000000;
-pub const PREMIUM_TIER_USAGE_SIZE: u64 = 30000000000;
-
 pub mod account_service;
 pub mod billing;
 pub mod config;

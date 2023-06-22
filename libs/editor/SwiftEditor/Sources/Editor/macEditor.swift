@@ -30,5 +30,33 @@ public struct MetalView: NSViewRepresentable {
             editorState.reload = false
         }
     }
+
+    public func header(headingSize: UInt32) {
+        mtkView.header(headingSize: headingSize)
+    }
+
+    public func bulletedList() {
+        mtkView.bulletedList()
+    }
+
+    public func numberedList() {
+        mtkView.numberedList()
+    }
+
+    public func todoList() {
+        mtkView.todoList()
+    }
+
+    public func bold() {
+        mtkView.bold()
+    }
+
+    public func italic() {
+        mtkView.italic()
+    }
+
+    public func inlineCode() {
+        mtkView.inlineCode()
+    }
 }
 #endif

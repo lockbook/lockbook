@@ -1,4 +1,4 @@
-pub static TEST_MARKDOWN: &str = TEST_MARKDOWN_34;
+pub static TEST_MARKDOWN: &str = TEST_MARKDOWN_50;
 
 pub static TEST_MARKDOWN_0: &str = "# test";
 pub static TEST_MARKDOWN_1: &str = "a";
@@ -194,3 +194,30 @@ pub static TEST_MARKDOWN_46: &str = "- ”";
 pub static TEST_MARKDOWN_47: &str = "” x x";
 
 pub static TEST_MARKDOWN_48: &str = "Visit our [website](http://lockbook.net)!";
+
+pub static TEST_MARKDOWN_49: &str = r#"# Title
+list
+* __bold__ bulleted list item
+  - [x] indented todo list item
+
+```
+code block
+```
+
+    code block
+
+fin"#;
+pub static TEST_MARKDOWN_50: &str = r#"# Editor Demo
+Featuring:
+1. a __bold__ list item,
+    * an _italic_ list item,
+    - [ ] a `code` list item,
+    
+```
+a code block
+```
+
+> a quote,
+
+and a link to our [website](http://lockbook.net)!
+"#;

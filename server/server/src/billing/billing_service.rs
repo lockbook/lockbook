@@ -1,4 +1,4 @@
-use crate::account_service::{is_admin, GetUsageHelperError};
+use crate::account_service::is_admin;
 use crate::billing::app_store_model::{NotificationChange, Subtype};
 use crate::billing::billing_model::{
     AppStoreUserInfo, BillingPlatform, GooglePlayUserInfo, StripeUserInfo,
@@ -12,7 +12,7 @@ use crate::billing::{
 };
 use crate::schema::Account;
 use crate::ServerError::ClientError;
-use crate::{account_service, RequestContext, ServerError, ServerState, FREE_TIER_USAGE_SIZE};
+use crate::{account_service, RequestContext, ServerError, ServerState};
 use base64::DecodeError;
 use db_rs::Db;
 use libsecp256k1::PublicKey;
@@ -24,10 +24,12 @@ use lockbook_shared::api::{
     SubscriptionInfo, UpgradeAccountAppStoreError, UpgradeAccountAppStoreRequest,
     UpgradeAccountAppStoreResponse, UpgradeAccountGooglePlayError, UpgradeAccountGooglePlayRequest,
     UpgradeAccountGooglePlayResponse, UpgradeAccountStripeError, UpgradeAccountStripeRequest,
-    UpgradeAccountStripeResponse,
+    UpgradeAccountStripeResponse, FREE_TIER_USAGE_SIZE,
 };
 use lockbook_shared::clock::get_time;
 use lockbook_shared::file_metadata::Owner;
+use lockbook_shared::server_tree::ServerTree;
+use lockbook_shared::tree_like::TreeLike;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::ops::DerefMut;
@@ -292,20 +294,28 @@ pub async fn cancel_subscription(
         return Err(ClientError(CancelSubscriptionError::NotPremium));
     }
 
-    let usage: u64 = account_service::get_usage_helper(
-        server_state.index_db.lock()?.deref_mut(),
-        &context.public_key,
-    )
-    .map_err(|e| match e {
-        GetUsageHelperError::UserNotFound => ClientError(CancelSubscriptionError::UserNotFound),
-    })?
-    .iter()
-    .map(|a| a.size_bytes)
-    .sum();
+    {
+        let mut lock = server_state.index_db.lock()?;
+        let db = lock.deref_mut();
 
-    if usage > FREE_TIER_USAGE_SIZE {
-        debug!("Cannot downgrade user to free since they are over the data cap");
-        return Err(ClientError(CancelSubscriptionError::UsageIsOverFreeTierDataCap));
+        let mut tree = ServerTree::new(
+            Owner(context.public_key),
+            &mut db.owned_files,
+            &mut db.shared_files,
+            &mut db.file_children,
+            &mut db.metas,
+        )?
+        .to_lazy();
+
+        let usage: u64 = account_service::get_usage_helper(&mut tree, db.sizes.data())?
+            .iter()
+            .map(|a| a.size_bytes)
+            .sum();
+
+        if usage > FREE_TIER_USAGE_SIZE {
+            debug!("Cannot downgrade user to free since they are over the data cap");
+            return Err(ClientError(CancelSubscriptionError::UsageIsOverFreeTierDataCap));
+        }
     }
 
     match account.billing_info.billing_platform {

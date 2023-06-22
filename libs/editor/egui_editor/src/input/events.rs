@@ -1,26 +1,21 @@
-use crate::appearance::Appearance;
-use crate::ast::Ast;
+use crate::bounds::Paragraphs;
 use crate::buffer::{Buffer, EditorMutation};
 use crate::debug::DebugInfo;
 use crate::galleys::Galleys;
 use crate::input;
 use crate::input::canonical::Modification;
-use crate::input::click_checker::EditorClickChecker;
+use crate::input::click_checker::ClickChecker;
 use crate::input::cursor::PointerState;
-use crate::layouts::Layouts;
-use egui::{Event, Rect};
+use egui::Event;
 use std::time::Instant;
 
 /// combines `events` and `custom_events` into a single set of events
-#[allow(clippy::too_many_arguments)]
 pub fn combine(
-    events: &[Event], custom_events: &[Modification], ast: &Ast, galleys: &Galleys,
-    appearance: &Appearance, ui_rect: Rect, buffer: &mut Buffer, pointer_state: &mut PointerState,
-    touch_mode: bool,
+    events: &[Event], custom_events: &[Modification], click_checker: impl ClickChecker + Copy,
+    touch_mode: bool, pointer_state: &mut PointerState,
 ) -> Vec<Modification> {
-    let click_checker = EditorClickChecker { ui_rect, galleys, buffer, ast, appearance };
     let canonical_egui_events = events.iter().filter_map(|e| {
-        input::canonical::calc(e, &click_checker, pointer_state, Instant::now(), touch_mode)
+        input::canonical::calc(e, click_checker, pointer_state, Instant::now(), touch_mode)
     });
     custom_events
         .iter()
@@ -32,13 +27,13 @@ pub fn combine(
 /// processes `combined_events` and returns a boolean representing whether text was updated, new contents for clipboard
 /// (optional), and a link that was opened (optional)
 pub fn process(
-    combined_events: &[Modification], layouts: &Layouts, galleys: &Galleys, buffer: &mut Buffer,
-    debug: &mut DebugInfo,
+    combined_events: &[Modification], galleys: &Galleys, paragraphs: &Paragraphs,
+    buffer: &mut Buffer, debug: &mut DebugInfo,
 ) -> (bool, Option<String>, Option<String>) {
     combined_events
         .iter()
         .cloned()
-        .map(|m| match input::mutation::calc(m, layouts, &buffer.current, galleys) {
+        .map(|m| match input::mutation::calc(m, &buffer.current, galleys, paragraphs) {
             EditorMutation::Buffer(mutations) if mutations.is_empty() => (false, None, None),
             EditorMutation::Buffer(mutations) => buffer.apply(mutations, debug),
             EditorMutation::Undo => {

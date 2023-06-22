@@ -39,10 +39,40 @@ impl<T: Debug> From<serde_json::Error> for ServerError<T> {
     }
 }
 
-impl From<GetUsageHelperError> for ServerError<GetUsageError> {
-    fn from(e: GetUsageHelperError) -> Self {
+impl From<SharedError> for ServerError<CancelSubscriptionError> {
+    fn from(err: SharedError) -> Self {
+        internal!("{:?}", err)
+    }
+}
+impl From<SharedError> for ServerError<AdminGetAccountInfoError> {
+    fn from(err: SharedError) -> Self {
+        internal!("{:?}", err)
+    }
+}
+impl From<SharedError> for ServerError<GetUsageError> {
+    fn from(err: SharedError) -> Self {
+        internal!("{:?}", err)
+    }
+}
+
+impl From<ServerError<GetUsageHelperError>> for ServerError<GetUsageError> {
+    fn from(e: ServerError<GetUsageHelperError>) -> Self {
         match e {
-            GetUsageHelperError::UserNotFound => ClientError(GetUsageError::UserNotFound),
+            ServerError::ClientError(GetUsageHelperError::UserNotFound) => {
+                ClientError(GetUsageError::UserNotFound)
+            }
+            _ => internal!("{:?}", e),
+        }
+    }
+}
+
+impl From<ServerError<GetUsageHelperError>> for ServerError<CancelSubscriptionError> {
+    fn from(e: ServerError<GetUsageHelperError>) -> Self {
+        match e {
+            ServerError::ClientError(GetUsageHelperError::UserNotFound) => {
+                ClientError(CancelSubscriptionError::UserNotFound)
+            }
+            _ => internal!("{:?}", e),
         }
     }
 }

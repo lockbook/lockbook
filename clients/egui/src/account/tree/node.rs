@@ -193,7 +193,7 @@ impl TreeNode {
             } else if resp.hovered() {
                 ui.visuals().widgets.hovered.bg_fill
             } else {
-                ui.visuals().faint_bg_color
+                ui.visuals().panel_fill
             };
 
             ui.painter().rect(rect, 0.0, bg, egui::Stroke::NONE);

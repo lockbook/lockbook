@@ -280,7 +280,7 @@ class FileService: ObservableObject {
                             #endif
                         }
                     }
-                    self.closeOpenFileIfDeleted()
+                    self.openFileChecks()
                 case .failure(let error):
                     DI.errors.handleError(error)
                 }
@@ -288,10 +288,14 @@ class FileService: ObservableObject {
         }
     }
 
-    private func closeOpenFileIfDeleted() {
-        if let id = DI.documentLoader.meta?.id {
-            if !files.contains(where: { $0.id == id }) {
+    private func openFileChecks() {
+        if let openedMeta = DI.currentDoc.selectedDocument {
+            let maybeMeta = idsAndFiles[openedMeta.id]
+            
+            if maybeMeta == nil {
                 DI.documentLoader.deleted = true
+            } else if openedMeta != maybeMeta {
+                DI.currentDoc.selectedDocument = maybeMeta
             }
         }
     }

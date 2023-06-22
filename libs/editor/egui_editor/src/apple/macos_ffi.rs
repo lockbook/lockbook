@@ -50,10 +50,7 @@ pub unsafe extern "C" fn scroll_wheel(obj: *mut c_void, scroll_wheel: f32) {
     let obj = &mut *(obj as *mut WgpuEditor);
     obj.raw_input
         .events
-        .push(Event::PointerMoved(Pos2::new(250.0, 250.0))); // todo remove?
-    obj.raw_input
-        .events
-        .push(Event::Scroll(Vec2::new(0.0, scroll_wheel / 1.0)))
+        .push(Event::Scroll(Vec2::new(0.0, scroll_wheel)))
 }
 
 /// (macos only)

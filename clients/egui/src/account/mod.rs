@@ -89,15 +89,12 @@ impl AccountScreen {
 
         if self.shutdown.is_some() {
             egui::CentralPanel::default()
-                .frame(
-                    egui::Frame::default().fill(ctx.style().visuals.widgets.noninteractive.bg_fill),
-                )
                 .show(ctx, |ui| ui.centered_and_justified(|ui| ui.label("Shutting down...")));
             return;
         }
 
         let sidebar_width = egui::SidePanel::left("sidebar_panel")
-            .frame(egui::Frame::none().fill(ctx.style().visuals.faint_bg_color))
+            .frame(egui::Frame::none().fill(ctx.style().visuals.panel_fill))
             .min_width(300.0)
             .show(ctx, |ui| {
                 ui.set_enabled(!self.is_any_modal_open());
@@ -489,7 +486,7 @@ impl AccountScreen {
         }
     }
 
-    fn create_file(&mut self, params: modals::NewFileParams) {
+    fn create_file(&mut self, params: NewFileParams) {
         let parent = self.core.get_by_path(&params.parent_path).unwrap();
 
         let core = self.core.clone();

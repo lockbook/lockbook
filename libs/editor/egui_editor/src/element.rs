@@ -1,6 +1,6 @@
 use crate::appearance::Appearance;
 use egui::{FontFamily, Stroke, TextFormat};
-use pulldown_cmark::{HeadingLevel, LinkType, Tag};
+use pulldown_cmark::{HeadingLevel, LinkType};
 use std::sync::Arc;
 
 #[derive(Clone, PartialEq, Debug, Default)]
@@ -13,7 +13,7 @@ pub enum Element {
     Paragraph,
     QuoteBlock,
     CodeBlock,
-    Item,
+    Item(ItemType, IndentLevel),
 
     // Non-blocks
     InlineCode,
@@ -25,37 +25,12 @@ pub enum Element {
 
     // Cursor-based
     Selection,
+
+    // Head/tail characters of ast node e.g. underscores in '__bold__'
+    Syntax,
 }
 
 impl Element {
-    /// note: Not all tags supported, also see `Event`
-    pub fn from_tag(tag: Tag) -> Option<Self> {
-        match tag {
-            Tag::Paragraph => Some(Element::Paragraph),
-            Tag::Heading(level, _, _) => Some(Element::Heading(level)),
-            Tag::BlockQuote => Some(Element::QuoteBlock),
-            Tag::CodeBlock(_) => Some(Element::CodeBlock),
-            Tag::Item => Some(Element::Item),
-            Tag::Emphasis => Some(Element::Emphasis),
-            Tag::Strong => Some(Element::Strong),
-            Tag::Strikethrough => Some(Element::Strikethrough),
-            Tag::Link(l, u, t) => Some(Element::Link(l, u.to_string(), t.to_string())),
-            Tag::Image(l, u, t) => Some(Element::Image(l, u.to_string(), t.to_string())),
-            Tag::List(_) => None,
-            Tag::FootnoteDefinition(_) => None,
-            Tag::Table(_) => None,
-            Tag::TableHead => None,
-            Tag::TableRow => None,
-            Tag::TableCell => None,
-        }
-    }
-}
-
-impl Element {
-    pub fn is_list(&self) -> bool {
-        matches!(self, Element::Item)
-    }
-
     pub fn apply_style(&self, text_format: &mut TextFormat, vis: &Appearance) {
         match &self {
             Element::Document => {
@@ -96,22 +71,42 @@ impl Element {
                 text_format.font_id.size = 14.0;
                 text_format.color = vis.code();
             }
-            Element::Paragraph | Element::Item => {}
+            Element::Paragraph | Element::Item(_, _) => {}
             Element::Image(_, _, _) => {
                 text_format.italics = true;
             }
             Element::Selection => {
                 text_format.background = vis.selection_bg();
             }
+            Element::Syntax => {
+                text_format.color = vis.syntax();
+            }
         }
     }
 }
 
-#[derive(Clone, Debug, Eq)]
+#[derive(Clone, Copy, Debug, Eq)]
 pub enum ItemType {
     Bulleted,
     Numbered(usize),
     Todo(bool),
+}
+
+pub fn item_type(text: &str) -> ItemType {
+    let text = text.trim_start();
+    if text.starts_with("+ [ ]") || text.starts_with("* [ ]") || text.starts_with("- [ ]") {
+        ItemType::Todo(false)
+    } else if text.starts_with("+ [x]") || text.starts_with("* [x]") || text.starts_with("- [x]") {
+        ItemType::Todo(true)
+    } else if let Some(prefix) = text.split('.').next() {
+        if let Ok(num) = prefix.parse::<usize>() {
+            ItemType::Numbered(num)
+        } else {
+            ItemType::Bulleted // default to bullet
+        }
+    } else {
+        ItemType::Bulleted // default to bullet
+    }
 }
 
 // Ignore inner values in enum variant comparison

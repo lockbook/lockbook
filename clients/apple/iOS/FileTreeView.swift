@@ -11,11 +11,11 @@ struct FileTreeView: View {
     @EnvironmentObject var sync: SyncService
     @EnvironmentObject var share: ShareService
     
-    @State var suggestedDocBranchState: Bool = true
     @State var navigateToManageSub: Bool = false
     
     @State var searchInput: String = ""
     @State private var hideOutOfSpaceAlert = UserDefaults.standard.bool(forKey: "hideOutOfSpaceAlert")
+    @State private var searchBar: UISearchBar?
 
     let currentFolder: File
     let account: Account
@@ -27,6 +27,18 @@ struct FileTreeView: View {
                 mainView: mainView,
                 isiOS: false)
             .searchable(text: $searchInput, placement: .navigationBarDrawer(displayMode: .automatic), prompt: "Search")
+            .background(
+                Button("Search Paths And Content") {
+                    focusSearchBar()
+                }
+                .keyboardShortcut("f", modifiers: [.command, .shift])
+                .hidden()
+            )
+            .introspectNavigationController { nav in
+                searchBar = nav.navigationBar.subviews.first { view in
+                    view is UISearchBar
+                } as? UISearchBar
+            }
             
             BottomBar(onCreating: {
                 sheets.creatingInfo = CreatingInfo(parent: currentFolder, child_type: .Document)
@@ -99,7 +111,7 @@ struct FileTreeView: View {
     
     var mainView: some View {
         VStack(alignment: .leading) {
-            suggestedDocs
+            SuggestedDocs(isiOS: false)
             
             Text("Files")
                 .bold()
@@ -114,43 +126,7 @@ struct FileTreeView: View {
         .padding(.horizontal)
     }
     
-    var suggestedDocs: some View {
-        Group {
-            Button(action: {
-                withAnimation {
-                    suggestedDocBranchState.toggle()
-                }
-            }) {
-                HStack {
-                    Text("Suggested")
-                        .bold()
-                        .foregroundColor(.primary)
-                        .textCase(.none)
-                        .font(.headline)
-                    
-                    Spacer()
-                    
-                    if suggestedDocBranchState {
-                        Image(systemName: "chevron.down")
-                            .foregroundColor(.gray)
-                            .imageScale(.small)
-                    } else {
-                        Image(systemName: "chevron.right")
-                            .foregroundColor(.gray)
-                            .imageScale(.small)
-                    }
-                }
-                .padding(.top)
-                .padding(.bottom, 5)
-                .contentShape(Rectangle())
-            }
-            
-            if suggestedDocBranchState {
-                SuggestedDocs(isiOS: false)
-                Spacer()
-            } else {
-                Spacer()
-            }
-        }
+    func focusSearchBar() {
+        searchBar?.becomeFirstResponder()
     }
 }
