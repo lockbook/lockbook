@@ -335,8 +335,7 @@ impl AccountScreen {
 
     fn show_tree(&mut self, ui: &mut egui::Ui) {
         let resp = egui::ScrollArea::both()
-            .show(ui, |ui| egui::Frame::default().show(ui, |ui| self.tree.show(ui)))
-            .inner
+            .show(ui, |ui| self.tree.show(ui))
             .inner;
 
         if let Some(file) = resp.new_doc_modal {

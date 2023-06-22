@@ -5,7 +5,6 @@ use eframe::egui;
 pub struct TreeState {
     pub id: egui::Id,
     pub max_node_width: f32,
-    pub max_height: f32, // abit inaccurate considering it's only updated on folder open/close.
     pub selected: HashSet<lb::Uuid>,
     pub expanded: HashSet<lb::Uuid>,
     pub renaming: NodeRenamingState,
@@ -17,7 +16,6 @@ impl Default for TreeState {
         Self {
             id: egui::Id::new("filetree"),
             max_node_width: 0.0,
-            max_height: 0.0,
             selected: HashSet::new(),
             expanded: HashSet::new(),
             dnd: TreeDragAndDropState::default(),

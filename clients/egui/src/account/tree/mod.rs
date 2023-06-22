@@ -5,7 +5,6 @@ mod state;
 pub use self::node::TreeNode;
 
 use eframe::egui;
-use egui_winit::egui::Rect;
 
 use self::response::NodeResponse;
 use self::state::*;
@@ -87,7 +86,7 @@ impl FileTree {
         end.y += 50.0;
 
         let response = ui
-            .allocate_ui_at_rect(Rect::from_two_pos(hover_pos, end), |ui| {
+            .allocate_ui_at_rect(egui::Rect::from_two_pos(hover_pos, end), |ui| {
                 ui.with_layer_id(layer_id, |ui| {
                     egui::Frame::none()
                         .rounding(3.0)
@@ -106,10 +105,8 @@ impl FileTree {
             })
             .response;
 
-        self.state.max_height = ui.max_rect().height();
-
         if let Some(pointer_pos) = ui.ctx().pointer_hover_pos() {
-            // make sure scrolling doesn't expand the ui beyond its max ui.
+            // todo: make sure dragging doesn't expand scroll area to infinity and beyond. respect the initial max width and height;
 
             if pointer_pos.y < 30.0 {
                 ui.scroll_with_delta(egui::vec2(0., 30.0));
