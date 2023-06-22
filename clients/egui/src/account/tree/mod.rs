@@ -75,7 +75,7 @@ impl FileTree {
         .inner
     }
 
-    fn draw_drag_info_by_cursor(&self, ui: &mut egui::Ui) {
+    fn draw_drag_info_by_cursor(&mut self, ui: &mut egui::Ui) {
         ui.output_mut(|o| o.cursor_icon = egui::CursorIcon::Grabbing);
 
         // Paint a caption under the cursor in a layer above.
@@ -84,7 +84,7 @@ impl FileTree {
         let hover_pos = ui.input(|i| i.pointer.hover_pos().unwrap());
         let mut end = hover_pos;
         end.x += 70.0;
-        end.y += 5.0;
+        end.y += 50.0;
 
         let response = ui
             .allocate_ui_at_rect(Rect::from_two_pos(hover_pos, end), |ui| {
@@ -106,12 +106,18 @@ impl FileTree {
             })
             .response;
 
-        if let Some(pointer_pos) = ui.ctx().pointer_interact_pos() {
-            ui.scroll_to_rect(response.rect, None);
+        self.state.max_height = ui.max_rect().height();
 
-            let mut delta = pointer_pos - response.rect.center();
-            delta.y -= ui.text_style_height(&egui::TextStyle::Body);
-            ui.ctx().translate_layer(layer_id, delta);
+        if let Some(pointer_pos) = ui.ctx().pointer_hover_pos() {
+            // make sure scrolling doesn't expand the ui beyond its max ui.
+
+            if pointer_pos.y < 30.0 {
+                ui.scroll_with_delta(egui::vec2(0., 30.0));
+            }
+            if pointer_pos.y < 100.0 {
+                ui.scroll_with_delta(egui::vec2(0., 10.0));
+            }
+            ui.scroll_to_rect(response.rect, None);
         }
     }
 
