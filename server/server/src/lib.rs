@@ -29,8 +29,7 @@ pub struct ServerState {
 }
 
 #[derive(Clone)]
-pub struct RequestContext<'a, TRequest> {
-    pub server_state: &'a ServerState,
+pub struct RequestContext<TRequest> {
     pub request: TRequest,
     pub public_key: PublicKey,
 }

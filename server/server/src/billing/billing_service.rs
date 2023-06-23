@@ -89,9 +89,9 @@ fn release_subscription_profile<T: Debug>(
 }
 
 pub async fn upgrade_account_app_store(
-    context: RequestContext<'_, UpgradeAccountAppStoreRequest>,
+    server_state: &ServerState, context: RequestContext<UpgradeAccountAppStoreRequest>,
 ) -> Result<UpgradeAccountAppStoreResponse, ServerError<UpgradeAccountAppStoreError>> {
-    let (request, server_state) = (&context.request, context.server_state);
+    let request = &context.request;
 
     let mut account = lock_subscription_profile(server_state, &context.public_key)?;
 
@@ -159,9 +159,9 @@ pub async fn upgrade_account_app_store(
 }
 
 pub async fn upgrade_account_google_play(
-    context: RequestContext<'_, UpgradeAccountGooglePlayRequest>,
+    server_state: &ServerState, context: RequestContext<UpgradeAccountGooglePlayRequest>,
 ) -> Result<UpgradeAccountGooglePlayResponse, ServerError<UpgradeAccountGooglePlayError>> {
-    let (request, server_state) = (&context.request, context.server_state);
+    let request = &context.request;
 
     let mut account = lock_subscription_profile(server_state, &context.public_key)?;
 
@@ -211,9 +211,9 @@ pub async fn upgrade_account_google_play(
 }
 
 pub async fn upgrade_account_stripe(
-    context: RequestContext<'_, UpgradeAccountStripeRequest>,
+    server_state: &ServerState, context: RequestContext<UpgradeAccountStripeRequest>,
 ) -> Result<UpgradeAccountStripeResponse, ServerError<UpgradeAccountStripeError>> {
-    let (request, server_state) = (&context.request, context.server_state);
+    let request = &context.request;
 
     debug!("Attempting to upgrade the account tier of to premium");
 
@@ -252,10 +252,9 @@ pub async fn upgrade_account_stripe(
 }
 
 pub async fn get_subscription_info(
-    context: RequestContext<'_, GetSubscriptionInfoRequest>,
+    server_state: &ServerState, context: RequestContext<GetSubscriptionInfoRequest>,
 ) -> Result<GetSubscriptionInfoResponse, ServerError<GetSubscriptionInfoError>> {
-    let platform = context
-        .server_state
+    let platform = server_state
         .index_db
         .lock()?
         .accounts
@@ -285,9 +284,8 @@ pub async fn get_subscription_info(
 }
 
 pub async fn cancel_subscription(
-    context: RequestContext<'_, CancelSubscriptionRequest>,
+    server_state: &ServerState, context: RequestContext<CancelSubscriptionRequest>,
 ) -> Result<CancelSubscriptionResponse, ServerError<CancelSubscriptionError>> {
-    let server_state = context.server_state;
     let mut account = lock_subscription_profile(server_state, &context.public_key)?;
 
     if account.billing_info.data_cap() == FREE_TIER_USAGE_SIZE {
@@ -365,9 +363,9 @@ pub async fn cancel_subscription(
 }
 
 pub async fn admin_set_user_tier(
-    context: RequestContext<'_, AdminSetUserTierRequest>,
+    server_state: &ServerState, context: RequestContext<AdminSetUserTierRequest>,
 ) -> Result<AdminSetUserTierResponse, ServerError<AdminSetUserTierError>> {
-    let (request, server_state) = (&context.request, context.server_state);
+    let request = &context.request;
 
     {
         let db = server_state.index_db.lock()?;
@@ -375,7 +373,7 @@ pub async fn admin_set_user_tier(
         if !is_admin::<AdminSetUserTierError>(
             &db,
             &context.public_key,
-            &context.server_state.config.admin.admins,
+            &server_state.config.admin.admins,
         )? {
             return Err(ClientError(AdminSetUserTierError::NotPermissioned));
         }

@@ -99,12 +99,11 @@ macro_rules! core_req {
                         public_key = req_pk.as_str()
                     );
                     let rc: RequestContext<$Req> = RequestContext {
-                        server_state: state,
                         request: request.signed_request.timestamped_value.value,
                         public_key: request.signed_request.public_key,
                     };
                     async move {
-                        let to_serialize = match $handler(rc).await {
+                        let to_serialize = match $handler(state, rc).await {
                             Ok(response) => {
                                 info!("request processed successfully");
                                 Ok(response)

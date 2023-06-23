@@ -20,9 +20,9 @@ use std::ops::DerefMut;
 use tracing::{debug, error, warn};
 
 pub async fn upsert_file_metadata(
-    context: RequestContext<'_, UpsertRequest>,
+    server_state: &ServerState, context: RequestContext<UpsertRequest>,
 ) -> Result<(), ServerError<UpsertError>> {
-    let (request, server_state) = (context.request, context.server_state);
+    let request = context.request;
     let req_owner = Owner(context.public_key);
 
     let mut new_deleted = vec![];
@@ -30,7 +30,7 @@ pub async fn upsert_file_metadata(
         let mut prior_deleted = HashSet::new();
         let mut current_deleted = HashSet::new();
 
-        let mut lock = context.server_state.index_db.lock()?;
+        let mut lock = server_state.index_db.lock()?;
         let db = lock.deref_mut();
         let tx = db.begin_transaction()?;
 
@@ -180,11 +180,11 @@ pub async fn upsert_file_metadata(
 }
 
 pub async fn change_doc(
-    context: RequestContext<'_, ChangeDocRequest>,
+    server_state: &ServerState, context: RequestContext<ChangeDocRequest>,
 ) -> Result<(), ServerError<ChangeDocError>> {
     use ChangeDocError::*;
 
-    let (request, server_state) = (context.request, context.server_state);
+    let request = context.request;
     let owner = Owner(context.public_key);
     let id = *request.diff.id();
 
@@ -201,7 +201,7 @@ pub async fn change_doc(
     let req_pk = context.public_key;
 
     {
-        let mut lock = context.server_state.index_db.lock()?;
+        let mut lock = server_state.index_db.lock()?;
         let db = lock.deref_mut();
         let usage_cap = get_cap(db, &context.public_key).map_err(|err| internal!("{:?}", err))?;
 
@@ -301,7 +301,7 @@ pub async fn change_doc(
     debug!(?id, ?hmac, "Inserted document contents");
 
     let result = || {
-        let mut lock = context.server_state.index_db.lock()?;
+        let mut lock = server_state.index_db.lock()?;
         let db = lock.deref_mut();
         let tx = db.begin_transaction()?;
 
@@ -365,9 +365,9 @@ pub async fn change_doc(
 }
 
 pub async fn get_document(
-    context: RequestContext<'_, GetDocRequest>,
+    server_state: &ServerState, context: RequestContext<GetDocRequest>,
 ) -> Result<GetDocumentResponse, ServerError<GetDocumentError>> {
-    let (request, server_state) = (&context.request, context.server_state);
+    let request = &context.request;
     {
         let mut lock = server_state.index_db.lock()?;
         let db = lock.deref_mut();
@@ -413,10 +413,10 @@ pub async fn get_document(
 }
 
 pub async fn get_file_ids(
-    context: RequestContext<'_, GetFileIdsRequest>,
+    server_state: &ServerState, context: RequestContext<GetFileIdsRequest>,
 ) -> Result<GetFileIdsResponse, ServerError<GetFileIdsError>> {
     let owner = Owner(context.public_key);
-    let mut db = context.server_state.index_db.lock()?;
+    let mut db = server_state.index_db.lock()?;
     let db = db.deref_mut();
 
     Ok(GetFileIdsResponse {
@@ -432,9 +432,9 @@ pub async fn get_file_ids(
 }
 
 pub async fn get_updates(
-    context: RequestContext<'_, GetUpdatesRequest>,
+    server_state: &ServerState, context: RequestContext<GetUpdatesRequest>,
 ) -> Result<GetUpdatesResponse, ServerError<GetUpdatesError>> {
-    let (request, server_state) = (&context.request, context.server_state);
+    let request = &context.request;
     let owner = Owner(context.public_key);
 
     let mut db = server_state.index_db.lock()?;
@@ -477,19 +477,19 @@ pub async fn get_updates(
 }
 
 pub async fn admin_disappear_file(
-    context: RequestContext<'_, AdminDisappearFileRequest>,
+    server_state: &ServerState, context: RequestContext<AdminDisappearFileRequest>,
 ) -> Result<(), ServerError<AdminDisappearFileError>> {
     let mut docs_to_delete = Vec::new();
 
     {
-        let mut db = context.server_state.index_db.lock()?;
+        let mut db = server_state.index_db.lock()?;
         let db = db.deref_mut();
         let tx = db.begin_transaction()?;
 
         if !is_admin::<AdminDisappearFileError>(
             db,
             &context.public_key,
-            &context.server_state.config.admin.admins,
+            &server_state.config.admin.admins,
         )? {
             return Err(ClientError(AdminDisappearFileError::NotPermissioned));
         }
@@ -583,21 +583,21 @@ pub async fn admin_disappear_file(
     }
 
     for (id, version) in docs_to_delete {
-        document_service::delete(context.server_state, &id, &version).await?;
+        document_service::delete(server_state, &id, &version).await?;
     }
 
     Ok(())
 }
 
 pub async fn admin_validate_account(
-    context: RequestContext<'_, AdminValidateAccountRequest>,
+    server_state: &ServerState, context: RequestContext<AdminValidateAccountRequest>,
 ) -> Result<AdminValidateAccount, ServerError<AdminValidateAccountError>> {
-    let (request, server_state) = (&context.request, context.server_state);
+    let request = &context.request;
     let mut db = server_state.index_db.lock()?;
     if !is_admin::<AdminValidateAccountError>(
         &db,
         &context.public_key,
-        &context.server_state.config.admin.admins,
+        &server_state.config.admin.admins,
     )? {
         return Err(ClientError(AdminValidateAccountError::NotPermissioned));
     }
@@ -657,15 +657,15 @@ pub fn validate_account_helper(
 }
 
 pub async fn admin_validate_server(
-    context: RequestContext<'_, AdminValidateServerRequest>,
+    server_state: &ServerState, context: RequestContext<AdminValidateServerRequest>,
 ) -> Result<AdminValidateServer, ServerError<AdminValidateServerError>> {
-    let mut db = context.server_state.index_db.lock()?;
+    let mut db = server_state.index_db.lock()?;
     let db = db.deref_mut();
 
     if !is_admin::<AdminValidateServerError>(
         db,
         &context.public_key,
-        &context.server_state.config.admin.admins,
+        &server_state.config.admin.admins,
     )? {
         return Err(ClientError(AdminValidateServerError::NotPermissioned));
     }
@@ -690,7 +690,7 @@ pub async fn admin_validate_server(
 
     // validate accounts
     for (owner, account) in db.accounts.data().clone() {
-        let validation = validate_account_helper(db, owner, context.server_state)?;
+        let validation = validate_account_helper(db, owner, server_state)?;
         if !validation.is_empty() {
             result
                 .users_with_validation_failures
@@ -829,9 +829,7 @@ pub async fn admin_validate_server(
     // validate presence of documents
     for (id, meta) in db.metas.data().clone() {
         if let Some(hmac) = meta.document_hmac() {
-            if !deleted_ids.contains(&id)
-                && !document_service::exists(context.server_state, &id, hmac)
-            {
+            if !deleted_ids.contains(&id) && !document_service::exists(server_state, &id, hmac) {
                 result.files_with_hmacs_and_no_contents.insert(id);
             }
         }
@@ -845,16 +843,13 @@ fn insert<K: Hash + Eq, V: Hash + Eq>(map: &mut HashMap<K, HashSet<V>>, k: K, v:
 }
 
 pub async fn admin_file_info(
-    context: RequestContext<'_, AdminFileInfoRequest>,
+    server_state: &ServerState, context: RequestContext<AdminFileInfoRequest>,
 ) -> Result<AdminFileInfoResponse, ServerError<AdminFileInfoError>> {
-    let (request, server_state) = (&context.request, context.server_state);
+    let request = &context.request;
     let mut db = server_state.index_db.lock()?;
     let db = db.deref_mut();
-    if !is_admin::<AdminFileInfoError>(
-        db,
-        &context.public_key,
-        &context.server_state.config.admin.admins,
-    )? {
+    if !is_admin::<AdminFileInfoError>(db, &context.public_key, &server_state.config.admin.admins)?
+    {
         return Err(ClientError(AdminFileInfoError::NotPermissioned));
     }
 
@@ -891,9 +886,9 @@ pub async fn admin_file_info(
 }
 
 pub async fn admin_rebuild_index(
-    context: RequestContext<'_, AdminRebuildIndexRequest>,
+    server_state: &ServerState, context: RequestContext<AdminRebuildIndexRequest>,
 ) -> Result<(), ServerError<AdminRebuildIndexError>> {
-    let mut db = context.server_state.index_db.lock()?;
+    let mut db = server_state.index_db.lock()?;
 
     match context.request.index {
         ServerIndex::OwnedFiles => {

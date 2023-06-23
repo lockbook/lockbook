@@ -34,9 +34,9 @@ use uuid::Uuid;
 /// Checks that username is valid, and that username, public_key and root_folder are new.
 /// Inserts all of these values into their respective keys along with the default free account tier size
 pub async fn new_account(
-    context: RequestContext<'_, NewAccountRequest>,
+    server_state: &ServerState, context: RequestContext<NewAccountRequest>,
 ) -> Result<NewAccountResponse, ServerError<NewAccountError>> {
-    let (request, server_state) = (&context.request, context.server_state);
+    let request = &context.request;
     let request =
         NewAccountRequest { username: request.username.to_lowercase(), ..request.clone() };
 
@@ -44,7 +44,7 @@ pub async fn new_account(
         return Err(ClientError(NewAccountError::InvalidUsername));
     }
 
-    if !context.server_state.config.features.new_accounts {
+    if !server_state.config.features.new_accounts {
         return Err(ClientError(NewAccountError::Disabled));
     }
 
@@ -88,9 +88,9 @@ pub async fn new_account(
 }
 
 pub async fn get_public_key(
-    context: RequestContext<'_, GetPublicKeyRequest>,
+    server_state: &ServerState, context: RequestContext<GetPublicKeyRequest>,
 ) -> Result<GetPublicKeyResponse, ServerError<GetPublicKeyError>> {
-    let (request, server_state) = (&context.request, context.server_state);
+    let request = &context.request;
     public_key_from_username(&request.username, server_state)
 }
 
@@ -108,10 +108,9 @@ pub fn public_key_from_username(
 }
 
 pub async fn get_username(
-    context: RequestContext<'_, GetUsernameRequest>,
+    server_state: &ServerState, context: RequestContext<GetUsernameRequest>,
 ) -> Result<GetUsernameResponse, ServerError<GetUsernameError>> {
-    let (request, server_state) = (&context.request, context.server_state);
-    username_from_public_key(request.key, server_state)
+    username_from_public_key(context.request.key, server_state)
 }
 
 pub fn username_from_public_key(
@@ -128,9 +127,9 @@ pub fn username_from_public_key(
 }
 
 pub async fn get_usage(
-    context: RequestContext<'_, GetUsageRequest>,
+    server_state: &ServerState, context: RequestContext<GetUsageRequest>,
 ) -> Result<GetUsageResponse, ServerError<GetUsageError>> {
-    let mut lock = context.server_state.index_db.lock()?;
+    let mut lock = server_state.index_db.lock()?;
     let db = lock.deref_mut();
 
     let cap = get_cap(db, &context.public_key)?;
@@ -208,23 +207,23 @@ pub fn get_cap(
 }
 
 pub async fn delete_account(
-    context: RequestContext<'_, DeleteAccountRequest>,
+    server_state: &ServerState, context: RequestContext<DeleteAccountRequest>,
 ) -> Result<(), ServerError<DeleteAccountError>> {
-    delete_account_helper(context.server_state, &context.public_key, false).await?;
+    delete_account_helper(server_state, &context.public_key, false).await?;
 
     Ok(())
 }
 
 pub async fn admin_disappear_account(
-    context: RequestContext<'_, AdminDisappearAccountRequest>,
+    server_state: &ServerState, context: RequestContext<AdminDisappearAccountRequest>,
 ) -> Result<(), ServerError<AdminDisappearAccountError>> {
     let owner = {
-        let db = context.server_state.index_db.lock()?;
+        let db = server_state.index_db.lock()?;
 
         if !is_admin::<AdminDisappearAccountError>(
             &db,
             &context.public_key,
-            &context.server_state.config.admin.admins,
+            &server_state.config.admin.admins,
         )? {
             return Err(ClientError(AdminDisappearAccountError::NotPermissioned));
         }
@@ -245,20 +244,20 @@ pub async fn admin_disappear_account(
             .ok_or(ClientError(AdminDisappearAccountError::UserNotFound))?
     };
 
-    delete_account_helper(context.server_state, &owner.0, true).await?;
+    delete_account_helper(server_state, &owner.0, true).await?;
 
     Ok(())
 }
 
 pub async fn admin_list_users(
-    context: RequestContext<'_, AdminListUsersRequest>,
+    server_state: &ServerState, context: RequestContext<AdminListUsersRequest>,
 ) -> Result<AdminListUsersResponse, ServerError<AdminListUsersError>> {
-    let (db, request) = (context.server_state.index_db.lock()?, &context.request);
+    let (db, request) = (server_state.index_db.lock()?, &context.request);
 
     if !is_admin::<AdminListUsersError>(
         &db,
         &context.public_key,
-        &context.server_state.config.admin.admins,
+        &server_state.config.admin.admins,
     )? {
         return Err(ClientError(AdminListUsersError::NotPermissioned));
     }
@@ -300,15 +299,15 @@ pub async fn admin_list_users(
 }
 
 pub async fn admin_get_account_info(
-    context: RequestContext<'_, AdminGetAccountInfoRequest>,
+    server_state: &ServerState, context: RequestContext<AdminGetAccountInfoRequest>,
 ) -> Result<AdminGetAccountInfoResponse, ServerError<AdminGetAccountInfoError>> {
-    let (mut lock, request) = (context.server_state.index_db.lock()?, &context.request);
+    let (mut lock, request) = (server_state.index_db.lock()?, &context.request);
     let db = lock.deref_mut();
 
     if !is_admin::<AdminGetAccountInfoError>(
         db,
         &context.public_key,
-        &context.server_state.config.admin.admins,
+        &server_state.config.admin.admins,
     )? {
         return Err(ClientError(AdminGetAccountInfoError::NotPermissioned));
     }
