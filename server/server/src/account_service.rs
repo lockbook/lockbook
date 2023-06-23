@@ -1,4 +1,5 @@
 use crate::billing::billing_model::BillingPlatform;
+use crate::billing::stripe_client::StripeClient;
 use crate::schema::{Account, ServerDb};
 use crate::utils::username_is_valid;
 use crate::ServerError::ClientError;
@@ -30,7 +31,10 @@ use std::ops::DerefMut;
 use tracing::warn;
 use uuid::Uuid;
 
-impl ServerState {
+impl<S> ServerState<S>
+where
+    S: StripeClient,
+{
     /// Create a new account given a username, public_key, and root folder.
     /// Checks that username is valid, and that username, public_key and root_folder are new.
     /// Inserts all of these values into their respective keys along with the default free account tier size

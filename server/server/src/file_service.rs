@@ -1,3 +1,4 @@
+use crate::billing::stripe_client::StripeClient;
 use crate::file_service::UpsertError::UsageIsOverDataCap;
 use crate::schema::ServerDb;
 use crate::ServerError;
@@ -18,7 +19,10 @@ use std::hash::Hash;
 use std::ops::DerefMut;
 use tracing::{debug, error, warn};
 
-impl ServerState {
+impl<S> ServerState<S>
+where
+    S: StripeClient,
+{
     pub async fn upsert_file_metadata(
         &self, context: RequestContext<UpsertRequest>,
     ) -> Result<(), ServerError<UpsertError>> {
@@ -414,10 +418,10 @@ impl ServerState {
     }
 
     pub async fn get_file_ids(
-        server_state: &ServerState, context: RequestContext<GetFileIdsRequest>,
+        &self, context: RequestContext<GetFileIdsRequest>,
     ) -> Result<GetFileIdsResponse, ServerError<GetFileIdsError>> {
         let owner = Owner(context.public_key);
-        let mut db = server_state.index_db.lock()?;
+        let mut db = self.index_db.lock()?;
         let db = db.deref_mut();
 
         Ok(GetFileIdsResponse {
@@ -433,12 +437,12 @@ impl ServerState {
     }
 
     pub async fn get_updates(
-        server_state: &ServerState, context: RequestContext<GetUpdatesRequest>,
+        &self, context: RequestContext<GetUpdatesRequest>,
     ) -> Result<GetUpdatesResponse, ServerError<GetUpdatesError>> {
         let request = &context.request;
         let owner = Owner(context.public_key);
 
-        let mut db = server_state.index_db.lock()?;
+        let mut db = self.index_db.lock()?;
         let db = db.deref_mut();
         let mut tree = ServerTree::new(
             owner,
@@ -844,15 +848,15 @@ impl ServerState {
     }
 
     pub async fn admin_file_info(
-        server_state: &ServerState, context: RequestContext<AdminFileInfoRequest>,
+        &self, context: RequestContext<AdminFileInfoRequest>,
     ) -> Result<AdminFileInfoResponse, ServerError<AdminFileInfoError>> {
         let request = &context.request;
-        let mut db = server_state.index_db.lock()?;
+        let mut db = self.index_db.lock()?;
         let db = db.deref_mut();
         if !Self::is_admin::<AdminFileInfoError>(
             db,
             &context.public_key,
-            &server_state.config.admin.admins,
+            &self.config.admin.admins,
         )? {
             return Err(ClientError(AdminFileInfoError::NotPermissioned));
         }
@@ -890,9 +894,9 @@ impl ServerState {
     }
 
     pub async fn admin_rebuild_index(
-        server_state: &ServerState, context: RequestContext<AdminRebuildIndexRequest>,
+        &self, context: RequestContext<AdminRebuildIndexRequest>,
     ) -> Result<(), ServerError<AdminRebuildIndexError>> {
-        let mut db = server_state.index_db.lock()?;
+        let mut db = self.index_db.lock()?;
 
         match context.request.index {
             ServerIndex::OwnedFiles => {

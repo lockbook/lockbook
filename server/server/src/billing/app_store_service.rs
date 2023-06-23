@@ -16,12 +16,17 @@ use x509_parser::error::X509Error;
 use x509_parser::parse_x509_certificate;
 use x509_parser::prelude::X509Certificate;
 
+use super::stripe_client::StripeClient;
+
 const SUBSCRIBED: u16 = 1;
 const EXPIRED: u16 = 2;
 const BILLING_RETRY: u16 = 3;
 const GRACE_PERIOD: u16 = 4;
 
-impl ServerState {
+impl<S> ServerState<S>
+where
+    S: StripeClient,
+{
     pub fn get_public_key_from_tx(
         &self, trans: &TransactionInfo,
     ) -> Result<PublicKey, ServerError<AppStoreNotificationError>> {

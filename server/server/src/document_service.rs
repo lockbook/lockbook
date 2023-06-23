@@ -1,3 +1,4 @@
+use crate::billing::stripe_client::StripeClient;
 use crate::{ServerError, ServerState};
 
 use lockbook_shared::crypto::EncryptedDocument;
@@ -8,7 +9,10 @@ use tokio::fs::{remove_file, File};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use uuid::Uuid;
 
-impl ServerState {
+impl<S> ServerState<S>
+where
+    S: StripeClient,
+{
     pub(crate) async fn insert<T: Debug>(
         &self, id: &Uuid, hmac: &DocumentHmac, content: &EncryptedDocument,
     ) -> Result<(), ServerError<T>> {

@@ -1,3 +1,4 @@
+use crate::billing::stripe_client::StripeClient;
 use crate::{ServerError, ServerState};
 use lazy_static::lazy_static;
 
@@ -68,7 +69,10 @@ pub enum MetricsError {}
 
 pub const TWO_DAYS_IN_MILLIS: u128 = 1000 * 60 * 60 * 24 * 2;
 
-impl ServerState {
+impl<S> ServerState<S>
+where
+    S: StripeClient,
+{
     pub fn start_metrics_worker(&self) {
         let state_clone = self.clone();
 
@@ -102,7 +106,7 @@ impl ServerState {
             for (username, owner) in public_keys_and_usernames {
                 {
                     let mut db = self.index_db.lock()?;
-                    let maybe_user_info = get_user_info(&mut db, owner)?;
+                    let maybe_user_info = Self::get_user_info(&mut db, owner)?;
 
                     let user_info = match maybe_user_info {
                         None => {
@@ -126,7 +130,7 @@ impl ServerState {
                         .with_label_values(&[&username])
                         .set(user_info.total_bytes);
 
-                    let billing_info = get_user_billing_info(&db, &owner)?;
+                    let billing_info = Self::get_user_billing_info(&db, &owner)?;
 
                     if billing_info.is_premium() {
                         premium_users += 1;
@@ -178,84 +182,82 @@ impl ServerState {
             tokio::time::sleep(self.config.metrics.time_between_metrics_refresh).await;
         }
     }
-}
+    pub fn get_user_billing_info(
+        db: &ServerDb, owner: &Owner,
+    ) -> Result<SubscriptionProfile, ServerError<MetricsError>> {
+        let account =
+            db.accounts.data().get(owner).ok_or_else(|| {
+                internal!("Could not get user's account during metrics {:?}", owner)
+            })?;
 
-pub fn get_user_billing_info(
-    db: &ServerDb, owner: &Owner,
-) -> Result<SubscriptionProfile, ServerError<MetricsError>> {
-    let account = db
-        .accounts
-        .data()
-        .get(owner)
-        .ok_or_else(|| internal!("Could not get user's account during metrics {:?}", owner))?;
-
-    Ok(account.billing_info.clone())
-}
-
-pub fn get_user_info(
-    db: &mut ServerDb, owner: Owner,
-) -> Result<Option<UserInfo>, ServerError<MetricsError>> {
-    if db.owned_files.data().get(&owner).is_none() {
-        return Ok(None);
+        Ok(account.billing_info.clone())
     }
 
-    let mut tree = ServerTree::new(
-        owner,
-        &mut db.owned_files,
-        &mut db.shared_files,
-        &mut db.file_children,
-        &mut db.metas,
-    )?
-    .to_lazy();
-
-    let mut ids = Vec::new();
-
-    for id in tree.owned_ids() {
-        if !tree.calculate_deleted(&id)? {
-            ids.push(id);
+    pub fn get_user_info(
+        db: &mut ServerDb, owner: Owner,
+    ) -> Result<Option<UserInfo>, ServerError<MetricsError>> {
+        if db.owned_files.data().get(&owner).is_none() {
+            return Ok(None);
         }
-    }
 
-    let is_user_sharer_or_sharee = tree
-        .all_files()?
-        .iter()
-        .any(|k| k.owner() != owner || k.is_shared());
+        let mut tree = ServerTree::new(
+            owner,
+            &mut db.owned_files,
+            &mut db.shared_files,
+            &mut db.file_children,
+            &mut db.metas,
+        )?
+        .to_lazy();
 
-    let root_creation_timestamp =
-        if let Some(root_creation_timestamp) = tree.all_files()?.iter().find(|f| f.is_root()) {
-            root_creation_timestamp.file.timestamped_value.timestamp
+        let mut ids = Vec::new();
+
+        for id in tree.owned_ids() {
+            if !tree.calculate_deleted(&id)? {
+                ids.push(id);
+            }
+        }
+
+        let is_user_sharer_or_sharee = tree
+            .all_files()?
+            .iter()
+            .any(|k| k.owner() != owner || k.is_shared());
+
+        let root_creation_timestamp =
+            if let Some(root_creation_timestamp) = tree.all_files()?.iter().find(|f| f.is_root()) {
+                root_creation_timestamp.file.timestamped_value.timestamp
+            } else {
+                return Ok(None);
+            };
+
+        let last_seen = *db
+            .last_seen
+            .data()
+            .get(&owner)
+            .unwrap_or(&(root_creation_timestamp as u64));
+
+        let time_two_days_ago = get_time().0 as u64 - TWO_DAYS_IN_MILLIS as u64;
+        let last_seen_since_account_creation = last_seen as i64 - root_creation_timestamp;
+        let delay_buffer_time = 5000;
+        let not_the_welcome_doc = last_seen_since_account_creation > delay_buffer_time;
+        let is_user_active = not_the_welcome_doc && last_seen > time_two_days_ago;
+
+        let total_bytes: u64 = Self::get_usage_helper(&mut tree, db.sizes.data())
+            .unwrap_or_default()
+            .iter()
+            .map(|f| f.size_bytes)
+            .sum();
+
+        let total_documents = if let Some(owned_files) = db.owned_files.data().get(&owner) {
+            owned_files.len() as i64
         } else {
             return Ok(None);
         };
 
-    let last_seen = *db
-        .last_seen
-        .data()
-        .get(&owner)
-        .unwrap_or(&(root_creation_timestamp as u64));
-
-    let time_two_days_ago = get_time().0 as u64 - TWO_DAYS_IN_MILLIS as u64;
-    let last_seen_since_account_creation = last_seen as i64 - root_creation_timestamp;
-    let delay_buffer_time = 5000;
-    let not_the_welcome_doc = last_seen_since_account_creation > delay_buffer_time;
-    let is_user_active = not_the_welcome_doc && last_seen > time_two_days_ago;
-
-    let total_bytes: u64 = ServerState::get_usage_helper(&mut tree, db.sizes.data())
-        .unwrap_or_default()
-        .iter()
-        .map(|f| f.size_bytes)
-        .sum();
-
-    let total_documents = if let Some(owned_files) = db.owned_files.data().get(&owner) {
-        owned_files.len() as i64
-    } else {
-        return Ok(None);
-    };
-
-    Ok(Some(UserInfo {
-        total_documents,
-        total_bytes: total_bytes as i64,
-        is_user_active,
-        is_user_sharer_or_sharee,
-    }))
+        Ok(Some(UserInfo {
+            total_documents,
+            total_bytes: total_bytes as i64,
+            is_user_active,
+            is_user_sharer_or_sharee,
+        }))
+    }
 }

@@ -5,8 +5,8 @@ use crate::billing::billing_model::{
 use crate::billing::billing_service::LockBillingWorkflowError::{
     ExistingRequestPending, UserNotFound,
 };
+use crate::billing::google_play_client;
 use crate::billing::google_play_model::NotificationType;
-use crate::billing::{google_play_client, google_play_service, stripe_client};
 use crate::schema::Account;
 use crate::ServerError::ClientError;
 use crate::{RequestContext, ServerError, ServerState};
@@ -34,7 +34,12 @@ use tracing::*;
 use warp::http::HeaderValue;
 use warp::hyper::body::Bytes;
 
-impl ServerState {
+use super::stripe_client::StripeClient;
+
+impl<S> ServerState<S>
+where
+    S: StripeClient,
+{
     fn lock_subscription_profile(
         &self, public_key: &PublicKey,
     ) -> Result<Account, ServerError<LockBillingWorkflowError>> {
@@ -313,8 +318,7 @@ impl ServerState {
         Some(BillingPlatform::Stripe(ref mut info)) => {
             debug!("Canceling stripe subscription of user");
 
-            stripe_client::cancel_subscription(
-                &self.stripe_client,
+            self.stripe_client.cancel_subscription(
                 &info.subscription_id.parse()?,
             )
                 .await
@@ -499,7 +503,8 @@ impl ServerState {
                             subscription.current_period_end
                         }
                         Some(stripe::Expandable::Id(subscription_id)) => {
-                            stripe_client::get_subscription(&self.stripe_client, subscription_id)
+                            self.stripe_client
+                                .get_subscription(subscription_id)
                                 .await
                                 .map_err::<ServerError<StripeWebhookError>, _>(|err| {
                                     internal!("{:?}", err)
@@ -543,12 +548,9 @@ impl ServerState {
     pub async fn google_play_notification_webhooks(
         &self, request_body: Bytes, query_parameters: HashMap<String, String>,
     ) -> Result<(), ServerError<GooglePlayWebhookError>> {
-        let notification = google_play_service::verify_request_and_get_notification(
-            self,
-            request_body,
-            query_parameters,
-        )
-        .await?;
+        let notification = self
+            .verify_request_and_get_notification(request_body, query_parameters)
+            .await?;
 
         if let Some(sub_notif) = notification.subscription_notification {
             debug!(?sub_notif, "Notification is for a subscription");
@@ -566,12 +568,8 @@ impl ServerState {
                 return Ok(());
             }
 
-            let public_key = google_play_service::get_public_key(
-                self,
-                &sub_notif,
-                &subscription,
-                &notification_type,
-            )?;
+            let public_key =
+                self.get_public_key_from_subnotif(&sub_notif, &subscription, &notification_type)?;
             let owner = Owner(public_key);
 
             debug!(
@@ -589,24 +587,22 @@ impl ServerState {
                         | NotificationType::SubscriptionRestarted
                         | NotificationType::SubscriptionRenewed => {
                             info.account_state = GooglePlayAccountState::Ok;
-                            info.expiration_time =
-                                google_play_service::get_subscription_period_end(
-                                    &subscription,
-                                    &notification_type,
-                                    public_key,
-                                )?;
+                            info.expiration_time = Self::get_subscription_period_end(
+                                &subscription,
+                                &notification_type,
+                                public_key,
+                            )?;
                         }
                         NotificationType::SubscriptionInGracePeriod => {
                             info.account_state = GooglePlayAccountState::GracePeriod;
                         }
                         NotificationType::SubscriptionOnHold => {
                             info.account_state = GooglePlayAccountState::OnHold;
-                            info.expiration_time =
-                                google_play_service::get_subscription_period_end(
-                                    &subscription,
-                                    &notification_type,
-                                    public_key,
-                                )?;
+                            info.expiration_time = Self::get_subscription_period_end(
+                                &subscription,
+                                &notification_type,
+                                public_key,
+                            )?;
                         }
                         NotificationType::SubscriptionExpired
                         | NotificationType::SubscriptionRevoked => {

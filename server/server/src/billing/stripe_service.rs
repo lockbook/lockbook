@@ -1,5 +1,4 @@
 use crate::billing::billing_model::StripeUserInfo;
-use crate::billing::stripe_client;
 use crate::StripeWebhookError;
 use crate::{ClientError, ServerError, ServerState};
 use google_androidpublisher3::hyper::body::Bytes;
@@ -14,7 +13,9 @@ use stripe::{Invoice, WebhookEvent};
 use tracing::*;
 use uuid::Uuid;
 
-impl ServerState {
+use super::stripe_client::StripeClient;
+
+impl<S: StripeClient> ServerState<S> {
     pub async fn create_subscription(
         &self, public_key: &PublicKey, account_tier: &StripeAccountTier,
         maybe_user_info: Option<StripeUserInfo>,
@@ -29,14 +30,10 @@ impl ServerState {
         let (customer_id, customer_name, payment_method_id, last_4) = match payment_method {
             PaymentMethod::NewCard { number, exp_year, exp_month, cvc } => {
                 info!(?owner, "Creating a new card");
-                let payment_method_resp = stripe_client::create_payment_method(
-                    &self.stripe_client,
-                    number,
-                    *exp_month,
-                    *exp_year,
-                    cvc,
-                )
-                .await?;
+                let payment_method_resp = self
+                    .stripe_client
+                    .create_payment_method(number, *exp_month, *exp_year, cvc)
+                    .await?;
 
                 let last_4 = payment_method_resp
                     .card
@@ -57,12 +54,13 @@ impl ServerState {
                         info!(?owner, "User has no customer_id; creating one with stripe now");
 
                         let customer_name = Uuid::new_v4();
-                        let customer_resp = stripe_client::create_customer(
-                            &self.stripe_client,
-                            &customer_name.to_string(),
-                            payment_method_resp.id.clone(),
-                        )
-                        .await?;
+                        let customer_resp = self
+                            .stripe_client
+                            .create_customer(
+                                customer_name.to_string(),
+                                payment_method_resp.id.clone(),
+                            )
+                            .await?;
                         let customer_id = customer_resp.id.to_string();
 
                         info!(?owner, ?customer_id, "Created customer_id");
@@ -83,11 +81,11 @@ impl ServerState {
 
                         info!(?owner, "Disabling old card since a new card has just been added");
 
-                        stripe_client::detach_payment_method_from_customer(
-                            &self.stripe_client,
-                            &user_info.payment_method_id.parse()?,
-                        )
-                        .await?;
+                        self.stripe_client
+                            .detach_payment_method_from_customer(
+                                &user_info.payment_method_id.parse()?,
+                            )
+                            .await?;
 
                         (customer_id, user_info.customer_name)
                     }
@@ -98,12 +96,10 @@ impl ServerState {
                 "Creating a setup intent to confirm a users payment method for their subscription"
             );
 
-                let setup_intent_resp = stripe_client::create_setup_intent(
-                    &self.stripe_client,
-                    customer_id.clone(),
-                    payment_method_resp.id.clone(),
-                )
-                .await?;
+                let setup_intent_resp = self
+                    .stripe_client
+                    .create_setup_intent(customer_id.clone(), payment_method_resp.id.clone())
+                    .await?;
 
                 let setup_intent = setup_intent_resp.id.to_string();
                 info!(?owner, ?setup_intent, "Created a setup intent");
@@ -127,13 +123,10 @@ impl ServerState {
 
         info!(?owner, "Successfully retrieved card");
 
-        let subscription_resp = stripe_client::create_subscription(
-            &self.stripe_client,
-            customer_id.clone(),
-            &payment_method_id,
-            price_id,
-        )
-        .await?;
+        let subscription_resp = self
+            .stripe_client
+            .create_subscription(customer_id.clone(), &payment_method_id, price_id)
+            .await?;
 
         let subscription_id = subscription_resp.id;
         info!(?owner, ?subscription_id, "Successfully created subscription");

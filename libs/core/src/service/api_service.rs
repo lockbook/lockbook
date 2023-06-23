@@ -95,9 +95,10 @@ pub mod no_network {
     use crate::{CoreDb, Requester};
     use db_rs::Db;
     use lockbook_server_lib::billing::google_play_client::get_google_play_client;
+    use lockbook_server_lib::billing::stripe_client::NopStripeClient;
     use lockbook_server_lib::config::*;
     use lockbook_server_lib::schema::ServerV4;
-    use lockbook_server_lib::{stripe, ServerError, ServerState};
+    use lockbook_server_lib::{ServerError, ServerState};
     use lockbook_shared::account::Account;
     use lockbook_shared::api::*;
     use lockbook_shared::core_config::Config;
@@ -115,7 +116,7 @@ pub mod no_network {
     }
 
     pub struct InProcessInternals {
-        pub server_state: ServerState,
+        pub server_state: ServerState<NopStripeClient>,
         pub runtime: Runtime,
     }
 
@@ -135,7 +136,7 @@ pub mod no_network {
                 features: FeatureFlags::from_env_vars(),
             };
 
-            let stripe_client = stripe::Client::new(&server_config.billing.stripe.stripe_secret);
+            let stripe_client = NopStripeClient {};
             let google_play_client = runtime.block_on(get_google_play_client(
                 &server_config.billing.google.service_account_key,
             ));
