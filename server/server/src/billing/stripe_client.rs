@@ -1,6 +1,41 @@
+use async_trait::async_trait;
+
 use tracing::*;
 
 use super::stripe_error::SimplifiedStripeError;
+
+#[async_trait]
+pub trait StripeClient {
+    async fn create_customer(
+        &self, customer_name: String, payment_method_id: stripe::PaymentMethodId,
+    ) -> Result<stripe::Customer, SimplifiedStripeError>
+    where
+        Self: Sized;
+}
+
+// #[async_trait]
+// impl StripeClient for stripe::Client {
+//     async fn create_customer(
+//         &self, customer_name: String, payment_method_id: stripe::PaymentMethodId,
+//     ) -> Result<stripe::Customer, SimplifiedStripeError> {
+//         {
+//             let payment_method_id = payment_method_id.as_str();
+//             info!(?payment_method_id, "Creating stripe customer");
+//         }
+//
+//         let mut customer_params = stripe::CreateCustomer::new();
+//         customer_params.payment_method = Some(payment_method_id);
+//         customer_params.name = Some(customer_name);
+//
+//         let customer = stripe::Customer::create(self, customer_params)
+//             .await
+//             .map_err(SimplifiedStripeError::from)?;
+//
+//         debug!(?customer, "Created stripe customer");
+//
+//         Ok(customer)
+//     }
+// }
 
 pub async fn create_customer(
     stripe_client: &stripe::Client, customer_name: &str, payment_method_id: stripe::PaymentMethodId,

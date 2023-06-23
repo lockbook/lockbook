@@ -8,7 +8,6 @@ use google_androidpublisher3::hyper::body::Bytes;
 use libsecp256k1::PublicKey;
 use lockbook_shared::api::UnixTimeMillis;
 use std::collections::HashMap;
-use std::sync::Arc;
 use tracing::*;
 
 pub fn get_public_key(
@@ -53,7 +52,7 @@ pub fn get_subscription_period_end(
 }
 
 pub async fn verify_request_and_get_notification(
-    server_state: &Arc<ServerState>, request_body: Bytes, query_parameters: HashMap<String, String>,
+    server_state: &ServerState, request_body: Bytes, query_parameters: HashMap<String, String>,
 ) -> Result<DeveloperNotification, ServerError<GooglePlayWebhookError>> {
     if !constant_time_eq::constant_time_eq(
         query_parameters

@@ -11,7 +11,7 @@ crate-type = ["lib", "staticlib", "cdylib"]
 bench = false
 
 [features]
-default = ["rustls-tls"]
+default = ["rustls-tls", "no-network"]
 rustls-tls = ["reqwest/rustls-tls"]
 native-tls = ["reqwest/native-tls"]
 no-network = ["lockbook-server", "tokio"]

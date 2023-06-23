@@ -1,7 +1,4 @@
-use crate::account_service::*;
-use crate::billing::billing_service;
 use crate::billing::billing_service::*;
-use crate::file_service::*;
 use crate::utils::get_build_info;
 use crate::{handle_version_header, router_service, verify_auth, ServerError, ServerState};
 use lazy_static::lazy_static;
@@ -132,30 +129,54 @@ macro_rules! core_req {
 pub fn core_routes(
     server_state: &Arc<ServerState>,
 ) -> impl Filter<Extract = (impl warp::Reply,), Error = Rejection> + Clone {
-    core_req!(NewAccountRequest, new_account, server_state)
-        .or(core_req!(ChangeDocRequest, change_doc, server_state))
-        .or(core_req!(UpsertRequest, upsert_file_metadata, server_state))
-        .or(core_req!(GetDocRequest, get_document, server_state))
-        .or(core_req!(GetPublicKeyRequest, get_public_key, server_state))
-        .or(core_req!(GetUsernameRequest, get_username, server_state))
-        .or(core_req!(GetUsageRequest, get_usage, server_state))
-        .or(core_req!(GetFileIdsRequest, get_file_ids, server_state))
-        .or(core_req!(GetUpdatesRequest, get_updates, server_state))
-        .or(core_req!(UpgradeAccountGooglePlayRequest, upgrade_account_google_play, server_state))
-        .or(core_req!(UpgradeAccountStripeRequest, upgrade_account_stripe, server_state))
-        .or(core_req!(UpgradeAccountAppStoreRequest, upgrade_account_app_store, server_state))
-        .or(core_req!(CancelSubscriptionRequest, cancel_subscription, server_state))
-        .or(core_req!(GetSubscriptionInfoRequest, get_subscription_info, server_state))
-        .or(core_req!(DeleteAccountRequest, delete_account, server_state))
-        .or(core_req!(AdminDisappearAccountRequest, admin_disappear_account, server_state))
-        .or(core_req!(AdminDisappearFileRequest, admin_disappear_file, server_state))
-        .or(core_req!(AdminListUsersRequest, admin_list_users, server_state))
-        .or(core_req!(AdminGetAccountInfoRequest, admin_get_account_info, server_state))
-        .or(core_req!(AdminValidateAccountRequest, admin_validate_account, server_state))
-        .or(core_req!(AdminValidateServerRequest, admin_validate_server, server_state))
-        .or(core_req!(AdminFileInfoRequest, admin_file_info, server_state))
-        .or(core_req!(AdminRebuildIndexRequest, admin_rebuild_index, server_state))
-        .or(core_req!(AdminSetUserTierRequest, admin_set_user_tier, server_state))
+    core_req!(NewAccountRequest, ServerState::new_account, server_state)
+        .or(core_req!(ChangeDocRequest, ServerState::change_doc, server_state))
+        .or(core_req!(UpsertRequest, ServerState::upsert_file_metadata, server_state))
+        .or(core_req!(GetDocRequest, ServerState::get_document, server_state))
+        .or(core_req!(GetPublicKeyRequest, ServerState::get_public_key, server_state))
+        .or(core_req!(GetUsernameRequest, ServerState::get_username, server_state))
+        .or(core_req!(GetUsageRequest, ServerState::get_usage, server_state))
+        .or(core_req!(GetFileIdsRequest, ServerState::get_file_ids, server_state))
+        .or(core_req!(GetUpdatesRequest, ServerState::get_updates, server_state))
+        .or(core_req!(
+            UpgradeAccountGooglePlayRequest,
+            ServerState::upgrade_account_google_play,
+            server_state
+        ))
+        .or(core_req!(
+            UpgradeAccountStripeRequest,
+            ServerState::upgrade_account_stripe,
+            server_state
+        ))
+        .or(core_req!(
+            UpgradeAccountAppStoreRequest,
+            ServerState::upgrade_account_app_store,
+            server_state
+        ))
+        .or(core_req!(CancelSubscriptionRequest, ServerState::cancel_subscription, server_state))
+        .or(core_req!(GetSubscriptionInfoRequest, ServerState::get_subscription_info, server_state))
+        .or(core_req!(DeleteAccountRequest, ServerState::delete_account, server_state))
+        .or(core_req!(
+            AdminDisappearAccountRequest,
+            ServerState::admin_disappear_account,
+            server_state
+        ))
+        .or(core_req!(AdminDisappearFileRequest, ServerState::admin_disappear_file, server_state))
+        .or(core_req!(AdminListUsersRequest, ServerState::admin_list_users, server_state))
+        .or(core_req!(
+            AdminGetAccountInfoRequest,
+            ServerState::admin_get_account_info,
+            server_state
+        ))
+        .or(core_req!(
+            AdminValidateAccountRequest,
+            ServerState::admin_validate_account,
+            server_state
+        ))
+        .or(core_req!(AdminValidateServerRequest, ServerState::admin_validate_server, server_state))
+        .or(core_req!(AdminFileInfoRequest, ServerState::admin_file_info, server_state))
+        .or(core_req!(AdminRebuildIndexRequest, ServerState::admin_rebuild_index, server_state))
+        .or(core_req!(AdminSetUserTierRequest, ServerState::admin_set_user_tier, server_state))
 }
 
 pub fn build_info() -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone {
@@ -220,7 +241,7 @@ pub fn stripe_webhooks(
             let _enter = span.enter();
             info!("webhook routed");
             let response = span
-                .in_scope(|| billing_service::stripe_webhooks(&state, request, stripe_sig))
+                .in_scope(|| ServerState::stripe_webhooks(&state, request, stripe_sig))
                 .await;
 
             match response {
@@ -262,7 +283,7 @@ pub fn google_play_notification_webhooks(
             let _enter = span.enter();
             info!("webhook routed");
             let response = span
-                .in_scope(|| billing_service::google_play_notification_webhooks(&state, request, query_parameters))
+                .in_scope(|| state.google_play_notification_webhooks(request, query_parameters))
                 .await;
             match response {
                 Ok(_) => warp::reply::with_status("".to_string(), StatusCode::OK),
@@ -309,7 +330,7 @@ pub fn app_store_notification_webhooks(
             let _enter = span.enter();
             info!("webhook routed");
             let response = span
-                .in_scope(|| billing_service::app_store_notification_webhook(&state, body))
+                .in_scope(|| state.app_store_notification_webhook(body))
                 .await;
 
             match response {

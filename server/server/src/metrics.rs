@@ -1,4 +1,3 @@
-use crate::account_service::get_usage_helper;
 use crate::{ServerError, ServerState};
 use lazy_static::lazy_static;
 
@@ -69,111 +68,115 @@ pub enum MetricsError {}
 
 pub const TWO_DAYS_IN_MILLIS: u128 = 1000 * 60 * 60 * 24 * 2;
 
-pub fn start_metrics_worker(server_state: &ServerState) {
-    let state_clone = server_state.clone();
+impl ServerState {
+    pub fn start_metrics_worker(&self) {
+        let state_clone = self.clone();
 
-    tokio::spawn(async move {
-        info!("Started capturing metrics");
+        tokio::spawn(async move {
+            info!("Started capturing metrics");
 
-        if let Err(e) = start(state_clone).await {
-            error!("interrupting metrics loop due to error: {:?}", e)
-        }
-    });
-}
+            if let Err(e) = state_clone.start_metrics_loop().await {
+                error!("interrupting metrics loop due to error: {:?}", e)
+            }
+        });
+    }
 
-pub async fn start(state: ServerState) -> Result<(), ServerError<MetricsError>> {
-    loop {
-        info!("Metrics refresh started");
+    pub async fn start_metrics_loop(self) -> Result<(), ServerError<MetricsError>> {
+        loop {
+            info!("Metrics refresh started");
 
-        let public_keys_and_usernames = state.index_db.lock()?.usernames.data().clone();
+            let public_keys_and_usernames = self.index_db.lock()?.usernames.data().clone();
 
-        let total_users_ever = public_keys_and_usernames.len() as i64;
-        let mut total_documents = 0;
-        let mut total_bytes = 0;
-        let mut active_users = 0;
-        let mut deleted_users = 0;
-        let mut share_feature_users = 0;
+            let total_users_ever = public_keys_and_usernames.len() as i64;
+            let mut total_documents = 0;
+            let mut total_bytes = 0;
+            let mut active_users = 0;
+            let mut deleted_users = 0;
+            let mut share_feature_users = 0;
 
-        let mut premium_users = 0;
-        let mut premium_stripe_users = 0;
-        let mut premium_google_play_users = 0;
-        let mut premium_app_store_users = 0;
+            let mut premium_users = 0;
+            let mut premium_stripe_users = 0;
+            let mut premium_google_play_users = 0;
+            let mut premium_app_store_users = 0;
 
-        for (username, owner) in public_keys_and_usernames {
-            {
-                let mut db = state.index_db.lock()?;
-                let maybe_user_info = get_user_info(&mut db, owner)?;
+            for (username, owner) in public_keys_and_usernames {
+                {
+                    let mut db = self.index_db.lock()?;
+                    let maybe_user_info = get_user_info(&mut db, owner)?;
 
-                let user_info = match maybe_user_info {
-                    None => {
-                        deleted_users += 1;
-                        continue;
-                    }
-                    Some(user_info) => user_info,
-                };
-
-                if user_info.is_user_active {
-                    active_users += 1;
-                }
-                if user_info.is_user_sharer_or_sharee {
-                    share_feature_users += 1;
-                }
-
-                total_documents += user_info.total_documents;
-                total_bytes += user_info.total_bytes;
-
-                METRICS_USAGE_BY_USER_VEC
-                    .with_label_values(&[&username])
-                    .set(user_info.total_bytes);
-
-                let billing_info = get_user_billing_info(&db, &owner)?;
-
-                if billing_info.is_premium() {
-                    premium_users += 1;
-
-                    match billing_info.billing_platform {
+                    let user_info = match maybe_user_info {
                         None => {
-                            return Err(internal!(
+                            deleted_users += 1;
+                            continue;
+                        }
+                        Some(user_info) => user_info,
+                    };
+
+                    if user_info.is_user_active {
+                        active_users += 1;
+                    }
+                    if user_info.is_user_sharer_or_sharee {
+                        share_feature_users += 1;
+                    }
+
+                    total_documents += user_info.total_documents;
+                    total_bytes += user_info.total_bytes;
+
+                    METRICS_USAGE_BY_USER_VEC
+                        .with_label_values(&[&username])
+                        .set(user_info.total_bytes);
+
+                    let billing_info = get_user_billing_info(&db, &owner)?;
+
+                    if billing_info.is_premium() {
+                        premium_users += 1;
+
+                        match billing_info.billing_platform {
+                            None => {
+                                return Err(internal!(
                         "Could not retrieve billing platform although it was used moments before."
                     ));
+                            }
+                            Some(billing_platform) => match billing_platform {
+                                BillingPlatform::GooglePlay { .. } => {
+                                    premium_google_play_users += 1
+                                }
+                                BillingPlatform::Stripe { .. } => premium_stripe_users += 1,
+                                BillingPlatform::AppStore { .. } => premium_app_store_users += 1,
+                            },
                         }
-                        Some(billing_platform) => match billing_platform {
-                            BillingPlatform::GooglePlay { .. } => premium_google_play_users += 1,
-                            BillingPlatform::Stripe { .. } => premium_stripe_users += 1,
-                            BillingPlatform::AppStore { .. } => premium_app_store_users += 1,
-                        },
                     }
+                    drop(db);
                 }
-                drop(db);
+
+                tokio::time::sleep(self.config.metrics.time_between_metrics).await;
             }
 
-            tokio::time::sleep(state.config.metrics.time_between_metrics).await;
+            METRICS_STATISTICS
+                .total_users
+                .set(total_users_ever - deleted_users);
+
+            METRICS_STATISTICS.total_documents.set(total_documents);
+            METRICS_STATISTICS.active_users.set(active_users);
+            METRICS_STATISTICS.deleted_users.set(deleted_users);
+            METRICS_STATISTICS.total_document_bytes.set(total_bytes);
+            METRICS_STATISTICS
+                .share_feature_users
+                .set(share_feature_users);
+            METRICS_STATISTICS.premium_users.set(premium_users);
+
+            METRICS_PREMIUM_USERS_BY_PAYMENT_PLATFORM_VEC
+                .with_label_values(&[STRIPE_LABEL_NAME])
+                .set(premium_stripe_users);
+            METRICS_PREMIUM_USERS_BY_PAYMENT_PLATFORM_VEC
+                .with_label_values(&[GOOGLE_PLAY_LABEL_NAME])
+                .set(premium_google_play_users);
+            METRICS_PREMIUM_USERS_BY_PAYMENT_PLATFORM_VEC
+                .with_label_values(&[APP_STORE_LABEL_NAME])
+                .set(premium_app_store_users);
+
+            tokio::time::sleep(self.config.metrics.time_between_metrics_refresh).await;
         }
-
-        METRICS_STATISTICS
-            .total_users
-            .set(total_users_ever - deleted_users);
-
-        METRICS_STATISTICS.total_documents.set(total_documents);
-        METRICS_STATISTICS.active_users.set(active_users);
-        METRICS_STATISTICS.deleted_users.set(deleted_users);
-        METRICS_STATISTICS.total_document_bytes.set(total_bytes);
-        METRICS_STATISTICS
-            .share_feature_users
-            .set(share_feature_users);
-        METRICS_STATISTICS.premium_users.set(premium_users);
-
-        METRICS_PREMIUM_USERS_BY_PAYMENT_PLATFORM_VEC
-            .with_label_values(&[STRIPE_LABEL_NAME])
-            .set(premium_stripe_users);
-        METRICS_PREMIUM_USERS_BY_PAYMENT_PLATFORM_VEC
-            .with_label_values(&[GOOGLE_PLAY_LABEL_NAME])
-            .set(premium_google_play_users);
-        METRICS_PREMIUM_USERS_BY_PAYMENT_PLATFORM_VEC
-            .with_label_values(&[APP_STORE_LABEL_NAME])
-            .set(premium_app_store_users);
-
-        tokio::time::sleep(state.config.metrics.time_between_metrics_refresh).await;
     }
 }
 
@@ -237,7 +240,7 @@ pub fn get_user_info(
     let not_the_welcome_doc = last_seen_since_account_creation > delay_buffer_time;
     let is_user_active = not_the_welcome_doc && last_seen > time_two_days_ago;
 
-    let total_bytes: u64 = get_usage_helper(&mut tree, db.sizes.data())
+    let total_bytes: u64 = ServerState::get_usage_helper(&mut tree, db.sizes.data())
         .unwrap_or_default()
         .iter()
         .map(|f| f.size_bytes)

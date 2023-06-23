@@ -3176,6 +3176,7 @@ name = "lockbook-server"
 version = "0.7.5"
 dependencies = [
  "async-stripe",
+ "async-trait",
  "base64 0.13.1",
  "bincode",
  "constant_time_eq 0.2.5",
