@@ -38,12 +38,8 @@ class FileService: ObservableObject {
     }
 
     func pathBreadcrumbClicked(_ file: File) {
-        DispatchQueue.main.async {
-            withAnimation {
-                if let firstIndex = self.path.firstIndex(of: file) {
-                    self.path.removeSubrange(firstIndex + 1...self.path.count - 1)
-                }
-            }
+        if let firstIndex = self.path.firstIndex(of: file) {
+            self.path.removeSubrange(firstIndex + 1...self.path.count - 1)
         }
     }
 #endif
