@@ -14,27 +14,6 @@ struct FileCell: View {
 
     var body: some View {
         cell
-            .contextMenu(menuItems: {
-                // TODO: disast: https://stackoverflow.com/questions/70159437/context-menu-not-updating-in-swiftui
-                Button(action: handleDelete) {
-                    Label("Delete", systemImage: "trash.fill")
-                }
-                Button(action: {
-                    sheets.movingInfo = meta
-                }, label: {
-                    Label("Move", systemImage: "arrow.up.and.down.and.arrow.left.and.right")
-                })
-                Button(action: {
-                    sheets.renamingInfo = meta
-                }, label: {
-                    Label("Rename", systemImage: "questionmark.folder")
-                })
-                Button(action: {
-                    sheets.sharingFileInfo = meta
-                }, label: {
-                    Label("Share", systemImage: "shareplay")
-                })
-            })
     }
 
     @ViewBuilder
@@ -44,6 +23,27 @@ struct FileCell: View {
                 enterFolderAnim()
             }) {
                 RealFileCell(meta: meta)
+                    .contextMenu(menuItems: {
+                        // TODO: disast: https://stackoverflow.com/questions/70159437/context-menu-not-updating-in-swiftui
+                        Button(action: handleDelete) {
+                            Label("Delete", systemImage: "trash.fill")
+                        }
+                        Button(action: {
+                            sheets.movingInfo = meta
+                        }, label: {
+                            Label("Move", systemImage: "arrow.up.and.down.and.arrow.left.and.right")
+                        })
+                        Button(action: {
+                            sheets.renamingInfo = meta
+                        }, label: {
+                            Label("Rename", systemImage: "questionmark.folder")
+                        })
+                        Button(action: {
+                            sheets.sharingFileInfo = meta
+                        }, label: {
+                            Label("Share", systemImage: "shareplay")
+                        })
+                    })
             }
         } else {
             NavigationLink(destination: DocumentView(meta: meta)) {

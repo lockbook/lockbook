@@ -102,17 +102,13 @@ struct FileListView: View {
                                     
                                     fileService.intoChildDirectory(meta)
                                     
-                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.01) {
                                         withAnimation(.easeOut(duration: 0.1)) {
                                             offset.width = 0
                                             opacity = 1
                                         }
                                     }
                                 }
-                            }
-                            
-                            if children.last != meta {
-                                Divider()
                             }
                         }
                         .padding(.horizontal)
@@ -122,9 +118,10 @@ struct FileListView: View {
                     .listRowBackground(Color.clear)
                     .listRowInsets(EdgeInsets())
                     .listRowSeparator(.hidden)
-                    .offset(offset)
-                    .opacity(opacity)
             }
+                .offset(offset)
+                .opacity(opacity)
+
         }
         .navigationBarTitle(fileService.parent.map{($0.name)} ?? "")
         .gesture(DragGesture()
