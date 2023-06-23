@@ -94,7 +94,7 @@ pub mod no_network {
     use crate::{call, CoreLib, CoreState};
     use crate::{CoreDb, Requester};
     use db_rs::Db;
-    use lockbook_server_lib::billing::google_play_client::get_google_play_client;
+    use lockbook_server_lib::billing::Nop;
     use lockbook_server_lib::config::*;
     use lockbook_server_lib::schema::ServerV4;
     use lockbook_server_lib::{ServerError, ServerState};
@@ -115,7 +115,7 @@ pub mod no_network {
     }
 
     pub struct InProcessInternals {
-        pub server_state: ServerState<Nop>,
+        pub server_state: ServerState<Nop, Nop, Nop>,
         pub runtime: Runtime,
     }
 
@@ -136,10 +136,8 @@ pub mod no_network {
             };
 
             let stripe_client = Nop {};
-            let google_play_client = runtime.block_on(get_google_play_client(
-                &server_config.billing.google.service_account_key,
-            ));
-            let app_store_client = reqwest::Client::new();
+            let google_play_client = Nop {};
+            let app_store_client = Nop {};
 
             let index_db = Arc::new(Mutex::new(
                 ServerV4::init(db_rs::Config::in_folder(&server_config.index_db.db_location))
@@ -247,10 +245,4 @@ pub mod no_network {
             self.inner.lock().unwrap().client.config.clone()
         }
     }
-
-    #[derive(Clone)]
-    pub struct Nop {}
-
-    #[async_trait]
-    impl StripeClient for Nop {}
 }

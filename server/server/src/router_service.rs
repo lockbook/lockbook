@@ -1,4 +1,6 @@
+use crate::billing::app_store_client::AppStoreClient;
 use crate::billing::billing_service::*;
+use crate::billing::google_play_client::GooglePlayClient;
 use crate::billing::stripe_client::StripeClient;
 use crate::utils::get_build_info;
 use crate::{handle_version_header, router_service, verify_auth, ServerError, ServerState};
@@ -49,7 +51,7 @@ macro_rules! core_req {
             .and(warp::any().map(move || cloned_state.clone()))
             .and(warp::body::bytes())
             .and(warp::header::optional::<String>("Accept-Version"))
-            .then(|state: Arc<ServerState<S>>, request: Bytes, version: Option<String>| {
+            .then(|state: Arc<ServerState<S, A, G>>, request: Bytes, version: Option<String>| {
                 let span1 = span!(
                     Level::INFO,
                     "matched_request",
@@ -127,9 +129,14 @@ macro_rules! core_req {
     }};
 }
 
-pub fn core_routes<S: StripeClient>(
-    server_state: &Arc<ServerState<S>>,
-) -> impl Filter<Extract = (impl warp::Reply,), Error = Rejection> + Clone {
+pub fn core_routes<S, A, G>(
+    server_state: &Arc<ServerState<S, A, G>>,
+) -> impl Filter<Extract = (impl warp::Reply,), Error = Rejection> + Clone
+where
+    S: StripeClient,
+    A: AppStoreClient,
+    G: GooglePlayClient,
+{
     core_req!(NewAccountRequest, ServerState::new_account, server_state)
         .or(core_req!(ChangeDocRequest, ServerState::change_doc, server_state))
         .or(core_req!(UpsertRequest, ServerState::upsert_file_metadata, server_state))
@@ -222,9 +229,14 @@ pub fn get_metrics() -> impl Filter<Extract = (impl warp::Reply,), Error = warp:
 
 static STRIPE_WEBHOOK_ROUTE: &str = "stripe-webhooks";
 
-pub fn stripe_webhooks<S: StripeClient>(
-    server_state: &Arc<ServerState<S>>,
-) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone {
+pub fn stripe_webhooks<S, A, G>(
+    server_state: &Arc<ServerState<S, A, G>>,
+) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone
+where
+    S: StripeClient,
+    A: AppStoreClient,
+    G: GooglePlayClient,
+{
     let cloned_state = server_state.clone();
 
     warp::post()
@@ -232,45 +244,52 @@ pub fn stripe_webhooks<S: StripeClient>(
         .and(warp::any().map(move || cloned_state.clone()))
         .and(warp::body::bytes())
         .and(warp::header::header("Stripe-Signature"))
-        .then(|state: Arc<ServerState<S>>, request: Bytes, stripe_sig: HeaderValue| async move {
-            let span = span!(
-                Level::INFO,
-                "matched_request",
-                method = "POST",
-                route = format!("/{}", STRIPE_WEBHOOK_ROUTE).as_str()
-            );
-            let _enter = span.enter();
-            info!("webhook routed");
-            let response = span
-                .in_scope(|| ServerState::stripe_webhooks(&state, request, stripe_sig))
-                .await;
+        .then(
+            |state: Arc<ServerState<S, A, G>>, request: Bytes, stripe_sig: HeaderValue| async move {
+                let span = span!(
+                    Level::INFO,
+                    "matched_request",
+                    method = "POST",
+                    route = format!("/{}", STRIPE_WEBHOOK_ROUTE).as_str()
+                );
+                let _enter = span.enter();
+                info!("webhook routed");
+                let response = span
+                    .in_scope(|| ServerState::stripe_webhooks(&state, request, stripe_sig))
+                    .await;
 
-            match response {
-                Ok(_) => warp::reply::with_status("".to_string(), StatusCode::OK),
-                Err(e) => {
-                    error!("{:?}", e);
+                match response {
+                    Ok(_) => warp::reply::with_status("".to_string(), StatusCode::OK),
+                    Err(e) => {
+                        error!("{:?}", e);
 
-                    let status_code = match e {
-                        ServerError::ClientError(StripeWebhookError::VerificationError(_))
-                        | ServerError::ClientError(StripeWebhookError::InvalidBody(_))
-                        | ServerError::ClientError(StripeWebhookError::InvalidHeader(_))
-                        | ServerError::ClientError(StripeWebhookError::ParseError(_)) => {
-                            StatusCode::BAD_REQUEST
-                        }
-                        ServerError::InternalError(_) => StatusCode::INTERNAL_SERVER_ERROR,
-                    };
+                        let status_code = match e {
+                            ServerError::ClientError(StripeWebhookError::VerificationError(_))
+                            | ServerError::ClientError(StripeWebhookError::InvalidBody(_))
+                            | ServerError::ClientError(StripeWebhookError::InvalidHeader(_))
+                            | ServerError::ClientError(StripeWebhookError::ParseError(_)) => {
+                                StatusCode::BAD_REQUEST
+                            }
+                            ServerError::InternalError(_) => StatusCode::INTERNAL_SERVER_ERROR,
+                        };
 
-                    warp::reply::with_status("".to_string(), status_code)
+                        warp::reply::with_status("".to_string(), status_code)
+                    }
                 }
-            }
-        })
+            },
+        )
 }
 
 static PLAY_WEBHOOK_ROUTE: &str = "google_play_notification_webhook";
 
-pub fn google_play_notification_webhooks<S: StripeClient>(
-    server_state: &Arc<ServerState<S>>,
-) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone {
+pub fn google_play_notification_webhooks<S, A, G>(
+    server_state: &Arc<ServerState<S, A, G>>,
+) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone
+where
+    S: StripeClient,
+    A: AppStoreClient,
+    G: GooglePlayClient,
+{
     let cloned_state = server_state.clone();
 
     warp::post()
@@ -279,7 +298,7 @@ pub fn google_play_notification_webhooks<S: StripeClient>(
         .and(warp::body::bytes())
         .and(warp::query::query::<HashMap<String, String>>())
         .then(
-            |state: Arc<ServerState<S>>,
+            |state: Arc<ServerState<S, A, G>>,
              request: Bytes,
              query_parameters: HashMap<String, String>| async move {
                 let span = span!(
@@ -324,16 +343,21 @@ pub fn google_play_notification_webhooks<S: StripeClient>(
 }
 
 static APP_STORE_WEBHOOK_ROUTE: &str = "app_store_notification_webhook";
-pub fn app_store_notification_webhooks<S: StripeClient>(
-    server_state: &Arc<ServerState<S>>,
-) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone {
+pub fn app_store_notification_webhooks<S, A, G>(
+    server_state: &Arc<ServerState<S, A, G>>,
+) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone
+where
+    S: StripeClient,
+    A: AppStoreClient,
+    G: GooglePlayClient,
+{
     let cloned_state = server_state.clone();
 
     warp::post()
         .and(warp::path(APP_STORE_WEBHOOK_ROUTE))
         .and(warp::any().map(move || cloned_state.clone()))
         .and(warp::body::bytes())
-        .then(|state: Arc<ServerState<S>>, body: Bytes| async move {
+        .then(|state: Arc<ServerState<S, A, G>>, body: Bytes| async move {
             let span = span!(
                 Level::INFO,
                 "matched_request",
@@ -377,12 +401,14 @@ pub fn method(name: Method) -> impl Filter<Extract = (), Error = Rejection> + Cl
         .untuple_one()
 }
 
-pub fn deserialize_and_check<Req, S>(
-    server_state: &ServerState<S>, request: Bytes, version: Option<String>,
+pub fn deserialize_and_check<Req, S, A, G>(
+    server_state: &ServerState<S, A, G>, request: Bytes, version: Option<String>,
 ) -> Result<RequestWrapper<Req>, ErrorWrapper<Req::Error>>
 where
     Req: Request + DeserializeOwned + Serialize,
     S: StripeClient,
+    A: AppStoreClient,
+    G: GooglePlayClient,
 {
     handle_version_header::<Req>(&server_state.config, &version)?;
 
