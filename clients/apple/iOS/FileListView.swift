@@ -13,6 +13,9 @@ struct FileListView: View {
     
     @State var searchInput: String = ""
     @State var navigateToManageSub: Bool = false
+    @State private var mainViewOffset = CGSize.zero
+    @State private var mainViewOpacity: Double = 1
+
     @State private var hideOutOfSpaceAlert = UserDefaults.standard.bool(forKey: "hideOutOfSpaceAlert")
     
     var body: some View {
@@ -71,14 +74,8 @@ struct FileListView: View {
         )
     }
     
-    @State private var offset = CGSize.zero
-    @State private var opacity: Double = 1
-    @GestureState private var dragGestureActive: Bool = false
-
     var mainView: some View {
-        let children = fileService.childrenOfParent()
-        
-        return List {
+        List {
             if fileService.parent?.isRoot == true && fileService.suggestedDocs?.isEmpty != true {
                 Section(header: Text("Suggested")
                     .bold()
@@ -88,8 +85,8 @@ struct FileListView: View {
                     .padding(.bottom, 3)) {
                         SuggestedDocs(isiOS: true)
                     }
-                    .offset(offset)
-                    .opacity(opacity)
+                    .offset(mainViewOffset)
+                    .opacity(mainViewOpacity)
             }
 
             Section(header: Text("Files")
@@ -98,43 +95,16 @@ struct FileListView: View {
                 .textCase(.none)
                 .font(.headline)
                 .padding(.bottom, 3)) {
-                    ForEach(children) { meta in
-                            FileCell(meta: meta) {
-                                withAnimation(.easeOut(duration: 0.2)) {
-                                    offset.width = -200
-                                }
-                                
-                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                                    opacity = 0
-                                    offset.width = 200
-                                    
-                                    fileService.intoChildDirectory(meta)
-                                    
-                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                                        withAnimation(.easeOut(duration: 0.1)) {
-                                            offset.width = 0
-                                            opacity = 1
-                                        }
-                                    }
-                                }
-                            }
-                            .padding(.horizontal)
-                            .padding(.vertical, 5)
-                            .background(colorScheme == .light ? .white : Color(uiColor: .secondarySystemBackground))
-                        
-                    }
-                    .listRowBackground(Color.clear)
-                    .listRowInsets(EdgeInsets())
-                    .listRowSeparator(.hidden)
+                    files
             }
-                .offset(offset)
-                .opacity(opacity)
+                .offset(mainViewOffset)
+                .opacity(mainViewOpacity)
 
         }
         .navigationBarTitle(fileService.parent.map{($0.name)} ?? "")
         .modifier(DragGestureViewModifier(onUpdate: { gesture in
             if fileService.parent?.isRoot == false && gesture.translation.width < 300 && gesture.translation.width > 0 {
-                offset.width = gesture.translation.width
+                mainViewOffset.width = gesture.translation.width
             }
         }, onEnd: { gesture in
             if gesture.translation.width > 100 && fileService.parent?.isRoot == false {
@@ -143,27 +113,60 @@ struct FileListView: View {
                 }
             } else {
                 withAnimation {
-                    offset.width = 0
+                    mainViewOffset.width = 0
                 }
             }
         }))
     }
     
+    var files: some View {
+        let children = fileService.childrenOfParent()
+        
+        return ForEach(children) { meta in
+                FileCell(meta: meta) {
+                    withAnimation(.easeOut(duration: 0.2)) {
+                        mainViewOffset.width = -200
+                    }
+                    
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                        mainViewOpacity = 0
+                        mainViewOffset.width = 200
+                        
+                        fileService.intoChildDirectory(meta)
+                        
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                            withAnimation(.easeIn(duration: 0.1)) {
+                                mainViewOffset.width = 0
+                                mainViewOpacity = 1
+                            }
+                        }
+                    }
+                }
+                .padding(.horizontal)
+                .padding(.vertical, 5)
+                .background(colorScheme == .light ? .white : Color(uiColor: .secondarySystemBackground))
+            
+        }
+        .listRowBackground(Color.clear)
+        .listRowInsets(EdgeInsets())
+        .listRowSeparator(.hidden)
+    }
+    
     func animateToParentFolder(realParentUpdate: @escaping () -> Void) {
         withAnimation(.easeOut(duration: 0.2)) {
-            offset.width = 200
-            opacity = 0
+            mainViewOffset.width = 200
+            mainViewOpacity = 0
         }
         
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-            offset.width = -200
-            opacity = 1
+            mainViewOffset.width = -200
+            mainViewOpacity = 1
                                     
             realParentUpdate()
             
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
-                withAnimation(.easeOut(duration: 0.1)) {
-                    offset.width = 0
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                withAnimation(.easeIn(duration: 0.1)) {
+                    mainViewOffset.width = 0
                 }
             }
         }
@@ -173,10 +176,10 @@ struct FileListView: View {
 
 struct DragGestureViewModifier: ViewModifier {
     @GestureState private var isDragging: Bool = false
-    @State var gestureState: GestureStatus = .idle
+    @State private var gestureState: GestureStatus = .idle
 
-    var onUpdate: ((DragGesture.Value) -> Void)?
-    var onEnd: ((DragGesture.Value) -> Void)?
+    var onUpdate: (DragGesture.Value) -> Void
+    var onEnd: (DragGesture.Value) -> Void
 
     func body(content: Content) -> some View {
         content
@@ -203,12 +206,12 @@ struct DragGestureViewModifier: ViewModifier {
 
     func onDragChange(_ value: DragGesture.Value) {
         guard gestureState == .started || gestureState == .active else { return }
-        onUpdate?(value)
+        onUpdate(value)
     }
 
     func onDragEnded(_ value: DragGesture.Value) {
         gestureState = .ended
-        onEnd?(value)
+        onEnd(value)
     }
 
     enum GestureStatus: Equatable {
