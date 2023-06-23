@@ -5,7 +5,6 @@ use crate::billing::billing_model::{
 use crate::billing::billing_service::LockBillingWorkflowError::{
     ExistingRequestPending, UserNotFound,
 };
-use crate::billing::google_play_client;
 use crate::billing::google_play_model::NotificationType;
 use crate::schema::Account;
 use crate::ServerError::ClientError;
@@ -34,11 +33,15 @@ use tracing::*;
 use warp::http::HeaderValue;
 use warp::hyper::body::Bytes;
 
+use super::app_store_client::AppStoreClient;
+use super::google_play_client::GooglePlayClient;
 use super::stripe_client::StripeClient;
 
-impl<S> ServerState<S>
+impl<S, A, G> ServerState<S, A, G>
 where
     S: StripeClient,
+    A: AppStoreClient,
+    G: GooglePlayClient,
 {
     fn lock_subscription_profile(
         &self, public_key: &PublicKey,
@@ -159,21 +162,16 @@ where
 
         debug!("Upgrading the account of a user through google play billing");
 
-        google_play_client::acknowledge_subscription(
-            &self.config,
-            &self.google_play_client,
-            &request.purchase_token,
-        )
-        .await?;
+        self.google_play_client
+            .acknowledge_subscription(&self.config, &request.purchase_token)
+            .await?;
 
         debug!("Acknowledged a user's google play subscription");
 
-        let expiry_info = google_play_client::get_subscription(
-            &self.config,
-            &self.google_play_client,
-            &request.purchase_token,
-        )
-        .await?;
+        let expiry_info = self
+            .google_play_client
+            .get_subscription(&self.config, &request.purchase_token)
+            .await?;
 
         account.billing_info.billing_platform = Some(BillingPlatform::new_play_sub(
             &self.config,
@@ -306,9 +304,8 @@ where
                 return Err(ClientError(CancelSubscriptionError::AlreadyCanceled))
             }
 
-            google_play_client::cancel_subscription(
+            self.google_play_client.cancel_subscription(
                 &self.config,
-                &self.google_play_client,
                 &info.purchase_token,
             ).await?;
 
@@ -555,13 +552,11 @@ where
         if let Some(sub_notif) = notification.subscription_notification {
             debug!(?sub_notif, "Notification is for a subscription");
 
-            let subscription = google_play_client::get_subscription(
-                &self.config,
-                &self.google_play_client,
-                &sub_notif.purchase_token,
-            )
-            .await
-            .map_err(|e| internal!("{:#?}", e))?;
+            let subscription = self
+                .google_play_client
+                .get_subscription(&self.config, &sub_notif.purchase_token)
+                .await
+                .map_err(|e| internal!("{:#?}", e))?;
 
             let notification_type = sub_notif.notification_type();
             if let NotificationType::SubscriptionPurchased = notification_type {

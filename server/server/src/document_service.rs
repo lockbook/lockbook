@@ -1,3 +1,5 @@
+use crate::billing::app_store_client::AppStoreClient;
+use crate::billing::google_play_client::GooglePlayClient;
 use crate::billing::stripe_client::StripeClient;
 use crate::{ServerError, ServerState};
 
@@ -9,9 +11,11 @@ use tokio::fs::{remove_file, File};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use uuid::Uuid;
 
-impl<S> ServerState<S>
+impl<S, A, G> ServerState<S, A, G>
 where
     S: StripeClient,
+    A: AppStoreClient,
+    G: GooglePlayClient,
 {
     pub(crate) async fn insert<T: Debug>(
         &self, id: &Uuid, hmac: &DocumentHmac, content: &EncryptedDocument,

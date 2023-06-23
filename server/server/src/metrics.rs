@@ -1,3 +1,5 @@
+use crate::billing::app_store_client::AppStoreClient;
+use crate::billing::google_play_client::GooglePlayClient;
 use crate::billing::stripe_client::StripeClient;
 use crate::{ServerError, ServerState};
 use lazy_static::lazy_static;
@@ -69,9 +71,11 @@ pub enum MetricsError {}
 
 pub const TWO_DAYS_IN_MILLIS: u128 = 1000 * 60 * 60 * 24 * 2;
 
-impl<S> ServerState<S>
+impl<S, A, G> ServerState<S, A, G>
 where
     S: StripeClient,
+    A: AppStoreClient,
+    G: GooglePlayClient,
 {
     pub fn start_metrics_worker(&self) {
         let state_clone = self.clone();

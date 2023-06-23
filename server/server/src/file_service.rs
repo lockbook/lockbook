@@ -1,3 +1,5 @@
+use crate::billing::app_store_client::AppStoreClient;
+use crate::billing::google_play_client::GooglePlayClient;
 use crate::billing::stripe_client::StripeClient;
 use crate::file_service::UpsertError::UsageIsOverDataCap;
 use crate::schema::ServerDb;
@@ -19,9 +21,11 @@ use std::hash::Hash;
 use std::ops::DerefMut;
 use tracing::{debug, error, warn};
 
-impl<S> ServerState<S>
+impl<S, A, G> ServerState<S, A, G>
 where
     S: StripeClient,
+    A: AppStoreClient,
+    G: GooglePlayClient,
 {
     pub async fn upsert_file_metadata(
         &self, context: RequestContext<UpsertRequest>,

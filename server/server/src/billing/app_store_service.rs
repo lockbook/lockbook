@@ -1,4 +1,3 @@
-use crate::billing::app_store_client;
 use crate::billing::app_store_model::{
     EncodedNotificationResponseBody, NotificationResponseBody, TransactionInfo,
 };
@@ -16,6 +15,8 @@ use x509_parser::error::X509Error;
 use x509_parser::parse_x509_certificate;
 use x509_parser::prelude::X509Certificate;
 
+use super::app_store_client::AppStoreClient;
+use super::google_play_client::GooglePlayClient;
 use super::stripe_client::StripeClient;
 
 const SUBSCRIBED: u16 = 1;
@@ -23,9 +24,11 @@ const EXPIRED: u16 = 2;
 const BILLING_RETRY: u16 = 3;
 const GRACE_PERIOD: u16 = 4;
 
-impl<S> ServerState<S>
+impl<S, A, G> ServerState<S, A, G>
 where
     S: StripeClient,
+    A: AppStoreClient,
+    G: GooglePlayClient,
 {
     pub fn get_public_key_from_tx(
         &self, trans: &TransactionInfo,
@@ -45,12 +48,12 @@ where
     }
 
     pub async fn verify_details(
-        client: &reqwest::Client, config: &AppleConfig, app_account_token: &str,
-        original_transaction_id: &str,
+        client: &A, config: &AppleConfig, app_account_token: &str, original_transaction_id: &str,
     ) -> Result<(UnixTimeMillis, AppStoreAccountState), ServerError<UpgradeAccountAppStoreError>>
     {
-        let (transaction, transaction_info) =
-            app_store_client::get_sub_status(client, config, original_transaction_id).await?;
+        let (transaction, transaction_info) = client
+            .get_sub_status(config, original_transaction_id)
+            .await?;
 
         debug!(?transaction_info.app_account_token, ?app_account_token, "Comparing verified app account token and with unverified");
         debug!(?transaction.original_transaction_id, ?original_transaction_id, "Comparing verified original transaction id and with unverified");

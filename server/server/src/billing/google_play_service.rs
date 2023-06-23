@@ -10,11 +10,15 @@ use lockbook_shared::api::UnixTimeMillis;
 use std::collections::HashMap;
 use tracing::*;
 
+use super::app_store_client::AppStoreClient;
+use super::google_play_client::GooglePlayClient;
 use super::stripe_client::StripeClient;
 
-impl<S> ServerState<S>
+impl<S, A, G> ServerState<S, A, G>
 where
     S: StripeClient,
+    A: AppStoreClient,
+    G: GooglePlayClient,
 {
     pub fn get_public_key_from_subnotif(
         &self, sub_notif: &SubscriptionNotification, subscription: &SubscriptionPurchase,

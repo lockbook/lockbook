@@ -1,4 +1,6 @@
+use crate::billing::app_store_client::AppStoreClient;
 use crate::billing::billing_model::BillingPlatform;
+use crate::billing::google_play_client::GooglePlayClient;
 use crate::billing::stripe_client::StripeClient;
 use crate::schema::{Account, ServerDb};
 use crate::utils::username_is_valid;
@@ -31,9 +33,11 @@ use std::ops::DerefMut;
 use tracing::warn;
 use uuid::Uuid;
 
-impl<S> ServerState<S>
+impl<S, A, G> ServerState<S, A, G>
 where
     S: StripeClient,
+    A: AppStoreClient,
+    G: GooglePlayClient,
 {
     /// Create a new account given a username, public_key, and root folder.
     /// Checks that username is valid, and that username, public_key and root_folder are new.

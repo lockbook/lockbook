@@ -13,9 +13,16 @@ use stripe::{Invoice, WebhookEvent};
 use tracing::*;
 use uuid::Uuid;
 
+use super::app_store_client::AppStoreClient;
+use super::google_play_client::GooglePlayClient;
 use super::stripe_client::StripeClient;
 
-impl<S: StripeClient> ServerState<S> {
+impl<S, A, G> ServerState<S, A, G>
+where
+    S: StripeClient,
+    A: AppStoreClient,
+    G: GooglePlayClient,
+{
     pub async fn create_subscription(
         &self, public_key: &PublicKey, account_tier: &StripeAccountTier,
         maybe_user_info: Option<StripeUserInfo>,

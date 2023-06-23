@@ -1,5 +1,6 @@
+use billing::app_store_client::AppStoreClient;
+use billing::google_play_client::GooglePlayClient;
 use billing::stripe_client::StripeClient;
-use google_androidpublisher3::AndroidPublisher;
 use std::env;
 use std::fmt::Debug;
 use std::sync::{Arc, Mutex};
@@ -21,12 +22,17 @@ use tracing::log::warn;
 static CARGO_PKG_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[derive(Clone)]
-pub struct ServerState<S: StripeClient> {
+pub struct ServerState<S, A, G>
+where
+    S: StripeClient,
+    A: AppStoreClient,
+    G: GooglePlayClient,
+{
     pub config: config::Config,
     pub index_db: Arc<Mutex<ServerV4>>,
     pub stripe_client: S,
-    pub google_play_client: AndroidPublisher,
-    pub app_store_client: reqwest::Client,
+    pub google_play_client: G,
+    pub app_store_client: A,
 }
 
 #[derive(Clone)]
@@ -67,9 +73,15 @@ pub fn handle_version_header<Req: Request>(
     Ok(())
 }
 
-pub fn verify_auth<TRequest: Request + Serialize, S: StripeClient>(
-    server_state: &ServerState<S>, request: &RequestWrapper<TRequest>,
-) -> Result<(), SharedError> {
+pub fn verify_auth<TRequest, S, A, G>(
+    server_state: &ServerState<S, A, G>, request: &RequestWrapper<TRequest>,
+) -> Result<(), SharedError>
+where
+    TRequest: Request + Serialize,
+    S: StripeClient,
+    A: AppStoreClient,
+    G: GooglePlayClient,
+{
     pubkey::verify(
         &request.signed_request.public_key,
         &request.signed_request,
