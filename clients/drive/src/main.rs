@@ -7,8 +7,8 @@ use std::time::Duration;
 
 //extern crate notify;
 
+use notify::EventKind;
 use notify::{Config, RecommendedWatcher, RecursiveMode, Watcher};
-use notify::EventKind::Remove;
 use std::sync::mpsc::channel;
 //use std::time::Duration;
 //use lockbook_core::CoreLib;
@@ -21,7 +21,7 @@ use lb::Core;
 #[command(version, about)]
 enum Command {
     LocalSync { location: PathBuf },
-    Import
+    Import,
 }
 
 fn main() {
@@ -37,7 +37,7 @@ fn main() {
     }
 }
 
-fn import_acct(core: &Core){
+fn import_acct(core: &Core) {
     if std::io::stdin().is_terminal() {
         panic!("to import an existing lockbook account, pipe your account string into this command, e.g.:\npbpaste | drive import");
     }
@@ -52,7 +52,6 @@ fn import_acct(core: &Core){
     core.import_account(&account_string).unwrap();
 
     println!("account imported!");
-
 }
 
 fn core() -> Core {
@@ -71,15 +70,17 @@ fn check_for_changes(core: &Core, mut dest: PathBuf) -> notify::Result<()> {
             PullDocument(f) => println!("pulling: {}", f.name),
             PushDocument(f) => println!("pushing: {}", f.name),
         };
-    }))).unwrap();
-    //Ok(());
+    })))
+    .unwrap();
 
-    core.export_file(core.get_root().unwrap().id, dest.clone(), false, None).unwrap();
+    core.export_file(core.get_root().unwrap().id, dest.clone(), false, None)
+        .unwrap();
     File::open(&dest).unwrap().sync_all().unwrap();
     // Create a channel to receive file events
     let (tx, rx) = channel();
     //let filepath: &str = "example.txt";
     dest.push(core.get_root().unwrap().name);
+    dest = dest.canonicalize().unwrap();
     // Create a new watcher object
     let mut watcher = RecommendedWatcher::new(tx, Config::default())?;
     // Register the file for watching
@@ -90,13 +91,19 @@ fn check_for_changes(core: &Core, mut dest: PathBuf) -> notify::Result<()> {
     for res in rx {
         match res {
             Ok(event) => {
-                // if let notify::Remove(path) = event {
-                //     println!("File deleted");
-                // }
-                println!("{:?}", event.info());
-                //else{
-                println!("changed: {:?}", event)
-                //}
+                println!("{:#?}", event);
+                match event.kind {
+                    EventKind::Any => {},
+                    EventKind::Access(_) => {},
+                    EventKind::Create(_) => {},
+                    EventKind::Modify(_) => {},
+                    EventKind::Remove(_) => {
+                        let core_path = get_lockbook_path(event.paths[0].clone(), dest.clone());
+                        let to_delete = core.get_by_path(core_path.to_str().unwrap()).unwrap();
+                        core.delete_file(to_delete.id).unwrap();
+                    }
+                    EventKind::Other => {},
+                }
             }
             Err(e) => println!("watch error: {:?}", e),
         }
@@ -105,6 +112,31 @@ fn check_for_changes(core: &Core, mut dest: PathBuf) -> notify::Result<()> {
     Ok(())
 }
 
+fn get_lockbook_path(event_path: PathBuf, dest: PathBuf) -> PathBuf {
+    let mut ep_iter = event_path.iter();
+    for _ in &dest {
+        ep_iter.next();
+    }
+    PathBuf::from(&ep_iter)
+}
+
+#[test]
+fn test() {
+    let a = PathBuf::from("/a/b/c/d");
+    let b = PathBuf::from("/a/b/c");
+    let c = get_lockbook_path(a, b);
+    assert_eq!(c, PathBuf::from("d"));
+}
+
+#[test]
+fn test2() {
+    let a = PathBuf::from(
+        "/Users/siddhantsapra/Desktop/lockbook/lockbook/clients/drive/siddhant/test.md",
+    );
+    let b = PathBuf::from("/a/b/c");
+    let c = get_lockbook_path(a, b);
+    assert_eq!(c, PathBuf::from("d"));
+}
 // Step 1: Either make sure directory is empty or empty it
 // ✅Step 2: Initialize a core - Core::Init pointed at .lockbook, location = .lockbook/drive
 // ✅Step 3: Determine whether they are signed in - core.get_account
@@ -124,3 +156,7 @@ fn check_for_changes(core: &Core, mut dest: PathBuf) -> notify::Result<()> {
 // Step 10: Work on the UI
 
 // In check for changes, lockbook.sync, lockbook export, watch for changes, and replicate something
+// If renamed, differentiate between different possible outcomes
+// Try differentiation plus create, changed or deleted (rm) handled - core.create, core.delete, core.write
+// Might have some level of path calculation at times
+// Does the linux api expose more information?

@@ -38,3 +38,4 @@ How to keep track of files
 Have lockbook inititiallized
 Watching directory pick up changes 
 
+abcdncd
