@@ -47,8 +47,12 @@ impl FileTree {
     pub fn show(&mut self, ui: &mut egui::Ui) -> NodeResponse {
         ui.vertical(|ui| {
             ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
-
-            let r = egui::Frame::none().show(ui, |ui| self.root.show(ui, &mut self.state).inner);
+            let mut is_hovered = false;
+            let r = egui::Frame::none().show(ui, |ui| {
+                let result = self.root.show(ui, &mut self.state);
+                is_hovered = result.response.hovered();
+                result.inner
+            });
 
             if self.state.is_dragging() {
                 if ui.input(|i| i.pointer.any_released()) {
@@ -57,7 +61,7 @@ impl FileTree {
                 } else {
                     self.draw_drag_info_by_cursor(ui);
                 }
-            } else if r.response.dragged() && ui.input(|i| i.pointer.primary_down()) {
+            } else if is_hovered && ui.input(|i| i.pointer.primary_down()) {
                 // todo(steve): prep drag only if a file is clicked
                 self.state.dnd.is_primary_down = true;
                 if ui.input(|i| i.pointer.is_moving()) {
@@ -70,7 +74,7 @@ impl FileTree {
         .inner
     }
 
-    fn draw_drag_info_by_cursor(&self, ui: &mut egui::Ui) {
+    fn draw_drag_info_by_cursor(&mut self, ui: &mut egui::Ui) {
         ui.output_mut(|o| o.cursor_icon = egui::CursorIcon::Grabbing);
 
         // Paint a caption under the cursor in a layer above.
