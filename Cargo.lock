@@ -3111,7 +3111,6 @@ dependencies = [
 name = "lockbook-core"
 version = "0.7.5"
 dependencies = [
- "async-trait",
  "base64 0.13.1",
  "basic-human-duration",
  "bincode",
