@@ -47,8 +47,12 @@ impl FileTree {
     pub fn show(&mut self, ui: &mut egui::Ui) -> NodeResponse {
         ui.vertical(|ui| {
             ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
-
-            let r = egui::Frame::none().show(ui, |ui| self.root.show(ui, &mut self.state).inner);
+            let mut is_hovered = false;
+            let r = egui::Frame::none().show(ui, |ui| {
+                let result = self.root.show(ui, &mut self.state);
+                is_hovered = result.response.hovered();
+                result.inner
+            });
 
             if self.state.is_dragging() {
                 if ui.input(|i| i.pointer.any_released()) {
@@ -57,7 +61,7 @@ impl FileTree {
                 } else {
                     self.draw_drag_info_by_cursor(ui);
                 }
-            } else if r.response.hovered() && ui.input(|i| i.pointer.primary_down()) {
+            } else if is_hovered && ui.input(|i| i.pointer.primary_down()) {
                 // todo(steve): prep drag only if a file is clicked
                 self.state.dnd.is_primary_down = true;
                 if ui.input(|i| i.pointer.is_moving()) {
@@ -70,37 +74,47 @@ impl FileTree {
         .inner
     }
 
-    fn draw_drag_info_by_cursor(&self, ui: &mut egui::Ui) {
+    fn draw_drag_info_by_cursor(&mut self, ui: &mut egui::Ui) {
         ui.output_mut(|o| o.cursor_icon = egui::CursorIcon::Grabbing);
 
         // Paint a caption under the cursor in a layer above.
         let layer_id = egui::LayerId::new(egui::Order::Tooltip, self.state.id);
+
+        let hover_pos = ui.input(|i| i.pointer.hover_pos().unwrap());
+        let mut end = hover_pos;
+        end.x += 70.0;
+        end.y += 50.0;
+
         let response = ui
-            .with_layer_id(layer_id, |ui| {
-                egui::Frame::none()
-                    .rounding(3.0)
-                    .inner_margin(1.0)
-                    .fill(ui.visuals().widgets.active.fg_stroke.color)
-                    .show(ui, |ui| {
-                        egui::Frame::none()
-                            .rounding(3.0)
-                            .inner_margin(egui::style::Margin::symmetric(12.0, 7.0))
-                            .fill(ui.visuals().panel_fill)
-                            .show(ui, |ui| {
-                                ui.label(self.state.drag_caption());
-                            });
-                    });
+            .allocate_ui_at_rect(egui::Rect::from_two_pos(hover_pos, end), |ui| {
+                ui.with_layer_id(layer_id, |ui| {
+                    egui::Frame::none()
+                        .rounding(3.0)
+                        .inner_margin(1.0)
+                        .fill(ui.visuals().widgets.active.fg_stroke.color)
+                        .show(ui, |ui| {
+                            egui::Frame::none()
+                                .rounding(3.0)
+                                .inner_margin(egui::style::Margin::symmetric(12.0, 7.0))
+                                .fill(ui.visuals().faint_bg_color)
+                                .show(ui, |ui| {
+                                    ui.label(self.state.drag_caption());
+                                });
+                        });
+                })
             })
             .response;
 
-        if let Some(pointer_pos) = ui.ctx().pointer_interact_pos() {
-            // This is to prevent only part of the drag caption tooltip from being painted. I'm
-            // unsure why, but it gets cut off as the user uses the drag to horizontally scroll.
-            response.scroll_to_me(Some(egui::Align::Center));
+        if let Some(pointer_pos) = ui.ctx().pointer_hover_pos() {
+            // todo: make sure dragging doesn't expand scroll area to infinity and beyond. respect the initial max width and height;
 
-            let mut delta = pointer_pos - response.rect.center();
-            delta.y -= ui.text_style_height(&egui::TextStyle::Body);
-            ui.ctx().translate_layer(layer_id, delta);
+            if pointer_pos.y < 30.0 {
+                ui.scroll_with_delta(egui::vec2(0., 30.0));
+            }
+            if pointer_pos.y < 100.0 {
+                ui.scroll_with_delta(egui::vec2(0., 10.0));
+            }
+            ui.scroll_to_rect(response.rect, None);
         }
     }
 
