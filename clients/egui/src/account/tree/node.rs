@@ -186,7 +186,7 @@ impl TreeNode {
 
         let desired_size = egui::vec2(state.max_node_width, text_height + padding.y * 2.0);
 
-        let (rect, resp) = ui.allocate_exact_size(desired_size, egui::Sense::hover());
+        let (rect, resp) = ui.allocate_exact_size(desired_size, egui::Sense::click_and_drag());
         if ui.is_rect_visible(rect) {
             let bg = if state.selected.contains(&self.file.id) {
                 ui.visuals().widgets.active.bg_fill
