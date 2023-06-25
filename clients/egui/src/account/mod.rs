@@ -247,7 +247,10 @@ impl AccountScreen {
                         s.done_syncing = true;
                     }
                 }
-                AccountUpdate::FileShared(_) => self.modals.initiate_share = None,
+                AccountUpdate::FileShared(_) => {
+                    self.modals.initiate_share = None;
+                    self.perform_sync(ctx);
+                }
             }
         }
     }

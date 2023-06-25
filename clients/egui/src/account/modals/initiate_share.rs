@@ -15,7 +15,7 @@ pub struct InitiateShareModal {
 
 impl InitiateShareModal {
     pub fn new(err: lb::File) -> Self {
-        Self { file: err, sharee_username: "".to_string(), is_editor: false }
+        Self { file: err, sharee_username: "".to_string(), is_editor: true }
     }
 }
 
@@ -53,7 +53,6 @@ impl super::Modal for InitiateShareModal {
 
                         ui.label("Grant Edit Access:");
 
-                        // The new file's name and extension.
                         ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
                             ui.set_width(300.0);
                             ui.add_space(2.0);
