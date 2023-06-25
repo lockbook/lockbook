@@ -11,11 +11,12 @@ pub struct InitiateShareModal {
     file: lb::File,
     sharee_username: String,
     is_editor: bool,
+    pub err_msg: Option<String>,
 }
 
 impl InitiateShareModal {
     pub fn new(err: lb::File) -> Self {
-        Self { file: err, sharee_username: "".to_string(), is_editor: true }
+        Self { file: err, sharee_username: "".to_string(), is_editor: true, err_msg: None }
     }
 }
 
@@ -72,6 +73,8 @@ impl super::Modal for InitiateShareModal {
                     });
                 }
                 ui.spacing_mut().button_padding = egui::vec2(20.0, 5.0);
+                ui.add_space(10.0);
+
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Min), |ui| {
                     if ui.button("Share").clicked() {
                         maybe_submission = Some(InitiateShareParams {
@@ -81,6 +84,9 @@ impl super::Modal for InitiateShareModal {
                         });
                     }
                 });
+                if let Some(msg) = self.err_msg.clone() {
+                    ui.label(egui::RichText::new(msg).color(ui.style().visuals.error_fg_color));
+                }
             });
 
         maybe_submission
