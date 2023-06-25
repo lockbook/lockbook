@@ -15,8 +15,8 @@ pub struct InitiateShareModal {
 }
 
 impl InitiateShareModal {
-    pub fn new(err: lb::File) -> Self {
-        Self { file: err, sharee_username: "".to_string(), is_editor: true, err_msg: None }
+    pub fn new(target: lb::File) -> Self {
+        Self { file: target, sharee_username: "".to_string(), is_editor: true, err_msg: None }
     }
 }
 
@@ -38,7 +38,7 @@ impl super::Modal for InitiateShareModal {
                 ui.separator();
                 ui.add_space(15.0);
 
-                egui::Grid::new("new_folder_modal_content")
+                egui::Grid::new("share_modal_form")
                     .spacing(egui::vec2(10.0, 10.0))
                     .show(ui, |ui| {
                         ui.label("Username:");
@@ -95,7 +95,7 @@ impl super::Modal for InitiateShareModal {
 fn sharee_info(ui: &mut egui::Ui, share: &Share) {
     egui::Frame::default()
         .fill(ui.style().visuals.faint_bg_color)
-        .stroke(egui::Stroke { width: 0.1, color: ui.style().visuals.text_color() })
+        .stroke(egui::Stroke { width: 0.1, color: ui.visuals().text_color() })
         .inner_margin(egui::Margin::same(10.0))
         .rounding(egui::Rounding::same(5.0))
         .show(ui, |ui| {
@@ -109,6 +109,7 @@ fn sharee_info(ui: &mut egui::Ui, share: &Share) {
                 ui.label(
                     egui::RichText::new(mode)
                         .size(15.0)
+                        // todo: use a color defined in the theme (ui.visuals)
                         .color(egui::Color32::GRAY),
                 );
             })

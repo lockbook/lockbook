@@ -145,7 +145,6 @@ pub fn show<M: Modal>(
 ) -> Option<ModalResponse<M::Response>> {
     if let Some(d) = maybe_modal {
         let dr = show_modal(ctx, x_offset, d);
-
         if dr.closed {
             *maybe_modal = None;
         }

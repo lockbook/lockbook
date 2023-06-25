@@ -295,10 +295,6 @@ impl TreeNode {
 
         ui.separator();
 
-        // if ui.button("Export").clicked() {
-        //     ui.close_menu();
-        // }
-
         let share = ui.add(egui::Button::new(
             RichText::new("Share").color(ui.style().visuals.hyperlink_color),
         ));

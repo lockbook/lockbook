@@ -662,6 +662,7 @@ enum AccountUpdate {
         new_child_paths: HashMap<lb::Uuid, String>,
     },
     FileDeleted(lb::File),
+
     SyncUpdate(SyncUpdate),
 
     DoneDeleting,
