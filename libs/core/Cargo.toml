@@ -55,3 +55,6 @@ test_utils = { path = "libs/test_utils" }
 [[bench]]
 name = "bench_main"
 harness = false
+
+[profile.release]
+debug = true
