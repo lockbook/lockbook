@@ -1,3 +1,4 @@
+use crate::element::Element;
 use crate::input::click_checker::ClickChecker;
 use crate::input::cursor::{ClickType, PointerState};
 use crate::offset_types::{DocCharOffset, RelCharOffset};
@@ -76,6 +77,7 @@ pub enum Modification {
     StageMarked { highlighted: (RelCharOffset, RelCharOffset), text: String },
     CommitMarked,
     Replace { region: Region, text: String },
+    ToggleStyle { region: Region, style: Element },
     Newline { advance_cursor: bool }, // distinct from replace because it triggers auto-bullet, etc
     Indent { deindent: bool },
     Undo,

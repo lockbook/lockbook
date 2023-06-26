@@ -1,6 +1,7 @@
+use crate::ast::Ast;
 use crate::bounds::Paragraphs;
 use crate::buffer::{EditorMutation, Mutation, SubBuffer, SubMutation};
-use crate::element::ItemType;
+use crate::element::{Element, ItemType};
 use crate::galleys::Galleys;
 use crate::input::canonical::{Bound, Location, Modification, Offset, Region};
 use crate::input::cursor::Cursor;
@@ -13,6 +14,7 @@ use unicode_segmentation::UnicodeSegmentation;
 
 pub fn calc(
     modification: Modification, buffer: &SubBuffer, galleys: &Galleys, paragraphs: &Paragraphs,
+    ast: &Ast,
 ) -> EditorMutation {
     let current_cursor = buffer.cursor;
     let mut mutation = Vec::new();
@@ -52,6 +54,17 @@ pub fn calc(
                 cursor: region_to_cursor(region, current_cursor, buffer, galleys, paragraphs),
             });
             mutation.push(SubMutation::Insert { text, advance_cursor: true });
+            mutation.push(SubMutation::Cursor { cursor: current_cursor });
+        }
+        Modification::ToggleStyle { region, style } => {
+            let cursor = region_to_cursor(region, current_cursor, buffer, galleys, paragraphs);
+            apply_style(
+                cursor,
+                style.clone(),
+                region_completely_styled(cursor, style, ast),
+                ast,
+                &mut mutation,
+            );
             mutation.push(SubMutation::Cursor { cursor: current_cursor });
         }
         Modification::Newline { advance_cursor } => {
@@ -563,7 +576,19 @@ pub fn calc(
     EditorMutation::Buffer(mutation)
 }
 
-pub fn list_mutation_replacement(
+/// Returns true if all text in `cursor` has style `style`
+fn region_completely_styled(cursor: Cursor, style: Element, ast: &Ast) -> bool {
+    unimplemented!()
+}
+
+/// Applies or unapplies `style` to `cursor`, splitting or joining surrounding styles as necessary.
+fn apply_style(
+    cursor: Cursor, style: Element, unapply: bool, ast: &Ast, mutation: &mut Vec<SubMutation>,
+) {
+    unimplemented!()
+}
+
+fn list_mutation_replacement(
     mutation: &mut Vec<SubMutation>, buffer: &SubBuffer, galleys: &Galleys,
     paragraphs: &Paragraphs, current_cursor: Cursor, from: ItemType, to: Option<ItemType>,
 ) {

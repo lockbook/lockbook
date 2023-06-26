@@ -364,6 +364,7 @@ impl Editor {
             &combined_events,
             &self.galleys,
             &self.paragraphs,
+            &self.ast,
             &mut self.buffer,
             &mut self.debug,
         );

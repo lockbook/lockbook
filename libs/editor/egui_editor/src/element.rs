@@ -30,6 +30,8 @@ pub enum Element {
     Syntax,
 }
 
+impl Eq for Element {}
+
 impl Element {
     pub fn apply_style(&self, text_format: &mut TextFormat, vis: &Appearance) {
         match &self {
