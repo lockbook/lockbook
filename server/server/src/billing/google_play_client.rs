@@ -1,4 +1,5 @@
 use crate::config::Config;
+use async_trait::async_trait;
 use google_androidpublisher3::api::{
     SubscriptionPurchase, SubscriptionPurchasesAcknowledgeRequest,
 };
@@ -62,45 +63,61 @@ impl From<Error> for SimpleGCPError {
     }
 }
 
-pub async fn acknowledge_subscription(
-    config: &Config, client: &AndroidPublisher, purchase_token: &str,
-) -> Result<(), SimpleGCPError> {
-    let subscription_id = &config.billing.google.premium_subscription_product_id;
-    client
-        .purchases()
-        .subscriptions_acknowledge(
-            SubscriptionPurchasesAcknowledgeRequest { developer_payload: None },
-            PACKAGE_NAME,
-            subscription_id,
-            purchase_token,
-        )
-        .doit()
-        .await?;
+#[async_trait]
+pub trait GooglePlayClient: Send + Sync + Clone + 'static {
+    async fn acknowledge_subscription(
+        &self, config: &Config, purchase_token: &str,
+    ) -> Result<(), SimpleGCPError>;
 
-    Ok(())
+    async fn cancel_subscription(
+        &self, config: &Config, purchase_token: &str,
+    ) -> Result<(), SimpleGCPError>;
+
+    async fn get_subscription(
+        &self, config: &Config, purchase_token: &str,
+    ) -> Result<SubscriptionPurchase, SimpleGCPError>;
 }
 
-pub async fn cancel_subscription(
-    config: &Config, client: &AndroidPublisher, purchase_token: &str,
-) -> Result<(), SimpleGCPError> {
-    let subscription_id = &config.billing.google.premium_subscription_product_id;
-    client
-        .purchases()
-        .subscriptions_cancel(PACKAGE_NAME, subscription_id, purchase_token)
-        .doit()
-        .await?;
+#[async_trait]
+impl GooglePlayClient for AndroidPublisher {
+    async fn acknowledge_subscription(
+        &self, config: &Config, purchase_token: &str,
+    ) -> Result<(), SimpleGCPError> {
+        let subscription_id = &config.billing.google.premium_subscription_product_id;
+        self.purchases()
+            .subscriptions_acknowledge(
+                SubscriptionPurchasesAcknowledgeRequest { developer_payload: None },
+                PACKAGE_NAME,
+                subscription_id,
+                purchase_token,
+            )
+            .doit()
+            .await?;
 
-    Ok(())
-}
+        Ok(())
+    }
 
-pub async fn get_subscription(
-    config: &Config, client: &AndroidPublisher, purchase_token: &str,
-) -> Result<SubscriptionPurchase, SimpleGCPError> {
-    let subscription_id = &config.billing.google.premium_subscription_product_id;
-    Ok(client
-        .purchases()
-        .subscriptions_get(PACKAGE_NAME, subscription_id, purchase_token)
-        .doit()
-        .await?
-        .1)
+    async fn cancel_subscription(
+        &self, config: &Config, purchase_token: &str,
+    ) -> Result<(), SimpleGCPError> {
+        let subscription_id = &config.billing.google.premium_subscription_product_id;
+        self.purchases()
+            .subscriptions_cancel(PACKAGE_NAME, subscription_id, purchase_token)
+            .doit()
+            .await?;
+
+        Ok(())
+    }
+
+    async fn get_subscription(
+        &self, config: &Config, purchase_token: &str,
+    ) -> Result<SubscriptionPurchase, SimpleGCPError> {
+        let subscription_id = &config.billing.google.premium_subscription_product_id;
+        Ok(self
+            .purchases()
+            .subscriptions_get(PACKAGE_NAME, subscription_id, purchase_token)
+            .doit()
+            .await?
+            .1)
+    }
 }

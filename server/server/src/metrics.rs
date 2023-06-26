@@ -1,4 +1,6 @@
-use crate::account_service::get_usage_helper;
+use crate::billing::app_store_client::AppStoreClient;
+use crate::billing::google_play_client::GooglePlayClient;
+use crate::billing::stripe_client::StripeClient;
 use crate::{ServerError, ServerState};
 use lazy_static::lazy_static;
 
@@ -69,190 +71,197 @@ pub enum MetricsError {}
 
 pub const TWO_DAYS_IN_MILLIS: u128 = 1000 * 60 * 60 * 24 * 2;
 
-pub fn start_metrics_worker(server_state: &ServerState) {
-    let state_clone = server_state.clone();
+impl<S, A, G> ServerState<S, A, G>
+where
+    S: StripeClient,
+    A: AppStoreClient,
+    G: GooglePlayClient,
+{
+    pub fn start_metrics_worker(&self) {
+        let state_clone = self.clone();
 
-    tokio::spawn(async move {
-        info!("Started capturing metrics");
+        tokio::spawn(async move {
+            info!("Started capturing metrics");
 
-        if let Err(e) = start(state_clone).await {
-            error!("interrupting metrics loop due to error: {:?}", e)
-        }
-    });
-}
+            if let Err(e) = state_clone.start_metrics_loop().await {
+                error!("interrupting metrics loop due to error: {:?}", e)
+            }
+        });
+    }
 
-pub async fn start(state: ServerState) -> Result<(), ServerError<MetricsError>> {
-    loop {
-        info!("Metrics refresh started");
+    pub async fn start_metrics_loop(self) -> Result<(), ServerError<MetricsError>> {
+        loop {
+            info!("Metrics refresh started");
 
-        let public_keys_and_usernames = state.index_db.lock()?.usernames.data().clone();
+            let public_keys_and_usernames = self.index_db.lock()?.usernames.data().clone();
 
-        let total_users_ever = public_keys_and_usernames.len() as i64;
-        let mut total_documents = 0;
-        let mut total_bytes = 0;
-        let mut active_users = 0;
-        let mut deleted_users = 0;
-        let mut share_feature_users = 0;
+            let total_users_ever = public_keys_and_usernames.len() as i64;
+            let mut total_documents = 0;
+            let mut total_bytes = 0;
+            let mut active_users = 0;
+            let mut deleted_users = 0;
+            let mut share_feature_users = 0;
 
-        let mut premium_users = 0;
-        let mut premium_stripe_users = 0;
-        let mut premium_google_play_users = 0;
-        let mut premium_app_store_users = 0;
+            let mut premium_users = 0;
+            let mut premium_stripe_users = 0;
+            let mut premium_google_play_users = 0;
+            let mut premium_app_store_users = 0;
 
-        for (username, owner) in public_keys_and_usernames {
-            {
-                let mut db = state.index_db.lock()?;
-                let maybe_user_info = get_user_info(&mut db, owner)?;
+            for (username, owner) in public_keys_and_usernames {
+                {
+                    let mut db = self.index_db.lock()?;
+                    let maybe_user_info = Self::get_user_info(&mut db, owner)?;
 
-                let user_info = match maybe_user_info {
-                    None => {
-                        deleted_users += 1;
-                        continue;
-                    }
-                    Some(user_info) => user_info,
-                };
-
-                if user_info.is_user_active {
-                    active_users += 1;
-                }
-                if user_info.is_user_sharer_or_sharee {
-                    share_feature_users += 1;
-                }
-
-                total_documents += user_info.total_documents;
-                total_bytes += user_info.total_bytes;
-
-                METRICS_USAGE_BY_USER_VEC
-                    .with_label_values(&[&username])
-                    .set(user_info.total_bytes);
-
-                let billing_info = get_user_billing_info(&db, &owner)?;
-
-                if billing_info.is_premium() {
-                    premium_users += 1;
-
-                    match billing_info.billing_platform {
+                    let user_info = match maybe_user_info {
                         None => {
-                            return Err(internal!(
+                            deleted_users += 1;
+                            continue;
+                        }
+                        Some(user_info) => user_info,
+                    };
+
+                    if user_info.is_user_active {
+                        active_users += 1;
+                    }
+                    if user_info.is_user_sharer_or_sharee {
+                        share_feature_users += 1;
+                    }
+
+                    total_documents += user_info.total_documents;
+                    total_bytes += user_info.total_bytes;
+
+                    METRICS_USAGE_BY_USER_VEC
+                        .with_label_values(&[&username])
+                        .set(user_info.total_bytes);
+
+                    let billing_info = Self::get_user_billing_info(&db, &owner)?;
+
+                    if billing_info.is_premium() {
+                        premium_users += 1;
+
+                        match billing_info.billing_platform {
+                            None => {
+                                return Err(internal!(
                         "Could not retrieve billing platform although it was used moments before."
                     ));
+                            }
+                            Some(billing_platform) => match billing_platform {
+                                BillingPlatform::GooglePlay { .. } => {
+                                    premium_google_play_users += 1
+                                }
+                                BillingPlatform::Stripe { .. } => premium_stripe_users += 1,
+                                BillingPlatform::AppStore { .. } => premium_app_store_users += 1,
+                            },
                         }
-                        Some(billing_platform) => match billing_platform {
-                            BillingPlatform::GooglePlay { .. } => premium_google_play_users += 1,
-                            BillingPlatform::Stripe { .. } => premium_stripe_users += 1,
-                            BillingPlatform::AppStore { .. } => premium_app_store_users += 1,
-                        },
                     }
+                    drop(db);
                 }
-                drop(db);
+
+                tokio::time::sleep(self.config.metrics.time_between_metrics).await;
             }
 
-            tokio::time::sleep(state.config.metrics.time_between_metrics).await;
-        }
+            METRICS_STATISTICS
+                .total_users
+                .set(total_users_ever - deleted_users);
 
-        METRICS_STATISTICS
-            .total_users
-            .set(total_users_ever - deleted_users);
+            METRICS_STATISTICS.total_documents.set(total_documents);
+            METRICS_STATISTICS.active_users.set(active_users);
+            METRICS_STATISTICS.deleted_users.set(deleted_users);
+            METRICS_STATISTICS.total_document_bytes.set(total_bytes);
+            METRICS_STATISTICS
+                .share_feature_users
+                .set(share_feature_users);
+            METRICS_STATISTICS.premium_users.set(premium_users);
 
-        METRICS_STATISTICS.total_documents.set(total_documents);
-        METRICS_STATISTICS.active_users.set(active_users);
-        METRICS_STATISTICS.deleted_users.set(deleted_users);
-        METRICS_STATISTICS.total_document_bytes.set(total_bytes);
-        METRICS_STATISTICS
-            .share_feature_users
-            .set(share_feature_users);
-        METRICS_STATISTICS.premium_users.set(premium_users);
+            METRICS_PREMIUM_USERS_BY_PAYMENT_PLATFORM_VEC
+                .with_label_values(&[STRIPE_LABEL_NAME])
+                .set(premium_stripe_users);
+            METRICS_PREMIUM_USERS_BY_PAYMENT_PLATFORM_VEC
+                .with_label_values(&[GOOGLE_PLAY_LABEL_NAME])
+                .set(premium_google_play_users);
+            METRICS_PREMIUM_USERS_BY_PAYMENT_PLATFORM_VEC
+                .with_label_values(&[APP_STORE_LABEL_NAME])
+                .set(premium_app_store_users);
 
-        METRICS_PREMIUM_USERS_BY_PAYMENT_PLATFORM_VEC
-            .with_label_values(&[STRIPE_LABEL_NAME])
-            .set(premium_stripe_users);
-        METRICS_PREMIUM_USERS_BY_PAYMENT_PLATFORM_VEC
-            .with_label_values(&[GOOGLE_PLAY_LABEL_NAME])
-            .set(premium_google_play_users);
-        METRICS_PREMIUM_USERS_BY_PAYMENT_PLATFORM_VEC
-            .with_label_values(&[APP_STORE_LABEL_NAME])
-            .set(premium_app_store_users);
-
-        tokio::time::sleep(state.config.metrics.time_between_metrics_refresh).await;
-    }
-}
-
-pub fn get_user_billing_info(
-    db: &ServerDb, owner: &Owner,
-) -> Result<SubscriptionProfile, ServerError<MetricsError>> {
-    let account = db
-        .accounts
-        .data()
-        .get(owner)
-        .ok_or_else(|| internal!("Could not get user's account during metrics {:?}", owner))?;
-
-    Ok(account.billing_info.clone())
-}
-
-pub fn get_user_info(
-    db: &mut ServerDb, owner: Owner,
-) -> Result<Option<UserInfo>, ServerError<MetricsError>> {
-    if db.owned_files.data().get(&owner).is_none() {
-        return Ok(None);
-    }
-
-    let mut tree = ServerTree::new(
-        owner,
-        &mut db.owned_files,
-        &mut db.shared_files,
-        &mut db.file_children,
-        &mut db.metas,
-    )?
-    .to_lazy();
-
-    let mut ids = Vec::new();
-
-    for id in tree.owned_ids() {
-        if !tree.calculate_deleted(&id)? {
-            ids.push(id);
+            tokio::time::sleep(self.config.metrics.time_between_metrics_refresh).await;
         }
     }
+    pub fn get_user_billing_info(
+        db: &ServerDb, owner: &Owner,
+    ) -> Result<SubscriptionProfile, ServerError<MetricsError>> {
+        let account =
+            db.accounts.data().get(owner).ok_or_else(|| {
+                internal!("Could not get user's account during metrics {:?}", owner)
+            })?;
 
-    let is_user_sharer_or_sharee = tree
-        .all_files()?
-        .iter()
-        .any(|k| k.owner() != owner || k.is_shared());
+        Ok(account.billing_info.clone())
+    }
 
-    let root_creation_timestamp =
-        if let Some(root_creation_timestamp) = tree.all_files()?.iter().find(|f| f.is_root()) {
-            root_creation_timestamp.file.timestamped_value.timestamp
+    pub fn get_user_info(
+        db: &mut ServerDb, owner: Owner,
+    ) -> Result<Option<UserInfo>, ServerError<MetricsError>> {
+        if db.owned_files.data().get(&owner).is_none() {
+            return Ok(None);
+        }
+
+        let mut tree = ServerTree::new(
+            owner,
+            &mut db.owned_files,
+            &mut db.shared_files,
+            &mut db.file_children,
+            &mut db.metas,
+        )?
+        .to_lazy();
+
+        let mut ids = Vec::new();
+
+        for id in tree.owned_ids() {
+            if !tree.calculate_deleted(&id)? {
+                ids.push(id);
+            }
+        }
+
+        let is_user_sharer_or_sharee = tree
+            .all_files()?
+            .iter()
+            .any(|k| k.owner() != owner || k.is_shared());
+
+        let root_creation_timestamp =
+            if let Some(root_creation_timestamp) = tree.all_files()?.iter().find(|f| f.is_root()) {
+                root_creation_timestamp.file.timestamped_value.timestamp
+            } else {
+                return Ok(None);
+            };
+
+        let last_seen = *db
+            .last_seen
+            .data()
+            .get(&owner)
+            .unwrap_or(&(root_creation_timestamp as u64));
+
+        let time_two_days_ago = get_time().0 as u64 - TWO_DAYS_IN_MILLIS as u64;
+        let last_seen_since_account_creation = last_seen as i64 - root_creation_timestamp;
+        let delay_buffer_time = 5000;
+        let not_the_welcome_doc = last_seen_since_account_creation > delay_buffer_time;
+        let is_user_active = not_the_welcome_doc && last_seen > time_two_days_ago;
+
+        let total_bytes: u64 = Self::get_usage_helper(&mut tree, db.sizes.data())
+            .unwrap_or_default()
+            .iter()
+            .map(|f| f.size_bytes)
+            .sum();
+
+        let total_documents = if let Some(owned_files) = db.owned_files.data().get(&owner) {
+            owned_files.len() as i64
         } else {
             return Ok(None);
         };
 
-    let last_seen = *db
-        .last_seen
-        .data()
-        .get(&owner)
-        .unwrap_or(&(root_creation_timestamp as u64));
-
-    let time_two_days_ago = get_time().0 as u64 - TWO_DAYS_IN_MILLIS as u64;
-    let last_seen_since_account_creation = last_seen as i64 - root_creation_timestamp;
-    let delay_buffer_time = 5000;
-    let not_the_welcome_doc = last_seen_since_account_creation > delay_buffer_time;
-    let is_user_active = not_the_welcome_doc && last_seen > time_two_days_ago;
-
-    let total_bytes: u64 = get_usage_helper(&mut tree, db.sizes.data())
-        .unwrap_or_default()
-        .iter()
-        .map(|f| f.size_bytes)
-        .sum();
-
-    let total_documents = if let Some(owned_files) = db.owned_files.data().get(&owner) {
-        owned_files.len() as i64
-    } else {
-        return Ok(None);
-    };
-
-    Ok(Some(UserInfo {
-        total_documents,
-        total_bytes: total_bytes as i64,
-        is_user_active,
-        is_user_sharer_or_sharee,
-    }))
+        Ok(Some(UserInfo {
+            total_documents,
+            total_bytes: total_bytes as i64,
+            is_user_active,
+            is_user_sharer_or_sharee,
+        }))
+    }
 }
