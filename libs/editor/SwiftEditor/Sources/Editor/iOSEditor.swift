@@ -57,5 +57,9 @@ public struct MetalView: UIViewRepresentable {
     public func tab(deindent: Bool) {
         mtkView.tab(deindent: deindent)
     }
+    
+    public func automaticTitleComputation(computeTitle: Bool) {
+        mtkView.automaticTitleComputation(computeTitle)
+    }
 }
 #endif

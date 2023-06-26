@@ -52,7 +52,9 @@ struct DocumentView: View {
 
                     case .Markdown:
                         if let editorState = model.textDocument {
-                            Group {
+                            VStack {
+                                MarkdownTitle(editorState: editorState, name: meta.name)
+                                
                                 MarkdownEditor(editorState)
                                     .equatable()
                             }.title(meta.name)
@@ -73,10 +75,34 @@ struct DocumentView: View {
 extension View {
     func title(_ name: String) -> some View {
 #if os(macOS)
-        return self.navigationTitle(name)
+        return self
 #else
-        return self.navigationBarTitle(name, displayMode: .inline)
+        return self
 #endif
+    }
+}
+
+struct MarkdownTitle: View {
+    @ObservedObject var editorState: EditorState
+    @State var name: String?
+    
+    @State var isTitleEditable = false
+    @FocusState var isEditableTitleFocused: Bool
+    
+    var body: some View {
+            TextField("Type your file name here...", text: Binding(get: {
+                editorState.potentialTitle ?? "unset name"
+            }, set: { newValue, _ in
+                name = newValue
+            }))
+            .focused($isEditableTitleFocused)
+            .onChange(of: isEditableTitleFocused, perform: { newValue in
+                print("THIS IS TOGGLED from \(isTitleEditable) to \(!isTitleEditable)")
+                isTitleEditable.toggle()
+            })
+            .textFieldStyle(.plain)
+            .font(.largeTitle)
+            .padding(.horizontal)
     }
 }
 
@@ -89,6 +115,7 @@ struct MarkdownEditor: View, Equatable {
         self.editorState = editorState
 
         self.editor = EditorView(editorState)
+        self.editor.automaticTitleComputation(computeTitle: true)
     }
     
     @Environment(\.colorScheme) var colorScheme

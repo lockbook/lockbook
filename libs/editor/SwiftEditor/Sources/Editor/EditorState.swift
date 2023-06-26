@@ -13,6 +13,8 @@ public class EditorState: ObservableObject {
     @Published public var isBoldSelected: Bool = false
     @Published public var isItalicSelected: Bool = false
     
+    @Published public var potentialTitle: String? = nil
+    
     public init(text: String) {
         self.text = text
     }

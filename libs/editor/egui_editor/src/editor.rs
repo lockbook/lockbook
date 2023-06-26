@@ -1,8 +1,10 @@
+use std::ffi::{c_char, CString};
 use rand::Rng;
-use std::mem;
+use std::{mem, ptr};
 
 use egui::os::OperatingSystem;
 use egui::{Color32, Context, Event, FontDefinitions, Frame, Margin, Pos2, Rect, Sense, Ui, Vec2};
+use pulldown_cmark::HeadingLevel;
 
 use crate::appearance::Appearance;
 use crate::ast::Ast;
@@ -17,12 +19,13 @@ use crate::input::click_checker::{ClickChecker, EditorClickChecker};
 use crate::input::cursor::{Cursor, PointerState};
 use crate::input::events;
 use crate::layouts::Annotation;
-use crate::offset_types::RangeExt;
+use crate::offset_types::{DocCharOffset, RangeExt};
 use crate::test_input::TEST_MARKDOWN;
 use crate::{ast, bounds, galleys, images, register_fonts};
 
+#[cfg(any(target_os = "ios", target_os = "macos"))]
 #[repr(C)]
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct EditorResponse {
     pub text_updated: bool,
 
@@ -38,11 +41,63 @@ pub struct EditorResponse {
     pub cursor_in_bold: bool,
     pub cursor_in_italic: bool,
     pub cursor_in_inline_code: bool,
+
+    pub potential_title: *const c_char,
+}
+
+// two structs are used instead of conditional compilation (`cfg`) for `potential_title` because the header
+// files generated for Swift will include both types of `potential_title`. this causes compilation issues in Swift.
+#[cfg(not(any(target_os = "ios", target_os = "macos")))]
+#[derive(Debug)]
+pub struct EditorResponse {
+    pub text_updated: bool,
+
+    pub show_edit_menu: bool,
+    pub has_selection: bool,
+    pub edit_menu_x: f32,
+    pub edit_menu_y: f32,
+
+    pub cursor_in_heading: bool,
+    pub cursor_in_bullet_list: bool,
+    pub cursor_in_number_list: bool,
+    pub cursor_in_todo_list: bool,
+    pub cursor_in_bold: bool,
+    pub cursor_in_italic: bool,
+    pub cursor_in_inline_code: bool,
+
+    pub potential_title: Option<String>,
+}
+
+impl Default for EditorResponse {
+    fn default() -> Self {
+        Self {
+            text_updated: false,
+
+            show_edit_menu: false,
+            has_selection: false,
+            edit_menu_x: 0.0,
+            edit_menu_y: 0.0,
+
+            cursor_in_heading: false,
+            cursor_in_bullet_list: false,
+            cursor_in_number_list: false,
+            cursor_in_todo_list: false,
+            cursor_in_bold: false,
+            cursor_in_italic: false,
+            cursor_in_inline_code: false,
+
+            #[cfg(any(target_os = "ios", target_os = "macos"))]
+            potential_title: ptr::null(),
+            #[cfg(not(any(target_os = "ios", target_os = "macos")))]
+            potential_title: None
+        }
+    }
 }
 
 pub struct Editor {
     pub id: u32,
     pub initialized: bool,
+    pub compute_title: bool,
 
     // config
     pub appearance: Appearance,
@@ -84,6 +139,7 @@ impl Default for Editor {
         Self {
             id,
             initialized: Default::default(),
+            compute_title: false,
 
             appearance: Default::default(),
             client: Default::default(),
@@ -326,12 +382,35 @@ impl Editor {
             }
         }
 
+        let potential_title: Option<String> = self.get_potential_text_title().map(|title: (DocCharOffset, DocCharOffset)| {
+            let cursor: Cursor = title.into();
+
+            String::from(cursor.selection_text(&self.buffer.current))
+        });
+
+        println!("THE TITLE IS: {:?}", potential_title);
+
+        self.paragraphs.paragraphs.iter().for_each(|paragraph: &(DocCharOffset, DocCharOffset)| {
+            let cursor: Cursor = (*paragraph).into();
+
+            println!("Paragraph: {} and size is: {} {}", String::from(cursor.selection_text(&self.buffer.current)), (*paragraph).0.0, (*paragraph).1.0);
+        });
+
+        // println!("DONE");
+
+        #[cfg(any(target_os = "ios", target_os = "macos"))]
+        let potential_title: *const c_char = CString::new(potential_title.unwrap_or_else(|| "".to_string()))
+            .expect("Could not Rust String -> C String")
+            .into_raw() as *const c_char;
+
         EditorResponse {
             text_updated,
+
             show_edit_menu: self.maybe_menu_location.is_some(),
             has_selection: self.buffer.current.cursor.selection().is_some(),
             edit_menu_x: self.maybe_menu_location.map(|p| p.x).unwrap_or_default(),
             edit_menu_y: self.maybe_menu_location.map(|p| p.y).unwrap_or_default(),
+
             cursor_in_heading,
             cursor_in_bullet_list,
             cursor_in_number_list,
@@ -339,6 +418,8 @@ impl Editor {
             cursor_in_bold,
             cursor_in_italic,
             cursor_in_inline_code,
+
+            potential_title,
         }
     }
 
@@ -441,6 +522,35 @@ impl Editor {
         register_fonts(&mut fonts);
         ctx.set_fonts(fonts);
     }
+
+    pub fn get_potential_text_title(&self) -> Option<(DocCharOffset, DocCharOffset)> {
+        let mut maybe_chosen: Option<(DocCharOffset, DocCharOffset)> = None;
+        let mut smallest_start = usize::MAX;
+
+        let finished_comp = false;
+
+        for paragraph in self.paragraphs.paragraphs {
+            if !paragraph.is_empty() {
+                maybe_chosen = Some(paragraph)
+            }
+        }
+
+        if let Some(chosen) = maybe_chosen {
+            for i in 0..self.ast.nodes.len() {
+                let node = &self.ast.nodes[i];
+
+                if let Element::Heading(size) = &node.element {
+                    if *size == HeadingLevel::H1 && node.range.0 < smallest_start && node.range.0 < MAX_HEADING_LOC {
+                        maybe_chosen = Some(node.text_range);
+                        smallest_start = node.range.0.0;
+                    }
+                }
+            }
+        }
+
+
+        maybe_chosen
+    }
 }
 
 fn clamp(min: f32, mid: f32, max: f32, viewport_width: f32) -> f32 {
@@ -451,3 +561,5 @@ fn clamp(min: f32, mid: f32, max: f32, viewport_width: f32) -> f32 {
     }
     viewport_width * mid
 }
+
+const MAX_HEADING_LOC: usize = 20;

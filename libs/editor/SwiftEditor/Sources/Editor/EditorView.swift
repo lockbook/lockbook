@@ -47,6 +47,10 @@ public struct EditorView: View {
     public func inlineCode() {
         metalView.inlineCode()
     }
+    
+    public func automaticTitleComputation(computeTitle: Bool) {
+        metalView.automaticTitleComputation(computeTitle: computeTitle)
+    }
 
     #if os(iOS)
     public func tab(deindent: Bool) {

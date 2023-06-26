@@ -58,5 +58,9 @@ public struct MetalView: NSViewRepresentable {
     public func inlineCode() {
         mtkView.inlineCode()
     }
+    
+    public func automaticTitleComputation(computeTitle: Bool) {
+        mtkView.automaticTitleComputation(computeTitle)
+    }
 }
 #endif

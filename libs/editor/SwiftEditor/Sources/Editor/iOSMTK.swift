@@ -94,6 +94,10 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
         self.setNeedsDisplay(self.frame)
     }
     
+    public func automaticTitleComputation(_ computeTitle: Bool) {
+        set_automatic_title_computation(editorHandle, computeTitle)
+    }
+    
     public func setInitialContent(_ s: String) {
         let metalLayer = UnsafeMutableRawPointer(Unmanaged.passUnretained(self.layer).toOpaque())
         self.editorHandle = init_editor(metalLayer, s, isDarkMode())
@@ -117,7 +121,13 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
         editorState?.isInlineCodeSelected = output.editor_response.cursor_in_inline_code;
         editorState?.isBoldSelected = output.editor_response.cursor_in_bold;
         editorState?.isItalicSelected = output.editor_response.cursor_in_italic;
-
+        
+        if let potentialTitle = output.editor_response.potential_title {
+            editorState?.potentialTitle = String(cString: potential_title)
+        } else {
+            editorState?.potentialTitle = nil
+        }
+        
         if output.editor_response.show_edit_menu {
             self.hasSelection = output.editor_response.has_selection
             let location = CGPoint(

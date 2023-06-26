@@ -66,6 +66,10 @@ public class MacMTK: MTKView, MTKViewDelegate {
         apply_style_to_selection_inline_code(editorHandle)
         self.setNeedsDisplay(self.frame)
     }
+    
+    public func automaticTitleComputation(_ computeTitle: Bool) {
+        set_automatic_title_computation(editorHandle, computeTitle)
+    }
 
     public override var acceptsFirstResponder: Bool {
         return true
@@ -188,6 +192,12 @@ public class MacMTK: MTKView, MTKViewDelegate {
         editorState?.isBoldSelected = output.editor_response.cursor_in_bold;
         editorState?.isItalicSelected = output.editor_response.cursor_in_italic;
 
+        if let potentialTitle = output.editor_response.potential_title {
+            editorState?.potentialTitle = String(cString: potentialTitle)
+        } else {
+            editorState?.potentialTitle = nil
+        }
+        
         view.isPaused = !output.redraw
         if has_copied_text(editorHandle) {
             NSPasteboard.general.clearContents()

@@ -241,3 +241,12 @@ pub unsafe extern "C" fn apply_style_to_selection_inline_code(obj: *mut c_void) 
 
     obj.editor.custom_events.push(Modification::Code);
 }
+
+/// # Safety
+/// obj must be a valid pointer to WgpuEditor
+#[no_mangle]
+pub unsafe extern "C" fn set_automatic_title_computation(obj: *mut c_void, compute_title: bool) {
+    let obj = &mut *(obj as *mut WgpuEditor);
+
+    obj.editor.compute_title = compute_title;
+}
