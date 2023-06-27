@@ -1,11 +1,11 @@
 use clap::Parser;
+use fs::metadata;
 use is_terminal::IsTerminal;
-use std::fs::{File, self};
+use std::fs::{self, File};
+use std::io::{self, Read};
 use std::path::{Path, PathBuf};
 use std::thread;
 use std::time::Duration;
-use std::io::{self, Read};
-use fs::metadata;
 
 //extern crate notify;
 
@@ -87,26 +87,25 @@ fn check_for_changes(core: &Core, mut dest: PathBuf) -> notify::Result<()> {
     let mut watcher = RecommendedWatcher::new(tx, Config::default())?;
     // Register the file for watching
     watcher.watch(&dest, RecursiveMode::Recursive)?;
-    
+
     let mut length;
     println!("Watching for changes in {:?}", dest);
     for res in rx {
+        println!("{:#?}", res);
         match res {
             Ok(event) => {
-                println!("{:#?}", event);
                 match event.kind {
-                    EventKind::Any => {},
-                    EventKind::Access(_) => {},
+                    EventKind::Any => {}
+                    EventKind::Access(_) => {}
                     EventKind::Create(_) => {
                         let core_path = get_lockbook_path(event.paths[0].clone(), dest.clone());
                         let check = core.get_by_path(core_path.to_str().unwrap());
-                        if check.is_err(){
+                        if check.is_err() {
                             core.create_at_path(core_path.to_str().unwrap()).unwrap();
-                        }
-                        else{
+                        } else {
                             println!("{:?}", event);
                         }
-                    },
+                    }
                     EventKind::Modify(_) => {
                         let mut f = File::open(event.paths[0].clone()).unwrap();
                         length = fs::metadata(event.paths[0].clone())?.len();
@@ -118,13 +117,13 @@ fn check_for_changes(core: &Core, mut dest: PathBuf) -> notify::Result<()> {
                         let core_path = get_lockbook_path(event.paths[0].clone(), dest.clone());
                         let to_modify = core.get_by_path(core_path.to_str().unwrap()).unwrap();
                         core.write_document(to_modify.id, &buffer[..]).unwrap();
-                    },
+                    }
                     EventKind::Remove(_) => {
                         let core_path = get_lockbook_path(event.paths[0].clone(), dest.clone());
                         let to_delete = core.get_by_path(core_path.to_str().unwrap()).unwrap();
                         core.delete_file(to_delete.id).unwrap();
                     }
-                    EventKind::Other => {},
+                    EventKind::Other => {}
                 }
             }
             Err(e) => println!("watch error: {:?}", e),
