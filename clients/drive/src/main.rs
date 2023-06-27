@@ -1,9 +1,11 @@
 use clap::Parser;
 use is_terminal::IsTerminal;
-use std::fs::File;
+use std::fs::{File, self};
 use std::path::{Path, PathBuf};
 use std::thread;
 use std::time::Duration;
+use std::io::{self, Read};
+use fs::metadata;
 
 //extern crate notify;
 
@@ -85,9 +87,9 @@ fn check_for_changes(core: &Core, mut dest: PathBuf) -> notify::Result<()> {
     let mut watcher = RecommendedWatcher::new(tx, Config::default())?;
     // Register the file for watching
     watcher.watch(&dest, RecursiveMode::Recursive)?;
-
+    
+    let mut length;
     println!("Watching for changes in {:?}", dest);
-
     for res in rx {
         match res {
             Ok(event) => {
@@ -95,8 +97,28 @@ fn check_for_changes(core: &Core, mut dest: PathBuf) -> notify::Result<()> {
                 match event.kind {
                     EventKind::Any => {},
                     EventKind::Access(_) => {},
-                    EventKind::Create(_) => {},
-                    EventKind::Modify(_) => {},
+                    EventKind::Create(_) => {
+                        let core_path = get_lockbook_path(event.paths[0].clone(), dest.clone());
+                        let check = core.get_by_path(core_path.to_str().unwrap());
+                        if check.is_err(){
+                            core.create_at_path(core_path.to_str().unwrap()).unwrap();
+                        }
+                        else{
+                            println!("{:?}", event);
+                        }
+                    },
+                    EventKind::Modify(_) => {
+                        let mut f = File::open(event.paths[0].clone()).unwrap();
+                        length = fs::metadata(event.paths[0].clone())?.len();
+                        let l = length as usize;
+                        let mut buffer = vec![0; l];
+                        //let content = f.read(&mut buffer)?;
+                        f.read(&mut buffer).unwrap();
+                        println!("{:?}", &buffer[..]);
+                        let core_path = get_lockbook_path(event.paths[0].clone(), dest.clone());
+                        let to_modify = core.get_by_path(core_path.to_str().unwrap()).unwrap();
+                        core.write_document(to_modify.id, &buffer[..]).unwrap();
+                    },
                     EventKind::Remove(_) => {
                         let core_path = get_lockbook_path(event.paths[0].clone(), dest.clone());
                         let to_delete = core.get_by_path(core_path.to_str().unwrap()).unwrap();
@@ -107,6 +129,16 @@ fn check_for_changes(core: &Core, mut dest: PathBuf) -> notify::Result<()> {
             }
             Err(e) => println!("watch error: {:?}", e),
         }
+        // core.sync(Some(Box::new(|sp: lb::SyncProgress| {
+        //     use lb::ClientWorkUnit::*;
+        //     match sp.current_work_unit {
+        //         PullMetadata => println!("pulling file tree updates"),
+        //         PushMetadata => println!("pushing file tree updates"),
+        //         PullDocument(f) => println!("pulling: {}", f.name),
+        //         PushDocument(f) => println!("pushing: {}", f.name),
+        //     };
+        // })))
+        // .unwrap();
     }
 
     Ok(())
