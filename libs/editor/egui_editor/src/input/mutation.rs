@@ -578,13 +578,146 @@ pub fn calc(
 
 /// Returns true if all text in `cursor` has style `style`
 fn region_completely_styled(cursor: Cursor, style: Element, ast: &Ast) -> bool {
-    unimplemented!()
+    if cursor.selection.is_empty() {
+        return false;
+    }
+
+    for text_range in ast.iter_text_ranges() {
+        // skip ranges before or after the cursor
+        if text_range.range.end() <= cursor.selection.start() {
+            continue;
+        }
+        if cursor.selection.end() <= text_range.range.start() {
+            break;
+        }
+
+        // look for at least one ancestor that applies the style
+        let mut styled = false;
+        for ancestor in text_range.ancestors {
+            if ast.nodes[ancestor].element == style {
+                println!("styled node: {:?}", ast.nodes[ancestor].range);
+                styled = true;
+                break;
+            }
+        }
+
+        if !styled {
+            return false;
+        }
+    }
+
+    true
 }
 
 /// Applies or unapplies `style` to `cursor`, splitting or joining surrounding styles as necessary.
+/// todo: handle case when cursor bounds in syntax chars
 fn apply_style(
     cursor: Cursor, style: Element, unapply: bool, ast: &Ast, mutation: &mut Vec<SubMutation>,
 ) {
+    if cursor.selection.is_empty() {
+        return;
+    }
+
+    // find range containing cursor start and cursor end
+    let mut start_range = None;
+    let mut end_range = None;
+    for text_range in ast.iter_text_ranges() {
+        // when at bound, start prefers next
+        // start always has next because if it were at doc end, selection would be empty (early return)
+        if text_range.range.start() <= cursor.selection.start()
+            && cursor.selection.start() < text_range.range.end()
+        {
+            start_range = Some(text_range.clone());
+        }
+        // when at bound, end prefers previous
+        // end always has previous because if it were at doc start, selection would be empty (early return)
+        if text_range.range.start() < cursor.selection.end()
+            && cursor.selection.end() <= text_range.range.end()
+        {
+            end_range = Some(text_range);
+        }
+    }
+
+    // remove head and tail from all ancestors applying style
+    // if styled and applying style, leave head of start and/or tail of end
+    // if not styled and applying style, insert head at start and/or tail at end
+    // if styled and unapplying style, insert tail at start and/or head at end
+    // if not styled and unapplying style, do nothing
+    let start_styled = if let Some(start_range) = start_range {
+        let mut prev_ancestor = None;
+        for ancestor in start_range.ancestors {
+            if ast.nodes[ancestor].element == style {
+                // dehead all but the last ancestor applying the style
+                if let Some(prev_ancestor) = prev_ancestor {
+                    dehead_ast_node(prev_ancestor, ast, mutation);
+                }
+
+                // detail all ancestors applying the style
+                detail_ast_node(ancestor, ast, mutation);
+                prev_ancestor = Some(ancestor)
+            }
+        }
+        prev_ancestor.is_some()
+    } else {
+        unreachable!()
+    };
+    let end_styled = if let Some(end_range) = end_range {
+        let mut prev_ancestor = None;
+        for ancestor in end_range.ancestors {
+            if ast.nodes[ancestor].element == style {
+                // detail all but the last ancestor applying the style
+                if let Some(prev_ancestor) = prev_ancestor {
+                    detail_ast_node(prev_ancestor, ast, mutation);
+                }
+
+                // dehead all ancestors applying the style
+                dehead_ast_node(ancestor, ast, mutation);
+                prev_ancestor = Some(ancestor)
+            }
+        }
+        prev_ancestor.is_some()
+    } else {
+        unreachable!()
+    };
+
+    if unapply {
+        if start_styled {
+            // tail the text before the selection
+            insert_tail(cursor.selection.start(), style.clone(), mutation);
+        }
+        if end_styled {
+            // head the text after the selection
+            insert_head(cursor.selection.start(), style.clone(), mutation);
+        }
+    } else {
+        if !start_styled {
+            // head the selection
+            insert_head(cursor.selection.start(), style.clone(), mutation)
+        }
+        if !end_styled {
+            // tail the selection
+            insert_tail(cursor.selection.start(), style.clone(), mutation)
+        }
+    }
+
+    // todo: dehead/detail all nodes with this style between start and end except those already modified
+
+    unimplemented!()
+}
+
+fn dehead_ast_node(node_idx: usize, ast: &Ast, mutation: &mut Vec<SubMutation>) {
+    unimplemented!()
+}
+
+fn detail_ast_node(node_idx: usize, ast: &Ast, mutation: &mut Vec<SubMutation>) {
+    unimplemented!()
+}
+
+fn insert_head(offset: DocCharOffset, style: Element, mutation: &mut Vec<SubMutation>) {
+    unimplemented!()
+}
+
+fn insert_tail(offset: DocCharOffset, style: Element, mutation: &mut Vec<SubMutation>) {
     unimplemented!()
 }
 
