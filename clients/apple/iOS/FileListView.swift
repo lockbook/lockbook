@@ -15,12 +15,12 @@ struct FileListView: View {
     
     var body: some View {
         VStack {
-            if let newDoc = sheets.created, newDoc.fileType == .Document {
-                NavigationLink(destination: DocumentView(meta: newDoc), isActive: Binding(get: { current.selectedDocument != nil }, set: { _ in current.selectedDocument = nil }) ) {
+            if let newDoc = current.selectedDocument {
+                NavigationLink(destination: DocumentView(), isActive: Binding(get: { current.selectedDocument != nil }, set: { _ in current.selectedDocument = nil }) ) {
                         EmptyView()
                     }
                     .hidden()
-                }
+            }
                     
                 SearchWrapperView(
                     searchInput: $searchInput,

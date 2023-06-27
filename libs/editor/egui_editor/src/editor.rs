@@ -1,10 +1,9 @@
 use std::ffi::{c_char, CString};
 use rand::Rng;
-use std::{mem, ptr};
+use std::{cmp, mem, ptr};
 
 use egui::os::OperatingSystem;
 use egui::{Color32, Context, Event, FontDefinitions, Frame, Margin, Pos2, Rect, Sense, Ui, Vec2};
-use pulldown_cmark::HeadingLevel;
 
 use crate::appearance::Appearance;
 use crate::ast::Ast;
@@ -382,26 +381,20 @@ impl Editor {
             }
         }
 
-        let potential_title: Option<String> = self.get_potential_text_title().map(|title: (DocCharOffset, DocCharOffset)| {
-            let cursor: Cursor = title.into();
-
-            String::from(cursor.selection_text(&self.buffer.current))
-        });
-
-        println!("THE TITLE IS: {:?}", potential_title);
-
-        self.paragraphs.paragraphs.iter().for_each(|paragraph: &(DocCharOffset, DocCharOffset)| {
-            let cursor: Cursor = (*paragraph).into();
-
-            println!("Paragraph: {} and size is: {} {}", String::from(cursor.selection_text(&self.buffer.current)), (*paragraph).0.0, (*paragraph).1.0);
-        });
-
-        // println!("DONE");
+        let potential_title = if self.compute_title {
+            self.get_potential_text_title()
+        } else {
+            None
+        };
 
         #[cfg(any(target_os = "ios", target_os = "macos"))]
-        let potential_title: *const c_char = CString::new(potential_title.unwrap_or_else(|| "".to_string()))
-            .expect("Could not Rust String -> C String")
-            .into_raw() as *const c_char;
+        let potential_title = if self.compute_title {
+            CString::new(potential_title.unwrap_or_else(|| "".to_string()))
+                .expect("Could not Rust String -> C String")
+                .into_raw() as *const c_char
+        } else {
+            ptr::null()
+        };
 
         EditorResponse {
             text_updated,
@@ -523,33 +516,24 @@ impl Editor {
         ctx.set_fonts(fonts);
     }
 
-    pub fn get_potential_text_title(&self) -> Option<(DocCharOffset, DocCharOffset)> {
+    pub fn get_potential_text_title(&self) -> Option<String> {
         let mut maybe_chosen: Option<(DocCharOffset, DocCharOffset)> = None;
-        let mut smallest_start = usize::MAX;
 
-        let finished_comp = false;
-
-        for paragraph in self.paragraphs.paragraphs {
+        for paragraph in &self.paragraphs.paragraphs {
             if !paragraph.is_empty() {
-                maybe_chosen = Some(paragraph)
+                maybe_chosen = Some(*paragraph);
+                break
             }
         }
 
-        if let Some(chosen) = maybe_chosen {
-            for i in 0..self.ast.nodes.len() {
-                let node = &self.ast.nodes[i];
+        maybe_chosen.map(|chosen: (DocCharOffset, DocCharOffset)| {
+            let ast_idx = self.ast.ast_node_at_char(chosen.start());
+            let ast = &self.ast.nodes[ast_idx];
 
-                if let Element::Heading(size) = &node.element {
-                    if *size == HeadingLevel::H1 && node.range.0 < smallest_start && node.range.0 < MAX_HEADING_LOC {
-                        maybe_chosen = Some(node.text_range);
-                        smallest_start = node.range.0.0;
-                    }
-                }
-            }
-        }
+            let cursor: Cursor = (ast.text_range.start(), cmp::min(ast.text_range.end(), ast.text_range.start() + 20)).into();
 
-
-        maybe_chosen
+            String::from(cursor.selection_text(&self.buffer.current))
+        })
     }
 }
 
@@ -561,5 +545,3 @@ fn clamp(min: f32, mid: f32, max: f32, viewport_width: f32) -> f32 {
     }
     viewport_width * mid
 }
-
-const MAX_HEADING_LOC: usize = 20;

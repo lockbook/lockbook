@@ -2,6 +2,7 @@ import SwiftUI
 import Combine
 
 public class EditorState: ObservableObject {
+    
     @Published public var text: String
     @Published public var reload: Bool = false
     

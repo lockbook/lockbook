@@ -4,10 +4,9 @@ import PencilKit
 import SwiftEditor
 
 struct DocumentView: View {
-    
-    let meta: File
-    
+        
     @EnvironmentObject var model: DocumentLoader
+    
 #if os(iOS)
     @EnvironmentObject var toolbar: ToolbarModel
     @EnvironmentObject var current: CurrentDocument
@@ -15,53 +14,51 @@ struct DocumentView: View {
     
     var body: some View {
         Group {
-            if meta != model.meta || model.loading {
-                ProgressView()
-                    .onAppear {
-                        model.startLoading(meta)
-                    }
-                    .title(meta.name)
-            } else if model.error != "" {
-                Text("errors while loading: \(model.error)")
-            } else if model.deleted {
-                Text("\(meta.name) was deleted.")
-            } else {
-                if let type = model.type {
-                    switch type {
-                    case .Image:
-                        if let img = model.image {
-                            ScrollView([.horizontal, .vertical]) {
-                                img
-                            }.title(meta.name)
+            if let meta = model.meta {
+                if model.loading {
+                    ProgressView()
+                        .onAppear {
+                            model.startLoading()
                         }
-#if os(iOS)
-                    case .Drawing:
-                        DrawingView(
-                            model: model,
-                            toolPicker: toolbar
-                        )
-                        .navigationBarTitle(meta.name, displayMode: .inline)
-                        .toolbar {
-                            ToolbarItemGroup(placement: .bottomBar) {
-                                Spacer()
-                                DrawingToolbar(toolPicker: toolbar)
-                                Spacer()
+                        .title(meta.name)
+                } else if model.error != "" {
+                    Text("errors while loading: \(model.error)")
+                } else if model.deleted {
+                    Text("\(meta.name) was deleted.")
+                } else {
+                    if let type = model.type {
+                        switch type {
+                        case .Image:
+                            if let img = model.image {
+                                ScrollView([.horizontal, .vertical]) {
+                                    img
+                                }.title(meta.name)
                             }
-                        }
+#if os(iOS)
+                        case .Drawing:
+                            DrawingView(
+                                model: model,
+                                toolPicker: toolbar
+                            )
+                            .navigationBarTitle(meta.name, displayMode: .inline)
+                            .toolbar {
+                                ToolbarItemGroup(placement: .bottomBar) {
+                                    Spacer()
+                                    DrawingToolbar(toolPicker: toolbar)
+                                    Spacer()
+                                }
+                            }
 #endif
-
-                    case .Markdown:
-                        if let editorState = model.textDocument {
-                            VStack {
-                                MarkdownTitle(editorState: editorState, name: meta.name)
-                                
-                                MarkdownEditor(editorState)
-                                    .equatable()
-                            }.title(meta.name)
+                            
+                        case .Markdown:
+                            if let editorState = model.textDocument {
+                                let _ = print("from the outside: \(meta.name) \(model.meta?.name)")
+                                MarkdownCompleteEditor(editorState, meta)
+                            }
+                        case .Unknown:
+                            Text("\(meta.name) cannot be opened on this device.")
+                                .title(meta.name)
                         }
-                    case .Unknown:
-                        Text("\(meta.name) cannot be opened on this device.")
-                            .title(meta.name)
                     }
                 }
             }
@@ -82,27 +79,86 @@ extension View {
     }
 }
 
-struct MarkdownTitle: View {
-    @ObservedObject var editorState: EditorState
-    @State var name: String?
+struct MarkdownCompleteEditor: View {
+    let markdownTitle: MarkdownTitle
+    let markdownEditor: MarkdownEditor
     
-    @State var isTitleEditable = false
-    @FocusState var isEditableTitleFocused: Bool
+    public init(_ editorState: EditorState, _ meta: File) {
+        print("creating markdowncompleteeditor: \(meta.name)")
+        let name = meta.name.replacingOccurrences(of: ".md", with: "")
+        
+        let markdownEditor = MarkdownEditor(editorState)
+        
+        self.markdownEditor = markdownEditor
+        self.markdownTitle = MarkdownTitle(editorState: editorState, name: name, id: meta.id) { titleComputation in
+            markdownEditor.editor.automaticTitleComputation(computeTitle: titleComputation)
+        }
+        
+        if UUID(uuidString: name) != nil {
+            print("automatically computing title by default")
+            self.markdownEditor.editor.automaticTitleComputation(computeTitle: true)
+        }
+    }
     
     var body: some View {
-            TextField("Type your file name here...", text: Binding(get: {
-                editorState.potentialTitle ?? "unset name"
+        VStack {
+            markdownTitle
+            
+            markdownEditor.equatable()
+        }
+    }
+}
+
+struct MarkdownTitle: View {
+    @ObservedObject var editorState: EditorState
+    @State var name: String
+    let id: UUID
+    
+    var toggleAutomaticTitleComputation: (Bool) -> Void
+    
+    @FocusState var isEditableTitleFocused: Bool
+    
+    @State var error: String?
+    
+    @State var hasBeenFocused = false
+    
+    var body: some View {
+        VStack(alignment: .leading) {
+            TextField("File name...", text: Binding(get: {
+                return name.toKebabCase()
             }, set: { newValue, _ in
+                hasBeenFocused = true
+                toggleAutomaticTitleComputation(false)
                 name = newValue
             }))
             .focused($isEditableTitleFocused)
-            .onChange(of: isEditableTitleFocused, perform: { newValue in
-                print("THIS IS TOGGLED from \(isTitleEditable) to \(!isTitleEditable)")
-                isTitleEditable.toggle()
+            .onChange(of: name, perform: { [name] newValue in
+                print("renaming from \(name) to \(newValue)")
+                if name != newValue {
+                    if let errorMsg = DI.files.renameFile(id: id, name: newValue.toKebabCase() + ".md") {
+                        error = errorMsg
+                    } else {
+                        error = nil
+                    }
+                }
+            })
+            .onChange(of: editorState.potentialTitle, perform: { newValue in
+                if let potentialTitle = editorState.potentialTitle, !potentialTitle.isEmpty, !hasBeenFocused {
+                    name = potentialTitle
+                }
             })
             .textFieldStyle(.plain)
             .font(.largeTitle)
             .padding(.horizontal)
+            .padding(.top)
+            
+            if let errorMsg = error {
+                Text(errorMsg)
+                    .font(.body)
+                    .foregroundColor(.red)
+                    .padding(.horizontal, 20)
+            }
+        }
     }
 }
 
@@ -115,7 +171,6 @@ struct MarkdownEditor: View, Equatable {
         self.editorState = editorState
 
         self.editor = EditorView(editorState)
-        self.editor.automaticTitleComputation(computeTitle: true)
     }
     
     @Environment(\.colorScheme) var colorScheme
@@ -320,5 +375,11 @@ struct MarkdownEditorImage: View {
             .foregroundColor(.primary)
             .background(isSelected ? .gray.opacity(0.2) : .clear)
             .cornerRadius(5)
+    }
+}
+
+extension String {
+    func toKebabCase() -> String {
+        self.lowercased().replacingOccurrences(of: " ", with: "-")
     }
 }

@@ -123,7 +123,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
         editorState?.isItalicSelected = output.editor_response.cursor_in_italic;
         
         if let potentialTitle = output.editor_response.potential_title {
-            editorState?.potentialTitle = String(cString: potential_title)
+            editorState?.potentialTitle = String(cString: potentialTitle)
         } else {
             editorState?.potentialTitle = nil
         }

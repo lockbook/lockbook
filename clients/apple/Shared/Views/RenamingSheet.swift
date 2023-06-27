@@ -53,7 +53,7 @@ struct RenamingSheet: View {
     func onCommit() {
         if let meta = sheets.renamingInfo {
             if name != meta.name && name != "" {
-                fileService.renameFile(id: meta.id, name: name)
+//                fileService.renameFile(id: meta.id, name: name)
                 presentationMode.wrappedValue.dismiss()
             } else {
                 presentationMode.wrappedValue.dismiss()

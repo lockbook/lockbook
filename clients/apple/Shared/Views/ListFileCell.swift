@@ -44,9 +44,14 @@ struct FileCell: View {
                 RealFileCell(meta: meta)
             }
         } else {
-            NavigationLink(destination: DocumentView(meta: meta)) {
+            Button(action: {
+                current.selectedDocument = meta
+            }) {
                 RealFileCell(meta: meta)
             }
+//            NavigationLink(destination: DocumentView(meta: meta)) {
+//                RealFileCell(meta: meta)
+//            }
         }
     }
 

@@ -68,6 +68,7 @@ public class MacMTK: MTKView, MTKViewDelegate {
     }
     
     public func automaticTitleComputation(_ computeTitle: Bool) {
+        print("\(editorHandle) setting titles \(computeTitle)")
         set_automatic_title_computation(editorHandle, computeTitle)
     }
 

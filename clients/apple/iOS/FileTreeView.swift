@@ -47,7 +47,7 @@ struct FileTreeView: View {
         
         VStack {
             if let item = currentDoc.selectedDocument {
-                DocumentView(meta: item)
+                DocumentView()
             } else {
                 GeometryReader { geometry in
                     if geometry.size.height > geometry.size.width {

@@ -248,5 +248,6 @@ pub unsafe extern "C" fn apply_style_to_selection_inline_code(obj: *mut c_void) 
 pub unsafe extern "C" fn set_automatic_title_computation(obj: *mut c_void, compute_title: bool) {
     let obj = &mut *(obj as *mut WgpuEditor);
 
+    println!("titles set: {}", compute_title);
     obj.editor.compute_title = compute_title;
 }

@@ -20,9 +20,9 @@ struct FileTreeView: NSViewRepresentable {
     func makeNSView(context: Context) -> NSScrollView {
         if treeView.numberOfColumns != 1 {
             delegate.documentSelected = { meta in
-                if meta.fileType == .Document {
+                if meta.fileType == .Document && DI.currentDoc.selectedDocument?.id != meta.id {
                     DI.currentDoc.selectedDocument = meta
-                } else {
+                } else if DI.currentDoc.selectedFolder?.id != meta.id {
                     DI.currentDoc.selectedFolder = meta
                 }
             }

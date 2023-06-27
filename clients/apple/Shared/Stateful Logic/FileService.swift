@@ -186,33 +186,29 @@ class FileService: ObservableObject {
         }
     }
 
-    func renameFile(id: UUID, name: String) {
-        DispatchQueue.global(qos: .userInteractive).async {
-            let operation = self.core.renameFile(id: id, name: name)
+    func renameFile(id: UUID, name: String) -> String? {
+        let operation = self.core.renameFile(id: id, name: name)
 
-            DispatchQueue.main.async {
-                switch operation {
-                case .success(_):
-                    self.successfulAction = .rename
-                    self.refresh()
-                    DI.status.checkForLocalWork()
-                case .failure(let error):
-                    switch error.kind {
-                    case .UiError(let uiError):
-                        switch uiError {
-                        case .FileNameNotAvailable:
-                            DI.errors.errorWithTitle("Rename Error", "File with that name exists already")
-                        case .NewNameContainsSlash:
-                            DI.errors.errorWithTitle("Rename Error", "Filename cannot contain slash")
-                        case .NewNameEmpty:
-                            DI.errors.errorWithTitle("Rename Error", "Filename cannot be empty")
-                        default:
-                            DI.errors.handleError(error)
-                        }
-                    default:
-                        DI.errors.handleError(error)
-                    }
+        switch operation {
+        case .success(_):
+            idsAndFiles[id]?.name = name
+            DI.status.checkForLocalWork()
+            return nil
+        case .failure(let error):
+            switch error.kind {
+            case .UiError(let uiError):
+                switch uiError {
+                case .FileNameNotAvailable:
+                    return "A file with that name exists already"
+                case .NewNameContainsSlash:
+                    return "A filename cannot contain slash"
+                case .NewNameEmpty:
+                    return "A filename cannot be empty"
+                default:
+                    return "An error occurred while renaming the file"
                 }
+            default:
+                return "An error occurred while renaming the file"
             }
         }
     }
@@ -294,14 +290,12 @@ class FileService: ObservableObject {
             
             if maybeMeta == nil {
                 DI.documentLoader.deleted = true
-            } else if openedMeta != maybeMeta {
-                DI.currentDoc.selectedDocument = maybeMeta
             }
         }
     }
 
     private func notifyDocumentChanged(_ meta: File) {
-        if let openDocument = DI.documentLoader.meta, meta.id == openDocument.id, meta.lastModified != openDocument.lastModified {
+        if let openDocument = DI.documentLoader.meta, meta.id == openDocument.id, (meta.lastModified != openDocument.lastModified) || (meta != openDocument) {
             DI.documentLoader.updatesFromCoreAvailable(meta)
         }
     }

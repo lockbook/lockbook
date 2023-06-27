@@ -28,7 +28,7 @@ class DocumentLoader: ObservableObject {
     @Published var textDocument: EditorState?
     @Published var drawing: PKDrawing?
     @Published var image: Image? = .none
-
+    
     private var cancellables = Set<AnyCancellable>()
 
     init(_ core: LockbookApi) {
@@ -36,10 +36,9 @@ class DocumentLoader: ObservableObject {
         drawingAutosaver()
     }
 
-    func startLoading(_ meta: File) {
-        let type = DocumentLoader.getType(name: meta.name)
-
-        self.meta = meta
+    func startLoading() {
+        let type = DocumentLoader.getType(name: meta!.name)
+        
         self.type = type
         self.deleted = false
         self.loading = true
@@ -69,6 +68,7 @@ class DocumentLoader: ObservableObject {
     }
 
     func updatesFromCoreAvailable(_ newMeta: File) {
+        print("updates from core...: \(meta?.name) to \(newMeta.name)")
         self.meta = newMeta
         if
                 let type = self.type,

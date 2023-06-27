@@ -47,11 +47,18 @@ struct NewFileSheet: View {
                 }).pickerStyle(SegmentedPickerStyle())
                     .onChange(of: selected, perform: selectionChanged)
                 
-                TextField("Choose a filename", text: $name, onCommit: onCommit)
-                    .textFieldStyle(RoundedBorderTextFieldStyle())
-                    .autocapitalization(.none)
-                    .tag("FileNameView")
-                    .introspectTextField(customize: handleCursor)
+                if selected == .Drawing || selected == .Folder {
+                    TextField("Choose a filename", text: $name, onCommit: onCommit)
+                        .textFieldStyle(RoundedBorderTextFieldStyle())
+                        .autocapitalization(.none)
+                        .tag("FileNameView")
+                        .introspectTextField(customize: handleCursor)
+                } else {
+                    Button("Create") {
+                        name = UUID().uuidString + ".md"
+                        onCommit()
+                    }
+                }
                 
                 if errors != "" {
                     Text(errors)
