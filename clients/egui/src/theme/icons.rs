@@ -29,6 +29,7 @@ impl Icon {
     pub const DRAW: Self = ic("\u{e746}"); // Draw
     pub const EDIT: Self = ic("\u{e254}"); // Mode Edit
     pub const FOLDER: Self = ic("\u{e2c7}"); // Folder
+    pub const SHARED_FOLDER: Self = ic("\u{e2c9}"); // Shared Folder
     pub const FOLDER_OPEN: Self = ic("\u{e2c8}"); // Folder Open
     pub const HIGHLIGHT_OFF: Self = ic("\u{e888}"); // Highlight Off
     pub const IMAGE: Self = ic("\u{e3f4}"); // Image

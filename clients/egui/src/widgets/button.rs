@@ -66,7 +66,7 @@ impl<'a> Button<'a> {
         let maybe_text_galley = self.text.map(|text| {
             let text: egui::WidgetText = text.into();
             let galley = text.into_galley(ui, Some(false), wrap_width, text_style);
-            width += galley.size().x;
+            width += galley.size().x + padding.x;
             galley
         });
 
@@ -82,6 +82,7 @@ impl<'a> Button<'a> {
             let visuals = ui.style().interact(&resp);
 
             let bg_fill = if resp.hovered() {
+                ui.output_mut(|o| o.cursor_icon = egui::CursorIcon::PointingHand);
                 visuals.bg_fill
             } else {
                 self.default_fill.unwrap_or(visuals.bg_fill)

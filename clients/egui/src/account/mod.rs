@@ -16,7 +16,7 @@ use crate::model::{AccountScreenInitData, Usage};
 use crate::settings::Settings;
 use crate::theme::Icon;
 use crate::util::NUM_KEYS;
-use crate::widgets::{separator, sidebar_button};
+use crate::widgets::{separator, sidebar_button, Button};
 
 use self::modals::*;
 use self::saving::*;
@@ -106,12 +106,7 @@ impl AccountScreen {
 
                     separator(ui);
 
-                    if sidebar_button(ui, &Icon::SETTINGS, "Settings").clicked() {
-                        self.update_tx.send(OpenModal::Settings.into()).unwrap();
-                        ctx.request_repaint();
-                    }
-
-                    separator(ui);
+                    self.show_sidebar_nav(ui);
 
                     self.show_tree(ui);
                 });
@@ -158,6 +153,9 @@ impl AccountScreen {
                     }
                     OpenModal::ConfirmDelete(files) => {
                         self.modals.confirm_delete = Some(ConfirmDeleteModal::new(files));
+                    }
+                    OpenModal::AcceptShare => {
+                        self.modals.accept_share = Some(AcceptShareModal::new());
                     }
                 },
                 AccountUpdate::FileCreated(result) => match result {
@@ -608,6 +606,38 @@ impl AccountScreen {
             ctx.request_repaint();
         });
     }
+
+    fn show_sidebar_nav(&self, ui: &mut egui::Ui) {
+        // self.update_tx.send(OpenModal::Settings.into()).unwrap();
+        // ctx.request_repaint();
+        ui.allocate_ui_with_layout(
+            egui::vec2(ui.available_size_before_wrap().x, 50.0),
+            egui::Layout::left_to_right(egui::Align::Center),
+            |ui| {
+                ui.add_space(10.0);
+
+                if Button::default()
+                    .text("Settings ")
+                    .icon(&Icon::SETTINGS)
+                    .show(ui)
+                    .clicked()
+                {
+                    self.update_tx.send(OpenModal::Settings.into()).unwrap();
+                    ui.ctx().request_repaint();
+                };
+                ui.add_space(20.0);
+
+                if Button::default()
+                    .icon(&Icon::SHARED_FOLDER)
+                    .show(ui)
+                    .clicked()
+                {
+                    self.update_tx.send(OpenModal::AcceptShare.into()).unwrap();
+                    ui.ctx().request_repaint();
+                };
+            },
+        );
+    }
 }
 
 enum AccountUpdate {
@@ -643,6 +673,7 @@ enum OpenModal {
     NewDoc(Option<lb::File>),
     NewFolder(Option<lb::File>),
     Settings,
+    AcceptShare,
     ConfirmDelete(Vec<lb::File>),
 }
 
