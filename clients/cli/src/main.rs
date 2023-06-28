@@ -105,7 +105,7 @@ pub enum LbCli {
     Completions { shell: Shell },
 
     #[command(hide(true))]
-    Complete { input: String, current: i32 },
+    Complete { input: String, cursor_pos: i32 },
 }
 
 fn input<T>(prompt: impl fmt::Display) -> Result<T, CliError>
@@ -268,13 +268,13 @@ fn run() -> Result<(), CliError> {
         LbCli::Share(cmd) => share::share(&core, cmd),
         LbCli::Sync => sync(&core),
         LbCli::Completions { shell } => completions::generate_completions(shell),
-        LbCli::Complete { input, current } => completions::complete(&core, input, current),
+        LbCli::Complete { input, cursor_pos } => completions::complete(&core, input, cursor_pos),
     }
 }
 
 fn main() {
     if let Err(err) = run() {
-        eprintln!("{}", err);
+        eprint!("{}", err);
         std::process::exit(1)
     }
 }

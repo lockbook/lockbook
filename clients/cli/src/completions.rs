@@ -44,7 +44,7 @@ pub fn generate_completions(shell: Shell) -> Result<(), CliError> {
     Ok(())
 }
 
-pub fn complete(core: &Core, input: String, current: i32) -> Result<(), CliError> {
+pub fn complete(core: &Core, input: String, cursor_pos: i32) -> Result<(), CliError> {
     let splitted = shellwords::split(&input)?;
 
     // manoeuver to switch from declarative to imperative pattern.
@@ -65,15 +65,15 @@ pub fn complete(core: &Core, input: String, current: i32) -> Result<(), CliError
         .find_subcommand(matched_subcommand.0)
         .ok_or(CliError::SilentError("subcommand undefined".to_string()))?
         .get_arguments()
-        .nth(current as usize - 2)
+        .nth(cursor_pos as usize - 2)
         .ok_or(CliError::SilentError("shell index out of bounds".to_string()))?;
 
-    let binding = Str::default();
+    let default_arg_value_name = Str::from(DynValueName::LbAnyPath.as_ref());
     let selected_arg_value_name = selected_arg
         .get_value_names()
         .unwrap_or_default()
         .get(0)
-        .unwrap_or(&binding);
+        .unwrap_or(&default_arg_value_name);
 
     let selected_arg_value = matched_subcommand
         .1

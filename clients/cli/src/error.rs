@@ -9,9 +9,9 @@ pub enum CliError {
 impl fmt::Display for CliError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            CliError::ConsoleError(msg) => write!(f, "error: {}", msg),
+            CliError::ConsoleError(msg) => writeln!(f, "error: {}", msg),
             #[cfg(debug_assertions)]
-            CliError::SilentError(msg) => write!(f, "error: {}", msg),
+            CliError::SilentError(msg) => writeln!(f, "error: {}", msg),
             #[cfg(not(debug_assertions))]
             CliError::SilentError(_msg) => write!(f, ""),
         }
