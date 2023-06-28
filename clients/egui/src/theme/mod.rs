@@ -25,7 +25,9 @@ pub fn init(s: &Arc<RwLock<Settings>>, ctx: &egui::Context) {
     ctx.set_visuals(egui_visuals(initial_mode, primary));
 
     let mut style = (*ctx.style()).clone();
-    style.spacing.button_padding = egui::vec2(5.0, 5.0);
+    style.spacing.button_padding = egui::vec2(7.0, 7.0);
+    style.spacing.menu_margin = egui::Margin::same(10.0);
+
     style
         .text_styles
         .insert(egui::TextStyle::Body, egui::FontId::new(17.0, egui::FontFamily::Proportional));

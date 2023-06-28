@@ -1,4 +1,5 @@
 mod confirm_delete;
+mod create_share;
 mod error;
 mod help;
 mod new_file;
@@ -6,6 +7,7 @@ mod search;
 mod settings;
 
 pub use confirm_delete::ConfirmDeleteModal;
+pub use create_share::{CreateShareModal, CreateShareParams};
 pub use error::ErrorModal;
 pub use help::HelpModal;
 pub use new_file::{NewDocModal, NewFileParams, NewFolderModal};
@@ -20,6 +22,7 @@ pub struct Modals {
     pub settings: Option<SettingsModal>,
     pub new_doc: Option<NewDocModal>,
     pub new_folder: Option<NewFolderModal>,
+    pub create_share: Option<CreateShareModal>,
     pub search: Option<SearchModal>,
     pub help: Option<HelpModal>,
     pub confirm_delete: Option<ConfirmDeleteModal>,
@@ -63,6 +66,12 @@ impl super::AccountScreen {
             }
         }
 
+        if let Some(response) = show(ctx, x_offset, &mut self.modals.create_share) {
+            if let Some(submission) = response.inner {
+                self.create_share(submission)
+            }
+        }
+
         if let Some(response) = show(ctx, x_offset, &mut self.modals.confirm_delete) {
             if let Some((answer, files)) = response.inner {
                 if answer {
@@ -79,6 +88,7 @@ impl super::AccountScreen {
         m.settings.is_some()
             || m.new_doc.is_some()
             || m.new_folder.is_some()
+            || m.create_share.is_some()
             || m.search.is_some()
             || m.help.is_some()
             || m.confirm_delete.is_some()
@@ -97,6 +107,10 @@ impl super::AccountScreen {
         }
         if m.new_folder.is_some() {
             m.new_folder = None;
+            return true;
+        }
+        if m.create_share.is_some() {
+            m.create_share = None;
             return true;
         }
         if m.search.is_some() {
