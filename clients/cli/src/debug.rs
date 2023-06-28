@@ -30,14 +30,14 @@ pub fn debug(core: &Core, cmd: DebugCmd) -> Result<(), CliError> {
 fn validate(core: &Core) -> Result<(), CliError> {
     let warnings = core
         .validate()
-        .map_err(|err| CliError(format!("validating: {:?}", err)))?;
+        .map_err(|err| CliError::Console(format!("validating: {:?}", err)))?;
     if warnings.is_empty() {
         return Ok(());
     }
     for w in &warnings {
         eprintln!("{:#?}", w);
     }
-    Err(CliError(format!("{} warnings found", warnings.len())))
+    Err(CliError::Console(format!("{} warnings found", warnings.len())))
 }
 
 fn info(core: &Core, target: &str) -> Result<(), CliError> {
