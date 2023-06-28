@@ -68,6 +68,8 @@ impl super::AccountScreen {
     }
 
     pub fn show_sync_panel(&mut self, ui: &mut egui::Ui) {
+        ui.add_space(20.0);
+
         if self.settings.read().unwrap().sidebar_usage {
             match &self.usage {
                 Ok(usage) => {
@@ -143,7 +145,7 @@ impl super::AccountScreen {
             },
         );
 
-        ui.add_space(10.0);
+        ui.add_space(20.0);
     }
 
     pub fn set_sync_status<T: ToString>(&mut self, res: Result<String, T>) {

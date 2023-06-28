@@ -155,7 +155,7 @@ impl AccountScreen {
                         self.modals.confirm_delete = Some(ConfirmDeleteModal::new(files));
                     }
                     OpenModal::AcceptShare => {
-                        self.modals.accept_share = Some(AcceptShareModal::new());
+                        self.modals.accept_share = Some(AcceptShareModal::new(&self.core));
                     }
                 },
                 AccountUpdate::FileCreated(result) => match result {
@@ -611,7 +611,7 @@ impl AccountScreen {
         // self.update_tx.send(OpenModal::Settings.into()).unwrap();
         // ctx.request_repaint();
         ui.allocate_ui_with_layout(
-            egui::vec2(ui.available_size_before_wrap().x, 50.0),
+            egui::vec2(ui.available_size_before_wrap().x, 70.0),
             egui::Layout::left_to_right(egui::Align::Center),
             |ui| {
                 ui.add_space(10.0);
