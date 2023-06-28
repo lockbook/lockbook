@@ -1,41 +1,41 @@
 use std::fmt;
 use std::io;
 
-pub struct CliError(pub String);
-
-impl CliError {
-    pub fn new(msg: impl ToString) -> Self {
-        Self(msg.to_string())
-    }
+pub enum CliError {
+    ConsoleError(String),
+    SilentError(String),
 }
 
 impl fmt::Display for CliError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "error: {}", self.0)
+        match self {
+            CliError::ConsoleError(msg) => write!(f, "error: {}", msg),
+            CliError::SilentError(_msg) => write!(f, ""),
+        }
     }
 }
 
 impl From<lb::LbError> for CliError {
     fn from(err: lb::LbError) -> Self {
-        Self(format!("{:?}", err))
+        Self::ConsoleError(format!("{:?}", err))
     }
 }
 
 impl From<lb::UnexpectedError> for CliError {
     fn from(err: lb::UnexpectedError) -> Self {
-        Self(format!("unexpected: {:?}", err))
+        Self::ConsoleError(format!("unexpected: {:?}", err))
     }
 }
 
 impl From<io::Error> for CliError {
     fn from(err: io::Error) -> Self {
-        Self(format!("{:?}", err))
+        Self::ConsoleError(format!("{:?}", err))
     }
 }
 
 impl From<shellwords::MismatchedQuotes> for CliError {
     fn from(value: shellwords::MismatchedQuotes) -> Self {
-        CliError(format!(
+        Self::SilentError(format!(
             "shell input couldn't be parse as it doesn't follow UNIX standards{}",
             value
         ))
@@ -44,6 +44,6 @@ impl From<shellwords::MismatchedQuotes> for CliError {
 
 impl From<clap::Error> for CliError {
     fn from(value: clap::Error) -> Self {
-        CliError(value.to_string())
+        Self::SilentError(value.to_string())
     }
 }

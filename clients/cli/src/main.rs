@@ -185,8 +185,9 @@ fn delete(core: &Core, target: &str, force: bool) -> Result<(), CliError> {
 fn move_file(core: &Core, src: &str, dest: &str) -> Result<(), CliError> {
     let src_id = resolve_target_to_id(core, src)?;
     let dest_id = resolve_target_to_id(core, dest)?;
-    core.move_file(src_id, dest_id)
-        .map_err(|err| CliError(format!("could not move '{}' to '{}': {:?}", src_id, dest_id, err)))
+    core.move_file(src_id, dest_id).map_err(|err| {
+        CliError::ConsoleError(format!("could not move '{}' to '{}': {:?}", src_id, dest_id, err))
+    })
 }
 
 fn print(core: &Core, target: &str) -> Result<(), CliError> {
@@ -234,7 +235,7 @@ fn run() -> Result<(), CliError> {
     let writeable_path = match (std::env::var("LOCKBOOK_PATH"), std::env::var("HOME")) {
         (Ok(s), _) => s,
         (Err(_), Ok(s)) => format!("{}/.lockbook/cli", s),
-        _ => return Err(CliError::new("no cli location")),
+        _ => return Err(CliError::ConsoleError("no cli location".to_string())),
     };
 
     let core = Core::init(&lb::Config { writeable_path, logs: true, colored_logs: true })?;
@@ -242,11 +243,12 @@ fn run() -> Result<(), CliError> {
     let cmd = LbCli::parse();
     if !matches!(cmd, LbCli::Account(account::AccountCmd::New { .. }))
         && !matches!(cmd, LbCli::Account(account::AccountCmd::Import))
+        && !matches!(cmd, LbCli::Complete { .. })
     {
         let _ = core.get_account().map_err(|err| match err.kind {
-            lb::CoreError::AccountNonexistent => {
-                CliError::new("no account! run 'init' or 'init --restore' to get started.")
-            }
+            lb::CoreError::AccountNonexistent => CliError::ConsoleError(
+                "no account! run 'init' or 'init --restore' to get started.".to_string(),
+            ),
             _ => err.into(),
         })?;
     }

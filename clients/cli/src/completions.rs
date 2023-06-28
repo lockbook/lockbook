@@ -3,7 +3,6 @@ use std::str::FromStr;
 use clap::{builder::Str, Command, CommandFactory, Subcommand};
 use clap_complete::Shell;
 use lb::Core;
-use shellwords::split;
 use strum::{AsRefStr, EnumString};
 
 use crate::{
@@ -46,31 +45,28 @@ pub fn generate_completions(shell: Shell) -> Result<(), CliError> {
 }
 
 pub fn complete(core: &Core, input: String, current: i32) -> Result<(), CliError> {
-    let splitted = split(&input)?;
+    let splitted = shellwords::split(&input)?;
 
     // manoeuver to switch from declarative to imperative pattern.
     let cli = Command::new("");
     let cli = LbCli::augment_subcommands(cli);
-    let matches = cli.try_get_matches_from(splitted);
-
-    if matches.is_err() {
-        return Ok(());
-    }
-    let matches = matches.unwrap();
+    let matches = cli
+        .try_get_matches_from(splitted)
+        .map_err(|_| CliError::SilentError("clap couldn't parse the input".to_string()))?;
 
     let matched_subcommand = matches
         .subcommand()
-        .ok_or(CliError("no subcommand provided in input".to_string()))?;
+        .ok_or(CliError::SilentError("no subcommand provided in the input".to_string()))?;
 
     let binding = LbCli::command();
 
-    //the argument to provide completions for
+    // the argument to provide completions for
     let selected_arg = binding
         .find_subcommand(matched_subcommand.0)
-        .ok_or(CliError("subcommand undefined".to_string()))?
+        .ok_or(CliError::SilentError("subcommand undefined".to_string()))?
         .get_arguments()
         .nth(current as usize - 2)
-        .ok_or(CliError("shell index out of bounds".to_string()))?;
+        .ok_or(CliError::SilentError("shell index out of bounds".to_string()))?;
 
     let binding = Str::default();
     let selected_arg_value_name = selected_arg
@@ -131,7 +127,8 @@ fn list(core: &Core, input: String, dirs: bool, docs: bool) -> Result<(), CliErr
             ids: false,
             directory: working_path,
         },
-    )?;
+    )
+    .map_err(|_| CliError::SilentError("core error in list".to_string()))?;
 
     Ok(())
 }
