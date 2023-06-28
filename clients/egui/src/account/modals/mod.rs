@@ -1,16 +1,15 @@
 mod confirm_delete;
+mod create_share;
 mod error;
 mod help;
-mod initiate_share;
 mod new_file;
 mod search;
 mod settings;
 
 pub use confirm_delete::ConfirmDeleteModal;
+pub use create_share::{CreateShareModal, CreateShareParams};
 pub use error::ErrorModal;
 pub use help::HelpModal;
-pub use initiate_share::InitiateShareModal;
-pub use initiate_share::InitiateShareParams;
 pub use new_file::{NewDocModal, NewFileParams, NewFolderModal};
 pub use search::SearchModal;
 pub use settings::{SettingsModal, SettingsResponse};
@@ -23,7 +22,7 @@ pub struct Modals {
     pub settings: Option<SettingsModal>,
     pub new_doc: Option<NewDocModal>,
     pub new_folder: Option<NewFolderModal>,
-    pub initiate_share: Option<InitiateShareModal>,
+    pub create_share: Option<CreateShareModal>,
     pub search: Option<SearchModal>,
     pub help: Option<HelpModal>,
     pub confirm_delete: Option<ConfirmDeleteModal>,
@@ -67,9 +66,9 @@ impl super::AccountScreen {
             }
         }
 
-        if let Some(response) = show(ctx, x_offset, &mut self.modals.initiate_share) {
+        if let Some(response) = show(ctx, x_offset, &mut self.modals.create_share) {
             if let Some(submission) = response.inner {
-                self.initiate_share(submission)
+                self.create_share(submission)
             }
         }
 
@@ -89,7 +88,7 @@ impl super::AccountScreen {
         m.settings.is_some()
             || m.new_doc.is_some()
             || m.new_folder.is_some()
-            || m.initiate_share.is_some()
+            || m.create_share.is_some()
             || m.search.is_some()
             || m.help.is_some()
             || m.confirm_delete.is_some()
@@ -110,8 +109,8 @@ impl super::AccountScreen {
             m.new_folder = None;
             return true;
         }
-        if m.initiate_share.is_some() {
-            m.initiate_share = None;
+        if m.create_share.is_some() {
+            m.create_share = None;
             return true;
         }
         if m.search.is_some() {

@@ -1,7 +1,6 @@
 use std::cmp::Ordering;
 
 use eframe::egui;
-use egui_winit::egui::RichText;
 
 use crate::model::DocType;
 use crate::theme::Icon;
@@ -296,11 +295,11 @@ impl TreeNode {
         ui.separator();
 
         let share = ui.add(egui::Button::new(
-            RichText::new("Share").color(ui.style().visuals.hyperlink_color),
+            egui::RichText::new("Share").color(ui.style().visuals.hyperlink_color),
         ));
 
         if share.clicked() {
-            node_resp.initiate_share_modal = Some(self.file.clone());
+            node_resp.create_share_modal = Some(self.file.clone());
             ui.close_menu()
         }
     }

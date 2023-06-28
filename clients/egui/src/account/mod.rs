@@ -249,11 +249,11 @@ impl AccountScreen {
                 }
                 AccountUpdate::FileShared(result) => match result {
                     Ok(_) => {
-                        self.modals.initiate_share = None;
+                        self.modals.create_share = None;
                         self.perform_sync(ctx);
                     }
                     Err(msg) => {
-                        if let Some(m) = &mut self.modals.initiate_share {
+                        if let Some(m) = &mut self.modals.create_share {
                             m.err_msg = Some(msg)
                         }
                     }
@@ -364,7 +364,7 @@ impl AccountScreen {
             ui.ctx().request_repaint();
         }
 
-        if let Some(file) = resp.initiate_share_modal {
+        if let Some(file) = resp.create_share_modal {
             self.update_tx
                 .send(OpenModal::InitiateShare(file).into())
                 .unwrap();
@@ -484,7 +484,7 @@ impl AccountScreen {
     }
 
     fn open_share_modal(&mut self, target: lb::File) {
-        self.modals.initiate_share = Some(InitiateShareModal::new(target));
+        self.modals.create_share = Some(CreateShareModal::new(target));
     }
 
     fn open_new_file_modal(&mut self, maybe_parent: Option<lb::File>, typ: lb::FileType) {
@@ -520,7 +520,8 @@ impl AccountScreen {
             update_tx.send(AccountUpdate::FileCreated(result)).unwrap();
         });
     }
-    fn initiate_share(&mut self, params: InitiateShareParams) {
+
+    fn create_share(&mut self, params: CreateShareParams) {
         let core = self.core.clone();
         let update_tx = self.update_tx.clone();
 

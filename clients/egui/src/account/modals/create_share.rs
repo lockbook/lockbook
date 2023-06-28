@@ -2,26 +2,27 @@ use crate::widgets::switch;
 use eframe::egui;
 use lb::{Share, ShareMode, Uuid};
 
-pub struct InitiateShareParams {
+pub struct CreateShareParams {
     pub id: Uuid,
     pub username: String,
     pub mode: lb::ShareMode,
 }
-pub struct InitiateShareModal {
+
+pub struct CreateShareModal {
     file: lb::File,
     sharee_username: String,
     is_editor: bool,
     pub err_msg: Option<String>,
 }
 
-impl InitiateShareModal {
+impl CreateShareModal {
     pub fn new(target: lb::File) -> Self {
         Self { file: target, sharee_username: "".to_string(), is_editor: true, err_msg: None }
     }
 }
 
-impl super::Modal for InitiateShareModal {
-    type Response = Option<InitiateShareParams>;
+impl super::Modal for CreateShareModal {
+    type Response = Option<CreateShareParams>;
 
     fn title(&self) -> &str {
         "Share"
@@ -77,7 +78,7 @@ impl super::Modal for InitiateShareModal {
 
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Min), |ui| {
                     if ui.button("Share").clicked() {
-                        maybe_submission = Some(InitiateShareParams {
+                        maybe_submission = Some(CreateShareParams {
                             id: self.file.id,
                             username: self.sharee_username.clone(),
                             mode: if self.is_editor { ShareMode::Write } else { ShareMode::Read },
@@ -92,6 +93,7 @@ impl super::Modal for InitiateShareModal {
         maybe_submission
     }
 }
+
 fn sharee_info(ui: &mut egui::Ui, share: &Share) {
     egui::Frame::default()
         .fill(ui.style().visuals.faint_bg_color)
