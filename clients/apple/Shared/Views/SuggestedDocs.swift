@@ -71,12 +71,9 @@ struct SuggestedDocs: View {
                     ForEach(suggestedDocs) { meta in
                         if let parentMeta = fileService.idsAndFiles[meta.parent] {
                             if isiOS {
-                                HStack {
-                                    Button(action: {
-                                        current.selectedDocument = meta
-                                    }) {
-                                        SuggestedDocCell(name: meta.name, parentName: "\(parentMeta.name)/", duration: meta.lastModified, isiOS: isiOS)
-                                    }
+                                NavigationLink(destination: DocumentView(meta: meta)) {
+                                    SuggestedDocCell(name: meta.name, parentName: "\(parentMeta.name)/", duration: meta.lastModified, isiOS: isiOS)
+                                        .padding(.trailing, 5)
                                 }
                             } else {
                                 HStack {

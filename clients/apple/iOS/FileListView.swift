@@ -15,12 +15,12 @@ struct FileListView: View {
     
     var body: some View {
         VStack {
-            if let newDoc = current.selectedDocument {
-                NavigationLink(destination: DocumentView(), isActive: Binding(get: { current.selectedDocument != nil }, set: { _ in current.selectedDocument = nil }) ) {
+            if let newDoc = sheets.created, newDoc.fileType == .Document {
+                NavigationLink(destination: DocumentView(meta: newDoc), isActive: Binding(get: { current.selectedDocument != nil }, set: { _ in current.selectedDocument = nil }) ) {
                         EmptyView()
                     }
                     .hidden()
-            }
+                }
                     
                 SearchWrapperView(
                     searchInput: $searchInput,
@@ -32,7 +32,9 @@ struct FileListView: View {
                     
                 BottomBar(onCreating: {
                     if let parent = fileService.parent {
-                        sheets.creatingInfo = CreatingInfo(parent: parent, child_type: .Document)
+                        print("creating file")
+                        sheets.created = fileService.createFile(name: UUID().uuidString + ".md", parent: parent.id, isFolder: false)
+                        current.selectedDocument = sheets.created
                     }
                 })
                 .onReceive(current.$selectedDocument) { _ in

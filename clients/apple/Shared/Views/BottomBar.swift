@@ -16,7 +16,7 @@ struct BottomBar: View {
         Button(action: {
             onCreating()
         }) {
-            Image(systemName: "plus.circle.fill")
+            Image(systemName: "doc.badge.plus")
                 .imageScale(.large)
                 .foregroundColor(.accentColor)
                 .frame(width: 40, height: 40, alignment: .center)

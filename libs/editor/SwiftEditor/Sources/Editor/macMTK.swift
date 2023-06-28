@@ -68,7 +68,7 @@ public class MacMTK: MTKView, MTKViewDelegate {
     }
     
     public func automaticTitleComputation(_ computeTitle: Bool) {
-        print("\(editorHandle) setting titles \(computeTitle)")
+        print("SETTING THE STUFF \(editorHandle)")
         set_automatic_title_computation(editorHandle, computeTitle)
     }
 
@@ -79,6 +79,7 @@ public class MacMTK: MTKView, MTKViewDelegate {
     public func setInitialContent(_ s: String) {
         let metalLayer = UnsafeMutableRawPointer(Unmanaged.passUnretained(self.layer!).toOpaque())
         self.editorHandle = init_editor(metalLayer, s, isDarkMode())
+        print("THE STUFF \(editorHandle)")
     }
     
     public override func mouseDragged(with event: NSEvent) {

@@ -60,15 +60,11 @@ struct SearchWrapperView<Content: View>: View {
                     List(results) { result in
                         switch result {
                         case .PathMatch(_, let meta, let name, let path, let matchedIndices, _):
-                            Button(action: {
-                                current.selectedDocument = meta
-                            }) {
+                            NavigationLink(destination: DocumentView(meta: meta)) {
                                 SearchFilePathCell(name: name, path: path, matchedIndices: matchedIndices)
                             }
                         case .ContentMatch(_, let meta, let name, let path, let paragraph, let matchedIndices, _):
-                            Button(action: {
-                                current.selectedDocument = meta
-                            }) {
+                            NavigationLink(destination: DocumentView(meta: meta)) {
                                 SearchFileContentCell(name: name, path: path, paragraph: paragraph, matchedIndices: matchedIndices)
                             }
                         }

@@ -96,8 +96,8 @@ struct DetailView: View {
             VStack {
                 if currentSelection.isPendingSharesOpen {
                     PendingSharesView()
-                } else if let _ = currentSelection.selectedDocument {
-                    DocumentView()
+                } else if let selected = currentSelection.selectedDocument {
+                    DocumentView(meta: selected)
                 }
             }
             

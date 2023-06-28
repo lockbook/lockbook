@@ -95,6 +95,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     }
     
     public func automaticTitleComputation(_ computeTitle: Bool) {
+        print("setting title: \(computeTitle)")
         set_automatic_title_computation(editorHandle, computeTitle)
     }
     
@@ -400,6 +401,9 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
         let value = UInt64(UInt(bitPattern: point))
         let location = touches.first!.location(in: self)
         touches_began(editorHandle, value, Float(location.x), Float(location.y), Float(touches.first?.force ?? 0))
+        
+        editorState?.focusLocation = .editor
+
         self.setNeedsDisplay(self.frame)
     }
     

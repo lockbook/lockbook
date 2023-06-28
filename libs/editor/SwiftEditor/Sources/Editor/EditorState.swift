@@ -3,6 +3,7 @@ import Combine
 
 public class EditorState: ObservableObject {
     
+    @Published public var name: String
     @Published public var text: String
     @Published public var reload: Bool = false
     
@@ -16,8 +17,11 @@ public class EditorState: ObservableObject {
     
     @Published public var potentialTitle: String? = nil
     
-    public init(text: String) {
+    @Published public var focusLocation: MarkdownEditorFocus = .editor
+    
+    public init(text: String, name: String) {
         self.text = text
+        self.name = name
     }
     
     deinit {

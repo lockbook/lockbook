@@ -16,8 +16,16 @@ public struct EditorView: View {
         metalView
             .focused($focused)
             .onAppear {
-                focused = true
+                focused = editorState.focusLocation == .editor
             }
+            .onChange(of: focused, perform: { newValue in
+                editorState.focusLocation = newValue ? .editor : .title
+            })
+            .onChange(of: editorState.focusLocation, perform: { newValue in
+                focused = newValue == .editor
+            })
+            
+
     }
 
     public func header(headingSize: UInt32) {
@@ -57,4 +65,9 @@ public struct EditorView: View {
         metalView.tab(deindent: deindent)
     }
     #endif
+}
+
+public enum MarkdownEditorFocus {
+    case editor
+    case title
 }

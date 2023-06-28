@@ -192,7 +192,6 @@ class FileService: ObservableObject {
         switch operation {
         case .success(_):
             idsAndFiles[id]?.name = name
-            DI.status.checkForLocalWork()
             return nil
         case .failure(let error):
             switch error.kind {
@@ -297,6 +296,16 @@ class FileService: ObservableObject {
     private func notifyDocumentChanged(_ meta: File) {
         if let openDocument = DI.documentLoader.meta, meta.id == openDocument.id, (meta.lastModified != openDocument.lastModified) || (meta != openDocument) {
             DI.documentLoader.updatesFromCoreAvailable(meta)
+        }
+    }
+    
+    public func createFile(name: String, parent: UUID, isFolder: Bool) -> File? {
+        switch core.createFile(name: name, dirId: parent, isFolder: isFolder) {
+        case .success(let meta):
+            return meta
+        case .failure(let err):
+            DI.errors.handleError(err)
+            return nil
         }
     }
 }
