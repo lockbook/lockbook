@@ -88,9 +88,6 @@ pub enum Modification {
     ToggleCheckbox(usize),
     OpenUrl(String),
     Heading(u32),
-    Bold,
-    Italic,
-    Code,
     BulletListItem,
     NumberListItem,
     TodoListItem,
@@ -178,7 +175,9 @@ pub fn calc(
         Event::Key { key: Key::X, pressed: true, modifiers, .. } if modifiers.command => {
             Some(Modification::Cut)
         }
-        Event::Key { key: Key::C, pressed: true, modifiers, .. } if modifiers.command => {
+        Event::Key { key: Key::C, pressed: true, modifiers, .. }
+            if modifiers.command && !modifiers.shift =>
+        {
             Some(Modification::Copy)
         }
         Event::Key { key: Key::Z, pressed: true, modifiers, .. } if modifiers.command => {
@@ -187,6 +186,28 @@ pub fn calc(
             } else {
                 Some(Modification::Redo)
             }
+        }
+        Event::Key { key: Key::B, pressed: true, modifiers, .. } if modifiers.command => {
+            Some(Modification::ToggleStyle { region: Region::Selection, style: Element::Strong })
+        }
+        Event::Key { key: Key::I, pressed: true, modifiers, .. } if modifiers.command => {
+            Some(Modification::ToggleStyle { region: Region::Selection, style: Element::Emphasis })
+        }
+        Event::Key { key: Key::C, pressed: true, modifiers, .. }
+            if modifiers.command && modifiers.shift =>
+        {
+            Some(Modification::ToggleStyle {
+                region: Region::Selection,
+                style: Element::InlineCode,
+            })
+        }
+        Event::Key { key: Key::X, pressed: true, modifiers, .. }
+            if modifiers.command && modifiers.shift =>
+        {
+            Some(Modification::ToggleStyle {
+                region: Region::Selection,
+                style: Element::Strikethrough,
+            })
         }
         Event::PointerButton { pos, button: PointerButton::Primary, pressed: true, modifiers }
             if click_checker.ui(*pos) =>

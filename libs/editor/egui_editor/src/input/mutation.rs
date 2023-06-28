@@ -400,30 +400,6 @@ pub fn calc(
 
             mutation.push(SubMutation::Cursor { cursor: current_cursor });
         }
-        Modification::Bold => {
-            mutation.push(SubMutation::Cursor { cursor: current_cursor.selection.start().into() });
-            mutation.push(SubMutation::Insert { text: "__".to_string(), advance_cursor: true });
-            mutation.push(SubMutation::Cursor { cursor: current_cursor.selection.end().into() });
-            mutation.push(SubMutation::Insert { text: "__".to_string(), advance_cursor: false });
-
-            mutation.push(SubMutation::Cursor { cursor: current_cursor });
-        }
-        Modification::Italic => {
-            mutation.push(SubMutation::Cursor { cursor: current_cursor.selection.start().into() });
-            mutation.push(SubMutation::Insert { text: "_".to_string(), advance_cursor: true });
-            mutation.push(SubMutation::Cursor { cursor: current_cursor.selection.end().into() });
-            mutation.push(SubMutation::Insert { text: "_".to_string(), advance_cursor: false });
-
-            mutation.push(SubMutation::Cursor { cursor: current_cursor });
-        }
-        Modification::Code => {
-            mutation.push(SubMutation::Cursor { cursor: current_cursor.selection.start().into() });
-            mutation.push(SubMutation::Insert { text: "`".to_string(), advance_cursor: true });
-            mutation.push(SubMutation::Cursor { cursor: current_cursor.selection.end().into() });
-            mutation.push(SubMutation::Insert { text: "`".to_string(), advance_cursor: false });
-
-            mutation.push(SubMutation::Cursor { cursor: current_cursor });
-        }
         Modification::BulletListItem => {
             let galley_idx = galleys.galley_at_char(current_cursor.selection.start());
             let galley = &galleys.galleys[galley_idx];
@@ -691,7 +667,7 @@ fn apply_style(
         }
         if end_styled {
             // head the text after the selection
-            insert_head(cursor.selection.start(), style.clone(), mutation);
+            insert_head(cursor.selection.end(), style, mutation);
         }
     } else {
         if !start_styled {
@@ -700,29 +676,68 @@ fn apply_style(
         }
         if !end_styled {
             // tail the selection
-            insert_tail(cursor.selection.start(), style.clone(), mutation)
+            insert_tail(cursor.selection.end(), style, mutation)
         }
     }
 
     // todo: dehead/detail all nodes with this style between start and end except those already modified
-
-    unimplemented!()
 }
 
 fn dehead_ast_node(node_idx: usize, ast: &Ast, mutation: &mut Vec<SubMutation>) {
-    unimplemented!()
+    let node = &ast.nodes[node_idx];
+    mutation
+        .push(SubMutation::Cursor { cursor: (node.range.start(), node.text_range.start()).into() });
+    mutation.push(SubMutation::Delete(0.into()));
 }
 
 fn detail_ast_node(node_idx: usize, ast: &Ast, mutation: &mut Vec<SubMutation>) {
-    unimplemented!()
+    let node = &ast.nodes[node_idx];
+    mutation.push(SubMutation::Cursor { cursor: (node.text_range.end(), node.range.end()).into() });
+    mutation.push(SubMutation::Delete(0.into()));
 }
 
 fn insert_head(offset: DocCharOffset, style: Element, mutation: &mut Vec<SubMutation>) {
-    unimplemented!()
+    let text = match style {
+        Element::Strong => "__",
+        Element::InlineCode => "`",
+        Element::Emphasis => "_",
+        Element::Strikethrough => "~~",
+        Element::Document
+        | Element::Heading(_)
+        | Element::Paragraph
+        | Element::QuoteBlock
+        | Element::CodeBlock
+        | Element::Item(_, _)
+        | Element::Link(_, _, _)
+        | Element::Image(_, _, _)
+        | Element::Selection
+        | Element::Syntax => unimplemented!(),
+    }
+    .to_string();
+    mutation.push(SubMutation::Cursor { cursor: offset.into() });
+    mutation.push(SubMutation::Insert { text, advance_cursor: true });
 }
 
 fn insert_tail(offset: DocCharOffset, style: Element, mutation: &mut Vec<SubMutation>) {
-    unimplemented!()
+    let text = match style {
+        Element::Strong => "__",
+        Element::InlineCode => "`",
+        Element::Emphasis => "_",
+        Element::Strikethrough => "~~",
+        Element::Document
+        | Element::Heading(_)
+        | Element::Paragraph
+        | Element::QuoteBlock
+        | Element::CodeBlock
+        | Element::Item(_, _)
+        | Element::Link(_, _, _)
+        | Element::Image(_, _, _)
+        | Element::Selection
+        | Element::Syntax => unimplemented!(),
+    }
+    .to_string();
+    mutation.push(SubMutation::Cursor { cursor: offset.into() });
+    mutation.push(SubMutation::Insert { text, advance_cursor: false });
 }
 
 fn list_mutation_replacement(
