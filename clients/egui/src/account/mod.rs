@@ -157,6 +157,9 @@ impl AccountScreen {
                     OpenModal::AcceptShare => {
                         self.modals.accept_share = Some(AcceptShareModal::new(&self.core));
                     }
+                    OpenModal::FilePicker => {
+                        self.modals.file_picker = Some(FilePicker::new(self.core.clone()));
+                    }
                 },
                 AccountUpdate::FileCreated(result) => match result {
                     Ok(f) => {
@@ -297,6 +300,13 @@ impl AccountScreen {
         // Ctrl-, to open settings modal.
         if self.modals.settings.is_none() && consume_key(ctx, ',') {
             self.modals.settings = Some(SettingsModal::new(&self.core, &self.settings));
+        }
+
+        // Ctrl-o to open settings modal.
+        // todo: remove after debugging
+        if self.modals.file_picker.is_none() && ctx.input_mut(|i| i.consume_key(CTRL, egui::Key::O))
+        {
+            self.modals.file_picker = Some(FilePicker::new(self.core.clone()));
         }
 
         // Alt-H pressed to toggle the help modal.
@@ -674,6 +684,7 @@ enum OpenModal {
     NewFolder(Option<lb::File>),
     Settings,
     AcceptShare,
+    FilePicker,
     ConfirmDelete(Vec<lb::File>),
 }
 

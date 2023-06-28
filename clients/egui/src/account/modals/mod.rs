@@ -1,6 +1,7 @@
 pub mod accept_share;
 mod confirm_delete;
 mod error;
+mod file_picker;
 mod help;
 mod new_file;
 mod search;
@@ -11,10 +12,13 @@ use eframe::egui;
 pub use accept_share::AcceptShareModal;
 pub use confirm_delete::ConfirmDeleteModal;
 pub use error::ErrorModal;
+pub use file_picker::FilePicker;
 pub use help::HelpModal;
 pub use new_file::{NewDocModal, NewFileParams, NewFolderModal};
 pub use search::SearchModal;
 pub use settings::{SettingsModal, SettingsResponse};
+
+use super::OpenModal;
 
 #[derive(Default)]
 pub struct Modals {
@@ -25,6 +29,7 @@ pub struct Modals {
     pub accept_share: Option<AcceptShareModal>,
     pub search: Option<SearchModal>,
     pub help: Option<HelpModal>,
+    pub file_picker: Option<FilePicker>,
     pub confirm_delete: Option<ConfirmDeleteModal>,
 }
 
@@ -78,13 +83,16 @@ impl super::AccountScreen {
 
         show(ctx, x_offset, &mut self.modals.accept_share);
 
-        // if let Some(response) = show(ctx, x_offset, &mut self.modals.accept_share) {
-        //     if let Some(_) = response.inner {
-        //         println!("response to  accept share");
-        //     } else {
-        //         self.modals.accept_share = None;
-        //     }
-        // }
+        if let Some(response) = show(ctx, x_offset, &mut self.modals.accept_share) {
+            if response.inner.is_some() {
+                println!("open file picker");
+                self.update_tx.send(OpenModal::FilePicker.into()).unwrap();
+            } else {
+                // self.modals.accept_share = None;
+            }
+        }
+
+        show(ctx, x_offset, &mut self.modals.file_picker);
     }
 
     pub fn is_any_modal_open(&self) -> bool {
@@ -96,6 +104,7 @@ impl super::AccountScreen {
             || m.accept_share.is_some()
             || m.help.is_some()
             || m.confirm_delete.is_some()
+            || m.file_picker.is_some()
     }
 
     pub fn close_something(&mut self) -> bool {
@@ -126,6 +135,10 @@ impl super::AccountScreen {
             return true;
         }
         if m.accept_share.is_some() {
+            m.confirm_delete = None;
+            return true;
+        }
+        if m.file_picker.is_some() {
             m.confirm_delete = None;
             return true;
         }

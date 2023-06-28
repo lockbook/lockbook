@@ -28,13 +28,14 @@ impl super::Modal for AcceptShareModal {
     }
 
     fn show(&mut self, ui: &mut egui::Ui) -> Self::Response {
+        ui.add_space(30.0);
         ui.set_max_height(400.0);
         egui::ScrollArea::vertical()
             // .inner_margin(egui::Margin::same(10.0))
             .show(ui, |ui| {
-                self.requests.iter().for_each(|req| {
+                for (_, req) in self.requests.iter().enumerate() {
                     sharer_info(ui, req, self.username.clone());
-                });
+                }
             });
 
         None
