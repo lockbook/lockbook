@@ -17,8 +17,9 @@ pub fn edit(core: &Core, target: &str) -> Result<(), CliError> {
     let mut temp_file_path = create_tmp_dir()?;
     temp_file_path.push(f.name);
 
-    let mut file_handle = fs::File::create(&temp_file_path)
-        .map_err(|err| CliError(format!("couldn't open temporary file for writing: {:#?}", err)))?;
+    let mut file_handle = fs::File::create(&temp_file_path).map_err(|err| {
+        CliError::Console(format!("couldn't open temporary file for writing: {:#?}", err))
+    })?;
     file_handle.write_all(&file_content)?;
     file_handle.sync_all()?;
 
@@ -47,8 +48,9 @@ pub fn edit(core: &Core, target: &str) -> Result<(), CliError> {
 fn create_tmp_dir() -> Result<PathBuf, CliError> {
     let mut dir = std::env::temp_dir();
     dir.push(Uuid::new_v4().to_string());
-    fs::create_dir(&dir)
-        .map_err(|err| CliError(format!("couldn't open temporary file for writing: {:#?}", err)))?;
+    fs::create_dir(&dir).map_err(|err| {
+        CliError::Console(format!("couldn't open temporary file for writing: {:#?}", err))
+    })?;
     Ok(dir)
 }
 
@@ -163,7 +165,7 @@ fn set_up_auto_save<P: AsRef<Path>>(core: &Core, id: Uuid, path: P) -> Option<Ho
 fn save_temp_file_contents<P: AsRef<Path>>(core: &Core, id: Uuid, path: P) -> Result<(), CliError> {
     let secret = fs::read_to_string(&path)
         .map_err(|err| {
-            CliError(format!(
+            CliError::Console(format!(
                 "could not read from temporary file, not deleting {}, err: {:#?}",
                 path.as_ref().display(),
                 err

@@ -1,6 +1,7 @@
 use lb::Core;
 use lb::Uuid;
 
+use crate::completions::DynValueName::{LbAnyPath, LbFolderPath, PendingShareId};
 use crate::maybe_get_by_path;
 use crate::resolve_target_to_id;
 use crate::CliError;
@@ -10,7 +11,8 @@ use crate::ID_PREFIX_LEN;
 pub enum ShareCmd {
     /// share a file with another lockbook user
     New {
-        /// ID of a pending share
+        /// ID or path of the file you will share
+        #[arg(value_name = LbAnyPath.as_ref())]
         target: String,
         /// username of who you would like to share with
         username: String,
@@ -27,9 +29,10 @@ pub enum ShareCmd {
     /// accept a pending by adding it to your file tree
     Accept {
         /// ID (full or prefix) of a pending share
+        #[arg(value_name = PendingShareId.as_ref())]
         target: String,
         /// lockbook file path or ID
-        #[clap(default_value = "/")]
+        #[clap(default_value = "/", value_name = LbFolderPath.as_ref())]
         dest: String,
         #[clap(long)]
         name: Option<String>,
@@ -73,7 +76,9 @@ fn resolve_target_to_pending_share(core: &Core, target: &str) -> Result<lb::File
     if let Ok(id) = Uuid::parse_str(target) {
         match pendings.iter().find(|f| f.id == id) {
             Some(f) => Ok(f.clone()),
-            None => Err(CliError(format!("unable to find pending share with id '{}'", id))),
+            None => {
+                Err(CliError::Console(format!("unable to find pending share with id '{}'", id)))
+            }
         }
     } else {
         let possibs: Vec<lb::File> = pendings
@@ -81,13 +86,16 @@ fn resolve_target_to_pending_share(core: &Core, target: &str) -> Result<lb::File
             .filter(|f| f.id.to_string().starts_with(target))
             .collect();
         match possibs.len() {
-            0 => Err(CliError(format!("id prefix '{}' did not match any pending shares", target))),
+            0 => Err(CliError::Console(format!(
+                "id prefix '{}' did not match any pending shares",
+                target
+            ))),
             1 => Ok(possibs[0].clone()),
             n => {
                 let mut err_msg =
                     format!("id prefix '{}' matched the following {} pending shares:\n", target, n);
                 err_msg += &share_infos_table(&to_share_infos(possibs), true);
-                Err(CliError(err_msg))
+                Err(CliError::Console(err_msg))
             }
         }
     }
@@ -102,7 +110,9 @@ fn accept(
     let parent_id = if let Ok(id) = Uuid::parse_str(dest) {
         let f = core.get_file_by_id(id)?;
         if !f.is_folder() {
-            return Err(CliError::new("destination ID must be of an existing folder"));
+            return Err(CliError::Console(
+                "destination ID must be of an existing folder".to_string(),
+            ));
         }
         id
     } else {
@@ -110,7 +120,9 @@ fn accept(
         let mut path = dest.to_string();
         if let Some(f) = maybe_get_by_path(core, &path)? {
             if !f.is_folder() {
-                return Err(CliError::new("existing destination path is a doc, must be a folder"));
+                return Err(CliError::Console(
+                    "existing destination path is a doc, must be a folder".to_string(),
+                ));
             }
             f.id
         } else {
@@ -130,7 +142,7 @@ fn accept(
     }
 
     core.create_file(&name, parent_id, lb::FileType::Link { target: share.id })
-        .map_err(|err| CliError(format!("{:?}", err)))?;
+        .map_err(|err| CliError::Console(format!("{:?}", err)))?;
     Ok(())
 }
 
