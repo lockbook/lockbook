@@ -76,10 +76,9 @@ fn resolve_target_to_pending_share(core: &Core, target: &str) -> Result<lb::File
     if let Ok(id) = Uuid::parse_str(target) {
         match pendings.iter().find(|f| f.id == id) {
             Some(f) => Ok(f.clone()),
-            None => Err(CliError::ConsoleError(format!(
-                "unable to find pending share with id '{}'",
-                id
-            ))),
+            None => {
+                Err(CliError::Console(format!("unable to find pending share with id '{}'", id)))
+            }
         }
     } else {
         let possibs: Vec<lb::File> = pendings
@@ -87,7 +86,7 @@ fn resolve_target_to_pending_share(core: &Core, target: &str) -> Result<lb::File
             .filter(|f| f.id.to_string().starts_with(target))
             .collect();
         match possibs.len() {
-            0 => Err(CliError::ConsoleError(format!(
+            0 => Err(CliError::Console(format!(
                 "id prefix '{}' did not match any pending shares",
                 target
             ))),
@@ -96,7 +95,7 @@ fn resolve_target_to_pending_share(core: &Core, target: &str) -> Result<lb::File
                 let mut err_msg =
                     format!("id prefix '{}' matched the following {} pending shares:\n", target, n);
                 err_msg += &share_infos_table(&to_share_infos(possibs), true);
-                Err(CliError::ConsoleError(err_msg))
+                Err(CliError::Console(err_msg))
             }
         }
     }
@@ -111,7 +110,7 @@ fn accept(
     let parent_id = if let Ok(id) = Uuid::parse_str(dest) {
         let f = core.get_file_by_id(id)?;
         if !f.is_folder() {
-            return Err(CliError::ConsoleError(
+            return Err(CliError::Console(
                 "destination ID must be of an existing folder".to_string(),
             ));
         }
@@ -121,7 +120,7 @@ fn accept(
         let mut path = dest.to_string();
         if let Some(f) = maybe_get_by_path(core, &path)? {
             if !f.is_folder() {
-                return Err(CliError::ConsoleError(
+                return Err(CliError::Console(
                     "existing destination path is a doc, must be a folder".to_string(),
                 ));
             }
@@ -143,7 +142,7 @@ fn accept(
     }
 
     core.create_file(&name, parent_id, lb::FileType::Link { target: share.id })
-        .map_err(|err| CliError::ConsoleError(format!("{:?}", err)))?;
+        .map_err(|err| CliError::Console(format!("{:?}", err)))?;
     Ok(())
 }
 

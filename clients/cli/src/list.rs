@@ -207,5 +207,5 @@ pub fn list(core: &Core, args: ListArgs) -> Result<(), CliError> {
 
 fn get_path_by_id(core: &Core, id: Uuid) -> Result<String, CliError> {
     core.get_path_by_id(id)
-        .map_err(|err| CliError::ConsoleError(format!("getting path for id '{}': {:?}", id, err)))
+        .map_err(|err| CliError::Console(format!("getting path for id '{}': {:?}", id, err)))
 }

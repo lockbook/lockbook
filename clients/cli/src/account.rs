@@ -63,7 +63,7 @@ fn new_acct(
 
 fn import_acct(core: &Core) -> Result<(), CliError> {
     if std::io::stdin().is_terminal() {
-        return Err(CliError::ConsoleError("to import an existing lockbook account, pipe your account string into this command, e.g.:\npbpaste | lockbook account import".to_string()));
+        return Err(CliError::Console("to import an existing lockbook account, pipe your account string into this command, e.g.:\npbpaste | lockbook account import".to_string()));
     }
 
     let mut account_string = String::new();

@@ -52,21 +52,21 @@ pub fn complete(core: &Core, input: String, cursor_pos: i32) -> Result<(), CliEr
     let cli = LbCli::augment_subcommands(cli);
     let matches = cli
         .try_get_matches_from(splitted)
-        .map_err(|_| CliError::SilentError("clap couldn't parse the input".to_string()))?;
+        .map_err(|_| CliError::Silent("clap couldn't parse the input".to_string()))?;
 
     let matched_subcommand = matches
         .subcommand()
-        .ok_or(CliError::SilentError("no subcommand provided in the input".to_string()))?;
+        .ok_or(CliError::Silent("no subcommand provided in the input".to_string()))?;
 
     let binding = LbCli::command();
 
     // the argument to provide completions for
     let selected_arg = binding
         .find_subcommand(matched_subcommand.0)
-        .ok_or(CliError::SilentError("subcommand undefined".to_string()))?
+        .ok_or(CliError::Silent("subcommand undefined".to_string()))?
         .get_arguments()
         .nth(cursor_pos as usize - 2)
-        .ok_or(CliError::SilentError("shell index out of bounds".to_string()))?;
+        .ok_or(CliError::Silent("shell index out of bounds".to_string()))?;
 
     let default_arg_value_name = Str::from(DynValueName::LbAnyPath.as_ref());
     let selected_arg_value_name = selected_arg
@@ -128,7 +128,7 @@ fn list(core: &Core, input: String, dirs: bool, docs: bool) -> Result<(), CliErr
             directory: working_path,
         },
     )
-    .map_err(|_| CliError::SilentError("core error in list".to_string()))?;
+    .map_err(|_| CliError::Silent("core error in list".to_string()))?;
 
     Ok(())
 }
