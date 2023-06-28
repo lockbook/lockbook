@@ -23,7 +23,7 @@ impl<'a> Button<'a> {
         Self { text: Some(text), ..self }
     }
 
-    pub fn hexpand(self, hexpand: bool) -> Self {
+    pub fn _hexpand(self, hexpand: bool) -> Self {
         Self { hexpand, ..self }
     }
 
@@ -31,7 +31,7 @@ impl<'a> Button<'a> {
         Self { stroke: stroke.into(), ..self }
     }
 
-    pub fn style(self, text_style: egui::TextStyle) -> Self {
+    pub fn _style(self, text_style: egui::TextStyle) -> Self {
         Self { text_style: Some(text_style), ..self }
     }
 
@@ -43,7 +43,7 @@ impl<'a> Button<'a> {
         Self { rounding: rounding.into(), ..self }
     }
 
-    pub fn fill(self, fill: impl Into<egui::Color32>) -> Self {
+    pub fn _fill(self, fill: impl Into<egui::Color32>) -> Self {
         Self { default_fill: Some(fill.into()), ..self }
     }
 

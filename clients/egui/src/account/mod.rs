@@ -16,7 +16,7 @@ use crate::model::{AccountScreenInitData, Usage};
 use crate::settings::Settings;
 use crate::theme::Icon;
 use crate::util::NUM_KEYS;
-use crate::widgets::{separator, sidebar_button, Button};
+use crate::widgets::{separator, Button};
 
 use self::modals::*;
 use self::saving::*;

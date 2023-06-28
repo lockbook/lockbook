@@ -9,7 +9,6 @@ use crate::{theme::Icon, widgets::Button};
 pub struct AcceptShareModal {
     requests: Vec<lb::File>,
     username: String,
-    err_msg: Option<String>,
 }
 
 impl AcceptShareModal {
@@ -17,7 +16,6 @@ impl AcceptShareModal {
         Self {
             requests: core.get_pending_shares().unwrap_or_default(),
             username: core.get_account().unwrap().username,
-            err_msg: None,
         }
     }
 }
@@ -99,7 +97,9 @@ fn sharer_info(ui: &mut egui::Ui, req: &File, username: String) {
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Min), |ui| {
                 //reject share
                 ui.spacing_mut().button_padding = egui::vec2(25.0, 5.0);
-                ui.button("Accept");
+                if ui.button("Accept").clicked() {
+                    println!("handle accept share");
+                }
                 ui.with_layout(egui::Layout::left_to_right(egui::Align::Min), |ui| {
                     ui.spacing_mut().button_padding = egui::vec2(5.0, 5.0);
 
@@ -107,7 +107,14 @@ fn sharer_info(ui: &mut egui::Ui, req: &File, username: String) {
                     ui.visuals_mut().widgets.inactive.fg_stroke =
                         egui::Stroke { color: egui::Color32::GRAY, ..Default::default() };
 
-                    Button::default().text("Del ").icon(&Icon::DELETE).show(ui);
+                    if Button::default()
+                        .text("Del ")
+                        .icon(&Icon::DELETE)
+                        .show(ui)
+                        .clicked()
+                    {
+                        println!("handle delete share");
+                    };
                 });
             })
         });
