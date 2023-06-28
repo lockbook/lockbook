@@ -10,6 +10,9 @@ impl fmt::Display for CliError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             CliError::ConsoleError(msg) => write!(f, "error: {}", msg),
+            #[cfg(debug_assertions)]
+            CliError::SilentError(msg) => write!(f, "error: {}", msg),
+            #[cfg(not(debug_assertions))]
             CliError::SilentError(_msg) => write!(f, ""),
         }
     }
@@ -36,7 +39,7 @@ impl From<io::Error> for CliError {
 impl From<shellwords::MismatchedQuotes> for CliError {
     fn from(value: shellwords::MismatchedQuotes) -> Self {
         Self::SilentError(format!(
-            "shell input couldn't be parse as it doesn't follow UNIX standards{}",
+            "shell input couldn't be parsed as it doesn't follow UNIX standards{}",
             value
         ))
     }
