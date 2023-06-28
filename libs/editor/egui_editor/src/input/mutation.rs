@@ -623,14 +623,14 @@ fn apply_style(
     let mut end_range = None;
     for text_range in ast.iter_text_ranges() {
         // when at bound, start prefers next
-        // start always has next because if it were at doc end, selection would be empty (early return)
+        // start always has next because if it were at doc end, selection would be empty (early return above)
         if text_range.range.start() <= cursor.selection.start()
             && cursor.selection.start() < text_range.range.end()
         {
             start_range = Some(text_range.clone());
         }
         // when at bound, end prefers previous
-        // end always has previous because if it were at doc start, selection would be empty (early return)
+        // end always has previous because if it were at doc start, selection would be empty (early return above)
         if text_range.range.start() < cursor.selection.end()
             && cursor.selection.end() <= text_range.range.end()
         {
@@ -638,21 +638,23 @@ fn apply_style(
         }
     }
 
-    // remove head and tail from all ancestors applying style
+    // modify head and/or tail of all ancestors applying style
     // if styled and applying style, leave head of start and/or tail of end
     // if not styled and applying style, insert head at start and/or tail at end
     // if styled and unapplying style, insert tail at start and/or head at end
     // if not styled and unapplying style, do nothing
     let start_styled = if let Some(start_range) = start_range {
-        let mut prev_ancestor = None;
+        let mut prev_ancestor: Option<usize> = None;
         for ancestor in start_range.ancestors {
-            if ast.nodes[ancestor].element == style {
-                // dehead all but the last ancestor applying the style
-                if let Some(prev_ancestor) = prev_ancestor {
+            // dehead all but the last ancestor applying the style
+            if let Some(prev_ancestor) = prev_ancestor {
+                if ast.nodes[prev_ancestor].element == style {
                     dehead_ast_node(prev_ancestor, ast, mutation);
                 }
+            }
 
-                // detail all ancestors applying the style
+            // detail all ancestors applying the style
+            if ast.nodes[ancestor].element == style {
                 detail_ast_node(ancestor, ast, mutation);
                 prev_ancestor = Some(ancestor)
             }
@@ -662,15 +664,17 @@ fn apply_style(
         unreachable!()
     };
     let end_styled = if let Some(end_range) = end_range {
-        let mut prev_ancestor = None;
+        let mut prev_ancestor: Option<usize> = None;
         for ancestor in end_range.ancestors {
-            if ast.nodes[ancestor].element == style {
-                // detail all but the last ancestor applying the style
-                if let Some(prev_ancestor) = prev_ancestor {
+            // detail all but the last ancestor applying the style
+            if let Some(prev_ancestor) = prev_ancestor {
+                if ast.nodes[prev_ancestor].element == style {
                     detail_ast_node(prev_ancestor, ast, mutation);
                 }
+            }
 
-                // dehead all ancestors applying the style
+            // dehead all ancestors applying the style
+            if ast.nodes[ancestor].element == style {
                 dehead_ast_node(ancestor, ast, mutation);
                 prev_ancestor = Some(ancestor)
             }
