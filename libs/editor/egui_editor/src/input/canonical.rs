@@ -172,7 +172,9 @@ pub fn calc(
                 region: Region::Bound { bound: Bound::Doc, backwards: true },
             })
         }
-        Event::Key { key: Key::X, pressed: true, modifiers, .. } if modifiers.command => {
+        Event::Key { key: Key::X, pressed: true, modifiers, .. }
+            if modifiers.command && !modifiers.shift =>
+        {
             Some(Modification::Cut)
         }
         Event::Key { key: Key::C, pressed: true, modifiers, .. }

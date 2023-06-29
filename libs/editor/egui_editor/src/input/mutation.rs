@@ -571,7 +571,6 @@ fn region_completely_styled(cursor: Cursor, style: Element, ast: &Ast) -> bool {
         let mut styled = false;
         for ancestor in text_range.ancestors {
             if ast.nodes[ancestor].element == style {
-                println!("styled node: {:?}", ast.nodes[ancestor].range);
                 styled = true;
                 break;
             }
@@ -587,6 +586,7 @@ fn region_completely_styled(cursor: Cursor, style: Element, ast: &Ast) -> bool {
 
 /// Applies or unapplies `style` to `cursor`, splitting or joining surrounding styles as necessary.
 /// todo: handle case when cursor bounds in syntax chars
+/// todo: add/capture necessary spaces
 fn apply_style(
     cursor: Cursor, style: Element, unapply: bool, ast: &Ast, mutation: &mut Vec<SubMutation>,
 ) {
@@ -599,14 +599,12 @@ fn apply_style(
     let mut end_range = None;
     for text_range in ast.iter_text_ranges() {
         // when at bound, start prefers next
-        // start always has next because if it were at doc end, selection would be empty (early return above)
         if text_range.range.start() <= cursor.selection.start()
             && cursor.selection.start() < text_range.range.end()
         {
             start_range = Some(text_range.clone());
         }
         // when at bound, end prefers previous
-        // end always has previous because if it were at doc start, selection would be empty (early return above)
         if text_range.range.start() < cursor.selection.end()
             && cursor.selection.end() <= text_range.range.end()
         {
@@ -614,68 +612,63 @@ fn apply_style(
         }
     }
 
-    // modify head and/or tail of all ancestors applying style
-    // if styled and applying style, leave head of start and/or tail of end
-    // if not styled and applying style, insert head at start and/or tail at end
-    // if styled and unapplying style, insert tail at start and/or head at end
-    // if not styled and unapplying style, do nothing
-    let start_styled = if let Some(start_range) = start_range {
-        let mut prev_ancestor: Option<usize> = None;
-        for ancestor in start_range.ancestors {
-            // dehead all but the last ancestor applying the style
-            if let Some(prev_ancestor) = prev_ancestor {
-                if ast.nodes[prev_ancestor].element == style {
-                    dehead_ast_node(prev_ancestor, ast, mutation);
-                }
-            }
+    // start always has next because if it were at doc end, selection would be empty (early return above)
+    // end always has previous because if it were at doc start, selection would be empty (early return above)
+    let start_range = start_range.unwrap();
+    let end_range = end_range.unwrap();
 
-            // detail all ancestors applying the style
-            if ast.nodes[ancestor].element == style {
-                detail_ast_node(ancestor, ast, mutation);
-                prev_ancestor = Some(ancestor)
-            }
+    let mut last_start_ancestor: Option<usize> = None;
+    for ancestor in start_range.ancestors {
+        // dehead and detail all but the last ancestor applying the style
+        if let Some(prev_ancestor) = last_start_ancestor {
+            dehead_ast_node(prev_ancestor, ast, mutation);
+            detail_ast_node(prev_ancestor, ast, mutation);
         }
-        prev_ancestor.is_some()
-    } else {
-        unreachable!()
-    };
-    let end_styled = if let Some(end_range) = end_range {
-        let mut prev_ancestor: Option<usize> = None;
-        for ancestor in end_range.ancestors {
-            // detail all but the last ancestor applying the style
-            if let Some(prev_ancestor) = prev_ancestor {
-                if ast.nodes[prev_ancestor].element == style {
-                    detail_ast_node(prev_ancestor, ast, mutation);
-                }
-            }
+        if ast.nodes[ancestor].element == style {
+            last_start_ancestor = Some(ancestor);
+        }
+    }
+    let mut last_end_ancestor: Option<usize> = None;
+    for ancestor in end_range.ancestors {
+        // dehead and detail all but the last ancestor applying the style
+        if let Some(prev_ancestor) = last_end_ancestor {
+            dehead_ast_node(prev_ancestor, ast, mutation);
+            detail_ast_node(prev_ancestor, ast, mutation);
+        }
+        if ast.nodes[ancestor].element == style {
+            last_end_ancestor = Some(ancestor);
+        }
+    }
 
-            // dehead all ancestors applying the style
-            if ast.nodes[ancestor].element == style {
-                dehead_ast_node(ancestor, ast, mutation);
-                prev_ancestor = Some(ancestor)
-            }
+    if last_start_ancestor != last_end_ancestor {
+        if let Some(last_start_ancestor) = last_start_ancestor {
+            detail_ast_node(last_start_ancestor, ast, mutation);
         }
-        prev_ancestor.is_some()
-    } else {
-        unreachable!()
-    };
+        if let Some(last_end_ancestor) = last_end_ancestor {
+            dehead_ast_node(last_end_ancestor, ast, mutation);
+        }
+    }
 
     if unapply {
-        if start_styled {
-            // tail the text before the selection
-            insert_tail(cursor.selection.start(), style.clone(), mutation);
+        if let Some(last_start_ancestor) = last_start_ancestor {
+            if ast.nodes[last_start_ancestor].text_range.start() < cursor.selection.start() {
+                insert_tail(cursor.selection.start(), style.clone(), mutation);
+            } else {
+                dehead_ast_node(last_start_ancestor, ast, mutation);
+            }
         }
-        if end_styled {
-            // head the text after the selection
-            insert_head(cursor.selection.end(), style, mutation);
+        if let Some(last_end_ancestor) = last_end_ancestor {
+            if ast.nodes[last_end_ancestor].text_range.end() > cursor.selection.end() {
+                insert_head(cursor.selection.end(), style.clone(), mutation);
+            } else {
+                detail_ast_node(last_end_ancestor, ast, mutation);
+            }
         }
     } else {
-        if !start_styled {
-            // head the selection
+        if last_start_ancestor.is_none() {
             insert_head(cursor.selection.start(), style.clone(), mutation)
         }
-        if !end_styled {
-            // tail the selection
+        if last_end_ancestor.is_none() {
             insert_tail(cursor.selection.end(), style, mutation)
         }
     }
@@ -687,21 +680,21 @@ fn dehead_ast_node(node_idx: usize, ast: &Ast, mutation: &mut Vec<SubMutation>) 
     let node = &ast.nodes[node_idx];
     mutation
         .push(SubMutation::Cursor { cursor: (node.range.start(), node.text_range.start()).into() });
-    mutation.push(SubMutation::Delete(0.into()));
+    mutation.push(SubMutation::Insert { text: "".to_string(), advance_cursor: true });
 }
 
 fn detail_ast_node(node_idx: usize, ast: &Ast, mutation: &mut Vec<SubMutation>) {
     let node = &ast.nodes[node_idx];
     mutation.push(SubMutation::Cursor { cursor: (node.text_range.end(), node.range.end()).into() });
-    mutation.push(SubMutation::Delete(0.into()));
+    mutation.push(SubMutation::Insert { text: "".to_string(), advance_cursor: false });
 }
 
 fn insert_head(offset: DocCharOffset, style: Element, mutation: &mut Vec<SubMutation>) {
     let text = match style {
-        Element::Strong => "__",
-        Element::InlineCode => "`",
         Element::Emphasis => "_",
+        Element::InlineCode => "`",
         Element::Strikethrough => "~~",
+        Element::Strong => "__",
         Element::Document
         | Element::Heading(_)
         | Element::Paragraph
@@ -720,10 +713,10 @@ fn insert_head(offset: DocCharOffset, style: Element, mutation: &mut Vec<SubMuta
 
 fn insert_tail(offset: DocCharOffset, style: Element, mutation: &mut Vec<SubMutation>) {
     let text = match style {
-        Element::Strong => "__",
-        Element::InlineCode => "`",
         Element::Emphasis => "_",
+        Element::InlineCode => "`",
         Element::Strikethrough => "~~",
+        Element::Strong => "__",
         Element::Document
         | Element::Heading(_)
         | Element::Paragraph
