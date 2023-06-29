@@ -53,11 +53,7 @@ impl<Client: Requester> CoreState<Client> {
             .to_staged(&self.db.local_metadata)
             .to_lazy();
 
-        let account = self
-            .db
-            .account
-            .data()
-            .ok_or(CoreError::AccountNonexistent)?;
+        let account = self.db.account.get().ok_or(CoreError::AccountNonexistent)?;
         let mut results = Vec::new();
 
         for id in tree.owned_ids() {
@@ -91,11 +87,7 @@ impl<Client: Requester> CoreState<Client> {
         let mut tree = (&self.db.base_metadata)
             .to_staged(&self.db.local_metadata)
             .to_lazy();
-        let account = self
-            .db
-            .account
-            .data()
-            .ok_or(CoreError::AccountNonexistent)?;
+        let account = self.db.account.get().ok_or(CoreError::AccountNonexistent)?;
         let mut files_info = Vec::new();
 
         for id in tree.owned_ids() {

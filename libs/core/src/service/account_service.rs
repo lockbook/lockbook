@@ -18,7 +18,7 @@ impl<Client: Requester> CoreState<Client> {
             return Err(CoreError::UsernameInvalid.into());
         }
 
-        if self.db.account.data().is_some() {
+        if self.db.account.get().is_some() {
             return Err(CoreError::AccountExists.into());
         }
 
@@ -48,7 +48,7 @@ impl<Client: Requester> CoreState<Client> {
     }
 
     pub(crate) fn import_account(&mut self, account_string: &str) -> LbResult<Account> {
-        if self.db.account.data().is_some() {
+        if self.db.account.get().is_some() {
             warn!("tried to import an account, but account exists already.");
             return Err(CoreError::AccountExists.into());
         }
@@ -85,11 +85,7 @@ impl<Client: Requester> CoreState<Client> {
     }
 
     pub(crate) fn export_account(&self) -> LbResult<String> {
-        let account = self
-            .db
-            .account
-            .data()
-            .ok_or(CoreError::AccountNonexistent)?;
+        let account = self.db.account.get().ok_or(CoreError::AccountNonexistent)?;
         let encoded: Vec<u8> = bincode::serialize(&account).map_err(core_err_unexpected)?;
         Ok(base64::encode(encoded))
     }
@@ -103,7 +99,7 @@ impl<Client: Requester> CoreState<Client> {
     pub(crate) fn get_account(&self) -> LbResult<&Account> {
         self.db
             .account
-            .data()
+            .get()
             .ok_or_else(|| CoreError::AccountNonexistent.into())
     }
 

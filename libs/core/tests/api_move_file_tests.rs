@@ -16,7 +16,7 @@ fn move_document() {
     core.sync(None).unwrap();
 
     core.in_tx(|s| {
-        let doc1 = s.db.base_metadata.data().get(&doc).unwrap();
+        let doc1 = s.db.base_metadata.get().get(&doc).unwrap();
         // move document
         let mut doc2 = doc1.clone();
         doc2.timestamped_value.value.parent = folder;
@@ -37,7 +37,7 @@ fn move_document_parent_not_found() {
     let doc = core.create_at_path("folder/doc.md").unwrap().id;
     core.sync(None).unwrap();
     core.in_tx(|s| {
-        let doc1 = s.db.base_metadata.data().get(&doc).unwrap();
+        let doc1 = s.db.base_metadata.get().get(&doc).unwrap();
         // move document
         let mut doc2 = doc1.clone();
         doc2.timestamped_value.value.parent = Uuid::new_v4();
@@ -58,12 +58,12 @@ fn move_document_deleted() {
 
     let doc = core.create_at_path("doc.md").unwrap().id;
     let doc1 = core
-        .in_tx(|s| Ok(s.db.local_metadata.data().get(&doc).unwrap().clone()))
+        .in_tx(|s| Ok(s.db.local_metadata.get().get(&doc).unwrap().clone()))
         .unwrap();
 
     let folder = core.create_at_path("folder/").unwrap().id;
     let folder = core
-        .in_tx(|s| Ok(s.db.local_metadata.data().get(&folder).unwrap().clone()))
+        .in_tx(|s| Ok(s.db.local_metadata.get().get(&folder).unwrap().clone()))
         .unwrap();
 
     core.in_tx(|s| {
@@ -102,17 +102,17 @@ fn move_document_path_taken() {
 
     let folder = core.create_at_path("folder/").unwrap().id;
     let folder = core
-        .in_tx(|s| Ok(s.db.local_metadata.data().get(&folder).unwrap().clone()))
+        .in_tx(|s| Ok(s.db.local_metadata.get().get(&folder).unwrap().clone()))
         .unwrap();
 
     let doc = core.create_at_path("doc.md").unwrap().id;
     let doc = core
-        .in_tx(|s| Ok(s.db.local_metadata.data().get(&doc).unwrap().clone()))
+        .in_tx(|s| Ok(s.db.local_metadata.get().get(&doc).unwrap().clone()))
         .unwrap();
 
     let doc2 = core.create_at_path("folder/doc.md").unwrap().id;
     let doc2 = core
-        .in_tx(|s| Ok(s.db.local_metadata.data().get(&doc2).unwrap().clone()))
+        .in_tx(|s| Ok(s.db.local_metadata.get().get(&doc2).unwrap().clone()))
         .unwrap();
 
     core.in_tx(|s| {
@@ -154,7 +154,7 @@ fn move_folder_into_itself() {
 
     let folder = core.create_at_path("folder/").unwrap().id;
     let folder = core
-        .in_tx(|s| Ok(s.db.local_metadata.data().get(&folder).unwrap().clone()))
+        .in_tx(|s| Ok(s.db.local_metadata.get().get(&folder).unwrap().clone()))
         .unwrap();
 
     core.in_tx(|s| {
@@ -190,12 +190,12 @@ fn move_folder_into_descendants() {
 
     let folder = core.create_at_path("folder1/").unwrap().id;
     let folder = core
-        .in_tx(|s| Ok(s.db.local_metadata.data().get(&folder).unwrap().clone()))
+        .in_tx(|s| Ok(s.db.local_metadata.get().get(&folder).unwrap().clone()))
         .unwrap();
 
     let folder2 = core.create_at_path("folder1/folder2/").unwrap().id;
     let folder2 = core
-        .in_tx(|s| Ok(s.db.local_metadata.data().get(&folder2).unwrap().clone()))
+        .in_tx(|s| Ok(s.db.local_metadata.get().get(&folder2).unwrap().clone()))
         .unwrap();
 
     core.in_tx(|s| {
@@ -230,12 +230,12 @@ fn move_document_into_document() {
     // create documents
     let doc = core.create_at_path("doc1.md").unwrap().id;
     let doc = core
-        .in_tx(|s| Ok(s.db.local_metadata.data().get(&doc).unwrap().clone()))
+        .in_tx(|s| Ok(s.db.local_metadata.get().get(&doc).unwrap().clone()))
         .unwrap();
 
     let doc2 = core.create_at_path("doc2.md").unwrap().id;
     let doc2 = core
-        .in_tx(|s| Ok(s.db.local_metadata.data().get(&doc2).unwrap().clone()))
+        .in_tx(|s| Ok(s.db.local_metadata.get().get(&doc2).unwrap().clone()))
         .unwrap();
 
     core.in_tx(|s| {

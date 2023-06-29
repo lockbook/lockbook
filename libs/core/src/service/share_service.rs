@@ -14,11 +14,7 @@ impl<Client: Requester> CoreState<Client> {
         let mut tree = (&self.db.base_metadata)
             .to_staged(&mut self.db.local_metadata)
             .to_lazy();
-        let account = self
-            .db
-            .account
-            .data()
-            .ok_or(CoreError::AccountNonexistent)?;
+        let account = self.db.account.get().ok_or(CoreError::AccountNonexistent)?;
 
         let sharee = Owner(
             self.client
@@ -76,11 +72,7 @@ impl<Client: Requester> CoreState<Client> {
         let mut tree = (&self.db.base_metadata)
             .to_staged(&mut self.db.local_metadata)
             .to_lazy();
-        let account = self
-            .db
-            .account
-            .data()
-            .ok_or(CoreError::AccountNonexistent)?;
+        let account = self.db.account.get().ok_or(CoreError::AccountNonexistent)?;
 
         tree.delete_share(id, maybe_encrypted_for, account)?;
         Ok(())

@@ -10,7 +10,7 @@ fn create_document() {
     let account = core.get_account().unwrap();
     let id = core.create_at_path("test.md").unwrap().id;
     let doc = core
-        .in_tx(|s| Ok(s.db.local_metadata.data().get(&id).cloned().unwrap()))
+        .in_tx(|s| Ok(s.db.local_metadata.get().get(&id).cloned().unwrap()))
         .unwrap();
 
     core.in_tx(|s| {
@@ -29,7 +29,7 @@ fn create_document_duplicate_id() {
 
     let id = core.create_at_path("test.md").unwrap().id;
     let doc = core
-        .in_tx(|s| Ok(s.db.local_metadata.data().get(&id).cloned().unwrap()))
+        .in_tx(|s| Ok(s.db.local_metadata.get().get(&id).cloned().unwrap()))
         .unwrap();
 
     core.sync(None).unwrap();
@@ -56,7 +56,7 @@ fn create_document_duplicate_path() {
     // create document
     let id = core.create_at_path("test.md").unwrap().id;
     let mut doc = core
-        .in_tx(|s| Ok(s.db.local_metadata.data().get(&id).cloned().unwrap()))
+        .in_tx(|s| Ok(s.db.local_metadata.get().get(&id).cloned().unwrap()))
         .unwrap();
     core.sync(None).unwrap();
 
@@ -85,7 +85,7 @@ fn create_document_parent_not_found() {
     // create document
     let id = core.create_at_path("parent/test.md").unwrap().id;
     let doc = core
-        .in_tx(|s| Ok(s.db.local_metadata.data().get(&id).cloned().unwrap()))
+        .in_tx(|s| Ok(s.db.local_metadata.get().get(&id).cloned().unwrap()))
         .unwrap();
 
     core.in_tx(|s| {

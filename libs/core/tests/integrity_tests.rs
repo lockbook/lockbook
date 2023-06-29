@@ -61,10 +61,10 @@ fn test_invalid_file_name_slash() {
     core.in_tx(|s| {
         let mut tree = s.db.base_metadata.stage(&mut s.db.local_metadata).to_lazy();
         let key = tree
-            .decrypt_key(&doc.id, s.db.account.data().unwrap())
+            .decrypt_key(&doc.id, s.db.account.get().unwrap())
             .unwrap();
         let parent = tree
-            .decrypt_key(&doc.parent, s.db.account.data().unwrap())
+            .decrypt_key(&doc.parent, s.db.account.get().unwrap())
             .unwrap();
         let new_name = SecretFileName::from_str("te/st", &key, &parent).unwrap();
         let mut doc = tree.find(&doc.id).unwrap().clone();
@@ -84,10 +84,10 @@ fn empty_filename() {
     core.in_tx(|s| {
         let mut tree = s.db.base_metadata.stage(&mut s.db.local_metadata).to_lazy();
         let key = tree
-            .decrypt_key(&doc.id, s.db.account.data().unwrap())
+            .decrypt_key(&doc.id, s.db.account.get().unwrap())
             .unwrap();
         let parent = tree
-            .decrypt_key(&doc.parent, s.db.account.data().unwrap())
+            .decrypt_key(&doc.parent, s.db.account.get().unwrap())
             .unwrap();
         let new_name = SecretFileName::from_str("", &key, &parent).unwrap();
         let mut doc = tree.find(&doc.id).unwrap().clone();
@@ -106,12 +106,12 @@ fn test_cycle() {
     core.create_at_path("folder1/folder2/document1.md").unwrap();
     let parent = core.get_by_path("folder1").unwrap().id;
     core.in_tx(|s| {
-        s.db.local_metadata.data().get(&parent).unwrap();
+        s.db.local_metadata.get().get(&parent).unwrap();
         Ok(())
     })
     .unwrap();
     let mut parent = core
-        .in_tx(|s| Ok(s.db.local_metadata.data().get(&parent).unwrap().clone()))
+        .in_tx(|s| Ok(s.db.local_metadata.get().get(&parent).unwrap().clone()))
         .unwrap();
     let child = core.get_by_path("folder1/folder2").unwrap();
     parent.timestamped_value.value.parent = child.id;
@@ -129,7 +129,7 @@ fn test_documents_treated_as_folders() {
     core.create_at_path("folder1/folder2/document1.md").unwrap();
     let parent = core.get_by_path("folder1").unwrap();
     let mut parent = core
-        .in_tx(|s| Ok(s.db.local_metadata.data().get(&parent.id).unwrap().clone()))
+        .in_tx(|s| Ok(s.db.local_metadata.get().get(&parent.id).unwrap().clone()))
         .unwrap();
     parent.timestamped_value.value.file_type = Document;
     core.in_tx(|s| {
@@ -148,10 +148,10 @@ fn test_name_conflict() {
     core.in_tx(|s| {
         let mut tree = s.db.base_metadata.stage(&mut s.db.local_metadata).to_lazy();
         let key = tree
-            .decrypt_key(&doc.id, s.db.account.data().unwrap())
+            .decrypt_key(&doc.id, s.db.account.get().unwrap())
             .unwrap();
         let parent = tree
-            .decrypt_key(&doc.parent, s.db.account.data().unwrap())
+            .decrypt_key(&doc.parent, s.db.account.get().unwrap())
             .unwrap();
         let new_name = SecretFileName::from_str("document2.md", &key, &parent).unwrap();
         let mut doc = tree.find(&doc.id).unwrap().clone();

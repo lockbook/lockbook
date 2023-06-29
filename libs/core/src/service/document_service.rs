@@ -13,11 +13,7 @@ impl<Client: Requester> CoreState<Client> {
         let mut tree = (&self.db.base_metadata)
             .to_staged(&self.db.local_metadata)
             .to_lazy();
-        let account = self
-            .db
-            .account
-            .data()
-            .ok_or(CoreError::AccountNonexistent)?;
+        let account = self.db.account.get().ok_or(CoreError::AccountNonexistent)?;
 
         let doc = tree.read_document(&self.config, &id, account)?;
 
@@ -30,11 +26,7 @@ impl<Client: Requester> CoreState<Client> {
         let mut tree = (&self.db.base_metadata)
             .to_staged(&mut self.db.local_metadata)
             .to_lazy();
-        let account = self
-            .db
-            .account
-            .data()
-            .ok_or(CoreError::AccountNonexistent)?;
+        let account = self.db.account.get().ok_or(CoreError::AccountNonexistent)?;
 
         let id = match tree.find(&id)?.file_type() {
             FileType::Document | FileType::Folder => id,

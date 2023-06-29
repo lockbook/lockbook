@@ -18,11 +18,7 @@ impl<Client: Requester> CoreState<Client> {
         let mut tree = (&self.db.base_metadata)
             .to_staged(&mut self.db.local_metadata)
             .to_lazy();
-        let account = self
-            .db
-            .account
-            .data()
-            .ok_or(CoreError::AccountNonexistent)?;
+        let account = self.db.account.get().ok_or(CoreError::AccountNonexistent)?;
 
         let id =
             tree.create(Uuid::new_v4(), symkey::generate_key(), parent, name, file_type, account)?;
@@ -41,11 +37,7 @@ impl<Client: Requester> CoreState<Client> {
         let mut tree = (&self.db.base_metadata)
             .to_staged(&mut self.db.local_metadata)
             .to_lazy();
-        let account = self
-            .db
-            .account
-            .data()
-            .ok_or(CoreError::AccountNonexistent)?;
+        let account = self.db.account.get().ok_or(CoreError::AccountNonexistent)?;
 
         let id = &tree.linked_by(id)?.unwrap_or(*id);
 
@@ -58,11 +50,7 @@ impl<Client: Requester> CoreState<Client> {
         let mut tree = (&self.db.base_metadata)
             .to_staged(&mut self.db.local_metadata)
             .to_lazy();
-        let account = self
-            .db
-            .account
-            .data()
-            .ok_or(CoreError::AccountNonexistent)?;
+        let account = self.db.account.get().ok_or(CoreError::AccountNonexistent)?;
 
         let id = &tree.linked_by(id)?.unwrap_or(*id);
 
@@ -75,11 +63,7 @@ impl<Client: Requester> CoreState<Client> {
         let mut tree = (&self.db.base_metadata)
             .to_staged(&mut self.db.local_metadata)
             .to_lazy();
-        let account = self
-            .db
-            .account
-            .data()
-            .ok_or(CoreError::AccountNonexistent)?;
+        let account = self.db.account.get().ok_or(CoreError::AccountNonexistent)?;
 
         let id = &tree.linked_by(id)?.unwrap_or(*id);
 
@@ -92,13 +76,9 @@ impl<Client: Requester> CoreState<Client> {
         let mut tree = (&self.db.base_metadata)
             .to_staged(&self.db.local_metadata)
             .to_lazy();
-        let account = self
-            .db
-            .account
-            .data()
-            .ok_or(CoreError::AccountNonexistent)?;
+        let account = self.db.account.get().ok_or(CoreError::AccountNonexistent)?;
 
-        let root_id = self.db.root.data().ok_or(CoreError::RootNonexistent)?;
+        let root_id = self.db.root.get().ok_or(CoreError::RootNonexistent)?;
 
         let root = tree.decrypt(account, root_id, &mut self.db.pub_key_lookup)?;
 
@@ -109,11 +89,7 @@ impl<Client: Requester> CoreState<Client> {
         let mut tree = (&self.db.base_metadata)
             .to_staged(&self.db.local_metadata)
             .to_lazy();
-        let account = self
-            .db
-            .account
-            .data()
-            .ok_or(CoreError::AccountNonexistent)?;
+        let account = self.db.account.get().ok_or(CoreError::AccountNonexistent)?;
 
         let ids = tree.owned_ids().into_iter();
 
@@ -124,11 +100,7 @@ impl<Client: Requester> CoreState<Client> {
         let mut tree = (&self.db.base_metadata)
             .to_staged(&self.db.local_metadata)
             .to_lazy();
-        let account = self
-            .db
-            .account
-            .data()
-            .ok_or(CoreError::AccountNonexistent)?;
+        let account = self.db.account.get().ok_or(CoreError::AccountNonexistent)?;
 
         let ids = tree.children_using_links(id)?.into_iter();
 
@@ -139,11 +111,7 @@ impl<Client: Requester> CoreState<Client> {
         let mut tree = (&self.db.base_metadata)
             .to_staged(&self.db.local_metadata)
             .to_lazy();
-        let account = self
-            .db
-            .account
-            .data()
-            .ok_or(CoreError::AccountNonexistent)?;
+        let account = self.db.account.get().ok_or(CoreError::AccountNonexistent)?;
 
         let descendants = tree.descendants_using_links(id)?;
 
@@ -160,11 +128,7 @@ impl<Client: Requester> CoreState<Client> {
             .to_staged(&self.db.local_metadata)
             .to_lazy();
 
-        let account = self
-            .db
-            .account
-            .data()
-            .ok_or(CoreError::AccountNonexistent)?;
+        let account = self.db.account.get().ok_or(CoreError::AccountNonexistent)?;
 
         if tree.calculate_deleted(id)? {
             return Err(CoreError::FileNonexistent.into());

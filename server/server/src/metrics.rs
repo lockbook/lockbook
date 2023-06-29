@@ -93,7 +93,7 @@ where
         loop {
             info!("Metrics refresh started");
 
-            let public_keys_and_usernames = self.index_db.lock()?.usernames.data().clone();
+            let public_keys_and_usernames = self.index_db.lock()?.usernames.get().clone();
 
             let total_users_ever = public_keys_and_usernames.len() as i64;
             let mut total_documents = 0;
@@ -190,7 +190,7 @@ where
         db: &ServerDb, owner: &Owner,
     ) -> Result<SubscriptionProfile, ServerError<MetricsError>> {
         let account =
-            db.accounts.data().get(owner).ok_or_else(|| {
+            db.accounts.get().get(owner).ok_or_else(|| {
                 internal!("Could not get user's account during metrics {:?}", owner)
             })?;
 
@@ -200,7 +200,7 @@ where
     pub fn get_user_info(
         db: &mut ServerDb, owner: Owner,
     ) -> Result<Option<UserInfo>, ServerError<MetricsError>> {
-        if db.owned_files.data().get(&owner).is_none() {
+        if db.owned_files.get().get(&owner).is_none() {
             return Ok(None);
         }
 
@@ -235,7 +235,7 @@ where
 
         let last_seen = *db
             .last_seen
-            .data()
+            .get()
             .get(&owner)
             .unwrap_or(&(root_creation_timestamp as u64));
 
@@ -245,13 +245,13 @@ where
         let not_the_welcome_doc = last_seen_since_account_creation > delay_buffer_time;
         let is_user_active = not_the_welcome_doc && last_seen > time_two_days_ago;
 
-        let total_bytes: u64 = Self::get_usage_helper(&mut tree, db.sizes.data())
+        let total_bytes: u64 = Self::get_usage_helper(&mut tree, db.sizes.get())
             .unwrap_or_default()
             .iter()
             .map(|f| f.size_bytes)
             .sum();
 
-        let total_documents = if let Some(owned_files) = db.owned_files.data().get(&owner) {
+        let total_documents = if let Some(owned_files) = db.owned_files.get().get(&owner) {
             owned_files.len() as i64
         } else {
             return Ok(None);

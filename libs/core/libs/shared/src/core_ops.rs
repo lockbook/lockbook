@@ -55,7 +55,7 @@ where
                     account.username.clone()
                 } else {
                     public_key_cache
-                        .data()
+                        .get()
                         .get(&Owner(user_access_key.encrypted_by))
                         .cloned()
                         .unwrap_or_else(|| String::from("<unknown>"))
@@ -64,7 +64,7 @@ where
                     account.username.clone()
                 } else {
                     public_key_cache
-                        .data()
+                        .get()
                         .get(&Owner(user_access_key.encrypted_for))
                         .cloned()
                         .unwrap_or_else(|| String::from("<unknown>"))

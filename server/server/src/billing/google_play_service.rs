@@ -41,7 +41,7 @@ where
             .index_db
             .lock()?
             .google_play_ids
-            .data()
+            .get()
             .get(account_id)
             .ok_or_else(|| {
                 internal!("There is no public_key related to this account_id: {:?}", account_id)

@@ -51,7 +51,7 @@ where
         let tx = db.begin_transaction()?;
         let mut account = db
             .accounts
-            .data()
+            .get()
             .get(&owner)
             .ok_or(ClientError(UserNotFound))?
             .clone();
@@ -97,8 +97,8 @@ where
 
         {
             let db = self.index_db.lock()?;
-            if let Some(owner) = db.app_store_ids.data().get(&request.app_account_token) {
-                if let Some(other_account) = db.accounts.data().get(owner) {
+            if let Some(owner) = db.app_store_ids.get().get(&request.app_account_token) {
+                if let Some(other_account) = db.accounts.get().get(owner) {
                     if let Some(BillingPlatform::AppStore(ref info)) =
                         other_account.billing_info.billing_platform
                     {
@@ -237,7 +237,7 @@ where
             .index_db
             .lock()?
             .accounts
-            .data()
+            .get()
             .get(&Owner(context.public_key))
             .ok_or(ClientError(GetSubscriptionInfoError::UserNotFound))?
             .billing_info
@@ -284,7 +284,7 @@ where
             )?
             .to_lazy();
 
-            let usage: u64 = Self::get_usage_helper(&mut tree, db.sizes.data())?
+            let usage: u64 = Self::get_usage_helper(&mut tree, db.sizes.get())?
                 .iter()
                 .map(|a| a.size_bytes)
                 .sum();
@@ -356,7 +356,7 @@ where
             .index_db
             .lock()?
             .usernames
-            .data()
+            .get()
             .get(&request.username)
             .ok_or(ClientError(AdminSetUserTierError::UserNotFound))?
             .0;
@@ -688,7 +688,7 @@ where
             .index_db
             .lock()?
             .accounts
-            .data()
+            .get()
             .get(&owner)
             .map(|acc| acc.username.clone());
 
