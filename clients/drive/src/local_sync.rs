@@ -1,38 +1,50 @@
-use std::{fs::File, io::Read, path::PathBuf, sync::mpsc::channel};
-
-use notify::{Config, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
-
+use crate::event::DriveEvent;
 use crate::Drive;
+use notify::{Config, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
+use std::{
+    fs::{self, File},
+    io::Read,
+    path::PathBuf,
+    sync::mpsc::channel,
+    thread,
+    time::Duration,
+};
+
+pub struct WatcherState {
+    rename_candidate: 
+}
 
 impl Drive {
-    fn sync(&self) {
-        self.c
-            .sync(Some(Box::new(|sp: lb::SyncProgress| {
-                use lb::ClientWorkUnit::*;
-                match sp.current_work_unit {
-                    PullMetadata => println!("pulling file tree updates"),
-                    PushMetadata => println!("pushing file tree updates"),
-                    PullDocument(f) => println!("pulling: {}", f.name),
-                    PushDocument(f) => println!("pushing: {}", f.name),
-                };
-            })))
-            .unwrap();
+    pub fn check_for_changes(&self, mut dest: PathBuf) {
+        dest = self.prep_destination(dest);
+        let cloned_drive = self.clone();
+        std::thread::spawn(move || {
+            cloned_drive.watch_for_changes(dest);
+        });
+
+        let cloned_drive = self.clone();
+        std::thread::spawn(move || {
+            cloned_drive.handle_changes();
+        });
     }
 
-    pub fn check_for_changes(&self, mut dest: PathBuf) {
+    fn prep_destination(&self, mut dest: PathBuf) -> PathBuf {
         self.c.get_account().unwrap();
         self.sync();
+        dest.push(self.c.get_root().unwrap().name);
+        dest = dest.canonicalize().unwrap();
+        fs::remove_dir_all(&dest).unwrap();
 
         self.c
             .export_file(self.c.get_root().unwrap().id, dest.clone(), false, None)
             .unwrap();
         File::open(&dest).unwrap().sync_all().unwrap();
+        dest
+    }
 
+    pub fn watch_for_changes(&self, dest: PathBuf) {
         // Create a channel to receive file events
         let (tx, rx) = channel();
-
-        dest.push(self.c.get_root().unwrap().name);
-        dest = dest.canonicalize().unwrap();
 
         // Create a new watcher object
         let mut watcher = RecommendedWatcher::new(tx, Config::default()).unwrap();
@@ -49,12 +61,12 @@ impl Drive {
                     EventKind::Access(_) => {}
                     EventKind::Create(_) => {
                         let core_path = get_lockbook_path(event.paths[0].clone(), dest.clone());
-                        let check = self.c.get_by_path(core_path.to_str().unwrap());
-                        if check.is_err() {
-                            self.c.create_at_path(core_path.to_str().unwrap()).unwrap();
-                        } else {
-                            println!("{:?}", event);
-                        }
+                        let core_path = core_path.to_str().unwrap().to_string();
+
+                        self.pending_events
+                            .lock()
+                            .unwrap()
+                            .push_back(DriveEvent::Create(core_path));
                     }
                     EventKind::Modify(_) => {
                         let mut f = File::open(event.paths[0].clone()).unwrap();
@@ -67,8 +79,12 @@ impl Drive {
                     }
                     EventKind::Remove(_) => {
                         let core_path = get_lockbook_path(event.paths[0].clone(), dest.clone());
-                        let to_delete = self.c.get_by_path(core_path.to_str().unwrap()).unwrap();
-                        self.c.delete_file(to_delete.id).unwrap();
+                        let core_path = core_path.to_str().unwrap().to_string();
+
+                        self.pending_events
+                            .lock()
+                            .unwrap()
+                            .push_back(DriveEvent::Delete(core_path));
                     }
                     EventKind::Other => {}
                 },
@@ -76,7 +92,39 @@ impl Drive {
             }
         }
     }
+
+    fn handle_changes(&self) {
+        let event = self.pending_events.lock().unwrap().pop_front();
+        match event {
+            Some(DriveEvent::Create(path)) => {
+                let check = self.c.get_by_path(&path);
+                if check.is_err() {
+                    self.c.create_at_path(&path).unwrap();
+                }
+            }
+            Some(DriveEvent::Delete(path)) => self
+                .c
+                .delete_file(self.c.get_by_path(&path).unwrap().id)
+                .unwrap(),
+            None => thread::sleep(Duration::from_millis(100)),
+        }
+    }
+
+    fn sync(&self) {
+        self.c
+            .sync(Some(Box::new(|sp: lb::SyncProgress| {
+                use lb::ClientWorkUnit::*;
+                match sp.current_work_unit {
+                    PullMetadata => println!("pulling file tree updates"),
+                    PushMetadata => println!("pushing file tree updates"),
+                    PullDocument(f) => println!("pulling: {}", f.name),
+                    PushDocument(f) => println!("pushing: {}", f.name),
+                };
+            })))
+            .unwrap();
+    }
 }
+
 fn get_lockbook_path(event_path: PathBuf, dest: PathBuf) -> PathBuf {
     let mut ep_iter = event_path.iter();
     for _ in &dest {
