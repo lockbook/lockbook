@@ -55,11 +55,7 @@ impl<Client: Requester> CoreState<Client> {
 
         let file = tree.find(&id)?.clone();
 
-        let account = self
-            .db
-            .account
-            .data()
-            .ok_or(CoreError::AccountNonexistent)?;
+        let account = self.db.account.get().ok_or(CoreError::AccountNonexistent)?;
 
         Self::export_file_recursively(
             &self.config,
@@ -155,11 +151,7 @@ impl<Client: Requester> CoreState<Client> {
         let mut tree = (&self.db.base_metadata)
             .to_staged(&mut self.db.local_metadata)
             .to_lazy();
-        let account = self
-            .db
-            .account
-            .data()
-            .ok_or(CoreError::AccountNonexistent)?;
+        let account = self.db.account.get().ok_or(CoreError::AccountNonexistent)?;
 
         update_status(ImportStatus::StartingItem(format!("{}", disk_path.display())));
 

@@ -54,7 +54,7 @@ where
             )?
             .to_lazy();
 
-            let old_usage = Self::get_usage_helper(&mut tree, db.sizes.data())
+            let old_usage = Self::get_usage_helper(&mut tree, db.sizes.get())
                 .map_err(|err| internal!("{:?}", err))?
                 .iter()
                 .map(|f| f.size_bytes)
@@ -75,7 +75,7 @@ where
 
             tree.validate(req_owner)?;
 
-            let new_usage = Self::get_usage_helper(&mut tree, db.sizes.data())
+            let new_usage = Self::get_usage_helper(&mut tree, db.sizes.get())
                 .map_err(|err| internal!("{:?}", err))?
                 .iter()
                 .map(|f| f.size_bytes)
@@ -217,7 +217,7 @@ where
 
             let meta = db
                 .metas
-                .data()
+                .get()
                 .get(request.diff.new.id())
                 .ok_or(ClientError(DocumentNotFound))?
                 .clone();
@@ -231,12 +231,12 @@ where
             )?
             .to_lazy();
 
-            let old_usage = Self::get_usage_helper(&mut tree, db.sizes.data())
+            let old_usage = Self::get_usage_helper(&mut tree, db.sizes.get())
                 .map_err(|err| internal!("{:?}", err))?
                 .iter()
                 .map(|f| f.size_bytes)
                 .sum::<u64>();
-            let old_size = db.sizes.data().get(request.diff.id()).unwrap_or(&0);
+            let old_size = db.sizes.get().get(request.diff.id()).unwrap_or(&0);
             let new_size = request.new_content.value.len() as u64;
 
             let new_usage = old_usage - old_size + new_size;
@@ -382,7 +382,7 @@ where
             let db = lock.deref_mut();
             let tx = db.begin_transaction()?;
 
-            let meta_exists = db.metas.data().get(&request.id).is_some();
+            let meta_exists = db.metas.get().get(&request.id).is_some();
 
             let mut tree = ServerTree::new(
                 Owner(context.public_key),
@@ -506,7 +506,7 @@ where
             let owner = {
                 let meta = db
                     .metas
-                    .data()
+                    .get()
                     .get(&context.request.id)
                     .ok_or(ClientError(AdminDisappearFileError::FileNonexistent))?;
                 if meta.is_root() {
@@ -582,7 +582,7 @@ where
 
             let username = db
                 .accounts
-                .data()
+                .get()
                 .get(&Owner(context.public_key))
                 .map(|account| account.username.clone())
                 .unwrap_or_else(|| "~unknown~".to_string());
@@ -613,7 +613,7 @@ where
 
         let owner = *db
             .usernames
-            .data()
+            .get()
             .get(&request.username)
             .ok_or(ClientError(AdminValidateAccountError::UserNotFound))?;
 
@@ -638,7 +638,7 @@ where
             if !tree.calculate_deleted(&id)? {
                 let file = tree.find(&id)?;
                 if file.is_document() && file.document_hmac().is_some() {
-                    if db.sizes.data().get(&id).is_none() {
+                    if db.sizes.get().get(&id).is_none() {
                         result.documents_missing_size.push(id);
                     }
 
@@ -682,7 +682,7 @@ where
         let mut result: AdminValidateServer = Default::default();
 
         let mut deleted_ids = HashSet::new();
-        for (id, meta) in db.metas.data().clone() {
+        for (id, meta) in db.metas.get().clone() {
             // todo: optimize
             let mut tree = ServerTree::new(
                 meta.owner(),
@@ -698,7 +698,7 @@ where
         }
 
         // validate accounts
-        for (owner, account) in db.accounts.data().clone() {
+        for (owner, account) in db.accounts.get().clone() {
             let validation = self.validate_account_helper(db, owner)?;
             if !validation.is_empty() {
                 result
@@ -708,8 +708,8 @@ where
         }
 
         // validate index: usernames
-        for (username, owner) in db.usernames.data().clone() {
-            if let Some(account) = db.accounts.data().get(&owner) {
+        for (username, owner) in db.usernames.get().clone() {
+            if let Some(account) = db.accounts.get().get(&owner) {
                 if username != account.username {
                     result
                         .usernames_mapped_to_wrong_accounts
@@ -721,8 +721,8 @@ where
                     .insert(username, owner);
             }
         }
-        for (_, account) in db.accounts.data().clone() {
-            if db.usernames.data().get(&account.username).is_none() {
+        for (_, account) in db.accounts.get().clone() {
+            if db.usernames.get().get(&account.username).is_none() {
                 result
                     .usernames_unmapped_to_accounts
                     .insert(account.username.clone());
@@ -730,9 +730,9 @@ where
         }
 
         // validate index: owned_files
-        for (owner, ids) in db.owned_files.data().clone() {
+        for (owner, ids) in db.owned_files.get().clone() {
             for id in ids {
-                if let Some(meta) = db.metas.data().get(&id) {
+                if let Some(meta) = db.metas.get().get(&id) {
                     if meta.owner() != owner {
                         insert(&mut result.owners_mapped_to_unowned_files, owner, id);
                     }
@@ -741,8 +741,8 @@ where
                 }
             }
         }
-        for (id, meta) in db.metas.data().clone() {
-            if let Some(ids) = db.owned_files.data().get(&meta.owner()) {
+        for (id, meta) in db.metas.get().clone() {
+            if let Some(ids) = db.owned_files.get().get(&meta.owner()) {
                 if !ids.contains(&id) {
                     insert(&mut result.owners_unmapped_to_owned_files, meta.owner(), *meta.id());
                 }
@@ -752,9 +752,9 @@ where
         }
 
         // validate index: shared_files
-        for (sharee, ids) in db.shared_files.data().clone() {
+        for (sharee, ids) in db.shared_files.get().clone() {
             for id in ids {
-                if let Some(meta) = db.metas.data().get(&id) {
+                if let Some(meta) = db.metas.get().get(&id) {
                     if !meta.user_access_keys().iter().any(|k| {
                         !k.deleted && k.encrypted_for == sharee.0 && k.encrypted_by != sharee.0
                     }) {
@@ -768,13 +768,13 @@ where
                 }
             }
         }
-        for (id, meta) in db.metas.data().clone() {
+        for (id, meta) in db.metas.get().clone() {
             for k in meta.user_access_keys() {
                 if k.deleted {
                     continue;
                 }
                 let sharee = Owner(k.encrypted_for);
-                if let Some(ids) = db.shared_files.data().get(&sharee) {
+                if let Some(ids) = db.shared_files.get().get(&sharee) {
                     let self_share = k.encrypted_for == k.encrypted_by;
                     let indexed_share = ids.contains(&id);
                     if self_share && indexed_share {
@@ -789,9 +789,9 @@ where
         }
 
         // validate index: file_children
-        for (parent_id, child_ids) in db.file_children.data().clone() {
+        for (parent_id, child_ids) in db.file_children.get().clone() {
             for child_id in child_ids {
-                if let Some(meta) = db.metas.data().get(&child_id) {
+                if let Some(meta) = db.metas.get().get(&child_id) {
                     if meta.parent() != &parent_id {
                         insert(
                             &mut result.files_mapped_as_parent_to_non_children,
@@ -808,8 +808,8 @@ where
                 }
             }
         }
-        for (id, meta) in db.metas.data().clone() {
-            if let Some(child_ids) = db.file_children.data().get(meta.parent()) {
+        for (id, meta) in db.metas.get().clone() {
+            if let Some(child_ids) = db.file_children.get().get(meta.parent()) {
                 if meta.is_root() && child_ids.contains(&id) {
                     result.files_mapped_as_parent_to_self.insert(id);
                 } else if !meta.is_root() && !child_ids.contains(&id) {
@@ -821,8 +821,8 @@ where
         }
 
         // validate index: sizes (todo: validate size values)
-        for (id, _) in db.sizes.data().clone() {
-            if let Some(meta) = db.metas.data().get(&id) {
+        for (id, _) in db.sizes.get().clone() {
+            if let Some(meta) = db.metas.get().get(&id) {
                 if meta.document_hmac().is_none() {
                     result.sizes_mapped_for_files_without_hmac.insert(id);
                 }
@@ -830,17 +830,17 @@ where
                 result.sizes_mapped_for_nonexistent_files.insert(id);
             }
         }
-        for (id, meta) in db.metas.data().clone() {
+        for (id, meta) in db.metas.get().clone() {
             if !deleted_ids.contains(&id)
                 && meta.document_hmac().is_some()
-                && db.sizes.data().get(&id).is_none()
+                && db.sizes.get().get(&id).is_none()
             {
                 result.sizes_unmapped_for_files_with_hmac.insert(id);
             }
         }
 
         // validate presence of documents
-        for (id, meta) in db.metas.data().clone() {
+        for (id, meta) in db.metas.get().clone() {
             if let Some(hmac) = meta.document_hmac() {
                 if !deleted_ids.contains(&id) && !self.exists(&id, hmac) {
                     result.files_with_hmacs_and_no_contents.insert(id);
@@ -867,7 +867,7 @@ where
 
         let file = db
             .metas
-            .data()
+            .get()
             .get(&request.id)
             .ok_or(ClientError(AdminFileInfoError::FileNonexistent))?
             .clone();
@@ -905,19 +905,19 @@ where
         match context.request.index {
             ServerIndex::OwnedFiles => {
                 db.owned_files.clear()?;
-                for owner in db.accounts.data().clone().keys() {
+                for owner in db.accounts.get().clone().keys() {
                     db.owned_files.create_key(*owner)?;
                 }
-                for (id, file) in db.metas.data().clone() {
+                for (id, file) in db.metas.get().clone() {
                     db.owned_files.insert(file.owner(), id)?;
                 }
             }
             ServerIndex::SharedFiles => {
                 db.shared_files.clear()?;
-                for owner in db.accounts.data().clone().keys() {
+                for owner in db.accounts.get().clone().keys() {
                     db.shared_files.create_key(*owner)?;
                 }
-                for (id, file) in db.metas.data().clone() {
+                for (id, file) in db.metas.get().clone() {
                     for user_access_key in file.user_access_keys() {
                         if user_access_key.encrypted_for != user_access_key.encrypted_by {
                             db.shared_files
@@ -928,10 +928,10 @@ where
             }
             ServerIndex::FileChildren => {
                 db.file_children.clear()?;
-                for id in db.metas.data().clone().keys() {
+                for id in db.metas.get().clone().keys() {
                     db.file_children.create_key(*id)?;
                 }
-                for (id, file) in db.metas.data().clone() {
+                for (id, file) in db.metas.get().clone() {
                     db.file_children.insert(*file.parent(), id)?;
                 }
             }

@@ -351,7 +351,7 @@ impl<Client: Requester> CoreLib<Client> {
         Ok(self.in_tx(|s| {
             Ok(s.db
                 .local_metadata
-                .data()
+                .get()
                 .keys()
                 .copied()
                 .collect::<Vec<Uuid>>())
@@ -381,7 +381,7 @@ impl<Client: Requester> CoreLib<Client> {
 
     #[instrument(level = "debug", skip(self), err(Debug))]
     pub fn get_last_synced(&self) -> Result<i64, UnexpectedError> {
-        Ok(self.in_tx(|s| Ok(s.db.last_synced.data().copied().unwrap_or(0)))?)
+        Ok(self.in_tx(|s| Ok(s.db.last_synced.get().copied().unwrap_or(0)))?)
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]

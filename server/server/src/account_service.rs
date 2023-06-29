@@ -64,15 +64,15 @@ where
         let mut db = self.index_db.lock()?;
         let handle = db.begin_transaction()?;
 
-        if db.accounts.data().contains_key(&Owner(request.public_key)) {
+        if db.accounts.get().contains_key(&Owner(request.public_key)) {
             return Err(ClientError(PublicKeyTaken));
         }
 
-        if db.usernames.data().contains_key(&request.username) {
+        if db.usernames.get().contains_key(&request.username) {
             return Err(ClientError(UsernameTaken));
         }
 
-        if db.metas.data().contains_key(root.id()) {
+        if db.metas.get().contains_key(root.id()) {
             return Err(ClientError(FileIdTaken));
         }
 
@@ -109,7 +109,7 @@ where
         self.index_db
             .lock()?
             .usernames
-            .data()
+            .get()
             .get(username)
             .map(|owner| Ok(GetPublicKeyResponse { key: owner.0 }))
             .unwrap_or(Err(ClientError(GetPublicKeyError::UserNotFound)))
@@ -127,7 +127,7 @@ where
         self.index_db
             .lock()?
             .accounts
-            .data()
+            .get()
             .get(&Owner(key))
             .map(|account| Ok(GetUsernameResponse { username: account.username.clone() }))
             .unwrap_or(Err(ClientError(GetUsernameError::UserNotFound)))
@@ -149,7 +149,7 @@ where
             &mut db.metas,
         )?
         .to_lazy();
-        let usages = Self::get_usage_helper(&mut tree, db.sizes.data())?;
+        let usages = Self::get_usage_helper(&mut tree, db.sizes.get())?;
         Ok(GetUsageResponse { usages, cap })
     }
 
@@ -200,7 +200,7 @@ where
     ) -> Result<u64, ServerError<GetUsageHelperError>> {
         Ok(db
             .accounts
-            .data()
+            .get()
             .get(&Owner(*public_key))
             .ok_or(ServerError::ClientError(GetUsageHelperError::UserNotFound))?
             .billing_info
@@ -232,7 +232,7 @@ where
 
             let admin_username = db
                 .accounts
-                .data()
+                .get()
                 .get(&Owner(context.public_key))
                 .cloned()
                 .map(|account| account.username)
@@ -241,7 +241,7 @@ where
             warn!("admin {} is disappearing account {}", admin_username, context.request.username);
 
             *db.usernames
-                .data()
+                .get()
                 .get(&context.request.username)
                 .ok_or(ClientError(AdminDisappearAccountError::UserNotFound))?
         };
@@ -266,7 +266,7 @@ where
 
         let mut users: Vec<String> = vec![];
 
-        for account in db.accounts.data().values() {
+        for account in db.accounts.get().values() {
             match &request.filter {
                 Some(filter) => match filter {
                     AccountFilter::Premium => {
@@ -321,22 +321,22 @@ where
             AccountIdentifier::PublicKey(public_key) => Owner(*public_key),
             AccountIdentifier::Username(user) => *db
                 .usernames
-                .data()
+                .get()
                 .get(user)
                 .ok_or(ClientError(AdminGetAccountInfoError::UserNotFound))?,
         };
 
         let account = db
             .accounts
-            .data()
+            .get()
             .get(&owner)
             .ok_or(ClientError(AdminGetAccountInfoError::UserNotFound))?
             .clone();
 
         let mut maybe_root = None;
-        if let Some(owned_ids) = db.owned_files.data().get(&owner) {
+        if let Some(owned_ids) = db.owned_files.get().get(&owner) {
             for id in owned_ids {
-                if let Some(meta) = db.metas.data().get(id) {
+                if let Some(meta) = db.metas.get().get(id) {
                     if meta.is_root() {
                         maybe_root = Some(*meta.id());
                     }
@@ -381,7 +381,7 @@ where
         )?
         .to_lazy();
 
-        let usage: u64 = Self::get_usage_helper(&mut tree, db.sizes.data())
+        let usage: u64 = Self::get_usage_helper(&mut tree, db.sizes.get())
             .map_err(|err| {
                 internal!("Cannot find user's usage, owner: {:?}, err: {:?}", owner, err)
             })?
@@ -437,7 +437,7 @@ where
             db.last_seen.remove(&Owner(*public_key))?;
 
             for id in metas_to_delete {
-                if let Some(meta) = db.metas.data().get(&id) {
+                if let Some(meta) = db.metas.get().get(&id) {
                     if &(meta.owner().0) == public_key {
                         for user_access_key in meta.user_access_keys() {
                             let sharee = Owner(user_access_key.encrypted_for);
@@ -471,7 +471,7 @@ where
     pub fn is_admin<E: Debug>(
         db: &ServerDb, public_key: &PublicKey, admins: &HashSet<Username>,
     ) -> Result<bool, ServerError<E>> {
-        let is_admin = match db.accounts.data().get(&Owner(*public_key)) {
+        let is_admin = match db.accounts.get().get(&Owner(*public_key)) {
             None => false,
             Some(account) => admins.contains(&account.username),
         };

@@ -66,7 +66,7 @@ fn directly_shared_link() {
             // probably for the best that this is how ugly the code has to get to produce this situation
             let mut link =
                 s.db.local_metadata
-                    .data()
+                    .get()
                     .get(&link.id)
                     .unwrap()
                     .timestamped_value

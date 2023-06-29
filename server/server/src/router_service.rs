@@ -79,7 +79,7 @@ macro_rules! core_req {
                     let req_pk = request.signed_request.public_key;
                     let username = match state.index_db.lock().map(|db| {
                         db.accounts
-                            .data()
+                            .get()
                             .get(&Owner(req_pk))
                             .map(|account| account.username.clone())
                     }) {

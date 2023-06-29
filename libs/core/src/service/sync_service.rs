@@ -78,8 +78,8 @@ impl<Client: Requester> CoreState<Client> {
         let mut sync_context = SyncContext {
             dry_run: true,
             account: self.get_account()?.clone(),
-            root: self.db.root.data().cloned(),
-            last_synced: self.db.last_synced.data().map(|s| *s as u64),
+            root: self.db.root.get().cloned(),
+            last_synced: self.db.last_synced.get().map(|s| *s as u64),
             base: (&self.db.base_metadata).to_staged(Vec::new()),
             local: (&self.db.local_metadata).to_staged(Vec::new()),
             username_by_public_key: &mut self.db.pub_key_lookup,
@@ -107,8 +107,8 @@ impl<Client: Requester> CoreState<Client> {
             let mut sync_context = SyncContext {
                 dry_run: true,
                 account: self.get_account()?.clone(),
-                root: self.db.root.data().cloned(),
-                last_synced: self.db.last_synced.data().map(|s| *s as u64),
+                root: self.db.root.get().cloned(),
+                last_synced: self.db.last_synced.get().map(|s| *s as u64),
                 base: (&self.db.base_metadata).to_staged(Vec::new()),
                 local: (&self.db.local_metadata).to_staged(Vec::new()),
                 username_by_public_key: &mut self.db.pub_key_lookup,
@@ -158,8 +158,8 @@ impl<Client: Requester> CoreState<Client> {
         let mut sync_context = SyncContext {
             dry_run: false,
             account: self.get_account()?.clone(),
-            root: self.db.root.data().cloned(),
-            last_synced: self.db.last_synced.data().map(|s| *s as u64),
+            root: self.db.root.get().cloned(),
+            last_synced: self.db.last_synced.get().map(|s| *s as u64),
             base: (&mut self.db.base_metadata).to_staged(Vec::new()),
             local: (&mut self.db.local_metadata).to_staged(Vec::new()),
             username_by_public_key: &mut self.db.pub_key_lookup,
@@ -1053,7 +1053,7 @@ where
         }
 
         for owner in all_owners {
-            if !self.username_by_public_key.data().contains_key(&owner) {
+            if !self.username_by_public_key.get().contains_key(&owner) {
                 let username_result = self
                     .client
                     .request(&self.account, GetUsernameRequest { key: owner.0 });

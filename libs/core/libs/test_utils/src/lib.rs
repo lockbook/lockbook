@@ -101,10 +101,10 @@ pub fn dbs_equal<Client: Requester>(left: &CoreLib<Client>, right: &CoreLib<Clie
     left.in_tx(|l| {
         Ok(right
             .in_tx(|r| {
-                Ok(r.db.account.data() == l.db.account.data()
-                    && r.db.root.data() == l.db.root.data()
-                    && r.db.local_metadata.data() == l.db.local_metadata.data()
-                    && r.db.base_metadata.data() == l.db.base_metadata.data())
+                Ok(r.db.account.get() == l.db.account.get()
+                    && r.db.root.get() == l.db.root.get()
+                    && r.db.local_metadata.get() == l.db.local_metadata.get()
+                    && r.db.base_metadata.get() == l.db.base_metadata.get())
             })
             .unwrap())
     })
@@ -115,10 +115,10 @@ pub fn assert_dbs_equal<Client: Requester>(left: &CoreLib<Client>, right: &CoreL
     left.in_tx(|l| {
         right
             .in_tx(|r| {
-                assert_eq!(l.db.account.data(), r.db.account.data());
-                assert_eq!(l.db.root.data(), r.db.root.data());
-                assert_eq!(l.db.base_metadata.data(), r.db.base_metadata.data());
-                assert_eq!(l.db.local_metadata.data(), r.db.local_metadata.data());
+                assert_eq!(l.db.account.get(), r.db.account.get());
+                assert_eq!(l.db.root.get(), r.db.root.get());
+                assert_eq!(l.db.base_metadata.get(), r.db.base_metadata.get());
+                assert_eq!(l.db.local_metadata.get(), r.db.local_metadata.get());
                 Ok(())
             })
             .unwrap();
