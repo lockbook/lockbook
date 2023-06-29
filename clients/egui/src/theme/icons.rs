@@ -30,7 +30,6 @@ impl Icon {
     pub const EDIT: Self = ic("\u{e254}"); // Mode Edit
     pub const DELETE: Self = ic("\u{e872}"); // Delete
     pub const FOLDER: Self = ic("\u{e2c7}"); // Folder
-    pub const SHARED_FOLDER: Self = ic("\u{e2c9}"); // Shared Folder
     pub const GROUP: Self = ic("\u{e7ef}"); // Group
     pub const FOLDER_OPEN: Self = ic("\u{e2c8}"); // Folder Open
     pub const HIGHLIGHT_OFF: Self = ic("\u{e888}"); // Highlight Off
@@ -43,8 +42,10 @@ impl Icon {
     pub const SPARKLE: Self = ic("\u{e65f}"); // Auto Awesome
     pub const SAVE: Self = ic("\u{e161}"); // Save
     pub const SYNC: Self = ic("\u{e863}"); // Auto-renew
+    pub const SHARED_FOLDER: Self = ic("\u{e2c9}"); // Shared Folder
     pub const SYNC_DISABLED: Self = ic("\u{e628}"); // Sync Disabled
     pub const SYNC_PROBLEM: Self = ic("\u{e629}"); // Sync Problem
+    pub const EMPTY_INBOX: Self = ic("\u{f07e}"); // Upcoming
     pub const THUMBS_UP: Self = ic("\u{e8dc}"); // Thumbs Up
     pub const VERTICAL_SPLIT: Self = ic("\u{e949}"); // Vertical Split
     pub const VIDEO_LABEL: Self = ic("\u{e071}"); // Video Label

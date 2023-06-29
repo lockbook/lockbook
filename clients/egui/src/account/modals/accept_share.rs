@@ -28,15 +28,35 @@ impl super::Modal for AcceptShareModal {
     }
 
     fn show(&mut self, ui: &mut egui::Ui) -> Self::Response {
-        ui.add_space(30.0);
         ui.set_max_height(400.0);
+        ui.add_space(20.0);
         egui::ScrollArea::vertical()
-            // .inner_margin(egui::Margin::same(10.0))
+            .id_source("incoming_shares_scroll_area")
             .show(ui, |ui| {
                 for (_, req) in self.requests.iter().enumerate() {
                     sharer_info(ui, req, self.username.clone());
                 }
             });
+
+        if self.requests.is_empty() {
+            ui.add_space(10.0);
+            ui.with_layout(egui::Layout::top_down(egui::Align::Center), |ui| {
+                Icon::EMPTY_INBOX.size(60.0).show(ui);
+                ui.add_space(20.0);
+                ui.heading("You have No incoming shares");
+                ui.label(
+                    egui::RichText::new(format!(
+                        "Your friends can share their notes with you here"
+                    ))
+                    .size(15.0)
+                    // todo: use a color defined in the theme (ui.visuals)
+                    .color(egui::Color32::GRAY),
+                );
+            });
+            ui.add_space(10.0);
+        }
+
+        ui.add_space(20.0);
 
         None
     }
@@ -54,7 +74,7 @@ fn sharer_info(ui: &mut egui::Ui, req: &File, username: String) {
         .fill(ui.style().visuals.faint_bg_color)
         .stroke(egui::Stroke { width: 0.1, color: ui.visuals().text_color() })
         .inner_margin(egui::Margin::same(15.0))
-        .outer_margin(egui::Margin::same(15.0))
+        .outer_margin(egui::Margin::symmetric(25.0, 12.0))
         .rounding(egui::Rounding::same(5.0))
         .show(ui, |ui| {
             ui.horizontal(|ui| {
@@ -65,6 +85,7 @@ fn sharer_info(ui: &mut egui::Ui, req: &File, username: String) {
                 };
 
                 icon.size(40.0).show(ui);
+                ui.add_space(5.0);
                 ui.vertical(|ui| {
                     ui.label(&req.name);
 
@@ -88,7 +109,10 @@ fn sharer_info(ui: &mut egui::Ui, req: &File, username: String) {
                         Icon::GROUP
                             .color(egui::Color32::GRAY)
                             .show(ui)
-                            .on_hover_text(format!("shared with {}", others_with_access.join(", ")))
+                            .on_hover_text(format!(
+                                "also shared with {}",
+                                others_with_access.join(", ")
+                            ))
                     });
                 }
             });
