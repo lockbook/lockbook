@@ -19,6 +19,8 @@ use std::sync::mpsc::channel;
 use lb::Core;
 //use self::error::CliError;
 
+use notify_debouncer_full::{notify::*, new_debouncer, DebounceEventResult};
+
 #[derive(Parser, Debug)]
 #[command(version, about)]
 enum Command {
@@ -78,53 +80,67 @@ fn check_for_changes(core: &Core, mut dest: PathBuf) -> notify::Result<()> {
     core.export_file(core.get_root().unwrap().id, dest.clone(), false, None)
         .unwrap();
     File::open(&dest).unwrap().sync_all().unwrap();
+
     // Create a channel to receive file events
-    let (tx, rx) = channel();
-    //let filepath: &str = "example.txt";
+    //let (tx, rx) = channel();
+    let (tx, rx) = std::sync::mpsc::channel();
+
+
     dest.push(core.get_root().unwrap().name);
     dest = dest.canonicalize().unwrap();
-    // Create a new watcher object
-    let mut watcher = RecommendedWatcher::new(tx, Config::default())?;
-    // Register the file for watching
-    watcher.watch(&dest, RecursiveMode::Recursive)?;
 
-    let mut length;
+
+    // Create a new watcher object
+    //let mut watcher = RecommendedWatcher::new(tx, Config::default())?;
+    let mut debouncer = new_debouncer(Duration::from_secs(2), None, tx)?;
+
+    // Register the file for watching
+    //watcher.watch(&dest, RecursiveMode::Recursive)?;
+    debouncer
+        .watcher()
+        .watch(&dest, RecursiveMode::Recursive)?;
+
+    debouncer
+        .cache()
+        .add_root(&dest, RecursiveMode::Recursive);
+
+    //let mut length;
     println!("Watching for changes in {:?}", dest);
     for res in rx {
         println!("{:#?}", res);
         match res {
             Ok(event) => {
-                match event.kind {
-                    EventKind::Any => {}
-                    EventKind::Access(_) => {}
-                    EventKind::Create(_) => {
-                        let core_path = get_lockbook_path(event.paths[0].clone(), dest.clone());
-                        let check = core.get_by_path(core_path.to_str().unwrap());
-                        if check.is_err() {
-                            core.create_at_path(core_path.to_str().unwrap()).unwrap();
-                        } else {
-                            println!("{:?}", event);
-                        }
-                    }
-                    EventKind::Modify(_) => {
-                        let mut f = File::open(event.paths[0].clone()).unwrap();
-                        length = fs::metadata(event.paths[0].clone())?.len();
-                        let l = length as usize;
-                        let mut buffer = vec![0; l];
-                        //let content = f.read(&mut buffer)?;
-                        f.read(&mut buffer).unwrap();
-                        println!("{:?}", &buffer[..]);
-                        let core_path = get_lockbook_path(event.paths[0].clone(), dest.clone());
-                        let to_modify = core.get_by_path(core_path.to_str().unwrap()).unwrap();
-                        core.write_document(to_modify.id, &buffer[..]).unwrap();
-                    }
-                    EventKind::Remove(_) => {
-                        let core_path = get_lockbook_path(event.paths[0].clone(), dest.clone());
-                        let to_delete = core.get_by_path(core_path.to_str().unwrap()).unwrap();
-                        core.delete_file(to_delete.id).unwrap();
-                    }
-                    EventKind::Other => {}
-                }
+                // match event.kind {
+                //     EventKind::Any => {}
+                //     EventKind::Access(_) => {}
+                //     EventKind::Create(_) => {
+                //         let core_path = get_lockbook_path(event.paths[0].clone(), dest.clone());
+                //         let check = core.get_by_path(core_path.to_str().unwrap());
+                //         if check.is_err() {
+                //             core.create_at_path(core_path.to_str().unwrap()).unwrap();
+                //         } else {
+                //             println!("{:?}", event);
+                //         }
+                //     }
+                //     EventKind::Modify(_) => {
+                //         let mut f = File::open(event.paths[0].clone()).unwrap();
+                //         length = fs::metadata(event.paths[0].clone())?.len();
+                //         let l = length as usize;
+                //         let mut buffer = vec![0; l];
+                //         //let content = f.read(&mut buffer)?;
+                //         f.read(&mut buffer).unwrap();
+                //         println!("{:?}", &buffer[..]);
+                //         let core_path = get_lockbook_path(event.paths[0].clone(), dest.clone());
+                //         let to_modify = core.get_by_path(core_path.to_str().unwrap()).unwrap();
+                //         core.write_document(to_modify.id, &buffer[..]).unwrap();
+                //     }
+                //     EventKind::Remove(_) => {
+                //         let core_path = get_lockbook_path(event.paths[0].clone(), dest.clone());
+                //         let to_delete = core.get_by_path(core_path.to_str().unwrap()).unwrap();
+                //         core.delete_file(to_delete.id).unwrap();
+                //     }
+                //     EventKind::Other => {}
+                // }
             }
             Err(e) => println!("watch error: {:?}", e),
         }

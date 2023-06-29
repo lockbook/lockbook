@@ -1572,7 +1572,8 @@ dependencies = [
  "hotwatch",
  "is-terminal",
  "lockbook-core",
- "notify 6.0.0",
+ "notify 6.0.1",
+ "notify-debouncer-full",
  "reqwest",
  "tokio",
 ]
@@ -1848,6 +1849,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d329bdeac514ee06249dabc27877490f17f5d371ec693360768b838e19f3ae10"
 dependencies = [
  "simd-adler32",
+]
+
+[[package]]
+name = "file-id"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e13be71e6ca82e91bc0cb862bebaac0b2d1924a5a1d970c822b2f98b63fda8c3"
+dependencies = [
+ "winapi-util",
 ]
 
 [[package]]
@@ -3675,9 +3685,9 @@ dependencies = [
 
 [[package]]
 name = "notify"
-version = "6.0.0"
+version = "6.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4d9ba6c734de18ca27c8cef5cd7058aa4ac9f63596131e4c7e41e579319032a2"
+checksum = "5738a2795d57ea20abec2d6d76c6081186709c0024187cd5977265eda6598b51"
 dependencies = [
  "bitflags",
  "crossbeam-channel",
@@ -3689,6 +3699,19 @@ dependencies = [
  "mio 0.8.6",
  "walkdir",
  "windows-sys 0.45.0",
+]
+
+[[package]]
+name = "notify-debouncer-full"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "416969970ec751a5d702a88c6cd19ac1332abe997fce43f96db0418550426241"
+dependencies = [
+ "crossbeam-channel",
+ "file-id",
+ "notify 6.0.1",
+ "parking_lot",
+ "walkdir",
 ]
 
 [[package]]
