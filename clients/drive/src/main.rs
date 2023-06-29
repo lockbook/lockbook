@@ -1,25 +1,12 @@
+mod import;
+
 use clap::Parser;
-use fs::metadata;
-use is_terminal::IsTerminal;
-use std::fs::{self, File};
-use std::io::{self, Read};
-use std::path::{Path, PathBuf};
-use std::thread;
-use std::time::Duration;
-
-//extern crate notify;
-
-use notify::EventKind;
-use notify::{Config, RecommendedWatcher, RecursiveMode, Watcher};
-use std::sync::mpsc::channel;
-//use std::time::Duration;
-//use lockbook_core::CoreLib;
-//use lockbook_shared;
-
 use lb::Core;
-//use self::error::CliError;
-
-use notify_debouncer_full::{notify::*, new_debouncer, DebounceEventResult};
+use notify::{Config, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
+use std::fs::{self, File};
+use std::io::Read;
+use std::path::PathBuf;
+use std::sync::mpsc::channel;
 
 #[derive(Parser, Debug)]
 #[command(version, about)]
@@ -32,7 +19,7 @@ fn main() {
     let c = core();
     let cmd = Command::parse();
     match cmd {
-        Command::Import => import_acct(&c),
+        Command::Import => import::import(&c),
         Command::LocalSync { location } => {
             c.get_account().unwrap();
             println!("{:?}", location);
@@ -41,31 +28,13 @@ fn main() {
     }
 }
 
-fn import_acct(core: &Core) {
-    if std::io::stdin().is_terminal() {
-        panic!("to import an existing lockbook account, pipe your account string into this command, e.g.:\npbpaste | drive import");
-    }
-
-    let mut account_string = String::new();
-    std::io::stdin()
-        .read_line(&mut account_string)
-        .expect("failed to read from stdin");
-    account_string.retain(|c| !c.is_whitespace());
-
-    println!("importing account...");
-    core.import_account(&account_string).unwrap();
-
-    println!("account imported!");
-}
-
 fn core() -> Core {
     let writeable_path = format!("{}/.lockbook/drive", std::env::var("HOME").unwrap());
 
     Core::init(&lb::Config { writeable_path, logs: true, colored_logs: true }).unwrap()
 }
 
-fn check_for_changes(core: &Core, mut dest: PathBuf) -> notify::Result<()> {
-    //sync(&core).unwrap();
+fn sync(core: &Core) {
     core.sync(Some(Box::new(|sp: lb::SyncProgress| {
         use lb::ClientWorkUnit::*;
         match sp.current_work_unit {
@@ -76,84 +45,67 @@ fn check_for_changes(core: &Core, mut dest: PathBuf) -> notify::Result<()> {
         };
     })))
     .unwrap();
+}
+
+fn check_for_changes(core: &Core, mut dest: PathBuf) -> notify::Result<()> {
+    sync(core);
 
     core.export_file(core.get_root().unwrap().id, dest.clone(), false, None)
         .unwrap();
     File::open(&dest).unwrap().sync_all().unwrap();
 
     // Create a channel to receive file events
-    //let (tx, rx) = channel();
-    let (tx, rx) = std::sync::mpsc::channel();
-
+    let (tx, rx) = channel();
 
     dest.push(core.get_root().unwrap().name);
     dest = dest.canonicalize().unwrap();
 
-
     // Create a new watcher object
-    //let mut watcher = RecommendedWatcher::new(tx, Config::default())?;
-    let mut debouncer = new_debouncer(Duration::from_secs(2), None, tx)?;
+    let mut watcher = RecommendedWatcher::new(tx, Config::default())?;
 
     // Register the file for watching
-    //watcher.watch(&dest, RecursiveMode::Recursive)?;
-    debouncer
-        .watcher()
-        .watch(&dest, RecursiveMode::Recursive)?;
+    watcher.watch(&dest, RecursiveMode::Recursive)?;
 
-    debouncer
-        .cache()
-        .add_root(&dest, RecursiveMode::Recursive);
-
-    //let mut length;
+    let mut length;
     println!("Watching for changes in {:?}", dest);
     for res in rx {
         println!("{:#?}", res);
         match res {
             Ok(event) => {
-                // match event.kind {
-                //     EventKind::Any => {}
-                //     EventKind::Access(_) => {}
-                //     EventKind::Create(_) => {
-                //         let core_path = get_lockbook_path(event.paths[0].clone(), dest.clone());
-                //         let check = core.get_by_path(core_path.to_str().unwrap());
-                //         if check.is_err() {
-                //             core.create_at_path(core_path.to_str().unwrap()).unwrap();
-                //         } else {
-                //             println!("{:?}", event);
-                //         }
-                //     }
-                //     EventKind::Modify(_) => {
-                //         let mut f = File::open(event.paths[0].clone()).unwrap();
-                //         length = fs::metadata(event.paths[0].clone())?.len();
-                //         let l = length as usize;
-                //         let mut buffer = vec![0; l];
-                //         //let content = f.read(&mut buffer)?;
-                //         f.read(&mut buffer).unwrap();
-                //         println!("{:?}", &buffer[..]);
-                //         let core_path = get_lockbook_path(event.paths[0].clone(), dest.clone());
-                //         let to_modify = core.get_by_path(core_path.to_str().unwrap()).unwrap();
-                //         core.write_document(to_modify.id, &buffer[..]).unwrap();
-                //     }
-                //     EventKind::Remove(_) => {
-                //         let core_path = get_lockbook_path(event.paths[0].clone(), dest.clone());
-                //         let to_delete = core.get_by_path(core_path.to_str().unwrap()).unwrap();
-                //         core.delete_file(to_delete.id).unwrap();
-                //     }
-                //     EventKind::Other => {}
-                // }
+                match event.kind {
+                    EventKind::Any => {}
+                    EventKind::Access(_) => {}
+                    EventKind::Create(_) => {
+                        let core_path = get_lockbook_path(event.paths[0].clone(), dest.clone());
+                        let check = core.get_by_path(core_path.to_str().unwrap());
+                        if check.is_err() {
+                            core.create_at_path(core_path.to_str().unwrap()).unwrap();
+                        } else {
+                            println!("{:?}", event);
+                        }
+                    }
+                    EventKind::Modify(_) => {
+                        let mut f = File::open(event.paths[0].clone()).unwrap();
+                        length = fs::metadata(event.paths[0].clone())?.len();
+                        let l = length as usize;
+                        let mut buffer = vec![0; l];
+                        //let content = f.read(&mut buffer)?;
+                        f.read(&mut buffer).unwrap();
+                        println!("{:?}", &buffer[..]);
+                        let core_path = get_lockbook_path(event.paths[0].clone(), dest.clone());
+                        let to_modify = core.get_by_path(core_path.to_str().unwrap()).unwrap();
+                        core.write_document(to_modify.id, &buffer[..]).unwrap();
+                    }
+                    EventKind::Remove(_) => {
+                        let core_path = get_lockbook_path(event.paths[0].clone(), dest.clone());
+                        let to_delete = core.get_by_path(core_path.to_str().unwrap()).unwrap();
+                        core.delete_file(to_delete.id).unwrap();
+                    }
+                    EventKind::Other => {}
+                }
             }
             Err(e) => println!("watch error: {:?}", e),
         }
-        // core.sync(Some(Box::new(|sp: lb::SyncProgress| {
-        //     use lb::ClientWorkUnit::*;
-        //     match sp.current_work_unit {
-        //         PullMetadata => println!("pulling file tree updates"),
-        //         PushMetadata => println!("pushing file tree updates"),
-        //         PullDocument(f) => println!("pulling: {}", f.name),
-        //         PushDocument(f) => println!("pushing: {}", f.name),
-        //     };
-        // })))
-        // .unwrap();
     }
 
     Ok(())
