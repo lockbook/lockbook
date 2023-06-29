@@ -171,7 +171,7 @@ where
             .index_db
             .lock()?
             .stripe_ids
-            .data()
+            .get()
             .get(&customer_id)
             .copied()
             .ok_or_else(|| {

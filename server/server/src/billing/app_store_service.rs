@@ -37,7 +37,7 @@ where
             .index_db
             .lock()?
             .app_store_ids
-            .data()
+            .get()
             .get(&trans.app_account_token)
             .ok_or_else(|| {
                 internal!("There is no public_key related to this app_account_token: {:?}", trans)

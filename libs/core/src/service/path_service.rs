@@ -11,13 +11,9 @@ impl<Client: Requester> CoreState<Client> {
         let mut tree = (&self.db.base_metadata)
             .to_staged(&mut self.db.local_metadata)
             .to_lazy();
-        let account = self
-            .db
-            .account
-            .data()
-            .ok_or(CoreError::AccountNonexistent)?;
+        let account = self.db.account.get().ok_or(CoreError::AccountNonexistent)?;
 
-        let root = self.db.root.data().ok_or(CoreError::RootNonexistent)?;
+        let root = self.db.root.get().ok_or(CoreError::RootNonexistent)?;
 
         let id = tree.create_link_at_path(path, target_id, root, account, &pub_key)?;
 
@@ -31,13 +27,9 @@ impl<Client: Requester> CoreState<Client> {
         let mut tree = (&self.db.base_metadata)
             .to_staged(&mut self.db.local_metadata)
             .to_lazy();
-        let account = self
-            .db
-            .account
-            .data()
-            .ok_or(CoreError::AccountNonexistent)?;
+        let account = self.db.account.get().ok_or(CoreError::AccountNonexistent)?;
 
-        let root = self.db.root.data().ok_or(CoreError::RootNonexistent)?;
+        let root = self.db.root.get().ok_or(CoreError::RootNonexistent)?;
 
         let id = tree.create_at_path(path, root, account, &pub_key)?;
 
@@ -50,13 +42,9 @@ impl<Client: Requester> CoreState<Client> {
         let mut tree = (&self.db.base_metadata)
             .to_staged(&self.db.local_metadata)
             .to_lazy();
-        let account = self
-            .db
-            .account
-            .data()
-            .ok_or(CoreError::AccountNonexistent)?;
+        let account = self.db.account.get().ok_or(CoreError::AccountNonexistent)?;
 
-        let root = self.db.root.data().ok_or(CoreError::RootNonexistent)?;
+        let root = self.db.root.get().ok_or(CoreError::RootNonexistent)?;
 
         let id = tree.path_to_id(path, root, account)?;
 
@@ -69,11 +57,7 @@ impl<Client: Requester> CoreState<Client> {
         let mut tree = (&self.db.base_metadata)
             .to_staged(&self.db.local_metadata)
             .to_lazy();
-        let account = self
-            .db
-            .account
-            .data()
-            .ok_or(CoreError::AccountNonexistent)?;
+        let account = self.db.account.get().ok_or(CoreError::AccountNonexistent)?;
         let path = tree.id_to_path(&id, account)?;
 
         Ok(path)
@@ -83,11 +67,7 @@ impl<Client: Requester> CoreState<Client> {
         let mut tree = (&self.db.base_metadata)
             .to_staged(&self.db.local_metadata)
             .to_lazy();
-        let account = self
-            .db
-            .account
-            .data()
-            .ok_or(CoreError::AccountNonexistent)?;
+        let account = self.db.account.get().ok_or(CoreError::AccountNonexistent)?;
         let paths = tree.list_paths(filter, account)?;
 
         Ok(paths)

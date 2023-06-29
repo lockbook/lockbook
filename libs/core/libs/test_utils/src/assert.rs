@@ -26,18 +26,18 @@ pub fn cores_equal(left: &Core, right: &Core) {
     assert_eq!(&left.get_root().unwrap(), &right.get_root().unwrap());
     assert_eq!(
         &left
-            .in_tx(|s| Ok(s.db.local_metadata.data().clone()))
+            .in_tx(|s| Ok(s.db.local_metadata.get().clone()))
             .unwrap(),
         &right
-            .in_tx(|s| Ok(s.db.local_metadata.data().clone()))
+            .in_tx(|s| Ok(s.db.local_metadata.get().clone()))
             .unwrap()
     );
     assert_eq!(
         &left
-            .in_tx(|s| Ok(s.db.base_metadata.data().clone()))
+            .in_tx(|s| Ok(s.db.base_metadata.get().clone()))
             .unwrap(),
         &right
-            .in_tx(|s| Ok(s.db.base_metadata.data().clone()))
+            .in_tx(|s| Ok(s.db.base_metadata.get().clone()))
             .unwrap()
     );
 }
@@ -181,7 +181,7 @@ pub fn local_work_paths(db: &Core, expected_paths: &[&'static str]) {
     let mut expected_paths = expected_paths.to_vec();
     let mut actual_paths = db
         .in_tx(|s| {
-            let account = s.db.account.data().unwrap();
+            let account = s.db.account.get().unwrap();
             let mut local = s.db.base_metadata.stage(&mut s.db.local_metadata).to_lazy();
             Ok(dirty
                 .iter()
@@ -210,13 +210,13 @@ pub fn server_work_paths(core: &Core, expected_paths: &[&'static str]) {
     let mut expected_paths = expected_paths.to_vec();
     let mut actual_paths = core
         .in_tx(|s| {
-            let account = s.db.account.data().unwrap();
+            let account = s.db.account.get().unwrap();
             let remote_changes = s
                 .client
                 .request(
                     account,
                     GetUpdatesRequest {
-                        since_metadata_version: s.db.last_synced.data().copied().unwrap_or_default()
+                        since_metadata_version: s.db.last_synced.get().copied().unwrap_or_default()
                             as u64,
                     },
                 )
