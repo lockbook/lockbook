@@ -96,17 +96,23 @@ pub mod no_network {
     use db_rs::Db;
     use lockbook_server_lib::billing::Nop;
     use lockbook_server_lib::config::*;
+    use lockbook_server_lib::document_service::InMemDocuments;
     use lockbook_server_lib::schema::ServerV4;
     use lockbook_server_lib::{ServerError, ServerState};
     use lockbook_shared::account::Account;
     use lockbook_shared::api::*;
     use lockbook_shared::core_config::Config;
+    use lockbook_shared::crypto::EncryptedDocument;
+    use lockbook_shared::document_repo::DocumentService;
+    use lockbook_shared::file_metadata::DocumentHmac;
     use std::any::Any;
+    use std::collections::{HashMap, HashSet};
     use std::path::PathBuf;
     use std::sync::{Arc, Mutex};
     use std::time::Duration;
     use tokio::runtime;
     use tokio::runtime::Runtime;
+    use uuid::Uuid;
 
     #[derive(Clone)]
     pub struct InProcess {
@@ -115,7 +121,7 @@ pub mod no_network {
     }
 
     pub struct InProcessInternals {
-        pub server_state: ServerState<Nop, Nop, Nop>,
+        pub server_state: ServerState<Nop, Nop, Nop, InMemDocuments>,
         pub runtime: Runtime,
     }
 
@@ -140,9 +146,9 @@ pub mod no_network {
             let app_store_client = Nop {};
 
             let index_db = Arc::new(Mutex::new(
-                ServerV4::init(db_rs::Config::in_folder(&server_config.index_db.db_location))
-                    .expect("Failed to load index_db"),
+                ServerV4::init(db_rs::Config::no_io()).expect("Failed to load index_db"),
             ));
+            let document_service = InMemDocuments::default();
 
             let internals = InProcessInternals {
                 server_state: ServerState {
@@ -151,6 +157,7 @@ pub mod no_network {
                     stripe_client,
                     google_play_client,
                     app_store_client,
+                    document_service,
                 },
                 runtime,
             };
@@ -229,13 +236,14 @@ pub mod no_network {
         }};
     }
 
-    pub type CoreIP = CoreLib<InProcess>;
+    pub type CoreIP = CoreLib<InProcess, CoreInMemDocuments>;
 
-    impl CoreLib<InProcess> {
+    impl CoreLib<InProcess, CoreInMemDocuments> {
         pub fn init_in_process(core_config: &Config, client: InProcess) -> Self {
-            let db = CoreDb::init(db_rs::Config::in_folder(&core_config.writeable_path)).unwrap();
+            let db = CoreDb::init(db_rs::Config::no_io()).unwrap();
             let config = core_config.clone();
-            let state = CoreState { config, public_key: None, db, client };
+            let docs = CoreInMemDocuments::default();
+            let state = CoreState { config, public_key: None, db, client, docs };
             let inner = Arc::new(Mutex::new(state));
 
             Self { inner }
@@ -243,6 +251,75 @@ pub mod no_network {
 
         pub fn client_config(&self) -> Config {
             self.inner.lock().unwrap().client.config.clone()
+        }
+    }
+
+    #[derive(Default, Clone)]
+    pub struct CoreInMemDocuments {
+        docs: Arc<Mutex<HashMap<String, EncryptedDocument>>>,
+    }
+
+    impl DocumentService for CoreInMemDocuments {
+        fn insert(
+            &self, id: &uuid::Uuid, hmac: Option<&lockbook_shared::file_metadata::DocumentHmac>,
+            document: &EncryptedDocument,
+        ) -> lockbook_shared::SharedResult<()> {
+            if let Some(hmac) = hmac {
+                let hmac = base64::encode_config(hmac, base64::URL_SAFE);
+                let key = format!("{id}-{hmac}");
+                self.docs.lock().unwrap().insert(key, document.clone());
+            }
+            Ok(())
+        }
+
+        fn maybe_get(
+            &self, id: &uuid::Uuid, hmac: Option<&lockbook_shared::file_metadata::DocumentHmac>,
+        ) -> lockbook_shared::SharedResult<Option<EncryptedDocument>> {
+            if let Some(hmac) = hmac {
+                let hmac = base64::encode_config(hmac, base64::URL_SAFE);
+                let key = format!("{id}-{hmac}");
+                Ok(self.docs.lock().unwrap().get(&key).cloned())
+            } else {
+                Ok(None)
+            }
+        }
+
+        fn delete(
+            &self, id: &uuid::Uuid, hmac: Option<&lockbook_shared::file_metadata::DocumentHmac>,
+        ) -> lockbook_shared::SharedResult<()> {
+            if let Some(hmac) = hmac {
+                let hmac = base64::encode_config(hmac, base64::URL_SAFE);
+                let key = format!("{id}-{hmac}");
+                self.docs.lock().unwrap().remove(&key);
+            }
+            Ok(())
+        }
+
+        fn retain(
+            &self, file_hmacs: HashSet<(&Uuid, &DocumentHmac)>,
+        ) -> lockbook_shared::SharedResult<()> {
+            let mut keep_keys = HashSet::new();
+            for (id, hmac) in file_hmacs {
+                let hmac = base64::encode_config(hmac, base64::URL_SAFE);
+                let key = format!("{id}-{hmac}");
+                keep_keys.insert(key);
+            }
+
+            let mut delete_keys = vec![];
+            let docs = self.docs.lock().unwrap();
+            for key in docs.keys() {
+                if !keep_keys.contains(key) {
+                    delete_keys.push(key.clone());
+                }
+            }
+            drop(docs);
+
+            let mut docs = self.docs.lock().unwrap();
+            for key in delete_keys {
+                docs.remove(&key);
+            }
+
+            Ok(())
         }
     }
 }

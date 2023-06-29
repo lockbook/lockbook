@@ -6,6 +6,7 @@ use crate::billing::billing_service::LockBillingWorkflowError::{
     ExistingRequestPending, UserNotFound,
 };
 use crate::billing::google_play_model::NotificationType;
+use crate::document_service::DocumentService;
 use crate::schema::Account;
 use crate::ServerError::ClientError;
 use crate::{RequestContext, ServerError, ServerState};
@@ -37,11 +38,12 @@ use super::app_store_client::AppStoreClient;
 use super::google_play_client::GooglePlayClient;
 use super::stripe_client::StripeClient;
 
-impl<S, A, G> ServerState<S, A, G>
+impl<S, A, G, D> ServerState<S, A, G, D>
 where
     S: StripeClient,
     A: AppStoreClient,
     G: GooglePlayClient,
+    D: DocumentService,
 {
     fn lock_subscription_profile(
         &self, public_key: &PublicKey,

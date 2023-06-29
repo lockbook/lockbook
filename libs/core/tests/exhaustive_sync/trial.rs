@@ -449,7 +449,7 @@ impl Trial {
         }
 
         self.end_time = Instant::now();
-        self.cleanup();
+        // self.cleanup();
 
         all_mutations
     }

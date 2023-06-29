@@ -2,6 +2,7 @@ use crate::billing::billing_service::GooglePlayWebhookError;
 use crate::billing::google_play_model::{
     DeveloperNotification, NotificationType, PubSubNotification, SubscriptionNotification,
 };
+use crate::document_service::DocumentService;
 use crate::{ClientError, ServerError, ServerState};
 use google_androidpublisher3::api::SubscriptionPurchase;
 use google_androidpublisher3::hyper::body::Bytes;
@@ -14,11 +15,12 @@ use super::app_store_client::AppStoreClient;
 use super::google_play_client::GooglePlayClient;
 use super::stripe_client::StripeClient;
 
-impl<S, A, G> ServerState<S, A, G>
+impl<S, A, G, D> ServerState<S, A, G, D>
 where
     S: StripeClient,
     A: AppStoreClient,
     G: GooglePlayClient,
+    D: DocumentService,
 {
     pub fn get_public_key_from_subnotif(
         &self, sub_notif: &SubscriptionNotification, subscription: &SubscriptionPurchase,

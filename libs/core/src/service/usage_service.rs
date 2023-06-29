@@ -1,3 +1,4 @@
+use lockbook_shared::document_repo::DocumentService;
 use serde::Serialize;
 
 use lockbook_shared::api::{FileUsage, GetUsageRequest, GetUsageResponse};
@@ -21,7 +22,7 @@ pub struct UsageItemMetric {
     pub readable: String,
 }
 
-impl<Client: Requester> CoreState<Client> {
+impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {
     fn server_usage(&self) -> LbResult<GetUsageResponse> {
         let acc = &self.get_account()?;
 
@@ -56,7 +57,7 @@ impl<Client: Requester> CoreState<Client> {
             let file = tree.find(&id)?;
 
             if !is_file_deleted && file.is_document() {
-                let doc = tree.read_document(&self.config, &id, account)?;
+                let doc = tree.read_document(&self.docs, &id, account)?;
                 local_usage += doc.len() as u64
             }
         }

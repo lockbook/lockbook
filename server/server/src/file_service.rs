@@ -1,6 +1,7 @@
 use crate::billing::app_store_client::AppStoreClient;
 use crate::billing::google_play_client::GooglePlayClient;
 use crate::billing::stripe_client::StripeClient;
+use crate::document_service::DocumentService;
 use crate::file_service::UpsertError::UsageIsOverDataCap;
 use crate::schema::ServerDb;
 use crate::ServerError;
@@ -21,11 +22,12 @@ use std::hash::Hash;
 use std::ops::DerefMut;
 use tracing::{debug, error, warn};
 
-impl<S, A, G> ServerState<S, A, G>
+impl<S, A, G, D> ServerState<S, A, G, D>
 where
     S: StripeClient,
     A: AppStoreClient,
     G: GooglePlayClient,
+    D: DocumentService,
 {
     pub async fn upsert_file_metadata(
         &self, context: RequestContext<UpsertRequest>,
@@ -181,7 +183,7 @@ where
         }
 
         for (id, hmac) in new_deleted {
-            self.delete(&id, &hmac).await?;
+            self.document_service.delete(&id, &hmac).await?;
             let hmac = base64::encode_config(hmac, base64::URL_SAFE);
             debug!(?id, ?hmac, "Deleted document contents");
         }
@@ -301,12 +303,13 @@ where
 
         let new_version = get_time().0 as u64;
         let new = request.diff.new.clone().add_time(new_version);
-        self.insert(
-            request.diff.new.id(),
-            request.diff.new.document_hmac().unwrap(),
-            &request.new_content,
-        )
-        .await?;
+        self.document_service
+            .insert(
+                request.diff.new.id(),
+                request.diff.new.document_hmac().unwrap(),
+                &request.new_content,
+            )
+            .await?;
         debug!(?id, ?hmac, "Inserted document contents");
 
         let result = || {
@@ -352,7 +355,8 @@ where
 
         if result.is_err() {
             // Cleanup the NEW file created if, for some reason, the tx failed
-            self.delete(request.diff.new.id(), request.diff.new.document_hmac().unwrap())
+            self.document_service
+                .delete(request.diff.new.id(), request.diff.new.document_hmac().unwrap())
                 .await?;
             debug!(?id, ?hmac, "Cleaned up new document contents after failed metadata update");
         }
@@ -361,7 +365,9 @@ where
 
         // New
         if let Some(hmac) = request.diff.old.unwrap().document_hmac() {
-            self.delete(request.diff.new.id(), hmac).await?;
+            self.document_service
+                .delete(request.diff.new.id(), hmac)
+                .await?;
             let old_hmac = base64::encode_config(hmac, base64::URL_SAFE);
             debug!(
                 ?id,
@@ -417,7 +423,10 @@ where
             tx.drop_safely()?;
         }
 
-        let content = self.get(&request.id, &request.hmac).await?;
+        let content = self
+            .document_service
+            .get(&request.id, &request.hmac)
+            .await?;
         Ok(GetDocumentResponse { content })
     }
 
@@ -592,7 +601,7 @@ where
         }
 
         for (id, version) in docs_to_delete {
-            self.delete(&id, &version).await?;
+            self.document_service.delete(&id, &version).await?;
         }
 
         Ok(())
@@ -642,7 +651,10 @@ where
                         result.documents_missing_size.push(id);
                     }
 
-                    if !self.exists(&id, file.document_hmac().unwrap()) {
+                    if !self
+                        .document_service
+                        .exists(&id, file.document_hmac().unwrap())
+                    {
                         result.documents_missing_content.push(id);
                     }
                 }
@@ -842,7 +854,7 @@ where
         // validate presence of documents
         for (id, meta) in db.metas.get().clone() {
             if let Some(hmac) = meta.document_hmac() {
-                if !deleted_ids.contains(&id) && !self.exists(&id, hmac) {
+                if !deleted_ids.contains(&id) && !self.document_service.exists(&id, hmac) {
                     result.files_with_hmacs_and_no_contents.insert(id);
                 }
             }

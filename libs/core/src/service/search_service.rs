@@ -1,5 +1,6 @@
 use crate::{CoreError, CoreState, LbResult, Requester, UnexpectedError};
 use crossbeam::channel::{self, Receiver, RecvTimeoutError, Sender};
+use lockbook_shared::document_repo::DocumentService;
 use lockbook_shared::file_like::FileLike;
 use lockbook_shared::filename::DocumentType;
 use lockbook_shared::tree_like::TreeLike;
@@ -43,7 +44,7 @@ impl PartialOrd for SearchResultItem {
     }
 }
 
-impl<Client: Requester> CoreState<Client> {
+impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {
     pub(crate) fn search_file_paths(&mut self, input: &str) -> LbResult<Vec<SearchResultItem>> {
         if input.is_empty() {
             return Ok(Vec::new());
@@ -99,7 +100,7 @@ impl<Client: Requester> CoreState<Client> {
                         &tree.name_using_links(&id, account)?,
                     ) {
                         DocumentType::Text => {
-                            let doc = tree.read_document(&self.config, &id, account)?;
+                            let doc = tree.read_document(&self.docs, &id, account)?;
                             match String::from_utf8(doc) {
                                 Ok(str) => Some(str),
                                 Err(utf_8) => {
@@ -156,7 +157,7 @@ impl<Client: Requester> CoreState<Client> {
         let debounce_duration = Duration::from_millis(DEBOUNCE_MILLIS);
 
         loop {
-            let search = CoreState::<Client>::recv_with_debounce(&search_rx, debounce_duration)?;
+            let search = Self::recv_with_debounce(&search_rx, debounce_duration)?;
             should_continue.store(false, atomic::Ordering::Relaxed);
 
             match search {
@@ -169,12 +170,9 @@ impl<Client: Requester> CoreState<Client> {
                     let input = input.clone();
 
                     thread::spawn(move || {
-                        if let Err(search_err) = CoreState::<Client>::search(
-                            &results_tx,
-                            files_info,
-                            should_continue,
-                            input,
-                        ) {
+                        if let Err(search_err) =
+                            Self::search(&results_tx, files_info, should_continue, input)
+                        {
                             if let Err(err) = results_tx.send(SearchResult::Error(search_err)) {
                                 warn!("Send failed: {:#?}", err);
                             }
@@ -193,7 +191,7 @@ impl<Client: Requester> CoreState<Client> {
     ) -> Result<(), UnexpectedError> {
         let mut no_matches = true;
 
-        CoreState::<Client>::search_file_names(
+        Self::search_file_names(
             results_tx,
             &should_continue,
             &files_info,
@@ -202,7 +200,7 @@ impl<Client: Requester> CoreState<Client> {
         )?;
 
         if should_continue.load(atomic::Ordering::Relaxed) {
-            CoreState::<Client>::search_file_contents(
+            Self::search_file_contents(
                 results_tx,
                 &should_continue,
                 &files_info,
@@ -280,11 +278,10 @@ impl<Client: Requester> CoreState<Client> {
                         let score = fuzzy_match.score() as i64;
 
                         if score >= LOWEST_CONTENT_SCORE_THRESHOLD {
-                            let (paragraph, matched_indices) =
-                                CoreState::<Client>::optimize_searched_text(
-                                    paragraph,
-                                    fuzzy_match.matched_indices().cloned().collect(),
-                                )?;
+                            let (paragraph, matched_indices) = Self::optimize_searched_text(
+                                paragraph,
+                                fuzzy_match.matched_indices().cloned().collect(),
+                            )?;
 
                             content_matches.push(ContentMatch {
                                 paragraph,
