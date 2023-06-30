@@ -162,10 +162,13 @@ impl AccountScreen {
                         self.modals.file_picker = Some(FilePicker::new(self.core.clone(), target));
                     }
                 },
-                AccountUpdate::ShareCreated => {
-                    self.modals.file_picker = None;
-                    self.perform_sync(ctx);
-                }
+                AccountUpdate::ShareCreated(result) => match result {
+                    Ok(_) => {
+                        self.modals.file_picker = None;
+                        self.perform_sync(ctx);
+                    }
+                    Err(msg) => self.modals.error = Some(ErrorModal::new(msg)),
+                },
                 AccountUpdate::FileCreated(result) => match result {
                     Ok(f) => {
                         let (id, is_doc) = (f.id, f.is_document());
@@ -637,11 +640,11 @@ impl AccountScreen {
         let update_tx = self.update_tx.clone();
 
         thread::spawn(move || {
-            core.create_file(&target.name, parent.id, lb::FileType::Link { target: target.id })
-                .map_err(|err| format!("{:?}", err))
-                .unwrap();
+            let result = core
+                .create_file(&target.name, parent.id, lb::FileType::Link { target: target.id })
+                .map_err(|err| format!("{:?}", err));
 
-            update_tx.send(AccountUpdate::ShareCreated).unwrap()
+            update_tx.send(AccountUpdate::ShareCreated(result)).unwrap()
         });
     }
     fn delete_share(&self, target: lb::File) {
@@ -729,7 +732,8 @@ enum AccountUpdate {
     FileDeleted(lb::File),
 
     SyncUpdate(SyncUpdate),
-    ShareCreated,
+
+    ShareCreated(Result<lb::File, String>),
 
     DoneDeleting,
 
