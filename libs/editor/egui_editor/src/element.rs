@@ -3,7 +3,7 @@ use egui::{FontFamily, Stroke, TextFormat};
 use pulldown_cmark::{HeadingLevel, LinkType};
 use std::sync::Arc;
 
-#[derive(Clone, PartialEq, Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub enum Element {
     #[default]
     Document,
@@ -29,6 +29,36 @@ pub enum Element {
     // Head/tail characters of ast node e.g. underscores in '__bold__'
     Syntax,
 }
+
+// Ignore some inner values in enum variant comparison
+// Note: you need to remember to incorporate new variants here!
+impl PartialEq for Element {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Element::Document, Element::Document)
+            | (Element::Paragraph, Element::Paragraph)
+            | (Element::QuoteBlock, Element::QuoteBlock)
+            | (Element::CodeBlock, Element::CodeBlock)
+            | (Element::InlineCode, Element::InlineCode)
+            | (Element::Strong, Element::Strong)
+            | (Element::Emphasis, Element::Emphasis)
+            | (Element::Strikethrough, Element::Strikethrough)
+            | (Element::Link(..), Element::Link(..))
+            | (Element::Image(..), Element::Image(..))
+            | (Element::Selection, Element::Selection)
+            | (Element::Syntax, Element::Syntax) => true,
+            (Element::Heading(heading_level_a), Element::Heading(heading_level_b)) => {
+                heading_level_a == heading_level_b
+            }
+            (Element::Item(item_type_a, ..), Element::Item(item_type_b, ..)) => {
+                item_type_a == item_type_b
+            }
+            _ => false,
+        }
+    }
+}
+
+impl Eq for Element {}
 
 impl Element {
     pub fn apply_style(&self, text_format: &mut TextFormat, vis: &Appearance) {

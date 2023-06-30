@@ -1,6 +1,7 @@
+use crate::ast::Ast;
 use crate::bounds::Paragraphs;
 use crate::buffer::{EditorMutation, Mutation, SubBuffer, SubMutation};
-use crate::element::ItemType;
+use crate::element::{Element, ItemType};
 use crate::galleys::Galleys;
 use crate::input::canonical::{Bound, Location, Modification, Offset, Region};
 use crate::input::cursor::Cursor;
@@ -13,6 +14,7 @@ use unicode_segmentation::UnicodeSegmentation;
 
 pub fn calc(
     modification: Modification, buffer: &SubBuffer, galleys: &Galleys, paragraphs: &Paragraphs,
+    ast: &Ast,
 ) -> EditorMutation {
     let current_cursor = buffer.cursor;
     let mut mutation = Vec::new();
@@ -52,6 +54,17 @@ pub fn calc(
                 cursor: region_to_cursor(region, current_cursor, buffer, galleys, paragraphs),
             });
             mutation.push(SubMutation::Insert { text, advance_cursor: true });
+            mutation.push(SubMutation::Cursor { cursor: current_cursor });
+        }
+        Modification::ToggleStyle { region, style } => {
+            let cursor = region_to_cursor(region, current_cursor, buffer, galleys, paragraphs);
+            apply_style(
+                cursor,
+                style.clone(),
+                region_completely_styled(cursor, style, ast),
+                ast,
+                &mut mutation,
+            );
             mutation.push(SubMutation::Cursor { cursor: current_cursor });
         }
         Modification::Newline { advance_cursor } => {
@@ -387,30 +400,6 @@ pub fn calc(
 
             mutation.push(SubMutation::Cursor { cursor: current_cursor });
         }
-        Modification::Bold => {
-            mutation.push(SubMutation::Cursor { cursor: current_cursor.selection.start().into() });
-            mutation.push(SubMutation::Insert { text: "__".to_string(), advance_cursor: true });
-            mutation.push(SubMutation::Cursor { cursor: current_cursor.selection.end().into() });
-            mutation.push(SubMutation::Insert { text: "__".to_string(), advance_cursor: false });
-
-            mutation.push(SubMutation::Cursor { cursor: current_cursor });
-        }
-        Modification::Italic => {
-            mutation.push(SubMutation::Cursor { cursor: current_cursor.selection.start().into() });
-            mutation.push(SubMutation::Insert { text: "_".to_string(), advance_cursor: true });
-            mutation.push(SubMutation::Cursor { cursor: current_cursor.selection.end().into() });
-            mutation.push(SubMutation::Insert { text: "_".to_string(), advance_cursor: false });
-
-            mutation.push(SubMutation::Cursor { cursor: current_cursor });
-        }
-        Modification::Code => {
-            mutation.push(SubMutation::Cursor { cursor: current_cursor.selection.start().into() });
-            mutation.push(SubMutation::Insert { text: "`".to_string(), advance_cursor: true });
-            mutation.push(SubMutation::Cursor { cursor: current_cursor.selection.end().into() });
-            mutation.push(SubMutation::Insert { text: "`".to_string(), advance_cursor: false });
-
-            mutation.push(SubMutation::Cursor { cursor: current_cursor });
-        }
         Modification::BulletListItem => {
             let galley_idx = galleys.galley_at_char(current_cursor.selection.start());
             let galley = &galleys.galleys[galley_idx];
@@ -563,7 +552,214 @@ pub fn calc(
     EditorMutation::Buffer(mutation)
 }
 
-pub fn list_mutation_replacement(
+/// Returns true if all text in `cursor` has style `style`
+fn region_completely_styled(cursor: Cursor, style: Element, ast: &Ast) -> bool {
+    if cursor.selection.is_empty() {
+        return false;
+    }
+
+    for text_range in ast.iter_text_ranges() {
+        // skip ranges before or after the cursor
+        if text_range.range.end() <= cursor.selection.start() {
+            continue;
+        }
+        if cursor.selection.end() <= text_range.range.start() {
+            break;
+        }
+
+        // look for at least one ancestor that applies the style
+        let mut styled = false;
+        for ancestor in text_range.ancestors {
+            if ast.nodes[ancestor].element == style {
+                styled = true;
+                break;
+            }
+        }
+
+        if !styled {
+            return false;
+        }
+    }
+
+    true
+}
+
+/// Applies or unapplies `style` to `cursor`, splitting or joining surrounding styles as necessary.
+/// todo: handle case when cursor bounds in syntax chars
+/// todo: add/capture necessary spaces
+fn apply_style(
+    cursor: Cursor, style: Element, unapply: bool, ast: &Ast, mutation: &mut Vec<SubMutation>,
+) {
+    if cursor.selection.is_empty() {
+        return;
+    }
+
+    // find range containing cursor start and cursor end
+    let mut start_range = None;
+    let mut end_range = None;
+    for text_range in ast.iter_text_ranges() {
+        // when at bound, start prefers next
+        if text_range.range.start() <= cursor.selection.start()
+            && cursor.selection.start() < text_range.range.end()
+        {
+            start_range = Some(text_range.clone());
+        }
+        // when at bound, end prefers previous
+        if text_range.range.start() < cursor.selection.end()
+            && cursor.selection.end() <= text_range.range.end()
+        {
+            end_range = Some(text_range);
+        }
+    }
+
+    // start always has next because if it were at doc end, selection would be empty (early return above)
+    // end always has previous because if it were at doc start, selection would be empty (early return above)
+    let start_range = start_range.unwrap();
+    let end_range = end_range.unwrap();
+
+    // modify head/tail for nodes containing cursor start and cursor end
+    let mut last_start_ancestor: Option<usize> = None;
+    for &ancestor in &start_range.ancestors {
+        // dehead and detail all but the last ancestor applying the style
+        if let Some(prev_ancestor) = last_start_ancestor {
+            dehead_ast_node(prev_ancestor, ast, mutation);
+            detail_ast_node(prev_ancestor, ast, mutation);
+        }
+        if ast.nodes[ancestor].element == style {
+            last_start_ancestor = Some(ancestor);
+        }
+    }
+    let mut last_end_ancestor: Option<usize> = None;
+    for &ancestor in &end_range.ancestors {
+        // dehead and detail all but the last ancestor applying the style
+        if let Some(prev_ancestor) = last_end_ancestor {
+            dehead_ast_node(prev_ancestor, ast, mutation);
+            detail_ast_node(prev_ancestor, ast, mutation);
+        }
+        if ast.nodes[ancestor].element == style {
+            last_end_ancestor = Some(ancestor);
+        }
+    }
+    if last_start_ancestor != last_end_ancestor {
+        if let Some(last_start_ancestor) = last_start_ancestor {
+            detail_ast_node(last_start_ancestor, ast, mutation);
+        }
+        if let Some(last_end_ancestor) = last_end_ancestor {
+            dehead_ast_node(last_end_ancestor, ast, mutation);
+        }
+    }
+    if unapply {
+        if let Some(last_start_ancestor) = last_start_ancestor {
+            if ast.nodes[last_start_ancestor].text_range.start() < cursor.selection.start() {
+                insert_tail(cursor.selection.start(), style.clone(), mutation);
+            } else {
+                dehead_ast_node(last_start_ancestor, ast, mutation);
+            }
+        }
+        if let Some(last_end_ancestor) = last_end_ancestor {
+            if ast.nodes[last_end_ancestor].text_range.end() > cursor.selection.end() {
+                insert_head(cursor.selection.end(), style.clone(), mutation);
+            } else {
+                detail_ast_node(last_end_ancestor, ast, mutation);
+            }
+        }
+    } else {
+        if last_start_ancestor.is_none() {
+            insert_head(cursor.selection.start(), style.clone(), mutation)
+        }
+        if last_end_ancestor.is_none() {
+            insert_tail(cursor.selection.end(), style.clone(), mutation)
+        }
+    }
+
+    // remove head and tail for nodes between nodes containing start and end
+    let mut found_start_range = false;
+    for text_range in ast.iter_text_ranges() {
+        if !found_start_range {
+            // skip ranges until we pass the range containing the selection start
+            if text_range.range.start() <= cursor.selection.start()
+                && cursor.selection.start() < text_range.range.end()
+            {
+                found_start_range = true;
+            }
+        } else if text_range.range.start() < cursor.selection.end()
+            && cursor.selection.end() <= text_range.range.end()
+        {
+            // stop when we find the range containing the selection end
+            break;
+        } else if text_range.element(ast) == style {
+            // dehead and detail nodes with this style in the middle, aside from those already considered
+            let node_idx = text_range.ancestors.last().copied().unwrap();
+            if start_range.ancestors.iter().any(|&a| a == node_idx) {
+                continue;
+            }
+            if end_range.ancestors.iter().any(|&a| a == node_idx) {
+                continue;
+            }
+            dehead_ast_node(node_idx, ast, mutation);
+            detail_ast_node(node_idx, ast, mutation);
+        }
+    }
+}
+
+fn dehead_ast_node(node_idx: usize, ast: &Ast, mutation: &mut Vec<SubMutation>) {
+    let node = &ast.nodes[node_idx];
+    mutation
+        .push(SubMutation::Cursor { cursor: (node.range.start(), node.text_range.start()).into() });
+    mutation.push(SubMutation::Insert { text: "".to_string(), advance_cursor: true });
+}
+
+fn detail_ast_node(node_idx: usize, ast: &Ast, mutation: &mut Vec<SubMutation>) {
+    let node = &ast.nodes[node_idx];
+    mutation.push(SubMutation::Cursor { cursor: (node.text_range.end(), node.range.end()).into() });
+    mutation.push(SubMutation::Insert { text: "".to_string(), advance_cursor: false });
+}
+
+fn insert_head(offset: DocCharOffset, style: Element, mutation: &mut Vec<SubMutation>) {
+    let text = match style {
+        Element::Emphasis => "_",
+        Element::InlineCode => "`",
+        Element::Strikethrough => "~~",
+        Element::Strong => "__",
+        Element::Document
+        | Element::Heading(_)
+        | Element::Paragraph
+        | Element::QuoteBlock
+        | Element::CodeBlock
+        | Element::Item(_, _)
+        | Element::Link(_, _, _)
+        | Element::Image(_, _, _)
+        | Element::Selection
+        | Element::Syntax => unimplemented!(),
+    }
+    .to_string();
+    mutation.push(SubMutation::Cursor { cursor: offset.into() });
+    mutation.push(SubMutation::Insert { text, advance_cursor: true });
+}
+
+fn insert_tail(offset: DocCharOffset, style: Element, mutation: &mut Vec<SubMutation>) {
+    let text = match style {
+        Element::Emphasis => "_",
+        Element::InlineCode => "`",
+        Element::Strikethrough => "~~",
+        Element::Strong => "__",
+        Element::Document
+        | Element::Heading(_)
+        | Element::Paragraph
+        | Element::QuoteBlock
+        | Element::CodeBlock
+        | Element::Item(_, _)
+        | Element::Link(_, _, _)
+        | Element::Image(_, _, _)
+        | Element::Selection
+        | Element::Syntax => unimplemented!(),
+    }
+    .to_string();
+    mutation.push(SubMutation::Cursor { cursor: offset.into() });
+    mutation.push(SubMutation::Insert { text, advance_cursor: false });
+}
+
+fn list_mutation_replacement(
     mutation: &mut Vec<SubMutation>, buffer: &SubBuffer, galleys: &Galleys,
     paragraphs: &Paragraphs, current_cursor: Cursor, from: ItemType, to: Option<ItemType>,
 ) {
