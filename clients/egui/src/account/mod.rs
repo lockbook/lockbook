@@ -148,6 +148,7 @@ impl AccountScreen {
                 AccountUpdate::OpenModal(open_modal) => match open_modal {
                     OpenModal::NewDoc(maybe_parent) => self.open_new_doc_modal(maybe_parent),
                     OpenModal::NewFolder(maybe_parent) => self.open_new_folder_modal(maybe_parent),
+                    OpenModal::InitiateShare(target) => self.open_share_modal(target),
                     OpenModal::Settings => {
                         self.modals.settings = Some(SettingsModal::new(&self.core, &self.settings));
                     }
@@ -251,6 +252,17 @@ impl AccountScreen {
                         s.done_syncing = true;
                     }
                 }
+                AccountUpdate::FileShared(result) => match result {
+                    Ok(_) => {
+                        self.modals.create_share = None;
+                        self.perform_sync(ctx);
+                    }
+                    Err(msg) => {
+                        if let Some(m) = &mut self.modals.create_share {
+                            m.err_msg = Some(msg)
+                        }
+                    }
+                },
             }
         }
     }
@@ -353,6 +365,13 @@ impl AccountScreen {
         if let Some(file) = resp.new_folder_modal {
             self.update_tx
                 .send(OpenModal::NewFolder(Some(file)).into())
+                .unwrap();
+            ui.ctx().request_repaint();
+        }
+
+        if let Some(file) = resp.create_share_modal {
+            self.update_tx
+                .send(OpenModal::InitiateShare(file).into())
                 .unwrap();
             ui.ctx().request_repaint();
         }
@@ -469,6 +488,10 @@ impl AccountScreen {
         self.open_new_file_modal(maybe_parent, lb::FileType::Folder);
     }
 
+    fn open_share_modal(&mut self, target: lb::File) {
+        self.modals.create_share = Some(CreateShareModal::new(target));
+    }
+
     fn open_new_file_modal(&mut self, maybe_parent: Option<lb::File>, typ: lb::FileType) {
         let parent_id = match maybe_parent {
             Some(f) => {
@@ -500,6 +523,18 @@ impl AccountScreen {
                 .create_file(&params.name, parent.id, params.ftype)
                 .map_err(|err| format!("{:?}", err));
             update_tx.send(AccountUpdate::FileCreated(result)).unwrap();
+        });
+    }
+
+    fn create_share(&mut self, params: CreateShareParams) {
+        let core = self.core.clone();
+        let update_tx = self.update_tx.clone();
+
+        thread::spawn(move || {
+            let result = core
+                .share_file(params.id, &params.username, params.mode)
+                .map_err(|err| format!("{:?}", err.kind));
+            update_tx.send(AccountUpdate::FileShared(result)).unwrap();
         });
     }
 
@@ -684,6 +719,7 @@ enum AccountUpdate {
     OpenModal(OpenModal),
 
     FileCreated(Result<lb::File, String>),
+    FileShared(Result<(), String>),
     FileLoaded(lb::Uuid, Result<TabContent, TabFailure>),
     FileRenamed {
         id: lb::Uuid,
@@ -707,6 +743,7 @@ enum AccountUpdate {
 enum OpenModal {
     NewDoc(Option<lb::File>),
     NewFolder(Option<lb::File>),
+    InitiateShare(lb::File),
     Settings,
     AcceptShare,
     FilePicker(lb::File),

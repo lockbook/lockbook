@@ -29,7 +29,7 @@ fn report_usage() {
         .in_tx(|s| {
             Ok(s.db
                 .base_metadata
-                .data()
+                .get()
                 .get(&file.id)
                 .unwrap()
                 .document_hmac()
@@ -113,7 +113,7 @@ fn usage_go_back_down_after_delete_folder() {
         .in_tx(|s| {
             Ok(s.db
                 .base_metadata
-                .data()
+                .get()
                 .get(&file.id)
                 .unwrap()
                 .document_hmac()
@@ -209,7 +209,7 @@ fn upsert_meta_over_data_cap() {
         .in_tx(|s| {
             Ok(s.db
                 .base_metadata
-                .data()
+                .get()
                 .get(&document.id)
                 .unwrap()
                 .document_hmac()

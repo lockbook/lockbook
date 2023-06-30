@@ -53,7 +53,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     error!("server started successfully");
 
-    metrics::start_metrics_worker(&server_state);
+    server_state.start_metrics_worker();
 
     // *** How people can connect to this server ***
     match (cfg.server.ssl_cert_location, cfg.server.ssl_private_key_location) {

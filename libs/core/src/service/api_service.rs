@@ -94,12 +94,10 @@ pub mod no_network {
     use crate::{call, CoreLib, CoreState};
     use crate::{CoreDb, Requester};
     use db_rs::Db;
-    use lockbook_server_lib::account_service::*;
-    use lockbook_server_lib::billing::google_play_client::get_google_play_client;
+    use lockbook_server_lib::billing::Nop;
     use lockbook_server_lib::config::*;
-    use lockbook_server_lib::file_service::*;
     use lockbook_server_lib::schema::ServerV4;
-    use lockbook_server_lib::{stripe, ServerError, ServerState};
+    use lockbook_server_lib::{ServerError, ServerState};
     use lockbook_shared::account::Account;
     use lockbook_shared::api::*;
     use lockbook_shared::core_config::Config;
@@ -117,7 +115,7 @@ pub mod no_network {
     }
 
     pub struct InProcessInternals {
-        pub server_state: ServerState,
+        pub server_state: ServerState<Nop, Nop, Nop>,
         pub runtime: Runtime,
     }
 
@@ -137,11 +135,9 @@ pub mod no_network {
                 features: FeatureFlags::from_env_vars(),
             };
 
-            let stripe_client = stripe::Client::new(&server_config.billing.stripe.stripe_secret);
-            let google_play_client = runtime.block_on(get_google_play_client(
-                &server_config.billing.google.service_account_key,
-            ));
-            let app_store_client = reqwest::Client::new();
+            let stripe_client = Nop {};
+            let google_play_client = Nop {};
+            let app_store_client = Nop {};
 
             let index_db = Arc::new(Mutex::new(
                 ServerV4::init(db_rs::Config::in_folder(&server_config.index_db.db_location))
@@ -181,16 +177,24 @@ pub mod no_network {
             &self, account: &Account, request: T,
         ) -> Result<T::Response, ApiError<T::Error>> {
             let resp: Box<dyn Any> = match T::ROUTE {
-                UpsertRequest::ROUTE => call!(upsert_file_metadata, self, account, request),
-                ChangeDocRequest::ROUTE => call!(change_doc, self, account, request),
-                GetDocRequest::ROUTE => call!(get_document, self, account, request),
-                GetPublicKeyRequest::ROUTE => call!(get_public_key, self, account, request),
-                GetUpdatesRequest::ROUTE => call!(get_updates, self, account, request),
-                NewAccountRequest::ROUTE => call!(new_account, self, account, request),
-                GetFileIdsRequest::ROUTE => call!(get_file_ids, self, account, request),
-                GetUsernameRequest::ROUTE => call!(get_username, self, account, request),
+                UpsertRequest::ROUTE => {
+                    call!(ServerState::upsert_file_metadata, self, account, request)
+                }
+                ChangeDocRequest::ROUTE => call!(ServerState::change_doc, self, account, request),
+                GetDocRequest::ROUTE => call!(ServerState::get_document, self, account, request),
+                GetPublicKeyRequest::ROUTE => {
+                    call!(ServerState::get_public_key, self, account, request)
+                }
+                GetUpdatesRequest::ROUTE => call!(ServerState::get_updates, self, account, request),
+                NewAccountRequest::ROUTE => call!(ServerState::new_account, self, account, request),
+                GetFileIdsRequest::ROUTE => {
+                    call!(ServerState::get_file_ids, self, account, request)
+                }
+                GetUsernameRequest::ROUTE => {
+                    call!(ServerState::get_username, self, account, request)
+                }
                 AdminValidateServerRequest::ROUTE => {
-                    call!(admin_validate_server, self, account, request)
+                    call!(ServerState::admin_validate_server, self, account, request)
                 }
                 unknown => panic!("unhandled InProcess type: {}", unknown),
             };
@@ -218,12 +222,9 @@ pub mod no_network {
             let request = $data.type_request(&$request);
             let data_internals = $data.internals.lock().unwrap();
             let server_state = &data_internals.server_state;
-            let request_context = lockbook_server_lib::RequestContext {
-                server_state,
-                request,
-                public_key: $account.public_key(),
-            };
-            let fut = $handler(request_context);
+            let request_context =
+                lockbook_server_lib::RequestContext { request, public_key: $account.public_key() };
+            let fut = $handler(server_state, request_context);
             Box::new(data_internals.runtime.block_on(fut))
         }};
     }

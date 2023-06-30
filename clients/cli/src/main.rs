@@ -1,4 +1,5 @@
 mod account;
+mod completions;
 mod debug;
 mod edit;
 mod error;
@@ -13,6 +14,8 @@ use std::str::FromStr;
 
 use clap::Parser;
 
+use clap_complete::Shell;
+use completions::DynValueName::{LbAnyPath, LbFolderPath};
 use lb::Core;
 
 use self::error::CliError;
@@ -21,7 +24,7 @@ const ID_PREFIX_LEN: usize = 8;
 
 #[derive(Parser, Debug)]
 #[command(version, about)]
-enum LbCli {
+pub enum LbCli {
     /// account related commands
     #[command(subcommand, alias("acct"))]
     Account(account::AccountCmd),
@@ -30,6 +33,7 @@ enum LbCli {
         /// paths of file on disk
         disk_files: Vec<PathBuf>,
         /// lockbook file path or ID destination
+        #[arg(value_name = LbFolderPath.as_ref())]
         dest: String,
     },
     /// investigative commands
@@ -39,6 +43,7 @@ enum LbCli {
     #[command(alias("rm"))]
     Delete {
         /// lockbook file path or ID
+        #[arg(value_name = LbAnyPath.as_ref())]
         target: String,
         /// do not prompt for confirmation before deleting
         force: bool,
@@ -46,11 +51,13 @@ enum LbCli {
     /// edit a document
     Edit {
         /// lockbook file path or ID
+        #[arg(default_value="/", value_name = LbAnyPath.as_ref())]
         target: String,
     },
     /// export a lockbook file to your file system
     Export {
         /// the path or id of a lockbook folder
+        #[arg(value_name = LbFolderPath.as_ref())]
         target: String,
         /// a filesystem directory (defaults to current directory)
         dest: Option<PathBuf>,
@@ -62,23 +69,28 @@ enum LbCli {
     #[command(alias("mv"))]
     Move {
         /// lockbook file path or ID of the file to move
+        #[arg(value_name = LbAnyPath.as_ref())]
         src_target: String,
         /// lockbook file path or ID of the new parent
+        #[arg(value_name = LbFolderPath.as_ref())]
         dest_target: String,
     },
     /// create a new file at the given path or do nothing if it exists
     New {
         /// lockbook file path
+        #[arg(value_name = LbFolderPath.as_ref())]
         path: String,
     },
     /// print a document to stdout
     Print {
         /// lockbook file path or ID
+        #[arg(value_name = LbAnyPath.as_ref())]
         target: String,
     },
     /// rename a file
     Rename {
         /// lockbook file path or ID
+        #[arg(value_name = LbAnyPath.as_ref())]
         target: String,
         /// the file's new name
         new_name: String,
@@ -88,6 +100,12 @@ enum LbCli {
     Share(share::ShareCmd),
     /// file sync
     Sync,
+
+    /// generate cli completions
+    Completions { shell: Shell },
+
+    #[command(hide(true))]
+    Complete { input: String, cursor_pos: i32 },
 }
 
 fn input<T>(prompt: impl fmt::Display) -> Result<T, CliError>
@@ -167,8 +185,9 @@ fn delete(core: &Core, target: &str, force: bool) -> Result<(), CliError> {
 fn move_file(core: &Core, src: &str, dest: &str) -> Result<(), CliError> {
     let src_id = resolve_target_to_id(core, src)?;
     let dest_id = resolve_target_to_id(core, dest)?;
-    core.move_file(src_id, dest_id)
-        .map_err(|err| CliError(format!("could not move '{}' to '{}': {:?}", src_id, dest_id, err)))
+    core.move_file(src_id, dest_id).map_err(|err| {
+        CliError::Console(format!("could not move '{}' to '{}': {:?}", src_id, dest_id, err))
+    })
 }
 
 fn print(core: &Core, target: &str) -> Result<(), CliError> {
@@ -216,7 +235,7 @@ fn run() -> Result<(), CliError> {
     let writeable_path = match (std::env::var("LOCKBOOK_PATH"), std::env::var("HOME")) {
         (Ok(s), _) => s,
         (Err(_), Ok(s)) => format!("{}/.lockbook/cli", s),
-        _ => return Err(CliError::new("no cli location")),
+        _ => return Err(CliError::Console("no cli location".to_string())),
     };
 
     let core = Core::init(&lb::Config { writeable_path, logs: true, colored_logs: true })?;
@@ -224,11 +243,12 @@ fn run() -> Result<(), CliError> {
     let cmd = LbCli::parse();
     if !matches!(cmd, LbCli::Account(account::AccountCmd::New { .. }))
         && !matches!(cmd, LbCli::Account(account::AccountCmd::Import))
+        && !matches!(cmd, LbCli::Complete { .. })
     {
         let _ = core.get_account().map_err(|err| match err.kind {
-            lb::CoreError::AccountNonexistent => {
-                CliError::new("no account! run 'init' or 'init --restore' to get started.")
-            }
+            lb::CoreError::AccountNonexistent => CliError::Console(
+                "no account! run 'init' or 'init --restore' to get started.".to_string(),
+            ),
             _ => err.into(),
         })?;
     }
@@ -247,12 +267,14 @@ fn run() -> Result<(), CliError> {
         LbCli::Rename { target, new_name } => rename(&core, &target, &new_name),
         LbCli::Share(cmd) => share::share(&core, cmd),
         LbCli::Sync => sync(&core),
+        LbCli::Completions { shell } => completions::generate_completions(shell),
+        LbCli::Complete { input, cursor_pos } => completions::complete(&core, input, cursor_pos),
     }
 }
 
 fn main() {
     if let Err(err) = run() {
-        eprintln!("{}", err);
+        eprint!("{}", err);
         std::process::exit(1)
     }
 }

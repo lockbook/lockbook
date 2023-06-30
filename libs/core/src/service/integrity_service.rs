@@ -16,9 +16,9 @@ impl<Client: Requester> CoreState<Client> {
         let mut tree = (&self.db.base_metadata)
             .to_staged(&self.db.local_metadata)
             .to_lazy();
-        let account = self.db.account.data().ok_or(TestRepoError::NoAccount)?;
+        let account = self.db.account.get().ok_or(TestRepoError::NoAccount)?;
 
-        if self.db.last_synced.data().unwrap_or(&0) != &0 && self.db.root.data().is_none() {
+        if self.db.last_synced.get().unwrap_or(&0) != &0 && self.db.root.get().is_none() {
             return Err(TestRepoError::NoRootFolder);
         }
 

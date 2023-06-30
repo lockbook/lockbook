@@ -12,7 +12,7 @@ use uuid::Uuid;
 
 impl<Client: Requester> CoreState<Client> {
     pub(crate) fn suggested_docs(&mut self, settings: RankingWeights) -> LbResult<Vec<Uuid>> {
-        let mut scores = self.db.doc_events.data().iter().get_activity_metrics();
+        let mut scores = self.db.doc_events.get().iter().get_activity_metrics();
         self.normalize(&mut scores);
 
         scores.sort_by_key(|b| cmp::Reverse(b.score(settings)));
@@ -24,7 +24,7 @@ impl<Client: Requester> CoreState<Client> {
         let max_stored_events = 1000;
         let events = &self.db.doc_events;
 
-        if events.data().len() > max_stored_events {
+        if events.get().len() > max_stored_events {
             self.db.doc_events.pop()?;
         }
         self.db.doc_events.push(event)?;
