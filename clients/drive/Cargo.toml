@@ -3,10 +3,18 @@ name = "drive"
 version = "0.1.0"
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[lib]
+name = "drive_lib"
+path = "src/lib.rs"
+
+[[bin]]
+name = "drive"
+path = "src/main.rs"
+
 
 [dependencies]
 is-terminal = "0.4.7"
 clap = { version = "4.1.4", features = ["derive"]}
 lb = { path = "../../libs/core", package = "lockbook-core" }
 notify = {version = "6.0.0"}
+test_utils = { path = "../../libs/core/libs/test_utils/" } # todo: make dev_dependency

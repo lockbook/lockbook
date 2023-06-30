@@ -1,15 +1,7 @@
-mod event;
-mod import;
-mod local_sync;
-
 use clap::Parser;
-use event::DriveEvent;
+use drive_lib::Drive;
 use lb::Core;
-use std::{
-    collections::VecDeque,
-    path::PathBuf,
-    sync::{Arc, Mutex},
-};
+use std::{path::PathBuf, sync::Arc};
 
 #[derive(Parser, Debug)]
 #[command(version, about)]
@@ -18,18 +10,12 @@ enum Command {
     Import,
 }
 
-#[derive(Clone)]
-pub struct Drive {
-    c: Core,
-    watcher_state: WatcherState,
-    pending_events: Arc<Mutex<VecDeque<DriveEvent>>>,
-}
-
 fn main() {
     let c = core();
     let pending_events = Arc::default();
+    let watcher_state = Arc::default();
 
-    let drive = Drive { c, pending_events };
+    let drive = Drive { c, pending_events, watcher_state };
 
     let cmd = Command::parse();
     match cmd {
