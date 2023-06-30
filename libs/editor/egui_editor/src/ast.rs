@@ -4,6 +4,7 @@ use crate::layouts::Annotation;
 use crate::offset_types::{DocCharOffset, RangeExt};
 use crate::{element, Editor};
 use pulldown_cmark::{Event, HeadingLevel, LinkType, OffsetIter, Options, Parser, Tag};
+use std::cmp;
 
 #[derive(Default, Debug, PartialEq)]
 pub struct Ast {
@@ -156,6 +157,11 @@ impl Ast {
             {
                 range.1 += 1;
             }
+
+            // limit range to text range of parent
+            let parent_text_range = self.nodes[parent_idx].text_range;
+            range.0 = cmp::max(range.0, parent_text_range.0);
+            range.1 = cmp::min(range.1, parent_text_range.1);
 
             range
         };
@@ -503,6 +509,22 @@ impl Editor {
     pub fn print_ast(&self) {
         println!("ast:");
         self.ast.print(&self.buffer.current);
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use crate::test_input;
+
+    #[test]
+    fn test_markdown_all_no_inverted_ranges() {
+        for test_markdown in test_input::TEST_MARKDOWN_ALL {
+            let buffer = test_markdown.into();
+            let ast = super::calc(&buffer);
+            for text_range in ast.iter_text_ranges() {
+                assert!(text_range.range.0 <= text_range.range.1);
+            }
+        }
     }
 }
 
