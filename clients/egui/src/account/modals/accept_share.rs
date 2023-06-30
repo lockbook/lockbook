@@ -1,10 +1,9 @@
 use std::sync::Arc;
 
 use eframe::egui;
-use egui_winit::egui::Color32;
 use lb::File;
 
-use crate::{theme::Icon, widgets::Button};
+use crate::{model::DocType, theme::Icon, widgets::Button};
 
 pub struct AcceptShareModal {
     requests: Vec<lb::File>,
@@ -33,23 +32,22 @@ impl super::Modal for AcceptShareModal {
     }
 
     fn show(&mut self, ui: &mut egui::Ui) -> Self::Response {
-        ui.set_max_height(400.0);
+        let max_height = 400.0;
+        ui.set_max_height(max_height);
+
         ui.add_space(20.0);
         let response = egui::ScrollArea::vertical()
-            .id_source("incoming_shares_scroll_area")
+            .max_height(max_height) // set the max height on both the container and scrollarea to avoid weird layout shifts
             .show(ui, |ui| {
-                for (_, req) in self.requests.iter().enumerate() {
-                    let res = sharer_info(ui, req, self.username.clone());
-                    if res.is_some() {
-                        return res;
+                for req in self.requests.iter() {
+                    let response = sharer_info(ui, req, self.username.clone());
+                    if response.is_some() {
+                        return response;
                     }
                 }
                 None
             })
             .inner;
-        if response.is_some() {
-            return response;
-        }
 
         if self.requests.is_empty() {
             ui.add_space(10.0);
@@ -60,7 +58,6 @@ impl super::Modal for AcceptShareModal {
                 ui.label(
                     egui::RichText::new("Your friends can share their notes with you here")
                         .size(15.0)
-                        // todo: use a color defined in the theme (ui.visuals)
                         .color(egui::Color32::GRAY),
                 );
             });
@@ -69,18 +66,10 @@ impl super::Modal for AcceptShareModal {
 
         ui.add_space(20.0);
 
-        None
+        response
     }
 }
 fn sharer_info(ui: &mut egui::Ui, req: &File, username: String) -> Option<AcceptShareParams> {
-    let sharer = req
-        .shares
-        .iter()
-        .find(|s| s.shared_with == username)
-        .unwrap()
-        .clone()
-        .shared_by;
-
     egui::Frame::default()
         .fill(ui.style().visuals.faint_bg_color)
         .stroke(egui::Stroke { width: 0.1, color: ui.visuals().text_color() })
@@ -90,10 +79,17 @@ fn sharer_info(ui: &mut egui::Ui, req: &File, username: String) -> Option<Accept
         .show(ui, |ui| {
             ui.horizontal(|ui| {
                 let icon = match req.file_type {
-                    lb::FileType::Document => Icon::DOC_TEXT,
                     lb::FileType::Folder => Icon::FOLDER,
-                    lb::FileType::Link { target: _ } => todo!(),
+                    _ => DocType::from_name(&req.name).to_icon(),
                 };
+
+                let sharer = req
+                    .shares
+                    .iter()
+                    .find(|s| s.shared_with == username)
+                    .unwrap()
+                    .clone()
+                    .shared_by;
 
                 icon.size(40.0).show(ui);
                 ui.add_space(5.0);
@@ -103,7 +99,6 @@ fn sharer_info(ui: &mut egui::Ui, req: &File, username: String) -> Option<Accept
                     ui.label(
                         egui::RichText::new(format!("shared by {}", sharer))
                             .size(15.0)
-                            // todo: use a color defined in the theme (ui.visuals)
                             .color(egui::Color32::GRAY),
                     );
                 });
@@ -131,8 +126,6 @@ fn sharer_info(ui: &mut egui::Ui, req: &File, username: String) -> Option<Accept
             ui.add_space(30.0);
 
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Min), |ui| {
-                //reject share
-                // ui.spacing_mut().button_padding = egui::vec2(25.0, 5.0);
                 let button_stroke =
                     egui::Stroke { color: ui.visuals().hyperlink_color, ..Default::default() };
                 ui.visuals_mut().widgets.inactive.fg_stroke = button_stroke;
@@ -143,9 +136,6 @@ fn sharer_info(ui: &mut egui::Ui, req: &File, username: String) -> Option<Accept
                     return Some(AcceptShareParams { target: req.clone(), is_accept: true });
                 }
                 ui.with_layout(egui::Layout::left_to_right(egui::Align::Min), |ui| {
-                    ui.spacing_mut().button_padding = egui::vec2(5.0, 5.0);
-
-                    ui.visuals_mut().widgets.inactive.bg_fill = Color32::TRANSPARENT;
                     ui.visuals_mut().widgets.inactive.fg_stroke =
                         egui::Stroke { color: egui::Color32::GRAY, ..Default::default() };
                     ui.visuals_mut().widgets.hovered.fg_stroke =

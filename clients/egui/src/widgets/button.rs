@@ -25,16 +25,8 @@ impl<'a> Button<'a> {
         Self { text: Some(text), ..self }
     }
 
-    pub fn _hexpand(self, hexpand: bool) -> Self {
-        Self { hexpand, ..self }
-    }
-
     pub fn stroke(self, stroke: impl Into<egui::Stroke>) -> Self {
         Self { stroke: stroke.into(), ..self }
-    }
-
-    pub fn _style(self, text_style: egui::TextStyle) -> Self {
-        Self { text_style: Some(text_style), ..self }
     }
 
     pub fn icon_style(self, icon_style: egui::Style) -> Self {
@@ -49,9 +41,6 @@ impl<'a> Button<'a> {
         Self { rounding: rounding.into(), ..self }
     }
 
-    pub fn _fill(self, fill: impl Into<egui::Color32>) -> Self {
-        Self { default_fill: Some(fill.into()), ..self }
-    }
     pub fn frame(self, frame: bool) -> Self {
         Self { frame, ..self }
     }
@@ -118,7 +107,7 @@ impl<'a> Button<'a> {
 
                 icon.paint_with_visuals(ui.painter(), icon_pos, icon_visuals);
 
-                if self.icon.unwrap().badge {
+                if self.icon.unwrap().has_badge {
                     ui.painter().circle(
                         egui::pos2(
                             rect.left_top().x + icon_width / 2.7,

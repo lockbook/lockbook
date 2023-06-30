@@ -106,7 +106,7 @@ impl AccountScreen {
 
                     separator(ui);
 
-                    self.show_sidebar_nav(ui);
+                    self.show_nav_panel(ui);
 
                     self.show_tree(ui);
                 });
@@ -146,23 +146,23 @@ impl AccountScreen {
                     }
                 }
                 AccountUpdate::OpenModal(open_modal) => match open_modal {
-                    OpenModal::NewDoc(maybe_parent) => self.open_new_doc_modal(maybe_parent),
-                    OpenModal::NewFolder(maybe_parent) => self.open_new_folder_modal(maybe_parent),
-                    OpenModal::InitiateShare(target) => self.open_share_modal(target),
-                    OpenModal::Settings => {
-                        self.modals.settings = Some(SettingsModal::new(&self.core, &self.settings));
+                    OpenModal::AcceptShare => {
+                        self.modals.accept_share = Some(AcceptShareModal::new(&self.core));
                     }
                     OpenModal::ConfirmDelete(files) => {
                         self.modals.confirm_delete = Some(ConfirmDeleteModal::new(files));
                     }
-                    OpenModal::AcceptShare => {
-                        self.modals.accept_share = Some(AcceptShareModal::new(&self.core));
-                    }
                     OpenModal::FilePicker(target) => {
                         self.modals.file_picker = Some(FilePicker::new(self.core.clone(), target));
                     }
+                    OpenModal::InitiateShare(target) => self.open_share_modal(target),
+                    OpenModal::NewDoc(maybe_parent) => self.open_new_doc_modal(maybe_parent),
+                    OpenModal::NewFolder(maybe_parent) => self.open_new_folder_modal(maybe_parent),
+                    OpenModal::Settings => {
+                        self.modals.settings = Some(SettingsModal::new(&self.core, &self.settings));
+                    }
                 },
-                AccountUpdate::ShareCreated(result) => match result {
+                AccountUpdate::ShareAccepted(result) => match result {
                     Ok(_) => {
                         self.modals.file_picker = None;
                         self.perform_sync(ctx);
@@ -399,6 +399,44 @@ impl AccountScreen {
         if let Some(id) = resp.dropped_on {
             self.move_selected_files_to(ui.ctx(), id);
         }
+    }
+
+    fn show_nav_panel(&self, ui: &mut egui::Ui) {
+        ui.allocate_ui_with_layout(
+            egui::vec2(ui.available_size_before_wrap().x, 70.0),
+            egui::Layout::left_to_right(egui::Align::Center),
+            |ui| {
+                ui.add_space(10.0);
+
+                if Button::default()
+                    .text("Settings ")
+                    .icon(&Icon::SETTINGS)
+                    .show(ui)
+                    .clicked()
+                {
+                    self.update_tx.send(OpenModal::Settings.into()).unwrap();
+                    ui.ctx().request_repaint();
+                };
+                ui.add_space(20.0);
+
+                if Button::default()
+                    .icon(
+                        &Icon::SHARED_FOLDER.badge(
+                            !self
+                                .core
+                                .get_pending_shares()
+                                .unwrap_or_default()
+                                .is_empty(),
+                        ),
+                    )
+                    .show(ui)
+                    .clicked()
+                {
+                    self.update_tx.send(OpenModal::AcceptShare.into()).unwrap();
+                    ui.ctx().request_repaint();
+                };
+            },
+        );
     }
 
     fn save_settings(&mut self) {
@@ -644,9 +682,12 @@ impl AccountScreen {
                 .create_file(&target.name, parent.id, lb::FileType::Link { target: target.id })
                 .map_err(|err| format!("{:?}", err));
 
-            update_tx.send(AccountUpdate::ShareCreated(result)).unwrap()
+            update_tx
+                .send(AccountUpdate::ShareAccepted(result))
+                .unwrap()
         });
     }
+
     fn delete_share(&self, target: lb::File) {
         let core = self.core.clone();
 
@@ -672,44 +713,6 @@ impl AccountScreen {
             ctx.request_repaint();
         });
     }
-
-    fn show_sidebar_nav(&self, ui: &mut egui::Ui) {
-        ui.allocate_ui_with_layout(
-            egui::vec2(ui.available_size_before_wrap().x, 70.0),
-            egui::Layout::left_to_right(egui::Align::Center),
-            |ui| {
-                ui.add_space(10.0);
-
-                if Button::default()
-                    .text("Settings ")
-                    .icon(&Icon::SETTINGS)
-                    .show(ui)
-                    .clicked()
-                {
-                    self.update_tx.send(OpenModal::Settings.into()).unwrap();
-                    ui.ctx().request_repaint();
-                };
-                ui.add_space(20.0);
-
-                if Button::default()
-                    .icon(
-                        &Icon::SHARED_FOLDER.badge(
-                            !self
-                                .core
-                                .get_pending_shares()
-                                .unwrap_or_default()
-                                .is_empty(),
-                        ),
-                    )
-                    .show(ui)
-                    .clicked()
-                {
-                    self.update_tx.send(OpenModal::AcceptShare.into()).unwrap();
-                    ui.ctx().request_repaint();
-                };
-            },
-        );
-    }
 }
 
 enum AccountUpdate {
@@ -733,7 +736,7 @@ enum AccountUpdate {
 
     SyncUpdate(SyncUpdate),
 
-    ShareCreated(Result<lb::File, String>),
+    ShareAccepted(Result<lb::File, String>),
 
     DoneDeleting,
 

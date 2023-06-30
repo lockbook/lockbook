@@ -3,7 +3,7 @@ use eframe::egui;
 pub const MATERIAL_ICON_FONT: &[u8] = include_bytes!("../../material-icons-outlined-regular.otf");
 
 pub struct Icon {
-    pub badge: bool,
+    pub has_badge: bool,
     icon: &'static str,
     pub size: f32,
     color: Option<egui::Color32>,
@@ -11,7 +11,7 @@ pub struct Icon {
 }
 
 const fn ic(c: &'static str) -> Icon {
-    Icon { badge: false, icon: c, size: 20.0, color: None, weak: false }
+    Icon { has_badge: false, icon: c, size: 20.0, color: None, weak: false }
 }
 
 impl Icon {
@@ -79,7 +79,7 @@ impl Icon {
     }
     pub fn badge(self, has_badge: bool) -> Self {
         let mut this = self;
-        this.badge = has_badge;
+        this.has_badge = has_badge;
         this
     }
     pub fn weak(self, weak: bool) -> Self {

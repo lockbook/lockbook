@@ -20,8 +20,9 @@ impl super::Modal for ErrorModal {
     fn show(&mut self, ui: &mut egui::Ui) -> Self::Response {
         ui.add_space(10.0);
 
-        //use a text edit instead of a label, so the user can copy the error.
+        // use a text edit instead of a label so that the user can copy the error.
         ui.add(egui::TextEdit::multiline(&mut self.err).frame(false));
+
         ui.add_space(10.0);
 
         None

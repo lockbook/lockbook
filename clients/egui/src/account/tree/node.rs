@@ -237,13 +237,7 @@ impl TreeNode {
         if self.hovering_drop {
             Icon::ARROW_CIRCLE_DOWN
         } else if let Some(typ) = &self.doc_type {
-            match typ {
-                DocType::Markdown | DocType::PlainText => Icon::DOC_TEXT,
-                DocType::Drawing => Icon::DRAW,
-                DocType::Image(_) => Icon::IMAGE,
-                DocType::Code(_) => Icon::CODE,
-                _ => Icon::DOC_UNKNOWN,
-            }
+            typ.to_icon()
         } else {
             Icon::FOLDER
         }
