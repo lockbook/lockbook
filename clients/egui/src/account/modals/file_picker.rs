@@ -80,8 +80,7 @@ fn show_file_panel(
                 egui::Layout::top_down(egui::Align::Min).with_cross_justify(true),
                 |ui| {
                     ui.add_space(15.0);
-
-                    let children = file_picker.core.get_children(root.id).unwrap();
+                    let children = file_picker.core.get_children(root.id).unwrap_or_default();
                     let mut children: Vec<&File> = children
                         .iter()
                         .filter(|f| f.file_type == lb::FileType::Folder)
@@ -106,7 +105,7 @@ fn show_node(
 
     let mut icon_style = (*ui.ctx().style()).clone();
 
-    let is_child_open = file_picker.panels.iter().find(|&f| f.eq(node)).is_some();
+    let is_child_open = file_picker.panels.iter().any(|f| f.eq(node));
     let icon_stroke = egui::Stroke { color: ui.visuals().hyperlink_color, ..Default::default() };
     icon_style.visuals.widgets.inactive.fg_stroke = icon_stroke;
     icon_style.visuals.widgets.active.fg_stroke = icon_stroke;
@@ -116,9 +115,7 @@ fn show_node(
 
     let is_node_grayed_out = match mode {
         NodeMode::Panel => !is_child_open && file_panel_index != file_picker.panels.len() - 1,
-        NodeMode::BottomBar => {
-            file_panel_index < file_picker.panels.len().checked_sub(2).unwrap_or(0)
-        }
+        NodeMode::BottomBar => file_panel_index < file_picker.panels.len().saturating_sub(2),
     };
 
     if is_node_grayed_out {
@@ -165,6 +162,14 @@ fn show_bottom_bar(ui: &mut egui::Ui, file_picker: &mut FilePicker) -> Option<Fi
                             .color(egui::Color32::GRAY),
                     );
                 }
+
+                let icon = match file_picker.target.file_type {
+                    lb::FileType::Document | lb::FileType::Link { .. } => Icon::DOC_TEXT,
+                    lb::FileType::Folder => Icon::FOLDER,
+                };
+
+                icon.show(ui);
+
                 ui.label(&file_picker.target.name);
             });
         ui.spacing_mut().button_padding = egui::vec2(25.0, 5.0);

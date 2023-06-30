@@ -11,6 +11,7 @@ pub struct Button<'a> {
     padding: Option<egui::Vec2>,
     rounding: egui::Rounding,
     stroke: egui::Stroke,
+    frame: bool,
     hexpand: bool,
     default_fill: Option<egui::Color32>,
 }
@@ -35,6 +36,7 @@ impl<'a> Button<'a> {
     pub fn _style(self, text_style: egui::TextStyle) -> Self {
         Self { text_style: Some(text_style), ..self }
     }
+
     pub fn icon_style(self, icon_style: egui::Style) -> Self {
         Self { icon_style: Some(icon_style), ..self }
     }
@@ -49,6 +51,9 @@ impl<'a> Button<'a> {
 
     pub fn _fill(self, fill: impl Into<egui::Color32>) -> Self {
         Self { default_fill: Some(fill.into()), ..self }
+    }
+    pub fn frame(self, frame: bool) -> Self {
+        Self { frame, ..self }
     }
 
     pub fn show(self, ui: &mut egui::Ui) -> egui::Response {
@@ -84,7 +89,7 @@ impl<'a> Button<'a> {
 
         if ui.is_rect_visible(rect) {
             let text_visuals = ui.style().interact(&resp);
-            let icon_visuals = self.icon_style.unwrap_or_default();
+            let icon_visuals = self.icon_style.as_ref().unwrap_or(ui.style().as_ref());
             let icon_visuals = icon_visuals.interact(&resp);
 
             let bg_fill = if resp.hovered() {
@@ -97,7 +102,7 @@ impl<'a> Button<'a> {
             ui.painter().add(epaint::RectShape {
                 rect,
                 rounding: self.rounding,
-                fill: bg_fill,
+                fill: if self.frame { bg_fill } else { egui::Color32::TRANSPARENT },
                 stroke: self.stroke,
             });
 
@@ -109,7 +114,21 @@ impl<'a> Button<'a> {
                     egui::pos2(rect.min.x + padding.x, rect.center().y - icon.size().y / 4.1 - 1.0);
                 text_pos.x += icon.size().x + padding.x;
 
+                let icon_width = icon.size().x;
+
                 icon.paint_with_visuals(ui.painter(), icon_pos, icon_visuals);
+
+                if self.icon.unwrap().badge {
+                    ui.painter().circle(
+                        egui::pos2(
+                            rect.left_top().x + icon_width / 2.7,
+                            rect.left_top().y + icon_width / 2.5,
+                        ),
+                        icon_width / 3.2,
+                        ui.visuals().hyperlink_color,
+                        egui::Stroke::NONE,
+                    )
+                }
             }
 
             if let Some(text) = maybe_text_galley {

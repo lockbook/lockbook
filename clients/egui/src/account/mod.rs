@@ -161,6 +161,10 @@ impl AccountScreen {
                         self.modals.file_picker = Some(FilePicker::new(self.core.clone(), target));
                     }
                 },
+                AccountUpdate::ShareCreated => {
+                    self.modals.file_picker = None;
+                    self.perform_sync(ctx);
+                }
                 AccountUpdate::FileCreated(result) => match result {
                     Ok(f) => {
                         let (id, is_doc) = (f.id, f.is_document());
@@ -171,7 +175,6 @@ impl AccountScreen {
                         // Close whichever new file modal was open.
                         self.modals.new_doc = None;
                         self.modals.new_folder = None;
-                        self.modals.file_picker = None;
                     }
                     Err(msg) => {
                         if let Some(m) = &mut self.modals.new_doc {
@@ -594,16 +597,24 @@ impl AccountScreen {
         });
     }
 
-    fn accept_share(&self, ctx: &egui::Context, target: lb::File, parent: lb::File) {
+    fn accept_share(&self, target: lb::File, parent: lb::File) {
         let core = self.core.clone();
-        let ctx = ctx.clone();
         let update_tx = self.update_tx.clone();
 
         thread::spawn(move || {
-            let result = core
-                .create_file(&target.name, parent.id, lb::FileType::Link { target: target.id })
-                .map_err(|err| format!("{:?}", err));
-            update_tx.send(AccountUpdate::FileCreated(result)).unwrap();
+            core.create_file(&target.name, parent.id, lb::FileType::Link { target: target.id })
+                .map_err(|err| format!("{:?}", err))
+                .unwrap();
+
+            update_tx.send(AccountUpdate::ShareCreated).unwrap()
+        });
+    }
+    fn delete_share(&self, target: lb::File) {
+        let core = self.core.clone();
+
+        thread::spawn(move || {
+            core.delete_pending_share(target.id)
+                .map_err(|err| format!("{:?}", err))
         });
     }
 
@@ -643,7 +654,15 @@ impl AccountScreen {
                 ui.add_space(20.0);
 
                 if Button::default()
-                    .icon(&Icon::SHARED_FOLDER)
+                    .icon(
+                        &Icon::SHARED_FOLDER.badge(
+                            !self
+                                .core
+                                .get_pending_shares()
+                                .unwrap_or_default()
+                                .is_empty(),
+                        ),
+                    )
                     .show(ui)
                     .clicked()
                 {
@@ -674,6 +693,7 @@ enum AccountUpdate {
     FileDeleted(lb::File),
 
     SyncUpdate(SyncUpdate),
+    ShareCreated,
 
     DoneDeleting,
 

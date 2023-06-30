@@ -133,6 +133,7 @@ impl super::AccountScreen {
 
                     if Button::default()
                         .icon(&Icon::SYNC)
+                        .frame(true)
                         .stroke((1.25, ui.visuals().extreme_bg_color))
                         .rounding(egui::Rounding::same(3.0))
                         .padding((6.0, 6.0))

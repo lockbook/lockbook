@@ -87,18 +87,18 @@ impl super::AccountScreen {
                     self.update_tx
                         .send(OpenModal::FilePicker(submission.target).into())
                         .unwrap();
+                    self.modals.accept_share = None;
                 } else {
-                    self.core
-                        .delete_pending_share(submission.target.id)
-                        .unwrap();
+                    self.delete_share(submission.target);
+                    self.modals.accept_share = None;
+
+                    self.update_tx.send(OpenModal::AcceptShare.into()).unwrap();
                 }
-            } else {
-                // self.modals.accept_share = None;
             }
         }
         if let Some(response) = show(ctx, x_offset, &mut self.modals.file_picker) {
             if let Some(submission) = response.inner {
-                self.accept_share(ctx, submission.target, submission.parent);
+                self.accept_share(submission.target, submission.parent);
             }
         }
     }

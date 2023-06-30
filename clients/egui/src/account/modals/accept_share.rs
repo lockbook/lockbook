@@ -58,12 +58,10 @@ impl super::Modal for AcceptShareModal {
                 ui.add_space(20.0);
                 ui.heading("You have No incoming shares");
                 ui.label(
-                    egui::RichText::new(format!(
-                        "Your friends can share their notes with you here"
-                    ))
-                    .size(15.0)
-                    // todo: use a color defined in the theme (ui.visuals)
-                    .color(egui::Color32::GRAY),
+                    egui::RichText::new("Your friends can share their notes with you here")
+                        .size(15.0)
+                        // todo: use a color defined in the theme (ui.visuals)
+                        .color(egui::Color32::GRAY),
                 );
             });
             ui.add_space(10.0);
@@ -134,8 +132,14 @@ fn sharer_info(ui: &mut egui::Ui, req: &File, username: String) -> Option<Accept
 
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Min), |ui| {
                 //reject share
-                ui.spacing_mut().button_padding = egui::vec2(25.0, 5.0);
-                if ui.button("Accept").clicked() {
+                // ui.spacing_mut().button_padding = egui::vec2(25.0, 5.0);
+                let button_stroke =
+                    egui::Stroke { color: ui.visuals().hyperlink_color, ..Default::default() };
+                ui.visuals_mut().widgets.inactive.fg_stroke = button_stroke;
+                ui.visuals_mut().widgets.hovered.fg_stroke = button_stroke;
+                ui.visuals_mut().widgets.active.fg_stroke = button_stroke;
+
+                if Button::default().text("Accept").show(ui).clicked() {
                     return Some(AcceptShareParams { target: req.clone(), is_accept: true });
                 }
                 ui.with_layout(egui::Layout::left_to_right(egui::Align::Min), |ui| {
@@ -144,6 +148,10 @@ fn sharer_info(ui: &mut egui::Ui, req: &File, username: String) -> Option<Accept
                     ui.visuals_mut().widgets.inactive.bg_fill = Color32::TRANSPARENT;
                     ui.visuals_mut().widgets.inactive.fg_stroke =
                         egui::Stroke { color: egui::Color32::GRAY, ..Default::default() };
+                    ui.visuals_mut().widgets.hovered.fg_stroke =
+                        egui::Stroke { color: ui.visuals().error_fg_color, ..Default::default() };
+                    ui.visuals_mut().widgets.active.fg_stroke =
+                        egui::Stroke { color: ui.visuals().error_fg_color, ..Default::default() };
 
                     if Button::default()
                         .text("Del ")
@@ -154,8 +162,8 @@ fn sharer_info(ui: &mut egui::Ui, req: &File, username: String) -> Option<Accept
                         return Some(AcceptShareParams { target: req.clone(), is_accept: false });
                     }
                     None
-                });
-                None
+                })
+                .inner
             })
         })
         .inner
