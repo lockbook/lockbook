@@ -30,6 +30,7 @@ pub struct Modals {
     pub new_doc: Option<NewDocModal>,
     pub new_folder: Option<NewFolderModal>,
     pub search: Option<SearchModal>,
+    pub create_share: Option<CreateShareModal>,
     pub help: Option<HelpModal>,
     pub file_picker: Option<FilePicker>,
     pub confirm_delete: Option<ConfirmDeleteModal>,
