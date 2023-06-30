@@ -7,6 +7,7 @@ pub struct Button<'a> {
     icon: Option<&'a Icon>,
     text: Option<&'a str>,
     text_style: Option<egui::TextStyle>,
+    icon_style: Option<egui::Style>,
     padding: Option<egui::Vec2>,
     rounding: egui::Rounding,
     stroke: egui::Stroke,
@@ -33,6 +34,9 @@ impl<'a> Button<'a> {
 
     pub fn _style(self, text_style: egui::TextStyle) -> Self {
         Self { text_style: Some(text_style), ..self }
+    }
+    pub fn icon_style(self, icon_style: egui::Style) -> Self {
+        Self { icon_style: Some(icon_style), ..self }
     }
 
     pub fn padding(self, padding: impl Into<egui::Vec2>) -> Self {
@@ -79,13 +83,15 @@ impl<'a> Button<'a> {
         let (rect, resp) = ui.allocate_at_least(desired_size, egui::Sense::click());
 
         if ui.is_rect_visible(rect) {
-            let visuals = ui.style().interact(&resp);
+            let text_visuals = ui.style().interact(&resp);
+            let icon_visuals = self.icon_style.unwrap_or_default();
+            let icon_visuals = icon_visuals.interact(&resp);
 
             let bg_fill = if resp.hovered() {
                 ui.output_mut(|o| o.cursor_icon = egui::CursorIcon::PointingHand);
-                visuals.bg_fill
+                text_visuals.bg_fill
             } else {
-                self.default_fill.unwrap_or(visuals.bg_fill)
+                self.default_fill.unwrap_or(text_visuals.bg_fill)
             };
 
             ui.painter().add(epaint::RectShape {
@@ -103,11 +109,11 @@ impl<'a> Button<'a> {
                     egui::pos2(rect.min.x + padding.x, rect.center().y - icon.size().y / 4.1 - 1.0);
                 text_pos.x += icon.size().x + padding.x;
 
-                icon.paint_with_visuals(ui.painter(), icon_pos, visuals);
+                icon.paint_with_visuals(ui.painter(), icon_pos, icon_visuals);
             }
 
             if let Some(text) = maybe_text_galley {
-                text.paint_with_visuals(ui.painter(), text_pos, visuals);
+                text.paint_with_visuals(ui.painter(), text_pos, text_visuals);
             }
         }
 

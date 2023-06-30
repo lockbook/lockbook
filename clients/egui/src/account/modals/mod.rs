@@ -81,18 +81,26 @@ impl super::AccountScreen {
             }
         }
 
-        show(ctx, x_offset, &mut self.modals.accept_share);
-        
-        // if let Some(response) = show(ctx, x_offset, &mut self.modals.accept_share) {
-        //     if response.inner.is_some() {
-        //         println!("open file picker");
-        //         self.update_tx.send(OpenModal::FilePicker.into()).unwrap();
-        //     } else {
-        //         // self.modals.accept_share = None;
-        //     }
-        // }
-
-        show(ctx, x_offset, &mut self.modals.file_picker);
+        if let Some(response) = show(ctx, x_offset, &mut self.modals.accept_share) {
+            if let Some(submission) = response.inner {
+                if submission.is_accept {
+                    self.update_tx
+                        .send(OpenModal::FilePicker(submission.target).into())
+                        .unwrap();
+                } else {
+                    self.core
+                        .delete_pending_share(submission.target.id)
+                        .unwrap();
+                }
+            } else {
+                // self.modals.accept_share = None;
+            }
+        }
+        if let Some(response) = show(ctx, x_offset, &mut self.modals.file_picker) {
+            if let Some(submission) = response.inner {
+                self.accept_share(ctx, submission.target, submission.parent);
+            }
+        }
     }
 
     pub fn is_any_modal_open(&self) -> bool {

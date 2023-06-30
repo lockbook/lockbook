@@ -11,6 +11,11 @@ pub struct AcceptShareModal {
     username: String,
 }
 
+pub struct AcceptShareParams {
+    pub target: lb::File,
+    pub is_accept: bool,
+}
+
 impl AcceptShareModal {
     pub fn new(core: &Arc<lb::Core>) -> Self {
         Self {
@@ -21,7 +26,7 @@ impl AcceptShareModal {
 }
 
 impl super::Modal for AcceptShareModal {
-    type Response = Option<()>;
+    type Response = Option<AcceptShareParams>;
 
     fn title(&self) -> &str {
         "Incoming Share Requests"
@@ -30,13 +35,21 @@ impl super::Modal for AcceptShareModal {
     fn show(&mut self, ui: &mut egui::Ui) -> Self::Response {
         ui.set_max_height(400.0);
         ui.add_space(20.0);
-        egui::ScrollArea::vertical()
+        let response = egui::ScrollArea::vertical()
             .id_source("incoming_shares_scroll_area")
             .show(ui, |ui| {
                 for (_, req) in self.requests.iter().enumerate() {
-                    sharer_info(ui, req, self.username.clone());
+                    let res = sharer_info(ui, req, self.username.clone());
+                    if res.is_some() {
+                        return res;
+                    }
                 }
-            });
+                None
+            })
+            .inner;
+        if response.is_some() {
+            return response;
+        }
 
         if self.requests.is_empty() {
             ui.add_space(10.0);
@@ -61,7 +74,7 @@ impl super::Modal for AcceptShareModal {
         None
     }
 }
-fn sharer_info(ui: &mut egui::Ui, req: &File, username: String) {
+fn sharer_info(ui: &mut egui::Ui, req: &File, username: String) -> Option<AcceptShareParams> {
     let sharer = req
         .shares
         .iter()
@@ -123,7 +136,7 @@ fn sharer_info(ui: &mut egui::Ui, req: &File, username: String) {
                 //reject share
                 ui.spacing_mut().button_padding = egui::vec2(25.0, 5.0);
                 if ui.button("Accept").clicked() {
-                    println!("handle accept share");
+                    return Some(AcceptShareParams { target: req.clone(), is_accept: true });
                 }
                 ui.with_layout(egui::Layout::left_to_right(egui::Align::Min), |ui| {
                     ui.spacing_mut().button_padding = egui::vec2(5.0, 5.0);
@@ -138,9 +151,13 @@ fn sharer_info(ui: &mut egui::Ui, req: &File, username: String) {
                         .show(ui)
                         .clicked()
                     {
-                        println!("handle delete share");
-                    };
+                        return Some(AcceptShareParams { target: req.clone(), is_accept: false });
+                    }
+                    None
                 });
+                None
             })
-        });
+        })
+        .inner
+        .inner
 }
