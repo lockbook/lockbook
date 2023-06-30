@@ -1,3 +1,4 @@
+use crate::element::Element;
 use crate::input::click_checker::ClickChecker;
 use crate::input::cursor::{ClickType, PointerState};
 use crate::offset_types::{DocCharOffset, RelCharOffset};
@@ -76,6 +77,7 @@ pub enum Modification {
     StageMarked { highlighted: (RelCharOffset, RelCharOffset), text: String },
     CommitMarked,
     Replace { region: Region, text: String },
+    ToggleStyle { region: Region, style: Element },
     Newline { advance_cursor: bool }, // distinct from replace because it triggers auto-bullet, etc
     Indent { deindent: bool },
     Undo,
@@ -86,9 +88,6 @@ pub enum Modification {
     ToggleCheckbox(usize),
     OpenUrl(String),
     Heading(u32),
-    Bold,
-    Italic,
-    Code,
     BulletListItem,
     NumberListItem,
     TodoListItem,
@@ -173,10 +172,14 @@ pub fn calc(
                 region: Region::Bound { bound: Bound::Doc, backwards: true },
             })
         }
-        Event::Key { key: Key::X, pressed: true, modifiers, .. } if modifiers.command => {
+        Event::Key { key: Key::X, pressed: true, modifiers, .. }
+            if modifiers.command && !modifiers.shift =>
+        {
             Some(Modification::Cut)
         }
-        Event::Key { key: Key::C, pressed: true, modifiers, .. } if modifiers.command => {
+        Event::Key { key: Key::C, pressed: true, modifiers, .. }
+            if modifiers.command && !modifiers.shift =>
+        {
             Some(Modification::Copy)
         }
         Event::Key { key: Key::Z, pressed: true, modifiers, .. } if modifiers.command => {
@@ -185,6 +188,28 @@ pub fn calc(
             } else {
                 Some(Modification::Redo)
             }
+        }
+        Event::Key { key: Key::B, pressed: true, modifiers, .. } if modifiers.command => {
+            Some(Modification::ToggleStyle { region: Region::Selection, style: Element::Strong })
+        }
+        Event::Key { key: Key::I, pressed: true, modifiers, .. } if modifiers.command => {
+            Some(Modification::ToggleStyle { region: Region::Selection, style: Element::Emphasis })
+        }
+        Event::Key { key: Key::C, pressed: true, modifiers, .. }
+            if modifiers.command && modifiers.shift =>
+        {
+            Some(Modification::ToggleStyle {
+                region: Region::Selection,
+                style: Element::InlineCode,
+            })
+        }
+        Event::Key { key: Key::X, pressed: true, modifiers, .. }
+            if modifiers.command && modifiers.shift =>
+        {
+            Some(Modification::ToggleStyle {
+                region: Region::Selection,
+                style: Element::Strikethrough,
+            })
         }
         Event::PointerButton { pos, button: PointerButton::Primary, pressed: true, modifiers }
             if click_checker.ui(*pos) =>

@@ -1,3 +1,4 @@
+use crate::ast::Ast;
 use crate::bounds::Paragraphs;
 use crate::buffer::{Buffer, EditorMutation};
 use crate::debug::DebugInfo;
@@ -27,13 +28,13 @@ pub fn combine(
 /// processes `combined_events` and returns a boolean representing whether text was updated, new contents for clipboard
 /// (optional), and a link that was opened (optional)
 pub fn process(
-    combined_events: &[Modification], galleys: &Galleys, paragraphs: &Paragraphs,
+    combined_events: &[Modification], galleys: &Galleys, paragraphs: &Paragraphs, ast: &Ast,
     buffer: &mut Buffer, debug: &mut DebugInfo,
 ) -> (bool, Option<String>, Option<String>) {
     combined_events
         .iter()
         .cloned()
-        .map(|m| match input::mutation::calc(m, &buffer.current, galleys, paragraphs) {
+        .map(|m| match input::mutation::calc(m, &buffer.current, galleys, paragraphs, ast) {
             EditorMutation::Buffer(mutations) if mutations.is_empty() => (false, None, None),
             EditorMutation::Buffer(mutations) => buffer.apply(mutations, debug),
             EditorMutation::Undo => {
