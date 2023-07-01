@@ -91,7 +91,7 @@ impl DocumentService for OnDiskDocuments {
 /// For use with fuzzer, not to be hooked up in prod
 #[derive(Clone, Default)]
 pub struct InMemDocuments {
-    docs: Arc<Mutex<HashMap<String, EncryptedDocument>>>,
+    pub docs: Arc<Mutex<HashMap<String, EncryptedDocument>>>,
 }
 
 #[async_trait]

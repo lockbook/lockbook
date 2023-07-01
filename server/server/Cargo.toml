@@ -4,6 +4,10 @@ version = "0.7.6"
 edition = "2021"
 build = "build.rs"
 
+[features]
+default = ["no-network"]
+no-network = ["db-rs/clone"]
+
 [lib]
 name = "lockbook_server_lib"
 path = "src/lib.rs"

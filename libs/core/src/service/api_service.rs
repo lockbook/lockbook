@@ -164,9 +164,29 @@ pub mod no_network {
 
             Self { config, internals: Arc::new(Mutex::new(internals)) }
         }
+
         fn type_request<T: Request + Clone + 'static>(&self, untyped: &dyn Any) -> T {
             let request: &T = untyped.downcast_ref().unwrap();
             request.clone() // Is there a way to not clone here?
+        }
+
+        pub fn deep_copy(&self) -> Self {
+            let internals = self.internals.lock().unwrap();
+            let mut server_state = internals.server_state.clone();
+            let docs_db_clone = server_state.document_service.docs.lock().unwrap().clone();
+            let server_db_clone = server_state.index_db.lock().unwrap().clone();
+
+            server_state.index_db = Arc::new(Mutex::new(server_db_clone));
+            server_state.document_service =
+                InMemDocuments { docs: Arc::new(Mutex::new(docs_db_clone)) };
+
+            Self {
+                config: self.config.clone(),
+                internals: Arc::new(Mutex::new(InProcessInternals {
+                    server_state,
+                    runtime: runtime::Builder::new_current_thread().build().unwrap(),
+                })),
+            }
         }
     }
 
@@ -251,6 +271,28 @@ pub mod no_network {
 
         pub fn client_config(&self) -> Config {
             self.inner.lock().unwrap().client.config.clone()
+        }
+
+        pub fn deep_copy(&self) -> (Self, InProcess) {
+            let inner = self.inner.lock().unwrap();
+            let config = inner.config.clone();
+            let db = inner.db.clone();
+            let client = inner.client.deep_copy();
+            let docs = inner.docs.docs.lock().unwrap().clone();
+            let docs = CoreInMemDocuments { docs: Arc::new(Mutex::new(docs)) };
+
+            let state = CoreState {
+                config,
+                public_key: inner.public_key,
+                db,
+                docs,
+                client: client.clone(),
+            };
+            (Self { inner: Arc::new(Mutex::new(state)) }, client)
+        }
+
+        pub fn set_client(&self, c: InProcess) {
+            self.inner.lock().unwrap().client = c
         }
     }
 
