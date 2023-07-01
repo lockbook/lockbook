@@ -1,7 +1,6 @@
 use image::EncodableLayout;
-use lockbook_core::{Core, CoreError, ShareMode};
+use lockbook_core::{Core, CoreError, DocumentService, OnDiskDocuments, ShareMode};
 use lockbook_shared::api::{FREE_TIER_USAGE_SIZE, METADATA_FEE};
-use lockbook_shared::document_repo;
 use lockbook_shared::file_like::FileLike;
 use lockbook_shared::file_metadata::FileType;
 use lockbook_shared::file_metadata::FileType::Folder;
@@ -36,9 +35,8 @@ fn report_usage() {
                 .cloned())
         })
         .unwrap();
-    let local_encrypted = document_repo::get(&core.get_config().unwrap(), &file.id, hmac.as_ref())
-        .unwrap()
-        .value;
+    let docs = OnDiskDocuments::from(&core.get_config().unwrap());
+    let local_encrypted = docs.get(&file.id, hmac.as_ref()).unwrap().value;
 
     assert_eq!(core.get_usage().unwrap().usages.len(), 2);
     assert_eq!(
@@ -121,7 +119,8 @@ fn usage_go_back_down_after_delete_folder() {
         })
         .unwrap();
 
-    document_repo::get(&core.get_config().unwrap(), &file.id, hmac.as_ref()).unwrap();
+    let docs = OnDiskDocuments::from(&core.get_config().unwrap());
+    docs.get(&file.id, hmac.as_ref()).unwrap();
 
     let usage = core.get_usage().unwrap_or_else(|err| panic!("{:?}", err));
 
@@ -216,10 +215,8 @@ fn upsert_meta_over_data_cap() {
                 .cloned())
         })
         .unwrap();
-    let local_encrypted =
-        document_repo::get(&core.get_config().unwrap(), &document.id, hmac.as_ref())
-            .unwrap()
-            .value;
+    let docs = OnDiskDocuments::from(&core.get_config().unwrap());
+    let local_encrypted = docs.get(&document.id, hmac.as_ref()).unwrap().value;
 
     let file_capacity =
         (FREE_TIER_USAGE_SIZE - local_encrypted.len() as u64) as f64 / METADATA_FEE as f64;

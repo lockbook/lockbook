@@ -3,9 +3,10 @@ use crate::service::api_service::ApiError;
 use crate::{CoreError, CoreState, LbResult, Requester};
 use lockbook_shared::account::Username;
 use lockbook_shared::api::*;
+use lockbook_shared::document_repo::DocumentService;
 use uuid::Uuid;
 
-impl<Client: Requester> CoreState<Client> {
+impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {
     pub(crate) fn disappear_account(&self, username: &str) -> LbResult<()> {
         let account = self.get_account()?;
 

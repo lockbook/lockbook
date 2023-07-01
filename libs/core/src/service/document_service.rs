@@ -2,22 +2,24 @@ use crate::LbResult;
 use crate::{CoreError, CoreState, Requester};
 use lockbook_shared::clock::get_time;
 use lockbook_shared::crypto::DecryptedDocument;
-use lockbook_shared::document_repo;
+use lockbook_shared::document_repo::DocumentService;
 use lockbook_shared::file_like::FileLike;
 use lockbook_shared::file_metadata::FileType;
 use lockbook_shared::tree_like::TreeLike;
 use uuid::Uuid;
 
-impl<Client: Requester> CoreState<Client> {
+use super::activity_service;
+
+impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {
     pub(crate) fn read_document(&mut self, id: Uuid) -> LbResult<DecryptedDocument> {
         let mut tree = (&self.db.base_metadata)
             .to_staged(&self.db.local_metadata)
             .to_lazy();
         let account = self.db.account.get().ok_or(CoreError::AccountNonexistent)?;
 
-        let doc = tree.read_document(&self.config, &id, account)?;
+        let doc = tree.read_document(&self.docs, &id, account)?;
 
-        self.add_doc_event(document_repo::DocEvent::Read(id, get_time().0))?;
+        self.add_doc_event(activity_service::DocEvent::Read(id, get_time().0))?;
 
         Ok(doc)
     }
@@ -34,9 +36,9 @@ impl<Client: Requester> CoreState<Client> {
         };
         let encrypted_document = tree.update_document(&id, content, account)?;
         let hmac = tree.find(&id)?.document_hmac();
-        document_repo::insert(&self.config, &id, hmac, &encrypted_document)?;
+        self.docs.insert(&id, hmac, &encrypted_document)?;
 
-        self.add_doc_event(document_repo::DocEvent::Write(id, get_time().0))?;
+        self.add_doc_event(activity_service::DocEvent::Write(id, get_time().0))?;
 
         Ok(())
     }
@@ -46,7 +48,7 @@ impl<Client: Requester> CoreState<Client> {
             .base_metadata
             .stage(&mut self.db.local_metadata)
             .to_lazy()
-            .delete_unreferenced_file_versions(&self.config)?;
+            .delete_unreferenced_file_versions(&self.docs)?;
         Ok(())
     }
 }

@@ -2,11 +2,12 @@ use db_rs::{List, LookupTable, Single};
 use db_rs_derive::Schema;
 
 use lockbook_shared::account::Account;
-use lockbook_shared::document_repo::DocEvent;
 use lockbook_shared::file_metadata::Owner;
 use lockbook_shared::signed_file::SignedFile;
 
 use uuid::Uuid;
+
+use crate::service::activity_service::DocEvent;
 
 pub type CoreDb = CoreV3;
 

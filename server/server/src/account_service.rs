@@ -2,6 +2,7 @@ use crate::billing::app_store_client::AppStoreClient;
 use crate::billing::billing_model::BillingPlatform;
 use crate::billing::google_play_client::GooglePlayClient;
 use crate::billing::stripe_client::StripeClient;
+use crate::document_service::DocumentService;
 use crate::schema::{Account, ServerDb};
 use crate::utils::username_is_valid;
 use crate::ServerError::ClientError;
@@ -33,11 +34,12 @@ use std::ops::DerefMut;
 use tracing::warn;
 use uuid::Uuid;
 
-impl<S, A, G> ServerState<S, A, G>
+impl<S, A, G, D> ServerState<S, A, G, D>
 where
     S: StripeClient,
     A: AppStoreClient,
     G: GooglePlayClient,
+    D: DocumentService,
 {
     /// Create a new account given a username, public_key, and root folder.
     /// Checks that username is valid, and that username, public_key and root_folder are new.
@@ -463,7 +465,7 @@ where
         }
 
         for (id, version) in docs_to_delete {
-            self.delete(&id, &version).await?;
+            self.document_service.delete(&id, &version).await?;
         }
         Ok(())
     }

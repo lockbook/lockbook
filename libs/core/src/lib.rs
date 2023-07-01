@@ -9,6 +9,7 @@ mod repo;
 pub use base64;
 pub use basic_human_duration::ChronoHumanDuration;
 pub use libsecp256k1::PublicKey;
+pub use lockbook_shared::document_repo::{DocumentService, OnDiskDocuments};
 pub use time::Duration;
 pub use uuid::Uuid;
 
@@ -21,7 +22,6 @@ pub use lockbook_shared::api::{
 pub use lockbook_shared::clock;
 pub use lockbook_shared::core_config::Config;
 pub use lockbook_shared::crypto::DecryptedDocument;
-pub use lockbook_shared::document_repo::RankingWeights;
 pub use lockbook_shared::drawing::{ColorAlias, ColorRGB, Drawing, Stroke};
 pub use lockbook_shared::file::{File, Share, ShareMode};
 pub use lockbook_shared::file_like::FileLike;
@@ -38,6 +38,7 @@ pub use crate::model::drawing::SupportedImageFormats;
 pub use crate::model::errors::{
     CoreError, LbError, LbResult, TestRepoError, UnexpectedError, Warning,
 };
+pub use crate::service::activity_service::RankingWeights;
 pub use crate::service::import_export_service::{ExportFileInfo, ImportStatus};
 pub use crate::service::search_service::{SearchResultItem, StartSearchInfo};
 pub use crate::service::sync_service::{SyncProgress, WorkCalculated};
@@ -57,17 +58,18 @@ use crate::repo::CoreDb;
 use crate::service::api_service::{Network, Requester};
 use crate::service::log_service;
 
-pub type Core = CoreLib<Network>;
+pub type Core = CoreLib<Network, OnDiskDocuments>;
 
 #[derive(Clone)]
-pub struct CoreLib<Client: Requester> {
-    inner: Arc<Mutex<CoreState<Client>>>,
+pub struct CoreLib<Client: Requester, Docs: DocumentService> {
+    inner: Arc<Mutex<CoreState<Client, Docs>>>,
 }
 
-pub struct CoreState<Client: Requester> {
+pub struct CoreState<Client: Requester, Docs: DocumentService> {
     pub config: Config,
     pub public_key: Option<PublicKey>,
     pub db: CoreDb,
+    pub docs: Docs,
     pub client: Client,
 }
 
@@ -80,8 +82,9 @@ impl Core {
 
         let config = config.clone();
         let client = Network::default();
+        let docs = OnDiskDocuments::from(&config);
 
-        let state = CoreState { config, public_key: None, db, client };
+        let state = CoreState { config, public_key: None, db, client, docs };
         let inner = Arc::new(Mutex::new(state));
 
         Ok(Self { inner })
@@ -107,10 +110,10 @@ impl<T> LbResultExt for LbResult<T> {
     }
 }
 
-impl<Client: Requester> CoreLib<Client> {
+impl<Client: Requester, Docs: DocumentService> CoreLib<Client, Docs> {
     pub fn in_tx<F, Out>(&self, f: F) -> LbResult<Out>
     where
-        F: FnOnce(&mut CoreState<Client>) -> LbResult<Out>,
+        F: FnOnce(&mut CoreState<Client, Docs>) -> LbResult<Out>,
     {
         let mut inner = self.inner.lock()?;
         let tx = inner.db.begin_transaction()?;

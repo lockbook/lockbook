@@ -1,5 +1,6 @@
 use crate::{CoreError, CoreState, LbResult, Requester};
 use lockbook_shared::access_info::UserAccessMode;
+use lockbook_shared::document_repo::DocumentService;
 use lockbook_shared::file::File;
 use lockbook_shared::file_metadata::{FileType, Owner};
 use lockbook_shared::filename::MAX_FILENAME_LENGTH;
@@ -8,7 +9,7 @@ use lockbook_shared::tree_like::TreeLike;
 use std::iter;
 use uuid::Uuid;
 
-impl<Client: Requester> CoreState<Client> {
+impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {
     pub(crate) fn create_file(
         &mut self, name: &str, parent: &Uuid, file_type: FileType,
     ) -> LbResult<File> {

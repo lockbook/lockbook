@@ -3,6 +3,7 @@ use std::fs::OpenOptions;
 use std::io::Write;
 use std::path::Path;
 
+use lockbook_shared::document_repo::DocumentService;
 use uuid::Uuid;
 
 use lockbook_shared::drawing::{ColorAlias, ColorRGB, Drawing};
@@ -12,7 +13,7 @@ use crate::model::drawing::SupportedImageFormats;
 use crate::Requester;
 use crate::{CoreState, LbError, LbResult};
 
-impl<Client: Requester> CoreState<Client> {
+impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {
     pub(crate) fn get_drawing(&mut self, id: Uuid) -> LbResult<Drawing> {
         let doc = self.read_document(id)?;
         drawing::parse_drawing(&doc)

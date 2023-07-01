@@ -62,7 +62,7 @@ impl Experiment {
     pub fn publish_results(
         thread: ThreadID, experiments: Arc<Mutex<Self>>, result: Trial, mutants: &[Trial],
     ) {
-        result.maybe_cleanup(thread);
+        // result.maybe_cleanup(thread);
         let mut state = experiments.lock().unwrap();
 
         if result.failed() {
