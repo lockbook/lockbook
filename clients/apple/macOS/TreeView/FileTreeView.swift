@@ -12,7 +12,7 @@ struct FileTreeView: NSViewRepresentable {
     @Binding var lastOpenDoc: File?
 
     @EnvironmentObject var files: FileService
-    @EnvironmentObject var currentSelection: CurrentDocument
+    @EnvironmentObject var currentSelection: DocumentService
     
     let previousFilesHash: Reference<Int?> = Reference(nil)
     let previousOpenDocumentHash: Reference<Int?> = Reference(nil)
@@ -20,8 +20,9 @@ struct FileTreeView: NSViewRepresentable {
     func makeNSView(context: Context) -> NSScrollView {
         if treeView.numberOfColumns != 1 {
             delegate.documentSelected = { meta in
-                if meta.fileType == .Document && DI.currentDoc.selectedDocument?.id != meta.id {
-                    DI.currentDoc.selectedDocument = meta
+                if meta.fileType == .Document && DI.currentDoc.openDocuments.keys.first != meta.id {
+                    DI.currentDoc.openDocuments.removeAll()
+                    DI.currentDoc.getOpenDoc(meta: meta)
                 } else if DI.currentDoc.selectedFolder?.id != meta.id {
                     DI.currentDoc.selectedFolder = meta
                 }
@@ -80,19 +81,29 @@ struct FileTreeView: NSViewRepresentable {
             treeView.reloadData()
         }
         
-        if lastOpenDoc != currentSelection.selectedDocument {
+        let maybeOpenDocId = currentSelection.openDocuments.keys.first
+        
+        if lastOpenDoc?.id != maybeOpenDocId {
             scrollAndSelectCurrentDoc()
             
-            lastOpenDoc = currentSelection.selectedDocument
+            if let openDocId = maybeOpenDocId {
+                lastOpenDoc = DI.files.idsAndFiles[openDocId]
+            }
+            
         }
     }
     
     func scrollAndSelectCurrentDoc() {
-        if let file = currentSelection.selectedDocument {
-            scrollAndexpandAncestorsOfDocument(file: file)
-        }
+        let maybeOpenDocId = currentSelection.openDocuments.keys.first
         
-        treeView.selectRowIndexes(IndexSet(integer: treeView.row(forItem: DI.currentDoc.selectedDocument)), byExtendingSelection: false)
+        if let openDocId = maybeOpenDocId {
+            if let openDoc = DI.files.idsAndFiles[openDocId] {
+                scrollAndexpandAncestorsOfDocument(file: openDoc)
+                
+                treeView.selectRowIndexes(IndexSet(integer: treeView.row(forItem: openDoc)), byExtendingSelection: false)
+
+            }
+        }
     }
     
     func scrollAndexpandAncestorsOfDocument(file: File) {

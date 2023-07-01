@@ -5,14 +5,6 @@ import PencilKit
 import SwiftUI
 import SwiftEditor
 
-public enum ViewType {
-    case Markdown
-    #if os(iOS)
-    case Drawing
-    #endif
-    case Image
-    case Unknown
-}
 
 class DocumentLoader: ObservableObject {
     
@@ -128,7 +120,7 @@ class DocumentLoader: ObservableObject {
                 DispatchQueue.main.async {
                     switch operation {
                     case .success(let txt):
-                        self.textDocument = EditorState(text: txt, name: meta.name.replacingOccurrences(of: ".md", with: ""))
+                        self.textDocument = EditorState(text: txt)
                         self
                             .textDocument!
                             .$text

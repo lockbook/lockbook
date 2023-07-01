@@ -10,8 +10,10 @@ class AccountService: ObservableObject {
         self.core = core
         switch core.getAccount() {
         case .success(let account):
+            print("getaccount account: \(account.username)")
             self.account = account
         case .failure(let error):
+            print("getaccount error: \(error.kind)")
             switch error.kind {
             case .UiError(let getAccountError):
                 switch getAccountError {

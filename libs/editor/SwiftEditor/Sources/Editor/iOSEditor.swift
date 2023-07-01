@@ -8,11 +8,13 @@ public struct MetalView: UIViewRepresentable {
     @ObservedObject public var editorState: EditorState
     let mtkView: iOSMTK = iOSMTK()
     
-    public init(editorState: EditorState) {
+    public init(editorState: EditorState, toolbarState: ToolbarState, nameState: NameState) {
         self.editorState = editorState
+        mtkView.editorState = editorState
+        mtkView.toolbarState = toolbarState
+        mtkView.nameState = nameState
         
         mtkView.setInitialContent(editorState.text)
-        mtkView.editorState = editorState
     }
 
     public func makeUIView(context: Context) -> iOSMTK {
@@ -24,42 +26,6 @@ public struct MetalView: UIViewRepresentable {
             mtkView.updateText(editorState.text)
             editorState.reload = false
         }
-    }
-
-    public func header(headingSize: UInt32) {
-        mtkView.header(headingSize: headingSize)
-    }
-
-    public func bulletedList() {
-        mtkView.bulletedList()
-    }
-
-    public func numberedList() {
-        mtkView.numberedList()
-    }
-
-    public func todoList() {
-        mtkView.todoList()
-    }
-
-    public func bold() {
-        mtkView.bold()
-    }
-
-    public func italic() {
-        mtkView.italic()
-    }
-
-    public func inlineCode() {
-        mtkView.inlineCode()
-    }
-
-    public func tab(deindent: Bool) {
-        mtkView.tab(deindent: deindent)
-    }
-    
-    public func automaticTitleComputation(computeTitle: Bool) {
-        mtkView.automaticTitleComputation(computeTitle)
     }
 }
 #endif

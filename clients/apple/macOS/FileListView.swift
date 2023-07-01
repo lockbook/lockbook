@@ -27,9 +27,10 @@ struct FileListView: View {
         VStack {
             HStack(alignment: .firstTextBaseline) {
                 Button(action: {
+                    print("creating file")
                     if case .success(let newMeta) = DI.files.core.createFile(name: UUID().uuidString + ".md", dirId: (DI.currentDoc.selectedFolder ?? DI.files.root!).id, isFolder: false) {
                         DI.files.refresh()
-                        DI.currentDoc.selectedDocument = newMeta
+                        let _ = DI.currentDoc.getOpenDoc(meta: newMeta)
                     }
                     
                 }) {
@@ -84,7 +85,7 @@ struct FileListView: View {
 }
 
 struct DetailView: View {
-    @EnvironmentObject var currentSelection: CurrentDocument
+    @EnvironmentObject var currentSelection: DocumentService
     @EnvironmentObject var search: SearchService
     @EnvironmentObject var share: ShareService
     
@@ -96,8 +97,10 @@ struct DetailView: View {
             VStack {
                 if currentSelection.isPendingSharesOpen {
                     PendingSharesView()
-                } else if let selected = currentSelection.selectedDocument {
-                    DocumentView(meta: selected)
+                } else if let item = currentSelection.openDocuments.keys.first {
+                    if let meta = DI.files.idsAndFiles[item] {
+                        DocumentView(model: currentSelection.getOpenDoc(meta: meta))
+                    }
                 }
             }
             
@@ -127,7 +130,7 @@ struct DetailView: View {
                 }
             }
         }
-        .onChange(of: currentSelection.selectedDocument) { _ in
+        .onChange(of: currentSelection.openDocuments) { _ in
             DI.files.refreshSuggestedDocs()
         }
         .toolbar {

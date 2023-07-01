@@ -5,7 +5,7 @@ import SwiftLockbookCore
 struct NewFileSheet: View {
     
     @EnvironmentObject var sheets: SheetState
-    @EnvironmentObject var selection: CurrentDocument
+    @EnvironmentObject var selection: DocumentService
     
     @State var selected: ClientFileTypes = .Document
     @State var name: String = ".md"
@@ -119,7 +119,7 @@ struct NewFileSheet: View {
             if newMeta.fileType == .Folder {
                 files.successfulAction = .createFolder
             } else {
-                selection.selectedDocument = newMeta
+                selection.openDocuments[newMeta.id] = DocumentLoadingInfo(newMeta)
             }
             files.refresh()
             status.checkForLocalWork()

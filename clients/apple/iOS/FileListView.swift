@@ -3,7 +3,7 @@ import SwiftLockbookCore
 import Foundation
 
 struct FileListView: View {
-    @EnvironmentObject var current: CurrentDocument
+    @EnvironmentObject var current: DocumentService
     @EnvironmentObject var sheets: SheetState
     @EnvironmentObject var fileService: FileService
     @EnvironmentObject var search: SearchService
@@ -16,7 +16,7 @@ struct FileListView: View {
     var body: some View {
         VStack {
             if let newDoc = sheets.created, newDoc.fileType == .Document {
-                NavigationLink(destination: DocumentView(meta: newDoc), isActive: Binding(get: { current.selectedDocument != nil }, set: { _ in current.selectedDocument = nil }) ) {
+                NavigationLink(destination: DocumentView(model: current.getOpenDoc(meta: newDoc)), isActive: Binding(get: { current.openDocuments[newDoc.id] != nil }, set: { _ in current.openDocuments[newDoc.id] = nil }) ) {
                         EmptyView()
                     }
                     .hidden()
@@ -34,17 +34,16 @@ struct FileListView: View {
                     if let parent = fileService.parent {
                         print("creating file")
                         sheets.created = fileService.createFile(name: UUID().uuidString + ".md", parent: parent.id, isFolder: false)
-                        current.selectedDocument = sheets.created
+                        current.openDocuments[sheets.created!.id] = DocumentLoadingInfo(sheets.created!)
                     }
                 })
-                .onReceive(current.$selectedDocument) { _ in
-                    print("cleared")
-                    // When we return back to this screen, we have to change newFile back to nil regardless
-                    // of it's present value, otherwise we won't be able to navigate to new, new files
-                    if current.selectedDocument == nil {
-                        sheets.created = nil
-                    }
-                }
+//                .onReceive(current.$openDocuments) { _ in
+//                    print("cleared")
+//                    // When we return back to this screen, we have to change newFile back to nil regardless
+//                    // of it's present value, otherwise we won't be able to navigate to new, new files
+//                    current.openDocuments.removeAll()
+//                    sheets.created = nil
+//                }
         }
         .gesture(
             DragGesture().onEnded({ (value) in
@@ -75,6 +74,7 @@ struct FileListView: View {
     
     var mainView: some View {
         List {
+            let _ = print("CHECKING \(fileService.parent?.isRoot) \(fileService.suggestedDocs?.isEmpty)")
             if fileService.parent?.isRoot == true && fileService.suggestedDocs?.isEmpty != true {
                 Section(header: Text("Suggested")
                     .bold()

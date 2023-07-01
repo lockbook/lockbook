@@ -4,7 +4,7 @@ import SwiftLockbookCore
 struct SearchWrapperView<Content: View>: View {
     @EnvironmentObject var search: SearchService
     @EnvironmentObject var fileService: FileService
-    @EnvironmentObject var current: CurrentDocument
+    @EnvironmentObject var current: DocumentService
     
     @Environment(\.isSearching) var isSearching
     
@@ -38,13 +38,13 @@ struct SearchWrapperView<Content: View>: View {
                         switch result {
                         case .PathMatch(_, let meta, let name, let path, let matchedIndices, _):
                             Button(action: {
-                                current.selectedDocument = meta
+                                current.openDocuments[meta.id] = DocumentLoadingInfo(meta)
                             }) {
                                 SearchFilePathCell(name: name, path: path, matchedIndices: matchedIndices)
                             }
                         case .ContentMatch(_, let meta, let name, let path, let paragraph, let matchedIndices, _):
                             Button(action: {
-                                current.selectedDocument = meta
+                                current.openDocuments[meta.id] = DocumentLoadingInfo(meta)
                             }) {
                                 SearchFileContentCell(name: name, path: path, paragraph: paragraph, matchedIndices: matchedIndices)
                             }
@@ -60,11 +60,11 @@ struct SearchWrapperView<Content: View>: View {
                     List(results) { result in
                         switch result {
                         case .PathMatch(_, let meta, let name, let path, let matchedIndices, _):
-                            NavigationLink(destination: DocumentView(meta: meta)) {
+                            NavigationLink(destination: DocumentView(model: current.getOpenDoc(meta: meta))) {
                                 SearchFilePathCell(name: name, path: path, matchedIndices: matchedIndices)
                             }
                         case .ContentMatch(_, let meta, let name, let path, let paragraph, let matchedIndices, _):
-                            NavigationLink(destination: DocumentView(meta: meta)) {
+                            NavigationLink(destination: DocumentView(model: current.getOpenDoc(meta: meta))) {
                                 SearchFileContentCell(name: name, path: path, paragraph: paragraph, matchedIndices: matchedIndices)
                             }
                         }

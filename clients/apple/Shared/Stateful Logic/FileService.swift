@@ -284,8 +284,8 @@ class FileService: ObservableObject {
     }
 
     private func openFileChecks() {
-        if let openedMeta = DI.currentDoc.selectedDocument {
-            let maybeMeta = idsAndFiles[openedMeta.id]
+        if let openedMetaId = DI.currentDoc.openDocuments.keys.first {
+            let maybeMeta = idsAndFiles[openedMetaId]
             
             if maybeMeta == nil {
                 DI.documentLoader.deleted = true

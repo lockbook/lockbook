@@ -5,62 +5,60 @@ import SwiftEditor
 
 struct DocumentView: View {
     
-    let meta: File
+    @ObservedObject var model: DocumentLoadingInfo
     
-    @EnvironmentObject var model: DocumentLoader
 #if os(iOS)
     @EnvironmentObject var toolbar: ToolbarModel
-    @EnvironmentObject var current: CurrentDocument
 #endif
     
     var body: some View {
         Group {
-            if meta.id != model.meta?.id || model.loading {
+            if model.loading {
                 ProgressView()
                     .onAppear {
-                        model.startLoading(meta)
+                        model.startLoading()
                     }
-                    .title(meta.name)
+                    .title(model.meta.name) // No exact matches in reference to static method 'buildExpression'
             } else if model.error != "" {
                 Text("errors while loading: \(model.error)")
             } else if model.deleted {
-                Text("\(meta.name) was deleted.")
+                Text("\(model.meta.name) was deleted.")
             } else {
-                if let type = model.type {
-                    switch type {
-                    case .Image:
-                        if let img = model.image {
-                            ScrollView([.horizontal, .vertical]) {
-                                img
-                            }.title(meta.name)
-                        }
-#if os(iOS)
-                    case .Drawing:
-                        DrawingView(
-                            model: model,
-                            toolPicker: toolbar
-                        )
-                        .navigationBarTitle(meta.name, displayMode: .inline)
-                        .toolbar {
-                            ToolbarItemGroup(placement: .bottomBar) {
-                                Spacer()
-                                DrawingToolbar(toolPicker: toolbar)
-                                Spacer()
-                            }
-                        }
-#endif
-
-                    case .Markdown:
-                        if let editorState = model.textDocument {
-                            Group {
-                                MarkdownCompleteEditor(editorState)
-                                    .equatable()
-                            }.title("")
-                        }
-                    case .Unknown:
-                        Text("\(meta.name) cannot be opened on this device.")
-                            .title(meta.name)
+                switch model.type {
+                case .Image:
+                    if let img = model.image {
+                        ScrollView([.horizontal, .vertical]) {
+                            img
+                        }.title(model.meta.name)
                     }
+#if os(iOS)
+                case .Drawing:
+                    DrawingView(
+                        model: model,
+                        toolPicker: toolbar
+                    )
+                    .navigationBarTitle(model.meta.name, displayMode: .inline)
+                    .toolbar {
+                        ToolbarItemGroup(placement: .bottomBar) {
+                            Spacer()
+                            DrawingToolbar(toolPicker: toolbar)
+                            Spacer()
+                        }
+                    }
+#endif
+                    
+                case .Markdown:
+                    if let editorState = model.textDocument,
+                       let toolbarState = model.textDocumentToolbar,
+                       let nameState = model.textDocumentName {
+                        Group {
+                            MarkdownCompleteEditor(editorState: editorState, toolbarState: toolbarState, nameState: nameState)
+                                .equatable()
+                        }.title("")
+                    }
+                case .Unknown:
+                    Text("\(model.meta.name) cannot be opened on this device.")
+                        .title(model.meta.name)
                 }
             }
         }
@@ -81,30 +79,44 @@ extension View {
 }
 
 struct MarkdownCompleteEditor: View, Equatable {
-    
     let editorState: EditorState
-        
-    public init(_ editorState: EditorState) {
-        self.editorState = editorState
-    }
+    let toolbarState: ToolbarState
+    let nameState: NameState
+
+    let fileId: UUID = DI.currentDoc.openDocuments.values.first!.meta.id
     
     var body: some View {
-        VStack {
-            markdownTitle
-            
-            markdownEditor
-                .equatable()
-        }
+#if os(iOS)
+            VStack {
+                markdownTitle
+                
+                MarkdownEditor(editorState, toolbarState, nameState)
+                
+                ScrollView(.horizontal) {
+                    markdownToolbar
+                        .padding(.bottom, 8)
+                        .padding(.horizontal)
+                }
+            }
+#else
+            VStack {
+                markdownTitle
+                
+                markdownToolbar
+                    .padding(.top, 9)
+                    .padding(.horizontal)
+                
+                MarkdownEditor(editorState, toolbarState, nameState)
+            }
+#endif
     }
-    
+        
     var markdownTitle: MarkdownTitle {
-        MarkdownTitle(editorState: editorState, name: DI.documentLoader.meta!.name.replacingOccurrences(of: ".md", with: ""), id: DI.documentLoader.meta!.id) { titleComputation in
-            markdownEditor.editor.automaticTitleComputation(computeTitle: titleComputation)
-        }
+        MarkdownTitle(nameState: nameState, id: fileId)
     }
     
-    var markdownEditor: MarkdownEditor {
-        MarkdownEditor(editorState)
+    var markdownToolbar: MarkdownToolbar {
+        MarkdownToolbar(toolbarState: toolbarState)
     }
     
     static func == (lhs: MarkdownCompleteEditor, rhs: MarkdownCompleteEditor) -> Bool {
@@ -112,113 +124,16 @@ struct MarkdownCompleteEditor: View, Equatable {
     }
 }
 
-struct MarkdownTitle: View {
-    @ObservedObject var editorState: EditorState
-    let id: UUID
-    
-    var toggleAutomaticTitleComputation: (Bool) -> Void
-    
-    @FocusState var focused: Bool
-    
-    @State var error: String?
-    
-    @State var hasBeenFocused = false
-    
-    public init(editorState: EditorState, name: String, id: UUID, toggleAutomaticTitleComputation: @escaping (Bool) -> Void) {
-        self.editorState = editorState
-        self.id = id
-        self.toggleAutomaticTitleComputation = toggleAutomaticTitleComputation
-    }
+struct MarkdownToolbar: View {
+    @ObservedObject var toolbarState: ToolbarState
     
     var body: some View {
-        VStack(alignment: .leading) {
-            TextField("File name...", text: Binding(get: {
-                return UUID(uuidString: editorState.name) != nil ? "" : editorState.name
-            }, set: { newValue, _ in
-                hasBeenFocused = true
-                toggleAutomaticTitleComputation(false)
-                editorState.name = newValue.toKebabCase()
-            }))
-            .focused($focused)
-            .onChange(of: editorState.name, perform: { newValue in
-                if let errorMsg = DI.files.renameFile(id: id, name: newValue + ".md") {
-                    error = errorMsg
-                } else {
-                    error = nil
-                }
-            })
-            .onChange(of: editorState.potentialTitle, perform: { newValue in
-                if let potentialTitle = editorState.potentialTitle, !hasBeenFocused {
-                    editorState.name = potentialTitle.toKebabCase()
-                }
-            })
-            .textFieldStyle(.plain)
-            .font(.largeTitle)
-            .padding(.horizontal)
-            .padding(.top)
-            .onChange(of: focused, perform: { newValue in
-                editorState.focusLocation = newValue ? .title : .editor
-            })
-            .onChange(of: editorState.focusLocation, perform: { newValue in
-                focused = newValue == .title
-            })
-            
-            if let errorMsg = error {
-                Text(errorMsg)
-                    .font(.body)
-                    .foregroundColor(.red)
-                    .padding(.horizontal, 20)
-            }
-            
-            Divider()
-        }
-    }
-}
-
-struct MarkdownEditor: View, Equatable {
-    @ObservedObject var editorState: EditorState
-    let editor: EditorView
-    
-    public init(_ editorState: EditorState) {
-        self.editorState = editorState
-        self.editor = EditorView(editorState)
-    }
-    
-    @Environment(\.colorScheme) var colorScheme
-    
-    var body: some View {
-        Group {
-#if os(iOS)
-            VStack {
-                editor
-                
-                ScrollView(.horizontal) {
-                    toolbar
-                        .padding(.bottom, 8)
-                        .padding(.horizontal)
-                }
-            }
-#else
-            VStack {
-                toolbar
-                    .padding(.top, 9)
-                    .padding(.horizontal)
-                
-                editor
-            }
-#endif
-        }.onAppear {
-            editor.automaticTitleComputation(computeTitle: UUID(uuidString: editorState.name) != nil)
-        }
-    }
-    
-    var toolbar: some View {
         HStack(spacing: 20) {
             HStack(spacing: 0) {
                 
                 // hack for the heading 1-4 shortcut since the shortcuts in the menu won't work unless opened
                 Button(action: {
-                    editor.header(headingSize: 1)
+                    toolbarState.toggleHeading(1)
                 }) {
                     EmptyView()
                 }
@@ -226,7 +141,7 @@ struct MarkdownEditor: View, Equatable {
                 .keyboardShortcut("1", modifiers: [.command, .control])
                 
                 Button(action: {
-                    editor.header(headingSize: 2)
+                    toolbarState.toggleHeading(2)
                 }) {
                     EmptyView()
                 }
@@ -234,7 +149,7 @@ struct MarkdownEditor: View, Equatable {
                 .keyboardShortcut("2", modifiers: [.command, .control])
                 
                 Button(action: {
-                    editor.header(headingSize: 3)
+                    toolbarState.toggleHeading(3)
                 }) {
                     EmptyView()
                 }
@@ -242,7 +157,7 @@ struct MarkdownEditor: View, Equatable {
                 .keyboardShortcut("3", modifiers: [.command, .control])
                 
                 Button(action: {
-                    editor.header(headingSize: 4)
+                    toolbarState.toggleHeading(4)
                 }) {
                     EmptyView()
                 }
@@ -251,22 +166,22 @@ struct MarkdownEditor: View, Equatable {
                 
                 Menu(content: {
                     Button("Heading 1") {
-                        editor.header(headingSize: 1)
+                        toolbarState.toggleHeading(1)
                     }
                     .keyboardShortcut("1", modifiers: [.command, .control])
 
                     Button("Heading 2") {
-                        editor.header(headingSize: 2)
+                        toolbarState.toggleHeading(2)
                     }
                     .keyboardShortcut("2", modifiers: [.command, .control])
 
                     Button("Heading 3") {
-                        editor.header(headingSize: 3)
+                        toolbarState.toggleHeading(3)
                     }
                     .keyboardShortcut("3", modifiers: [.command, .control])
 
                     Button("Heading 4") {
-                        editor.header(headingSize: 4)
+                        toolbarState.toggleHeading(4)
                     }
                     .keyboardShortcut("4", modifiers: [.command, .control])
                 }, label: {
@@ -284,7 +199,7 @@ struct MarkdownEditor: View, Equatable {
                     .contentShape(Rectangle())
                 })
                 .padding(3)
-                .background(editorState.isHeadingSelected ? .gray.opacity(0.2) : .clear)
+                .background(toolbarState.isHeadingSelected ? .gray.opacity(0.2) : .clear)
                 .cornerRadius(5)
             }
 
@@ -293,25 +208,25 @@ struct MarkdownEditor: View, Equatable {
 
             HStack(spacing: 15) {
                 Button(action: {
-                    editor.bold()
+                    toolbarState.toggleBold()
                 }) {
-                    MarkdownEditorImage(systemImageName: "bold", isSelected: editorState.isBoldSelected)
+                    MarkdownEditorImage(systemImageName: "bold", isSelected: toolbarState.isBoldSelected)
                 }
                 .buttonStyle(.borderless)
                 .keyboardShortcut("b", modifiers: .command)
 
                 Button(action: {
-                    editor.italic()
+                    toolbarState.toggleItalic()
                 }) {
-                    MarkdownEditorImage(systemImageName: "italic", isSelected: editorState.isItalicSelected)
+                    MarkdownEditorImage(systemImageName: "italic", isSelected: toolbarState.isItalicSelected)
                 }
                 .buttonStyle(.borderless)
                 .keyboardShortcut("i", modifiers: .command)
 
                 Button(action: {
-                    editor.inlineCode()
+                    toolbarState.toggleInlineCode()
                 }) {
-                    MarkdownEditorImage(systemImageName: "greaterthan.square", isSelected: editorState.isInlineCodeSelected)
+                    MarkdownEditorImage(systemImageName: "greaterthan.square", isSelected: toolbarState.isInlineCodeSelected)
                 }
                 .buttonStyle(.borderless)
                 .keyboardShortcut("c", modifiers: [.command, .shift])
@@ -323,25 +238,25 @@ struct MarkdownEditor: View, Equatable {
 
             HStack(spacing: 15) {
                 Button(action: {
-                    editor.numberedList()
+                    toolbarState.toggleNumberList()
                 }) {
-                    MarkdownEditorImage(systemImageName: "list.number", isSelected: editorState.isNumberListSelected)
+                    MarkdownEditorImage(systemImageName: "list.number", isSelected: toolbarState.isNumberListSelected)
                 }
                 .buttonStyle(.borderless)
                 .keyboardShortcut("7", modifiers: [.command, .shift])
                 
                 Button(action: {
-                    editor.bulletedList()
+                    toolbarState.toggleBulletList()
                 }) {
-                    MarkdownEditorImage(systemImageName: "list.bullet", isSelected: editorState.isBulletListSelected)
+                    MarkdownEditorImage(systemImageName: "list.bullet", isSelected: toolbarState.isBulletListSelected)
                 }
                 .buttonStyle(.borderless)
                 .keyboardShortcut("8", modifiers: [.command, .shift])
 
                 Button(action: {
-                    editor.todoList()
+                    toolbarState.toggleTodoList()
                 }) {
-                    MarkdownEditorImage(systemImageName: "checklist", isSelected: editorState.isTodoListSelected)
+                    MarkdownEditorImage(systemImageName: "checklist", isSelected: toolbarState.isTodoListSelected)
                 }
                 .buttonStyle(.borderless)
                 .keyboardShortcut("9", modifiers: [.command, .shift])
@@ -355,14 +270,14 @@ struct MarkdownEditor: View, Equatable {
             HStack(spacing: 15) {
 
                 Button(action: {
-                    editor.tab(deindent: false)
+                    toolbarState.tab(false)
                 }) {
                     MarkdownEditorImage(systemImageName: "arrow.right.to.line.compact", isSelected: false)
                 }
                 .buttonStyle(.borderless)
 
                 Button(action: {
-                    editor.tab(deindent: true)
+                    toolbarState.tab(true)
                 }) {
                     MarkdownEditorImage(systemImageName: "arrow.left.to.line.compact", isSelected: false)
                 }
@@ -374,9 +289,88 @@ struct MarkdownEditor: View, Equatable {
             Spacer()
         }
     }
+}
+
+struct MarkdownTitle: View {
+    @ObservedObject var nameState: NameState
+    let id: UUID
     
-    static func == (lhs: MarkdownEditor, rhs: MarkdownEditor) -> Bool {
-        return true
+    @FocusState var focused: Bool
+    @State var error: String?
+    @State var hasBeenFocused = false
+    
+    var docInfo: DocumentLoadingInfo {
+        get {
+            DI.currentDoc.openDocuments[id]!
+        }
+    }
+    
+    let isOriginNameUUID: Bool
+    
+    init(nameState: NameState, id: UUID) {
+        self.nameState = nameState
+        self.id = id
+        self.isOriginNameUUID = UUID(uuidString: DI.currentDoc.openDocuments[id]!.meta.name.replacingOccurrences(of: ".md", with: "")) != nil
+    }
+    
+    var body: some View {
+        VStack(alignment: .leading) {
+            TextField("File name...", text: Binding(get: {
+                return docInfo.meta.name.replacingOccurrences(of: ".md", with: "")
+            }, set: { newValue, _ in
+                hasBeenFocused = true
+                docInfo.meta.name = newValue.toKebabCase()
+            }))
+            .focused($focused)
+            .onChange(of: docInfo.meta.name, perform: { newValue in
+                if let errorMsg = DI.files.renameFile(id: id, name: newValue + ".md") {
+                    error = errorMsg
+                } else {
+                    error = nil
+                    print("REFRESHING")
+                    DI.files.refresh()
+                }
+            })
+            .onChange(of: nameState.potentialTitle, perform: { newValue in
+                print("potential name")
+                if let potentialTitle = nameState.potentialTitle, !hasBeenFocused, isOriginNameUUID {
+                    docInfo.meta.name = potentialTitle.toKebabCase()
+                }
+            })
+            .textFieldStyle(.plain)
+            .font(.largeTitle)
+            .padding(.horizontal)
+            .padding(.top)
+            .onChange(of: focused, perform: { newValue in
+                nameState.focusLocation = newValue ? .title : .editor
+            })
+            .onChange(of: nameState.focusLocation, perform: { newValue in
+                focused = newValue == .title
+            })
+            
+            if let errorMsg = error {
+                Text(errorMsg)
+                    .font(.body)
+                    .foregroundColor(.red)
+                    .padding(.horizontal, 20)
+            }
+            
+            Divider()
+        }
+    }
+}
+
+struct MarkdownEditor: View {
+    @ObservedObject var editorState: EditorState
+    let editor: EditorView
+    
+    public init(_ editorState: EditorState, _ toolbarState: ToolbarState, _ nameState: NameState) {
+        self.editorState = editorState
+        self.editor = EditorView(editorState, toolbarState, nameState)
+    }
+        
+    var body: some View {
+        editor
     }
 }
 

@@ -16,7 +16,7 @@ class DI {
     static let onboarding = OnboardingService(core)
     static let documentLoader = DocumentLoader(core)
     static let sheets: SheetState = SheetState()
-    static let currentDoc: CurrentDocument = CurrentDocument()
+    static let currentDoc: DocumentService = DocumentService()
     static let search = SearchService(core)
     #if os(iOS)
     static let toolbarModel = ToolbarModel()
@@ -31,7 +31,7 @@ class DI {
         DI.onboarding.username = ""
         DI.documentLoader.meta = nil
         DI.documentLoader.type = nil
-        DI.currentDoc.selectedDocument = nil
+        DI.currentDoc.openDocuments.removeAll()
     }
 }
 
@@ -51,7 +51,7 @@ class Mock {
     static let onboarding = OnboardingService(core)
     static let documentLoader = DocumentLoader(core)
     static let sheets: SheetState = SheetState()
-    static let currentDoc: CurrentDocument = CurrentDocument()
+    static let currentDoc: DocumentService = DocumentService()
     static let search = SearchService(core)
     #if os(iOS)
     static let toolbarModel = ToolbarModel()

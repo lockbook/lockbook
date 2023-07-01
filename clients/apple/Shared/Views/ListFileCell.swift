@@ -5,7 +5,7 @@ import Introspect
 struct FileCell: View {
     let meta: File
 
-    @EnvironmentObject var current: CurrentDocument
+    @EnvironmentObject var current: DocumentService
     @EnvironmentObject var sheets: SheetState
     @EnvironmentObject var fileService: FileService
     @EnvironmentObject var account: AccountService
@@ -44,7 +44,7 @@ struct FileCell: View {
                 RealFileCell(meta: meta)
             }
         } else {
-            NavigationLink(destination: DocumentView(meta: meta)) {
+            NavigationLink(destination: DocumentView(model: current.getOpenDoc(meta: meta))) {
                 RealFileCell(meta: meta)
             }
         }

@@ -96,7 +96,6 @@ impl Default for EditorResponse {
 pub struct Editor {
     pub id: u32,
     pub initialized: bool,
-    pub compute_title: bool,
 
     // config
     pub appearance: Appearance,
@@ -138,7 +137,6 @@ impl Default for Editor {
         Self {
             id,
             initialized: Default::default(),
-            compute_title: false,
 
             appearance: Default::default(),
             client: Default::default(),
@@ -381,20 +379,12 @@ impl Editor {
             }
         }
 
-        let potential_title = if self.compute_title {
-            self.get_potential_text_title()
-        } else {
-            None
-        };
+        let potential_title = self.get_potential_text_title();
 
         #[cfg(any(target_os = "ios", target_os = "macos"))]
-        let potential_title = if self.compute_title {
-            CString::new(potential_title.unwrap_or_else(|| "".to_string()))
-                .expect("Could not Rust String -> C String")
-                .into_raw() as *const c_char
-        } else {
-            ptr::null()
-        };
+        let potential_title = CString::new(potential_title.unwrap_or_else(|| "".to_string()))
+            .expect("Could not Rust String -> C String")
+            .into_raw() as *const c_char;
 
         EditorResponse {
             text_updated,

@@ -107,7 +107,7 @@ class SearchService: ObservableObject {
     }
     
     func submitSearch(id: UUID) {
-        DI.currentDoc.selectedDocument = DI.files.idsAndFiles[id]!
+        DI.currentDoc.openDocuments[id] = DocumentLoadingInfo(DI.files.idsAndFiles[id]!)
     }
 }
 
