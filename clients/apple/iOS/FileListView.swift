@@ -103,7 +103,7 @@ struct FileListView: View {
         }
         .navigationBarTitle(fileService.parent.map{($0.name)} ?? "")
         .modifier(DragGestureViewModifier(onUpdate: { gesture in
-            if fileService.parent?.isRoot == false && gesture.translation.width < 300 && gesture.translation.width > 0 {
+            if fileService.parent?.isRoot == false && gesture.translation.width < 200 && gesture.translation.width > 0 {
                 mainViewOffset.width = gesture.translation.width
             }
         }, onEnd: { gesture in
@@ -124,7 +124,7 @@ struct FileListView: View {
         
         return ForEach(children) { meta in
                 FileCell(meta: meta) {
-                    withAnimation(.easeOut(duration: 0.2)) {
+                    withAnimation(.linear(duration: 0.2)) {
                         mainViewOffset.width = -200
                     }
                     
@@ -135,7 +135,7 @@ struct FileListView: View {
                         fileService.intoChildDirectory(meta)
                         
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                            withAnimation(.easeIn(duration: 0.1)) {
+                            withAnimation(.linear(duration: 0.1)) {
                                 mainViewOffset.width = 0
                                 mainViewOpacity = 1
                             }
@@ -153,7 +153,7 @@ struct FileListView: View {
     }
     
     func animateToParentFolder(realParentUpdate: @escaping () -> Void) {
-        withAnimation(.easeOut(duration: 0.2)) {
+        withAnimation(.linear(duration: 0.2)) {
             mainViewOffset.width = 200
             mainViewOpacity = 0
         }
@@ -165,7 +165,7 @@ struct FileListView: View {
             realParentUpdate()
             
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                withAnimation(.easeIn(duration: 0.1)) {
+                withAnimation(.linear(duration: 0.1)) {
                     mainViewOffset.width = 0
                 }
             }
