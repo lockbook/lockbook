@@ -1,23 +1,44 @@
-use crate::billing::app_store_client::AppStoreClient;
-use crate::billing::google_play_client::GooglePlayClient;
-use crate::billing::stripe_client::StripeClient;
-use crate::{ServerError, ServerState};
-
+use crate::config::Config;
+use crate::ServerError;
+use async_trait::async_trait;
 use lockbook_shared::crypto::EncryptedDocument;
 use lockbook_shared::file_metadata::DocumentHmac;
+use std::collections::HashMap;
 use std::fmt::Debug;
 use std::path::PathBuf;
+use std::sync::{Arc, Mutex};
 use tokio::fs::{remove_file, File};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use uuid::Uuid;
 
-impl<S, A, G> ServerState<S, A, G>
-where
-    S: StripeClient,
-    A: AppStoreClient,
-    G: GooglePlayClient,
-{
-    pub(crate) async fn insert<T: Debug>(
+#[async_trait]
+pub trait DocumentService: Send + Sync + Clone + 'static {
+    async fn insert<T: Debug>(
+        &self, id: &Uuid, hmac: &DocumentHmac, content: &EncryptedDocument,
+    ) -> Result<(), ServerError<T>>;
+    async fn get<T: Debug>(
+        &self, id: &Uuid, hmac: &DocumentHmac,
+    ) -> Result<EncryptedDocument, ServerError<T>>;
+    async fn delete<T: Debug>(&self, id: &Uuid, hmac: &DocumentHmac) -> Result<(), ServerError<T>>;
+
+    fn exists(&self, id: &Uuid, hmac: &DocumentHmac) -> bool;
+    fn get_path(&self, id: &Uuid, hmac: &DocumentHmac) -> PathBuf;
+}
+
+#[derive(Clone)]
+pub struct OnDiskDocuments {
+    config: Config,
+}
+
+impl From<&Config> for OnDiskDocuments {
+    fn from(value: &Config) -> Self {
+        Self { config: value.clone() }
+    }
+}
+
+#[async_trait]
+impl DocumentService for OnDiskDocuments {
+    async fn insert<T: Debug>(
         &self, id: &Uuid, hmac: &DocumentHmac, content: &EncryptedDocument,
     ) -> Result<(), ServerError<T>> {
         let content = bincode::serialize(content)?;
@@ -30,7 +51,7 @@ where
         Ok(())
     }
 
-    pub(crate) async fn get<T: Debug>(
+    async fn get<T: Debug>(
         &self, id: &Uuid, hmac: &DocumentHmac,
     ) -> Result<EncryptedDocument, ServerError<T>> {
         let path = self.get_path(id, hmac);
@@ -41,13 +62,7 @@ where
         Ok(content)
     }
 
-    pub(crate) fn exists(&self, id: &Uuid, hmac: &DocumentHmac) -> bool {
-        self.get_path(id, hmac).exists()
-    }
-
-    pub(crate) async fn delete<T: Debug>(
-        &self, id: &Uuid, hmac: &DocumentHmac,
-    ) -> Result<(), ServerError<T>> {
+    async fn delete<T: Debug>(&self, id: &Uuid, hmac: &DocumentHmac) -> Result<(), ServerError<T>> {
         let path = self.get_path(id, hmac);
         // I'm not sure this check should exist, the two situations it gets utilized is when we re-delete
         // an already deleted file and when we move a file from version 0 -> N. Maybe it would be more
@@ -60,11 +75,59 @@ where
         Ok(())
     }
 
+    fn exists(&self, id: &Uuid, hmac: &DocumentHmac) -> bool {
+        self.get_path(id, hmac).exists()
+    }
+
     fn get_path(&self, id: &Uuid, hmac: &DocumentHmac) -> PathBuf {
         let mut path = self.config.files.path.clone();
         // we may need to truncate this
         let hmac = base64::encode_config(hmac, base64::URL_SAFE);
         path.push(format!("{}-{}", id, hmac));
         path
+    }
+}
+
+/// For use with fuzzer, not to be hooked up in prod
+#[derive(Clone, Default)]
+pub struct InMemDocuments {
+    docs: Arc<Mutex<HashMap<String, EncryptedDocument>>>,
+}
+
+#[async_trait]
+impl DocumentService for InMemDocuments {
+    async fn insert<T: Debug>(
+        &self, id: &Uuid, hmac: &DocumentHmac, content: &EncryptedDocument,
+    ) -> Result<(), ServerError<T>> {
+        let hmac = base64::encode_config(hmac, base64::URL_SAFE);
+        let key = format!("{id}-{hmac}");
+        self.docs.lock().unwrap().insert(key, content.clone());
+        Ok(())
+    }
+
+    async fn get<T: Debug>(
+        &self, id: &Uuid, hmac: &DocumentHmac,
+    ) -> Result<EncryptedDocument, ServerError<T>> {
+        let hmac = base64::encode_config(hmac, base64::URL_SAFE);
+        let key = format!("{id}-{hmac}");
+        Ok(self.docs.lock().unwrap().get(&key).unwrap().clone())
+    }
+
+    fn exists(&self, id: &Uuid, hmac: &DocumentHmac) -> bool {
+        let hmac = base64::encode_config(hmac, base64::URL_SAFE);
+        let key = format!("{id}-{hmac}");
+        self.docs.lock().unwrap().contains_key(&key)
+    }
+
+    fn get_path(&self, _id: &Uuid, _hmac: &DocumentHmac) -> PathBuf {
+        unimplemented!()
+    }
+
+    async fn delete<T: Debug>(&self, id: &Uuid, hmac: &DocumentHmac) -> Result<(), ServerError<T>> {
+        let hmac = base64::encode_config(hmac, base64::URL_SAFE);
+        let key = format!("{id}-{hmac}");
+        self.docs.lock().unwrap().remove(&key);
+
+        Ok(())
     }
 }

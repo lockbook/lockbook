@@ -3,6 +3,7 @@ use crate::billing::app_store_model::{
 };
 use crate::billing::billing_service::AppStoreNotificationError;
 use crate::config::AppleConfig;
+use crate::document_service::DocumentService;
 use crate::{ClientError, ServerError, ServerState};
 use jsonwebtoken::{decode, decode_header, Algorithm, DecodingKey, Validation};
 use libsecp256k1::PublicKey;
@@ -24,11 +25,12 @@ const EXPIRED: u16 = 2;
 const BILLING_RETRY: u16 = 3;
 const GRACE_PERIOD: u16 = 4;
 
-impl<S, A, G> ServerState<S, A, G>
+impl<S, A, G, D> ServerState<S, A, G, D>
 where
     S: StripeClient,
     A: AppStoreClient,
     G: GooglePlayClient,
+    D: DocumentService,
 {
     pub fn get_public_key_from_tx(
         &self, trans: &TransactionInfo,

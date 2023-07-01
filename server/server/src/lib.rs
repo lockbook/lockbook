@@ -1,6 +1,7 @@
 use billing::app_store_client::AppStoreClient;
 use billing::google_play_client::GooglePlayClient;
 use billing::stripe_client::StripeClient;
+use document_service::DocumentService;
 use std::env;
 use std::fmt::Debug;
 use std::sync::{Arc, Mutex};
@@ -22,17 +23,19 @@ use tracing::log::warn;
 static CARGO_PKG_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[derive(Clone)]
-pub struct ServerState<S, A, G>
+pub struct ServerState<S, A, G, D>
 where
     S: StripeClient,
     A: AppStoreClient,
     G: GooglePlayClient,
+    D: DocumentService,
 {
     pub config: config::Config,
     pub index_db: Arc<Mutex<ServerV4>>,
     pub stripe_client: S,
     pub google_play_client: G,
     pub app_store_client: A,
+    pub document_service: D,
 }
 
 #[derive(Clone)]
@@ -73,20 +76,17 @@ pub fn handle_version_header<Req: Request>(
     Ok(())
 }
 
-pub fn verify_auth<TRequest, S, A, G>(
-    server_state: &ServerState<S, A, G>, request: &RequestWrapper<TRequest>,
+pub fn verify_auth<TRequest>(
+    config: &config::Config, request: &RequestWrapper<TRequest>,
 ) -> Result<(), SharedError>
 where
     TRequest: Request + Serialize,
-    S: StripeClient,
-    A: AppStoreClient,
-    G: GooglePlayClient,
 {
     pubkey::verify(
         &request.signed_request.public_key,
         &request.signed_request,
-        server_state.config.server.max_auth_delay as u64,
-        server_state.config.server.max_auth_delay as u64,
+        config.server.max_auth_delay as u64,
+        config.server.max_auth_delay as u64,
         clock::get_time,
     )
 }

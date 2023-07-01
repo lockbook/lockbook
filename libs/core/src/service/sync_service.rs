@@ -6,7 +6,7 @@ use lockbook_shared::api::{
     ChangeDocRequest, GetDocRequest, GetFileIdsRequest, GetUpdatesRequest, GetUpdatesResponse,
     GetUsernameError, GetUsernameRequest, UpsertRequest,
 };
-use lockbook_shared::core_config::Config;
+use lockbook_shared::document_repo::DocumentService;
 use lockbook_shared::file::{File, ShareMode};
 use lockbook_shared::file_like::FileLike;
 use lockbook_shared::file_metadata::{FileDiff, FileType, Owner};
@@ -15,7 +15,7 @@ use lockbook_shared::signed_file::SignedFile;
 use lockbook_shared::staged::{StagedTree, StagedTreeLikeMut};
 use lockbook_shared::tree_like::{TreeLike, TreeLikeMut};
 use lockbook_shared::work_unit::{ClientWorkUnit, WorkUnit};
-use lockbook_shared::{document_repo, symkey, SharedErrorKind, ValidationFailure};
+use lockbook_shared::{symkey, SharedErrorKind, ValidationFailure};
 
 use db_rs::LookupTable;
 use serde::Serialize;
@@ -71,7 +71,7 @@ fn get_work_units(op: &SyncOperation) -> Vec<WorkUnit> {
     work_units
 }
 
-impl<Client: Requester> CoreState<Client> {
+impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {
     #[instrument(level = "debug", skip_all, err(Debug))]
     pub(crate) fn calculate_work(&mut self) -> LbResult<WorkCalculated> {
         let mut work_units: Vec<WorkUnit> = Vec::new();
@@ -84,7 +84,7 @@ impl<Client: Requester> CoreState<Client> {
             local: (&self.db.local_metadata).to_staged(Vec::new()),
             username_by_public_key: &mut self.db.pub_key_lookup,
             client: &self.client,
-            config: &self.config,
+            docs: &self.docs,
         };
         let update_as_of = sync_context.sync(&mut |op| work_units.extend(get_work_units(&op)))?;
 
@@ -113,7 +113,7 @@ impl<Client: Requester> CoreState<Client> {
                 local: (&self.db.local_metadata).to_staged(Vec::new()),
                 username_by_public_key: &mut self.db.pub_key_lookup,
                 client: &self.client,
-                config: &self.config,
+                docs: &self.docs,
             };
             sync_context.sync(&mut |op| match op {
                 SyncOperation::PullMetadataStart
@@ -164,7 +164,7 @@ impl<Client: Requester> CoreState<Client> {
             local: (&mut self.db.local_metadata).to_staged(Vec::new()),
             username_by_public_key: &mut self.db.pub_key_lookup,
             client: &self.client,
-            config: &self.config,
+            docs: &self.docs,
         };
 
         let update_as_of = sync_context.sync(&mut update_sync_progress)?;
@@ -182,11 +182,12 @@ impl<Client: Requester> CoreState<Client> {
     }
 }
 
-struct SyncContext<'a, Base, Local, Client>
+struct SyncContext<'a, Base, Local, Client, Docs>
 where
     Base: TreeLike<F = SignedFile>,
     Local: TreeLike<F = SignedFile>,
     Client: Requester,
+    Docs: DocumentService,
 {
     // when dry_run is true, sync skips document downloads/uploads and disk reads/writes
     dry_run: bool,
@@ -206,14 +207,15 @@ where
 
     // client for network requests and config for disk i/o
     client: &'a Client,
-    config: &'a Config,
+    docs: &'a Docs,
 }
 
-impl<'a, Base, Local, Client> SyncContext<'a, Base, Local, Client>
+impl<'a, Base, Local, Client, Docs> SyncContext<'a, Base, Local, Client, Docs>
 where
     Base: TreeLike<F = SignedFile>,
     Local: TreeLike<F = SignedFile>,
     Client: Requester,
+    Docs: DocumentService,
 {
     fn sync<F>(&mut self, report_sync_operation: &mut F) -> LbResult<i64>
     where
@@ -297,12 +299,8 @@ where
                             .client
                             .request(&self.account, GetDocRequest { id, hmac: remote_hmac })?
                             .content;
-                        document_repo::insert(
-                            self.config,
-                            &id,
-                            Some(&remote_hmac),
-                            &remote_document,
-                        )?;
+                        self.docs
+                            .insert(&id, Some(&remote_hmac), &remote_document)?;
                     }
 
                     report_sync_operation(SyncOperation::PullDocumentEnd);
@@ -558,17 +556,17 @@ where
                                 let document_type =
                                     DocumentType::from_file_name_using_extension(&merge_name);
                                 let base_document = if !self.dry_run && base_hmac.is_some() {
-                                    base.read_document(self.config, &id, &self.account)?
+                                    base.read_document(self.docs, &id, &self.account)?
                                 } else {
                                     Vec::new()
                                 };
                                 let remote_document = if !self.dry_run && remote_hmac.is_some() {
-                                    remote.read_document(self.config, &id, &self.account)?
+                                    remote.read_document(self.docs, &id, &self.account)?
                                 } else {
                                     Vec::new()
                                 };
                                 let local_document = if !self.dry_run && local_hmac.is_some() {
-                                    local.read_document(self.config, &id, &self.account)?
+                                    local.read_document(self.docs, &id, &self.account)?
                                 } else {
                                     Vec::new()
                                 };
@@ -591,12 +589,7 @@ where
                                             )?;
                                         if !self.dry_run {
                                             let hmac = merge.find(&id)?.document_hmac();
-                                            document_repo::insert(
-                                                self.config,
-                                                &id,
-                                                hmac,
-                                                &encrypted_document,
-                                            )?;
+                                            self.docs.insert(&id, hmac, &encrypted_document)?;
                                         }
                                     }
                                     DocumentType::Drawing | DocumentType::Other => {
@@ -640,8 +633,7 @@ where
                                         if !self.dry_run {
                                             let duplicate_hmac =
                                                 merge.find(&duplicate_id)?.document_hmac();
-                                            document_repo::insert(
-                                                self.config,
+                                            self.docs.insert(
                                                 &duplicate_id,
                                                 duplicate_hmac,
                                                 &encrypted_document,
@@ -652,7 +644,7 @@ where
                             } else {
                                 // overwrite (todo: avoid reading/decrypting/encrypting document)
                                 let document = if !self.dry_run {
-                                    local.read_document(self.config, &id, &self.account)?
+                                    local.read_document(self.docs, &id, &self.account)?
                                 } else {
                                     Vec::new()
                                 };
@@ -907,10 +899,10 @@ where
         if !self.dry_run {
             for id in &prunable_ids {
                 if let Some(base_file) = local.tree.base.maybe_find(id) {
-                    document_repo::delete(self.config, id, base_file.document_hmac())?;
+                    self.docs.delete(id, base_file.document_hmac())?;
                 }
                 if let Some(local_file) = local.maybe_find(id) {
-                    document_repo::delete(self.config, id, local_file.document_hmac())?;
+                    self.docs.delete(id, local_file.document_hmac())?;
                 }
             }
         }
@@ -1006,17 +998,12 @@ where
             )?));
 
             if !self.dry_run {
-                let local_document_change =
-                    document_repo::get(self.config, &id, local_change.document_hmac())?;
+                let local_document_change = self.docs.get(&id, local_change.document_hmac())?;
 
                 // base = local (document)
                 // todo: remove?
-                document_repo::insert(
-                    self.config,
-                    &id,
-                    local_change.document_hmac(),
-                    &local_document_change,
-                )?;
+                self.docs
+                    .insert(&id, local_change.document_hmac(), &local_document_change)?;
 
                 // remote = local
                 self.client.request(

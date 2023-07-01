@@ -1,4 +1,5 @@
 use crate::billing::billing_model::StripeUserInfo;
+use crate::document_service::DocumentService;
 use crate::StripeWebhookError;
 use crate::{ClientError, ServerError, ServerState};
 use google_androidpublisher3::hyper::body::Bytes;
@@ -17,11 +18,12 @@ use super::app_store_client::AppStoreClient;
 use super::google_play_client::GooglePlayClient;
 use super::stripe_client::StripeClient;
 
-impl<S, A, G> ServerState<S, A, G>
+impl<S, A, G, D> ServerState<S, A, G, D>
 where
     S: StripeClient,
     A: AppStoreClient,
     G: GooglePlayClient,
+    D: DocumentService,
 {
     pub async fn create_subscription(
         &self, public_key: &PublicKey, account_tier: &StripeAccountTier,

@@ -2,6 +2,7 @@ pub mod assert;
 
 use itertools::Itertools;
 use lockbook_core::service::api_service::Requester;
+use lockbook_core::DocumentService;
 use lockbook_core::{Core, CoreLib};
 use lockbook_shared::api::{PaymentMethod, StripeAccountTier};
 use lockbook_shared::core_config::Config;
@@ -97,7 +98,9 @@ pub fn get_dirty_ids(db: &Core, server: bool) -> Vec<Uuid> {
         .collect()
 }
 
-pub fn dbs_equal<Client: Requester>(left: &CoreLib<Client>, right: &CoreLib<Client>) -> bool {
+pub fn dbs_equal<Client: Requester, Docs: DocumentService>(
+    left: &CoreLib<Client, Docs>, right: &CoreLib<Client, Docs>,
+) -> bool {
     left.in_tx(|l| {
         Ok(right
             .in_tx(|r| {
@@ -111,7 +114,9 @@ pub fn dbs_equal<Client: Requester>(left: &CoreLib<Client>, right: &CoreLib<Clie
     .unwrap()
 }
 
-pub fn assert_dbs_equal<Client: Requester>(left: &CoreLib<Client>, right: &CoreLib<Client>) {
+pub fn assert_dbs_equal<Client: Requester, Docs: DocumentService>(
+    left: &CoreLib<Client, Docs>, right: &CoreLib<Client, Docs>,
+) {
     left.in_tx(|l| {
         right
             .in_tx(|r| {

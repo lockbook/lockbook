@@ -1,6 +1,6 @@
 use crate::{CoreError, CoreState, LbError, LbResult, Requester};
 use lockbook_shared::account::Account;
-use lockbook_shared::core_config::Config;
+use lockbook_shared::document_repo::DocumentService;
 use lockbook_shared::file::File;
 use lockbook_shared::file_like::FileLike;
 use lockbook_shared::file_metadata::FileType;
@@ -8,7 +8,7 @@ use lockbook_shared::filename::NameComponents;
 use lockbook_shared::lazy::LazyStaged1;
 use lockbook_shared::signed_file::SignedFile;
 use lockbook_shared::tree_like::TreeLike;
-use lockbook_shared::{document_repo, symkey, SharedError};
+use lockbook_shared::{symkey, SharedError};
 use std::collections::HashSet;
 use std::fs;
 use std::fs::OpenOptions;
@@ -22,7 +22,7 @@ pub enum ImportStatus {
     FinishedItem(File),
 }
 
-impl<Client: Requester> CoreState<Client> {
+impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {
     pub(crate) fn import_files<F: Fn(ImportStatus)>(
         &mut self, sources: &[PathBuf], dest: Uuid, update_status: &F,
     ) -> LbResult<()> {
@@ -58,7 +58,7 @@ impl<Client: Requester> CoreState<Client> {
         let account = self.db.account.get().ok_or(CoreError::AccountNonexistent)?;
 
         Self::export_file_recursively(
-            &self.config,
+            &self.docs,
             account,
             &mut tree,
             &file,
@@ -71,7 +71,7 @@ impl<Client: Requester> CoreState<Client> {
     }
 
     fn export_file_recursively<Base, Local>(
-        config: &Config, account: &Account, tree: &mut LazyStaged1<Base, Local>,
+        docs: &impl DocumentService, account: &Account, tree: &mut LazyStaged1<Base, Local>,
         this_file: &Base::F, disk_path: &Path, edit: bool,
         export_progress: &Option<Box<dyn Fn(ExportFileInfo)>>,
     ) -> LbResult<()>
@@ -96,8 +96,8 @@ impl<Client: Requester> CoreState<Client> {
                 for id in children {
                     if !tree.calculate_deleted(&id)? {
                         let file = tree.find(&id)?.clone();
-                        CoreState::<Client>::export_file_recursively(
-                            config,
+                        Self::export_file_recursively(
+                            docs,
                             account,
                             tree,
                             &file,
@@ -122,15 +122,15 @@ impl<Client: Requester> CoreState<Client> {
                 }
                 .map_err(LbError::from)?;
 
-                let doc = tree.read_document(config, this_file.id(), account)?;
+                let doc = tree.read_document(docs, this_file.id(), account)?;
 
                 file.write_all(doc.as_slice()).map_err(LbError::from)?;
             }
             FileType::Link { target } => {
                 if !tree.calculate_deleted(&target)? {
                     let file = tree.find(&target)?.clone();
-                    CoreState::<Client>::export_file_recursively(
-                        config,
+                    Self::export_file_recursively(
+                        docs,
                         account,
                         tree,
                         &file,
@@ -176,12 +176,8 @@ impl<Client: Requester> CoreState<Client> {
                 false => FileType::Folder,
             };
 
-            let file_name = CoreState::<Client>::generate_non_conflicting_name(
-                &mut tree,
-                account,
-                &dest,
-                disk_file_name,
-            )?;
+            let file_name =
+                Self::generate_non_conflicting_name(&mut tree, account, &dest, disk_file_name)?;
 
             let id = tree.create(
                 Uuid::new_v4(),
@@ -199,7 +195,7 @@ impl<Client: Requester> CoreState<Client> {
 
                 let encrypted_document = tree.update_document(&id, &doc, account)?;
                 let hmac = tree.find(&id)?.document_hmac();
-                document_repo::insert(&self.config, &id, hmac, &encrypted_document)?;
+                self.docs.insert(&id, hmac, &encrypted_document)?;
 
                 update_status(ImportStatus::FinishedItem(file));
                 tree

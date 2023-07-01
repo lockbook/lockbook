@@ -4,11 +4,12 @@ use crate::{CoreError, CoreState, LbResult, Requester};
 use libsecp256k1::PublicKey;
 use lockbook_shared::account::{Account, MAX_USERNAME_LENGTH};
 use lockbook_shared::api::{DeleteAccountRequest, GetPublicKeyRequest, NewAccountRequest};
+use lockbook_shared::document_repo::DocumentService;
 use lockbook_shared::file_like::FileLike;
 use lockbook_shared::file_metadata::{FileMetadata, FileType};
 use qrcode_generator::QrCodeEcc;
 
-impl<Client: Requester> CoreState<Client> {
+impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {
     pub(crate) fn create_account(
         &mut self, username: &str, api_url: &str, welcome_doc: bool,
     ) -> LbResult<Account> {

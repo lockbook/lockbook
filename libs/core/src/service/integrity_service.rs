@@ -1,5 +1,6 @@
 use std::path::Path;
 
+use lockbook_shared::document_repo::DocumentService;
 use lockbook_shared::file_like::FileLike;
 use lockbook_shared::file_metadata::Owner;
 use lockbook_shared::tree_like::TreeLike;
@@ -11,7 +12,7 @@ use crate::{CoreState, Requester};
 const UTF8_SUFFIXES: [&str; 12] =
     ["md", "txt", "text", "markdown", "sh", "zsh", "bash", "html", "css", "js", "csv", "rs"];
 
-impl<Client: Requester> CoreState<Client> {
+impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {
     pub(crate) fn test_repo_integrity(&mut self) -> Result<Vec<Warning>, TestRepoError> {
         let mut tree = (&self.db.base_metadata)
             .to_staged(&self.db.local_metadata)
@@ -41,7 +42,7 @@ impl<Client: Requester> CoreState<Client> {
             let cont = file.document_hmac().is_some();
             let not_deleted = !tree.calculate_deleted(&id)?;
             if not_deleted && doc && cont {
-                let doc = tree.read_document(&self.config, &id, account)?;
+                let doc = tree.read_document(&self.docs, &id, account)?;
 
                 if doc.len() as u64 == 0 {
                     warnings.push(Warning::EmptyFile(id));

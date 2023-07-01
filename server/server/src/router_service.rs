@@ -2,6 +2,8 @@ use crate::billing::app_store_client::AppStoreClient;
 use crate::billing::billing_service::*;
 use crate::billing::google_play_client::GooglePlayClient;
 use crate::billing::stripe_client::StripeClient;
+use crate::config::Config;
+use crate::document_service::DocumentService;
 use crate::utils::get_build_info;
 use crate::{handle_version_header, router_service, verify_auth, ServerError, ServerState};
 use lazy_static::lazy_static;
@@ -51,7 +53,7 @@ macro_rules! core_req {
             .and(warp::any().map(move || cloned_state.clone()))
             .and(warp::body::bytes())
             .and(warp::header::optional::<String>("Accept-Version"))
-            .then(|state: Arc<ServerState<S, A, G>>, request: Bytes, version: Option<String>| {
+            .then(|state: Arc<ServerState<S, A, G, D>>, request: Bytes, version: Option<String>| {
                 let span1 = span!(
                     Level::INFO,
                     "matched_request",
@@ -65,7 +67,7 @@ macro_rules! core_req {
                         .start_timer();
 
                     let request: RequestWrapper<$Req> =
-                        match deserialize_and_check(state, request, version) {
+                        match deserialize_and_check(&state.config, request, version) {
                             Ok(req) => req,
                             Err(err) => {
                                 warn!("request failed to parse: {:?}", err);
@@ -129,13 +131,14 @@ macro_rules! core_req {
     }};
 }
 
-pub fn core_routes<S, A, G>(
-    server_state: &Arc<ServerState<S, A, G>>,
+pub fn core_routes<S, A, G, D>(
+    server_state: &Arc<ServerState<S, A, G, D>>,
 ) -> impl Filter<Extract = (impl warp::Reply,), Error = Rejection> + Clone
 where
     S: StripeClient,
     A: AppStoreClient,
     G: GooglePlayClient,
+    D: DocumentService,
 {
     core_req!(NewAccountRequest, ServerState::new_account, server_state)
         .or(core_req!(ChangeDocRequest, ServerState::change_doc, server_state))
@@ -229,13 +232,14 @@ pub fn get_metrics() -> impl Filter<Extract = (impl warp::Reply,), Error = warp:
 
 static STRIPE_WEBHOOK_ROUTE: &str = "stripe-webhooks";
 
-pub fn stripe_webhooks<S, A, G>(
-    server_state: &Arc<ServerState<S, A, G>>,
+pub fn stripe_webhooks<S, A, G, D>(
+    server_state: &Arc<ServerState<S, A, G, D>>,
 ) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone
 where
     S: StripeClient,
     A: AppStoreClient,
     G: GooglePlayClient,
+    D: DocumentService,
 {
     let cloned_state = server_state.clone();
 
@@ -245,7 +249,7 @@ where
         .and(warp::body::bytes())
         .and(warp::header::header("Stripe-Signature"))
         .then(
-            |state: Arc<ServerState<S, A, G>>, request: Bytes, stripe_sig: HeaderValue| async move {
+            |state: Arc<ServerState<S, A, G, D>>, request: Bytes, stripe_sig: HeaderValue| async move {
                 let span = span!(
                     Level::INFO,
                     "matched_request",
@@ -282,13 +286,14 @@ where
 
 static PLAY_WEBHOOK_ROUTE: &str = "google_play_notification_webhook";
 
-pub fn google_play_notification_webhooks<S, A, G>(
-    server_state: &Arc<ServerState<S, A, G>>,
+pub fn google_play_notification_webhooks<S, A, G, D>(
+    server_state: &Arc<ServerState<S, A, G, D>>,
 ) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone
 where
     S: StripeClient,
     A: AppStoreClient,
     G: GooglePlayClient,
+    D: DocumentService,
 {
     let cloned_state = server_state.clone();
 
@@ -298,7 +303,7 @@ where
         .and(warp::body::bytes())
         .and(warp::query::query::<HashMap<String, String>>())
         .then(
-            |state: Arc<ServerState<S, A, G>>,
+            |state: Arc<ServerState<S, A, G, D>>,
              request: Bytes,
              query_parameters: HashMap<String, String>| async move {
                 let span = span!(
@@ -343,13 +348,14 @@ where
 }
 
 static APP_STORE_WEBHOOK_ROUTE: &str = "app_store_notification_webhook";
-pub fn app_store_notification_webhooks<S, A, G>(
-    server_state: &Arc<ServerState<S, A, G>>,
+pub fn app_store_notification_webhooks<S, A, G, D>(
+    server_state: &Arc<ServerState<S, A, G, D>>,
 ) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone
 where
     S: StripeClient,
     A: AppStoreClient,
     G: GooglePlayClient,
+    D: DocumentService,
 {
     let cloned_state = server_state.clone();
 
@@ -357,7 +363,7 @@ where
         .and(warp::path(APP_STORE_WEBHOOK_ROUTE))
         .and(warp::any().map(move || cloned_state.clone()))
         .and(warp::body::bytes())
-        .then(|state: Arc<ServerState<S, A, G>>, body: Bytes| async move {
+        .then(|state: Arc<ServerState<S, A, G, D>>, body: Bytes| async move {
             let span = span!(
                 Level::INFO,
                 "matched_request",
@@ -401,23 +407,20 @@ pub fn method(name: Method) -> impl Filter<Extract = (), Error = Rejection> + Cl
         .untuple_one()
 }
 
-pub fn deserialize_and_check<Req, S, A, G>(
-    server_state: &ServerState<S, A, G>, request: Bytes, version: Option<String>,
+pub fn deserialize_and_check<Req>(
+    config: &Config, request: Bytes, version: Option<String>,
 ) -> Result<RequestWrapper<Req>, ErrorWrapper<Req::Error>>
 where
     Req: Request + DeserializeOwned + Serialize,
-    S: StripeClient,
-    A: AppStoreClient,
-    G: GooglePlayClient,
 {
-    handle_version_header::<Req>(&server_state.config, &version)?;
+    handle_version_header::<Req>(config, &version)?;
 
     let request = serde_json::from_slice(request.as_ref()).map_err(|err| {
         warn!("Request parsing failure: {}", err);
         ErrorWrapper::<Req::Error>::BadRequest
     })?;
 
-    verify_auth(server_state, &request).map_err(|err| match err.kind {
+    verify_auth(config, &request).map_err(|err| match err.kind {
         SharedErrorKind::SignatureExpired(_) | SharedErrorKind::SignatureInTheFuture(_) => {
             warn!("expired auth");
             ErrorWrapper::<Req::Error>::ExpiredAuth
