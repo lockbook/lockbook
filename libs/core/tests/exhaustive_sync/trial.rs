@@ -454,34 +454,6 @@ impl Trial {
         all_mutations
     }
 
-    fn cleanup(&self) {
-        // Delete server
-        fs::remove_dir_all(self.devices_by_user[0][0].client_config().writeable_path)
-            .unwrap_or_else(|err| {
-                println!(
-                    "failed to cleanup file: {:?}, error: {}",
-                    &self.devices_by_user[0][0].client_config().writeable_path,
-                    err
-                )
-            });
-
-        // Delete account locally
-        for user_index in 0..self.target_devices_by_user.len() {
-            for device_index in 0..self.target_devices_by_user[user_index] {
-                let client = &self.devices_by_user[user_index][device_index];
-                fs::remove_dir_all(client.get_config().unwrap().writeable_path).unwrap_or_else(
-                    |err| {
-                        println!(
-                            "failed to cleanup file: {}, error: {}",
-                            client.get_config().unwrap().writeable_path,
-                            err
-                        )
-                    },
-                );
-            }
-        }
-    }
-
     fn create_mutation(&self, new_action: Action) -> Trial {
         let mut clone = self.clone();
         clone.steps.push(new_action);
