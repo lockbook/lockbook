@@ -1,31 +1,38 @@
+mod accept_share;
 mod confirm_delete;
 mod create_share;
 mod error;
+mod file_picker;
 mod help;
 mod new_file;
 mod search;
 mod settings;
 
+pub use accept_share::AcceptShareModal;
 pub use confirm_delete::ConfirmDeleteModal;
 pub use create_share::{CreateShareModal, CreateShareParams};
 pub use error::ErrorModal;
+pub use file_picker::FilePicker;
 pub use help::HelpModal;
 pub use new_file::{NewDocModal, NewFileParams, NewFolderModal};
 pub use search::SearchModal;
 pub use settings::{SettingsModal, SettingsResponse};
 
+use super::OpenModal;
 use eframe::egui;
 
 #[derive(Default)]
 pub struct Modals {
+    pub accept_share: Option<AcceptShareModal>,
+    pub confirm_delete: Option<ConfirmDeleteModal>,
+    pub create_share: Option<CreateShareModal>,
     pub error: Option<ErrorModal>,
-    pub settings: Option<SettingsModal>,
+    pub file_picker: Option<FilePicker>,
+    pub help: Option<HelpModal>,
     pub new_doc: Option<NewDocModal>,
     pub new_folder: Option<NewFolderModal>,
-    pub create_share: Option<CreateShareModal>,
     pub search: Option<SearchModal>,
-    pub help: Option<HelpModal>,
-    pub confirm_delete: Option<ConfirmDeleteModal>,
+    pub settings: Option<SettingsModal>,
 }
 
 impl super::AccountScreen {
@@ -33,6 +40,23 @@ impl super::AccountScreen {
         show(ctx, x_offset, &mut self.modals.error);
 
         show(ctx, x_offset, &mut self.modals.help);
+
+        if let Some(response) = show(ctx, x_offset, &mut self.modals.accept_share) {
+            if let Some(submission) = response.inner {
+                if submission.is_accept {
+                    self.update_tx
+                        .send(OpenModal::FilePicker(submission.target).into())
+                        .unwrap();
+                    self.modals.accept_share = None;
+                } else {
+                    self.delete_share(submission.target);
+
+                    // close and reopen the modal to force a state reload and make the deleted share disappear
+                    self.modals.accept_share = None;
+                    self.update_tx.send(OpenModal::AcceptShare.into()).unwrap();
+                }
+            }
+        }
 
         if let Some(response) = show(ctx, x_offset, &mut self.modals.settings) {
             if response.closed {
@@ -81,14 +105,22 @@ impl super::AccountScreen {
                 }
             }
         }
+
+        if let Some(response) = show(ctx, x_offset, &mut self.modals.file_picker) {
+            if let Some(submission) = response.inner {
+                self.accept_share(submission.target, submission.parent);
+            }
+        }
     }
 
     pub fn is_any_modal_open(&self) -> bool {
         let m = &self.modals;
         m.settings.is_some()
+            || m.accept_share.is_some()
             || m.new_doc.is_some()
             || m.new_folder.is_some()
             || m.create_share.is_some()
+            || m.file_picker.is_some()
             || m.search.is_some()
             || m.help.is_some()
             || m.confirm_delete.is_some()
@@ -122,6 +154,14 @@ impl super::AccountScreen {
             return true;
         }
         if m.confirm_delete.is_some() {
+            m.confirm_delete = None;
+            return true;
+        }
+        if m.accept_share.is_some() {
+            m.confirm_delete = None;
+            return true;
+        }
+        if m.file_picker.is_some() {
             m.confirm_delete = None;
             return true;
         }
