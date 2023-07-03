@@ -20,14 +20,11 @@ impl super::Modal for ErrorModal {
     fn show(&mut self, ui: &mut egui::Ui) -> Self::Response {
         ui.add_space(10.0);
 
-        ui.label(&self.err);
+        // use a text edit instead of a label so that the user can copy the error.
+        ui.add(egui::TextEdit::multiline(&mut self.err).frame(false));
 
         ui.add_space(10.0);
 
-        if ui.button("Dismiss").clicked() {
-            Some(())
-        } else {
-            None
-        }
+        None
     }
 }

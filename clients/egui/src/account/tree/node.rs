@@ -23,8 +23,9 @@ impl From<(lb::File, u8)> for TreeNode {
         let (file, depth) = data;
         let doc_type = match file.file_type {
             lb::FileType::Folder => None,
-            lb::FileType::Document => Some(DocType::from_name(&file.name)),
-            lb::FileType::Link { .. } => todo!(),
+            lb::FileType::Document | lb::FileType::Link { .. } => {
+                Some(DocType::from_name(&file.name))
+            }
         };
 
         Self {
@@ -236,13 +237,7 @@ impl TreeNode {
         if self.hovering_drop {
             Icon::ARROW_CIRCLE_DOWN
         } else if let Some(typ) = &self.doc_type {
-            match typ {
-                DocType::Markdown | DocType::PlainText => Icon::DOC_TEXT,
-                DocType::Drawing => Icon::DRAW,
-                DocType::Image(_) => Icon::IMAGE,
-                DocType::Code(_) => Icon::CODE,
-                _ => Icon::DOC_UNKNOWN,
-            }
+            typ.to_icon()
         } else {
             Icon::FOLDER
         }

@@ -1,3 +1,5 @@
+use crate::theme::Icon;
+
 pub struct AccountScreenInitData {
     pub sync_status: Result<String, String>,
     pub files: Vec<lb::File>,
@@ -44,6 +46,15 @@ impl DocType {
             "cr2" => Self::ImageUnsupported(ext.to_string()),
             "go" => Self::Code(ext.to_string()),
             _ => Self::Unknown,
+        }
+    }
+    pub fn to_icon(&self) -> Icon {
+        match self {
+            DocType::Markdown | DocType::PlainText => Icon::DOC_TEXT,
+            DocType::Drawing => Icon::DRAW,
+            DocType::Image(_) => Icon::IMAGE,
+            DocType::Code(_) => Icon::CODE,
+            _ => Icon::DOC_UNKNOWN,
         }
     }
 }
