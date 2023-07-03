@@ -411,7 +411,6 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
         let location = touches.first!.location(in: self)
         touches_began(editorHandle, value, Float(location.x), Float(location.y), Float(touches.first?.force ?? 0))
         
-        print("focus is editor")
         nameState?.focusLocation = .editor
 
         self.setNeedsDisplay(self.frame)

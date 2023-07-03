@@ -37,13 +37,14 @@ struct FileListView: View {
                         current.openDocuments[sheets.created!.id] = DocumentLoadingInfo(sheets.created!)
                     }
                 })
-//                .onReceive(current.$openDocuments) { _ in
-//                    print("cleared")
-//                    // When we return back to this screen, we have to change newFile back to nil regardless
-//                    // of it's present value, otherwise we won't be able to navigate to new, new files
-//                    current.openDocuments.removeAll()
-//                    sheets.created = nil
-//                }
+                .onReceive(current.$openDocuments) { _ in
+                    print("cleared")
+                    // When we return back to this screen, we have to change newFile back to nil regardless
+                    // of it's present value, otherwise we won't be able to navigate to new, new files
+                    if current.openDocuments.isEmpty {
+                        sheets.created = nil
+                    }
+                }
         }
         .gesture(
             DragGesture().onEnded({ (value) in
@@ -74,7 +75,6 @@ struct FileListView: View {
     
     var mainView: some View {
         List {
-            let _ = print("CHECKING \(fileService.parent?.isRoot) \(fileService.suggestedDocs?.isEmpty)")
             if fileService.parent?.isRoot == true && fileService.suggestedDocs?.isEmpty != true {
                 Section(header: Text("Suggested")
                     .bold()

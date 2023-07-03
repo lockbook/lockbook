@@ -52,7 +52,7 @@ struct DocumentView: View {
                        let toolbarState = model.textDocumentToolbar,
                        let nameState = model.textDocumentName {
                         Group {
-                            MarkdownCompleteEditor(editorState: editorState, toolbarState: toolbarState, nameState: nameState)
+                            MarkdownCompleteEditor(editorState: editorState, toolbarState: toolbarState, nameState: nameState, fileId: model.meta.id)
                                 .equatable()
                         }.title("")
                     }
@@ -63,7 +63,8 @@ struct DocumentView: View {
             }
         }
         .onDisappear {
-            DI.files.refreshSuggestedDocs()
+            DI.currentDoc.openDocuments.removeAll()
+            DI.files.refresh()
         }
     }
 }
@@ -83,7 +84,7 @@ struct MarkdownCompleteEditor: View, Equatable {
     let toolbarState: ToolbarState
     let nameState: NameState
 
-    let fileId: UUID = DI.currentDoc.openDocuments.values.first!.meta.id
+    let fileId: UUID
     
     var body: some View {
 #if os(iOS)
@@ -299,9 +300,9 @@ struct MarkdownTitle: View {
     @State var error: String?
     @State var hasBeenFocused = false
     
-    var docInfo: DocumentLoadingInfo {
+    var docInfo: DocumentLoadingInfo? {
         get {
-            DI.currentDoc.openDocuments[id]!
+            DI.currentDoc.openDocuments[id]
         }
     }
     
@@ -316,25 +317,29 @@ struct MarkdownTitle: View {
     var body: some View {
         VStack(alignment: .leading) {
             TextField("File name...", text: Binding(get: {
-                return docInfo.meta.name.replacingOccurrences(of: ".md", with: "")
+                return docInfo?.meta.name.replacingOccurrences(of: ".md", with: "") ?? ""
             }, set: { newValue, _ in
                 hasBeenFocused = true
-                docInfo.meta.name = newValue.toKebabCase()
+                docInfo?.meta.name = newValue.toKebabCase()
+                
+                if !newValue.isEmpty {
+                    if let errorMsg = DI.files.renameFile(id: id, name: newValue + ".md") {
+                        error = errorMsg
+                    } else {
+                        error = nil
+                    }
+                }
             }))
             .focused($focused)
-            .onChange(of: docInfo.meta.name, perform: { newValue in
-                if let errorMsg = DI.files.renameFile(id: id, name: newValue + ".md") {
-                    error = errorMsg
-                } else {
-                    error = nil
-                    print("REFRESHING")
-                    DI.files.refresh()
-                }
-            })
             .onChange(of: nameState.potentialTitle, perform: { newValue in
                 print("potential name")
                 if let potentialTitle = nameState.potentialTitle, !hasBeenFocused, isOriginNameUUID {
-                    docInfo.meta.name = potentialTitle.toKebabCase()
+                    docInfo?.meta.name = potentialTitle.toKebabCase()
+                    if let errorMsg = DI.files.renameFile(id: id, name: potentialTitle + ".md") {
+                        error = errorMsg
+                    } else {
+                        error = nil
+                    }
                 }
             })
             .textFieldStyle(.plain)
