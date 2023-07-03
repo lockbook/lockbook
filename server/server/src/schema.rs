@@ -18,6 +18,7 @@ pub struct Account {
 pub type ServerDb = ServerV4;
 
 #[derive(Schema)]
+#[cfg_attr(feature = "no-network", derive(Clone))]
 pub struct ServerV4 {
     pub usernames: LookupTable<String, Owner>,
     pub metas: LookupTable<Uuid, ServerFile>,
