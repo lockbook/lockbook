@@ -58,7 +58,7 @@ impl TrialCache {
 
 // todo: don't needlessly deep copy server for each core
 fn deep_copy(incoming: &[Vec<CoreIP>]) -> Vec<Vec<CoreIP>> {
-    let mut outgoing = incoming.clone();
+    let mut outgoing = incoming.to_vec();
     let server = incoming[0][0].deep_copy().1;
 
     for (udx, user) in incoming.iter().enumerate() {
