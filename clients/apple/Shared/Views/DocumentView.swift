@@ -332,7 +332,6 @@ struct MarkdownTitle: View {
             }))
             .focused($focused)
             .onChange(of: nameState.potentialTitle, perform: { newValue in
-                print("potential name")
                 if let potentialTitle = nameState.potentialTitle, !hasBeenFocused, isOriginNameUUID {
                     docInfo?.meta.name = potentialTitle.toKebabCase()
                     if let errorMsg = DI.files.renameFile(id: id, name: potentialTitle + ".md") {
@@ -368,14 +367,18 @@ struct MarkdownTitle: View {
 struct MarkdownEditor: View {
     @ObservedObject var editorState: EditorState
     let editor: EditorView
+//    let metal: MetalView
+    
     
     public init(_ editorState: EditorState, _ toolbarState: ToolbarState, _ nameState: NameState) {
         self.editorState = editorState
         self.editor = EditorView(editorState, toolbarState, nameState)
+//        self.metal = MetalView(editorState: editorState, toolbarState: toolbarState, nameState: nameState)
     }
         
     var body: some View {
         editor
+//        metal
     }
 }
 

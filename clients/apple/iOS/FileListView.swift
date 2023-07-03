@@ -16,7 +16,7 @@ struct FileListView: View {
     var body: some View {
         VStack {
             if let newDoc = sheets.created, newDoc.fileType == .Document {
-                NavigationLink(destination: DocumentView(model: current.getOpenDoc(meta: newDoc)), isActive: Binding(get: { current.openDocuments[newDoc.id] != nil }, set: { _ in current.openDocuments[newDoc.id] = nil }) ) {
+                NavigationLink(destination: DocumentView(model: current.openDoc(meta: newDoc)), isActive: Binding(get: { current.openDocuments[newDoc.id] != nil }, set: { _ in current.openDocuments[newDoc.id] = nil }) ) {
                         EmptyView()
                     }
                     .hidden()

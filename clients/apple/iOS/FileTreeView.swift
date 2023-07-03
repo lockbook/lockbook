@@ -48,7 +48,7 @@ struct FileTreeView: View {
         VStack {
             if let item = currentDoc.openDocuments.keys.first {
                 if let meta = DI.files.idsAndFiles[item] {
-                    DocumentView(model: currentDoc.getOpenDoc(meta: meta))
+                    DocumentView(model: currentDoc.openDoc(meta: meta))
                 }
             } else {
                 GeometryReader { geometry in

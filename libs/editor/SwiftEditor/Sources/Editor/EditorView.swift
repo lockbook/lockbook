@@ -20,16 +20,6 @@ public struct EditorView: View {
     
     public var body: some View {
         metalView
-            .focused($focused)
-            .onAppear {
-                focused = nameState.focusLocation == .editor
-            }
-            .onChange(of: focused, perform: { newValue in
-                nameState.focusLocation = newValue ? .editor : .title
-            })
-            .onChange(of: nameState.focusLocation, perform: { newValue in
-                focused = newValue == .editor
-            })
     }
 }
 

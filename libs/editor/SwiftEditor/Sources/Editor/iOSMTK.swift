@@ -177,7 +177,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     }
     
     public func insertText(_ text: String) {
-        //        print("\(#function)(\(text))")
+//        print("\(#function)(\(text))")
         insert_text(editorHandle, text)
         self.setNeedsDisplay(self.frame)
     }
@@ -411,7 +411,8 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
         let location = touches.first!.location(in: self)
         touches_began(editorHandle, value, Float(location.x), Float(location.y), Float(touches.first?.force ?? 0))
         
-        nameState?.focusLocation = .editor
+//        nameState?.focusLocation = .editor
+        becomeFirstResponder()
 
         self.setNeedsDisplay(self.frame)
     }

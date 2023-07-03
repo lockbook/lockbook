@@ -45,7 +45,6 @@ public class ToolbarState: ObservableObject {
 
 public class NameState: ObservableObject {
     @Published public var potentialTitle: String? = nil
-    @Published public var focusLocation: MarkdownEditorFocus = .editor
     
     public init() {
         print("initing name state")

@@ -12,13 +12,21 @@ class DocumentService: ObservableObject {
     @Published var isPendingSharesOpen: Bool = false
     @Published var selectedFolder: File?
     
-    func getOpenDoc(meta: File) -> DocumentLoadingInfo {
+    func openDoc(meta: File) -> DocumentLoadingInfo {
+//        openDocuments.removeAll()
+        
         if openDocuments[meta.id] == nil {
             openDocuments[meta.id] = DocumentLoadingInfo(meta)
         }
         
         return openDocuments[meta.id]!
     }
+    
+//    func openDoc(meta: File) {
+//        DispatchQueue.main.async {
+//            let _ = self.openDocSync(meta: meta)
+//        }
+//    }
 }
 
 class DocumentLoadingInfo: ObservableObject, Equatable {

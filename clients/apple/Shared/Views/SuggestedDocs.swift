@@ -71,7 +71,7 @@ struct SuggestedDocs: View {
                     ForEach(suggestedDocs) { meta in
                         if let parentMeta = fileService.idsAndFiles[meta.parent] {
                             if isiOS {
-                                NavigationLink(destination: DocumentView(model: current.getOpenDoc(meta: meta))) {
+                                NavigationLink(destination: DocumentView(model: current.openDoc(meta: meta))) {
                                     SuggestedDocCell(name: meta.name, parentName: "\(parentMeta.name)/", duration: meta.lastModified, isiOS: isiOS)
                                         .padding(.trailing, 5)
                                 }
@@ -135,7 +135,7 @@ struct SuggestedDocs: View {
                                     ForEach(suggestedDocs) { meta in
                                         if let parentMeta = fileService.idsAndFiles[meta.parent] {
                                             Button(action: {
-                                                current.getOpenDoc(meta: meta)
+                                                current.openDoc(meta: meta)
                                             }) {
                                                 SuggestedDocCell(name: meta.name, parentName: "\(parentMeta.name)/", duration: meta.lastModified)
                                             }

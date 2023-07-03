@@ -44,7 +44,7 @@ struct FileCell: View {
                 RealFileCell(meta: meta)
             }
         } else {
-            NavigationLink(destination: DocumentView(model: current.getOpenDoc(meta: meta))) {
+            NavigationLink(destination: DocumentView(model: current.openDoc(meta: meta))) {
                 RealFileCell(meta: meta)
             }
         }

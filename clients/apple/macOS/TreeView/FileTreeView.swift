@@ -22,7 +22,7 @@ struct FileTreeView: NSViewRepresentable {
             delegate.documentSelected = { meta in
                 if meta.fileType == .Document && DI.currentDoc.openDocuments.keys.first != meta.id {
                     DI.currentDoc.openDocuments.removeAll()
-                    DI.currentDoc.getOpenDoc(meta: meta)
+                    DI.currentDoc.openDoc(meta: meta)
                 } else if DI.currentDoc.selectedFolder?.id != meta.id {
                     DI.currentDoc.selectedFolder = meta
                 }

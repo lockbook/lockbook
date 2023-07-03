@@ -45,7 +45,11 @@ struct OutlineBranch: View {
                                     }
                                 } else {
                                     // Animating this causes editor to load weirdly
-                                    current.openDocuments[file.id] = DocumentLoadingInfo(file)
+                                    DispatchQueue.main.async {
+                                        current.openDocuments.removeAll()
+                                        current.openDoc(meta: file)
+                                    }
+                                    
                                     print("tap")
                                 }
                             }

@@ -30,7 +30,7 @@ struct FileListView: View {
                     print("creating file")
                     if case .success(let newMeta) = DI.files.core.createFile(name: UUID().uuidString + ".md", dirId: (DI.currentDoc.selectedFolder ?? DI.files.root!).id, isFolder: false) {
                         DI.files.refresh()
-                        let _ = DI.currentDoc.getOpenDoc(meta: newMeta)
+                        let _ = DI.currentDoc.openDoc(meta: newMeta)
                     }
                     
                 }) {
@@ -99,7 +99,7 @@ struct DetailView: View {
                     PendingSharesView()
                 } else if let item = currentSelection.openDocuments.keys.first {
                     if let meta = DI.files.idsAndFiles[item] {
-                        DocumentView(model: currentSelection.getOpenDoc(meta: meta))
+                        DocumentView(model: currentSelection.openDoc(meta: meta))
                     }
                 }
             }
