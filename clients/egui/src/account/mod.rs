@@ -1,5 +1,6 @@
 mod modals;
 mod saving;
+mod suggested_docs;
 mod syncing;
 mod tabs;
 mod tree;
@@ -108,7 +109,10 @@ impl AccountScreen {
 
                     self.show_nav_panel(ui);
 
-                    self.show_tree(ui);
+                    ui.vertical(|ui| {
+                        suggested_docs::show(ui, self);
+                        self.show_tree(ui);
+                    })
                 });
             })
             .response

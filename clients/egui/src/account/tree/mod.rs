@@ -45,33 +45,31 @@ impl FileTree {
     }
 
     pub fn show(&mut self, ui: &mut egui::Ui) -> NodeResponse {
-        ui.vertical(|ui| {
-            ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
-            let mut is_hovered = false;
-            let r = egui::Frame::none().show(ui, |ui| {
-                let result = self.root.show(ui, &mut self.state);
-                is_hovered = result.response.hovered();
-                result.inner
-            });
+        ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
 
-            if self.state.is_dragging() {
-                if ui.input(|i| i.pointer.any_released()) {
-                    let maybe_pos = ui.ctx().pointer_interact_pos();
-                    self.state.dropped(maybe_pos);
-                } else {
-                    self.draw_drag_info_by_cursor(ui);
-                }
-            } else if is_hovered && ui.input(|i| i.pointer.primary_down()) {
-                // todo(steve): prep drag only if a file is clicked
-                self.state.dnd.is_primary_down = true;
-                if ui.input(|i| i.pointer.is_moving()) {
-                    self.state.dnd.has_moved = true;
-                }
+        let mut is_hovered = false;
+        let r = egui::Frame::none().show(ui, |ui| {
+            let result = self.root.show(ui, &mut self.state);
+            is_hovered = result.response.hovered();
+            result.inner
+        });
+
+        if self.state.is_dragging() {
+            if ui.input(|i| i.pointer.any_released()) {
+                let maybe_pos = ui.ctx().pointer_interact_pos();
+                self.state.dropped(maybe_pos);
+            } else {
+                self.draw_drag_info_by_cursor(ui);
             }
+        } else if is_hovered && ui.input(|i| i.pointer.primary_down()) {
+            // todo(steve): prep drag only if a file is clicked
+            self.state.dnd.is_primary_down = true;
+            if ui.input(|i| i.pointer.is_moving()) {
+                self.state.dnd.has_moved = true;
+            }
+        }
 
-            r.inner
-        })
-        .inner
+        r.inner
     }
 
     fn draw_drag_info_by_cursor(&mut self, ui: &mut egui::Ui) {
