@@ -301,7 +301,14 @@ fn load_account_data(core: &Arc<lb::Core>) -> Result<AccountScreenInitData, Stri
         .get_last_synced_human_string()
         .map_err(|err| format!("{:?}", err));
 
-    Ok(AccountScreenInitData { sync_status, files, usage })
+    let suggested = core
+        .suggested_docs(lb::RankingWeights::default())
+        .unwrap_or_default()
+        .iter()
+        .map(|id| core.get_file_by_id(*id).unwrap())
+        .collect();
+
+    Ok(AccountScreenInitData { sync_status, files, usage, suggested })
 }
 
 #[derive(Clone, Copy, PartialEq)]

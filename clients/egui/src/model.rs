@@ -2,6 +2,7 @@ use crate::theme::Icon;
 
 pub struct AccountScreenInitData {
     pub sync_status: Result<String, String>,
+    pub suggested: Vec<lb::File>,
     pub files: Vec<lb::File>,
     pub usage: Result<Usage, String>,
 }

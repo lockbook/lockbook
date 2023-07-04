@@ -21,6 +21,7 @@ use crate::widgets::{separator, Button};
 
 use self::modals::*;
 use self::saving::*;
+use self::suggested_docs::SuggestedDocs;
 use self::syncing::{SyncPanel, SyncUpdate};
 use self::tabs::{Drawing, ImageViewer, Markdown, PlainText, Tab, TabContent, TabFailure};
 use self::tree::{FileTree, TreeNode};
@@ -36,6 +37,7 @@ pub struct AccountScreen {
     save_req_tx: mpsc::Sender<SaveRequest>,
 
     tree: FileTree,
+    suggested: SuggestedDocs,
     sync: SyncPanel,
     usage: Result<Usage, String>,
     workspace: Workspace,
@@ -51,7 +53,7 @@ impl AccountScreen {
         let (update_tx, update_rx) = mpsc::channel();
         let (save_req_tx, save_req_rx) = mpsc::channel();
 
-        let AccountScreenInitData { sync_status, files, usage } = acct_data;
+        let AccountScreenInitData { sync_status, files, usage, suggested } = acct_data;
 
         let mut acct_scr = Self {
             settings,
@@ -60,6 +62,7 @@ impl AccountScreen {
             update_rx,
             save_req_tx,
             tree: FileTree::new(files),
+            suggested: SuggestedDocs::new(suggested),
             sync: SyncPanel::new(sync_status),
             usage,
             workspace: Workspace::new(),
@@ -110,7 +113,7 @@ impl AccountScreen {
                     self.show_nav_panel(ui);
 
                     ui.vertical(|ui| {
-                        suggested_docs::show(ui, self);
+                        self.suggested.show(ui);
                         self.show_tree(ui);
                     })
                 });

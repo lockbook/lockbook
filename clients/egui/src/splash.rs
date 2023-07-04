@@ -106,7 +106,17 @@ impl SplashScreen {
                     .map(|metrics| metrics.into())
                     .map_err(|err| format!("{:?}", err));
 
-                let acct_data = AccountScreenInitData { sync_status, files, usage };
+                tx.send(SplashUpdate::Status("Calculating suggested documents...".to_string()))
+                    .unwrap();
+
+                let suggested = core
+                    .suggested_docs(lb::RankingWeights::default())
+                    .unwrap_or_default()
+                    .iter()
+                    .map(|id| core.get_file_by_id(*id).unwrap())
+                    .collect();
+
+                let acct_data = AccountScreenInitData { sync_status, files, usage, suggested };
 
                 tx.send(SplashUpdate::Done((core, Some(acct_data))))
                     .unwrap();
