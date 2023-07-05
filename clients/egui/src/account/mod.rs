@@ -114,9 +114,8 @@ impl AccountScreen {
                     self.show_nav_panel(ui);
 
                     ui.vertical(|ui| {
-                        let open_request = self.suggested.show(ui);
-                        if open_request.is_some() {
-                            self.open_file(open_request.unwrap(), ctx);
+                        if let Some(file) = self.suggested.show(ui) {
+                            self.open_file(file, ctx);
                         }
                         ui.add_space(20.0);
                         self.show_tree(ui);
