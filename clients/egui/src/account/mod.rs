@@ -114,6 +114,7 @@ impl AccountScreen {
 
                     ui.vertical(|ui| {
                         self.suggested.show(ui);
+                        ui.add_space(20.0);
                         self.show_tree(ui);
                     })
                 });

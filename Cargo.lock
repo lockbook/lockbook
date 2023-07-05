@@ -357,7 +357,7 @@ dependencies = [
  "num-traits",
  "rusticata-macros",
  "thiserror",
- "time",
+ "time 0.3.22",
 ]
 
 [[package]]
@@ -630,7 +630,7 @@ version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7433a79835ee3a704663da9ca093c307f88060bad08f2cd6db3a6b29ce7f76ad"
 dependencies = [
- "time",
+ "time 0.3.22",
 ]
 
 [[package]]
@@ -864,9 +864,21 @@ checksum = "ec837a71355b28f6556dbd569b37b3f363091c0bd4b2e735674521b4c5fd9bc5"
 dependencies = [
  "android-tzdata",
  "iana-time-zone",
+ "js-sys",
  "num-traits",
  "serde",
+ "time 0.1.45",
+ "wasm-bindgen",
  "winapi 0.3.9",
+]
+
+[[package]]
+name = "chrono-humanize"
+version = "0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "32dce1ea1988dbdf9f9815ff11425828523bd2a134ec0805d2ac8af26ee6096e"
+dependencies = [
+ "chrono",
 ]
 
 [[package]]
@@ -1162,7 +1174,7 @@ dependencies = [
  "serde_json",
  "strum 0.19.5",
  "strum_macros 0.19.4",
- "time",
+ "time 0.3.22",
  "tracing",
 ]
 
@@ -3182,7 +3194,7 @@ dependencies = [
  "sublime_fuzzy",
  "tempfile",
  "test_utils",
- "time",
+ "time 0.3.22",
  "tokio",
  "tracing",
  "tracing-appender",
@@ -3206,6 +3218,8 @@ dependencies = [
 name = "lockbook-egui"
 version = "0.7.6"
 dependencies = [
+ "chrono",
+ "chrono-humanize",
  "dark-light",
  "eframe",
  "egui-winit",
@@ -3246,7 +3260,7 @@ dependencies = [
  "serde_json",
  "sha2 0.10.7",
  "shadow-rs",
- "time",
+ "time 0.3.22",
  "tokio",
  "tracing",
  "tracing-appender",
@@ -3998,7 +4012,7 @@ checksum = "bd10bab2b6df910bbe6c4987d76aa4221235103d9a9c000cfabcee6a6abc8f7a"
 dependencies = [
  "reqwest",
  "serde",
- "time",
+ "time 0.3.22",
  "url 2.4.0",
 ]
 
@@ -4479,7 +4493,7 @@ dependencies = [
  "regex",
  "sha2 0.10.7",
  "tempfile",
- "time",
+ "time 0.3.22",
  "tokio",
  "toml 0.7.5",
  "toml_edit",
@@ -4921,7 +4935,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_with_macros",
- "time",
+ "time 0.3.22",
 ]
 
 [[package]]
@@ -4980,7 +4994,7 @@ dependencies = [
  "const_format",
  "git2",
  "is_debug",
- "time",
+ "time 0.3.22",
  "tzdb",
 ]
 
@@ -5043,7 +5057,7 @@ dependencies = [
  "num-bigint",
  "num-traits",
  "thiserror",
- "time",
+ "time 0.3.22",
 ]
 
 [[package]]
@@ -5301,7 +5315,7 @@ dependencies = [
  "itertools",
  "lockbook-core",
  "lockbook-shared",
- "time",
+ "time 0.3.22",
  "uuid 1.4.0",
 ]
 
@@ -5359,6 +5373,17 @@ dependencies = [
  "flate2",
  "jpeg-decoder",
  "weezl",
+]
+
+[[package]]
+name = "time"
+version = "0.1.45"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1b797afad3f312d1c66a56d11d0316f916356d11bd158fbc6ca6389ff6bf805a"
+dependencies = [
+ "libc",
+ "wasi 0.10.0+wasi-snapshot-preview1",
+ "winapi 0.3.9",
 ]
 
 [[package]]
@@ -5619,7 +5644,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "09d48f71a791638519505cefafe162606f706c25592e4bde4d97600c0195312e"
 dependencies = [
  "crossbeam-channel",
- "time",
+ "time 0.3.22",
  "tracing-subscriber",
 ]
 
@@ -5976,6 +6001,12 @@ name = "wasi"
 version = "0.9.0+wasi-snapshot-preview1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cccddf32554fecc6acb585f82a32a72e28b48f8c4c1883ddfeeeaa96f7d8e519"
+
+[[package]]
+name = "wasi"
+version = "0.10.0+wasi-snapshot-preview1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1a143597ca7c7793eff794def352d41792a93c481eb1042423ff7ff72ba2c31f"
 
 [[package]]
 name = "wasi"
@@ -6676,7 +6707,7 @@ dependencies = [
  "ring",
  "rusticata-macros",
  "thiserror",
- "time",
+ "time 0.3.22",
 ]
 
 [[package]]
@@ -6725,7 +6756,7 @@ dependencies = [
  "seahash",
  "serde",
  "serde_json",
- "time",
+ "time 0.3.22",
  "tokio",
  "url 2.4.0",
 ]
@@ -6751,7 +6782,7 @@ dependencies = [
  "seahash",
  "serde",
  "serde_json",
- "time",
+ "time 0.3.22",
  "tokio",
  "tower-service",
  "url 2.4.0",
@@ -6846,7 +6877,7 @@ dependencies = [
  "hmac 0.12.1",
  "pbkdf2",
  "sha1",
- "time",
+ "time 0.3.22",
  "zstd",
 ]
 
