@@ -1,8 +1,8 @@
-use crate::theme::Icon;
+use crate::{splash::SuggestedFile, theme::Icon};
 
 pub struct AccountScreenInitData {
     pub sync_status: Result<String, String>,
-    pub suggested: Vec<lb::File>,
+    pub suggested: Vec<SuggestedFile>,
     pub files: Vec<lb::File>,
     pub usage: Result<Usage, String>,
 }

@@ -33,6 +33,7 @@ impl Icon {
     pub const FOLDER: Self = ic("\u{e2c7}"); // Folder
     pub const FOLDER_OPEN: Self = ic("\u{e2c8}"); // Folder Open
     pub const GROUP: Self = ic("\u{e7ef}"); // Group
+    pub const HISTORY: Self = ic("\u{e889}"); // History
     pub const HIGHLIGHT_OFF: Self = ic("\u{e888}"); // Highlight Off
     pub const IMAGE: Self = ic("\u{e3f4}"); // Image
     pub const INFO: Self = ic("\u{e88e}");
