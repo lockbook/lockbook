@@ -53,7 +53,8 @@ impl AccountScreen {
         let (update_tx, update_rx) = mpsc::channel();
         let (save_req_tx, save_req_rx) = mpsc::channel();
 
-        let AccountScreenInitData { sync_status, files, usage, suggested } = acct_data;
+        let AccountScreenInitData { sync_status, files, usage } = acct_data;
+        let core_clone = core.clone();
 
         let mut acct_scr = Self {
             settings,
@@ -62,7 +63,7 @@ impl AccountScreen {
             update_rx,
             save_req_tx,
             tree: FileTree::new(files),
-            suggested: SuggestedDocs::new(suggested),
+            suggested: SuggestedDocs::new(&core_clone),
             sync: SyncPanel::new(sync_status),
             usage,
             workspace: Workspace::new(),
@@ -220,6 +221,8 @@ impl AccountScreen {
                             frame.set_window_title(&tab.name);
                         }
                     }
+                    self.suggested = SuggestedDocs::new(&self.core);
+
                     // If any of this file's children are open, we need to update their restore
                     // paths in case a sync deletes them.
                     for tab in &mut self.workspace.tabs {
@@ -228,8 +231,14 @@ impl AccountScreen {
                         }
                     }
                 }
-                AccountUpdate::FileDeleted(f) => self.tree.remove(&f),
-                AccountUpdate::SyncUpdate(update) => self.process_sync_update(ctx, update),
+                AccountUpdate::FileDeleted(f) => {
+                    self.tree.remove(&f);
+                    self.suggested = SuggestedDocs::new(&self.core);
+                }
+                AccountUpdate::SyncUpdate(update) => {
+                    self.process_sync_update(ctx, update);
+                    self.suggested = SuggestedDocs::new(&self.core);
+                }
                 AccountUpdate::DoneDeleting => self.modals.confirm_delete = None,
                 AccountUpdate::ReloadTree(root) => self.tree.root = root,
                 AccountUpdate::ReloadTabs(mut new_tabs) => {

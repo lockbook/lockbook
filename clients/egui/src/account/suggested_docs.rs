@@ -1,36 +1,65 @@
+use std::sync::Arc;
+
 use eframe::egui;
 
 use crate::model::DocType;
-use crate::splash::SuggestedFile;
 
 pub struct SuggestedDocs {
     files: Vec<SuggestedFile>,
 }
+struct SuggestedFile {
+    name: String,
+    path: String,
+    id: lb::Uuid,
+}
 
 impl SuggestedDocs {
-    pub fn new(files: Vec<SuggestedFile>) -> Self {
+    pub fn new(core: &Arc<lb::Core>) -> Self {
+        let files = core
+            .suggested_docs(lb::RankingWeights::default())
+            .unwrap_or_default()
+            .iter()
+            .filter_map(|id| {
+                let file = core.get_file_by_id(*id);
+                if file.is_err() {
+                    return None;
+                };
+                let path = core.get_path_by_id(*id).unwrap_or_default();
+
+                Some(SuggestedFile { name: file.unwrap().name, path, id: *id })
+            })
+            .take(10)
+            .collect();
         Self { files }
     }
 
     pub fn show(&self, ui: &mut egui::Ui) -> Option<lb::Uuid> {
-        egui::ScrollArea::horizontal()
-            .id_source("suggested_documents")
+        if self.files.len() < 6 {
+            return None;
+        }
+        egui::CollapsingHeader::new("Suggested")
+            .default_open(true)
             .show(ui, |ui| {
-                ui.horizontal(|ui| {
-                    ui.add_space(5.0);
-                    for f in self.files.iter() {
-                        let r = egui::Frame::default()
-                            .outer_margin(egui::Margin::symmetric(10.0, 20.0))
-                            .show(ui, |ui| Self::suggested_card(ui, f));
-                        if r.inner.is_some() {
-                            return r.inner;
-                        }
-                    }
-                    None
-                })
+                egui::ScrollArea::horizontal()
+                    .id_source("suggested_documents")
+                    .show(ui, |ui| {
+                        ui.horizontal(|ui| {
+                            for f in self.files.iter() {
+                                let r = egui::Frame::default()
+                                    .outer_margin(egui::Margin::symmetric(10.0, 20.0))
+                                    .show(ui, |ui| Self::suggested_card(ui, f));
+                                if r.inner.is_some() {
+                                    return r.inner;
+                                }
+                            }
+                            None
+                        })
+                    })
+                    .inner
+                    .inner
             })
-            .inner
-            .inner
+            .body_returned
+            .unwrap_or_default()
     }
 
     fn suggested_card(ui: &mut egui::Ui, f: &SuggestedFile) -> Option<lb::Uuid> {
@@ -47,7 +76,7 @@ impl SuggestedDocs {
                         let mut job = egui::text::LayoutJob::single_section(
                             f.name.clone(),
                             egui::TextFormat::simple(
-                                egui::FontId::proportional(20.0),
+                                egui::FontId::proportional(18.0),
                                 ui.visuals().text_color(),
                             ),
                         );

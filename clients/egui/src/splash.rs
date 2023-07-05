@@ -28,13 +28,6 @@ pub struct SplashScreen {
     status: Option<String>,
 }
 
-pub struct SuggestedFile {
-    pub name: String,
-    pub path: String,
-    pub id: lb::Uuid,
-    pub last_modified: u64,
-}
-
 impl SplashScreen {
     pub fn new(settings: Arc<RwLock<Settings>>, maybe_error: Option<String>) -> Self {
         let (update_tx, update_rx) = mpsc::channel();
@@ -116,24 +109,7 @@ impl SplashScreen {
                 tx.send(SplashUpdate::Status("Calculating suggested documents...".to_string()))
                     .unwrap();
 
-                let suggested = core
-                    .suggested_docs(lb::RankingWeights::default())
-                    .unwrap_or_default()
-                    .iter()
-                    .map(|id| {
-                        let file = core.get_file_by_id(*id).unwrap();
-                        let path = core.get_path_by_id(*id).unwrap_or_default();
-
-                        SuggestedFile {
-                            name: file.name,
-                            path,
-                            last_modified: file.last_modified,
-                            id: *id,
-                        }
-                    })
-                    .collect();
-
-                let acct_data = AccountScreenInitData { sync_status, files, usage, suggested };
+                let acct_data = AccountScreenInitData { sync_status, files, usage };
 
                 tx.send(SplashUpdate::Done((core, Some(acct_data))))
                     .unwrap();
