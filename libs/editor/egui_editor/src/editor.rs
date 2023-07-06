@@ -2,7 +2,7 @@ use rand::Rng;
 use std::mem;
 
 use egui::os::OperatingSystem;
-use egui::{Color32, Context, Event, FontDefinitions, Frame, Margin, Pos2, Rect, Sense, Ui, Vec2};
+use egui::{Color32, Context, Event, FontDefinitions, Frame, Pos2, Rect, Sense, Ui, Vec2};
 
 use crate::appearance::Appearance;
 use crate::ast::Ast;
@@ -451,13 +451,4 @@ impl Editor {
         register_fonts(&mut fonts);
         ctx.set_fonts(fonts);
     }
-}
-
-fn clamp(min: f32, mid: f32, max: f32, viewport_width: f32) -> f32 {
-    if viewport_width > 800.0 {
-        return viewport_width * max;
-    } else if viewport_width < 400.0 {
-        return viewport_width * min;
-    }
-    viewport_width * mid
 }
