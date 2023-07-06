@@ -1,6 +1,6 @@
 pub type LbPath = String;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum DriveEvent {
     Create(LbPath),
     Delete(LbPath),

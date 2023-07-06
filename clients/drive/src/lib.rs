@@ -5,9 +5,9 @@ use std::{
     collections::VecDeque,
     sync::{Arc, Mutex},
 };
-use test_utils::test_core;
+use test_utils::{test_core, test_core_with_account};
 
-mod event;
+pub mod event;
 mod import;
 mod local_sync;
 
@@ -20,9 +20,7 @@ pub struct Drive {
 
 impl Drive {
     pub fn test_drive() -> Self {
-        let c = test_core();
-        c.create_account("test", "http://localhost:8000", false)
-            .unwrap();
+        let c = test_core_with_account();
         let watcher_state = Default::default();
         let pending_events = Default::default();
 

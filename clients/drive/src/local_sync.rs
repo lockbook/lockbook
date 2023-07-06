@@ -15,37 +15,46 @@ static SLEEP_DURATION: Duration = Duration::from_millis(100);
 #[derive(Default)]
 pub struct WatcherState {
     umatched_event: Option<notify::Event>,
+    dest: Option<PathBuf>,
 }
 
 impl Drive {
     pub fn check_for_changes(&self, mut dest: PathBuf) {
-        dest = self.prep_destination(dest);
+        self.prep_destination(dest);
         let cloned_drive = self.clone();
         std::thread::spawn(move || {
-            cloned_drive.watch_for_changes(dest);
+            cloned_drive.watch_for_changes();
         });
 
         let cloned_drive = self.clone();
         std::thread::spawn(move || {
             cloned_drive.handle_changes();
         });
+        loop{};
     }
 
-    pub fn prep_destination(&self, mut dest: PathBuf) -> PathBuf {
+    pub fn prep_destination(&self, mut dest: PathBuf){
         self.c.get_account().unwrap();
         self.sync();
-        dest.push(self.c.get_root().unwrap().name);
-        // jdest = dest.canonicalize().unwrap();
+        //let jdest = dest.canonicalize().unwrap();
         // jfs::remove_dir_all(&dest).unwrap();
+        println!("{:?}", dest);
+        println!("{:?}", self.c.get_root().unwrap());
 
         self.c
             .export_file(self.c.get_root().unwrap().id, dest.clone(), false, None)
             .unwrap();
+
+        dest.push(self.c.get_root().unwrap().name);
         File::open(&dest).unwrap().sync_all().unwrap();
-        dest
+        self.watcher_state.lock().unwrap().dest = Some(dest);
     }
 
-    pub fn watch_for_changes(&self, dest: PathBuf) {
+    pub fn get_dest(&self) -> PathBuf{
+        self.watcher_state.lock().unwrap().dest.clone().unwrap()
+    }
+
+    pub fn watch_for_changes(&self) {
         // Create a channel to receive file events
         let (tx, rx) = channel();
 
@@ -53,6 +62,7 @@ impl Drive {
         let mut watcher = RecommendedWatcher::new(tx, Config::default()).unwrap();
 
         // Register the file for watching
+        let dest = self.get_dest();
         watcher.watch(&dest, RecursiveMode::Recursive).unwrap();
 
         println!("Watching for changes in {:?}", dest);
@@ -202,10 +212,11 @@ impl Drive {
     }
 }
 
-fn get_lockbook_path(event_path: PathBuf, dest: PathBuf) -> PathBuf {
+pub fn get_lockbook_path(event_path: PathBuf, dest: PathBuf) -> PathBuf {
     let mut ep_iter = event_path.iter();
     for _ in &dest {
         ep_iter.next();
     }
+    ep_iter.next();
     PathBuf::from(&ep_iter)
 }
