@@ -337,6 +337,32 @@ impl Ast {
         }
     }
 
+    /// Returns the AstTextRange at the given offset. Prefers the previous range when at a boundary.
+    fn text_range_at_offset(&self, offset: DocCharOffset) -> Option<AstTextRange> {
+        let mut end_range = None;
+        for text_range in self.iter_text_ranges() {
+            if text_range.range.contains(offset) {
+                end_range = Some(text_range);
+            }
+        }
+        end_range
+    }
+
+    /// Returns all styles applied to the text just before the given offset if any, or just after when at the document start.
+    pub fn styles_at_offset(&self, offset: DocCharOffset) -> Vec<MarkdownNode> {
+        let mut result = Vec::default();
+        if let Some(text_range) = self.text_range_at_offset(offset) {
+            for ancestor_node_idx in text_range.ancestors {
+                let ancestor_node = &self.nodes[ancestor_node_idx];
+                // offset must be in text range (not head/tail syntax chars) to apply
+                if ancestor_node.text_range.contains(offset) {
+                    result.push(ancestor_node.node_type.clone());
+                }
+            }
+        }
+        result
+    }
+
     pub fn print(&self, buffer: &SubBuffer) {
         for range in self.iter_text_ranges() {
             println!(

@@ -2,10 +2,11 @@ use crate::appearance::YELLOW;
 use crate::input::canonical::{Location, Modification, Region};
 use crate::layouts::Annotation;
 use crate::offset_types::RangeExt;
-use crate::style::{InlineNode, ItemType, MarkdownNode, RenderStyle};
+use crate::style::{BlockNode, InlineNode, ItemType, MarkdownNode, RenderStyle};
 use crate::Editor;
 use egui::text::LayoutJob;
 use egui::{Align2, Color32, FontId, Pos2, Rect, Rounding, Sense, Stroke, Ui, Vec2};
+use pulldown_cmark::HeadingLevel;
 
 impl Editor {
     pub fn draw_text(&mut self, mut ui_size: Vec2, ui: &mut Ui) {
@@ -106,20 +107,56 @@ impl Editor {
     }
 
     pub fn draw_cursor(&mut self, ui: &mut Ui, touch_mode: bool) {
-        let color = if touch_mode { self.appearance.cursor() } else { self.appearance.text() };
-
+        // determine cursor style
         let cursor = self.buffer.current.cursor;
         let selection_start_line = cursor.start_line(&self.galleys);
         let selection_end_line = cursor.end_line(&self.galleys);
 
+        let color = if touch_mode { self.appearance.cursor() } else { self.appearance.text() };
+        let stroke = Stroke { width: 1.0, color };
+
+        let (selection_end_line, stroke) = if cursor.selection.is_empty() {
+            let mut selection_end_line = selection_end_line;
+            let mut stroke = stroke;
+
+            for style in self.ast.styles_at_offset(cursor.selection.1) {
+                match style {
+                    MarkdownNode::Inline(InlineNode::Bold)
+                    | MarkdownNode::Block(BlockNode::Heading(HeadingLevel::H1)) => {
+                        stroke.width = 2.0;
+                    }
+                    MarkdownNode::Inline(InlineNode::Italic)
+                    | MarkdownNode::Block(BlockNode::Quote) => {
+                        if !touch_mode {
+                            // iOS draws its own cursor based on a rectangle we return
+                            // a slanted line cannot be represented as a rectangle
+                            // todo: don't double-draw cursor
+                            selection_end_line[0].x += 5.0;
+                        }
+                    }
+                    MarkdownNode::Inline(InlineNode::Code)
+                    | MarkdownNode::Block(BlockNode::Code) => {
+                        stroke.color = self.appearance.code();
+                    }
+                    MarkdownNode::Inline(InlineNode::Link(..))
+                    | MarkdownNode::Inline(InlineNode::Image(..)) => {
+                        stroke.color = self.appearance.link();
+                    }
+                    _ => {}
+                }
+            }
+
+            (selection_end_line, stroke)
+        } else {
+            (selection_end_line, stroke)
+        };
+
         // draw cursor for selection end
-        ui.painter()
-            .line_segment(selection_end_line, Stroke { width: 1.0, color });
+        ui.painter().line_segment(selection_end_line, stroke);
 
         if touch_mode {
             // draw cursor for selection start
-            ui.painter()
-                .line_segment(selection_start_line, Stroke { width: 1.0, color });
+            ui.painter().line_segment(selection_start_line, stroke);
 
             // draw selection handles
             // handles invisible but still draggable when selection is empty
