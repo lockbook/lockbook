@@ -636,10 +636,6 @@ fn apply_style(
         }
     }
     let mut last_end_ancestor: Option<usize> = None;
-    println!(
-        "start_range, end_range.range_type: {:?}, {:?}",
-        start_range.range_type, end_range.range_type
-    );
     if end_range.range_type == AstTextRangeType::Text {
         for &ancestor in &end_range.ancestors {
             // dehead and detail all but the last ancestor applying the style
