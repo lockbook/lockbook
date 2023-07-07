@@ -233,7 +233,7 @@ impl Editor {
             self.custom_events.push(Modification::Select {
                 region: Region::ToOffset {
                     offset: Offset::To(Bound::Doc),
-                    backwards: false,
+                    backwards: true,
                     extend_selection: false,
                 },
             });
@@ -424,9 +424,11 @@ impl Editor {
         self.selection_updated = self.buffer.current.cursor.selection != prior_selection;
     }
 
-    pub fn set_text(&mut self, new_text: String) {
-        self.buffer = new_text.as_str().into();
-        self.initialized = false;
+    pub fn set_text(&mut self, text: String) {
+        self.custom_events.push(Modification::Replace {
+            region: Region::Bound { bound: Bound::Doc, backwards: false },
+            text,
+        });
     }
 
     pub fn set_font(&self, ctx: &Context) {
