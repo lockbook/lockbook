@@ -27,7 +27,7 @@ use self::workspace::Workspace;
 
 pub struct AccountScreen {
     settings: Arc<RwLock<Settings>>,
-    core: Arc<lb::Core>,
+    core: lb::Core,
 
     update_tx: mpsc::Sender<AccountUpdate>,
     update_rx: mpsc::Receiver<AccountUpdate>,
@@ -44,7 +44,7 @@ pub struct AccountScreen {
 
 impl AccountScreen {
     pub fn new(
-        settings: Arc<RwLock<Settings>>, core: Arc<lb::Core>, acct_data: AccountScreenInitData,
+        settings: Arc<RwLock<Settings>>, core: lb::Core, acct_data: AccountScreenInitData,
         ctx: &egui::Context,
     ) -> Self {
         let (update_tx, update_rx) = mpsc::channel();

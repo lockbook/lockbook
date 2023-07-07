@@ -1,4 +1,3 @@
-use std::sync::Arc;
 use std::time::Instant;
 
 use eframe::egui;
@@ -306,7 +305,7 @@ impl super::AccountScreen {
     }
 }
 
-fn restore_tab(core: &Arc<lb::Core>, tree: &mut FileTree, tab: &mut Tab) {
+fn restore_tab(core: &lb::Core, tree: &mut FileTree, tab: &mut Tab) {
     let file = match core.create_at_path(&tab.path) {
         Ok(f) => f,
         Err(err) => {
@@ -361,7 +360,7 @@ fn restore_tab(core: &Arc<lb::Core>, tree: &mut FileTree, tab: &mut Tab) {
 }
 
 // Gets all parents except root in descending order.
-fn get_parents(core: &Arc<lb::Core>, id: lb::Uuid) -> Result<Vec<lb::File>, String> {
+fn get_parents(core: &lb::Core, id: lb::Uuid) -> Result<Vec<lb::File>, String> {
     let mut parents = Vec::new();
     let mut id = id;
     loop {

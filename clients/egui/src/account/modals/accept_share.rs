@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use eframe::egui;
 use lb::File;
 
@@ -16,7 +14,7 @@ pub struct AcceptShareParams {
 }
 
 impl AcceptShareModal {
-    pub fn new(core: &Arc<lb::Core>) -> Self {
+    pub fn new(core: &lb::Core) -> Self {
         Self {
             requests: core.get_pending_shares().unwrap_or_default(),
             username: core.get_account().unwrap().username,
