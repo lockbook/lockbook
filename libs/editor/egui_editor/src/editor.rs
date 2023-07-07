@@ -15,7 +15,6 @@ use crate::input::canonical::{Bound, Modification, Offset, Region};
 use crate::input::click_checker::{ClickChecker, EditorClickChecker};
 use crate::input::cursor::{Cursor, PointerState};
 use crate::input::events;
-use crate::layouts::Annotation;
 use crate::offset_types::RangeExt;
 use crate::style::{BlockNode, InlineNode, ItemType, MarkdownNode};
 use crate::test_input::TEST_MARKDOWN;
@@ -288,60 +287,42 @@ impl Editor {
             ui.scroll_to_rect(rect, None);
         }
 
-        // determine cursor markup location
-        let mut cursor_in_heading = false;
-        let mut cursor_in_bullet_list = false;
-        let mut cursor_in_number_list = false;
-        let mut cursor_in_todo_list = false;
-        let mut cursor_in_bold = false;
-        let mut cursor_in_italic = false;
-        let mut cursor_in_inline_code = false;
-
-        let ast_node_idx = self
-            .ast
-            .ast_node_at_char(self.buffer.current.cursor.selection.start());
-        let ast_node = &self.ast.nodes[ast_node_idx];
-
-        match ast_node.node_type {
-            MarkdownNode::Block(BlockNode::Heading(..)) => cursor_in_heading = true,
-            MarkdownNode::Inline(InlineNode::Code) => cursor_in_inline_code = true,
-            MarkdownNode::Inline(InlineNode::Bold) => cursor_in_bold = true,
-            MarkdownNode::Inline(InlineNode::Italic) => cursor_in_italic = true,
-            _ => {
-                let galley_idx = self
-                    .galleys
-                    .galley_at_char(self.buffer.current.cursor.selection.start());
-                let galley = &self.galleys.galleys[galley_idx];
-
-                match galley.annotation {
-                    Some(Annotation::Item(ItemType::Todo(_), ..)) => {
-                        cursor_in_todo_list = true;
-                    }
-                    Some(Annotation::Item(ItemType::Numbered(_), ..)) => {
-                        cursor_in_number_list = true;
-                    }
-                    Some(Annotation::Item(ItemType::Bulleted, ..)) => {
-                        cursor_in_bullet_list = true;
-                    }
-                    _ => {}
-                };
-            }
-        }
-
-        EditorResponse {
+        let mut result = EditorResponse {
             text_updated,
             show_edit_menu: self.maybe_menu_location.is_some(),
             has_selection: self.buffer.current.cursor.selection().is_some(),
             edit_menu_x: self.maybe_menu_location.map(|p| p.x).unwrap_or_default(),
             edit_menu_y: self.maybe_menu_location.map(|p| p.y).unwrap_or_default(),
-            cursor_in_heading,
-            cursor_in_bullet_list,
-            cursor_in_number_list,
-            cursor_in_todo_list,
-            cursor_in_bold,
-            cursor_in_italic,
-            cursor_in_inline_code,
+            ..Default::default()
+        };
+
+        // determine styles at cursor location
+        // todo: check for styles in selection
+        if self.buffer.current.cursor.selection.is_empty() {
+            for style in self
+                .ast
+                .styles_at_offset(self.buffer.current.cursor.selection.start())
+            {
+                match style {
+                    MarkdownNode::Inline(InlineNode::Bold) => result.cursor_in_bold = true,
+                    MarkdownNode::Inline(InlineNode::Italic) => result.cursor_in_italic = true,
+                    MarkdownNode::Inline(InlineNode::Code) => result.cursor_in_inline_code = true,
+                    MarkdownNode::Block(BlockNode::Heading(..)) => result.cursor_in_heading = true,
+                    MarkdownNode::Block(BlockNode::ListItem(ItemType::Bulleted, ..)) => {
+                        result.cursor_in_bullet_list = true
+                    }
+                    MarkdownNode::Block(BlockNode::ListItem(ItemType::Numbered(..), ..)) => {
+                        result.cursor_in_number_list = true
+                    }
+                    MarkdownNode::Block(BlockNode::ListItem(ItemType::Todo(..), ..)) => {
+                        result.cursor_in_todo_list = true
+                    }
+                    _ => {}
+                }
+            }
         }
+
+        result
     }
 
     pub fn process_events(
