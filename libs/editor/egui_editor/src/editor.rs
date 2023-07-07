@@ -10,7 +10,6 @@ use crate::ast::Ast;
 use crate::bounds::{Paragraphs, Words};
 use crate::buffer::Buffer;
 use crate::debug::DebugInfo;
-use crate::element::{Element, ItemType};
 use crate::galleys::Galleys;
 use crate::images::ImageCache;
 use crate::input::canonical::{Bound, Modification, Offset, Region};
@@ -19,6 +18,7 @@ use crate::input::cursor::{Cursor, PointerState};
 use crate::input::events;
 use crate::layouts::Annotation;
 use crate::offset_types::{DocCharOffset, RangeExt};
+use crate::style::{BlockNode, InlineNode, ItemType, MarkdownNode};
 use crate::test_input::TEST_MARKDOWN;
 use crate::{ast, bounds, galleys, images, register_fonts};
 
@@ -336,7 +336,9 @@ impl Editor {
             (start, end)
         };
         if selection_updated && self.buffer.current.cursor.selection != all_selection {
-            ui.scroll_to_rect(self.buffer.current.cursor.end_rect(&self.galleys), None);
+            let cursor_end_line = self.buffer.current.cursor.end_line(&self.galleys);
+            let rect = Rect { min: cursor_end_line[0], max: cursor_end_line[1] };
+            ui.scroll_to_rect(rect, None);
         }
 
         // determine cursor markup location
@@ -353,11 +355,11 @@ impl Editor {
             .ast_node_at_char(self.buffer.current.cursor.selection.start());
         let ast_node = &self.ast.nodes[ast_node_idx];
 
-        match ast_node.element {
-            Element::Heading(_) => cursor_in_heading = true,
-            Element::InlineCode => cursor_in_inline_code = true,
-            Element::Strong => cursor_in_bold = true,
-            Element::Emphasis => cursor_in_italic = true,
+        match ast_node.node_type {
+            MarkdownNode::Block(BlockNode::Heading(..)) => cursor_in_heading = true,
+            MarkdownNode::Inline(InlineNode::Code) => cursor_in_inline_code = true,
+            MarkdownNode::Inline(InlineNode::Bold) => cursor_in_bold = true,
+            MarkdownNode::Inline(InlineNode::Italic) => cursor_in_italic = true,
             _ => {
                 let galley_idx = self
                     .galleys
@@ -428,6 +430,7 @@ impl Editor {
             &combined_events,
             &self.galleys,
             &self.paragraphs,
+            &self.ast,
             &mut self.buffer,
             &mut self.debug,
         );
@@ -478,7 +481,7 @@ impl Editor {
             if touched_cursor || touched_selection || double_touched_for_selection {
                 // set menu location
                 self.maybe_menu_location =
-                    Some(self.buffer.current.cursor.end_rect(&self.galleys).min);
+                    Some(self.buffer.current.cursor.end_line(&self.galleys)[0]);
             } else {
                 self.maybe_menu_location = None;
             }

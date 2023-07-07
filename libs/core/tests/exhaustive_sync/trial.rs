@@ -1,4 +1,3 @@
-use crate::exhaustive_sync::experiment::ThreadID;
 use crate::exhaustive_sync::trial::Action::*;
 use crate::exhaustive_sync::trial::Status::{Failed, Ready, Running, Succeeded};
 use crate::exhaustive_sync::utils::{find_by_name, random_filename, random_utf8};
@@ -14,7 +13,10 @@ use test_utils::*;
 use uuid::Uuid;
 use variant_count::VariantCount;
 
-#[derive(VariantCount, Debug, Clone)]
+use super::coordinator::ThreadID;
+use super::trial_cache::TrialCache;
+
+#[derive(VariantCount, Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Action {
     NewDocument { user_index: usize, device_index: usize, parent: String, name: String },
     NewMarkdownDocument { user_index: usize, device_index: usize, parent: String, name: String },
@@ -433,10 +435,27 @@ impl Trial {
         mutants
     }
 
-    pub fn execute(&mut self, th_id: usize) -> Vec<Trial> {
+    pub fn execute(&mut self, th_id: usize, cache: &TrialCache) -> Vec<Trial> {
         self.start_time = Instant::now();
-        self.status = if let Err(err) = self.create_clients() { err } else { Running };
+        if cache.ready() {
+            let (resp, steps) = cache.get(&self.steps);
+            self.devices_by_user = resp;
+            self.completed_steps = steps;
+        }
+
+        self.status = if self.devices_by_user.is_empty() {
+            if let Err(err) = self.create_clients() {
+                err
+            } else {
+                Running
+            }
+        } else {
+            Running
+        };
+
+        cache.populate(self);
         self.persist(th_id);
+
         let mut all_mutations = vec![];
 
         while self.status == Running {
@@ -445,41 +464,14 @@ impl Trial {
             if let Some(next_action) = mutations.pop() {
                 self.steps.push(next_action.steps.last().unwrap().clone());
                 all_mutations.extend(mutations);
+                cache.populate(self);
             }
         }
 
         self.end_time = Instant::now();
-        self.cleanup();
+        // self.cleanup();
 
         all_mutations
-    }
-
-    fn cleanup(&self) {
-        // Delete server
-        fs::remove_dir_all(self.devices_by_user[0][0].client_config().writeable_path)
-            .unwrap_or_else(|err| {
-                println!(
-                    "failed to cleanup file: {:?}, error: {}",
-                    &self.devices_by_user[0][0].client_config().writeable_path,
-                    err
-                )
-            });
-
-        // Delete account locally
-        for user_index in 0..self.target_devices_by_user.len() {
-            for device_index in 0..self.target_devices_by_user[user_index] {
-                let client = &self.devices_by_user[user_index][device_index];
-                fs::remove_dir_all(client.get_config().unwrap().writeable_path).unwrap_or_else(
-                    |err| {
-                        println!(
-                            "failed to cleanup file: {}, error: {}",
-                            client.get_config().unwrap().writeable_path,
-                            err
-                        )
-                    },
-                );
-            }
-        }
     }
 
     fn create_mutation(&self, new_action: Action) -> Trial {

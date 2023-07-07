@@ -1,5 +1,5 @@
-use crate::element::{IndentLevel, ItemType, Title, Url};
 use crate::offset_types::{DocCharOffset, RelCharOffset};
+use crate::style::{IndentLevel, ItemType, Title, Url};
 use egui::text::LayoutJob;
 use egui::TextFormat;
 use pulldown_cmark::LinkType;

@@ -1,4 +1,7 @@
-use google_androidpublisher3::AndroidPublisher;
+use billing::app_store_client::AppStoreClient;
+use billing::google_play_client::GooglePlayClient;
+use billing::stripe_client::StripeClient;
+use document_service::DocumentService;
 use std::env;
 use std::fmt::Debug;
 use std::sync::{Arc, Mutex};
@@ -11,8 +14,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::account_service::GetUsageHelperError;
 use crate::billing::billing_service::StripeWebhookError;
-use crate::billing::stripe_client::SimplifiedStripeError;
-use crate::billing::stripe_model::{StripeDeclineCodeCatcher, StripeKnownDeclineCode};
+use crate::billing::stripe_error::SimplifiedStripeError;
 use crate::schema::ServerV4;
 use crate::ServerError::ClientError;
 pub use stripe;
@@ -21,17 +23,23 @@ use tracing::log::warn;
 static CARGO_PKG_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[derive(Clone)]
-pub struct ServerState {
+pub struct ServerState<S, A, G, D>
+where
+    S: StripeClient,
+    A: AppStoreClient,
+    G: GooglePlayClient,
+    D: DocumentService,
+{
     pub config: config::Config,
     pub index_db: Arc<Mutex<ServerV4>>,
-    pub stripe_client: stripe::Client,
-    pub google_play_client: AndroidPublisher,
-    pub app_store_client: reqwest::Client,
+    pub stripe_client: S,
+    pub google_play_client: G,
+    pub app_store_client: A,
+    pub document_service: D,
 }
 
 #[derive(Clone)]
-pub struct RequestContext<'a, TRequest> {
-    pub server_state: &'a ServerState,
+pub struct RequestContext<TRequest> {
     pub request: TRequest,
     pub public_key: PublicKey,
 }
@@ -68,14 +76,17 @@ pub fn handle_version_header<Req: Request>(
     Ok(())
 }
 
-pub fn verify_auth<TRequest: Request + Serialize>(
-    server_state: &ServerState, request: &RequestWrapper<TRequest>,
-) -> Result<(), SharedError> {
+pub fn verify_auth<TRequest>(
+    config: &config::Config, request: &RequestWrapper<TRequest>,
+) -> Result<(), SharedError>
+where
+    TRequest: Request + Serialize,
+{
     pubkey::verify(
         &request.signed_request.public_key,
         &request.signed_request,
-        server_state.config.server.max_auth_delay as u64,
-        server_state.config.server.max_auth_delay as u64,
+        config.server.max_auth_delay as u64,
+        config.server.max_auth_delay as u64,
         clock::get_time,
     )
 }

@@ -95,7 +95,7 @@ fn change_document_content() {
         let id = core1.create_at_path("/test.md").unwrap().id;
         core1.sync(None).unwrap();
         core1
-            .in_tx(|s| Ok(s.db.base_metadata.data().get(&id).unwrap().clone()))
+            .in_tx(|s| Ok(s.db.base_metadata.get().get(&id).unwrap().clone()))
             .unwrap()
     };
 
@@ -135,7 +135,7 @@ fn get_someone_else_document() {
         core1.write_document(id, &[1, 2, 3]).unwrap();
         core1.sync(None).unwrap();
         core1
-            .in_tx(|s| Ok(s.db.base_metadata.data().get(&id).unwrap().clone()))
+            .in_tx(|s| Ok(s.db.base_metadata.get().get(&id).unwrap().clone()))
             .unwrap()
     };
 

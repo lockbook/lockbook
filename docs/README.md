@@ -2,7 +2,7 @@
 
 [<img height= "30" src="https://apple-resources.s3.amazonaws.com/media-badges/download-on-the-app-store/black/en-us.svg">](https://apps.apple.com/us/app/lockbook/id1526775001) [<img height= "30" src="https://upload.wikimedia.org/wikipedia/commons/thumb/7/78/Google_Play_Store_badge_EN.svg/2560px-Google_Play_Store_badge_EN.svg.png">](https://play.google.com/store/apps/details?id=app.lockbook)
 
-![Discord](https://img.shields.io/discord/1014184997751619664?label=Discord&style=plastic)
+[![Discord](https://img.shields.io/discord/1014184997751619664?label=Discord&style=plastic)](https://discord.gg/AqM6kHKpQE)
 
 ## About
 _The private, polished note-taking platform._

@@ -13,12 +13,12 @@ pub mod buffer;
 pub mod debug;
 pub mod draw;
 pub mod editor;
-pub mod element;
 pub mod galleys;
 pub mod images;
 pub mod input;
 pub mod layouts;
 pub mod offset_types;
+pub mod style;
 pub mod test_input;
 pub mod unicode_segs;
 
