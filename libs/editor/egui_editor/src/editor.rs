@@ -283,7 +283,9 @@ impl Editor {
             (start, end)
         };
         if selection_updated && self.buffer.current.cursor.selection != all_selection {
-            ui.scroll_to_rect(self.buffer.current.cursor.end_rect(&self.galleys), None);
+            let cursor_end_line = self.buffer.current.cursor.end_line(&self.galleys);
+            let rect = Rect { min: cursor_end_line[0], max: cursor_end_line[1] };
+            ui.scroll_to_rect(rect, None);
         }
 
         // determine cursor markup location
@@ -415,7 +417,7 @@ impl Editor {
             if touched_cursor || touched_selection || double_touched_for_selection {
                 // set menu location
                 self.maybe_menu_location =
-                    Some(self.buffer.current.cursor.end_rect(&self.galleys).min);
+                    Some(self.buffer.current.cursor.end_line(&self.galleys)[0]);
             } else {
                 self.maybe_menu_location = None;
             }
