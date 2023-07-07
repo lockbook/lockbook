@@ -409,7 +409,7 @@ pub enum AstTextRangeType {
     Tail,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct AstTextRange {
     pub range_type: AstTextRangeType,
     pub range: (DocCharOffset, DocCharOffset),
