@@ -592,7 +592,6 @@ fn region_completely_styled(cursor: Cursor, style: RenderStyle, ast: &Ast) -> bo
 /// Applies or unapplies `style` to `cursor`, splitting or joining surrounding styles as necessary.
 // todo: handle case when selection is empty
 // todo: handle case when cursor bounds in syntax chars
-// todo: add/capture necessary spaces
 fn apply_style(
     cursor: Cursor, style: MarkdownNode, unapply: bool, buffer: &SubBuffer, ast: &Ast,
     mutation: &mut Vec<SubMutation>,
