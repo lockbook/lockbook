@@ -6,7 +6,7 @@ use egui_extras::RetainedImage;
 use crate::theme::Icon;
 use crate::widgets::separator;
 
-use super::{FileTree, Tab, TabContent, TabFailure};
+use super::{tabs::SaveRequestContent, AccountUpdate, FileTree, Tab, TabContent, TabFailure};
 
 pub struct Workspace {
     pub tabs: Vec<Tab>,
@@ -212,7 +212,7 @@ impl super::AccountScreen {
                                     frame.set_window_title(&self.workspace.tabs[i].name);
                                 }
                                 TabLabelResponse::Closed => {
-                                    self.close_tab(i);
+                                    self.close_tab(ui.ctx(), i);
                                     frame.set_window_title(match self.workspace.current_tab() {
                                         Some(tab) => &tab.name,
                                         None => "Lockbook",
@@ -278,24 +278,41 @@ impl super::AccountScreen {
         });
     }
 
-    pub fn save_all_tabs(&self) {
+    pub fn save_all_tabs(&self, ctx: &egui::Context) {
         for (i, _) in self.workspace.tabs.iter().enumerate() {
-            self.save_tab(i);
+            self.save_tab(ctx, i);
         }
     }
 
-    pub fn save_tab(&self, i: usize) {
+    pub fn save_tab(&self, ctx: &egui::Context, i: usize) {
         if let Some(tab) = self.workspace.tabs.get(i) {
             if tab.is_dirty() {
                 if let Some(save_req) = tab.make_save_request() {
-                    self.save_req_tx.send(save_req).unwrap();
+                    let core = self.core.clone();
+                    let update_tx = self.update_tx.clone();
+                    let ctx = ctx.clone();
+                    std::thread::spawn(move || {
+                        let content = save_req.content;
+                        let id = save_req.id;
+
+                        let result = match content {
+                            SaveRequestContent::Text(s) => core.write_document(id, s.as_bytes()),
+                            SaveRequestContent::Draw(d) => core.save_drawing(id, &d),
+                        }
+                        .map(|_| Instant::now());
+
+                        update_tx
+                            .send(AccountUpdate::SaveResult(id, result))
+                            .unwrap();
+                        ctx.request_repaint();
+                    });
                 }
             }
         }
     }
 
-    pub fn close_tab(&mut self, i: usize) {
-        self.save_tab(i);
+    pub fn close_tab(&mut self, ctx: &egui::Context, i: usize) {
+        self.save_tab(ctx, i);
         let ws = &mut self.workspace;
         ws.tabs.remove(i);
         let n_tabs = ws.tabs.len();

@@ -1,5 +1,5 @@
+mod background;
 mod modals;
-mod saving;
 mod syncing;
 mod tabs;
 mod tree;
@@ -18,21 +18,22 @@ use crate::theme::Icon;
 use crate::util::NUM_KEYS;
 use crate::widgets::{separator, Button};
 
+use self::background::*;
 use self::modals::*;
-use self::saving::*;
 use self::syncing::{SyncPanel, SyncUpdate};
 use self::tabs::{Drawing, ImageViewer, Markdown, PlainText, Tab, TabContent, TabFailure};
 use self::tree::{FileTree, TreeNode};
 use self::workspace::Workspace;
 
 pub struct AccountScreen {
+    ctx: egui::Context,
     settings: Arc<RwLock<Settings>>,
     core: lb::Core,
 
     update_tx: mpsc::Sender<AccountUpdate>,
     update_rx: mpsc::Receiver<AccountUpdate>,
 
-    save_req_tx: mpsc::Sender<SaveRequest>,
+    background_tx: mpsc::Sender<BackgroundEvent>,
 
     tree: FileTree,
     sync: SyncPanel,
@@ -48,32 +49,32 @@ impl AccountScreen {
         ctx: &egui::Context,
     ) -> Self {
         let (update_tx, update_rx) = mpsc::channel();
-        let (save_req_tx, save_req_rx) = mpsc::channel();
 
         let AccountScreenInitData { sync_status, files, usage } = acct_data;
 
-        let mut acct_scr = Self {
+        let background = BackgroundWorker::new(ctx, &update_tx);
+        let background_tx = background.spawn_worker();
+
+        Self {
             settings,
             core,
             update_tx,
             update_rx,
-            save_req_tx,
+            background_tx,
             tree: FileTree::new(files),
             sync: SyncPanel::new(sync_status),
             usage,
             workspace: Workspace::new(),
             modals: Modals::default(),
             shutdown: None,
-        };
-        acct_scr.process_save_requests(ctx, save_req_rx);
-        acct_scr.send_auto_save_signals(ctx);
-        acct_scr
+            ctx: ctx.clone(),
+        }
     }
 
     pub fn begin_shutdown(&mut self) {
         self.shutdown = Some(AccountShutdownProgress::default());
-        self.save_all_tabs();
-        self.save_req_tx.send(SaveRequest::SHUTDOWN_REQ).unwrap();
+        self.save_all_tabs(&self.ctx);
+        self.background_tx.send(BackgroundEvent::Shutdown).unwrap();
     }
 
     pub fn is_shutdown(&self) -> bool {
@@ -92,6 +93,10 @@ impl AccountScreen {
                 .show(ctx, |ui| ui.centered_and_justified(|ui| ui.label("Shutting down...")));
             return;
         }
+
+        self.background_tx
+            .send(BackgroundEvent::EguiUpdate)
+            .unwrap();
 
         let sidebar_width = egui::SidePanel::left("sidebar_panel")
             .frame(egui::Frame::none().fill(ctx.style().visuals.panel_fill))
@@ -127,12 +132,8 @@ impl AccountScreen {
         while let Ok(update) = self.update_rx.try_recv() {
             match update {
                 AccountUpdate::AutoSaveSignal => {
-                    for tab in &mut self.workspace.tabs {
-                        if tab.is_dirty() {
-                            if let Some(save_req) = tab.make_save_request() {
-                                self.save_req_tx.send(save_req).unwrap();
-                            }
-                        }
+                    if self.settings.read().unwrap().auto_save {
+                        self.save_all_tabs(ctx);
                     }
                 }
                 AccountUpdate::SaveResult(id, result) => {
@@ -240,11 +241,11 @@ impl AccountScreen {
                                 }
                             }
                         } else {
-                            self.close_tab(i);
+                            self.close_tab(ctx, i);
                         }
                     }
                 }
-                AccountUpdate::SaveRequestsDone => {
+                AccountUpdate::BackgroundWorkerDone => {
                     if let Some(s) = &mut self.shutdown {
                         s.done_saving = true;
                         self.perform_final_sync(ctx);
@@ -266,6 +267,12 @@ impl AccountScreen {
                         }
                     }
                 },
+                AccountUpdate::SyncStatusSignal => self.refresh_sync_status(ctx),
+                AccountUpdate::AutoSyncSignal => {
+                    if self.settings.read().unwrap().auto_sync {
+                        self.perform_sync(ctx)
+                    }
+                }
             }
         }
     }
@@ -290,12 +297,12 @@ impl AccountScreen {
 
         // Ctrl-S to save current tab.
         if ctx.input_mut(|i| i.consume_key(CTRL, egui::Key::S)) {
-            self.save_tab(self.workspace.active_tab);
+            self.save_tab(ctx, self.workspace.active_tab);
         }
 
         // Ctrl-W to close current tab.
         if ctx.input_mut(|i| i.consume_key(CTRL, egui::Key::W)) && !self.workspace.is_empty() {
-            self.close_tab(self.workspace.active_tab);
+            self.close_tab(ctx, self.workspace.active_tab);
             frame.set_window_title(
                 self.workspace
                     .current_tab()
@@ -715,7 +722,7 @@ impl AccountScreen {
     }
 }
 
-enum AccountUpdate {
+pub enum AccountUpdate {
     AutoSaveSignal,
     SaveResult(lb::Uuid, Result<Instant, lb::LbError>),
 
@@ -735,6 +742,8 @@ enum AccountUpdate {
     FileDeleted(lb::File),
 
     SyncUpdate(SyncUpdate),
+    SyncStatusSignal,
+    AutoSyncSignal,
 
     ShareAccepted(Result<lb::File, String>),
 
@@ -743,11 +752,11 @@ enum AccountUpdate {
     ReloadTree(TreeNode),
     ReloadTabs(HashMap<lb::Uuid, Result<Tab, TabFailure>>),
 
-    SaveRequestsDone,
+    BackgroundWorkerDone,
     FinalSyncAttemptDone,
 }
 
-enum OpenModal {
+pub enum OpenModal {
     NewDoc(Option<lb::File>),
     NewFolder(Option<lb::File>),
     InitiateShare(lb::File),

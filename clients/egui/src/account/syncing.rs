@@ -174,11 +174,13 @@ impl super::AccountScreen {
     }
 
     pub fn perform_sync(&self, ctx: &egui::Context) {
+        println!("attempting sync");
         if self.sync.lock.try_lock().is_err() {
             return;
         }
+        println!("performing sync");
 
-        self.save_all_tabs();
+        self.save_all_tabs(ctx);
 
         let sync_lock = self.sync.lock.clone();
         let core = self.core.clone();
