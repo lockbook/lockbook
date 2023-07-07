@@ -489,13 +489,13 @@ pub unsafe extern "C" fn first_rect(obj: *mut c_void, range: CTextRange) -> CRec
         (selection_start, end_of_rect).into()
     };
 
-    let start_rect = cursor_representing_rect.start_rect(galleys);
-    let end_rect = cursor_representing_rect.end_rect(galleys);
+    let start_line = cursor_representing_rect.start_line(galleys);
+    let end_line = cursor_representing_rect.end_line(galleys);
     CRect {
-        min_x: (start_rect.max.x + 1.0) as f64,
-        min_y: start_rect.min.y as f64,
-        max_x: end_rect.min.x as f64,
-        max_y: end_rect.max.y as f64,
+        min_x: (start_line[1].x + 1.0) as f64,
+        min_y: start_line[0].y as f64,
+        max_x: end_line[0].x as f64,
+        max_y: end_line[1].y as f64,
     }
 }
 
@@ -549,13 +549,13 @@ pub unsafe extern "C" fn cursor_rect_at_position(obj: *mut c_void, pos: CTextPos
     let galleys = &obj.editor.galleys;
 
     let cursor: Cursor = pos.pos.into();
-    let rect = cursor.start_rect(galleys);
+    let line = cursor.start_line(galleys);
     let scroll = obj.editor.scroll_area_offset;
     CRect {
-        min_x: (rect.min.x - scroll.x) as f64,
-        min_y: (rect.min.y - scroll.y) as f64,
-        max_x: (rect.max.x - scroll.x) as f64,
-        max_y: (rect.max.y - scroll.y) as f64,
+        min_x: (line[0].x - scroll.x) as f64,
+        min_y: (line[0].y - scroll.y) as f64,
+        max_x: (line[1].x - scroll.x) as f64,
+        max_y: (line[1].y - scroll.y) as f64,
     }
 }
 

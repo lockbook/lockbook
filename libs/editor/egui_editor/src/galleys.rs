@@ -2,10 +2,10 @@ use crate::appearance::Appearance;
 use crate::ast::{Ast, AstTextRangeType};
 use crate::bounds::Paragraphs;
 use crate::buffer::SubBuffer;
-use crate::element::Element;
 use crate::images::ImageCache;
 use crate::layouts::{Annotation, LayoutJobInfo};
 use crate::offset_types::{DocCharOffset, RangeExt, RelCharOffset};
+use crate::style::{BlockNode, MarkdownNode, RenderStyle};
 use crate::Editor;
 use egui::epaint::text::cursor::Cursor;
 use egui::text::{CCursor, LayoutJob};
@@ -124,12 +124,11 @@ pub fn calc(
                 for &node_idx in
                     &text_range_portion.ancestors[0..text_range_portion.ancestors.len() - 1]
                 {
-                    ast.nodes[node_idx]
-                        .element
+                    RenderStyle::Markdown(ast.nodes[node_idx].node_type.clone())
                         .apply_style(&mut text_format, appearance);
                 }
                 if in_selection {
-                    Element::Selection.apply_style(&mut text_format, appearance);
+                    RenderStyle::Selection.apply_style(&mut text_format, appearance);
                 }
 
                 // only the first portion of a head text range gets that range's annotation
@@ -143,27 +142,27 @@ pub fn calc(
                 match text_range_portion.range_type {
                     AstTextRangeType::Head => {
                         if matches!(
-                            text_range_portion.element(ast),
-                            Element::Heading(..) | Element::Item(..)
+                            text_range_portion.node(ast),
+                            MarkdownNode::Block(BlockNode::Heading(..))
+                                | MarkdownNode::Block(BlockNode::ListItem(..))
                         ) {
                             // these elements have syntax characters captured
                             head_size = text_range_portion.range.len();
 
                             // apply style e.g. so empty headers still have big font
-                            text_range_portion
-                                .element(ast)
+                            RenderStyle::Markdown(text_range_portion.node(ast))
                                 .apply_style(&mut text_format, appearance);
                             layout.append("", 0.0, text_format);
                         } else {
                             // for other elements, apply the syntax style to head/tail characters
-                            Element::Syntax.apply_style(&mut text_format, appearance);
+                            RenderStyle::Syntax.apply_style(&mut text_format, appearance);
                             layout.append(&buffer[text_range_portion.range], 0.0, text_format);
                         }
                         tail_size = 0.into();
                     }
                     AstTextRangeType::Tail => {
                         // there aren't any captured tail characters, so apply syntax style to all tail characters
-                        Element::Syntax.apply_style(&mut text_format, appearance);
+                        RenderStyle::Syntax.apply_style(&mut text_format, appearance);
                         layout.append(&buffer[text_range_portion.range], 0.0, text_format);
 
                         // note, the tail of a galley is always zero
@@ -173,8 +172,7 @@ pub fn calc(
                         // tail_size = text_range_portion.range.len();
                     }
                     AstTextRangeType::Text => {
-                        text_range_portion
-                            .element(ast)
+                        RenderStyle::Markdown(text_range_portion.node(ast))
                             .apply_style(&mut text_format, appearance);
                         layout.append(&buffer[text_range_portion.range], 0.0, text_format);
 
@@ -188,7 +186,8 @@ pub fn calc(
             if layout.is_empty() {
                 // dummy text with document style
                 let mut text_format = Default::default();
-                Element::Document.apply_style(&mut text_format, appearance);
+                RenderStyle::Markdown(MarkdownNode::Document)
+                    .apply_style(&mut text_format, appearance);
                 layout.append("", 0.0, text_format);
             }
             let layout_info = LayoutJobInfo {
