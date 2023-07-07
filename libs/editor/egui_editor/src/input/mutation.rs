@@ -62,6 +62,7 @@ pub fn calc(
                 cursor,
                 style.clone(),
                 region_completely_styled(cursor, RenderStyle::Markdown(style), ast),
+                buffer,
                 ast,
                 &mut mutation,
             );
@@ -589,10 +590,12 @@ fn region_completely_styled(cursor: Cursor, style: RenderStyle, ast: &Ast) -> bo
 }
 
 /// Applies or unapplies `style` to `cursor`, splitting or joining surrounding styles as necessary.
-/// todo: handle case when cursor bounds in syntax chars
-/// todo: add/capture necessary spaces
+// todo: handle case when selection is empty
+// todo: handle case when cursor bounds in syntax chars
+// todo: add/capture necessary spaces
 fn apply_style(
-    cursor: Cursor, style: MarkdownNode, unapply: bool, ast: &Ast, mutation: &mut Vec<SubMutation>,
+    cursor: Cursor, style: MarkdownNode, unapply: bool, buffer: &SubBuffer, ast: &Ast,
+    mutation: &mut Vec<SubMutation>,
 ) {
     if cursor.selection.is_empty() {
         return;
@@ -655,24 +658,24 @@ fn apply_style(
     if unapply {
         if let Some(last_start_ancestor) = last_start_ancestor {
             if ast.nodes[last_start_ancestor].text_range.start() < cursor.selection.start() {
-                insert_tail(cursor.selection.start(), style.clone(), mutation);
+                insert_tail(cursor.selection.start(), style.clone(), buffer, mutation);
             } else {
                 dehead_ast_node(last_start_ancestor, ast, mutation);
             }
         }
         if let Some(last_end_ancestor) = last_end_ancestor {
             if ast.nodes[last_end_ancestor].text_range.end() > cursor.selection.end() {
-                insert_head(cursor.selection.end(), style.clone(), mutation);
+                insert_head(cursor.selection.end(), style.clone(), buffer, mutation);
             } else {
                 detail_ast_node(last_end_ancestor, ast, mutation);
             }
         }
     } else {
         if last_start_ancestor.is_none() {
-            insert_head(cursor.selection.start(), style.clone(), mutation)
+            insert_head(cursor.selection.start(), style.clone(), buffer, mutation)
         }
         if last_end_ancestor.is_none() {
-            insert_tail(cursor.selection.end(), style.clone(), mutation)
+            insert_tail(cursor.selection.end(), style.clone(), buffer, mutation)
         }
     }
 
@@ -719,14 +722,36 @@ fn detail_ast_node(node_idx: usize, ast: &Ast, mutation: &mut Vec<SubMutation>) 
     mutation.push(SubMutation::Insert { text: "".to_string(), advance_cursor: false });
 }
 
-fn insert_head(offset: DocCharOffset, style: MarkdownNode, mutation: &mut Vec<SubMutation>) {
-    let text = style.head().to_string();
+fn insert_head(
+    offset: DocCharOffset, style: MarkdownNode, buffer: &SubBuffer, mutation: &mut Vec<SubMutation>,
+) {
+    let mut text = style.head().to_string();
+
+    // add leading/trailing whitespace if needed
+    if style.needs_whitespace()
+        && offset != 0
+        && !buffer[(offset - 1, offset)].contains(|c: char| c.is_whitespace())
+    {
+        text = " ".to_string() + &text;
+    }
+
     mutation.push(SubMutation::Cursor { cursor: offset.into() });
     mutation.push(SubMutation::Insert { text, advance_cursor: true });
 }
 
-fn insert_tail(offset: DocCharOffset, style: MarkdownNode, mutation: &mut Vec<SubMutation>) {
-    let text = style.tail().to_string();
+fn insert_tail(
+    offset: DocCharOffset, style: MarkdownNode, buffer: &SubBuffer, mutation: &mut Vec<SubMutation>,
+) {
+    let mut text = style.tail().to_string();
+
+    // add leading/trailing whitespace if needed
+    if style.needs_whitespace()
+        && offset != buffer.segs.last_cursor_position()
+        && !buffer[(offset, offset + 1)].contains(|c: char| c.is_whitespace())
+    {
+        text += " ";
+    }
+
     mutation.push(SubMutation::Cursor { cursor: offset.into() });
     mutation.push(SubMutation::Insert { text, advance_cursor: false });
 }

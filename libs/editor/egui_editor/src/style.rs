@@ -157,28 +157,28 @@ impl RenderStyle {
 impl MarkdownNode {
     pub fn head(&self) -> &'static str {
         match self {
-            MarkdownNode::Document => "",
-            MarkdownNode::Paragraph => "",
-            MarkdownNode::Inline(InlineNode::Code) => "`",
-            MarkdownNode::Inline(InlineNode::Bold) => "__",
-            MarkdownNode::Inline(InlineNode::Italic) => "_",
-            MarkdownNode::Inline(InlineNode::Strikethrough) => "~~",
-            MarkdownNode::Inline(InlineNode::Link(..)) => {
+            Self::Document => "",
+            Self::Paragraph => "",
+            Self::Inline(InlineNode::Code) => "`",
+            Self::Inline(InlineNode::Bold) => "__",
+            Self::Inline(InlineNode::Italic) => "_",
+            Self::Inline(InlineNode::Strikethrough) => "~~",
+            Self::Inline(InlineNode::Link(..)) => {
                 unimplemented!()
             }
-            MarkdownNode::Inline(InlineNode::Image(..)) => {
+            Self::Inline(InlineNode::Image(..)) => {
                 unimplemented!()
             }
-            MarkdownNode::Block(BlockNode::Heading(..)) => {
+            Self::Block(BlockNode::Heading(..)) => {
                 unimplemented!()
             }
-            MarkdownNode::Block(BlockNode::Quote) => {
+            Self::Block(BlockNode::Quote) => {
                 unimplemented!()
             }
-            MarkdownNode::Block(BlockNode::Code) => {
+            Self::Block(BlockNode::Code) => {
                 unimplemented!()
             }
-            MarkdownNode::Block(BlockNode::ListItem(..)) => {
+            Self::Block(BlockNode::ListItem(..)) => {
                 unimplemented!()
             }
         }
@@ -186,25 +186,29 @@ impl MarkdownNode {
 
     pub fn tail(&self) -> &'static str {
         match self {
-            MarkdownNode::Document => "",
-            MarkdownNode::Paragraph => "",
-            MarkdownNode::Inline(InlineNode::Code) => "`",
-            MarkdownNode::Inline(InlineNode::Bold) => "__",
-            MarkdownNode::Inline(InlineNode::Italic) => "_",
-            MarkdownNode::Inline(InlineNode::Strikethrough) => "~~",
-            MarkdownNode::Inline(InlineNode::Link(..)) => {
+            Self::Document => "",
+            Self::Paragraph => "",
+            Self::Inline(InlineNode::Code) => "`",
+            Self::Inline(InlineNode::Bold) => "__",
+            Self::Inline(InlineNode::Italic) => "_",
+            Self::Inline(InlineNode::Strikethrough) => "~~",
+            Self::Inline(InlineNode::Link(..)) => {
                 unimplemented!()
             }
-            MarkdownNode::Inline(InlineNode::Image(..)) => {
+            Self::Inline(InlineNode::Image(..)) => {
                 unimplemented!()
             }
-            MarkdownNode::Block(BlockNode::Heading(..)) => "",
-            MarkdownNode::Block(BlockNode::Quote) => "",
-            MarkdownNode::Block(BlockNode::Code) => {
+            Self::Block(BlockNode::Heading(..)) => "",
+            Self::Block(BlockNode::Quote) => "",
+            Self::Block(BlockNode::Code) => {
                 unimplemented!()
             }
-            MarkdownNode::Block(BlockNode::ListItem(..)) => "",
+            Self::Block(BlockNode::ListItem(..)) => "",
         }
+    }
+
+    pub fn needs_whitespace(&self) -> bool {
+        matches!(self, Self::Inline(InlineNode::Bold | InlineNode::Italic))
     }
 }
 
