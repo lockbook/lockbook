@@ -1,29 +1,68 @@
 import Foundation
 import SwiftUI
+import MetalKit
+import Combine
 
-public struct EditorView: View {
+#if os(iOS)
+public struct EditorView: UIViewRepresentable {
     
-    @State var editorState: EditorState
-    var toolbarState: ToolbarState
-    var nameState: NameState
-    
-    @FocusState var focused: Bool
-    private let metalView: MetalView
+    @ObservedObject public var editorState: EditorState
+    let mtkView: iOSMTK = iOSMTK()
     
     public init(_ editorState: EditorState, _ toolbarState: ToolbarState, _ nameState: NameState) {
         self.editorState = editorState
-        self.toolbarState = toolbarState
-        self.nameState = nameState
+        mtkView.editorState = editorState
+        mtkView.toolbarState = toolbarState
+        mtkView.nameState = nameState
         
-        self.metalView = MetalView(editorState: editorState, toolbarState: toolbarState, nameState: nameState)
+        mtkView.setInitialContent(editorState.text)
+    }
+
+    public func makeUIView(context: Context) -> iOSMTK {
+        mtkView
     }
     
-    public var body: some View {
-        metalView
+    public func updateUIView(_ uiView: iOSMTK, context: Context) {
+        if editorState.reload {
+            mtkView.updateText(editorState.text)
+            editorState.reload = false
+        }
     }
 }
+#else
+public struct EditorView: NSViewRepresentable {
+    
+    @ObservedObject public var editorState: EditorState
+    
+    let mtkView: MacMTK = MacMTK()
+    
+    public init(_ editorState: EditorState, _ toolbarState: ToolbarState, _ nameState: NameState) {
+        self.editorState = editorState
+        mtkView.editorState = editorState
+        mtkView.toolbarState = toolbarState
+        mtkView.nameState = nameState
+        
+        mtkView.setInitialContent(editorState.text)
+    }
+    
+    public func docChanged(_ s: String) {
+        editorState.text = s
+    }
 
-public enum MarkdownEditorFocus {
-    case editor
-    case title
+    public func makeNSView(context: NSViewRepresentableContext<EditorView>) -> MTKView {
+        mtkView
+    }
+    
+    public func updateNSView(_ nsView: MTKView, context: NSViewRepresentableContext<EditorView>) {
+        if editorState.reload {
+            mtkView.updateText(editorState.text)
+            editorState.reload = false
+        }
+    }
 }
+#endif
+
+
+
+
+

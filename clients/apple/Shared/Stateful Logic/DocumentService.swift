@@ -12,9 +12,9 @@ class DocumentService: ObservableObject {
     @Published var isPendingSharesOpen: Bool = false
     @Published var selectedFolder: File?
     
+    @Published var justCreatedDoc: File? = nil
+    
     func openDoc(meta: File) -> DocumentLoadingInfo {
-//        openDocuments.removeAll()
-        
         if openDocuments[meta.id] == nil {
             openDocuments[meta.id] = DocumentLoadingInfo(meta)
         }
@@ -22,17 +22,15 @@ class DocumentService: ObservableObject {
         return openDocuments[meta.id]!
     }
     
-//    func openDoc(meta: File) {
-//        DispatchQueue.main.async {
-//            let _ = self.openDocSync(meta: meta)
-//        }
-//    }
+    func notifyDeletedIfOpen(id: UUID) {
+        openDocuments[id]?.deleted = true
+    }
 }
 
 class DocumentLoadingInfo: ObservableObject, Equatable {
     
     static func == (lhs: DocumentLoadingInfo, rhs: DocumentLoadingInfo) -> Bool {
-        lhs.meta.id == rhs.meta.id
+        lhs.meta == rhs.meta
     }
     
     let core: LockbookApi
@@ -46,7 +44,7 @@ class DocumentLoadingInfo: ObservableObject, Equatable {
 
     @Published var textDocument: EditorState? = nil
     @Published var textDocumentToolbar: ToolbarState? = nil
-    @Published var textDocumentName: NameState? = nil
+    @Published var documentNameState: NameState = NameState()
     
     @Published var drawing: PKDrawing? = nil
     @Published var image: Image? = .none
@@ -135,7 +133,6 @@ class DocumentLoadingInfo: ObservableObject, Equatable {
                 case .success(let txt):
                     self.textDocument = EditorState(text: txt)
                     self.textDocumentToolbar = ToolbarState()
-                    self.textDocumentName = NameState()
                     self
                         .textDocument!
                         .$text

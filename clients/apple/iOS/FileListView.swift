@@ -15,7 +15,7 @@ struct FileListView: View {
     
     var body: some View {
         VStack {
-            if let newDoc = sheets.created, newDoc.fileType == .Document {
+            if let newDoc = current.justCreatedDoc, newDoc.fileType == .Document, current.openDocuments[newDoc.id] != nil {
                 NavigationLink(destination: DocumentView(model: current.openDoc(meta: newDoc)), isActive: Binding(get: { current.openDocuments[newDoc.id] != nil }, set: { _ in current.openDocuments[newDoc.id] = nil }) ) {
                         EmptyView()
                     }
@@ -30,19 +30,13 @@ struct FileListView: View {
                     
                 FilePathBreadcrumb()
                     
-                BottomBar(onCreating: {
-                    if let parent = fileService.parent {
-                        print("creating file")
-                        sheets.created = fileService.createFile(name: UUID().uuidString + ".md", parent: parent.id, isFolder: false)
-                        current.openDocuments[sheets.created!.id] = DocumentLoadingInfo(sheets.created!)
-                    }
-                })
+                BottomBar(isiOS: true)
                 .onReceive(current.$openDocuments) { _ in
                     print("cleared")
                     // When we return back to this screen, we have to change newFile back to nil regardless
                     // of it's present value, otherwise we won't be able to navigate to new, new files
                     if current.openDocuments.isEmpty {
-                        sheets.created = nil
+                        current.justCreatedDoc = nil
                     }
                 }
         }

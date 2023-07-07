@@ -25,20 +25,6 @@ struct FileListView: View {
     
     var mainView: some View {
         VStack {
-            HStack(alignment: .firstTextBaseline) {
-                Button(action: {
-                    print("creating file")
-                    if case .success(let newMeta) = DI.files.core.createFile(name: UUID().uuidString + ".md", dirId: (DI.currentDoc.selectedFolder ?? DI.files.root!).id, isFolder: false) {
-                        DI.files.refresh()
-                        let _ = DI.currentDoc.openDoc(meta: newMeta)
-                    }
-                    
-                }) {
-                    Image(systemName: "doc.badge.plus")
-                }
-                
-            }
-            
             SuggestedDocs()
 
             fileTreeView
@@ -97,10 +83,8 @@ struct DetailView: View {
             VStack {
                 if currentSelection.isPendingSharesOpen {
                     PendingSharesView()
-                } else if let item = currentSelection.openDocuments.keys.first {
-                    if let meta = DI.files.idsAndFiles[item] {
-                        DocumentView(model: currentSelection.openDoc(meta: meta))
-                    }
+                } else if let docInfo = currentSelection.openDocuments.values.first {
+                    DocumentView(model: docInfo)
                 }
             }
             

@@ -13,21 +13,24 @@ struct OutlineContextMenu: View {
         VStack {
             if meta.fileType == .Folder {
                 Button(action: {
-                    sheets.creatingInfo = CreatingInfo(parent: meta, child_type: .Document)
+                    DI.files.createDocSync(maybeParent: meta.id, isDrawing: false)
                 }) {
                     Label("Create a document", systemImage: "doc")
                 }
                 Button(action: {
+                    DI.files.createDocSync(maybeParent: meta.id, isDrawing: true)
+                }) {
+                    Label("Create a drawing", systemImage: "doc")
+                }
+                Button(action: {
                     branchState?.open = true
-                    sheets.creatingInfo = CreatingInfo(parent: meta, child_type: .Folder)
+                    DI.sheets.creatingFolderInfo = CreatingFolderInfo(parentPath: DI.files.getPathByIdOrParent(maybeId: meta.id) ?? "ERROR", maybeParent: meta.id)
                 }) {
                     Label("Create a folder", systemImage: "folder")
                 }
             }
+            
             if !meta.isRoot {
-                Button(action: { sheets.renamingInfo = meta }) {
-                    Label("Rename", systemImage: "questionmark.folder")
-                }
                 Button(action: { sheets.movingInfo = meta }) {
                     Label("Move", systemImage: "arrow.up.and.down.and.arrow.left.and.right")
                 }

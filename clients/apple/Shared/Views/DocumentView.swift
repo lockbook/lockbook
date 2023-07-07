@@ -27,32 +27,40 @@ struct DocumentView: View {
                 switch model.type {
                 case .Image:
                     if let img = model.image {
-                        ScrollView([.horizontal, .vertical]) {
-                            img
-                        }.title(model.meta.name)
+                        VStack {
+                            MarkdownTitle(nameState: model.documentNameState, id: model.meta.id)
+                            
+                            ScrollView([.horizontal, .vertical]) {
+                                img
+                            }
+                        }.title("")
+                        
                     }
 #if os(iOS)
                 case .Drawing:
-                    DrawingView(
-                        model: model,
-                        toolPicker: toolbar
-                    )
-                    .navigationBarTitle(model.meta.name, displayMode: .inline)
-                    .toolbar {
-                        ToolbarItemGroup(placement: .bottomBar) {
-                            Spacer()
-                            DrawingToolbar(toolPicker: toolbar)
-                            Spacer()
+                    VStack {
+                        MarkdownTitle(nameState: model.documentNameState, id: model.meta.id)
+                        
+                        DrawingView(
+                            model: model,
+                            toolPicker: toolbar
+                        )
+                        .toolbar {
+                            ToolbarItemGroup(placement: .bottomBar) {
+                                Spacer()
+                                DrawingToolbar(toolPicker: toolbar)
+                                Spacer()
+                            }
                         }
-                    }
+                    }.title("")
+                    
 #endif
                     
                 case .Markdown:
                     if let editorState = model.textDocument,
-                       let toolbarState = model.textDocumentToolbar,
-                       let nameState = model.textDocumentName {
+                       let toolbarState = model.textDocumentToolbar {
                         Group {
-                            MarkdownCompleteEditor(editorState: editorState, toolbarState: toolbarState, nameState: nameState, fileId: model.meta.id)
+                            MarkdownCompleteEditor(editorState: editorState, toolbarState: toolbarState, nameState: model.documentNameState, fileId: model.meta.id)
                                 .equatable()
                         }.title("")
                     }
@@ -64,6 +72,7 @@ struct DocumentView: View {
         }
         .onDisappear {
             DI.currentDoc.openDocuments.removeAll()
+            DI.currentDoc.justCreatedDoc = nil
             DI.files.refresh()
         }
     }
@@ -295,8 +304,9 @@ struct MarkdownToolbar: View {
 struct MarkdownTitle: View {
     @ObservedObject var nameState: NameState
     let id: UUID
+    let fileSuffix: String
     
-    @FocusState var focused: Bool
+    @State var name: String
     @State var error: String?
     @State var hasBeenFocused = false
     
@@ -306,51 +316,89 @@ struct MarkdownTitle: View {
         }
     }
     
-    let isOriginNameUUID: Bool
+    let justOpenedFile: Bool
     
     init(nameState: NameState, id: UUID) {
+        let openDocName = DI.files.idsAndFiles[id]?.name ?? DI.currentDoc.openDocuments[id]!.meta.name
+        var openDocNameWithoutExt = (openDocName as NSString).deletingPathExtension
+        
         self.nameState = nameState
         self.id = id
-        self.isOriginNameUUID = UUID(uuidString: DI.currentDoc.openDocuments[id]!.meta.name.replacingOccurrences(of: ".md", with: "")) != nil
+        self.justOpenedFile = DI.currentDoc.justCreatedDoc?.id == id
+                
+        self._name = State(initialValue: openDocName == openDocNameWithoutExt ? "" : openDocNameWithoutExt)
+        
+        if openDocName == openDocNameWithoutExt {
+            openDocNameWithoutExt.removeFirst()
+            self.fileSuffix = openDocNameWithoutExt
+        } else {
+            self.fileSuffix = (openDocName as NSString).pathExtension
+        }
+    }
+    
+    func realFileName(_ unformattedName: String) -> String {
+        return unformattedName.toKebabCase() + "." + fileSuffix
+    }
+    
+    func stripName(_ formattedName: String) -> (fileName: String, fileExt: String) {
+        let openDocExt = (formattedName as NSString).pathExtension
+        let openDocNameWithoutExt = (formattedName as NSString).deletingPathExtension
+        
+
+        if formattedName == openDocNameWithoutExt {
+            return (fileName: "", fileExt: openDocNameWithoutExt)
+        } else {
+            return (fileName: openDocNameWithoutExt, fileExt: openDocExt)
+        }
+    }
+    
+    func renameFile(_ newName: String) {
+        let realName = realFileName(newName)
+        name = newName
+        
+        if let errorMsg = DI.files.renameFileSync(id: id, name: realName) {
+            withAnimation {
+                error = errorMsg
+            }
+        } else {
+            docInfo?.meta.name = realName
+            withAnimation {
+                error = nil
+            }
+        }
     }
     
     var body: some View {
         VStack(alignment: .leading) {
             TextField("File name...", text: Binding(get: {
-                return docInfo?.meta.name.replacingOccurrences(of: ".md", with: "") ?? ""
+                return name.toKebabCase()
             }, set: { newValue, _ in
                 hasBeenFocused = true
-                docInfo?.meta.name = newValue.toKebabCase()
                 
-                if !newValue.isEmpty {
-                    if let errorMsg = DI.files.renameFile(id: id, name: newValue + ".md") {
-                        error = errorMsg
-                    } else {
-                        error = nil
-                    }
-                }
+                renameFile(newValue)
             }))
-            .focused($focused)
+            .autocapitalization(.none)
             .onChange(of: nameState.potentialTitle, perform: { newValue in
-                if let potentialTitle = nameState.potentialTitle, !hasBeenFocused, isOriginNameUUID {
-                    docInfo?.meta.name = potentialTitle.toKebabCase()
-                    if let errorMsg = DI.files.renameFile(id: id, name: potentialTitle + ".md") {
-                        error = errorMsg
-                    } else {
-                        error = nil
+                if let potentialTitle = nameState.potentialTitle, !hasBeenFocused, justOpenedFile, !potentialTitle.isEmpty {
+                    renameFile(potentialTitle)
+                }
+            })
+            .onChange(of: docInfo?.meta, perform: { newValue in
+                print("checking...")
+                if let newName = newValue?.name {
+                    let (fileName, _) = stripName(newName)
+                    
+                    if !fileName.isEmpty && fileName != name {
+                        print("replacing!")
+                        name = fileName
                     }
                 }
+                
             })
             .textFieldStyle(.plain)
             .font(.largeTitle)
             .padding(.horizontal)
             .padding(.top)
-            .onChange(of: focused, perform: { newValue in
-                nameState.focusLocation = newValue ? .title : .editor
-            })
-            .onChange(of: nameState.focusLocation, perform: { newValue in
-                focused = newValue == .title
-            })
             
             if let errorMsg = error {
                 Text(errorMsg)
@@ -367,18 +415,14 @@ struct MarkdownTitle: View {
 struct MarkdownEditor: View {
     @ObservedObject var editorState: EditorState
     let editor: EditorView
-//    let metal: MetalView
-    
     
     public init(_ editorState: EditorState, _ toolbarState: ToolbarState, _ nameState: NameState) {
         self.editorState = editorState
         self.editor = EditorView(editorState, toolbarState, nameState)
-//        self.metal = MetalView(editorState: editorState, toolbarState: toolbarState, nameState: nameState)
     }
         
     var body: some View {
         editor
-//        metal
     }
 }
 

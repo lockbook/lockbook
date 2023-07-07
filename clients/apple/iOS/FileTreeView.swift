@@ -40,16 +40,12 @@ struct FileTreeView: View {
                 } as? UISearchBar
             }
             
-            BottomBar(onCreating: {
-                sheets.creatingInfo = CreatingInfo(parent: currentFolder, child_type: .Document)
-            })
+            BottomBar()
         }
         
         VStack {
-            if let item = currentDoc.openDocuments.keys.first {
-                if let meta = DI.files.idsAndFiles[item] {
-                    DocumentView(model: currentDoc.openDoc(meta: meta))
-                }
+            if let docInfo = currentDoc.openDocuments.values.first {
+                DocumentView(model: docInfo)
             } else {
                 GeometryReader { geometry in
                     if geometry.size.height > geometry.size.width {

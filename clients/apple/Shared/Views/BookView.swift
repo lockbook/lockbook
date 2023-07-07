@@ -21,16 +21,8 @@ struct BookView: View {
         platformFileTree
             .iOSOnlySheet(isPresented: $sheets.moving)
             .sheet(isPresented: $onboarding.anAccountWasCreatedThisSession, content: BeforeYouStart.init)
-            .sheet(isPresented: $sheets.creating) {
-                let fileType = sheets.creatingInfo?.toClientFileTypes() ?? .Document
-                if fileType == .Document {
-                    NewFileSheet(selected: fileType, name: ".md")
-                } else {
-                    NewFileSheet(selected: fileType, name: "")
-                }
-            }
-            .sheet(isPresented: $sheets.renaming, content: RenamingSheet.init)
             .sheet(isPresented: $sheets.sharingFile, content: ShareFileSheet.init)
+            .sheet(isPresented: $sheets.creatingFolder, content: NewFolderSheet.init)
             .toast(isPresenting: Binding(get: { files.successfulAction != nil }, set: { _ in files.successfulAction = nil }), duration: 2, tapToDismiss: true) {
                 postFileAction()
             }

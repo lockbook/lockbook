@@ -16,7 +16,6 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     var pasteBoardEventId: Int = 0
     var lastKnownTapLocation: Float? = nil
     override init(frame frameRect: CGRect, device: MTLDevice?) {
-        print("initing stuff")
         super.init(frame: frameRect, device: device)
         
         self.isPaused = false
@@ -110,6 +109,8 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
         self.toolbarState!.toggleNumberList = numberedList
         self.toolbarState!.toggleHeading = header
         self.toolbarState!.tab = tab
+        
+        becomeFirstResponder()
     }
     
     public func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {
@@ -411,7 +412,6 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
         let location = touches.first!.location(in: self)
         touches_began(editorHandle, value, Float(location.x), Float(location.y), Float(touches.first?.force ?? 0))
         
-//        nameState?.focusLocation = .editor
         becomeFirstResponder()
 
         self.setNeedsDisplay(self.frame)

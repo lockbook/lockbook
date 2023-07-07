@@ -84,6 +84,8 @@ public class MacMTK: MTKView, MTKViewDelegate {
         self.toolbarState!.toggleInlineCode = inlineCode
         self.toolbarState!.toggleNumberList = numberedList
         self.toolbarState!.toggleHeading = header
+        
+        becomeFirstResponder()
     }
     
     public override func mouseDragged(with event: NSEvent) {

@@ -38,13 +38,15 @@ struct SearchWrapperView<Content: View>: View {
                         switch result {
                         case .PathMatch(_, let meta, let name, let path, let matchedIndices, _):
                             Button(action: {
-                                current.openDocuments[meta.id] = DocumentLoadingInfo(meta)
+                                current.openDocuments.removeAll()
+                                let _ = current.openDoc(meta: meta)
                             }) {
                                 SearchFilePathCell(name: name, path: path, matchedIndices: matchedIndices)
                             }
                         case .ContentMatch(_, let meta, let name, let path, let paragraph, let matchedIndices, _):
                             Button(action: {
-                                current.openDocuments[meta.id] = DocumentLoadingInfo(meta)
+                                current.openDocuments.removeAll()
+                                let _ = current.openDoc(meta: meta)
                             }) {
                                 SearchFileContentCell(name: name, path: path, paragraph: paragraph, matchedIndices: matchedIndices)
                             }

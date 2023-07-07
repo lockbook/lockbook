@@ -13,7 +13,7 @@ class FileService: ObservableObject {
             Array(idsAndFiles.values)
         }
     }
-    var successfulAction: FileAction? = nil
+    @Published var successfulAction: FileAction? = nil
 
     // File Service keeps track of the parent being displayed on iOS. Since this functionality is not used for macOS, it is conditionally compiled.
 #if os(iOS)
@@ -167,26 +167,22 @@ class FileService: ObservableObject {
 
 
     func deleteFile(id: UUID) {
-        DispatchQueue.global(qos: .userInitiated).async {
-            let operation = self.core.deleteFile(id: id)
+        let operation = self.core.deleteFile(id: id)
 
-            DispatchQueue.main.async {
-                switch operation {
-                case .success(_):
-                    if DI.documentLoader.meta?.id == id {
-                        DI.documentLoader.deleted = true
-                    }
-                    self.successfulAction = .delete
-                    self.refresh()
-                    DI.status.checkForLocalWork()
-                case .failure(let error):
-                    DI.errors.handleError(error)
-                }
-            }
+        switch operation {
+        case .success(_):
+            DI.currentDoc.notifyDeletedIfOpen(id: id)
+            print("IN SERVICE: \(DI.currentDoc.openDocuments.values.map { docInfo in "\(docInfo.meta.name) \(docInfo.deleted)" })")
+            self.refresh()
+
+            self.successfulAction = .delete
+            DI.status.checkForLocalWork()
+        case .failure(let error):
+            DI.errors.handleError(error)
         }
     }
 
-    func renameFile(id: UUID, name: String) -> String? {
+    func renameFileSync(id: UUID, name: String) -> String? {
         let operation = self.core.renameFile(id: id, name: name)
 
         switch operation {
@@ -200,14 +196,47 @@ class FileService: ObservableObject {
                 case .FileNameNotAvailable:
                     return "A file with that name exists already"
                 case .NewNameContainsSlash:
-                    return "A filename cannot contain slash"
+                    return "Your filename cannot contain a slash"
                 case .NewNameEmpty:
-                    return "A filename cannot be empty"
+                    return "Your filename cannot be empty"
+                case .FileNameTooLong:
+                    return "Your filename is too long"
                 default:
                     return "An error occurred while renaming the file"
                 }
             default:
                 return "An error occurred while renaming the file"
+            }
+        }
+    }
+    
+    func renameFile(id: UUID, name: String) {
+        DispatchQueue.global(qos: .userInteractive).async {
+            let operation = self.core.renameFile(id: id, name: name)
+
+            DispatchQueue.main.async {
+                switch operation {
+                case .success(_):
+                    self.successfulAction = .rename
+                    self.refresh()
+                    DI.status.checkForLocalWork()
+                case .failure(let error):
+                    switch error.kind {
+                    case .UiError(let uiError):
+                        switch uiError {
+                        case .FileNameNotAvailable:
+                            DI.errors.errorWithTitle("Rename Error", "File with that name exists already")
+                        case .NewNameContainsSlash:
+                            DI.errors.errorWithTitle("Rename Error", "Filename cannot contain slash")
+                        case .NewNameEmpty:
+                            DI.errors.errorWithTitle("Rename Error", "Filename cannot be empty")
+                        default:
+                            DI.errors.handleError(error)
+                        }
+                    default:
+                        DI.errors.handleError(error)
+                    }
+                }
             }
         }
     }
@@ -284,25 +313,103 @@ class FileService: ObservableObject {
     }
 
     private func openFileChecks() {
-        if let openedMetaId = DI.currentDoc.openDocuments.keys.first {
-            let maybeMeta = idsAndFiles[openedMetaId]
+        for id in DI.currentDoc.openDocuments.keys {
+            let maybeMeta = idsAndFiles[id]
             
             if maybeMeta == nil {
-                DI.documentLoader.deleted = true
+                DI.currentDoc.openDocuments[id]?.deleted = true
             }
         }
     }
 
     private func notifyDocumentChanged(_ meta: File) {
-        if let openDocument = DI.documentLoader.meta, meta.id == openDocument.id, (meta.lastModified != openDocument.lastModified) || (meta != openDocument) {
-            DI.documentLoader.updatesFromCoreAvailable(meta)
+        for docInfo in DI.currentDoc.openDocuments.values {
+            if meta.id == docInfo.meta.id, (meta.lastModified != docInfo.meta.lastModified) || (meta != docInfo.meta) {
+                docInfo.updatesFromCoreAvailable(meta)
+            }
         }
     }
     
-    public func createFile(name: String, parent: UUID, isFolder: Bool) -> File? {
-        switch core.createFile(name: name, dirId: parent, isFolder: isFolder) {
-        case .success(let meta):
-            return meta
+    public func createDocSync(maybeParent: UUID? = nil, isDrawing: Bool) {
+        let realParent = maybeParent ?? {
+            #if os(iOS)
+            parent?.id ?? root!.id
+            #else
+            DI.currentDoc.selectedFolder?.id ?? root!.id
+            #endif
+        }()
+        
+        var name = ""
+        let fileExt = isDrawing ? ".draw" : ".md"
+        let namePart = isDrawing ? "untitled-drawing-" : "untitled-doc-"
+        var attempt = 0
+        
+        while(true) {
+            name = namePart + String(attempt)
+            
+            switch core.createFile(name: name + fileExt, dirId: realParent, isFolder: false) {
+            case .success(let meta):
+                refresh()
+                
+                DI.currentDoc.openDocuments.removeAll()
+                DI.currentDoc.justCreatedDoc = meta
+                let _ = DI.currentDoc.openDoc(meta: meta)
+
+                return
+            case .failure(let err):
+                switch err.kind {
+                case .UiError(.FileNameNotAvailable):
+                    attempt += 1
+                    continue
+                default:
+                    DI.errors.handleError(err)
+                    return
+                }
+            }
+        }
+    }
+    
+    public func createFolderSync(name: String, maybeParent: UUID? = nil) -> String? {
+        let realParent = maybeParent ?? {
+            #if os(iOS)
+            parent?.id ?? root!.id
+            #else
+            DI.currentDoc.selectedFolder?.id ?? root!.id
+            #endif
+        }()
+        
+        switch core.createFile(name: name, dirId: realParent, isFolder: true) {
+        case .success(_):
+            refresh()
+            return nil
+        case .failure(let err):
+            switch err.kind {
+            case .UiError(.FileNameContainsSlash):
+                return "Your file name contains a slash"
+            case .UiError(.FileNameEmpty):
+                return "Your file name cannot be empty"
+            case .UiError(.FileNameNotAvailable):
+                return "Your file name is not available"
+            case .UiError(.FileNameTooLong):
+                return "Your file name is too long"
+            default:
+                return "An error has occurred"
+            }
+        }
+    }
+    
+    public func getPathByIdOrParent(maybeId: UUID? = nil) -> String? {
+        let id = maybeId ?? {
+            #if os(iOS)
+            parent?.id ?? root!.id
+            #else
+            DI.currentDoc.selectedFolder?.id ?? root!.id
+            #endif
+        }()
+        
+        switch core.getPathById(id: id) {
+        case .success(let path):
+            return path
         case .failure(let err):
             DI.errors.handleError(err)
             return nil

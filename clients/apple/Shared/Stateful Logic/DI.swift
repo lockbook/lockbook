@@ -14,7 +14,6 @@ class DI {
     static let sync = SyncService(core)
     static let share = ShareService(core)
     static let onboarding = OnboardingService(core)
-    static let documentLoader = DocumentLoader(core)
     static let sheets: SheetState = SheetState()
     static let currentDoc: DocumentService = DocumentService()
     static let search = SearchService(core)
@@ -29,8 +28,6 @@ class DI {
         DI.files.idsAndFiles = [:]
         DI.onboarding.theyChoseToBackup = false
         DI.onboarding.username = ""
-        DI.documentLoader.meta = nil
-        DI.documentLoader.type = nil
         DI.currentDoc.openDocuments.removeAll()
     }
 }
@@ -49,7 +46,6 @@ class Mock {
     static let sync = SyncService(core)
     static let share = ShareService(core)
     static let onboarding = OnboardingService(core)
-    static let documentLoader = DocumentLoader(core)
     static let sheets: SheetState = SheetState()
     static let currentDoc: DocumentService = DocumentService()
     static let search = SearchService(core)
@@ -78,7 +74,6 @@ extension View {
             .environmentObject(DI.files)
             .environmentObject(DI.sync)
             .environmentObject(DI.onboarding)
-            .environmentObject(DI.documentLoader)
             .environmentObject(DI.sheets)
             .environmentObject(DI.currentDoc)
             .environmentObject(DI.billing)
@@ -106,7 +101,6 @@ extension View {
             .environmentObject(Mock.files)
             .environmentObject(Mock.sync)
             .environmentObject(Mock.onboarding)
-            .environmentObject(Mock.documentLoader)
             .environmentObject(Mock.sheets)
             .environmentObject(Mock.currentDoc)
             .environmentObject(Mock.billing)

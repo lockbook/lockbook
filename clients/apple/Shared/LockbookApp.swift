@@ -30,13 +30,19 @@ import AppKit
                 }
         }.commands {
             CommandGroup(replacing: CommandGroupPlacement.newItem) {
-                Button("New", action: {
-                    if let selecteditem = DI.currentDoc.selectedFolder {
-                        DI.sheets.creatingInfo = CreatingInfo(parent: selecteditem, child_type: .Document)
-                    } else if let root = DI.files.root {
-                        DI.sheets.creatingInfo = CreatingInfo(parent: root, child_type: .Document)
-                    }
+                Button("New Doc", action: {
+                    DI.files.createDocSync(isDrawing: false)
                 }).keyboardShortcut("N", modifiers: .command)
+                
+                #if os(iOS)
+                Button("New Drawing", action: {
+                    DI.files.createDocSync(isDrawing: true)
+                }).keyboardShortcut("N", modifiers: [.command, .control])
+                #endif
+                
+                Button("New Folder", action: {
+                    DI.sheets.creatingFolderInfo = CreatingFolderInfo(parentPath: DI.files.getPathByIdOrParent() ?? "Error", maybeParent: nil)
+                }).keyboardShortcut("N", modifiers: [.command, .shift])
             }
             CommandMenu("Lockbook") {
                 Button("Sync", action: { DI.sync.sync() }).keyboardShortcut("S", modifiers: .command)

@@ -23,11 +23,6 @@ struct FileCell: View {
                     Label("Move", systemImage: "arrow.up.and.down.and.arrow.left.and.right")
                 })
                 Button(action: {
-                    sheets.renamingInfo = meta
-                }, label: {
-                    Label("Rename", systemImage: "questionmark.folder")
-                })
-                Button(action: {
                     sheets.sharingFileInfo = meta
                 }, label: {
                     Label("Share", systemImage: "shareplay")

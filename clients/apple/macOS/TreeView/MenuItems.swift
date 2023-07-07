@@ -1,28 +1,11 @@
 import AppKit
 import SwiftLockbookCore
 
-class Rename: NSMenuItem {
+class CreateDocument: NSMenuItem {
     let file: File
     init(file: File) {
         self.file = file
-        super.init(title: "Rename", action: #selector(rename(_:)), keyEquivalent: "")
-        target = self
-    }
-
-    required init(coder: NSCoder) {
-        fatalError("init(coder:) has not been implemented")
-    }
-
-    @objc func rename(_ sender: AnyObject) {
-        DI.sheets.renamingInfo = file
-    }
-}
-
-class Create: NSMenuItem {
-    let file: File
-    init(file: File) {
-        self.file = file
-        super.init(title: "Create", action: #selector(create(_:)), keyEquivalent: "")
+        super.init(title: "Create document", action: #selector(create(_:)), keyEquivalent: "")
         target = self
     }
 
@@ -31,7 +14,25 @@ class Create: NSMenuItem {
     }
 
     @objc func create(_ sender: AnyObject) {
-        DI.sheets.creatingInfo = CreatingInfo(parent: file, child_type: .Document)
+        DI.files.createDocSync(maybeParent: file.id, isDrawing: false)
+    }
+}
+
+class CreateFolder: NSMenuItem {
+    let file: File
+    init(file: File) {
+        self.file = file
+        super.init(title: "Create folder", action: #selector(create(_:)), keyEquivalent: "")
+        target = self
+    }
+
+    required init(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    @objc func create(_ sender: AnyObject) {
+        print("creating folder under: \(file.name)")
+        DI.sheets.creatingFolderInfo = CreatingFolderInfo(parentPath: DI.files.getPathByIdOrParent(maybeId: file.id) ?? "ERROR", maybeParent: file.id)
     }
 }
 
