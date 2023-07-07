@@ -1,8 +1,8 @@
 use crate::appearance::YELLOW;
-use crate::element::{InlineNode, ItemType, MarkdownNode, RenderStyle};
 use crate::input::canonical::{Location, Modification, Region};
 use crate::layouts::Annotation;
 use crate::offset_types::RangeExt;
+use crate::style::{InlineNode, ItemType, MarkdownNode, RenderStyle};
 use crate::Editor;
 use egui::text::LayoutJob;
 use egui::{Align2, Color32, FontId, Pos2, Rect, Rounding, Sense, Stroke, Ui, Vec2};
@@ -35,7 +35,7 @@ impl Editor {
 
                             let mut text_format = galley.annotation_text_format.clone();
                             let style =
-                                RenderStyle::Markdown(MarkdownNode::Inline(InlineNode::Strong));
+                                RenderStyle::Markdown(MarkdownNode::Inline(InlineNode::Bold));
                             style.apply_style(&mut text_format, &self.appearance);
 
                             job.append(&(num.to_string() + "."), 0.0, text_format);

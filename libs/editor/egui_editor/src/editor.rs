@@ -9,7 +9,6 @@ use crate::ast::Ast;
 use crate::bounds::{Paragraphs, Words};
 use crate::buffer::Buffer;
 use crate::debug::DebugInfo;
-use crate::element::{BlockNode, InlineNode, ItemType, MarkdownNode};
 use crate::galleys::Galleys;
 use crate::images::ImageCache;
 use crate::input::canonical::{Bound, Modification, Offset, Region};
@@ -18,6 +17,7 @@ use crate::input::cursor::{Cursor, PointerState};
 use crate::input::events;
 use crate::layouts::Annotation;
 use crate::offset_types::RangeExt;
+use crate::style::{BlockNode, InlineNode, ItemType, MarkdownNode};
 use crate::test_input::TEST_MARKDOWN;
 use crate::{ast, bounds, galleys, images, register_fonts};
 
@@ -302,9 +302,9 @@ impl Editor {
 
         match ast_node.node_type {
             MarkdownNode::Block(BlockNode::Heading(..)) => cursor_in_heading = true,
-            MarkdownNode::Inline(InlineNode::InlineCode) => cursor_in_inline_code = true,
-            MarkdownNode::Inline(InlineNode::Strong) => cursor_in_bold = true,
-            MarkdownNode::Inline(InlineNode::Emphasis) => cursor_in_italic = true,
+            MarkdownNode::Inline(InlineNode::Code) => cursor_in_inline_code = true,
+            MarkdownNode::Inline(InlineNode::Bold) => cursor_in_bold = true,
+            MarkdownNode::Inline(InlineNode::Italic) => cursor_in_italic = true,
             _ => {
                 let galley_idx = self
                     .galleys

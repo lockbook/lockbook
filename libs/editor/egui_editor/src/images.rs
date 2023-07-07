@@ -1,5 +1,5 @@
 use crate::ast::Ast;
-use crate::element::{InlineNode, MarkdownNode, Url};
+use crate::style::{InlineNode, MarkdownNode, Url};
 use egui::{ColorImage, TextureId, Ui};
 use std::collections::HashMap;
 

@@ -1,5 +1,5 @@
-use crate::element::{InlineNode, MarkdownNode};
 use crate::input::canonical::{Modification, Region};
+use crate::style::{InlineNode, MarkdownNode};
 use crate::{Editor, IntegrationOutput, WgpuEditor};
 use egui::{Context, Event, Visuals};
 use egui_wgpu_backend::wgpu::CompositeAlphaMode;
@@ -224,7 +224,7 @@ pub unsafe extern "C" fn apply_style_to_selection_bold(obj: *mut c_void) {
 
     obj.editor.custom_events.push(Modification::ToggleStyle {
         region: Region::Selection,
-        style: MarkdownNode::Inline(InlineNode::Strong),
+        style: MarkdownNode::Inline(InlineNode::Bold),
     });
 }
 
@@ -236,7 +236,7 @@ pub unsafe extern "C" fn apply_style_to_selection_italic(obj: *mut c_void) {
 
     obj.editor.custom_events.push(Modification::ToggleStyle {
         region: Region::Selection,
-        style: MarkdownNode::Inline(InlineNode::Emphasis),
+        style: MarkdownNode::Inline(InlineNode::Italic),
     });
 }
 
@@ -248,6 +248,6 @@ pub unsafe extern "C" fn apply_style_to_selection_inline_code(obj: *mut c_void) 
 
     obj.editor.custom_events.push(Modification::ToggleStyle {
         region: Region::Selection,
-        style: MarkdownNode::Inline(InlineNode::InlineCode),
+        style: MarkdownNode::Inline(InlineNode::Code),
     });
 }

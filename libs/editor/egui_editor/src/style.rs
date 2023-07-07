@@ -22,9 +22,9 @@ pub enum MarkdownNode {
 
 #[derive(Clone, Debug)]
 pub enum InlineNode {
-    InlineCode, // todo: name stutters
-    Strong,     // todo: make name reflect applied style
-    Emphasis,   // todo: make name reflect applied style
+    Code,
+    Bold,
+    Italic,
     Strikethrough,
     Link(LinkType, Url, Title), // todo: swap strings for text ranges and impl Copy
     Image(LinkType, Url, Title), // todo: swap strings for text ranges and impl Copy
@@ -37,9 +37,9 @@ impl PartialEq for InlineNode {
     fn eq(&self, other: &Self) -> bool {
         matches!(
             (self, other),
-            (Self::InlineCode, Self::InlineCode)
-                | (Self::Strong, Self::Strong)
-                | (Self::Emphasis, Self::Emphasis)
+            (Self::Code, Self::Code)
+                | (Self::Bold, Self::Bold)
+                | (Self::Italic, Self::Italic)
                 | (Self::Strikethrough, Self::Strikethrough)
                 | (Self::Link(..), Self::Link(..))
                 | (Self::Image(..), Self::Image(..))
@@ -52,8 +52,8 @@ impl Eq for InlineNode {}
 #[derive(Clone, Copy, Debug, Eq)]
 pub enum BlockNode {
     Heading(HeadingLevel),
-    QuoteBlock, // todo: name stutters
-    CodeBlock,  // todo: name stutters
+    Quote,
+    Code,
     ListItem(ItemType, IndentLevel),
 }
 
@@ -63,8 +63,8 @@ pub enum BlockNode {
 impl PartialEq for BlockNode {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
-            (Self::QuoteBlock, Self::QuoteBlock)
-            | (Self::CodeBlock, Self::CodeBlock)
+            (Self::Quote, Self::Quote)
+            | (Self::Code, Self::Code)
             | (Self::Heading(..), Self::Heading(..)) => true,
             (Self::ListItem(item_type_a, ..), Self::ListItem(item_type_b, ..)) => {
                 item_type_a == item_type_b
@@ -73,6 +73,30 @@ impl PartialEq for BlockNode {
         }
     }
 }
+
+#[derive(Clone, Copy, Debug, Eq)]
+pub enum ItemType {
+    Bulleted,
+    Numbered(usize),
+    Todo(bool),
+}
+
+// Ignore inner values in enum variant comparison
+// Note: you need to remember to incorporate new variants here!
+impl PartialEq for ItemType {
+    fn eq(&self, other: &Self) -> bool {
+        matches!(
+            (self, other),
+            (ItemType::Bulleted, ItemType::Bulleted)
+                | (ItemType::Numbered(_), ItemType::Numbered(_))
+                | (ItemType::Todo(_), ItemType::Todo(_))
+        )
+    }
+}
+
+pub type Url = String;
+pub type Title = String;
+pub type IndentLevel = u8;
 
 impl RenderStyle {
     pub fn apply_style(&self, text_format: &mut TextFormat, vis: &Appearance) {
@@ -88,16 +112,16 @@ impl RenderStyle {
                 text_format.color = vis.text();
             }
             RenderStyle::Markdown(MarkdownNode::Paragraph) => {}
-            RenderStyle::Markdown(MarkdownNode::Inline(InlineNode::InlineCode)) => {
+            RenderStyle::Markdown(MarkdownNode::Inline(InlineNode::Code)) => {
                 text_format.font_id.family = FontFamily::Monospace;
                 text_format.color = vis.code();
                 text_format.font_id.size = 14.0;
             }
-            RenderStyle::Markdown(MarkdownNode::Inline(InlineNode::Strong)) => {
+            RenderStyle::Markdown(MarkdownNode::Inline(InlineNode::Bold)) => {
                 text_format.color = vis.bold();
                 text_format.font_id.family = FontFamily::Name(Arc::from("Bold"));
             }
-            RenderStyle::Markdown(MarkdownNode::Inline(InlineNode::Emphasis)) => {
+            RenderStyle::Markdown(MarkdownNode::Inline(InlineNode::Italic)) => {
                 text_format.color = vis.italics();
                 text_format.italics = true;
             }
@@ -117,10 +141,10 @@ impl RenderStyle {
                 text_format.font_id.size = heading_size(level);
                 text_format.color = vis.heading();
             }
-            RenderStyle::Markdown(MarkdownNode::Block(BlockNode::QuoteBlock)) => {
+            RenderStyle::Markdown(MarkdownNode::Block(BlockNode::Quote)) => {
                 text_format.italics = true;
             }
-            RenderStyle::Markdown(MarkdownNode::Block(BlockNode::CodeBlock)) => {
+            RenderStyle::Markdown(MarkdownNode::Block(BlockNode::Code)) => {
                 text_format.font_id.family = FontFamily::Monospace;
                 text_format.font_id.size = 14.0;
                 text_format.color = vis.code();
@@ -135,9 +159,9 @@ impl MarkdownNode {
         match self {
             MarkdownNode::Document => "",
             MarkdownNode::Paragraph => "",
-            MarkdownNode::Inline(InlineNode::InlineCode) => "`",
-            MarkdownNode::Inline(InlineNode::Strong) => "__",
-            MarkdownNode::Inline(InlineNode::Emphasis) => "_",
+            MarkdownNode::Inline(InlineNode::Code) => "`",
+            MarkdownNode::Inline(InlineNode::Bold) => "__",
+            MarkdownNode::Inline(InlineNode::Italic) => "_",
             MarkdownNode::Inline(InlineNode::Strikethrough) => "~~",
             MarkdownNode::Inline(InlineNode::Link(..)) => {
                 unimplemented!()
@@ -148,10 +172,10 @@ impl MarkdownNode {
             MarkdownNode::Block(BlockNode::Heading(..)) => {
                 unimplemented!()
             }
-            MarkdownNode::Block(BlockNode::QuoteBlock) => {
+            MarkdownNode::Block(BlockNode::Quote) => {
                 unimplemented!()
             }
-            MarkdownNode::Block(BlockNode::CodeBlock) => {
+            MarkdownNode::Block(BlockNode::Code) => {
                 unimplemented!()
             }
             MarkdownNode::Block(BlockNode::ListItem(..)) => {
@@ -164,9 +188,9 @@ impl MarkdownNode {
         match self {
             MarkdownNode::Document => "",
             MarkdownNode::Paragraph => "",
-            MarkdownNode::Inline(InlineNode::InlineCode) => "`",
-            MarkdownNode::Inline(InlineNode::Strong) => "__",
-            MarkdownNode::Inline(InlineNode::Emphasis) => "_",
+            MarkdownNode::Inline(InlineNode::Code) => "`",
+            MarkdownNode::Inline(InlineNode::Bold) => "__",
+            MarkdownNode::Inline(InlineNode::Italic) => "_",
             MarkdownNode::Inline(InlineNode::Strikethrough) => "~~",
             MarkdownNode::Inline(InlineNode::Link(..)) => {
                 unimplemented!()
@@ -175,8 +199,8 @@ impl MarkdownNode {
                 unimplemented!()
             }
             MarkdownNode::Block(BlockNode::Heading(..)) => "",
-            MarkdownNode::Block(BlockNode::QuoteBlock) => "",
-            MarkdownNode::Block(BlockNode::CodeBlock) => {
+            MarkdownNode::Block(BlockNode::Quote) => "",
+            MarkdownNode::Block(BlockNode::Code) => {
                 unimplemented!()
             }
             MarkdownNode::Block(BlockNode::ListItem(..)) => "",
@@ -184,48 +208,7 @@ impl MarkdownNode {
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq)]
-pub enum ItemType {
-    Bulleted,
-    Numbered(usize),
-    Todo(bool),
-}
-
-pub fn item_type(text: &str) -> ItemType {
-    let text = text.trim_start();
-    if text.starts_with("+ [ ]") || text.starts_with("* [ ]") || text.starts_with("- [ ]") {
-        ItemType::Todo(false)
-    } else if text.starts_with("+ [x]") || text.starts_with("* [x]") || text.starts_with("- [x]") {
-        ItemType::Todo(true)
-    } else if let Some(prefix) = text.split('.').next() {
-        if let Ok(num) = prefix.parse::<usize>() {
-            ItemType::Numbered(num)
-        } else {
-            ItemType::Bulleted // default to bullet
-        }
-    } else {
-        ItemType::Bulleted // default to bullet
-    }
-}
-
-// Ignore inner values in enum variant comparison
-// Note: you need to remember to incorporate new variants here!
-impl PartialEq for ItemType {
-    fn eq(&self, other: &Self) -> bool {
-        matches!(
-            (self, other),
-            (ItemType::Bulleted, ItemType::Bulleted)
-                | (ItemType::Numbered(_), ItemType::Numbered(_))
-                | (ItemType::Todo(_), ItemType::Todo(_))
-        )
-    }
-}
-
-pub type Url = String;
-pub type Title = String;
-
-pub type IndentLevel = u8;
-
+// todo: move to appearance
 fn heading_size(level: &HeadingLevel) -> f32 {
     match level {
         HeadingLevel::H1 => 32.0,

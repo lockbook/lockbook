@@ -1,8 +1,8 @@
 use crate::buffer::SubBuffer;
-use crate::element::{BlockNode, InlineNode, ItemType, MarkdownNode};
 use crate::layouts::Annotation;
 use crate::offset_types::{DocCharOffset, RangeExt};
-use crate::{element, Editor};
+use crate::style::{BlockNode, InlineNode, ItemType, MarkdownNode};
+use crate::Editor;
 use pulldown_cmark::{Event, HeadingLevel, LinkType, OffsetIter, Options, Parser, Tag};
 use std::cmp;
 
@@ -71,10 +71,10 @@ impl Ast {
                     let new_child_node = match child_tag {
                         Tag::Paragraph => MarkdownNode::Paragraph,
                         Tag::Heading(level, _, _) => MarkdownNode::Block(BlockNode::Heading(level)),
-                        Tag::BlockQuote => MarkdownNode::Block(BlockNode::QuoteBlock),
-                        Tag::CodeBlock(_) => MarkdownNode::Block(BlockNode::CodeBlock),
+                        Tag::BlockQuote => MarkdownNode::Block(BlockNode::Quote),
+                        Tag::CodeBlock(_) => MarkdownNode::Block(BlockNode::Code),
                         Tag::Item => {
-                            let item_type = element::item_type(&buffer[range]);
+                            let item_type = Self::item_type(&buffer[range]);
                             let mut indent_level = 0;
                             let mut ancestor_idx = current_idx;
                             while ancestor_idx != 0 {
@@ -96,8 +96,8 @@ impl Ast {
                             }
                             MarkdownNode::Block(BlockNode::ListItem(item_type, indent_level))
                         }
-                        Tag::Emphasis => MarkdownNode::Inline(InlineNode::Emphasis),
-                        Tag::Strong => MarkdownNode::Inline(InlineNode::Strong),
+                        Tag::Emphasis => MarkdownNode::Inline(InlineNode::Italic),
+                        Tag::Strong => MarkdownNode::Inline(InlineNode::Bold),
                         Tag::Strikethrough => MarkdownNode::Inline(InlineNode::Strikethrough),
                         Tag::Link(l, u, t) => {
                             MarkdownNode::Inline(InlineNode::Link(l, u.to_string(), t.to_string()))
@@ -119,7 +119,7 @@ impl Ast {
                 Event::Code(_) => {
                     self.push_child(
                         current_idx,
-                        MarkdownNode::Inline(InlineNode::InlineCode),
+                        MarkdownNode::Inline(InlineNode::Code),
                         range,
                         buffer,
                     );
@@ -133,6 +133,26 @@ impl Ast {
                 }
                 _ => {} // todo: there are some interesting events ignored (rules, tables, etc)
             }
+        }
+    }
+
+    fn item_type(text: &str) -> ItemType {
+        let text = text.trim_start();
+        if text.starts_with("+ [ ]") || text.starts_with("* [ ]") || text.starts_with("- [ ]") {
+            ItemType::Todo(false)
+        } else if text.starts_with("+ [x]")
+            || text.starts_with("* [x]")
+            || text.starts_with("- [x]")
+        {
+            ItemType::Todo(true)
+        } else if let Some(prefix) = text.split('.').next() {
+            if let Ok(num) = prefix.parse::<usize>() {
+                ItemType::Numbered(num)
+            } else {
+                ItemType::Bulleted // default to bullet
+            }
+        } else {
+            ItemType::Bulleted // default to bullet
         }
     }
 
@@ -155,8 +175,7 @@ impl Ast {
             // capture leading whitespace for list items and code blocks (affects non-fenced code blocks only)
             if matches!(
                 markdown_node,
-                MarkdownNode::Block(BlockNode::ListItem(..))
-                    | MarkdownNode::Block(BlockNode::CodeBlock)
+                MarkdownNode::Block(BlockNode::ListItem(..)) | MarkdownNode::Block(BlockNode::Code)
             ) {
                 while range.0 > 0
                     && buffer[(range.0 - 1, range.1)]
@@ -207,7 +226,7 @@ impl Ast {
                         text_range.0 = original_text_range_0;
                     }
                 }
-                MarkdownNode::Block(BlockNode::QuoteBlock) => {
+                MarkdownNode::Block(BlockNode::Quote) => {
                     // >quote block
                     // > quote block
                     if buffer[text_range].starts_with("> ") {
@@ -216,7 +235,7 @@ impl Ast {
                         text_range.0 += 1;
                     }
                 }
-                MarkdownNode::Block(BlockNode::CodeBlock) => {
+                MarkdownNode::Block(BlockNode::Code) => {
                     if (buffer[range].starts_with("```\n") && buffer[range].ends_with("\n```"))
                         || (buffer[range].starts_with("~~~\n") && buffer[range].ends_with("\n~~~"))
                     {
@@ -258,17 +277,17 @@ impl Ast {
                         text_range.0 = original_text_range_0;
                     }
                 }
-                MarkdownNode::Inline(InlineNode::InlineCode) => {
+                MarkdownNode::Inline(InlineNode::Code) => {
                     // `code`
                     text_range.0 += 1;
                     text_range.1 -= 1;
                 }
-                MarkdownNode::Inline(InlineNode::Strong) => {
+                MarkdownNode::Inline(InlineNode::Bold) => {
                     // __strong__
                     text_range.0 += 2;
                     text_range.1 -= 2;
                 }
-                MarkdownNode::Inline(InlineNode::Emphasis) => {
+                MarkdownNode::Inline(InlineNode::Italic) => {
                     // _emphasis_
                     text_range.0 += 1;
                     text_range.1 -= 1;

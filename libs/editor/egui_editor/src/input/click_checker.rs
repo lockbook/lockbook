@@ -1,11 +1,11 @@
 use crate::appearance::Appearance;
 use crate::ast::Ast;
 use crate::buffer::Buffer;
-use crate::element::{InlineNode, ItemType, MarkdownNode};
 use crate::galleys::Galleys;
 use crate::input::mutation;
 use crate::layouts::Annotation;
 use crate::offset_types::RangeExt;
+use crate::style::{InlineNode, ItemType, MarkdownNode};
 use egui::{Pos2, Rect};
 
 pub trait ClickChecker {

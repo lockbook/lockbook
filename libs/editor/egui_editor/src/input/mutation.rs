@@ -1,12 +1,12 @@
 use crate::ast::Ast;
 use crate::bounds::Paragraphs;
 use crate::buffer::{EditorMutation, Mutation, SubBuffer, SubMutation};
-use crate::element::{ItemType, MarkdownNode, RenderStyle};
 use crate::galleys::Galleys;
 use crate::input::canonical::{Bound, Location, Modification, Offset, Region};
 use crate::input::cursor::Cursor;
 use crate::layouts::Annotation;
 use crate::offset_types::{DocCharOffset, RangeExt};
+use crate::style::{ItemType, MarkdownNode, RenderStyle};
 use crate::unicode_segs::UnicodeSegs;
 use egui::Pos2;
 use std::cmp::Ordering;

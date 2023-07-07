@@ -1,7 +1,7 @@
-use crate::element::{InlineNode, MarkdownNode};
 use crate::input::click_checker::ClickChecker;
 use crate::input::cursor::{ClickType, PointerState};
 use crate::offset_types::{DocCharOffset, RelCharOffset};
+use crate::style::{InlineNode, MarkdownNode};
 use crate::{CTextPosition, CTextRange};
 use egui::{Event, Key, Modifiers, PointerButton, Pos2};
 use std::time::Instant;
@@ -192,13 +192,13 @@ pub fn calc(
         Event::Key { key: Key::B, pressed: true, modifiers, .. } if modifiers.command => {
             Some(Modification::ToggleStyle {
                 region: Region::Selection,
-                style: MarkdownNode::Inline(InlineNode::Strong),
+                style: MarkdownNode::Inline(InlineNode::Bold),
             })
         }
         Event::Key { key: Key::I, pressed: true, modifiers, .. } if modifiers.command => {
             Some(Modification::ToggleStyle {
                 region: Region::Selection,
-                style: MarkdownNode::Inline(InlineNode::Emphasis),
+                style: MarkdownNode::Inline(InlineNode::Italic),
             })
         }
         Event::Key { key: Key::C, pressed: true, modifiers, .. }
@@ -206,7 +206,7 @@ pub fn calc(
         {
             Some(Modification::ToggleStyle {
                 region: Region::Selection,
-                style: MarkdownNode::Inline(InlineNode::InlineCode),
+                style: MarkdownNode::Inline(InlineNode::Code),
             })
         }
         Event::Key { key: Key::X, pressed: true, modifiers, .. }
