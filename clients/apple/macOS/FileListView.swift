@@ -83,8 +83,8 @@ struct DetailView: View {
             VStack {
                 if currentSelection.isPendingSharesOpen {
                     PendingSharesView()
-                } else if let docInfo = currentSelection.openDocuments.values.first {
-                    DocumentView(model: docInfo)
+                } else if let id = currentSelection.openDocuments.keys.first {
+                    DocumentView(id: id)
                 }
             }
             
@@ -104,7 +104,7 @@ struct DetailView: View {
                 },
                 viewForItem: { searchResult, searchTerm in
                     let (name, path) = searchResult.getNameAndPath()
-                                        
+                    
                     return SearchResultCellView(name: name, path: path, matchedIndices: searchResult.matchedIndices)
                 }
             )
@@ -113,9 +113,6 @@ struct DetailView: View {
                     search.submitSearch(id: submittedId)
                 }
             }
-        }
-        .onChange(of: currentSelection.openDocuments) { _ in
-            DI.files.refreshSuggestedDocs()
         }
         .toolbar {
             ToolbarItemGroup {

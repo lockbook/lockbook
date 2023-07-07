@@ -167,18 +167,20 @@ class FileService: ObservableObject {
 
 
     func deleteFile(id: UUID) {
-        let operation = self.core.deleteFile(id: id)
-
-        switch operation {
-        case .success(_):
-            DI.currentDoc.notifyDeletedIfOpen(id: id)
-            print("IN SERVICE: \(DI.currentDoc.openDocuments.values.map { docInfo in "\(docInfo.meta.name) \(docInfo.deleted)" })")
-            self.refresh()
-
-            self.successfulAction = .delete
-            DI.status.checkForLocalWork()
-        case .failure(let error):
-            DI.errors.handleError(error)
+        DispatchQueue.global(qos: .userInteractive).async {
+            let operation = self.core.deleteFile(id: id)
+            
+            DispatchQueue.main.async {
+                
+                switch operation {
+                case .success(_):
+                    self.refresh()
+                    self.successfulAction = .delete
+                    DI.status.checkForLocalWork()
+                case .failure(let error):
+                    DI.errors.handleError(error)
+                }
+            }
         }
     }
 
@@ -194,7 +196,7 @@ class FileService: ObservableObject {
             case .UiError(let uiError):
                 switch uiError {
                 case .FileNameNotAvailable:
-                    return "A file with that name exists already"
+                    return "A file with that name already exists"
                 case .NewNameContainsSlash:
                     return "Your filename cannot contain a slash"
                 case .NewNameEmpty:
@@ -290,26 +292,41 @@ class FileService: ObservableObject {
             DispatchQueue.main.async {
                 switch allFiles {
                 case .success(let files):
-                    self.idsAndFiles = Dictionary(uniqueKeysWithValues: files.map { ($0.id, $0) })
-                    self.refreshSuggestedDocs()
-                    self.files.forEach {
-                        self.notifyDocumentChanged($0)
-                        if self.root == nil && $0.id == $0.parent {
-                            self.root = $0
-
-                            #if os(iOS)
-                            if(self.path.isEmpty) {
-                                self.path.append($0)
-                            }
-                            #endif
-                        }
-                    }
-                    self.openFileChecks()
+                    self.postRefreshFiles(files)
                 case .failure(let error):
                     DI.errors.handleError(error)
                 }
             }
         }
+    }
+    
+    func refreshSync() {
+        let allFiles = self.core.listFiles()
+
+        switch allFiles {
+        case .success(let files):
+            postRefreshFiles(files)
+        case .failure(let error):
+            DI.errors.handleError(error)
+        }
+    }
+    
+    private func postRefreshFiles(_ newFiles: [File]) {
+        idsAndFiles = Dictionary(uniqueKeysWithValues: newFiles.map { ($0.id, $0) })
+        refreshSuggestedDocs()
+        newFiles.forEach {
+            notifyDocumentChanged($0)
+            if root == nil && $0.id == $0.parent {
+                root = $0
+
+                #if os(iOS)
+                if(path.isEmpty) {
+                    path.append($0)
+                }
+                #endif
+            }
+        }
+        openFileChecks()
     }
 
     private func openFileChecks() {
@@ -317,53 +334,66 @@ class FileService: ObservableObject {
             let maybeMeta = idsAndFiles[id]
             
             if maybeMeta == nil {
-                DI.currentDoc.openDocuments[id]?.deleted = true
+                DI.currentDoc.openDocuments[id]!.deleted = true
+            }
+        }
+        
+        if let selectedFolder = DI.currentDoc.selectedFolder {
+            let maybeMeta = idsAndFiles[selectedFolder.id]
+            
+            if maybeMeta == nil {
+                DI.currentDoc.selectedFolder = nil
             }
         }
     }
 
     private func notifyDocumentChanged(_ meta: File) {
         for docInfo in DI.currentDoc.openDocuments.values {
+            
             if meta.id == docInfo.meta.id, (meta.lastModified != docInfo.meta.lastModified) || (meta != docInfo.meta) {
                 docInfo.updatesFromCoreAvailable(meta)
             }
         }
     }
-    
-    public func createDocSync(maybeParent: UUID? = nil, isDrawing: Bool) {
-        let realParent = maybeParent ?? {
-            #if os(iOS)
-            parent?.id ?? root!.id
-            #else
-            DI.currentDoc.selectedFolder?.id ?? root!.id
-            #endif
-        }()
-        
-        var name = ""
-        let fileExt = isDrawing ? ".draw" : ".md"
-        let namePart = isDrawing ? "untitled-drawing-" : "untitled-doc-"
-        var attempt = 0
-        
-        while(true) {
-            name = namePart + String(attempt)
-            
-            switch core.createFile(name: name + fileExt, dirId: realParent, isFolder: false) {
-            case .success(let meta):
-                refresh()
-                
-                DI.currentDoc.openDocuments.removeAll()
-                DI.currentDoc.justCreatedDoc = meta
-                let _ = DI.currentDoc.openDoc(meta: meta)
 
-                return
-            case .failure(let err):
-                switch err.kind {
-                case .UiError(.FileNameNotAvailable):
-                    attempt += 1
-                    continue
-                default:
-                    DI.errors.handleError(err)
+    public func createDoc(maybeParent: UUID? = nil, isDrawing: Bool) {
+        DispatchQueue.global(qos: .userInitiated).async {
+            let realParent = maybeParent ?? {
+#if os(iOS)
+                self.parent?.id ?? self.root!.id
+#else
+                DI.currentDoc.selectedFolder?.id ?? self.root!.id
+#endif
+            }()
+            
+            var name = ""
+            let fileExt = isDrawing ? ".draw" : ".md"
+            let namePart = isDrawing ? "untitled-drawing-" : "untitled-doc-"
+            var attempt = 0
+            
+            while(true) {
+                name = namePart + String(attempt)
+                
+                switch self.core.createFile(name: name + fileExt, dirId: realParent, isFolder: false) {
+                case .success(let meta):
+                    self.refreshSync()
+                    
+                    DispatchQueue.main.async {
+                        DI.currentDoc.cleanupOldDocs()
+                        DI.currentDoc.justCreatedDoc = self.idsAndFiles[meta.id]
+                        DI.currentDoc.openDoc(id: meta.id)
+                    }
+                    
                     return
+                case .failure(let err):
+                    switch err.kind {
+                    case .UiError(.FileNameNotAvailable):
+                        attempt += 1
+                        continue
+                    default:
+                        DI.errors.handleError(err)
+                        return
+                    }
                 }
             }
         }

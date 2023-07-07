@@ -107,8 +107,8 @@ class SearchService: ObservableObject {
     }
     
     func submitSearch(id: UUID) {
-        DI.currentDoc.openDocuments.removeAll()
-        let _ = DI.currentDoc.openDoc(meta: DI.files.idsAndFiles[id]!)
+        DI.currentDoc.cleanupOldDocs()
+        DI.currentDoc.openDoc(id: id)
     }
 }
 

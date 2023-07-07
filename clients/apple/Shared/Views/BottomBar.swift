@@ -8,14 +8,13 @@ struct BottomBar: View {
     @EnvironmentObject var sync: SyncService
     @EnvironmentObject var status: StatusService
     @EnvironmentObject var settings: SettingsService
-    @EnvironmentObject var current: DocumentService
         
 #if os(iOS)
     var menu: some View {
         HStack {
             if isiOS {
                 Button(action: {
-                    DI.files.createDocSync(isDrawing: false)
+                    DI.files.createDoc(isDrawing: false)
                 }) {
                     Image(systemName: "doc.badge.plus")
                         .imageScale(.large)
@@ -24,7 +23,7 @@ struct BottomBar: View {
                 }
                 
                 Button(action: {
-                    DI.files.createDocSync(isDrawing: true)
+                    DI.files.createDoc(isDrawing: true)
                 }) {
                     Image(systemName: "pencil.tip.crop.circle.badge.plus")
                         .imageScale(.large)
@@ -49,6 +48,7 @@ struct BottomBar: View {
     @ViewBuilder var syncButton: some View {
         if sync.syncing {
             ProgressView()
+                .frame(width: 40, height: 40, alignment: .center)
         } else {
             Button(action: {
                 sync.sync()

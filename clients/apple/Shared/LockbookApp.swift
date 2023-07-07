@@ -31,12 +31,12 @@ import AppKit
         }.commands {
             CommandGroup(replacing: CommandGroupPlacement.newItem) {
                 Button("New Doc", action: {
-                    DI.files.createDocSync(isDrawing: false)
+                    DI.files.createDoc(isDrawing: false)
                 }).keyboardShortcut("N", modifiers: .command)
                 
                 #if os(iOS)
                 Button("New Drawing", action: {
-                    DI.files.createDocSync(isDrawing: true)
+                    DI.files.createDoc(isDrawing: true)
                 }).keyboardShortcut("N", modifiers: [.command, .control])
                 #endif
                 

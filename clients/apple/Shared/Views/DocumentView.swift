@@ -3,7 +3,21 @@ import SwiftLockbookCore
 import PencilKit
 import SwiftEditor
 
+
+struct iOSDocumentViewWrapper: View {
+    let id: UUID
+    
+    var body: some View {
+        DocumentView(id: id)
+            .onDisappear {
+                DI.currentDoc.cleanupOldDocs()
+            }
+    }
+}
+
 struct DocumentView: View {
+    
+    let id: UUID
     
     @ObservedObject var model: DocumentLoadingInfo
     
@@ -11,7 +25,16 @@ struct DocumentView: View {
     @EnvironmentObject var toolbar: ToolbarModel
 #endif
     
+    public init(id: UUID) {
+        print("creating doc view")
+        self.id = id
+        self.model = DI.currentDoc.getDocInfoOrCreate(id: id)
+    }
+    
     var body: some View {
+        let _ = print("refreshing doc view")
+        let _ = Self._printChanges()
+        
         Group {
             if model.loading {
                 ProgressView()
@@ -28,7 +51,7 @@ struct DocumentView: View {
                 case .Image:
                     if let img = model.image {
                         VStack {
-                            MarkdownTitle(nameState: model.documentNameState, id: model.meta.id)
+                            DocumentTitle(nameState: model.documentNameState, id: model.meta.id)
                             
                             ScrollView([.horizontal, .vertical]) {
                                 img
@@ -39,7 +62,7 @@ struct DocumentView: View {
 #if os(iOS)
                 case .Drawing:
                     VStack {
-                        MarkdownTitle(nameState: model.documentNameState, id: model.meta.id)
+                        DocumentTitle(nameState: model.documentNameState, id: model.meta.id)
                         
                         DrawingView(
                             model: model,
@@ -53,9 +76,7 @@ struct DocumentView: View {
                             }
                         }
                     }.title("")
-                    
 #endif
-                    
                 case .Markdown:
                     if let editorState = model.textDocument,
                        let toolbarState = model.textDocumentToolbar {
@@ -71,8 +92,6 @@ struct DocumentView: View {
             }
         }
         .onDisappear {
-            DI.currentDoc.openDocuments.removeAll()
-            DI.currentDoc.justCreatedDoc = nil
             DI.files.refresh()
         }
     }
@@ -121,8 +140,8 @@ struct MarkdownCompleteEditor: View, Equatable {
 #endif
     }
         
-    var markdownTitle: MarkdownTitle {
-        MarkdownTitle(nameState: nameState, id: fileId)
+    var markdownTitle: DocumentTitle {
+        DocumentTitle(nameState: nameState, id: fileId)
     }
     
     var markdownToolbar: MarkdownToolbar {
@@ -301,7 +320,7 @@ struct MarkdownToolbar: View {
     }
 }
 
-struct MarkdownTitle: View {
+struct DocumentTitle: View {
     @ObservedObject var nameState: NameState
     let id: UUID
     let fileSuffix: String
@@ -316,7 +335,7 @@ struct MarkdownTitle: View {
         }
     }
     
-    let justOpenedFile: Bool
+    let justCreatedDoc: Bool
     
     init(nameState: NameState, id: UUID) {
         let openDocName = DI.files.idsAndFiles[id]?.name ?? DI.currentDoc.openDocuments[id]!.meta.name
@@ -324,7 +343,7 @@ struct MarkdownTitle: View {
         
         self.nameState = nameState
         self.id = id
-        self.justOpenedFile = DI.currentDoc.justCreatedDoc?.id == id
+        self.justCreatedDoc = DI.currentDoc.justCreatedDoc?.id == id
                 
         self._name = State(initialValue: openDocName == openDocNameWithoutExt ? "" : openDocNameWithoutExt)
         
@@ -379,17 +398,15 @@ struct MarkdownTitle: View {
             }))
             .autocapitalization(.none)
             .onChange(of: nameState.potentialTitle, perform: { newValue in
-                if let potentialTitle = nameState.potentialTitle, !hasBeenFocused, justOpenedFile, !potentialTitle.isEmpty {
+                if let potentialTitle = nameState.potentialTitle, !hasBeenFocused, justCreatedDoc, !potentialTitle.isEmpty {
                     renameFile(potentialTitle)
                 }
             })
             .onChange(of: docInfo?.meta, perform: { newValue in
-                print("checking...")
                 if let newName = newValue?.name {
                     let (fileName, _) = stripName(newName)
                     
                     if !fileName.isEmpty && fileName != name {
-                        print("replacing!")
                         name = fileName
                     }
                 }

@@ -520,7 +520,7 @@ impl Editor {
             let ast_idx = self.ast.ast_node_at_char(chosen.start());
             let ast = &self.ast.nodes[ast_idx];
 
-            let cursor: Cursor = (ast.text_range.start(), cmp::min(ast.text_range.end(), ast.text_range.start() + 20)).into();
+            let cursor: Cursor = (ast.text_range.start(), cmp::min(ast.text_range.end(), ast.text_range.start() + 30)).into();
 
             String::from(cursor.selection_text(&self.buffer.current))
         })

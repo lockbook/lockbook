@@ -50,7 +50,7 @@ struct NewFolderSheet: View {
                 }
                 
                 Spacer()
-            }.padding(25)
+            }.newFolderSheetFrameForMacOS()
         }
     }
     
@@ -65,3 +65,16 @@ struct NewFolderSheet: View {
         
     }
 }
+
+extension View {
+    @ViewBuilder
+    public func newFolderSheetFrameForMacOS() -> some View {
+        #if os(macOS)
+        self.padding(20).frame(width: 320, height: 150)
+        #else
+        self.padding(20)
+        #endif
+    }
+}
+
+

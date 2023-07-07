@@ -44,8 +44,8 @@ struct FileTreeView: View {
         }
         
         VStack {
-            if let docInfo = currentDoc.openDocuments.values.first {
-                DocumentView(model: docInfo)
+            if let id = currentDoc.openDocuments.keys.first {
+                DocumentView(id: id)
             } else {
                 GeometryReader { geometry in
                     if geometry.size.height > geometry.size.width {
@@ -102,9 +102,6 @@ struct FileTreeView: View {
             })
             .hidden()
         )
-        .onChange(of: currentDoc.openDocuments) { _ in
-            DI.files.refreshSuggestedDocs()
-        }
     }
     
     var mainView: some View {

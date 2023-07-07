@@ -14,7 +14,7 @@ class CreateDocument: NSMenuItem {
     }
 
     @objc func create(_ sender: AnyObject) {
-        DI.files.createDocSync(maybeParent: file.id, isDrawing: false)
+        DI.files.createDoc(maybeParent: file.id, isDrawing: false)
     }
 }
 
@@ -31,7 +31,6 @@ class CreateFolder: NSMenuItem {
     }
 
     @objc func create(_ sender: AnyObject) {
-        print("creating folder under: \(file.name)")
         DI.sheets.creatingFolderInfo = CreatingFolderInfo(parentPath: DI.files.getPathByIdOrParent(maybeId: file.id) ?? "ERROR", maybeParent: file.id)
     }
 }

@@ -3,7 +3,6 @@ import SwiftLockbookCore
 import Foundation
 
 struct FileListView: View {
-    @EnvironmentObject var current: DocumentService
     @EnvironmentObject var sheets: SheetState
     @EnvironmentObject var fileService: FileService
     @EnvironmentObject var search: SearchService
@@ -15,30 +14,22 @@ struct FileListView: View {
     
     var body: some View {
         VStack {
-            if let newDoc = current.justCreatedDoc, newDoc.fileType == .Document, current.openDocuments[newDoc.id] != nil {
-                NavigationLink(destination: DocumentView(model: current.openDoc(meta: newDoc)), isActive: Binding(get: { current.openDocuments[newDoc.id] != nil }, set: { _ in current.openDocuments[newDoc.id] = nil }) ) {
-                        EmptyView()
-                    }
-                    .hidden()
+            if let newDoc = DI.currentDoc.justCreatedDoc, newDoc.fileType == .Document {
+                NavigationLink(destination: iOSDocumentViewWrapper(id: newDoc.id), isActive: Binding(get: { DI.currentDoc.openDocuments[newDoc.id] != nil }, set: { _ in DI.currentDoc.openDocuments[newDoc.id] = nil }) ) {
+                    EmptyView()
                 }
-                    
-                SearchWrapperView(
-                    searchInput: $searchInput,
-                    mainView: mainView,
-                    isiOS: true)
-                .searchable(text: $searchInput, prompt: "Search")
-                    
-                FilePathBreadcrumb()
-                    
-                BottomBar(isiOS: true)
-                .onReceive(current.$openDocuments) { _ in
-                    print("cleared")
-                    // When we return back to this screen, we have to change newFile back to nil regardless
-                    // of it's present value, otherwise we won't be able to navigate to new, new files
-                    if current.openDocuments.isEmpty {
-                        current.justCreatedDoc = nil
-                    }
-                }
+                .hidden()
+            }
+            
+            SearchWrapperView(
+                searchInput: $searchInput,
+                mainView: mainView,
+                isiOS: true)
+            .searchable(text: $searchInput, prompt: "Search")
+            
+            FilePathBreadcrumb()
+            
+            BottomBar(isiOS: true)
         }
         .gesture(
             DragGesture().onEnded({ (value) in
@@ -86,9 +77,9 @@ struct FileListView: View {
                 .textCase(.none)
                 .font(.headline)
                 .padding(.bottom, 3)) {
-                ForEach(fileService.childrenOfParent()) { meta in
-                    FileCell(meta: meta)
-                }
+                    ForEach(fileService.childrenOfParent()) { meta in
+                        FileCell(meta: meta)
+                    }
             }
         }
         .navigationBarTitle(fileService.parent.map{($0.name)} ?? "")

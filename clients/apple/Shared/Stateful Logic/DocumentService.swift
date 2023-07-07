@@ -7,32 +7,33 @@ import SwiftEditor
 
 class DocumentService: ObservableObject {
     
-    @Published var openDocuments: [UUID : DocumentLoadingInfo] = [:]
+    @Published var openDocuments: [UUID : DocumentLoadingInfo] = [:] // verify if changes to fields in docloadinfo affect this
     
     @Published var isPendingSharesOpen: Bool = false
     @Published var selectedFolder: File?
     
-    @Published var justCreatedDoc: File? = nil
+    var justCreatedDoc: File? = nil
     
-    func openDoc(meta: File) -> DocumentLoadingInfo {
-        if openDocuments[meta.id] == nil {
-            openDocuments[meta.id] = DocumentLoadingInfo(meta)
+    func openDoc(id: UUID) {
+        if openDocuments[id] == nil {
+            openDocuments[id] = DocumentLoadingInfo(DI.files.idsAndFiles[id]!)
         }
+      }
+    
+    func getDocInfoOrCreate(id: UUID) -> DocumentLoadingInfo {
+        openDoc(id: id)
         
-        return openDocuments[meta.id]!
+        return openDocuments[id]!
     }
     
-    func notifyDeletedIfOpen(id: UUID) {
-        openDocuments[id]?.deleted = true
+    func cleanupOldDocs() {
+        isPendingSharesOpen = false
+        justCreatedDoc = nil
+        openDocuments.removeAll()
     }
 }
 
-class DocumentLoadingInfo: ObservableObject, Equatable {
-    
-    static func == (lhs: DocumentLoadingInfo, rhs: DocumentLoadingInfo) -> Bool {
-        lhs.meta == rhs.meta
-    }
-    
+class DocumentLoadingInfo: ObservableObject {
     let core: LockbookApi
     
     @Published var meta: File
@@ -58,7 +59,7 @@ class DocumentLoadingInfo: ObservableObject, Equatable {
         drawingAutosaver()
     }
     
-    func startLoading() {
+    func startLoading() {        
         if self.type == .Unknown {
             self.loading = false
             return
@@ -144,6 +145,7 @@ class DocumentLoadingInfo: ObservableObject, Equatable {
                 case .failure(let err):
                     self.error = err.description
                 }
+                
                 self.loading = false
             }
         }

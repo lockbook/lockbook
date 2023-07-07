@@ -28,9 +28,31 @@ public struct EditorView: UIViewRepresentable {
             editorState.reload = false
         }
     }
+    
+    public func becomeFirstResponder() {
+        mtkView.becomeFirstResponder()
+    }
 }
 #else
-public struct EditorView: NSViewRepresentable {
+public struct EditorView: View {
+    @FocusState var focused: Bool
+    
+    let nsEditorView: NSEditorView
+    
+    public init(_ editorState: EditorState, _ toolbarState: ToolbarState, _ nameState: NameState) {
+        nsEditorView = NSEditorView(editorState, toolbarState, nameState)
+    }
+    
+    public var body: some View {
+        nsEditorView
+            .focused($focused)
+            .onAppear {
+                focused = true
+            }
+    }
+}
+
+public struct NSEditorView: NSViewRepresentable {
     
     @ObservedObject public var editorState: EditorState
     
@@ -49,11 +71,11 @@ public struct EditorView: NSViewRepresentable {
         editorState.text = s
     }
 
-    public func makeNSView(context: NSViewRepresentableContext<EditorView>) -> MTKView {
+    public func makeNSView(context: NSViewRepresentableContext<NSEditorView>) -> MTKView {
         mtkView
     }
     
-    public func updateNSView(_ nsView: MTKView, context: NSViewRepresentableContext<EditorView>) {
+    public func updateNSView(_ nsView: MTKView, context: NSViewRepresentableContext<NSEditorView>) {
         if editorState.reload {
             mtkView.updateText(editorState.text)
             editorState.reload = false

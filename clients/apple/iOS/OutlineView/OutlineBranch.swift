@@ -40,14 +40,16 @@ struct OutlineBranch: View {
                         OutlineRow(file: file, level: level, open: $state.open)
                             .onTapGesture {
                                 if file.fileType == .Folder {
+                                    DI.currentDoc.selectedFolder = file
+                                    
                                     withAnimation {
                                         state.open.toggle()
                                     }
                                 } else {
                                     // Animating this causes editor to load weirdly
                                     DispatchQueue.main.async {
-                                        current.openDocuments.removeAll()
-                                        current.openDoc(meta: file)
+                                        current.cleanupOldDocs()
+                                        current.openDoc(id: file.id)
                                     }
                                     
                                     print("tap")

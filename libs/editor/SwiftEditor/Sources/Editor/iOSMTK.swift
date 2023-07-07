@@ -77,7 +77,6 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     }
     
     public func bold() {
-        print("bolding text")
         apply_style_to_selection_bold(editorHandle)
         self.setNeedsDisplay(self.frame)
     }
@@ -109,8 +108,6 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
         self.toolbarState!.toggleNumberList = numberedList
         self.toolbarState!.toggleHeading = header
         self.toolbarState!.tab = tab
-        
-        becomeFirstResponder()
     }
     
     public func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {
@@ -539,9 +536,6 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     }
     
     deinit {
-        withUnsafePointer(to: self) { pointer in
-            print("editor deinited: \(self.editorHandle)")
-        }
         deinit_editor(editorHandle)
     }
     

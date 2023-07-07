@@ -20,10 +20,10 @@ struct FileTreeView: NSViewRepresentable {
     func makeNSView(context: Context) -> NSScrollView {
         if treeView.numberOfColumns != 1 {
             delegate.documentSelected = { meta in
-                if meta.fileType == .Document {
-                    DI.currentDoc.openDocuments.removeAll()
-                    let _ = DI.currentDoc.openDoc(meta: meta)
-                } else {
+                if meta.fileType == .Document && currentSelection.openDocuments[meta.id] == nil {
+                    currentSelection.cleanupOldDocs()
+                    currentSelection.openDoc(id: meta.id)
+                } else if meta.fileType == .Folder {
                     DI.currentDoc.selectedFolder = meta
                 }
             }
