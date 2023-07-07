@@ -590,13 +590,14 @@ fn region_completely_styled(cursor: Cursor, style: RenderStyle, ast: &Ast) -> bo
 }
 
 /// Applies or unapplies `style` to `cursor`, splitting or joining surrounding styles as necessary.
-// todo: handle case when selection is empty
 // todo: handle case when cursor bounds in syntax chars
 fn apply_style(
     cursor: Cursor, style: MarkdownNode, unapply: bool, buffer: &SubBuffer, ast: &Ast,
     mutation: &mut Vec<SubMutation>,
 ) {
-    if cursor.selection.is_empty() {
+    if buffer.is_empty() {
+        insert_head(cursor.selection.start(), style.clone(), buffer, mutation);
+        insert_tail(cursor.selection.start(), style, buffer, mutation);
         return;
     }
 
@@ -605,15 +606,11 @@ fn apply_style(
     let mut end_range = None;
     for text_range in ast.iter_text_ranges() {
         // when at bound, start prefers next
-        if text_range.range.start() <= cursor.selection.start()
-            && cursor.selection.start() < text_range.range.end()
-        {
+        if text_range.range.contains(cursor.selection.start()) {
             start_range = Some(text_range.clone());
         }
         // when at bound, end prefers previous
-        if text_range.range.start() < cursor.selection.end()
-            && cursor.selection.end() <= text_range.range.end()
-        {
+        if end_range.is_none() && text_range.range.contains(cursor.selection.end()) {
             end_range = Some(text_range);
         }
     }
