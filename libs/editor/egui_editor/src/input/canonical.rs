@@ -164,7 +164,7 @@ pub fn calc(
         Event::Key { key: Key::Enter, pressed: true, modifiers, .. } => {
             Some(Modification::Newline { advance_cursor: !modifiers.shift })
         }
-        Event::Key { key: Key::Tab, pressed: true, modifiers, .. } => {
+        Event::Key { key: Key::Tab, pressed: true, modifiers, .. } if !modifiers.alt => {
             Some(Modification::Indent { deindent: modifiers.shift })
         }
         Event::Key { key: Key::A, pressed: true, modifiers, .. } if modifiers.command => {
