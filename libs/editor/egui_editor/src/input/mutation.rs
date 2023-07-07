@@ -1,7 +1,7 @@
 use crate::ast::Ast;
 use crate::bounds::Paragraphs;
 use crate::buffer::{EditorMutation, Mutation, SubBuffer, SubMutation};
-use crate::element::{Element, ItemType};
+use crate::element::{ItemType, MarkdownNode, RenderStyle};
 use crate::galleys::Galleys;
 use crate::input::canonical::{Bound, Location, Modification, Offset, Region};
 use crate::input::cursor::Cursor;
@@ -61,7 +61,7 @@ pub fn calc(
             apply_style(
                 cursor,
                 style.clone(),
-                region_completely_styled(cursor, style, ast),
+                region_completely_styled(cursor, RenderStyle::Markdown(style), ast),
                 ast,
                 &mut mutation,
             );
@@ -553,42 +553,46 @@ pub fn calc(
 }
 
 /// Returns true if all text in `cursor` has style `style`
-fn region_completely_styled(cursor: Cursor, style: Element, ast: &Ast) -> bool {
+fn region_completely_styled(cursor: Cursor, style: RenderStyle, ast: &Ast) -> bool {
     if cursor.selection.is_empty() {
         return false;
     }
 
-    for text_range in ast.iter_text_ranges() {
-        // skip ranges before or after the cursor
-        if text_range.range.end() <= cursor.selection.start() {
-            continue;
-        }
-        if cursor.selection.end() <= text_range.range.start() {
-            break;
-        }
-
-        // look for at least one ancestor that applies the style
-        let mut styled = false;
-        for ancestor in text_range.ancestors {
-            if ast.nodes[ancestor].element == style {
-                styled = true;
+    if let RenderStyle::Markdown(style) = style {
+        for text_range in ast.iter_text_ranges() {
+            // skip ranges before or after the cursor
+            if text_range.range.end() <= cursor.selection.start() {
+                continue;
+            }
+            if cursor.selection.end() <= text_range.range.start() {
                 break;
+            }
+
+            // look for at least one ancestor that applies the style
+            let mut styled = false;
+            for ancestor in text_range.ancestors {
+                if ast.nodes[ancestor].node_type == style {
+                    styled = true;
+                    break;
+                }
+            }
+
+            if !styled {
+                return false;
             }
         }
 
-        if !styled {
-            return false;
-        }
+        true
+    } else {
+        unimplemented!()
     }
-
-    true
 }
 
 /// Applies or unapplies `style` to `cursor`, splitting or joining surrounding styles as necessary.
 /// todo: handle case when cursor bounds in syntax chars
 /// todo: add/capture necessary spaces
 fn apply_style(
-    cursor: Cursor, style: Element, unapply: bool, ast: &Ast, mutation: &mut Vec<SubMutation>,
+    cursor: Cursor, style: MarkdownNode, unapply: bool, ast: &Ast, mutation: &mut Vec<SubMutation>,
 ) {
     if cursor.selection.is_empty() {
         return;
@@ -625,7 +629,7 @@ fn apply_style(
             dehead_ast_node(prev_ancestor, ast, mutation);
             detail_ast_node(prev_ancestor, ast, mutation);
         }
-        if ast.nodes[ancestor].element == style {
+        if ast.nodes[ancestor].node_type == style {
             last_start_ancestor = Some(ancestor);
         }
     }
@@ -636,7 +640,7 @@ fn apply_style(
             dehead_ast_node(prev_ancestor, ast, mutation);
             detail_ast_node(prev_ancestor, ast, mutation);
         }
-        if ast.nodes[ancestor].element == style {
+        if ast.nodes[ancestor].node_type == style {
             last_end_ancestor = Some(ancestor);
         }
     }
@@ -687,7 +691,7 @@ fn apply_style(
         {
             // stop when we find the range containing the selection end
             break;
-        } else if text_range.element(ast) == style {
+        } else if text_range.node(ast) == style {
             // dehead and detail nodes with this style in the middle, aside from those already considered
             let node_idx = text_range.ancestors.last().copied().unwrap();
             if start_range.ancestors.iter().any(|&a| a == node_idx) {
@@ -715,46 +719,14 @@ fn detail_ast_node(node_idx: usize, ast: &Ast, mutation: &mut Vec<SubMutation>) 
     mutation.push(SubMutation::Insert { text: "".to_string(), advance_cursor: false });
 }
 
-fn insert_head(offset: DocCharOffset, style: Element, mutation: &mut Vec<SubMutation>) {
-    let text = match style {
-        Element::Emphasis => "_",
-        Element::InlineCode => "`",
-        Element::Strikethrough => "~~",
-        Element::Strong => "__",
-        Element::Document
-        | Element::Heading(_)
-        | Element::Paragraph
-        | Element::QuoteBlock
-        | Element::CodeBlock
-        | Element::Item(_, _)
-        | Element::Link(_, _, _)
-        | Element::Image(_, _, _)
-        | Element::Selection
-        | Element::Syntax => unimplemented!(),
-    }
-    .to_string();
+fn insert_head(offset: DocCharOffset, style: MarkdownNode, mutation: &mut Vec<SubMutation>) {
+    let text = style.head().to_string();
     mutation.push(SubMutation::Cursor { cursor: offset.into() });
     mutation.push(SubMutation::Insert { text, advance_cursor: true });
 }
 
-fn insert_tail(offset: DocCharOffset, style: Element, mutation: &mut Vec<SubMutation>) {
-    let text = match style {
-        Element::Emphasis => "_",
-        Element::InlineCode => "`",
-        Element::Strikethrough => "~~",
-        Element::Strong => "__",
-        Element::Document
-        | Element::Heading(_)
-        | Element::Paragraph
-        | Element::QuoteBlock
-        | Element::CodeBlock
-        | Element::Item(_, _)
-        | Element::Link(_, _, _)
-        | Element::Image(_, _, _)
-        | Element::Selection
-        | Element::Syntax => unimplemented!(),
-    }
-    .to_string();
+fn insert_tail(offset: DocCharOffset, style: MarkdownNode, mutation: &mut Vec<SubMutation>) {
+    let text = style.tail().to_string();
     mutation.push(SubMutation::Cursor { cursor: offset.into() });
     mutation.push(SubMutation::Insert { text, advance_cursor: false });
 }

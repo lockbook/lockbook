@@ -1,4 +1,4 @@
-use crate::element::Element;
+use crate::element::{InlineNode, MarkdownNode};
 use crate::input::canonical::{Modification, Region};
 use crate::{Editor, IntegrationOutput, WgpuEditor};
 use egui::{Context, Event, Visuals};
@@ -222,9 +222,10 @@ pub unsafe extern "C" fn apply_style_to_selection_todo_list(obj: *mut c_void) {
 pub unsafe extern "C" fn apply_style_to_selection_bold(obj: *mut c_void) {
     let obj = &mut *(obj as *mut WgpuEditor);
 
-    obj.editor
-        .custom_events
-        .push(Modification::ToggleStyle { region: Region::Selection, style: Element::Strong });
+    obj.editor.custom_events.push(Modification::ToggleStyle {
+        region: Region::Selection,
+        style: MarkdownNode::Inline(InlineNode::Strong),
+    });
 }
 
 /// # Safety
@@ -233,9 +234,10 @@ pub unsafe extern "C" fn apply_style_to_selection_bold(obj: *mut c_void) {
 pub unsafe extern "C" fn apply_style_to_selection_italic(obj: *mut c_void) {
     let obj = &mut *(obj as *mut WgpuEditor);
 
-    obj.editor
-        .custom_events
-        .push(Modification::ToggleStyle { region: Region::Selection, style: Element::Emphasis });
+    obj.editor.custom_events.push(Modification::ToggleStyle {
+        region: Region::Selection,
+        style: MarkdownNode::Inline(InlineNode::Emphasis),
+    });
 }
 
 /// # Safety
@@ -244,7 +246,8 @@ pub unsafe extern "C" fn apply_style_to_selection_italic(obj: *mut c_void) {
 pub unsafe extern "C" fn apply_style_to_selection_inline_code(obj: *mut c_void) {
     let obj = &mut *(obj as *mut WgpuEditor);
 
-    obj.editor
-        .custom_events
-        .push(Modification::ToggleStyle { region: Region::Selection, style: Element::InlineCode });
+    obj.editor.custom_events.push(Modification::ToggleStyle {
+        region: Region::Selection,
+        style: MarkdownNode::Inline(InlineNode::InlineCode),
+    });
 }

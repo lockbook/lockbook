@@ -1,7 +1,7 @@
 use crate::appearance::Appearance;
 use crate::ast::Ast;
 use crate::buffer::Buffer;
-use crate::element::{Element, ItemType};
+use crate::element::{InlineNode, ItemType, MarkdownNode};
 use crate::galleys::Galleys;
 use crate::input::mutation;
 use crate::layouts::Annotation;
@@ -62,7 +62,7 @@ impl<'a> ClickChecker for &'a EditorClickChecker<'a> {
         self.text(pos)?;
         let offset = mutation::pos_to_char_offset(pos, self.galleys, &self.buffer.current.segs);
         for ast_node in &self.ast.nodes {
-            if let Element::Link(_, url, _) = &ast_node.element {
+            if let MarkdownNode::Inline(InlineNode::Link(_, url, _)) = &ast_node.node_type {
                 if ast_node.range.contains(offset) {
                     return Some(url.to_string());
                 }

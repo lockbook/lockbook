@@ -1,4 +1,4 @@
-use crate::element::Element;
+use crate::element::{InlineNode, MarkdownNode};
 use crate::input::click_checker::ClickChecker;
 use crate::input::cursor::{ClickType, PointerState};
 use crate::offset_types::{DocCharOffset, RelCharOffset};
@@ -77,7 +77,7 @@ pub enum Modification {
     StageMarked { highlighted: (RelCharOffset, RelCharOffset), text: String },
     CommitMarked,
     Replace { region: Region, text: String },
-    ToggleStyle { region: Region, style: Element },
+    ToggleStyle { region: Region, style: MarkdownNode },
     Newline { advance_cursor: bool }, // distinct from replace because it triggers auto-bullet, etc
     Indent { deindent: bool },
     Undo,
@@ -190,17 +190,23 @@ pub fn calc(
             }
         }
         Event::Key { key: Key::B, pressed: true, modifiers, .. } if modifiers.command => {
-            Some(Modification::ToggleStyle { region: Region::Selection, style: Element::Strong })
+            Some(Modification::ToggleStyle {
+                region: Region::Selection,
+                style: MarkdownNode::Inline(InlineNode::Strong),
+            })
         }
         Event::Key { key: Key::I, pressed: true, modifiers, .. } if modifiers.command => {
-            Some(Modification::ToggleStyle { region: Region::Selection, style: Element::Emphasis })
+            Some(Modification::ToggleStyle {
+                region: Region::Selection,
+                style: MarkdownNode::Inline(InlineNode::Emphasis),
+            })
         }
         Event::Key { key: Key::C, pressed: true, modifiers, .. }
             if modifiers.command && modifiers.shift =>
         {
             Some(Modification::ToggleStyle {
                 region: Region::Selection,
-                style: Element::InlineCode,
+                style: MarkdownNode::Inline(InlineNode::InlineCode),
             })
         }
         Event::Key { key: Key::X, pressed: true, modifiers, .. }
@@ -208,7 +214,7 @@ pub fn calc(
         {
             Some(Modification::ToggleStyle {
                 region: Region::Selection,
-                style: Element::Strikethrough,
+                style: MarkdownNode::Inline(InlineNode::Strikethrough),
             })
         }
         Event::PointerButton { pos, button: PointerButton::Primary, pressed: true, modifiers }

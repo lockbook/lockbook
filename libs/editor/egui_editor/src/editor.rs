@@ -9,7 +9,7 @@ use crate::ast::Ast;
 use crate::bounds::{Paragraphs, Words};
 use crate::buffer::Buffer;
 use crate::debug::DebugInfo;
-use crate::element::{Element, ItemType};
+use crate::element::{BlockNode, InlineNode, ItemType, MarkdownNode};
 use crate::galleys::Galleys;
 use crate::images::ImageCache;
 use crate::input::canonical::{Bound, Modification, Offset, Region};
@@ -300,11 +300,11 @@ impl Editor {
             .ast_node_at_char(self.buffer.current.cursor.selection.start());
         let ast_node = &self.ast.nodes[ast_node_idx];
 
-        match ast_node.element {
-            Element::Heading(_) => cursor_in_heading = true,
-            Element::InlineCode => cursor_in_inline_code = true,
-            Element::Strong => cursor_in_bold = true,
-            Element::Emphasis => cursor_in_italic = true,
+        match ast_node.node_type {
+            MarkdownNode::Block(BlockNode::Heading(..)) => cursor_in_heading = true,
+            MarkdownNode::Inline(InlineNode::InlineCode) => cursor_in_inline_code = true,
+            MarkdownNode::Inline(InlineNode::Strong) => cursor_in_bold = true,
+            MarkdownNode::Inline(InlineNode::Emphasis) => cursor_in_italic = true,
             _ => {
                 let galley_idx = self
                     .galleys

@@ -1,5 +1,5 @@
 use crate::appearance::YELLOW;
-use crate::element::{Element, ItemType};
+use crate::element::{InlineNode, ItemType, MarkdownNode, RenderStyle};
 use crate::input::canonical::{Location, Modification, Region};
 use crate::layouts::Annotation;
 use crate::offset_types::RangeExt;
@@ -34,7 +34,9 @@ impl Editor {
                             let mut job = LayoutJob::default();
 
                             let mut text_format = galley.annotation_text_format.clone();
-                            Element::Strong.apply_style(&mut text_format, &self.appearance);
+                            let style =
+                                RenderStyle::Markdown(MarkdownNode::Inline(InlineNode::Strong));
+                            style.apply_style(&mut text_format, &self.appearance);
 
                             job.append(&(num.to_string() + "."), 0.0, text_format);
                             let pos = galley.bullet_bounds(&self.appearance);
