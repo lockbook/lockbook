@@ -1,4 +1,4 @@
-use crate::ast::Ast;
+use crate::ast::{Ast, AstTextRangeType};
 use crate::bounds::Paragraphs;
 use crate::buffer::{EditorMutation, Mutation, SubBuffer, SubMutation};
 use crate::galleys::Galleys;
@@ -590,7 +590,6 @@ fn region_completely_styled(cursor: Cursor, style: RenderStyle, ast: &Ast) -> bo
 }
 
 /// Applies or unapplies `style` to `cursor`, splitting or joining surrounding styles as necessary.
-// todo: handle case when cursor bounds in syntax chars
 fn apply_style(
     cursor: Cursor, style: MarkdownNode, unapply: bool, buffer: &SubBuffer, ast: &Ast,
     mutation: &mut Vec<SubMutation>,
@@ -609,8 +608,10 @@ fn apply_style(
         if text_range.range.contains(cursor.selection.start()) {
             start_range = Some(text_range.clone());
         }
-        // when at bound, end prefers previous
-        if end_range.is_none() && text_range.range.contains(cursor.selection.end()) {
+        // when at bound, end prefers previous unless selection is empty
+        if (cursor.selection.is_empty() || end_range.is_none())
+            && text_range.range.contains(cursor.selection.end())
+        {
             end_range = Some(text_range);
         }
     }
@@ -622,25 +623,33 @@ fn apply_style(
 
     // modify head/tail for nodes containing cursor start and cursor end
     let mut last_start_ancestor: Option<usize> = None;
-    for &ancestor in &start_range.ancestors {
-        // dehead and detail all but the last ancestor applying the style
-        if let Some(prev_ancestor) = last_start_ancestor {
-            dehead_ast_node(prev_ancestor, ast, mutation);
-            detail_ast_node(prev_ancestor, ast, mutation);
-        }
-        if ast.nodes[ancestor].node_type == style {
-            last_start_ancestor = Some(ancestor);
+    if start_range.range_type == AstTextRangeType::Text {
+        for &ancestor in &start_range.ancestors {
+            // dehead and detail all but the last ancestor applying the style
+            if let Some(prev_ancestor) = last_start_ancestor {
+                dehead_ast_node(prev_ancestor, ast, mutation);
+                detail_ast_node(prev_ancestor, ast, mutation);
+            }
+            if ast.nodes[ancestor].node_type == style {
+                last_start_ancestor = Some(ancestor);
+            }
         }
     }
     let mut last_end_ancestor: Option<usize> = None;
-    for &ancestor in &end_range.ancestors {
-        // dehead and detail all but the last ancestor applying the style
-        if let Some(prev_ancestor) = last_end_ancestor {
-            dehead_ast_node(prev_ancestor, ast, mutation);
-            detail_ast_node(prev_ancestor, ast, mutation);
-        }
-        if ast.nodes[ancestor].node_type == style {
-            last_end_ancestor = Some(ancestor);
+    println!(
+        "start_range, end_range.range_type: {:?}, {:?}",
+        start_range.range_type, end_range.range_type
+    );
+    if end_range.range_type == AstTextRangeType::Text {
+        for &ancestor in &end_range.ancestors {
+            // dehead and detail all but the last ancestor applying the style
+            if let Some(prev_ancestor) = last_end_ancestor {
+                dehead_ast_node(prev_ancestor, ast, mutation);
+                detail_ast_node(prev_ancestor, ast, mutation);
+            }
+            if ast.nodes[ancestor].node_type == style {
+                last_end_ancestor = Some(ancestor);
+            }
         }
     }
     if last_start_ancestor != last_end_ancestor {
@@ -667,10 +676,10 @@ fn apply_style(
             }
         }
     } else {
-        if last_start_ancestor.is_none() {
+        if last_start_ancestor.is_none() && start_range.range_type == AstTextRangeType::Text {
             insert_head(cursor.selection.start(), style.clone(), buffer, mutation)
         }
-        if last_end_ancestor.is_none() {
+        if last_end_ancestor.is_none() && end_range.range_type == AstTextRangeType::Text {
             insert_tail(cursor.selection.end(), style.clone(), buffer, mutation)
         }
     }
@@ -678,20 +687,21 @@ fn apply_style(
     // remove head and tail for nodes between nodes containing start and end
     let mut found_start_range = false;
     for text_range in ast.iter_text_ranges() {
+        // skip ranges until we pass the range containing the selection start
+        if text_range == start_range {
+            found_start_range = true;
+        }
         if !found_start_range {
-            // skip ranges until we pass the range containing the selection start
-            if text_range.range.start() <= cursor.selection.start()
-                && cursor.selection.start() < text_range.range.end()
-            {
-                found_start_range = true;
-            }
-        } else if text_range.range.start() < cursor.selection.end()
-            && cursor.selection.end() <= text_range.range.end()
-        {
-            // stop when we find the range containing the selection end
+            continue;
+        }
+
+        // stop when we find the range containing the selection end
+        if text_range == end_range {
             break;
-        } else if text_range.node(ast) == style {
-            // dehead and detail nodes with this style in the middle, aside from those already considered
+        }
+
+        // dehead and detail nodes with this style in the middle, aside from those already considered
+        if text_range.node(ast) == style && text_range.range_type == AstTextRangeType::Text {
             let node_idx = text_range.ancestors.last().copied().unwrap();
             if start_range.ancestors.iter().any(|&a| a == node_idx) {
                 continue;
