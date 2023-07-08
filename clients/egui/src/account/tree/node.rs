@@ -23,8 +23,9 @@ impl From<(lb::File, u8)> for TreeNode {
         let (file, depth) = data;
         let doc_type = match file.file_type {
             lb::FileType::Folder => None,
-            lb::FileType::Document => Some(DocType::from_name(&file.name)),
-            lb::FileType::Link { .. } => todo!(),
+            lb::FileType::Document | lb::FileType::Link { .. } => {
+                Some(DocType::from_name(&file.name))
+            }
         };
 
         Self {
@@ -186,7 +187,7 @@ impl TreeNode {
 
         let desired_size = egui::vec2(state.max_node_width, text_height + padding.y * 2.0);
 
-        let (rect, resp) = ui.allocate_exact_size(desired_size, egui::Sense::hover());
+        let (rect, resp) = ui.allocate_exact_size(desired_size, egui::Sense::click_and_drag());
         if ui.is_rect_visible(rect) {
             let bg = if state.selected.contains(&self.file.id) {
                 ui.visuals().widgets.active.bg_fill
@@ -236,13 +237,7 @@ impl TreeNode {
         if self.hovering_drop {
             Icon::ARROW_CIRCLE_DOWN
         } else if let Some(typ) = &self.doc_type {
-            match typ {
-                DocType::Markdown | DocType::PlainText => Icon::DOC_TEXT,
-                DocType::Drawing => Icon::DRAW,
-                DocType::Image(_) => Icon::IMAGE,
-                DocType::Code(_) => Icon::CODE,
-                _ => Icon::DOC_UNKNOWN,
-            }
+            typ.to_icon()
         } else {
             Icon::FOLDER
         }
@@ -258,6 +253,8 @@ impl TreeNode {
             ui.close_menu();
         }
 
+        ui.spacing_mut().button_padding = egui::vec2(4.0, 4.0);
+
         if ui.button("New Document").clicked() {
             node_resp.new_doc_modal = Some(self.file.clone());
             ui.close_menu();
@@ -266,6 +263,9 @@ impl TreeNode {
             node_resp.new_folder_modal = Some(self.file.clone());
             ui.close_menu();
         }
+
+        ui.separator();
+
         if ui.button("Rename").clicked() {
             state.renaming = NodeRenamingState::new(&self.file);
 
@@ -281,12 +281,21 @@ impl TreeNode {
 
             ui.close_menu();
         }
-        if ui.button("Export").clicked() {
-            ui.close_menu();
-        }
+
         if ui.button("Delete").clicked() {
             node_resp.delete_request = true;
             ui.close_menu();
+        }
+
+        ui.separator();
+
+        let share = ui.add(egui::Button::new(
+            egui::RichText::new("Share").color(ui.style().visuals.hyperlink_color),
+        ));
+
+        if share.clicked() {
+            node_resp.create_share_modal = Some(self.file.clone());
+            ui.close_menu()
         }
     }
 

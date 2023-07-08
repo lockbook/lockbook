@@ -1,4 +1,5 @@
 use libsecp256k1::PublicKey;
+use lockbook_shared::document_repo::DocumentService;
 use uuid::Uuid;
 
 use lockbook_shared::api::GetPublicKeyRequest;
@@ -9,16 +10,12 @@ use lockbook_shared::tree_like::TreeLike;
 
 use crate::{CoreError, CoreState, LbError, LbResult, Requester};
 
-impl<Client: Requester> CoreState<Client> {
+impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {
     pub(crate) fn share_file(&mut self, id: Uuid, username: &str, mode: ShareMode) -> LbResult<()> {
         let mut tree = (&self.db.base_metadata)
             .to_staged(&mut self.db.local_metadata)
             .to_lazy();
-        let account = self
-            .db
-            .account
-            .data()
-            .ok_or(CoreError::AccountNonexistent)?;
+        let account = self.db.account.get().ok_or(CoreError::AccountNonexistent)?;
 
         let sharee = Owner(
             self.client
@@ -76,11 +73,7 @@ impl<Client: Requester> CoreState<Client> {
         let mut tree = (&self.db.base_metadata)
             .to_staged(&mut self.db.local_metadata)
             .to_lazy();
-        let account = self
-            .db
-            .account
-            .data()
-            .ok_or(CoreError::AccountNonexistent)?;
+        let account = self.db.account.get().ok_or(CoreError::AccountNonexistent)?;
 
         tree.delete_share(id, maybe_encrypted_for, account)?;
         Ok(())
