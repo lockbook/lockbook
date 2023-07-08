@@ -1,6 +1,9 @@
 use rand::Rng;
+#[cfg(any(target_os = "ios", target_os = "macos"))]
 use std::ffi::{c_char, CString};
-use std::{cmp, mem, ptr};
+#[cfg(any(target_os = "ios", target_os = "macos"))]
+use std::ptr;
+use std::{cmp, mem};
 
 use egui::os::OperatingSystem;
 use egui::{Color32, Context, Event, FontDefinitions, Frame, Pos2, Rect, Sense, Ui, Vec2};
