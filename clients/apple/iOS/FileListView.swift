@@ -77,9 +77,9 @@ struct FileListView: View {
                 .textCase(.none)
                 .font(.headline)
                 .padding(.bottom, 3)) {
-                    ForEach(fileService.childrenOfParent()) { meta in
-                        FileCell(meta: meta)
-                    }
+                ForEach(fileService.childrenOfParent()) { meta in
+                    FileCell(meta: meta)
+                }
             }
         }
         .navigationBarTitle(fileService.parent.map{($0.name)} ?? "")

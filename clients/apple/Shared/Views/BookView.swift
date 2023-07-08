@@ -31,8 +31,6 @@ struct BookView: View {
     func postFileAction() -> AlertToast {
         if let action = files.successfulAction {
             switch action {
-            case .rename:
-                return AlertToast(type: .regular, title: "File renamed")
             case .delete:
                 return AlertToast(type: .regular, title: "File deleted")
             case .move:

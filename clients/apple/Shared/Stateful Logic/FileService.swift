@@ -167,7 +167,7 @@ class FileService: ObservableObject {
 
 
     func deleteFile(id: UUID) {
-        DispatchQueue.global(qos: .userInteractive).async {
+        DispatchQueue.global(qos: .userInitiated).async {
             let operation = self.core.deleteFile(id: id)
             
             DispatchQueue.main.async {
@@ -208,37 +208,6 @@ class FileService: ObservableObject {
                 }
             default:
                 return "An error occurred while renaming the file"
-            }
-        }
-    }
-    
-    func renameFile(id: UUID, name: String) {
-        DispatchQueue.global(qos: .userInteractive).async {
-            let operation = self.core.renameFile(id: id, name: name)
-
-            DispatchQueue.main.async {
-                switch operation {
-                case .success(_):
-                    self.successfulAction = .rename
-                    self.refresh()
-                    DI.status.checkForLocalWork()
-                case .failure(let error):
-                    switch error.kind {
-                    case .UiError(let uiError):
-                        switch uiError {
-                        case .FileNameNotAvailable:
-                            DI.errors.errorWithTitle("Rename Error", "File with that name exists already")
-                        case .NewNameContainsSlash:
-                            DI.errors.errorWithTitle("Rename Error", "Filename cannot contain slash")
-                        case .NewNameEmpty:
-                            DI.errors.errorWithTitle("Rename Error", "Filename cannot be empty")
-                        default:
-                            DI.errors.handleError(error)
-                        }
-                    default:
-                        DI.errors.handleError(error)
-                    }
-                }
             }
         }
     }
@@ -449,7 +418,6 @@ class FileService: ObservableObject {
 
 public enum FileAction {
     case move
-    case rename
     case delete
     case createFolder
     case importFiles

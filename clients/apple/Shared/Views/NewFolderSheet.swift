@@ -1,10 +1,3 @@
-//
-//  NewFolderSheet.swift
-//  Lockbook
-//
-//  Created by Smail Barkouch on 7/7/23.
-//
-
 import Foundation
 import SwiftUI
 import SwiftLockbookCore

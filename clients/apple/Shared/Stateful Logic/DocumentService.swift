@@ -7,7 +7,7 @@ import SwiftEditor
 
 class DocumentService: ObservableObject {
     
-    @Published var openDocuments: [UUID : DocumentLoadingInfo] = [:] // verify if changes to fields in docloadinfo affect this
+    @Published var openDocuments: [UUID : DocumentLoadingInfo] = [:]
     
     @Published var isPendingSharesOpen: Bool = false
     @Published var selectedFolder: File?

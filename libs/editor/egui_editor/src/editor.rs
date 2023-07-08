@@ -1,5 +1,5 @@
-use std::ffi::{c_char, CString};
 use rand::Rng;
+use std::ffi::{c_char, CString};
 use std::{cmp, mem, ptr};
 
 use egui::os::OperatingSystem;
@@ -88,7 +88,7 @@ impl Default for EditorResponse {
             #[cfg(any(target_os = "ios", target_os = "macos"))]
             potential_title: ptr::null(),
             #[cfg(not(any(target_os = "ios", target_os = "macos")))]
-            potential_title: None
+            potential_title: None,
         }
     }
 }
@@ -382,7 +382,7 @@ impl Editor {
         let potential_title = self.get_potential_text_title();
 
         #[cfg(any(target_os = "ios", target_os = "macos"))]
-        let potential_title = CString::new(potential_title.unwrap_or_else(|| "".to_string()))
+        let potential_title = CString::new(potential_title.unwrap_or_default())
             .expect("Could not Rust String -> C String")
             .into_raw() as *const c_char;
 
@@ -512,7 +512,7 @@ impl Editor {
         for paragraph in &self.paragraphs.paragraphs {
             if !paragraph.is_empty() {
                 maybe_chosen = Some(*paragraph);
-                break
+                break;
             }
         }
 
@@ -520,7 +520,11 @@ impl Editor {
             let ast_idx = self.ast.ast_node_at_char(chosen.start());
             let ast = &self.ast.nodes[ast_idx];
 
-            let cursor: Cursor = (ast.text_range.start(), cmp::min(ast.text_range.end(), ast.text_range.start() + 30)).into();
+            let cursor: Cursor = (
+                ast.text_range.start(),
+                cmp::min(ast.text_range.end(), ast.text_range.start() + 30),
+            )
+                .into();
 
             String::from(cursor.selection_text(&self.buffer.current))
         })
