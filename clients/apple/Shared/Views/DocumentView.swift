@@ -26,15 +26,11 @@ struct DocumentView: View {
 #endif
     
     public init(id: UUID) {
-        print("creating doc view")
         self.id = id
         self.model = DI.currentDoc.getDocInfoOrCreate(id: id)
     }
     
-    var body: some View {
-        let _ = print("refreshing doc view")
-        let _ = Self._printChanges()
-        
+    var body: some View {        
         Group {
             if model.loading {
                 ProgressView()

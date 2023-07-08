@@ -3,7 +3,7 @@ use std::ffi::{c_char, CString};
 use std::{cmp, mem, ptr};
 
 use egui::os::OperatingSystem;
-use egui::{Color32, Context, Event, FontDefinitions, Frame, Margin, Pos2, Rect, Sense, Ui, Vec2};
+use egui::{Color32, Context, Event, FontDefinitions, Frame, Pos2, Rect, Sense, Ui, Vec2};
 
 use crate::appearance::Appearance;
 use crate::ast::Ast;
@@ -16,7 +16,6 @@ use crate::input::canonical::{Bound, Modification, Offset, Region};
 use crate::input::click_checker::{ClickChecker, EditorClickChecker};
 use crate::input::cursor::{Cursor, PointerState};
 use crate::input::events;
-use crate::layouts::Annotation;
 use crate::offset_types::{DocCharOffset, RangeExt};
 use crate::style::{BlockNode, InlineNode, ItemType, MarkdownNode};
 use crate::test_input::TEST_MARKDOWN;
@@ -27,6 +26,7 @@ use crate::{ast, bounds, galleys, images, register_fonts};
 #[derive(Debug)]
 pub struct EditorResponse {
     pub text_updated: bool,
+    pub potential_title: *const c_char,
 
     pub show_edit_menu: bool,
     pub has_selection: bool,
@@ -40,8 +40,6 @@ pub struct EditorResponse {
     pub cursor_in_bold: bool,
     pub cursor_in_italic: bool,
     pub cursor_in_inline_code: bool,
-
-    pub potential_title: *const c_char,
 }
 
 // two structs are used instead of conditional compilation (`cfg`) for `potential_title` because the header
@@ -50,6 +48,7 @@ pub struct EditorResponse {
 #[derive(Debug)]
 pub struct EditorResponse {
     pub text_updated: bool,
+    pub potential_title: Option<String>,
 
     pub show_edit_menu: bool,
     pub has_selection: bool,
@@ -63,8 +62,6 @@ pub struct EditorResponse {
     pub cursor_in_bold: bool,
     pub cursor_in_italic: bool,
     pub cursor_in_inline_code: bool,
-
-    pub potential_title: Option<String>,
 }
 
 impl Default for EditorResponse {
@@ -169,9 +166,7 @@ impl Default for Editor {
 
 impl Editor {
     pub fn draw(&mut self, ctx: &Context) -> EditorResponse {
-        let fill = if ctx.style().visuals.dark_mode { Color32::BLACK } else { Color32::WHITE };
         egui::CentralPanel::default()
-            .frame(Frame::default().fill(fill))
             .show(ctx, |ui| self.scroll_ui(ui))
             .inner
     }
@@ -222,12 +217,17 @@ impl Editor {
                     }
                 });
 
+                let fill = if ui.style().visuals.dark_mode {
+                    Color32::from_rgb(18, 18, 18)
+                } else {
+                    Color32::WHITE
+                };
+
                 Frame::default()
-                    .inner_margin(Margin::symmetric(
-                        clamp(0.04, 0.1, 0.25, ui.max_rect().width()),
-                        0.0,
-                    ))
-                    .show(ui, |ui| self.ui(ui, id, touch_mode, &events))
+                    .fill(fill)
+                    .outer_margin(egui::Margin::symmetric(7.0, 0.0))
+                    .inner_margin(egui::Margin::symmetric(0.0, 15.0))
+                    .show(ui, |ui| ui.vertical_centered(|ui| self.ui(ui, id, touch_mode, &events)))
             });
         self.ui_rect = sao.inner_rect;
 
@@ -243,7 +243,7 @@ impl Editor {
         self.scroll_area_rect = sao.inner_rect;
         self.scroll_area_offset = sao.state.offset;
 
-        sao.inner.inner
+        sao.inner.inner.inner
     }
 
     fn ui(
@@ -253,6 +253,12 @@ impl Editor {
 
         // update theme
         let theme_updated = self.appearance.set_theme(ui.visuals());
+
+        // clip elements width
+        let max_width = 800.0;
+        if ui.max_rect().width() > max_width {
+            ui.set_max_width(max_width);
+        }
 
         // process events
         let (text_updated, selection_updated) = if self.initialized {
@@ -278,7 +284,7 @@ impl Editor {
             self.custom_events.push(Modification::Select {
                 region: Region::ToOffset {
                     offset: Offset::To(Bound::Doc),
-                    backwards: false,
+                    backwards: true,
                     extend_selection: false,
                 },
             });
@@ -341,46 +347,6 @@ impl Editor {
             ui.scroll_to_rect(rect, None);
         }
 
-        // determine cursor markup location
-        let mut cursor_in_heading = false;
-        let mut cursor_in_bullet_list = false;
-        let mut cursor_in_number_list = false;
-        let mut cursor_in_todo_list = false;
-        let mut cursor_in_bold = false;
-        let mut cursor_in_italic = false;
-        let mut cursor_in_inline_code = false;
-
-        let ast_node_idx = self
-            .ast
-            .ast_node_at_char(self.buffer.current.cursor.selection.start());
-        let ast_node = &self.ast.nodes[ast_node_idx];
-
-        match ast_node.node_type {
-            MarkdownNode::Block(BlockNode::Heading(..)) => cursor_in_heading = true,
-            MarkdownNode::Inline(InlineNode::Code) => cursor_in_inline_code = true,
-            MarkdownNode::Inline(InlineNode::Bold) => cursor_in_bold = true,
-            MarkdownNode::Inline(InlineNode::Italic) => cursor_in_italic = true,
-            _ => {
-                let galley_idx = self
-                    .galleys
-                    .galley_at_char(self.buffer.current.cursor.selection.start());
-                let galley = &self.galleys.galleys[galley_idx];
-
-                match galley.annotation {
-                    Some(Annotation::Item(ItemType::Todo(_), ..)) => {
-                        cursor_in_todo_list = true;
-                    }
-                    Some(Annotation::Item(ItemType::Numbered(_), ..)) => {
-                        cursor_in_number_list = true;
-                    }
-                    Some(Annotation::Item(ItemType::Bulleted, ..)) => {
-                        cursor_in_bullet_list = true;
-                    }
-                    _ => {}
-                };
-            }
-        }
-
         let potential_title = self.get_potential_text_title();
 
         #[cfg(any(target_os = "ios", target_os = "macos"))]
@@ -388,24 +354,44 @@ impl Editor {
             .expect("Could not Rust String -> C String")
             .into_raw() as *const c_char;
 
-        EditorResponse {
+        let mut result = EditorResponse {
             text_updated,
+            potential_title,
 
             show_edit_menu: self.maybe_menu_location.is_some(),
             has_selection: self.buffer.current.cursor.selection().is_some(),
             edit_menu_x: self.maybe_menu_location.map(|p| p.x).unwrap_or_default(),
             edit_menu_y: self.maybe_menu_location.map(|p| p.y).unwrap_or_default(),
+            ..Default::default()
+        };
 
-            cursor_in_heading,
-            cursor_in_bullet_list,
-            cursor_in_number_list,
-            cursor_in_todo_list,
-            cursor_in_bold,
-            cursor_in_italic,
-            cursor_in_inline_code,
-
-            potential_title,
+        // determine styles at cursor location
+        // todo: check for styles in selection
+        if self.buffer.current.cursor.selection.is_empty() {
+            for style in self
+                .ast
+                .styles_at_offset(self.buffer.current.cursor.selection.start())
+            {
+                match style {
+                    MarkdownNode::Inline(InlineNode::Bold) => result.cursor_in_bold = true,
+                    MarkdownNode::Inline(InlineNode::Italic) => result.cursor_in_italic = true,
+                    MarkdownNode::Inline(InlineNode::Code) => result.cursor_in_inline_code = true,
+                    MarkdownNode::Block(BlockNode::Heading(..)) => result.cursor_in_heading = true,
+                    MarkdownNode::Block(BlockNode::ListItem(ItemType::Bulleted, ..)) => {
+                        result.cursor_in_bullet_list = true
+                    }
+                    MarkdownNode::Block(BlockNode::ListItem(ItemType::Numbered(..), ..)) => {
+                        result.cursor_in_number_list = true
+                    }
+                    MarkdownNode::Block(BlockNode::ListItem(ItemType::Todo(..), ..)) => {
+                        result.cursor_in_todo_list = true
+                    }
+                    _ => {}
+                }
+            }
         }
+
+        result
     }
 
     pub fn process_events(
@@ -498,9 +484,11 @@ impl Editor {
         self.selection_updated = self.buffer.current.cursor.selection != prior_selection;
     }
 
-    pub fn set_text(&mut self, new_text: String) {
-        self.buffer = new_text.as_str().into();
-        self.initialized = false;
+    pub fn set_text(&mut self, text: String) {
+        self.custom_events.push(Modification::Replace {
+            region: Region::Bound { bound: Bound::Doc, backwards: false },
+            text,
+        });
     }
 
     pub fn set_font(&self, ctx: &Context) {
@@ -532,13 +520,4 @@ impl Editor {
             String::from(cursor.selection_text(&self.buffer.current))
         })
     }
-}
-
-fn clamp(min: f32, mid: f32, max: f32, viewport_width: f32) -> f32 {
-    if viewport_width > 800.0 {
-        return viewport_width * max;
-    } else if viewport_width < 400.0 {
-        return viewport_width * min;
-    }
-    viewport_width * mid
 }
