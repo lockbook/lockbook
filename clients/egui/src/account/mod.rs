@@ -222,26 +222,27 @@ impl AccountScreen {
                 AccountUpdate::SyncUpdate(update) => self.process_sync_update(ctx, update),
                 AccountUpdate::DoneDeleting => self.modals.confirm_delete = None,
                 AccountUpdate::ReloadTree(root) => self.tree.root = root,
-                AccountUpdate::ReloadTabs(mut new_tabs) => {
-                    let active_id = self.workspace.current_tab().map(|t| t.id);
-                    for i in (0..self.workspace.tabs.len()).rev() {
-                        let t = &mut self.workspace.tabs[i];
-                        if let Some(new_tab_result) = new_tabs.remove(&t.id) {
-                            match new_tab_result {
+                AccountUpdate::ReloadTab(id, res) => {
+                    let focussed_tab_id = self.workspace.current_tab().map(|tab| tab.id);
+                    for i in 0..self.workspace.tabs.len() {
+                        let tab_id = self.workspace.tabs[i].id;
+
+                        if tab_id == id {
+                            match res {
                                 Ok(new_tab) => {
-                                    t.name = new_tab.name;
-                                    t.path = new_tab.path;
-                                    t.content = new_tab.content;
-                                    if Some(t.id) == active_id {
-                                        frame.set_window_title(&t.name);
+                                    self.workspace.tabs[i] = new_tab;
+                                    if let Some(open_tab) = focussed_tab_id {
+                                        if tab_id == open_tab {
+                                            frame.set_window_title(&self.workspace.tabs[i].name);
+                                        }
                                     }
+                                    break;
                                 }
                                 Err(fail) => {
-                                    t.failure = Some(fail);
+                                    self.workspace.tabs[i].failure = Some(fail);
+                                    break;
                                 }
                             }
-                        } else {
-                            self.close_tab(ctx, i);
                         }
                     }
                 }
@@ -452,13 +453,14 @@ impl AccountScreen {
         }
     }
 
-    pub fn refresh_tree_and_workspace(&self, ctx: &egui::Context) {
+    pub fn refresh_tree_and_workspace(&self, ctx: &egui::Context, work: lb::WorkCalculated) {
         let opened_ids = self
             .workspace
             .tabs
             .iter()
             .map(|t| t.id)
             .collect::<Vec<lb::Uuid>>();
+
         let core = self.core.clone();
         let update_tx = self.update_tx.clone();
         let ctx = ctx.clone();
@@ -469,19 +471,22 @@ impl AccountScreen {
             update_tx.send(AccountUpdate::ReloadTree(root)).unwrap();
             ctx.request_repaint();
 
-            let mut new_tabs = HashMap::new();
+            let server_ids = ids_changed_on_server(&work);
+            let stale_tab_ids = server_ids.iter().filter(|id| opened_ids.contains(id));
 
-            for id in opened_ids {
+            for &id in stale_tab_ids {
                 let name = match core.get_file_by_id(id) {
                     Ok(file) => file.name,
                     Err(err) => {
-                        new_tabs.insert(
-                            id,
-                            Err(match err.kind {
-                                lb::CoreError::FileNonexistent => TabFailure::DeletedFromSync,
-                                _ => TabFailure::Unexpected(format!("{:?}", err)),
-                            }),
-                        );
+                        update_tx
+                            .send(AccountUpdate::ReloadTab(
+                                id,
+                                Err(match err.kind {
+                                    lb::CoreError::FileNonexistent => TabFailure::DeletedFromSync,
+                                    _ => TabFailure::Unexpected(format!("{:?}", err)),
+                                }),
+                            ))
+                            .unwrap();
                         continue;
                     }
                 };
@@ -509,21 +514,22 @@ impl AccountScreen {
                 };
 
                 let now = Instant::now();
-                new_tabs.insert(
-                    id,
-                    Ok(Tab {
+                update_tx
+                    .send(AccountUpdate::ReloadTab(
                         id,
-                        name,
-                        path,
-                        content: content.ok(),
-                        failure: None,
-                        last_changed: now,
-                        last_saved: now,
-                    }),
-                );
+                        Ok(Tab {
+                            id,
+                            name,
+                            path,
+                            content: content.ok(),
+                            failure: None,
+                            last_changed: now,
+                            last_saved: now,
+                        }),
+                    ))
+                    .unwrap();
             }
 
-            update_tx.send(AccountUpdate::ReloadTabs(new_tabs)).unwrap();
             ctx.request_repaint();
         });
     }
@@ -750,7 +756,7 @@ pub enum AccountUpdate {
     DoneDeleting,
 
     ReloadTree(TreeNode),
-    ReloadTabs(HashMap<lb::Uuid, Result<Tab, TabFailure>>),
+    ReloadTab(lb::Uuid, Result<Tab, TabFailure>),
 
     BackgroundWorkerDone,
     FinalSyncAttemptDone,
@@ -804,4 +810,14 @@ fn consume_key(ctx: &egui::Context, key: char) -> bool {
         }
         false
     })
+}
+
+fn ids_changed_on_server(work: &lb::WorkCalculated) -> Vec<lb::Uuid> {
+    work.work_units
+        .iter()
+        .filter_map(|wu| match wu {
+            lb::WorkUnit::LocalChange { .. } => None,
+            lb::WorkUnit::ServerChange { metadata } => Some(metadata.id),
+        })
+        .collect()
 }

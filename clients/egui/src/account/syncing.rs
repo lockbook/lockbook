@@ -29,7 +29,7 @@ enum SyncPhase {
 pub enum SyncUpdate {
     Started,
     Progress(lb::SyncProgress),
-    Done(Result<(), SyncError>),
+    Done(Result<lb::WorkCalculated, SyncError>),
     SetStatus(Result<String, lb::UnexpectedError>),
     SetUsage(Usage),
 }
@@ -51,7 +51,9 @@ impl super::AccountScreen {
                 Ok(_) => {
                     self.sync.status = Ok("just now".to_owned());
                     self.sync.phase = SyncPhase::IdleGood;
-                    self.refresh_tree_and_workspace(ctx);
+                    if let Ok(work) = result {
+                        self.refresh_tree_and_workspace(ctx, work);
+                    }
                     self.refresh_sync_status(ctx);
                 }
                 Err(err) => {
@@ -174,11 +176,9 @@ impl super::AccountScreen {
     }
 
     pub fn perform_sync(&self, ctx: &egui::Context) {
-        println!("attempting sync");
         if self.sync.lock.try_lock().is_err() {
             return;
         }
-        println!("performing sync");
 
         self.save_all_tabs(ctx);
 
@@ -202,10 +202,7 @@ impl super::AccountScreen {
                 }
             };
 
-            let result = core
-                .sync(Some(Box::new(closure)))
-                .map(|_| ())
-                .map_err(SyncError::from);
+            let result = core.sync(Some(Box::new(closure))).map_err(SyncError::from);
             update_tx.send(SyncUpdate::Done(result).into()).unwrap();
             ctx.request_repaint();
         });
