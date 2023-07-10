@@ -7,7 +7,7 @@ import SwiftLockbookCore
 import UniformTypeIdentifiers
 
 struct OutlineBranch: View {
-    @EnvironmentObject var current: CurrentDocument
+    @EnvironmentObject var current: DocumentService
     @EnvironmentObject var files: FileService
     @EnvironmentObject var status: StatusService
     @EnvironmentObject var errors: UnexpectedErrorService
@@ -31,7 +31,7 @@ struct OutlineBranch: View {
         ScrollViewReader { scrollView in
             VStack(alignment: .leading) {
                 if level != -1 {
-                    if file == current.selectedDocument {
+                    if file == current.openDocuments.values.first?.meta {
                         OutlineRow(file: file, level: level, open: $state.open)
                             .background(Color.accentColor)
                             .foregroundColor(Color.white)
@@ -40,12 +40,18 @@ struct OutlineBranch: View {
                         OutlineRow(file: file, level: level, open: $state.open)
                             .onTapGesture {
                                 if file.fileType == .Folder {
+                                    DI.currentDoc.selectedFolder = file
+                                    
                                     withAnimation {
                                         state.open.toggle()
                                     }
                                 } else {
                                     // Animating this causes editor to load weirdly
-                                    current.selectedDocument = file
+                                    DispatchQueue.main.async {
+                                        current.cleanupOldDocs()
+                                        current.openDoc(id: file.id)
+                                    }
+                                    
                                     print("tap")
                                 }
                             }

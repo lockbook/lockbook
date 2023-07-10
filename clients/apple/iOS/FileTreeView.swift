@@ -3,7 +3,7 @@ import SwiftLockbookCore
 
 struct FileTreeView: View {
     @EnvironmentObject var sheets: SheetState
-    @EnvironmentObject var currentDoc: CurrentDocument
+    @EnvironmentObject var currentDoc: DocumentService
     @EnvironmentObject var coreService: CoreService
     @EnvironmentObject var files: FileService
     @EnvironmentObject var onboarding: OnboardingService
@@ -40,14 +40,12 @@ struct FileTreeView: View {
                 } as? UISearchBar
             }
             
-            BottomBar(onCreating: {
-                sheets.creatingInfo = CreatingInfo(parent: currentFolder, child_type: .Document)
-            })
+            BottomBar()
         }
         
         VStack {
-            if let item = currentDoc.selectedDocument {
-                DocumentView(meta: item)
+            if let id = currentDoc.openDocuments.keys.first {
+                DocumentView(id: id)
             } else {
                 GeometryReader { geometry in
                     if geometry.size.height > geometry.size.width {
@@ -104,9 +102,6 @@ struct FileTreeView: View {
             })
             .hidden()
         )
-        .onChange(of: currentDoc.selectedDocument) { _ in
-            DI.files.refreshSuggestedDocs()
-        }
     }
     
     var mainView: some View {

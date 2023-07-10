@@ -127,12 +127,12 @@ class TreeDelegate: NSObject, MenuOutlineViewDelegate {
         let parent = item == nil ? DI.files.root! : item as! File
 
         if parent.fileType == .Folder {
-            menu.addItem(Create(file: parent))
+            menu.addItem(CreateDocument(file: parent))
+            menu.addItem(CreateFolder(file: parent))
         }
 
         if parent.id != parent.parent {
             menu.addItem(Share(file: parent))
-            menu.addItem(Rename(file: parent))
             menu.addItem(Delete(file: parent))
         }
         

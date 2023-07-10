@@ -1,56 +1,90 @@
 import Foundation
 import SwiftUI
+import MetalKit
+import Combine
 
-public struct EditorView: View {
+#if os(iOS)
+public struct EditorView: UIViewRepresentable {
     
-    @State var editorState: EditorState
-    @FocusState var focused: Bool
-    private let metalView: MetalView
+    @ObservedObject public var editorState: EditorState
+    let mtkView: iOSMTK = iOSMTK()
     
-    public init(_ editorState: EditorState) {
+    public init(_ editorState: EditorState, _ toolbarState: ToolbarState, _ nameState: NameState) {
         self.editorState = editorState
-        self.metalView = MetalView(editorState: editorState)
+        mtkView.editorState = editorState
+        mtkView.toolbarState = toolbarState
+        mtkView.nameState = nameState
+        
+        mtkView.setInitialContent(editorState.text)
+    }
+
+    public func makeUIView(context: Context) -> iOSMTK {
+        mtkView
+    }
+    
+    public func updateUIView(_ uiView: iOSMTK, context: Context) {
+        if editorState.reload {
+            mtkView.updateText(editorState.text)
+            editorState.reload = false
+        }
+    }
+    
+    public func becomeFirstResponder() {
+        mtkView.becomeFirstResponder()
+    }
+}
+#else
+public struct EditorView: View {
+    @FocusState var focused: Bool
+    
+    let nsEditorView: NSEditorView
+    
+    public init(_ editorState: EditorState, _ toolbarState: ToolbarState, _ nameState: NameState) {
+        nsEditorView = NSEditorView(editorState, toolbarState, nameState)
     }
     
     public var body: some View {
-        metalView
+        nsEditorView
             .focused($focused)
             .onAppear {
                 focused = true
             }
     }
-
-    public func header(headingSize: UInt32) {
-        metalView.header(headingSize: headingSize)
-    }
-
-    public func bulletedList() {
-        metalView.bulletedList()
-    }
-
-    public func numberedList() {
-        metalView.numberedList()
-    }
-
-    public func todoList() {
-        metalView.todoList()
-    }
-
-    public func bold() {
-        metalView.bold()
-    }
-
-    public func italic() {
-        metalView.italic()
-    }
-
-    public func inlineCode() {
-        metalView.inlineCode()
-    }
-
-    #if os(iOS)
-    public func tab(deindent: Bool) {
-        metalView.tab(deindent: deindent)
-    }
-    #endif
 }
+
+public struct NSEditorView: NSViewRepresentable {
+    
+    @ObservedObject public var editorState: EditorState
+    
+    let mtkView: MacMTK = MacMTK()
+    
+    public init(_ editorState: EditorState, _ toolbarState: ToolbarState, _ nameState: NameState) {
+        self.editorState = editorState
+        mtkView.editorState = editorState
+        mtkView.toolbarState = toolbarState
+        mtkView.nameState = nameState
+        
+        mtkView.setInitialContent(editorState.text)
+    }
+    
+    public func docChanged(_ s: String) {
+        editorState.text = s
+    }
+
+    public func makeNSView(context: NSViewRepresentableContext<NSEditorView>) -> MTKView {
+        mtkView
+    }
+    
+    public func updateNSView(_ nsView: MTKView, context: NSViewRepresentableContext<NSEditorView>) {
+        if editorState.reload {
+            mtkView.updateText(editorState.text)
+            editorState.reload = false
+        }
+    }
+}
+#endif
+
+
+
+
+

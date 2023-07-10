@@ -3,7 +3,6 @@ import SwiftLockbookCore
 import Foundation
 
 struct FileListView: View {
-    @EnvironmentObject var current: CurrentDocument
     @EnvironmentObject var sheets: SheetState
     @EnvironmentObject var fileService: FileService
     @EnvironmentObject var search: SearchService
@@ -15,34 +14,22 @@ struct FileListView: View {
     
     var body: some View {
         VStack {
-            if let newDoc = sheets.created, newDoc.fileType == .Document {
-                NavigationLink(destination: DocumentView(meta: newDoc), isActive: Binding(get: { current.selectedDocument != nil }, set: { _ in current.selectedDocument = nil }) ) {
-                        EmptyView()
-                    }
-                    .hidden()
+            if let newDoc = DI.currentDoc.justCreatedDoc, newDoc.fileType == .Document {
+                NavigationLink(destination: iOSDocumentViewWrapper(id: newDoc.id), isActive: Binding(get: { DI.currentDoc.openDocuments[newDoc.id] != nil }, set: { _ in DI.currentDoc.openDocuments[newDoc.id] = nil }) ) {
+                    EmptyView()
                 }
-                    
-                SearchWrapperView(
-                    searchInput: $searchInput,
-                    mainView: mainView,
-                    isiOS: true)
-                .searchable(text: $searchInput, prompt: "Search")
-                    
-                FilePathBreadcrumb()
-                    
-                BottomBar(onCreating: {
-                    if let parent = fileService.parent {
-                        sheets.creatingInfo = CreatingInfo(parent: parent, child_type: .Document)
-                    }
-                })
-                .onReceive(current.$selectedDocument) { _ in
-                    print("cleared")
-                    // When we return back to this screen, we have to change newFile back to nil regardless
-                    // of it's present value, otherwise we won't be able to navigate to new, new files
-                    if current.selectedDocument == nil {
-                        sheets.created = nil
-                    }
-                }
+                .hidden()
+            }
+            
+            SearchWrapperView(
+                searchInput: $searchInput,
+                mainView: mainView,
+                isiOS: true)
+            .searchable(text: $searchInput, prompt: "Search")
+            
+            FilePathBreadcrumb()
+            
+            BottomBar(isiOS: true)
         }
         .gesture(
             DragGesture().onEnded({ (value) in

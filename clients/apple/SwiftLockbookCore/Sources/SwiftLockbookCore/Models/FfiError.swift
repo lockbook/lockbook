@@ -159,6 +159,10 @@ public enum ListMetadatasError: String, UiError {
     case Stub
 }
 
+public enum GetPathByIdError: String, UiError {
+    case Stub
+}
+
 public enum RenameFileError: String, UiError {
     case CannotRenameRoot
     case FileDoesNotExist

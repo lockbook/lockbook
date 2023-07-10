@@ -38,6 +38,8 @@ public protocol LockbookApi {
     func importFiles(sources: [String], destination: UUID) ->FfiResult<Empty, ImportFilesError>
     func getFileById(id: UUID) -> FfiResult<File, GetFileByIdError>
     func suggestedDocs() -> FfiResult<[UUID], SuggestedDocsError>
+    func getPathById(id: UUID) -> FfiResult<String, GetPathByIdError>
+    
     func timeAgo(timeStamp: Int64) -> String
     
     // Billing

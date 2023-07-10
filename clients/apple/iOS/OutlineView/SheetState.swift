@@ -1,44 +1,31 @@
 import Combine
+import Foundation
 import SwiftLockbookCore
 
-enum ClientFileTypes {
-    case Document
-    case Folder
-    case Drawing
+struct CreatingFolderInfo: Identifiable {
+    var id = UUID()
+    
+    let parentPath: String
+    let maybeParent: UUID?
 }
 
-struct CreatingInfo {
-    let parent: File
-    let child_type: FileType // TODO maybe pop out?
-}
-
-extension CreatingInfo {
-    func toClientFileTypes() -> ClientFileTypes {
-        switch child_type {
-            case .Document:
-                return ClientFileTypes.Document
-            case .Folder:
-                return ClientFileTypes.Folder
-        }
-    }
-}
 
 class SheetState: ObservableObject {
     // These can't just be a part of OutlineContextMenu because the view goes away before
     // the sheet is presented
-    @Published var creating: Bool = false {
+    
+    @Published var creatingFolder: Bool = false {
         didSet {
-            if !creating && creatingInfo != nil {
-                creatingInfo = nil
+            if !creatingFolder && creatingFolderInfo != nil {
+                creatingFolderInfo = nil
             }
         }
     }
-    @Published var creatingInfo: CreatingInfo? {
+    @Published var creatingFolderInfo: CreatingFolderInfo? {
         didSet {
-            creating = creatingInfo != nil
+            creatingFolder = creatingFolderInfo != nil
         }
     }
-    @Published var created: File?
     
     @Published var moving: Bool = false {
         didSet {
@@ -50,19 +37,6 @@ class SheetState: ObservableObject {
     @Published var movingInfo: File? {
         didSet {
             moving = movingInfo != nil
-        }
-    }
-    
-    @Published var renaming: Bool = false {
-        didSet {
-            if !renaming && renamingInfo != nil {
-                renamingInfo = nil
-            }
-        }
-    }
-    @Published var renamingInfo: File? {
-        didSet {
-            renaming = renamingInfo != nil
         }
     }
     

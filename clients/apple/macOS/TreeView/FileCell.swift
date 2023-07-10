@@ -2,7 +2,7 @@ import AppKit
 import SwiftLockbookCore
 
 class FileItemView: NSTableCellView {
-    init(file: File) {
+    init(file: File) {        
         let field = NSTextField(string: " \(file.name)")
         field.isEditable = false
         field.isSelectable = false

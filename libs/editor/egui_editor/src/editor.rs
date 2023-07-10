@@ -1,5 +1,9 @@
 use rand::Rng;
-use std::mem;
+#[cfg(any(target_os = "ios", target_os = "macos"))]
+use std::ffi::{c_char, CString};
+#[cfg(any(target_os = "ios", target_os = "macos"))]
+use std::ptr;
+use std::{cmp, mem};
 
 use egui::os::OperatingSystem;
 use egui::{Color32, Context, Event, FontDefinitions, Frame, Pos2, Rect, Sense, Ui, Vec2};
@@ -15,15 +19,17 @@ use crate::input::canonical::{Bound, Modification, Offset, Region};
 use crate::input::click_checker::{ClickChecker, EditorClickChecker};
 use crate::input::cursor::{Cursor, PointerState};
 use crate::input::events;
-use crate::offset_types::RangeExt;
+use crate::offset_types::{DocCharOffset, RangeExt};
 use crate::style::{BlockNode, InlineNode, ItemType, MarkdownNode};
 use crate::test_input::TEST_MARKDOWN;
 use crate::{ast, bounds, galleys, images, register_fonts};
 
+#[cfg(any(target_os = "ios", target_os = "macos"))]
 #[repr(C)]
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct EditorResponse {
     pub text_updated: bool,
+    pub potential_title: *const c_char,
 
     pub show_edit_menu: bool,
     pub has_selection: bool,
@@ -37,6 +43,54 @@ pub struct EditorResponse {
     pub cursor_in_bold: bool,
     pub cursor_in_italic: bool,
     pub cursor_in_inline_code: bool,
+}
+
+// two structs are used instead of conditional compilation (`cfg`) for `potential_title` because the header
+// files generated for Swift will include both types of `potential_title`. this causes compilation issues in Swift.
+#[cfg(not(any(target_os = "ios", target_os = "macos")))]
+#[derive(Debug)]
+pub struct EditorResponse {
+    pub text_updated: bool,
+    pub potential_title: Option<String>,
+
+    pub show_edit_menu: bool,
+    pub has_selection: bool,
+    pub edit_menu_x: f32,
+    pub edit_menu_y: f32,
+
+    pub cursor_in_heading: bool,
+    pub cursor_in_bullet_list: bool,
+    pub cursor_in_number_list: bool,
+    pub cursor_in_todo_list: bool,
+    pub cursor_in_bold: bool,
+    pub cursor_in_italic: bool,
+    pub cursor_in_inline_code: bool,
+}
+
+impl Default for EditorResponse {
+    fn default() -> Self {
+        Self {
+            text_updated: false,
+
+            show_edit_menu: false,
+            has_selection: false,
+            edit_menu_x: 0.0,
+            edit_menu_y: 0.0,
+
+            cursor_in_heading: false,
+            cursor_in_bullet_list: false,
+            cursor_in_number_list: false,
+            cursor_in_todo_list: false,
+            cursor_in_bold: false,
+            cursor_in_italic: false,
+            cursor_in_inline_code: false,
+
+            #[cfg(any(target_os = "ios", target_os = "macos"))]
+            potential_title: ptr::null(),
+            #[cfg(not(any(target_os = "ios", target_os = "macos")))]
+            potential_title: None,
+        }
+    }
 }
 
 pub struct Editor {
@@ -296,8 +350,17 @@ impl Editor {
             ui.scroll_to_rect(rect, None);
         }
 
+        let potential_title = self.get_potential_text_title();
+
+        #[cfg(any(target_os = "ios", target_os = "macos"))]
+        let potential_title = CString::new(potential_title.unwrap_or_default())
+            .expect("Could not Rust String -> C String")
+            .into_raw() as *const c_char;
+
         let mut result = EditorResponse {
             text_updated,
+            potential_title,
+
             show_edit_menu: self.maybe_menu_location.is_some(),
             has_selection: self.buffer.current.cursor.selection().is_some(),
             edit_menu_x: self.maybe_menu_location.map(|p| p.x).unwrap_or_default(),
@@ -435,5 +498,29 @@ impl Editor {
         let mut fonts = FontDefinitions::default();
         register_fonts(&mut fonts);
         ctx.set_fonts(fonts);
+    }
+
+    pub fn get_potential_text_title(&self) -> Option<String> {
+        let mut maybe_chosen: Option<(DocCharOffset, DocCharOffset)> = None;
+
+        for paragraph in &self.paragraphs.paragraphs {
+            if !paragraph.is_empty() {
+                maybe_chosen = Some(*paragraph);
+                break;
+            }
+        }
+
+        maybe_chosen.map(|chosen: (DocCharOffset, DocCharOffset)| {
+            let ast_idx = self.ast.ast_node_at_char(chosen.start());
+            let ast = &self.ast.nodes[ast_idx];
+
+            let cursor: Cursor = (
+                ast.text_range.start(),
+                cmp::min(ast.text_range.end(), ast.text_range.start() + 30),
+            )
+                .into();
+
+            String::from(cursor.selection_text(&self.buffer.current))
+        })
     }
 }
