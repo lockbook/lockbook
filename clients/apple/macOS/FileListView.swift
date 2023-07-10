@@ -71,7 +71,7 @@ struct FileListView: View {
 }
 
 struct DetailView: View {
-    @EnvironmentObject var currentSelection: CurrentDocument
+    @EnvironmentObject var currentSelection: DocumentService
     @EnvironmentObject var search: SearchService
     @EnvironmentObject var share: ShareService
     
@@ -83,8 +83,8 @@ struct DetailView: View {
             VStack {
                 if currentSelection.isPendingSharesOpen {
                     PendingSharesView()
-                }else if let selected = currentSelection.selectedDocument {
-                    DocumentView(meta: selected)
+                } else if let id = currentSelection.openDocuments.keys.first {
+                    DocumentView(id: id)
                 }
             }
             
@@ -104,7 +104,7 @@ struct DetailView: View {
                 },
                 viewForItem: { searchResult, searchTerm in
                     let (name, path) = searchResult.getNameAndPath()
-                                        
+                    
                     return SearchResultCellView(name: name, path: path, matchedIndices: searchResult.matchedIndices)
                 }
             )
@@ -113,9 +113,6 @@ struct DetailView: View {
                     search.submitSearch(id: submittedId)
                 }
             }
-        }
-        .onChange(of: currentSelection.selectedDocument) { _ in
-            DI.files.refreshSuggestedDocs()
         }
         .toolbar {
             ToolbarItemGroup {
