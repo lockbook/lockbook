@@ -13,6 +13,7 @@ pub use confirm_delete::ConfirmDeleteModal;
 pub use create_share::{CreateShareModal, CreateShareParams};
 pub use error::ErrorModal;
 pub use file_picker::FilePicker;
+pub use file_picker::FilePickerAction;
 pub use help::HelpModal;
 pub use new_file::{NewDocModal, NewFileParams, NewFolderModal};
 pub use search::SearchModal;
@@ -45,7 +46,7 @@ impl super::AccountScreen {
             if let Some(submission) = response.inner {
                 if submission.is_accept {
                     self.update_tx
-                        .send(OpenModal::FilePicker(submission.target).into())
+                        .send(OpenModal::PickShareParent(submission.target).into())
                         .unwrap();
                     self.modals.accept_share = None;
                 } else {
@@ -108,7 +109,15 @@ impl super::AccountScreen {
 
         if let Some(response) = show(ctx, x_offset, &mut self.modals.file_picker) {
             if let Some(submission) = response.inner {
-                self.accept_share(submission.target, submission.parent);
+                match submission.action {
+                    FilePickerAction::AcceptShare(target) => {
+                        self.accept_share(ctx, target, submission.parent)
+                    }
+
+                    FilePickerAction::DroppedFile(target) => {
+                        self.dropped_file(ctx, target, submission.parent)
+                    }
+                }
             }
         }
     }
@@ -213,8 +222,6 @@ fn show_modal<M: Modal>(
 
     let win_resp = egui::Window::new(title)
         .anchor(M::ANCHOR, egui::vec2(x_offset, M::Y_OFFSET))
-        .title_bar(!title.is_empty())
-        .open(&mut is_open)
         .collapsible(false)
         .resizable(false)
         .default_width(400.0)
