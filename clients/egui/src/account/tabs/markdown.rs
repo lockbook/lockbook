@@ -2,6 +2,8 @@ use eframe::egui;
 
 use lbeditor::{Editor, EditorResponse};
 
+use crate::widgets::toolbar;
+
 pub struct Markdown {
     pub editor: Editor,
 }
@@ -20,6 +22,11 @@ impl Markdown {
     }
 
     pub fn show(&mut self, ui: &mut egui::Ui) -> EditorResponse {
-        ui.vertical(|ui| self.editor.scroll_ui(ui)).inner
+        ui.vertical(|ui| {
+            let res = self.editor.scroll_ui(ui);
+            toolbar(ui, &mut self.editor);
+            res
+        })
+        .inner
     }
 }

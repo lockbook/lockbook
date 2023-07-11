@@ -42,6 +42,7 @@ pub struct EditorResponse {
 
 pub struct Editor {
     pub id: u32,
+    pub eguiId: egui::Id,
     pub initialized: bool,
 
     // config
@@ -83,6 +84,7 @@ impl Default for Editor {
         let id: u32 = rand::thread_rng().gen();
         Self {
             id,
+            eguiId: egui::Id::null(),
             initialized: Default::default(),
 
             appearance: Default::default(),
@@ -144,9 +146,12 @@ impl Editor {
                 }
             }
         }
+        // println!("editor id from editor: {}", id.short_debug_format());
 
         // show ui
         let mut focus = false;
+        request_focus = true;
+        surrender_focus = false;
         let sao = egui::ScrollArea::vertical()
             .drag_to_scroll(touch_mode)
             .id_source(self.id)
@@ -190,6 +195,7 @@ impl Editor {
         self.scroll_area_rect = sao.inner_rect;
         self.scroll_area_offset = sao.state.offset;
 
+        self.eguiId = id;
         sao.inner.inner
     }
 
