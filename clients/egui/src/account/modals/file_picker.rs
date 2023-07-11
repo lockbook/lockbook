@@ -1,12 +1,10 @@
-use std::sync::Arc;
-
 use eframe::egui;
 use lb::File;
 
 use crate::{model::DocType, theme::Icon, widgets::Button};
 
 pub struct FilePicker {
-    core: Arc<lb::Core>,
+    core: lb::Core,
     panels: Vec<lb::File>,
     target: File,
 }
@@ -16,7 +14,7 @@ pub struct FilePickerParams {
 }
 
 impl FilePicker {
-    pub fn new(core: Arc<lb::Core>, target: File) -> Self {
+    pub fn new(core: lb::Core, target: File) -> Self {
         let root = core.get_root().unwrap();
 
         Self { core, panels: vec![root], target }

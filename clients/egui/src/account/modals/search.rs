@@ -18,7 +18,7 @@ pub struct SearchModal {
 }
 
 impl SearchModal {
-    pub fn new(core: &Arc<lb::Core>, etx: &egui::Context) -> Self {
+    pub fn new(core: &lb::Core, etx: &egui::Context) -> Self {
         let (request_tx, request_rx) = mpsc::channel::<String>();
         let (response_tx, response_rx) = mpsc::channel();
 

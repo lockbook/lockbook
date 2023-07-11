@@ -10,8 +10,6 @@ pub use plain_text::PlainText;
 
 use std::time::Instant;
 
-use crate::account::{SaveRequest, SaveRequestContent};
-
 pub struct Tab {
     pub id: lb::Uuid,
     pub name: String,
@@ -21,6 +19,16 @@ pub struct Tab {
 
     pub last_changed: Instant,
     pub last_saved: Instant,
+}
+
+pub struct SaveRequest {
+    pub id: lb::Uuid,
+    pub content: SaveRequestContent,
+}
+
+pub enum SaveRequestContent {
+    Text(String),
+    Draw(lb::Drawing),
 }
 
 impl Tab {

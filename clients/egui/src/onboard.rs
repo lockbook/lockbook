@@ -10,7 +10,7 @@ use crate::widgets::ButtonGroup;
 
 pub struct OnboardHandOff {
     pub settings: Arc<RwLock<Settings>>,
-    pub core: Arc<lb::Core>,
+    pub core: lb::Core,
     pub acct_data: AccountScreenInitData,
 }
 
@@ -29,7 +29,7 @@ enum State {
 
 pub struct OnboardScreen {
     settings: Arc<RwLock<Settings>>,
-    core: Arc<lb::Core>,
+    core: lb::Core,
 
     update_tx: mpsc::Sender<Update>,
     update_rx: mpsc::Receiver<Update>,
@@ -47,7 +47,7 @@ pub struct OnboardScreen {
 }
 
 impl OnboardScreen {
-    pub fn new(settings: Arc<RwLock<Settings>>, core: Arc<lb::Core>) -> Self {
+    pub fn new(settings: Arc<RwLock<Settings>>, core: lb::Core) -> Self {
         let (update_tx, update_rx) = mpsc::channel();
 
         Self {
@@ -286,7 +286,7 @@ impl OnboardScreen {
     }
 }
 
-fn load_account_data(core: &Arc<lb::Core>) -> Result<AccountScreenInitData, String> {
+fn load_account_data(core: &lb::Core) -> Result<AccountScreenInitData, String> {
     let files = match core.list_metadatas() {
         Ok(files) => files,
         Err(err) => return Err(format!("{:?}", err)), // TODO
