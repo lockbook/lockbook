@@ -3,11 +3,12 @@ use crate::billing::app_store_model::{
 };
 use crate::config::AppleConfig;
 use crate::{ClientError, ServerError};
+use async_trait::async_trait;
 use itertools::Itertools;
 use jsonwebtoken::{encode, Algorithm, EncodingKey, Header};
 use lockbook_shared::api::UpgradeAccountAppStoreError;
 use lockbook_shared::clock::get_time;
-use reqwest::RequestBuilder;
+use reqwest::{Client, RequestBuilder};
 use serde::{Deserialize, Serialize};
 use tracing::{debug, error};
 
@@ -56,85 +57,100 @@ pub fn gen_auth_req(
         .bearer_auth(token))
 }
 
-pub async fn get_sub_status(
-    client: &reqwest::Client, config: &AppleConfig, original_transaction_id: &str,
-) -> Result<(LastTransactionItem, TransactionInfo), ServerError<UpgradeAccountAppStoreError>> {
-    let resp = gen_auth_req(
-        config,
-        client.get(format!("{}/{}", SUB_STATUS_PROD, original_transaction_id)),
-    )?
-    .send()
-    .await?;
+#[async_trait]
+pub trait AppStoreClient: Sync + Send + Clone + 'static {
+    async fn get_sub_status(
+        &self, config: &AppleConfig, original_transaction_id: &str,
+    ) -> Result<(LastTransactionItem, TransactionInfo), ServerError<UpgradeAccountAppStoreError>>;
+}
 
-    let resp_status = resp.status().as_u16();
-    match resp_status {
-        200 => {
-            debug!("Successfully retrieved subscription status from production apple url");
+#[async_trait]
+impl AppStoreClient for Client {
+    async fn get_sub_status(
+        &self, config: &AppleConfig, original_transaction_id: &str,
+    ) -> Result<(LastTransactionItem, TransactionInfo), ServerError<UpgradeAccountAppStoreError>>
+    {
+        let resp = gen_auth_req(
+            config,
+            self.get(format!("{}/{}", SUB_STATUS_PROD, original_transaction_id)),
+        )?
+        .send()
+        .await?;
 
-            let sub_status: SubsStatusesResponse = resp.json().await?;
+        let resp_status = resp.status().as_u16();
+        match resp_status {
+            200 => {
+                debug!("Successfully retrieved subscription status from production apple url");
 
-            for sub_group in &sub_status.data {
-                if sub_group.sub_group == config.monthly_sub_group_id {
-                    return get_trans(&sub_status, sub_group);
+                let sub_status: SubsStatusesResponse = resp.json().await?;
+
+                for sub_group in &sub_status.data {
+                    if sub_group.sub_group == config.monthly_sub_group_id {
+                        return get_trans(&sub_status, sub_group);
+                    }
                 }
+
+                Err(internal!("No usable data returned from apple's production subscriptions statuses endpoint despite assumed match. resp_body: {:?}, monthly_sub_group: {}", sub_status, config.monthly_sub_group_id))
             }
+            400 | 404 => {
+                let error: ErrorBody = resp.json().await?;
 
-            Err(internal!("No usable data returned from apple's production subscriptions statuses endpoint despite assumed match. resp_body: {:?}, monthly_sub_group: {}", sub_status, config.monthly_sub_group_id))
-        }
-        400 | 404 => {
-            let error: ErrorBody = resp.json().await?;
-
-            if error.error_code == ORIGINAL_TRANS_ID_NOT_FOUND_ERR_CODE {
-                debug!(
+                if error.error_code == ORIGINAL_TRANS_ID_NOT_FOUND_ERR_CODE {
+                    debug!(
                     "Could not verify subscription from apple's production servers, trying sandbox"
                 );
 
-                let resp = gen_auth_req(
-                    config,
-                    client.get(format!("{}/{}", SUB_STATUS_SANDBOX, original_transaction_id)),
-                )?
-                .send()
-                .await?;
+                    let resp = gen_auth_req(
+                        config,
+                        self.get(format!("{}/{}", SUB_STATUS_SANDBOX, original_transaction_id)),
+                    )?
+                    .send()
+                    .await?;
 
-                let resp_status = resp.status().as_u16();
-                match resp_status {
-                    200 => {
-                        debug!("Successfully retrieved subscription status from sandbox apple url");
+                    let resp_status = resp.status().as_u16();
+                    match resp_status {
+                        200 => {
+                            debug!(
+                                "Successfully retrieved subscription status from sandbox apple url"
+                            );
 
-                        let sub_status: SubsStatusesResponse = resp.json().await?;
+                            let sub_status: SubsStatusesResponse = resp.json().await?;
 
-                        for sub_group in &sub_status.data {
-                            if sub_group.sub_group == config.monthly_sub_group_id {
-                                return get_trans(&sub_status, sub_group);
+                            for sub_group in &sub_status.data {
+                                if sub_group.sub_group == config.monthly_sub_group_id {
+                                    return get_trans(&sub_status, sub_group);
+                                }
                             }
+
+                            return Err(internal!("No usable data returned from apple's sandbox subscriptions statuses endpoint despite assumed match. resp_body: {:?}, monthly_sub_group: {}", sub_status, config.monthly_sub_group_id));
                         }
+                        400 | 404 => {
+                            error!(
+                                ?resp_status,
+                                ?error,
+                                ?original_transaction_id,
+                                "Failed to verify possible sandbox subscription"
+                            );
 
-                        return Err(internal!("No usable data returned from apple's sandbox subscriptions statuses endpoint despite assumed match. resp_body: {:?}, monthly_sub_group: {}", sub_status, config.monthly_sub_group_id));
+                            return Err(ClientError(
+                                UpgradeAccountAppStoreError::InvalidAuthDetails,
+                            ));
+                        }
+                        _ => return Err(internal!("Unexpected response: {:?}", resp_status)),
                     }
-                    400 | 404 => {
-                        error!(
-                            ?resp_status,
-                            ?error,
-                            ?original_transaction_id,
-                            "Failed to verify possible sandbox subscription"
-                        );
-
-                        return Err(ClientError(UpgradeAccountAppStoreError::InvalidAuthDetails));
-                    }
-                    _ => return Err(internal!("Unexpected response: {:?}", resp_status)),
                 }
+
+                error!(
+                    ?resp_status,
+                    ?error,
+                    ?original_transaction_id,
+                    "Failed to verify possible production subscription"
+                );
+
+                Err(ClientError(UpgradeAccountAppStoreError::InvalidAuthDetails))
             }
-
-            error!(
-                ?resp_status,
-                ?error,
-                ?original_transaction_id,
-                "Failed to verify possible production subscription"
-            );
-
-            Err(ClientError(UpgradeAccountAppStoreError::InvalidAuthDetails))
+            _ => Err(internal!("Unexpected response: {:?}", resp_status)),
         }
-        _ => Err(internal!("Unexpected response: {:?}", resp_status)),
     }
 }
 

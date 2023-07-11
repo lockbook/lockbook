@@ -28,7 +28,8 @@ pub const BROWN: ThemedColor =
     ThemedColor { light: Color32::from_rgb(162, 132, 94), dark: Color32::from_rgb(172, 142, 104) };
 
 // light theme semantics; `GRAY` is closest to `BLACK` and `GRAY_6` is closest to `WHITE`
-pub const BLACK: ThemedColor = ThemedColor { light: Color32::BLACK, dark: Color32::WHITE };
+pub const BLACK: ThemedColor =
+    ThemedColor { light: Color32::from_rgb(18, 18, 18), dark: Color32::from_rgb(240, 240, 240) };
 pub const GRAY: ThemedColor =
     ThemedColor { light: Color32::from_rgb(142, 142, 147), dark: Color32::from_rgb(142, 142, 147) };
 pub const GRAY_2: ThemedColor =
@@ -41,7 +42,8 @@ pub const GRAY_5: ThemedColor =
     ThemedColor { light: Color32::from_rgb(229, 229, 234), dark: Color32::from_rgb(44, 44, 46) };
 pub const GRAY_6: ThemedColor =
     ThemedColor { light: Color32::from_rgb(242, 242, 247), dark: Color32::from_rgb(28, 28, 30) };
-pub const WHITE: ThemedColor = ThemedColor { light: Color32::WHITE, dark: Color32::BLACK };
+pub const WHITE: ThemedColor =
+    ThemedColor { light: Color32::from_rgb(240, 240, 240), dark: Color32::from_rgb(18, 18, 18) };
 
 /// provides a mechanism for the application developer to override colors for dark mode and light
 /// mode and for us to provide defaults
@@ -61,6 +63,7 @@ pub struct Appearance {
     pub italics: Option<ThemedColor>,
     pub strikethrough: Option<ThemedColor>,
     pub link: Option<ThemedColor>,
+    pub syntax: Option<ThemedColor>,
 
     // sizes
     pub bullet_radius: Option<f32>,
@@ -138,6 +141,10 @@ impl Appearance {
 
     pub fn link(&self) -> Color32 {
         self.link.unwrap_or(BLUE).get(self.current_theme)
+    }
+
+    pub fn syntax(&self) -> Color32 {
+        self.syntax.unwrap_or(GRAY).get(self.current_theme)
     }
 
     pub fn bullet_radius(&self) -> f32 {

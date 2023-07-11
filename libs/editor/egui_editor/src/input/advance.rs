@@ -1,3 +1,4 @@
+use crate::bounds::Paragraphs;
 use crate::buffer::SubBuffer;
 use crate::galleys::{GalleyInfo, Galleys};
 use crate::input::canonical::{Bound, Increment, Offset};
@@ -5,35 +6,33 @@ use crate::offset_types::{DocCharOffset, RangeExt, RelByteOffset};
 use crate::unicode_segs::UnicodeSegs;
 use egui::epaint::text::cursor::Cursor as EguiCursor;
 use egui::{Pos2, Vec2};
-use std::iter;
+use std::{iter, mem};
 use unicode_segmentation::UnicodeSegmentation;
 
 impl DocCharOffset {
+    #[allow(clippy::too_many_arguments)]
     pub fn advance(
-        self, maybe_x_target: &mut Option<f32>, offset: Offset, backwards: bool,
-        buffer: &SubBuffer, galleys: &Galleys,
+        self, maybe_x_target: &mut Option<f32>, offset: Offset, backwards: bool, fix: bool,
+        buffer: &SubBuffer, galleys: &Galleys, paragraphs: &Paragraphs,
     ) -> Self {
+        let maybe_x_target_value = mem::take(maybe_x_target);
         match offset {
             Offset::To(Bound::Char) => self,
-            Offset::To(Bound::Word) => self
-                .advance_to_word_bound(backwards, buffer, galleys)
-                .fix(backwards, galleys),
+            Offset::To(Bound::Word) => self.advance_to_word_bound(backwards, buffer, galleys),
             Offset::To(Bound::Line) => self.advance_to_line_bound(backwards, galleys),
-            Offset::To(Bound::Paragraph) => self.advance_to_paragraph_bound(backwards, galleys),
+            Offset::To(Bound::Paragraph) => self.advance_to_paragraph_bound(backwards, paragraphs),
             Offset::To(Bound::Doc) => self.advance_to_doc_bound(backwards, &buffer.segs),
-            Offset::By(Increment::Char) => self
-                .advance_by_char(backwards, &buffer.segs)
-                .fix(backwards, galleys),
+            Offset::By(Increment::Char) => self.advance_by_char(backwards, &buffer.segs),
             Offset::By(Increment::Line) => {
-                let x_target = maybe_x_target.unwrap_or(self.x(galleys));
+                let x_target = maybe_x_target_value.unwrap_or(self.x(galleys));
                 let result = self.advance_by_line(x_target, backwards, galleys);
                 if self != 0 && self != buffer.segs.last_cursor_position() {
                     *maybe_x_target = Some(x_target);
                 }
                 result
             }
-            .fix(backwards, galleys),
         }
+        .fix(backwards, fix, galleys)
     }
 
     fn advance_by_char(mut self, backwards: bool, segs: &UnicodeSegs) -> Self {
@@ -175,7 +174,7 @@ impl DocCharOffset {
         self
     }
 
-    fn advance_to_line_bound(self, backwards: bool, galleys: &Galleys) -> Self {
+    pub fn advance_to_line_bound(self, backwards: bool, galleys: &Galleys) -> Self {
         let (galley_idx, ecursor) = galleys.galley_and_cursor_by_char_offset(self);
         let galley = &galleys[galley_idx];
         let ecursor = if backwards {
@@ -186,25 +185,30 @@ impl DocCharOffset {
         galleys.char_offset_by_galley_and_cursor(galley_idx, &ecursor)
     }
 
-    fn advance_to_paragraph_bound(self, backwards: bool, galleys: &Galleys) -> Self {
-        // todo: is this the right definition of a paragraph?
-        let galley_idx = galleys.galley_at_char(self);
-        let galley_text_range = &galleys[galley_idx].text_range();
-        if backwards {
-            if self == galley_text_range.start() && galley_idx != 0 {
-                // backwards from start of galley -> end of previous galley
-                let galley_text_range = &galleys[galley_idx - 1].text_range();
-                galley_text_range.end()
-            } else {
-                galley_text_range.start()
+    fn advance_to_paragraph_bound(self, backwards: bool, paragraphs: &Paragraphs) -> Self {
+        // in a paragraph -> go to start or end
+        for &paragraph in &paragraphs.paragraphs {
+            if paragraph.contains(self) {
+                return if backwards { paragraph.start() } else { paragraph.end() };
             }
-        } else if self == galley_text_range.end() && galley_idx != galleys.len() - 1 {
-            // forwards from end of galley -> start of next galley
-            let galley_text_range = &galleys[galley_idx + 1].text_range();
-            galley_text_range.start()
-        } else {
-            galley_text_range.end()
         }
+
+        // not in a paragraph -> go to end or start of previous or next paragraph
+        if backwards {
+            for &paragraph in paragraphs.paragraphs.iter().rev() {
+                if paragraph.end() < self {
+                    return paragraph.end();
+                }
+            }
+        } else {
+            for &paragraph in &paragraphs.paragraphs {
+                if paragraph.start() > self {
+                    return paragraph.start();
+                }
+            }
+        }
+
+        self
     }
 
     fn advance_to_doc_bound(self, backwards: bool, segs: &UnicodeSegs) -> Self {
@@ -215,26 +219,40 @@ impl DocCharOffset {
         }
     }
 
-    fn fix(self, prefer_backwards: bool, galleys: &Galleys) -> Self {
+    fn fix(self, prefer_backwards: bool, fix: bool, galleys: &Galleys) -> Self {
         let galley_idx = galleys.galley_at_char(self);
         let galley = &galleys[galley_idx];
         let galley_text_range = galley.text_range();
 
         if self < galley_text_range.start() {
-            if !prefer_backwards || galley_idx == 0 {
+            if prefer_backwards {
+                if !fix && galley_idx == 0 {
+                    // move cursor to beginning of annotation text (invalid at end of frame)
+                    galley.range.start()
+                } else if galley_idx == 0 {
+                    self
+                } else {
+                    // move cursor backwards into text of preceding galley
+                    galleys[galley_idx - 1].text_range().end()
+                }
+            } else {
                 // move cursor forwards into galley text
                 galley_text_range.start()
-            } else {
-                // move cursor backwards into text of preceding galley
-                galleys[galley_idx - 1].text_range().end()
             }
         } else if self > galley_text_range.end() {
-            if prefer_backwards || galley_idx == galleys.len() - 1 {
+            if !prefer_backwards {
+                if !fix && galley_idx == galleys.len() - 1 {
+                    // move cursor to end of annotation text (invalid at end of frame)
+                    galley.range.end()
+                } else if galley_idx == galleys.len() - 1 {
+                    self
+                } else {
+                    // move cursor forwards into text of next galley
+                    galleys[galley_idx + 1].text_range().start()
+                }
+            } else {
                 // move cursor backwards into galley text
                 galley_text_range.end()
-            } else {
-                // move cursor forwards into text of next galley
-                galleys[galley_idx + 1].text_range().start()
             }
         } else {
             self

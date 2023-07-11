@@ -8,8 +8,8 @@ use uuid::Uuid;
 
 use crate::access_info::{UserAccessInfo, UserAccessMode};
 use crate::account::Account;
-use crate::core_config::Config;
 use crate::crypto::{AESKey, DecryptedDocument, EncryptedDocument};
+use crate::document_repo::DocumentService;
 use crate::file::{File, Share, ShareMode};
 use crate::file_like::FileLike;
 use crate::file_metadata::{FileMetadata, FileType, Owner};
@@ -18,7 +18,7 @@ use crate::secret_filename::{HmacSha256, SecretFileName};
 use crate::signed_file::SignedFile;
 use crate::staged::{StagedTree, StagedTreeLike};
 use crate::tree_like::{TreeLike, TreeLikeMut};
-use crate::{compression_service, document_repo, symkey, validate, SharedErrorKind, SharedResult};
+use crate::{compression_service, symkey, validate, SharedErrorKind, SharedResult};
 
 pub type TreeWithOp<Staged> = LazyTree<StagedTree<Staged, Option<SignedFile>>>;
 pub type TreeWithOps<Staged> = LazyTree<StagedTree<Staged, Vec<SignedFile>>>;
@@ -55,7 +55,7 @@ where
                     account.username.clone()
                 } else {
                     public_key_cache
-                        .data()
+                        .get()
                         .get(&Owner(user_access_key.encrypted_by))
                         .cloned()
                         .unwrap_or_else(|| String::from("<unknown>"))
@@ -64,7 +64,7 @@ where
                     account.username.clone()
                 } else {
                     public_key_cache
-                        .data()
+                        .get()
                         .get(&Owner(user_access_key.encrypted_for))
                         .cloned()
                         .unwrap_or_else(|| String::from("<unknown>"))
@@ -260,7 +260,7 @@ where
     }
 
     pub fn read_document(
-        &mut self, config: &Config, id: &Uuid, account: &Account,
+        &mut self, d: &impl DocumentService, id: &Uuid, account: &Account,
     ) -> SharedResult<DecryptedDocument> {
         if self.calculate_deleted(id)? {
             return Err(SharedErrorKind::FileNonexistent.into());
@@ -273,11 +273,10 @@ where
             return Ok(vec![]);
         }
 
-        let maybe_encrypted_document =
-            match document_repo::maybe_get(config, meta.id(), meta.document_hmac())? {
-                Some(local) => Some(local),
-                None => document_repo::maybe_get(config, meta.id(), meta.document_hmac())?,
-            };
+        let maybe_encrypted_document = match d.maybe_get(meta.id(), meta.document_hmac())? {
+            Some(local) => Some(local),
+            None => d.maybe_get(meta.id(), meta.document_hmac())?,
+        };
         let doc = match maybe_encrypted_document {
             Some(doc) => self.decrypt_document(id, &doc, account)?,
             None => return Err(SharedErrorKind::FileNonexistent.into()),
@@ -433,13 +432,15 @@ where
         Ok(document)
     }
 
-    pub fn delete_unreferenced_file_versions(&self, config: &Config) -> SharedResult<()> {
+    pub fn delete_unreferenced_file_versions(
+        &self, docs: &impl DocumentService,
+    ) -> SharedResult<()> {
         let base_files = self.tree.base().all_files()?.into_iter();
         let local_files = self.tree.all_files()?.into_iter();
         let file_hmacs = base_files
             .chain(local_files)
             .filter_map(|f| f.document_hmac().map(|hmac| (f.id(), hmac)))
             .collect::<HashSet<_>>();
-        document_repo::retain(config, file_hmacs)
+        docs.retain(file_hmacs)
     }
 }

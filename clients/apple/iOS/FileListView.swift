@@ -3,14 +3,13 @@ import SwiftLockbookCore
 import Foundation
 
 struct FileListView: View {
-    @EnvironmentObject var current: CurrentDocument
     @EnvironmentObject var sheets: SheetState
     @EnvironmentObject var fileService: FileService
     @EnvironmentObject var search: SearchService
     @EnvironmentObject var sync: SyncService
     
     @Environment(\.colorScheme) var colorScheme
-    
+
     @State var searchInput: String = ""
     @State var navigateToManageSub: Bool = false
     @State private var mainViewOffset = CGSize.zero
@@ -20,38 +19,26 @@ struct FileListView: View {
     
     var body: some View {
         VStack {
-            if let newDoc = sheets.created, newDoc.fileType == .Document {
-                NavigationLink(destination: DocumentView(meta: newDoc), isActive: Binding(get: { current.selectedDocument != nil }, set: { _ in current.selectedDocument = nil }) ) {
-                        EmptyView()
-                    }
-                    .hidden()
+            if let newDoc = DI.currentDoc.justCreatedDoc, newDoc.fileType == .Document {
+                NavigationLink(destination: iOSDocumentViewWrapper(id: newDoc.id), isActive: Binding(get: { DI.currentDoc.openDocuments[newDoc.id] != nil }, set: { _ in DI.currentDoc.openDocuments[newDoc.id] = nil }) ) {
+                    EmptyView()
                 }
-                    
-                SearchWrapperView(
-                    searchInput: $searchInput,
-                    mainView: mainView,
-                    isiOS: true)
-                .searchable(text: $searchInput, prompt: "Search")
-                    
-                FilePathBreadcrumb() { file in
-                    animateToParentFolder() {
-                        fileService.pathBreadcrumbClicked(file)
-                    }
+                .hidden()
+            }
+
+            SearchWrapperView(
+                searchInput: $searchInput,
+                mainView: mainView,
+                isiOS: true)
+            .searchable(text: $searchInput, prompt: "Search")
+
+            FilePathBreadcrumb() { file in
+                animateToParentFolder() {
+                    fileService.pathBreadcrumbClicked(file)
                 }
-                
-                BottomBar(onCreating: {
-                    if let parent = fileService.parent {
-                        sheets.creatingInfo = CreatingInfo(parent: parent, child_type: .Document)
-                    }
-                })
-                .onReceive(current.$selectedDocument) { _ in
-                    print("cleared")
-                    // When we return back to this screen, we have to change newFile back to nil regardless
-                    // of it's present value, otherwise we won't be able to navigate to new, new files
-                    if current.selectedDocument == nil {
-                        sheets.created = nil
-                    }
-                }
+            }
+
+            BottomBar(isiOS: true)
         }
         .alert(isPresented: Binding(get: { sync.outOfSpace && !hideOutOfSpaceAlert }, set: {_ in sync.outOfSpace = false })) {
             Alert(
@@ -118,22 +105,22 @@ struct FileListView: View {
             }
         }))
     }
-    
+
     var files: some View {
         let children = fileService.childrenOfParent()
-        
+
         return ForEach(children) { meta in
                 FileCell(meta: meta) {
                     withAnimation(.linear(duration: 0.2)) {
                         mainViewOffset.width = -200
                     }
-                    
+
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
                         mainViewOpacity = 0
                         mainViewOffset.width = 200
-                        
+
                         fileService.intoChildDirectory(meta)
-                        
+
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                             withAnimation(.linear(duration: 0.1)) {
                                 mainViewOffset.width = 0
@@ -145,25 +132,25 @@ struct FileListView: View {
                 .padding(.horizontal)
                 .padding(.vertical, 5)
                 .background(colorScheme == .light ? .white : Color(uiColor: .secondarySystemBackground))
-            
+
         }
         .listRowBackground(Color.clear)
         .listRowInsets(EdgeInsets())
         .listRowSeparator(.hidden)
     }
-    
+
     func animateToParentFolder(realParentUpdate: @escaping () -> Void) {
         withAnimation(.linear(duration: 0.2)) {
             mainViewOffset.width = 200
             mainViewOpacity = 0
         }
-        
+
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
             mainViewOffset.width = -200
             mainViewOpacity = 1
-                                    
+
             realParentUpdate()
-            
+
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                 withAnimation(.linear(duration: 0.1)) {
                     mainViewOffset.width = 0
@@ -171,7 +158,7 @@ struct FileListView: View {
             }
         }
     }
-    
+
 }
 
 struct DragGestureViewModifier: ViewModifier {

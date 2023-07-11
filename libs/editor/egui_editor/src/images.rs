@@ -1,5 +1,5 @@
-use crate::element::Url;
-use crate::layouts::{Annotation, Layouts};
+use crate::ast::Ast;
+use crate::style::{InlineNode, MarkdownNode, Url};
 use egui::{ColorImage, TextureId, Ui};
 use std::collections::HashMap;
 
@@ -9,14 +9,15 @@ pub struct ImageCache {
 }
 
 pub fn calc(
-    layouts: &Layouts, prior_cache: &ImageCache, client: &reqwest::blocking::Client, ui: &Ui,
+    ast: &Ast, prior_cache: &ImageCache, client: &reqwest::blocking::Client, ui: &Ui,
 ) -> ImageCache {
     let mut result = ImageCache::default();
 
     let mut prior_cache = prior_cache.clone();
     let texture_manager = ui.ctx().tex_manager();
-    for layout in &layouts.layouts {
-        if let Some(Annotation::Image(_, url, title)) = layout.annotation.clone() {
+    for node in &ast.nodes {
+        if let MarkdownNode::Inline(InlineNode::Image(_, url, title)) = &node.node_type {
+            let (url, title) = (url.clone(), title.clone());
             if let Some(cached) = prior_cache.map.remove(&url) {
                 // re-use image from previous cache
                 result.map.insert(url, cached);

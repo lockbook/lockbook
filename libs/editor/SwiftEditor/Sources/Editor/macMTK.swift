@@ -7,8 +7,10 @@ public class MacMTK: MTKView, MTKViewDelegate {
     var editorHandle: UnsafeMutableRawPointer?
     var trackingArea : NSTrackingArea?
     var pasteBoardEventId: Int = 0
-    
+        
     var editorState: EditorState?
+    var toolbarState: ToolbarState?
+    var nameState: NameState?
     
     override init(frame frameRect: CGRect, device: MTLDevice?) {
         super.init(frame: frameRect, device: device)
@@ -74,6 +76,16 @@ public class MacMTK: MTKView, MTKViewDelegate {
     public func setInitialContent(_ s: String) {
         let metalLayer = UnsafeMutableRawPointer(Unmanaged.passUnretained(self.layer!).toOpaque())
         self.editorHandle = init_editor(metalLayer, s, isDarkMode())
+        
+        self.toolbarState!.toggleBold = bold
+        self.toolbarState!.toggleItalic = italic
+        self.toolbarState!.toggleTodoList = todoList
+        self.toolbarState!.toggleBulletList = bulletedList
+        self.toolbarState!.toggleInlineCode = inlineCode
+        self.toolbarState!.toggleNumberList = numberedList
+        self.toolbarState!.toggleHeading = header
+        
+        becomeFirstResponder()
     }
     
     public override func mouseDragged(with event: NSEvent) {
@@ -180,13 +192,21 @@ public class MacMTK: MTKView, MTKViewDelegate {
         set_scale(editorHandle, scale)
         let output = draw_editor(editorHandle)
 
-        editorState?.isHeadingSelected = output.editor_response.cursor_in_heading;
-        editorState?.isTodoListSelected = output.editor_response.cursor_in_todo_list;
-        editorState?.isBulletListSelected = output.editor_response.cursor_in_bullet_list;
-        editorState?.isNumberListSelected = output.editor_response.cursor_in_number_list;
-        editorState?.isInlineCodeSelected = output.editor_response.cursor_in_inline_code;
-        editorState?.isBoldSelected = output.editor_response.cursor_in_bold;
-        editorState?.isItalicSelected = output.editor_response.cursor_in_italic;
+        toolbarState?.isHeadingSelected = output.editor_response.cursor_in_heading;
+        toolbarState?.isTodoListSelected = output.editor_response.cursor_in_todo_list;
+        toolbarState?.isBulletListSelected = output.editor_response.cursor_in_bullet_list;
+        toolbarState?.isNumberListSelected = output.editor_response.cursor_in_number_list;
+        toolbarState?.isInlineCodeSelected = output.editor_response.cursor_in_inline_code;
+        toolbarState?.isBoldSelected = output.editor_response.cursor_in_bold;
+        toolbarState?.isItalicSelected = output.editor_response.cursor_in_italic;
+        
+        
+        if let potentialTitle = output.editor_response.potential_title {
+            nameState?.potentialTitle = String(cString: potentialTitle)
+            free_text(UnsafeMutablePointer(mutating: potentialTitle))
+        } else {
+            nameState?.potentialTitle = nil
+        }
 
         view.isPaused = !output.redraw
         if has_copied_text(editorHandle) {

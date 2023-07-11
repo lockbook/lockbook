@@ -1,6 +1,7 @@
 use crate::input::click_checker::ClickChecker;
 use crate::input::cursor::{ClickType, PointerState};
 use crate::offset_types::{DocCharOffset, RelCharOffset};
+use crate::style::{InlineNode, MarkdownNode};
 use crate::{CTextPosition, CTextRange};
 use egui::{Event, Key, Modifiers, PointerButton, Pos2};
 use std::time::Instant;
@@ -76,6 +77,7 @@ pub enum Modification {
     StageMarked { highlighted: (RelCharOffset, RelCharOffset), text: String },
     CommitMarked,
     Replace { region: Region, text: String },
+    ToggleStyle { region: Region, style: MarkdownNode },
     Newline { advance_cursor: bool }, // distinct from replace because it triggers auto-bullet, etc
     Indent { deindent: bool },
     Undo,
@@ -86,9 +88,6 @@ pub enum Modification {
     ToggleCheckbox(usize),
     OpenUrl(String),
     Heading(u32),
-    Bold,
-    Italic,
-    Code,
     BulletListItem,
     NumberListItem,
     TodoListItem,
@@ -165,7 +164,7 @@ pub fn calc(
         Event::Key { key: Key::Enter, pressed: true, modifiers, .. } => {
             Some(Modification::Newline { advance_cursor: !modifiers.shift })
         }
-        Event::Key { key: Key::Tab, pressed: true, modifiers, .. } => {
+        Event::Key { key: Key::Tab, pressed: true, modifiers, .. } if !modifiers.alt => {
             Some(Modification::Indent { deindent: modifiers.shift })
         }
         Event::Key { key: Key::A, pressed: true, modifiers, .. } if modifiers.command => {
@@ -173,10 +172,14 @@ pub fn calc(
                 region: Region::Bound { bound: Bound::Doc, backwards: true },
             })
         }
-        Event::Key { key: Key::X, pressed: true, modifiers, .. } if modifiers.command => {
+        Event::Key { key: Key::X, pressed: true, modifiers, .. }
+            if modifiers.command && !modifiers.shift =>
+        {
             Some(Modification::Cut)
         }
-        Event::Key { key: Key::C, pressed: true, modifiers, .. } if modifiers.command => {
+        Event::Key { key: Key::C, pressed: true, modifiers, .. }
+            if modifiers.command && !modifiers.shift =>
+        {
             Some(Modification::Copy)
         }
         Event::Key { key: Key::Z, pressed: true, modifiers, .. } if modifiers.command => {
@@ -185,6 +188,34 @@ pub fn calc(
             } else {
                 Some(Modification::Redo)
             }
+        }
+        Event::Key { key: Key::B, pressed: true, modifiers, .. } if modifiers.command => {
+            Some(Modification::ToggleStyle {
+                region: Region::Selection,
+                style: MarkdownNode::Inline(InlineNode::Bold),
+            })
+        }
+        Event::Key { key: Key::I, pressed: true, modifiers, .. } if modifiers.command => {
+            Some(Modification::ToggleStyle {
+                region: Region::Selection,
+                style: MarkdownNode::Inline(InlineNode::Italic),
+            })
+        }
+        Event::Key { key: Key::C, pressed: true, modifiers, .. }
+            if modifiers.command && modifiers.shift =>
+        {
+            Some(Modification::ToggleStyle {
+                region: Region::Selection,
+                style: MarkdownNode::Inline(InlineNode::Code),
+            })
+        }
+        Event::Key { key: Key::X, pressed: true, modifiers, .. }
+            if modifiers.command && modifiers.shift =>
+        {
+            Some(Modification::ToggleStyle {
+                region: Region::Selection,
+                style: MarkdownNode::Inline(InlineNode::Strikethrough),
+            })
         }
         Event::PointerButton { pos, button: PointerButton::Primary, pressed: true, modifiers }
             if click_checker.ui(*pos) =>
@@ -232,37 +263,41 @@ pub fn calc(
             pointer_state.release();
             let location = Location::Pos(*pos);
 
-            Some(Modification::Select {
-                region: if click_mods.shift {
-                    Region::ToLocation(location)
-                } else {
-                    match click_type {
-                        ClickType::Single => {
-                            if touch_mode {
-                                if !click_dragged {
-                                    Region::Location(location)
+            if click_checker.checkbox(*pos).is_none() && click_checker.link(*pos).is_none() {
+                Some(Modification::Select {
+                    region: if click_mods.shift {
+                        Region::ToLocation(location)
+                    } else {
+                        match click_type {
+                            ClickType::Single => {
+                                if touch_mode {
+                                    if !click_dragged {
+                                        Region::Location(location)
+                                    } else {
+                                        return None;
+                                    }
                                 } else {
-                                    return None;
-                                }
-                            } else {
-                                Region::BetweenLocations {
-                                    start: Location::Pos(click_pos),
-                                    end: location,
+                                    Region::BetweenLocations {
+                                        start: Location::Pos(click_pos),
+                                        end: location,
+                                    }
                                 }
                             }
+                            ClickType::Double => {
+                                Region::BoundAt { bound: Bound::Word, location, backwards: true }
+                            }
+                            ClickType::Triple => {
+                                Region::BoundAt { bound: Bound::Line, location, backwards: true }
+                            }
+                            ClickType::Quadruple => {
+                                Region::BoundAt { bound: Bound::Doc, location, backwards: true }
+                            }
                         }
-                        ClickType::Double => {
-                            Region::BoundAt { bound: Bound::Word, location, backwards: true }
-                        }
-                        ClickType::Triple => {
-                            Region::BoundAt { bound: Bound::Line, location, backwards: true }
-                        }
-                        ClickType::Quadruple => {
-                            Region::BoundAt { bound: Bound::Doc, location, backwards: true }
-                        }
-                    }
-                },
-            })
+                    },
+                })
+            } else {
+                None
+            }
         }
         Event::Key { key: Key::F2, pressed: true, .. } => Some(Modification::ToggleDebug),
         _ => None,
@@ -304,6 +339,7 @@ mod test {
     #[derive(Default)]
     struct TestClickChecker {
         ui: bool,
+        text: Option<usize>,
         checkbox: Option<usize>,
         link: Option<String>,
     }
@@ -311,6 +347,10 @@ mod test {
     impl ClickChecker for TestClickChecker {
         fn ui(&self, _pos: Pos2) -> bool {
             self.ui
+        }
+
+        fn text(&self, _pos: Pos2) -> Option<usize> {
+            self.text
         }
 
         fn checkbox(&self, _pos: Pos2) -> Option<usize> {

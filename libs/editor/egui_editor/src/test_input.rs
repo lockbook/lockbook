@@ -1,4 +1,59 @@
-pub static TEST_MARKDOWN: &str = TEST_MARKDOWN_34;
+pub static TEST_MARKDOWN: &str = TEST_MARKDOWN_50;
+
+pub static TEST_MARKDOWN_ALL: [&str; 52] = [
+    TEST_MARKDOWN_0,
+    TEST_MARKDOWN_1,
+    TEST_MARKDOWN_2,
+    TEST_MARKDOWN_3,
+    TEST_MARKDOWN_4,
+    TEST_MARKDOWN_5,
+    TEST_MARKDOWN_6,
+    TEST_MARKDOWN_7,
+    TEST_MARKDOWN_8,
+    TEST_MARKDOWN_9,
+    TEST_MARKDOWN_10,
+    TEST_MARKDOWN_11,
+    TEST_MARKDOWN_12,
+    TEST_MARKDOWN_13,
+    TEST_MARKDOWN_14,
+    TEST_MARKDOWN_15,
+    TEST_MARKDOWN_16,
+    TEST_MARKDOWN_17,
+    TEST_MARKDOWN_18,
+    TEST_MARKDOWN_19,
+    TEST_MARKDOWN_20,
+    TEST_MARKDOWN_21,
+    TEST_MARKDOWN_22,
+    TEST_MARKDOWN_23,
+    TEST_MARKDOWN_24,
+    TEST_MARKDOWN_25,
+    TEST_MARKDOWN_26,
+    TEST_MARKDOWN_27,
+    TEST_MARKDOWN_28,
+    TEST_MARKDOWN_29,
+    TEST_MARKDOWN_30,
+    TEST_MARKDOWN_31,
+    TEST_MARKDOWN_32,
+    TEST_MARKDOWN_33,
+    TEST_MARKDOWN_34,
+    TEST_MARKDOWN_35,
+    TEST_MARKDOWN_36,
+    TEST_MARKDOWN_37,
+    TEST_MARKDOWN_38,
+    TEST_MARKDOWN_39,
+    TEST_MARKDOWN_40,
+    TEST_MARKDOWN_41,
+    TEST_MARKDOWN_42,
+    TEST_MARKDOWN_43,
+    TEST_MARKDOWN_44,
+    TEST_MARKDOWN_45,
+    TEST_MARKDOWN_46,
+    TEST_MARKDOWN_47,
+    TEST_MARKDOWN_48,
+    TEST_MARKDOWN_49,
+    TEST_MARKDOWN_50,
+    "1. *",
+];
 
 pub static TEST_MARKDOWN_0: &str = "# test";
 pub static TEST_MARKDOWN_1: &str = "a";
@@ -194,3 +249,30 @@ pub static TEST_MARKDOWN_46: &str = "- ”";
 pub static TEST_MARKDOWN_47: &str = "” x x";
 
 pub static TEST_MARKDOWN_48: &str = "Visit our [website](http://lockbook.net)!";
+
+pub static TEST_MARKDOWN_49: &str = r#"# Title
+list
+* __bold__ bulleted list item
+  - [x] indented todo list item
+
+```
+code block
+```
+
+    code block
+
+fin"#;
+pub static TEST_MARKDOWN_50: &str = r#"# Editor Demo
+Featuring:
+1. a __bold__ list item,
+    * an _italic_ list item,
+    - [ ] a `code` list item,
+    
+```
+a code block
+```
+
+> a quote,
+
+and a link to our [website](http://lockbook.net)!
+"#;

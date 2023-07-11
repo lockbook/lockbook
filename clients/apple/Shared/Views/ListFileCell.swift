@@ -5,32 +5,24 @@ import Introspect
 struct FileCell: View {
     let meta: File
 
-    @EnvironmentObject var current: CurrentDocument
-    @EnvironmentObject var sheets: SheetState
-    @EnvironmentObject var fileService: FileService
-    @EnvironmentObject var account: AccountService
-    
     let enterFolderAnim: () -> Void
 
     var body: some View {
         cell
             .contextMenu(menuItems: {
                 // TODO: disast: https://stackoverflow.com/questions/70159437/context-menu-not-updating-in-swiftui
-                Button(action: handleDelete) {
+                Button(action: {
+                    DI.files.deleteFile(id: meta.id)
+                }) {
                     Label("Delete", systemImage: "trash.fill")
                 }
                 Button(action: {
-                    sheets.movingInfo = meta
+                    DI.sheets.movingInfo = meta
                 }, label: {
                     Label("Move", systemImage: "arrow.up.and.down.and.arrow.left.and.right")
                 })
                 Button(action: {
-                    sheets.renamingInfo = meta
-                }, label: {
-                    Label("Rename", systemImage: "questionmark.folder")
-                })
-                Button(action: {
-                    sheets.sharingFileInfo = meta
+                    DI.sheets.sharingFileInfo = meta
                 }, label: {
                     Label("Share", systemImage: "shareplay")
                 })
@@ -46,14 +38,10 @@ struct FileCell: View {
                 RealFileCell(meta: meta)
             }
         } else {
-            NavigationLink(destination: DocumentView(meta: meta)) {
+            NavigationLink(destination: iOSDocumentViewWrapper(id: meta.id)) {
                 RealFileCell(meta: meta)
             }
         }
-    }
-
-    func handleDelete() {
-        fileService.deleteFile(id: meta.id)
     }
 }
 
