@@ -80,13 +80,7 @@ struct DetailView: View {
     
     var body: some View {
         ZStack {
-            VStack {
-                if currentSelection.isPendingSharesOpen {
-                    PendingSharesView()
-                } else if let id = currentSelection.openDocuments.keys.first {
-                    DocumentView(id: id)
-                }
-            }
+            DocumentTabView()
             
             QuickActionBar<SearchResultItem, SearchResultCellView>(
                 location: .window,

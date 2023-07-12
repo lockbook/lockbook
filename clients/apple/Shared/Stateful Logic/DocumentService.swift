@@ -8,15 +8,26 @@ import SwiftEditor
 class DocumentService: ObservableObject {
     
     @Published var openDocuments: [UUID : DocumentLoadingInfo] = [:]
+    var openDocumentsKeyArr: [UUID] {
+        get {
+            Array(openDocuments.keys)
+        }
+    }
     
     @Published var isPendingSharesOpen: Bool = false
     @Published var selectedFolder: File?
+    
+    @Published var selectedDoc: UUID?
     
     var justCreatedDoc: File? = nil
     
     func openDoc(id: UUID) {
         if openDocuments[id] == nil {
             openDocuments[id] = DocumentLoadingInfo(DI.files.idsAndFiles[id]!)
+            
+            if selectedDoc != id {
+                selectedDoc = id
+            }
         }
       }
     
@@ -29,7 +40,50 @@ class DocumentService: ObservableObject {
     func cleanupOldDocs() {
         isPendingSharesOpen = false
         justCreatedDoc = nil
-        openDocuments.removeAll()
+//        openDocuments.removeAll()
+    }
+    
+    func closeSelectedDoc() {
+        if let id = selectedDoc {
+            openDocuments[id] = nil
+            selectedDoc = openDocuments.keys.first
+        }
+    }
+    
+    // index must be greater than or equal to 0 and less than
+    func selectOpenDoc(index: Int) {
+        if index >= 0 && index < 9 {
+                        
+            if index == 8 {
+                selectedDoc = openDocumentsKeyArr.last
+            }
+            
+            if index < openDocumentsKeyArr.count {
+                selectedDoc = openDocumentsKeyArr[index]
+            }
+        }
+    }
+    
+    func selectNextOpenDoc() {
+        var selectedIndex = -1
+        
+        for (index, id) in openDocumentsKeyArr.enumerated() {
+            if selectedDoc == id {
+                selectedIndex = index
+                
+                break
+            }
+        }
+        
+        if selectedIndex == -1 {
+            return
+        }
+        
+        if selectedIndex + 1 >= openDocumentsKeyArr.count {
+            selectedDoc = openDocumentsKeyArr.first
+        } else {
+            selectedDoc = openDocumentsKeyArr[selectedIndex + 1]
+        }
     }
 }
 

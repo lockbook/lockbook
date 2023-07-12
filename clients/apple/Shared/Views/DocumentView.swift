@@ -15,8 +15,11 @@ struct iOSDocumentViewWrapper: View {
     }
 }
 
-struct DocumentView: View {
-    
+struct DocumentView: View, Equatable {
+    static func == (lhs: DocumentView, rhs: DocumentView) -> Bool {
+        lhs.id == rhs.id
+    }
+
     let id: UUID
     
     @ObservedObject var model: DocumentLoadingInfo
@@ -33,15 +36,33 @@ struct DocumentView: View {
     var body: some View {        
         Group {
             if model.loading {
-                ProgressView()
-                    .onAppear {
-                        model.startLoading()
-                    }
-                    .title(model.meta.name) // No exact matches in reference to static method 'buildExpression'
+                VStack {
+                    Spacer()
+                    
+                    ProgressView()
+                        .onAppear {
+                            model.startLoading()
+                        }
+                        .title(model.meta.name) // No exact matches in reference to static method 'buildExpression'
+                    
+                    Spacer()
+                }
             } else if model.error != "" {
-                Text("errors while loading: \(model.error)")
+                VStack {
+                    Spacer()
+                    
+                    Text("errors while loading: \(model.error)")
+                    
+                    Spacer()
+                }
             } else if model.deleted {
-                Text("\(model.meta.name) was deleted.")
+                VStack {
+                    Spacer()
+                    
+                    Text("\(model.meta.name) was deleted.")
+                    
+                    Spacer()
+                }
             } else {
                 switch model.type {
                 case .Image:
@@ -427,6 +448,7 @@ struct DocumentTitle: View {
 
 struct MarkdownEditor: View {
     @ObservedObject var editorState: EditorState
+    
     let editor: EditorView
     
     public init(_ editorState: EditorState, _ toolbarState: ToolbarState, _ nameState: NameState) {

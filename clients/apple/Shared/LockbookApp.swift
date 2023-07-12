@@ -43,7 +43,60 @@ import AppKit
                 Button("New Folder", action: {
                     DI.sheets.creatingFolderInfo = CreatingFolderInfo(parentPath: DI.files.getPathByIdOrParent() ?? "Error", maybeParent: nil)
                 }).keyboardShortcut("N", modifiers: [.command, .shift])
+                
+                Divider()
+                
+                Button("Close Tab", action: {
+                    DI.currentDoc.closeSelectedDoc()
+                }).keyboardShortcut("W", modifiers: .command)
             }
+            
+            CommandMenu("Tabs") {
+                
+                Button("Next Tab", action: {
+                    DI.currentDoc.selectNextOpenDoc()
+                }).keyboardShortcut("j", modifiers: [.command, .shift])
+                
+//                Divider()
+                
+                Button("Open Tab 1", action: {
+                    DI.currentDoc.selectOpenDoc(index: 0)
+                }).keyboardShortcut("1", modifiers: .command)
+                
+                Button("Open Tab 2", action: {
+                    DI.currentDoc.selectOpenDoc(index: 1)
+                }).keyboardShortcut("2", modifiers: .command)
+                
+                Button("Open Tab 3", action: {
+                    DI.currentDoc.selectOpenDoc(index: 2)
+                }).keyboardShortcut("3", modifiers: .command)
+                
+                Button("Open Tab 4", action: {
+                    DI.currentDoc.selectOpenDoc(index: 3)
+                }).keyboardShortcut("4", modifiers: .command)
+                
+                Button("Open Tab 5", action: {
+                    DI.currentDoc.selectOpenDoc(index: 4)
+                }).keyboardShortcut("5", modifiers: .command)
+                
+                Button("Open Tab 6", action: {
+                    DI.currentDoc.selectOpenDoc(index: 5)
+                }).keyboardShortcut("6", modifiers: .command)
+                
+                Button("Open Tab 7", action: {
+                    DI.currentDoc.selectOpenDoc(index: 6)
+                }).keyboardShortcut("7", modifiers: .command)
+                
+                Button("Open Tab 8", action: {
+                    DI.currentDoc.selectOpenDoc(index: 7)
+                }).keyboardShortcut("8", modifiers: .command)
+                
+                Button("Open Last Tab", action: {
+                    DI.currentDoc.selectOpenDoc(index: 8)
+                }).keyboardShortcut("9", modifiers: .command)
+                
+            }
+            
             CommandMenu("Lockbook") {
                 Button("Sync", action: { DI.sync.sync() }).keyboardShortcut("S", modifiers: .command)
                 Button("Search Paths", action: { DI.search.startPathSearch() }).keyboardShortcut("O", modifiers: .command)

@@ -5,7 +5,7 @@ public class EditorState: ObservableObject {
     
     @Published public var text: String
     @Published public var reload: Bool = false
-        
+    @Published public var focused: Bool = true
     
     public init(text: String) {
         self.text = text

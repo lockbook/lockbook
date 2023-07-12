@@ -81,7 +81,7 @@ struct FileTreeView: NSViewRepresentable {
             treeView.reloadData()
         }
         
-        let maybeOpenDocId = currentSelection.openDocuments.keys.first
+        let maybeOpenDocId = currentSelection.selectedDoc
         
         if lastOpenDoc?.id != maybeOpenDocId {
             scrollAndSelectCurrentDoc()
@@ -94,7 +94,7 @@ struct FileTreeView: NSViewRepresentable {
     }
     
     func scrollAndSelectCurrentDoc() {
-        let maybeOpenDocId = currentSelection.openDocuments.keys.first
+        let maybeOpenDocId = currentSelection.selectedDoc
         
         if let openDocId = maybeOpenDocId {
             if let openDoc = DI.files.idsAndFiles[openDocId] {
