@@ -113,7 +113,6 @@ impl super::AccountScreen {
                     FilePickerAction::AcceptShare(target) => {
                         self.accept_share(ctx, target, submission.parent)
                     }
-
                     FilePickerAction::DroppedFile(target) => {
                         self.dropped_file(ctx, target, submission.parent)
                     }

@@ -743,7 +743,8 @@ impl AccountScreen {
 
         thread::spawn(move || {
             core.delete_pending_share(target.id)
-                .map_err(|err| format!("{:?}", err)) // todo: unhandled error
+                .map_err(|err| format!("{:?}", err))
+                .unwrap();
         });
     }
 
