@@ -8,33 +8,162 @@ import SwiftEditor
 class DocumentService: ObservableObject {
     
     @Published var openDocuments: [UUID : DocumentLoadingInfo] = [:]
+    var openDocumentsKeyArr: [UUID] {
+        get {
+            Array(openDocuments.keys).sorted(by: { lhid, rhid in
+                openDocuments[lhid]!.timeCreated < openDocuments[rhid]!.timeCreated
+                
+            })
+        }
+    }
     
     @Published var isPendingSharesOpen: Bool = false
     @Published var selectedFolder: File?
     
+    @Published var selectedDoc: UUID?
+    
     var justCreatedDoc: File? = nil
     
-    func openDoc(id: UUID) {
+    func openDoc(id: UUID, isiPhone: Bool = false) {
         if openDocuments[id] == nil {
-            openDocuments[id] = DocumentLoadingInfo(DI.files.idsAndFiles[id]!)
+            openDocuments[id] = DocumentLoadingInfo(DI.files.idsAndFiles[id]!, isiPhone)
         }
-      }
+    }
     
-    func getDocInfoOrCreate(id: UUID) -> DocumentLoadingInfo {
-        openDoc(id: id)
+    func getDocInfoOrCreate(id: UUID, isiPhone: Bool = true) -> DocumentLoadingInfo {
+        openDoc(id: id, isiPhone: isiPhone)
         
         return openDocuments[id]!
     }
     
-    func cleanupOldDocs() {
+    func cleanupOldDocs(_ isiPhone: Bool = false) {
         isPendingSharesOpen = false
-        justCreatedDoc = nil
-        openDocuments.removeAll()
+        
+        if isiPhone {
+            openDocuments.removeAll()
+        }
     }
+    
+    func closeDoc(_ maybeId: UUID?) {
+        if let id = maybeId {
+            
+            if id == selectedDoc {
+                if openDocumentsKeyArr.firstIndex(of: id) == openDocumentsKeyArr.count - 1 {
+                    selectPreviousOpenDoc()
+                } else {
+                    selectNextOpenDoc()
+                }
+                
+                if id == selectedDoc {
+                    selectedDoc = nil
+                }
+            }
+            
+            openDocuments[id] = nil
+        }
+    }
+    
+    func setSelectedOpenDocById(maybeId: UUID?) {
+        selectedDoc = maybeId
+        
+        if let id = maybeId {
+            openDocuments[id]?.textDocument?.focused = true
+        }
+    }
+    
+    // index must be greater than or equal to 0 and less than
+    func selectOpenDocByIndex(index: Int) {
+        if index >= 0 && index < 9 {
+                        
+            if index == 8 {
+                setSelectedOpenDocById(maybeId: openDocumentsKeyArr.last)
+            }
+            
+            if index < openDocumentsKeyArr.count {
+                setSelectedOpenDocById(maybeId: openDocumentsKeyArr[index])
+            }
+        }
+    }
+    
+    func selectNextOpenDoc() {
+        var selectedIndex = -1
+        
+        for (index, id) in openDocumentsKeyArr.enumerated() {
+            if selectedDoc == id {
+                selectedIndex = index
+                
+                break
+            }
+        }
+        
+        if selectedIndex == -1 {
+            return
+        }
+        
+        if selectedIndex + 1 >= openDocumentsKeyArr.count {
+            setSelectedOpenDocById(maybeId: openDocumentsKeyArr.first)
+        } else {
+            setSelectedOpenDocById(maybeId: openDocumentsKeyArr[selectedIndex + 1])
+        }
+    }
+    
+    func selectPreviousOpenDoc() {
+        var selectedIndex = -1
+        
+        for (index, id) in openDocumentsKeyArr.enumerated() {
+            if selectedDoc == id {
+                selectedIndex = index
+                
+                break
+            }
+        }
+        
+        if selectedIndex == -1 {
+            return
+        }
+        
+        if selectedIndex - 1 < 0 {
+            setSelectedOpenDocById(maybeId: openDocumentsKeyArr.last)
+        } else {
+            setSelectedOpenDocById(maybeId: openDocumentsKeyArr[selectedIndex - 1])
+        }
+    }
+    
+    func formatSelectedDocSelectedText(_ textFormatting: TextFormatting) {
+        if let id = selectedDoc {
+            switch textFormatting {
+            case .Heading(let headingSize):
+                openDocuments[id]?.textDocumentToolbar?.toggleHeading(headingSize)
+            case .Bold:
+                openDocuments[id]?.textDocumentToolbar?.toggleBold()
+            case .Italic:
+                openDocuments[id]?.textDocumentToolbar?.toggleItalic()
+            case .InlineCode:
+                openDocuments[id]?.textDocumentToolbar?.toggleInlineCode()
+            case .NumberList:
+                openDocuments[id]?.textDocumentToolbar?.toggleNumberList()
+            case .BulletList:
+                openDocuments[id]?.textDocumentToolbar?.toggleBulletList()
+            case .TodoList:
+                openDocuments[id]?.textDocumentToolbar?.toggleTodoList()
+            }
+        }
+    }
+}
+
+public enum TextFormatting {
+    case Heading(UInt32)
+    case Bold
+    case Italic
+    case InlineCode
+    case NumberList
+    case BulletList
+    case TodoList
 }
 
 class DocumentLoadingInfo: ObservableObject {
     let core: LockbookApi
+    let isiPhone: Bool
     
     @Published var meta: File
     @Published var type: ViewType
@@ -49,13 +178,17 @@ class DocumentLoadingInfo: ObservableObject {
     
     @Published var drawing: PKDrawing? = nil
     @Published var image: Image? = .none
+    
+    var timeCreated = Date()
 
     private var cancellables = Set<AnyCancellable>()
 
-    init(_ meta: File) {
+    init(_ meta: File, _ isiPhone: Bool) {
         self.core = DI.core
         self.meta = meta
         self.type = DocumentLoadingInfo.getType(name: meta.name)
+        self.isiPhone = isiPhone
+        
         drawingAutosaver()
     }
     
@@ -132,7 +265,7 @@ class DocumentLoadingInfo: ObservableObject {
             DispatchQueue.main.async {
                 switch operation {
                 case .success(let txt):
-                    self.textDocument = EditorState(text: txt)
+                    self.textDocument = EditorState(text: txt, isiPhone: self.isiPhone)
                     self.textDocumentToolbar = ToolbarState()
                     self
                         .textDocument!

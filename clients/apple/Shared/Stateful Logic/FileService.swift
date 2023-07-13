@@ -341,6 +341,7 @@ class FileService: ObservableObject {
                         DI.currentDoc.cleanupOldDocs()
                         DI.currentDoc.justCreatedDoc = self.idsAndFiles[meta.id]
                         DI.currentDoc.openDoc(id: meta.id)
+                        DI.currentDoc.setSelectedOpenDocById(maybeId: meta.id)
                     }
                     
                     return

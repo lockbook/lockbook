@@ -12,7 +12,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     var nameState: NameState?
     var editMenuInteraction: UIEditMenuInteraction?
     var hasSelection: Bool = false
-
+    
     var pasteBoardEventId: Int = 0
     var lastKnownTapLocation: Float? = nil
     override init(frame frameRect: CGRect, device: MTLDevice?) {

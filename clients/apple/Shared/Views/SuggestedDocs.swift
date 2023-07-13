@@ -79,6 +79,7 @@ struct SuggestedDocs: View {
                                     Button(action: {
                                         DI.currentDoc.cleanupOldDocs()
                                         DI.currentDoc.openDoc(id: meta.id)
+                                        DI.currentDoc.setSelectedOpenDocById(maybeId: meta.id)
                                     }) {
                                         SuggestedDocCell(name: meta.name, parentName: "\(parentMeta.name)/", duration: meta.lastModified, isiOS: isiOS)
                                     }
@@ -137,6 +138,7 @@ struct SuggestedDocs: View {
                                             Button(action: {
                                                 DI.currentDoc.cleanupOldDocs()
                                                 DI.currentDoc.openDoc(id: meta.id)
+                                                DI.currentDoc.setSelectedOpenDocById(maybeId: meta.id)
                                             }) {
                                                 SuggestedDocCell(name: meta.name, parentName: "\(parentMeta.name)/", duration: meta.lastModified)
                                             }
