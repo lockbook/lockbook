@@ -445,7 +445,7 @@ impl AccountScreen {
         }
     }
 
-    pub fn refresh_tree_and_workspace(&self, ctx: &egui::Context) {
+    pub fn refresh_tree_and_workspace(&self, ctx: &egui::Context, refresh_only_workspace: bool) {
         let opened_ids = self
             .workspace
             .tabs
@@ -456,11 +456,16 @@ impl AccountScreen {
         let update_tx = self.update_tx.clone();
         let ctx = ctx.clone();
 
+        let settings = &self.settings.read().unwrap();
+        let toolbar_visibility = settings.toolbar_visibility;
+
         thread::spawn(move || {
-            let all_metas = core.list_metadatas().unwrap();
-            let root = tree::create_root_node(all_metas);
-            update_tx.send(AccountUpdate::ReloadTree(root)).unwrap();
-            ctx.request_repaint();
+            if !refresh_only_workspace {
+                let all_metas = core.list_metadatas().unwrap();
+                let root = tree::create_root_node(all_metas);
+                update_tx.send(AccountUpdate::ReloadTree(root)).unwrap();
+                ctx.request_repaint();
+            }
 
             let mut new_tabs = HashMap::new();
 
@@ -492,7 +497,7 @@ impl AccountScreen {
                         .map_err(|err| TabFailure::Unexpected(format!("{:?}", err))) // todo(steve)
                         .map(|bytes| {
                             if ext == "md" {
-                                TabContent::Markdown(Markdown::boxed(&bytes))
+                                TabContent::Markdown(Markdown::boxed(&bytes, &toolbar_visibility))
                             } else if is_supported_image_fmt(ext) {
                                 TabContent::Image(ImageViewer::boxed(id.to_string(), &bytes))
                             } else {
@@ -599,6 +604,9 @@ impl AccountScreen {
         let update_tx = self.update_tx.clone();
         let ctx = ctx.clone();
 
+        let settings = &self.settings.read().unwrap();
+        let toolbar_visibility = settings.toolbar_visibility;
+
         thread::spawn(move || {
             let ext = fname.split('.').last().unwrap_or_default();
 
@@ -611,7 +619,7 @@ impl AccountScreen {
                     .map_err(|err| TabFailure::Unexpected(format!("{:?}", err))) // todo(steve)
                     .map(|bytes| {
                         if ext == "md" {
-                            TabContent::Markdown(Markdown::boxed(&bytes))
+                            TabContent::Markdown(Markdown::boxed(&bytes, &toolbar_visibility))
                         } else if is_supported_image_fmt(ext) {
                             TabContent::Image(ImageViewer::boxed(id.to_string(), &bytes))
                         } else {

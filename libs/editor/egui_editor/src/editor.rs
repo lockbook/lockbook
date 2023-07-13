@@ -150,8 +150,6 @@ impl Editor {
 
         // show ui
         let mut focus = false;
-        request_focus = true;
-        surrender_focus = false;
         let sao = egui::ScrollArea::vertical()
             .drag_to_scroll(touch_mode)
             .id_source(self.id)

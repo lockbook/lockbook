@@ -51,7 +51,7 @@ impl super::AccountScreen {
                 Ok(_) => {
                     self.sync.status = Ok("just now".to_owned());
                     self.sync.phase = SyncPhase::IdleGood;
-                    self.refresh_tree_and_workspace(ctx);
+                    self.refresh_tree_and_workspace(ctx, false);
                     self.refresh_sync_status(ctx);
                 }
                 Err(err) => {

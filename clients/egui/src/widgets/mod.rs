@@ -12,4 +12,5 @@ pub use progress_bar::ProgressBar;
 pub use separator::separator;
 pub use subscription::subscription;
 pub use switch::switch;
-pub use toolbar::toolbar;
+pub use toolbar::ToolBar;
+pub use toolbar::ToolBarVisibility;

@@ -2,12 +2,17 @@ use eframe::egui;
 
 pub const MATERIAL_ICON_FONT: &[u8] = include_bytes!("../../material-icons-outlined-regular.otf");
 
+#[derive(Clone, PartialEq)]
 pub struct Icon {
     pub has_badge: bool,
-    icon: &'static str,
+    pub icon: &'static str,
     pub size: f32,
     color: Option<egui::Color32>,
     weak: bool,
+}
+
+impl Eq for Icon {
+    fn assert_receiver_is_total_eq(&self) {}
 }
 
 const fn ic(c: &'static str) -> Icon {
@@ -56,8 +61,8 @@ impl Icon {
     pub const VERTICAL_SPLIT: Self = ic("\u{e949}"); // Vertical Split
     pub const VIDEO_LABEL: Self = ic("\u{e071}"); // Video Label
     pub const VISIBILITY_ON: Self = ic("\u{e8f4}"); // Visibility On
+    pub const VISIBILITY_OFF: Self = ic("\u{e8f5}"); // Visibility Off
 
-    // e0e9
     //pub const ARTICLE: Self = ic("\u{ef42}");
     //pub const COMMAND_KEY: Self = Self('\u{eae7}');
     //pub const SWAP_HORIZONTAL: Self = Self('\u{e933}'); // Swap Horizontal Circle
@@ -65,7 +70,6 @@ impl Icon {
     //pub const FIND_REPLACE: Self = ic("\u{e881}"); // Find Replace
     //pub const SHIELD: Self = Self("\u{e8e8}");
     //pub const SHIELD_OFF: Self = Self("\u{e9d4}");
-    //pub const VISIBILITY_OFF: Self = Self("\u{e8f5}");
     //pub const WARNING: Self = Self("\u{e002}");
     //pub const RECTANGLE: Self = ic("\u{eb54}"); // Rectangle
     //pub const PALETTE: Self = ic("\u{e40a}"); // Palette
