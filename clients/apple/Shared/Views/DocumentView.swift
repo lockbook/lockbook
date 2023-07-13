@@ -181,22 +181,22 @@ struct MarkdownToolbar: View {
                     Button("Heading 1") {
                         toolbarState.toggleHeading(1)
                     }
-                    .help("⌘+⌃+1")
+                    .help("⌘⌃1")
 
                     Button("Heading 2") {
                         toolbarState.toggleHeading(2)
                     }
-                    .help("⌘+⌃+2")
+                    .help("⌘⌃2")
 
                     Button("Heading 3") {
                         toolbarState.toggleHeading(3)
                     }
-                    .help("⌘+⌃+3")
+                    .help("⌘⌃3")
 
                     Button("Heading 4") {
                         toolbarState.toggleHeading(4)
                     }
-                    .help("⌘+⌃+4")
+                    .help("⌘⌃4")
                 }, label: {
                     HStack {
                         Image(systemName: "h.square")
@@ -214,7 +214,7 @@ struct MarkdownToolbar: View {
                 .padding(3)
                 .background(toolbarState.isHeadingSelected ? .gray.opacity(0.2) : .clear)
                 .cornerRadius(5)
-                .help("Heading 1: ⌘+⌃+1 \nHeading 2: ⌘+⌃+2 \nHeading 3: ⌘+⌃+3 \nHeading 4: ⌘+⌃+4")
+                .help("Heading 1: ⌘⌃1 \nHeading 2: ⌘⌃2 \nHeading 3: ⌘⌃3 \nHeading 4: ⌘⌃4")
             }
 
             Divider()
@@ -227,7 +227,7 @@ struct MarkdownToolbar: View {
                     MarkdownEditorImage(systemImageName: "bold", isSelected: toolbarState.isBoldSelected)
                 }
                 .buttonStyle(.borderless)
-                .help("Bold: ⌘+B")
+                .help("Bold: ⌘B")
 
                 Button(action: {
                     toolbarState.toggleItalic()
@@ -235,7 +235,7 @@ struct MarkdownToolbar: View {
                     MarkdownEditorImage(systemImageName: "italic", isSelected: toolbarState.isItalicSelected)
                 }
                 .buttonStyle(.borderless)
-                .help("Italic: ⌘+I")
+                .help("Italic: ⌘I")
 
                 Button(action: {
                     toolbarState.toggleInlineCode()
@@ -243,7 +243,7 @@ struct MarkdownToolbar: View {
                     MarkdownEditorImage(systemImageName: "greaterthan.square", isSelected: toolbarState.isInlineCodeSelected)
                 }
                 .buttonStyle(.borderless)
-                .help("Inline Code: ⌘+Shift+C")
+                .help("Inline Code: ⌘⇧C")
             }
 
             Divider()
@@ -256,7 +256,7 @@ struct MarkdownToolbar: View {
                     MarkdownEditorImage(systemImageName: "list.number", isSelected: toolbarState.isNumberListSelected)
                 }
                 .buttonStyle(.borderless)
-                .help("Number List: ⌘+Shift+7")
+                .help("Number List: ⌘⇧7")
                 
                 Button(action: {
                     toolbarState.toggleBulletList()
@@ -264,7 +264,7 @@ struct MarkdownToolbar: View {
                     MarkdownEditorImage(systemImageName: "list.bullet", isSelected: toolbarState.isBulletListSelected)
                 }
                 .buttonStyle(.borderless)
-                .help("Bullet List: ⌘+Shift+8")
+                .help("Bullet List: ⌘⇧8")
 
                 Button(action: {
                     toolbarState.toggleTodoList()
@@ -272,7 +272,7 @@ struct MarkdownToolbar: View {
                     MarkdownEditorImage(systemImageName: "checklist", isSelected: toolbarState.isTodoListSelected)
                 }
                 .buttonStyle(.borderless)
-                .help("Todo List: ⌘+Shift+9")
+                .help("Todo List: ⌘⇧9")
             }
 
             #if os(iOS)

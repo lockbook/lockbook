@@ -111,19 +111,19 @@ struct NoTabsView: View {
             
             VStack(alignment: .leading, spacing: 4) {
 #if os(iOS)
-                Text("Create a new document: \(Text(verbatim: "`⌘+N`").noTabTextFormatting(true))")
+                Text("Create a new document: ⌘N")
                     .noTabTextFormatting()
                 
-                Text("Create a new drawing: \(Text(verbatim: "`⌘+⌃+N`").noTabTextFormatting(true))")
+                Text("Create a new drawing: ⌘⌃N")
                     .noTabTextFormatting()
                 
-                Text("Create a new folder: \(Text(verbatim: "`⌘+Shift+N`").noTabTextFormatting(true))")
+                Text("Create a new folder: ⌘⇧N")
                     .noTabTextFormatting()
 #else
-                Text("Create a new document: \(Text(verbatim: "`⌘+N`").noTabTextFormatting(true))")
+                Text("Create a new document: ⌘N")
                     .noTabTextFormatting()
                 
-                Text("Create a new folder: \(Text(verbatim: "`⌘+Shift+N`").noTabTextFormatting(true))")
+                Text("Create a new folder: ⌘⇧N")
                     .noTabTextFormatting()
 #endif
 
@@ -140,24 +140,10 @@ struct NoTabsView: View {
 
 extension Text {
     
-    func noTabTextFormatting(_ isCode: Bool = false) -> Text {
-        if isCode {
-            #if os(iOS)
-            return self
-                .font(.title3)
-                .foregroundColor(.red)
-            #else
-            return self
-                .font(.title3)
-                .fontDesign(.monospaced)
-                .foregroundColor(.red)
-            #endif
-        } else {
-            return self
-                .font(.title2)
-                .foregroundColor(.gray)
-                .fontWeight(.medium)
-            
-        }
+    func noTabTextFormatting() -> Text {
+        return self
+            .font(.title2)
+            .foregroundColor(.gray)
+            .fontWeight(.medium)
     }
 }
