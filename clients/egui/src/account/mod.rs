@@ -7,8 +7,8 @@ mod workspace;
 
 use std::collections::HashMap;
 use std::sync::{mpsc, Arc, RwLock};
-use std::thread;
 use std::time::Instant;
+use std::{path, thread};
 
 use eframe::egui;
 
@@ -87,6 +87,7 @@ impl AccountScreen {
     pub fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
         self.process_updates(ctx, frame);
         self.process_keys(ctx, frame);
+        self.process_dropped_files(ctx);
 
         if self.shutdown.is_some() {
             egui::CentralPanel::default()
@@ -153,8 +154,17 @@ impl AccountScreen {
                     OpenModal::ConfirmDelete(files) => {
                         self.modals.confirm_delete = Some(ConfirmDeleteModal::new(files));
                     }
-                    OpenModal::FilePicker(target) => {
-                        self.modals.file_picker = Some(FilePicker::new(self.core.clone(), target));
+                    OpenModal::PickShareParent(target) => {
+                        self.modals.file_picker = Some(FilePicker::new(
+                            self.core.clone(),
+                            FilePickerAction::AcceptShare(target),
+                        ));
+                    }
+                    OpenModal::PickDropParent(target) => {
+                        self.modals.file_picker = Some(FilePicker::new(
+                            self.core.clone(),
+                            FilePickerAction::DroppedFile(target),
+                        ));
                     }
                     OpenModal::InitiateShare(target) => self.open_share_modal(target),
                     OpenModal::NewDoc(maybe_parent) => self.open_new_doc_modal(maybe_parent),
@@ -167,6 +177,13 @@ impl AccountScreen {
                     Ok(_) => {
                         self.modals.file_picker = None;
                         self.perform_sync(ctx);
+                    }
+                    Err(msg) => self.modals.error = Some(ErrorModal::new(msg)),
+                },
+                AccountUpdate::FileImported(result) => match result {
+                    Ok(root) => {
+                        self.tree.root = root;
+                        self.modals.file_picker = None;
                     }
                     Err(msg) => self.modals.error = Some(ErrorModal::new(msg)),
                 },
@@ -359,6 +376,23 @@ impl AccountScreen {
                 }
             }
         });
+    }
+
+    fn process_dropped_files(&mut self, ctx: &egui::Context) {
+        let has_dropped_files = ctx.input(|inp| !inp.raw.dropped_files.is_empty());
+
+        if has_dropped_files {
+            // todo: handle multiple dropped files
+            let dropped_file = ctx.input(|inp| inp.raw.dropped_files[0].clone());
+
+            if let Some(upd) = dropped_file
+                .path
+                .map(OpenModal::PickDropParent)
+                .map(AccountUpdate::OpenModal)
+            {
+                self.update_tx.send(upd).unwrap()
+            }
+        }
     }
 
     fn show_tree(&mut self, ui: &mut egui::Ui) {
@@ -686,9 +720,10 @@ impl AccountScreen {
         });
     }
 
-    fn accept_share(&self, target: lb::File, parent: lb::File) {
+    fn accept_share(&self, ctx: &egui::Context, target: lb::File, parent: lb::File) {
         let core = self.core.clone();
         let update_tx = self.update_tx.clone();
+        let ctx = ctx.clone();
 
         thread::spawn(move || {
             let result = core
@@ -697,7 +732,9 @@ impl AccountScreen {
 
             update_tx
                 .send(AccountUpdate::ShareAccepted(result))
-                .unwrap()
+                .unwrap();
+
+            ctx.request_repaint();
         });
     }
 
@@ -707,6 +744,26 @@ impl AccountScreen {
         thread::spawn(move || {
             core.delete_pending_share(target.id)
                 .map_err(|err| format!("{:?}", err))
+                .unwrap();
+        });
+    }
+
+    fn dropped_file(&self, ctx: &egui::Context, target: path::PathBuf, parent: lb::File) {
+        let core = self.core.clone();
+        let ctx = ctx.clone();
+        let update_tx = self.update_tx.clone();
+
+        thread::spawn(move || {
+            let result =
+                core.import_files(&[target], parent.id, &|_| println!("imported one file"));
+
+            let all_metas = core.list_metadatas().unwrap();
+            let root = tree::create_root_node(all_metas);
+
+            let result = result.map(|_| root).map_err(|err| format!("{:?}", err));
+
+            update_tx.send(AccountUpdate::FileImported(result)).unwrap();
+            ctx.request_repaint();
         });
     }
 
@@ -747,6 +804,9 @@ pub enum AccountUpdate {
     },
     FileDeleted(lb::File),
 
+    /// if a file has been imported successfully refresh the tree, otherwise show what went wrong
+    FileImported(Result<TreeNode, String>),
+
     SyncUpdate(SyncUpdate),
     SyncStatusSignal,
     AutoSyncSignal,
@@ -768,7 +828,8 @@ pub enum OpenModal {
     InitiateShare(lb::File),
     Settings,
     AcceptShare,
-    FilePicker(lb::File),
+    PickShareParent(lb::File),
+    PickDropParent(path::PathBuf),
     ConfirmDelete(Vec<lb::File>),
 }
 
