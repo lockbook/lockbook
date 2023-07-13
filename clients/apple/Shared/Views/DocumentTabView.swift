@@ -12,59 +12,61 @@ struct DocumentTabView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 0) {
-                    ForEach(current.openDocumentsKeyArr, id: \.self) { id in
-                        Button(action: {
-                            current.selectedDoc = id
-                            current.openDocuments[id]?.textDocument?.focused = true
-                            docTabKillOpacity[id] = 1
-                        }, label: {
-                            HStack {
-                                Image(systemName: documentExtensionToImage(name: DI.files.idsAndFiles[id]?.name ?? ""))
-                                    .foregroundColor(current.selectedDoc == id ? .accentColor : .primary)
-                                
-                                Text(DI.files.idsAndFiles[id]?.name ?? "deleted")
-                                    .foregroundColor(current.selectedDoc == id ? .accentColor : .primary)
-                                    .font(.callout)
-                                                                
-                                Button(action: {
-                                    if current.selectedDoc == id {
-                                        current.selectedDoc = nil
-                                    }
-                                    
-                                    docTabKillOpacity[id] = nil
-                                    current.openDocuments[id] = nil
-                                }, label: {
-                                    Image(systemName: "xmark")
-                                        .imageScale(.small)
+            ScrollViewReader { scrollHelper in
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 0) {
+                        ForEach(current.openDocumentsKeyArr, id: \.hashValue) { id in
+                            Button(action: {
+                                current.selectedDoc = id
+                                current.openDocuments[id]?.textDocument?.focused = true
+                                docTabKillOpacity[id] = 1
+                            }, label: {
+                                HStack {
+                                    Image(systemName: documentExtensionToImage(name: DI.files.idsAndFiles[id]?.name ?? ""))
                                         .foregroundColor(current.selectedDoc == id ? .accentColor : .primary)
-                                })
-                                .buttonStyle(.borderless)
-                                .opacity(isiOS ? 1 : (docTabKillOpacity[id] ?? 0))
-                                
-//                                Divider()
-//                                    .frame(height: 15)
-//                                    .opacity(current.selectedDoc == id ? 0 : 1)
-                            }
-                            .padding(.vertical, 10)
-                            .padding(.horizontal, 14)
-                            .contentShape(Rectangle())
-                        })
-                        .buttonStyle(.borderless)
-                        .onHover(perform: { hover in
-                            withAnimation(.linear(duration: 0.1)) {
-                                if hover {
-                                    docTabKillOpacity[id] = 1
-                                } else {
-                                    docTabKillOpacity[id] = 0
+                                    
+                                    Text(DI.files.idsAndFiles[id]?.name ?? "deleted")
+                                        .foregroundColor(current.selectedDoc == id ? .accentColor : .primary)
+                                        .font(.callout)
+                                    
+                                    Button(action: {
+                                        current.closeDoc(id)
+                                        docTabKillOpacity[id] = nil
+                                    }, label: {
+                                        Image(systemName: "xmark")
+                                            .imageScale(.small)
+                                            .foregroundColor(current.selectedDoc == id ? .accentColor : .primary)
+                                    })
+                                    .buttonStyle(.borderless)
+                                    .opacity(isiOS ? 1 : (docTabKillOpacity[id] ?? 0))
+                                    
                                 }
-                            }
-                        })
-                        .background(current.selectedDoc == id ? .blue.opacity(0.2) : .clear)
+                                .padding(.vertical, 10)
+                                .padding(.horizontal, 14)
+                                .contentShape(Rectangle())
+                            })
+                            .buttonStyle(.borderless)
+                            .onHover(perform: { hover in
+                                withAnimation(.linear(duration: 0.1)) {
+                                    if hover {
+                                        docTabKillOpacity[id] = 1
+                                    } else {
+                                        docTabKillOpacity[id] = 0
+                                    }
+                                }
+                            })
+                            .background(current.selectedDoc == id ? .blue.opacity(0.2) : .clear)
+                        }
+                        
+                        Spacer()
                     }
-                    
-                    Spacer()
+                }
+                .onChange(of: current.selectedDoc) { maybeSelectedDoc in
+                    if let id = maybeSelectedDoc {
+                        withAnimation {
+                            scrollHelper.scrollTo(id.hashValue, anchor: .trailing)
+                        }
+                    }
                 }
             }
             
@@ -87,10 +89,19 @@ struct DocumentTabView: View {
 
 struct NoTabsView: View {
     
+
+    var logo: Image {
+        #if os(iOS)
+        Image(uiImage: UIImage(named: "logo")!)
+        #else
+        Image(nsImage: NSImage(named: NSImage.Name("logo"))!)
+        #endif
+    }
+    
     var body: some View {
         VStack() {
             Spacer()
-                        
+
             Text("You have no open documents.")
                 .noTabTextFormatting()
                 .padding(.bottom, 3)
@@ -100,19 +111,19 @@ struct NoTabsView: View {
             
             VStack(alignment: .leading, spacing: 4) {
 #if os(iOS)
-                Text("Create a new document: \(Text(verbatim: "`Cmd+N`").noTabTextFormatting(true))")
+                Text("Create a new document: \(Text(verbatim: "`⌘+N`").noTabTextFormatting(true))")
                     .noTabTextFormatting()
                 
-                Text("Create a new drawing: \(Text(verbatim: "`Cmd+Ctrl+N`").noTabTextFormatting(true))")
+                Text("Create a new drawing: \(Text(verbatim: "`⌘+⌃+N`").noTabTextFormatting(true))")
                     .noTabTextFormatting()
                 
-                Text("Create a new folder: \(Text(verbatim: "`Cmd+Shift+N`").noTabTextFormatting(true))")
+                Text("Create a new folder: \(Text(verbatim: "`⌘+Shift+N`").noTabTextFormatting(true))")
                     .noTabTextFormatting()
 #else
-                Text("Create a new document: \(Text(verbatim: "`Cmd+N`").noTabTextFormatting(true))")
+                Text("Create a new document: \(Text(verbatim: "`⌘+N`").noTabTextFormatting(true))")
                     .noTabTextFormatting()
                 
-                Text("Create a new folder: \(Text(verbatim: "`Cmd+Shift+N`").noTabTextFormatting(true))")
+                Text("Create a new folder: \(Text(verbatim: "`⌘+Shift+N`").noTabTextFormatting(true))")
                     .noTabTextFormatting()
 #endif
 

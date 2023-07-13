@@ -50,9 +50,8 @@ struct OutlineBranch: View {
                                     DispatchQueue.main.async {
                                         current.cleanupOldDocs()
                                         current.openDoc(id: file.id)
+                                        current.setSelectedOpenDocById(maybeId: file.id)
                                     }
-                                    
-                                    print("tap")
                                 }
                             }
                     }

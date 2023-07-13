@@ -7,8 +7,11 @@ public class EditorState: ObservableObject {
     @Published public var reload: Bool = false
     @Published public var focused: Bool = true
     
-    public init(text: String) {
+    public var isiPhone: Bool
+    
+    public init(text: String, isiPhone: Bool) {
         self.text = text
+        self.isiPhone = isiPhone
     }
     
     deinit {

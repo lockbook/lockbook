@@ -8,9 +8,9 @@ struct iOSDocumentViewWrapper: View {
     let id: UUID
     
     var body: some View {
-        DocumentView(id: id)
+        DocumentView(id: id, isiPhone: true)
             .onDisappear {
-                DI.currentDoc.cleanupOldDocs()
+                DI.currentDoc.cleanupOldDocs(true)
             }
     }
 }
@@ -28,9 +28,9 @@ struct DocumentView: View, Equatable {
     @EnvironmentObject var toolbar: ToolbarModel
 #endif
     
-    public init(id: UUID) {
+    public init(id: UUID, isiPhone: Bool = false) {
         self.id = id
-        self.model = DI.currentDoc.getDocInfoOrCreate(id: id)
+        self.model = DI.currentDoc.getDocInfoOrCreate(id: id, isiPhone: isiPhone)
     }
     
     var body: some View {        
@@ -176,60 +176,27 @@ struct MarkdownToolbar: View {
     var body: some View {
         HStack(spacing: 20) {
             HStack(spacing: 0) {
-                
-                // hack for the heading 1-4 shortcut since the shortcuts in the menu won't work unless opened
-                Button(action: {
-                    toolbarState.toggleHeading(1)
-                }) {
-                    EmptyView()
-                }
-                .frame(width: 0, height: 0)
-                .keyboardShortcut("1", modifiers: [.command, .control])
-                
-                Button(action: {
-                    toolbarState.toggleHeading(2)
-                }) {
-                    EmptyView()
-                }
-                .frame(width: 0, height: 0)
-                .keyboardShortcut("2", modifiers: [.command, .control])
-                
-                Button(action: {
-                    toolbarState.toggleHeading(3)
-                }) {
-                    EmptyView()
-                }
-                .frame(width: 0, height: 0)
-                .keyboardShortcut("3", modifiers: [.command, .control])
-                
-                Button(action: {
-                    toolbarState.toggleHeading(4)
-                }) {
-                    EmptyView()
-                }
-                .frame(width: 0, height: 0)
-                .keyboardShortcut("4", modifiers: [.command, .control])
-                
+                                
                 Menu(content: {
                     Button("Heading 1") {
                         toolbarState.toggleHeading(1)
                     }
-                    .keyboardShortcut("1", modifiers: [.command, .control])
+                    .help("⌘+⌃+1")
 
                     Button("Heading 2") {
                         toolbarState.toggleHeading(2)
                     }
-                    .keyboardShortcut("2", modifiers: [.command, .control])
+                    .help("⌘+⌃+2")
 
                     Button("Heading 3") {
                         toolbarState.toggleHeading(3)
                     }
-                    .keyboardShortcut("3", modifiers: [.command, .control])
+                    .help("⌘+⌃+3")
 
                     Button("Heading 4") {
                         toolbarState.toggleHeading(4)
                     }
-                    .keyboardShortcut("4", modifiers: [.command, .control])
+                    .help("⌘+⌃+4")
                 }, label: {
                     HStack {
                         Image(systemName: "h.square")
@@ -247,6 +214,7 @@ struct MarkdownToolbar: View {
                 .padding(3)
                 .background(toolbarState.isHeadingSelected ? .gray.opacity(0.2) : .clear)
                 .cornerRadius(5)
+                .help("Heading 1: ⌘+⌃+1 \nHeading 2: ⌘+⌃+2 \nHeading 3: ⌘+⌃+3 \nHeading 4: ⌘+⌃+4")
             }
 
             Divider()
@@ -259,7 +227,7 @@ struct MarkdownToolbar: View {
                     MarkdownEditorImage(systemImageName: "bold", isSelected: toolbarState.isBoldSelected)
                 }
                 .buttonStyle(.borderless)
-                .keyboardShortcut("b", modifiers: .command)
+                .help("⌘+B")
 
                 Button(action: {
                     toolbarState.toggleItalic()
@@ -267,7 +235,7 @@ struct MarkdownToolbar: View {
                     MarkdownEditorImage(systemImageName: "italic", isSelected: toolbarState.isItalicSelected)
                 }
                 .buttonStyle(.borderless)
-                .keyboardShortcut("i", modifiers: .command)
+                .help("⌘+I")
 
                 Button(action: {
                     toolbarState.toggleInlineCode()
@@ -275,8 +243,7 @@ struct MarkdownToolbar: View {
                     MarkdownEditorImage(systemImageName: "greaterthan.square", isSelected: toolbarState.isInlineCodeSelected)
                 }
                 .buttonStyle(.borderless)
-                .keyboardShortcut("c", modifiers: [.command, .shift])
-
+                .help("⌘+Shift+C")
             }
 
             Divider()
@@ -289,7 +256,7 @@ struct MarkdownToolbar: View {
                     MarkdownEditorImage(systemImageName: "list.number", isSelected: toolbarState.isNumberListSelected)
                 }
                 .buttonStyle(.borderless)
-                .keyboardShortcut("7", modifiers: [.command, .shift])
+                .help("⌘+Shift+7")
                 
                 Button(action: {
                     toolbarState.toggleBulletList()
@@ -297,7 +264,7 @@ struct MarkdownToolbar: View {
                     MarkdownEditorImage(systemImageName: "list.bullet", isSelected: toolbarState.isBulletListSelected)
                 }
                 .buttonStyle(.borderless)
-                .keyboardShortcut("8", modifiers: [.command, .shift])
+                .help("⌘+Shift+8")
 
                 Button(action: {
                     toolbarState.toggleTodoList()
@@ -305,7 +272,7 @@ struct MarkdownToolbar: View {
                     MarkdownEditorImage(systemImageName: "checklist", isSelected: toolbarState.isTodoListSelected)
                 }
                 .buttonStyle(.borderless)
-                .keyboardShortcut("9", modifiers: [.command, .shift])
+                .help("⌘+Shift+9")
             }
 
             #if os(iOS)
