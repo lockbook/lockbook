@@ -5,7 +5,7 @@ class AccountService: ObservableObject {
     let core: LockbookApi
     
     @Published var account: Account? = nil
-    
+        
     init(_ core: LockbookApi) {
         self.core = core
         switch core.getAccount() {

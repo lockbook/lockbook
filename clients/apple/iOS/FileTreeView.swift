@@ -44,29 +44,7 @@ struct FileTreeView: View {
         }
         
         VStack {
-            if let id = currentDoc.openDocuments.keys.first {
-                DocumentView(id: id)
-            } else {
-                GeometryReader { geometry in
-                    if geometry.size.height > geometry.size.width {
-                        VStack {
-                            Image(systemName: "rectangle.portrait.lefthalf.inset.filled")
-                                .font(.system(size: 60))
-                                .padding(.bottom, 10)
-                            
-                            
-                            Text("No document is open. Expand the file tree by swiping from the left edge of the screen or clicking the button on the top left corner.")
-                                .font(.title2)
-                                .multilineTextAlignment(.center)
-                                .frame(maxWidth: 350)
-                        }
-                        .padding(.horizontal)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    } else {
-                        EmptyView()
-                    }
-                }
-            }
+            DocumentTabView(isiOS: true)
         }
         .toolbar {
             ToolbarItemGroup(placement: .navigationBarTrailing) {

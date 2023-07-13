@@ -39,7 +39,7 @@ struct FileListView: View {
                 }
             }) {
                 HStack {
-                    Text("Tree")
+                    Text("Files")
                         .bold()
                         .foregroundColor(.gray)
                         .font(.subheadline)
@@ -80,12 +80,10 @@ struct DetailView: View {
     
     var body: some View {
         ZStack {
-            VStack {
-                if currentSelection.isPendingSharesOpen {
-                    PendingSharesView()
-                } else if let id = currentSelection.openDocuments.keys.first {
-                    DocumentView(id: id)
-                }
+            if currentSelection.isPendingSharesOpen {
+                PendingSharesView()
+            } else {
+                DocumentTabView()
             }
             
             QuickActionBar<SearchResultItem, SearchResultCellView>(
@@ -104,7 +102,7 @@ struct DetailView: View {
                 },
                 viewForItem: { searchResult, searchTerm in
                     let (name, path) = searchResult.getNameAndPath()
-                    
+
                     return SearchResultCellView(name: name, path: path, matchedIndices: searchResult.matchedIndices)
                 }
             )

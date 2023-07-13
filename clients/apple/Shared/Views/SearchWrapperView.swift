@@ -39,6 +39,7 @@ struct SearchWrapperView<Content: View>: View {
                             Button(action: {
                                 DI.currentDoc.cleanupOldDocs()
                                 DI.currentDoc.openDoc(id: meta.id)
+                                DI.currentDoc.setSelectedOpenDocById(maybeId: meta.id)
                             }) {
                                 SearchFilePathCell(name: name, path: path, matchedIndices: matchedIndices)
                             }
@@ -46,6 +47,7 @@ struct SearchWrapperView<Content: View>: View {
                             Button(action: {
                                 DI.currentDoc.cleanupOldDocs()
                                 DI.currentDoc.openDoc(id: meta.id)
+                                DI.currentDoc.setSelectedOpenDocById(maybeId: meta.id)
                             }) {
                                 SearchFileContentCell(name: name, path: path, paragraph: paragraph, matchedIndices: matchedIndices)
                             }

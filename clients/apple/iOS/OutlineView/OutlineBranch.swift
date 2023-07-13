@@ -31,7 +31,7 @@ struct OutlineBranch: View {
         ScrollViewReader { scrollView in
             VStack(alignment: .leading) {
                 if level != -1 {
-                    if file == current.openDocuments.values.first?.meta {
+                    if file.id == current.selectedDoc {
                         OutlineRow(file: file, level: level, open: $state.open)
                             .background(Color.accentColor)
                             .foregroundColor(Color.white)
@@ -50,9 +50,8 @@ struct OutlineBranch: View {
                                     DispatchQueue.main.async {
                                         current.cleanupOldDocs()
                                         current.openDoc(id: file.id)
+                                        current.setSelectedOpenDocById(maybeId: file.id)
                                     }
-                                    
-                                    print("tap")
                                 }
                             }
                     }

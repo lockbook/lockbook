@@ -67,7 +67,7 @@ struct RealFileCell: View {
     }
 }
 
-func documentExtensionToImage(name: String) -> String {
+public func documentExtensionToImage(name: String) -> String {
     if name.hasSuffix(".md") {
         return "doc.plaintext"
     } else if name.hasSuffix(".draw") {

@@ -40,6 +40,12 @@ struct FileListView: View {
 
             BottomBar(isiOS: true)
         }
+        .gesture(
+            DragGesture().onEnded({ (value) in
+                if value.translation.width > 50 && fileService.parent?.isRoot == false {
+                    fileService.upADirectory()
+                }
+            }))
         .alert(isPresented: Binding(get: { sync.outOfSpace && !hideOutOfSpaceAlert }, set: {_ in sync.outOfSpace = false })) {
             Alert(
                 title: Text("Out of Space"),
