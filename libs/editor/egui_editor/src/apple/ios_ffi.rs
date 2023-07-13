@@ -363,7 +363,7 @@ pub unsafe extern "C" fn position_offset_in_direction(
 
     let mut cursor: Cursor = start.pos.into();
     for _ in 0..offset {
-        cursor.advance(offset_type, backwards, buffer, galleys);
+        cursor.advance(offset_type, backwards, buffer, galleys, &obj.editor.paragraphs);
     }
     CTextPosition { none: start.none, pos: cursor.selection.1 .0 }
 }
@@ -390,8 +390,8 @@ pub unsafe extern "C" fn is_position_at_bound(
         CTextGranularity::Line => Bound::Line,
         CTextGranularity::Document => Bound::Doc,
     };
-    cursor.advance(Offset::To(bound), !backwards, buffer, galleys);
-    cursor.advance(Offset::To(bound), backwards, buffer, galleys);
+    cursor.advance(Offset::To(bound), !backwards, buffer, galleys, &obj.editor.paragraphs);
+    cursor.advance(Offset::To(bound), backwards, buffer, galleys, &obj.editor.paragraphs);
 
     cursor.selection.1 == pos.pos
 }
@@ -428,7 +428,7 @@ pub unsafe extern "C" fn bound_from_position(
         CTextGranularity::Line => Bound::Line,
         CTextGranularity::Document => Bound::Doc,
     };
-    cursor.advance(Offset::To(bound), backwards, buffer, galleys);
+    cursor.advance(Offset::To(bound), backwards, buffer, galleys, &obj.editor.paragraphs);
 
     CTextPosition { none: false, pos: cursor.selection.1 .0 }
 }
@@ -458,6 +458,7 @@ pub unsafe extern "C" fn bound_at_position(
         buffer.cursor,
         buffer,
         galleys,
+        &obj.editor.paragraphs,
     );
 
     CTextRange {
@@ -482,19 +483,19 @@ pub unsafe extern "C" fn first_rect(obj: *mut c_void, range: CTextRange) -> CRec
         let selection_start = range.start();
         let selection_end = range.end();
         let mut cursor: Cursor = selection_start.into();
-        cursor.advance(Offset::To(Bound::Line), false, buffer, galleys);
+        cursor.advance(Offset::To(Bound::Line), false, buffer, galleys, &obj.editor.paragraphs);
         let end_of_selection_start_line = cursor.selection.1;
         let end_of_rect = cmp::min(selection_end, end_of_selection_start_line);
         (selection_start, end_of_rect).into()
     };
 
-    let start_rect = cursor_representing_rect.start_rect(galleys);
-    let end_rect = cursor_representing_rect.end_rect(galleys);
+    let start_line = cursor_representing_rect.start_line(galleys);
+    let end_line = cursor_representing_rect.end_line(galleys);
     CRect {
-        min_x: (start_rect.max.x + 1.0) as f64,
-        min_y: start_rect.min.y as f64,
-        max_x: end_rect.min.x as f64,
-        max_y: end_rect.max.y as f64,
+        min_x: (start_line[1].x + 1.0) as f64,
+        min_y: start_line[0].y as f64,
+        max_x: end_line[0].x as f64,
+        max_y: end_line[1].y as f64,
     }
 }
 
@@ -548,13 +549,13 @@ pub unsafe extern "C" fn cursor_rect_at_position(obj: *mut c_void, pos: CTextPos
     let galleys = &obj.editor.galleys;
 
     let cursor: Cursor = pos.pos.into();
-    let rect = cursor.start_rect(galleys);
+    let line = cursor.start_line(galleys);
     let scroll = obj.editor.scroll_area_offset;
     CRect {
-        min_x: (rect.min.x - scroll.x) as f64,
-        min_y: (rect.min.y - scroll.y) as f64,
-        max_x: (rect.max.x - scroll.x) as f64,
-        max_y: (rect.max.y - scroll.y) as f64,
+        min_x: (line[0].x - scroll.x) as f64,
+        min_y: (line[0].y - scroll.y) as f64,
+        max_x: (line[1].x - scroll.x) as f64,
+        max_y: (line[1].y - scroll.y) as f64,
     }
 }
 

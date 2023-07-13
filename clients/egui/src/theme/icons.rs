@@ -3,6 +3,7 @@ use eframe::egui;
 pub const MATERIAL_ICON_FONT: &[u8] = include_bytes!("../../material-icons-outlined-regular.otf");
 
 pub struct Icon {
+    pub has_badge: bool,
     icon: &'static str,
     pub size: f32,
     color: Option<egui::Color32>,
@@ -10,7 +11,7 @@ pub struct Icon {
 }
 
 const fn ic(c: &'static str) -> Icon {
-    Icon { icon: c, size: 20.0, color: None, weak: false }
+    Icon { has_badge: false, icon: c, size: 20.0, color: None, weak: false }
 }
 
 impl Icon {
@@ -28,8 +29,10 @@ impl Icon {
     pub const DONE: Self = ic("\u{e876}"); // Done
     pub const DRAW: Self = ic("\u{e746}"); // Draw
     pub const EDIT: Self = ic("\u{e254}"); // Mode Edit
+    pub const DELETE: Self = ic("\u{e872}"); // Delete
     pub const FOLDER: Self = ic("\u{e2c7}"); // Folder
     pub const FOLDER_OPEN: Self = ic("\u{e2c8}"); // Folder Open
+    pub const GROUP: Self = ic("\u{e7ef}"); // Group
     pub const HIGHLIGHT_OFF: Self = ic("\u{e888}"); // Highlight Off
     pub const IMAGE: Self = ic("\u{e3f4}"); // Image
     pub const INFO: Self = ic("\u{e88e}");
@@ -40,8 +43,10 @@ impl Icon {
     pub const SPARKLE: Self = ic("\u{e65f}"); // Auto Awesome
     pub const SAVE: Self = ic("\u{e161}"); // Save
     pub const SYNC: Self = ic("\u{e863}"); // Auto-renew
+    pub const SHARED_FOLDER: Self = ic("\u{e2c9}"); // Shared Folder
     pub const SYNC_DISABLED: Self = ic("\u{e628}"); // Sync Disabled
     pub const SYNC_PROBLEM: Self = ic("\u{e629}"); // Sync Problem
+    pub const EMPTY_INBOX: Self = ic("\u{f07e}"); // Upcoming
     pub const THUMBS_UP: Self = ic("\u{e8dc}"); // Thumbs Up
     pub const VERTICAL_SPLIT: Self = ic("\u{e949}"); // Vertical Split
     pub const VIDEO_LABEL: Self = ic("\u{e071}"); // Video Label
@@ -72,7 +77,11 @@ impl Icon {
         this.size = sz;
         this
     }
-
+    pub fn badge(self, has_badge: bool) -> Self {
+        let mut this = self;
+        this.has_badge = has_badge;
+        this
+    }
     pub fn weak(self, weak: bool) -> Self {
         Self { weak, ..self }
     }

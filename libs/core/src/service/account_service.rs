@@ -4,11 +4,12 @@ use crate::{CoreError, CoreState, LbResult, Requester};
 use libsecp256k1::PublicKey;
 use lockbook_shared::account::{Account, MAX_USERNAME_LENGTH};
 use lockbook_shared::api::{DeleteAccountRequest, GetPublicKeyRequest, NewAccountRequest};
+use lockbook_shared::document_repo::DocumentService;
 use lockbook_shared::file_like::FileLike;
 use lockbook_shared::file_metadata::{FileMetadata, FileType};
 use qrcode_generator::QrCodeEcc;
 
-impl<Client: Requester> CoreState<Client> {
+impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {
     pub(crate) fn create_account(
         &mut self, username: &str, api_url: &str, welcome_doc: bool,
     ) -> LbResult<Account> {
@@ -18,7 +19,7 @@ impl<Client: Requester> CoreState<Client> {
             return Err(CoreError::UsernameInvalid.into());
         }
 
-        if self.db.account.data().is_some() {
+        if self.db.account.get().is_some() {
             return Err(CoreError::AccountExists.into());
         }
 
@@ -48,7 +49,7 @@ impl<Client: Requester> CoreState<Client> {
     }
 
     pub(crate) fn import_account(&mut self, account_string: &str) -> LbResult<Account> {
-        if self.db.account.data().is_some() {
+        if self.db.account.get().is_some() {
             warn!("tried to import an account, but account exists already.");
             return Err(CoreError::AccountExists.into());
         }
@@ -85,11 +86,7 @@ impl<Client: Requester> CoreState<Client> {
     }
 
     pub(crate) fn export_account(&self) -> LbResult<String> {
-        let account = self
-            .db
-            .account
-            .data()
-            .ok_or(CoreError::AccountNonexistent)?;
+        let account = self.db.account.get().ok_or(CoreError::AccountNonexistent)?;
         let encoded: Vec<u8> = bincode::serialize(&account).map_err(core_err_unexpected)?;
         Ok(base64::encode(encoded))
     }
@@ -103,7 +100,7 @@ impl<Client: Requester> CoreState<Client> {
     pub(crate) fn get_account(&self) -> LbResult<&Account> {
         self.db
             .account
-            .data()
+            .get()
             .ok_or_else(|| CoreError::AccountNonexistent.into())
     }
 

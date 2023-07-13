@@ -12,7 +12,7 @@ fn change_document_content() {
     let account = core.get_account().unwrap();
     let doc = core.create_at_path("test.md").unwrap().id;
     let doc = core
-        .in_tx(|s| Ok(s.db.local_metadata.data().get(&doc).unwrap().clone()))
+        .in_tx(|s| Ok(s.db.local_metadata.get().get(&doc).unwrap().clone()))
         .unwrap();
 
     // create document
@@ -55,7 +55,7 @@ fn change_document_content_not_found() {
     let account = core.get_account().unwrap();
     let doc = core.create_at_path("test.md").unwrap().id;
     let mut doc = core
-        .in_tx(|s| Ok(s.db.local_metadata.data().get(&doc).unwrap().clone()))
+        .in_tx(|s| Ok(s.db.local_metadata.get().get(&doc).unwrap().clone()))
         .unwrap();
     // create document
     core.in_tx(|s| {

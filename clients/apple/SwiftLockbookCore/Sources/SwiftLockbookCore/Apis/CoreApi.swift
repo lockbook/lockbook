@@ -170,6 +170,10 @@ public struct CoreApi: LockbookApi {
         fromPrimitiveResult(result: suggested_docs())
     }
     
+    public func getPathById(id: UUID) -> FfiResult<String, GetPathByIdError> {
+        fromPrimitiveResult(result: get_path_by_id(id.uuidString))
+    }
+    
     public func timeAgo(timeStamp: Int64) -> String {
         let msgPointer = time_ago(timeStamp)
         

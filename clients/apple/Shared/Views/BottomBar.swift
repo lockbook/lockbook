@@ -3,23 +3,43 @@ import SwiftLockbookCore
 
 struct BottomBar: View {
     
+    var isiOS = false
+    
     @EnvironmentObject var sync: SyncService
     @EnvironmentObject var status: StatusService
     @EnvironmentObject var settings: SettingsService
-    
-#if os(iOS)
-    var onCreating: () -> Void = {}
-#endif
-    
+        
 #if os(iOS)
     var menu: some View {
-        Button(action: {
-            onCreating()
-        }) {
-            Image(systemName: "plus.circle.fill")
-                .imageScale(.large)
-                .foregroundColor(.accentColor)
-                .frame(width: 40, height: 40, alignment: .center)
+        HStack {
+            if isiOS {
+                Button(action: {
+                    DI.files.createDoc(isDrawing: false)
+                }) {
+                    Image(systemName: "doc.badge.plus")
+                        .imageScale(.large)
+                        .foregroundColor(.accentColor)
+                        .frame(width: 40, height: 40, alignment: .center)
+                }
+                
+                Button(action: {
+                    DI.files.createDoc(isDrawing: true)
+                }) {
+                    Image(systemName: "pencil.tip.crop.circle.badge.plus")
+                        .imageScale(.large)
+                        .foregroundColor(.accentColor)
+                        .frame(width: 40, height: 40, alignment: .center)
+                }
+                
+                Button(action: {
+                    DI.sheets.creatingFolderInfo = CreatingFolderInfo(parentPath: DI.files.getPathByIdOrParent() ?? "ERROR", maybeParent: nil)
+                }) {
+                    Image(systemName: "folder.badge.plus")
+                        .imageScale(.large)
+                        .foregroundColor(.accentColor)
+                        .frame(width: 40, height: 40, alignment: .center)
+                }
+            }
         }
     }
 #endif
@@ -28,6 +48,7 @@ struct BottomBar: View {
     @ViewBuilder var syncButton: some View {
         if sync.syncing {
             ProgressView()
+                .frame(width: 40, height: 40, alignment: .center)
         } else {
             Button(action: {
                 sync.sync()
@@ -60,6 +81,29 @@ struct BottomBar: View {
         }
     }
     
+    func showUpgradeToPremium() {
+        let previousWindow = NSApplication.shared.windows.last
+        
+        let overlayWindow = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 300, height: 200),
+            styleMask: [.titled, .closable, .miniaturizable, .resizable],
+            backing: .buffered,
+            defer: false
+        )
+        
+        if let previousFrame = previousWindow?.frame {
+            let windowSize = overlayWindow.frame.size
+            let x = previousFrame.origin.x + (previousFrame.size.width - windowSize.width) / 2
+            let y = previousFrame.origin.y + (previousFrame.size.height - windowSize.height) / 2
+            overlayWindow.setFrame(NSRect(x: x, y: y, width: windowSize.width, height: windowSize.height), display: true)
+        }
+
+        
+        overlayWindow.isReleasedWhenClosed = false
+        overlayWindow.contentView = NSHostingView(rootView: UpgradeToPremium().realDI())
+        overlayWindow.makeKeyAndOrderFront(nil)
+    }
+    
     @ViewBuilder
     var usageBar: some View {
         if let usage = settings.usages {
@@ -69,26 +113,7 @@ struct BottomBar: View {
                 HStack {
                     if settings.usageProgress > 0.8 {
                         Button(action: {
-                            let previousWindow = NSApplication.shared.windows.last
-                            
-                            let overlayWindow = NSWindow(
-                                contentRect: NSRect(x: 0, y: 0, width: 300, height: 200),
-                                styleMask: [.titled, .closable, .miniaturizable, .resizable],
-                                backing: .buffered,
-                                defer: false
-                            )
-                            
-                            if let previousFrame = previousWindow?.frame {
-                                let windowSize = overlayWindow.frame.size
-                                let x = previousFrame.origin.x + (previousFrame.size.width - windowSize.width) / 2
-                                let y = previousFrame.origin.y + (previousFrame.size.height - windowSize.height) / 2
-                                overlayWindow.setFrame(NSRect(x: x, y: y, width: windowSize.width, height: windowSize.height), display: true)
-                            }
-
-                            
-                            overlayWindow.isReleasedWhenClosed = false
-                            overlayWindow.contentView = NSHostingView(rootView: UpgradeToPremium().realDI())
-                            overlayWindow.makeKeyAndOrderFront(nil)
+                            showUpgradeToPremium()
                         }, label: {
                             Text("Upgrade")
                                 .foregroundColor(.accentColor)
@@ -103,8 +128,12 @@ struct BottomBar: View {
                         .font(.callout)
                     
                     if settings.usageProgress <= 0.8 {
-                        Image(systemName: "plus.circle.fill")
-                            .foregroundColor(.gray)
+                        Button(action: {
+                            showUpgradeToPremium()
+                        }, label: {
+                            Image(systemName: "plus.circle.fill")
+                                .foregroundColor(.gray)
+                        })
                         
                         Spacer()
                     }
@@ -170,30 +199,30 @@ struct BottomBar: View {
     }
     
     var body: some View {
-        
+        Group {
 #if os(iOS)
-        HStack {
-            syncButton
-            Spacer()
-            statusText
-            Spacer()
-            menu
-        }
-        .padding(.horizontal, 10)
-#else
-        VStack {
-            Divider()
             HStack {
+                syncButton
+                Spacer()
                 statusText
                 Spacer()
-                syncButton
+                menu
             }
-            usageBar
-        }
-        .padding(.bottom)
-        .padding(.horizontal)
+            .padding(.horizontal, 10)
+#else
+            VStack {
+                Divider()
+                HStack {
+                    statusText
+                    Spacer()
+                    syncButton
+                }
+                usageBar
+            }
+            .padding(.bottom)
+            .padding(.horizontal)
 #endif
-        
+        }
     }
 }
 

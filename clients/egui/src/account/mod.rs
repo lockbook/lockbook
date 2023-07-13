@@ -1,5 +1,5 @@
+mod background;
 mod modals;
-mod saving;
 mod syncing;
 mod tabs;
 mod tree;
@@ -16,23 +16,24 @@ use crate::model::{AccountScreenInitData, Usage};
 use crate::settings::Settings;
 use crate::theme::Icon;
 use crate::util::NUM_KEYS;
-use crate::widgets::{separator, sidebar_button};
+use crate::widgets::{separator, Button};
 
+use self::background::*;
 use self::modals::*;
-use self::saving::*;
 use self::syncing::{SyncPanel, SyncUpdate};
 use self::tabs::{Drawing, ImageViewer, Markdown, PlainText, Tab, TabContent, TabFailure};
 use self::tree::{FileTree, TreeNode};
 use self::workspace::Workspace;
 
 pub struct AccountScreen {
+    ctx: egui::Context,
     settings: Arc<RwLock<Settings>>,
-    core: Arc<lb::Core>,
+    core: lb::Core,
 
     update_tx: mpsc::Sender<AccountUpdate>,
     update_rx: mpsc::Receiver<AccountUpdate>,
 
-    save_req_tx: mpsc::Sender<SaveRequest>,
+    background_tx: mpsc::Sender<BackgroundEvent>,
 
     tree: FileTree,
     sync: SyncPanel,
@@ -44,36 +45,36 @@ pub struct AccountScreen {
 
 impl AccountScreen {
     pub fn new(
-        settings: Arc<RwLock<Settings>>, core: Arc<lb::Core>, acct_data: AccountScreenInitData,
+        settings: Arc<RwLock<Settings>>, core: lb::Core, acct_data: AccountScreenInitData,
         ctx: &egui::Context,
     ) -> Self {
         let (update_tx, update_rx) = mpsc::channel();
-        let (save_req_tx, save_req_rx) = mpsc::channel();
 
         let AccountScreenInitData { sync_status, files, usage } = acct_data;
 
-        let mut acct_scr = Self {
+        let background = BackgroundWorker::new(ctx, &update_tx);
+        let background_tx = background.spawn_worker();
+
+        Self {
             settings,
             core,
             update_tx,
             update_rx,
-            save_req_tx,
+            background_tx,
             tree: FileTree::new(files),
             sync: SyncPanel::new(sync_status),
             usage,
             workspace: Workspace::new(),
             modals: Modals::default(),
             shutdown: None,
-        };
-        acct_scr.process_save_requests(ctx, save_req_rx);
-        acct_scr.send_auto_save_signals(ctx);
-        acct_scr
+            ctx: ctx.clone(),
+        }
     }
 
     pub fn begin_shutdown(&mut self) {
         self.shutdown = Some(AccountShutdownProgress::default());
-        self.save_all_tabs();
-        self.save_req_tx.send(SaveRequest::SHUTDOWN_REQ).unwrap();
+        self.save_all_tabs(&self.ctx);
+        self.background_tx.send(BackgroundEvent::Shutdown).unwrap();
     }
 
     pub fn is_shutdown(&self) -> bool {
@@ -93,6 +94,10 @@ impl AccountScreen {
             return;
         }
 
+        self.background_tx
+            .send(BackgroundEvent::EguiUpdate)
+            .unwrap();
+
         let sidebar_width = egui::SidePanel::left("sidebar_panel")
             .frame(egui::Frame::none().fill(ctx.style().visuals.panel_fill))
             .min_width(300.0)
@@ -106,12 +111,7 @@ impl AccountScreen {
 
                     separator(ui);
 
-                    if sidebar_button(ui, &Icon::SETTINGS, "Settings").clicked() {
-                        self.update_tx.send(OpenModal::Settings.into()).unwrap();
-                        ctx.request_repaint();
-                    }
-
-                    separator(ui);
+                    self.show_nav_panel(ui);
 
                     self.show_tree(ui);
                 });
@@ -132,12 +132,8 @@ impl AccountScreen {
         while let Ok(update) = self.update_rx.try_recv() {
             match update {
                 AccountUpdate::AutoSaveSignal => {
-                    for tab in &mut self.workspace.tabs {
-                        if tab.is_dirty() {
-                            if let Some(save_req) = tab.make_save_request() {
-                                self.save_req_tx.send(save_req).unwrap();
-                            }
-                        }
+                    if self.settings.read().unwrap().auto_save {
+                        self.save_all_tabs(ctx);
                     }
                 }
                 AccountUpdate::SaveResult(id, result) => {
@@ -151,14 +147,28 @@ impl AccountScreen {
                     }
                 }
                 AccountUpdate::OpenModal(open_modal) => match open_modal {
+                    OpenModal::AcceptShare => {
+                        self.modals.accept_share = Some(AcceptShareModal::new(&self.core));
+                    }
+                    OpenModal::ConfirmDelete(files) => {
+                        self.modals.confirm_delete = Some(ConfirmDeleteModal::new(files));
+                    }
+                    OpenModal::FilePicker(target) => {
+                        self.modals.file_picker = Some(FilePicker::new(self.core.clone(), target));
+                    }
+                    OpenModal::InitiateShare(target) => self.open_share_modal(target),
                     OpenModal::NewDoc(maybe_parent) => self.open_new_doc_modal(maybe_parent),
                     OpenModal::NewFolder(maybe_parent) => self.open_new_folder_modal(maybe_parent),
                     OpenModal::Settings => {
                         self.modals.settings = Some(SettingsModal::new(&self.core, &self.settings));
                     }
-                    OpenModal::ConfirmDelete(files) => {
-                        self.modals.confirm_delete = Some(ConfirmDeleteModal::new(files));
+                },
+                AccountUpdate::ShareAccepted(result) => match result {
+                    Ok(_) => {
+                        self.modals.file_picker = None;
+                        self.perform_sync(ctx);
                     }
+                    Err(msg) => self.modals.error = Some(ErrorModal::new(msg)),
                 },
                 AccountUpdate::FileCreated(result) => match result {
                     Ok(f) => {
@@ -212,30 +222,31 @@ impl AccountScreen {
                 AccountUpdate::SyncUpdate(update) => self.process_sync_update(ctx, update),
                 AccountUpdate::DoneDeleting => self.modals.confirm_delete = None,
                 AccountUpdate::ReloadTree(root) => self.tree.root = root,
-                AccountUpdate::ReloadTabs(mut new_tabs) => {
-                    let active_id = self.workspace.current_tab().map(|t| t.id);
-                    for i in (0..self.workspace.tabs.len()).rev() {
-                        let t = &mut self.workspace.tabs[i];
-                        if let Some(new_tab_result) = new_tabs.remove(&t.id) {
-                            match new_tab_result {
+                AccountUpdate::ReloadTab(id, res) => {
+                    let focussed_tab_id = self.workspace.current_tab().map(|tab| tab.id);
+                    for i in 0..self.workspace.tabs.len() {
+                        let tab_id = self.workspace.tabs[i].id;
+
+                        if tab_id == id {
+                            match res {
                                 Ok(new_tab) => {
-                                    t.name = new_tab.name;
-                                    t.path = new_tab.path;
-                                    t.content = new_tab.content;
-                                    if Some(t.id) == active_id {
-                                        frame.set_window_title(&t.name);
+                                    self.workspace.tabs[i] = new_tab;
+                                    if let Some(open_tab) = focussed_tab_id {
+                                        if tab_id == open_tab {
+                                            frame.set_window_title(&self.workspace.tabs[i].name);
+                                        }
                                     }
+                                    break;
                                 }
                                 Err(fail) => {
-                                    t.failure = Some(fail);
+                                    self.workspace.tabs[i].failure = Some(fail);
+                                    break;
                                 }
                             }
-                        } else {
-                            self.close_tab(i);
                         }
                     }
                 }
-                AccountUpdate::SaveRequestsDone => {
+                AccountUpdate::BackgroundWorkerDone => {
                     if let Some(s) = &mut self.shutdown {
                         s.done_saving = true;
                         self.perform_final_sync(ctx);
@@ -244,6 +255,23 @@ impl AccountScreen {
                 AccountUpdate::FinalSyncAttemptDone => {
                     if let Some(s) = &mut self.shutdown {
                         s.done_syncing = true;
+                    }
+                }
+                AccountUpdate::FileShared(result) => match result {
+                    Ok(_) => {
+                        self.modals.create_share = None;
+                        self.perform_sync(ctx);
+                    }
+                    Err(msg) => {
+                        if let Some(m) = &mut self.modals.create_share {
+                            m.err_msg = Some(msg)
+                        }
+                    }
+                },
+                AccountUpdate::SyncStatusSignal => self.refresh_sync_status(ctx),
+                AccountUpdate::AutoSyncSignal => {
+                    if self.settings.read().unwrap().auto_sync {
+                        self.perform_sync(ctx)
                     }
                 }
             }
@@ -270,12 +298,12 @@ impl AccountScreen {
 
         // Ctrl-S to save current tab.
         if ctx.input_mut(|i| i.consume_key(CTRL, egui::Key::S)) {
-            self.save_tab(self.workspace.active_tab);
+            self.save_tab(ctx, self.workspace.active_tab);
         }
 
         // Ctrl-W to close current tab.
         if ctx.input_mut(|i| i.consume_key(CTRL, egui::Key::W)) && !self.workspace.is_empty() {
-            self.close_tab(self.workspace.active_tab);
+            self.close_tab(ctx, self.workspace.active_tab);
             frame.set_window_title(
                 self.workspace
                     .current_tab()
@@ -352,6 +380,13 @@ impl AccountScreen {
             ui.ctx().request_repaint();
         }
 
+        if let Some(file) = resp.create_share_modal {
+            self.update_tx
+                .send(OpenModal::InitiateShare(file).into())
+                .unwrap();
+            ui.ctx().request_repaint();
+        }
+
         if let Some(rename_req) = resp.rename_request {
             self.rename_file(rename_req, ui.ctx());
         }
@@ -374,19 +409,58 @@ impl AccountScreen {
         }
     }
 
+    fn show_nav_panel(&self, ui: &mut egui::Ui) {
+        ui.allocate_ui_with_layout(
+            egui::vec2(ui.available_size_before_wrap().x, 70.0),
+            egui::Layout::left_to_right(egui::Align::Center),
+            |ui| {
+                ui.add_space(10.0);
+
+                if Button::default()
+                    .text("Settings ")
+                    .icon(&Icon::SETTINGS)
+                    .show(ui)
+                    .clicked()
+                {
+                    self.update_tx.send(OpenModal::Settings.into()).unwrap();
+                    ui.ctx().request_repaint();
+                };
+                ui.add_space(20.0);
+
+                if Button::default()
+                    .icon(
+                        &Icon::SHARED_FOLDER.badge(
+                            !self
+                                .core
+                                .get_pending_shares()
+                                .unwrap_or_default()
+                                .is_empty(),
+                        ),
+                    )
+                    .show(ui)
+                    .clicked()
+                {
+                    self.update_tx.send(OpenModal::AcceptShare.into()).unwrap();
+                    ui.ctx().request_repaint();
+                };
+            },
+        );
+    }
+
     fn save_settings(&mut self) {
         if let Err(err) = self.settings.read().unwrap().to_file() {
             self.modals.error = Some(ErrorModal::new(err));
         }
     }
 
-    pub fn refresh_tree_and_workspace(&self, ctx: &egui::Context) {
+    pub fn refresh_tree_and_workspace(&self, ctx: &egui::Context, work: lb::WorkCalculated) {
         let opened_ids = self
             .workspace
             .tabs
             .iter()
             .map(|t| t.id)
             .collect::<Vec<lb::Uuid>>();
+
         let core = self.core.clone();
         let update_tx = self.update_tx.clone();
         let ctx = ctx.clone();
@@ -397,19 +471,22 @@ impl AccountScreen {
             update_tx.send(AccountUpdate::ReloadTree(root)).unwrap();
             ctx.request_repaint();
 
-            let mut new_tabs = HashMap::new();
+            let server_ids = ids_changed_on_server(&work);
+            let stale_tab_ids = server_ids.iter().filter(|id| opened_ids.contains(id));
 
-            for id in opened_ids {
+            for &id in stale_tab_ids {
                 let name = match core.get_file_by_id(id) {
                     Ok(file) => file.name,
                     Err(err) => {
-                        new_tabs.insert(
-                            id,
-                            Err(match err.kind {
-                                lb::CoreError::FileNonexistent => TabFailure::DeletedFromSync,
-                                _ => TabFailure::Unexpected(format!("{:?}", err)),
-                            }),
-                        );
+                        update_tx
+                            .send(AccountUpdate::ReloadTab(
+                                id,
+                                Err(match err.kind {
+                                    lb::CoreError::FileNonexistent => TabFailure::DeletedFromSync,
+                                    _ => TabFailure::Unexpected(format!("{:?}", err)),
+                                }),
+                            ))
+                            .unwrap();
                         continue;
                     }
                 };
@@ -437,21 +514,22 @@ impl AccountScreen {
                 };
 
                 let now = Instant::now();
-                new_tabs.insert(
-                    id,
-                    Ok(Tab {
+                update_tx
+                    .send(AccountUpdate::ReloadTab(
                         id,
-                        name,
-                        path,
-                        content: content.ok(),
-                        failure: None,
-                        last_changed: now,
-                        last_saved: now,
-                    }),
-                );
+                        Ok(Tab {
+                            id,
+                            name,
+                            path,
+                            content: content.ok(),
+                            failure: None,
+                            last_changed: now,
+                            last_saved: now,
+                        }),
+                    ))
+                    .unwrap();
             }
 
-            update_tx.send(AccountUpdate::ReloadTabs(new_tabs)).unwrap();
             ctx.request_repaint();
         });
     }
@@ -462,6 +540,10 @@ impl AccountScreen {
 
     fn open_new_folder_modal(&mut self, maybe_parent: Option<lb::File>) {
         self.open_new_file_modal(maybe_parent, lb::FileType::Folder);
+    }
+
+    fn open_share_modal(&mut self, target: lb::File) {
+        self.modals.create_share = Some(CreateShareModal::new(target));
     }
 
     fn open_new_file_modal(&mut self, maybe_parent: Option<lb::File>, typ: lb::FileType) {
@@ -495,6 +577,18 @@ impl AccountScreen {
                 .create_file(&params.name, parent.id, params.ftype)
                 .map_err(|err| format!("{:?}", err));
             update_tx.send(AccountUpdate::FileCreated(result)).unwrap();
+        });
+    }
+
+    fn create_share(&mut self, params: CreateShareParams) {
+        let core = self.core.clone();
+        let update_tx = self.update_tx.clone();
+
+        thread::spawn(move || {
+            let result = core
+                .share_file(params.id, &params.username, params.mode)
+                .map_err(|err| format!("{:?}", err.kind));
+            update_tx.send(AccountUpdate::FileShared(result)).unwrap();
         });
     }
 
@@ -592,6 +686,30 @@ impl AccountScreen {
         });
     }
 
+    fn accept_share(&self, target: lb::File, parent: lb::File) {
+        let core = self.core.clone();
+        let update_tx = self.update_tx.clone();
+
+        thread::spawn(move || {
+            let result = core
+                .create_file(&target.name, parent.id, lb::FileType::Link { target: target.id })
+                .map_err(|err| format!("{:?}", err));
+
+            update_tx
+                .send(AccountUpdate::ShareAccepted(result))
+                .unwrap()
+        });
+    }
+
+    fn delete_share(&self, target: lb::File) {
+        let core = self.core.clone();
+
+        thread::spawn(move || {
+            core.delete_pending_share(target.id)
+                .map_err(|err| format!("{:?}", err))
+        });
+    }
+
     fn delete_files(&self, ctx: &egui::Context, files: Vec<lb::File>) {
         let core = self.core.clone();
         let update_tx = self.update_tx.clone();
@@ -610,7 +728,7 @@ impl AccountScreen {
     }
 }
 
-enum AccountUpdate {
+pub enum AccountUpdate {
     AutoSaveSignal,
     SaveResult(lb::Uuid, Result<Instant, lb::LbError>),
 
@@ -620,6 +738,7 @@ enum AccountUpdate {
     OpenModal(OpenModal),
 
     FileCreated(Result<lb::File, String>),
+    FileShared(Result<(), String>),
     FileLoaded(lb::Uuid, Result<TabContent, TabFailure>),
     FileRenamed {
         id: lb::Uuid,
@@ -629,20 +748,27 @@ enum AccountUpdate {
     FileDeleted(lb::File),
 
     SyncUpdate(SyncUpdate),
+    SyncStatusSignal,
+    AutoSyncSignal,
+
+    ShareAccepted(Result<lb::File, String>),
 
     DoneDeleting,
 
     ReloadTree(TreeNode),
-    ReloadTabs(HashMap<lb::Uuid, Result<Tab, TabFailure>>),
+    ReloadTab(lb::Uuid, Result<Tab, TabFailure>),
 
-    SaveRequestsDone,
+    BackgroundWorkerDone,
     FinalSyncAttemptDone,
 }
 
-enum OpenModal {
+pub enum OpenModal {
     NewDoc(Option<lb::File>),
     NewFolder(Option<lb::File>),
+    InitiateShare(lb::File),
     Settings,
+    AcceptShare,
+    FilePicker(lb::File),
     ConfirmDelete(Vec<lb::File>),
 }
 
@@ -684,4 +810,14 @@ fn consume_key(ctx: &egui::Context, key: char) -> bool {
         }
         false
     })
+}
+
+fn ids_changed_on_server(work: &lb::WorkCalculated) -> Vec<lb::Uuid> {
+    work.work_units
+        .iter()
+        .filter_map(|wu| match wu {
+            lb::WorkUnit::LocalChange { .. } => None,
+            lb::WorkUnit::ServerChange { metadata } => Some(metadata.id),
+        })
+        .collect()
 }

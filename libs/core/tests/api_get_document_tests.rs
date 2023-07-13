@@ -14,7 +14,7 @@ fn get_document() {
     let id = core.create_at_path("test.md").unwrap().id;
     core.sync(None).unwrap();
     core.in_tx(|s| {
-        let old = s.db.base_metadata.data().get(&id).unwrap().clone();
+        let old = s.db.base_metadata.get().get(&id).unwrap().clone();
         let mut new = old.clone();
         new.timestamped_value.value.document_hmac = Some([0; 32]);
 
@@ -54,7 +54,7 @@ fn get_document_not_found() {
     let id = core.create_at_path("test.md").unwrap().id;
     core.sync(None).unwrap();
     core.in_tx(|s| {
-        let mut old = s.db.base_metadata.data().get(&id).unwrap().clone();
+        let mut old = s.db.base_metadata.get().get(&id).unwrap().clone();
         old.timestamped_value.value.id = Uuid::new_v4();
         let mut new = old;
         new.timestamped_value.value.document_hmac = Some([0; 32]);

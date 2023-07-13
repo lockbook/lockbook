@@ -8,9 +8,11 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     
     var editorHandle: UnsafeMutableRawPointer?
     var editorState: EditorState?
+    var toolbarState: ToolbarState?
+    var nameState: NameState?
     var editMenuInteraction: UIEditMenuInteraction?
     var hasSelection: Bool = false
-
+    
     var pasteBoardEventId: Int = 0
     var lastKnownTapLocation: Float? = nil
     override init(frame frameRect: CGRect, device: MTLDevice?) {
@@ -93,10 +95,19 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
         indent_at_cursor(editorHandle, deindent)
         self.setNeedsDisplay(self.frame)
     }
-    
+        
     public func setInitialContent(_ s: String) {
         let metalLayer = UnsafeMutableRawPointer(Unmanaged.passUnretained(self.layer).toOpaque())
         self.editorHandle = init_editor(metalLayer, s, isDarkMode())
+        
+        self.toolbarState!.toggleBold = bold
+        self.toolbarState!.toggleItalic = italic
+        self.toolbarState!.toggleTodoList = todoList
+        self.toolbarState!.toggleBulletList = bulletedList
+        self.toolbarState!.toggleInlineCode = inlineCode
+        self.toolbarState!.toggleNumberList = numberedList
+        self.toolbarState!.toggleHeading = header
+        self.toolbarState!.tab = tab
     }
     
     public func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {
@@ -110,14 +121,21 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
         let output = draw_editor(editorHandle)
         self.isPaused = !output.redraw
         
-        editorState?.isHeadingSelected = output.editor_response.cursor_in_heading;
-        editorState?.isTodoListSelected = output.editor_response.cursor_in_todo_list;
-        editorState?.isBulletListSelected = output.editor_response.cursor_in_bullet_list;
-        editorState?.isNumberListSelected = output.editor_response.cursor_in_number_list;
-        editorState?.isInlineCodeSelected = output.editor_response.cursor_in_inline_code;
-        editorState?.isBoldSelected = output.editor_response.cursor_in_bold;
-        editorState?.isItalicSelected = output.editor_response.cursor_in_italic;
-
+        toolbarState?.isHeadingSelected = output.editor_response.cursor_in_heading;
+        toolbarState?.isTodoListSelected = output.editor_response.cursor_in_todo_list;
+        toolbarState?.isBulletListSelected = output.editor_response.cursor_in_bullet_list;
+        toolbarState?.isNumberListSelected = output.editor_response.cursor_in_number_list;
+        toolbarState?.isInlineCodeSelected = output.editor_response.cursor_in_inline_code;
+        toolbarState?.isBoldSelected = output.editor_response.cursor_in_bold;
+        toolbarState?.isItalicSelected = output.editor_response.cursor_in_italic;
+        
+        if let potentialTitle = output.editor_response.potential_title {
+            nameState?.potentialTitle = String(cString: potentialTitle)
+            free_text(UnsafeMutablePointer(mutating: potentialTitle))
+        } else {
+            nameState?.potentialTitle = nil
+        }
+        
         if output.editor_response.show_edit_menu {
             self.hasSelection = output.editor_response.has_selection
             let location = CGPoint(
@@ -157,7 +175,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     }
     
     public func insertText(_ text: String) {
-        //        print("\(#function)(\(text))")
+//        print("\(#function)(\(text))")
         insert_text(editorHandle, text)
         self.setNeedsDisplay(self.frame)
     }
@@ -390,6 +408,9 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
         let value = UInt64(UInt(bitPattern: point))
         let location = touches.first!.location(in: self)
         touches_began(editorHandle, value, Float(location.x), Float(location.y), Float(touches.first?.force ?? 0))
+        
+        becomeFirstResponder()
+
         self.setNeedsDisplay(self.frame)
     }
     
@@ -515,9 +536,6 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     }
     
     deinit {
-        withUnsafePointer(to: self) { pointer in
-            print("editor deinited: \(self.editorHandle)")
-        }
         deinit_editor(editorHandle)
     }
     

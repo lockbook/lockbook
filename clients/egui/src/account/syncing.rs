@@ -29,7 +29,7 @@ enum SyncPhase {
 pub enum SyncUpdate {
     Started,
     Progress(lb::SyncProgress),
-    Done(Result<(), SyncError>),
+    Done(Result<lb::WorkCalculated, SyncError>),
     SetStatus(Result<String, lb::UnexpectedError>),
     SetUsage(Usage),
 }
@@ -51,7 +51,9 @@ impl super::AccountScreen {
                 Ok(_) => {
                     self.sync.status = Ok("just now".to_owned());
                     self.sync.phase = SyncPhase::IdleGood;
-                    self.refresh_tree_and_workspace(ctx);
+                    if let Ok(work) = result {
+                        self.refresh_tree_and_workspace(ctx, work);
+                    }
                     self.refresh_sync_status(ctx);
                 }
                 Err(err) => {
@@ -68,6 +70,8 @@ impl super::AccountScreen {
     }
 
     pub fn show_sync_panel(&mut self, ui: &mut egui::Ui) {
+        ui.add_space(20.0);
+
         if self.settings.read().unwrap().sidebar_usage {
             match &self.usage {
                 Ok(usage) => {
@@ -131,6 +135,7 @@ impl super::AccountScreen {
 
                     if Button::default()
                         .icon(&Icon::SYNC)
+                        .frame(true)
                         .stroke((1.25, ui.visuals().extreme_bg_color))
                         .rounding(egui::Rounding::same(3.0))
                         .padding((6.0, 6.0))
@@ -143,7 +148,7 @@ impl super::AccountScreen {
             },
         );
 
-        ui.add_space(10.0);
+        ui.add_space(20.0);
     }
 
     pub fn set_sync_status<T: ToString>(&mut self, res: Result<String, T>) {
@@ -175,7 +180,7 @@ impl super::AccountScreen {
             return;
         }
 
-        self.save_all_tabs();
+        self.save_all_tabs(ctx);
 
         let sync_lock = self.sync.lock.clone();
         let core = self.core.clone();
@@ -197,10 +202,7 @@ impl super::AccountScreen {
                 }
             };
 
-            let result = core
-                .sync(Some(Box::new(closure)))
-                .map(|_| ())
-                .map_err(SyncError::from);
+            let result = core.sync(Some(Box::new(closure))).map_err(SyncError::from);
             update_tx.send(SyncUpdate::Done(result).into()).unwrap();
             ctx.request_repaint();
         });

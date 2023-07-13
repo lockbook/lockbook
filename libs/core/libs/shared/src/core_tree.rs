@@ -12,11 +12,11 @@ where
     type F = F;
 
     fn ids(&self) -> HashSet<&Uuid> {
-        self.data().keys().collect()
+        self.get().keys().collect()
     }
 
     fn maybe_find(&self, id: &Uuid) -> Option<&Self::F> {
-        self.data().get(id)
+        self.get().get(id)
     }
 }
 

@@ -3,44 +3,88 @@ import SwiftLockbookCore
 import PencilKit
 import SwiftEditor
 
-struct DocumentView: View {
-    
-    let meta: File
-    
-    @EnvironmentObject var model: DocumentLoader
-#if os(iOS)
-    @EnvironmentObject var toolbar: ToolbarModel
-    @EnvironmentObject var current: CurrentDocument
-#endif
+
+struct iOSDocumentViewWrapper: View {
+    let id: UUID
     
     var body: some View {
+        DocumentView(id: id, isiPhone: true)
+            .onDisappear {
+                DI.currentDoc.cleanupOldDocs(true)
+            }
+    }
+}
+
+struct DocumentView: View, Equatable {
+    static func == (lhs: DocumentView, rhs: DocumentView) -> Bool {
+        lhs.id == rhs.id
+    }
+
+    let id: UUID
+    
+    @ObservedObject var model: DocumentLoadingInfo
+    
+#if os(iOS)
+    @EnvironmentObject var toolbar: ToolbarModel
+#endif
+    
+    public init(id: UUID, isiPhone: Bool = false) {
+        self.id = id
+        self.model = DI.currentDoc.getDocInfoOrCreate(id: id, isiPhone: isiPhone)
+    }
+    
+    var body: some View {        
         Group {
-            if meta != model.meta || model.loading {
-                ProgressView()
-                    .onAppear {
-                        model.startLoading(meta)
-                    }
-                    .title(meta.name)
+            if model.loading {
+                VStack {
+                    Spacer()
+                    
+                    ProgressView()
+                        .onAppear {
+                            model.startLoading()
+                        }
+                        .title(model.meta.name) // No exact matches in reference to static method 'buildExpression'
+                    
+                    Spacer()
+                }
             } else if model.error != "" {
-                Text("errors while loading: \(model.error)")
+                VStack {
+                    Spacer()
+                    
+                    Text("errors while loading: \(model.error)")
+                    
+                    Spacer()
+                }
             } else if model.deleted {
-                Text("\(meta.name) was deleted.")
+                VStack {
+                    Spacer()
+                    
+                    Text("\(model.meta.name) was deleted.")
+                    
+                    Spacer()
+                }
             } else {
-                if let type = model.type {
-                    switch type {
-                    case .Image:
-                        if let img = model.image {
+                switch model.type {
+                case .Image:
+                    if let img = model.image {
+                        VStack {
+                            DocumentTitle(nameState: model.documentNameState, id: model.meta.id)
+                            
                             ScrollView([.horizontal, .vertical]) {
                                 img
-                            }.title(meta.name)
-                        }
+                            }
+                        }.title("")
+                        
+                    }
 #if os(iOS)
-                    case .Drawing:
+                case .Drawing:
+                    VStack {
+                        DocumentTitle(nameState: model.documentNameState, id: model.meta.id)
+                        
                         DrawingView(
                             model: model,
                             toolPicker: toolbar
                         )
-                        .navigationBarTitle(meta.name, displayMode: .inline)
                         .toolbar {
                             ToolbarItemGroup(placement: .bottomBar) {
                                 Spacer()
@@ -48,21 +92,24 @@ struct DocumentView: View {
                                 Spacer()
                             }
                         }
+                    }.title("")
 #endif
-
-                    case .Markdown:
-                        if let editorState = model.textDocument {
-                            MarkdownEditor(editorState, meta.name)
-                        }
-                    case .Unknown:
-                        Text("\(meta.name) cannot be opened on this device.")
-                            .title(meta.name)
+                case .Markdown:
+                    if let editorState = model.textDocument,
+                       let toolbarState = model.textDocumentToolbar {
+                        Group {
+                            MarkdownCompleteEditor(editorState: editorState, toolbarState: toolbarState, nameState: model.documentNameState, fileId: model.meta.id)
+                                .equatable()
+                        }.title("")
                     }
+                case .Unknown:
+                    Text("\(model.meta.name) cannot be opened on this device.")
+                        .title(model.meta.name)
                 }
             }
         }
         .onDisappear {
-            DI.files.refreshSuggestedDocs()
+            DI.files.refresh()
         }
     }
 }
@@ -70,109 +117,86 @@ struct DocumentView: View {
 extension View {
     func title(_ name: String) -> some View {
 #if os(macOS)
-        return self.navigationTitle(name)
+        return self
 #else
-        return self.navigationBarTitle(name, displayMode: .inline)
+        return self.navigationTitle("").navigationBarTitleDisplayMode(.inline)
 #endif
     }
 }
 
-struct MarkdownEditor: View {
-    var documentName: String
-    
-    @ObservedObject var editorState: EditorState
-    let editor: EditorView
-    
-    public init(_ editorState: EditorState, _ documentName: String) {
-        self.editorState = editorState
-        self.documentName = documentName
+struct MarkdownCompleteEditor: View, Equatable {
+    let editorState: EditorState
+    let toolbarState: ToolbarState
+    let nameState: NameState
 
-        self.editor = EditorView(editorState)
-    }
-    
-    @Environment(\.colorScheme) var colorScheme
+    let fileId: UUID
     
     var body: some View {
-        #if os(iOS)
-        VStack {
-            editor
+#if os(iOS)
+            VStack {
+                markdownTitle
                 
-            ScrollView(.horizontal) {
-                toolbar
-                    .padding(.bottom, 8)
-                    .padding(.horizontal)
+                MarkdownEditor(editorState, toolbarState, nameState)
+                
+                ScrollView(.horizontal) {
+                    markdownToolbar
+                        .padding(.bottom, 8)
+                        .padding(.horizontal)
+                }
             }
-        }
-        .title(documentName)
-        #else
-        VStack {
-            toolbar
-                .padding(.top, 9)
-                .padding(.horizontal)
-
-            editor
-        }
-        .title(documentName)
-        #endif
+#else
+            VStack {
+                markdownTitle
+                
+                markdownToolbar
+                    .padding(.top, 9)
+                    .padding(.horizontal)
+                
+                MarkdownEditor(editorState, toolbarState, nameState)
+            }
+#endif
+    }
+        
+    var markdownTitle: DocumentTitle {
+        DocumentTitle(nameState: nameState, id: fileId)
     }
     
-    var toolbar: some View {
+    var markdownToolbar: MarkdownToolbar {
+        MarkdownToolbar(toolbarState: toolbarState)
+    }
+    
+    static func == (lhs: MarkdownCompleteEditor, rhs: MarkdownCompleteEditor) -> Bool {
+        return true
+    }
+}
+
+struct MarkdownToolbar: View {
+    @ObservedObject var toolbarState: ToolbarState
+    
+    var body: some View {
         HStack(spacing: 20) {
             HStack(spacing: 0) {
-                
-                // hack for the heading 1-4 shortcut since the shortcuts in the menu won't work unless opened
-                Button(action: {
-                    editor.header(headingSize: 1)
-                }) {
-                    EmptyView()
-                }
-                .frame(width: 0, height: 0)
-                .keyboardShortcut("1", modifiers: [.command, .control])
-                
-                Button(action: {
-                    editor.header(headingSize: 2)
-                }) {
-                    EmptyView()
-                }
-                .frame(width: 0, height: 0)
-                .keyboardShortcut("2", modifiers: [.command, .control])
-                
-                Button(action: {
-                    editor.header(headingSize: 3)
-                }) {
-                    EmptyView()
-                }
-                .frame(width: 0, height: 0)
-                .keyboardShortcut("3", modifiers: [.command, .control])
-                
-                Button(action: {
-                    editor.header(headingSize: 4)
-                }) {
-                    EmptyView()
-                }
-                .frame(width: 0, height: 0)
-                .keyboardShortcut("4", modifiers: [.command, .control])
-                
+                                
                 Menu(content: {
                     Button("Heading 1") {
-                        editor.header(headingSize: 1)
+                        toolbarState.toggleHeading(1)
                     }
-                    .keyboardShortcut("1", modifiers: [.command, .control])
+                    .help("⌘⌃1")
 
                     Button("Heading 2") {
-                        editor.header(headingSize: 2)
+                        toolbarState.toggleHeading(2)
                     }
-                    .keyboardShortcut("2", modifiers: [.command, .control])
+                    .help("⌘⌃2")
 
                     Button("Heading 3") {
-                        editor.header(headingSize: 3)
+                        toolbarState.toggleHeading(3)
                     }
-                    .keyboardShortcut("3", modifiers: [.command, .control])
+                    .help("⌘⌃3")
 
                     Button("Heading 4") {
-                        editor.header(headingSize: 4)
+                        toolbarState.toggleHeading(4)
                     }
-                    .keyboardShortcut("4", modifiers: [.command, .control])
+                    .help("⌘⌃4")
                 }, label: {
                     HStack {
                         Image(systemName: "h.square")
@@ -188,8 +212,9 @@ struct MarkdownEditor: View {
                     .contentShape(Rectangle())
                 })
                 .padding(3)
-                .background(editorState.isHeadingSelected ? .gray.opacity(0.2) : .clear)
+                .background(toolbarState.isHeadingSelected ? .gray.opacity(0.2) : .clear)
                 .cornerRadius(5)
+                .help("Heading 1: ⌘⌃1 \nHeading 2: ⌘⌃2 \nHeading 3: ⌘⌃3 \nHeading 4: ⌘⌃4")
             }
 
             Divider()
@@ -197,29 +222,28 @@ struct MarkdownEditor: View {
 
             HStack(spacing: 15) {
                 Button(action: {
-                    editor.bold()
+                    toolbarState.toggleBold()
                 }) {
-                    MarkdownEditorImage(systemImageName: "bold", isSelected: editorState.isBoldSelected)
+                    MarkdownEditorImage(systemImageName: "bold", isSelected: toolbarState.isBoldSelected)
                 }
                 .buttonStyle(.borderless)
-                .keyboardShortcut("b", modifiers: .command)
+                .help("Bold: ⌘B")
 
                 Button(action: {
-                    editor.italic()
+                    toolbarState.toggleItalic()
                 }) {
-                    MarkdownEditorImage(systemImageName: "italic", isSelected: editorState.isItalicSelected)
+                    MarkdownEditorImage(systemImageName: "italic", isSelected: toolbarState.isItalicSelected)
                 }
                 .buttonStyle(.borderless)
-                .keyboardShortcut("i", modifiers: .command)
+                .help("Italic: ⌘I")
 
                 Button(action: {
-                    editor.inlineCode()
+                    toolbarState.toggleInlineCode()
                 }) {
-                    MarkdownEditorImage(systemImageName: "greaterthan.square", isSelected: editorState.isInlineCodeSelected)
+                    MarkdownEditorImage(systemImageName: "greaterthan.square", isSelected: toolbarState.isInlineCodeSelected)
                 }
                 .buttonStyle(.borderless)
-                .keyboardShortcut("c", modifiers: [.command, .shift])
-
+                .help("Inline Code: ⌘⇧C")
             }
 
             Divider()
@@ -227,28 +251,28 @@ struct MarkdownEditor: View {
 
             HStack(spacing: 15) {
                 Button(action: {
-                    editor.numberedList()
+                    toolbarState.toggleNumberList()
                 }) {
-                    MarkdownEditorImage(systemImageName: "list.number", isSelected: editorState.isNumberListSelected)
+                    MarkdownEditorImage(systemImageName: "list.number", isSelected: toolbarState.isNumberListSelected)
                 }
                 .buttonStyle(.borderless)
-                .keyboardShortcut("7", modifiers: [.command, .shift])
+                .help("Number List: ⌘⇧7")
                 
                 Button(action: {
-                    editor.bulletedList()
+                    toolbarState.toggleBulletList()
                 }) {
-                    MarkdownEditorImage(systemImageName: "list.bullet", isSelected: editorState.isBulletListSelected)
+                    MarkdownEditorImage(systemImageName: "list.bullet", isSelected: toolbarState.isBulletListSelected)
                 }
                 .buttonStyle(.borderless)
-                .keyboardShortcut("8", modifiers: [.command, .shift])
+                .help("Bullet List: ⌘⇧8")
 
                 Button(action: {
-                    editor.todoList()
+                    toolbarState.toggleTodoList()
                 }) {
-                    MarkdownEditorImage(systemImageName: "checklist", isSelected: editorState.isTodoListSelected)
+                    MarkdownEditorImage(systemImageName: "checklist", isSelected: toolbarState.isTodoListSelected)
                 }
                 .buttonStyle(.borderless)
-                .keyboardShortcut("9", modifiers: [.command, .shift])
+                .help("Todo List: ⌘⇧9")
             }
 
             #if os(iOS)
@@ -259,14 +283,14 @@ struct MarkdownEditor: View {
             HStack(spacing: 15) {
 
                 Button(action: {
-                    editor.tab(deindent: false)
+                    toolbarState.tab(false)
                 }) {
                     MarkdownEditorImage(systemImageName: "arrow.right.to.line.compact", isSelected: false)
                 }
                 .buttonStyle(.borderless)
 
                 Button(action: {
-                    editor.tab(deindent: true)
+                    toolbarState.tab(true)
                 }) {
                     MarkdownEditorImage(systemImageName: "arrow.left.to.line.compact", isSelected: false)
                 }
@@ -280,6 +304,134 @@ struct MarkdownEditor: View {
     }
 }
 
+struct DocumentTitle: View {
+    @ObservedObject var nameState: NameState
+    let id: UUID
+    let fileSuffix: String
+    
+    @State var name: String
+    @State var error: String?
+    @State var hasBeenFocused = false
+    
+    var docInfo: DocumentLoadingInfo? {
+        get {
+            DI.currentDoc.openDocuments[id]
+        }
+    }
+    
+    let justCreatedDoc: Bool
+    
+    init(nameState: NameState, id: UUID) {
+        let openDocName = DI.files.idsAndFiles[id]?.name ?? DI.currentDoc.openDocuments[id]!.meta.name
+        var openDocNameWithoutExt = (openDocName as NSString).deletingPathExtension
+        
+        self.nameState = nameState
+        self.id = id
+        self.justCreatedDoc = DI.currentDoc.justCreatedDoc?.id == id
+                
+        self._name = State(initialValue: openDocName == openDocNameWithoutExt ? "" : openDocNameWithoutExt)
+        
+        if self.justCreatedDoc {
+            DI.currentDoc.justCreatedDoc = nil
+        }
+        
+        if openDocName == openDocNameWithoutExt {
+            openDocNameWithoutExt.removeFirst()
+            self.fileSuffix = openDocNameWithoutExt
+        } else {
+            self.fileSuffix = (openDocName as NSString).pathExtension
+        }
+    }
+    
+    func realFileName(_ unformattedName: String) -> String {
+        return unformattedName.toKebabCase() + "." + fileSuffix
+    }
+    
+    func stripName(_ formattedName: String) -> (fileName: String, fileExt: String) {
+        let openDocExt = (formattedName as NSString).pathExtension
+        let openDocNameWithoutExt = (formattedName as NSString).deletingPathExtension
+        
+
+        if formattedName == openDocNameWithoutExt {
+            return (fileName: "", fileExt: openDocNameWithoutExt)
+        } else {
+            return (fileName: openDocNameWithoutExt, fileExt: openDocExt)
+        }
+    }
+    
+    func renameFile(_ newName: String) {
+        let realName = realFileName(newName)
+        name = newName
+        
+        if let errorMsg = DI.files.renameFileSync(id: id, name: realName) {
+            withAnimation {
+                error = errorMsg
+            }
+        } else {
+            docInfo?.meta.name = realName
+            withAnimation {
+                error = nil
+            }
+        }
+    }
+    
+    var body: some View {
+        VStack(alignment: .leading) {
+            TextField("File name...", text: Binding(get: {
+                return name.toKebabCase()
+            }, set: { newValue, _ in
+                hasBeenFocused = true
+                
+                renameFile(newValue)
+            }))
+            .autocapitalization(.none)
+            .onChange(of: nameState.potentialTitle, perform: { newValue in
+                if let potentialTitle = nameState.potentialTitle, !hasBeenFocused, justCreatedDoc, !potentialTitle.isEmpty {
+                    renameFile(potentialTitle)
+                }
+            })
+            .onChange(of: docInfo?.meta, perform: { newValue in
+                if let newName = newValue?.name {
+                    let (fileName, _) = stripName(newName)
+                    
+                    if !fileName.isEmpty && fileName != name {
+                        name = fileName
+                    }
+                }
+                
+            })
+            .textFieldStyle(.plain)
+            .font(.largeTitle)
+            .padding(.horizontal)
+            .padding(.top)
+            
+            if let errorMsg = error {
+                Text(errorMsg)
+                    .font(.body)
+                    .foregroundColor(.red)
+                    .padding(.horizontal, 20)
+            }
+            
+            Divider()
+        }
+    }
+}
+
+struct MarkdownEditor: View {
+    @ObservedObject var editorState: EditorState
+    
+    let editor: EditorView
+    
+    public init(_ editorState: EditorState, _ toolbarState: ToolbarState, _ nameState: NameState) {
+        self.editorState = editorState
+        self.editor = EditorView(editorState, toolbarState, nameState)
+    }
+        
+    var body: some View {
+        editor
+    }
+}
+
 struct MarkdownEditorImage: View {
     let systemImageName: String
     var isSelected: Bool
@@ -290,5 +442,11 @@ struct MarkdownEditorImage: View {
             .foregroundColor(.primary)
             .background(isSelected ? .gray.opacity(0.2) : .clear)
             .cornerRadius(5)
+    }
+}
+
+extension String {
+    func toKebabCase() -> String {
+        self.lowercased().replacingOccurrences(of: " ", with: "-")
     }
 }

@@ -8,14 +8,14 @@ use crate::util::data_dir;
 
 pub struct SplashHandOff {
     pub settings: Arc<RwLock<Settings>>,
-    pub core: Arc<lb::Core>,
+    pub core: lb::Core,
     pub maybe_acct_data: Option<AccountScreenInitData>,
 }
 
 enum SplashUpdate {
     Status(String),
     Error(String),
-    Done((Arc<lb::Core>, Option<AccountScreenInitData>)),
+    Done((lb::Core, Option<AccountScreenInitData>)),
 }
 
 pub struct SplashScreen {
@@ -58,7 +58,7 @@ impl SplashScreen {
                 .unwrap();
 
             let core = match lb::Core::init(&cfg) {
-                Ok(core) => Arc::new(core),
+                Ok(core) => core,
                 Err(err) => {
                     tx.send(SplashUpdate::Error(format!("{:?}", err))).unwrap();
                     ctx.request_repaint();

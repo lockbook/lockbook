@@ -24,7 +24,7 @@ impl<'a> ServerTree<'a> {
         files: &'a mut LookupTable<Uuid, ServerFile>,
     ) -> SharedResult<Self> {
         let (owned_ids, shared_ids) =
-            match (owned_files.data().get(&owner), shared_files.data().get(&owner)) {
+            match (owned_files.get().get(&owner), shared_files.get().get(&owner)) {
                 (Some(owned_ids), Some(shared_ids)) => (owned_ids.clone(), shared_ids.clone()),
                 _ => {
                     error!("Tree created for user without owned and shared files {:?}", owner);
@@ -38,7 +38,7 @@ impl<'a> ServerTree<'a> {
 
         let mut to_get_descendants = Vec::from_iter(shared_ids);
         while let Some(id) = to_get_descendants.pop() {
-            let children = file_children.data().get(&id).cloned().unwrap_or_default();
+            let children = file_children.get().get(&id).cloned().unwrap_or_default();
             ids.extend(children.clone());
             to_get_descendants.extend(children);
         }
@@ -102,10 +102,10 @@ impl TreeLikeMut for ServerTree<'_> {
         }
 
         // maintain index: file_children
-        if self.file_children.data().get(&id).is_none() {
+        if self.file_children.get().get(&id).is_none() {
             self.file_children.create_key(id)?;
         }
-        if self.file_children.data().get(f.parent()).is_none() {
+        if self.file_children.get().get(f.parent()).is_none() {
             self.file_children.create_key(*f.parent())?;
         }
         if maybe_prior.as_ref().map(|f| *f.parent()) != Some(*f.parent()) {

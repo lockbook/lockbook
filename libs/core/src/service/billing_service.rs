@@ -4,12 +4,13 @@ use lockbook_shared::api::{
     UpgradeAccountAppStoreRequest, UpgradeAccountGooglePlayError, UpgradeAccountGooglePlayRequest,
     UpgradeAccountStripeError, UpgradeAccountStripeRequest,
 };
+use lockbook_shared::document_repo::DocumentService;
 
 use crate::model::errors::core_err_unexpected;
 use crate::service::api_service::ApiError;
 use crate::{CoreError, CoreState, LbResult, Requester};
 
-impl<Client: Requester> CoreState<Client> {
+impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {
     pub(crate) fn upgrade_account_stripe(&self, account_tier: StripeAccountTier) -> LbResult<()> {
         let account = self.get_account()?;
 
