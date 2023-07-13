@@ -96,7 +96,7 @@ fn show_file_panel(
                 egui::Layout::top_down(egui::Align::Min).with_cross_justify(true),
                 |ui| {
                     ui.add_space(15.0);
-                    let children = file_picker.core.get_children(root.id).unwrap_or_default();
+                    let children = file_picker.core.get_children(root.id).unwrap();
                     let mut children: Vec<&File> = children
                         .iter()
                         .filter(|f| f.file_type == lb::FileType::Folder)

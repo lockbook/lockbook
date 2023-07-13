@@ -180,6 +180,13 @@ impl AccountScreen {
                     }
                     Err(msg) => self.modals.error = Some(ErrorModal::new(msg)),
                 },
+                AccountUpdate::FileImported(result) => match result {
+                    Ok(root) => {
+                        self.tree.root = root;
+                        self.modals.file_picker = None;
+                    }
+                    Err(msg) => self.modals.error = Some(ErrorModal::new(msg)),
+                },
                 AccountUpdate::FileCreated(result) => match result {
                     Ok(f) => {
                         let (id, is_doc) = (f.id, f.is_document());
@@ -377,6 +384,7 @@ impl AccountScreen {
         if has_dropped_files {
             // todo: handle multiple dropped files
             let dropped_file = ctx.input(|inp| inp.raw.dropped_files[0].clone());
+            println!("{:?}", dropped_file);
 
             dropped_file
                 .path
@@ -744,12 +752,15 @@ impl AccountScreen {
         let update_tx = self.update_tx.clone();
 
         thread::spawn(move || {
-            core.import_files(&[target], parent.id, &|_| println!("imported one file"))
-                .unwrap(); // todo
+            let result =
+                core.import_files(&[target], parent.id, &|_| println!("imported one file"));
 
             let all_metas = core.list_metadatas().unwrap();
             let root = tree::create_root_node(all_metas);
-            update_tx.send(AccountUpdate::ReloadTree(root)).unwrap();
+
+            let result = result.map(|_| root).map_err(|err| format!("{:?}", err));
+
+            update_tx.send(AccountUpdate::FileImported(result)).unwrap();
             ctx.request_repaint();
         });
     }
@@ -790,6 +801,9 @@ pub enum AccountUpdate {
         new_child_paths: HashMap<lb::Uuid, String>,
     },
     FileDeleted(lb::File),
+
+    /// if a file has been imported successfully refresh the tree, otherwise show what went wrong
+    FileImported(Result<TreeNode, String>),
 
     SyncUpdate(SyncUpdate),
     SyncStatusSignal,
