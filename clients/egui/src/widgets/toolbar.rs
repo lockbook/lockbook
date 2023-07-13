@@ -97,7 +97,7 @@ impl ToolBar {
             ToolBarVisibility::Minimized | ToolBarVisibility::Disabled => true,
             ToolBarVisibility::Maximized => false,
         };
-        ui.style_mut().animation_time = 0.2;
+        ui.style_mut().animation_time = 0.1;
         let how_on = ui.ctx().animate_bool(egui::Id::from("toolbar_animate"), on);
 
         let maximized_min_x = (editor.ui_rect.width() - self.width()) / 2.0 + editor.ui_rect.left();
@@ -129,8 +129,9 @@ impl ToolBar {
         let pointer = ui.ctx().pointer_hover_pos().unwrap_or_default();
         if !toolbar_rect.contains(pointer) {
             self.header_click_count = 1;
+        } else {
+            ui.memory_mut(|w| w.request_focus(ui.id()));
         }
-
         ui.allocate_ui_at_rect(toolbar_rect, |ui| {
             egui::Frame::default()
                 .fill(ui.visuals().code_bg_color)
@@ -161,6 +162,17 @@ impl ToolBar {
                     if Button::default().icon(&btn.icon).show(ui).clicked() {
                         (btn.callback)(editor, self);
 
+                        // ui.memory_mut(|w| w.surrender_focus(ui.id()));
+                        editor.process_events(
+                            &[egui::Event::PointerButton {
+                                pos: ui.ctx().pointer_hover_pos().unwrap_or_default(),
+                                button: egui::PointerButton::Primary,
+                                pressed: true,
+                                modifiers: egui::Modifiers::NONE,
+                            }],
+                            &[],
+                            false,
+                        );
                         if btn.icon.icon != Icon::HEADER_1.icon {
                             self.header_click_count = 1;
                         }

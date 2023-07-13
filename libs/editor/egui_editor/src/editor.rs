@@ -42,7 +42,6 @@ pub struct EditorResponse {
 
 pub struct Editor {
     pub id: u32,
-    pub eguiId: egui::Id,
     pub initialized: bool,
 
     // config
@@ -84,7 +83,6 @@ impl Default for Editor {
         let id: u32 = rand::thread_rng().gen();
         Self {
             id,
-            eguiId: egui::Id::null(),
             initialized: Default::default(),
 
             appearance: Default::default(),
@@ -193,7 +191,6 @@ impl Editor {
         self.scroll_area_rect = sao.inner_rect;
         self.scroll_area_offset = sao.state.offset;
 
-        self.eguiId = id;
         sao.inner.inner
     }
 
