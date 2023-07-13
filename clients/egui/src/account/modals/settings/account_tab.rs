@@ -2,7 +2,6 @@ use std::sync::mpsc;
 
 use eframe::egui;
 use egui_extras::{RetainedImage, Size, StripBuilder};
-use egui_winit::clipboard::Clipboard;
 
 pub struct AccountSettings {
     update_tx: mpsc::Sender<Update>,
@@ -71,7 +70,7 @@ impl super::SettingsModal {
                         .horizontal(|mut strip| {
                             strip.cell(|ui| {
                                 if ui.button("Copy to Clipboard").clicked() {
-                                    Clipboard::new(None).set(key.to_owned());
+                                    ui.output_mut(|out| out.copied_text = key.to_owned());
                                 }
                             });
                             strip.cell(|ui| {
