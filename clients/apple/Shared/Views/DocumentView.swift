@@ -227,7 +227,7 @@ struct MarkdownToolbar: View {
                     MarkdownEditorImage(systemImageName: "bold", isSelected: toolbarState.isBoldSelected)
                 }
                 .buttonStyle(.borderless)
-                .help("⌘+B")
+                .help("Bold: ⌘+B")
 
                 Button(action: {
                     toolbarState.toggleItalic()
@@ -235,7 +235,7 @@ struct MarkdownToolbar: View {
                     MarkdownEditorImage(systemImageName: "italic", isSelected: toolbarState.isItalicSelected)
                 }
                 .buttonStyle(.borderless)
-                .help("⌘+I")
+                .help("Italic: ⌘+I")
 
                 Button(action: {
                     toolbarState.toggleInlineCode()
@@ -243,7 +243,7 @@ struct MarkdownToolbar: View {
                     MarkdownEditorImage(systemImageName: "greaterthan.square", isSelected: toolbarState.isInlineCodeSelected)
                 }
                 .buttonStyle(.borderless)
-                .help("⌘+Shift+C")
+                .help("Inline Code: ⌘+Shift+C")
             }
 
             Divider()
@@ -256,7 +256,7 @@ struct MarkdownToolbar: View {
                     MarkdownEditorImage(systemImageName: "list.number", isSelected: toolbarState.isNumberListSelected)
                 }
                 .buttonStyle(.borderless)
-                .help("⌘+Shift+7")
+                .help("Number List: ⌘+Shift+7")
                 
                 Button(action: {
                     toolbarState.toggleBulletList()
@@ -264,7 +264,7 @@ struct MarkdownToolbar: View {
                     MarkdownEditorImage(systemImageName: "list.bullet", isSelected: toolbarState.isBulletListSelected)
                 }
                 .buttonStyle(.borderless)
-                .help("⌘+Shift+8")
+                .help("Bullet List: ⌘+Shift+8")
 
                 Button(action: {
                     toolbarState.toggleTodoList()
@@ -272,7 +272,7 @@ struct MarkdownToolbar: View {
                     MarkdownEditorImage(systemImageName: "checklist", isSelected: toolbarState.isTodoListSelected)
                 }
                 .buttonStyle(.borderless)
-                .help("⌘+Shift+9")
+                .help("Todo List: ⌘+Shift+9")
             }
 
             #if os(iOS)
