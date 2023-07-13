@@ -5,6 +5,8 @@ import Introspect
 struct FileCell: View {
     let meta: File
 
+    let enterFolderAnim: () -> Void
+
     var body: some View {
         cell
             .contextMenu(menuItems: {
@@ -31,7 +33,7 @@ struct FileCell: View {
     var cell: some View {
         if meta.fileType == .Folder {
             Button(action: {
-                DI.files.intoChildDirectory(meta)
+                enterFolderAnim()
             }) {
                 RealFileCell(meta: meta)
             }

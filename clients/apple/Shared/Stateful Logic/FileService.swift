@@ -30,28 +30,16 @@ class FileService: ObservableObject {
     }
 
     func upADirectory() {
-        DispatchQueue.main.async {
-            withAnimation {
-                let _ = self.path.removeLast()
-            }
-        }
+        self.path.removeLast()
     }
 
     func intoChildDirectory(_ file: File) {
-        DispatchQueue.main.async {
-            withAnimation {
-                self.path.append(file)
-            }
-        }
+        self.path.append(file)
     }
 
     func pathBreadcrumbClicked(_ file: File) {
-        DispatchQueue.main.async {
-            withAnimation {
-                if let firstIndex = self.path.firstIndex(of: file) {
-                    self.path.removeSubrange(firstIndex + 1...self.path.count - 1)
-                }
-            }
+        if let firstIndex = self.path.firstIndex(of: file) {
+            self.path.removeSubrange(firstIndex + 1...self.path.count - 1)
         }
     }
 #endif
