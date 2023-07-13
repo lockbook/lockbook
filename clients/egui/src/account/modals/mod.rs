@@ -222,6 +222,8 @@ fn show_modal<M: Modal>(
 
     let win_resp = egui::Window::new(title)
         .anchor(M::ANCHOR, egui::vec2(x_offset, M::Y_OFFSET))
+        .title_bar(!title.is_empty())
+        .open(&mut is_open)
         .collapsible(false)
         .resizable(false)
         .default_width(400.0)

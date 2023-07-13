@@ -384,12 +384,14 @@ impl AccountScreen {
         if has_dropped_files {
             // todo: handle multiple dropped files
             let dropped_file = ctx.input(|inp| inp.raw.dropped_files[0].clone());
-            println!("{:?}", dropped_file);
 
             if let Some(upd) = dropped_file
                 .path
                 .map(OpenModal::PickDropParent)
-                .map(AccountUpdate::OpenModal) { self.update_tx.send(upd).unwrap() }
+                .map(AccountUpdate::OpenModal)
+            {
+                self.update_tx.send(upd).unwrap()
+            }
         }
     }
 
