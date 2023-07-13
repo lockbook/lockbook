@@ -150,10 +150,7 @@ import AppKit
                     Button("Open Last Tab", action: {
                         DI.currentDoc.selectOpenDocByIndex(index: 8)
                     }).keyboardShortcut("9", modifiers: .command)
-
                 }
-                                
-                
             }
             
             CommandMenu("Lockbook") {
