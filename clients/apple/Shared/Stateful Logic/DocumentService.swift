@@ -38,7 +38,6 @@ class DocumentService: ObservableObject {
     
     func cleanupOldDocs(_ isiPhone: Bool = false) {
         isPendingSharesOpen = false
-        justCreatedDoc = nil
         
         if isiPhone {
             openDocuments.removeAll()

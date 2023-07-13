@@ -331,6 +331,10 @@ struct DocumentTitle: View {
                 
         self._name = State(initialValue: openDocName == openDocNameWithoutExt ? "" : openDocNameWithoutExt)
         
+        if self.justCreatedDoc {
+            DI.currentDoc.justCreatedDoc = nil
+        }
+        
         if openDocName == openDocNameWithoutExt {
             openDocNameWithoutExt.removeFirst()
             self.fileSuffix = openDocNameWithoutExt
