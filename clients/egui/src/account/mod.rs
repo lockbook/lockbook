@@ -386,11 +386,10 @@ impl AccountScreen {
             let dropped_file = ctx.input(|inp| inp.raw.dropped_files[0].clone());
             println!("{:?}", dropped_file);
 
-            dropped_file
+            if let Some(upd) = dropped_file
                 .path
-                .map(|path| OpenModal::PickDropParent(path))
-                .map(|open| AccountUpdate::OpenModal(open))
-                .map(|upd| self.update_tx.send(upd).unwrap());
+                .map(OpenModal::PickDropParent)
+                .map(AccountUpdate::OpenModal) { self.update_tx.send(upd).unwrap() }
         }
     }
 
