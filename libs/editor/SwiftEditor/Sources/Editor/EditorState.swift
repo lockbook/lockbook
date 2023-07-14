@@ -13,10 +13,6 @@ public class EditorState: ObservableObject {
         self.text = text
         self.isiPhone = isiPhone
     }
-    
-    deinit {
-        print("bye editor state")
-    }
 }
 
 public class ToolbarState: ObservableObject {
@@ -37,23 +33,11 @@ public class ToolbarState: ObservableObject {
     public var toggleItalic: () -> Void = {}
     public var tab: (Bool) -> Void = {_ in }
     
-    public init() {
-        print("initing toolbar state")
-    }
-    
-    deinit {
-        print("bye toolbar state")
-    }
+    public init() {}
 }
 
 public class NameState: ObservableObject {
     @Published public var potentialTitle: String? = nil
     
-    public init() {
-        print("initing name state")
-    }
-
-    deinit {
-        print("bye name state")
-    }
+    public init() {}
 }
