@@ -1,6 +1,6 @@
-pub static TEST_MARKDOWN: &str = TEST_MARKDOWN_50;
+pub static TEST_MARKDOWN: &str = TEST_MARKDOWN_52;
 
-pub static TEST_MARKDOWN_ALL: [&str; 52] = [
+pub static TEST_MARKDOWN_ALL: [&str; 54] = [
     TEST_MARKDOWN_0,
     TEST_MARKDOWN_1,
     TEST_MARKDOWN_2,
@@ -52,6 +52,8 @@ pub static TEST_MARKDOWN_ALL: [&str; 52] = [
     TEST_MARKDOWN_48,
     TEST_MARKDOWN_49,
     TEST_MARKDOWN_50,
+    TEST_MARKDOWN_51,
+    TEST_MARKDOWN_52,
     "1. *",
 ];
 
@@ -275,4 +277,21 @@ a code block
 > a quote,
 
 and a link to our [website](http://lockbook.net)!
+"#;
+
+pub static TEST_MARKDOWN_51: &str = r#"```
+```"#;
+pub static TEST_MARKDOWN_52: &str = r#"
+If you try to create a checklist at the end of this file, the editor will crash.
+
+
+_apples`apples`_
+
++ apples
+
+- [ ] apples
+
+
+
+- [ ] 
 "#;

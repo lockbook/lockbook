@@ -4,7 +4,6 @@ use crate::offset_types::{DocCharOffset, RangeExt};
 use crate::style::{BlockNode, InlineNode, ItemType, MarkdownNode};
 use crate::Editor;
 use pulldown_cmark::{Event, HeadingLevel, LinkType, OffsetIter, Options, Parser, Tag};
-use std::cmp;
 
 #[derive(Default, Debug, PartialEq)]
 pub struct Ast {
@@ -196,10 +195,15 @@ impl Ast {
                 range.1 += 1;
             }
 
-            // limit range to text range of parent
+            // clamp range to text range of parent
             let parent_text_range = self.nodes[parent_idx].text_range;
-            range.0 = cmp::max(range.0, parent_text_range.0);
-            range.1 = cmp::min(range.1, parent_text_range.1);
+            let (min, max) = parent_text_range;
+            range.0 = std::cmp::max(std::cmp::min(range.0, max), min);
+            range.1 = std::cmp::max(std::cmp::min(range.1, max), min);
+
+            if range.is_empty() {
+                return None;
+            }
 
             range
         };
@@ -254,6 +258,16 @@ impl Ast {
                             code block
                         */
                         text_range.0 += buffer[range].len() - buffer[range].trim_start().len();
+                    }
+                    if text_range.1 < text_range.0 {
+                        /*
+                        ```
+                        ```
+                        ~~~
+                        ~~~
+                        single newline gets captured in head and not tail
+                         */
+                        text_range.1 += 1;
                     }
                 }
                 MarkdownNode::Block(BlockNode::ListItem(item_type, _)) => {
@@ -470,7 +484,7 @@ impl<'ast> Iterator for AstTextRangeIter<'ast> {
                         AstTextRange {
                             range_type: AstTextRangeType::Text,
                             range: (
-                                current.text_range.0,
+                                current_range.range.1,
                                 if current.children.is_empty() {
                                     current.text_range.1
                                 } else {
@@ -499,7 +513,7 @@ impl<'ast> Iterator for AstTextRangeIter<'ast> {
 
                             AstTextRange {
                                 range_type: AstTextRangeType::Head,
-                                range: (next_child.range.0, next_child.text_range.0),
+                                range: (current_range.range.1, next_child.text_range.0),
                                 ancestors,
                             }
                         } else {
@@ -511,7 +525,7 @@ impl<'ast> Iterator for AstTextRangeIter<'ast> {
 
                             AstTextRange {
                                 range_type: AstTextRangeType::Tail,
-                                range: (current.text_range.1, current.range.1),
+                                range: (current_range.range.1, current.range.1),
                                 ancestors: current_range.ancestors.clone(),
                             }
                         }
