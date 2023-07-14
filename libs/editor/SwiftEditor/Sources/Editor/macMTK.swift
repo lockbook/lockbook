@@ -155,7 +155,6 @@ public class MacMTK: MTKView, MTKViewDelegate {
     func setClipboard(){
         let pasteboardString: String? = NSPasteboard.general.string(forType: .string)
         if let theString = pasteboardString {
-            print("clipboard contents: \(theString)")
             system_clipboard_changed(editorHandle, theString)
         }
         self.pasteBoardEventId = NSPasteboard.general.changeCount
