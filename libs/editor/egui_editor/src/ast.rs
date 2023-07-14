@@ -26,16 +26,6 @@ pub struct AstNode {
     pub children: Vec<usize>,
 }
 
-impl AstNode {
-    pub fn head_range(&self) -> (DocCharOffset, DocCharOffset) {
-        (self.range.0, self.text_range.0)
-    }
-
-    pub fn tail_range(&self) -> (DocCharOffset, DocCharOffset) {
-        (self.text_range.1, self.range.1)
-    }
-}
-
 pub fn calc(buffer: &SubBuffer) -> Ast {
     let mut options = Options::empty();
     options.insert(Options::ENABLE_STRIKETHROUGH);
@@ -67,14 +57,6 @@ impl Ast {
         }
 
         chosen
-    }
-
-    pub fn parent(&self, node_idx: usize) -> Option<usize> {
-        self.nodes
-            .iter()
-            .enumerate()
-            .find(|(_, n)| n.children.contains(&node_idx))
-            .map(|(idx, _)| idx)
     }
 
     fn push_children(&mut self, current_idx: usize, iter: &mut OffsetIter, buffer: &SubBuffer) {
