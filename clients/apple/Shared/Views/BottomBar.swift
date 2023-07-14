@@ -97,7 +97,6 @@ struct BottomBar: View {
             let y = previousFrame.origin.y + (previousFrame.size.height - windowSize.height) / 2
             overlayWindow.setFrame(NSRect(x: x, y: y, width: windowSize.width, height: windowSize.height), display: true)
         }
-
         
         overlayWindow.isReleasedWhenClosed = false
         overlayWindow.contentView = NSHostingView(rootView: UpgradeToPremium().realDI())

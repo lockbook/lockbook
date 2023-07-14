@@ -100,7 +100,9 @@ struct DocumentView: View, Equatable {
                         Group {
                             MarkdownCompleteEditor(editorState: editorState, toolbarState: toolbarState, nameState: model.documentNameState, fileId: model.meta.id)
                                 .equatable()
-                        }.title("")
+                        }
+                        .title("")
+                        .markdownToolbar(isiPhone: model.isiPhone, meta: model.meta)
                     }
                 case .Unknown:
                     Text("\(model.meta.name) cannot be opened on this device.")
@@ -116,11 +118,40 @@ struct DocumentView: View, Equatable {
 
 extension View {
     func title(_ name: String) -> some View {
-#if os(macOS)
+        #if os(macOS)
         return self
-#else
+        #else
         return self.navigationTitle("").navigationBarTitleDisplayMode(.inline)
-#endif
+        #endif
+    }
+    
+    @ViewBuilder
+    func markdownToolbar(isiPhone: Bool, meta: File) -> some View {
+        #if os(macOS)
+        self.toolbar {
+            Button(action: {
+                exportFileAndShowShareSheet(meta: meta)
+            }, label: {
+                Label("Export", systemImage: "square.and.arrow.up.fill")
+            })
+            .foregroundColor(.blue)
+            .padding(.horizontal, 10)
+        }
+        #else
+        if isiPhone {
+            self.toolbar {
+                Button(action: {
+                    exportFileAndShowShareSheet(meta: meta)
+                }, label: {
+                    Label("Export", systemImage: "square.and.arrow.up.fill")
+                })
+                .foregroundColor(.blue)
+                .padding(.horizontal, 10)
+            }
+        } else {
+            self
+        }
+        #endif
     }
 }
 

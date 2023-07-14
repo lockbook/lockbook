@@ -118,7 +118,6 @@ struct DetailView: View {
                     currentSelection.isPendingSharesOpen = true
                 }) {
                     pendingShareToolbarIcon(isiOS: false, isPendingSharesEmpty: share.pendingShares.isEmpty)
-                    
                 }
             }
         }

@@ -103,6 +103,31 @@ extension View {
         self
         #endif
     }
+    
+//    #if os(iOS)
+    func exportFileAndShowShareSheet(meta: File) {
+        DispatchQueue.global(qos: .userInitiated).async {
+            if let dest = DI.importExport.exportFilesToTempDirSync(meta: meta) {
+                DispatchQueue.main.async {
+                    #if os(iOS)
+                    let activityVC = UIActivityViewController(activityItems: [dest], applicationActivities: nil)
+                    
+                    if UIDevice.current.userInterfaceIdiom == .pad {
+                        let thisViewVC = UIHostingController(rootView: self)
+                        activityVC.popoverPresentationController?.sourceView = thisViewVC.view
+                    }
+                    
+                    UIApplication.shared.connectedScenes.flatMap {($0 as? UIWindowScene)?.windows ?? []}.first {$0.isKeyWindow}?.rootViewController?.present(activityVC, animated: true, completion: nil)
+                    #else
+                    if let contentView = NSApplication.shared.windows.last?.contentView {
+                        NSSharingServicePicker(items: [dest]).show(relativeTo: .zero, of: contentView, preferredEdge: .minX)
+                    }
+                    #endif
+                }
+            }
+        }
+    }
+//    #endif
 }
 
 @ViewBuilder

@@ -26,6 +26,12 @@ struct FileCell: View {
                 }, label: {
                     Label("Share", systemImage: "shareplay")
                 })
+                
+                Button(action: {
+                    exportFileAndShowShareSheet(meta: meta)
+                }, label: {
+                    Label("Export", systemImage: "square.and.arrow.up")
+                })
             })
     }
 

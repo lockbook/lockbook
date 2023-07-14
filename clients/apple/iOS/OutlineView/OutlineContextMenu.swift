@@ -45,6 +45,10 @@ struct OutlineContextMenu: View {
                 Button(action: { DI.files.deleteFile(id: meta.id) }) {
                     Label("Delete", systemImage: "trash.fill")
                 }
+                
+                Button(action: { exportFileAndShowShareSheet(meta: meta) }) {
+                    Label("Export", systemImage: "square.and.arrow.up")
+                }
             }
         }
     }

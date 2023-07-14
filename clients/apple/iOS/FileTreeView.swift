@@ -52,12 +52,24 @@ struct FileTreeView: View {
                     destination: PendingSharesView()) {
                         pendingShareToolbarIcon(isiOS: true, isPendingSharesEmpty: share.pendingShares.isEmpty)
                     }
-                    
+                
+                if let id = currentDoc.selectedDoc {
+                    Button(action: {
+                        if let meta = DI.files.idsAndFiles[id] {
+                            exportFileAndShowShareSheet(meta: meta)
+                        }
+                    }, label: {
+                        Label("Export", systemImage: "square.and.arrow.up.fill")
+                    })
+                    .foregroundColor(.blue)
+                    .padding(.horizontal, 10)
+                }
+                                    
                 NavigationLink(
                     destination: SettingsView().equatable(), isActive: $onboarding.theyChoseToBackup) {
                         Image(systemName: "gearshape.fill")
                             .foregroundColor(.blue)
-                            .padding(.horizontal, 10)
+                            .padding(.trailing, 10)
                     }
             }
         }
