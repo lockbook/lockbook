@@ -2,7 +2,7 @@ use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
-use hotwatch::{Event, Hotwatch};
+use hotwatch::{Event, EventKind, Hotwatch};
 
 use lb::{Core, Uuid};
 
@@ -143,13 +143,12 @@ fn set_up_auto_save<P: AsRef<Path>>(core: &Core, id: Uuid, path: P) -> Option<Ho
             let path = PathBuf::from(path.as_ref());
 
             watcher
-                .watch(path.clone(), move |event: Event| match event {
-                    Event::NoticeWrite(_) | Event::Write(_) | Event::Create(_) => {
+                .watch(path.clone(), move |event: Event| {
+                    if let EventKind::Modify(_) = event.kind {
                         if let Err(err) = save_temp_file_contents(&core, id, &path) {
                             eprintln!("{}", err);
                         }
                     }
-                    _ => {}
                 })
                 .unwrap_or_else(|err| println!("file watcher failed to watch: {:#?}", err));
 
