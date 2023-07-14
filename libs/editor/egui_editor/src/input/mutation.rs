@@ -144,8 +144,7 @@ pub fn calc(
                 match annotation {
                     Annotation::Item(item_type, indent_level) => {
                         // todo: this needs more attention e.g. list items doubly indented using 2-space indents
-                        let galley_text =
-                            &buffer.text[galley.range.start().0..galley.range.end().0];
+                        let galley_text = &buffer[(galley.range.start(), galley.range.end())];
                         let indent_seq = if galley_text.starts_with('\t') {
                             "\t"
                         } else if galley_text.starts_with("    ") {
