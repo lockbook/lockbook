@@ -1,5 +1,6 @@
 use crate::appearance::Appearance;
 use crate::ast::Ast;
+use crate::bounds::Bounds;
 use crate::buffer::Buffer;
 use crate::galleys::Galleys;
 use crate::input::mutation;
@@ -7,6 +8,8 @@ use crate::layouts::Annotation;
 use crate::offset_types::RangeExt;
 use crate::style::{InlineNode, ItemType, MarkdownNode};
 use egui::{Pos2, Rect};
+
+use super::canonical::Bound;
 
 pub trait ClickChecker {
     fn ui(&self, pos: Pos2) -> bool; // was the click even in the ui?
@@ -18,6 +21,7 @@ pub trait ClickChecker {
 pub struct EditorClickChecker<'a> {
     pub ui_rect: Rect,
     pub galleys: &'a Galleys,
+    pub bounds: &'a Bounds,
     pub buffer: &'a Buffer,
     pub ast: &'a Ast,
     pub appearance: &'a Appearance,
@@ -34,7 +38,7 @@ impl<'a> ClickChecker for &'a EditorClickChecker<'a> {
                 // galleys stretch across the screen, so we need to check if we're to the right of the text
                 let offset =
                     mutation::pos_to_char_offset(pos, self.galleys, &self.buffer.current.segs);
-                let line_end_offset = offset.advance_to_line_bound(false, self.galleys);
+                let line_end_offset = offset.advance_to_bound(Bound::Line, false, &self.bounds);
                 let (_, egui_cursor) = self
                     .galleys
                     .galley_and_cursor_by_char_offset(line_end_offset);

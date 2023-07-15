@@ -355,7 +355,7 @@ pub unsafe extern "C" fn position_offset_in_direction(
 
     let offset_type =
         if matches!(direction, CTextLayoutDirection::Right | CTextLayoutDirection::Left) {
-            Offset::By(Increment::Char)
+            Offset::Next(Bound::Char)
         } else {
             Offset::By(Increment::Line)
         };
@@ -363,7 +363,7 @@ pub unsafe extern "C" fn position_offset_in_direction(
 
     let mut cursor: Cursor = start.pos.into();
     for _ in 0..offset {
-        cursor.advance(offset_type, backwards, buffer, galleys, &obj.editor.paragraphs);
+        cursor.advance(offset_type, backwards, buffer, galleys, &obj.editor.bounds);
     }
     CTextPosition { none: start.none, pos: cursor.selection.1 .0 }
 }
@@ -390,8 +390,8 @@ pub unsafe extern "C" fn is_position_at_bound(
         CTextGranularity::Line => Bound::Line,
         CTextGranularity::Document => Bound::Doc,
     };
-    cursor.advance(Offset::To(bound), !backwards, buffer, galleys, &obj.editor.paragraphs);
-    cursor.advance(Offset::To(bound), backwards, buffer, galleys, &obj.editor.paragraphs);
+    cursor.advance(Offset::To(bound), !backwards, buffer, galleys, &obj.editor.bounds);
+    cursor.advance(Offset::To(bound), backwards, buffer, galleys, &obj.editor.bounds);
 
     cursor.selection.1 == pos.pos
 }
@@ -428,7 +428,7 @@ pub unsafe extern "C" fn bound_from_position(
         CTextGranularity::Line => Bound::Line,
         CTextGranularity::Document => Bound::Doc,
     };
-    cursor.advance(Offset::To(bound), backwards, buffer, galleys, &obj.editor.paragraphs);
+    cursor.advance(Offset::To(bound), backwards, buffer, galleys, &obj.editor.bounds);
 
     CTextPosition { none: false, pos: cursor.selection.1 .0 }
 }
@@ -458,7 +458,7 @@ pub unsafe extern "C" fn bound_at_position(
         buffer.cursor,
         buffer,
         galleys,
-        &obj.editor.paragraphs,
+        &obj.editor.bounds,
     );
 
     CTextRange {
@@ -483,7 +483,7 @@ pub unsafe extern "C" fn first_rect(obj: *mut c_void, range: CTextRange) -> CRec
         let selection_start = range.start();
         let selection_end = range.end();
         let mut cursor: Cursor = selection_start.into();
-        cursor.advance(Offset::To(Bound::Line), false, buffer, galleys, &obj.editor.paragraphs);
+        cursor.advance(Offset::To(Bound::Line), false, buffer, galleys, &obj.editor.bounds);
         let end_of_selection_start_line = cursor.selection.1;
         let end_of_rect = cmp::min(selection_end, end_of_selection_start_line);
         (selection_start, end_of_rect).into()

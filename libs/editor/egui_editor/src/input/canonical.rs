@@ -27,14 +27,19 @@ pub enum Bound {
 /// text unit you can increment or decrement a location by
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Increment {
-    Char,
     Line,
 }
 
 /// text location relative to some absolute text location
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Offset {
+    /// text location at a bound; if you're already there, this leaves you there (e.g. cmd+left/right)
     To(Bound),
+
+    /// text location at the next bound; if you're already there, this goes to the next one (e.g. option+left/right)
+    Next(Bound),
+
+    /// text location some increment away
     By(Increment),
 }
 
@@ -105,9 +110,9 @@ impl From<&Modifiers> for Offset {
         if should_jump_line {
             Offset::To(Bound::Line)
         } else if should_jump_word {
-            Offset::To(Bound::Word)
+            Offset::Next(Bound::Word)
         } else {
-            Offset::By(Increment::Char)
+            Offset::Next(Bound::Char)
         }
     }
 }
@@ -594,7 +599,7 @@ mod test {
             ),
             Some(Modification::Select {
                 region: Region::ToOffset {
-                    offset: Offset::By(Increment::Char),
+                    offset: Offset::Next(Bound::Char),
                     backwards: false,
                     extend_selection: false,
                 },
@@ -620,7 +625,7 @@ mod test {
             ),
             Some(Modification::Select {
                 region: Region::ToOffset {
-                    offset: Offset::To(Bound::Word),
+                    offset: Offset::Next(Bound::Word),
                     backwards: false,
                     extend_selection: false,
                 },
@@ -670,7 +675,7 @@ mod test {
             ),
             Some(Modification::Select {
                 region: Region::ToOffset {
-                    offset: Offset::By(Increment::Char),
+                    offset: Offset::Next(Bound::Char),
                     backwards: false,
                     extend_selection: true,
                 },
@@ -696,7 +701,7 @@ mod test {
             ),
             Some(Modification::Select {
                 region: Region::ToOffset {
-                    offset: Offset::To(Bound::Word),
+                    offset: Offset::Next(Bound::Word),
                     backwards: false,
                     extend_selection: true,
                 },
@@ -796,7 +801,7 @@ mod test {
             ),
             Some(Modification::Select {
                 region: Region::ToOffset {
-                    offset: Offset::By(Increment::Char),
+                    offset: Offset::Next(Bound::Char),
                     backwards: true,
                     extend_selection: false,
                 },
@@ -822,7 +827,7 @@ mod test {
             ),
             Some(Modification::Select {
                 region: Region::ToOffset {
-                    offset: Offset::To(Bound::Word),
+                    offset: Offset::Next(Bound::Word),
                     backwards: true,
                     extend_selection: false,
                 },
@@ -872,7 +877,7 @@ mod test {
             ),
             Some(Modification::Select {
                 region: Region::ToOffset {
-                    offset: Offset::By(Increment::Char),
+                    offset: Offset::Next(Bound::Char),
                     backwards: true,
                     extend_selection: true,
                 },
@@ -898,7 +903,7 @@ mod test {
             ),
             Some(Modification::Select {
                 region: Region::ToOffset {
-                    offset: Offset::To(Bound::Word),
+                    offset: Offset::Next(Bound::Word),
                     backwards: true,
                     extend_selection: true,
                 },
