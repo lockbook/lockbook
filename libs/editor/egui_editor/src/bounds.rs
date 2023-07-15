@@ -21,7 +21,7 @@ pub struct Bounds {
     pub lines: Lines,
 
     /// Paragraphs consist of all rendered text, excluding the newlines that usually delimit them. Every valid cursor
-    /// position is in some possibly-empty paragraph (inclusive of start/end).
+    /// position is in some possibly-empty paragraph.
     pub paragraphs: Paragraphs,
 }
 
