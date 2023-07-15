@@ -217,17 +217,17 @@ pub fn calc(
                 style: MarkdownNode::Inline(InlineNode::Strikethrough),
             })
         }
-        Event::Key { key: Key::Num7 , pressed: true, modifiers, .. }
+        Event::Key { key: Key::Num7, pressed: true, modifiers, .. }
             if modifiers.command && modifiers.shift =>
         {
             Some(Modification::NumberListItem)
         }
-        Event::Key { key: Key::Num8 , pressed: true, modifiers, .. }
+        Event::Key { key: Key::Num8, pressed: true, modifiers, .. }
             if modifiers.command && modifiers.shift =>
         {
             Some(Modification::BulletListItem)
         }
-        Event::Key { key: Key::Num9 , pressed: true, modifiers, .. }
+        Event::Key { key: Key::Num9, pressed: true, modifiers, .. }
             if modifiers.command && modifiers.shift =>
         {
             Some(Modification::TodoListItem)

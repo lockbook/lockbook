@@ -6,7 +6,7 @@ use crate::input::canonical::{Bound, Location, Modification, Offset, Region};
 use crate::input::cursor::Cursor;
 use crate::layouts::Annotation;
 use crate::offset_types::{DocCharOffset, RangeExt};
-use crate::style::{ItemType, MarkdownNode, RenderStyle, BlockNode};
+use crate::style::{BlockNode, ItemType, MarkdownNode, RenderStyle};
 use crate::unicode_segs::UnicodeSegs;
 use egui::Pos2;
 use std::cmp::Ordering;
@@ -406,12 +406,7 @@ pub fn calc(
 
             match &galley.annotation {
                 Some(Annotation::Item(ItemType::Bulleted, ..)) => {
-                    list_mutation_replacement(
-                        &mut mutation,
-                        ast,
-                        current_cursor,
-                        None,
-                    );
+                    list_mutation_replacement(&mut mutation, ast, current_cursor, None);
                 }
                 Some(Annotation::Item(..)) => {
                     list_mutation_replacement(
@@ -435,8 +430,10 @@ pub fn calc(
                             paragraphs,
                         ),
                     });
-                    mutation
-                        .push(SubMutation::Insert { text: ItemType::Bulleted.head().to_string(), advance_cursor: true });
+                    mutation.push(SubMutation::Insert {
+                        text: ItemType::Bulleted.head().to_string(),
+                        advance_cursor: true,
+                    });
 
                     mutation.push(SubMutation::Cursor { cursor: current_cursor });
                 }
@@ -448,12 +445,7 @@ pub fn calc(
 
             match &galley.annotation {
                 Some(Annotation::Item(ItemType::Numbered(..), ..)) => {
-                    list_mutation_replacement(
-                        &mut mutation,
-                        ast,
-                        current_cursor,
-                        None,
-                    );
+                    list_mutation_replacement(&mut mutation, ast, current_cursor, None);
                 }
                 Some(Annotation::Item(..)) => {
                     list_mutation_replacement(
@@ -492,12 +484,7 @@ pub fn calc(
 
             match &galley.annotation {
                 Some(Annotation::Item(ItemType::Todo(..), ..)) => {
-                    list_mutation_replacement(
-                        &mut mutation,
-                        ast,
-                        current_cursor,
-                        None,
-                    );
+                    list_mutation_replacement(&mut mutation, ast, current_cursor, None);
                 }
                 Some(Annotation::Item(..)) => {
                     list_mutation_replacement(
@@ -740,19 +727,20 @@ fn insert_tail(
 }
 
 fn list_mutation_replacement(
-    mutation: &mut Vec<SubMutation>,  ast: &Ast, 
-    current_cursor: Cursor, to: Option<ItemType>,
+    mutation: &mut Vec<SubMutation>, ast: &Ast, current_cursor: Cursor, to: Option<ItemType>,
 ) {
     let mut ast_node_idx = ast.ast_node_at_char(current_cursor.selection.1);
     loop {
         let ast_node = &ast.nodes[ast_node_idx];
         if let MarkdownNode::Block(BlockNode::ListItem(..)) = ast_node.node_type {
             // found a list item
-            let text = to.map(|t| t.head().to_string()).unwrap_or_else(|| "".to_string());
+            let text = to
+                .map(|t| t.head().to_string())
+                .unwrap_or_else(|| "".to_string());
             mutation.push(SubMutation::Cursor { cursor: ast_node.head_range().into() });
             mutation.push(SubMutation::Insert { text, advance_cursor: true });
             mutation.push(SubMutation::Cursor { cursor: current_cursor });
-            
+
             break;
         } else if let Some(parent_node_idx) = ast.parent(ast_node_idx) {
             // check other ast nodes we're in
