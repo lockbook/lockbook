@@ -416,6 +416,7 @@ pub unsafe extern "C" fn is_position_within_bound(
         CTextGranularity::Document => Bound::Doc,
     };
     if let Some(range) = pos.range_bound(bound, backwards, false, &obj.editor.bounds) {
+        // this implementation doesn't meet the specification in apple's docs, but the implementation that does creates word jumping bugs
         if range.contains(pos) {
             return true;
         }
