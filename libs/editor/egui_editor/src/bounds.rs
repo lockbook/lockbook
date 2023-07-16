@@ -30,7 +30,10 @@ pub fn calc_words(buffer: &SubBuffer, ast: &Ast) -> Words {
 
     for text_range in ast.iter_text_ranges() {
         match text_range.range_type {
-            AstTextRangeType::Head | AstTextRangeType::Tail => {} // syntax sequences don't count as words
+            AstTextRangeType::Head | AstTextRangeType::Tail => {
+                // syntax sequences count as words
+                result.push(text_range.range)
+            }
             AstTextRangeType::Text => {
                 let mut prev_char_offset = text_range.range.0;
                 let mut prev_word = "";
@@ -195,7 +198,7 @@ impl DocCharOffset {
     /// `self` will not be at the boundary of the result in the direction of `backwards` (e.g. alt+left/right),
     /// otherwise it will be (e.g. cmd+left/right). For instance, if `jump` is true, advancing beyond the first or last
     /// range in the doc will return None, otherwise it will return the first or last range in the doc.
-    fn range_bound(
+    pub fn range_bound(
         self, bound: Bound, backwards: bool, jump: bool, bounds: &Bounds,
     ) -> Option<(Self, Self)> {
         let ranges = match bound {

@@ -325,24 +325,9 @@ impl Editor {
 
         // scroll
         let all_selection = {
-            let mut select_all_cursor = Cursor::from(0);
-            select_all_cursor.advance(
-                Offset::To(Bound::Doc),
-                true,
-                &self.buffer.current,
-                &self.galleys,
-                &self.bounds,
-            );
-            let start = select_all_cursor.selection.1;
-            select_all_cursor.advance(
-                Offset::To(Bound::Doc),
-                false,
-                &self.buffer.current,
-                &self.galleys,
-                &self.bounds,
-            );
-            let end = select_all_cursor.selection.1;
-            (start, end)
+            DocCharOffset(0)
+                .range_bound(Bound::Doc, false, false, &self.bounds)
+                .unwrap() // there's always a document
         };
         if selection_updated && self.buffer.current.cursor.selection != all_selection {
             let cursor_end_line = self.buffer.current.cursor.end_line(&self.galleys);
