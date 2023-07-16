@@ -141,7 +141,7 @@ impl Bounds {
     }
 }
 
-enum BoundCase {
+pub enum BoundCase {
     // |
     NoRanges,
     // |xx yy
@@ -194,10 +194,10 @@ enum BoundCase {
 }
 
 impl DocCharOffset {
-    /// Returns the start or end of the range in the direction of `backwards` from offset `self`. If `jump` is true,
-    /// `self` will not be at the boundary of the result in the direction of `backwards` (e.g. alt+left/right),
-    /// otherwise it will be (e.g. cmd+left/right). For instance, if `jump` is true, advancing beyond the first or last
-    /// range in the doc will return None, otherwise it will return the first or last range in the doc.
+    /// Returns the range in the direction of `backwards` from offset `self`. If `jump` is true, `self` will not be at
+    /// the boundary of the result in the direction of `backwards` (e.g. alt+left/right), otherwise it will be (e.g.
+    /// cmd+left/right). For instance, if `jump` is true, advancing beyond the first or last range in the doc will
+    /// return None, otherwise it will return the first or last range in the doc.
     pub fn range_bound(
         self, bound: Bound, backwards: bool, jump: bool, bounds: &Bounds,
     ) -> Option<(Self, Self)> {
