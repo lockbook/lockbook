@@ -81,6 +81,17 @@ pub enum ItemType {
     Todo(bool),
 }
 
+impl ItemType {
+    pub fn head(&self) -> &'static str {
+        match self {
+            ItemType::Bulleted => "- ",
+            ItemType::Numbered(_) => "1. ", // todo: support other numbers
+            ItemType::Todo(true) => "- [x] ",
+            ItemType::Todo(false) => "- [ ] ",
+        }
+    }
+}
+
 // Ignore inner values in enum variant comparison
 // Note: you need to remember to incorporate new variants here!
 impl PartialEq for ItemType {
@@ -178,9 +189,7 @@ impl MarkdownNode {
             Self::Block(BlockNode::Code) => {
                 unimplemented!()
             }
-            Self::Block(BlockNode::ListItem(..)) => {
-                unimplemented!()
-            }
+            Self::Block(BlockNode::ListItem(item_type, ..)) => item_type.head(), // todo: support indentation
         }
     }
 
