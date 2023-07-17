@@ -4,8 +4,8 @@ version = "0.7.6"
 edition = "2021"
 
 [dependencies]
-lb = { package = "lockbook-core", path = "../../libs/core", default-features = false, features=["native-tls"] }
-lbeditor = { package = "egui_editor", path = "../../libs/editor/egui_editor" }
+lb = { package = "lockbook-core", path = "../../libs/core/core", default-features = false, features=["native-tls"] }
+lbeditor = { package = "lb_editor", path = "../../libs/content/lb_editor" }
 eframe = "0.22.0"
 egui-winit = "0.22.0"
 egui_extras = { version = "0.22.0", features = ["image"] }

@@ -2,7 +2,6 @@ use crate::input::click_checker::ClickChecker;
 use crate::input::cursor::{ClickType, PointerState};
 use crate::offset_types::{DocCharOffset, RelCharOffset};
 use crate::style::{InlineNode, MarkdownNode};
-use crate::{CTextPosition, CTextRange};
 use egui::{Event, Key, Modifiers, PointerButton, Pos2};
 use std::time::Instant;
 
@@ -301,30 +300,6 @@ pub fn calc(
         }
         Event::Key { key: Key::F2, pressed: true, .. } => Some(Modification::ToggleDebug),
         _ => None,
-    }
-}
-
-impl From<CTextRange> for (DocCharOffset, DocCharOffset) {
-    fn from(value: CTextRange) -> Self {
-        (value.start.pos.into(), value.end.pos.into())
-    }
-}
-
-impl From<CTextRange> for (RelCharOffset, RelCharOffset) {
-    fn from(value: CTextRange) -> Self {
-        (value.start.pos.into(), value.end.pos.into())
-    }
-}
-
-impl From<CTextRange> for Region {
-    fn from(value: CTextRange) -> Self {
-        Region::BetweenLocations { start: value.start.into(), end: value.end.into() }
-    }
-}
-
-impl From<CTextPosition> for Location {
-    fn from(value: CTextPosition) -> Self {
-        Self::DocCharOffset(value.pos.into())
     }
 }
 

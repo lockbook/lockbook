@@ -15,4 +15,4 @@ clap_complete = "4.2.0"
 strum = { version = "0.24", features = ["derive"] }
 shellwords = "1.1.0"
 hotwatch = "0.5.0"
-lb = { path = "../../libs/core", package = "lockbook-core" }
+lb = { path = "../../libs/core/core", package = "lockbook-core" }

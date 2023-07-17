@@ -3,12 +3,14 @@
 resolver="2"
 
 members = [
-	"libs/core",
-	"libs/core/libs/shared",
-	"libs/core/libs/test_utils",
-	"libs/c_interface_v2",
-	"libs/core_external_interface",
-	"libs/editor/egui_editor",
+	"libs/core/core",
+	"libs/core/core/libs/shared",
+	"libs/core/core/libs/test_utils",
+	"libs/core/c_interface_v2",
+	"libs/core/core_external_interface",
+	"libs/content/lb_editor",
+	"libs/content/content_pane",
+	"libs/content/content_pane_ffi",
 	"server/server",
 	"clients/cli",
 	"clients/egui",

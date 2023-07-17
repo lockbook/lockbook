@@ -168,6 +168,10 @@ impl Default for Editor {
 }
 
 impl Editor {
+    pub fn new(s: &str) -> Self {
+        Self { buffer: s.into(), ..Default::default() }
+    }
+
     pub fn draw(&mut self, ctx: &Context) -> EditorResponse {
         egui::CentralPanel::default()
             .show(ctx, |ui| self.scroll_ui(ui))

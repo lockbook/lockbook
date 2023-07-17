@@ -1,83 +1,11 @@
-pub use crate::editor::{Editor, EditorResponse};
-use egui::{FontData, FontDefinitions, FontFamily, Pos2, Rect};
-use egui_wgpu_backend::wgpu;
-use egui_wgpu_backend::wgpu::CompositeAlphaMode;
-use std::iter;
-use std::sync::Arc;
-use std::time::Instant;
-
-pub mod appearance;
-pub mod ast;
-pub mod bounds;
-pub mod buffer;
-pub mod debug;
-pub mod draw;
-pub mod editor;
-pub mod galleys;
-pub mod images;
-pub mod input;
-pub mod layouts;
-pub mod offset_types;
-pub mod style;
-pub mod test_input;
-pub mod unicode_segs;
-
-#[cfg(target_vendor = "apple")]
 pub mod apple;
 
-/// https://developer.apple.com/documentation/uikit/uitextrange
-#[repr(C)]
-#[derive(Debug, Default)]
-pub struct CTextRange {
-    /// used to represent a non-existent state of this struct
-    none: bool,
-    start: CTextPosition,
-    end: CTextPosition,
-}
-
-#[repr(C)]
-#[derive(Debug, Default)]
-pub struct CTextPosition {
-    /// used to represent a non-existent state of this struct
-    none: bool,
-    pos: usize, // represents a grapheme index
-}
-
-#[repr(C)]
-#[derive(Debug)]
-pub enum CTextLayoutDirection {
-    Right = 2,
-    Left = 3,
-    Up = 4,
-    Down = 5,
-}
-
-#[repr(C)]
-#[derive(Debug)]
-pub struct CPoint {
-    pub x: f64,
-    pub y: f64,
-}
-
-#[repr(C)]
-#[derive(Debug)]
-pub enum CTextGranularity {
-    Character = 0,
-    Word = 1,
-    Sentence = 2,
-    Paragraph = 3,
-    Line = 4,
-    Document = 5,
-}
-
-#[repr(C)]
-#[derive(Debug)]
-pub struct CRect {
-    pub min_x: f64,
-    pub min_y: f64,
-    pub max_x: f64,
-    pub max_y: f64,
-}
+use egui::{Pos2, Rect};
+use egui_wgpu_backend::wgpu;
+use egui_wgpu_backend::wgpu::CompositeAlphaMode;
+use lb_editor::{Editor, EditorResponse};
+use std::iter;
+use std::time::Instant;
 
 #[repr(C)]
 pub struct WgpuEditor {
@@ -205,35 +133,4 @@ impl WgpuEditor {
         };
         self.surface.configure(&self.device, &surface_config);
     }
-}
-
-pub fn register_fonts(fonts: &mut FontDefinitions) {
-    fonts.font_data.insert(
-        "pt_sans".to_string(),
-        FontData::from_static(include_bytes!("../fonts/PTSans-Regular.ttf")),
-    );
-    fonts.font_data.insert(
-        "pt_mono".to_string(),
-        FontData::from_static(include_bytes!("../fonts/PTMono-Regular.ttf")),
-    );
-    fonts.font_data.insert(
-        "pt_bold".to_string(),
-        FontData::from_static(include_bytes!("../fonts/PTSans-Bold.ttf")),
-    );
-
-    fonts
-        .families
-        .insert(FontFamily::Name(Arc::from("Bold")), vec!["pt_bold".to_string()]);
-
-    fonts
-        .families
-        .get_mut(&FontFamily::Proportional)
-        .unwrap()
-        .insert(0, "pt_sans".to_string());
-
-    fonts
-        .families
-        .get_mut(&FontFamily::Monospace)
-        .unwrap()
-        .insert(0, "pt_mono".to_string());
 }

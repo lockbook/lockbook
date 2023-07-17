@@ -1,13 +1,15 @@
-use crate::input::canonical::{Bound, Increment, Location, Modification, Offset, Region};
-use crate::input::cursor::Cursor;
-use crate::input::mutation;
-use crate::offset_types::{DocCharOffset, RangeExt};
-use crate::{
-    CPoint, CRect, CTextGranularity, CTextLayoutDirection, CTextPosition, CTextRange, WgpuEditor,
-};
 use egui::{Event, Key, PointerButton, Pos2, TouchDeviceId, TouchId, TouchPhase};
+use lb_editor::apple_model::{
+    CPoint, CRect, CTextGranularity, CTextLayoutDirection, CTextPosition, CTextRange,
+};
+use lb_editor::input::canonical::{Bound, Increment, Location, Modification, Offset, Region};
+use lb_editor::input::cursor::Cursor;
+use lb_editor::input::mutation;
+use lb_editor::offset_types::{DocCharOffset, RangeExt};
 use std::cmp;
 use std::ffi::{c_char, c_void, CStr, CString};
+
+use crate::WgpuEditor;
 
 /// # Safety
 /// obj must be a valid pointer to WgpuEditor

@@ -1130,6 +1130,23 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "21a53c0a4d288377e7415b53dcfc3c04da5cdc2cc95c8d5ac178b58f0b861ad6"
 
 [[package]]
+name = "content_pane"
+version = "0.1.0"
+dependencies = [
+ "lb_editor",
+]
+
+[[package]]
+name = "content_pane_ffi"
+version = "0.1.0"
+dependencies = [
+ "egui",
+ "egui_wgpu_backend",
+ "lb_editor",
+ "pollster",
+]
+
+[[package]]
 name = "core-foundation"
 version = "0.9.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1659,22 +1676,6 @@ dependencies = [
  "smithay-clipboard",
  "webbrowser",
  "winit",
-]
-
-[[package]]
-name = "egui_editor"
-version = "0.7.6"
-dependencies = [
- "eframe",
- "egui",
- "egui_wgpu_backend",
- "image",
- "libc",
- "pollster",
- "pulldown-cmark",
- "rand 0.8.5",
- "reqwest",
- "unicode-segmentation",
 ]
 
 [[package]]
@@ -3026,6 +3027,20 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e2abad23fbc42b3700f2f279844dc832adb2b2eb069b2df918f455c4e18cc646"
 
 [[package]]
+name = "lb_editor"
+version = "0.7.6"
+dependencies = [
+ "eframe",
+ "egui",
+ "image",
+ "libc",
+ "pulldown-cmark",
+ "rand 0.8.5",
+ "reqwest",
+ "unicode-segmentation",
+]
+
+[[package]]
 name = "lebe"
 version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3219,9 +3234,9 @@ dependencies = [
  "dark-light",
  "eframe",
  "egui-winit",
- "egui_editor",
  "egui_extras",
  "image",
+ "lb_editor",
  "lockbook-core",
  "serde",
  "serde_json",

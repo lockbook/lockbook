@@ -1,9 +1,9 @@
-use crate::input::canonical::{Modification, Region};
-use crate::style::{InlineNode, MarkdownNode};
 use crate::{Editor, IntegrationOutput, WgpuEditor};
 use egui::{Context, Event, Visuals};
 use egui_wgpu_backend::wgpu::CompositeAlphaMode;
 use egui_wgpu_backend::{wgpu, ScreenDescriptor};
+use lb_editor::input::canonical::{Modification, Region};
+use lb_editor::style::{InlineNode, MarkdownNode};
 use std::ffi::{c_char, c_void, CStr, CString};
 use std::time::Instant;
 
@@ -35,9 +35,9 @@ pub unsafe extern "C" fn init_editor(
 
     let context = Context::default();
     context.set_visuals(if dark_mode { Visuals::dark() } else { Visuals::light() });
-    let mut editor = Editor::default();
+    let buffer = CStr::from_ptr(content).to_str().unwrap();
+    let editor = Editor::new(buffer);
     editor.set_font(&context);
-    editor.buffer = CStr::from_ptr(content).to_str().unwrap().into();
 
     let start_time = Instant::now();
     let mut obj = WgpuEditor {

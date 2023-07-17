@@ -1,5 +1,5 @@
 [package]
-name = "egui_editor"
+name = "lb_editor"
 version = "0.7.6"
 edition = "2021"
 
@@ -7,7 +7,7 @@ edition = "2021"
 debug-window = ["eframe"]
 
 [lib]
-name = "egui_editor"
+name = "egui_content_pane"
 crate-type = ["lib", "staticlib"]
 path = "src/lib.rs"
 
@@ -17,7 +17,6 @@ path = "src/main.rs"
 
 [dependencies]
 egui = "0.22.0"
-egui_wgpu_backend = "0.24.0"
 image = "0.24"
 libc = "0.2"
 pulldown-cmark = { version = "0.9.2", default-features = false }
@@ -28,5 +27,3 @@ rand = "0.8.5"
 #eframe = { version = "0.19.0", optional = true, default-features = false, features = ['wgpu', 'dark-light'] }
 eframe = { version = "0.22.0", optional = true }
 
-[target.'cfg(target_vendor = "apple")'.dependencies]
-pollster = "0.2"
