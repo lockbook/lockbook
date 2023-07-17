@@ -104,12 +104,11 @@ extension View {
         #endif
     }
     
-//    #if os(iOS)
+    #if os(iOS)
     func exportFileAndShowShareSheet(meta: File) {
         DispatchQueue.global(qos: .userInitiated).async {
             if let dest = DI.importExport.exportFilesToTempDirSync(meta: meta) {
                 DispatchQueue.main.async {
-                    #if os(iOS)
                     let activityVC = UIActivityViewController(activityItems: [dest], applicationActivities: nil)
                     
                     if UIDevice.current.userInterfaceIdiom == .pad {
@@ -118,17 +117,27 @@ extension View {
                     }
                     
                     UIApplication.shared.connectedScenes.flatMap {($0 as? UIWindowScene)?.windows ?? []}.first {$0.isKeyWindow}?.rootViewController?.present(activityVC, animated: true, completion: nil)
-                    #else
-                    if let contentView = NSApplication.shared.windows.last?.contentView {
-                        NSSharingServicePicker(items: [dest]).show(relativeTo: .zero, of: contentView, preferredEdge: .minX)
-                    }
-                    #endif
                 }
             }
         }
     }
-//    #endif
+    #endif
 }
+
+#if os(macOS)
+
+extension NSView {
+    func exportFileAndShowShareSheet(meta: File) {
+        DispatchQueue.global(qos: .userInitiated).async {
+            if let dest = DI.importExport.exportFilesToTempDirSync(meta: meta) {
+                DispatchQueue.main.async {
+                    NSSharingServicePicker(items: [dest]).show(relativeTo: .zero, of: self, preferredEdge: .minX)
+                }
+            }
+        }
+    }
+}
+#endif
 
 @ViewBuilder
 func pendingShareToolbarIcon(isiOS: Bool, isPendingSharesEmpty: Bool) -> some View {

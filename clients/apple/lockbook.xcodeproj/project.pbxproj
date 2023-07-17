@@ -15,6 +15,9 @@
 		4709DC39296609F100426106 /* PendingSharesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4709DC37296609F100426106 /* PendingSharesView.swift */; };
 		4709DC3E2966260500426106 /* AcceptShareSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4709DC3D2966260500426106 /* AcceptShareSheet.swift */; };
 		4709DC3F2966260500426106 /* AcceptShareSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4709DC3D2966260500426106 /* AcceptShareSheet.swift */; };
+		4709FFCD2A64BE7500CBDE5E /* ShareViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4709FFCC2A64BE7500CBDE5E /* ShareViewController.swift */; };
+		4709FFD02A64BE7500CBDE5E /* MainInterface.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 4709FFCE2A64BE7500CBDE5E /* MainInterface.storyboard */; };
+		4709FFDA2A64C31000CBDE5E /* SwiftLockbookCore in Frameworks */ = {isa = PBXBuildFile; productRef = 4709FFD92A64C31000CBDE5E /* SwiftLockbookCore */; };
 		47159F4629CFA05B00969DDF /* DSFQuickActionBar in Frameworks */ = {isa = PBXBuildFile; productRef = 47159F4529CFA05B00969DDF /* DSFQuickActionBar */; };
 		471E363529FD5F5C00A1958A /* FileListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8741E8F925ACBCF9005B7B01 /* FileListView.swift */; };
 		473A3DCE29AC354B0017BC6A /* FilePathBreadcrumb.swift in Sources */ = {isa = PBXBuildFile; fileRef = 473A3DCD29AC354B0017BC6A /* FilePathBreadcrumb.swift */; };
@@ -126,11 +129,28 @@
 		};
 /* End PBXContainerItemProxy section */
 
+/* Begin PBXCopyFilesBuildPhase section */
+		47DBF25B2A61D5D600F86B3F /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
 		1F7E4FBE2521297D0045F606 /* Colors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Colors.swift; sourceTree = "<group>"; };
 		4709C76F29FDAAE9004449EF /* SuggestedDocs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SuggestedDocs.swift; sourceTree = "<group>"; };
 		4709DC37296609F100426106 /* PendingSharesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PendingSharesView.swift; sourceTree = "<group>"; };
 		4709DC3D2966260500426106 /* AcceptShareSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AcceptShareSheet.swift; sourceTree = "<group>"; };
+		4709FFCA2A64BE7400CBDE5E /* Share Extension (iOS).appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = "Share Extension (iOS).appex"; sourceTree = BUILT_PRODUCTS_DIR; };
+		4709FFCC2A64BE7500CBDE5E /* ShareViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareViewController.swift; sourceTree = "<group>"; };
+		4709FFCF2A64BE7500CBDE5E /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/MainInterface.storyboard; sourceTree = "<group>"; };
+		4709FFD12A64BE7500CBDE5E /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		473A3DCD29AC354B0017BC6A /* FilePathBreadcrumb.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilePathBreadcrumb.swift; sourceTree = "<group>"; };
 		4741C7902939C9220073F24F /* Products.storekit */ = {isa = PBXFileReference; lastKnownFileType = text; path = Products.storekit; sourceTree = "<group>"; };
 		4756C4DA2A57CE86002C64B1 /* NewFolderSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewFolderSheet.swift; sourceTree = "<group>"; };
@@ -144,6 +164,8 @@
 		47B67288295F977C00DB0D8E /* ManageSubscriptionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManageSubscriptionView.swift; sourceTree = "<group>"; };
 		47CEC69C2A182F2A0018FA5C /* UpgradeToPremium.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpgradeToPremium.swift; sourceTree = "<group>"; };
 		47DBF1F02A61A51000F86B3F /* ImportExportService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportExportService.swift; sourceTree = "<group>"; };
+		47DBF1F32A61CA5000F86B3F /* UIKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = UIKit.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS16.4.sdk/System/Library/Frameworks/UIKit.framework; sourceTree = DEVELOPER_DIR; };
+		47DBF2212A61D45600F86B3F /* AuthenticationServices.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AuthenticationServices.framework; path = System/Library/Frameworks/AuthenticationServices.framework; sourceTree = SDKROOT; };
 		47FAA4C729EC830600DB606E /* BranchState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BranchState.swift; sourceTree = "<group>"; };
 		5036AA70E675020A378AE98E /* DrawingToolbar.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DrawingToolbar.swift; sourceTree = "<group>"; };
 		5036ACCA149F0864585B7D44 /* LBDrawingPKDrawingConversions.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = LBDrawingPKDrawingConversions.swift; sourceTree = "<group>"; };
@@ -205,6 +227,14 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		4709FFC72A64BE7400CBDE5E /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				4709FFDA2A64C31000CBDE5E /* SwiftLockbookCore in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		B2063A4927D01BF900A0783C /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -238,6 +268,16 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		4709FFCB2A64BE7500CBDE5E /* Share Extension (iOS) */ = {
+			isa = PBXGroup;
+			children = (
+				4709FFCC2A64BE7500CBDE5E /* ShareViewController.swift */,
+				4709FFCE2A64BE7500CBDE5E /* MainInterface.storyboard */,
+				4709FFD12A64BE7500CBDE5E /* Info.plist */,
+			);
+			path = "Share Extension (iOS)";
+			sourceTree = "<group>";
+		};
 		870DC0A026BF3775002E9A92 /* Settings */ = {
 			isa = PBXGroup;
 			children = (
@@ -316,7 +356,9 @@
 		EA14E8172516643400B9158C /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
+				47DBF1F32A61CA5000F86B3F /* UIKit.framework */,
 				EAD401DB25E32CD50083A236 /* Notepad */,
+				47DBF2212A61D45600F86B3F /* AuthenticationServices.framework */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
@@ -329,6 +371,7 @@
 				EA5C7D672516605F00F7F358 /* Shared */,
 				EA5C7D712516606000F7F358 /* iOS */,
 				EA5C7D782516606100F7F358 /* macOS */,
+				4709FFCB2A64BE7500CBDE5E /* Share Extension (iOS) */,
 				EA5C7D702516606000F7F358 /* Products */,
 				EA14E8172516643400B9158C /* Frameworks */,
 			);
@@ -352,6 +395,7 @@
 				EA5C7D6F2516606000F7F358 /* Lockbook.app */,
 				EA5C7D772516606000F7F358 /* Lockbook.app */,
 				B2063A4C27D01BF900A0783C /* EditorTests.xctest */,
+				4709FFCA2A64BE7400CBDE5E /* Share Extension (iOS).appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -426,6 +470,26 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		4709FFC92A64BE7400CBDE5E /* Share Extension (iOS) */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 4709FFD52A64BE7500CBDE5E /* Build configuration list for PBXNativeTarget "Share Extension (iOS)" */;
+			buildPhases = (
+				4709FFC62A64BE7400CBDE5E /* Sources */,
+				4709FFC72A64BE7400CBDE5E /* Frameworks */,
+				4709FFC82A64BE7400CBDE5E /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = "Share Extension (iOS)";
+			packageProductDependencies = (
+				4709FFD92A64C31000CBDE5E /* SwiftLockbookCore */,
+			);
+			productName = "Share Extension (iOS)";
+			productReference = 4709FFCA2A64BE7400CBDE5E /* Share Extension (iOS).appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 		B2063A4B27D01BF900A0783C /* EditorTests */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = B2063A5227D01BF900A0783C /* Build configuration list for PBXNativeTarget "EditorTests" */;
@@ -474,6 +538,7 @@
 				EA5C7D732516606000F7F358 /* Sources */,
 				EA5C7D742516606000F7F358 /* Frameworks */,
 				EA5C7D752516606000F7F358 /* Resources */,
+				47DBF25B2A61D5D600F86B3F /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
@@ -497,9 +562,12 @@
 		EA5C7D632516605F00F7F358 /* Project object */ = {
 			isa = PBXProject;
 			attributes = {
-				LastSwiftUpdateCheck = 1310;
+				LastSwiftUpdateCheck = 1430;
 				LastUpgradeCheck = 1400;
 				TargetAttributes = {
+					4709FFC92A64BE7400CBDE5E = {
+						CreatedOnToolsVersion = 14.3;
+					};
 					B2063A4B27D01BF900A0783C = {
 						CreatedOnToolsVersion = 13.1;
 						TestTargetID = EA5C7D762516606000F7F358;
@@ -534,11 +602,20 @@
 				EA5C7D6E2516606000F7F358 /* Lockbook (iOS) */,
 				EA5C7D762516606000F7F358 /* Lockbook (macOS) */,
 				B2063A4B27D01BF900A0783C /* EditorTests */,
+				4709FFC92A64BE7400CBDE5E /* Share Extension (iOS) */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		4709FFC82A64BE7400CBDE5E /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				4709FFD02A64BE7500CBDE5E /* MainInterface.storyboard in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		B2063A4A27D01BF900A0783C /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -565,6 +642,14 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		4709FFC62A64BE7400CBDE5E /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				4709FFCD2A64BE7500CBDE5E /* ShareViewController.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		B2063A4827D01BF900A0783C /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -692,7 +777,106 @@
 		};
 /* End PBXTargetDependency section */
 
+/* Begin PBXVariantGroup section */
+		4709FFCE2A64BE7500CBDE5E /* MainInterface.storyboard */ = {
+			isa = PBXVariantGroup;
+			children = (
+				4709FFCF2A64BE7500CBDE5E /* Base */,
+			);
+			name = MainInterface.storyboard;
+			sourceTree = "<group>";
+		};
+/* End PBXVariantGroup section */
+
 /* Begin XCBuildConfiguration section */
+		4709FFD62A64BE7500CBDE5E /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 39ZS78S25U;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "Share Extension (iOS)/Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = "Share Extension (iOS)";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 16.4;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				"LIBRARY_SEARCH_PATHS[arch=*]" = "${PROJECT_DIR}/CLockbookCore/Sources/CLockbookCore/lib_ios";
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "app.lockbook.share-extension-ios";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		4709FFD72A64BE7500CBDE5E /* Development */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 39ZS78S25U;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "Share Extension (iOS)/Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = "Share Extension (iOS)";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 16.4;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				"LIBRARY_SEARCH_PATHS[arch=*]" = "${PROJECT_DIR}/CLockbookCore/Sources/CLockbookCore/lib_ios";
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "app.lockbook.share-extension-ios";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Development;
+		};
+		4709FFD82A64BE7500CBDE5E /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 39ZS78S25U;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "Share Extension (iOS)/Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = "Share Extension (iOS)";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 16.4;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				"LIBRARY_SEARCH_PATHS[arch=*]" = "${PROJECT_DIR}/CLockbookCore/Sources/CLockbookCore/lib_ios";
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "app.lockbook.share-extension-ios";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
 		B2063A5327D01BF900A0783C /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -1135,6 +1319,16 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		4709FFD52A64BE7500CBDE5E /* Build configuration list for PBXNativeTarget "Share Extension (iOS)" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				4709FFD62A64BE7500CBDE5E /* Debug */,
+				4709FFD72A64BE7500CBDE5E /* Development */,
+				4709FFD82A64BE7500CBDE5E /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		B2063A5227D01BF900A0783C /* Build configuration list for PBXNativeTarget "EditorTests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
@@ -1213,6 +1407,10 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		4709FFD92A64C31000CBDE5E /* SwiftLockbookCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = SwiftLockbookCore;
+		};
 		47159F4529CFA05B00969DDF /* DSFQuickActionBar */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = 47159F4429CFA05B00969DDF /* XCRemoteSwiftPackageReference "DSFQuickActionBar" */;

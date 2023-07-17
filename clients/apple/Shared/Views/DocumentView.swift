@@ -3,7 +3,7 @@ import SwiftLockbookCore
 import PencilKit
 import SwiftEditor
 
-
+#if os(iOS)
 struct iOSDocumentViewWrapper: View {
     let id: UUID
     
@@ -12,8 +12,10 @@ struct iOSDocumentViewWrapper: View {
             .onDisappear {
                 DI.currentDoc.cleanupOldDocs(true)
             }
+            .iPhoneMarkdownToolbar(id: id)
     }
 }
+#endif
 
 struct DocumentView: View, Equatable {
     static func == (lhs: DocumentView, rhs: DocumentView) -> Bool {
@@ -102,7 +104,6 @@ struct DocumentView: View, Equatable {
                                 .equatable()
                         }
                         .title("")
-                        .markdownToolbar(isiPhone: model.isiPhone, meta: model.meta)
                     }
                 case .Unknown:
                     Text("\(model.meta.name) cannot be opened on this device.")
@@ -125,21 +126,11 @@ extension View {
         #endif
     }
     
+    #if os(iOS)
     @ViewBuilder
-    func markdownToolbar(isiPhone: Bool, meta: File) -> some View {
-        #if os(macOS)
+    func iPhoneMarkdownToolbar(id: UUID) -> some View {
         self.toolbar {
-            Button(action: {
-                exportFileAndShowShareSheet(meta: meta)
-            }, label: {
-                Label("Export", systemImage: "square.and.arrow.up.fill")
-            })
-            .foregroundColor(.blue)
-            .padding(.horizontal, 10)
-        }
-        #else
-        if isiPhone {
-            self.toolbar {
+            if let meta = DI.files.idsAndFiles[id] {
                 Button(action: {
                     exportFileAndShowShareSheet(meta: meta)
                 }, label: {
@@ -148,11 +139,9 @@ extension View {
                 .foregroundColor(.blue)
                 .padding(.horizontal, 10)
             }
-        } else {
-            self
         }
-        #endif
     }
+    #endif
 }
 
 struct MarkdownCompleteEditor: View, Equatable {

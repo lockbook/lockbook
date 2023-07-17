@@ -54,15 +54,15 @@ struct FileTreeView: View {
                     }
                 
                 if let id = currentDoc.selectedDoc {
-                    Button(action: {
-                        if let meta = DI.files.idsAndFiles[id] {
+                    if let meta = DI.files.idsAndFiles[id] {
+                        Button(action: {
                             exportFileAndShowShareSheet(meta: meta)
-                        }
-                    }, label: {
-                        Label("Export", systemImage: "square.and.arrow.up.fill")
-                    })
-                    .foregroundColor(.blue)
-                    .padding(.horizontal, 10)
+                               }, label: {
+                            Label("Export", systemImage: "square.and.arrow.up.fill")
+                        })
+                        .foregroundColor(.blue)
+                        .padding(.horizontal, 10)
+                    }
                 }
                                     
                 NavigationLink(
