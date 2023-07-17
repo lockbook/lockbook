@@ -4,4 +4,6 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+egui = "0.22.0"
+
 lb_editor = { package = "lb_editor", path = "../lb_editor" }

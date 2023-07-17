@@ -1133,6 +1133,7 @@ checksum = "21a53c0a4d288377e7415b53dcfc3c04da5cdc2cc95c8d5ac178b58f0b861ad6"
 name = "content_pane"
 version = "0.1.0"
 dependencies = [
+ "egui",
  "lb_editor",
 ]
 
