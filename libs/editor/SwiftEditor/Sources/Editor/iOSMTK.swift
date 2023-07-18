@@ -136,6 +136,10 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
             nameState?.potentialTitle = nil
         }
         
+        if output.editor_response.selection_updated {
+            becomeFirstResponder()
+        }
+        
         if output.editor_response.show_edit_menu {
             self.hasSelection = output.editor_response.has_selection
             let location = CGPoint(
@@ -375,8 +379,6 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
         let value = UInt64(UInt(bitPattern: point))
         let location = touches.first!.location(in: self)
         touches_began(editorHandle, value, Float(location.x), Float(location.y), Float(touches.first?.force ?? 0))
-        
-        becomeFirstResponder()
 
         self.setNeedsDisplay(self.frame)
     }

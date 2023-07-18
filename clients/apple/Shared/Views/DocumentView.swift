@@ -3,7 +3,6 @@ import SwiftLockbookCore
 import PencilKit
 import SwiftEditor
 
-
 struct iOSDocumentViewWrapper: View {
     let id: UUID
     
@@ -175,8 +174,23 @@ struct MarkdownToolbar: View {
     
     var body: some View {
         HStack(spacing: 20) {
+            #if os(iOS)
+            
+            HStack(spacing: 15) {
+                Button(action: {
+                    UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+                }) {
+                    MarkdownEditorImage(systemImageName: "keyboard.chevron.compact.down", isSelected: false)
+                }
+                .buttonStyle(.borderless)
+            }
+            
+            Divider()
+                .frame(height: 20)
+            
+            #endif
+            
             HStack(spacing: 0) {
-                                
                 Menu(content: {
                     Button("Heading 1") {
                         toolbarState.toggleHeading(1)
@@ -281,7 +295,6 @@ struct MarkdownToolbar: View {
                 .frame(height: 20)
 
             HStack(spacing: 15) {
-
                 Button(action: {
                     toolbarState.tab(false)
                 }) {
