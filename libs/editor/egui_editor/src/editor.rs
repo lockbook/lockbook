@@ -56,6 +56,7 @@ pub struct EditorResponse {
 
     pub show_edit_menu: bool,
     pub has_selection: bool,
+    pub selection_updated: bool,
     pub edit_menu_x: f32,
     pub edit_menu_y: f32,
 
