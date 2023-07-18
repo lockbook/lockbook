@@ -42,6 +42,7 @@ pub struct EditorResponse {
 
 pub struct Editor {
     pub id: u32,
+    pub debug_id: egui::Id,
     pub initialized: bool,
 
     // config
@@ -83,6 +84,7 @@ impl Default for Editor {
         let id: u32 = rand::thread_rng().gen();
         Self {
             id,
+            debug_id: egui::Id::null(),
             initialized: Default::default(),
 
             appearance: Default::default(),
@@ -117,6 +119,7 @@ impl Default for Editor {
 impl Editor {
     pub fn draw(&mut self, ctx: &Context) -> EditorResponse {
         let fill = if ctx.style().visuals.dark_mode { Color32::BLACK } else { Color32::WHITE };
+
         egui::CentralPanel::default()
             .frame(Frame::default().fill(fill))
             .show(ctx, |ui| self.scroll_ui(ui))
@@ -127,9 +130,9 @@ impl Editor {
         let touch_mode = matches!(ui.ctx().os(), OperatingSystem::Android | OperatingSystem::IOS);
 
         let events = ui.ctx().input(|i| i.events.clone());
-
         // create id (even though we don't use interact response)
         let id = ui.auto_id_with("lbeditor");
+        self.debug_id = id;
         ui.interact(self.scroll_area_rect, id, Sense::focusable_noninteractive());
 
         // calculate focus
@@ -144,7 +147,6 @@ impl Editor {
                 }
             }
         }
-        // println!("editor id from editor: {}", id.short_debug_format());
 
         // show ui
         let mut focus = false;
