@@ -39,8 +39,6 @@ struct FileTreeView: View {
                     view is UISearchBar
                 } as? UISearchBar
             }
-            
-            BottomBar()
         }
         
         VStack {
@@ -83,20 +81,24 @@ struct FileTreeView: View {
     }
     
     var mainView: some View {
-        VStack(alignment: .leading) {
-            SuggestedDocs(isiOS: false)
+        Group {
+            VStack(alignment: .leading) {
+                SuggestedDocs(isiOS: false)
+                
+                Text("Files")
+                    .bold()
+                    .foregroundColor(.primary)
+                    .textCase(.none)
+                    .font(.headline)
+                    .padding(.top)
+                    .padding(.bottom, 5)
+                
+                OutlineSection(root: currentFolder)
+            }
+            .padding(.horizontal)
             
-            Text("Files")
-                .bold()
-                .foregroundColor(.primary)
-                .textCase(.none)
-                .font(.headline)
-                .padding(.top)
-                .padding(.bottom, 5)
-            
-            OutlineSection(root: currentFolder)
+            BottomBar()
         }
-        .padding(.horizontal)
     }
     
     func focusSearchBar() {

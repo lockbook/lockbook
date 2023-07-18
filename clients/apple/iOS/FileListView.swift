@@ -31,14 +31,6 @@ struct FileListView: View {
                 mainView: mainView,
                 isiOS: true)
             .searchable(text: $searchInput, prompt: "Search")
-
-            FilePathBreadcrumb() { file in
-                animateToParentFolder() {
-                    fileService.pathBreadcrumbClicked(file)
-                }
-            }
-
-            BottomBar(isiOS: true)
         }
         .gesture(
             DragGesture().onEnded({ (value) in
@@ -68,48 +60,58 @@ struct FileListView: View {
     }
     
     var mainView: some View {
-        List {
-            if fileService.parent?.isRoot == true && fileService.suggestedDocs?.isEmpty != true {
-                Section(header: Text("Suggested")
+        Group {
+            List {
+                if fileService.parent?.isRoot == true && fileService.suggestedDocs?.isEmpty != true {
+                    Section(header: Text("Suggested")
+                        .bold()
+                        .foregroundColor(.primary)
+                        .textCase(.none)
+                        .font(.headline)
+                        .padding(.bottom, 3)) {
+                            SuggestedDocs(isiOS: true)
+                        }
+                        .offset(mainViewOffset)
+                        .opacity(mainViewOpacity)
+                }
+                
+                Section(header: Text("Files")
                     .bold()
                     .foregroundColor(.primary)
                     .textCase(.none)
                     .font(.headline)
                     .padding(.bottom, 3)) {
-                        SuggestedDocs(isiOS: true)
+                        files
                     }
                     .offset(mainViewOffset)
                     .opacity(mainViewOpacity)
+                
             }
-
-            Section(header: Text("Files")
-                .bold()
-                .foregroundColor(.primary)
-                .textCase(.none)
-                .font(.headline)
-                .padding(.bottom, 3)) {
-                    files
-            }
-                .offset(mainViewOffset)
-                .opacity(mainViewOpacity)
-
-        }
-        .navigationBarTitle(fileService.parent.map{($0.name)} ?? "")
-        .modifier(DragGestureViewModifier(onUpdate: { gesture in
-            if fileService.parent?.isRoot == false && gesture.translation.width < 200 && gesture.translation.width > 0 {
-                mainViewOffset.width = gesture.translation.width
-            }
-        }, onEnd: { gesture in
-            if gesture.translation.width > 100 && fileService.parent?.isRoot == false {
+            .navigationBarTitle(fileService.parent.map{($0.name)} ?? "")
+            .modifier(DragGestureViewModifier(onUpdate: { gesture in
+                if fileService.parent?.isRoot == false && gesture.translation.width < 200 && gesture.translation.width > 0 {
+                    mainViewOffset.width = gesture.translation.width
+                }
+            }, onEnd: { gesture in
+                if gesture.translation.width > 100 && fileService.parent?.isRoot == false {
+                    animateToParentFolder() {
+                        fileService.upADirectory()
+                    }
+                } else {
+                    withAnimation {
+                        mainViewOffset.width = 0
+                    }
+                }
+            }))
+         
+            FilePathBreadcrumb() { file in
                 animateToParentFolder() {
-                    fileService.upADirectory()
-                }
-            } else {
-                withAnimation {
-                    mainViewOffset.width = 0
+                    fileService.pathBreadcrumbClicked(file)
                 }
             }
-        }))
+
+            BottomBar(isiOS: true)
+        }
     }
 
     var files: some View {
