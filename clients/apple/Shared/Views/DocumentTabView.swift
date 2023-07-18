@@ -18,7 +18,7 @@ struct DocumentTabView: View {
                         ForEach(current.openDocumentsKeyArr, id: \.hashValue) { id in
                             Button(action: {
                                 current.selectedDoc = id
-                                current.openDocuments[id]?.textDocument?.focused = true
+                                current.openDocuments[id]?.textDocument?.shouldFocus = true
                                 docTabKillOpacity[id] = 1
                             }, label: {
                                 HStack {

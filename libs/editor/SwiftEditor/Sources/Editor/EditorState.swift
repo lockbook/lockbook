@@ -5,7 +5,7 @@ public class EditorState: ObservableObject {
     
     @Published public var text: String
     @Published public var reload: Bool = false
-    @Published public var focused: Bool = true
+    @Published public var shouldFocus: Bool = true
     
     public var isiPhone: Bool
     
