@@ -2,6 +2,7 @@ import SwiftUI
 import SwiftLockbookCore
 import PencilKit
 import SwiftEditor
+import Combine
 
 
 struct iOSDocumentViewWrapper: View {
@@ -162,7 +163,7 @@ struct MarkdownCompleteEditor: View, Equatable {
     }
     
     var markdownToolbar: MarkdownToolbar {
-        MarkdownToolbar(toolbarState: toolbarState)
+        MarkdownToolbar(toolbarState: toolbarState, id: fileId)
     }
     
     static func == (lhs: MarkdownCompleteEditor, rhs: MarkdownCompleteEditor) -> Bool {
@@ -170,13 +171,52 @@ struct MarkdownCompleteEditor: View, Equatable {
     }
 }
 
-struct MarkdownToolbar: View {
-    @ObservedObject var toolbarState: ToolbarState
+struct MarkdownToolbar: View, KeyboardReadable {
+    @StateObject var toolbarState: ToolbarState
+    
+    #if os(iOS)
+    
+    @State var isKeyboardVisible: Bool = false
+    
+    #endif
+    
+    let id: UUID
+    
+    
+    var docInfo: DocumentLoadingInfo? {
+        get {
+            DI.currentDoc.openDocuments[id]
+        }
+    }
     
     var body: some View {
         HStack(spacing: 20) {
+            #if os(iOS)
+            
+            HStack(spacing: 15) {
+                Button(action: {
+                    if isKeyboardVisible {
+                        print("unfocusing")
+                        docInfo?.textDocument?.shouldUnfocus = true
+                    } else {
+                        print("focusing")
+                        docInfo?.textDocument?.shouldFocus = true
+                    }
+                }) {
+                    MarkdownEditorImage(systemImageName: "keyboard.badge.eye", isSelected: false)
+                }
+                .buttonStyle(.borderless)
+                .onReceive(keyboardPublisher) { newValue in
+                    isKeyboardVisible = newValue
+                }
+            }
+            
+            Divider()
+                .frame(height: 20)
+            
+            #endif
+            
             HStack(spacing: 0) {
-                                
                 Menu(content: {
                     Button("Heading 1") {
                         toolbarState.toggleHeading(1)
@@ -281,7 +321,6 @@ struct MarkdownToolbar: View {
                 .frame(height: 20)
 
             HStack(spacing: 15) {
-
                 Button(action: {
                     toolbarState.tab(false)
                 }) {
@@ -450,3 +489,23 @@ extension String {
         self.lowercased().replacingOccurrences(of: " ", with: "-")
     }
 }
+
+protocol KeyboardReadable {
+    var keyboardPublisher: AnyPublisher<Bool, Never> { get }
+}
+
+extension KeyboardReadable {
+    var keyboardPublisher: AnyPublisher<Bool, Never> {
+        Publishers.Merge(
+            NotificationCenter.default
+                .publisher(for: UIResponder.keyboardWillShowNotification)
+                .map { _ in true },
+            
+            NotificationCenter.default
+                .publisher(for: UIResponder.keyboardWillHideNotification)
+                .map { _ in false }
+        )
+        .eraseToAnyPublisher()
+    }
+}
+

@@ -33,6 +33,7 @@ pub struct EditorResponse {
 
     pub show_edit_menu: bool,
     pub has_selection: bool,
+    pub selection_updated: bool,
     pub edit_menu_x: f32,
     pub edit_menu_y: f32,
 
@@ -74,6 +75,7 @@ impl Default for EditorResponse {
 
             show_edit_menu: false,
             has_selection: false,
+            selection_updated: false,
             edit_menu_x: 0.0,
             edit_menu_y: 0.0,
 
@@ -363,6 +365,7 @@ impl Editor {
 
             show_edit_menu: self.maybe_menu_location.is_some(),
             has_selection: self.buffer.current.cursor.selection().is_some(),
+            selection_updated,
             edit_menu_x: self.maybe_menu_location.map(|p| p.x).unwrap_or_default(),
             edit_menu_y: self.maybe_menu_location.map(|p| p.y).unwrap_or_default(),
             ..Default::default()

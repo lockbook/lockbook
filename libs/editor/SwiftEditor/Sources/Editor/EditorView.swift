@@ -25,7 +25,7 @@ public struct EditorView: UIViewRepresentable {
         if editorState.isiPhone {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.6, execute: {
                 mtkView.becomeFirstResponder()
-                editorState.focused = false
+                editorState.shouldFocus = false
             })
         }
         
@@ -38,9 +38,20 @@ public struct EditorView: UIViewRepresentable {
             editorState.reload = false
         }
         
-        if editorState.focused && !editorState.isiPhone {
+        if editorState.shouldFocus && editorState.isiPhone && !editorState.stoppedInitialiPhoneFocus {
+            editorState.stoppedInitialiPhoneFocus = true
+            editorState.shouldFocus = false
+            return
+        }
+        
+        if editorState.shouldFocus {
             mtkView.becomeFirstResponder()
-            editorState.focused = false
+            editorState.shouldFocus = false
+        }
+        
+        if editorState.shouldUnfocus {
+            UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+            editorState.shouldUnfocus = false
         }
     }
 }
@@ -62,7 +73,7 @@ public struct EditorView: View {
             .onAppear {
                 focused = true
             }
-            .onChange(of: editorState.focused, perform: { newValue in
+            .onChange(of: editorState.shouldFocus, perform: { newValue in
                 if newValue {
                     focused = true
                 }
@@ -100,8 +111,8 @@ public struct NSEditorView: NSViewRepresentable {
             editorState.reload = false
         }
         
-        if editorState.focused {
-            editorState.focused = false
+        if editorState.shouldFocus {
+            editorState.shouldFocus = false
         }
     }
 }
