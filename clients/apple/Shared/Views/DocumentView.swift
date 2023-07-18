@@ -2,8 +2,6 @@ import SwiftUI
 import SwiftLockbookCore
 import PencilKit
 import SwiftEditor
-import Combine
-
 
 struct iOSDocumentViewWrapper: View {
     let id: UUID
@@ -172,8 +170,8 @@ struct MarkdownCompleteEditor: View, Equatable {
 }
 
 struct MarkdownToolbar: View {
-    @StateObject var toolbarState: ToolbarState
-        
+    @ObservedObject var toolbarState: ToolbarState
+    
     var body: some View {
         HStack(spacing: 20) {
             #if os(iOS)
@@ -465,4 +463,3 @@ extension String {
         self.lowercased().replacingOccurrences(of: " ", with: "-")
     }
 }
-
