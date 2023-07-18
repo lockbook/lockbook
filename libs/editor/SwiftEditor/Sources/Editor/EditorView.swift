@@ -38,20 +38,9 @@ public struct EditorView: UIViewRepresentable {
             editorState.reload = false
         }
         
-        if editorState.shouldFocus && editorState.isiPhone && !editorState.stoppedInitialiPhoneFocus {
-            editorState.stoppedInitialiPhoneFocus = true
-            editorState.shouldFocus = false
-            return
-        }
-        
-        if editorState.shouldFocus {
+        if editorState.shouldFocus && !editorState.isiPhone {
             mtkView.becomeFirstResponder()
             editorState.shouldFocus = false
-        }
-        
-        if editorState.shouldUnfocus {
-            UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
-            editorState.shouldUnfocus = false
         }
     }
 }

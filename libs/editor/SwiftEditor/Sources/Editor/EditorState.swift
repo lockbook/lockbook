@@ -6,9 +6,6 @@ public class EditorState: ObservableObject {
     @Published public var text: String
     @Published public var reload: Bool = false
     @Published public var shouldFocus: Bool = true
-    @Published public var shouldUnfocus: Bool = true
-    
-    var stoppedInitialiPhoneFocus = false
     
     public var isiPhone: Bool
     

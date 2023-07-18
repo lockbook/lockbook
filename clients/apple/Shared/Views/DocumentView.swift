@@ -163,7 +163,7 @@ struct MarkdownCompleteEditor: View, Equatable {
     }
     
     var markdownToolbar: MarkdownToolbar {
-        MarkdownToolbar(toolbarState: toolbarState, id: fileId)
+        MarkdownToolbar(toolbarState: toolbarState)
     }
     
     static func == (lhs: MarkdownCompleteEditor, rhs: MarkdownCompleteEditor) -> Bool {
@@ -171,44 +171,20 @@ struct MarkdownCompleteEditor: View, Equatable {
     }
 }
 
-struct MarkdownToolbar: View, KeyboardReadable {
+struct MarkdownToolbar: View {
     @StateObject var toolbarState: ToolbarState
-    
-    #if os(iOS)
-    
-    @State var isKeyboardVisible: Bool = false
-    
-    #endif
-    
-    let id: UUID
-    
-    
-    var docInfo: DocumentLoadingInfo? {
-        get {
-            DI.currentDoc.openDocuments[id]
-        }
-    }
-    
+        
     var body: some View {
         HStack(spacing: 20) {
             #if os(iOS)
             
             HStack(spacing: 15) {
                 Button(action: {
-                    if isKeyboardVisible {
-                        print("unfocusing")
-                        docInfo?.textDocument?.shouldUnfocus = true
-                    } else {
-                        print("focusing")
-                        docInfo?.textDocument?.shouldFocus = true
-                    }
+                    UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
                 }) {
-                    MarkdownEditorImage(systemImageName: "keyboard.badge.eye", isSelected: false)
+                    MarkdownEditorImage(systemImageName: "keyboard.chevron.compact.down", isSelected: false)
                 }
                 .buttonStyle(.borderless)
-                .onReceive(keyboardPublisher) { newValue in
-                    isKeyboardVisible = newValue
-                }
             }
             
             Divider()
@@ -487,25 +463,6 @@ struct MarkdownEditorImage: View {
 extension String {
     func toKebabCase() -> String {
         self.lowercased().replacingOccurrences(of: " ", with: "-")
-    }
-}
-
-protocol KeyboardReadable {
-    var keyboardPublisher: AnyPublisher<Bool, Never> { get }
-}
-
-extension KeyboardReadable {
-    var keyboardPublisher: AnyPublisher<Bool, Never> {
-        Publishers.Merge(
-            NotificationCenter.default
-                .publisher(for: UIResponder.keyboardWillShowNotification)
-                .map { _ in true },
-            
-            NotificationCenter.default
-                .publisher(for: UIResponder.keyboardWillHideNotification)
-                .map { _ in false }
-        )
-        .eraseToAnyPublisher()
     }
 }
 
