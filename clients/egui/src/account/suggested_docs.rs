@@ -5,8 +5,10 @@ use eframe::egui;
 use crate::model::DocType;
 
 pub struct SuggestedDocs {
-    files: Vec<SuggestedFile>,
+    recs: Vec<SuggestedFile>,
+    err_msg: Option<String>,
 }
+
 struct SuggestedFile {
     name: String,
     path: String,
@@ -15,36 +17,70 @@ struct SuggestedFile {
 
 impl SuggestedDocs {
     pub fn new(core: &Arc<lb::Core>) -> Self {
-        let files = core
-            .suggested_docs(lb::RankingWeights::default())
-            .unwrap_or_default()
-            .iter()
-            .filter_map(|id| {
-                let file = core.get_file_by_id(*id);
-                if file.is_err() {
-                    return None;
-                };
-                let path = core.get_path_by_id(*id).unwrap_or_default();
+        Self::calc(core)
+    }
 
-                Some(SuggestedFile { name: file.unwrap().name, path, id: *id })
-            })
-            .take(10)
-            .collect();
-        Self { files }
+    pub fn recalc_and_redraw(&mut self, ctx: &egui::Context, core: &Arc<lb::Core>) {
+        let core = core.clone();
+        let ctx = ctx.clone();
+
+        let new = Self::calc(&core);
+        self.err_msg = new.err_msg;
+        self.recs = new.recs;
+        ctx.request_repaint();
+    }
+
+    fn calc(core: &Arc<lb::Core>) -> SuggestedDocs {
+        let suggested_docs = core.suggested_docs(lb::RankingWeights::default());
+
+        let mut err_msg = None;
+        let mut recs = vec![];
+
+        if suggested_docs.is_err() {
+            err_msg = Some(
+                suggested_docs
+                    .map_err(|err| format!("{:?}", err))
+                    .unwrap_err(),
+            );
+        } else {
+            recs = suggested_docs
+                .unwrap_or_default()
+                .iter()
+                .filter_map(|id| {
+                    let file = core.get_file_by_id(*id);
+                    if file.is_err() {
+                        return None;
+                    };
+                    let path = core.get_path_by_id(*id).unwrap_or_default();
+
+                    Some(SuggestedFile { name: file.unwrap().name, path, id: *id })
+                })
+                .take(10)
+                .collect();
+        }
+        SuggestedDocs { recs, err_msg }
     }
 
     pub fn show(&self, ui: &mut egui::Ui) -> Option<lb::Uuid> {
-        if self.files.len() < 6 {
+        if self.err_msg.is_some() {}
+        if self.recs.len() < 6 {
             return None;
         }
         egui::CollapsingHeader::new("Suggested")
             .default_open(true)
             .show(ui, |ui| {
+                if self.err_msg.is_some() {
+                    ui.label(
+                        egui::RichText::new(self.err_msg.as_ref().unwrap().to_string())
+                            .color(ui.visuals().error_fg_color),
+                    );
+                    return None;
+                }
                 egui::ScrollArea::horizontal()
                     .id_source("suggested_documents")
                     .show(ui, |ui| {
                         ui.horizontal(|ui| {
-                            for f in self.files.iter() {
+                            for f in self.recs.iter() {
                                 let r = egui::Frame::default()
                                     .outer_margin(egui::Margin::symmetric(10.0, 20.0))
                                     .show(ui, |ui| Self::suggested_card(ui, f));

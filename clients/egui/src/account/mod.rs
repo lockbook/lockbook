@@ -220,7 +220,7 @@ impl AccountScreen {
                             frame.set_window_title(&tab.name);
                         }
                     }
-                    self.suggested = SuggestedDocs::new(&self.core);
+                    self.suggested.recalc_and_redraw(ctx, &self.core);
 
                     // If any of this file's children are open, we need to update their restore
                     // paths in case a sync deletes them.
@@ -232,11 +232,11 @@ impl AccountScreen {
                 }
                 AccountUpdate::FileDeleted(f) => {
                     self.tree.remove(&f);
-                    self.suggested = SuggestedDocs::new(&self.core);
+                    self.suggested.recalc_and_redraw(ctx, &self.core);
                 }
                 AccountUpdate::SyncUpdate(update) => {
                     self.process_sync_update(ctx, update);
-                    self.suggested = SuggestedDocs::new(&self.core);
+                    self.suggested.recalc_and_redraw(ctx, &self.core);
                 }
                 AccountUpdate::DoneDeleting => self.modals.confirm_delete = None,
                 AccountUpdate::ReloadTree(root) => self.tree.root = root,
