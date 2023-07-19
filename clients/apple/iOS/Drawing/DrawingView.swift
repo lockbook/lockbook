@@ -6,7 +6,7 @@ import Combine
 struct DrawingView: UIViewRepresentable {
     @Environment(\.colorScheme) var colorScheme
     @State var zoom: CGFloat = 1
-    @StateObject var model: DocumentLoader
+    @StateObject var model: DocumentLoadingInfo
     @StateObject var toolPicker: ToolbarModel
     let pencilInteraction = UIPencilInteraction()
     let view = PKCanvasView()
@@ -49,10 +49,10 @@ struct DrawingView: UIViewRepresentable {
     }
 
     class Coordinator: NSObject, PKCanvasViewDelegate {
-        let model: DocumentLoader
+        let model: DocumentLoadingInfo
         @Binding var scaleFactor: CGFloat
 
-        init(model: DocumentLoader, scaleFactor: Binding<CGFloat>) {
+        init(model: DocumentLoadingInfo, scaleFactor: Binding<CGFloat>) {
             _scaleFactor = scaleFactor
             self.model = model
         }

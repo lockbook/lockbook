@@ -164,6 +164,10 @@ Vestibulum ante ipsum primis in vel.
         .failure(.init(unexpected: "LAZY"))
     }
     
+    public func getPathById(id: UUID) -> FfiResult<String, GetPathByIdError> {
+        .failure(.init(unexpected: "LAZY"))
+    }
+    
     public func timeAgo(timeStamp: Int64) -> String {
         ""
     }

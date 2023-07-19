@@ -3,7 +3,6 @@ import SwiftLockbookCore
 
 struct SuggestedDocs: View {
     @EnvironmentObject var fileService: FileService
-    @EnvironmentObject var current: CurrentDocument
     
     var isiOS: Bool = false
     
@@ -71,14 +70,16 @@ struct SuggestedDocs: View {
                     ForEach(suggestedDocs) { meta in
                         if let parentMeta = fileService.idsAndFiles[meta.parent] {
                             if isiOS {
-                                NavigationLink(destination: DocumentView(meta: meta)) {
+                                NavigationLink(destination: iOSDocumentViewWrapper(id: meta.id)) {
                                     SuggestedDocCell(name: meta.name, parentName: "\(parentMeta.name)/", duration: meta.lastModified, isiOS: isiOS)
                                         .padding(.trailing, 5)
                                 }
                             } else {
                                 HStack {
                                     Button(action: {
-                                        current.selectedDocument = meta
+                                        DI.currentDoc.cleanupOldDocs()
+                                        DI.currentDoc.openDoc(id: meta.id)
+                                        DI.currentDoc.setSelectedOpenDocById(maybeId: meta.id)
                                     }) {
                                         SuggestedDocCell(name: meta.name, parentName: "\(parentMeta.name)/", duration: meta.lastModified, isiOS: isiOS)
                                     }
@@ -135,7 +136,9 @@ struct SuggestedDocs: View {
                                     ForEach(suggestedDocs) { meta in
                                         if let parentMeta = fileService.idsAndFiles[meta.parent] {
                                             Button(action: {
-                                                current.selectedDocument = meta
+                                                DI.currentDoc.cleanupOldDocs()
+                                                DI.currentDoc.openDoc(id: meta.id)
+                                                DI.currentDoc.setSelectedOpenDocById(maybeId: meta.id)
                                             }) {
                                                 SuggestedDocCell(name: meta.name, parentName: "\(parentMeta.name)/", duration: meta.lastModified)
                                             }

@@ -4,7 +4,6 @@ import SwiftLockbookCore
 struct SearchWrapperView<Content: View>: View {
     @EnvironmentObject var search: SearchService
     @EnvironmentObject var fileService: FileService
-    @EnvironmentObject var current: CurrentDocument
     
     @Environment(\.isSearching) var isSearching
     
@@ -38,13 +37,17 @@ struct SearchWrapperView<Content: View>: View {
                         switch result {
                         case .PathMatch(_, let meta, let name, let path, let matchedIndices, _):
                             Button(action: {
-                                current.selectedDocument = meta
+                                DI.currentDoc.cleanupOldDocs()
+                                DI.currentDoc.openDoc(id: meta.id)
+                                DI.currentDoc.setSelectedOpenDocById(maybeId: meta.id)
                             }) {
                                 SearchFilePathCell(name: name, path: path, matchedIndices: matchedIndices)
                             }
                         case .ContentMatch(_, let meta, let name, let path, let paragraph, let matchedIndices, _):
                             Button(action: {
-                                current.selectedDocument = meta
+                                DI.currentDoc.cleanupOldDocs()
+                                DI.currentDoc.openDoc(id: meta.id)
+                                DI.currentDoc.setSelectedOpenDocById(maybeId: meta.id)
                             }) {
                                 SearchFileContentCell(name: name, path: path, paragraph: paragraph, matchedIndices: matchedIndices)
                             }
@@ -60,11 +63,11 @@ struct SearchWrapperView<Content: View>: View {
                     List(results) { result in
                         switch result {
                         case .PathMatch(_, let meta, let name, let path, let matchedIndices, _):
-                            NavigationLink(destination: DocumentView(meta: meta)) {
+                            NavigationLink(destination: iOSDocumentViewWrapper(id: meta.id)) {
                                 SearchFilePathCell(name: name, path: path, matchedIndices: matchedIndices)
                             }
                         case .ContentMatch(_, let meta, let name, let path, let paragraph, let matchedIndices, _):
-                            NavigationLink(destination: DocumentView(meta: meta)) {
+                            NavigationLink(destination: iOSDocumentViewWrapper(id: meta.id)) {
                                 SearchFileContentCell(name: name, path: path, paragraph: paragraph, matchedIndices: matchedIndices)
                             }
                         }
@@ -75,7 +78,7 @@ struct SearchWrapperView<Content: View>: View {
             }
         }
         .onChange(of: searchInput) { newInput in
-            if (!newInput.isEmpty) {
+            if !newInput.isEmpty {
                 search.search(query: newInput)
             } else {
                 search.searchPathAndContentState = .Idle

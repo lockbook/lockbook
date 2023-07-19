@@ -71,10 +71,10 @@ enum Lockbook {
     Splash(SplashScreen),
 
     /// The screen that presents the user with the option to create or import a Lockbook account.
-    Onboard(Box<OnboardScreen>),
+    Onboard(OnboardScreen),
 
     /// The user's primary Lockbook interface once they have an account.
-    Account(Box<AccountScreen>),
+    Account(AccountScreen),
 }
 
 impl eframe::App for Lockbook {
@@ -90,9 +90,9 @@ impl eframe::App for Lockbook {
                     *self = match maybe_acct_data {
                         Some(acct_data) => {
                             let acct_scr = AccountScreen::new(settings, core, acct_data, ctx);
-                            Self::Account(Box::new(acct_scr))
+                            Self::Account(acct_scr)
                         }
-                        None => Self::Onboard(Box::new(OnboardScreen::new(settings, core))),
+                        None => Self::Onboard(OnboardScreen::new(settings, core)),
                     };
 
                     ctx.request_repaint();
@@ -105,7 +105,7 @@ impl eframe::App for Lockbook {
                     let OnboardHandOff { settings, core, acct_data } = handoff;
 
                     let acct_scr = AccountScreen::new(settings, core, acct_data, ctx);
-                    *self = Self::Account(Box::new(acct_scr));
+                    *self = Self::Account(acct_scr);
 
                     ctx.request_repaint();
                 }
