@@ -1,6 +1,7 @@
 use super::coordinator::{Coordinator, CoordinatorState};
 use basic_human_duration::ChronoHumanDuration;
 use itertools::Itertools;
+use std::sync::atomic::Ordering;
 use std::{thread, time::Duration};
 
 impl Coordinator {
@@ -16,13 +17,17 @@ impl Coordinator {
                 break;
             }
             println!(
-                "Done: {}, Errors: {}, TPS: {}, Started: {}, Possibly Stalled: {:?}, Cache size: {}",
+                "Done: {}, Errors: {}, TPS: {}, Started: {}, Possibly Stalled: {:?}, Cache size: {}, grab: {}, work: {}, publish: {}, time_in_locks: {}",
                 experiments.done,
                 experiments.errors,
                 experiments.trials_per_second(),
                 experiments.uptime(),
                 experiments.possibly_stalled(),
                 cache_size,
+                self.grab_time.load(Ordering::Relaxed),
+                self.publish_time.load(Ordering::Relaxed),
+                self.execute_time.load(Ordering::Relaxed),
+                self.lock_contention_time.load(Ordering::Relaxed),
             );
             drop(experiments);
             thread::sleep(Duration::from_secs(5));
