@@ -3,23 +3,43 @@ import SwiftLockbookCore
 
 struct BottomBar: View {
     
+    var isiOS = false
+    
     @EnvironmentObject var sync: SyncService
     @EnvironmentObject var status: StatusService
     @EnvironmentObject var settings: SettingsService
-    
-#if os(iOS)
-    var onCreating: () -> Void = {}
-#endif
-    
+        
 #if os(iOS)
     var menu: some View {
-        Button(action: {
-            onCreating()
-        }) {
-            Image(systemName: "plus.circle.fill")
-                .imageScale(.large)
-                .foregroundColor(.accentColor)
-                .frame(width: 40, height: 40, alignment: .center)
+        HStack {
+            if isiOS {
+                Button(action: {
+                    DI.files.createDoc(isDrawing: false)
+                }) {
+                    Image(systemName: "doc.badge.plus")
+                        .imageScale(.large)
+                        .foregroundColor(.accentColor)
+                        .frame(width: 40, height: 40, alignment: .center)
+                }
+                
+                Button(action: {
+                    DI.files.createDoc(isDrawing: true)
+                }) {
+                    Image(systemName: "pencil.tip.crop.circle.badge.plus")
+                        .imageScale(.large)
+                        .foregroundColor(.accentColor)
+                        .frame(width: 40, height: 40, alignment: .center)
+                }
+                
+                Button(action: {
+                    DI.sheets.creatingFolderInfo = CreatingFolderInfo(parentPath: DI.files.getPathByIdOrParent() ?? "ERROR", maybeParent: nil)
+                }) {
+                    Image(systemName: "folder.badge.plus")
+                        .imageScale(.large)
+                        .foregroundColor(.accentColor)
+                        .frame(width: 40, height: 40, alignment: .center)
+                }
+            }
         }
     }
 #endif
@@ -28,6 +48,7 @@ struct BottomBar: View {
     @ViewBuilder var syncButton: some View {
         if sync.syncing {
             ProgressView()
+                .frame(width: 40, height: 40, alignment: .center)
         } else {
             Button(action: {
                 sync.sync()
@@ -178,30 +199,30 @@ struct BottomBar: View {
     }
     
     var body: some View {
-        
+        Group {
 #if os(iOS)
-        HStack {
-            syncButton
-            Spacer()
-            statusText
-            Spacer()
-            menu
-        }
-        .padding(.horizontal, 10)
-#else
-        VStack {
-            Divider()
             HStack {
+                syncButton
+                Spacer()
                 statusText
                 Spacer()
-                syncButton
+                menu
             }
-            usageBar
-        }
-        .padding(.bottom)
-        .padding(.horizontal)
+            .padding(.horizontal, 10)
+#else
+            VStack {
+                Divider()
+                HStack {
+                    statusText
+                    Spacer()
+                    syncButton
+                }
+                usageBar
+            }
+            .padding(.bottom)
+            .padding(.horizontal)
 #endif
-        
+        }
     }
 }
 

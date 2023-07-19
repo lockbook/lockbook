@@ -8,9 +8,11 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     
     var editorHandle: UnsafeMutableRawPointer?
     var editorState: EditorState?
+    var toolbarState: ToolbarState?
+    var nameState: NameState?
     var editMenuInteraction: UIEditMenuInteraction?
     var hasSelection: Bool = false
-
+    
     var pasteBoardEventId: Int = 0
     var lastKnownTapLocation: Float? = nil
     override init(frame frameRect: CGRect, device: MTLDevice?) {
@@ -93,10 +95,19 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
         indent_at_cursor(editorHandle, deindent)
         self.setNeedsDisplay(self.frame)
     }
-    
+        
     public func setInitialContent(_ s: String) {
         let metalLayer = UnsafeMutableRawPointer(Unmanaged.passUnretained(self.layer).toOpaque())
         self.editorHandle = init_editor(metalLayer, s, isDarkMode())
+        
+        self.toolbarState!.toggleBold = bold
+        self.toolbarState!.toggleItalic = italic
+        self.toolbarState!.toggleTodoList = todoList
+        self.toolbarState!.toggleBulletList = bulletedList
+        self.toolbarState!.toggleInlineCode = inlineCode
+        self.toolbarState!.toggleNumberList = numberedList
+        self.toolbarState!.toggleHeading = header
+        self.toolbarState!.tab = tab
     }
     
     public func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {
@@ -110,14 +121,25 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
         let output = draw_editor(editorHandle)
         self.isPaused = !output.redraw
         
-        editorState?.isHeadingSelected = output.editor_response.cursor_in_heading;
-        editorState?.isTodoListSelected = output.editor_response.cursor_in_todo_list;
-        editorState?.isBulletListSelected = output.editor_response.cursor_in_bullet_list;
-        editorState?.isNumberListSelected = output.editor_response.cursor_in_number_list;
-        editorState?.isInlineCodeSelected = output.editor_response.cursor_in_inline_code;
-        editorState?.isBoldSelected = output.editor_response.cursor_in_bold;
-        editorState?.isItalicSelected = output.editor_response.cursor_in_italic;
-
+        toolbarState?.isHeadingSelected = output.editor_response.cursor_in_heading;
+        toolbarState?.isTodoListSelected = output.editor_response.cursor_in_todo_list;
+        toolbarState?.isBulletListSelected = output.editor_response.cursor_in_bullet_list;
+        toolbarState?.isNumberListSelected = output.editor_response.cursor_in_number_list;
+        toolbarState?.isInlineCodeSelected = output.editor_response.cursor_in_inline_code;
+        toolbarState?.isBoldSelected = output.editor_response.cursor_in_bold;
+        toolbarState?.isItalicSelected = output.editor_response.cursor_in_italic;
+        
+        if let potentialTitle = output.editor_response.potential_title {
+            nameState?.potentialTitle = String(cString: potentialTitle)
+            free_text(UnsafeMutablePointer(mutating: potentialTitle))
+        } else {
+            nameState?.potentialTitle = nil
+        }
+        
+        if output.editor_response.selection_updated {
+            becomeFirstResponder()
+        }
+        
         if output.editor_response.show_edit_menu {
             self.hasSelection = output.editor_response.has_selection
             let location = CGPoint(
@@ -150,14 +172,12 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     func setClipboard(){
         let pasteboardString: String? = UIPasteboard.general.string
         if let theString = pasteboardString {
-            print("clipboard contents: \(theString)")
             system_clipboard_changed(editorHandle, theString)
         }
         self.pasteBoardEventId = UIPasteboard.general.changeCount
     }
     
     public func insertText(_ text: String) {
-        //        print("\(#function)(\(text))")
         insert_text(editorHandle, text)
         self.setNeedsDisplay(self.frame)
     }
@@ -167,13 +187,11 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
         let result = text_in_range(editorHandle, range)
         let str = String(cString: result!)
         free_text(UnsafeMutablePointer(mutating: result))
-        //        print("\(#function)(\(range)) -> ...")
         return str
     }
     
     
     public func replace(_ range: UITextRange, withText text: String) {
-        print("\(#function)(\(range), \(text)")
         let range = range as! LBTextRange
         replace_text(editorHandle, range.c, text)
         self.setNeedsDisplay(self.frame)
@@ -182,7 +200,6 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     public var selectedTextRange: UITextRange? {
         set {
             let range = (newValue as! LBTextRange).c
-            print("set \(#function) = \(range)")
             set_selected(editorHandle, range)
             self.setNeedsDisplay()
         }
@@ -190,10 +207,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
         get {
             let range = get_selected(editorHandle)
             if range.none {
-                //                print("get \(#function) -> nil")
                 return nil
-            } else {
-                //                print("get \(#function) -> \(range)")
             }
             return LBTextRange(c: range)
         }
@@ -203,10 +217,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
         get {
             let range = get_marked(editorHandle)
             if range.none {
-                //                print("get \(#function) -> nil")
                 return nil
-            } else {
-                //                print("get \(#function) -> \(range)")
             }
             return LBTextRange(c: range)
         }
@@ -214,12 +225,10 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     
     public var markedTextStyle: [NSAttributedString.Key : Any]? {
         set {
-            print("set \(#function)")
             unimplemented()
         }
         
         get {
-            print("get \(#function)")
             unimplemented()
             return nil
         }
@@ -237,13 +246,11 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     
     public var beginningOfDocument: UITextPosition {
         let res = beginning_of_document(editorHandle)
-        //        print("\(#function) -> \(res)")
         return LBTextPos(c: res)
     }
     
     public var endOfDocument: UITextPosition {
         let res = end_of_document(editorHandle)
-        //        print("\(#function) -> \(res)")
         return LBTextPos(c: res)
     }
     
@@ -252,10 +259,8 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
         let end = (toPosition as! LBTextPos).c
         let range = text_range(start, end)
         if range.none {
-            //            print("\(#function)(\(start), \(end) -> nil")
             return nil
         } else {
-            //            print("\(#function)(\(start), \(end) -> \(range)")
             return LBTextRange(c: range)
         }
     }
@@ -264,10 +269,8 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
         let start = (position as! LBTextPos).c
         let new = position_offset(editorHandle, start, Int32(offset))
         if new.none {
-            //            print("\(#function)(\(start), \(offset)) -> nil")
             return nil
         }
-        //        print("\(#function)(\(start), \(offset)) -> \(new)")
         return LBTextPos(c: new)
     }
     
@@ -276,10 +279,8 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
         let direction = CTextLayoutDirection(rawValue: UInt32(direction.rawValue));
         let new = position_offset_in_direction(editorHandle, start, direction, Int32(offset))
         if new.none {
-            print("\(#function)(\(start), \(offset)) -> nil")
             return nil
         }
-        print("\(#function)(\(start), \(offset)) -> \(new)")
         return LBTextPos(c: new)
     }
     
@@ -295,7 +296,6 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
         } else {
             res = ComparisonResult.orderedDescending
         }
-        //        print("\(#function)(\(left), \(right)) -> \(res)")
         return res
     }
     
@@ -303,7 +303,6 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
         let left = Int((from as! LBTextPos).c.pos)
         let right = Int((toPosition as! LBTextPos).c.pos)
         let res = abs(right - left)
-        //        print("\(#function)(\(left), \(right)) -> \(res)")
         return res
     }
     
@@ -312,20 +311,16 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     public lazy var tokenizer: UITextInputTokenizer = LBTokenizer(editorHandle: self.editorHandle)
     
     public func position(within range: UITextRange, farthestIn direction: UITextLayoutDirection) -> UITextPosition? {
-        print("\(#function)")
         unimplemented()
         return nil
     }
     
     public func characterRange(byExtending position: UITextPosition, in direction: UITextLayoutDirection) -> UITextRange? {
-        print("\(#function)")
         unimplemented()
         return nil
     }
     
     public func baseWritingDirection(for position: UITextPosition, in direction: UITextStorageDirection) -> NSWritingDirection {
-        //        print("\(#function)")
-        //        unimplemented()
         return NSWritingDirection.leftToRight
     }
     
@@ -333,7 +328,6 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
         if writingDirection != .leftToRight {
             unimplemented()
         }
-        //        print("\(#function)")
     }
     
     public func firstRect(for range: UITextRange) -> CGRect {
@@ -349,7 +343,6 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     }
     
     public func selectionRects(for range: UITextRange) -> [UITextSelectionRect] {
-        print("\(#function)")
         unimplemented()
         return []
     }
@@ -361,25 +354,21 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     }
     
     public func closestPosition(to point: CGPoint, within range: UITextRange) -> UITextPosition? {
-        print("\(#function)")
         unimplemented()
         return nil
     }
     
     public func characterRange(at point: CGPoint) -> UITextRange? {
-        print("\(#function)")
         unimplemented()
         return nil
     }
     
     public var hasText: Bool {
         let res = has_text(editorHandle)
-        //        print("\(#function) -> \(res)")
         return res
     }
     
     public func deleteBackward() {
-        print("\(#function)")
         backspace(editorHandle)
         textChanged()
         self.setNeedsDisplay(self.frame)
@@ -390,6 +379,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
         let value = UInt64(UInt(bitPattern: point))
         let location = touches.first!.location(in: self)
         touches_began(editorHandle, value, Float(location.x), Float(location.y), Float(touches.first?.force ?? 0))
+
         self.setNeedsDisplay(self.frame)
     }
     
@@ -515,9 +505,6 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     }
     
     deinit {
-        withUnsafePointer(to: self) { pointer in
-            print("editor deinited: \(self.editorHandle)")
-        }
         deinit_editor(editorHandle)
     }
     

@@ -18,7 +18,6 @@ struct AppView: View {
                 case .some(let root):
                     BookView(currentFolder: root, account: account)
                 case .none:
-
                     Label("Please sync!", systemImage: "arrow.right.arrow.left.circle.fill")
                 }
             }

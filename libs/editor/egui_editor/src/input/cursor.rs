@@ -4,7 +4,7 @@ use crate::galleys::Galleys;
 use crate::input::canonical::{Bound, Offset};
 use crate::offset_types::*;
 use crate::unicode_segs::UnicodeSegs;
-use egui::{Modifiers, Pos2, Rect, Vec2};
+use egui::{Modifiers, Pos2, Vec2};
 use std::ops::Range;
 use std::time::{Duration, Instant};
 
@@ -130,22 +130,22 @@ impl Cursor {
         );
     }
 
-    pub fn start_rect(&self, galleys: &Galleys) -> Rect {
-        self.rect(galleys, self.selection.0)
+    pub fn start_line(&self, galleys: &Galleys) -> [Pos2; 2] {
+        self.line(galleys, self.selection.0)
     }
 
-    pub fn end_rect(&self, galleys: &Galleys) -> Rect {
-        self.rect(galleys, self.selection.1)
+    pub fn end_line(&self, galleys: &Galleys) -> [Pos2; 2] {
+        self.line(galleys, self.selection.1)
     }
 
-    fn rect(&self, galleys: &Galleys, offset: DocCharOffset) -> Rect {
+    fn line(&self, galleys: &Galleys, offset: DocCharOffset) -> [Pos2; 2] {
         let (galley_idx, cursor) = galleys.galley_and_cursor_by_char_offset(offset);
         let galley = &galleys[galley_idx];
-        let cursor_size = Vec2 { x: 1.0, y: galley.cursor_height() };
 
         let max = DocCharOffset::cursor_to_pos_abs(galley, cursor);
-        let min = max - cursor_size;
-        Rect { min, max }
+        let min = max - Vec2 { x: 0.0, y: galley.cursor_height() };
+
+        [min, max]
     }
 
     fn empty(&self) -> bool {

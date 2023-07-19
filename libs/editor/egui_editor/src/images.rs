@@ -1,5 +1,5 @@
 use crate::ast::Ast;
-use crate::element::{Element, Url};
+use crate::style::{InlineNode, MarkdownNode, Url};
 use egui::{ColorImage, TextureId, Ui};
 use std::collections::HashMap;
 
@@ -16,7 +16,7 @@ pub fn calc(
     let mut prior_cache = prior_cache.clone();
     let texture_manager = ui.ctx().tex_manager();
     for node in &ast.nodes {
-        if let Element::Image(_, url, title) = &node.element {
+        if let MarkdownNode::Inline(InlineNode::Image(_, url, title)) = &node.node_type {
             let (url, title) = (url.clone(), title.clone());
             if let Some(cached) = prior_cache.map.remove(&url) {
                 // re-use image from previous cache

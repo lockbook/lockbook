@@ -3,46 +3,34 @@ import SwiftLockbookCore
 import Foundation
 
 struct FileListView: View {
-    @EnvironmentObject var current: CurrentDocument
     @EnvironmentObject var sheets: SheetState
     @EnvironmentObject var fileService: FileService
     @EnvironmentObject var search: SearchService
     @EnvironmentObject var sync: SyncService
     
+    @Environment(\.colorScheme) var colorScheme
+
     @State var searchInput: String = ""
     @State var navigateToManageSub: Bool = false
+    @State private var mainViewOffset = CGSize.zero
+    @State private var mainViewOpacity: Double = 1
+
     @State private var hideOutOfSpaceAlert = UserDefaults.standard.bool(forKey: "hideOutOfSpaceAlert")
     
     var body: some View {
         VStack {
-            if let newDoc = sheets.created, newDoc.fileType == .Document {
-                NavigationLink(destination: DocumentView(meta: newDoc), isActive: Binding(get: { current.selectedDocument != nil }, set: { _ in current.selectedDocument = nil }) ) {
-                        EmptyView()
-                    }
-                    .hidden()
+            if let newDoc = DI.currentDoc.justCreatedDoc, newDoc.fileType == .Document {
+                NavigationLink(destination: iOSDocumentViewWrapper(id: newDoc.id), isActive: Binding(get: { DI.currentDoc.openDocuments[newDoc.id] != nil }, set: { _ in DI.currentDoc.openDocuments[newDoc.id] = nil }) ) {
+                    EmptyView()
                 }
-                    
-                SearchWrapperView(
-                    searchInput: $searchInput,
-                    mainView: mainView,
-                    isiOS: true)
-                .searchable(text: $searchInput, prompt: "Search")
-                    
-                FilePathBreadcrumb()
-                    
-                BottomBar(onCreating: {
-                    if let parent = fileService.parent {
-                        sheets.creatingInfo = CreatingInfo(parent: parent, child_type: .Document)
-                    }
-                })
-                .onReceive(current.$selectedDocument) { _ in
-                    print("cleared")
-                    // When we return back to this screen, we have to change newFile back to nil regardless
-                    // of it's present value, otherwise we won't be able to navigate to new, new files
-                    if current.selectedDocument == nil {
-                        sheets.created = nil
-                    }
-                }
+                .hidden()
+            }
+
+            SearchWrapperView(
+                searchInput: $searchInput,
+                mainView: mainView,
+                isiOS: true)
+            .searchable(text: $searchInput, prompt: "Search")
         }
         .gesture(
             DragGesture().onEnded({ (value) in
@@ -72,30 +60,161 @@ struct FileListView: View {
     }
     
     var mainView: some View {
-        List {
-            if fileService.parent?.isRoot == true && fileService.suggestedDocs?.isEmpty != true {
-                Section(header: Text("Suggested")
+        Group {
+            List {
+                if fileService.parent?.isRoot == true && fileService.suggestedDocs?.isEmpty != true {
+                    Section(header: Text("Suggested")
+                        .bold()
+                        .foregroundColor(.primary)
+                        .textCase(.none)
+                        .font(.headline)
+                        .padding(.bottom, 3)) {
+                            SuggestedDocs(isiOS: true)
+                        }
+                        .offset(mainViewOffset)
+                        .opacity(mainViewOpacity)
+                }
+                
+                Section(header: Text("Files")
                     .bold()
                     .foregroundColor(.primary)
                     .textCase(.none)
                     .font(.headline)
                     .padding(.bottom, 3)) {
-                        SuggestedDocs(isiOS: true)
+                        files
                     }
+                    .offset(mainViewOffset)
+                    .opacity(mainViewOpacity)
+                
+            }
+            .navigationBarTitle(fileService.parent.map{($0.name)} ?? "")
+            .modifier(DragGestureViewModifier(onUpdate: { gesture in
+                if fileService.parent?.isRoot == false && gesture.translation.width < 200 && gesture.translation.width > 0 {
+                    mainViewOffset.width = gesture.translation.width
+                }
+            }, onEnd: { gesture in
+                if gesture.translation.width > 100 && fileService.parent?.isRoot == false {
+                    animateToParentFolder() {
+                        fileService.upADirectory()
+                    }
+                } else {
+                    withAnimation {
+                        mainViewOffset.width = 0
+                    }
+                }
+            }))
+         
+            FilePathBreadcrumb() { file in
+                animateToParentFolder() {
+                    fileService.pathBreadcrumbClicked(file)
+                }
             }
 
-            Section(header: Text("Files")
-                .bold()
-                .foregroundColor(.primary)
-                .textCase(.none)
-                .font(.headline)
-                .padding(.bottom, 3)) {
-                ForEach(fileService.childrenOfParent()) { meta in
-                    FileCell(meta: meta)
+            BottomBar(isiOS: true)
+        }
+    }
+
+    var files: some View {
+        let children = fileService.childrenOfParent()
+
+        return ForEach(children) { meta in
+                FileCell(meta: meta) {
+                    withAnimation(.linear(duration: 0.2)) {
+                        mainViewOffset.width = -200
+                    }
+
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                        mainViewOpacity = 0
+                        mainViewOffset.width = 200
+
+                        fileService.intoChildDirectory(meta)
+
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                            withAnimation(.linear(duration: 0.1)) {
+                                mainViewOffset.width = 0
+                                mainViewOpacity = 1
+                            }
+                        }
+                    }
+                }
+                .padding(.horizontal)
+                .padding(.vertical, 5)
+                .background(colorScheme == .light ? .white : Color(uiColor: .secondarySystemBackground))
+
+        }
+        .listRowBackground(Color.clear)
+        .listRowInsets(EdgeInsets())
+        .listRowSeparator(.hidden)
+    }
+
+    func animateToParentFolder(realParentUpdate: @escaping () -> Void) {
+        withAnimation(.linear(duration: 0.2)) {
+            mainViewOffset.width = 200
+            mainViewOpacity = 0
+        }
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+            mainViewOffset.width = -200
+            mainViewOpacity = 1
+
+            realParentUpdate()
+
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                withAnimation(.linear(duration: 0.1)) {
+                    mainViewOffset.width = 0
                 }
             }
         }
-        .navigationBarTitle(fileService.parent.map{($0.name)} ?? "")
+    }
+
+}
+
+struct DragGestureViewModifier: ViewModifier {
+    @GestureState private var isDragging: Bool = false
+    @State private var gestureState: GestureStatus = .idle
+
+    var onUpdate: (DragGesture.Value) -> Void
+    var onEnd: (DragGesture.Value) -> Void
+
+    func body(content: Content) -> some View {
+        content
+            .gesture(
+                DragGesture()
+                    .updating($isDragging) { _, isDragging, _ in
+                        isDragging = true
+                    }
+                    .onChanged(onDragChange(_:))
+                    .onEnded(onDragEnded(_:))
+            )
+            .onChange(of: gestureState) { state in
+                guard state == .started else { return }
+                gestureState = .active
+            }
+            .onChange(of: isDragging) { value in
+                if value, gestureState != .started {
+                    gestureState = .started
+                } else if !value, gestureState != .ended {
+                    gestureState = .cancelled
+                }
+            }
+    }
+
+    func onDragChange(_ value: DragGesture.Value) {
+        guard gestureState == .started || gestureState == .active else { return }
+        onUpdate(value)
+    }
+
+    func onDragEnded(_ value: DragGesture.Value) {
+        gestureState = .ended
+        onEnd(value)
+    }
+
+    enum GestureStatus: Equatable {
+        case idle
+        case started
+        case active
+        case ended
+        case cancelled
     }
 }
 

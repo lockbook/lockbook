@@ -1,33 +1,39 @@
 use rand::Rng;
-use std::mem;
+#[cfg(any(target_os = "ios", target_os = "macos"))]
+use std::ffi::{c_char, CString};
+#[cfg(any(target_os = "ios", target_os = "macos"))]
+use std::ptr;
+use std::{cmp, mem};
 
 use egui::os::OperatingSystem;
-use egui::{Color32, Context, Event, FontDefinitions, Frame, Margin, Pos2, Rect, Sense, Ui, Vec2};
+use egui::{Color32, Context, Event, FontDefinitions, Frame, Pos2, Rect, Sense, Ui, Vec2};
 
 use crate::appearance::Appearance;
 use crate::ast::Ast;
 use crate::bounds::{Paragraphs, Words};
 use crate::buffer::Buffer;
 use crate::debug::DebugInfo;
-use crate::element::{Element, ItemType};
 use crate::galleys::Galleys;
 use crate::images::ImageCache;
 use crate::input::canonical::{Bound, Modification, Offset, Region};
 use crate::input::click_checker::{ClickChecker, EditorClickChecker};
 use crate::input::cursor::{Cursor, PointerState};
 use crate::input::events;
-use crate::layouts::Annotation;
-use crate::offset_types::RangeExt;
+use crate::offset_types::{DocCharOffset, RangeExt};
+use crate::style::{BlockNode, InlineNode, ItemType, MarkdownNode};
 use crate::test_input::TEST_MARKDOWN;
 use crate::{ast, bounds, galleys, images, register_fonts};
 
+#[cfg(any(target_os = "ios", target_os = "macos"))]
 #[repr(C)]
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct EditorResponse {
     pub text_updated: bool,
+    pub potential_title: *const c_char,
 
     pub show_edit_menu: bool,
     pub has_selection: bool,
+    pub selection_updated: bool,
     pub edit_menu_x: f32,
     pub edit_menu_y: f32,
 
@@ -38,6 +44,56 @@ pub struct EditorResponse {
     pub cursor_in_bold: bool,
     pub cursor_in_italic: bool,
     pub cursor_in_inline_code: bool,
+}
+
+// two structs are used instead of conditional compilation (`cfg`) for `potential_title` because the header
+// files generated for Swift will include both types of `potential_title`. this causes compilation issues in Swift.
+#[cfg(not(any(target_os = "ios", target_os = "macos")))]
+#[derive(Debug)]
+pub struct EditorResponse {
+    pub text_updated: bool,
+    pub potential_title: Option<String>,
+
+    pub show_edit_menu: bool,
+    pub has_selection: bool,
+    pub selection_updated: bool,
+    pub edit_menu_x: f32,
+    pub edit_menu_y: f32,
+
+    pub cursor_in_heading: bool,
+    pub cursor_in_bullet_list: bool,
+    pub cursor_in_number_list: bool,
+    pub cursor_in_todo_list: bool,
+    pub cursor_in_bold: bool,
+    pub cursor_in_italic: bool,
+    pub cursor_in_inline_code: bool,
+}
+
+impl Default for EditorResponse {
+    fn default() -> Self {
+        Self {
+            text_updated: false,
+
+            show_edit_menu: false,
+            has_selection: false,
+            selection_updated: false,
+            edit_menu_x: 0.0,
+            edit_menu_y: 0.0,
+
+            cursor_in_heading: false,
+            cursor_in_bullet_list: false,
+            cursor_in_number_list: false,
+            cursor_in_todo_list: false,
+            cursor_in_bold: false,
+            cursor_in_italic: false,
+            cursor_in_inline_code: false,
+
+            #[cfg(any(target_os = "ios", target_os = "macos"))]
+            potential_title: ptr::null(),
+            #[cfg(not(any(target_os = "ios", target_os = "macos")))]
+            potential_title: None,
+        }
+    }
 }
 
 pub struct Editor {
@@ -118,10 +174,7 @@ impl Default for Editor {
 
 impl Editor {
     pub fn draw(&mut self, ctx: &Context) -> EditorResponse {
-        let fill = if ctx.style().visuals.dark_mode { Color32::BLACK } else { Color32::WHITE };
-
         egui::CentralPanel::default()
-            .frame(Frame::default().fill(fill))
             .show(ctx, |ui| self.scroll_ui(ui))
             .inner
     }
@@ -172,12 +225,17 @@ impl Editor {
                     }
                 });
 
+                let fill = if ui.style().visuals.dark_mode {
+                    Color32::from_rgb(18, 18, 18)
+                } else {
+                    Color32::WHITE
+                };
+
                 Frame::default()
-                    .inner_margin(Margin::symmetric(
-                        clamp(0.04, 0.1, 0.25, ui.max_rect().width()),
-                        0.0,
-                    ))
-                    .show(ui, |ui| self.ui(ui, id, touch_mode, &events))
+                    .fill(fill)
+                    .outer_margin(egui::Margin::symmetric(7.0, 0.0))
+                    .inner_margin(egui::Margin::symmetric(0.0, 15.0))
+                    .show(ui, |ui| ui.vertical_centered(|ui| self.ui(ui, id, touch_mode, &events)))
             });
         self.ui_rect = sao.inner_rect;
 
@@ -193,7 +251,7 @@ impl Editor {
         self.scroll_area_rect = sao.inner_rect;
         self.scroll_area_offset = sao.state.offset;
 
-        sao.inner.inner
+        sao.inner.inner.inner
     }
 
     fn ui(
@@ -203,6 +261,12 @@ impl Editor {
 
         // update theme
         let theme_updated = self.appearance.set_theme(ui.visuals());
+
+        // clip elements width
+        let max_width = 800.0;
+        if ui.max_rect().width() > max_width {
+            ui.set_max_width(max_width);
+        }
 
         // process events
         let (text_updated, selection_updated) = if self.initialized {
@@ -228,7 +292,7 @@ impl Editor {
             self.custom_events.push(Modification::Select {
                 region: Region::ToOffset {
                     offset: Offset::To(Bound::Doc),
-                    backwards: false,
+                    backwards: true,
                     extend_selection: false,
                 },
             });
@@ -286,63 +350,57 @@ impl Editor {
             (start, end)
         };
         if selection_updated && self.buffer.current.cursor.selection != all_selection {
-            ui.scroll_to_rect(self.buffer.current.cursor.end_rect(&self.galleys), None);
+            let cursor_end_line = self.buffer.current.cursor.end_line(&self.galleys);
+            let rect = Rect { min: cursor_end_line[0], max: cursor_end_line[1] };
+            ui.scroll_to_rect(rect, None);
         }
 
-        // determine cursor markup location
-        let mut cursor_in_heading = false;
-        let mut cursor_in_bullet_list = false;
-        let mut cursor_in_number_list = false;
-        let mut cursor_in_todo_list = false;
-        let mut cursor_in_bold = false;
-        let mut cursor_in_italic = false;
-        let mut cursor_in_inline_code = false;
+        let potential_title = self.get_potential_text_title();
 
-        let ast_node_idx = self
-            .ast
-            .ast_node_at_char(self.buffer.current.cursor.selection.start());
-        let ast_node = &self.ast.nodes[ast_node_idx];
+        #[cfg(any(target_os = "ios", target_os = "macos"))]
+        let potential_title = CString::new(potential_title.unwrap_or_default())
+            .expect("Could not Rust String -> C String")
+            .into_raw() as *const c_char;
 
-        match ast_node.element {
-            Element::Heading(_) => cursor_in_heading = true,
-            Element::InlineCode => cursor_in_inline_code = true,
-            Element::Strong => cursor_in_bold = true,
-            Element::Emphasis => cursor_in_italic = true,
-            _ => {
-                let galley_idx = self
-                    .galleys
-                    .galley_at_char(self.buffer.current.cursor.selection.start());
-                let galley = &self.galleys.galleys[galley_idx];
+        let mut result = EditorResponse {
+            text_updated,
+            potential_title,
 
-                match galley.annotation {
-                    Some(Annotation::Item(ItemType::Todo(_), ..)) => {
-                        cursor_in_todo_list = true;
+            show_edit_menu: self.maybe_menu_location.is_some(),
+            has_selection: self.buffer.current.cursor.selection().is_some(),
+            selection_updated,
+            edit_menu_x: self.maybe_menu_location.map(|p| p.x).unwrap_or_default(),
+            edit_menu_y: self.maybe_menu_location.map(|p| p.y).unwrap_or_default(),
+            ..Default::default()
+        };
+
+        // determine styles at cursor location
+        // todo: check for styles in selection
+        if self.buffer.current.cursor.selection.is_empty() {
+            for style in self
+                .ast
+                .styles_at_offset(self.buffer.current.cursor.selection.start())
+            {
+                match style {
+                    MarkdownNode::Inline(InlineNode::Bold) => result.cursor_in_bold = true,
+                    MarkdownNode::Inline(InlineNode::Italic) => result.cursor_in_italic = true,
+                    MarkdownNode::Inline(InlineNode::Code) => result.cursor_in_inline_code = true,
+                    MarkdownNode::Block(BlockNode::Heading(..)) => result.cursor_in_heading = true,
+                    MarkdownNode::Block(BlockNode::ListItem(ItemType::Bulleted, ..)) => {
+                        result.cursor_in_bullet_list = true
                     }
-                    Some(Annotation::Item(ItemType::Numbered(_), ..)) => {
-                        cursor_in_number_list = true;
+                    MarkdownNode::Block(BlockNode::ListItem(ItemType::Numbered(..), ..)) => {
+                        result.cursor_in_number_list = true
                     }
-                    Some(Annotation::Item(ItemType::Bulleted, ..)) => {
-                        cursor_in_bullet_list = true;
+                    MarkdownNode::Block(BlockNode::ListItem(ItemType::Todo(..), ..)) => {
+                        result.cursor_in_todo_list = true
                     }
                     _ => {}
-                };
+                }
             }
         }
 
-        EditorResponse {
-            text_updated,
-            show_edit_menu: self.maybe_menu_location.is_some(),
-            has_selection: self.buffer.current.cursor.selection().is_some(),
-            edit_menu_x: self.maybe_menu_location.map(|p| p.x).unwrap_or_default(),
-            edit_menu_y: self.maybe_menu_location.map(|p| p.y).unwrap_or_default(),
-            cursor_in_heading,
-            cursor_in_bullet_list,
-            cursor_in_number_list,
-            cursor_in_todo_list,
-            cursor_in_bold,
-            cursor_in_italic,
-            cursor_in_inline_code,
-        }
+        result
     }
 
     pub fn process_events(
@@ -418,7 +476,7 @@ impl Editor {
             if touched_cursor || touched_selection || double_touched_for_selection {
                 // set menu location
                 self.maybe_menu_location =
-                    Some(self.buffer.current.cursor.end_rect(&self.galleys).min);
+                    Some(self.buffer.current.cursor.end_line(&self.galleys)[0]);
             } else {
                 self.maybe_menu_location = None;
             }
@@ -435,9 +493,11 @@ impl Editor {
         self.selection_updated = self.buffer.current.cursor.selection != prior_selection;
     }
 
-    pub fn set_text(&mut self, new_text: String) {
-        self.buffer = new_text.as_str().into();
-        self.initialized = false;
+    pub fn set_text(&mut self, text: String) {
+        self.custom_events.push(Modification::Replace {
+            region: Region::Bound { bound: Bound::Doc, backwards: false },
+            text,
+        });
     }
 
     pub fn set_font(&self, ctx: &Context) {
@@ -445,13 +505,28 @@ impl Editor {
         register_fonts(&mut fonts);
         ctx.set_fonts(fonts);
     }
-}
 
-fn clamp(min: f32, mid: f32, max: f32, viewport_width: f32) -> f32 {
-    if viewport_width > 800.0 {
-        return viewport_width * max;
-    } else if viewport_width < 400.0 {
-        return viewport_width * min;
+    pub fn get_potential_text_title(&self) -> Option<String> {
+        let mut maybe_chosen: Option<(DocCharOffset, DocCharOffset)> = None;
+
+        for paragraph in &self.paragraphs.paragraphs {
+            if !paragraph.is_empty() {
+                maybe_chosen = Some(*paragraph);
+                break;
+            }
+        }
+
+        maybe_chosen.map(|chosen: (DocCharOffset, DocCharOffset)| {
+            let ast_idx = self.ast.ast_node_at_char(chosen.start());
+            let ast = &self.ast.nodes[ast_idx];
+
+            let cursor: Cursor = (
+                ast.text_range.start(),
+                cmp::min(ast.text_range.end(), ast.text_range.start() + 30),
+            )
+                .into();
+
+            String::from(cursor.selection_text(&self.buffer.current))
+        })
     }
-    viewport_width * mid
 }
