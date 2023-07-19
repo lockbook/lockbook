@@ -12,11 +12,12 @@ pub struct SyncPanel {
     status: Result<String, String>,
     lock: Arc<Mutex<()>>,
     phase: SyncPhase,
+    pub work: Option<lb::WorkCalculated>,
 }
 
 impl SyncPanel {
     pub fn new(status: Result<String, String>) -> Self {
-        Self { status, lock: Arc::new(Mutex::new(())), phase: SyncPhase::IdleGood }
+        Self { status, lock: Arc::new(Mutex::new(())), phase: SyncPhase::IdleGood, work: None }
     }
 }
 
@@ -53,7 +54,8 @@ impl super::AccountScreen {
                     self.sync.phase = SyncPhase::IdleGood;
 
                     if let Ok(work) = result {
-                        self.refresh_tree_and_workspace(ctx, false, work);
+                        self.sync.work = Some(work.clone());
+                        self.refresh_tree_and_workspace(ctx, work);
                     }
 
                     self.refresh_sync_status(ctx);

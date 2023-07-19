@@ -66,7 +66,7 @@ impl super::AccountScreen {
                 use SettingsResponse::*;
                 match inner {
                     SuccessfullyUpgraded => self.refresh_sync_status(ctx),
-                    ToggleToolbarVisibility(_) => self.refresh_tree_and_workspace(ctx, true),
+                    ToggleToolbarVisibility(_) => self.reload_markdown_tabs(ctx),
                 }
             }
         }

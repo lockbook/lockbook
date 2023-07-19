@@ -1,7 +1,7 @@
 use eframe::egui;
 use lbeditor::{
-    element::Element,
     input::canonical::{Modification, Region},
+    style::{InlineNode, MarkdownNode},
     Editor,
 };
 
@@ -51,7 +51,7 @@ impl ToolBar {
                 callback: |e, _| {
                     e.custom_events.push(Modification::ToggleStyle {
                         region: Region::Selection,
-                        style: Element::Strong,
+                        style: MarkdownNode::Inline(InlineNode::Bold),
                     })
                 },
             },
@@ -60,7 +60,7 @@ impl ToolBar {
                 callback: |e, _| {
                     e.custom_events.push(Modification::ToggleStyle {
                         region: Region::Selection,
-                        style: Element::Emphasis,
+                        style: MarkdownNode::Inline(InlineNode::Italic),
                     })
                 },
             },
@@ -69,7 +69,7 @@ impl ToolBar {
                 callback: |e, _| {
                     e.custom_events.push(Modification::ToggleStyle {
                         region: Region::Selection,
-                        style: Element::InlineCode,
+                        style: MarkdownNode::Inline(InlineNode::Code),
                     });
                 },
             },
@@ -105,19 +105,8 @@ impl ToolBar {
 
         if !toolbar_rect.contains(pointer) {
             self.header_click_count = 1;
-            // if editor.ui_rect.contains(pointer) {
-            //     ui.memory_mut(|w| {
-            //         if !w.has_focus(editor.debug_id) {
-            //             w.request_focus(editor.debug_id)
-            //         }
-            //     });
-            // }
-        } else {
         }
 
-        ui.memory_mut(|w| {
-            println!("{}", w.focus().unwrap_or(egui::Id::null()).short_debug_format())
-        });
         self.id = ui.id();
 
         ui.allocate_ui_at_rect(toolbar_rect, |ui| {
@@ -134,8 +123,6 @@ impl ToolBar {
     }
 
     fn map_buttons(&mut self, ui: &mut egui::Ui, editor: &mut Editor) {
-        println!("editor` has focus? {}", ui.memory_mut(|w| w.has_focus(editor.debug_id)));
-
         ui.horizontal(|ui| {
             ui.spacing_mut().button_padding = egui::vec2(10.0, 20.0);
 
@@ -155,11 +142,7 @@ impl ToolBar {
                         btn_ui.request_focus();
                     }
                     if btn_ui.clicked() {
-                        println!("btn has focus? {}", btn_ui.has_focus());
-                        println!(
-                            "editor` has focus? {}",
-                            ui.memory_mut(|w| w.has_focus(editor.debug_id))
-                        );
+                        btn_ui.request_focus();
 
                         (btn.callback)(editor, self);
 
@@ -171,9 +154,6 @@ impl ToolBar {
                         if btn.icon.icon != Icon::HEADER_1.icon {
                             self.header_click_count = 1;
                         }
-                    }
-                    if btn_ui.lost_focus() {
-                        println!("lost");
                     }
                 });
             }
