@@ -5,6 +5,8 @@ public struct CoreApi: LockbookApi {
     var documentsDirectory: String
     
     public init(_ documentsDirectory: String, logs: Bool) {
+        print(FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).map({ url in url.path }))
+        
         self.documentsDirectory = documentsDirectory
         print("Located at \(documentsDirectory)")
         print("core init result: \(startCore(logs))")
