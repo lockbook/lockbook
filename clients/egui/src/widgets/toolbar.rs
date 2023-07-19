@@ -1,7 +1,4 @@
-use std::{thread, time::Duration};
-
 use eframe::egui;
-use egui_winit::egui::Event;
 use lbeditor::{
     element::Element,
     input::canonical::{Modification, Region},
@@ -170,7 +167,6 @@ impl ToolBar {
                             ui.memory_mut(|w| {
                                 w.request_focus(editor.debug_id);
                             });
-                           
                         }
                         if btn.icon.icon != Icon::HEADER_1.icon {
                             self.header_click_count = 1;

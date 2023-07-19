@@ -1,13 +1,8 @@
-use std::sync::{Arc, RwLock};
-
 use eframe::egui;
 
 use lbeditor::{Editor, EditorResponse};
 
-use crate::{
-    settings::Settings,
-    widgets::{ToolBar, ToolBarVisibility},
-};
+use crate::widgets::{ToolBar, ToolBarVisibility};
 pub struct Markdown {
     pub editor: Editor,
     pub toolbar: ToolBar,

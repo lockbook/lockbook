@@ -18,7 +18,7 @@ pub struct Cursor {
     /// of selection and second element represents end of selection, which is the primary cursor
     /// position - elements are not ordered by value.
     pub selection: (DocCharOffset, DocCharOffset),
-    
+
     /// When navigating using up/down keys, x_target stores the original *absolute* x coordinate of
     /// the cursor, which helps us keep the cursor in a consistent x position even navigating past
     /// lines that are shorter, empty, annotated, etc.
