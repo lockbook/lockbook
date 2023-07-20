@@ -12,6 +12,7 @@ use super::Button;
 #[derive(Clone)]
 struct ToolbarButton {
     icon: Icon,
+    id: String,
     callback: fn(&mut Editor, &mut ToolBar),
 }
 #[derive(Clone)]
@@ -33,75 +34,18 @@ pub enum ToolBarVisibility {
 
 impl ToolBar {
     pub fn new(visibility: &ToolBarVisibility) -> Self {
-        let margin = egui::Margin::symmetric(15.0, 0.0);
-        let buttons = vec![
-            ToolbarButton {
-                icon: Icon::HEADER_1,
-                callback: |e, state| {
-                    e.custom_events
-                        .push(Modification::Heading(state.header_click_count as u32));
-                    if state.header_click_count > 4 {
-                        state.header_click_count = 1;
-                    } else {
-                        state.header_click_count += 1;
-                    }
-                },
-            },
-            ToolbarButton {
-                icon: Icon::BOLD,
-                callback: |e, _| {
-                    e.custom_events.push(Modification::ToggleStyle {
-                        region: Region::Selection,
-                        style: MarkdownNode::Inline(InlineNode::Bold),
-                    })
-                },
-            },
-            ToolbarButton {
-                icon: Icon::ITALIC,
-                callback: |e, _| {
-                    e.custom_events.push(Modification::ToggleStyle {
-                        region: Region::Selection,
-                        style: MarkdownNode::Inline(InlineNode::Italic),
-                    })
-                },
-            },
-            ToolbarButton {
-                icon: Icon::CODE,
-                callback: |e, _| {
-                    e.custom_events.push(Modification::ToggleStyle {
-                        region: Region::Selection,
-                        style: MarkdownNode::Inline(InlineNode::Code),
-                    });
-                },
-            },
-            ToolbarButton {
-                icon: Icon::NUMBER_LIST,
-                callback: |e, _| e.custom_events.push(Modification::NumberListItem),
-            },
-            ToolbarButton {
-                icon: Icon::TODO_LIST,
-                callback: |e, _| e.custom_events.push(Modification::TodoListItem),
-            },
-            ToolbarButton {
-                icon: Icon::VISIBILITY_OFF,
-                callback: |_, state| {
-                    state.visibility = ToolBarVisibility::Minimized;
-                },
-            },
-        ];
         Self {
-            margin,
-            buttons,
+            margin: egui::Margin::symmetric(15.0, 0.0),
+            buttons: get_buttons(visibility),
             header_click_count: 1,
             has_focus: false,
             visibility: visibility.to_owned(),
             id: egui::Id::null(),
         }
     }
-}
 
-impl ToolBar {
     pub fn show(&mut self, ui: &mut egui::Ui, editor: &mut Editor) {
+        // greedy focus toggle on the editor whenever the pointer is not in the toolbar
         let pointer = ui.ctx().pointer_hover_pos().unwrap_or_default();
         let toolbar_rect = self.calculate_rect(ui, editor);
 
@@ -135,36 +79,27 @@ impl ToolBar {
         ui.horizontal(|ui| {
             ui.spacing_mut().button_padding = egui::vec2(10.0, 20.0);
 
-            if matches!(self.visibility, ToolBarVisibility::Minimized) {
-                let btn_ui = Button::default().icon(&Icon::VISIBILITY_ON).show(ui);
-
-                if btn_ui.hovered() {
-                    btn_ui.request_focus();
-                }
-                if btn_ui.clicked() {
-                    self.visibility = ToolBarVisibility::Maximized;
-                }
-            } else {
-                self.buttons.clone().iter().for_each(|btn| {
-                    let btn_ui = Button::default().icon(&btn.icon).show(ui);
-                    if btn_ui.hovered() {
-                        btn_ui.request_focus();
+            self.buttons.clone().iter().for_each(|btn| {
+                let res = Button::default().icon(&btn.icon).show(ui);
+                if res.hovered() {
+                    if btn.id != "header" {
+                        self.header_click_count = 1;
                     }
-                    if btn_ui.clicked() {
-                        (btn.callback)(editor, self);
+                }
 
-                        if btn.icon.icon != Icon::VISIBILITY_OFF.icon {
-                            ui.memory_mut(|w| {
-                                w.request_focus(editor.debug_id);
-                            });
-                        }
-                        if btn.icon.icon != Icon::HEADER_1.icon {
-                            self.header_click_count = 1;
-                        }
-                        ui.ctx().request_repaint();
-                    }
-                });
-            }
+                if res.clicked() {
+                    (btn.callback)(editor, self);
+
+                    ui.memory_mut(|w| {
+                        w.request_focus(editor.debug_id);
+                    });
+
+                    ui.ctx().request_repaint();
+                }
+                if btn.id == "header" {
+                    res.on_hover_text(format!("H{}", self.header_click_count));
+                }
+            });
         });
     }
 
@@ -174,9 +109,8 @@ impl ToolBar {
         width as f32
     }
 
+    /// center the toolbar relative to the editor
     fn calculate_rect(&self, ui: &mut egui::Ui, editor: &mut Editor) -> egui::Rect {
-        ui.style_mut().animation_time = 0.1;
-
         let on = match self.visibility {
             ToolBarVisibility::Minimized | ToolBarVisibility::Disabled => true,
             ToolBarVisibility::Maximized => false,
@@ -208,5 +142,84 @@ impl ToolBar {
             }
             ToolBarVisibility::Disabled => egui::Rect::NOTHING,
         }
+    }
+}
+
+fn get_buttons(visibility: &ToolBarVisibility) -> Vec<ToolbarButton> {
+    match visibility {
+        ToolBarVisibility::Minimized => {
+            vec![ToolbarButton {
+                icon: Icon::VISIBILITY_ON,
+                id: "visibility_on".to_string(),
+                callback: |_, t| {
+                    t.visibility = ToolBarVisibility::Maximized;
+                    t.buttons = get_buttons(&t.visibility);
+                },
+            }]
+        }
+        ToolBarVisibility::Maximized => vec![
+            ToolbarButton {
+                icon: Icon::HEADER_1,
+                id: "header".to_string(),
+                callback: |e, t| {
+                    e.custom_events
+                        .push(Modification::Heading(t.header_click_count as u32));
+                    if t.header_click_count > 5 {
+                        t.header_click_count = 6;
+                    } else {
+                        t.header_click_count += 1;
+                    }
+                },
+            },
+            ToolbarButton {
+                icon: Icon::BOLD,
+                id: "bold".to_string(),
+                callback: |e, _| {
+                    e.custom_events.push(Modification::ToggleStyle {
+                        region: Region::Selection,
+                        style: MarkdownNode::Inline(InlineNode::Bold),
+                    })
+                },
+            },
+            ToolbarButton {
+                icon: Icon::ITALIC,
+                id: "italic".to_string(),
+                callback: |e, _| {
+                    e.custom_events.push(Modification::ToggleStyle {
+                        region: Region::Selection,
+                        style: MarkdownNode::Inline(InlineNode::Italic),
+                    })
+                },
+            },
+            ToolbarButton {
+                icon: Icon::CODE,
+                id: "in_line_code".to_string(),
+                callback: |e, _| {
+                    e.custom_events.push(Modification::ToggleStyle {
+                        region: Region::Selection,
+                        style: MarkdownNode::Inline(InlineNode::Code),
+                    });
+                },
+            },
+            ToolbarButton {
+                icon: Icon::NUMBER_LIST,
+                id: "number_list".to_string(),
+                callback: |e, _| e.custom_events.push(Modification::NumberListItem),
+            },
+            ToolbarButton {
+                icon: Icon::TODO_LIST,
+                id: "todo_list".to_string(),
+                callback: |e, _| e.custom_events.push(Modification::TodoListItem),
+            },
+            ToolbarButton {
+                icon: Icon::VISIBILITY_OFF,
+                id: "visibility_off".to_string(),
+                callback: |_, t| {
+                    t.visibility = ToolBarVisibility::Minimized;
+                    t.buttons = get_buttons(&t.visibility);
+                },
+            },
+        ],
+        ToolBarVisibility::Disabled => vec![],
     }
 }
