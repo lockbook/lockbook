@@ -50,12 +50,12 @@ impl ToolBar {
         let toolbar_rect = self.calculate_rect(ui, editor);
 
         if toolbar_rect.contains(pointer) {
-            if editor.has_focus == true {
+            if editor.has_focus {
                 editor.has_focus = false
             }
         } else {
             self.header_click_count = 1;
-            if editor.has_focus == false {
+            if !editor.has_focus {
                 editor.has_focus = true
             }
         }
@@ -81,10 +81,8 @@ impl ToolBar {
 
             self.buttons.clone().iter().for_each(|btn| {
                 let res = Button::default().icon(&btn.icon).show(ui);
-                if res.hovered() {
-                    if btn.id != "header" {
-                        self.header_click_count = 1;
-                    }
+                if res.hovered() && btn.id != "header" {
+                    self.header_click_count = 1;
                 }
 
                 if res.clicked() {
