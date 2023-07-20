@@ -1,11 +1,12 @@
 use crate::appearance::YELLOW;
-use crate::element::{Element, ItemType};
 use crate::input::canonical::{Location, Modification, Region};
 use crate::layouts::Annotation;
 use crate::offset_types::RangeExt;
+use crate::style::{BlockNode, InlineNode, ItemType, MarkdownNode, RenderStyle};
 use crate::Editor;
 use egui::text::LayoutJob;
 use egui::{Align2, Color32, FontId, Pos2, Rect, Rounding, Sense, Stroke, Ui, Vec2};
+use pulldown_cmark::HeadingLevel;
 
 impl Editor {
     pub fn draw_text(&mut self, mut ui_size: Vec2, ui: &mut Ui) {
@@ -34,7 +35,9 @@ impl Editor {
                             let mut job = LayoutJob::default();
 
                             let mut text_format = galley.annotation_text_format.clone();
-                            Element::Strong.apply_style(&mut text_format, &self.appearance);
+                            let style =
+                                RenderStyle::Markdown(MarkdownNode::Inline(InlineNode::Bold));
+                            style.apply_style(&mut text_format, &self.appearance);
 
                             job.append(&(num.to_string() + "."), 0.0, text_format);
                             let pos = galley.bullet_bounds(&self.appearance);
@@ -104,54 +107,82 @@ impl Editor {
     }
 
     pub fn draw_cursor(&mut self, ui: &mut Ui, touch_mode: bool) {
-        let color = if touch_mode { self.appearance.cursor() } else { self.appearance.text() };
-
+        // determine cursor style
         let cursor = self.buffer.current.cursor;
-        let selection_start_rect = cursor.start_rect(&self.galleys);
-        let selection_end_rect = cursor.end_rect(&self.galleys);
+        let selection_start_line = cursor.start_line(&self.galleys);
+        let selection_end_line = cursor.end_line(&self.galleys);
+
+        let color = if touch_mode { self.appearance.cursor() } else { self.appearance.text() };
+        let stroke = Stroke { width: 1.0, color };
+
+        let (selection_end_line, stroke) = if cursor.selection.is_empty() {
+            let mut selection_end_line = selection_end_line;
+            let mut stroke = stroke;
+
+            for style in self.ast.styles_at_offset(cursor.selection.1) {
+                match style {
+                    MarkdownNode::Inline(InlineNode::Bold)
+                    | MarkdownNode::Block(BlockNode::Heading(HeadingLevel::H1)) => {
+                        stroke.width = 2.0;
+                    }
+                    MarkdownNode::Inline(InlineNode::Italic)
+                    | MarkdownNode::Block(BlockNode::Quote) => {
+                        if !touch_mode {
+                            // iOS draws its own cursor based on a rectangle we return
+                            // a slanted line cannot be represented as a rectangle
+                            // todo: don't double-draw cursor
+                            selection_end_line[0].x += 5.0;
+                        }
+                    }
+                    MarkdownNode::Inline(InlineNode::Code)
+                    | MarkdownNode::Block(BlockNode::Code) => {
+                        stroke.color = self.appearance.code();
+                    }
+                    MarkdownNode::Inline(InlineNode::Link(..))
+                    | MarkdownNode::Inline(InlineNode::Image(..)) => {
+                        stroke.color = self.appearance.link();
+                    }
+                    _ => {}
+                }
+            }
+
+            (selection_end_line, stroke)
+        } else {
+            (selection_end_line, stroke)
+        };
 
         // draw cursor for selection end
-        ui.painter().rect(
-            selection_end_rect,
-            Rounding::none(),
-            Color32::TRANSPARENT,
-            Stroke { width: 1.0, color },
-        );
+        ui.painter().line_segment(selection_end_line, stroke);
 
         if touch_mode {
             // draw cursor for selection start
-            ui.painter().rect(
-                selection_start_rect,
-                Rounding::none(),
-                Color32::TRANSPARENT,
-                Stroke { width: 1.0, color },
-            );
+            ui.painter().line_segment(selection_start_line, stroke);
 
             // draw selection handles
             // handles invisible but still draggable when selection is empty
             // we must allocate handles to check if they were dragged last frame
             if !cursor.selection.is_empty() {
                 let selection_start_center =
-                    Pos2 { x: selection_start_rect.min.x, y: selection_start_rect.min.y - 5.0 };
+                    Pos2 { x: selection_start_line[0].x, y: selection_start_line[0].y - 5.0 };
                 ui.painter()
                     .circle_filled(selection_start_center, 5.0, color);
                 let selection_end_center =
-                    Pos2 { x: selection_end_rect.max.x, y: selection_end_rect.max.y + 5.0 };
+                    Pos2 { x: selection_end_line[1].x, y: selection_end_line[1].y + 5.0 };
                 ui.painter().circle_filled(selection_end_center, 5.0, color);
             }
 
             // allocate rects to capture selection handle drag
             let selection_start_handle_rect = Rect {
                 min: Pos2 {
-                    x: selection_start_rect.min.x - 5.0,
-                    y: selection_start_rect.min.y - 10.0,
+                    x: selection_start_line[0].x - 5.0,
+                    y: selection_start_line[0].y - 10.0,
                 },
-                max: Pos2 { x: selection_start_rect.min.x + 5.0, y: selection_start_rect.min.y },
+                max: Pos2 { x: selection_start_line[0].x + 5.0, y: selection_start_line[0].y },
             };
             let start_response = ui.allocate_rect(selection_start_handle_rect, Sense::drag());
             let selection_end_handle_rect = Rect {
-                min: Pos2 { x: selection_end_rect.max.x - 5.0, y: selection_end_rect.max.y },
-                max: Pos2 { x: selection_end_rect.max.x + 5.0, y: selection_end_rect.max.y + 10.0 },
+                min: Pos2 { x: selection_end_line[1].x - 5.0, y: selection_end_line[1].y },
+                max: Pos2 { x: selection_end_line[1].x + 5.0, y: selection_end_line[1].y + 10.0 },
             };
             let end_response = ui.allocate_rect(selection_end_handle_rect, Sense::drag());
 

@@ -1,7 +1,7 @@
-use crate::element::Element;
 use crate::input::click_checker::ClickChecker;
 use crate::input::cursor::{ClickType, PointerState};
 use crate::offset_types::{DocCharOffset, RelCharOffset};
+use crate::style::{InlineNode, MarkdownNode};
 use crate::{CTextPosition, CTextRange};
 use egui::{Event, Key, Modifiers, PointerButton, Pos2};
 use std::time::Instant;
@@ -77,7 +77,7 @@ pub enum Modification {
     StageMarked { highlighted: (RelCharOffset, RelCharOffset), text: String },
     CommitMarked,
     Replace { region: Region, text: String },
-    ToggleStyle { region: Region, style: Element },
+    ToggleStyle { region: Region, style: MarkdownNode },
     Newline { advance_cursor: bool }, // distinct from replace because it triggers auto-bullet, etc
     Indent { deindent: bool },
     Undo,
@@ -164,7 +164,7 @@ pub fn calc(
         Event::Key { key: Key::Enter, pressed: true, modifiers, .. } => {
             Some(Modification::Newline { advance_cursor: !modifiers.shift })
         }
-        Event::Key { key: Key::Tab, pressed: true, modifiers, .. } => {
+        Event::Key { key: Key::Tab, pressed: true, modifiers, .. } if !modifiers.alt => {
             Some(Modification::Indent { deindent: modifiers.shift })
         }
         Event::Key { key: Key::A, pressed: true, modifiers, .. } if modifiers.command => {
@@ -190,17 +190,23 @@ pub fn calc(
             }
         }
         Event::Key { key: Key::B, pressed: true, modifiers, .. } if modifiers.command => {
-            Some(Modification::ToggleStyle { region: Region::Selection, style: Element::Strong })
+            Some(Modification::ToggleStyle {
+                region: Region::Selection,
+                style: MarkdownNode::Inline(InlineNode::Bold),
+            })
         }
         Event::Key { key: Key::I, pressed: true, modifiers, .. } if modifiers.command => {
-            Some(Modification::ToggleStyle { region: Region::Selection, style: Element::Emphasis })
+            Some(Modification::ToggleStyle {
+                region: Region::Selection,
+                style: MarkdownNode::Inline(InlineNode::Italic),
+            })
         }
         Event::Key { key: Key::C, pressed: true, modifiers, .. }
             if modifiers.command && modifiers.shift =>
         {
             Some(Modification::ToggleStyle {
                 region: Region::Selection,
-                style: Element::InlineCode,
+                style: MarkdownNode::Inline(InlineNode::Code),
             })
         }
         Event::Key { key: Key::X, pressed: true, modifiers, .. }
@@ -208,8 +214,23 @@ pub fn calc(
         {
             Some(Modification::ToggleStyle {
                 region: Region::Selection,
-                style: Element::Strikethrough,
+                style: MarkdownNode::Inline(InlineNode::Strikethrough),
             })
+        }
+        Event::Key { key: Key::Num7, pressed: true, modifiers, .. }
+            if modifiers.command && modifiers.shift =>
+        {
+            Some(Modification::NumberListItem)
+        }
+        Event::Key { key: Key::Num8, pressed: true, modifiers, .. }
+            if modifiers.command && modifiers.shift =>
+        {
+            Some(Modification::BulletListItem)
+        }
+        Event::Key { key: Key::Num9, pressed: true, modifiers, .. }
+            if modifiers.command && modifiers.shift =>
+        {
+            Some(Modification::TodoListItem)
         }
         Event::PointerButton { pos, button: PointerButton::Primary, pressed: true, modifiers }
             if click_checker.ui(*pos) =>

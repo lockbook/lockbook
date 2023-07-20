@@ -1,10 +1,9 @@
 use crate::buffer::SubBuffer;
-use crate::element::{Element, ItemType};
 use crate::layouts::Annotation;
 use crate::offset_types::{DocCharOffset, RangeExt};
-use crate::{element, Editor};
+use crate::style::{BlockNode, InlineNode, ItemType, MarkdownNode};
+use crate::Editor;
 use pulldown_cmark::{Event, HeadingLevel, LinkType, OffsetIter, Options, Parser, Tag};
-use std::cmp;
 
 #[derive(Default, Debug, PartialEq)]
 pub struct Ast {
@@ -14,8 +13,8 @@ pub struct Ast {
 
 #[derive(Default, Debug, PartialEq)]
 pub struct AstNode {
-    /// Type of syntax element e.g. heading and relevant information e.g. heading level
-    pub element: Element,
+    /// Type of markdown node e.g. heading and relevant information e.g. heading level
+    pub node_type: MarkdownNode,
 
     /// Range of source text captured
     pub range: (DocCharOffset, DocCharOffset),
@@ -23,8 +22,18 @@ pub struct AstNode {
     /// Range of source text still rendered after syntax characters are captured/interpreted
     pub text_range: (DocCharOffset, DocCharOffset),
 
-    /// Indexes of sub-elements in the vector containing this node
+    /// Indexes of sub-nodes in the vector containing this node
     pub children: Vec<usize>,
+}
+
+impl AstNode {
+    pub fn head_range(&self) -> (DocCharOffset, DocCharOffset) {
+        (self.range.0, self.text_range.0)
+    }
+
+    pub fn tail_range(&self) -> (DocCharOffset, DocCharOffset) {
+        (self.text_range.1, self.range.1)
+    }
 }
 
 pub fn calc(buffer: &SubBuffer) -> Ast {
@@ -33,7 +42,7 @@ pub fn calc(buffer: &SubBuffer) -> Ast {
     let parser = Parser::new_ext(&buffer.text, options);
     let mut result = Ast {
         nodes: vec![AstNode::new(
-            Element::Document,
+            MarkdownNode::Document,
             (0.into(), buffer.segs.last_cursor_position()),
             (0.into(), buffer.segs.last_cursor_position()),
         )],
@@ -60,6 +69,14 @@ impl Ast {
         chosen
     }
 
+    pub fn parent(&self, node_idx: usize) -> Option<usize> {
+        self.nodes
+            .iter()
+            .enumerate()
+            .find(|(_, n)| n.children.contains(&node_idx))
+            .map(|(idx, _)| idx)
+    }
+
     fn push_children(&mut self, current_idx: usize, iter: &mut OffsetIter, buffer: &SubBuffer) {
         let mut skipped = 0;
         while let Some((event, range)) = iter.next() {
@@ -68,17 +85,20 @@ impl Ast {
                 .range_to_char((range.start.into(), range.end.into()));
             match event {
                 Event::Start(child_tag) => {
-                    let new_child_element = match child_tag {
-                        Tag::Paragraph => Element::Paragraph,
-                        Tag::Heading(level, _, _) => Element::Heading(level),
-                        Tag::BlockQuote => Element::QuoteBlock,
-                        Tag::CodeBlock(_) => Element::CodeBlock,
+                    let new_child_node = match child_tag {
+                        Tag::Paragraph => MarkdownNode::Paragraph,
+                        Tag::Heading(level, _, _) => MarkdownNode::Block(BlockNode::Heading(level)),
+                        Tag::BlockQuote => MarkdownNode::Block(BlockNode::Quote),
+                        Tag::CodeBlock(_) => MarkdownNode::Block(BlockNode::Code),
                         Tag::Item => {
-                            let item_type = element::item_type(&buffer[range]);
+                            let item_type = Self::item_type(&buffer[range]);
                             let mut indent_level = 0;
                             let mut ancestor_idx = current_idx;
                             while ancestor_idx != 0 {
-                                if matches!(self.nodes[current_idx].element, Element::Item(..)) {
+                                if matches!(
+                                    self.nodes[current_idx].node_type,
+                                    MarkdownNode::Block(BlockNode::ListItem(..))
+                                ) {
                                     indent_level += 1;
                                 }
 
@@ -91,26 +111,35 @@ impl Ast {
                                     .map(|(idx, _)| idx)
                                     .unwrap_or_default();
                             }
-                            Element::Item(item_type, indent_level)
+                            MarkdownNode::Block(BlockNode::ListItem(item_type, indent_level))
                         }
-                        Tag::Emphasis => Element::Emphasis,
-                        Tag::Strong => Element::Strong,
-                        Tag::Strikethrough => Element::Strikethrough,
-                        Tag::Link(l, u, t) => Element::Link(l, u.to_string(), t.to_string()),
-                        Tag::Image(l, u, t) => Element::Image(l, u.to_string(), t.to_string()),
+                        Tag::Emphasis => MarkdownNode::Inline(InlineNode::Italic),
+                        Tag::Strong => MarkdownNode::Inline(InlineNode::Bold),
+                        Tag::Strikethrough => MarkdownNode::Inline(InlineNode::Strikethrough),
+                        Tag::Link(l, u, t) => {
+                            MarkdownNode::Inline(InlineNode::Link(l, u.to_string(), t.to_string()))
+                        }
+                        Tag::Image(l, u, t) => {
+                            MarkdownNode::Inline(InlineNode::Image(l, u.to_string(), t.to_string()))
+                        }
                         _ => {
                             skipped += 1;
                             continue;
                         }
                     };
                     if let Some(new_child_idx) =
-                        self.push_child(current_idx, new_child_element, range, buffer)
+                        self.push_child(current_idx, new_child_node, range, buffer)
                     {
                         self.push_children(new_child_idx, iter, buffer);
                     }
                 }
                 Event::Code(_) => {
-                    self.push_child(current_idx, Element::InlineCode, range, buffer);
+                    self.push_child(
+                        current_idx,
+                        MarkdownNode::Inline(InlineNode::Code),
+                        range,
+                        buffer,
+                    );
                 }
                 Event::End(_) => {
                     if skipped == 0 {
@@ -124,11 +153,31 @@ impl Ast {
         }
     }
 
+    fn item_type(text: &str) -> ItemType {
+        let text = text.trim_start();
+        if text.starts_with("+ [ ]") || text.starts_with("* [ ]") || text.starts_with("- [ ]") {
+            ItemType::Todo(false)
+        } else if text.starts_with("+ [x]")
+            || text.starts_with("* [x]")
+            || text.starts_with("- [x]")
+        {
+            ItemType::Todo(true)
+        } else if let Some(prefix) = text.split('.').next() {
+            if let Ok(num) = prefix.parse::<usize>() {
+                ItemType::Numbered(num)
+            } else {
+                ItemType::Bulleted // default to bullet
+            }
+        } else {
+            ItemType::Bulleted // default to bullet
+        }
+    }
+
     fn push_child(
-        &mut self, parent_idx: usize, mut element: Element,
+        &mut self, parent_idx: usize, mut markdown_node: MarkdownNode,
         cmark_range: (DocCharOffset, DocCharOffset), buffer: &SubBuffer,
     ) -> Option<usize> {
-        // assumption: whitespace-only elements have no children
+        // assumption: whitespace-only nodes have no children
         if buffer[cmark_range].trim().is_empty() {
             return None;
         }
@@ -141,7 +190,10 @@ impl Ast {
             range.1 -= buffer[cmark_range].len() - buffer[cmark_range].trim_end().len();
 
             // capture leading whitespace for list items and code blocks (affects non-fenced code blocks only)
-            if matches!(element, Element::Item(..) | Element::CodeBlock) {
+            if matches!(
+                markdown_node,
+                MarkdownNode::Block(BlockNode::ListItem(..)) | MarkdownNode::Block(BlockNode::Code)
+            ) {
                 while range.0 > 0
                     && buffer[(range.0 - 1, range.1)]
                         .starts_with(|c: char| c.is_whitespace() && c != '\n')
@@ -151,17 +203,25 @@ impl Ast {
             }
 
             // capture up to one trailing space for list items and headings
-            if matches!(element, Element::Item(..) | Element::Heading(..))
-                && range.1 < buffer.segs.last_cursor_position()
+            if matches!(
+                markdown_node,
+                MarkdownNode::Block(BlockNode::ListItem(..))
+                    | MarkdownNode::Block(BlockNode::Heading(..))
+            ) && range.1 < buffer.segs.last_cursor_position()
                 && buffer[(range.0, range.1 + 1)].ends_with(' ')
             {
                 range.1 += 1;
             }
 
-            // limit range to text range of parent
+            // clamp range to text range of parent
             let parent_text_range = self.nodes[parent_idx].text_range;
-            range.0 = cmp::max(range.0, parent_text_range.0);
-            range.1 = cmp::min(range.1, parent_text_range.1);
+            let (min, max) = parent_text_range;
+            range.0 = std::cmp::max(std::cmp::min(range.0, max), min);
+            range.1 = std::cmp::max(std::cmp::min(range.1, max), min);
+
+            if range.is_empty() {
+                return None;
+            }
 
             range
         };
@@ -173,8 +233,8 @@ impl Ast {
         // assumption: syntax characters are single-byte unicode sequences
         let text_range = {
             let mut text_range = range;
-            match element.clone() {
-                Element::Heading(h) => {
+            match markdown_node.clone() {
+                MarkdownNode::Block(BlockNode::Heading(h)) => {
                     // # heading
                     let original_text_range_0 = text_range.0;
 
@@ -184,11 +244,11 @@ impl Ast {
                     if buffer[text_range].starts_with(' ') {
                         text_range.0 += 1;
                     } else {
-                        element = Element::Paragraph;
+                        markdown_node = MarkdownNode::Paragraph;
                         text_range.0 = original_text_range_0;
                     }
                 }
-                Element::QuoteBlock => {
+                MarkdownNode::Block(BlockNode::Quote) => {
                     // >quote block
                     // > quote block
                     if buffer[text_range].starts_with("> ") {
@@ -197,7 +257,7 @@ impl Ast {
                         text_range.0 += 1;
                     }
                 }
-                Element::CodeBlock => {
+                MarkdownNode::Block(BlockNode::Code) => {
                     if (buffer[range].starts_with("```\n") && buffer[range].ends_with("\n```"))
                         || (buffer[range].starts_with("~~~\n") && buffer[range].ends_with("\n~~~"))
                     {
@@ -217,8 +277,18 @@ impl Ast {
                         */
                         text_range.0 += buffer[range].len() - buffer[range].trim_start().len();
                     }
+                    if text_range.1 < text_range.0 {
+                        /*
+                        ```
+                        ```
+                        ~~~
+                        ~~~
+                        single newline gets captured in head and not tail
+                         */
+                        text_range.1 += 1;
+                    }
                 }
-                Element::Item(item_type, _) => {
+                MarkdownNode::Block(BlockNode::ListItem(item_type, _)) => {
                     // * item
                     //   1. item
                     //     - [ ] item
@@ -235,31 +305,31 @@ impl Ast {
                     if buffer[text_range].starts_with(' ') {
                         text_range.0 += 1;
                     } else {
-                        element = Element::Paragraph;
+                        markdown_node = MarkdownNode::Paragraph;
                         text_range.0 = original_text_range_0;
                     }
                 }
-                Element::InlineCode => {
+                MarkdownNode::Inline(InlineNode::Code) => {
                     // `code`
                     text_range.0 += 1;
                     text_range.1 -= 1;
                 }
-                Element::Strong => {
+                MarkdownNode::Inline(InlineNode::Bold) => {
                     // __strong__
                     text_range.0 += 2;
                     text_range.1 -= 2;
                 }
-                Element::Emphasis => {
+                MarkdownNode::Inline(InlineNode::Italic) => {
                     // _emphasis_
                     text_range.0 += 1;
                     text_range.1 -= 1;
                 }
-                Element::Strikethrough => {
+                MarkdownNode::Inline(InlineNode::Strikethrough) => {
                     // ~~strikethrough~~
                     text_range.0 += 2;
                     text_range.1 -= 2;
                 }
-                Element::Link(LinkType::Inline, url, title) => {
+                MarkdownNode::Inline(InlineNode::Link(LinkType::Inline, url, title)) => {
                     // [title](http://url.com "title")
                     text_range.0 += 1;
                     text_range.1 -= url.len() + 3;
@@ -267,7 +337,7 @@ impl Ast {
                         text_range.1 -= title.len() + 3;
                     }
                 }
-                Element::Image(LinkType::Inline, url, title) => {
+                MarkdownNode::Inline(InlineNode::Image(LinkType::Inline, url, title)) => {
                     // ![title](http://url.com)
                     text_range.0 += 2;
                     text_range.1 -= url.len() + 3;
@@ -281,9 +351,9 @@ impl Ast {
             text_range
         };
 
-        let node = AstNode::new(element, range, text_range);
+        let ast_node = AstNode::new(markdown_node, range, text_range);
         let new_child_idx = self.nodes.len();
-        self.nodes.push(node);
+        self.nodes.push(ast_node);
         self.nodes[parent_idx].children.push(new_child_idx);
         Some(new_child_idx)
     }
@@ -299,6 +369,32 @@ impl Ast {
         }
     }
 
+    /// Returns the AstTextRange at the given offset. Prefers the previous range when at a boundary.
+    fn text_range_at_offset(&self, offset: DocCharOffset) -> Option<AstTextRange> {
+        let mut end_range = None;
+        for text_range in self.iter_text_ranges() {
+            if text_range.range.contains(offset) {
+                end_range = Some(text_range);
+            }
+        }
+        end_range
+    }
+
+    /// Returns all styles applied to the text just before the given offset if any, or just after when at the document start.
+    pub fn styles_at_offset(&self, offset: DocCharOffset) -> Vec<MarkdownNode> {
+        let mut result = Vec::default();
+        if let Some(text_range) = self.text_range_at_offset(offset) {
+            for ancestor_node_idx in text_range.ancestors {
+                let ancestor_node = &self.nodes[ancestor_node_idx];
+                // offset must be in text range (not head/tail syntax chars) to apply
+                if ancestor_node.text_range.contains(offset) {
+                    result.push(ancestor_node.node_type.clone());
+                }
+            }
+        }
+        result
+    }
+
     pub fn print(&self, buffer: &SubBuffer) {
         for range in self.iter_text_ranges() {
             println!(
@@ -307,7 +403,7 @@ impl Ast {
                 range
                     .ancestors
                     .iter()
-                    .map(|&i| format!("[{:?} {:?}]", i, self.nodes[i].element))
+                    .map(|&i| format!("[{:?} {:?}]", i, self.nodes[i].node_type))
                     .collect::<Vec<_>>(),
                 range.range.0,
                 range.range.1,
@@ -323,10 +419,10 @@ impl Ast {
 
 impl AstNode {
     pub fn new(
-        element: Element, range: (DocCharOffset, DocCharOffset),
+        node: MarkdownNode, range: (DocCharOffset, DocCharOffset),
         text_range: (DocCharOffset, DocCharOffset),
     ) -> Self {
-        Self { element, range, text_range, children: vec![] }
+        Self { node_type: node, range, text_range, children: vec![] }
     }
 }
 
@@ -345,7 +441,7 @@ pub enum AstTextRangeType {
     Tail,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct AstTextRange {
     pub range_type: AstTextRangeType,
     pub range: (DocCharOffset, DocCharOffset),
@@ -355,17 +451,19 @@ pub struct AstTextRange {
 }
 
 impl AstTextRange {
-    pub fn element(&self, ast: &Ast) -> Element {
+    pub fn node(&self, ast: &Ast) -> MarkdownNode {
         ast.nodes[self.ancestors.last().copied().unwrap_or_default()]
-            .element
+            .node_type
             .clone()
     }
 
     pub fn annotation(&self, ast: &Ast) -> Option<Annotation> {
-        match self.element(ast) {
-            Element::Heading(HeadingLevel::H1) => Some(Annotation::Rule),
-            Element::Image(link_type, url, title) => Some(Annotation::Image(link_type, url, title)),
-            Element::Item(item_type, indent_level) => {
+        match self.node(ast) {
+            MarkdownNode::Block(BlockNode::Heading(HeadingLevel::H1)) => Some(Annotation::Rule),
+            MarkdownNode::Inline(InlineNode::Image(link_type, url, title)) => {
+                Some(Annotation::Image(link_type, url, title))
+            }
+            MarkdownNode::Block(BlockNode::ListItem(item_type, indent_level)) => {
                 Some(Annotation::Item(item_type, indent_level))
             }
             _ => None,
@@ -404,7 +502,7 @@ impl<'ast> Iterator for AstTextRangeIter<'ast> {
                         AstTextRange {
                             range_type: AstTextRangeType::Text,
                             range: (
-                                current.text_range.0,
+                                current_range.range.1,
                                 if current.children.is_empty() {
                                     current.text_range.1
                                 } else {
@@ -433,7 +531,7 @@ impl<'ast> Iterator for AstTextRangeIter<'ast> {
 
                             AstTextRange {
                                 range_type: AstTextRangeType::Head,
-                                range: (next_child.range.0, next_child.text_range.0),
+                                range: (current_range.range.1, next_child.text_range.0),
                                 ancestors,
                             }
                         } else {
@@ -445,7 +543,7 @@ impl<'ast> Iterator for AstTextRangeIter<'ast> {
 
                             AstTextRange {
                                 range_type: AstTextRangeType::Tail,
-                                range: (current.text_range.1, current.range.1),
+                                range: (current_range.range.1, current.range.1),
                                 ancestors: current_range.ancestors.clone(),
                             }
                         }

@@ -24,7 +24,7 @@ enum SettingsTab {
 }
 
 pub struct SettingsModal {
-    core: Arc<lb::Core>,
+    core: lb::Core,
     settings: Arc<RwLock<Settings>>,
     account: AccountSettings,
     usage: UsageSettings,
@@ -36,7 +36,7 @@ pub enum SettingsResponse {
 }
 
 impl SettingsModal {
-    pub fn new(core: &Arc<lb::Core>, s: &Arc<RwLock<Settings>>) -> Self {
+    pub fn new(core: &lb::Core, s: &Arc<RwLock<Settings>>) -> Self {
         let export_result = core.export_account().map_err(|err| format!("{:?}", err)); // TODO
 
         let (info_tx, info_rx) = mpsc::channel();

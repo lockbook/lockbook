@@ -12,6 +12,7 @@ use crate::service::activity_service::DocEvent;
 pub type CoreDb = CoreV3;
 
 #[derive(Schema, Debug)]
+#[cfg_attr(feature = "no-network", derive(Clone))]
 pub struct CoreV3 {
     pub account: Single<Account>,
     pub last_synced: Single<i64>,

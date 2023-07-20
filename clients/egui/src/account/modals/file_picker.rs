@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::path;
 
 use eframe::egui;
 use lb::File;
@@ -6,20 +6,50 @@ use lb::File;
 use crate::{model::DocType, theme::Icon, widgets::Button};
 
 pub struct FilePicker {
-    core: Arc<lb::Core>,
+    core: lb::Core,
     panels: Vec<lb::File>,
-    target: File,
+    action: FilePickerAction,
 }
+
 pub struct FilePickerParams {
-    pub target: File,
     pub parent: File,
+    pub action: FilePickerAction,
+}
+
+#[derive(Clone)]
+pub enum FilePickerAction {
+    AcceptShare(lb::File),
+    DroppedFile(path::PathBuf),
 }
 
 impl FilePicker {
-    pub fn new(core: Arc<lb::Core>, target: File) -> Self {
+    pub fn new(core: lb::Core, action: FilePickerAction) -> Self {
         let root = core.get_root().unwrap();
 
-        Self { core, panels: vec![root], target }
+        Self { core, panels: vec![root], action }
+    }
+
+    fn target_type(&self) -> lb::FileType {
+        match &self.action {
+            FilePickerAction::AcceptShare(file) => file.file_type,
+            FilePickerAction::DroppedFile(path) => {
+                if path.is_dir() {
+                    lb::FileType::Folder
+                } else {
+                    lb::FileType::Document
+                }
+            }
+        }
+    }
+
+    fn target_name(&self) -> String {
+        match &self.action {
+            FilePickerAction::AcceptShare(file) => file.name.clone(),
+            FilePickerAction::DroppedFile(path) => {
+                // what a time to be alive
+                path.file_name().unwrap().to_str().unwrap().to_string()
+            }
+        }
     }
 }
 
@@ -66,7 +96,7 @@ fn show_file_panel(
                 egui::Layout::top_down(egui::Align::Min).with_cross_justify(true),
                 |ui| {
                     ui.add_space(15.0);
-                    let children = file_picker.core.get_children(root.id).unwrap_or_default();
+                    let children = file_picker.core.get_children(root.id).unwrap();
                     let mut children: Vec<&File> = children
                         .iter()
                         .filter(|f| f.file_type == lb::FileType::Folder)
@@ -96,14 +126,14 @@ fn show_bottom_bar(ui: &mut egui::Ui, file_picker: &mut FilePicker) -> Option<Fi
                     );
                 }
 
-                let icon = match file_picker.target.file_type {
+                let icon = match file_picker.target_type() {
                     lb::FileType::Folder => Icon::FOLDER,
-                    _ => DocType::from_name(&file_picker.target.name).to_icon(),
+                    _ => DocType::from_name(&file_picker.target_name()).to_icon(),
                 };
 
                 icon.show(ui);
 
-                ui.label(&file_picker.target.name);
+                ui.label(&file_picker.target_name());
             });
         ui.spacing_mut().button_padding = egui::vec2(25.0, 5.0);
 
@@ -111,7 +141,7 @@ fn show_bottom_bar(ui: &mut egui::Ui, file_picker: &mut FilePicker) -> Option<Fi
             if ui.button("Select").clicked() {
                 return Some(FilePickerParams {
                     parent: file_picker.panels.last().unwrap().clone(), // there's always one panel (the root), so th unwrap is sage
-                    target: file_picker.target.clone(),
+                    action: file_picker.action.clone(),
                 });
             }
             None

@@ -39,7 +39,7 @@ struct FileListView: View {
                 }
             }) {
                 HStack {
-                    Text("Tree")
+                    Text("Files")
                         .bold()
                         .foregroundColor(.gray)
                         .font(.subheadline)
@@ -71,7 +71,7 @@ struct FileListView: View {
 }
 
 struct DetailView: View {
-    @EnvironmentObject var currentSelection: CurrentDocument
+    @EnvironmentObject var currentSelection: DocumentService
     @EnvironmentObject var search: SearchService
     @EnvironmentObject var share: ShareService
     
@@ -80,12 +80,10 @@ struct DetailView: View {
     
     var body: some View {
         ZStack {
-            VStack {
-                if currentSelection.isPendingSharesOpen {
-                    PendingSharesView()
-                }else if let selected = currentSelection.selectedDocument {
-                    DocumentView(meta: selected)
-                }
+            if currentSelection.isPendingSharesOpen {
+                PendingSharesView()
+            } else {
+                DocumentTabView()
             }
             
             QuickActionBar<SearchResultItem, SearchResultCellView>(
@@ -104,7 +102,7 @@ struct DetailView: View {
                 },
                 viewForItem: { searchResult, searchTerm in
                     let (name, path) = searchResult.getNameAndPath()
-                                        
+
                     return SearchResultCellView(name: name, path: path, matchedIndices: searchResult.matchedIndices)
                 }
             )
@@ -113,9 +111,6 @@ struct DetailView: View {
                     search.submitSearch(id: submittedId)
                 }
             }
-        }
-        .onChange(of: currentSelection.selectedDocument) { _ in
-            DI.files.refreshSuggestedDocs()
         }
         .toolbar {
             ToolbarItemGroup {
