@@ -527,6 +527,7 @@ impl AccountScreen {
                     .map(|bytes| {
                         TabContent::Markdown(Markdown::boxed(&bytes, &toolbar_visibility))
                     });
+
                 let now = Instant::now();
                 update_tx
                     .send(AccountUpdate::ReloadTab(

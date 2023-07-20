@@ -110,6 +110,7 @@ pub struct Editor {
     pub pointer_state: PointerState, // state of cursor not subject to undo history
     pub debug: DebugInfo,
     pub images: ImageCache,
+    pub has_focus: bool,
 
     // cached intermediate state
     pub ast: Ast,
@@ -150,6 +151,7 @@ impl Default for Editor {
             pointer_state: Default::default(),
             debug: Default::default(),
             images: Default::default(),
+            has_focus: true,
 
             ast: Default::default(),
             words: Default::default(),
@@ -193,7 +195,7 @@ impl Editor {
         let mut surrender_focus = false;
         for event in &events {
             if let Event::PointerButton { pos, pressed: true, .. } = event {
-                if ui.is_enabled() && self.scroll_area_rect.contains(*pos) {
+                if ui.is_enabled() && self.scroll_area_rect.contains(*pos) && self.has_focus {
                     request_focus = true;
                 } else {
                     surrender_focus = true;

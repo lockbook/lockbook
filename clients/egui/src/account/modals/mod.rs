@@ -66,7 +66,10 @@ impl super::AccountScreen {
                 use SettingsResponse::*;
                 match inner {
                     SuccessfullyUpgraded => self.refresh_sync_status(ctx),
-                    ToggleToolbarVisibility(_) => self.reload_markdown_tabs(ctx),
+                    ToggleToolbarVisibility(_) => {
+                        self.modals.settings = None;
+                        self.reload_markdown_tabs(ctx)
+                    }
                 }
             }
         }

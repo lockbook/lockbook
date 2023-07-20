@@ -18,6 +18,7 @@ struct ToolbarButton {
 pub struct ToolBar {
     pub margin: egui::Margin,
     id: egui::Id,
+    pub has_focus: bool,
     buttons: Vec<ToolbarButton>,
     header_click_count: usize,
     visibility: ToolBarVisibility,
@@ -92,6 +93,7 @@ impl ToolBar {
             margin,
             buttons,
             header_click_count: 1,
+            has_focus: false,
             visibility: visibility.to_owned(),
             id: egui::Id::null(),
         }
@@ -103,8 +105,15 @@ impl ToolBar {
         let pointer = ui.ctx().pointer_hover_pos().unwrap_or_default();
         let toolbar_rect = self.calculate_rect(ui, editor);
 
-        if !toolbar_rect.contains(pointer) {
+        if toolbar_rect.contains(pointer) {
+            if editor.has_focus == true {
+                editor.has_focus = false
+            }
+        } else {
             self.header_click_count = 1;
+            if editor.has_focus == false {
+                editor.has_focus = true
+            }
         }
 
         self.id = ui.id();
@@ -142,8 +151,6 @@ impl ToolBar {
                         btn_ui.request_focus();
                     }
                     if btn_ui.clicked() {
-                        btn_ui.request_focus();
-
                         (btn.callback)(editor, self);
 
                         if btn.icon.icon != Icon::VISIBILITY_OFF.icon {
@@ -154,6 +161,7 @@ impl ToolBar {
                         if btn.icon.icon != Icon::HEADER_1.icon {
                             self.header_click_count = 1;
                         }
+                        ui.ctx().request_repaint();
                     }
                 });
             }
