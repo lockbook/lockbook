@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use eframe::egui;
 
 use crate::model::DocType;
@@ -16,11 +14,11 @@ struct SuggestedFile {
 }
 
 impl SuggestedDocs {
-    pub fn new(core: &Arc<lb::Core>) -> Self {
+    pub fn new(core: &lb::Core) -> Self {
         Self::calc(core)
     }
 
-    pub fn recalc_and_redraw(&mut self, ctx: &egui::Context, core: &Arc<lb::Core>) {
+    pub fn recalc_and_redraw(&mut self, ctx: &egui::Context, core: &lb::Core) {
         let core = core.clone();
         let ctx = ctx.clone();
 
@@ -30,7 +28,7 @@ impl SuggestedDocs {
         ctx.request_repaint();
     }
 
-    fn calc(core: &Arc<lb::Core>) -> SuggestedDocs {
+    fn calc(core: &lb::Core) -> SuggestedDocs {
         let suggested_docs = core.suggested_docs(lb::RankingWeights::default());
 
         let mut err_msg = None;
