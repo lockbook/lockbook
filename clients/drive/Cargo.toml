@@ -16,5 +16,6 @@ path = "src/main.rs"
 is-terminal = "0.4.7"
 clap = { version = "4.1.4", features = ["derive"]}
 lb = { path = "../../libs/core", package = "lockbook-core" }
+file-events = { path = "../../../file-events", package = "file-events" }
 notify = {version = "6.0.0"}
 test_utils = { path = "../../libs/core/libs/test_utils/" } # todo: make dev_dependency

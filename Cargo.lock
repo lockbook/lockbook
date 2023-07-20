@@ -1569,6 +1569,7 @@ name = "drive"
 version = "0.1.0"
 dependencies = [
  "clap 4.2.1",
+ "file-events",
  "is-terminal",
  "lockbook-core",
  "notify 6.0.1",
@@ -1849,6 +1850,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "file-events"
+version = "0.1.0"
+dependencies = [
+ "fsevent 2.1.2",
+ "inotify 0.9.6",
+]
+
+[[package]]
 name = "filetime"
 version = "0.2.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1927,6 +1936,16 @@ checksum = "5ab7d1bd1bd33cc98b0889831b72da23c0aa4df9cec7e0702f46ecea04b35db6"
 dependencies = [
  "bitflags",
  "fsevent-sys 2.0.1",
+]
+
+[[package]]
+name = "fsevent"
+version = "2.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8836d1f147a0a195bf517a5fd211ea7023d19ced903135faf6c4504f2cf8775f"
+dependencies = [
+ "bitflags",
+ "fsevent-sys 4.1.0",
 ]
 
 [[package]]
@@ -3661,7 +3680,7 @@ checksum = "ae03c8c853dba7bfd23e571ff0cff7bc9dceb40a4cd684cd1681824183f45257"
 dependencies = [
  "bitflags",
  "filetime",
- "fsevent",
+ "fsevent 0.4.0",
  "fsevent-sys 2.0.1",
  "inotify 0.7.1",
  "libc",

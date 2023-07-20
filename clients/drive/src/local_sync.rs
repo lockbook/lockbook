@@ -92,7 +92,7 @@ impl Drive {
                             .lock()
                             .unwrap()
                             .push_back(DriveEvent::DocumentModified(core_path, buffer));
-                    }
+                    } 
                     EventKind::Modify(ModifyKind::Name(_)) => {
                         let mut watcher_state = self.watcher_state.lock().unwrap();
                         if let Some(prior_event) = watcher_state.umatched_event.take() {
@@ -217,6 +217,6 @@ pub fn get_lockbook_path(event_path: PathBuf, dest: PathBuf) -> PathBuf {
     for _ in &dest {
         ep_iter.next();
     }
-    ep_iter.next();
+    //ep_iter.next();
     PathBuf::from(&ep_iter)
 }
