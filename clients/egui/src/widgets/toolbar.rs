@@ -89,7 +89,7 @@ impl ToolBar {
                     (btn.callback)(editor, self);
 
                     ui.memory_mut(|w| {
-                        w.request_focus(editor.debug_id);
+                        w.request_focus(editor.id);
                     });
 
                     ui.ctx().request_repaint();

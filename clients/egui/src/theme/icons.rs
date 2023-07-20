@@ -5,14 +5,10 @@ pub const MATERIAL_ICON_FONT: &[u8] = include_bytes!("../../material-icons-outli
 #[derive(Clone, PartialEq)]
 pub struct Icon {
     pub has_badge: bool,
-    pub icon: &'static str,
+    icon: &'static str,
     pub size: f32,
     color: Option<egui::Color32>,
     weak: bool,
-}
-
-impl Eq for Icon {
-    fn assert_receiver_is_total_eq(&self) {}
 }
 
 const fn ic(c: &'static str) -> Icon {

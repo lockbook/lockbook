@@ -1,4 +1,3 @@
-use rand::Rng;
 #[cfg(any(target_os = "ios", target_os = "macos"))]
 use std::ffi::{c_char, CString};
 #[cfg(any(target_os = "ios", target_os = "macos"))]
@@ -97,8 +96,7 @@ impl Default for EditorResponse {
 }
 
 pub struct Editor {
-    pub id: u32,
-    pub debug_id: egui::Id,
+    pub id: egui::Id,
     pub initialized: bool,
 
     // config
@@ -138,10 +136,8 @@ pub struct Editor {
 
 impl Default for Editor {
     fn default() -> Self {
-        let id: u32 = rand::thread_rng().gen();
         Self {
-            id,
-            debug_id: egui::Id::null(),
+            id: egui::Id::null(),
             initialized: Default::default(),
 
             appearance: Default::default(),
@@ -187,7 +183,7 @@ impl Editor {
         let events = ui.ctx().input(|i| i.events.clone());
         // create id (even though we don't use interact response)
         let id = ui.auto_id_with("lbeditor");
-        self.debug_id = id;
+        self.id = id;
         ui.interact(self.scroll_area_rect, id, Sense::focusable_noninteractive());
 
         // calculate focus
