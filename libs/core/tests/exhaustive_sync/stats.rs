@@ -25,8 +25,8 @@ impl Coordinator {
                 experiments.possibly_stalled(),
                 cache_size,
                 self.grab_time.load(Ordering::Relaxed),
-                self.publish_time.load(Ordering::Relaxed),
                 self.execute_time.load(Ordering::Relaxed),
+                self.publish_time.load(Ordering::Relaxed),
                 self.lock_contention_time.load(Ordering::Relaxed),
             );
             drop(experiments);
