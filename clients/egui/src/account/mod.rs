@@ -128,6 +128,7 @@ impl AccountScreen {
         egui::CentralPanel::default()
             .frame(egui::Frame::default().fill(ctx.style().visuals.widgets.noninteractive.bg_fill))
             .show(ctx, |ui| self.show_workspace(frame, ui));
+       
         self.show_any_modals(ctx, 0.0 - (sidebar_width / 2.0));
     }
 
@@ -459,7 +460,7 @@ impl AccountScreen {
                 };
                 settings_btn.on_hover_text("Settings");
 
-                ui.add_space(10.0);
+                ui.add_space(5.0);
 
                 let incoming_shares_btn = Button::default()
                     .icon(

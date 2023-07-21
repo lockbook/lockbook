@@ -34,7 +34,7 @@ impl Icon {
     pub const FOLDER_OPEN: Self = ic("\u{e2c8}"); // Folder Open
     pub const GROUP: Self = ic("\u{e7ef}"); // Group
     pub const HIGHLIGHT_OFF: Self = ic("\u{e888}"); // Highlight Off
-    pub const HIDE_SIDEBAR: Self = ic("\u{e317}"); // Keyboard tab eac3
+    pub const HIDE_SIDEBAR: Self = ic("\u{e317}"); // Keyboard tab
     pub const SHOW_SIDEBAR: Self = ic("\u{e31c}");
     pub const IMAGE: Self = ic("\u{e3f4}"); // Image
     pub const INFO: Self = ic("\u{e88e}");
