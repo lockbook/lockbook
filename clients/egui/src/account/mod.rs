@@ -481,7 +481,7 @@ impl AccountScreen {
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     ui.add_space(10.0);
                     let zen_mode_btn = Button::default().icon(&Icon::HIDE_SIDEBAR).show(ui);
-                    
+
                     if zen_mode_btn.clicked() {
                         self.settings.write().unwrap().zen_mode = true;
                         if let Err(err) = self.settings.read().unwrap().to_file() {
@@ -490,7 +490,6 @@ impl AccountScreen {
                     }
 
                     zen_mode_btn.on_hover_text("Hide side panel");
-
                 });
             },
         );
