@@ -10,6 +10,8 @@ use std::{
     time::Duration,
 };
 
+use file_events;
+
 static SLEEP_DURATION: Duration = Duration::from_millis(100);
 
 #[derive(Default)]
@@ -30,14 +32,12 @@ impl Drive {
         std::thread::spawn(move || {
             cloned_drive.handle_changes();
         });
-        loop{};
+        loop {}
     }
 
-    pub fn prep_destination(&self, mut dest: PathBuf){
+    pub fn prep_destination(&self, mut dest: PathBuf) {
         self.c.get_account().unwrap();
         self.sync();
-        //let jdest = dest.canonicalize().unwrap();
-        // jfs::remove_dir_all(&dest).unwrap();
         println!("{:?}", dest);
         println!("{:?}", self.c.get_root().unwrap());
 
@@ -50,117 +50,106 @@ impl Drive {
         self.watcher_state.lock().unwrap().dest = Some(dest);
     }
 
-    pub fn get_dest(&self) -> PathBuf{
+    pub fn get_dest(&self) -> PathBuf {
         self.watcher_state.lock().unwrap().dest.clone().unwrap()
     }
 
     pub fn watch_for_changes(&self) {
-        // Create a channel to receive file events
-        let (tx, rx) = channel();
-
-        // Create a new watcher object
-        let mut watcher = RecommendedWatcher::new(tx, Config::default()).unwrap();
-
-        // Register the file for watching
         let dest = self.get_dest();
-        watcher.watch(&dest, RecursiveMode::Recursive).unwrap();
-
-        println!("Watching for changes in {:?}", dest);
-        for res in rx {
+        let watcher = file_events::Watcher::new(dest.clone());
+        let rx = watcher.watch_for_changes();
+        while let Ok(res) = rx.recv() {
             println!("{:#?}", res);
             match res {
-                Ok(event) => match event.kind {
-                    EventKind::Create(_) => {
-                        let core_path = get_lockbook_path(event.paths[0].clone(), dest.clone());
-                        let core_path = core_path.to_str().unwrap().to_string();
+                file_events::FileEvent::Create(path) => {
+                    let core_path = get_lockbook_path(path.clone(), dest.clone());
+                    let core_path = core_path.to_str().unwrap().to_string();
 
-                        self.pending_events
-                            .lock()
-                            .unwrap()
-                            .push_back(DriveEvent::Create(core_path));
+                    self.pending_events
+                        .lock()
+                        .unwrap()
+                        .push_back(DriveEvent::Create(core_path));
+                }
+                file_events::FileEvent::Remove(path) => {
+                    let core_path = get_lockbook_path(path.clone(), dest.clone());
+                    let core_path = core_path.to_str().unwrap().to_string();
 
-                        // watcher.unwatch(&dest).unwrap();
-                    }
-                    EventKind::Modify(ModifyKind::Data(_)) => {
-                        let mut f = File::open(event.paths[0].clone()).unwrap();
-                        let mut buffer = vec![];
-                        f.read_to_end(&mut buffer).unwrap();
-                        println!("file read: {:?}", &buffer[..]);
-                        let core_path = get_lockbook_path(event.paths[0].clone(), dest.clone());
-                        let core_path = core_path.to_str().unwrap().to_string();
-                        self.pending_events
-                            .lock()
-                            .unwrap()
-                            .push_back(DriveEvent::DocumentModified(core_path, buffer));
-                    } 
-                    EventKind::Modify(ModifyKind::Name(_)) => {
-                        let mut watcher_state = self.watcher_state.lock().unwrap();
-                        if let Some(prior_event) = watcher_state.umatched_event.take() {
-                            let prior_core_path =
-                                get_lockbook_path(prior_event.paths[0].clone(), dest.clone());
-                            let prior_core_path = prior_core_path.to_str().unwrap().to_string();
+                    self.pending_events
+                        .lock()
+                        .unwrap()
+                        .push_back(DriveEvent::Delete(core_path));
+                }
+                file_events::FileEvent::Rename(oldpath, newpath) => {
+                    let core_path = get_lockbook_path(oldpath.clone(), dest.clone());
+                    let core_path = core_path.to_str().unwrap().to_string();
 
-                            let new_core_path =
-                                get_lockbook_path(event.paths[0].clone(), dest.clone());
-                            let new_filename = new_core_path
-                                .file_name()
-                                .unwrap()
-                                .to_str()
-                                .unwrap()
-                                .to_string();
+                    let new_name = newpath.iter().last().unwrap();
+                    let new_name = new_name.to_str().unwrap().to_string();
 
-                            // differentiate between:
-                            //
-                            // /sid/abcd.md -> /sid/abcd2.md (unsafely presently implemented)
-                            //
-                            // rename as a file write
-                            //
-                            // rename as a move
-                            // /sid/work/abcd.md -> /sid/abcd.md
-                            // (core expects this to be DriveEvent::Move(/sid/work/abcd.md, /sid)
+                    self.pending_events
+                        .lock()
+                        .unwrap()
+                        .push_back(DriveEvent::Rename(core_path, new_name));
+                }
+                file_events::FileEvent::MoveWithin(oldpath, newpath) => {
+                    let core_path = get_lockbook_path(oldpath.clone(), dest.clone());
+                    let core_path = core_path.to_str().unwrap().to_string();
 
-                            self.pending_events
-                                .lock()
-                                .unwrap()
-                                .push_back(DriveEvent::Rename(prior_core_path, new_filename));
-                        }
+                    let new_path = newpath.parent().unwrap();
+                    let new_path = new_path.to_str().unwrap().to_string();
 
-                        // After a 100 milliseconds, consider this to be a move out of this folder
-                        self.watcher_state.lock().unwrap().umatched_event = Some(event);
-                        let thread_state = self.clone();
-                        let cloned_dest = dest.clone();
-                        std::thread::spawn(move || {
-                            thread::sleep(SLEEP_DURATION);
-                            let watcher_state = thread_state.watcher_state.lock().unwrap();
-                            match &watcher_state.umatched_event {
-                                Some(unmatched_event) => {
-                                    let core_path = get_lockbook_path(
-                                        unmatched_event.paths[0].clone(),
-                                        cloned_dest,
-                                    );
-                                    let core_path = core_path.to_str().unwrap().to_string();
-                                    thread_state
-                                        .pending_events
-                                        .lock()
-                                        .unwrap()
-                                        .push_back(DriveEvent::Delete(core_path));
-                                }
-                                None => {}
-                            }
-                        });
-                    }
-                    EventKind::Remove(_) => {
-                        let core_path = get_lockbook_path(event.paths[0].clone(), dest.clone());
-                        let core_path = core_path.to_str().unwrap().to_string();
+                    self.pending_events
+                        .lock()
+                        .unwrap()
+                        .push_back(DriveEvent::Move(core_path, new_path));
+                }
+                file_events::FileEvent::MoveOut(path) => {
+                    let core_path = get_lockbook_path(path.clone(), dest.clone());
+                    let core_path = core_path.to_str().unwrap().to_string();
 
-                        self.pending_events
-                            .lock()
-                            .unwrap()
-                            .push_back(DriveEvent::Delete(core_path));
-                    }
-                    _ => println!("unhandled event: {:#?}", event),
-                },
-                Err(e) => println!("watch error: {:?}", e),
+                    self.pending_events
+                        .lock()
+                        .unwrap()
+                        .push_back(DriveEvent::Delete(core_path));
+                }
+                file_events::FileEvent::Write(path) => {
+                    let mut f = File::open(path.clone()).unwrap();
+                    let mut buffer = vec![];
+                    f.read_to_end(&mut buffer).unwrap();
+                    let core_path = get_lockbook_path(path.clone(), dest.clone());
+                    let core_path = core_path.to_str().unwrap().to_string();
+                    self.pending_events
+                        .lock()
+                        .unwrap()
+                        .push_back(DriveEvent::DocumentModified(core_path, buffer));
+                }
+                file_events::FileEvent::MoveAndRename(oldpath, newpath) => {
+                    let core_path = get_lockbook_path(oldpath.clone(), dest.clone());
+                    let core_path = core_path.to_str().unwrap().to_string();
+
+                    let old_name = oldpath.iter().last().unwrap();
+                    let old_name = old_name.to_str().unwrap().to_string();
+
+                    let new_path = newpath.parent().unwrap();
+                    let new_path = new_path.to_str().unwrap().to_string();
+
+                    let new_name = newpath.iter().last().unwrap();
+                    let new_name = new_name.to_str().unwrap().to_string();
+
+                    let mut temp_path = new_path.clone();
+                    temp_path.push('/');
+                    temp_path.push_str(&old_name);
+
+                    self.pending_events
+                        .lock()
+                        .unwrap()
+                        .push_back(DriveEvent::Move(core_path, new_path));
+
+                    self.pending_events
+                        .lock()
+                        .unwrap()
+                        .push_back(DriveEvent::Rename(temp_path, new_name));
+                }
             }
         }
     }
