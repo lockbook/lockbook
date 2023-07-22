@@ -69,7 +69,26 @@ class Share: NSMenuItem {
     }
 }
 
-class Export: NSMenuItem {
+class ShareExternallyMenu: NSMenuItem {
+    let file: File
+    let fileTree: NSOutlineView
+    
+    init(file: File, fileTree: NSOutlineView) {
+        self.file = file
+        self.fileTree = fileTree
+        
+        super.init(title: "Share externally", action: nil, keyEquivalent: "")
+        
+        submenu = NSMenu(title: "Share externally")
+        submenu!.addItem(ShareTo(file: file, fileTree: fileTree))
+    }
+    
+    required init(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+}
+
+class ShareTo: NSMenuItem {
     let file: File
     let fileTree: NSOutlineView
     
