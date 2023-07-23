@@ -172,7 +172,13 @@ impl Default for Editor {
 
 impl Editor {
     pub fn draw(&mut self, ctx: &Context) -> EditorResponse {
+        let fill = if ctx.style().visuals.dark_mode {
+            Color32::from_rgb(18, 18, 18)
+        } else {
+            Color32::WHITE
+        };
         egui::CentralPanel::default()
+            .frame(Frame::default().fill(fill))
             .show(ctx, |ui| self.scroll_ui(ui))
             .inner
     }
@@ -231,9 +237,11 @@ impl Editor {
 
                 Frame::default()
                     .fill(fill)
-                    .outer_margin(egui::Margin::symmetric(7.0, 0.0))
-                    .inner_margin(egui::Margin::symmetric(0.0, 15.0))
-                    .show(ui, |ui| ui.vertical_centered(|ui| self.ui(ui, id, touch_mode, &events)))
+                    // .outer_margin(egui::Margin::symmetric(7.0, 0.0))
+                    // .inner_margin(egui::Margin::symmetric(0.0, 15.0))
+                    // .outer_margin(egui::Margin::symmetric(7.0, 0.0))
+                    // .inner_margin(egui::Margin::symmetric(0.0, 15.0))
+                    .show(ui, |ui| self.ui(ui, id, touch_mode, &events))
             });
         self.ui_rect = sao.inner_rect;
 
@@ -249,7 +257,7 @@ impl Editor {
         self.scroll_area_rect = sao.inner_rect;
         self.scroll_area_offset = sao.state.offset;
 
-        sao.inner.inner.inner
+        sao.inner.inner
     }
 
     fn ui(
