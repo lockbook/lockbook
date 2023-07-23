@@ -181,8 +181,6 @@ impl OnboardScreen {
                                     .show(ui)
                                     .response;
 
-                                //ui.output_mut(|w| w.copied_text)
-
                                 if resp.lost_focus()
                                     && ui.input(|i| i.key_pressed(egui::Key::Enter))
                                 {
