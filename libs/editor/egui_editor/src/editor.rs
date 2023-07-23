@@ -231,8 +231,8 @@ impl Editor {
 
                 Frame::default()
                     .fill(fill)
-                    .outer_margin(egui::Margin::symmetric(7.0, 0.0))
-                    .inner_margin(egui::Margin::symmetric(0.0, 15.0))
+                    // .outer_margin(egui::Margin::symmetric(7.0, 0.0))
+                    .inner_margin(egui::Margin::symmetric(7.0, 15.0))
                     .show(ui, |ui| ui.vertical_centered(|ui| self.ui(ui, id, touch_mode, &events)))
             });
         self.ui_rect = sao.inner_rect;
