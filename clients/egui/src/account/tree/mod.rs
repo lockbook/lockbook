@@ -48,10 +48,29 @@ impl FileTree {
         ui.vertical(|ui| {
             ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
             let mut is_hovered = false;
-            let r = egui::Frame::none().show(ui, |ui| {
+            let mut r = egui::Frame::none().show(ui, |ui| {
                 let result = self.root.show(ui, &mut self.state);
                 is_hovered = result.response.hovered();
                 result.inner
+            });
+
+            let empty_space_res = ui.interact(
+                ui.available_rect_before_wrap(),
+                egui::Id::from("tree-empty-space"),
+                egui::Sense::click(),
+            );
+
+            empty_space_res.context_menu(|ui| {
+                ui.spacing_mut().button_padding = egui::vec2(4.0, 4.0);
+
+                if ui.button("New Document").clicked() {
+                    r.inner.new_doc_modal = Some(self.root.file.clone());
+                    ui.close_menu();
+                }
+                if ui.button("New Folder").clicked() {
+                    r.inner.new_folder_modal = Some(self.root.file.clone());
+                    ui.close_menu();
+                }
             });
 
             if self.state.is_dragging() {
