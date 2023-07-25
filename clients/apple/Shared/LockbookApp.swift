@@ -7,7 +7,6 @@ import AppKit
 #endif
 
 @main struct LockbookApp: App {
-
     @Environment(\.scenePhase) private var scenePhase
     
     #if os(macOS)
@@ -15,7 +14,6 @@ import AppKit
     #endif
     
     var body: some Scene {
-        
         WindowGroup {
             AppView()
                 .realDI()
@@ -28,6 +26,10 @@ import AppKit
                 .onForeground {
                     DI.sync.foregroundSync()
                 }
+                .onOpenURL() { url in
+                    onUrlOpen(url: url)
+                }
+                .handlesExternalEvents(preferring: ["lb"], allowing: ["lb"])
         }.commands {
             CommandGroup(replacing: CommandGroupPlacement.newItem) {
                 Button("New Doc", action: {
@@ -173,6 +175,41 @@ import AppKit
         }
         
         #endif
+    }
+    
+    // development: lb://6e158b3c-9e40-4f6c-b198-12b2c0ad5000
+    // swiftui-course: lb://b2ce2f4a-7b9c-49ea-8e88-6b30047ec972
+    func onUrlOpen(url: URL) {
+        DispatchQueue.global(qos: .userInitiated).async {
+            if url.scheme == "lb" {
+                if let uuidString = url.host,
+                   let id = UUID(uuidString: uuidString) {
+                    while true {
+                        if DI.accounts.account == nil && DI.accounts.calculated {
+                            return
+                        }
+                        
+                        if DI.files.root != nil {
+                            if let meta = DI.files.idsAndFiles[id] {
+                                Thread.sleep(until: .now + 0.1)
+                                DI.currentDoc.cleanupOldDocs()
+                                DI.currentDoc.justOpenedLink = meta
+                                DI.currentDoc.openDoc(id: id)
+                                DI.currentDoc.setSelectedOpenDocById(maybeId: id)
+                            } else {
+                                DI.errors.errorWithTitle("File not found", "That file does not exist in your lockbook")
+                            }
+                            
+                            return
+                        }
+                    }
+                } else {
+                    DI.errors.errorWithTitle("Malformed link", "Cannot open file")
+                }
+            } else {
+                DI.errors.errorWithTitle("Error", "An unexpected error has occurred")
+            }
+        }
     }
 }
 

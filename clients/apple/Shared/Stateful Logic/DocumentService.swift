@@ -23,9 +23,14 @@ class DocumentService: ObservableObject {
     @Published var selectedDoc: UUID?
     
     var justCreatedDoc: File? = nil
+    var justOpenedLink: File? = nil
     
     func openDoc(id: UUID, isiPhone: Bool = false) {
         if openDocuments[id] == nil {
+//            if DI.files.idsAndFiles.isEmpty {
+//                DI.files.refreshSync()
+//            }
+            
             openDocuments[id] = DocumentLoadingInfo(DI.files.idsAndFiles[id]!, isiPhone)
         }
     }
@@ -74,7 +79,6 @@ class DocumentService: ObservableObject {
     // index must be greater than or equal to 0 and less than
     func selectOpenDocByIndex(index: Int) {
         if index >= 0 && index < 9 {
-                        
             if index == 8 {
                 setSelectedOpenDocById(maybeId: openDocumentsKeyArr.last)
             }

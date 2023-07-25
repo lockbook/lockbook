@@ -19,8 +19,8 @@ struct FileListView: View {
     
     var body: some View {
         VStack {
-            if let newDoc = DI.currentDoc.justCreatedDoc, newDoc.fileType == .Document {
-                NavigationLink(destination: iOSDocumentViewWrapper(id: newDoc.id), isActive: Binding(get: { DI.currentDoc.openDocuments[newDoc.id] != nil }, set: { _ in DI.currentDoc.openDocuments[newDoc.id] = nil }) ) {
+            if let doc = (DI.currentDoc.justCreatedDoc ?? DI.currentDoc.justOpenedLink), doc.fileType == .Document {
+                NavigationLink(destination: iOSDocumentViewWrapper(id: doc.id), isActive: Binding(get: { DI.currentDoc.openDocuments[doc.id] != nil }, set: { _ in DI.currentDoc.openDocuments[doc.id] = nil }) ) {
                     EmptyView()
                 }
                 .hidden()

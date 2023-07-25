@@ -136,6 +136,18 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
             nameState?.potentialTitle = nil
         }
         
+        if let openedURLSeq = output.editor_response.opened_url {
+            let openedURL = String(cString: openedURLSeq)
+            free_text(UnsafeMutablePointer(mutating: openedURLSeq))
+            
+            if let url = URL(string: openedURL),
+                UIApplication.shared.canOpenURL(url) {
+                print("opening link swift side: \(UIApplication.shared.canOpenURL(url)) | \(openedURL)");
+                
+                UIApplication.shared.open(url, options: [:], completionHandler: nil)
+            }
+        }
+        
         if output.editor_response.selection_updated {
             becomeFirstResponder()
         }

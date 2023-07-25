@@ -40,6 +40,8 @@ struct DocumentView: View, Equatable {
                     
                     ProgressView()
                         .onAppear {
+                            
+//                            UIApplication.shared.open(URL(string: "lb://b2ce2f4a-7b9c-49ea-8e88-6b30047ec972")!)
                             model.startLoading()
                         }
                         .title(model.meta.name) // No exact matches in reference to static method 'buildExpression'
