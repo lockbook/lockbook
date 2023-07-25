@@ -105,7 +105,6 @@ impl AccountScreen {
             .send(BackgroundEvent::EguiUpdate)
             .unwrap();
 
-
         let mut sidebar_width = 0.0;
         if !self.settings.read().unwrap().zen_mode {
             sidebar_width = egui::SidePanel::left("sidebar_panel")
@@ -123,13 +122,13 @@ impl AccountScreen {
 
                         self.show_nav_panel(ui);
 
-                          ui.vertical(|ui| {
-                              if let Some(file) = self.suggested.show(ui) {
-                                  self.open_file(file, ctx);
-                              }
-                              ui.add_space(20.0);
-                              self.show_tree(ui);
-                          })
+                        ui.vertical(|ui| {
+                            if let Some(file) = self.suggested.show(ui) {
+                                self.open_file(file, ctx);
+                            }
+                            ui.add_space(20.0);
+                            self.show_tree(ui);
+                        })
                     });
                 })
                 .response
