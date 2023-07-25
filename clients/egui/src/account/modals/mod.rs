@@ -19,6 +19,8 @@ pub use new_file::{NewDocModal, NewFileParams, NewFolderModal};
 pub use search::SearchModal;
 pub use settings::{SettingsModal, SettingsResponse};
 
+use crate::widgets::ToolBarVisibility;
+
 use super::OpenModal;
 use eframe::egui;
 
@@ -66,9 +68,10 @@ impl super::AccountScreen {
                 use SettingsResponse::*;
                 match inner {
                     SuccessfullyUpgraded => self.refresh_sync_status(ctx),
-                    ToggleToolbarVisibility(_) => {
+                    ToggleToolbarVisibility(new_change) => {
                         self.modals.settings = None;
-                        self.reload_markdown_tabs(ctx)
+                        self.refresh_toolbar_visibilities(new_change);
+                        ctx.request_repaint();
                     }
                 }
             }
@@ -123,6 +126,14 @@ impl super::AccountScreen {
                 }
             }
         }
+    }
+
+    fn refresh_toolbar_visibilities(&mut self, visibility: ToolBarVisibility) {
+        self.workspace.tabs.iter_mut().for_each(|t| {
+            if let Some(crate::account::tabs::TabContent::Markdown(ref mut md)) = &mut t.content {
+                md.toolbar.visibility = visibility;
+            }
+        });
     }
 
     pub fn is_any_modal_open(&self) -> bool {

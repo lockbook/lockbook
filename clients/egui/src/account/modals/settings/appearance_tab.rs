@@ -40,7 +40,7 @@ impl super::SettingsModal {
                 .clicked()
             {
                 return Some(SettingsResponse::ToggleToolbarVisibility(
-                    ToolBarVisibility::Disabled,
+                    ToolBarVisibility::Maximized,
                 ));
             }
             if ui
@@ -52,7 +52,7 @@ impl super::SettingsModal {
                 .clicked()
             {
                 return Some(SettingsResponse::ToggleToolbarVisibility(
-                    ToolBarVisibility::Maximized,
+                    ToolBarVisibility::Disabled,
                 ));
             }
             None

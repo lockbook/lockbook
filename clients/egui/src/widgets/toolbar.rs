@@ -22,7 +22,7 @@ pub struct ToolBar {
     pub has_focus: bool,
     buttons: Vec<ToolbarButton>,
     header_click_count: usize,
-    visibility: ToolBarVisibility,
+    pub visibility: ToolBarVisibility,
 }
 
 #[derive(Clone, Copy, Debug, serde::Serialize, serde::Deserialize, PartialEq, Eq)]

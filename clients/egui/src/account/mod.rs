@@ -487,67 +487,6 @@ impl AccountScreen {
         }
     }
 
-    pub fn reload_markdown_tabs(&self, ctx: &egui::Context) {
-        let opened_ids = self
-            .workspace
-            .tabs
-            .iter()
-            .filter(|f| f.name.split('.').last().unwrap_or_default() == "md")
-            .map(|t| t.id)
-            .collect::<Vec<lb::Uuid>>();
-
-        let core = self.core.clone();
-        let update_tx = self.update_tx.clone();
-        let ctx = ctx.clone();
-
-        let settings = &self.settings.read().unwrap();
-        let toolbar_visibility = settings.toolbar_visibility;
-
-        thread::spawn(move || {
-            for id in opened_ids {
-                let name = match core.get_file_by_id(id) {
-                    Ok(file) => file.name,
-                    Err(err) => {
-                        update_tx
-                            .send(AccountUpdate::ReloadTab(
-                                id,
-                                Err(match err.kind {
-                                    lb::CoreError::FileNonexistent => TabFailure::DeletedFromSync,
-                                    _ => TabFailure::Unexpected(format!("{:?}", err)),
-                                }),
-                            ))
-                            .unwrap();
-                        continue;
-                    }
-                };
-
-                let content = core
-                    .read_document(id)
-                    .map_err(|err| TabFailure::Unexpected(format!("{:?}", err))) // todo(steve)
-                    .map(|bytes| {
-                        TabContent::Markdown(Markdown::boxed(&bytes, &toolbar_visibility))
-                    });
-
-                let now = Instant::now();
-                update_tx
-                    .send(AccountUpdate::ReloadTab(
-                        id,
-                        Ok(Tab {
-                            id,
-                            name,
-                            path: core.get_path_by_id(id).unwrap(),
-                            content: content.ok(),
-                            failure: None,
-                            last_changed: now,
-                            last_saved: now,
-                        }),
-                    ))
-                    .unwrap();
-                ctx.request_repaint();
-            }
-        });
-    }
-
     pub fn refresh_tree_and_workspace(&self, ctx: &egui::Context, work: lb::WorkCalculated) {
         let opened_ids = self
             .workspace
