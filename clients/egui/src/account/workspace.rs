@@ -3,9 +3,10 @@ use std::time::Instant;
 use eframe::egui;
 use egui_extras::RetainedImage;
 
-use crate::theme::Icon;
 use crate::widgets::separator;
+use crate::{theme::Icon, widgets::Button};
 
+use super::modals::ErrorModal;
 use super::{tabs::SaveRequestContent, AccountUpdate, FileTree, Tab, TabContent, TabFailure};
 
 pub struct Workspace {
@@ -187,6 +188,27 @@ impl super::AccountScreen {
                 self.show_tabs(frame, ui);
             }
         });
+
+        if self.settings.read().unwrap().zen_mode {
+            let mut min = ui.clip_rect().left_bottom();
+            min.y -= 37.0; // 37 is approximating the height of the button
+            let max = ui.clip_rect().left_bottom();
+
+            let rect = egui::Rect { min, max };
+            ui.allocate_ui_at_rect(rect, |ui| {
+                let zen_mode_btn = Button::default()
+                    .icon(&Icon::SHOW_SIDEBAR)
+                    .frame(true)
+                    .show(ui);
+                if zen_mode_btn.clicked() {
+                    self.settings.write().unwrap().zen_mode = false;
+                    if let Err(err) = self.settings.read().unwrap().to_file() {
+                        self.modals.error = Some(ErrorModal::new(err));
+                    }
+                }
+                zen_mode_btn.on_hover_text("Show side panel");
+            });
+        }
     }
 
     fn show_tabs(&mut self, frame: &mut eframe::Frame, ui: &mut egui::Ui) {

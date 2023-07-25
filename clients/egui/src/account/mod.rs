@@ -99,28 +99,31 @@ impl AccountScreen {
             .send(BackgroundEvent::EguiUpdate)
             .unwrap();
 
-        let sidebar_width = egui::SidePanel::left("sidebar_panel")
-            .frame(egui::Frame::none().fill(ctx.style().visuals.panel_fill))
-            .min_width(300.0)
-            .show(ctx, |ui| {
-                ui.set_enabled(!self.is_any_modal_open());
+        let mut sidebar_width = 0.0;
+        if !self.settings.read().unwrap().zen_mode {
+            sidebar_width = egui::SidePanel::left("sidebar_panel")
+                .frame(egui::Frame::none().fill(ctx.style().visuals.panel_fill))
+                .min_width(300.0)
+                .show(ctx, |ui| {
+                    ui.set_enabled(!self.is_any_modal_open());
 
-                ui.with_layout(egui::Layout::bottom_up(egui::Align::Min), |ui| {
-                    ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
+                    ui.with_layout(egui::Layout::bottom_up(egui::Align::Min), |ui| {
+                        ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
 
-                    self.show_sync_panel(ui);
+                        self.show_sync_panel(ui);
 
-                    separator(ui);
+                        separator(ui);
 
-                    self.show_nav_panel(ui);
+                        self.show_nav_panel(ui);
 
-                    self.show_tree(ui);
-                });
-            })
-            .response
-            .rect
-            .max
-            .x;
+                        self.show_tree(ui);
+                    });
+                })
+                .response
+                .rect
+                .max
+                .x;
+        }
 
         egui::CentralPanel::default()
             .frame(egui::Frame::default().fill(ctx.style().visuals.widgets.noninteractive.bg_fill))
@@ -443,25 +446,23 @@ impl AccountScreen {
         }
     }
 
-    fn show_nav_panel(&self, ui: &mut egui::Ui) {
+    fn show_nav_panel(&mut self, ui: &mut egui::Ui) {
         ui.allocate_ui_with_layout(
             egui::vec2(ui.available_size_before_wrap().x, 70.0),
             egui::Layout::left_to_right(egui::Align::Center),
             |ui| {
                 ui.add_space(10.0);
 
-                if Button::default()
-                    .text("Settings ")
-                    .icon(&Icon::SETTINGS)
-                    .show(ui)
-                    .clicked()
-                {
+                let settings_btn = Button::default().icon(&Icon::SETTINGS).show(ui);
+                if settings_btn.clicked() {
                     self.update_tx.send(OpenModal::Settings.into()).unwrap();
                     ui.ctx().request_repaint();
                 };
-                ui.add_space(20.0);
+                settings_btn.on_hover_text("Settings");
 
-                if Button::default()
+                ui.add_space(5.0);
+
+                let incoming_shares_btn = Button::default()
                     .icon(
                         &Icon::SHARED_FOLDER.badge(
                             !self
@@ -471,12 +472,26 @@ impl AccountScreen {
                                 .is_empty(),
                         ),
                     )
-                    .show(ui)
-                    .clicked()
-                {
+                    .show(ui);
+                if incoming_shares_btn.clicked() {
                     self.update_tx.send(OpenModal::AcceptShare.into()).unwrap();
                     ui.ctx().request_repaint();
                 };
+                incoming_shares_btn.on_hover_text("Incoming shares");
+
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    ui.add_space(10.0);
+                    let zen_mode_btn = Button::default().icon(&Icon::HIDE_SIDEBAR).show(ui);
+
+                    if zen_mode_btn.clicked() {
+                        self.settings.write().unwrap().zen_mode = true;
+                        if let Err(err) = self.settings.read().unwrap().to_file() {
+                            self.modals.error = Some(ErrorModal::new(err));
+                        }
+                    }
+
+                    zen_mode_btn.on_hover_text("Hide side panel");
+                });
             },
         );
     }

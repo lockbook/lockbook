@@ -13,6 +13,7 @@ pub struct Settings {
     pub auto_save: bool,
     pub auto_sync: bool,
     pub sidebar_usage: bool,
+    pub zen_mode: bool, // hide side panel and maximize the content pane
     #[serde(skip_serializing, skip_deserializing)]
     path: String,
 }
@@ -51,6 +52,7 @@ impl Default for Settings {
             auto_sync: true,
             sidebar_usage: true,
             path: "".to_string(),
+            zen_mode: false,
         }
     }
 }

@@ -25,20 +25,12 @@ impl<'a> Button<'a> {
         Self { text: Some(text), ..self }
     }
 
-    pub fn stroke(self, stroke: impl Into<egui::Stroke>) -> Self {
-        Self { stroke: stroke.into(), ..self }
-    }
-
     pub fn icon_style(self, icon_style: egui::Style) -> Self {
         Self { icon_style: Some(icon_style), ..self }
     }
 
     pub fn padding(self, padding: impl Into<egui::Vec2>) -> Self {
         Self { padding: Some(padding.into()), ..self }
-    }
-
-    pub fn rounding(self, rounding: impl Into<egui::Rounding>) -> Self {
-        Self { rounding: rounding.into(), ..self }
     }
 
     pub fn frame(self, frame: bool) -> Self {
