@@ -53,12 +53,32 @@ impl FileTree {
             result.inner
         });
 
+                  let empty_space_res = ui.interact(
+                ui.available_rect_before_wrap(),
+                egui::Id::from("tree-empty-space"),
+                egui::Sense::click(),
+            );
+
+            empty_space_res.context_menu(|ui| {
+                ui.spacing_mut().button_padding = egui::vec2(4.0, 4.0);
+
+                if ui.button("New Document").clicked() {
+                    r.inner.new_doc_modal = Some(self.root.file.clone());
+                    ui.close_menu();
+                }
+                if ui.button("New Folder").clicked() {
+                    r.inner.new_folder_modal = Some(self.root.file.clone());
+                    ui.close_menu();
+                }
+            });
+      
         if self.state.is_dragging() {
             if ui.input(|i| i.pointer.any_released()) {
                 let maybe_pos = ui.ctx().pointer_interact_pos();
                 self.state.dropped(maybe_pos);
             } else {
                 self.draw_drag_info_by_cursor(ui);
+
             }
         } else if is_hovered && ui.input(|i| i.pointer.primary_down()) {
             // todo(steve): prep drag only if a file is clicked
