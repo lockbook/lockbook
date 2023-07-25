@@ -172,7 +172,9 @@ impl Default for Editor {
 
 impl Editor {
     pub fn draw(&mut self, ctx: &Context) -> EditorResponse {
+        let fill = if ctx.style().visuals.dark_mode { Color32::BLACK } else { Color32::WHITE };
         egui::CentralPanel::default()
+            .frame(egui::Frame::default().fill(fill))
             .show(ctx, |ui| self.scroll_ui(ui))
             .inner
     }
@@ -223,15 +225,11 @@ impl Editor {
                     }
                 });
 
-                let fill = if ui.style().visuals.dark_mode {
-                    Color32::from_rgb(18, 18, 18)
-                } else {
-                    Color32::WHITE
-                };
+                let fill =
+                    if ui.style().visuals.dark_mode { Color32::BLACK } else { Color32::WHITE };
 
                 Frame::default()
                     .fill(fill)
-                    // .outer_margin(egui::Margin::symmetric(7.0, 0.0))
                     .inner_margin(egui::Margin::symmetric(7.0, 15.0))
                     .show(ui, |ui| ui.vertical_centered(|ui| self.ui(ui, id, touch_mode, &events)))
             });
@@ -260,7 +258,7 @@ impl Editor {
         // update theme
         let theme_updated = self.appearance.set_theme(ui.visuals());
 
-        // clip elements width
+        //clip elements width
         let max_width = 800.0;
         if ui.max_rect().width() > max_width {
             ui.set_max_width(max_width);
