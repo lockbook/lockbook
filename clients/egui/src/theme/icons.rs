@@ -38,6 +38,8 @@ impl Icon {
     pub const GROUP: Self = ic("\u{e7ef}"); // Group
     pub const HIGHLIGHT_OFF: Self = ic("\u{e888}"); // Highlight Off
     pub const HEADER_1: Self = ic("\u{e262}"); // Header 11
+    pub const HIDE_SIDEBAR: Self = ic("\u{e317}"); // Keyboard tab
+    pub const SHOW_SIDEBAR: Self = ic("\u{e31c}");
     pub const IMAGE: Self = ic("\u{e3f4}"); // Image
     pub const INFO: Self = ic("\u{e88e}");
     pub const ITALIC: Self = ic("\u{e23f}");
