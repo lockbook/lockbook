@@ -79,14 +79,14 @@ impl super::AccountScreen {
                         ui.horizontal(|ui| {
                             ui.columns(2, |uis| {
                                 uis[0].horizontal(|ui| {
-                                    ui.add_space(10.0);
+                                    ui.add_space(2.0);
                                     ui.label(&usage.used);
                                 });
 
                                 uis[1].with_layout(
                                     egui::Layout::right_to_left(egui::Align::Min),
                                     |ui| {
-                                        ui.add_space(15.0);
+                                        ui.add_space(5.0);
                                         ui.label(&usage.available);
                                     },
                                 );
@@ -110,40 +110,49 @@ impl super::AccountScreen {
             ui.add_space(10.0);
         }
 
-        let desired_size = egui::vec2(ui.available_size_before_wrap().x, 40.0);
+        let desired_size = egui::vec2(ui.available_size_before_wrap().x, 35.0);
         ui.allocate_ui_with_layout(
             desired_size,
             egui::Layout::left_to_right(egui::Align::Center),
             |ui| {
-                ui.add_space(6.0);
+                ui.add_space(5.0);
+
+                ui.visuals_mut().widgets.inactive.fg_stroke =
+                    egui::Stroke { color: ui.visuals().hyperlink_color, ..Default::default() };
+
+                ui.visuals_mut().widgets.hovered.fg_stroke =
+                    egui::Stroke { color: ui.visuals().hyperlink_color, ..Default::default() };
+
+                ui.visuals_mut().widgets.active.fg_stroke =
+                    egui::Stroke { color: ui.visuals().hyperlink_color, ..Default::default() };
+
+                if Button::default()
+                    .text("Sync")
+                    .padding((6.0, 6.0))
+                    .show(ui)
+                    .clicked()
+                {
+                    self.perform_sync(ui.ctx());
+                }
 
                 match &self.sync.phase {
-                    SyncPhase::IdleGood => Icon::CHECK_CIRCLE.show(ui),
-                    SyncPhase::Syncing => ui.spinner(),
-                    SyncPhase::IdleError => Icon::CANCEL.show(ui),
-                };
-
-                ui.add_space(6.0);
-
-                match &self.sync.status {
-                    Ok(s) => ui.label(&format!("Synced {s}")),
-                    Err(msg) => ui.label(egui::RichText::new(msg).color(egui::Color32::RED)),
+                    SyncPhase::IdleGood => (),
+                    SyncPhase::Syncing => {
+                        ui.spinner();
+                    }
+                    SyncPhase::IdleError => {
+                        Icon::CANCEL.show(ui);
+                    }
                 };
 
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    ui.add_space(7.0);
-
-                    if Button::default()
-                        .icon(&Icon::SYNC)
-                        .frame(true)
-                        .stroke((1.25, ui.visuals().extreme_bg_color))
-                        .rounding(egui::Rounding::same(3.0))
-                        .padding((6.0, 6.0))
-                        .show(ui)
-                        .clicked()
-                    {
-                        self.perform_sync(ui.ctx());
-                    }
+                    ui.add_space(10.0);
+                    match &self.sync.status {
+                        Ok(s) => ui.label(
+                            egui::RichText::new(format!("Updated {s}")).color(egui::Color32::GRAY),
+                        ),
+                        Err(msg) => ui.label(egui::RichText::new(msg).color(egui::Color32::RED)),
+                    };
                 });
             },
         );

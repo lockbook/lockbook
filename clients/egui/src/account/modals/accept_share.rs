@@ -52,7 +52,7 @@ impl super::Modal for AcceptShareModal {
             ui.with_layout(egui::Layout::top_down(egui::Align::Center), |ui| {
                 Icon::EMPTY_INBOX.size(60.0).show(ui);
                 ui.add_space(20.0);
-                ui.heading("You have No incoming shares");
+                ui.heading("You have no incoming shares");
                 ui.label(
                     egui::RichText::new("Your friends can share their notes with you here")
                         .size(15.0)
