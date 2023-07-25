@@ -258,7 +258,7 @@ impl Editor {
         // update theme
         let theme_updated = self.appearance.set_theme(ui.visuals());
 
-        //clip elements width
+        // clip elements width
         let max_width = 800.0;
         if ui.max_rect().width() > max_width {
             ui.set_max_width(max_width);
