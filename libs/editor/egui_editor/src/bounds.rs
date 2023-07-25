@@ -234,7 +234,7 @@ impl DocCharOffset {
                 range_after.map(|range_after| ranges[range_after])
             }
         } else {
-            match self.bound_case(ranges, backwards, jump) {
+            match self.bound_case(ranges) {
                 BoundCase::NoRanges => None,
                 BoundCase::AtFirstRangeStart { first_range, .. } => {
                     if backwards && jump {
@@ -279,7 +279,7 @@ impl DocCharOffset {
     /// `jump` is true, advancing beyond the first or last character in the doc will return None, otherwise it will
     /// return the first or last character in the doc.
     fn char_bound(self, backwards: bool, jump: bool, bounds: &Bounds) -> Option<(Self, Self)> {
-        match self.bound_case(&bounds.paragraphs, backwards, jump) {
+        match self.bound_case(&bounds.paragraphs) {
             BoundCase::NoRanges => None,
             BoundCase::AtFirstRangeStart {
                 first_range: first_paragraph,
@@ -361,9 +361,7 @@ impl DocCharOffset {
         }
     }
 
-    fn bound_case(
-        self, ranges: &[(DocCharOffset, DocCharOffset)], backwards: bool, jump: bool,
-    ) -> BoundCase {
+    fn bound_case(self, ranges: &[(DocCharOffset, DocCharOffset)]) -> BoundCase {
         let range_before = Bounds::range_before(ranges, self);
         let range_after = Bounds::range_after(ranges, self);
         match (range_before, range_after) {
@@ -374,7 +372,7 @@ impl DocCharOffset {
                 let range_after = ranges[range_after];
                 if self < first_range.start() {
                     // a cursor before the first range is considered at the start of the first range
-                    first_range.start().bound_case(ranges, backwards, jump)
+                    first_range.start().bound_case(ranges)
                 } else {
                     // self == first_range.start() because otherwise we'd have a range before
                     BoundCase::AtFirstRangeStart { first_range, range_after }
@@ -386,7 +384,7 @@ impl DocCharOffset {
                 let range_before = ranges[range_before];
                 if self > last_range.end() {
                     // a cursor after the last range is considered at the end of the last range
-                    last_range.end().bound_case(ranges, backwards, jump)
+                    last_range.end().bound_case(ranges)
                 } else {
                     // self == last_range.end() because otherwise we'd have a range after
                     BoundCase::AtLastRangeEnd { last_range, range_before }
