@@ -47,7 +47,7 @@ impl FileTree {
     pub fn show(&mut self, ui: &mut egui::Ui) -> NodeResponse {
         ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
         let mut is_hovered = false;
-        let r = egui::Frame::none().show(ui, |ui| {
+        let mut r = egui::Frame::none().show(ui, |ui| {
             let result = self.root.show(ui, &mut self.state);
             is_hovered = result.response.hovered();
             result.inner
