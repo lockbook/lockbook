@@ -239,7 +239,9 @@ impl<T: TreeLike> LazyTree<T> {
         let mut children = HashSet::new();
         for child in self.children(id)? {
             if let FileType::Link { target } = self.find(&child)?.file_type() {
-                children.insert(target);
+                if !self.calculate_deleted(&child)? {
+                    children.insert(target);
+                }
             } else {
                 children.insert(child);
             }

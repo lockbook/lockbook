@@ -751,6 +751,35 @@ fn delete_nonexistent_share() {
 }
 
 #[test]
+fn test_deleted_share() {
+    let cores: Vec<Core> = vec![test_core_with_account(), test_core_with_account()];
+    let accounts = cores
+        .iter()
+        .map(|core| core.get_account().unwrap())
+        .collect::<Vec<_>>();
+
+    let doc = cores[0].create_at_path("asrar.md").unwrap();
+    cores[0]
+        .share_file(doc.id, &accounts[1].username, ShareMode::Write)
+        .unwrap();
+
+    cores[0].sync(None).unwrap();
+    cores[1].sync(None).unwrap();
+
+    cores[1].create_link_at_path("/asrar.md", doc.id).unwrap();
+    cores[1].sync(None).unwrap();
+
+    cores[1].delete_pending_share(doc.id).unwrap();
+
+    cores[1].sync(None).unwrap();
+
+    let fresh = test_core_from(&cores[1]);
+    fresh.sync(None).unwrap();
+    let root = fresh.get_root().unwrap().id;
+    fresh.get_children(root).unwrap();
+}
+
+#[test]
 fn share_file_duplicate_original_deleted() {
     let core = test_core_with_account();
     let sharee_core = test_core_with_account();
