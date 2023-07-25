@@ -38,7 +38,7 @@ impl<'a> ClickChecker for &'a EditorClickChecker<'a> {
                 // galleys stretch across the screen, so we need to check if we're to the right of the text
                 let offset =
                     mutation::pos_to_char_offset(pos, self.galleys, &self.buffer.current.segs);
-                let line_end_offset = offset.advance_to_bound(Bound::Line, false, &self.bounds);
+                let line_end_offset = offset.advance_to_bound(Bound::Line, false, self.bounds);
                 let (_, egui_cursor) = self
                     .galleys
                     .galley_and_cursor_by_char_offset(line_end_offset);

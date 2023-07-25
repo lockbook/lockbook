@@ -418,7 +418,7 @@ impl DocCharOffset {
             } else {
                 range.end()
             }
-        } else if bounds.paragraphs.len() > 0 {
+        } else if !bounds.paragraphs.is_empty() {
             if backwards {
                 bounds.paragraphs[0].start()
             } else {
