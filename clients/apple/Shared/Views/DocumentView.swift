@@ -134,10 +134,18 @@ extension View {
                 Button(action: {
                     exportFileAndShowShareSheet(meta: meta)
                 }, label: {
-                    Label("Export", systemImage: "square.and.arrow.up.fill")
+                    Label("Share externally to...", systemImage: "person.wave.2.fill")
                 })
                 .foregroundColor(.blue)
-                .padding(.horizontal, 10)
+                .padding(.trailing, 10)
+
+                Button(action: {
+                    DI.sheets.sharingFileInfo = meta
+                }, label: {
+                    Label("Share", systemImage: "square.and.arrow.up.fill")
+                })
+                .foregroundColor(.blue)
+                .padding(.trailing, 10)
             }
         }
     }
@@ -351,7 +359,7 @@ struct DocumentTitle: View {
                 
         self._name = State(initialValue: openDocName == openDocNameWithoutExt ? "" : openDocNameWithoutExt)
         
-        if self.justCreatedDoc {
+        if self.justCreatedDoc && DI.currentDoc.openDocuments[id]!.isiPhone == false {
             DI.currentDoc.justCreatedDoc = nil
         }
         

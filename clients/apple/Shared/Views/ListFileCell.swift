@@ -16,11 +16,13 @@ struct FileCell: View {
                 }) {
                     Label("Delete", systemImage: "trash.fill")
                 }
+                
                 Button(action: {
                     DI.sheets.movingInfo = meta
                 }, label: {
                     Label("Move", systemImage: "arrow.up.and.down.and.arrow.left.and.right")
                 })
+                
                 Button(action: {
                     DI.sheets.sharingFileInfo = meta
                 }, label: {
@@ -30,7 +32,7 @@ struct FileCell: View {
                 Button(action: {
                     exportFileAndShowShareSheet(meta: meta)
                 }, label: {
-                    Label("Export", systemImage: "square.and.arrow.up")
+                    Label("Share externally to...", systemImage: "square.and.arrow.up")
                 })
             })
     }

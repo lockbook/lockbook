@@ -42,12 +42,17 @@ struct OutlineContextMenu: View {
                 Button(action: { sheets.movingInfo = meta }) {
                     Label("Move", systemImage: "arrow.up.and.down.and.arrow.left.and.right")
                 }
+                
                 Button(action: { DI.files.deleteFile(id: meta.id) }) {
                     Label("Delete", systemImage: "trash.fill")
                 }
                 
+                Button(action: { DI.sheets.sharingFileInfo = meta }, label: {
+                    Label("Share", systemImage: "shareplay")
+                })
+                
                 Button(action: { exportFileAndShowShareSheet(meta: meta) }) {
-                    Label("Export", systemImage: "square.and.arrow.up")
+                    Label("Share externally to...", systemImage: "square.and.arrow.up")
                 }
             }
         }

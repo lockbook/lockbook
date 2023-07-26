@@ -40,6 +40,7 @@ class DocumentService: ObservableObject {
         isPendingSharesOpen = false
         
         if isiPhone {
+            justCreatedDoc = nil
             openDocuments.removeAll()
         }
     }

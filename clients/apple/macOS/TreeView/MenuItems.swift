@@ -95,7 +95,7 @@ class ShareTo: NSMenuItem {
     init(file: File, fileTree: NSOutlineView) {
         self.file = file
         self.fileTree = fileTree
-        super.init(title: "Export file", action: #selector(create(_:)), keyEquivalent: "")
+        super.init(title: "Share to...", action: #selector(create(_:)), keyEquivalent: "")
         target = self
     }
 

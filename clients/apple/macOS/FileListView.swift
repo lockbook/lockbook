@@ -115,7 +115,8 @@ struct DetailView: View {
         .toolbar {
             ToolbarItemGroup {
                 if let id = currentSelection.selectedDoc,
-                   let meta = DI.files.idsAndFiles[id] {
+                   let meta = DI.files.idsAndFiles[id],
+                   !currentSelection.isPendingSharesOpen {
                     
                     let view = MacOSShareSpaceHolder()
                     
@@ -125,18 +126,27 @@ struct DetailView: View {
                         Button(action: {
                             view.view.exportFileAndShowShareSheet(meta: meta)
                         }, label: {
-                            Label("Export", systemImage: "square.and.arrow.up.fill")
+                            Label("Share externally to...", systemImage: "person.wave.2.fill")
                                 .imageScale(.large)
                         })
                         .foregroundColor(.blue)
-                        .padding(.horizontal, 10)
+                        .padding(.trailing, 10)
                     }
+                    
+                    Button(action: {
+                        DI.sheets.sharingFileInfo = meta
+                    }, label: {
+                        Label("Share", systemImage: "square.and.arrow.up.fill")
+                            .imageScale(.large)
+                    })
+                    .foregroundColor(.blue)
+                    .padding(.trailing, 5)
                 }
                 
                 Button(action: {
                     currentSelection.isPendingSharesOpen = true
                 }) {
-                    pendingShareToolbarIcon(isiOS: false, isPendingSharesEmpty: share.pendingShares.isEmpty)
+                    pendingShareToolbarIcon(isPendingSharesEmpty: share.pendingShares.isEmpty)
                         .imageScale(.large)
                 }
             }
