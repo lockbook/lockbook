@@ -95,7 +95,7 @@ impl Default for EditorResponse {
             cursor_in_inline_code: false,
 
             #[cfg(any(target_os = "ios", target_os = "macos"))]
-            opened_url: ptr::null()
+            opened_url: ptr::null(),
         }
     }
 }
@@ -380,11 +380,9 @@ impl Editor {
         {
             result.opened_url = match &self.maybe_opened_url {
                 None => ptr::null(),
-                Some(url) => {
-                    CString::new(url.to_string())
-                        .expect("Could not Rust String -> C String")
-                        .into_raw() as *const c_char
-                }
+                Some(url) => CString::new(url.to_string())
+                    .expect("Could not Rust String -> C String")
+                    .into_raw() as *const c_char,
             };
         }
 
