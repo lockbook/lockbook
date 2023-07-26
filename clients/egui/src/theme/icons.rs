@@ -2,6 +2,7 @@ use eframe::egui;
 
 pub const MATERIAL_ICON_FONT: &[u8] = include_bytes!("../../material-icons-outlined-regular.otf");
 
+#[derive(Clone, PartialEq)]
 pub struct Icon {
     pub has_badge: bool,
     icon: &'static str,
@@ -17,6 +18,7 @@ const fn ic(c: &'static str) -> Icon {
 impl Icon {
     pub const ACCOUNT: Self = ic("\u{e7ff}"); // Person Outline
     pub const ARROW_CIRCLE_DOWN: Self = ic("\u{f181}"); // Arrow Circle Down
+    pub const BOLD: Self = ic("\u{e238}"); // Bold Text
     pub const CHECK_CIRCLE: Self = ic("\u{e86c}"); // Check Circle
     pub const CANCEL: Self = ic("\u{e5c9}"); // Cancel
     pub const CANCEL_PRESENTATION: Self = ic("\u{e0e9}"); // Cancel Presentation
@@ -29,17 +31,21 @@ impl Icon {
     pub const DONE: Self = ic("\u{e876}"); // Done
     pub const DRAW: Self = ic("\u{e746}"); // Draw
     pub const EDIT: Self = ic("\u{e254}"); // Mode Edit
+    pub const EMPTY_INBOX: Self = ic("\u{f07e}"); // Upcoming
     pub const DELETE: Self = ic("\u{e872}"); // Delete
     pub const FOLDER: Self = ic("\u{e2c7}"); // Folder
     pub const FOLDER_OPEN: Self = ic("\u{e2c8}"); // Folder Open
     pub const GROUP: Self = ic("\u{e7ef}"); // Group
     pub const HISTORY: Self = ic("\u{e889}"); // History
     pub const HIGHLIGHT_OFF: Self = ic("\u{e888}"); // Highlight Off
+    pub const HEADER_1: Self = ic("\u{e262}"); // Header 11
     pub const HIDE_SIDEBAR: Self = ic("\u{e317}"); // Keyboard tab
     pub const SHOW_SIDEBAR: Self = ic("\u{e31c}");
     pub const IMAGE: Self = ic("\u{e3f4}"); // Image
     pub const INFO: Self = ic("\u{e88e}");
+    pub const ITALIC: Self = ic("\u{e23f}");
     pub const MONEY: Self = ic("\u{e263}"); // Monetization On
+    pub const NUMBER_LIST: Self = ic("\u{e242}"); // Number List
     pub const PLACE_ITEM: Self = ic("\u{f1f0}"); // Place Item
     pub const PREVIEW: Self = ic("\u{f1c5}"); // Preview
     pub const SETTINGS: Self = ic("\u{e8b8}"); // Settings
@@ -49,13 +55,13 @@ impl Icon {
     pub const SHARED_FOLDER: Self = ic("\u{e2c9}"); // Shared Folder
     pub const SYNC_DISABLED: Self = ic("\u{e628}"); // Sync Disabled
     pub const SYNC_PROBLEM: Self = ic("\u{e629}"); // Sync Problem
-    pub const EMPTY_INBOX: Self = ic("\u{f07e}"); // Upcoming
+    pub const TODO_LIST: Self = ic("\u{e6b3}"); // Todo List
     pub const THUMBS_UP: Self = ic("\u{e8dc}"); // Thumbs Up
     pub const VERTICAL_SPLIT: Self = ic("\u{e949}"); // Vertical Split
     pub const VIDEO_LABEL: Self = ic("\u{e071}"); // Video Label
     pub const VISIBILITY_ON: Self = ic("\u{e8f4}"); // Visibility On
+    pub const VISIBILITY_OFF: Self = ic("\u{e8f5}"); // Visibility Off
 
-    // e0e9
     //pub const ARTICLE: Self = ic("\u{ef42}");
     //pub const COMMAND_KEY: Self = Self('\u{eae7}');
     //pub const SWAP_HORIZONTAL: Self = Self('\u{e933}'); // Swap Horizontal Circle
@@ -63,7 +69,6 @@ impl Icon {
     //pub const FIND_REPLACE: Self = ic("\u{e881}"); // Find Replace
     //pub const SHIELD: Self = Self("\u{e8e8}");
     //pub const SHIELD_OFF: Self = Self("\u{e9d4}");
-    //pub const VISIBILITY_OFF: Self = Self("\u{e8f5}");
     //pub const WARNING: Self = Self("\u{e002}");
     //pub const RECTANGLE: Self = ic("\u{eb54}"); // Rectangle
     //pub const PALETTE: Self = ic("\u{e40a}"); // Palette
