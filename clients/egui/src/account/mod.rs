@@ -1,5 +1,6 @@
 mod background;
 mod modals;
+mod suggested_docs;
 mod syncing;
 mod tabs;
 mod tree;
@@ -20,6 +21,8 @@ use crate::widgets::{separator, Button};
 
 use self::background::*;
 use self::modals::*;
+
+use self::suggested_docs::SuggestedDocs;
 use self::syncing::{SyncPanel, SyncUpdate};
 use self::tabs::{Drawing, ImageViewer, Markdown, PlainText, Tab, TabContent, TabFailure};
 use self::tree::{FileTree, TreeNode};
@@ -36,6 +39,7 @@ pub struct AccountScreen {
     background_tx: mpsc::Sender<BackgroundEvent>,
 
     tree: FileTree,
+    suggested: SuggestedDocs,
     sync: SyncPanel,
     usage: Result<Usage, String>,
     workspace: Workspace,
@@ -51,6 +55,7 @@ impl AccountScreen {
         let (update_tx, update_rx) = mpsc::channel();
 
         let AccountScreenInitData { sync_status, files, usage } = acct_data;
+        let core_clone = core.clone();
 
         let background = BackgroundWorker::new(ctx, &update_tx);
         let background_tx = background.spawn_worker();
@@ -62,6 +67,7 @@ impl AccountScreen {
             update_rx,
             background_tx,
             tree: FileTree::new(files),
+            suggested: SuggestedDocs::new(&core_clone),
             sync: SyncPanel::new(sync_status),
             usage,
             workspace: Workspace::new(),
@@ -116,7 +122,13 @@ impl AccountScreen {
 
                         self.show_nav_panel(ui);
 
-                        self.show_tree(ui);
+                        ui.vertical(|ui| {
+                            if let Some(file) = self.suggested.show(ui) {
+                                self.open_file(file, ctx);
+                            }
+                            ui.add_space(20.0);
+                            self.show_tree(ui);
+                        })
                     });
                 })
                 .response
@@ -230,6 +242,8 @@ impl AccountScreen {
                             frame.set_window_title(&tab.name);
                         }
                     }
+                    self.suggested.recalc_and_redraw(ctx, &self.core);
+
                     // If any of this file's children are open, we need to update their restore
                     // paths in case a sync deletes them.
                     for tab in &mut self.workspace.tabs {
@@ -238,8 +252,14 @@ impl AccountScreen {
                         }
                     }
                 }
-                AccountUpdate::FileDeleted(f) => self.tree.remove(&f),
-                AccountUpdate::SyncUpdate(update) => self.process_sync_update(ctx, update),
+                AccountUpdate::FileDeleted(f) => {
+                    self.tree.remove(&f);
+                    self.suggested.recalc_and_redraw(ctx, &self.core);
+                }
+                AccountUpdate::SyncUpdate(update) => {
+                    self.process_sync_update(ctx, update);
+                    self.suggested.recalc_and_redraw(ctx, &self.core);
+                }
                 AccountUpdate::DoneDeleting => self.modals.confirm_delete = None,
                 AccountUpdate::ReloadTree(root) => self.tree.root = root,
                 AccountUpdate::ReloadTab(id, res) => {

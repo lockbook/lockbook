@@ -15,7 +15,7 @@ impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {
         let mut scores = self.db.doc_events.get().iter().get_activity_metrics();
         self.normalize(&mut scores);
 
-        scores.sort_by_key(|b| cmp::Reverse(b.score(settings)));
+        scores.sort_unstable_by_key(|b| cmp::Reverse(b.score(settings)));
 
         Ok(scores.iter().map(|f| f.id).collect())
     }

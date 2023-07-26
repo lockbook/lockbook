@@ -106,6 +106,9 @@ impl SplashScreen {
                     .map(|metrics| metrics.into())
                     .map_err(|err| format!("{:?}", err));
 
+                tx.send(SplashUpdate::Status("Calculating suggested documents...".to_string()))
+                    .unwrap();
+
                 let acct_data = AccountScreenInitData { sync_status, files, usage };
 
                 tx.send(SplashUpdate::Done((core, Some(acct_data))))

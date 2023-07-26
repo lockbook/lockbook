@@ -45,52 +45,49 @@ impl FileTree {
     }
 
     pub fn show(&mut self, ui: &mut egui::Ui) -> NodeResponse {
-        ui.vertical(|ui| {
-            ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
-            let mut is_hovered = false;
-            let mut r = egui::Frame::none().show(ui, |ui| {
-                let result = self.root.show(ui, &mut self.state);
-                is_hovered = result.response.hovered();
-                result.inner
-            });
+        ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
+        let mut is_hovered = false;
+        let mut r = egui::Frame::none().show(ui, |ui| {
+            let result = self.root.show(ui, &mut self.state);
+            is_hovered = result.response.hovered();
+            result.inner
+        });
 
-            let empty_space_res = ui.interact(
-                ui.available_rect_before_wrap(),
-                egui::Id::from("tree-empty-space"),
-                egui::Sense::click(),
-            );
+        let empty_space_res = ui.interact(
+            ui.available_rect_before_wrap(),
+            egui::Id::from("tree-empty-space"),
+            egui::Sense::click(),
+        );
 
-            empty_space_res.context_menu(|ui| {
-                ui.spacing_mut().button_padding = egui::vec2(4.0, 4.0);
+        empty_space_res.context_menu(|ui| {
+            ui.spacing_mut().button_padding = egui::vec2(4.0, 4.0);
 
-                if ui.button("New Document").clicked() {
-                    r.inner.new_doc_modal = Some(self.root.file.clone());
-                    ui.close_menu();
-                }
-                if ui.button("New Folder").clicked() {
-                    r.inner.new_folder_modal = Some(self.root.file.clone());
-                    ui.close_menu();
-                }
-            });
-
-            if self.state.is_dragging() {
-                if ui.input(|i| i.pointer.any_released()) {
-                    let maybe_pos = ui.ctx().pointer_interact_pos();
-                    self.state.dropped(maybe_pos);
-                } else {
-                    self.draw_drag_info_by_cursor(ui);
-                }
-            } else if is_hovered && ui.input(|i| i.pointer.primary_down()) {
-                // todo(steve): prep drag only if a file is clicked
-                self.state.dnd.is_primary_down = true;
-                if ui.input(|i| i.pointer.is_moving()) {
-                    self.state.dnd.has_moved = true;
-                }
+            if ui.button("New Document").clicked() {
+                r.inner.new_doc_modal = Some(self.root.file.clone());
+                ui.close_menu();
             }
+            if ui.button("New Folder").clicked() {
+                r.inner.new_folder_modal = Some(self.root.file.clone());
+                ui.close_menu();
+            }
+        });
 
-            r.inner
-        })
-        .inner
+        if self.state.is_dragging() {
+            if ui.input(|i| i.pointer.any_released()) {
+                let maybe_pos = ui.ctx().pointer_interact_pos();
+                self.state.dropped(maybe_pos);
+            } else {
+                self.draw_drag_info_by_cursor(ui);
+            }
+        } else if is_hovered && ui.input(|i| i.pointer.primary_down()) {
+            // todo(steve): prep drag only if a file is clicked
+            self.state.dnd.is_primary_down = true;
+            if ui.input(|i| i.pointer.is_moving()) {
+                self.state.dnd.has_moved = true;
+            }
+        }
+        ui.expand_to_include_rect(ui.available_rect_before_wrap());
+        r.inner
     }
 
     fn draw_drag_info_by_cursor(&mut self, ui: &mut egui::Ui) {
