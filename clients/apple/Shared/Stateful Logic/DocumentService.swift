@@ -27,10 +27,6 @@ class DocumentService: ObservableObject {
     
     func openDoc(id: UUID, isiPhone: Bool = false) {
         if openDocuments[id] == nil {
-//            if DI.files.idsAndFiles.isEmpty {
-//                DI.files.refreshSync()
-//            }
-            
             openDocuments[id] = DocumentLoadingInfo(DI.files.idsAndFiles[id]!, isiPhone)
         }
     }
@@ -41,10 +37,16 @@ class DocumentService: ObservableObject {
         return openDocuments[id]!
     }
     
-    func cleanupOldDocs(_ isiPhone: Bool = false) {
+    func cleanupOldDocs(_ isiPhone: Bool = false, _ oldId: UUID? = nil) {
+        print("clearing docs")
         isPendingSharesOpen = false
-        
-        if isiPhone {
+        selectedDoc = nil
+
+        if let id = oldId,
+           openDocuments[id]?.dismissForLink == true {
+            openDocuments[id] = nil
+        } else if isiPhone {
+            justOpenedLink = nil
             openDocuments.removeAll()
         }
     }
@@ -182,6 +184,8 @@ class DocumentLoadingInfo: ObservableObject {
     
     @Published var drawing: PKDrawing? = nil
     @Published var image: Image? = .none
+    
+    @Published var dismissForLink: Bool = false
     
     var timeCreated = Date()
 

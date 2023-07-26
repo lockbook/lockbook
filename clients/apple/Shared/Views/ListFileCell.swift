@@ -16,16 +16,26 @@ struct FileCell: View {
                 }) {
                     Label("Delete", systemImage: "trash.fill")
                 }
+                
                 Button(action: {
                     DI.sheets.movingInfo = meta
                 }, label: {
                     Label("Move", systemImage: "arrow.up.and.down.and.arrow.left.and.right")
                 })
+                
                 Button(action: {
                     DI.sheets.sharingFileInfo = meta
                 }, label: {
                     Label("Share", systemImage: "shareplay")
                 })
+                
+                if meta.fileType == .Document {
+                    Button(action: {
+                        DI.files.copyFileLink(meta: meta)
+                    }) {
+                        Label("Copy file link", systemImage: "link")
+                    }
+                }
             })
     }
 

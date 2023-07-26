@@ -36,6 +36,12 @@ struct OutlineContextMenu: View {
                 }) {
                     Label("Create a folder", systemImage: "folder")
                 }
+            } else {
+                Button(action: {
+                    DI.files.copyFileLink(meta: meta)
+                }) {
+                    Label("Copy file link", systemImage: "link")
+                }
             }
             
             if !meta.isRoot {

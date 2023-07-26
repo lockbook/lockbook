@@ -142,9 +142,8 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
             
             if let url = URL(string: openedURL),
                 UIApplication.shared.canOpenURL(url) {
-                print("opening link swift side: \(UIApplication.shared.canOpenURL(url)) | \(openedURL)");
                 
-                UIApplication.shared.open(url, options: [:], completionHandler: nil)
+                UIApplication.shared.open(url)
             }
         }
         

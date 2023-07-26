@@ -9,7 +9,7 @@ struct iOSDocumentViewWrapper: View {
     var body: some View {
         DocumentView(id: id, isiPhone: true)
             .onDisappear {
-                DI.currentDoc.cleanupOldDocs(true)
+                DI.currentDoc.cleanupOldDocs(true, id)
             }
     }
 }
@@ -27,6 +27,8 @@ struct DocumentView: View, Equatable {
     @EnvironmentObject var toolbar: ToolbarModel
 #endif
     
+    @Environment(\.dismiss) var dismiss
+    
     public init(id: UUID, isiPhone: Bool = false) {
         self.id = id
         self.model = DI.currentDoc.getDocInfoOrCreate(id: id, isiPhone: isiPhone)
@@ -40,8 +42,6 @@ struct DocumentView: View, Equatable {
                     
                     ProgressView()
                         .onAppear {
-                            
-//                            UIApplication.shared.open(URL(string: "lb://b2ce2f4a-7b9c-49ea-8e88-6b30047ec972")!)
                             model.startLoading()
                         }
                         .title(model.meta.name) // No exact matches in reference to static method 'buildExpression'
@@ -109,6 +109,9 @@ struct DocumentView: View, Equatable {
                 }
             }
         }
+        .onChange(of: model.dismissForLink, perform: { newValue in
+            dismiss()
+        })
         .onDisappear {
             DI.files.refresh()
         }

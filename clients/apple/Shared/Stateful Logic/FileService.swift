@@ -405,6 +405,15 @@ class FileService: ObservableObject {
             return nil
         }
     }
+    
+    public func copyFileLink(meta: File) {
+        #if os(iOS)
+            UIPasteboard.general.string = "lb://\(meta.id.uuidString)"
+        #else
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString("lb://\(meta.id.uuidString)", forType: .string)
+        #endif
+    }
 }
 
 public enum FileAction {
