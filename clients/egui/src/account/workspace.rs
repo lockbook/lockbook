@@ -1,27 +1,22 @@
 use std::time::Instant;
 
 use eframe::egui;
-use egui_extras::RetainedImage;
 
 use crate::widgets::separator;
 use crate::{theme::Icon, widgets::Button};
 
 use super::modals::ErrorModal;
+use super::OpenModal;
 use super::{tabs::SaveRequestContent, AccountUpdate, FileTree, Tab, TabContent, TabFailure};
 
 pub struct Workspace {
     pub tabs: Vec<Tab>,
     pub active_tab: usize,
-    pub backdrop: RetainedImage,
 }
 
 impl Workspace {
     pub fn new() -> Self {
-        Self {
-            tabs: Vec::new(),
-            active_tab: 0,
-            backdrop: RetainedImage::from_image_bytes("logo-backdrop", LOGO_BACKDROP).unwrap(),
-        }
+        Self { tabs: Vec::new(), active_tab: 0 }
     }
 
     pub fn open_tab(&mut self, id: lb::Uuid, name: &str, path: &str) {
@@ -179,15 +174,11 @@ impl super::AccountScreen {
     pub fn show_workspace(&mut self, frame: &mut eframe::Frame, ui: &mut egui::Ui) {
         ui.set_enabled(!self.is_any_modal_open());
 
-        ui.centered_and_justified(|ui| {
-            if self.workspace.is_empty() {
-                self.workspace
-                    .backdrop
-                    .show_size(ui, egui::vec2(360.0, 360.0));
-            } else {
-                self.show_tabs(frame, ui);
-            }
-        });
+        if self.workspace.is_empty() {
+            self.show_empty_workspace(ui);
+        } else {
+            ui.centered_and_justified(|ui| self.show_tabs(frame, ui));
+        }
 
         if self.settings.read().unwrap().zen_mode {
             let mut min = ui.clip_rect().left_bottom();
@@ -209,6 +200,27 @@ impl super::AccountScreen {
                 zen_mode_btn.on_hover_text("Show side panel");
             });
         }
+    }
+    fn show_empty_workspace(&mut self, ui: &mut egui::Ui) {
+        ui.with_layout(egui::Layout::top_down(egui::Align::Center), |ui| {
+            ui.add_space(ui.clip_rect().height() / 2.5);
+            ui.label(egui::RichText::new("Welcome to your Lockbook").size(30.0));
+            ui.label("You can access all your files in the left sidebar");
+
+            ui.add_space(20.0);
+
+            ui.visuals_mut().widgets.inactive.bg_fill = ui.visuals().widgets.active.bg_fill;
+            ui.visuals_mut().widgets.hovered.bg_fill = ui.visuals().widgets.active.bg_fill;
+            if Button::default()
+                .text("New document")
+                .frame(true)
+                .show(ui)
+                .clicked()
+            {
+                self.update_tx.send(OpenModal::NewDoc(None).into()).unwrap();
+                ui.ctx().request_repaint();
+            }
+        });
     }
 
     fn show_tabs(&mut self, frame: &mut eframe::Frame, ui: &mut egui::Ui) {
@@ -414,5 +426,3 @@ fn get_parents(core: &lb::Core, id: lb::Uuid) -> Result<Vec<lb::File>, String> {
     }
     Ok(parents)
 }
-
-const LOGO_BACKDROP: &[u8] = include_bytes!("../../lockbook-backdrop.png");
