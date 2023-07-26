@@ -10,7 +10,7 @@ use egui_extras::{Size, StripBuilder};
 
 use crate::settings::Settings;
 use crate::theme::Icon;
-use crate::widgets::separator;
+use crate::widgets::{separator, ToolBarVisibility};
 
 use self::account_tab::*;
 use self::usage_tab::*;
@@ -33,6 +33,7 @@ pub struct SettingsModal {
 
 pub enum SettingsResponse {
     SuccessfullyUpgraded,
+    ToggleToolbarVisibility(ToolBarVisibility),
 }
 
 impl SettingsModal {
@@ -178,7 +179,9 @@ impl super::Modal for SettingsModal {
                         SettingsTab::Usage => {
                             resp = self.show_usage_tab(ui);
                         }
-                        SettingsTab::Appearance => self.show_appearance_tab(ui),
+                        SettingsTab::Appearance => {
+                            resp = self.show_appearance_tab(ui);
+                        }
                         SettingsTab::General => self.show_general_tab(ui),
                     }
                 });
