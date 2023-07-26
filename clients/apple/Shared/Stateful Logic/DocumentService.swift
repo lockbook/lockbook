@@ -38,7 +38,6 @@ class DocumentService: ObservableObject {
     }
     
     func cleanupOldDocs(_ isiPhone: Bool = false, _ oldId: UUID? = nil) {
-        print("clearing docs")
         isPendingSharesOpen = false
         selectedDoc = nil
 

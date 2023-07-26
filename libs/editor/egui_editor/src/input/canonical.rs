@@ -235,8 +235,6 @@ pub fn calc(
         Event::PointerButton { pos, button: PointerButton::Primary, pressed: true, modifiers }
             if click_checker.ui(*pos) =>
         {
-            println!("click (press) detected!");
-
             if let Some(galley_idx) = click_checker.checkbox(*pos) {
                 Some(Modification::ToggleCheckbox(galley_idx))
             } else if modifiers.command {
@@ -280,8 +278,6 @@ pub fn calc(
         Event::PointerButton { pos, button: PointerButton::Primary, pressed: false, .. }
             if click_checker.ui(*pos) =>
         {
-            println!("click (non press) detected!");
-
             let click_type = pointer_state.click_type.unwrap_or_default();
             let click_pos = pointer_state.click_pos.unwrap_or_default();
             let click_mods = pointer_state.click_mods.unwrap_or_default();

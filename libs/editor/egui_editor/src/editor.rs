@@ -24,6 +24,7 @@ use crate::style::{BlockNode, InlineNode, ItemType, MarkdownNode};
 use crate::test_input::TEST_MARKDOWN;
 use crate::{ast, bounds, galleys, images, register_fonts};
 
+#[cfg(any(target_os = "ios", target_os = "macos"))]
 #[repr(C)]
 #[derive(Debug)]
 pub struct EditorResponse {
