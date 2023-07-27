@@ -14,7 +14,6 @@ use unicode_segmentation::UnicodeSegmentation;
 type Words = Vec<(DocCharOffset, DocCharOffset)>;
 type Lines = Vec<(DocCharOffset, DocCharOffset)>;
 type Paragraphs = Vec<(DocCharOffset, DocCharOffset)>;
-type RenderedText = Vec<(DocCharOffset, DocCharOffset)>;
 
 /// Represents bounds of various text regions in the buffer. Region bounds are inclusive on both sides. Regions do not
 /// overlap, have region.0 <= region.1, and are sorted. Character and doc regions are not stored explicitly but can be
@@ -24,8 +23,6 @@ pub struct Bounds {
     pub words: Words,
     pub lines: Lines,
     pub paragraphs: Paragraphs,
-
-    pub rendered_text: RenderedText,
 }
 
 pub fn calc_words(buffer: &SubBuffer, ast: &Ast, appearance: &Appearance) -> Words {
@@ -139,10 +136,6 @@ pub fn calc_paragraphs(buffer: &SubBuffer, ast: &Ast) -> Paragraphs {
     }
 
     result
-}
-
-pub fn calc_rendered_text() -> RenderedText {
-    todo!()
 }
 
 impl Bounds {
