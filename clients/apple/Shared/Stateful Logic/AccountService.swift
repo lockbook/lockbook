@@ -5,6 +5,7 @@ class AccountService: ObservableObject {
     let core: LockbookApi
     
     @Published var account: Account? = nil
+    var calculated = false
         
     init(_ core: LockbookApi) {
         self.core = core
@@ -22,6 +23,8 @@ class AccountService: ObservableObject {
                 DI.errors.handleError(error)
             }
         }
+        
+        calculated = true
     }
     
     func getAccount() {

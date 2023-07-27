@@ -39,20 +39,28 @@ struct OutlineContextMenu: View {
             }
             
             if !meta.isRoot {
-                Button(action: { sheets.movingInfo = meta }) {
-                    Label("Move", systemImage: "arrow.up.and.down.and.arrow.left.and.right")
-                }
-                
                 Button(action: { DI.files.deleteFile(id: meta.id) }) {
                     Label("Delete", systemImage: "trash.fill")
                 }
-                
-                Button(action: { DI.sheets.sharingFileInfo = meta }, label: {
-                    Label("Share", systemImage: "square.and.arrow.up.fill")
-                })
-                
+
+                Button(action: { sheets.movingInfo = meta }) {
+                    Label("Move", systemImage: "arrow.up.and.down.and.arrow.left.and.right")
+                }
+
+                Button(action: { DI.sheets.sharingFileInfo = meta}) {
+                    Label("Share", systemImage: "shareplay")
+                }
+
                 Button(action: { exportFileAndShowShareSheet(meta: meta) }) {
                     Label("Share externally to...", systemImage: "person.wave.2.fill")
+                }
+            }
+
+            if meta.fileType == .Document {
+                Button(action: {
+                    DI.files.copyFileLink(id: meta.id)
+                }) {
+                    Label("Copy file link", systemImage: "link")
                 }
             }
         }

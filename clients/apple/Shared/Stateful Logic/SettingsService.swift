@@ -83,37 +83,34 @@ class SettingsService: ObservableObject {
     }
     
     func calculateUsage() {
-        print("Recalculated usage...")
-        
-            DispatchQueue.global(qos: .userInteractive).async {
-                switch self.core.getUsage() {
-                case .success(let usages):
-                    switch self.core.getUncompressedUsage() {
-                    case .success(let uncompressedUsage):
-                        print("Recalculated usage with \(uncompressedUsage.exact)")
-                        DispatchQueue.main.async {
-                            self.usages = PrerequisiteInformation(serverUsages: usages, uncompressedUsage: uncompressedUsage)
-                        }
-                    case .failure(let err):
-                        // TODO handle an explicit offline mode here
-                        switch err.kind {
-                        case .UiError(let uiError):
-                            switch uiError {
-                            case .ClientUpdateRequired:
-                                DI.errors.errorWithTitle("Update Required", "You need to update to view your usage")
-                                self.offline = false
-                            case .CouldNotReachServer:
-                                self.offline = true
-                            }
-                        default:
-                            DI.errors.handleError(err)
-                        }
-                        DI.errors.handleError(err)
+        DispatchQueue.global(qos: .userInteractive).async {
+            switch self.core.getUsage() {
+            case .success(let usages):
+                switch self.core.getUncompressedUsage() {
+                case .success(let uncompressedUsage):
+                    DispatchQueue.main.async {
+                        self.usages = PrerequisiteInformation(serverUsages: usages, uncompressedUsage: uncompressedUsage)
                     }
                 case .failure(let err):
+                    // TODO handle an explicit offline mode here
+                    switch err.kind {
+                    case .UiError(let uiError):
+                        switch uiError {
+                        case .ClientUpdateRequired:
+                            DI.errors.errorWithTitle("Update Required", "You need to update to view your usage")
+                            self.offline = false
+                        case .CouldNotReachServer:
+                            self.offline = true
+                        }
+                    default:
+                        DI.errors.handleError(err)
+                    }
                     DI.errors.handleError(err)
                 }
+            case .failure(let err):
+                DI.errors.handleError(err)
             }
+        }
     }
     
     func accountCode() -> AnyView {

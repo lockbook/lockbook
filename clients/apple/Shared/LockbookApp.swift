@@ -7,15 +7,13 @@ import AppKit
 #endif
 
 @main struct LockbookApp: App {
-
     @Environment(\.scenePhase) private var scenePhase
     
     #if os(macOS)
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     #endif
-    
-    var body: some Scene {
         
+    var body: some Scene {
         WindowGroup {
             AppView()
                 .realDI()
@@ -28,6 +26,10 @@ import AppKit
                 .onForeground {
                     DI.sync.foregroundSync()
                 }
+                .onOpenURL() { url in
+                    onUrlOpen(url: url)
+                }
+                .handlesExternalEvents(preferring: ["lb"], allowing: ["lb"])
         }.commands {
             CommandGroup(replacing: CommandGroupPlacement.newItem) {
                 Button("New Doc", action: {
@@ -163,6 +165,12 @@ import AppKit
                         }
                 }.keyboardShortcut("f", modifiers: [.command, .shift])
                 #endif
+                
+                Button("Copy file link", action: {
+                    if let id = DI.currentDoc.selectedDoc {
+                        DI.files.copyFileLink(id: id)
+                    }
+                }).keyboardShortcut("L", modifiers: [.command, .shift])
             }
             SidebarCommands()
         }
@@ -173,6 +181,52 @@ import AppKit
         }
         
         #endif
+    }
+
+    func onUrlOpen(url: URL) {
+        DispatchQueue.global(qos: .userInitiated).async {
+            if url.scheme == "lb" {
+                if let uuidString = url.host,
+                   let id = UUID(uuidString: uuidString) {
+                    while true {
+                        if DI.accounts.account == nil && DI.accounts.calculated {
+                            return
+                        }
+                        
+                        if DI.files.root != nil {
+                            if let meta = DI.files.idsAndFiles[id] {
+                                Thread.sleep(until: .now + 0.1)
+                                DispatchQueue.main.sync {
+                                    var laterOpenForIphone = false
+                                    if let docInfo = DI.currentDoc.openDocuments.values.first,
+                                       docInfo.isiPhone {
+                                        print("dismissing for link")
+                                        docInfo.dismissForLink = meta
+                                        laterOpenForIphone.toggle()
+                                    }
+                                    
+                                    DI.currentDoc.cleanupOldDocs()
+                                    if !laterOpenForIphone {
+                                        DI.currentDoc.justOpenedLink = meta
+                                    }
+                                    
+                                    DI.currentDoc.openDoc(id: id)
+                                    DI.currentDoc.setSelectedOpenDocById(maybeId: id)
+                                }
+                            } else {
+                                DI.errors.errorWithTitle("File not found", "That file does not exist in your lockbook")
+                            }
+                            
+                            return
+                        }
+                    }
+                } else {
+                    DI.errors.errorWithTitle("Malformed link", "Cannot open file")
+                }
+            } else {
+                DI.errors.errorWithTitle("Error", "An unexpected error has occurred")
+            }
+        }
     }
 }
 

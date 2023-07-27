@@ -34,6 +34,14 @@ struct FileCell: View {
                 }, label: {
                     Label("Share externally to...", systemImage: "person.wave.2.fill")
                 })
+                
+                if meta.fileType == .Document {
+                    Button(action: {
+                        DI.files.copyFileLink(id: meta.id)
+                    }) {
+                        Label("Copy file link", systemImage: "link")
+                    }
+                }
             })
     }
 

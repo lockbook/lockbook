@@ -206,6 +206,15 @@ public class MacMTK: MTKView, MTKViewDelegate {
         } else {
             nameState?.potentialTitle = nil
         }
+        
+        if let openedURLSeq = output.editor_response.opened_url {
+            let openedURL = String(cString: openedURLSeq)
+            free_text(UnsafeMutablePointer(mutating: openedURLSeq))
+            
+            if let url = URL(string: openedURL) {
+                NSWorkspace.shared.open(url)
+            }
+        }
 
         view.isPaused = !output.redraw
         if has_copied_text(editorHandle) {
