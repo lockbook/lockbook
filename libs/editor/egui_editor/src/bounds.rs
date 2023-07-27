@@ -11,9 +11,10 @@ use std::collections::HashSet;
 use std::iter;
 use unicode_segmentation::UnicodeSegmentation;
 
-type Words = Vec<(DocCharOffset, DocCharOffset)>;
-type Lines = Vec<(DocCharOffset, DocCharOffset)>;
-type Paragraphs = Vec<(DocCharOffset, DocCharOffset)>;
+pub type Words = Vec<(DocCharOffset, DocCharOffset)>;
+pub type Lines = Vec<(DocCharOffset, DocCharOffset)>;
+pub type Paragraphs = Vec<(DocCharOffset, DocCharOffset)>;
+pub type Text = Vec<(DocCharOffset, DocCharOffset)>;
 
 /// Represents bounds of various text regions in the buffer. Region bounds are inclusive on both sides. Regions do not
 /// overlap, have region.0 <= region.1, and are sorted. Character and doc regions are not stored explicitly but can be
@@ -23,6 +24,9 @@ pub struct Bounds {
     pub words: Words,
     pub lines: Lines,
     pub paragraphs: Paragraphs,
+
+    /// Text consists of all rendered text. Every valid cursor position is in some possibly-empty text range.
+    pub text: Text,
 }
 
 pub fn calc_words(buffer: &SubBuffer, ast: &Ast, appearance: &Appearance) -> Words {
@@ -72,9 +76,10 @@ pub fn calc_lines(galleys: &Galleys, text: &Text) -> Lines {
             let start_cursor = galley
                 .galley
                 .from_rcursor(RCursor { row: row_idx, column: 0 });
-            let row_start = galleys.char_offset_by_galley_and_cursor(galley_idx, &start_cursor);
+            let row_start =
+                galleys.char_offset_by_galley_and_cursor(galley_idx, &start_cursor, text);
             let end_cursor = galley.galley.cursor_end_of_row(&start_cursor);
-            let row_end = galleys.char_offset_by_galley_and_cursor(galley_idx, &end_cursor);
+            let row_end = galleys.char_offset_by_galley_and_cursor(galley_idx, &end_cursor, text);
 
             let mut range = (row_start, row_end);
 
@@ -135,6 +140,20 @@ pub fn calc_paragraphs(buffer: &SubBuffer, ast: &Ast) -> Paragraphs {
         prev_char_offset = char_offset + 1 // skip the matched newline;
     }
 
+    result
+}
+
+pub fn calc_text(ast: &Ast, appearance: &Appearance) -> Text {
+    let mut result = vec![];
+    for text_range in ast.iter_text_ranges() {
+        if matches!(text_range.range_type, AstTextRangeType::Text)
+            || !appearance
+                .markdown_capture()
+                .contains(&text_range.node(ast).node_type())
+        {
+            result.push(text_range.range);
+        }
+    }
     result
 }
 
