@@ -68,3 +68,49 @@ class Share: NSMenuItem {
         DI.sheets.sharingFileInfo = file
     }
 }
+
+class ShareExternallyMenu: NSMenuItem {
+    let file: File
+    let fileTree: NSOutlineView
+    
+    init(file: File, fileTree: NSOutlineView) {
+        self.file = file
+        self.fileTree = fileTree
+        
+        super.init(title: "Share externally", action: nil, keyEquivalent: "")
+        
+        submenu = NSMenu(title: "Share externally")
+        submenu!.addItem(ShareTo(file: file, fileTree: fileTree))
+    }
+    
+    required init(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+}
+
+class ShareTo: NSMenuItem {
+    let file: File
+    let fileTree: NSOutlineView
+    
+    init(file: File, fileTree: NSOutlineView) {
+        self.file = file
+        self.fileTree = fileTree
+        super.init(title: "Share to...", action: #selector(create(_:)), keyEquivalent: "")
+        target = self
+    }
+
+    required init(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    @objc func create(_ sender: AnyObject) {
+        
+        if let dest = DI.importExport.exportFilesToTempDirSync(meta: file) {
+            let maybeFileRow = fileTree.rowView(atRow: fileTree.row(forItem: file), makeIfNecessary: false)
+            
+            if let fileRow = maybeFileRow {
+                NSSharingServicePicker(items: [dest]).show(relativeTo: .zero, of: fileRow, preferredEdge: .maxY)
+            }
+        }
+    }
+}

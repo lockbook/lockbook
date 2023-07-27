@@ -136,6 +136,10 @@ Vestibulum ante ipsum primis in vel.
         .failure(.init(unexpected: "LAZY"))
     }
     
+    public func exportDrawingToDisk(id: UUID, destination: String) ->FfiResult<Empty, ExportDrawingToDiskError> {
+        .failure(.init(unexpected: "LAZY"))
+    }
+    
     public func importFiles(sources: [String], destination: UUID) ->FfiResult<Empty, ImportFilesError> {
         .failure(.init(unexpected: "LAZY"))
     }

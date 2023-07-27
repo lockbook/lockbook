@@ -5,6 +5,8 @@ public struct CoreApi: LockbookApi {
     var documentsDirectory: String
     
     public init(_ documentsDirectory: String, logs: Bool) {
+        print(FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).map({ url in url.path }))
+        
         self.documentsDirectory = documentsDirectory
         print("Located at \(documentsDirectory)")
         print("core init result: \(startCore(logs))")
@@ -138,6 +140,10 @@ public struct CoreApi: LockbookApi {
 
     public func exportFile(id: UUID, destination: String) ->FfiResult<Empty, ExportFileError> {
         fromPrimitiveResult(result:  export_file(id.uuidString, destination))
+    }
+    
+    public func exportDrawingToDisk(id: UUID, destination: String) ->FfiResult<Empty, ExportDrawingToDiskError> {
+        fromPrimitiveResult(result:  export_drawing_to_disk(id.uuidString, destination))
     }
 
     public func importFiles(sources: [String], destination: UUID) ->FfiResult<Empty, ImportFilesError> {

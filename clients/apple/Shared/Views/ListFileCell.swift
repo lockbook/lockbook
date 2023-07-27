@@ -16,15 +16,23 @@ struct FileCell: View {
                 }) {
                     Label("Delete", systemImage: "trash.fill")
                 }
+                
                 Button(action: {
                     DI.sheets.movingInfo = meta
                 }, label: {
                     Label("Move", systemImage: "arrow.up.and.down.and.arrow.left.and.right")
                 })
+                
                 Button(action: {
                     DI.sheets.sharingFileInfo = meta
                 }, label: {
-                    Label("Share", systemImage: "shareplay")
+                    Label("Share", systemImage: "square.and.arrow.up.fill")
+                })
+                
+                Button(action: {
+                    exportFileAndShowShareSheet(meta: meta)
+                }, label: {
+                    Label("Share externally to...", systemImage: "person.wave.2.fill")
                 })
             })
     }

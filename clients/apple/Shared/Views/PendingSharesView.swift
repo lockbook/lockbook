@@ -6,7 +6,7 @@ struct PendingSharesView: View {
     
     @EnvironmentObject var sheets: SheetState
     @EnvironmentObject var share: ShareService
-        
+    
     var body: some View {
         if share.pendingShares.isEmpty {
             noPendingShares

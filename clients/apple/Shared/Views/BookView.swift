@@ -53,7 +53,7 @@ struct BookView: View {
                     ToolbarItemGroup {
                         NavigationLink(
                             destination: PendingSharesView()) {
-                                pendingShareToolbarIcon(isiOS: true, isPendingSharesEmpty: share.pendingShares.isEmpty)
+                                pendingShareToolbarIcon(isPendingSharesEmpty: share.pendingShares.isEmpty)
                             }
                         
                         NavigationLink(
@@ -103,11 +103,45 @@ extension View {
         self
         #endif
     }
+    
+    #if os(iOS)
+    func exportFileAndShowShareSheet(meta: File) {
+        DispatchQueue.global(qos: .userInitiated).async {
+            if let url = DI.importExport.exportFilesToTempDirSync(meta: meta) {
+                DispatchQueue.main.async {
+                    let activityVC = UIActivityViewController(activityItems: [url], applicationActivities: nil)
+                    
+                    if UIDevice.current.userInterfaceIdiom == .pad {
+                        let thisViewVC = UIHostingController(rootView: self)
+                        activityVC.popoverPresentationController?.sourceView = thisViewVC.view
+                    }
+                    
+                    UIApplication.shared.connectedScenes.flatMap {($0 as? UIWindowScene)?.windows ?? []}.first {$0.isKeyWindow}?.rootViewController?.present(activityVC, animated: true, completion: nil)
+                }
+            }
+        }
+    }
+    #endif
 }
 
+#if os(macOS)
+
+extension NSView {
+    func exportFileAndShowShareSheet(meta: File) {
+        DispatchQueue.global(qos: .userInitiated).async {
+            if let url = DI.importExport.exportFilesToTempDirSync(meta: meta) {
+                DispatchQueue.main.async {
+                    NSSharingServicePicker(items: [url]).show(relativeTo: .zero, of: self, preferredEdge: .minX)
+                }
+            }
+        }
+    }
+}
+#endif
+
 @ViewBuilder
-func pendingShareToolbarIcon(isiOS: Bool, isPendingSharesEmpty: Bool) -> some View {
-    if isiOS {
+func pendingShareToolbarIcon(isPendingSharesEmpty: Bool) -> some View {
+    #if os(iOS)
         ZStack {
             Image(systemName: "person.2.fill")
                 .foregroundColor(.blue)
@@ -119,7 +153,7 @@ func pendingShareToolbarIcon(isiOS: Bool, isPendingSharesEmpty: Bool) -> some Vi
                     .offset(x: 12, y: 5)
             }
         }
-    } else {
+    #else
         ZStack {
             Image(systemName: "person.2.fill")
                 .foregroundColor(.blue)
@@ -131,7 +165,7 @@ func pendingShareToolbarIcon(isiOS: Bool, isPendingSharesEmpty: Bool) -> some Vi
                     .offset(x: 7, y: 3)
             }
         }
-    }
+    #endif
 }
 
 struct BookView_Previews: PreviewProvider {
