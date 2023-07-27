@@ -217,7 +217,7 @@ impl Appearance {
     }
 
     pub fn markdown_capture(&self) -> HashSet<MarkdownNodeType> {
-        self.markdown_capture.clone().unwrap_or_else(plain_text)
+        self.markdown_capture.clone().unwrap_or_else(rich_text)
     }
 }
 
