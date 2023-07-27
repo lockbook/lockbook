@@ -11,7 +11,8 @@ class ShareService: ObservableObject {
     let core: LockbookApi
     
     @Published var pendingShares: [File] = []
-    @Published var shareInfos: [File : ShareInfo] = [:]
+    @Published var id: UUID? = nil
+    @Published var shareInfo: ShareInfo? = nil
     
     init(_ core: LockbookApi) {
         self.core = core
@@ -49,6 +50,7 @@ class ShareService: ObservableObject {
     func calculateShareInfo(id: UUID) {
         let maybeMeta = DI.files.idsAndFiles[id]
         
+        print("calculating share info for \(maybeMeta?.name) with \(maybeMeta?.shares.map({ share in share.sharedWith}))")
         if let meta = maybeMeta {
             var writeAccessUsers: [String] = []
             var readAccessUsers: [String] = []
@@ -62,7 +64,8 @@ class ShareService: ObservableObject {
                 }
             }
             
-            shareInfos[meta] = ShareInfo.init(writeAccessUsers: writeAccessUsers, readAccessUsers: readAccessUsers)
+            shareInfo = ShareInfo(writeAccessUsers: writeAccessUsers, readAccessUsers: readAccessUsers)
+            self.id = id
         }
     }
 }
