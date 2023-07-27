@@ -1,5 +1,5 @@
 use crate::offset_types::{DocCharOffset, RelCharOffset};
-use crate::style::{IndentLevel, ItemType, Title, Url};
+use crate::style::{IndentLevel, ListItem, Title, Url};
 use egui::text::LayoutJob;
 use egui::TextFormat;
 use pulldown_cmark::LinkType;
@@ -19,7 +19,7 @@ pub struct LayoutJobInfo {
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Annotation {
-    Item(ItemType, IndentLevel),
+    Item(ListItem, IndentLevel),
     Image(LinkType, Url, Title),
     Rule,
 }

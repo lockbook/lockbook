@@ -5,7 +5,7 @@ use crate::buffer::SubBuffer;
 use crate::images::ImageCache;
 use crate::layouts::{Annotation, LayoutJobInfo};
 use crate::offset_types::{DocCharOffset, RangeExt, RelCharOffset};
-use crate::style::{BlockNode, MarkdownNode, RenderStyle};
+use crate::style::{MarkdownNode, RenderStyle};
 use crate::Editor;
 use egui::epaint::text::cursor::Cursor;
 use egui::text::{CCursor, LayoutJob};
@@ -25,9 +25,10 @@ pub struct GalleyInfo {
     pub galley: Arc<Galley>,
     pub annotation: Option<Annotation>,
 
-    // is it better to store this information in Annotation?
+    // the head and tail size of a galley are always the head size of the first ast node and tail size of the last ast node
     pub head_size: RelCharOffset,
     pub tail_size: RelCharOffset,
+
     pub text_location: Pos2,
     pub galley_location: Rect,
     pub image: Option<ImageInfo>,
@@ -52,8 +53,11 @@ pub fn calc(
     let mut past_selection_start = false;
     let mut past_selection_end = false;
 
-    let mut head_size = Default::default();
-    let mut tail_size = Default::default();
+    // head_size = head size of first ast node if it has a captured head, otherwise zero
+    // tail_size = tail size of last ast_node if it has a captured tail, otherwise zero
+    let mut head_size: Option<RelCharOffset> = Default::default();
+    let mut tail_size: Option<RelCharOffset> = Default::default();
+
     let mut annotation: Option<Annotation> = Default::default();
     let mut annotation_text_format = Default::default();
     let mut layout: LayoutJob = Default::default();
@@ -134,49 +138,60 @@ pub fn calc(
                 // only the first portion of a head text range gets that range's annotation
                 if text_range.range_type == AstTextRangeType::Head
                     && text_range.range.0 == text_range_portion.range.0
+                    && appearance
+                        .markdown_capture()
+                        .contains(&text_range_portion.node(ast).node_type())
                 {
                     annotation = text_range_portion.annotation(ast).or(annotation);
                     annotation_text_format = text_format.clone();
                 }
 
+                RenderStyle::Markdown(text_range_portion.node(ast))
+                    .apply_style(&mut text_format, appearance);
                 match text_range_portion.range_type {
                     AstTextRangeType::Head => {
-                        if matches!(
-                            text_range_portion.node(ast),
-                            MarkdownNode::Block(BlockNode::Heading(..))
-                                | MarkdownNode::Block(BlockNode::ListItem(..))
-                        ) {
-                            // these elements have syntax characters captured
-                            head_size = text_range_portion.range.len();
-
-                            // apply style e.g. so empty headers still have big font
-                            RenderStyle::Markdown(text_range_portion.node(ast))
-                                .apply_style(&mut text_format, appearance);
+                        if appearance
+                            .markdown_capture()
+                            .contains(&text_range_portion.node(ast).node_type())
+                        {
+                            // need to append empty text to layout so that the style is applied
                             layout.append("", 0.0, text_format);
+
+                            head_size.get_or_insert(text_range_portion.range.len());
+                            tail_size = Some(0.into());
                         } else {
-                            // for other elements, apply the syntax style to head/tail characters
+                            // uncaptured syntax characters have syntax style applied on top of node style
                             RenderStyle::Syntax.apply_style(&mut text_format, appearance);
                             layout.append(&buffer[text_range_portion.range], 0.0, text_format);
+
+                            head_size.get_or_insert(0.into());
+                            tail_size = Some(0.into());
                         }
-                        tail_size = 0.into();
                     }
                     AstTextRangeType::Tail => {
-                        // there aren't any captured tail characters, so apply syntax style to all tail characters
-                        RenderStyle::Syntax.apply_style(&mut text_format, appearance);
-                        layout.append(&buffer[text_range_portion.range], 0.0, text_format);
+                        if appearance
+                            .markdown_capture()
+                            .contains(&text_range_portion.node(ast).node_type())
+                        {
+                            // need to append empty text to layout so that the style is applied
+                            layout.append("", 0.0, text_format);
 
-                        // note, the tail of a galley is always zero
-                        // it used to be nonzero when newlines were included in galleys and captured in tail
-                        // now, newlines are omitted from galley ranges and exist in-between galleys
-                        // this code is still here for when we start capturing more syntax characters e.g. line ends in `code`
-                        // tail_size = text_range_portion.range.len();
+                            head_size.get_or_insert(0.into());
+                            tail_size = Some(text_range_portion.range.len());
+                        } else {
+                            // uncaptured syntax characters have syntax style applied on top of node style
+                            RenderStyle::Syntax.apply_style(&mut text_format, appearance);
+                            layout.append(&buffer[text_range_portion.range], 0.0, text_format);
+
+                            head_size.get_or_insert(0.into());
+                            tail_size = Some(0.into());
+                        }
                     }
                     AstTextRangeType::Text => {
-                        RenderStyle::Markdown(text_range_portion.node(ast))
-                            .apply_style(&mut text_format, appearance);
                         layout.append(&buffer[text_range_portion.range], 0.0, text_format);
 
-                        tail_size = 0.into();
+                        head_size.get_or_insert(0.into());
+                        tail_size = Some(0.into());
                     }
                 }
             }
@@ -194,8 +209,8 @@ pub fn calc(
                 range: bounds.paragraphs[paragraph_idx],
                 job: mem::take(&mut layout),
                 annotation: mem::take(&mut annotation),
-                head_size: mem::take(&mut head_size),
-                tail_size: mem::take(&mut tail_size),
+                head_size: mem::take(&mut head_size).unwrap_or_default(),
+                tail_size: mem::take(&mut tail_size).unwrap_or_default(),
                 annotation_text_format: mem::take(&mut annotation_text_format),
             };
             result

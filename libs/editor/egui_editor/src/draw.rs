@@ -2,7 +2,7 @@ use crate::appearance::YELLOW;
 use crate::input::canonical::{Location, Modification, Region};
 use crate::layouts::Annotation;
 use crate::offset_types::RangeExt;
-use crate::style::{BlockNode, InlineNode, ItemType, MarkdownNode, RenderStyle};
+use crate::style::{BlockNode, InlineNode, ListItem, MarkdownNode, RenderStyle};
 use crate::Editor;
 use egui::text::LayoutJob;
 use egui::{Align2, Color32, FontId, Pos2, Rect, Rounding, Sense, Stroke, Ui, Vec2};
@@ -16,7 +16,7 @@ impl Editor {
             if let Some(annotation) = &galley.annotation {
                 match annotation {
                     Annotation::Item(item_type, indent_level) => match item_type {
-                        ItemType::Bulleted => {
+                        ListItem::Bulleted => {
                             let bullet_point = galley.bullet_center();
                             match indent_level {
                                 0 => ui.painter().circle_filled(
@@ -31,7 +31,7 @@ impl Editor {
                                 ),
                             }
                         }
-                        ItemType::Numbered(num) => {
+                        ListItem::Numbered(num) => {
                             let mut job = LayoutJob::default();
 
                             let mut text_format = galley.annotation_text_format.clone();
@@ -47,7 +47,7 @@ impl Editor {
                                 .anchor_rect(Rect::from_min_size(pos.max, galley.size()));
                             ui.painter().galley(rect.min, galley);
                         }
-                        ItemType::Todo(checked) => {
+                        ListItem::Todo(checked) => {
                             ui.painter().rect_filled(
                                 galley.checkbox_bounds(&self.appearance),
                                 self.appearance.checkbox_rounding(),

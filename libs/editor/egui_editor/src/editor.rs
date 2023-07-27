@@ -19,7 +19,7 @@ use crate::input::click_checker::{ClickChecker, EditorClickChecker};
 use crate::input::cursor::{Cursor, PointerState};
 use crate::input::events;
 use crate::offset_types::{DocCharOffset, RangeExt};
-use crate::style::{BlockNode, InlineNode, ItemType, MarkdownNode};
+use crate::style::{BlockNode, InlineNode, ListItem, MarkdownNode};
 use crate::test_input::TEST_MARKDOWN;
 use crate::{ast, bounds, galleys, images, register_fonts};
 
@@ -303,6 +303,7 @@ impl Editor {
             self.ast = ast::calc(&self.buffer.current);
             self.bounds.words = bounds::calc_words(&self.buffer.current, &self.ast);
             self.bounds.paragraphs = bounds::calc_paragraphs(&self.buffer.current, &self.ast);
+            // self.bounds.rendered_text = bounds::calc_rendered_text();
         }
         if text_updated || selection_updated || theme_updated {
             self.images = images::calc(&self.ast, &self.images, &self.client, ui);
@@ -380,13 +381,13 @@ impl Editor {
                     MarkdownNode::Inline(InlineNode::Italic) => result.cursor_in_italic = true,
                     MarkdownNode::Inline(InlineNode::Code) => result.cursor_in_inline_code = true,
                     MarkdownNode::Block(BlockNode::Heading(..)) => result.cursor_in_heading = true,
-                    MarkdownNode::Block(BlockNode::ListItem(ItemType::Bulleted, ..)) => {
+                    MarkdownNode::Block(BlockNode::ListItem(ListItem::Bulleted, ..)) => {
                         result.cursor_in_bullet_list = true
                     }
-                    MarkdownNode::Block(BlockNode::ListItem(ItemType::Numbered(..), ..)) => {
+                    MarkdownNode::Block(BlockNode::ListItem(ListItem::Numbered(..), ..)) => {
                         result.cursor_in_number_list = true
                     }
-                    MarkdownNode::Block(BlockNode::ListItem(ItemType::Todo(..), ..)) => {
+                    MarkdownNode::Block(BlockNode::ListItem(ListItem::Todo(..), ..)) => {
                         result.cursor_in_todo_list = true
                     }
                     _ => {}

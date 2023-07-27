@@ -1,7 +1,7 @@
 use crate::buffer::SubBuffer;
 use crate::layouts::Annotation;
 use crate::offset_types::{DocCharOffset, RangeExt};
-use crate::style::{BlockNode, InlineNode, ItemType, MarkdownNode};
+use crate::style::{BlockNode, InlineNode, ListItem, MarkdownNode};
 use crate::Editor;
 use pulldown_cmark::{Event, HeadingLevel, LinkType, OffsetIter, Options, Parser, Tag};
 
@@ -153,23 +153,23 @@ impl Ast {
         }
     }
 
-    fn item_type(text: &str) -> ItemType {
+    fn item_type(text: &str) -> ListItem {
         let text = text.trim_start();
         if text.starts_with("+ [ ]") || text.starts_with("* [ ]") || text.starts_with("- [ ]") {
-            ItemType::Todo(false)
+            ListItem::Todo(false)
         } else if text.starts_with("+ [x]")
             || text.starts_with("* [x]")
             || text.starts_with("- [x]")
         {
-            ItemType::Todo(true)
+            ListItem::Todo(true)
         } else if let Some(prefix) = text.split('.').next() {
             if let Ok(num) = prefix.parse::<usize>() {
-                ItemType::Numbered(num)
+                ListItem::Numbered(num)
             } else {
-                ItemType::Bulleted // default to bullet
+                ListItem::Bulleted // default to bullet
             }
         } else {
-            ItemType::Bulleted // default to bullet
+            ListItem::Bulleted // default to bullet
         }
     }
 
@@ -296,9 +296,9 @@ impl Ast {
 
                     text_range.0 += buffer[range].len() - buffer[range].trim_start().len();
                     text_range.0 += match item_type {
-                        ItemType::Bulleted => 1,
-                        ItemType::Numbered(n) => 1 + n.to_string().len(),
-                        ItemType::Todo(_) => 5,
+                        ListItem::Bulleted => 1,
+                        ListItem::Numbered(n) => 1 + n.to_string().len(),
+                        ListItem::Todo(_) => 5,
                     };
 
                     // correct cmark behavior with no space in syntax chars

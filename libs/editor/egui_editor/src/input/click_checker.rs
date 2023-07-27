@@ -6,7 +6,7 @@ use crate::galleys::Galleys;
 use crate::input::mutation;
 use crate::layouts::Annotation;
 use crate::offset_types::RangeExt;
-use crate::style::{InlineNode, ItemType, MarkdownNode};
+use crate::style::{InlineNode, ListItem, MarkdownNode};
 use egui::{Pos2, Rect};
 
 use super::canonical::Bound;
@@ -53,7 +53,7 @@ impl<'a> ClickChecker for &'a EditorClickChecker<'a> {
 
     fn checkbox(&self, pos: Pos2) -> Option<usize> {
         for (galley_idx, galley) in self.galleys.galleys.iter().enumerate() {
-            if let Some(Annotation::Item(ItemType::Todo(_), ..)) = galley.annotation {
+            if let Some(Annotation::Item(ListItem::Todo(_), ..)) = galley.annotation {
                 if galley.checkbox_bounds(self.appearance).contains(pos) {
                     return Some(galley_idx);
                 }
