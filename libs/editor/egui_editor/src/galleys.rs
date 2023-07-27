@@ -1,6 +1,6 @@
 use crate::appearance::Appearance;
 use crate::ast::{Ast, AstTextRangeType};
-use crate::bounds::Bounds;
+use crate::bounds::{Bounds, Text};
 use crate::buffer::SubBuffer;
 use crate::images::ImageCache;
 use crate::layouts::{Annotation, LayoutJobInfo};
@@ -263,26 +263,67 @@ impl Galleys {
         self.galleys.len() - 1
     }
 
-    pub fn galley_and_cursor_by_char_offset(&self, char_offset: DocCharOffset) -> (usize, Cursor) {
+    pub fn galley_and_cursor_by_char_offset(
+        &self, char_offset: DocCharOffset, text: &Text,
+    ) -> (usize, Cursor) {
         let galley_index = self.galley_at_char(char_offset);
         let galley = &self.galleys[galley_index];
         let galley_text_range = galley.text_range();
-        let cursor = galley.galley.from_ccursor(CCursor {
-            index: (char_offset.clamp(galley_text_range.start(), galley_text_range.end())
-                - galley_text_range.start())
-            .0,
-            prefer_next_row: true,
-        });
+        let char_offset = char_offset.clamp(galley_text_range.start(), galley_text_range.end());
 
+        // adjust for captured syntax chars
+        let mut rendered_chars: RelCharOffset = 0.into();
+        for text_range in text {
+            if text_range.end() <= galley_text_range.start() {
+                continue;
+            }
+            if text_range.start() >= char_offset {
+                break;
+            }
+
+            let text_range = (
+                text_range.start().max(galley_text_range.start()),
+                text_range.end().min(char_offset),
+            );
+            rendered_chars += text_range.len();
+        }
+
+        let cursor = galley
+            .galley
+            .from_ccursor(CCursor { index: rendered_chars.0, prefer_next_row: true });
         (galley_index, cursor)
     }
 
     pub fn char_offset_by_galley_and_cursor(
-        &self, galley_idx: usize, cursor: &Cursor,
+        &self, galley_idx: usize, cursor: &Cursor, text: &Text,
     ) -> DocCharOffset {
         let galley = &self.galleys[galley_idx];
         let galley_text_range = galley.text_range();
         let mut result = galley_text_range.start() + cursor.ccursor.index;
+
+        // adjust for captured syntax chars
+        let mut last_range: Option<(DocCharOffset, DocCharOffset)> = None;
+        for text_range in text {
+            if text_range.end() <= galley_text_range.start() {
+                continue;
+            }
+
+            let text_range = (
+                text_range.start().max(galley_text_range.start()),
+                text_range.end().min(galley_text_range.end()),
+            );
+            if let Some(last_range) = last_range {
+                result += text_range.start() - last_range.end();
+            } else {
+                result += text_range.start() - galley_text_range.start();
+            }
+
+            if text_range.end() >= result {
+                break;
+            }
+
+            last_range = Some(text_range);
+        }
 
         // correct for prefer_next_row behavior
         let read_cursor = galley.galley.from_ccursor(CCursor {

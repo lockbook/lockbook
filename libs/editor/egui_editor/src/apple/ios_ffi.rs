@@ -494,6 +494,7 @@ pub unsafe extern "C" fn first_rect(obj: *mut c_void, range: CTextRange) -> CRec
     let obj = &mut *(obj as *mut WgpuEditor);
     let buffer = &obj.editor.buffer.current;
     let galleys = &obj.editor.galleys;
+    let text = &obj.editor.bounds.text;
 
     let cursor_representing_rect: Cursor = {
         let range: (DocCharOffset, DocCharOffset) = range.into();
@@ -506,8 +507,8 @@ pub unsafe extern "C" fn first_rect(obj: *mut c_void, range: CTextRange) -> CRec
         (selection_start, end_of_rect).into()
     };
 
-    let start_line = cursor_representing_rect.start_line(galleys);
-    let end_line = cursor_representing_rect.end_line(galleys);
+    let start_line = cursor_representing_rect.start_line(galleys, text);
+    let end_line = cursor_representing_rect.end_line(galleys, text);
     CRect {
         min_x: (start_line[1].x + 1.0) as f64,
         min_y: start_line[0].y as f64,
@@ -548,12 +549,14 @@ pub unsafe extern "C" fn position_at_point(obj: *mut c_void, point: CPoint) -> C
     let obj = &mut *(obj as *mut WgpuEditor);
     let segs = &obj.editor.buffer.current.segs;
     let galleys = &obj.editor.galleys;
+    let text = &obj.editor.bounds.text;
 
     let scroll = obj.editor.scroll_area_offset;
     let offset = mutation::pos_to_char_offset(
         Pos2 { x: point.x as f32 + scroll.x, y: point.y as f32 + scroll.y },
         galleys,
         segs,
+        text,
     );
     CTextPosition { none: false, pos: offset.0 }
 }
@@ -564,9 +567,10 @@ pub unsafe extern "C" fn position_at_point(obj: *mut c_void, point: CPoint) -> C
 pub unsafe extern "C" fn cursor_rect_at_position(obj: *mut c_void, pos: CTextPosition) -> CRect {
     let obj = &mut *(obj as *mut WgpuEditor);
     let galleys = &obj.editor.galleys;
+    let text = &obj.editor.bounds.text;
 
     let cursor: Cursor = pos.pos.into();
-    let line = cursor.start_line(galleys);
+    let line = cursor.start_line(galleys, text);
     let scroll = obj.editor.scroll_area_offset;
     CRect {
         min_x: (line[0].x - scroll.x) as f64,

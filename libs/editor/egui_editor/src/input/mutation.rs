@@ -1,5 +1,5 @@
 use crate::ast::{Ast, AstTextRangeType};
-use crate::bounds::Bounds;
+use crate::bounds::{Bounds, Text};
 use crate::buffer::{EditorMutation, Mutation, SubBuffer, SubMutation};
 use crate::galleys::Galleys;
 use crate::input::canonical::{Bound, Location, Modification, Offset, Region};
@@ -756,16 +756,17 @@ pub fn region_to_cursor(
 ) -> Cursor {
     match region {
         Region::Location(location) => {
-            location_to_char_offset(location, current_cursor, galleys, &buffer.segs).into()
+            location_to_char_offset(location, current_cursor, galleys, &buffer.segs, &bounds.text)
+                .into()
         }
         Region::ToLocation(location) => (
             current_cursor.selection.0,
-            location_to_char_offset(location, current_cursor, galleys, &buffer.segs),
+            location_to_char_offset(location, current_cursor, galleys, &buffer.segs, &bounds.text),
         )
             .into(),
         Region::BetweenLocations { start, end } => (
-            location_to_char_offset(start, current_cursor, galleys, &buffer.segs),
-            location_to_char_offset(end, current_cursor, galleys, &buffer.segs),
+            location_to_char_offset(start, current_cursor, galleys, &buffer.segs, &bounds.text),
+            location_to_char_offset(end, current_cursor, galleys, &buffer.segs, &bounds.text),
         )
             .into(),
         Region::Selection => current_cursor,
@@ -808,7 +809,13 @@ pub fn region_to_cursor(
             range.into()
         }
         Region::BoundAt { bound, location, backwards } => {
-            let offset = location_to_char_offset(location, current_cursor, galleys, &buffer.segs);
+            let offset = location_to_char_offset(
+                location,
+                current_cursor,
+                galleys,
+                &buffer.segs,
+                &bounds.text,
+            );
             let range = offset
                 .range_bound(bound, backwards, false, bounds)
                 .unwrap_or((offset, offset));
@@ -818,16 +825,18 @@ pub fn region_to_cursor(
 }
 
 pub fn location_to_char_offset(
-    location: Location, current_cursor: Cursor, galleys: &Galleys, segs: &UnicodeSegs,
+    location: Location, current_cursor: Cursor, galleys: &Galleys, segs: &UnicodeSegs, text: &Text,
 ) -> DocCharOffset {
     match location {
         Location::CurrentCursor => current_cursor.selection.1,
         Location::DocCharOffset(o) => o,
-        Location::Pos(pos) => pos_to_char_offset(pos, galleys, segs),
+        Location::Pos(pos) => pos_to_char_offset(pos, galleys, segs, text),
     }
 }
 
-pub fn pos_to_char_offset(pos: Pos2, galleys: &Galleys, segs: &UnicodeSegs) -> DocCharOffset {
+pub fn pos_to_char_offset(
+    pos: Pos2, galleys: &Galleys, segs: &UnicodeSegs, text: &Text,
+) -> DocCharOffset {
     if !galleys.is_empty() && pos.y < galleys[0].galley_location.min.y {
         // click position is above first galley
         0.into()
@@ -842,7 +851,7 @@ pub fn pos_to_char_offset(pos: Pos2, galleys: &Galleys, segs: &UnicodeSegs) -> D
                 // click position is in a galley
                 let relative_pos = pos - galley.text_location;
                 let new_cursor = galley.galley.cursor_from_pos(relative_pos);
-                result = galleys.char_offset_by_galley_and_cursor(galley_idx, &new_cursor);
+                result = galleys.char_offset_by_galley_and_cursor(galley_idx, &new_cursor, text);
             }
         }
         result

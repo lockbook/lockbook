@@ -164,7 +164,13 @@ impl Default for Editor {
             selection_updated: Default::default(),
             maybe_menu_location: Default::default(),
 
-            custom_events: Default::default(),
+            custom_events: vec![Modification::Select {
+                region: Region::ToOffset {
+                    offset: Offset::To(Bound::Doc),
+                    backwards: true,
+                    extend_selection: false,
+                },
+            }],
 
             scroll_area_rect: Rect { min: Default::default(), max: Default::default() },
             scroll_area_offset: Default::default(),
@@ -304,6 +310,7 @@ impl Editor {
             self.bounds.words =
                 bounds::calc_words(&self.buffer.current, &self.ast, &self.appearance);
             self.bounds.paragraphs = bounds::calc_paragraphs(&self.buffer.current, &self.ast);
+            self.bounds.text = bounds::calc_text(&self.ast, &self.appearance);
         }
         if text_updated || selection_updated || theme_updated {
             self.images = images::calc(&self.ast, &self.images, &self.client, ui);
@@ -316,7 +323,8 @@ impl Editor {
             &self.appearance,
             ui,
         );
-        self.bounds.lines = bounds::calc_lines(&self.galleys);
+        self.bounds.lines = bounds::calc_lines(&self.galleys, &self.bounds.text);
+        self.print_bounds();
         self.initialized = true;
 
         // draw
@@ -335,7 +343,11 @@ impl Editor {
                 .unwrap() // there's always a document
         };
         if selection_updated && self.buffer.current.cursor.selection != all_selection {
-            let cursor_end_line = self.buffer.current.cursor.end_line(&self.galleys);
+            let cursor_end_line = self
+                .buffer
+                .current
+                .cursor
+                .end_line(&self.galleys, &self.bounds.text);
             let rect = Rect { min: cursor_end_line[0], max: cursor_end_line[1] };
             ui.scroll_to_rect(rect, None);
         }
@@ -472,8 +484,12 @@ impl Editor {
 
             if touched_cursor || touched_selection || double_touched_for_selection {
                 // set menu location
-                self.maybe_menu_location =
-                    Some(self.buffer.current.cursor.end_line(&self.galleys)[0]);
+                self.maybe_menu_location = Some(
+                    self.buffer
+                        .current
+                        .cursor
+                        .end_line(&self.galleys, &self.bounds.text)[0],
+                );
             } else {
                 self.maybe_menu_location = None;
             }
@@ -506,9 +522,9 @@ impl Editor {
     pub fn get_potential_text_title(&self) -> Option<String> {
         let mut maybe_chosen: Option<(DocCharOffset, DocCharOffset)> = None;
 
-        for paragraph in &self.bounds.paragraphs {
-            if !paragraph.is_empty() {
-                maybe_chosen = Some(*paragraph);
+        for text_range in &self.bounds.text {
+            if !text_range.is_empty() {
+                maybe_chosen = Some(*text_range);
                 break;
             }
         }

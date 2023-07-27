@@ -1,4 +1,4 @@
-pub static TEST_MARKDOWN: &str = TEST_MARKDOWN_43;
+pub static TEST_MARKDOWN: &str = TEST_MARKDOWN_50;
 
 pub static TEST_MARKDOWN_ALL: [&str; 54] = [
     TEST_MARKDOWN_0,
@@ -269,7 +269,7 @@ Featuring:
 1. a __bold__ list item,
     * an _italic_ list item,
     - [ ] a `code` list item,
-    
+
 ```
 a code block
 ```
