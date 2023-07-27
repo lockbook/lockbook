@@ -165,8 +165,13 @@ pub fn calc(
                             // uncaptured syntax characters have syntax style applied on top of node style
                             RenderStyle::Syntax.apply_style(&mut text_format, appearance);
                             layout.append(&buffer[text_range_portion.range], 0.0, text_format);
+
+                            head_size_locked = true;
                         }
-                        tail_size = 0.into();
+
+                        if !text_range_portion.range.is_empty() {
+                            tail_size = 0.into();
+                        }
                     }
                     AstTextRangeType::Tail => {
                         if appearance
@@ -180,14 +185,19 @@ pub fn calc(
                             RenderStyle::Syntax.apply_style(&mut text_format, appearance);
                             layout.append(&buffer[text_range_portion.range], 0.0, text_format);
                         }
-                        head_size_locked = true;
-                        tail_size += text_range_portion.range.len();
+
+                        if !text_range_portion.range.is_empty() {
+                            head_size_locked = true;
+                            tail_size += text_range_portion.range.len();
+                        }
                     }
                     AstTextRangeType::Text => {
                         layout.append(&buffer[text_range_portion.range], 0.0, text_format);
 
-                        head_size_locked = true;
-                        tail_size = 0.into();
+                        if !text_range_portion.range.is_empty() {
+                            head_size_locked = true;
+                            tail_size = 0.into();
+                        }
                     }
                 }
             }
@@ -414,7 +424,7 @@ impl GalleyInfo {
 
 impl Editor {
     pub fn print_galleys(&self) {
-        println!("layouts:");
+        println!("galleys:");
         for galley in &self.galleys.galleys {
             println!(
                 "galley: range: {:?}, annotation: {:?}, head: {:?}, tail: {:?}",
