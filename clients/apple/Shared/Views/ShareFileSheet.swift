@@ -88,7 +88,7 @@ struct ShareFileSheet: View {
             .frameForMacOS()
             .padding()
             .onAppear {
-                share.calculateShareInfo(file: meta)
+                share.calculateShareInfo(id: meta.id)
             }
         }
     }

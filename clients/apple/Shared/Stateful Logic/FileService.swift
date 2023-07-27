@@ -87,6 +87,7 @@ class FileService: ObservableObject {
                 case .success(_):
                     self.successfulAction = .move
                     self.refresh()
+                    DI.status.checkForLocalWork()
                 case .failure(let error):
                     switch error.kind {
                     case .UiError(let uiError):
@@ -114,6 +115,7 @@ class FileService: ObservableObject {
         case .success(_):
             self.successfulAction = .move
             refresh()
+            DI.status.checkForLocalWork()
             return true
         case .failure(let error):
             switch error.kind {
@@ -143,6 +145,7 @@ class FileService: ObservableObject {
                 case .success(_):
                     self.refresh()
                     self.successfulAction = .delete
+                    DI.status.checkForLocalWork()
                 case .failure(let error):
                     DI.errors.handleError(error)
                 }
@@ -249,7 +252,6 @@ class FileService: ObservableObject {
     }
     
     private func postRefreshFiles(_ newFiles: [File]) {
-        DI.status.checkForLocalWork()
         idsAndFiles = Dictionary(uniqueKeysWithValues: newFiles.map { ($0.id, $0) })
         refreshSuggestedDocs()
         newFiles.forEach {

@@ -4,6 +4,7 @@ use std::{
     fs,
     fs::{File, OpenOptions},
     io::Write,
+    sync::atomic::{AtomicU64, Ordering},
     sync::{Arc, Mutex},
 };
 use time::Instant;
@@ -16,6 +17,10 @@ type Continue = bool;
 #[derive(Default, Clone)]
 pub struct Coordinator {
     pub state: Arc<Mutex<CoordinatorState>>,
+    pub grab_time: Arc<AtomicU64>,
+    pub publish_time: Arc<AtomicU64>,
+    pub execute_time: Arc<AtomicU64>,
+    pub lock_contention_time: Arc<AtomicU64>,
 
     pub cache: TrialCache,
 }
@@ -50,21 +55,32 @@ impl Default for CoordinatorState {
 
 impl Coordinator {
     pub fn grab_ready_trial_for_thread(&self, thread: ThreadID) -> (Option<Trial>, Continue) {
+        let now = Instant::now();
         let mut state = self.state.lock().unwrap();
+        let elapsed = now.elapsed().whole_milliseconds() as u64;
+        self.lock_contention_time
+            .fetch_add(elapsed, Ordering::Relaxed);
         let experiment = state.pending.pop();
-        match experiment {
+        let result = match experiment {
             Some(found) => {
                 found.persist(thread);
                 state.running.insert(thread, (Instant::now(), found.id));
                 (Some(found), true)
             }
             None => (None, !state.running.is_empty() || !state.pending.is_empty()),
-        }
+        };
+        let elapsed = now.elapsed().whole_milliseconds() as u64;
+        self.grab_time.fetch_add(elapsed, Ordering::Relaxed);
+        result
     }
 
     pub fn publish_results(&self, thread: ThreadID, result: Trial, mutants: &[Trial]) {
+        let now = Instant::now();
         result.maybe_cleanup(thread);
         let mut state = self.state.lock().unwrap();
+        let elapsed = now.elapsed().whole_milliseconds() as u64;
+        self.lock_contention_time
+            .fetch_add(elapsed, Ordering::Relaxed);
 
         if result.failed() {
             writeln!(state.error_log, "{}", result.file_name(thread))
@@ -76,6 +92,8 @@ impl Coordinator {
 
         state.running.remove(&thread);
         state.pending.extend_from_slice(mutants);
+        let elapsed = now.elapsed().whole_milliseconds() as u64;
+        self.publish_time.fetch_add(elapsed, Ordering::Relaxed);
     }
 
     pub fn kick_off(self) {

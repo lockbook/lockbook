@@ -7,7 +7,7 @@ import AppKit
 #endif
 
 @main struct LockbookApp: App {
-    
+
     @Environment(\.scenePhase) private var scenePhase
     
     #if os(macOS)

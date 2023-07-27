@@ -1,3 +1,4 @@
+use std::sync::atomic::Ordering;
 use std::{fs, thread, time::Duration};
 
 use super::{
@@ -24,10 +25,16 @@ impl Worker {
 
     fn work(&self) {
         loop {
-            match self.coord.grab_ready_trial_for_thread(self.id) {
+            let trial = self.coord.grab_ready_trial_for_thread(self.id);
+            match trial {
                 (Some(mut work), _) => {
+                    let now = time::Instant::now();
                     let mut mutants = work.execute(self.id, &self.cache);
                     mutants.reverse();
+                    let elapsed = now.elapsed().whole_milliseconds() as u64;
+                    self.coord
+                        .execute_time
+                        .fetch_add(elapsed, Ordering::Relaxed);
                     self.coord.publish_results(self.id, work, &mutants);
                 }
                 (None, true) => {

@@ -78,7 +78,7 @@ struct SearchWrapperView<Content: View>: View {
             }
         }
         .onChange(of: searchInput) { newInput in
-            if (!newInput.isEmpty) {
+            if !newInput.isEmpty {
                 search.search(query: newInput)
             } else {
                 search.searchPathAndContentState = .Idle

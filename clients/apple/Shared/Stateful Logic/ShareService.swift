@@ -46,19 +46,23 @@ class ShareService: ObservableObject {
         }
     }
     
-    func calculateShareInfo(file: File) {
-        var writeAccessUsers: [String] = []
-        var readAccessUsers: [String] = []
+    func calculateShareInfo(id: UUID) {
+        let maybeMeta = DI.files.idsAndFiles[id]
         
-        file.shares.forEach { share in
-            switch share.mode {
-            case .Read:
-                readAccessUsers.append(share.sharedWith)
-            case .Write:
-                writeAccessUsers.append(share.sharedWith)
+        if let meta = maybeMeta {
+            var writeAccessUsers: [String] = []
+            var readAccessUsers: [String] = []
+            
+            meta.shares.forEach { share in
+                switch share.mode {
+                case .Read:
+                    readAccessUsers.append(share.sharedWith)
+                case .Write:
+                    writeAccessUsers.append(share.sharedWith)
+                }
             }
+            
+            shareInfos[meta] = ShareInfo.init(writeAccessUsers: writeAccessUsers, readAccessUsers: readAccessUsers)
         }
-        
-        shareInfos[file] = ShareInfo.init(writeAccessUsers: writeAccessUsers, readAccessUsers: readAccessUsers)
     }
 }

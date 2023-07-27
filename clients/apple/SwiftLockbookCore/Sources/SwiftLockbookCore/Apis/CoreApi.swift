@@ -141,6 +141,10 @@ public struct CoreApi: LockbookApi {
     public func exportFile(id: UUID, destination: String) ->FfiResult<Empty, ExportFileError> {
         fromPrimitiveResult(result:  export_file(id.uuidString, destination))
     }
+    
+    public func exportDrawingToDisk(id: UUID, destination: String) ->FfiResult<Empty, ExportDrawingToDiskError> {
+        fromPrimitiveResult(result:  export_drawing_to_disk(id.uuidString, destination))
+    }
 
     public func importFiles(sources: [String], destination: UUID) ->FfiResult<Empty, ImportFilesError> {
         let encodedSources = String(data: try! JSONSerialization.data(withJSONObject: sources), encoding: String.Encoding.utf8)

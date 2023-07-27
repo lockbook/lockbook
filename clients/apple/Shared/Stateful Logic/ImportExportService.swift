@@ -32,18 +32,32 @@ class ImportExportService: ObservableObject {
     }
     
     public func exportFilesToTempDirSync(meta: File) -> URL? {
-        guard let destination = createTempTempDir() else {
+        guard var destination = createTempTempDir() else {
             return nil
         }
-
-        let operation = DI.core.exportFile(id: meta.id, destination: destination.path())
-
-        switch operation {
-        case .success(_):
-            return destination.appendingPathComponent(meta.name)
-        case .failure(let error):
-            DI.errors.handleError(error)
-            return nil
+        
+        
+        if meta.fileType == .Document && meta.name.hasSuffix(".draw") {
+            destination = destination.appendingPathComponent(meta.name + ".jpeg")
+            let operation = DI.core.exportDrawingToDisk(id: meta.id, destination: destination.path())
+            
+            switch operation {
+            case .success(_):
+                return destination
+            case .failure(let error):
+                DI.errors.handleError(error)
+                return nil
+            }
+        } else {
+            let operation = DI.core.exportFile(id: meta.id, destination: destination.path())
+            
+            switch operation {
+            case .success(_):
+                return destination.appendingPathComponent(meta.name)
+            case .failure(let error):
+                DI.errors.handleError(error)
+                return nil
+            }
         }
     }
 

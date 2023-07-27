@@ -2,17 +2,20 @@ use std::fs;
 use std::io;
 
 use crate::util::data_dir;
+use crate::widgets::ToolBarVisibility;
 
 #[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(default)]
 pub struct Settings {
     pub theme_mode: ThemeMode,
     pub theme_color: lb::ColorAlias,
+    pub toolbar_visibility: ToolBarVisibility,
     pub window_maximize: bool,
     pub open_new_files: bool,
     pub auto_save: bool,
     pub auto_sync: bool,
     pub sidebar_usage: bool,
+    pub zen_mode: bool, // hide side panel and maximize the content pane
     #[serde(skip_serializing, skip_deserializing)]
     path: String,
 }
@@ -45,12 +48,14 @@ impl Default for Settings {
         Self {
             theme_mode: ThemeMode::System,
             theme_color: lb::ColorAlias::Blue,
+            toolbar_visibility: ToolBarVisibility::Maximized,
             window_maximize: false,
             open_new_files: true,
             auto_save: true,
             auto_sync: true,
             sidebar_usage: true,
             path: "".to_string(),
+            zen_mode: false,
         }
     }
 }

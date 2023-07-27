@@ -68,7 +68,7 @@ class DocumentService: ObservableObject {
         selectedDoc = maybeId
         
         if let id = maybeId {
-            openDocuments[id]?.textDocument?.focused = true
+            openDocuments[id]?.textDocument?.shouldFocus = true
         }
     }
     
