@@ -518,6 +518,24 @@ pub unsafe extern "C" fn export_file(
 ///
 /// Be sure to call `release_pointer` on the result of this function to free the data.
 #[no_mangle]
+pub unsafe extern "C" fn export_drawing_to_disk(
+    id: *const c_char, destination: *const c_char,
+) -> *const c_char {
+    c_string(match static_state::get() {
+        Ok(core) => translate(core.export_drawing_to_disk(
+            uuid_from_ptr(id),
+            SupportedImageFormats::Jpeg,
+            None,
+            &str_from_ptr(destination),
+        )),
+        e => translate(e.map(|_| ())),
+    })
+}
+
+/// # Safety
+///
+/// Be sure to call `release_pointer` on the result of this function to free the data.
+#[no_mangle]
 pub unsafe extern "C" fn import_files(
     sources: *const c_char, destination: *const c_char,
 ) -> *const c_char {

@@ -37,6 +37,8 @@
 		47B53839290EFE150012E542 /* BillingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47B53837290EFE150012E542 /* BillingService.swift */; };
 		47B67289295F977C00DB0D8E /* ManageSubscriptionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47B67288295F977C00DB0D8E /* ManageSubscriptionView.swift */; };
 		47CEC69D2A182F2A0018FA5C /* UpgradeToPremium.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47CEC69C2A182F2A0018FA5C /* UpgradeToPremium.swift */; };
+		47DBF1F12A61A51000F86B3F /* ImportExportService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47DBF1F02A61A51000F86B3F /* ImportExportService.swift */; };
+		47DBF1F22A61A51000F86B3F /* ImportExportService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47DBF1F02A61A51000F86B3F /* ImportExportService.swift */; };
 		47FAA4C829EC830600DB606E /* BranchState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47FAA4C729EC830600DB606E /* BranchState.swift */; };
 		47FAA4C929EC830600DB606E /* BranchState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47FAA4C729EC830600DB606E /* BranchState.swift */; };
 		5036A0B7393E8C43AAF095A2 /* LBDrawingPKDrawingConversions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5036ACCA149F0864585B7D44 /* LBDrawingPKDrawingConversions.swift */; };
@@ -124,11 +126,35 @@
 		};
 /* End PBXContainerItemProxy section */
 
+/* Begin PBXCopyFilesBuildPhase section */
+		4740D5A52A6879A0002A515A /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		47DBF25B2A61D5D600F86B3F /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
 		1F7E4FBE2521297D0045F606 /* Colors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Colors.swift; sourceTree = "<group>"; };
 		4709C76F29FDAAE9004449EF /* SuggestedDocs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SuggestedDocs.swift; sourceTree = "<group>"; };
 		4709DC37296609F100426106 /* PendingSharesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PendingSharesView.swift; sourceTree = "<group>"; };
 		4709DC3D2966260500426106 /* AcceptShareSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AcceptShareSheet.swift; sourceTree = "<group>"; };
+		472F9EDD2A6C468A005F4785 /* Lockbook (iOS).entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "Lockbook (iOS).entitlements"; sourceTree = "<group>"; };
 		473A3DCD29AC354B0017BC6A /* FilePathBreadcrumb.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilePathBreadcrumb.swift; sourceTree = "<group>"; };
 		4741C7902939C9220073F24F /* Products.storekit */ = {isa = PBXFileReference; lastKnownFileType = text; path = Products.storekit; sourceTree = "<group>"; };
 		4756C4DA2A57CE86002C64B1 /* NewFolderSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewFolderSheet.swift; sourceTree = "<group>"; };
@@ -141,6 +167,9 @@
 		47B53837290EFE150012E542 /* BillingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BillingService.swift; sourceTree = "<group>"; };
 		47B67288295F977C00DB0D8E /* ManageSubscriptionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManageSubscriptionView.swift; sourceTree = "<group>"; };
 		47CEC69C2A182F2A0018FA5C /* UpgradeToPremium.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpgradeToPremium.swift; sourceTree = "<group>"; };
+		47DBF1F02A61A51000F86B3F /* ImportExportService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportExportService.swift; sourceTree = "<group>"; };
+		47DBF1F32A61CA5000F86B3F /* UIKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = UIKit.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS16.4.sdk/System/Library/Frameworks/UIKit.framework; sourceTree = DEVELOPER_DIR; };
+		47DBF2212A61D45600F86B3F /* AuthenticationServices.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AuthenticationServices.framework; path = System/Library/Frameworks/AuthenticationServices.framework; sourceTree = SDKROOT; };
 		47FAA4C729EC830600DB606E /* BranchState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BranchState.swift; sourceTree = "<group>"; };
 		5036AA70E675020A378AE98E /* DrawingToolbar.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DrawingToolbar.swift; sourceTree = "<group>"; };
 		5036ACCA149F0864585B7D44 /* LBDrawingPKDrawingConversions.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = LBDrawingPKDrawingConversions.swift; sourceTree = "<group>"; };
@@ -266,6 +295,7 @@
 				47A45FBA2969047B00573044 /* ShareService.swift */,
 				877FB55226D1854E0008AB3F /* SyncService.swift */,
 				47FAA4C729EC830600DB606E /* BranchState.swift */,
+				47DBF1F02A61A51000F86B3F /* ImportExportService.swift */,
 				877FB55526D18AA60008AB3F /* AccountService.swift */,
 				877FB55826D18EC80008AB3F /* FileService.swift */,
 				5036ACCA149F0864585B7D44 /* LBDrawingPKDrawingConversions.swift */,
@@ -312,7 +342,9 @@
 		EA14E8172516643400B9158C /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
+				47DBF1F32A61CA5000F86B3F /* UIKit.framework */,
 				EAD401DB25E32CD50083A236 /* Notepad */,
+				47DBF2212A61D45600F86B3F /* AuthenticationServices.framework */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
@@ -320,6 +352,7 @@
 		EA5C7D622516605F00F7F358 = {
 			isa = PBXGroup;
 			children = (
+				472F9EDD2A6C468A005F4785 /* Lockbook (iOS).entitlements */,
 				B217A97329661F21002339E0 /* Packages */,
 				B2063A5627D01CAA00A0783C /* Lockbook (macOS)Development.entitlements */,
 				EA5C7D672516605F00F7F358 /* Shared */,
@@ -447,6 +480,7 @@
 				EA5C7D6B2516606000F7F358 /* Sources */,
 				EA5C7D6C2516606000F7F358 /* Frameworks */,
 				EA5C7D6D2516606000F7F358 /* Resources */,
+				4740D5A52A6879A0002A515A /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
@@ -470,6 +504,7 @@
 				EA5C7D732516606000F7F358 /* Sources */,
 				EA5C7D742516606000F7F358 /* Frameworks */,
 				EA5C7D752516606000F7F358 /* Resources */,
+				47DBF25B2A61D5D600F86B3F /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
@@ -493,7 +528,7 @@
 		EA5C7D632516605F00F7F358 /* Project object */ = {
 			isa = PBXProject;
 			attributes = {
-				LastSwiftUpdateCheck = 1310;
+				LastSwiftUpdateCheck = 1430;
 				LastUpgradeCheck = 1400;
 				TargetAttributes = {
 					B2063A4B27D01BF900A0783C = {
@@ -622,6 +657,7 @@
 				4709DC3E2966260500426106 /* AcceptShareSheet.swift in Sources */,
 				6581ABD3CA16395327F765E8 /* SheetState.swift in Sources */,
 				477CC4902967A53C00714456 /* ShareFileSheet.swift in Sources */,
+				47DBF1F12A61A51000F86B3F /* ImportExportService.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -640,6 +676,7 @@
 				87F78F782709352C0001E159 /* LogoView.swift in Sources */,
 				47CEC69D2A182F2A0018FA5C /* UpgradeToPremium.swift in Sources */,
 				EA831A562534E3C80048CE26 /* AppView.swift in Sources */,
+				47DBF1F22A61A51000F86B3F /* ImportExportService.swift in Sources */,
 				874A88F626D3E91900F010C8 /* DI.swift in Sources */,
 				477CC4912967A53C00714456 /* ShareFileSheet.swift in Sources */,
 				872175F126F2850600A77C59 /* DocumentView.swift in Sources */,
@@ -887,6 +924,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = IOSAppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = "Lockbook (iOS).entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 39ZS78S25U;
@@ -915,6 +953,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = IOSAppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = "Lockbook (iOS).entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 39ZS78S25U;
@@ -1070,6 +1109,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = IOSAppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = "Lockbook (iOS).entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 39ZS78S25U;
