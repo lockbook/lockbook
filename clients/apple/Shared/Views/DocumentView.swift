@@ -9,8 +9,18 @@ struct iOSDocumentViewWrapper: View {
     
     var body: some View {
         DocumentView(id: id, isiPhone: true)
+            .onAppear {
+                print("document op: opening \(DI.files.idsAndFiles[id]?.name)")
+            }
             .onDisappear {
-                DI.currentDoc.cleanupOldDocs(true)
+                print("document op: closing \(DI.files.idsAndFiles[id]?.name)")
+
+                if let meta = DI.currentDoc.openDocuments[id]?.dismissForLink {
+                    print("starting to open link")
+                    DI.currentDoc.justOpenedLink = meta
+                }
+                
+                DI.currentDoc.cleanupOldDocs(true, id)
             }
             .iPhoneMarkdownToolbar(id: id)
     }
@@ -29,6 +39,8 @@ struct DocumentView: View, Equatable {
 #if os(iOS)
     @EnvironmentObject var toolbar: ToolbarModel
 #endif
+    
+    @Environment(\.dismiss) var dismiss
     
     public init(id: UUID, isiPhone: Bool = false) {
         self.id = id
@@ -111,6 +123,9 @@ struct DocumentView: View, Equatable {
                 }
             }
         }
+        .onChange(of: model.dismissForLink, perform: { newValue in
+            dismiss()
+        })
         .onDisappear {
             DI.files.refresh()
         }

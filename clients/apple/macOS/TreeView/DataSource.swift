@@ -122,9 +122,8 @@ class TreeDelegate: NSObject, MenuOutlineViewDelegate {
         }
 
         if parent.id != parent.parent {
-            menu.addItem(Share(file: parent))
             menu.addItem(Delete(file: parent))
-            
+            menu.addItem(Share(file: parent))
             menu.addItem(ShareExternallyMenu(file: parent, fileTree: outlineView))
         }
         
