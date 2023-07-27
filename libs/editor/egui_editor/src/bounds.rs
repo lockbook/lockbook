@@ -4,9 +4,11 @@ use crate::buffer::SubBuffer;
 use crate::galleys::Galleys;
 use crate::input::canonical::Bound;
 use crate::offset_types::{DocByteOffset, DocCharOffset, RangeExt, RelByteOffset};
+use crate::unicode_segs::UnicodeSegs;
 use crate::Editor;
 use egui::epaint::text::cursor::RCursor;
 use std::collections::HashSet;
+use std::iter;
 use unicode_segmentation::UnicodeSegmentation;
 
 pub type Words = Vec<(DocCharOffset, DocCharOffset)>;
@@ -141,7 +143,7 @@ pub fn calc_paragraphs(buffer: &SubBuffer, ast: &Ast) -> Paragraphs {
     result
 }
 
-pub fn calc_text(ast: &Ast, appearance: &Appearance) -> Text {
+pub fn calc_text(ast: &Ast, appearance: &Appearance, segs: &UnicodeSegs) -> Text {
     let mut result = vec![];
     for text_range in ast.iter_text_ranges() {
         if matches!(text_range.range_type, AstTextRangeType::Text)
@@ -152,6 +154,23 @@ pub fn calc_text(ast: &Ast, appearance: &Appearance) -> Text {
             result.push(text_range.range);
         }
     }
+
+    if let Some(first) = result.first() {
+        if first.start() != 0 {
+            // prepend empty range
+            result.splice(0..0, iter::once((0.into(), 0.into())));
+        }
+    }
+    if let Some(last) = result.last() {
+        if last.end() != segs.last_cursor_position() {
+            // append empty range
+            result.push((segs.last_cursor_position(), segs.last_cursor_position()));
+        }
+    }
+    if result.is_empty() {
+        result = vec![(0.into(), 0.into())];
+    }
+
     result
 }
 
@@ -320,38 +339,32 @@ impl DocCharOffset {
     fn char_bound(self, backwards: bool, jump: bool, text: &Text) -> Option<(Self, Self)> {
         match self.bound_case(text) {
             BoundCase::NoRanges => None,
-            BoundCase::AtFirstRangeStart {
-                first_range: first_paragraph,
-                range_after: paragraph_after,
-            } => {
+            BoundCase::AtFirstRangeStart { first_range, range_after } => {
                 if backwards && jump {
                     // jump backwards off the edge from the start of the first paragraph
                     None
-                } else if first_paragraph.is_empty() {
+                } else if first_range.is_empty() {
                     // nonempty range between paragraphs
                     // paragraph after is not first_paragraph because Bounds::range_after does not consider the range (offset, offset) to be after offset
                     // range is nonempty because paragraphs cannot both be empty and touch a paragraph before/after
-                    Some((first_paragraph.start(), paragraph_after.start()))
+                    Some((first_range.start(), range_after.start()))
                 } else {
                     // first character of the first paragraph
-                    Some((first_paragraph.start(), first_paragraph.start() + 1))
+                    Some((first_range.start(), first_range.start() + 1))
                 }
             }
-            BoundCase::AtLastRangeEnd {
-                last_range: last_paragraph,
-                range_before: paragraph_before,
-            } => {
+            BoundCase::AtLastRangeEnd { last_range, range_before } => {
                 if !backwards && jump {
                     // jump forwards off the edge from the end of the last paragraph
                     None
-                } else if last_paragraph.is_empty() {
+                } else if last_range.is_empty() {
                     // nonempty range between paragraphs
                     // paragraph before is not last_paragraph because Bounds::range_before does not consider the range (offset, offset) to be before offset
                     // range is nonempty because paragraphs cannot both be empty and touch a paragraph before/after
-                    Some((paragraph_before.end(), last_paragraph.end()))
+                    Some((range_before.end(), last_range.end()))
                 } else {
                     // last character of the last paragraph
-                    Some((last_paragraph.end() - 1, last_paragraph.end()))
+                    Some((last_range.end() - 1, last_range.end()))
                 }
             }
             BoundCase::InsideRange { .. } => {
@@ -361,15 +374,12 @@ impl DocCharOffset {
                     Some((self, self + 1))
                 }
             }
-            BoundCase::AtEmptyRange {
-                range: _,
-                range_before: paragraph_before,
-                range_after: paragraph_after,
-            } => {
+            BoundCase::AtEmptyRange { range: _, range_before, range_after } => {
+                println!("char bound at empty range {:?}", self);
                 if backwards {
-                    Some((paragraph_before.end(), self))
+                    Some((range_before.end(), self))
                 } else {
-                    Some((self, paragraph_after.start()))
+                    Some((self, range_after.start()))
                 }
             }
             BoundCase::AtRangesBound { .. } => {
@@ -379,24 +389,23 @@ impl DocCharOffset {
                     Some((self, self + 1))
                 }
             }
-            BoundCase::AtEndOfRangeBefore { range_after: paragraph_after, .. } => {
+            BoundCase::AtEndOfRangeBefore { range_after, .. } => {
                 if backwards {
                     Some((self - 1, self))
                 } else {
-                    Some((self, paragraph_after.start()))
+                    Some((self, range_after.start()))
                 }
             }
-            BoundCase::AtStartOfRangeAfter { range_before: paragraph_before, .. } => {
+            BoundCase::AtStartOfRangeAfter { range_before, .. } => {
                 if backwards {
-                    Some((paragraph_before.end(), self))
+                    Some((range_before.end(), self))
                 } else {
                     Some((self, self + 1))
                 }
             }
-            BoundCase::BewteenRanges {
-                range_before: paragraph_before,
-                range_after: paragraph_after,
-            } => Some((paragraph_before.end(), paragraph_after.start())),
+            BoundCase::BewteenRanges { range_before, range_after } => {
+                Some((range_before.end(), range_after.start()))
+            }
         }
     }
 
