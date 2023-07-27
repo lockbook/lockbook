@@ -125,7 +125,7 @@ extension View {
         return self.navigationTitle("").navigationBarTitleDisplayMode(.inline)
         #endif
     }
-    
+
     #if os(iOS)
     @ViewBuilder
     func iPhoneMarkdownToolbar(id: UUID) -> some View {
@@ -204,7 +204,7 @@ struct MarkdownToolbar: View {
     var body: some View {
         HStack(spacing: 20) {
             #if os(iOS)
-            
+
             HStack(spacing: 15) {
                 Button(action: {
                     UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
@@ -213,12 +213,12 @@ struct MarkdownToolbar: View {
                 }
                 .buttonStyle(.borderless)
             }
-            
+
             Divider()
                 .frame(height: 20)
-            
+
             #endif
-            
+
             HStack(spacing: 0) {
                 Menu(content: {
                     Button("Heading 1") {
