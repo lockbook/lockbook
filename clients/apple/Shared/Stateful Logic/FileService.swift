@@ -408,10 +408,10 @@ class FileService: ObservableObject {
     
     public func copyFileLink(meta: File) {
         #if os(iOS)
-            UIPasteboard.general.string = "lb://\(meta.id.uuidString)"
+        UIPasteboard.general.string = "lb://\(meta.id.uuidString.lowercased())"
         #else
         NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString("lb://\(meta.id.uuidString)", forType: .string)
+        NSPasteboard.general.setString("lb://\(meta.id.uuidString.lowercased())", forType: .string)
         #endif
     }
 }

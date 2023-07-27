@@ -36,20 +36,27 @@ struct OutlineContextMenu: View {
                 }) {
                     Label("Create a folder", systemImage: "folder")
                 }
-            } else {
+            }
+            
+            if !meta.isRoot {
+                Button(action: { DI.files.deleteFile(id: meta.id) }) {
+                    Label("Delete", systemImage: "trash.fill")
+                }
+
+                Button(action: { sheets.movingInfo = meta }) {
+                    Label("Move", systemImage: "arrow.up.and.down.and.arrow.left.and.right")
+                }
+                
+                Button(action: { DI.sheets.sharingFileInfo = meta}) {
+                    Label("Share", systemImage: "shareplay")
+                }
+            }
+            
+            if meta.fileType == .Document {
                 Button(action: {
                     DI.files.copyFileLink(meta: meta)
                 }) {
                     Label("Copy file link", systemImage: "link")
-                }
-            }
-            
-            if !meta.isRoot {
-                Button(action: { sheets.movingInfo = meta }) {
-                    Label("Move", systemImage: "arrow.up.and.down.and.arrow.left.and.right")
-                }
-                Button(action: { DI.files.deleteFile(id: meta.id) }) {
-                    Label("Delete", systemImage: "trash.fill")
                 }
             }
         }
