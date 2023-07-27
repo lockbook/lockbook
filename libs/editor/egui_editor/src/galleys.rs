@@ -143,8 +143,10 @@ pub fn calc(
                         .markdown_capture()
                         .contains(&text_range_portion.node(ast).node_type())
                 {
+                    if annotation.is_none() {
+                        annotation_text_format = text_format.clone();
+                    }
                     annotation = text_range_portion.annotation(ast).or(annotation);
-                    annotation_text_format = text_format.clone();
                 }
 
                 RenderStyle::Markdown(text_range_portion.node(ast))
