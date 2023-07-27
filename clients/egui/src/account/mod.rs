@@ -1,5 +1,6 @@
 mod background;
 mod modals;
+mod suggested_docs;
 mod syncing;
 mod tabs;
 mod tree;
@@ -20,6 +21,8 @@ use crate::widgets::{separator, Button};
 
 use self::background::*;
 use self::modals::*;
+
+use self::suggested_docs::SuggestedDocs;
 use self::syncing::{SyncPanel, SyncUpdate};
 use self::tabs::{Drawing, ImageViewer, Markdown, PlainText, Tab, TabContent, TabFailure};
 use self::tree::{FileTree, TreeNode};
@@ -36,6 +39,7 @@ pub struct AccountScreen {
     background_tx: mpsc::Sender<BackgroundEvent>,
 
     tree: FileTree,
+    suggested: SuggestedDocs,
     sync: SyncPanel,
     usage: Result<Usage, String>,
     workspace: Workspace,
@@ -51,6 +55,7 @@ impl AccountScreen {
         let (update_tx, update_rx) = mpsc::channel();
 
         let AccountScreenInitData { sync_status, files, usage } = acct_data;
+        let core_clone = core.clone();
 
         let background = BackgroundWorker::new(ctx, &update_tx);
         let background_tx = background.spawn_worker();
@@ -62,6 +67,7 @@ impl AccountScreen {
             update_rx,
             background_tx,
             tree: FileTree::new(files),
+            suggested: SuggestedDocs::new(&core_clone),
             sync: SyncPanel::new(sync_status),
             usage,
             workspace: Workspace::new(),
@@ -99,28 +105,37 @@ impl AccountScreen {
             .send(BackgroundEvent::EguiUpdate)
             .unwrap();
 
-        let sidebar_width = egui::SidePanel::left("sidebar_panel")
-            .frame(egui::Frame::none().fill(ctx.style().visuals.panel_fill))
-            .min_width(300.0)
-            .show(ctx, |ui| {
-                ui.set_enabled(!self.is_any_modal_open());
+        let mut sidebar_width = 0.0;
+        if !self.settings.read().unwrap().zen_mode {
+            sidebar_width = egui::SidePanel::left("sidebar_panel")
+                .frame(egui::Frame::none().fill(ctx.style().visuals.panel_fill))
+                .min_width(300.0)
+                .show(ctx, |ui| {
+                    ui.set_enabled(!self.is_any_modal_open());
 
-                ui.with_layout(egui::Layout::bottom_up(egui::Align::Min), |ui| {
-                    ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
+                    ui.with_layout(egui::Layout::bottom_up(egui::Align::Min), |ui| {
+                        ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
 
-                    self.show_sync_panel(ui);
+                        self.show_sync_panel(ui);
 
-                    separator(ui);
+                        separator(ui);
 
-                    self.show_nav_panel(ui);
+                        self.show_nav_panel(ui);
 
-                    self.show_tree(ui);
-                });
-            })
-            .response
-            .rect
-            .max
-            .x;
+                        ui.vertical(|ui| {
+                            if let Some(file) = self.suggested.show(ui) {
+                                self.open_file(file, ctx);
+                            }
+                            ui.add_space(20.0);
+                            self.show_tree(ui);
+                        })
+                    });
+                })
+                .response
+                .rect
+                .max
+                .x;
+        }
 
         egui::CentralPanel::default()
             .frame(egui::Frame::default().fill(ctx.style().visuals.widgets.noninteractive.bg_fill))
@@ -227,6 +242,8 @@ impl AccountScreen {
                             frame.set_window_title(&tab.name);
                         }
                     }
+                    self.suggested.recalc_and_redraw(ctx, &self.core);
+
                     // If any of this file's children are open, we need to update their restore
                     // paths in case a sync deletes them.
                     for tab in &mut self.workspace.tabs {
@@ -235,8 +252,14 @@ impl AccountScreen {
                         }
                     }
                 }
-                AccountUpdate::FileDeleted(f) => self.tree.remove(&f),
-                AccountUpdate::SyncUpdate(update) => self.process_sync_update(ctx, update),
+                AccountUpdate::FileDeleted(f) => {
+                    self.tree.remove(&f);
+                    self.suggested.recalc_and_redraw(ctx, &self.core);
+                }
+                AccountUpdate::SyncUpdate(update) => {
+                    self.process_sync_update(ctx, update);
+                    self.suggested.recalc_and_redraw(ctx, &self.core);
+                }
                 AccountUpdate::DoneDeleting => self.modals.confirm_delete = None,
                 AccountUpdate::ReloadTree(root) => self.tree.root = root,
                 AccountUpdate::ReloadTab(id, res) => {
@@ -443,25 +466,23 @@ impl AccountScreen {
         }
     }
 
-    fn show_nav_panel(&self, ui: &mut egui::Ui) {
+    fn show_nav_panel(&mut self, ui: &mut egui::Ui) {
         ui.allocate_ui_with_layout(
             egui::vec2(ui.available_size_before_wrap().x, 70.0),
             egui::Layout::left_to_right(egui::Align::Center),
             |ui| {
                 ui.add_space(10.0);
 
-                if Button::default()
-                    .text("Settings ")
-                    .icon(&Icon::SETTINGS)
-                    .show(ui)
-                    .clicked()
-                {
+                let settings_btn = Button::default().icon(&Icon::SETTINGS).show(ui);
+                if settings_btn.clicked() {
                     self.update_tx.send(OpenModal::Settings.into()).unwrap();
                     ui.ctx().request_repaint();
                 };
-                ui.add_space(20.0);
+                settings_btn.on_hover_text("Settings");
 
-                if Button::default()
+                ui.add_space(5.0);
+
+                let incoming_shares_btn = Button::default()
                     .icon(
                         &Icon::SHARED_FOLDER.badge(
                             !self
@@ -471,12 +492,26 @@ impl AccountScreen {
                                 .is_empty(),
                         ),
                     )
-                    .show(ui)
-                    .clicked()
-                {
+                    .show(ui);
+                if incoming_shares_btn.clicked() {
                     self.update_tx.send(OpenModal::AcceptShare.into()).unwrap();
                     ui.ctx().request_repaint();
                 };
+                incoming_shares_btn.on_hover_text("Incoming shares");
+
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    ui.add_space(10.0);
+                    let zen_mode_btn = Button::default().icon(&Icon::HIDE_SIDEBAR).show(ui);
+
+                    if zen_mode_btn.clicked() {
+                        self.settings.write().unwrap().zen_mode = true;
+                        if let Err(err) = self.settings.read().unwrap().to_file() {
+                            self.modals.error = Some(ErrorModal::new(err));
+                        }
+                    }
+
+                    zen_mode_btn.on_hover_text("Hide side panel");
+                });
             },
         );
     }
@@ -498,6 +533,9 @@ impl AccountScreen {
         let core = self.core.clone();
         let update_tx = self.update_tx.clone();
         let ctx = ctx.clone();
+
+        let settings = &self.settings.read().unwrap();
+        let toolbar_visibility = settings.toolbar_visibility;
 
         thread::spawn(move || {
             let all_metas = core.list_metadatas().unwrap();
@@ -538,7 +576,7 @@ impl AccountScreen {
                         .map_err(|err| TabFailure::Unexpected(format!("{:?}", err))) // todo(steve)
                         .map(|bytes| {
                             if ext == "md" {
-                                TabContent::Markdown(Markdown::boxed(&bytes))
+                                TabContent::Markdown(Markdown::boxed(&bytes, &toolbar_visibility))
                             } else if is_supported_image_fmt(ext) {
                                 TabContent::Image(ImageViewer::boxed(id.to_string(), &bytes))
                             } else {
@@ -646,6 +684,9 @@ impl AccountScreen {
         let update_tx = self.update_tx.clone();
         let ctx = ctx.clone();
 
+        let settings = &self.settings.read().unwrap();
+        let toolbar_visibility = settings.toolbar_visibility;
+
         thread::spawn(move || {
             let ext = fname.split('.').last().unwrap_or_default();
 
@@ -658,7 +699,7 @@ impl AccountScreen {
                     .map_err(|err| TabFailure::Unexpected(format!("{:?}", err))) // todo(steve)
                     .map(|bytes| {
                         if ext == "md" {
-                            TabContent::Markdown(Markdown::boxed(&bytes))
+                            TabContent::Markdown(Markdown::boxed(&bytes, &toolbar_visibility))
                         } else if is_supported_image_fmt(ext) {
                             TabContent::Image(ImageViewer::boxed(id.to_string(), &bytes))
                         } else {

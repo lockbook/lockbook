@@ -24,7 +24,7 @@ class DocumentService: ObservableObject {
     
     var justCreatedDoc: File? = nil
     var justOpenedLink: File? = nil
-    
+
     func openDoc(id: UUID, isiPhone: Bool = false) {
         if openDocuments[id] == nil {
             openDocuments[id] = DocumentLoadingInfo(DI.files.idsAndFiles[id]!, isiPhone)
@@ -42,9 +42,10 @@ class DocumentService: ObservableObject {
         selectedDoc = nil
 
         if let id = oldId,
-           openDocuments[id]?.dismissForLink == true {
+           openDocuments[id]?.dismissForLink != nil {
             openDocuments[id] = nil
         } else if isiPhone {
+            justCreatedDoc = nil
             justOpenedLink = nil
             openDocuments.removeAll()
         }
@@ -184,8 +185,8 @@ class DocumentLoadingInfo: ObservableObject {
     @Published var drawing: PKDrawing? = nil
     @Published var image: Image? = .none
     
-    @Published var dismissForLink: Bool = false
-    
+    @Published var dismissForLink: File? = nil
+
     var timeCreated = Date()
 
     private var cancellables = Set<AnyCancellable>()

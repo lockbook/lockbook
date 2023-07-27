@@ -26,12 +26,18 @@ struct FileCell: View {
                 Button(action: {
                     DI.sheets.sharingFileInfo = meta
                 }, label: {
-                    Label("Share", systemImage: "shareplay")
+                    Label("Share", systemImage: "square.and.arrow.up.fill")
+                })
+                
+                Button(action: {
+                    exportFileAndShowShareSheet(meta: meta)
+                }, label: {
+                    Label("Share externally to...", systemImage: "person.wave.2.fill")
                 })
                 
                 if meta.fileType == .Document {
                     Button(action: {
-                        DI.files.copyFileLink(meta: meta)
+                        DI.files.copyFileLink(id: meta.id)
                     }) {
                         Label("Copy file link", systemImage: "link")
                     }

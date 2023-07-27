@@ -46,16 +46,38 @@ struct FileTreeView: View {
         }
         .toolbar {
             ToolbarItemGroup(placement: .navigationBarTrailing) {
+                if let id = currentDoc.selectedDoc {
+                    if let meta = DI.files.idsAndFiles[id] {
+                        Button(action: {
+                            exportFileAndShowShareSheet(meta: meta)
+                               }, label: {
+                            Label("Share externally to...", systemImage: "person.wave.2.fill")
+                        })
+                        .foregroundColor(.blue)
+                        .padding(.trailing, 10)
+                        
+                        Button(action: {
+                            DI.sheets.sharingFileInfo = meta
+                               }, label: {
+                            Label("Share", systemImage: "square.and.arrow.up.fill")
+                        })
+                        .foregroundColor(.blue)
+                        .padding(.trailing, 5)
+                    }
+                }
+                
                 NavigationLink(
                     destination: PendingSharesView()) {
-                        pendingShareToolbarIcon(isiOS: true, isPendingSharesEmpty: share.pendingShares.isEmpty)
+                        pendingShareToolbarIcon(isPendingSharesEmpty: share.pendingShares.isEmpty)
+                            
                     }
-                    
+                
                 NavigationLink(
                     destination: SettingsView().equatable(), isActive: $onboarding.theyChoseToBackup) {
                         Image(systemName: "gearshape.fill")
                             .foregroundColor(.blue)
-                            .padding(.horizontal, 10)
+                            .padding(.trailing, 10)
+
                     }
             }
         }

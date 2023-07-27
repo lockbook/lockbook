@@ -165,6 +165,12 @@ import AppKit
                         }
                 }.keyboardShortcut("f", modifiers: [.command, .shift])
                 #endif
+                
+                Button("Copy file link", action: {
+                    if let id = DI.currentDoc.selectedDoc {
+                        DI.files.copyFileLink(id: id)
+                    }
+                }).keyboardShortcut("L", modifiers: [.command, .shift])
             }
             SidebarCommands()
         }
@@ -191,14 +197,19 @@ import AppKit
                             if let meta = DI.files.idsAndFiles[id] {
                                 Thread.sleep(until: .now + 0.1)
                                 DispatchQueue.main.sync {
+                                    var laterOpenForIphone = false
                                     if let docInfo = DI.currentDoc.openDocuments.values.first,
                                        docInfo.isiPhone {
                                         print("dismissing for link")
-                                        docInfo.dismissForLink = true
+                                        docInfo.dismissForLink = meta
+                                        laterOpenForIphone.toggle()
                                     }
                                     
                                     DI.currentDoc.cleanupOldDocs()
-                                    DI.currentDoc.justOpenedLink = meta
+                                    if !laterOpenForIphone {
+                                        DI.currentDoc.justOpenedLink = meta
+                                    }
+                                    
                                     DI.currentDoc.openDoc(id: id)
                                     DI.currentDoc.setSelectedOpenDocById(maybeId: id)
                                 }

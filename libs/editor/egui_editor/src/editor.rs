@@ -1,4 +1,3 @@
-use rand::Rng;
 #[cfg(any(target_os = "ios", target_os = "macos"))]
 use std::ffi::{c_char, CString};
 #[cfg(any(target_os = "ios", target_os = "macos"))]
@@ -101,7 +100,7 @@ impl Default for EditorResponse {
 }
 
 pub struct Editor {
-    pub id: u32,
+    pub id: egui::Id,
     pub initialized: bool,
 
     // config
@@ -113,6 +112,7 @@ pub struct Editor {
     pub pointer_state: PointerState, // state of cursor not subject to undo history
     pub debug: DebugInfo,
     pub images: ImageCache,
+    pub has_focus: bool,
 
     // cached intermediate state
     pub ast: Ast,
@@ -140,9 +140,8 @@ pub struct Editor {
 
 impl Default for Editor {
     fn default() -> Self {
-        let id: u32 = rand::thread_rng().gen();
         Self {
-            id,
+            id: egui::Id::null(),
             initialized: Default::default(),
 
             appearance: Default::default(),
@@ -152,6 +151,7 @@ impl Default for Editor {
             pointer_state: Default::default(),
             debug: Default::default(),
             images: Default::default(),
+            has_focus: true,
 
             ast: Default::default(),
             words: Default::default(),
@@ -176,7 +176,9 @@ impl Default for Editor {
 
 impl Editor {
     pub fn draw(&mut self, ctx: &Context) -> EditorResponse {
+        let fill = if ctx.style().visuals.dark_mode { Color32::BLACK } else { Color32::WHITE };
         egui::CentralPanel::default()
+            .frame(egui::Frame::default().fill(fill))
             .show(ctx, |ui| self.scroll_ui(ui))
             .inner
     }
@@ -185,9 +187,9 @@ impl Editor {
         let touch_mode = matches!(ui.ctx().os(), OperatingSystem::Android | OperatingSystem::IOS);
 
         let events = ui.ctx().input(|i| i.events.clone());
-
         // create id (even though we don't use interact response)
         let id = ui.auto_id_with("lbeditor");
+        self.id = id;
         ui.interact(self.scroll_area_rect, id, Sense::focusable_noninteractive());
 
         // calculate focus
@@ -195,7 +197,7 @@ impl Editor {
         let mut surrender_focus = false;
         for event in &events {
             if let Event::PointerButton { pos, pressed: true, .. } = event {
-                if ui.is_enabled() && self.scroll_area_rect.contains(*pos) {
+                if ui.is_enabled() && self.scroll_area_rect.contains(*pos) && self.has_focus {
                     request_focus = true;
                 } else {
                     surrender_focus = true;
@@ -227,16 +229,12 @@ impl Editor {
                     }
                 });
 
-                let fill = if ui.style().visuals.dark_mode {
-                    Color32::from_rgb(18, 18, 18)
-                } else {
-                    Color32::WHITE
-                };
+                let fill =
+                    if ui.style().visuals.dark_mode { Color32::BLACK } else { Color32::WHITE };
 
                 Frame::default()
                     .fill(fill)
-                    .outer_margin(egui::Margin::symmetric(7.0, 0.0))
-                    .inner_margin(egui::Margin::symmetric(0.0, 15.0))
+                    .inner_margin(egui::Margin::symmetric(7.0, 15.0))
                     .show(ui, |ui| ui.vertical_centered(|ui| self.ui(ui, id, touch_mode, &events)))
             });
         self.ui_rect = sao.inner_rect;
