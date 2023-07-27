@@ -143,7 +143,7 @@ pub fn calc_paragraphs(buffer: &SubBuffer, ast: &Ast) -> Paragraphs {
     result
 }
 
-pub fn calc_text(ast: &Ast, appearance: &Appearance) -> Text {
+pub fn calc_text(ast: &Ast, appearance: &Appearance, segs: &UnicodeSegs) -> Text {
     let mut result = vec![];
     for text_range in ast.iter_text_ranges() {
         if matches!(text_range.range_type, AstTextRangeType::Text)
@@ -154,6 +154,23 @@ pub fn calc_text(ast: &Ast, appearance: &Appearance) -> Text {
             result.push(text_range.range);
         }
     }
+
+    if let Some(first) = result.first() {
+        if first.start() != 0 {
+            // prepend empty range
+            result.splice(0..0, iter::once((0.into(), 0.into())));
+        }
+    }
+    if let Some(last) = result.last() {
+        if last.end() != segs.last_cursor_position() {
+            // append empty range
+            result.push((segs.last_cursor_position(), segs.last_cursor_position()));
+        }
+    }
+    if result.is_empty() {
+        result = vec![(0.into(), 0.into())];
+    }
+
     result
 }
 
