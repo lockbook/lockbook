@@ -216,8 +216,8 @@ impl Ast {
             // clamp range to text range of parent
             let parent_text_range = self.nodes[parent_idx].text_range;
             let (min, max) = parent_text_range;
-            range.0 = std::cmp::max(std::cmp::min(range.0, max), min);
-            range.1 = std::cmp::max(std::cmp::min(range.1, max), min);
+            range.0 = range.0.max(min).min(max);
+            range.1 = range.1.max(min).min(max);
 
             if range.is_empty() {
                 return None;

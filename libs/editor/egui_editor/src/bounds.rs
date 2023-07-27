@@ -1,3 +1,4 @@
+use crate::appearance::Appearance;
 use crate::ast::{Ast, AstTextRangeType};
 use crate::buffer::SubBuffer;
 use crate::galleys::Galleys;
@@ -28,14 +29,19 @@ pub struct Bounds {
     pub rendered_text: RenderedText,
 }
 
-pub fn calc_words(buffer: &SubBuffer, ast: &Ast) -> Words {
+pub fn calc_words(buffer: &SubBuffer, ast: &Ast, appearance: &Appearance) -> Words {
     let mut result = vec![];
 
     for text_range in ast.iter_text_ranges() {
         match text_range.range_type {
             AstTextRangeType::Head | AstTextRangeType::Tail => {
-                // syntax sequences count as words
-                result.push(text_range.range)
+                // syntax sequences count as words but only if they're not captured
+                if !appearance
+                    .markdown_capture()
+                    .contains(&text_range.node(ast).node_type())
+                {
+                    result.push(text_range.range)
+                }
             }
             AstTextRangeType::Text => {
                 let mut prev_char_offset = text_range.range.0;
@@ -66,13 +72,30 @@ pub fn calc_lines(galleys: &Galleys) -> Lines {
     let mut result = vec![];
     let galleys = galleys;
     for (galley_idx, galley) in galleys.galleys.iter().enumerate() {
-        let galley = &galley.galley;
-        for (row_idx, _) in galley.rows.iter().enumerate() {
-            let start_cursor = galley.from_rcursor(RCursor { row: row_idx, column: 0 });
+        for (row_idx, _) in galley.galley.rows.iter().enumerate() {
+            let start_cursor = galley
+                .galley
+                .from_rcursor(RCursor { row: row_idx, column: 0 });
             let row_start = galleys.char_offset_by_galley_and_cursor(galley_idx, &start_cursor);
-            let end_cursor = galley.cursor_end_of_row(&start_cursor);
+            let end_cursor = galley.galley.cursor_end_of_row(&start_cursor);
             let row_end = galleys.char_offset_by_galley_and_cursor(galley_idx, &end_cursor);
-            result.push((row_start, row_end))
+
+            let mut range = (row_start, row_end);
+
+            // rows in galley head/tail are excluded
+            if row_end < galley.text_range().start() {
+                continue;
+            }
+            if row_start > galley.text_range().end() {
+                break;
+            }
+
+            // bound row start and row end by the galley bounds
+            let (min, max) = galley.text_range();
+            range.0 = range.0.max(min).min(max);
+            range.1 = range.1.max(min).min(max);
+
+            result.push(range)
         }
     }
 
