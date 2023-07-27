@@ -324,7 +324,6 @@ impl Editor {
             ui,
         );
         self.bounds.lines = bounds::calc_lines(&self.galleys, &self.bounds.text);
-        self.print_bounds();
         self.initialized = true;
 
         // draw
