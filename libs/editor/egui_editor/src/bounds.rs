@@ -11,10 +11,10 @@ use std::collections::HashSet;
 use std::iter;
 use unicode_segmentation::UnicodeSegmentation;
 
-pub type Words = Vec<(DocCharOffset, DocCharOffset)>;
-pub type Lines = Vec<(DocCharOffset, DocCharOffset)>;
-pub type Paragraphs = Vec<(DocCharOffset, DocCharOffset)>;
-pub type Text = Vec<(DocCharOffset, DocCharOffset)>;
+type Words = Vec<(DocCharOffset, DocCharOffset)>;
+type Lines = Vec<(DocCharOffset, DocCharOffset)>;
+type Paragraphs = Vec<(DocCharOffset, DocCharOffset)>;
+type RenderedText = Vec<(DocCharOffset, DocCharOffset)>;
 
 /// Represents bounds of various text regions in the buffer. Region bounds are inclusive on both sides. Regions do not
 /// overlap, have region.0 <= region.1, and are sorted. Character and doc regions are not stored explicitly but can be
@@ -25,8 +25,7 @@ pub struct Bounds {
     pub lines: Lines,
     pub paragraphs: Paragraphs,
 
-    /// Text consists of all rendered text. Every valid cursor position is in some possibly-empty text range.
-    pub text: Text,
+    pub rendered_text: RenderedText,
 }
 
 pub fn calc_words(buffer: &SubBuffer, ast: &Ast, appearance: &Appearance) -> Words {
@@ -143,35 +142,8 @@ pub fn calc_paragraphs(buffer: &SubBuffer, ast: &Ast) -> Paragraphs {
     result
 }
 
-pub fn calc_text(ast: &Ast, appearance: &Appearance, segs: &UnicodeSegs) -> Text {
-    let mut result = vec![];
-    for text_range in ast.iter_text_ranges() {
-        if matches!(text_range.range_type, AstTextRangeType::Text)
-            || !appearance
-                .markdown_capture()
-                .contains(&text_range.node(ast).node_type())
-        {
-            result.push(text_range.range);
-        }
-    }
-
-    if let Some(first) = result.first() {
-        if first.start() != 0 {
-            // prepend empty range
-            result.splice(0..0, iter::once((0.into(), 0.into())));
-        }
-    }
-    if let Some(last) = result.last() {
-        if last.end() != segs.last_cursor_position() {
-            // append empty range
-            result.push((segs.last_cursor_position(), segs.last_cursor_position()));
-        }
-    }
-    if result.is_empty() {
-        result = vec![(0.into(), 0.into())];
-    }
-
-    result
+pub fn calc_rendered_text() -> RenderedText {
+    todo!()
 }
 
 impl Bounds {

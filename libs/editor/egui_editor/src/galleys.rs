@@ -55,9 +55,8 @@ pub fn calc(
 
     // head_size = head size of first ast node if it has a captured head, otherwise zero
     // tail_size = tail size of last ast_node if it has a captured tail, otherwise zero
-    let mut head_size: RelCharOffset = 0.into();
-    let mut head_size_locked: bool = false;
-    let mut tail_size: RelCharOffset = 0.into();
+    let mut head_size: Option<RelCharOffset> = Default::default();
+    let mut tail_size: Option<RelCharOffset> = Default::default();
 
     let mut annotation: Option<Annotation> = Default::default();
     let mut annotation_text_format = Default::default();
@@ -160,19 +159,15 @@ pub fn calc(
                             // need to append empty text to layout so that the style is applied
                             layout.append("", 0.0, text_format);
 
-                            if !head_size_locked {
-                                head_size += text_range_portion.range.len();
-                            }
+                            head_size.get_or_insert(text_range_portion.range.len());
+                            tail_size = Some(0.into());
                         } else {
                             // uncaptured syntax characters have syntax style applied on top of node style
                             RenderStyle::Syntax.apply_style(&mut text_format, appearance);
                             layout.append(&buffer[text_range_portion.range], 0.0, text_format);
 
-                            head_size_locked = true;
-                        }
-
-                        if !text_range_portion.range.is_empty() {
-                            tail_size = 0.into();
+                            head_size.get_or_insert(0.into());
+                            tail_size = Some(0.into());
                         }
                     }
                     AstTextRangeType::Tail => {
@@ -182,24 +177,23 @@ pub fn calc(
                         {
                             // need to append empty text to layout so that the style is applied
                             layout.append("", 0.0, text_format);
+
+                            head_size.get_or_insert(0.into());
+                            tail_size = Some(text_range_portion.range.len());
                         } else {
                             // uncaptured syntax characters have syntax style applied on top of node style
                             RenderStyle::Syntax.apply_style(&mut text_format, appearance);
                             layout.append(&buffer[text_range_portion.range], 0.0, text_format);
-                        }
 
-                        if !text_range_portion.range.is_empty() {
-                            head_size_locked = true;
-                            tail_size += text_range_portion.range.len();
+                            head_size.get_or_insert(0.into());
+                            tail_size = Some(0.into());
                         }
                     }
                     AstTextRangeType::Text => {
                         layout.append(&buffer[text_range_portion.range], 0.0, text_format);
 
-                        if !text_range_portion.range.is_empty() {
-                            head_size_locked = true;
-                            tail_size = 0.into();
-                        }
+                        head_size.get_or_insert(0.into());
+                        tail_size = Some(0.into());
                     }
                 }
             }
@@ -217,8 +211,8 @@ pub fn calc(
                 range: bounds.paragraphs[paragraph_idx],
                 job: mem::take(&mut layout),
                 annotation: mem::take(&mut annotation),
-                head_size: mem::take(&mut head_size),
-                tail_size: mem::take(&mut tail_size),
+                head_size: mem::take(&mut head_size).unwrap_or_default(),
+                tail_size: mem::take(&mut tail_size).unwrap_or_default(),
                 annotation_text_format: mem::take(&mut annotation_text_format),
             };
             result
