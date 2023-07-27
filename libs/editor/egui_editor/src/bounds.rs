@@ -75,10 +75,9 @@ pub fn calc_lines(galleys: &Galleys, text: &Text) -> Lines {
             let start_cursor = galley
                 .galley
                 .from_rcursor(RCursor { row: row_idx, column: 0 });
-            let row_start =
-                galleys.char_offset_by_galley_and_cursor(galley_idx, &start_cursor, text);
+            let row_start = galleys.char_offset_by_galley_and_cursor(galley_idx, &start_cursor);
             let end_cursor = galley.galley.cursor_end_of_row(&start_cursor);
-            let row_end = galleys.char_offset_by_galley_and_cursor(galley_idx, &end_cursor, text);
+            let row_end = galleys.char_offset_by_galley_and_cursor(galley_idx, &end_cursor);
 
             let mut range = (row_start, row_end);
 
