@@ -7,6 +7,7 @@ use crate::widgets::separator;
 use crate::{theme::Icon, widgets::Button};
 
 use super::modals::ErrorModal;
+use super::OpenModal;
 use super::{tabs::SaveRequestContent, AccountUpdate, FileTree, Tab, TabContent, TabFailure};
 
 pub struct Workspace {
@@ -179,15 +180,11 @@ impl super::AccountScreen {
     pub fn show_workspace(&mut self, frame: &mut eframe::Frame, ui: &mut egui::Ui) {
         ui.set_enabled(!self.is_any_modal_open());
 
-        ui.centered_and_justified(|ui| {
-            if self.workspace.is_empty() {
-                self.workspace
-                    .backdrop
-                    .show_size(ui, egui::vec2(360.0, 360.0));
-            } else {
-                self.show_tabs(frame, ui);
-            }
-        });
+        if self.workspace.is_empty() {
+            self.show_empty_workspace(ui);
+        } else {
+            ui.centered_and_justified(|ui| self.show_tabs(frame, ui));
+        }
 
         if self.settings.read().unwrap().zen_mode {
             let mut min = ui.clip_rect().left_bottom();
@@ -209,6 +206,44 @@ impl super::AccountScreen {
                 zen_mode_btn.on_hover_text("Show side panel");
             });
         }
+    }
+
+    fn show_empty_workspace(&mut self, ui: &mut egui::Ui) {
+        ui.with_layout(egui::Layout::top_down(egui::Align::Center), |ui| {
+            ui.add_space(ui.clip_rect().height() / 3.0);
+            self.workspace
+                .backdrop
+                .show_size(ui, egui::vec2(100.0, 100.0));
+
+            ui.label(egui::RichText::new("Welcome to your Lockbook").size(40.0));
+            ui.label(
+                "Right click on your file tree to explore all that your lockbook has to offer",
+            );
+
+            ui.add_space(40.0);
+
+            ui.visuals_mut().widgets.inactive.bg_fill = ui.visuals().widgets.active.bg_fill;
+            ui.visuals_mut().widgets.hovered.bg_fill = ui.visuals().widgets.active.bg_fill;
+            if Button::default()
+                .text("New document")
+                .frame(true)
+                .show(ui)
+                .clicked()
+            {
+                self.update_tx.send(OpenModal::NewDoc(None).into()).unwrap();
+                ui.ctx().request_repaint();
+            }
+            ui.visuals_mut().widgets.inactive.fg_stroke =
+                egui::Stroke { color: ui.visuals().widgets.active.bg_fill, ..Default::default() };
+            ui.visuals_mut().widgets.hovered.fg_stroke =
+                egui::Stroke { color: ui.visuals().widgets.active.bg_fill, ..Default::default() };
+            if Button::default().text("New folder").show(ui).clicked() {
+                self.update_tx
+                    .send(OpenModal::NewFolder(None).into())
+                    .unwrap();
+                ui.ctx().request_repaint();
+            }
+        });
     }
 
     fn show_tabs(&mut self, frame: &mut eframe::Frame, ui: &mut egui::Ui) {
