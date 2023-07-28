@@ -1,6 +1,7 @@
 use std::time::Instant;
 
 use eframe::egui;
+use egui_extras::RetainedImage;
 
 use crate::widgets::separator;
 use crate::{theme::Icon, widgets::Button};
@@ -12,11 +13,16 @@ use super::{tabs::SaveRequestContent, AccountUpdate, FileTree, Tab, TabContent, 
 pub struct Workspace {
     pub tabs: Vec<Tab>,
     pub active_tab: usize,
+    pub backdrop: RetainedImage,
 }
 
 impl Workspace {
     pub fn new() -> Self {
-        Self { tabs: Vec::new(), active_tab: 0 }
+        Self {
+            tabs: Vec::new(),
+            active_tab: 0,
+            backdrop: RetainedImage::from_image_bytes("logo-backdrop", LOGO_BACKDROP).unwrap(),
+        }
     }
 
     pub fn open_tab(&mut self, id: lb::Uuid, name: &str, path: &str) {
@@ -203,11 +209,17 @@ impl super::AccountScreen {
     }
     fn show_empty_workspace(&mut self, ui: &mut egui::Ui) {
         ui.with_layout(egui::Layout::top_down(egui::Align::Center), |ui| {
-            ui.add_space(ui.clip_rect().height() / 2.5);
-            ui.label(egui::RichText::new("Welcome to your Lockbook").size(30.0));
-            ui.label("You can access all your files in the left sidebar");
+            ui.add_space(ui.clip_rect().height() / 3.0);
+            self.workspace
+                .backdrop
+                .show_size(ui, egui::vec2(100.0, 100.0));
 
-            ui.add_space(20.0);
+            ui.label(egui::RichText::new("Welcome to your Lockbook").size(40.0));
+            ui.label(
+                "Right click on your file tree to explore all that your lockbook has to offer",
+            );
+
+            ui.add_space(40.0);
 
             ui.visuals_mut().widgets.inactive.bg_fill = ui.visuals().widgets.active.bg_fill;
             ui.visuals_mut().widgets.hovered.bg_fill = ui.visuals().widgets.active.bg_fill;
@@ -218,6 +230,16 @@ impl super::AccountScreen {
                 .clicked()
             {
                 self.update_tx.send(OpenModal::NewDoc(None).into()).unwrap();
+                ui.ctx().request_repaint();
+            }
+            ui.visuals_mut().widgets.inactive.fg_stroke =
+                egui::Stroke { color: ui.visuals().widgets.active.bg_fill, ..Default::default() };
+            ui.visuals_mut().widgets.hovered.fg_stroke =
+                egui::Stroke { color: ui.visuals().widgets.active.bg_fill, ..Default::default() };
+            if Button::default().text("New folder").show(ui).clicked() {
+                self.update_tx
+                    .send(OpenModal::NewFolder(None).into())
+                    .unwrap();
                 ui.ctx().request_repaint();
             }
         });
@@ -426,3 +448,5 @@ fn get_parents(core: &lb::Core, id: lb::Uuid) -> Result<Vec<lb::File>, String> {
     }
     Ok(parents)
 }
+
+const LOGO_BACKDROP: &[u8] = include_bytes!("../../lockbook-backdrop.png");
