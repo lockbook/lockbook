@@ -54,7 +54,7 @@ impl Drive {
         self.watcher_state.lock().unwrap().dest.clone().unwrap()
     }
 
-    pub fn watch_for_changes(&self) {
+    fn watch_for_changes(&self) {
         let dest = self.get_dest();
         let watcher = file_events::Watcher::new(dest.clone());
         let rx = watcher.watch_for_changes();
@@ -184,6 +184,7 @@ impl Drive {
                 .unwrap(),
             None => thread::sleep(Duration::from_millis(100)),
         }
+        self.sync();
     }
 
     fn sync(&self) {

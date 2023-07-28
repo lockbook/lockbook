@@ -1851,7 +1851,7 @@ dependencies = [
 
 [[package]]
 name = "file-events"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "fsevent 2.1.2",
  "inotify 0.9.6",
