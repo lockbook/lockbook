@@ -207,6 +207,7 @@ impl super::AccountScreen {
             });
         }
     }
+    
     fn show_empty_workspace(&mut self, ui: &mut egui::Ui) {
         ui.with_layout(egui::Layout::top_down(egui::Align::Center), |ui| {
             ui.add_space(ui.clip_rect().height() / 3.0);
