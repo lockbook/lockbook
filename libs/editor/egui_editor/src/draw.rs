@@ -84,12 +84,8 @@ impl Editor {
             // draw images
             if let Some(image) = &galley.image {
                 let uv = Rect { min: Pos2 { x: 0.0, y: 0.0 }, max: Pos2 { x: 1.0, y: 1.0 } };
-                ui.painter().image(
-                    image.texture,
-                    image.image_bounds(&self.appearance, ui),
-                    uv,
-                    Color32::WHITE,
-                );
+                ui.painter()
+                    .image(image.texture, image.location, uv, Color32::WHITE);
             }
 
             // draw text
