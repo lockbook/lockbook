@@ -414,24 +414,3 @@ impl Editor {
         }
     }
 }
-
-impl ImageInfo {
-    pub fn image_bounds(&self, appearance: &Appearance, ui: &Ui) -> Rect {
-        let [image_width, _] = ui
-            .ctx()
-            .tex_manager()
-            .read()
-            .meta(self.texture)
-            .unwrap()
-            .size;
-        let width =
-            f32::min(ui.available_width() - appearance.image_padding() * 2.0, image_width as f32);
-        let mut result = self.location;
-        let center_x = ui.available_width() / 2.0;
-        result.min.x = center_x - width / 2.0;
-        result.max.x = center_x + width / 2.0;
-        result.min.y += appearance.image_padding();
-        result.max.y -= appearance.image_padding();
-        result
-    }
-}
