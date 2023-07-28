@@ -36,16 +36,20 @@ impl Drive {
     }
 
     pub fn prep_destination(&self, mut dest: PathBuf) {
+        println!("performing sync");
+
         self.c.get_account().unwrap();
         self.sync();
-        println!("{:?}", dest);
-        println!("{:?}", self.c.get_root().unwrap());
+
+        println!("exporting account in {:?}", dest);
 
         self.c
             .export_file(self.c.get_root().unwrap().id, dest.clone(), false, None)
             .unwrap();
 
         dest.push(self.c.get_root().unwrap().name);
+        dest = dest.canonicalize().unwrap();
+
         File::open(&dest).unwrap().sync_all().unwrap();
         self.watcher_state.lock().unwrap().dest = Some(dest);
     }
@@ -56,10 +60,11 @@ impl Drive {
 
     fn watch_for_changes(&self) {
         let dest = self.get_dest();
+        println!("watching for changes inside {:?}", dest);
         let watcher = file_events::Watcher::new(dest.clone());
         let rx = watcher.watch_for_changes();
         while let Ok(res) = rx.recv() {
-            println!("{:#?}", res);
+            println!("received event: {:?}", res);
             match res {
                 file_events::FileEvent::Create(path) => {
                     let core_path = get_lockbook_path(path.clone(), dest.clone());
@@ -155,36 +160,38 @@ impl Drive {
     }
 
     fn handle_changes(&self) {
-        let event = self.pending_events.lock().unwrap().pop_front();
-        match event {
-            Some(DriveEvent::Create(path)) => {
-                let check = self.c.get_by_path(&path);
-                if check.is_err() {
-                    self.c.create_at_path(&path).unwrap();
+        loop {
+            let event = self.pending_events.lock().unwrap().pop_front();
+            match event {
+                Some(DriveEvent::Create(path)) => {
+                    let check = self.c.get_by_path(&path);
+                    if check.is_err() {
+                        self.c.create_at_path(&path).unwrap();
+                    }
                 }
+                Some(DriveEvent::Delete(path)) => self
+                    .c
+                    .delete_file(self.c.get_by_path(&path).unwrap().id)
+                    .unwrap(),
+                Some(DriveEvent::DocumentModified(path, content)) => self
+                    .c
+                    .write_document(self.c.get_by_path(&path).unwrap().id, &content)
+                    .unwrap(),
+                Some(DriveEvent::Rename(path, new_name)) => self
+                    .c
+                    .rename_file(self.c.get_by_path(&path).unwrap().id, &new_name)
+                    .unwrap(),
+                Some(DriveEvent::Move(from_path, to_path)) => self
+                    .c
+                    .move_file(
+                        self.c.get_by_path(&from_path).unwrap().id,
+                        self.c.get_by_path(&to_path).unwrap().id,
+                    )
+                    .unwrap(),
+                None => thread::sleep(Duration::from_millis(100)),
             }
-            Some(DriveEvent::Delete(path)) => self
-                .c
-                .delete_file(self.c.get_by_path(&path).unwrap().id)
-                .unwrap(),
-            Some(DriveEvent::DocumentModified(path, content)) => self
-                .c
-                .write_document(self.c.get_by_path(&path).unwrap().id, &content)
-                .unwrap(),
-            Some(DriveEvent::Rename(path, new_name)) => self
-                .c
-                .rename_file(self.c.get_by_path(&path).unwrap().id, &new_name)
-                .unwrap(),
-            Some(DriveEvent::Move(from_path, to_path)) => self
-                .c
-                .move_file(
-                    self.c.get_by_path(&from_path).unwrap().id,
-                    self.c.get_by_path(&to_path).unwrap().id,
-                )
-                .unwrap(),
-            None => thread::sleep(Duration::from_millis(100)),
+            self.sync();
         }
-        self.sync();
     }
 
     fn sync(&self) {

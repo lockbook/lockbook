@@ -1,5 +1,5 @@
-use std::{sync::Arc, thread, fs, time::Duration, path::PathBuf};
 use drive_lib::Drive;
+use std::{fs, path::PathBuf, sync::Arc, thread, time::Duration};
 
 fn new_test_dir(name: &str) -> PathBuf {
     let dir = format!("/tmp/{name}");
@@ -9,8 +9,7 @@ fn new_test_dir(name: &str) -> PathBuf {
 }
 
 #[test]
-fn create_file_test(){
-
+fn create_file_test() {
     let dest = new_test_dir("new_file");
 
     let drive = Drive::test_drive();
@@ -20,29 +19,31 @@ fn create_file_test(){
     let clone_drive = drive.clone();
     let dest_clone = dest.clone();
 
-    thread::spawn(move ||clone_drive.check_for_changes(dest_clone));
-    thread::sleep(Duration::from_millis(1500));
+    thread::spawn(move || clone_drive.check_for_changes(dest_clone));
+    thread::sleep(Duration::from_millis(100));
 
     let mut dest = drive.get_dest();
     dest.push("test.md");
 
     fs::File::create(&dest).unwrap();
-    thread::sleep(Duration::from_millis(1500));
+    thread::sleep(Duration::from_millis(100));
 
     let files = core.list_metadatas().unwrap();
-    println!("{:?}", files.iter().find(|m|m.name == "test.md"));
-    let f = files.iter().find(|m|m.name == "test.md").unwrap();
+    println!("{:#?}", files.iter());
+    println!("{:?}", files.iter().find(|m| m.name == "test.md"));
+    let f = files.iter().find(|m| m.name == "test.md").unwrap();
     assert_eq!(f.parent, core.get_root().unwrap().id);
+    assert_eq!(files.len(), 2);
 }
 
-//Make create_file_test pass
+//Make create_file_test pass -- you're creating an extra folder inside root
 //Write more tests (ideally look at code and write test for each branch)
 //As soon as reliable, update on it
 //Work on sync stuff
 //Write a function that takes two lists of files and tells exactly what happened
-//enum variables ->create, rename, write_contents, etc 
+//enum variables ->create, rename, write_contents, etc
 //fn file_diff(a: Vec<File>, b: Vec<File>) -> Vec<Diff>{}
 /*pub enum Diff{
     Create_File
-    Rename_File, etc    
+    Rename_File, etc
 }*/

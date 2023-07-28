@@ -5,11 +5,11 @@ use std::{
     collections::VecDeque,
     sync::{Arc, Mutex},
 };
-use test_utils::{test_core, test_core_with_account};
+use test_utils::test_core_with_account;
 
 pub mod event;
-mod import;
-mod local_sync;
+pub mod import;
+pub mod local_sync;
 
 #[derive(Clone)]
 pub struct Drive {
