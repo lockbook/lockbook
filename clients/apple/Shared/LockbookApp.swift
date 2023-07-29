@@ -1,6 +1,7 @@
 import Foundation
 import SwiftUI
 import SwiftLockbookCore
+import BackgroundTasks
 
 #if os(macOS)
 import AppKit
@@ -11,6 +12,8 @@ import AppKit
     
     #if os(macOS)
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
+    #else
+    @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     #endif
         
     var body: some Scene {
@@ -20,12 +23,7 @@ import AppKit
                 .buttonStyle(PlainButtonStyle())
                 .ignoresSafeArea()
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .onBackground {
-                    DI.sync.sync()
-                }
-                .onForeground {
-                    DI.sync.foregroundSync()
-                }
+                .registerBackgroundTasks(scenePhase: scenePhase, appDelegate: appDelegate)
                 .onOpenURL() { url in
                     onUrlOpen(url: url)
                 }
@@ -246,41 +244,116 @@ extension View {
 }
 
 extension View {
-    #if os(iOS)
-    func onBackground(_ f: @escaping () -> Void) -> some View {
-        self.onReceive(
-            NotificationCenter.default.publisher(for: UIApplication.willResignActiveNotification),
-            perform: { _ in f() }
-        )
+    func registerBackgroundTasks(scenePhase: ScenePhase, appDelegate: AppDelegate) -> some View {
+        #if os(iOS)
+        self
+            .onChange(of: scenePhase, perform: { newValue in
+                switch newValue {
+                case .background:
+                    appDelegate.scheduleBackgroundTask(initialRun: true)
+                case .active:
+                    appDelegate.endBackgroundTasks()
+                default:
+                    break
+                }
+            })
+        #else
+        self
+            .onReceive(
+                NotificationCenter.default.publisher(for: NSApplication.willResignActiveNotification),
+                perform: { _ in
+                    appDelegate.scheduleBackgroundTask(initialRun: true)
+                })
+            .onReceive(
+                NotificationCenter.default.publisher(for: NSApplication.willBecomeActiveNotification),
+                perform: { _ in
+                    appDelegate.endBackgroundTasks()
+                })
+        #endif
     }
     
-    func onForeground(_ f: @escaping () -> Void) -> some View {
-        self.onReceive(
-            NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification),
-            perform: { _ in f() }
-        )
-    }
-    #else
-    func onBackground(_ f: @escaping () -> Void) -> some View {
-        self.onReceive(
-            NotificationCenter.default.publisher(for: NSApplication.willResignActiveNotification),
-            perform: { _ in f() }
-        )
-    }
-    
-    func onForeground(_ f: @escaping () -> Void) -> some View {
-        self.onReceive(
-            NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification),
-            perform: { _ in f() }
-        )
-    }
-    #endif
 }
 
 #if os(macOS)
+
 class AppDelegate: NSObject, NSApplicationDelegate {
+    let backgroundSyncStartSecs = 60 * 5
+    let backgroundSyncContSecs = 60 * 60
+    
+    var currentSyncTask: DispatchWorkItem? = nil
+    
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         return true
     }
+    
+    let operationQueue = OperationQueue()
+    
+    func scheduleBackgroundTask(initialRun: Bool) {
+        let newSyncTask = DispatchWorkItem {
+            DI.sync.sync()
+            
+            self.scheduleBackgroundTask(initialRun: false)
+        }
+        
+        DispatchQueue.main.asyncAfter(deadline: .now() + .seconds((initialRun ? backgroundSyncStartSecs : backgroundSyncContSecs)), execute: newSyncTask)
+        
+        currentSyncTask = newSyncTask
+    }
+    
+    func endBackgroundTasks() {
+        currentSyncTask?.cancel()
+    }
 }
+
+#else
+
+class AppDelegate: NSObject, UIApplicationDelegate {
+    
+    let backgroundSyncStartSecs = 60.0 * 5
+    let backgroundSyncContSecs = 60.0 * 60
+    
+    let backgroundSyncIdentifier = "app.lockbook.backgroundSync"
+
+    func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey : Any]? = nil) -> Bool {
+        self.registerBackgroundTask()
+        
+        return true
+    }
+    
+    func registerBackgroundTask() {
+        BGTaskScheduler.shared.register(forTaskWithIdentifier: backgroundSyncIdentifier, using: nil) { task in
+            task.expirationHandler = {
+                task.setTaskCompleted(success: false)
+            }
+            
+            DispatchQueue.main.async {
+                DI.sync.backgroundSync(onSuccess: {
+                    task.setTaskCompleted(success: true)
+
+                    self.scheduleBackgroundTask(initialRun: false)
+                }, onFailure: {
+                    task.setTaskCompleted(success: false)
+
+                    self.scheduleBackgroundTask(initialRun: false)
+                })
+                
+                self.scheduleBackgroundTask(initialRun: false)
+            }
+        }
+    }
+    
+    func scheduleBackgroundTask(initialRun: Bool) {
+        let request = BGProcessingTaskRequest(identifier: backgroundSyncIdentifier)
+        request.earliestBeginDate = Date(timeIntervalSinceNow: initialRun ? backgroundSyncStartSecs : backgroundSyncContSecs)
+        request.requiresExternalPower = false
+        request.requiresNetworkConnectivity = true
+        
+        try! BGTaskScheduler.shared.submit(request)
+    }
+    
+    func endBackgroundTasks() {
+        BGTaskScheduler.shared.cancelAllTaskRequests()
+    }
+}
+
 #endif
