@@ -4,6 +4,10 @@
 <dict>
 	<key>API_LOCATION</key>
 	<string>${API_LOCATION}</string>
+	<key>BGTaskSchedulerPermittedIdentifiers</key>
+	<array>
+		<string>app.lockbook.backgroundSync</string>
+	</array>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>CFBundleDevelopmentRegion</key>
@@ -50,6 +54,11 @@
 	</dict>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>fetch</string>
+		<string>processing</string>
+	</array>
 	<key>UILaunchScreen</key>
 	<dict/>
 	<key>UIRequiredDeviceCapabilities</key>
