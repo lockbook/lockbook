@@ -45,6 +45,53 @@ class SyncService: ObservableObject {
         DI.settings.calculateUsage()
     }
     
+    func backgroundSync(onSuccess: (() -> Void)? = nil, onFailure: (() -> Void)? = nil) {
+        if syncing {
+            return
+        }
+        
+        if DI.accounts.account == nil {
+            print("tried to sync before having an account, ignoring")
+            return
+        }
+        
+        syncing = true
+
+        print("Syncing...")
+        let result = self.core.syncAll()
+        print("Finished syncing...")
+        
+        syncing = false
+        
+        switch result {
+        case .success(_):
+            self.outOfSpace = false
+            self.offline = false
+            self.postSyncSteps()
+            onSuccess?()
+        case .failure(let error):
+            switch error.kind {
+            case .UiError(let uiError):
+                switch uiError {
+                case .CouldNotReachServer:
+                    self.offline = true
+                case .ClientUpdateRequired:
+                    self.upgrade = true
+                case .Retry:
+                    // TODO
+                    DI.errors.handleError(ErrorWithTitle(title: "Retry", message: "SyncService wants retry"))
+                case .UsageIsOverDataCap:
+                    self.outOfSpace = true
+                }
+            default:
+                DI.errors.handleError(error)
+            }
+            
+            onFailure?()
+        }
+
+    }
+    
     func sync() {
         if syncing {
             return
