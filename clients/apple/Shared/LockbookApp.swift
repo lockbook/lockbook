@@ -309,8 +309,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
 class AppDelegate: NSObject, UIApplicationDelegate {
     
-    let backgroundSyncStartSecs = 60 * 5
-    let backgroundSyncContSecs = 60 * 60
+    let backgroundSyncStartSecs = 60.0 * 5
+    let backgroundSyncContSecs = 60.0 * 60
     
     let backgroundSyncIdentifier = "app.lockbook.backgroundSync"
 
