@@ -50,21 +50,23 @@ import AppKit
             }
             
             CommandGroup(replacing: .textFormatting) {
-                Button("Heading 1", action: {
-                    DI.currentDoc.formatSelectedDocSelectedText(.Heading(1))
-                }).keyboardShortcut("1", modifiers: [.command, .control])
-
-                Button("Heading 2", action: {
-                    DI.currentDoc.formatSelectedDocSelectedText(.Heading(2))
-                }).keyboardShortcut("2", modifiers: [.command, .control])
-
-                Button("Heading 3", action: {
-                    DI.currentDoc.formatSelectedDocSelectedText(.Heading(3))
-                }).keyboardShortcut("3", modifiers: [.command, .control])
-
-                Button("Heading 4", action: {
-                    DI.currentDoc.formatSelectedDocSelectedText(.Heading(4))
-                }).keyboardShortcut("4", modifiers: [.command, .control])
+                Menu("Headings") {
+                    Button("Heading 1", action: {
+                        DI.currentDoc.formatSelectedDocSelectedText(.Heading(1))
+                    }).keyboardShortcut("1", modifiers: [.command, .control])
+                    
+                    Button("Heading 2", action: {
+                        DI.currentDoc.formatSelectedDocSelectedText(.Heading(2))
+                    }).keyboardShortcut("2", modifiers: [.command, .control])
+                    
+                    Button("Heading 3", action: {
+                        DI.currentDoc.formatSelectedDocSelectedText(.Heading(3))
+                    }).keyboardShortcut("3", modifiers: [.command, .control])
+                    
+                    Button("Heading 4", action: {
+                        DI.currentDoc.formatSelectedDocSelectedText(.Heading(4))
+                    }).keyboardShortcut("4", modifiers: [.command, .control])
+                }
 
                 Button("Bold", action: {
                     DI.currentDoc.formatSelectedDocSelectedText(.Bold)
@@ -77,6 +79,10 @@ import AppKit
                 Button("Inline Code", action: {
                     DI.currentDoc.formatSelectedDocSelectedText(.InlineCode)
                 }).keyboardShortcut("C", modifiers: [.command, .shift])
+                
+                Button("Strikethrough", action: {
+                    DI.currentDoc.formatSelectedDocSelectedText(.Strikethrough)
+                }).keyboardShortcut("S", modifiers: [.command, .shift])
                 
                 Button("Number List", action: {
                     DI.currentDoc.formatSelectedDocSelectedText(.NumberList)
@@ -285,9 +291,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         return true
     }
-    
-    let operationQueue = OperationQueue()
-    
+        
     func scheduleBackgroundTask(initialRun: Bool) {
         let newSyncTask = DispatchWorkItem {
             DI.sync.sync()

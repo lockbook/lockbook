@@ -91,6 +91,11 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
         self.setNeedsDisplay(self.frame)
     }
     
+    public func strikethrough() {
+        apply_style_to_selection_strikethrough(editorHandle)
+        self.setNeedsDisplay(self.frame)
+    }
+    
     public func tab(deindent: Bool) {
         indent_at_cursor(editorHandle, deindent)
         self.setNeedsDisplay(self.frame)
@@ -105,6 +110,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
         self.toolbarState!.toggleTodoList = todoList
         self.toolbarState!.toggleBulletList = bulletedList
         self.toolbarState!.toggleInlineCode = inlineCode
+        self.toolbarState!.toggleStrikethrough = strikethrough
         self.toolbarState!.toggleNumberList = numberedList
         self.toolbarState!.toggleHeading = header
         self.toolbarState!.tab = tab
@@ -128,6 +134,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
         toolbarState?.isInlineCodeSelected = output.editor_response.cursor_in_inline_code;
         toolbarState?.isBoldSelected = output.editor_response.cursor_in_bold;
         toolbarState?.isItalicSelected = output.editor_response.cursor_in_italic;
+        toolbarState?.isStrikethroughSelected = output.editor_response.cursor_in_strikethrough;
         
         if let potentialTitle = output.editor_response.potential_title {
             nameState?.potentialTitle = String(cString: potentialTitle)

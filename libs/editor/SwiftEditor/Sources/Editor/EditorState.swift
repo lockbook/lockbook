@@ -23,12 +23,14 @@ public class ToolbarState: ObservableObject {
     @Published public var isInlineCodeSelected: Bool = false
     @Published public var isBoldSelected: Bool = false
     @Published public var isItalicSelected: Bool = false
+    @Published public var isStrikethroughSelected: Bool = false
     
     public var toggleBulletList: () -> Void = {}
     public var toggleNumberList: () -> Void = {}
     public var toggleTodoList: () -> Void = {}
     public var toggleHeading: (UInt32) -> Void = {_ in }
     public var toggleInlineCode: () -> Void = {}
+    public var toggleStrikethrough: () -> Void = {}
     public var toggleBold: () -> Void = {}
     public var toggleItalic: () -> Void = {}
     public var tab: (Bool) -> Void = {_ in }
