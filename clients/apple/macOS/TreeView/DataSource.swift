@@ -82,7 +82,7 @@ class DataSource: NSObject, NSOutlineViewDataSource, NSPasteboardItemDataProvide
             
             let parent = item == nil ? DI.files.root! : item as! File
             
-            return DI.files.importFilesSync(sources: urls.map({ url in url.path(percentEncoded: false)}), destination: parent.id)
+            return DI.importExport.importFilesSync(sources: urls.map({ url in url.path(percentEncoded: false)}), destination: parent.id)
         }
     }
     
@@ -90,17 +90,8 @@ class DataSource: NSObject, NSOutlineViewDataSource, NSPasteboardItemDataProvide
         if(type == .fileURL) {
             let file = try! JSONDecoder().decode(File.self, from: item.data(forType: NSPasteboard.PasteboardType(Self.REORDER_PASTEBOARD_TYPE))!)
             
-            guard let destination = createTempTempDir() else {
-                return
-            }
-            
-            let operation = DI.core.exportFile(id: file.id, destination: destination.path())
-            
-            switch operation {
-            case .success(_):
-                item.setData(destination.appendingPathComponent(file.name).dataRepresentation, forType: .fileURL)
-            case .failure(let error):
-                DI.errors.handleError(error)
+            if let dest = DI.importExport.exportFilesToTempDirSync(meta: file) {
+                item.setData(dest.dataRepresentation, forType: .fileURL)
             }
         }
     }
@@ -112,7 +103,6 @@ class DataSource: NSObject, NSOutlineViewDataSource, NSPasteboardItemDataProvide
     }
 
     static let REORDER_PASTEBOARD_TYPE = "net.lockbook.metadata"
-    static let TMP_DIR = "lb-tmp"
 }
 
 class TreeDelegate: NSObject, MenuOutlineViewDelegate {
@@ -132,8 +122,9 @@ class TreeDelegate: NSObject, MenuOutlineViewDelegate {
         }
 
         if parent.id != parent.parent {
-            menu.addItem(Share(file: parent))
             menu.addItem(Delete(file: parent))
+            menu.addItem(Share(file: parent))
+            menu.addItem(ShareExternallyMenu(file: parent, fileTree: outlineView))
         }
         
         return menu
@@ -174,32 +165,5 @@ class TreeDelegate: NSObject, MenuOutlineViewDelegate {
     }
 }
 
-func createTempFile(_ fileName: String) -> URL? {
-    let fileManager = FileManager.default
-    let tempDirectoryURL = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent(DataSource.TMP_DIR)
 
-    do {
-        try fileManager.createDirectory(at: tempDirectoryURL, withIntermediateDirectories: true, attributes: nil)
-    } catch {
-        return nil
-    }
-    
-    let newFileURL = tempDirectoryURL.appendingPathComponent(fileName)
-    
-    fileManager.createFile(atPath: newFileURL.path(), contents: nil)
-    return newFileURL
-}
-
-func createTempTempDir() -> URL? {
-    let fileManager = FileManager.default
-    let tempTempURL = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent(DataSource.TMP_DIR).appendingPathComponent(UUID().uuidString)
-    
-    do {
-        try fileManager.createDirectory(at: tempTempURL, withIntermediateDirectories: true, attributes: nil)
-    } catch {
-        return nil
-    }
-    
-    return tempTempURL
-}
 

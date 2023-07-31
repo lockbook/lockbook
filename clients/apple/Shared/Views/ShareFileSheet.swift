@@ -61,7 +61,8 @@ struct ShareFileSheet: View {
                 Spacer()
                 
                 Text("Write Access:")
-                if let shareInfo = share.shareInfos[meta] {
+                if let shareInfo = share.shareInfo,
+                   share.id == meta.id {
                     ScrollView(.horizontal) {
                         HStack(spacing: 40) {
                             ForEach(shareInfo.writeAccessUsers, id: \.self) { username in
@@ -74,7 +75,8 @@ struct ShareFileSheet: View {
                 
                 
                 Text("Read Access:")
-                if let shareInfo = share.shareInfos[meta] {
+                if let shareInfo = share.shareInfo,
+                   share.id == meta.id {
                     ScrollView(.horizontal) {
                         HStack(spacing: 40) {
                             ForEach(shareInfo.readAccessUsers, id: \.self) { username in
@@ -88,7 +90,7 @@ struct ShareFileSheet: View {
             .frameForMacOS()
             .padding()
             .onAppear {
-                share.calculateShareInfo(file: meta)
+                share.calculateShareInfo(id: meta.id)
             }
         }
     }

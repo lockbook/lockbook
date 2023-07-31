@@ -23,7 +23,8 @@ class DocumentService: ObservableObject {
     @Published var selectedDoc: UUID?
     
     var justCreatedDoc: File? = nil
-    
+    var justOpenedLink: File? = nil
+
     func openDoc(id: UUID, isiPhone: Bool = false) {
         if openDocuments[id] == nil {
             openDocuments[id] = DocumentLoadingInfo(DI.files.idsAndFiles[id]!, isiPhone)
@@ -36,10 +37,16 @@ class DocumentService: ObservableObject {
         return openDocuments[id]!
     }
     
-    func cleanupOldDocs(_ isiPhone: Bool = false) {
+    func cleanupOldDocs(_ isiPhone: Bool = false, _ oldId: UUID? = nil) {
         isPendingSharesOpen = false
-        
-        if isiPhone {
+        selectedDoc = nil
+
+        if let id = oldId,
+           openDocuments[id]?.dismissForLink != nil {
+            openDocuments[id] = nil
+        } else if isiPhone {
+            justCreatedDoc = nil
+            justOpenedLink = nil
             openDocuments.removeAll()
         }
     }
@@ -74,7 +81,6 @@ class DocumentService: ObservableObject {
     // index must be greater than or equal to 0 and less than
     func selectOpenDocByIndex(index: Int) {
         if index >= 0 && index < 9 {
-                        
             if index == 8 {
                 setSelectedOpenDocById(maybeId: openDocumentsKeyArr.last)
             }
@@ -179,6 +185,8 @@ class DocumentLoadingInfo: ObservableObject {
     @Published var drawing: PKDrawing? = nil
     @Published var image: Image? = .none
     
+    @Published var dismissForLink: File? = nil
+
     var timeCreated = Date()
 
     private var cancellables = Set<AnyCancellable>()

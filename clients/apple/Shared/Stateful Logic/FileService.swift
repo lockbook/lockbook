@@ -76,9 +76,7 @@ class FileService: ObservableObject {
             refresh()
         }
     }
-
-    // TODO in the future we should pop one of these bad boys up during this operation
-    // https://github.com/elai950/AlertToast
+    
     func moveFile(id: UUID, newParent: UUID) {
         print("moving file")
         DispatchQueue.global(qos: .userInteractive).async {
@@ -136,23 +134,6 @@ class FileService: ObservableObject {
             return false
         }
     }
-    
-    func importFilesSync(sources: [String], destination: UUID) -> Bool {
-        print("importing files")
-        let operation = core.importFiles(sources: sources, destination: destination)
-
-        switch operation {
-        case .success(_):
-            self.successfulAction = .importFiles
-            refresh()
-            DI.status.checkForLocalWork()
-            return true
-        case .failure(let error):
-            DI.errors.handleError(error)
-            return false
-        }
-    }
-
 
     func deleteFile(id: UUID) {
         DispatchQueue.global(qos: .userInitiated).async {
@@ -273,8 +254,8 @@ class FileService: ObservableObject {
     private func postRefreshFiles(_ newFiles: [File]) {
         idsAndFiles = Dictionary(uniqueKeysWithValues: newFiles.map { ($0.id, $0) })
         refreshSuggestedDocs()
+        DI.status.setLastSynced()
         newFiles.forEach {
-            notifyDocumentChanged($0)
             if root == nil && $0.id == $0.parent {
                 root = $0
 
@@ -289,11 +270,15 @@ class FileService: ObservableObject {
     }
 
     private func openFileChecks() {
-        for id in DI.currentDoc.openDocuments.keys {
-            let maybeMeta = idsAndFiles[id]
+        for docInfo in DI.currentDoc.openDocuments.values {
+            let maybeMeta = idsAndFiles[docInfo.meta.id]
             
-            if maybeMeta == nil {
-                DI.currentDoc.openDocuments[id]!.deleted = true
+            if let meta = maybeMeta {
+                if (meta.lastModified != docInfo.meta.lastModified) || (meta != docInfo.meta) {
+                    docInfo.updatesFromCoreAvailable(meta)
+                }
+            } else {
+                docInfo.deleted = true
             }
         }
         
@@ -302,15 +287,6 @@ class FileService: ObservableObject {
             
             if maybeMeta == nil {
                 DI.currentDoc.selectedFolder = nil
-            }
-        }
-    }
-
-    private func notifyDocumentChanged(_ meta: File) {
-        for docInfo in DI.currentDoc.openDocuments.values {
-            
-            if meta.id == docInfo.meta.id, (meta.lastModified != docInfo.meta.lastModified) || (meta != docInfo.meta) {
-                docInfo.updatesFromCoreAvailable(meta)
             }
         }
     }
@@ -404,6 +380,15 @@ class FileService: ObservableObject {
             DI.errors.handleError(err)
             return nil
         }
+    }
+    
+    public func copyFileLink(id: UUID) {
+        #if os(iOS)
+        UIPasteboard.general.string = "lb://\(id.uuidString.lowercased())"
+        #else
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString("lb://\(id.uuidString.lowercased())", forType: .string)
+        #endif
     }
 }
 

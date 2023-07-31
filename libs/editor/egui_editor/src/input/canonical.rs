@@ -245,6 +245,13 @@ pub fn calc(
                     None
                 }
             } else {
+                if touch_mode {
+                    if let Some(url) = click_checker.link(*pos) {
+                        println!("opening link rust side");
+                        return Some(Modification::OpenUrl(url));
+                    }
+                }
+
                 pointer_state.press(now, *pos, *modifiers);
                 None
             }

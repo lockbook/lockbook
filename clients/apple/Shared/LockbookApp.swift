@@ -1,33 +1,33 @@
 import Foundation
 import SwiftUI
 import SwiftLockbookCore
+import BackgroundTasks
 
 #if os(macOS)
 import AppKit
 #endif
 
 @main struct LockbookApp: App {
-
     @Environment(\.scenePhase) private var scenePhase
     
     #if os(macOS)
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
+    #else
+    @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     #endif
-    
-    var body: some Scene {
         
+    var body: some Scene {
         WindowGroup {
             AppView()
                 .realDI()
                 .buttonStyle(PlainButtonStyle())
                 .ignoresSafeArea()
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .onBackground {
-                    DI.sync.sync()
+                .registerBackgroundTasks(scenePhase: scenePhase, appDelegate: appDelegate)
+                .onOpenURL() { url in
+                    onUrlOpen(url: url)
                 }
-                .onForeground {
-                    DI.sync.foregroundSync()
-                }
+                .handlesExternalEvents(preferring: ["lb"], allowing: ["lb"])
         }.commands {
             CommandGroup(replacing: CommandGroupPlacement.newItem) {
                 Button("New Doc", action: {
@@ -163,6 +163,12 @@ import AppKit
                         }
                 }.keyboardShortcut("f", modifiers: [.command, .shift])
                 #endif
+                
+                Button("Copy file link", action: {
+                    if let id = DI.currentDoc.selectedDoc {
+                        DI.files.copyFileLink(id: id)
+                    }
+                }).keyboardShortcut("L", modifiers: [.command, .shift])
             }
             SidebarCommands()
         }
@@ -173,6 +179,52 @@ import AppKit
         }
         
         #endif
+    }
+
+    func onUrlOpen(url: URL) {
+        DispatchQueue.global(qos: .userInitiated).async {
+            if url.scheme == "lb" {
+                if let uuidString = url.host,
+                   let id = UUID(uuidString: uuidString) {
+                    while true {
+                        if DI.accounts.account == nil && DI.accounts.calculated {
+                            return
+                        }
+                        
+                        if DI.files.root != nil {
+                            if let meta = DI.files.idsAndFiles[id] {
+                                Thread.sleep(until: .now + 0.1)
+                                DispatchQueue.main.sync {
+                                    var laterOpenForIphone = false
+                                    if let docInfo = DI.currentDoc.openDocuments.values.first,
+                                       docInfo.isiPhone {
+                                        print("dismissing for link")
+                                        docInfo.dismissForLink = meta
+                                        laterOpenForIphone.toggle()
+                                    }
+                                    
+                                    DI.currentDoc.cleanupOldDocs()
+                                    if !laterOpenForIphone {
+                                        DI.currentDoc.justOpenedLink = meta
+                                    }
+                                    
+                                    DI.currentDoc.openDoc(id: id)
+                                    DI.currentDoc.setSelectedOpenDocById(maybeId: id)
+                                }
+                            } else {
+                                DI.errors.errorWithTitle("File not found", "That file does not exist in your lockbook")
+                            }
+                            
+                            return
+                        }
+                    }
+                } else {
+                    DI.errors.errorWithTitle("Malformed link", "Cannot open file")
+                }
+            } else {
+                DI.errors.errorWithTitle("Error", "An unexpected error has occurred")
+            }
+        }
     }
 }
 
@@ -192,41 +244,116 @@ extension View {
 }
 
 extension View {
-    #if os(iOS)
-    func onBackground(_ f: @escaping () -> Void) -> some View {
-        self.onReceive(
-            NotificationCenter.default.publisher(for: UIApplication.willResignActiveNotification),
-            perform: { _ in f() }
-        )
+    func registerBackgroundTasks(scenePhase: ScenePhase, appDelegate: AppDelegate) -> some View {
+        #if os(iOS)
+        self
+            .onChange(of: scenePhase, perform: { newValue in
+                switch newValue {
+                case .background:
+                    appDelegate.scheduleBackgroundTask(initialRun: true)
+                case .active:
+                    appDelegate.endBackgroundTasks()
+                default:
+                    break
+                }
+            })
+        #else
+        self
+            .onReceive(
+                NotificationCenter.default.publisher(for: NSApplication.willResignActiveNotification),
+                perform: { _ in
+                    appDelegate.scheduleBackgroundTask(initialRun: true)
+                })
+            .onReceive(
+                NotificationCenter.default.publisher(for: NSApplication.willBecomeActiveNotification),
+                perform: { _ in
+                    appDelegate.endBackgroundTasks()
+                })
+        #endif
     }
     
-    func onForeground(_ f: @escaping () -> Void) -> some View {
-        self.onReceive(
-            NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification),
-            perform: { _ in f() }
-        )
-    }
-    #else
-    func onBackground(_ f: @escaping () -> Void) -> some View {
-        self.onReceive(
-            NotificationCenter.default.publisher(for: NSApplication.willResignActiveNotification),
-            perform: { _ in f() }
-        )
-    }
-    
-    func onForeground(_ f: @escaping () -> Void) -> some View {
-        self.onReceive(
-            NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification),
-            perform: { _ in f() }
-        )
-    }
-    #endif
 }
 
 #if os(macOS)
+
 class AppDelegate: NSObject, NSApplicationDelegate {
+    let backgroundSyncStartSecs = 60 * 5
+    let backgroundSyncContSecs = 60 * 60
+    
+    var currentSyncTask: DispatchWorkItem? = nil
+    
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         return true
     }
+    
+    let operationQueue = OperationQueue()
+    
+    func scheduleBackgroundTask(initialRun: Bool) {
+        let newSyncTask = DispatchWorkItem {
+            DI.sync.sync()
+            
+            self.scheduleBackgroundTask(initialRun: false)
+        }
+        
+        DispatchQueue.main.asyncAfter(deadline: .now() + .seconds((initialRun ? backgroundSyncStartSecs : backgroundSyncContSecs)), execute: newSyncTask)
+        
+        currentSyncTask = newSyncTask
+    }
+    
+    func endBackgroundTasks() {
+        currentSyncTask?.cancel()
+    }
 }
+
+#else
+
+class AppDelegate: NSObject, UIApplicationDelegate {
+    
+    let backgroundSyncStartSecs = 60.0 * 5
+    let backgroundSyncContSecs = 60.0 * 60
+    
+    let backgroundSyncIdentifier = "app.lockbook.backgroundSync"
+
+    func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey : Any]? = nil) -> Bool {
+        self.registerBackgroundTask()
+        
+        return true
+    }
+    
+    func registerBackgroundTask() {
+        BGTaskScheduler.shared.register(forTaskWithIdentifier: backgroundSyncIdentifier, using: nil) { task in
+            task.expirationHandler = {
+                task.setTaskCompleted(success: false)
+            }
+            
+            DispatchQueue.main.async {
+                DI.sync.backgroundSync(onSuccess: {
+                    task.setTaskCompleted(success: true)
+
+                    self.scheduleBackgroundTask(initialRun: false)
+                }, onFailure: {
+                    task.setTaskCompleted(success: false)
+
+                    self.scheduleBackgroundTask(initialRun: false)
+                })
+                
+                self.scheduleBackgroundTask(initialRun: false)
+            }
+        }
+    }
+    
+    func scheduleBackgroundTask(initialRun: Bool) {
+        let request = BGProcessingTaskRequest(identifier: backgroundSyncIdentifier)
+        request.earliestBeginDate = Date(timeIntervalSinceNow: initialRun ? backgroundSyncStartSecs : backgroundSyncContSecs)
+        request.requiresExternalPower = false
+        request.requiresNetworkConnectivity = true
+        
+        try! BGTaskScheduler.shared.submit(request)
+    }
+    
+    func endBackgroundTasks() {
+        BGTaskScheduler.shared.cancelAllTaskRequests()
+    }
+}
+
 #endif

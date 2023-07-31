@@ -43,6 +43,8 @@ pub struct EditorResponse {
     pub cursor_in_bold: bool,
     pub cursor_in_italic: bool,
     pub cursor_in_inline_code: bool,
+
+    pub opened_url: *const c_char,
 }
 
 // two structs are used instead of conditional compilation (`cfg`) for `potential_title` because the header
@@ -72,6 +74,10 @@ impl Default for EditorResponse {
     fn default() -> Self {
         Self {
             text_updated: false,
+            #[cfg(any(target_os = "ios", target_os = "macos"))]
+            potential_title: ptr::null(),
+            #[cfg(not(any(target_os = "ios", target_os = "macos")))]
+            potential_title: None,
 
             show_edit_menu: false,
             has_selection: false,
@@ -88,9 +94,7 @@ impl Default for EditorResponse {
             cursor_in_inline_code: false,
 
             #[cfg(any(target_os = "ios", target_os = "macos"))]
-            potential_title: ptr::null(),
-            #[cfg(not(any(target_os = "ios", target_os = "macos")))]
-            potential_title: None,
+            opened_url: ptr::null(),
         }
     }
 }
@@ -369,6 +373,16 @@ impl Editor {
             edit_menu_y: self.maybe_menu_location.map(|p| p.y).unwrap_or_default(),
             ..Default::default()
         };
+
+        #[cfg(any(target_os = "ios", target_os = "macos"))]
+        {
+            result.opened_url = match &self.maybe_opened_url {
+                None => ptr::null(),
+                Some(url) => CString::new(url.to_string())
+                    .expect("Could not Rust String -> C String")
+                    .into_raw() as *const c_char,
+            };
+        }
 
         // determine styles at cursor location
         // todo: check for styles in selection

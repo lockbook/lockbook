@@ -3,16 +3,29 @@ import SwiftLockbookCore
 import PencilKit
 import SwiftEditor
 
+#if os(iOS)
 struct iOSDocumentViewWrapper: View {
     let id: UUID
     
     var body: some View {
         DocumentView(id: id, isiPhone: true)
-            .onDisappear {
-                DI.currentDoc.cleanupOldDocs(true)
+            .onAppear {
+                print("document op: opening \(DI.files.idsAndFiles[id]?.name)")
             }
+            .onDisappear {
+                print("document op: closing \(DI.files.idsAndFiles[id]?.name)")
+
+                if let meta = DI.currentDoc.openDocuments[id]?.dismissForLink {
+                    print("starting to open link")
+                    DI.currentDoc.justOpenedLink = meta
+                }
+                
+                DI.currentDoc.cleanupOldDocs(true, id)
+            }
+            .iPhoneMarkdownToolbar(id: id)
     }
 }
+#endif
 
 struct DocumentView: View, Equatable {
     static func == (lhs: DocumentView, rhs: DocumentView) -> Bool {
@@ -26,6 +39,8 @@ struct DocumentView: View, Equatable {
 #if os(iOS)
     @EnvironmentObject var toolbar: ToolbarModel
 #endif
+    
+    @Environment(\.dismiss) var dismiss
     
     public init(id: UUID, isiPhone: Bool = false) {
         self.id = id
@@ -99,7 +114,8 @@ struct DocumentView: View, Equatable {
                         Group {
                             MarkdownCompleteEditor(editorState: editorState, toolbarState: toolbarState, nameState: model.documentNameState, fileId: model.meta.id)
                                 .equatable()
-                        }.title("")
+                        }
+                        .title("")
                     }
                 case .Unknown:
                     Text("\(model.meta.name) cannot be opened on this device.")
@@ -107,6 +123,9 @@ struct DocumentView: View, Equatable {
                 }
             }
         }
+        .onChange(of: model.dismissForLink, perform: { newValue in
+            dismiss()
+        })
         .onDisappear {
             DI.files.refresh()
         }
@@ -115,12 +134,37 @@ struct DocumentView: View, Equatable {
 
 extension View {
     func title(_ name: String) -> some View {
-#if os(macOS)
+        #if os(macOS)
         return self
-#else
+        #else
         return self.navigationTitle("").navigationBarTitleDisplayMode(.inline)
-#endif
+        #endif
     }
+
+    #if os(iOS)
+    @ViewBuilder
+    func iPhoneMarkdownToolbar(id: UUID) -> some View {
+        self.toolbar {
+            if let meta = DI.files.idsAndFiles[id] {
+                Button(action: {
+                    exportFileAndShowShareSheet(meta: meta)
+                }, label: {
+                    Label("Share externally to...", systemImage: "person.wave.2.fill")
+                })
+                .foregroundColor(.blue)
+                .padding(.trailing, 10)
+
+                Button(action: {
+                    DI.sheets.sharingFileInfo = meta
+                }, label: {
+                    Label("Share", systemImage: "square.and.arrow.up.fill")
+                })
+                .foregroundColor(.blue)
+                .padding(.trailing, 10)
+            }
+        }
+    }
+    #endif
 }
 
 struct MarkdownCompleteEditor: View, Equatable {
@@ -175,7 +219,7 @@ struct MarkdownToolbar: View {
     var body: some View {
         HStack(spacing: 20) {
             #if os(iOS)
-            
+
             HStack(spacing: 15) {
                 Button(action: {
                     UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
@@ -184,12 +228,12 @@ struct MarkdownToolbar: View {
                 }
                 .buttonStyle(.borderless)
             }
-            
+
             Divider()
                 .frame(height: 20)
-            
+
             #endif
-            
+
             HStack(spacing: 0) {
                 Menu(content: {
                     Button("Heading 1") {
@@ -344,7 +388,7 @@ struct DocumentTitle: View {
                 
         self._name = State(initialValue: openDocName == openDocNameWithoutExt ? "" : openDocNameWithoutExt)
         
-        if self.justCreatedDoc {
+        if self.justCreatedDoc && !DI.currentDoc.openDocuments[id]!.isiPhone {
             DI.currentDoc.justCreatedDoc = nil
         }
         

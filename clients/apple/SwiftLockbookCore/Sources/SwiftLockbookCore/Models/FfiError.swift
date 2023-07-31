@@ -276,6 +276,14 @@ public enum ExportFileError: String, UiError {
     case DiskPathTaken
 }
 
+public enum ExportDrawingToDiskError: String, UiError {
+    case FolderTreatedAsDrawing
+    case FileDoesNotExist
+    case InvalidDrawing
+    case BadPath
+    case FileAlreadyExistsInDisk
+}
+
 public enum SearchFilePathsError: String, UiError {
     case Stub
 }

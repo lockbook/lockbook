@@ -114,88 +114,52 @@ struct DetailView: View {
         }
         .toolbar {
             ToolbarItemGroup {
+                if let id = currentSelection.selectedDoc,
+                   let meta = DI.files.idsAndFiles[id],
+                   !currentSelection.isPendingSharesOpen {
+                    
+                    let view = MacOSShareSpaceHolder()
+                    
+                    ZStack {
+                        view.id(UUID())
+                        
+                        Button(action: {
+                            view.view.exportFileAndShowShareSheet(meta: meta)
+                        }, label: {
+                            Label("Share externally to...", systemImage: "person.wave.2.fill")
+                                .imageScale(.large)
+                        })
+                        .foregroundColor(.blue)
+                        .padding(.trailing, 10)
+                    }
+                    
+                    Button(action: {
+                        DI.sheets.sharingFileInfo = meta
+                    }, label: {
+                        Label("Share", systemImage: "square.and.arrow.up.fill")
+                            .imageScale(.large)
+                    })
+                    .foregroundColor(.blue)
+                    .padding(.trailing, 5)
+                }
+                
                 Button(action: {
                     currentSelection.isPendingSharesOpen = true
                 }) {
-                    pendingShareToolbarIcon(isiOS: false, isPendingSharesEmpty: share.pendingShares.isEmpty)
-                    
+                    pendingShareToolbarIcon(isPendingSharesEmpty: share.pendingShares.isEmpty)
+                        .imageScale(.large)
                 }
             }
         }
     }
 }
 
-struct SearchResultCellView: View {
-    let name: String
-    let path: String
-    let matchedIndices: [Int]
-    
-    @State var pathModified: Text = Text("")
-    @State var nameModified: Text = Text("")
-    
-    var body: some View {
-        HStack {
-            Image(systemName: "doc.text.fill")
-                .resizable()
-                .frame(width: 20, height: 25)
-                .padding(.horizontal, 10)
-                .foregroundColor(.primary)
-            
-            VStack(alignment: .leading) {
-                HStack {
-                    nameModified
-                        .font(.system(size: 16))
-                        .multilineTextAlignment(.leading)
-                    Spacer()
-                }
-                HStack {
-                    pathModified
-                        .multilineTextAlignment(.leading)
-                    Spacer()
-                }
-            }
-        }
-        .frame(height: 40)
-        .padding(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
-        .onAppear {
-            underlineMatchedSegments()
-        }
-    }
-    
-    func underlineMatchedSegments() {
-        let matchedIndicesHash = Set(matchedIndices)
+struct MacOSShareSpaceHolder: NSViewRepresentable {
+    let view = NSView()
         
-        var pathOffset = 1;
-        
-        if(path.count - 1 > 0) {
-            pathModified = Text("")
-            
-            for index in 0...path.count - 1 {
-                let correctIndex = String.Index(utf16Offset: index, in: path)
-                let newPart = Text(path[correctIndex...correctIndex])
-                
-                if(matchedIndicesHash.contains(index + 1)) {
-                    pathModified = pathModified + newPart.bold()
-                } else {
-                    pathModified = pathModified + newPart
-                }
-            }
-            
-            pathOffset = 2
-        }
-                
-        if(name.count - 1 > 0) {
-            nameModified = Text("")
-            for index in 0...name.count - 1 {
-                let correctIndex = String.Index(utf16Offset: index, in: name)
-                let newPart = Text(name[correctIndex...correctIndex])
-                
-                if(matchedIndicesHash.contains(index + path.count + pathOffset)) {
-                    nameModified = nameModified + newPart.bold()
-                } else {
-                    nameModified = nameModified + newPart
-                }
-            }
-        }
+    func makeNSView(context: Context) -> NSView {
+        view
     }
+
+    func updateNSView(_ nsView: NSView, context: Context) {}
 }
