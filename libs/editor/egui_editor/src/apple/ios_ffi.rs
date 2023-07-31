@@ -355,7 +355,7 @@ pub unsafe extern "C" fn position_offset_in_direction(
 
     let offset_type =
         if matches!(direction, CTextLayoutDirection::Right | CTextLayoutDirection::Left) {
-            Offset::By(Increment::Char)
+            Offset::Next(Bound::Char)
         } else {
             Offset::By(Increment::Line)
         };
@@ -363,7 +363,7 @@ pub unsafe extern "C" fn position_offset_in_direction(
 
     let mut cursor: Cursor = start.pos.into();
     for _ in 0..offset {
-        cursor.advance(offset_type, backwards, buffer, galleys, &obj.editor.paragraphs);
+        cursor.advance(offset_type, backwards, buffer, galleys, &obj.editor.bounds);
     }
     CTextPosition { none: start.none, pos: cursor.selection.1 .0 }
 }
@@ -377,12 +377,8 @@ pub unsafe extern "C" fn is_position_at_bound(
     obj: *mut c_void, pos: CTextPosition, granularity: CTextGranularity, backwards: bool,
 ) -> bool {
     let obj = &mut *(obj as *mut WgpuEditor);
-    let buffer = &obj.editor.buffer.current;
-    let galleys = &obj.editor.galleys;
 
-    // if advancing the cursor then advancing it back leaves it in the original position, it's at a bound
-    let mut cursor: Cursor = pos.pos.into();
-    let bound = match granularity {
+    let bound: Bound = match granularity {
         CTextGranularity::Character => Bound::Char,
         CTextGranularity::Word => Bound::Word,
         CTextGranularity::Sentence => Bound::Paragraph, // note: sentence handled as paragraph
@@ -390,10 +386,14 @@ pub unsafe extern "C" fn is_position_at_bound(
         CTextGranularity::Line => Bound::Line,
         CTextGranularity::Document => Bound::Doc,
     };
-    cursor.advance(Offset::To(bound), !backwards, buffer, galleys, &obj.editor.paragraphs);
-    cursor.advance(Offset::To(bound), backwards, buffer, galleys, &obj.editor.paragraphs);
-
-    cursor.selection.1 == pos.pos
+    if let Some(range) =
+        DocCharOffset(pos.pos).range_bound(bound, backwards, false, &obj.editor.bounds)
+    {
+        if !backwards && pos.pos == range.0 || backwards && pos.pos == range.1 {
+            return true;
+        }
+    }
+    false
 }
 
 /// # Safety
@@ -402,15 +402,32 @@ pub unsafe extern "C" fn is_position_at_bound(
 /// https://developer.apple.com/documentation/uikit/uitextinputtokenizer/1614491-isposition
 #[no_mangle]
 pub unsafe extern "C" fn is_position_within_bound(
-    _obj: *mut c_void, _pos: CTextPosition, _granularity: CTextGranularity, _backwards: bool,
+    obj: *mut c_void, pos: CTextPosition, granularity: CTextGranularity, backwards: bool,
 ) -> bool {
-    true // aren't we always within a bound of each type?
+    let obj = &mut *(obj as *mut WgpuEditor);
+    let pos: DocCharOffset = pos.pos.into();
+
+    let bound = match granularity {
+        CTextGranularity::Character => Bound::Char,
+        CTextGranularity::Word => Bound::Word,
+        CTextGranularity::Sentence => Bound::Paragraph, // note: sentence handled as paragraph
+        CTextGranularity::Paragraph => Bound::Paragraph,
+        CTextGranularity::Line => Bound::Line,
+        CTextGranularity::Document => Bound::Doc,
+    };
+    if let Some(range) = pos.range_bound(bound, backwards, false, &obj.editor.bounds) {
+        // this implementation doesn't meet the specification in apple's docs, but the implementation that does creates word jumping bugs
+        if range.contains(pos) {
+            return true;
+        }
+    }
+    false
 }
 
 /// # Safety
 /// obj must be a valid pointer to WgpuEditor
 ///
-/// https://developer.apple.com/documentation/uikit/uitextinputtokenizer/1614491-isposition
+/// https://developer.apple.com/documentation/uikit/uitextinputtokenizer/1614513-position
 #[no_mangle]
 pub unsafe extern "C" fn bound_from_position(
     obj: *mut c_void, pos: CTextPosition, granularity: CTextGranularity, backwards: bool,
@@ -428,7 +445,7 @@ pub unsafe extern "C" fn bound_from_position(
         CTextGranularity::Line => Bound::Line,
         CTextGranularity::Document => Bound::Doc,
     };
-    cursor.advance(Offset::To(bound), backwards, buffer, galleys, &obj.editor.paragraphs);
+    cursor.advance(Offset::Next(bound), backwards, buffer, galleys, &obj.editor.bounds);
 
     CTextPosition { none: false, pos: cursor.selection.1 .0 }
 }
@@ -458,7 +475,7 @@ pub unsafe extern "C" fn bound_at_position(
         buffer.cursor,
         buffer,
         galleys,
-        &obj.editor.paragraphs,
+        &obj.editor.bounds,
     );
 
     CTextRange {
@@ -483,7 +500,7 @@ pub unsafe extern "C" fn first_rect(obj: *mut c_void, range: CTextRange) -> CRec
         let selection_start = range.start();
         let selection_end = range.end();
         let mut cursor: Cursor = selection_start.into();
-        cursor.advance(Offset::To(Bound::Line), false, buffer, galleys, &obj.editor.paragraphs);
+        cursor.advance(Offset::To(Bound::Line), false, buffer, galleys, &obj.editor.bounds);
         let end_of_selection_start_line = cursor.selection.1;
         let end_of_rect = cmp::min(selection_end, end_of_selection_start_line);
         (selection_start, end_of_rect).into()

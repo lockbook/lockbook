@@ -1,28 +1,23 @@
-use crate::bounds::Paragraphs;
+use std::mem;
+
+use crate::bounds::Bounds;
 use crate::buffer::SubBuffer;
 use crate::galleys::{GalleyInfo, Galleys};
-use crate::input::canonical::{Bound, Increment, Offset};
-use crate::offset_types::{DocCharOffset, RangeExt, RelByteOffset};
-use crate::unicode_segs::UnicodeSegs;
+use crate::input::canonical::{Increment, Offset};
+use crate::offset_types::{DocCharOffset, RangeExt};
 use egui::epaint::text::cursor::Cursor as EguiCursor;
 use egui::{Pos2, Vec2};
-use std::{iter, mem};
-use unicode_segmentation::UnicodeSegmentation;
 
 impl DocCharOffset {
     #[allow(clippy::too_many_arguments)]
     pub fn advance(
         self, maybe_x_target: &mut Option<f32>, offset: Offset, backwards: bool, fix: bool,
-        buffer: &SubBuffer, galleys: &Galleys, paragraphs: &Paragraphs,
+        buffer: &SubBuffer, galleys: &Galleys, bounds: &Bounds,
     ) -> Self {
         let maybe_x_target_value = mem::take(maybe_x_target);
         match offset {
-            Offset::To(Bound::Char) => self,
-            Offset::To(Bound::Word) => self.advance_to_word_bound(backwards, buffer, galleys),
-            Offset::To(Bound::Line) => self.advance_to_line_bound(backwards, galleys),
-            Offset::To(Bound::Paragraph) => self.advance_to_paragraph_bound(backwards, paragraphs),
-            Offset::To(Bound::Doc) => self.advance_to_doc_bound(backwards, &buffer.segs),
-            Offset::By(Increment::Char) => self.advance_by_char(backwards, &buffer.segs),
+            Offset::To(bound) => self.advance_to_bound(bound, backwards, bounds),
+            Offset::Next(bound) => self.advance_to_next_bound(bound, backwards, bounds),
             Offset::By(Increment::Line) => {
                 let x_target = maybe_x_target_value.unwrap_or(self.x(galleys));
                 let result = self.advance_by_line(x_target, backwards, galleys);
@@ -33,17 +28,6 @@ impl DocCharOffset {
             }
         }
         .fix(backwards, fix, galleys)
-    }
-
-    fn advance_by_char(mut self, backwards: bool, segs: &UnicodeSegs) -> Self {
-        if !backwards && self < segs.last_cursor_position() {
-            self += 1;
-        }
-        if backwards && self > DocCharOffset(0) {
-            self -= 1;
-        }
-
-        self
     }
 
     fn advance_by_line(self, x_target: f32, backwards: bool, galleys: &Galleys) -> Self {
@@ -98,124 +82,6 @@ impl DocCharOffset {
             }
 
             galleys.char_offset_by_galley_and_cursor(new_galley_idx, &new_ecursor)
-        }
-    }
-
-    fn advance_to_word_bound(
-        mut self, backwards: bool, buffer: &SubBuffer, galleys: &Galleys,
-    ) -> Self {
-        let segs = &buffer.segs;
-        let galley_idx = galleys.galley_at_char(self);
-        let galley = &galleys[galley_idx];
-        let galley_text_range = galley.text_range();
-        let galley_text = &buffer[galley_text_range];
-        let galley_byte_range = buffer.segs.range_to_byte(galley_text_range);
-
-        let word_bound_indices_with_words = galley_text.split_word_bound_indices();
-        let word_bound_indices = word_bound_indices_with_words
-            .clone()
-            .map(|(idx, _)| segs.offset_to_char(galley_byte_range.start() + RelByteOffset(idx)))
-            .chain(iter::once(galley_text_range.end())) // add last word boundary (note: no corresponding word)
-            .collect::<Vec<_>>();
-        let words = word_bound_indices_with_words
-            .map(|(_, word)| word)
-            .collect::<Vec<_>>();
-        let i = match (word_bound_indices.binary_search(&self), backwards) {
-            (Ok(i), _) | (Err(i), true) => i,
-            (Err(i), false) => i.saturating_sub(1), // when moving forward from middle of word, behave as if from start of word
-        };
-
-        if !backwards {
-            // advance to the end of the next non-whitespace word if there is one...
-            let mut found = false;
-            for i in i..words.len() {
-                if !words[i].trim().is_empty() {
-                    found = true;
-                    self = word_bound_indices[i + 1];
-                    break;
-                }
-            }
-
-            // ...otherwise...
-            if !found {
-                // ...advance to the start of the next galley if there is one...
-                if galley_idx + 1 < galleys.len() {
-                    self = galleys[galley_idx + 1].text_range().start();
-                }
-                // ...or advance to the end of this galley
-                else {
-                    self = galley_text_range.end();
-                }
-            }
-        } else {
-            // advance to the start of the previous non-whitespace word if there is one...
-            let mut found = false;
-            for i in (0..i).rev() {
-                if !words[i].trim().is_empty() {
-                    found = true;
-                    self = word_bound_indices[i];
-                    break;
-                }
-            }
-
-            // ...otherwise...
-            if !found {
-                // ...advance to the end of the previous galley if there is one...
-                if galley_idx > 0 {
-                    self = galleys[galley_idx - 1].text_range().end();
-                }
-                // ...or advance to the start of this galley
-                else {
-                    self = galley_text_range.start();
-                }
-            }
-        }
-
-        self
-    }
-
-    pub fn advance_to_line_bound(self, backwards: bool, galleys: &Galleys) -> Self {
-        let (galley_idx, ecursor) = galleys.galley_and_cursor_by_char_offset(self);
-        let galley = &galleys[galley_idx];
-        let ecursor = if backwards {
-            galley.galley.cursor_begin_of_row(&ecursor)
-        } else {
-            galley.galley.cursor_end_of_row(&ecursor)
-        };
-        galleys.char_offset_by_galley_and_cursor(galley_idx, &ecursor)
-    }
-
-    fn advance_to_paragraph_bound(self, backwards: bool, paragraphs: &Paragraphs) -> Self {
-        // in a paragraph -> go to start or end
-        for &paragraph in &paragraphs.paragraphs {
-            if paragraph.contains(self) {
-                return if backwards { paragraph.start() } else { paragraph.end() };
-            }
-        }
-
-        // not in a paragraph -> go to end or start of previous or next paragraph
-        if backwards {
-            for &paragraph in paragraphs.paragraphs.iter().rev() {
-                if paragraph.end() < self {
-                    return paragraph.end();
-                }
-            }
-        } else {
-            for &paragraph in &paragraphs.paragraphs {
-                if paragraph.start() > self {
-                    return paragraph.start();
-                }
-            }
-        }
-
-        self
-    }
-
-    fn advance_to_doc_bound(self, backwards: bool, segs: &UnicodeSegs) -> Self {
-        if backwards {
-            0.into()
-        } else {
-            segs.last_cursor_position()
         }
     }
 
