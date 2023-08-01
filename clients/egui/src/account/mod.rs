@@ -1,4 +1,5 @@
 mod background;
+mod full_doc_search;
 mod modals;
 mod suggested_docs;
 mod syncing;
@@ -20,6 +21,7 @@ use crate::util::NUM_KEYS;
 use crate::widgets::{separator, Button};
 
 use self::background::*;
+use self::full_doc_search::FullDocSearch;
 use self::modals::*;
 
 use self::suggested_docs::SuggestedDocs;
@@ -40,6 +42,7 @@ pub struct AccountScreen {
 
     tree: FileTree,
     suggested: SuggestedDocs,
+    full_search_doc: FullDocSearch,
     sync: SyncPanel,
     usage: Result<Usage, String>,
     workspace: Workspace,
@@ -68,6 +71,7 @@ impl AccountScreen {
             background_tx,
             tree: FileTree::new(files),
             suggested: SuggestedDocs::new(&core_clone),
+            full_search_doc: FullDocSearch::new(&core_clone, ctx),
             sync: SyncPanel::new(sync_status),
             usage,
             workspace: Workspace::new(),
@@ -123,6 +127,10 @@ impl AccountScreen {
                         self.show_nav_panel(ui);
 
                         ui.vertical(|ui| {
+                            ui.add_space(15.0);
+                            self.full_search_doc.show(ui, &self.core);
+                            ui.add_space(10.0);
+
                             if let Some(file) = self.suggested.show(ui) {
                                 self.open_file(file, ctx);
                             }
