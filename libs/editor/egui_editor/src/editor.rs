@@ -398,7 +398,9 @@ impl Editor {
                     MarkdownNode::Inline(InlineNode::Bold) => result.cursor_in_bold = true,
                     MarkdownNode::Inline(InlineNode::Italic) => result.cursor_in_italic = true,
                     MarkdownNode::Inline(InlineNode::Code) => result.cursor_in_inline_code = true,
-                    MarkdownNode::Inline(InlineNode::Strikethrough) => result.cursor_in_strikethrough = true,
+                    MarkdownNode::Inline(InlineNode::Strikethrough) => {
+                        result.cursor_in_strikethrough = true
+                    }
                     MarkdownNode::Block(BlockNode::Heading(..)) => result.cursor_in_heading = true,
                     MarkdownNode::Block(BlockNode::ListItem(ItemType::Bulleted, ..)) => {
                         result.cursor_in_bullet_list = true
