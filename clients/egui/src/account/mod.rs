@@ -126,10 +126,9 @@ impl AccountScreen {
 
                         self.show_nav_panel(ui);
 
-
                         ui.vertical(|ui| {
                             ui.add_space(15.0);
-                            if let Some(file) = self.full_search_doc.show(ui, &self.core){
+                            if let Some(file) = self.full_search_doc.show(ui, &self.core) {
                                 self.open_file(file, ctx);
                             }
                             ui.add_space(10.0);
