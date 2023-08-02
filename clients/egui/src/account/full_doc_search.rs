@@ -12,10 +12,10 @@ use crate::{model::DocType, theme::Icon};
 pub struct FullDocSearch {
     requests: mpsc::Sender<String>,
     responses: mpsc::Receiver<Vec<SearchResult>>,
+    is_searching: Arc<RwLock<bool>>,
+    x_margin: f32,
     pub query: String,
     pub results: Vec<SearchResult>,
-    err_msg: String,
-    pub is_searching: Arc<RwLock<bool>>,
 }
 
 impl FullDocSearch {
@@ -32,6 +32,7 @@ impl FullDocSearch {
 
             move || {
                 while let Ok(input) = request_rx.recv() {
+                    println!("request received, generating responses");
                     *is_searching.write().unwrap() = true;
                     ctx.request_repaint();
 
@@ -49,8 +50,13 @@ impl FullDocSearch {
                         start_search.results_rx.recv().unwrap(),
                     ];
 
-                    response_tx.send(res).unwrap();
-
+                    let result = response_tx.send(res);
+                    match result {
+                        Ok(_) => println!("send results to response tx"),
+                        Err(msg) => {
+                            println!("failed to send results to response tx{:#?}", msg.to_string())
+                        }
+                    }
                     *is_searching.write().unwrap() = false;
                     ctx.request_repaint();
                 }
@@ -60,10 +66,10 @@ impl FullDocSearch {
         Self {
             requests: request_tx,
             responses: response_rx,
-            query: String::new(),
-            err_msg: String::new(),
-            results: Vec::new(),
             is_searching,
+            x_margin: 15.0,
+            query: String::new(),
+            results: Vec::new(),
         }
     }
 
@@ -74,18 +80,18 @@ impl FullDocSearch {
         }
 
         ui.vertical_centered(|ui| {
-            let v_margin = 15.0;
-
             let output = egui::TextEdit::singleline(&mut self.query)
                 .desired_width(ui.available_size_before_wrap().x - 5.0)
                 .hint_text("Search")
-                .margin(egui::vec2(15.0, 9.0))
+                .margin(egui::vec2(self.x_margin, 9.0))
                 .show(ui);
 
             let search_icon_width = 15.0; // approximation
-            let is_text_clipped = output.galley.rect.width() + v_margin * 2.0 + search_icon_width
-                > output.response.rect.width();
+            let is_text_clipped =
+                output.galley.rect.width() + self.x_margin * 2.0 + search_icon_width
+                    > output.response.rect.width();
 
+            // hide icon to accommodate text width
             if !is_text_clipped {
                 ui.allocate_ui_at_rect(output.response.rect, |ui| {
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -100,12 +106,21 @@ impl FullDocSearch {
                 self.requests.send(self.query.clone()).unwrap();
             }
 
+            if self.is_searching.read().unwrap().eq(&true) {
+                ui.add_space(20.0);
+                ui.spinner();
+            }
+
             if self.query.is_empty() {
                 self.results = vec![];
             }
+
             if !self.results.is_empty() {
-                return self.show_results(ui, core);
+                return egui::ScrollArea::vertical()
+                    .show(ui, |ui| self.show_results(ui, core))
+                    .inner;
             };
+
             None
         })
         .inner
@@ -136,17 +151,22 @@ impl FullDocSearch {
         });
 
         for (_, sr) in self.results.iter().enumerate() {
-            let result_response = ui.vertical(|ui| {
+            let sr_res = ui.vertical(|ui| {
                 match sr {
-                    Error(err) => self.err_msg = err.msg.clone(),
+                    Error(err) => {
+                        ui.label(
+                            egui::RichText::new(err.msg.to_owned())
+                                .color(ui.visuals().extreme_bg_color),
+                        );
+                    }
                     FileNameMatch { id, path, matched_indices: _, score: _ } => {
                         let file = &core.get_file_by_id(*id).unwrap();
-                        Self::show_file(ui, file, path);
+                        Self::show_file(ui, file, path, self.x_margin);
                     }
 
                     FileContentMatches { id, path, content_matches } => {
                         let file = &core.get_file_by_id(*id).unwrap();
-                        Self::show_file(ui, file, path);
+                        Self::show_file(ui, file, path, self.x_margin);
                         ui.horizontal(|ui| {
                             ui.add_space(15.0);
                             ui.horizontal_wrapped(|ui| {
@@ -173,18 +193,19 @@ impl FullDocSearch {
                         });
                     }
 
-                    NoMatch => todo!(),
+                    NoMatch => {
+                        ui.label(egui::RichText::new("No results").color(egui::Color32::GRAY));
+                    }
                 };
                 ui.add_space(10.0);
             });
 
-            let a =
-                ui.interact(result_response.response.rect, ui.next_auto_id(), egui::Sense::click());
-            if a.hovered() {
+            let sr_res = ui.interact(sr_res.response.rect, ui.next_auto_id(), egui::Sense::click());
+            if sr_res.hovered() {
                 ui.output_mut(|o| o.cursor_icon = egui::CursorIcon::PointingHand)
             }
 
-            if a.clicked() {
+            if sr_res.clicked() {
                 let id = match sr {
                     FileNameMatch { id, .. } => Some(id),
                     FileContentMatches { id, .. } => Some(id),
@@ -199,10 +220,9 @@ impl FullDocSearch {
         None
     }
 
-    fn show_file(ui: &mut egui::Ui, file: &lb::File, path: &str) {
-        let sidebar_vertical_margin = 15.0;
+    fn show_file(ui: &mut egui::Ui, file: &lb::File, path: &str, x_margin: f32) {
         ui.horizontal_wrapped(|ui| {
-            ui.add_space(sidebar_vertical_margin);
+            ui.add_space(x_margin);
 
             DocType::from_name(file.name.as_str()).to_icon().show(ui);
 
@@ -211,7 +231,7 @@ impl FullDocSearch {
             ui.label(egui::RichText::new(&file.name));
         });
         ui.horizontal_wrapped(|ui| {
-            ui.add_space(sidebar_vertical_margin);
+            ui.add_space(x_margin);
 
             let mut job = egui::text::LayoutJob::single_section(
                 path.to_owned(),
