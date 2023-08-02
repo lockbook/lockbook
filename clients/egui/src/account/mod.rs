@@ -189,9 +189,10 @@ impl AccountScreen {
                     }
                 },
                 AccountUpdate::ShareAccepted(result) => match result {
-                    Ok(_) => {
+                    Ok(file) => {
                         self.modals.file_picker = None;
-                        self.perform_sync(ctx);
+                        self.tree.reveal_file(file.id, &self.core, ctx);
+                        // self.perform_sync(ctx);
                     }
                     Err(msg) => self.modals.error = Some(ErrorModal::new(msg)),
                 },
@@ -206,6 +207,7 @@ impl AccountScreen {
                     Ok(f) => {
                         let (id, is_doc) = (f.id, f.is_document());
                         self.tree.root.insert(f);
+                        self.tree.reveal_file(id, &self.core, ctx);
                         if is_doc {
                             self.open_file(id, ctx);
                         }
@@ -224,6 +226,8 @@ impl AccountScreen {
                 AccountUpdate::FileLoaded(id, content_result) => {
                     if let Some(tab) = self.workspace.get_mut_tab_by_id(id) {
                         frame.set_window_title(&tab.name);
+                        self.tree.reveal_file(id, &self.core, ctx);
+
                         match content_result {
                             Ok(content) => tab.content = Some(content),
                             Err(fail) => tab.failure = Some(fail),
@@ -707,7 +711,6 @@ impl AccountScreen {
                         }
                     })
             };
-
             update_tx
                 .send(AccountUpdate::FileLoaded(id, content))
                 .unwrap();
