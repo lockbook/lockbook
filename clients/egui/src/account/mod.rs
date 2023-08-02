@@ -191,8 +191,8 @@ impl AccountScreen {
                 AccountUpdate::ShareAccepted(result) => match result {
                     Ok(file) => {
                         self.modals.file_picker = None;
-                        self.tree.reveal_file(file.id, &self.core, ctx);
-                        // self.perform_sync(ctx);
+                        self.perform_sync(ctx);
+                        self.tree.reveal_file(file.id, &self.core);
                     }
                     Err(msg) => self.modals.error = Some(ErrorModal::new(msg)),
                 },
@@ -207,7 +207,7 @@ impl AccountScreen {
                     Ok(f) => {
                         let (id, is_doc) = (f.id, f.is_document());
                         self.tree.root.insert(f);
-                        self.tree.reveal_file(id, &self.core, ctx);
+                        self.tree.reveal_file(id, &self.core);
                         if is_doc {
                             self.open_file(id, ctx);
                         }
@@ -226,7 +226,7 @@ impl AccountScreen {
                 AccountUpdate::FileLoaded(id, content_result) => {
                     if let Some(tab) = self.workspace.get_mut_tab_by_id(id) {
                         frame.set_window_title(&tab.name);
-                        self.tree.reveal_file(id, &self.core, ctx);
+                        self.tree.reveal_file(id, &self.core);
 
                         match content_result {
                             Ok(content) => tab.content = Some(content),
@@ -354,6 +354,10 @@ impl AccountScreen {
                     .map(|tab| tab.name.as_str())
                     .unwrap_or("Lockbook"),
             );
+            match self.workspace.tabs.get(self.workspace.active_tab) {
+                Some(active_t) => self.tree.reveal_file(active_t.id, &self.core),
+                None => (), // there is no open tabs
+            }
         }
 
         // Ctrl-Space or Ctrl-L pressed while search modal is not open.
@@ -387,6 +391,8 @@ impl AccountScreen {
             for i in 1..10 {
                 if input.consume_key(ALT, NUM_KEYS[i - 1]) {
                     self.workspace.goto_tab(i);
+                    self.tree
+                        .reveal_file(self.workspace.tabs[i - 1].id, &self.core);
                     // Remove any text event that's also present this frame so that it doesn't show up
                     // in the editor.
                     if let Some(index) = input

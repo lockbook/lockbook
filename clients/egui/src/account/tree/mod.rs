@@ -151,12 +151,12 @@ impl FileTree {
     }
 
     /// expand the parents of the file and select it
-    pub fn reveal_file(&mut self, id: lb::Uuid, core: &lb::Core, ctx: &egui::Context) {
+    // todo trigger scroll if needed
+    pub fn reveal_file(&mut self, id: lb::Uuid, core: &lb::Core) {
         let mut curr = core.get_file_by_id(id).unwrap();
         loop {
             let parent = core.get_file_by_id(curr.parent).unwrap();
             self.state.expanded.insert(parent.id);
-
             if parent == curr {
                 break;
             }
@@ -165,7 +165,6 @@ impl FileTree {
 
         self.state.selected.clear();
         self.state.selected.insert(id);
-        ctx.request_repaint();
     }
 }
 
