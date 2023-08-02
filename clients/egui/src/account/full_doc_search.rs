@@ -1,8 +1,5 @@
 use std::{
-    sync::{
-        mpsc::{self, TryRecvError},
-        Arc, RwLock,
-    },
+    sync::{mpsc, Arc, RwLock},
     thread,
 };
 
@@ -107,7 +104,7 @@ impl FullDocSearch {
                 self.results = vec![];
             }
             if !self.results.is_empty() {
-                return self.show_results(ui, &core);
+                return self.show_results(ui, core);
             };
             None
         })
@@ -116,18 +113,40 @@ impl FullDocSearch {
 
     pub fn show_results(&mut self, ui: &mut egui::Ui, core: &lb::Core) -> Option<lb::Uuid> {
         ui.add_space(20.0);
-        for (i, sr) in self.results.iter().enumerate() {
+
+        // sort by descending score magnitude
+        self.results.sort_by(|a, b| {
+            let score_a = match a {
+                FileNameMatch { id: _, path: _, matched_indices: _, score } => Some(*score),
+                FileContentMatches { id: _, path: _, content_matches } => {
+                    Some(content_matches[0].score)
+                }
+                _ => None,
+            };
+            let score_b = match b {
+                FileNameMatch { id: _, path: _, matched_indices: _, score } => Some(*score),
+                FileContentMatches { id: _, path: _, content_matches } => {
+                    Some(content_matches[0].score)
+                }
+                _ => None,
+            };
+            score_b
+                .unwrap_or_default()
+                .cmp(&score_a.unwrap_or_default())
+        });
+
+        for (_, sr) in self.results.iter().enumerate() {
             let result_response = ui.vertical(|ui| {
                 match sr {
                     Error(err) => self.err_msg = err.msg.clone(),
-                    FileNameMatch { id, path, matched_indices, score } => {
+                    FileNameMatch { id, path, matched_indices: _, score: _ } => {
                         let file = &core.get_file_by_id(*id).unwrap();
-                        Self::show_file(ui, file, &path);
+                        Self::show_file(ui, file, path);
                     }
 
                     FileContentMatches { id, path, content_matches } => {
                         let file = &core.get_file_by_id(*id).unwrap();
-                        Self::show_file(ui, file, &path);
+                        Self::show_file(ui, file, path);
                         ui.horizontal(|ui| {
                             ui.add_space(15.0);
                             ui.horizontal_wrapped(|ui| {
@@ -152,9 +171,6 @@ impl FullDocSearch {
                                 ui.label(egui::RichText::new(post).size(15.0));
                             });
                         });
-
-                        // make sure results are sorted
-                        // maybe debug the empty channel weirdness
                     }
 
                     NoMatch => todo!(),
@@ -168,10 +184,10 @@ impl FullDocSearch {
                 ui.output_mut(|o| o.cursor_icon = egui::CursorIcon::PointingHand)
             }
 
-            let maybe_open_file = if a.clicked() {
+            if a.clicked() {
                 let id = match sr {
-                    FileNameMatch { id, path, matched_indices, score } => Some(id),
-                    FileContentMatches { id, path, content_matches } => Some(id),
+                    FileNameMatch { id, .. } => Some(id),
+                    FileContentMatches { id, .. } => Some(id),
                     _ => None,
                 };
                 return Some(*id.unwrap());
@@ -183,7 +199,7 @@ impl FullDocSearch {
         None
     }
 
-    fn show_file(ui: &mut egui::Ui, file: &lb::File, path: &String) {
+    fn show_file(ui: &mut egui::Ui, file: &lb::File, path: &str) {
         let sidebar_vertical_margin = 15.0;
         ui.horizontal_wrapped(|ui| {
             ui.add_space(sidebar_vertical_margin);
@@ -198,7 +214,7 @@ impl FullDocSearch {
             ui.add_space(sidebar_vertical_margin);
 
             let mut job = egui::text::LayoutJob::single_section(
-                path.clone(),
+                path.to_owned(),
                 egui::TextFormat::simple(egui::FontId::proportional(15.0), egui::Color32::GRAY),
             );
 
