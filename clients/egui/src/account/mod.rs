@@ -354,9 +354,8 @@ impl AccountScreen {
                     .map(|tab| tab.name.as_str())
                     .unwrap_or("Lockbook"),
             );
-            match self.workspace.tabs.get(self.workspace.active_tab) {
-                Some(active_t) => self.tree.reveal_file(active_t.id, &self.core),
-                None => (), // there is no open tabs
+            if let Some(active_t) = self.workspace.tabs.get(self.workspace.active_tab) {
+                self.tree.reveal_file(active_t.id, &self.core)
             }
         }
 
