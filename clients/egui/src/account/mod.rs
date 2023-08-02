@@ -126,17 +126,22 @@ impl AccountScreen {
 
                         self.show_nav_panel(ui);
 
+
                         ui.vertical(|ui| {
                             ui.add_space(15.0);
-                            self.full_search_doc.show(ui, &self.core);
-                            ui.add_space(10.0);
-
-                            if let Some(file) = self.suggested.show(ui) {
+                            if let Some(file) = self.full_search_doc.show(ui, &self.core){
                                 self.open_file(file, ctx);
                             }
-                            ui.add_space(20.0);
-                            self.show_tree(ui);
-                        })
+                            ui.add_space(10.0);
+
+                            if self.full_search_doc.results.is_empty() {
+                                if let Some(file) = self.suggested.show(ui) {
+                                    self.open_file(file, ctx);
+                                }
+                                ui.add_space(20.0);
+                                self.show_tree(ui);
+                            }
+                        });
                     });
                 })
                 .response

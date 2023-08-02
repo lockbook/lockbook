@@ -10,15 +10,15 @@ use eframe::egui;
 use lb::service::search_service::SearchResult::*;
 use lb::service::search_service::{SearchRequest, SearchResult};
 
-use crate::theme::Icon;
+use crate::{model::DocType, theme::Icon};
 
 pub struct FullDocSearch {
     requests: mpsc::Sender<String>,
     responses: mpsc::Receiver<Vec<SearchResult>>,
     pub query: String,
-    results: Vec<SearchResult>,
+    pub results: Vec<SearchResult>,
     err_msg: String,
-    pub is_searching: bool,
+    pub is_searching: Arc<RwLock<bool>>,
 }
 
 impl FullDocSearch {
@@ -66,12 +66,13 @@ impl FullDocSearch {
             query: String::new(),
             err_msg: String::new(),
             results: Vec::new(),
-            is_searching: false,
+            is_searching,
         }
     }
 
-    pub fn show(&mut self, ui: &mut egui::Ui, core: &lb::Core) {
+    pub fn show(&mut self, ui: &mut egui::Ui, core: &lb::Core) -> Option<lb::Uuid> {
         while let Ok(res) = self.responses.try_recv() {
+            println!("got results");
             self.results = res;
         }
 
@@ -83,10 +84,6 @@ impl FullDocSearch {
                 .hint_text("Search")
                 .margin(egui::vec2(15.0, 9.0))
                 .show(ui);
-
-            if output.response.changed() {
-                self.requests.send(self.query.clone()).unwrap();
-            }
 
             let search_icon_width = 15.0; // approximation
             let is_text_clipped = output.galley.rect.width() + v_margin * 2.0 + search_icon_width
@@ -100,6 +97,118 @@ impl FullDocSearch {
                     })
                 });
             }
+
+            if output.response.changed() && !self.query.is_empty() {
+                println!("request search ");
+                self.requests.send(self.query.clone()).unwrap();
+            }
+
+            if self.query.is_empty() {
+                self.results = vec![];
+            }
+            if !self.results.is_empty() {
+                return self.show_results(ui, &core);
+            };
+            None
+        })
+        .inner
+    }
+
+    pub fn show_results(&mut self, ui: &mut egui::Ui, core: &lb::Core) -> Option<lb::Uuid> {
+        ui.add_space(20.0);
+        for (i, sr) in self.results.iter().enumerate() {
+            let result_response = ui.vertical(|ui| {
+                match sr {
+                    Error(err) => self.err_msg = err.msg.clone(),
+                    FileNameMatch { id, path, matched_indices, score } => {
+                        let file = &core.get_file_by_id(*id).unwrap();
+                        Self::show_file(ui, file, &path);
+                    }
+
+                    FileContentMatches { id, path, content_matches } => {
+                        let file = &core.get_file_by_id(*id).unwrap();
+                        Self::show_file(ui, file, &path);
+                        ui.horizontal(|ui| {
+                            ui.add_space(15.0);
+                            ui.horizontal_wrapped(|ui| {
+                                let content_match = &content_matches[0]; // rarely, there exits more than  1 content match
+
+                                let pre =
+                                    &content_match.paragraph[0..content_match.matched_indices[0]];
+                                let highlighted = &content_match.paragraph[content_match
+                                    .matched_indices[0]
+                                    ..*content_match.matched_indices.last().unwrap() + 1];
+                                let post = &content_match.paragraph
+                                    [*content_match.matched_indices.last().unwrap() + 1..];
+
+                                ui.label(egui::RichText::new(pre).size(15.0));
+                                ui.label(
+                                    egui::RichText::new(highlighted)
+                                        .size(15.0)
+                                        .background_color(
+                                            ui.visuals().widgets.active.bg_fill.gamma_multiply(0.5),
+                                        ),
+                                );
+                                ui.label(egui::RichText::new(post).size(15.0));
+                            });
+                        });
+
+                        // make sure results are sorted
+                        // maybe debug the empty channel weirdness
+                    }
+
+                    NoMatch => todo!(),
+                };
+                ui.add_space(10.0);
+            });
+
+            let a =
+                ui.interact(result_response.response.rect, ui.next_auto_id(), egui::Sense::click());
+            if a.hovered() {
+                ui.output_mut(|o| o.cursor_icon = egui::CursorIcon::PointingHand)
+            }
+
+            let maybe_open_file = if a.clicked() {
+                let id = match sr {
+                    FileNameMatch { id, path, matched_indices, score } => Some(id),
+                    FileContentMatches { id, path, content_matches } => Some(id),
+                    _ => None,
+                };
+                return Some(*id.unwrap());
+            };
+
+            ui.separator();
+            ui.add_space(10.0);
+        }
+        None
+    }
+
+    fn show_file(ui: &mut egui::Ui, file: &lb::File, path: &String) {
+        let sidebar_vertical_margin = 15.0;
+        ui.horizontal_wrapped(|ui| {
+            ui.add_space(sidebar_vertical_margin);
+
+            DocType::from_name(file.name.as_str()).to_icon().show(ui);
+
+            ui.add_space(7.0);
+
+            ui.label(egui::RichText::new(&file.name));
+        });
+        ui.horizontal_wrapped(|ui| {
+            ui.add_space(sidebar_vertical_margin);
+
+            let mut job = egui::text::LayoutJob::single_section(
+                path.clone(),
+                egui::TextFormat::simple(egui::FontId::proportional(15.0), egui::Color32::GRAY),
+            );
+
+            job.wrap = egui::epaint::text::TextWrapping {
+                overflow_character: Some('…'),
+                max_rows: 1,
+                break_anywhere: true,
+                ..Default::default()
+            };
+            ui.label(job);
         });
     }
 }
