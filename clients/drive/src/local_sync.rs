@@ -67,8 +67,13 @@ impl Drive {
             println!("received event: {:?}", res);
             match res {
                 file_events::FileEvent::Create(path) => {
+                    let is_dir = path.is_dir();
                     let core_path = get_lockbook_path(path.clone(), dest.clone());
-                    let core_path = core_path.to_str().unwrap().to_string();
+                    let mut core_path = core_path.to_str().unwrap().to_string();
+                    if is_dir && !core_path.ends_with('/'){
+                        core_path.push('/');
+                    }
+                    println!("{:?}", core_path);
 
                     self.pending_events
                         .lock()
