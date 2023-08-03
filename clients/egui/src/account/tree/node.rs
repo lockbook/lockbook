@@ -109,6 +109,11 @@ impl TreeNode {
 
         let mut resp = self.draw_icon_and_text(ui, state);
 
+        if state.selected.contains(&self.file.id) && state.request_scroll {
+            ui.scroll_to_rect(resp.rect, None);
+            state.request_scroll = false;
+        }
+
         if resp.hovered()
             && ui.input(|i| i.pointer.any_pressed())
             && ui.input(|i| i.pointer.primary_down())

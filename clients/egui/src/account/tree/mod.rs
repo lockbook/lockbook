@@ -149,6 +149,24 @@ impl FileTree {
             .map(|id| self.root.find(*id).unwrap().file.clone())
             .collect()
     }
+
+    /// expand the parents of the file and select it
+    // todo trigger scroll if needed
+    pub fn reveal_file(&mut self, id: lb::Uuid, core: &lb::Core) {
+        let mut curr = core.get_file_by_id(id).unwrap();
+        loop {
+            let parent = core.get_file_by_id(curr.parent).unwrap();
+            self.state.expanded.insert(parent.id);
+            if parent == curr {
+                break;
+            }
+            curr = parent;
+        }
+
+        self.state.request_scroll = true;
+        self.state.selected.clear();
+        self.state.selected.insert(id);
+    }
 }
 
 pub fn create_root_node(all_metas: Vec<lb::File>) -> TreeNode {

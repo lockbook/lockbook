@@ -8,6 +8,7 @@ pub struct TreeState {
     pub selected: HashSet<lb::Uuid>,
     pub expanded: HashSet<lb::Uuid>,
     pub renaming: NodeRenamingState,
+    pub request_scroll: bool,
     pub dnd: TreeDragAndDropState,
 }
 
@@ -20,6 +21,7 @@ impl Default for TreeState {
             expanded: HashSet::new(),
             dnd: TreeDragAndDropState::default(),
             renaming: NodeRenamingState::default(),
+            request_scroll: false,
         }
     }
 }

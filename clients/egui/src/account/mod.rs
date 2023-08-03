@@ -192,6 +192,7 @@ impl AccountScreen {
                     Ok(_) => {
                         self.modals.file_picker = None;
                         self.perform_sync(ctx);
+                        // todo: figure out how to call reveal_file after the file tree is updated with the new sync info
                     }
                     Err(msg) => self.modals.error = Some(ErrorModal::new(msg)),
                 },
@@ -206,6 +207,7 @@ impl AccountScreen {
                     Ok(f) => {
                         let (id, is_doc) = (f.id, f.is_document());
                         self.tree.root.insert(f);
+                        self.tree.reveal_file(id, &self.core);
                         if is_doc {
                             self.open_file(id, ctx);
                         }
@@ -224,6 +226,8 @@ impl AccountScreen {
                 AccountUpdate::FileLoaded(id, content_result) => {
                     if let Some(tab) = self.workspace.get_mut_tab_by_id(id) {
                         frame.set_window_title(&tab.name);
+                        self.tree.reveal_file(id, &self.core);
+
                         match content_result {
                             Ok(content) => tab.content = Some(content),
                             Err(fail) => tab.failure = Some(fail),
@@ -350,6 +354,9 @@ impl AccountScreen {
                     .map(|tab| tab.name.as_str())
                     .unwrap_or("Lockbook"),
             );
+            if let Some(active_t) = self.workspace.tabs.get(self.workspace.active_tab) {
+                self.tree.reveal_file(active_t.id, &self.core)
+            }
         }
 
         // Ctrl-Space or Ctrl-L pressed while search modal is not open.
@@ -383,6 +390,8 @@ impl AccountScreen {
             for i in 1..10 {
                 if input.consume_key(ALT, NUM_KEYS[i - 1]) {
                     self.workspace.goto_tab(i);
+                    self.tree
+                        .reveal_file(self.workspace.tabs[i - 1].id, &self.core);
                     // Remove any text event that's also present this frame so that it doesn't show up
                     // in the editor.
                     if let Some(index) = input
@@ -707,7 +716,6 @@ impl AccountScreen {
                         }
                     })
             };
-
             update_tx
                 .send(AccountUpdate::FileLoaded(id, content))
                 .unwrap();

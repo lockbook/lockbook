@@ -267,6 +267,7 @@ impl super::AccountScreen {
                                 TabLabelResponse::Clicked => {
                                     self.workspace.active_tab = i;
                                     frame.set_window_title(&self.workspace.tabs[i].name);
+                                    self.tree.reveal_file(self.workspace.tabs[i].id, &self.core);
                                 }
                                 TabLabelResponse::Closed => {
                                     self.close_tab(ui.ctx(), i);
