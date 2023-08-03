@@ -162,7 +162,8 @@ impl FileTree {
             }
             curr = parent;
         }
-
+        
+        self.state.request_scroll = true;
         self.state.selected.clear();
         self.state.selected.insert(id);
     }

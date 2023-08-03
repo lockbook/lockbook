@@ -189,10 +189,10 @@ impl AccountScreen {
                     }
                 },
                 AccountUpdate::ShareAccepted(result) => match result {
-                    Ok(file) => {
+                    Ok(_) => {
                         self.modals.file_picker = None;
                         self.perform_sync(ctx);
-                        self.tree.reveal_file(file.id, &self.core);
+                        // todo: figure out how to call reveal_file after the file tree is updated with the new sync info
                     }
                     Err(msg) => self.modals.error = Some(ErrorModal::new(msg)),
                 },
