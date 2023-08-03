@@ -1,7 +1,7 @@
-use crate::bounds::Paragraphs;
+use crate::bounds::Bounds;
 use crate::buffer::SubBuffer;
 use crate::galleys::Galleys;
-use crate::input::canonical::{Bound, Offset};
+use crate::input::canonical::Offset;
 use crate::offset_types::*;
 use crate::unicode_segs::UnicodeSegs;
 use egui::{Modifiers, Pos2, Vec2};
@@ -100,7 +100,7 @@ impl Cursor {
 
     pub fn advance(
         &mut self, offset: Offset, backwards: bool, buffer: &SubBuffer, galleys: &Galleys,
-        paragraphs: &Paragraphs,
+        bounds: &Bounds,
     ) {
         self.selection.1 = self.selection.1.advance(
             &mut self.x_target,
@@ -109,7 +109,7 @@ impl Cursor {
             true,
             buffer,
             galleys,
-            paragraphs,
+            bounds,
         );
     }
 
@@ -117,7 +117,7 @@ impl Cursor {
     /// use only if you're sure your modifications will leave the cursor in a valid place at the end of the frame
     pub fn advance_for_edit(
         &mut self, offset: Offset, backwards: bool, buffer: &SubBuffer, galleys: &Galleys,
-        paragraphs: &Paragraphs,
+        bounds: &Bounds,
     ) {
         self.selection.1 = self.selection.1.advance(
             &mut self.x_target,
@@ -126,7 +126,7 @@ impl Cursor {
             false,
             buffer,
             galleys,
-            paragraphs,
+            bounds,
         );
     }
 
@@ -150,16 +150,6 @@ impl Cursor {
 
     fn empty(&self) -> bool {
         self.selection.0 == self.selection.1
-    }
-
-    pub fn at_line_bound(
-        &self, buffer: &SubBuffer, galleys: &Galleys, paragraphs: &Paragraphs,
-    ) -> bool {
-        let mut line_start = *self;
-        let mut line_end = *self;
-        line_start.advance(Offset::To(Bound::Line), true, buffer, galleys, paragraphs);
-        line_end.advance(Offset::To(Bound::Line), false, buffer, galleys, paragraphs);
-        self.selection.1 == line_start.selection.1 || self.selection.1 == line_end.selection.1
     }
 }
 

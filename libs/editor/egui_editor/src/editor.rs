@@ -9,7 +9,7 @@ use egui::{Color32, Context, Event, FontDefinitions, Frame, Pos2, Rect, Sense, U
 
 use crate::appearance::Appearance;
 use crate::ast::Ast;
-use crate::bounds::{Paragraphs, Words};
+use crate::bounds::Bounds;
 use crate::buffer::Buffer;
 use crate::debug::DebugInfo;
 use crate::galleys::Galleys;
@@ -116,8 +116,7 @@ pub struct Editor {
 
     // cached intermediate state
     pub ast: Ast,
-    pub words: Words,
-    pub paragraphs: Paragraphs,
+    pub bounds: Bounds,
     pub galleys: Galleys,
 
     // computed state from last frame
@@ -154,8 +153,7 @@ impl Default for Editor {
             has_focus: true,
 
             ast: Default::default(),
-            words: Default::default(),
-            paragraphs: Default::default(),
+            bounds: Default::default(),
             galleys: Default::default(),
 
             ui_rect: Rect { min: Default::default(), max: Default::default() },
@@ -303,8 +301,8 @@ impl Editor {
         // recalculate dependent state
         if text_updated {
             self.ast = ast::calc(&self.buffer.current);
-            self.words = bounds::calc_words(&self.buffer.current, &self.ast);
-            self.paragraphs = bounds::calc_paragraphs(&self.buffer.current, &self.ast);
+            self.bounds.words = bounds::calc_words(&self.buffer.current, &self.ast);
+            self.bounds.paragraphs = bounds::calc_paragraphs(&self.buffer.current, &self.ast);
         }
         if text_updated || selection_updated || theme_updated {
             self.images = images::calc(&self.ast, &self.images, &self.client, ui);
@@ -312,11 +310,12 @@ impl Editor {
         self.galleys = galleys::calc(
             &self.ast,
             &self.buffer.current,
-            &self.paragraphs,
+            &self.bounds,
             &self.images,
             &self.appearance,
             ui,
         );
+        self.bounds.lines = bounds::calc_lines(&self.galleys);
         self.initialized = true;
 
         // draw
@@ -330,24 +329,9 @@ impl Editor {
 
         // scroll
         let all_selection = {
-            let mut select_all_cursor = Cursor::from(0);
-            select_all_cursor.advance(
-                Offset::To(Bound::Doc),
-                true,
-                &self.buffer.current,
-                &self.galleys,
-                &self.paragraphs,
-            );
-            let start = select_all_cursor.selection.1;
-            select_all_cursor.advance(
-                Offset::To(Bound::Doc),
-                false,
-                &self.buffer.current,
-                &self.galleys,
-                &self.paragraphs,
-            );
-            let end = select_all_cursor.selection.1;
-            (start, end)
+            DocCharOffset(0)
+                .range_bound(Bound::Doc, false, false, &self.bounds)
+                .unwrap() // there's always a document
         };
         if selection_updated && self.buffer.current.cursor.selection != all_selection {
             let cursor_end_line = self.buffer.current.cursor.end_line(&self.galleys);
@@ -423,6 +407,7 @@ impl Editor {
             buffer: &self.buffer,
             ast: &self.ast,
             appearance: &self.appearance,
+            bounds: &self.bounds,
         };
         let combined_events = events::combine(
             events,
@@ -434,7 +419,7 @@ impl Editor {
         let (text_updated, maybe_to_clipboard, maybe_opened_url) = events::process(
             &combined_events,
             &self.galleys,
-            &self.paragraphs,
+            &self.bounds,
             &self.ast,
             &mut self.buffer,
             &mut self.debug,
@@ -447,6 +432,7 @@ impl Editor {
             buffer: &self.buffer,
             ast: &self.ast,
             appearance: &self.appearance,
+            bounds: &self.bounds,
         };
         if touch_mode {
             let current_cursor = self.buffer.current.cursor;
@@ -519,7 +505,7 @@ impl Editor {
     pub fn get_potential_text_title(&self) -> Option<String> {
         let mut maybe_chosen: Option<(DocCharOffset, DocCharOffset)> = None;
 
-        for paragraph in &self.paragraphs.paragraphs {
+        for paragraph in &self.bounds.paragraphs {
             if !paragraph.is_empty() {
                 maybe_chosen = Some(*paragraph);
                 break;

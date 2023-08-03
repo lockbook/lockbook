@@ -1,6 +1,6 @@
 use crate::appearance::Appearance;
 use crate::ast::{Ast, AstTextRangeType};
-use crate::bounds::Paragraphs;
+use crate::bounds::Bounds;
 use crate::buffer::SubBuffer;
 use crate::images::ImageCache;
 use crate::layouts::{Annotation, LayoutJobInfo};
@@ -42,8 +42,8 @@ pub struct ImageInfo {
 }
 
 pub fn calc(
-    ast: &Ast, buffer: &SubBuffer, paragraphs: &Paragraphs, images: &ImageCache,
-    appearance: &Appearance, ui: &mut Ui,
+    ast: &Ast, buffer: &SubBuffer, bounds: &Bounds, images: &ImageCache, appearance: &Appearance,
+    ui: &mut Ui,
 ) -> Galleys {
     let mut result: Galleys = Default::default();
 
@@ -64,7 +64,7 @@ pub fn calc(
     // combine ast text ranges, paragraphs, and selection
     // each paragraph gets a galley; ast text ranges and selection determine styles and captured characters
     loop {
-        let paragraph = paragraphs.paragraphs[paragraph_idx];
+        let paragraph = bounds.paragraphs[paragraph_idx];
         if let Some(text_range) = maybe_text_range.clone() {
             if paragraph.1 < text_range.range.0 {
                 // paragraph ends before text_range starts -> emit galley
@@ -191,7 +191,7 @@ pub fn calc(
                 layout.append("", 0.0, text_format);
             }
             let layout_info = LayoutJobInfo {
-                range: paragraphs.paragraphs[paragraph_idx],
+                range: bounds.paragraphs[paragraph_idx],
                 job: mem::take(&mut layout),
                 annotation: mem::take(&mut annotation),
                 head_size: mem::take(&mut head_size),
@@ -206,7 +206,7 @@ pub fn calc(
             emit_galley = false;
         }
 
-        if paragraph_idx == paragraphs.paragraphs.len() || maybe_text_range.is_none() {
+        if paragraph_idx == bounds.paragraphs.len() || maybe_text_range.is_none() {
             break;
         }
     }

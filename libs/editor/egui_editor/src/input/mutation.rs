@@ -1,5 +1,5 @@
 use crate::ast::{Ast, AstTextRangeType};
-use crate::bounds::Paragraphs;
+use crate::bounds::Bounds;
 use crate::buffer::{EditorMutation, Mutation, SubBuffer, SubMutation};
 use crate::galleys::Galleys;
 use crate::input::canonical::{Bound, Location, Modification, Offset, Region};
@@ -13,14 +13,13 @@ use std::cmp::Ordering;
 use unicode_segmentation::UnicodeSegmentation;
 
 pub fn calc(
-    modification: Modification, buffer: &SubBuffer, galleys: &Galleys, paragraphs: &Paragraphs,
-    ast: &Ast,
+    modification: Modification, buffer: &SubBuffer, galleys: &Galleys, bounds: &Bounds, ast: &Ast,
 ) -> EditorMutation {
     let current_cursor = buffer.cursor;
     let mut mutation = Vec::new();
     match modification {
         Modification::Select { region } => mutation.push(SubMutation::Cursor {
-            cursor: region_to_cursor(region, current_cursor, buffer, galleys, paragraphs),
+            cursor: region_to_cursor(region, current_cursor, buffer, galleys, bounds),
         }),
         Modification::StageMarked { highlighted, text } => {
             let mut cursor = current_cursor;
@@ -51,13 +50,13 @@ pub fn calc(
         }
         Modification::Replace { region, text } => {
             mutation.push(SubMutation::Cursor {
-                cursor: region_to_cursor(region, current_cursor, buffer, galleys, paragraphs),
+                cursor: region_to_cursor(region, current_cursor, buffer, galleys, bounds),
             });
             mutation.push(SubMutation::Insert { text, advance_cursor: true });
             mutation.push(SubMutation::Cursor { cursor: current_cursor });
         }
         Modification::ToggleStyle { region, style } => {
-            let cursor = region_to_cursor(region, current_cursor, buffer, galleys, paragraphs);
+            let cursor = region_to_cursor(region, current_cursor, buffer, galleys, bounds);
             apply_style(
                 cursor,
                 style.clone(),
@@ -385,7 +384,7 @@ pub fn calc(
                 current_cursor,
                 buffer,
                 galleys,
-                paragraphs,
+                bounds,
             );
 
             mutation.push(SubMutation::Cursor {
@@ -427,7 +426,7 @@ pub fn calc(
                             current_cursor,
                             buffer,
                             galleys,
-                            paragraphs,
+                            bounds,
                         ),
                     });
                     mutation.push(SubMutation::Insert {
@@ -466,7 +465,7 @@ pub fn calc(
                             current_cursor,
                             buffer,
                             galleys,
-                            paragraphs,
+                            bounds,
                         ),
                     });
                     mutation.push(SubMutation::Insert {
@@ -505,7 +504,7 @@ pub fn calc(
                             current_cursor,
                             buffer,
                             galleys,
-                            paragraphs,
+                            bounds,
                         ),
                     });
                     mutation.push(SubMutation::Insert {
@@ -753,8 +752,7 @@ fn list_mutation_replacement(
 }
 
 pub fn region_to_cursor(
-    region: Region, current_cursor: Cursor, buffer: &SubBuffer, galleys: &Galleys,
-    paragraphs: &Paragraphs,
+    region: Region, current_cursor: Cursor, buffer: &SubBuffer, galleys: &Galleys, bounds: &Bounds,
 ) -> Cursor {
     match region {
         Region::Location(location) => {
@@ -776,7 +774,7 @@ pub fn region_to_cursor(
                 let mut cursor = current_cursor;
                 // note: this is only used for backspace
                 // advance_for_edit won't leave the cursor in captured characters if we delete the selected characters
-                cursor.advance_for_edit(offset, backwards, buffer, galleys, paragraphs);
+                cursor.advance_for_edit(offset, backwards, buffer, galleys, bounds);
                 cursor.selection.0 = current_cursor.selection.1;
                 cursor
             } else {
@@ -789,7 +787,7 @@ pub fn region_to_cursor(
                 || matches!(offset, Offset::To(..))
             {
                 let mut cursor = current_cursor;
-                cursor.advance(offset, backwards, buffer, galleys, paragraphs);
+                cursor.advance(offset, backwards, buffer, galleys, bounds);
                 if extend_selection {
                     cursor.selection.0 = current_cursor.selection.0;
                 } else {
@@ -803,19 +801,18 @@ pub fn region_to_cursor(
             }
         }
         Region::Bound { bound, backwards } => {
-            let mut cursor = current_cursor;
-            cursor.advance(Offset::To(bound), backwards, buffer, galleys, paragraphs);
-            cursor.selection.0 = cursor.selection.1;
-            cursor.advance(Offset::To(bound), !backwards, buffer, galleys, paragraphs);
-            cursor
+            let offset = current_cursor.selection.1;
+            let range = offset
+                .range_bound(bound, backwards, false, bounds)
+                .unwrap_or((offset, offset));
+            range.into()
         }
         Region::BoundAt { bound, location, backwards } => {
-            let mut cursor: Cursor =
-                location_to_char_offset(location, current_cursor, galleys, &buffer.segs).into();
-            cursor.advance(Offset::To(bound), backwards, buffer, galleys, paragraphs);
-            cursor.selection.0 = cursor.selection.1;
-            cursor.advance(Offset::To(bound), !backwards, buffer, galleys, paragraphs);
-            cursor
+            let offset = location_to_char_offset(location, current_cursor, galleys, &buffer.segs);
+            let range = offset
+                .range_bound(bound, backwards, false, bounds)
+                .unwrap_or((offset, offset));
+            range.into()
         }
     }
 }
