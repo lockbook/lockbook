@@ -43,12 +43,19 @@ impl FullDocSearch {
                         .send(SearchRequest::Search { input: input.to_string() })
                         .unwrap();
 
-                    let res = vec![
-                        start_search.results_rx.recv().unwrap(),
-                        start_search.results_rx.recv().unwrap(),
-                        start_search.results_rx.recv().unwrap(),
-                        start_search.results_rx.recv().unwrap(),
-                    ];
+                    let res = start_search
+                        .results_rx
+                        .recv()
+                        .into_iter()
+                        .take(10)
+                        .collect();
+
+                    // let res = vec![
+                    //     start_search.results_rx.recv().unwrap(),
+                    //     start_search.results_rx.recv().unwrap(),
+                    //     start_search.results_rx.recv().unwrap(),
+                    //     start_search.results_rx.recv().unwrap(),
+                    // ];
 
                     let result = response_tx.send(res);
                     match result {
