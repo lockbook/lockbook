@@ -1,11 +1,15 @@
 use std::{
-    sync::{mpsc, Arc, RwLock},
+    sync::{
+        mpsc::{self, TryRecvError},
+        Arc, RwLock,
+    },
     thread,
+    time::Duration,
 };
 
 use eframe::egui;
-use lb::service::search_service::SearchResult::*;
 use lb::service::search_service::{SearchRequest, SearchResult};
+use lb::{clock::Timestamp, service::search_service::SearchResult::*};
 
 use crate::{model::DocType, theme::Icon};
 
@@ -33,6 +37,8 @@ impl FullDocSearch {
             move || {
                 while let Ok(input) = request_rx.recv() {
                     println!("request received, generating responses");
+                    println!("\n---\n\n");
+
                     *is_searching.write().unwrap() = true;
                     ctx.request_repaint();
 
@@ -43,19 +49,16 @@ impl FullDocSearch {
                         .send(SearchRequest::Search { input: input.to_string() })
                         .unwrap();
 
-                    let res = start_search
-                        .results_rx
-                        .recv()
-                        .into_iter()
-                        .take(10)
-                        .collect();
+                    let mut res = vec![];
+                    while let Ok(sr) = start_search.results_rx.recv_timeout(Duration::from_secs(1))
+                    {
+                        res.push(sr);
+                        if res.len() > 10 {
+                            break;
+                        }
+                    }
 
-                    // let res = vec![
-                    //     start_search.results_rx.recv().unwrap(),
-                    //     start_search.results_rx.recv().unwrap(),
-                    //     start_search.results_rx.recv().unwrap(),
-                    //     start_search.results_rx.recv().unwrap(),
-                    // ];
+                    println!("generated responses for {}", input);
 
                     let result = response_tx.send(res);
                     match result {
@@ -64,7 +67,12 @@ impl FullDocSearch {
                             println!("failed to send results to response tx{:#?}", msg.to_string())
                         }
                     }
+
                     *is_searching.write().unwrap() = false;
+                    start_search
+                        .search_tx
+                        .send(SearchRequest::EndSearch)
+                        .unwrap();
                     ctx.request_repaint();
                 }
             }
@@ -109,8 +117,8 @@ impl FullDocSearch {
             }
 
             if output.response.changed() && !self.query.is_empty() {
-                println!("request search ");
                 self.requests.send(self.query.clone()).unwrap();
+                println!("request search ");
             }
 
             if self.is_searching.read().unwrap().eq(&true) {
@@ -179,6 +187,7 @@ impl FullDocSearch {
                             ui.horizontal_wrapped(|ui| {
                                 let content_match = &content_matches[0]; // rarely, there exits more than  1 content match
 
+                                // todo: fix this, cus it's broken on "testing" and sometimes "rust" query
                                 let pre =
                                     &content_match.paragraph[0..content_match.matched_indices[0]];
                                 let highlighted = &content_match.paragraph[content_match
