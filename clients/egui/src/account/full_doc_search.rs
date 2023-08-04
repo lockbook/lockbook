@@ -1,6 +1,6 @@
 use std::{
     sync::{
-        mpsc::{self, TryRecvError},
+        mpsc::{self},
         Arc, RwLock,
     },
     thread,
@@ -8,8 +8,8 @@ use std::{
 };
 
 use eframe::egui;
+use lb::service::search_service::{ContentMatch, SearchResult::*};
 use lb::service::search_service::{SearchRequest, SearchResult};
-use lb::{clock::Timestamp, service::search_service::SearchResult::*};
 
 use crate::{model::DocType, theme::Icon};
 
@@ -36,9 +36,6 @@ impl FullDocSearch {
 
             move || {
                 while let Ok(input) = request_rx.recv() {
-                    println!("request received, generating responses");
-                    println!("\n---\n\n");
-
                     *is_searching.write().unwrap() = true;
                     ctx.request_repaint();
 
@@ -53,14 +50,36 @@ impl FullDocSearch {
                     while let Ok(sr) = start_search.results_rx.recv_timeout(Duration::from_secs(1))
                     {
                         res.push(sr);
-                        if res.len() > 10 {
+                        if res.len() > 50 {
                             break;
                         }
                     }
 
-                    println!("generated responses for {}", input);
-
-                    let result = response_tx.send(res);
+                    // sort by descending score magnitude
+                    res.sort_by(|a, b| {
+                        let score_a = match a {
+                            FileNameMatch { id: _, path: _, matched_indices: _, score } => {
+                                Some(*score)
+                            }
+                            FileContentMatches { id: _, path: _, content_matches } => {
+                                Some(content_matches[0].score)
+                            }
+                            _ => None,
+                        };
+                        let score_b = match b {
+                            FileNameMatch { id: _, path: _, matched_indices: _, score } => {
+                                Some(*score)
+                            }
+                            FileContentMatches { id: _, path: _, content_matches } => {
+                                Some(content_matches[0].score)
+                            }
+                            _ => None,
+                        };
+                        score_b
+                            .unwrap_or_default()
+                            .cmp(&score_a.unwrap_or_default())
+                    });
+                    let result = response_tx.send(res.into_iter().take(10).collect());
                     match result {
                         Ok(_) => println!("send results to response tx"),
                         Err(msg) => {
@@ -90,7 +109,6 @@ impl FullDocSearch {
 
     pub fn show(&mut self, ui: &mut egui::Ui, core: &lb::Core) -> Option<lb::Uuid> {
         while let Ok(res) = self.responses.try_recv() {
-            println!("got results");
             self.results = res;
         }
 
@@ -118,7 +136,6 @@ impl FullDocSearch {
 
             if output.response.changed() && !self.query.is_empty() {
                 self.requests.send(self.query.clone()).unwrap();
-                println!("request search ");
             }
 
             if self.is_searching.read().unwrap().eq(&true) {
@@ -144,35 +161,17 @@ impl FullDocSearch {
     pub fn show_results(&mut self, ui: &mut egui::Ui, core: &lb::Core) -> Option<lb::Uuid> {
         ui.add_space(20.0);
 
-        // sort by descending score magnitude
-        self.results.sort_by(|a, b| {
-            let score_a = match a {
-                FileNameMatch { id: _, path: _, matched_indices: _, score } => Some(*score),
-                FileContentMatches { id: _, path: _, content_matches } => {
-                    Some(content_matches[0].score)
-                }
-                _ => None,
-            };
-            let score_b = match b {
-                FileNameMatch { id: _, path: _, matched_indices: _, score } => Some(*score),
-                FileContentMatches { id: _, path: _, content_matches } => {
-                    Some(content_matches[0].score)
-                }
-                _ => None,
-            };
-            score_b
-                .unwrap_or_default()
-                .cmp(&score_a.unwrap_or_default())
-        });
-
         for (_, sr) in self.results.iter().enumerate() {
             let sr_res = ui.vertical(|ui| {
                 match sr {
                     Error(err) => {
-                        ui.label(
-                            egui::RichText::new(err.msg.to_owned())
-                                .color(ui.visuals().extreme_bg_color),
-                        );
+                        ui.horizontal(|ui| {
+                            ui.add_space(self.x_margin);
+                            ui.label(
+                                egui::RichText::new(err.msg.to_owned())
+                                    .color(ui.visuals().extreme_bg_color),
+                            );
+                        });
                     }
                     FileNameMatch { id, path, matched_indices: _, score: _ } => {
                         let file = &core.get_file_by_id(*id).unwrap();
@@ -185,32 +184,16 @@ impl FullDocSearch {
                         ui.horizontal(|ui| {
                             ui.add_space(15.0);
                             ui.horizontal_wrapped(|ui| {
-                                let content_match = &content_matches[0]; // rarely, there exits more than  1 content match
-
-                                // todo: fix this, cus it's broken on "testing" and sometimes "rust" query
-                                let pre =
-                                    &content_match.paragraph[0..content_match.matched_indices[0]];
-                                let highlighted = &content_match.paragraph[content_match
-                                    .matched_indices[0]
-                                    ..*content_match.matched_indices.last().unwrap() + 1];
-                                let post = &content_match.paragraph
-                                    [*content_match.matched_indices.last().unwrap() + 1..];
-
-                                ui.label(egui::RichText::new(pre).size(15.0));
-                                ui.label(
-                                    egui::RichText::new(highlighted)
-                                        .size(15.0)
-                                        .background_color(
-                                            ui.visuals().widgets.active.bg_fill.gamma_multiply(0.5),
-                                        ),
-                                );
-                                ui.label(egui::RichText::new(post).size(15.0));
+                                self.show_content_match(ui, &content_matches[0], 15.0);
                             });
                         });
                     }
 
                     NoMatch => {
-                        ui.label(egui::RichText::new("No results").color(egui::Color32::GRAY));
+                        ui.horizontal(|ui| {
+                            ui.add_space(self.x_margin);
+                            ui.label(egui::RichText::new("No results").color(egui::Color32::GRAY));
+                        });
                     }
                 };
                 ui.add_space(10.0);
@@ -233,6 +216,7 @@ impl FullDocSearch {
             ui.separator();
             ui.add_space(10.0);
         }
+
         None
     }
 
@@ -244,7 +228,7 @@ impl FullDocSearch {
 
             ui.add_space(7.0);
 
-            ui.label(egui::RichText::new(&file.name));
+            ui.label(egui::RichText::new(&file.name).size(17.0));
         });
         ui.horizontal_wrapped(|ui| {
             ui.add_space(x_margin);
@@ -262,5 +246,62 @@ impl FullDocSearch {
             };
             ui.label(job);
         });
+    }
+
+    fn show_content_match(&self, ui: &mut egui::Ui, content_match: &ContentMatch, font_size: f32) {
+        let matched_indices = &content_match.matched_indices;
+        let str = content_match.paragraph.clone();
+        let highlight_color = ui.visuals().widgets.active.bg_fill.gamma_multiply(0.5);
+
+        let mut curr = 0;
+        let mut next;
+
+        let pre = str[0..matched_indices[0]].to_string();
+        ui.label(egui::RichText::new(pre).size(font_size));
+
+        while curr < matched_indices.len() {
+            next = curr;
+
+            while next < matched_indices.len() - 1
+                && matched_indices[next] + 1 == matched_indices[next + 1]
+            {
+                next += 1;
+            }
+
+            if next == curr || curr == matched_indices.len() - 1 {
+                let h_str = str
+                    .chars()
+                    .nth(matched_indices[curr])
+                    .unwrap_or_default()
+                    .to_string();
+                ui.label(
+                    egui::RichText::new(h_str)
+                        .size(font_size)
+                        .background_color(highlight_color),
+                );
+
+                curr += 1;
+            } else {
+                let h_str = str[matched_indices[curr]..matched_indices[next] + 1].to_string();
+
+                ui.label(
+                    egui::RichText::new(h_str)
+                        .size(font_size)
+                        .background_color(highlight_color),
+                );
+                curr = next + 1;
+            }
+            if curr < matched_indices.len() - 1 {
+                ui.label(
+                    egui::RichText::new(
+                        str[matched_indices[next] + 1..matched_indices[curr]].to_string(),
+                    )
+                    .size(font_size),
+                );
+            }
+        }
+
+        let post = str[matched_indices[matched_indices.len() - 1] + 1..].to_string();
+        ui.label(egui::RichText::new(post).size(font_size));
     }
 }
