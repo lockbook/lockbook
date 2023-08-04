@@ -27,7 +27,6 @@ fn main() {
         std::env::set_var("WINIT_UNIX_BACKEND", "x11");
     }
 
-
     // We load the settings this early because some of them adjust certain launch behaviors such
     // as maximizing the window on startup or theming. For example, a user's splash screen should
     // conform to their theme choice.
