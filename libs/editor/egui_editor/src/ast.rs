@@ -275,7 +275,6 @@ impl Ast {
                         /*
                             code block
                         */
-                        text_range.0 += buffer[range].len() - buffer[range].trim_start().len();
                     }
                     if text_range.1 < text_range.0 {
                         /*
