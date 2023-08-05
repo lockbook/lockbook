@@ -71,7 +71,7 @@ impl AccountScreen {
             background_tx,
             tree: FileTree::new(files),
             suggested: SuggestedDocs::new(&core_clone),
-            full_search_doc: FullDocSearch::new(&core_clone, ctx),
+            full_search_doc: FullDocSearch::new(&core_clone),
             sync: SyncPanel::new(sync_status),
             usage,
             workspace: Workspace::new(),
@@ -84,6 +84,11 @@ impl AccountScreen {
     pub fn begin_shutdown(&mut self) {
         self.shutdown = Some(AccountShutdownProgress::default());
         self.save_all_tabs(&self.ctx);
+        self.full_search_doc
+            .search_channel
+            .search_tx
+            .send(lb::service::search_service::SearchRequest::EndSearch)
+            .unwrap();
         self.background_tx.send(BackgroundEvent::Shutdown).unwrap();
     }
 
@@ -128,7 +133,7 @@ impl AccountScreen {
 
                         ui.vertical(|ui| {
                             ui.add_space(15.0);
-                            if let Some(file) = self.full_search_doc.show(ui, &self.core) {
+                            if let Some(&file) = self.full_search_doc.show(ui, &self.core) {
                                 self.open_file(file, ctx);
                             }
                             ui.add_space(10.0);

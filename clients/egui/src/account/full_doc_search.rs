@@ -4,114 +4,53 @@ use std::{
         Arc, RwLock,
     },
     thread,
-    time::Duration,
 };
 
 use eframe::egui;
-use lb::service::search_service::{ContentMatch, SearchResult::*};
 use lb::service::search_service::{SearchRequest, SearchResult};
+use lb::{
+    service::search_service::{ContentMatch, SearchResult::*},
+    StartSearchInfo,
+};
 
-use crate::{model::DocType, theme::Icon};
+use crate::{model::DocType, theme::Icon, widgets::Button};
 
 pub struct FullDocSearch {
-    requests: mpsc::Sender<String>,
-    responses: mpsc::Receiver<Vec<SearchResult>>,
+    results_rx: mpsc::Receiver<SearchResult>,
+    results_tx: mpsc::Sender<SearchResult>,
     is_searching: Arc<RwLock<bool>>,
+    pub search_channel: StartSearchInfo,
     x_margin: f32,
     pub query: String,
     pub results: Vec<SearchResult>,
 }
 
 impl FullDocSearch {
-    pub fn new(core: &lb::Core, ctx: &egui::Context) -> Self {
-        let (request_tx, request_rx) = mpsc::channel::<String>();
-        let (response_tx, response_rx) = mpsc::channel();
-
+    pub fn new(core: &lb::Core) -> Self {
+        let (results_tx, results_rx) = mpsc::channel();
+        let search_channel = core.start_search().unwrap();
         let is_searching = Arc::new(RwLock::new(false));
 
-        thread::spawn({
-            let is_searching = is_searching.clone();
-            let core = core.clone();
-            let ctx = ctx.clone();
-
-            move || {
-                while let Ok(input) = request_rx.recv() {
-                    *is_searching.write().unwrap() = true;
-                    ctx.request_repaint();
-
-                    let start_search = core.start_search().unwrap();
-
-                    start_search
-                        .search_tx
-                        .send(SearchRequest::Search { input: input.to_string() })
-                        .unwrap();
-
-                    let mut res = vec![];
-                    while let Ok(sr) = start_search.results_rx.recv_timeout(Duration::from_secs(1))
-                    {
-                        res.push(sr);
-                        if res.len() > 50 {
-                            break;
-                        }
-                    }
-
-                    // sort by descending score magnitude
-                    res.sort_by(|a, b| {
-                        let score_a = match a {
-                            FileNameMatch { id: _, path: _, matched_indices: _, score } => {
-                                Some(*score)
-                            }
-                            FileContentMatches { id: _, path: _, content_matches } => {
-                                Some(content_matches[0].score)
-                            }
-                            _ => None,
-                        };
-                        let score_b = match b {
-                            FileNameMatch { id: _, path: _, matched_indices: _, score } => {
-                                Some(*score)
-                            }
-                            FileContentMatches { id: _, path: _, content_matches } => {
-                                Some(content_matches[0].score)
-                            }
-                            _ => None,
-                        };
-                        score_b
-                            .unwrap_or_default()
-                            .cmp(&score_a.unwrap_or_default())
-                    });
-                    let result = response_tx.send(res.into_iter().take(10).collect());
-                    match result {
-                        Ok(_) => println!("send results to response tx"),
-                        Err(msg) => {
-                            println!("failed to send results to response tx{:#?}", msg.to_string())
-                        }
-                    }
-
-                    *is_searching.write().unwrap() = false;
-                    start_search
-                        .search_tx
-                        .send(SearchRequest::EndSearch)
-                        .unwrap();
-                    ctx.request_repaint();
-                }
-            }
-        });
-
         Self {
-            requests: request_tx,
-            responses: response_rx,
+            results_rx,
+            results_tx,
             is_searching,
+            search_channel,
             x_margin: 15.0,
             query: String::new(),
             results: Vec::new(),
         }
     }
 
-    pub fn show(&mut self, ui: &mut egui::Ui, core: &lb::Core) -> Option<lb::Uuid> {
-        while let Ok(res) = self.responses.try_recv() {
-            self.results = res;
+    pub fn show(&mut self, ui: &mut egui::Ui, core: &lb::Core) -> Option<&lb::Uuid> {
+        while let Ok(res) = self.results_rx.try_recv() {
+            self.results.push(res);
+            self.results.sort_by(|a, b| {
+                b.get_score()
+                    .unwrap_or_default()
+                    .cmp(&a.get_score().unwrap_or_default())
+            });
         }
-
         ui.vertical_centered(|ui| {
             let output = egui::TextEdit::singleline(&mut self.query)
                 .desired_width(ui.available_size_before_wrap().x - 5.0)
@@ -124,18 +63,31 @@ impl FullDocSearch {
                 output.galley.rect.width() + self.x_margin * 2.0 + search_icon_width
                     > output.response.rect.width();
 
-            // hide icon to accommodate text width
-            if !is_text_clipped {
-                ui.allocate_ui_at_rect(output.response.rect, |ui| {
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        ui.add_space(10.0);
+            ui.allocate_ui_at_rect(output.response.rect, |ui| {
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    ui.add_space(10.0);
+
+                    if self.query.is_empty() {
                         Icon::SEARCH.color(egui::Color32::GRAY).show(ui);
-                    })
-                });
-            }
+                    } else if !is_text_clipped {
+                        ui.spacing_mut().button_padding = egui::vec2(0.0, 0.0);
+                        if Button::default().icon(&Icon::CLOSE).show(ui).clicked() {
+                            self.search_channel
+                                .search_tx
+                                .send(SearchRequest::StopCurrentSearch)
+                                .unwrap();
+                            self.query = "".to_string();
+                            self.results = vec![];
+                        }
+                    }
+                })
+            });
 
             if output.response.changed() && !self.query.is_empty() {
-                self.requests.send(self.query.clone()).unwrap();
+                self.results = vec![]; // return Some(*id.unwrap());
+
+                *self.is_searching.write().unwrap() = true;
+                self.send_search_results();
             }
 
             if self.is_searching.read().unwrap().eq(&true) {
@@ -158,7 +110,28 @@ impl FullDocSearch {
         .inner
     }
 
-    pub fn show_results(&mut self, ui: &mut egui::Ui, core: &lb::Core) -> Option<lb::Uuid> {
+    fn send_search_results(&self) {
+        let search_tx = self.search_channel.search_tx.clone();
+        let results_tx = self.results_tx.clone();
+        let results_rx = self.search_channel.results_rx.clone();
+        let query = self.query.clone();
+        let is_searching = self.is_searching.clone();
+
+        thread::spawn(move || {
+            search_tx
+                .send(SearchRequest::Search { input: query })
+                .unwrap();
+
+            while let Ok(sr) = results_rx.recv() {
+                results_tx.send(sr).unwrap();
+                if results_rx.try_recv().is_err_and(|f| f.is_empty()) {
+                    *is_searching.write().unwrap() = false;
+                }
+            }
+        });
+    }
+
+    pub fn show_results(&mut self, ui: &mut egui::Ui, core: &lb::Core) -> Option<&lb::Uuid> {
         ui.add_space(20.0);
 
         for (_, sr) in self.results.iter().enumerate() {
@@ -198,6 +171,8 @@ impl FullDocSearch {
                 };
                 ui.add_space(10.0);
             });
+            ui.add(egui::Separator::default().shrink(ui.available_width() / 1.5));
+            ui.add_space(10.0);
 
             let sr_res = ui.interact(sr_res.response.rect, ui.next_auto_id(), egui::Sense::click());
             if sr_res.hovered() {
@@ -210,11 +185,10 @@ impl FullDocSearch {
                     FileContentMatches { id, .. } => Some(id),
                     _ => None,
                 };
-                return Some(*id.unwrap());
+                if id.is_some() {
+                    return id;
+                }
             };
-
-            ui.separator();
-            ui.add_space(10.0);
         }
 
         None
@@ -228,7 +202,20 @@ impl FullDocSearch {
 
             ui.add_space(7.0);
 
-            ui.label(egui::RichText::new(&file.name).size(17.0));
+            let mut job = egui::text::LayoutJob::single_section(
+                path.to_owned(),
+                egui::TextFormat::simple(
+                    egui::FontId::proportional(18.0),
+                    ui.visuals().text_color(),
+                ),
+            );
+            job.wrap = egui::epaint::text::TextWrapping {
+                overflow_character: Some('…'),
+                max_rows: 1,
+                break_anywhere: true,
+                ..Default::default()
+            };
+            ui.label(job);
         });
         ui.horizontal_wrapped(|ui| {
             ui.add_space(x_margin);
