@@ -4,6 +4,7 @@ use lazy_static::lazy_static;
 use std::ffi::{CStr, CString};
 use std::os::raw::c_char;
 use std::path::PathBuf;
+use std::ptr;
 use std::sync::{Arc, Mutex};
 
 use serde::Serialize;
@@ -11,11 +12,9 @@ use serde_json::json;
 use time::Duration;
 
 use lockbook_core::service::search_service::{SearchRequest, SearchResult};
-use lockbook_core::{
-    clock, Config, FileType, ImportStatus, ShareMode, SupportedImageFormats, UnexpectedError, Uuid,
-};
+use lockbook_core::{clock, Config, FileType, ImportStatus, ShareMode, SupportedImageFormats, SyncProgress, UnexpectedError, Uuid};
 
-use crate::{get_all_error_variants, json_interface::translate, static_state, RankingWeights};
+use crate::{get_all_error_variants, json_interface::translate, static_state, RankingWeights, ClientWorkUnit};
 
 fn c_string(value: String) -> *const c_char {
     CString::new(value)
@@ -353,11 +352,41 @@ pub unsafe extern "C" fn calculate_work() -> *const c_char {
     })
 }
 
+pub type UpdateSyncStatus = extern "C" fn(*const c_char, bool, *const c_char, f32);
+
 /// # Safety
 ///
 /// Be sure to call `release_pointer` on the result of this function to free the data.
 #[no_mangle]
-pub unsafe extern "C" fn sync_all() -> *const c_char {
+pub unsafe extern "C" fn sync_all(
+    context: *const c_char, update_status: UpdateSyncStatus,
+) -> *const c_char {
+    let closure = move |sync_progress: SyncProgress| {
+        let (is_pushing, file_name) = match sync_progress.current_work_unit {
+            ClientWorkUnit::PullMetadata => (false, ptr::null()),
+            ClientWorkUnit::PushMetadata => (true, ptr::null()),
+            ClientWorkUnit::PullDocument(file) => {
+                (false, c_string(file.name))
+            }
+            ClientWorkUnit::PushDocument(file) => {
+                (true, c_string(file.name))
+            }
+        };
+
+        update_status(context, is_pushing, file_name, (sync_progress.progress as f32) / (sync_progress.total as f32));
+    };
+
+    c_string(match static_state::get() {
+        Ok(core) => translate(core.sync(Some(Box::new(closure)))),
+        e => translate(e.map(|_| ())),
+    })
+}
+
+/// # Safety
+///
+/// Be sure to call `release_pointer` on the result of this function to free the data.
+#[no_mangle]
+pub unsafe extern "C" fn background_sync() -> *const c_char {
     c_string(match static_state::get() {
         Ok(core) => translate(core.sync(None)),
         e => translate(e.map(|_| ())),

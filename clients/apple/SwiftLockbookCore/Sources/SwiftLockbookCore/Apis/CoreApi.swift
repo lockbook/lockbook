@@ -44,8 +44,12 @@ public struct CoreApi: LockbookApi {
         fromPrimitiveResult(result: delete_account())
     }
     
-    public func syncAll() -> FfiResult<Empty, SyncAllError> {
-        fromPrimitiveResult(result: sync_all())
+    public func syncAll(context: UnsafeRawPointer?, updateStatus: @escaping @convention(c) (UnsafePointer<Int8>?, Bool, UnsafePointer<Int8>?, Float) -> Void) -> FfiResult<Empty, SyncAllError> {
+        fromPrimitiveResult(result: sync_all(context, updateStatus))
+    }
+    
+    public func backgroundSync() -> FfiResult<Empty, SyncAllError> {
+        fromPrimitiveResult(result: background_sync())
     }
     
     public func calculateWork() -> FfiResult<WorkCalculated, CalculateWorkError> {
@@ -187,5 +191,9 @@ public struct CoreApi: LockbookApi {
         release_pointer(UnsafeMutablePointer(mutating: msgPointer))
         
         return msg
+    }
+    
+    public func freeText(s: UnsafePointer<Int8>) {
+        release_pointer(UnsafeMutablePointer(mutating: s))
     }
 }

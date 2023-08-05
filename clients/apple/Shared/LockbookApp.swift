@@ -250,7 +250,9 @@ extension View {
             .onChange(of: scenePhase, perform: { newValue in
                 switch newValue {
                 case .background:
-                    appDelegate.scheduleBackgroundTask(initialRun: true)
+                    if !DI.onboarding.initialSyncing {
+                        appDelegate.scheduleBackgroundTask(initialRun: true)
+                    }
                 case .active:
                     appDelegate.endBackgroundTasks()
                 default:
@@ -262,7 +264,9 @@ extension View {
             .onReceive(
                 NotificationCenter.default.publisher(for: NSApplication.willResignActiveNotification),
                 perform: { _ in
-                    appDelegate.scheduleBackgroundTask(initialRun: true)
+                    if !DI.onboarding.initialSyncing {
+                        appDelegate.scheduleBackgroundTask(initialRun: true)
+                    }
                 })
             .onReceive(
                 NotificationCenter.default.publisher(for: NSApplication.willBecomeActiveNotification),
@@ -348,7 +352,13 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         request.requiresExternalPower = false
         request.requiresNetworkConnectivity = true
         
-        try! BGTaskScheduler.shared.submit(request)
+        do {
+            try BGTaskScheduler.shared.submit(request)
+            print("scheduled background task")
+            
+        } catch {
+            print("could not schedule background task")
+        }
     }
     
     func endBackgroundTasks() {

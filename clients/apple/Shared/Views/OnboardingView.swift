@@ -8,20 +8,35 @@ enum OnboardingScreen {
 struct OnboardingView: View {
     
     @EnvironmentObject var onboardingState: OnboardingService
+    @EnvironmentObject var syncState: SyncService
     
     @State var selectedTab: OnboardingScreen = .Create
     
     var body: some View {
         if onboardingState.initialSyncing {
-            VStack(spacing: 40) {
+            VStack(spacing: 20) {
                 Spacer()
                 HStack {
                     Spacer()
-                    ProgressView()
+                    ProgressView(value: syncState.syncProgress)
+                        .frame(maxWidth: 700)
                     Spacer()
                 }
-                Text("Performing initial sync...")
-                    .bold()
+                .padding(.horizontal)
+                
+                if let isPushing = syncState.isPushing {
+                    if let fileName = syncState.pushPullFileName {
+                        Text("\(isPushing ? "Pushing" : "Pulling") file: \(fileName)")
+                            .font(.headline)
+                    } else {
+                        Text("\(isPushing ? "Pushing" : "Pulling") files...")
+                            .font(.headline)
+                    }
+                } else {
+                    Text("Starting sync...")
+                        .font(.headline)
+                }
+                
                 Spacer()
             }
         } else {
