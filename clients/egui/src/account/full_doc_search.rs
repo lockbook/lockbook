@@ -60,27 +60,27 @@ impl FullDocSearch {
                 output.galley.rect.width() + self.x_margin * 2.0 + search_icon_width
                     > output.response.rect.width();
 
-            ui.allocate_ui_at_rect(output.response.rect, |ui| {
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    ui.add_space(10.0);
+            if !is_text_clipped {
+                ui.allocate_ui_at_rect(output.response.rect, |ui| {
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        ui.add_space(10.0);
 
-                    if self.query.is_empty() {
-                        Icon::SEARCH.color(egui::Color32::GRAY).show(ui);
-                    } else if !is_text_clipped {
-                        let default_padding = ui.spacing().button_padding;
-                        ui.spacing_mut().button_padding = egui::vec2(0.0, 0.0);
-                        if Button::default().icon(&Icon::CLOSE).show(ui).clicked() {
-                            self.search_channel
-                                .search_tx
-                                .send(SearchRequest::StopCurrentSearch)
-                                .unwrap();
-                            self.query = "".to_string();
-                            self.results = vec![];
+                        if self.query.is_empty() {
+                            Icon::SEARCH.color(egui::Color32::GRAY).show(ui);
+                        } else {
+                            ui.spacing_mut().button_padding = egui::vec2(0.0, 0.0);
+                            if Button::default().icon(&Icon::CLOSE).show(ui).clicked() {
+                                self.search_channel
+                                    .search_tx
+                                    .send(SearchRequest::StopCurrentSearch)
+                                    .unwrap();
+                                self.query = "".to_string();
+                                self.results = vec![];
+                            }
                         }
-                        ui.spacing_mut().button_padding = default_padding;
-                    }
-                })
-            });
+                    });
+                });
+            };
 
             if output.response.changed() && !self.query.is_empty() {
                 self.results = vec![]; // return Some(*id.unwrap());
