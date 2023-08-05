@@ -67,6 +67,7 @@ impl FullDocSearch {
                     if self.query.is_empty() {
                         Icon::SEARCH.color(egui::Color32::GRAY).show(ui);
                     } else if !is_text_clipped {
+                        let default_padding = ui.spacing().button_padding;
                         ui.spacing_mut().button_padding = egui::vec2(0.0, 0.0);
                         if Button::default().icon(&Icon::CLOSE).show(ui).clicked() {
                             self.search_channel
@@ -76,6 +77,7 @@ impl FullDocSearch {
                             self.query = "".to_string();
                             self.results = vec![];
                         }
+                        ui.spacing_mut().button_padding = default_padding;
                     }
                 })
             });
@@ -163,8 +165,7 @@ impl FullDocSearch {
                     }
 
                     NoMatch => {
-                        ui.horizontal(|ui| {
-                            ui.add_space(self.x_margin);
+                        ui.vertical_centered(|ui| {
                             ui.label(egui::RichText::new("No results").color(egui::Color32::GRAY));
                         });
                     }
