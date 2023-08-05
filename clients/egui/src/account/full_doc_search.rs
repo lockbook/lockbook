@@ -1,8 +1,5 @@
 use std::{
-    sync::{
-        mpsc::{self},
-        Arc, RwLock,
-    },
+    sync::{mpsc, Arc, RwLock},
     thread,
 };
 
@@ -124,8 +121,11 @@ impl FullDocSearch {
 
             while let Ok(sr) = results_rx.recv() {
                 results_tx.send(sr).unwrap();
-                if results_rx.try_recv().is_err_and(|f| f.is_empty()) {
-                    *is_searching.write().unwrap() = false;
+                match results_rx.try_recv() {
+                    Err(e) if e.is_empty() => {
+                        *is_searching.write().unwrap() = false;
+                    }
+                    _ => (),
                 }
             }
         });
