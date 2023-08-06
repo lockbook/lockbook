@@ -207,10 +207,10 @@ impl PointerState {
             if pos.distance(click_pos) > DRAG_DISTANCE {
                 self.click_dragged = Some(true);
             }
-        }
-        if let Some(click_time) = self.last_click_times.0 {
-            if t - click_time > DRAG_DURATION {
-                self.click_dragged = Some(true);
+            if let Some(click_time) = self.last_click_times.0 {
+                if t - click_time > DRAG_DURATION {
+                    self.click_dragged = Some(true);
+                }
             }
         }
     }
