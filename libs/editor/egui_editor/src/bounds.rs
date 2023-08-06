@@ -147,14 +147,12 @@ pub fn calc_paragraphs(buffer: &SubBuffer, ast: &Ast) -> Paragraphs {
 pub fn calc_text(ast: &Ast, appearance: &Appearance, segs: &UnicodeSegs) -> Text {
     let mut result = vec![];
     for text_range in ast.iter_text_ranges() {
-        if text_range.range_type == AstTextRangeType::Text {
-            // text ranges
-            result.push(text_range.range);
-        } else if !appearance
-            .markdown_capture()
-            .contains(&text_range.node(ast).node_type())
+        if text_range.range_type == AstTextRangeType::Text
+            || !appearance
+                .markdown_capture()
+                .contains(&text_range.node(ast).node_type())
         {
-            // uncaptured syntax ranges
+            // text ranges and uncaptured syntax ranges
             result.push(text_range.range);
         } else if text_range.range_type == AstTextRangeType::Tail {
             if let MarkdownNode::Inline(InlineNode::Link(_, _, title)) = text_range.node(ast) {

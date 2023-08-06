@@ -134,23 +134,20 @@ pub fn calc(
                 mutation.push(SubMutation::Cursor { cursor: galley.range.start().into() });
                 mutation.push(SubMutation::Insert { text: "\n".to_string(), advance_cursor: true });
                 mutation.push(SubMutation::Cursor { cursor });
-            } else {
-                if let Some(ast_text_range) = ast_text_range {
-                    if ast_text_range.range_type == AstTextRangeType::Tail
-                        && ast_text_range.node(ast).node_type()
-                            == MarkdownNodeType::Inline(InlineNodeType::Link)
-                    {
-                        // cursor inside captured link url -> move cursor to end of link
-                        mutation.push(SubMutation::Cursor {
-                            cursor: (ast_text_range.range.end(), ast_text_range.range.end()).into(),
-                        });
-                    } else {
-                        mutation
-                            .push(SubMutation::Insert { text: "\n".to_string(), advance_cursor });
-                    }
+            } else if let Some(ast_text_range) = ast_text_range {
+                if ast_text_range.range_type == AstTextRangeType::Tail
+                    && ast_text_range.node(ast).node_type()
+                        == MarkdownNodeType::Inline(InlineNodeType::Link)
+                {
+                    // cursor inside captured link url -> move cursor to end of link
+                    mutation.push(SubMutation::Cursor {
+                        cursor: (ast_text_range.range.end(), ast_text_range.range.end()).into(),
+                    });
                 } else {
                     mutation.push(SubMutation::Insert { text: "\n".to_string(), advance_cursor });
                 }
+            } else {
+                mutation.push(SubMutation::Insert { text: "\n".to_string(), advance_cursor });
             }
 
             cursor.selection.0 = cursor.selection.1;
