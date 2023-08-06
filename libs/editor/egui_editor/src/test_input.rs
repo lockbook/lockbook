@@ -280,7 +280,6 @@ a code block
 
 a ~~rule~~
 ***
-
 and a link to our [website](http://lockbook.net)!
 "#;
 
