@@ -280,9 +280,7 @@ pub fn calc(
                 None
             }
         }
-        Event::PointerButton { pos, button: PointerButton::Primary, pressed: false, .. }
-            if click_checker.ui(*pos) =>
-        {
+        Event::PointerButton { pos, button: PointerButton::Primary, pressed: false, .. } => {
             let click_type = pointer_state.click_type.unwrap_or_default();
             let click_pos = pointer_state.click_pos.unwrap_or_default();
             let click_mods = pointer_state.click_mods.unwrap_or_default();
@@ -290,38 +288,46 @@ pub fn calc(
             pointer_state.release();
             let location = Location::Pos(*pos);
 
-            if click_checker.checkbox(*pos).is_none() && click_checker.link(*pos).is_none() {
-                Some(Modification::Select {
-                    region: if click_mods.shift {
-                        Region::ToLocation(location)
-                    } else {
-                        match click_type {
-                            ClickType::Single => {
-                                if touch_mode {
-                                    if !click_dragged {
-                                        Region::Location(location)
+            if click_checker.ui(*pos) {
+                if click_checker.checkbox(*pos).is_none() && click_checker.link(*pos).is_none() {
+                    Some(Modification::Select {
+                        region: if click_mods.shift {
+                            Region::ToLocation(location)
+                        } else {
+                            match click_type {
+                                ClickType::Single => {
+                                    if touch_mode {
+                                        if !click_dragged {
+                                            Region::Location(location)
+                                        } else {
+                                            return None;
+                                        }
                                     } else {
-                                        return None;
-                                    }
-                                } else {
-                                    Region::BetweenLocations {
-                                        start: Location::Pos(click_pos),
-                                        end: location,
+                                        Region::BetweenLocations {
+                                            start: Location::Pos(click_pos),
+                                            end: location,
+                                        }
                                     }
                                 }
+                                ClickType::Double => Region::BoundAt {
+                                    bound: Bound::Word,
+                                    location,
+                                    backwards: true,
+                                },
+                                ClickType::Triple => Region::BoundAt {
+                                    bound: Bound::Line,
+                                    location,
+                                    backwards: true,
+                                },
+                                ClickType::Quadruple => {
+                                    Region::BoundAt { bound: Bound::Doc, location, backwards: true }
+                                }
                             }
-                            ClickType::Double => {
-                                Region::BoundAt { bound: Bound::Word, location, backwards: true }
-                            }
-                            ClickType::Triple => {
-                                Region::BoundAt { bound: Bound::Line, location, backwards: true }
-                            }
-                            ClickType::Quadruple => {
-                                Region::BoundAt { bound: Bound::Doc, location, backwards: true }
-                            }
-                        }
-                    },
-                })
+                        },
+                    })
+                } else {
+                    None
+                }
             } else {
                 None
             }
