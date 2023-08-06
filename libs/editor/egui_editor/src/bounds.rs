@@ -1,16 +1,20 @@
+use crate::appearance::Appearance;
 use crate::ast::{Ast, AstTextRangeType};
 use crate::buffer::SubBuffer;
 use crate::galleys::Galleys;
 use crate::input::canonical::Bound;
 use crate::offset_types::{DocByteOffset, DocCharOffset, RangeExt, RelByteOffset};
+use crate::unicode_segs::UnicodeSegs;
 use crate::Editor;
 use egui::epaint::text::cursor::RCursor;
 use std::collections::HashSet;
+use std::iter;
 use unicode_segmentation::UnicodeSegmentation;
 
-type Words = Vec<(DocCharOffset, DocCharOffset)>;
-type Lines = Vec<(DocCharOffset, DocCharOffset)>;
-type Paragraphs = Vec<(DocCharOffset, DocCharOffset)>;
+pub type Words = Vec<(DocCharOffset, DocCharOffset)>;
+pub type Lines = Vec<(DocCharOffset, DocCharOffset)>;
+pub type Paragraphs = Vec<(DocCharOffset, DocCharOffset)>;
+pub type Text = Vec<(DocCharOffset, DocCharOffset)>;
 
 /// Represents bounds of various text regions in the buffer. Region bounds are inclusive on both sides. Regions do not
 /// overlap, have region.0 <= region.1, and are sorted. Character and doc regions are not stored explicitly but can be
@@ -19,20 +23,25 @@ type Paragraphs = Vec<(DocCharOffset, DocCharOffset)>;
 pub struct Bounds {
     pub words: Words,
     pub lines: Lines,
-
-    /// Paragraphs consist of all rendered text, excluding the newlines that usually delimit them. Every valid cursor
-    /// position is in some possibly-empty paragraph.
     pub paragraphs: Paragraphs,
+
+    /// Text consists of all rendered text. Every valid cursor position is in some possibly-empty text range.
+    pub text: Text,
 }
 
-pub fn calc_words(buffer: &SubBuffer, ast: &Ast) -> Words {
+pub fn calc_words(buffer: &SubBuffer, ast: &Ast, appearance: &Appearance) -> Words {
     let mut result = vec![];
 
     for text_range in ast.iter_text_ranges() {
         match text_range.range_type {
             AstTextRangeType::Head | AstTextRangeType::Tail => {
-                // syntax sequences count as words
-                result.push(text_range.range)
+                // syntax sequences count as words but only if they're not captured
+                if !appearance
+                    .markdown_capture()
+                    .contains(&text_range.node(ast).node_type())
+                {
+                    result.push(text_range.range)
+                }
             }
             AstTextRangeType::Text => {
                 let mut prev_char_offset = text_range.range.0;
@@ -59,17 +68,35 @@ pub fn calc_words(buffer: &SubBuffer, ast: &Ast) -> Words {
     result
 }
 
-pub fn calc_lines(galleys: &Galleys) -> Lines {
+pub fn calc_lines(galleys: &Galleys, text: &Text) -> Lines {
     let mut result = vec![];
     let galleys = galleys;
     for (galley_idx, galley) in galleys.galleys.iter().enumerate() {
-        let galley = &galley.galley;
-        for (row_idx, _) in galley.rows.iter().enumerate() {
-            let start_cursor = galley.from_rcursor(RCursor { row: row_idx, column: 0 });
-            let row_start = galleys.char_offset_by_galley_and_cursor(galley_idx, &start_cursor);
-            let end_cursor = galley.cursor_end_of_row(&start_cursor);
-            let row_end = galleys.char_offset_by_galley_and_cursor(galley_idx, &end_cursor);
-            result.push((row_start, row_end))
+        for (row_idx, _) in galley.galley.rows.iter().enumerate() {
+            let start_cursor = galley
+                .galley
+                .from_rcursor(RCursor { row: row_idx, column: 0 });
+            let row_start =
+                galleys.char_offset_by_galley_and_cursor(galley_idx, &start_cursor, text);
+            let end_cursor = galley.galley.cursor_end_of_row(&start_cursor);
+            let row_end = galleys.char_offset_by_galley_and_cursor(galley_idx, &end_cursor, text);
+
+            let mut range = (row_start, row_end);
+
+            // rows in galley head/tail are excluded
+            if row_end < galley.text_range().start() {
+                continue;
+            }
+            if row_start > galley.text_range().end() {
+                break;
+            }
+
+            // bound row start and row end by the galley bounds
+            let (min, max) = galley.text_range();
+            range.0 = range.0.max(min).min(max);
+            range.1 = range.1.max(min).min(max);
+
+            result.push(range)
         }
     }
 
@@ -111,6 +138,37 @@ pub fn calc_paragraphs(buffer: &SubBuffer, ast: &Ast) -> Paragraphs {
         result.push((prev_char_offset, char_offset));
 
         prev_char_offset = char_offset + 1 // skip the matched newline;
+    }
+
+    result
+}
+
+pub fn calc_text(ast: &Ast, appearance: &Appearance, segs: &UnicodeSegs) -> Text {
+    let mut result = vec![];
+    for text_range in ast.iter_text_ranges() {
+        if matches!(text_range.range_type, AstTextRangeType::Text)
+            || !appearance
+                .markdown_capture()
+                .contains(&text_range.node(ast).node_type())
+        {
+            result.push(text_range.range);
+        }
+    }
+
+    if let Some(first) = result.first() {
+        if first.start() != 0 {
+            // prepend empty range
+            result.splice(0..0, iter::once((0.into(), 0.into())));
+        }
+    }
+    if let Some(last) = result.last() {
+        if last.end() != segs.last_cursor_position() {
+            // append empty range
+            result.push((segs.last_cursor_position(), segs.last_cursor_position()));
+        }
+    }
+    if result.is_empty() {
+        result = vec![(0.into(), 0.into())];
     }
 
     result
@@ -203,7 +261,7 @@ impl DocCharOffset {
     ) -> Option<(Self, Self)> {
         let ranges = match bound {
             Bound::Char => {
-                return self.char_bound(backwards, jump, bounds);
+                return self.char_bound(backwards, jump, &bounds.text);
             }
             Bound::Word => &bounds.words,
             Bound::Line => &bounds.lines,
@@ -211,12 +269,12 @@ impl DocCharOffset {
             Bound::Doc => {
                 return Some((
                     bounds
-                        .paragraphs
+                        .text
                         .first()
                         .map(|(start, _)| *start)
                         .unwrap_or(DocCharOffset(0)),
                     bounds
-                        .paragraphs
+                        .text
                         .last()
                         .map(|(_, end)| *end)
                         .unwrap_or(DocCharOffset(0)),
@@ -278,41 +336,35 @@ impl DocCharOffset {
     /// range is returned, it's either a single character in a paragraph or a nonempty range between paragraphs. If
     /// `jump` is true, advancing beyond the first or last character in the doc will return None, otherwise it will
     /// return the first or last character in the doc.
-    fn char_bound(self, backwards: bool, jump: bool, bounds: &Bounds) -> Option<(Self, Self)> {
-        match self.bound_case(&bounds.paragraphs) {
+    fn char_bound(self, backwards: bool, jump: bool, text: &Text) -> Option<(Self, Self)> {
+        match self.bound_case(text) {
             BoundCase::NoRanges => None,
-            BoundCase::AtFirstRangeStart {
-                first_range: first_paragraph,
-                range_after: paragraph_after,
-            } => {
+            BoundCase::AtFirstRangeStart { first_range, range_after } => {
                 if backwards && jump {
                     // jump backwards off the edge from the start of the first paragraph
                     None
-                } else if first_paragraph.is_empty() {
+                } else if first_range.is_empty() {
                     // nonempty range between paragraphs
                     // paragraph after is not first_paragraph because Bounds::range_after does not consider the range (offset, offset) to be after offset
                     // range is nonempty because paragraphs cannot both be empty and touch a paragraph before/after
-                    Some((first_paragraph.start(), paragraph_after.start()))
+                    Some((first_range.start(), range_after.start()))
                 } else {
                     // first character of the first paragraph
-                    Some((first_paragraph.start(), first_paragraph.start() + 1))
+                    Some((first_range.start(), first_range.start() + 1))
                 }
             }
-            BoundCase::AtLastRangeEnd {
-                last_range: last_paragraph,
-                range_before: paragraph_before,
-            } => {
+            BoundCase::AtLastRangeEnd { last_range, range_before } => {
                 if !backwards && jump {
                     // jump forwards off the edge from the end of the last paragraph
                     None
-                } else if last_paragraph.is_empty() {
+                } else if last_range.is_empty() {
                     // nonempty range between paragraphs
                     // paragraph before is not last_paragraph because Bounds::range_before does not consider the range (offset, offset) to be before offset
                     // range is nonempty because paragraphs cannot both be empty and touch a paragraph before/after
-                    Some((paragraph_before.end(), last_paragraph.end()))
+                    Some((range_before.end(), last_range.end()))
                 } else {
                     // last character of the last paragraph
-                    Some((last_paragraph.end() - 1, last_paragraph.end()))
+                    Some((last_range.end() - 1, last_range.end()))
                 }
             }
             BoundCase::InsideRange { .. } => {
@@ -322,15 +374,12 @@ impl DocCharOffset {
                     Some((self, self + 1))
                 }
             }
-            BoundCase::AtEmptyRange {
-                range: _,
-                range_before: paragraph_before,
-                range_after: paragraph_after,
-            } => {
+            BoundCase::AtEmptyRange { range: _, range_before, range_after } => {
+                println!("char bound at empty range {:?}", self);
                 if backwards {
-                    Some((paragraph_before.end(), self))
+                    Some((range_before.end(), self))
                 } else {
-                    Some((self, paragraph_after.start()))
+                    Some((self, range_after.start()))
                 }
             }
             BoundCase::AtRangesBound { .. } => {
@@ -340,24 +389,23 @@ impl DocCharOffset {
                     Some((self, self + 1))
                 }
             }
-            BoundCase::AtEndOfRangeBefore { range_after: paragraph_after, .. } => {
+            BoundCase::AtEndOfRangeBefore { range_after, .. } => {
                 if backwards {
                     Some((self - 1, self))
                 } else {
-                    Some((self, paragraph_after.start()))
+                    Some((self, range_after.start()))
                 }
             }
-            BoundCase::AtStartOfRangeAfter { range_before: paragraph_before, .. } => {
+            BoundCase::AtStartOfRangeAfter { range_before, .. } => {
                 if backwards {
-                    Some((paragraph_before.end(), self))
+                    Some((range_before.end(), self))
                 } else {
                     Some((self, self + 1))
                 }
             }
-            BoundCase::BewteenRanges {
-                range_before: paragraph_before,
-                range_after: paragraph_after,
-            } => Some((paragraph_before.end(), paragraph_after.start())),
+            BoundCase::BewteenRanges { range_before, range_after } => {
+                Some((range_before.end(), range_after.start()))
+            }
         }
     }
 
@@ -418,11 +466,11 @@ impl DocCharOffset {
             } else {
                 range.end()
             }
-        } else if !bounds.paragraphs.is_empty() {
+        } else if !bounds.text.is_empty() {
             if backwards {
-                bounds.paragraphs[0].start()
+                bounds.text[0].start()
             } else {
-                bounds.paragraphs[bounds.paragraphs.len() - 1].end()
+                bounds.text[bounds.text.len() - 1].end()
             }
         } else {
             self
@@ -447,6 +495,7 @@ impl Editor {
         println!("words: {:?}", self.ranges_text(&self.bounds.words));
         println!("lines: {:?}", self.ranges_text(&self.bounds.lines));
         println!("paragraphs: {:?}", self.ranges_text(&self.bounds.paragraphs));
+        println!("text: {:?}", self.ranges_text(&self.bounds.text));
     }
 
     fn ranges_text(&self, ranges: &[(DocCharOffset, DocCharOffset)]) -> Vec<String> {
@@ -1358,16 +1407,16 @@ mod test {
     fn char_bound_no_ranges() {
         let bounds = Bounds::default();
 
-        assert_eq!(DocCharOffset(0).char_bound(false, false, &bounds), None);
-        assert_eq!(DocCharOffset(0).char_bound(true, false, &bounds), None);
-        assert_eq!(DocCharOffset(0).char_bound(false, true, &bounds), None);
-        assert_eq!(DocCharOffset(0).char_bound(true, true, &bounds), None);
+        assert_eq!(DocCharOffset(0).char_bound(false, false, &bounds.text), None);
+        assert_eq!(DocCharOffset(0).char_bound(true, false, &bounds.text), None);
+        assert_eq!(DocCharOffset(0).char_bound(false, true, &bounds.text), None);
+        assert_eq!(DocCharOffset(0).char_bound(true, true, &bounds.text), None);
     }
 
     #[test]
     fn char_bound_disjoint() {
         let bounds = Bounds {
-            paragraphs: vec![(1, 3), (5, 7), (9, 11)]
+            text: vec![(1, 3), (5, 7), (9, 11)]
                 .into_iter()
                 .map(|(start, end)| (DocCharOffset(start), DocCharOffset(end)))
                 .collect(),
@@ -1375,202 +1424,202 @@ mod test {
         };
 
         assert_eq!(
-            DocCharOffset(0).char_bound(false, false, &bounds),
+            DocCharOffset(0).char_bound(false, false, &bounds.text),
             Some((DocCharOffset(1), DocCharOffset(2)))
         );
         assert_eq!(
-            DocCharOffset(1).char_bound(false, false, &bounds),
+            DocCharOffset(1).char_bound(false, false, &bounds.text),
             Some((DocCharOffset(1), DocCharOffset(2)))
         );
         assert_eq!(
-            DocCharOffset(2).char_bound(false, false, &bounds),
+            DocCharOffset(2).char_bound(false, false, &bounds.text),
             Some((DocCharOffset(2), DocCharOffset(3)))
         );
         assert_eq!(
-            DocCharOffset(3).char_bound(false, false, &bounds),
+            DocCharOffset(3).char_bound(false, false, &bounds.text),
             Some((DocCharOffset(3), DocCharOffset(5)))
         );
         assert_eq!(
-            DocCharOffset(4).char_bound(false, false, &bounds),
+            DocCharOffset(4).char_bound(false, false, &bounds.text),
             Some((DocCharOffset(3), DocCharOffset(5)))
         );
         assert_eq!(
-            DocCharOffset(5).char_bound(false, false, &bounds),
+            DocCharOffset(5).char_bound(false, false, &bounds.text),
             Some((DocCharOffset(5), DocCharOffset(6)))
         );
         assert_eq!(
-            DocCharOffset(6).char_bound(false, false, &bounds),
+            DocCharOffset(6).char_bound(false, false, &bounds.text),
             Some((DocCharOffset(6), DocCharOffset(7)))
         );
         assert_eq!(
-            DocCharOffset(7).char_bound(false, false, &bounds),
+            DocCharOffset(7).char_bound(false, false, &bounds.text),
             Some((DocCharOffset(7), DocCharOffset(9)))
         );
         assert_eq!(
-            DocCharOffset(8).char_bound(false, false, &bounds),
+            DocCharOffset(8).char_bound(false, false, &bounds.text),
             Some((DocCharOffset(7), DocCharOffset(9)))
         );
         assert_eq!(
-            DocCharOffset(9).char_bound(false, false, &bounds),
+            DocCharOffset(9).char_bound(false, false, &bounds.text),
             Some((DocCharOffset(9), DocCharOffset(10)))
         );
         assert_eq!(
-            DocCharOffset(10).char_bound(false, false, &bounds),
+            DocCharOffset(10).char_bound(false, false, &bounds.text),
             Some((DocCharOffset(10), DocCharOffset(11)))
         );
         assert_eq!(
-            DocCharOffset(11).char_bound(false, false, &bounds),
+            DocCharOffset(11).char_bound(false, false, &bounds.text),
             Some((DocCharOffset(10), DocCharOffset(11)))
         );
         assert_eq!(
-            DocCharOffset(12).char_bound(false, false, &bounds),
+            DocCharOffset(12).char_bound(false, false, &bounds.text),
             Some((DocCharOffset(10), DocCharOffset(11)))
         );
 
         assert_eq!(
-            DocCharOffset(0).char_bound(true, false, &bounds),
+            DocCharOffset(0).char_bound(true, false, &bounds.text),
             Some((DocCharOffset(1), DocCharOffset(2)))
         );
         assert_eq!(
-            DocCharOffset(1).char_bound(true, false, &bounds),
+            DocCharOffset(1).char_bound(true, false, &bounds.text),
             Some((DocCharOffset(1), DocCharOffset(2)))
         );
         assert_eq!(
-            DocCharOffset(2).char_bound(true, false, &bounds),
+            DocCharOffset(2).char_bound(true, false, &bounds.text),
             Some((DocCharOffset(1), DocCharOffset(2)))
         );
         assert_eq!(
-            DocCharOffset(3).char_bound(true, false, &bounds),
+            DocCharOffset(3).char_bound(true, false, &bounds.text),
             Some((DocCharOffset(2), DocCharOffset(3)))
         );
         assert_eq!(
-            DocCharOffset(4).char_bound(true, false, &bounds),
+            DocCharOffset(4).char_bound(true, false, &bounds.text),
             Some((DocCharOffset(3), DocCharOffset(5)))
         );
         assert_eq!(
-            DocCharOffset(5).char_bound(true, false, &bounds),
+            DocCharOffset(5).char_bound(true, false, &bounds.text),
             Some((DocCharOffset(3), DocCharOffset(5)))
         );
         assert_eq!(
-            DocCharOffset(6).char_bound(true, false, &bounds),
+            DocCharOffset(6).char_bound(true, false, &bounds.text),
             Some((DocCharOffset(5), DocCharOffset(6)))
         );
         assert_eq!(
-            DocCharOffset(7).char_bound(true, false, &bounds),
+            DocCharOffset(7).char_bound(true, false, &bounds.text),
             Some((DocCharOffset(6), DocCharOffset(7)))
         );
         assert_eq!(
-            DocCharOffset(8).char_bound(true, false, &bounds),
+            DocCharOffset(8).char_bound(true, false, &bounds.text),
             Some((DocCharOffset(7), DocCharOffset(9)))
         );
         assert_eq!(
-            DocCharOffset(9).char_bound(true, false, &bounds),
+            DocCharOffset(9).char_bound(true, false, &bounds.text),
             Some((DocCharOffset(7), DocCharOffset(9)))
         );
         assert_eq!(
-            DocCharOffset(10).char_bound(true, false, &bounds),
+            DocCharOffset(10).char_bound(true, false, &bounds.text),
             Some((DocCharOffset(9), DocCharOffset(10)))
         );
         assert_eq!(
-            DocCharOffset(11).char_bound(true, false, &bounds),
+            DocCharOffset(11).char_bound(true, false, &bounds.text),
             Some((DocCharOffset(10), DocCharOffset(11)))
         );
         assert_eq!(
-            DocCharOffset(12).char_bound(true, false, &bounds),
+            DocCharOffset(12).char_bound(true, false, &bounds.text),
             Some((DocCharOffset(10), DocCharOffset(11)))
         );
 
         assert_eq!(
-            DocCharOffset(0).char_bound(false, true, &bounds),
+            DocCharOffset(0).char_bound(false, true, &bounds.text),
             Some((DocCharOffset(1), DocCharOffset(2)))
         );
         assert_eq!(
-            DocCharOffset(1).char_bound(false, true, &bounds),
+            DocCharOffset(1).char_bound(false, true, &bounds.text),
             Some((DocCharOffset(1), DocCharOffset(2)))
         );
         assert_eq!(
-            DocCharOffset(2).char_bound(false, true, &bounds),
+            DocCharOffset(2).char_bound(false, true, &bounds.text),
             Some((DocCharOffset(2), DocCharOffset(3)))
         );
         assert_eq!(
-            DocCharOffset(3).char_bound(false, true, &bounds),
+            DocCharOffset(3).char_bound(false, true, &bounds.text),
             Some((DocCharOffset(3), DocCharOffset(5)))
         );
         assert_eq!(
-            DocCharOffset(4).char_bound(false, true, &bounds),
+            DocCharOffset(4).char_bound(false, true, &bounds.text),
             Some((DocCharOffset(3), DocCharOffset(5)))
         );
         assert_eq!(
-            DocCharOffset(5).char_bound(false, true, &bounds),
+            DocCharOffset(5).char_bound(false, true, &bounds.text),
             Some((DocCharOffset(5), DocCharOffset(6)))
         );
         assert_eq!(
-            DocCharOffset(6).char_bound(false, true, &bounds),
+            DocCharOffset(6).char_bound(false, true, &bounds.text),
             Some((DocCharOffset(6), DocCharOffset(7)))
         );
         assert_eq!(
-            DocCharOffset(7).char_bound(false, true, &bounds),
+            DocCharOffset(7).char_bound(false, true, &bounds.text),
             Some((DocCharOffset(7), DocCharOffset(9)))
         );
         assert_eq!(
-            DocCharOffset(8).char_bound(false, true, &bounds),
+            DocCharOffset(8).char_bound(false, true, &bounds.text),
             Some((DocCharOffset(7), DocCharOffset(9)))
         );
         assert_eq!(
-            DocCharOffset(9).char_bound(false, true, &bounds),
+            DocCharOffset(9).char_bound(false, true, &bounds.text),
             Some((DocCharOffset(9), DocCharOffset(10)))
         );
         assert_eq!(
-            DocCharOffset(10).char_bound(false, true, &bounds),
+            DocCharOffset(10).char_bound(false, true, &bounds.text),
             Some((DocCharOffset(10), DocCharOffset(11)))
         );
-        assert_eq!(DocCharOffset(11).char_bound(false, true, &bounds), None);
-        assert_eq!(DocCharOffset(12).char_bound(false, true, &bounds), None);
+        assert_eq!(DocCharOffset(11).char_bound(false, true, &bounds.text), None);
+        assert_eq!(DocCharOffset(12).char_bound(false, true, &bounds.text), None);
 
-        assert_eq!(DocCharOffset(0).char_bound(true, true, &bounds), None);
-        assert_eq!(DocCharOffset(1).char_bound(true, true, &bounds), None);
+        assert_eq!(DocCharOffset(0).char_bound(true, true, &bounds.text), None);
+        assert_eq!(DocCharOffset(1).char_bound(true, true, &bounds.text), None);
         assert_eq!(
-            DocCharOffset(2).char_bound(true, true, &bounds),
+            DocCharOffset(2).char_bound(true, true, &bounds.text),
             Some((DocCharOffset(1), DocCharOffset(2)))
         );
         assert_eq!(
-            DocCharOffset(3).char_bound(true, true, &bounds),
+            DocCharOffset(3).char_bound(true, true, &bounds.text),
             Some((DocCharOffset(2), DocCharOffset(3)))
         );
         assert_eq!(
-            DocCharOffset(4).char_bound(true, true, &bounds),
+            DocCharOffset(4).char_bound(true, true, &bounds.text),
             Some((DocCharOffset(3), DocCharOffset(5)))
         );
         assert_eq!(
-            DocCharOffset(5).char_bound(true, true, &bounds),
+            DocCharOffset(5).char_bound(true, true, &bounds.text),
             Some((DocCharOffset(3), DocCharOffset(5)))
         );
         assert_eq!(
-            DocCharOffset(6).char_bound(true, true, &bounds),
+            DocCharOffset(6).char_bound(true, true, &bounds.text),
             Some((DocCharOffset(5), DocCharOffset(6)))
         );
         assert_eq!(
-            DocCharOffset(7).char_bound(true, true, &bounds),
+            DocCharOffset(7).char_bound(true, true, &bounds.text),
             Some((DocCharOffset(6), DocCharOffset(7)))
         );
         assert_eq!(
-            DocCharOffset(8).char_bound(true, true, &bounds),
+            DocCharOffset(8).char_bound(true, true, &bounds.text),
             Some((DocCharOffset(7), DocCharOffset(9)))
         );
         assert_eq!(
-            DocCharOffset(9).char_bound(true, true, &bounds),
+            DocCharOffset(9).char_bound(true, true, &bounds.text),
             Some((DocCharOffset(7), DocCharOffset(9)))
         );
         assert_eq!(
-            DocCharOffset(10).char_bound(true, true, &bounds),
+            DocCharOffset(10).char_bound(true, true, &bounds.text),
             Some((DocCharOffset(9), DocCharOffset(10)))
         );
         assert_eq!(
-            DocCharOffset(11).char_bound(true, true, &bounds),
+            DocCharOffset(11).char_bound(true, true, &bounds.text),
             Some((DocCharOffset(10), DocCharOffset(11)))
         );
         assert_eq!(
-            DocCharOffset(12).char_bound(true, true, &bounds),
+            DocCharOffset(12).char_bound(true, true, &bounds.text),
             Some((DocCharOffset(10), DocCharOffset(11)))
         );
     }
@@ -1578,7 +1627,7 @@ mod test {
     #[test]
     fn advance_to_next_bound_disjoint_char() {
         let bounds = Bounds {
-            paragraphs: vec![(1, 3), (5, 7), (9, 11)]
+            text: vec![(1, 3), (5, 7), (9, 11)]
                 .into_iter()
                 .map(|(start, end)| (DocCharOffset(start), DocCharOffset(end)))
                 .collect(),
@@ -1695,7 +1744,7 @@ mod test {
     #[test]
     fn advance_to_next_bound_contiguous_char() {
         let bounds = Bounds {
-            paragraphs: vec![(1, 3), (3, 5), (5, 7)]
+            text: vec![(1, 3), (3, 5), (5, 7)]
                 .into_iter()
                 .map(|(start, end)| (DocCharOffset(start), DocCharOffset(end)))
                 .collect(),

@@ -269,7 +269,7 @@ Featuring:
 1. a __bold__ list item,
     * an _italic_ list item,
     - [ ] a `code` list item,
-    
+
 ```
 a code block
 ```
