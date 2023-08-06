@@ -240,29 +240,12 @@ pub fn calc(
         Event::PointerButton { pos, button: PointerButton::Primary, pressed: true, modifiers }
             if click_checker.ui(*pos) =>
         {
-            if let Some(galley_idx) = click_checker.checkbox(*pos) {
-                Some(Modification::ToggleCheckbox(galley_idx))
-            } else if modifiers.command {
-                if let Some(url) = click_checker.link(*pos) {
-                    Some(Modification::OpenUrl(url))
-                } else {
-                    pointer_state.press(now, *pos, *modifiers);
-                    None
-                }
-            } else {
-                if touch_mode {
-                    if let Some(url) = click_checker.link(*pos) {
-                        return Some(Modification::OpenUrl(url));
-                    }
-                }
-
-                pointer_state.press(now, *pos, *modifiers);
-                None
-            }
+            pointer_state.press(now, *pos, *modifiers);
+            None
         }
         Event::PointerMoved(pos) if click_checker.ui(*pos) => {
             pointer_state.drag(now, *pos);
-            if pointer_state.click_pos.is_some() && !touch_mode {
+            if pointer_state.click_dragged.unwrap_or_default() && !touch_mode {
                 if pointer_state.click_mods.unwrap_or_default().shift {
                     Some(Modification::Select { region: Region::ToLocation(Location::Pos(*pos)) })
                 } else if let Some(click_pos) = pointer_state.click_pos {
@@ -287,8 +270,19 @@ pub fn calc(
             pointer_state.release();
             let location = Location::Pos(*pos);
 
-            if click_checker.ui(*pos) {
-                if click_checker.checkbox(*pos).is_none() && click_checker.link(*pos).is_none() {
+            if let Some(galley_idx) = click_checker.checkbox(*pos) {
+                Some(Modification::ToggleCheckbox(galley_idx))
+            } else if let Some(url) = click_checker.link(*pos) {
+                if touch_mode || click_mods.command {
+                    Some(Modification::OpenUrl(url))
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+            .or_else(|| {
+                if click_checker.ui(*pos) {
                     Some(Modification::Select {
                         region: if click_mods.shift {
                             Region::ToLocation(location)
@@ -327,9 +321,7 @@ pub fn calc(
                 } else {
                     None
                 }
-            } else {
-                None
-            }
+            })
         }
         Event::Key { key: Key::F2, pressed: true, .. } => Some(Modification::ToggleDebug),
         _ => None,
