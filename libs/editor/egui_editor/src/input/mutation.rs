@@ -113,7 +113,7 @@ pub fn calc(
                         }
                         Some(Annotation::Item(ListItem::Todo(_), _)) => {
                             let head = galley.head(buffer);
-                            let text = head[0..head.len() - 6].to_string() + "- [ ] ";
+                            let text = head[0..head.len() - 6].to_string() + "* [ ] ";
                             mutation.push(SubMutation::Insert { text, advance_cursor: true });
                         }
                         Some(Annotation::Image(_, _, _)) => {}
@@ -360,7 +360,7 @@ pub fn calc(
                         .into(),
                 });
                 mutation.push(SubMutation::Insert {
-                    text: if checked { "- [ ] " } else { "- [x] " }.to_string(),
+                    text: if checked { "* [ ] " } else { "* [x] " }.to_string(),
                     advance_cursor: true,
                 });
                 mutation.push(SubMutation::Cursor { cursor: current_cursor });
