@@ -54,6 +54,7 @@ pub static TEST_MARKDOWN_ALL: [&str; 55] = [
     TEST_MARKDOWN_50,
     TEST_MARKDOWN_51,
     TEST_MARKDOWN_52,
+    TEST_MARKDOWN_53,
     "1. *",
     TEST_MARKDOWN_53,
 ];
@@ -277,6 +278,9 @@ a code block
 
 > a quote,
 
+a ~~rule~~
+***
+
 and a link to our [website](http://lockbook.net)!
 "#;
 
@@ -296,11 +300,8 @@ _apples`apples`_
 
 - [ ] 
 "#;
-pub static TEST_MARKDOWN_53: &str = r#"CAR DETAILS
-		Audi A4 2014
-	
-	
-		VIN
-	2.0Liter Turbo Quattro
-	Trim - Prestige
+pub static TEST_MARKDOWN_53: &str = r#"# Rules
+What do you know about rules?
+***
+Rules rule!
 "#;

@@ -21,5 +21,6 @@ pub struct LayoutJobInfo {
 pub enum Annotation {
     Item(ListItem, IndentLevel),
     Image(LinkType, Url, Title),
+    HeadingRule,
     Rule,
 }
