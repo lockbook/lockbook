@@ -149,6 +149,16 @@ pub fn calc(
                     annotation = text_range_portion.annotation(ast).or(annotation);
                 }
 
+                // render tab-only text as spaces
+                // tab characters have weird rendering behavior in egui e.g. tab-only galleys are not rendered even though empty galleys are
+                // see https://github.com/lockbook/lockbook/issues/1983, https://github.com/emilk/egui/issues/3203
+                let text = {
+                    let mut this = buffer[text_range_portion.range].to_string();
+                    if buffer[paragraph] == "\t".repeat(buffer[paragraph].len()) {
+                        this = " ".repeat(this.len()).to_string();
+                    }
+                    this
+                };
                 RenderStyle::Markdown(text_range_portion.node(ast))
                     .apply_style(&mut text_format, appearance);
                 match text_range_portion.range_type {
@@ -166,7 +176,7 @@ pub fn calc(
                         } else {
                             // uncaptured syntax characters have syntax style applied on top of node style
                             RenderStyle::Syntax.apply_style(&mut text_format, appearance);
-                            layout.append(&buffer[text_range_portion.range], 0.0, text_format);
+                            layout.append(&text, 0.0, text_format);
 
                             head_size_locked = true;
                         }
@@ -185,7 +195,7 @@ pub fn calc(
                         } else {
                             // uncaptured syntax characters have syntax style applied on top of node style
                             RenderStyle::Syntax.apply_style(&mut text_format, appearance);
-                            layout.append(&buffer[text_range_portion.range], 0.0, text_format);
+                            layout.append(&text, 0.0, text_format);
                         }
 
                         if !text_range_portion.range.is_empty() {
@@ -194,7 +204,7 @@ pub fn calc(
                         }
                     }
                     AstTextRangeType::Text => {
-                        layout.append(&buffer[text_range_portion.range], 0.0, text_format);
+                        layout.append(&text, 0.0, text_format);
 
                         if !text_range_portion.range.is_empty() {
                             head_size_locked = true;

@@ -1,6 +1,6 @@
-pub static TEST_MARKDOWN: &str = TEST_MARKDOWN_50;
+pub static TEST_MARKDOWN: &str = TEST_MARKDOWN_53;
 
-pub static TEST_MARKDOWN_ALL: [&str; 54] = [
+pub static TEST_MARKDOWN_ALL: [&str; 55] = [
     TEST_MARKDOWN_0,
     TEST_MARKDOWN_1,
     TEST_MARKDOWN_2,
@@ -55,6 +55,7 @@ pub static TEST_MARKDOWN_ALL: [&str; 54] = [
     TEST_MARKDOWN_51,
     TEST_MARKDOWN_52,
     "1. *",
+    TEST_MARKDOWN_53,
 ];
 
 pub static TEST_MARKDOWN_0: &str = "# test";
@@ -294,4 +295,12 @@ _apples`apples`_
 
 
 - [ ] 
+"#;
+pub static TEST_MARKDOWN_53: &str = r#"CAR DETAILS
+		Audi A4 2014
+	
+	
+		VIN
+	2.0Liter Turbo Quattro
+	Trim - Prestige
 "#;
