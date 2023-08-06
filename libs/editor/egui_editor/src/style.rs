@@ -24,9 +24,7 @@ impl MarkdownNodeType {
             Self::Inline(InlineNodeType::Bold) => "__",
             Self::Inline(InlineNodeType::Italic) => "_",
             Self::Inline(InlineNodeType::Strikethrough) => "~~",
-            Self::Inline(InlineNodeType::Link) => {
-                unimplemented!()
-            }
+            Self::Inline(InlineNodeType::Link) => "[",
             Self::Inline(InlineNodeType::Image) => {
                 unimplemented!()
             }
@@ -51,9 +49,7 @@ impl MarkdownNodeType {
             Self::Inline(InlineNodeType::Bold) => "__",
             Self::Inline(InlineNodeType::Italic) => "_",
             Self::Inline(InlineNodeType::Strikethrough) => "~~",
-            Self::Inline(InlineNodeType::Link) => {
-                unimplemented!()
-            }
+            Self::Inline(InlineNodeType::Link) => "]()",
             Self::Inline(InlineNodeType::Image) => {
                 unimplemented!()
             }

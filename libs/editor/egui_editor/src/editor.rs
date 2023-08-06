@@ -493,6 +493,15 @@ impl Editor {
             }
         }
 
+        // assume https for urls without a scheme
+        let maybe_opened_url = maybe_opened_url.map(|url| {
+            if !url.contains("://") {
+                format!("https://{}", url)
+            } else {
+                url
+            }
+        });
+
         // put cut or copied text in clipboard
         self.maybe_to_clipboard = maybe_to_clipboard;
         self.maybe_opened_url = maybe_opened_url;
