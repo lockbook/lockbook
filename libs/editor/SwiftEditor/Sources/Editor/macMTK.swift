@@ -68,6 +68,11 @@ public class MacMTK: MTKView, MTKViewDelegate {
         apply_style_to_selection_inline_code(editorHandle)
         self.setNeedsDisplay(self.frame)
     }
+    
+    public func strikethrough() {
+        apply_style_to_selection_strikethrough(editorHandle)
+        self.setNeedsDisplay(self.frame)
+    }
 
     public override var acceptsFirstResponder: Bool {
         return true
@@ -82,6 +87,7 @@ public class MacMTK: MTKView, MTKViewDelegate {
         self.toolbarState!.toggleTodoList = todoList
         self.toolbarState!.toggleBulletList = bulletedList
         self.toolbarState!.toggleInlineCode = inlineCode
+        self.toolbarState!.toggleStrikethrough = strikethrough
         self.toolbarState!.toggleNumberList = numberedList
         self.toolbarState!.toggleHeading = header
         
@@ -198,7 +204,7 @@ public class MacMTK: MTKView, MTKViewDelegate {
         toolbarState?.isInlineCodeSelected = output.editor_response.cursor_in_inline_code;
         toolbarState?.isBoldSelected = output.editor_response.cursor_in_bold;
         toolbarState?.isItalicSelected = output.editor_response.cursor_in_italic;
-        
+        toolbarState?.isStrikethroughSelected = output.editor_response.cursor_in_strikethrough;
         
         if let potentialTitle = output.editor_response.potential_title {
             nameState?.potentialTitle = String(cString: potentialTitle)

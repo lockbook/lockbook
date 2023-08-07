@@ -43,6 +43,7 @@ pub struct EditorResponse {
     pub cursor_in_bold: bool,
     pub cursor_in_italic: bool,
     pub cursor_in_inline_code: bool,
+    pub cursor_in_strikethrough: bool,
 
     pub opened_url: *const c_char,
 }
@@ -68,6 +69,7 @@ pub struct EditorResponse {
     pub cursor_in_bold: bool,
     pub cursor_in_italic: bool,
     pub cursor_in_inline_code: bool,
+    pub cursor_in_strikethrough: bool,
 }
 
 impl Default for EditorResponse {
@@ -92,6 +94,7 @@ impl Default for EditorResponse {
             cursor_in_bold: false,
             cursor_in_italic: false,
             cursor_in_inline_code: false,
+            cursor_in_strikethrough: false,
 
             #[cfg(any(target_os = "ios", target_os = "macos"))]
             opened_url: ptr::null(),
@@ -386,6 +389,9 @@ impl Editor {
                     MarkdownNode::Inline(InlineNode::Bold) => result.cursor_in_bold = true,
                     MarkdownNode::Inline(InlineNode::Italic) => result.cursor_in_italic = true,
                     MarkdownNode::Inline(InlineNode::Code) => result.cursor_in_inline_code = true,
+                    MarkdownNode::Inline(InlineNode::Strikethrough) => {
+                        result.cursor_in_strikethrough = true
+                    }
                     MarkdownNode::Block(BlockNode::Heading(..)) => result.cursor_in_heading = true,
                     MarkdownNode::Block(BlockNode::ListItem(ListItem::Bulleted, ..)) => {
                         result.cursor_in_bullet_list = true
