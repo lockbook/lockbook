@@ -251,3 +251,15 @@ pub unsafe extern "C" fn apply_style_to_selection_inline_code(obj: *mut c_void) 
         style: MarkdownNode::Inline(InlineNode::Code),
     });
 }
+
+/// # Safety
+/// obj must be a valid pointer to WgpuEditor
+#[no_mangle]
+pub unsafe extern "C" fn apply_style_to_selection_strikethrough(obj: *mut c_void) {
+    let obj = &mut *(obj as *mut WgpuEditor);
+
+    obj.editor.custom_events.push(Modification::ToggleStyle {
+        region: Region::Selection,
+        style: MarkdownNode::Inline(InlineNode::Strikethrough),
+    });
+}

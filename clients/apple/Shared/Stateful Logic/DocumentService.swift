@@ -146,6 +146,8 @@ class DocumentService: ObservableObject {
                 openDocuments[id]?.textDocumentToolbar?.toggleItalic()
             case .InlineCode:
                 openDocuments[id]?.textDocumentToolbar?.toggleInlineCode()
+            case .Strikethrough:
+                openDocuments[id]?.textDocumentToolbar?.toggleStrikethrough()
             case .NumberList:
                 openDocuments[id]?.textDocumentToolbar?.toggleNumberList()
             case .BulletList:
@@ -162,6 +164,7 @@ public enum TextFormatting {
     case Bold
     case Italic
     case InlineCode
+    case Strikethrough
     case NumberList
     case BulletList
     case TodoList
