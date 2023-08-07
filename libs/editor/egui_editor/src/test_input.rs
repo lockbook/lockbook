@@ -56,7 +56,6 @@ pub static TEST_MARKDOWN_ALL: [&str; 55] = [
     TEST_MARKDOWN_52,
     TEST_MARKDOWN_53,
     "1. *",
-    TEST_MARKDOWN_53,
 ];
 
 pub static TEST_MARKDOWN_0: &str = "# test";
