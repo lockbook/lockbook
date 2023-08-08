@@ -4,6 +4,7 @@ use crate::offset_types::{DocCharOffset, RelCharOffset};
 use crate::style::{InlineNode, MarkdownNode};
 use crate::{CTextPosition, CTextRange};
 use egui::{Event, Key, Modifiers, PointerButton, Pos2};
+use pulldown_cmark::LinkType;
 use std::time::Instant;
 
 /// text location
@@ -220,6 +221,16 @@ pub fn calc(
             Some(Modification::ToggleStyle {
                 region: Region::Selection,
                 style: MarkdownNode::Inline(InlineNode::Strikethrough),
+            })
+        }
+        Event::Key { key: Key::K, pressed: true, modifiers, .. } if modifiers.command => {
+            Some(Modification::ToggleStyle {
+                region: Region::Selection,
+                style: MarkdownNode::Inline(InlineNode::Link(
+                    LinkType::Inline,
+                    "".into(),
+                    "".into(),
+                )),
             })
         }
         Event::Key { key: Key::Num7, pressed: true, modifiers, .. }

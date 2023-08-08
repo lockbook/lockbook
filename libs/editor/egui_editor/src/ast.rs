@@ -363,10 +363,16 @@ impl Ast {
                 }
                 MarkdownNode::Inline(InlineNode::Link(LinkType::Inline, url, title)) => {
                     // [title](http://url.com "title")
-                    text_range.0 += 1;
-                    text_range.1 -= url.len() + 3;
-                    if !title.is_empty() {
-                        text_range.1 -= title.len() + 3;
+
+                    // require url
+                    if url.is_empty() {
+                        markdown_node = MarkdownNode::Paragraph;
+                    } else {
+                        text_range.0 += 1;
+                        text_range.1 -= url.len() + 3;
+                        if !title.is_empty() {
+                            text_range.1 -= title.len() + 3;
+                        }
                     }
                 }
                 MarkdownNode::Inline(InlineNode::Image(LinkType::Inline, url, title)) => {
@@ -402,7 +408,7 @@ impl Ast {
     }
 
     /// Returns the AstTextRange at the given offset. Prefers the previous range when at a boundary.
-    fn text_range_at_offset(&self, offset: DocCharOffset) -> Option<AstTextRange> {
+    pub fn text_range_at_offset(&self, offset: DocCharOffset) -> Option<AstTextRange> {
         let mut end_range = None;
         for text_range in self.iter_text_ranges() {
             if text_range.range.contains(offset) {

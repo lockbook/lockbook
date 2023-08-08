@@ -6,7 +6,9 @@ use crate::input::canonical::{Bound, Location, Modification, Offset, Region};
 use crate::input::cursor::Cursor;
 use crate::layouts::Annotation;
 use crate::offset_types::{DocCharOffset, RangeExt};
-use crate::style::{BlockNode, ListItem, ListItemType, MarkdownNode, RenderStyle};
+use crate::style::{
+    BlockNode, InlineNodeType, ListItem, ListItemType, MarkdownNode, MarkdownNodeType, RenderStyle,
+};
 use crate::unicode_segs::UnicodeSegs;
 use egui::Pos2;
 use std::cmp::Ordering;
@@ -60,17 +62,21 @@ pub fn calc(
             apply_style(
                 cursor,
                 style.clone(),
-                region_completely_styled(cursor, RenderStyle::Markdown(style), ast),
+                region_completely_styled(cursor, RenderStyle::Markdown(style.clone()), ast),
                 buffer,
                 ast,
                 &mut mutation,
             );
-            mutation.push(SubMutation::Cursor { cursor: current_cursor });
+            if style.node_type() != MarkdownNodeType::Inline(InlineNodeType::Link) {
+                // toggling link style leaves cursor where you can type link destination
+                mutation.push(SubMutation::Cursor { cursor: current_cursor });
+            }
         }
         Modification::Newline { advance_cursor } => {
             let mut cursor = current_cursor;
             let galley_idx = galleys.galley_at_char(cursor.selection.1);
             let galley = &galleys[galley_idx];
+            let ast_text_range = ast.text_range_at_offset(cursor.selection.1);
             if matches!(galley.annotation, Some(Annotation::Item(..))) {
                 // cursor at end of list item
                 if galley.size() - galley.head_size - galley.tail_size == 0 {
@@ -129,6 +135,18 @@ pub fn calc(
                 mutation.push(SubMutation::Cursor { cursor: galley.range.start().into() });
                 mutation.push(SubMutation::Insert { text: "\n".to_string(), advance_cursor: true });
                 mutation.push(SubMutation::Cursor { cursor });
+            } else if let Some(ast_text_range) = ast_text_range {
+                if ast_text_range.range_type == AstTextRangeType::Tail
+                    && ast_text_range.node(ast).node_type()
+                        == MarkdownNodeType::Inline(InlineNodeType::Link)
+                {
+                    // cursor inside captured link url -> move cursor to end of link
+                    mutation.push(SubMutation::Cursor {
+                        cursor: (ast_text_range.range.end(), ast_text_range.range.end()).into(),
+                    });
+                } else {
+                    mutation.push(SubMutation::Insert { text: "\n".to_string(), advance_cursor });
+                }
             } else {
                 mutation.push(SubMutation::Insert { text: "\n".to_string(), advance_cursor });
             }
@@ -723,8 +741,18 @@ fn insert_tail(
         text += " ";
     }
 
-    mutation.push(SubMutation::Cursor { cursor: offset.into() });
-    mutation.push(SubMutation::Insert { text, advance_cursor: false });
+    if style.node_type() == MarkdownNodeType::Inline(InlineNodeType::Link) {
+        // leave cursor in link tail where you can type the link destination
+        mutation.push(SubMutation::Cursor { cursor: offset.into() });
+        mutation.push(SubMutation::Insert { text: text[0..2].to_string(), advance_cursor: true });
+        mutation.push(SubMutation::Insert {
+            text: text[2..text.len()].to_string(),
+            advance_cursor: false,
+        });
+    } else {
+        mutation.push(SubMutation::Cursor { cursor: offset.into() });
+        mutation.push(SubMutation::Insert { text, advance_cursor: false });
+    }
 }
 
 fn list_mutation_replacement(

@@ -4,6 +4,7 @@ use crate::buffer::SubBuffer;
 use crate::galleys::Galleys;
 use crate::input::canonical::Bound;
 use crate::offset_types::{DocByteOffset, DocCharOffset, RangeExt, RelByteOffset};
+use crate::style::{InlineNode, MarkdownNode};
 use crate::unicode_segs::UnicodeSegs;
 use crate::Editor;
 use egui::epaint::text::cursor::RCursor;
@@ -146,24 +147,40 @@ pub fn calc_paragraphs(buffer: &SubBuffer, ast: &Ast) -> Paragraphs {
 pub fn calc_text(ast: &Ast, appearance: &Appearance, segs: &UnicodeSegs) -> Text {
     let mut result = vec![];
     for text_range in ast.iter_text_ranges() {
-        if matches!(text_range.range_type, AstTextRangeType::Text)
+        if text_range.range_type == AstTextRangeType::Text
             || !appearance
                 .markdown_capture()
                 .contains(&text_range.node(ast).node_type())
         {
+            // text ranges and uncaptured syntax ranges
             result.push(text_range.range);
+        } else if text_range.range_type == AstTextRangeType::Tail {
+            if let MarkdownNode::Inline(InlineNode::Link(_, _, title)) = text_range.node(ast) {
+                // empty range at end of text in link url
+                // [title](http://url.com "title")
+                let mut end_of_url = text_range.range.1;
+                end_of_url -= 1; // closing paren
+                if !title.is_empty() {
+                    end_of_url -= 1; // closing quote
+                    end_of_url.0 -= title.len(); // todo: don't crash on unicode url title
+                    end_of_url -= 1; // opening quote
+                    end_of_url -= 1; // delimiting space
+                }
+
+                result.push((end_of_url, end_of_url));
+            }
         }
     }
 
     if let Some(first) = result.first() {
         if first.start() != 0 {
-            // prepend empty range
+            // prepend empty range so that doc start is always a valid cursor location
             result.splice(0..0, iter::once((0.into(), 0.into())));
         }
     }
     if let Some(last) = result.last() {
         if last.end() != segs.last_cursor_position() {
-            // append empty range
+            // append empty range so that doc end is always a valid cursor location
             result.push((segs.last_cursor_position(), segs.last_cursor_position()));
         }
     }
@@ -375,7 +392,6 @@ impl DocCharOffset {
                 }
             }
             BoundCase::AtEmptyRange { range: _, range_before, range_after } => {
-                println!("char bound at empty range {:?}", self);
                 if backwards {
                     Some((range_before.end(), self))
                 } else {
