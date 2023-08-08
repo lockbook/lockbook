@@ -63,7 +63,7 @@ impl super::AccountScreen {
                     thread::spawn(move || {
                         update_tx
                             .send(AccountUpdate::FoundPendingShares(
-                                core.get_pending_shares().unwrap().len() > 0,
+                                !core.get_pending_shares().unwrap().is_empty(),
                             ))
                             .unwrap();
                     });

@@ -7,13 +7,19 @@ use crate::{model::DocType, theme::Icon, widgets::Button};
 
 pub struct FilePicker {
     core: lb::Core,
-    panels: Vec<lb::File>,
+    panels: Vec<Panel>,
     action: FilePickerAction,
 }
 
 pub struct FilePickerParams {
     pub parent: File,
     pub action: FilePickerAction,
+}
+
+#[derive(Clone)]
+struct Panel {
+    root: lb::File,
+    children: Vec<lb::File>,
 }
 
 #[derive(Clone)]
@@ -25,8 +31,10 @@ pub enum FilePickerAction {
 impl FilePicker {
     pub fn new(core: lb::Core, action: FilePickerAction) -> Self {
         let root = core.get_root().unwrap();
+        let root_panel =
+            Panel { root: root.clone(), children: core.get_children(root.id).unwrap() };
 
-        Self { core, panels: vec![root], action }
+        Self { core, panels: vec![root_panel], action }
     }
 
     fn target_type(&self) -> lb::FileType {
@@ -68,8 +76,8 @@ impl super::Modal for FilePicker {
                 ui.horizontal(|ui| {
                     ui.set_height(350.0);
                     ui.spacing_mut().item_spacing = egui::vec2(5.0, 5.0);
-                    for (i, f) in self.panels.clone().iter().enumerate() {
-                        show_file_panel(ui, self, f, i);
+                    for (i, panel) in self.panels.clone().iter().enumerate() {
+                        show_file_panel(ui, self, panel, i);
                         ui.separator();
                     }
                 });
@@ -85,10 +93,10 @@ impl super::Modal for FilePicker {
 }
 
 fn show_file_panel(
-    ui: &mut egui::Ui, file_picker: &mut FilePicker, root: &lb::File, file_panel_index: usize,
+    ui: &mut egui::Ui, file_picker: &mut FilePicker, panel: &Panel, file_panel_index: usize,
 ) {
     egui::ScrollArea::vertical()
-        .id_source(root.name.clone())
+        .id_source(format!("{}{}", panel.root.name.clone(), file_panel_index))
         .show(ui, |ui| {
             ui.set_width(235.0);
             ui.add_space(15.0);
@@ -96,8 +104,9 @@ fn show_file_panel(
                 egui::Layout::top_down(egui::Align::Min).with_cross_justify(true),
                 |ui| {
                     ui.add_space(15.0);
-                    let children = file_picker.core.get_children(root.id).unwrap();
-                    let mut children: Vec<&File> = children
+
+                    let mut children: Vec<&File> = panel
+                        .children
                         .iter()
                         .filter(|f| f.file_type == lb::FileType::Folder)
                         .collect();
@@ -117,7 +126,7 @@ fn show_bottom_bar(ui: &mut egui::Ui, file_picker: &mut FilePicker) -> Option<Fi
             .max_width(ui.available_width() - 100.0) // allow some room for the cta
             .show(ui, |ui| {
                 for (i, f) in file_picker.panels.clone().iter().enumerate() {
-                    show_node(ui, file_picker, f, i, NodeMode::BottomBar);
+                    show_node(ui, file_picker, &f.root, i, NodeMode::BottomBar);
 
                     ui.label(
                         egui::RichText::new(">")
@@ -140,7 +149,7 @@ fn show_bottom_bar(ui: &mut egui::Ui, file_picker: &mut FilePicker) -> Option<Fi
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Min), |ui| {
             if ui.button("Select").clicked() {
                 return Some(FilePickerParams {
-                    parent: file_picker.panels.last().unwrap().clone(), // there's always one panel (the root), so th unwrap is sage
+                    parent: file_picker.panels.last().unwrap().root.clone(), // there's always one panel (the root), so th unwrap is safe
                     action: file_picker.action.clone(),
                 });
             }
@@ -166,7 +175,7 @@ fn show_node(
     icon_style.visuals.widgets.active.fg_stroke = icon_stroke;
     icon_style.visuals.widgets.hovered.fg_stroke = icon_stroke;
 
-    let is_child_open = file_picker.panels.iter().any(|f| f.eq(node));
+    let is_child_open = file_picker.panels.iter().any(|f| f.root.eq(node));
     let is_node_grayed_out = match mode {
         NodeMode::Panel => !is_child_open && file_panel_index != file_picker.panels.len() - 1,
         NodeMode::BottomBar => file_panel_index < file_picker.panels.len().saturating_sub(2),
@@ -198,6 +207,9 @@ fn show_node(
         };
 
         file_picker.panels.drain((drain_index)..);
-        file_picker.panels.push(node.clone());
+        file_picker.panels.push(Panel {
+            root: node.clone(),
+            children: file_picker.core.get_children(node.id).unwrap(),
+        });
     };
 }

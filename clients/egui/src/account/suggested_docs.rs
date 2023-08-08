@@ -29,7 +29,7 @@ impl SuggestedDocs {
     }
 
     pub fn recalc_and_redraw(&mut self, ctx: &egui::Context, core: &lb::Core) {
-        Self::calc(&core, &self.update_tx);
+        Self::calc(core, &self.update_tx);
         ctx.request_repaint();
     }
 
