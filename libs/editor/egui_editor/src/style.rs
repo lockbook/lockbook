@@ -40,6 +40,7 @@ impl MarkdownNodeType {
                 unimplemented!()
             }
             Self::Block(BlockNodeType::ListItem(item_type)) => item_type.head(), // todo: support indentation
+            Self::Block(BlockNodeType::Rule) => "***",
         }
     }
 
@@ -63,6 +64,7 @@ impl MarkdownNodeType {
                 unimplemented!()
             }
             Self::Block(BlockNodeType::ListItem(..)) => "",
+            Self::Block(BlockNodeType::Rule) => "",
         }
     }
 
@@ -87,6 +89,7 @@ pub enum BlockNodeType {
     Quote,
     Code,
     ListItem(ListItemType),
+    Rule,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
@@ -168,6 +171,7 @@ pub enum BlockNode {
     Quote,
     Code,
     ListItem(ListItem, IndentLevel),
+    Rule,
 }
 
 impl BlockNode {
@@ -177,6 +181,7 @@ impl BlockNode {
             Self::Quote => BlockNodeType::Quote,
             Self::Code => BlockNodeType::Code,
             Self::ListItem(item, ..) => BlockNodeType::ListItem(item.item_type()),
+            Self::Rule => BlockNodeType::Rule,
         }
     }
 }
@@ -282,6 +287,7 @@ impl RenderStyle {
                 text_format.color = vis.code();
             }
             RenderStyle::Markdown(MarkdownNode::Block(BlockNode::ListItem(..))) => {}
+            RenderStyle::Markdown(MarkdownNode::Block(BlockNode::Rule)) => {}
         }
     }
 }

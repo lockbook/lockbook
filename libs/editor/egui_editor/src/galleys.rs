@@ -407,7 +407,7 @@ impl GalleyInfo {
             offset.x = *indent_level as f32 * 20.0 + 20.0
         }
 
-        if let Some(Annotation::Rule) = annotation {
+        if let Some(Annotation::HeadingRule) = annotation {
             offset.y = appearance.rule_height();
         }
 
