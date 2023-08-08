@@ -1,8 +1,16 @@
+use std::{sync::mpsc, thread};
+
 use eframe::egui;
 
 use crate::model::DocType;
+enum SuggestedUpdate {
+    Error(String),
+    Done(Vec<SuggestedFile>),
+}
 
 pub struct SuggestedDocs {
+    update_tx: mpsc::Sender<SuggestedUpdate>,
+    update_rx: mpsc::Receiver<SuggestedUpdate>,
     recs: Vec<SuggestedFile>,
     err_msg: Option<String>,
 }
@@ -15,55 +23,63 @@ struct SuggestedFile {
 
 impl SuggestedDocs {
     pub fn new(core: &lb::Core) -> Self {
-        Self::calc(core)
+        let (update_tx, update_rx) = mpsc::channel();
+        Self::calc(core, &update_tx);
+        Self { update_tx, update_rx, recs: vec![], err_msg: None }
     }
 
     pub fn recalc_and_redraw(&mut self, ctx: &egui::Context, core: &lb::Core) {
-        let core = core.clone();
-        let ctx = ctx.clone();
-
-        let new = Self::calc(&core);
-        self.err_msg = new.err_msg;
-        self.recs = new.recs;
+        Self::calc(&core, &self.update_tx);
         ctx.request_repaint();
     }
 
-    fn calc(core: &lb::Core) -> SuggestedDocs {
-        let suggested_docs = core.suggested_docs(lb::RankingWeights::default());
+    fn calc(core: &lb::Core, update_tx: &mpsc::Sender<SuggestedUpdate>) {
+        let core = core.clone();
+        let update_tx = update_tx.clone();
 
-        let mut err_msg = None;
-        let mut recs = vec![];
+        thread::spawn(move || {
+            let suggested_docs = core.suggested_docs(lb::RankingWeights::default());
 
-        if suggested_docs.is_err() {
-            err_msg = Some(
-                suggested_docs
-                    .map_err(|err| format!("{:?}", err))
-                    .unwrap_err(),
-            );
-        } else {
-            recs = suggested_docs
-                .unwrap_or_default()
-                .iter()
-                .filter_map(|id| {
-                    let file = core.get_file_by_id(*id);
-                    if file.is_err() {
-                        return None;
-                    };
-                    let path = core.get_path_by_id(*id).unwrap_or_default();
+            if suggested_docs.is_err() {
+                update_tx
+                    .send(SuggestedUpdate::Error(
+                        suggested_docs
+                            .map_err(|err| format!("{:?}", err))
+                            .unwrap_err(),
+                    ))
+                    .unwrap();
+            } else {
+                let recs = suggested_docs
+                    .unwrap_or_default()
+                    .iter()
+                    .filter_map(|id| {
+                        let file = core.get_file_by_id(*id);
+                        if file.is_err() {
+                            return None;
+                        };
+                        let path = core.get_path_by_id(*id).unwrap_or_default();
 
-                    Some(SuggestedFile { name: file.unwrap().name, path, id: *id })
-                })
-                .take(10)
-                .collect();
-        }
-        SuggestedDocs { recs, err_msg }
+                        Some(SuggestedFile { name: file.unwrap().name, path, id: *id })
+                    })
+                    .take(10)
+                    .collect();
+                update_tx.send(SuggestedUpdate::Done(recs)).unwrap();
+            }
+        });
     }
 
-    pub fn show(&self, ui: &mut egui::Ui) -> Option<lb::Uuid> {
-        if self.err_msg.is_some() {}
+    pub fn show(&mut self, ui: &mut egui::Ui) -> Option<lb::Uuid> {
+        while let Ok(update) = self.update_rx.try_recv() {
+            match update {
+                SuggestedUpdate::Error(err) => self.err_msg = Some(err),
+                SuggestedUpdate::Done(suggested_files) => self.recs = suggested_files,
+            }
+        }
+
         if self.recs.len() < 6 {
             return None;
         }
+
         egui::CollapsingHeader::new("Suggested")
             .default_open(true)
             .show(ui, |ui| {

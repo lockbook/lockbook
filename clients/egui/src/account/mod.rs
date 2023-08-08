@@ -264,18 +264,6 @@ impl AccountScreen {
                 }
                 AccountUpdate::SyncUpdate(update) => {
                     self.process_sync_update(ctx, update);
-                    self.suggested.recalc_and_redraw(ctx, &self.core);
-
-                    let core = self.core.clone();
-                    let update_tx = self.update_tx.clone();
-
-                    thread::spawn(move || {
-                        update_tx
-                            .send(AccountUpdate::FoundPendingShares(
-                                core.get_pending_shares().unwrap().len() > 0,
-                            ))
-                            .unwrap();
-                    });
                 }
                 AccountUpdate::DoneDeleting => self.modals.confirm_delete = None,
                 AccountUpdate::ReloadTree(root) => self.tree.root = root,
