@@ -1,7 +1,9 @@
 use crate::buffer::SubBuffer;
 use crate::layouts::Annotation;
 use crate::offset_types::{DocCharOffset, RangeExt};
-use crate::style::{BlockNode, InlineNode, ListItem, MarkdownNode};
+use crate::style::{
+    BlockNode, BlockNodeType, InlineNode, ListItem, MarkdownNode, MarkdownNodeType,
+};
 use crate::Editor;
 use pulldown_cmark::{Event, HeadingLevel, LinkType, OffsetIter, Options, Parser, Tag};
 
@@ -141,6 +143,14 @@ impl Ast {
                         buffer,
                     );
                 }
+                Event::Rule => {
+                    self.push_child(
+                        current_idx,
+                        MarkdownNode::Block(BlockNode::Rule),
+                        range,
+                        buffer,
+                    );
+                }
                 Event::End(_) => {
                     if skipped == 0 {
                         break;
@@ -209,6 +219,14 @@ impl Ast {
                     | MarkdownNode::Block(BlockNode::Heading(..))
             ) && range.1 < buffer.segs.last_cursor_position()
                 && buffer[(range.0, range.1 + 1)].ends_with(' ')
+            {
+                range.1 += 1;
+            }
+
+            // capture up to one trailing newline for rules
+            if markdown_node.node_type() == MarkdownNodeType::Block(BlockNodeType::Rule)
+                && range.1 < buffer.segs.last_cursor_position()
+                && buffer[(range.0, range.1 + 1)].ends_with('\n')
             {
                 range.1 += 1;
             }
@@ -306,6 +324,21 @@ impl Ast {
                     } else {
                         markdown_node = MarkdownNode::Paragraph;
                         text_range.0 = original_text_range_0;
+                    }
+                }
+                MarkdownNode::Block(BlockNode::Rule) => {
+                    // ---
+                    // ***
+                    // ___
+                    // -------------------
+                    // *******************
+                    // ___________________
+
+                    // require a trailing newline
+                    if !buffer[range].ends_with('\n') {
+                        markdown_node = MarkdownNode::Paragraph;
+                    } else {
+                        text_range.0 = text_range.1 - 1;
                     }
                 }
                 MarkdownNode::Inline(InlineNode::Code) => {
@@ -458,13 +491,16 @@ impl AstTextRange {
 
     pub fn annotation(&self, ast: &Ast) -> Option<Annotation> {
         match self.node(ast) {
-            MarkdownNode::Block(BlockNode::Heading(HeadingLevel::H1)) => Some(Annotation::Rule),
+            MarkdownNode::Block(BlockNode::Heading(HeadingLevel::H1)) => {
+                Some(Annotation::HeadingRule)
+            }
             MarkdownNode::Inline(InlineNode::Image(link_type, url, title)) => {
                 Some(Annotation::Image(link_type, url, title))
             }
             MarkdownNode::Block(BlockNode::ListItem(item_type, indent_level)) => {
                 Some(Annotation::Item(item_type, indent_level))
             }
+            MarkdownNode::Block(BlockNode::Rule) => Some(Annotation::Rule),
             _ => None,
         }
     }

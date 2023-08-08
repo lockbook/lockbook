@@ -117,6 +117,7 @@ pub fn calc(
                             mutation.push(SubMutation::Insert { text, advance_cursor: true });
                         }
                         Some(Annotation::Image(_, _, _)) => {}
+                        Some(Annotation::HeadingRule) => {}
                         Some(Annotation::Rule) => {}
                         None => {}
                     }
@@ -320,6 +321,7 @@ pub fn calc(
                         }
                     }
                     Annotation::Image(..) => {}
+                    Annotation::HeadingRule => {}
                     Annotation::Rule => {}
                 }
             } else if !deindent {

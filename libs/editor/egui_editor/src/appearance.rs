@@ -67,6 +67,7 @@ pub fn blocks() -> HashSet<MarkdownNodeType> {
         MarkdownNodeType::Block(BlockNodeType::ListItem(ListItemType::Bulleted)),
         MarkdownNodeType::Block(BlockNodeType::ListItem(ListItemType::Numbered)),
         MarkdownNodeType::Block(BlockNodeType::ListItem(ListItemType::Todo)),
+        MarkdownNodeType::Block(BlockNodeType::Rule),
     ]
     .into_iter()
     .collect()
