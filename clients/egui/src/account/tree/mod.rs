@@ -151,7 +151,6 @@ impl FileTree {
     }
 
     /// expand the parents of the file and select it
-    // todo trigger scroll if needed
     pub fn reveal_file(&mut self, id: lb::Uuid, core: &lb::Core) {
         let mut curr = core.get_file_by_id(id).unwrap();
         loop {
