@@ -73,7 +73,7 @@ impl BackgroundWorker {
             .duration_since(self.worker_state.user_last_seen)
             .as_secs()
         {
-            0..=59 => Duration::from_secs(60),
+            0..=59 => Duration::from_secs(30),
             60..=3600 => Duration::from_secs(240),
             _ => Duration::from_secs(3600),
         }
