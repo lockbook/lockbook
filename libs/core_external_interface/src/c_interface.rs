@@ -12,9 +12,14 @@ use serde_json::json;
 use time::Duration;
 
 use lockbook_core::service::search_service::{SearchRequest, SearchResult};
-use lockbook_core::{clock, Config, FileType, ImportStatus, ShareMode, SupportedImageFormats, SyncProgress, UnexpectedError, Uuid};
+use lockbook_core::{
+    clock, Config, FileType, ImportStatus, ShareMode, SupportedImageFormats, SyncProgress,
+    UnexpectedError, Uuid,
+};
 
-use crate::{get_all_error_variants, json_interface::translate, static_state, RankingWeights, ClientWorkUnit};
+use crate::{
+    get_all_error_variants, json_interface::translate, static_state, ClientWorkUnit, RankingWeights,
+};
 
 fn c_string(value: String) -> *const c_char {
     CString::new(value)
@@ -365,15 +370,16 @@ pub unsafe extern "C" fn sync_all(
         let (is_pushing, file_name) = match sync_progress.current_work_unit {
             ClientWorkUnit::PullMetadata => (false, ptr::null()),
             ClientWorkUnit::PushMetadata => (true, ptr::null()),
-            ClientWorkUnit::PullDocument(file) => {
-                (false, c_string(file.name))
-            }
-            ClientWorkUnit::PushDocument(file) => {
-                (true, c_string(file.name))
-            }
+            ClientWorkUnit::PullDocument(file) => (false, c_string(file.name)),
+            ClientWorkUnit::PushDocument(file) => (true, c_string(file.name)),
         };
 
-        update_status(context, is_pushing, file_name, (sync_progress.progress as f32) / (sync_progress.total as f32));
+        update_status(
+            context,
+            is_pushing,
+            file_name,
+            (sync_progress.progress as f32) / (sync_progress.total as f32),
+        );
     };
 
     c_string(match static_state::get() {
