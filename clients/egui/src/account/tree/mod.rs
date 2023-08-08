@@ -15,6 +15,7 @@ use self::state::*;
 pub enum TreeUpdate {
     RevealFileDone((Vec<lb::Uuid>, lb::Uuid)),
 }
+
 pub struct FileTree {
     pub root: TreeNode,
     update_tx: Sender<TreeUpdate>,
