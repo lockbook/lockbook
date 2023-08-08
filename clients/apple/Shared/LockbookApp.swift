@@ -198,7 +198,6 @@ import AppKit
                                     var laterOpenForIphone = false
                                     if let docInfo = DI.currentDoc.openDocuments.values.first,
                                        docInfo.isiPhone {
-                                        print("dismissing for link")
                                         docInfo.dismissForLink = meta
                                         laterOpenForIphone.toggle()
                                     }
@@ -294,9 +293,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     
     func scheduleBackgroundTask(initialRun: Bool) {
         let newSyncTask = DispatchWorkItem {
-            DI.sync.sync()
-            
-            self.scheduleBackgroundTask(initialRun: false)
+            DI.sync.backgroundSync(onSuccess: {
+                self.scheduleBackgroundTask(initialRun: false)
+            }, onFailure: {
+                self.scheduleBackgroundTask(initialRun: false)
+            })
         }
         
         DispatchQueue.main.asyncAfter(deadline: .now() + .seconds((initialRun ? backgroundSyncStartSecs : backgroundSyncContSecs)), execute: newSyncTask)
