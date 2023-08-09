@@ -816,11 +816,23 @@ impl AccountScreen {
         });
     }
 
-    fn delete_files(&self, ctx: &egui::Context, files: Vec<lb::File>) {
+    fn delete_files(&mut self, ctx: &egui::Context, files: Vec<lb::File>) {
         let core = self.core.clone();
         let update_tx = self.update_tx.clone();
         let ctx = ctx.clone();
 
+        let tab_ids = self
+            .workspace
+            .tabs
+            .iter()
+            .map(|t| t.id)
+            .collect::<Vec<lb::Uuid>>();
+
+        for (i, f) in files.iter().enumerate() {
+            if tab_ids.contains(&f.id) {
+                self.close_tab(&ctx, i)
+            }
+        }
         thread::spawn(move || {
             for f in &files {
                 core.delete_file(f.id).unwrap(); // TODO
