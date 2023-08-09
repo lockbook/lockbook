@@ -425,7 +425,7 @@ impl DocCharOffset {
         }
     }
 
-    fn bound_case(self, ranges: &[(DocCharOffset, DocCharOffset)]) -> BoundCase {
+    pub fn bound_case(self, ranges: &[(DocCharOffset, DocCharOffset)]) -> BoundCase {
         let range_before = Bounds::range_before(ranges, self);
         let range_after = Bounds::range_after(ranges, self);
         match (range_before, range_after) {

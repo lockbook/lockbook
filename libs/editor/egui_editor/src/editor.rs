@@ -9,7 +9,7 @@ use egui::{Color32, Context, Event, FontDefinitions, Frame, Pos2, Rect, Sense, U
 
 use crate::appearance::Appearance;
 use crate::ast::Ast;
-use crate::bounds::Bounds;
+use crate::bounds::{BoundCase, Bounds};
 use crate::buffer::Buffer;
 use crate::debug::DebugInfo;
 use crate::galleys::Galleys;
@@ -413,6 +413,28 @@ impl Editor {
     pub fn process_events(
         &mut self, events: &[Event], custom_events: &[Modification], touch_mode: bool,
     ) {
+        // if the cursor is in an invalid location, move it to the next valid location
+        if let BoundCase::BewteenRanges { range_after, .. } = self
+            .buffer
+            .current
+            .cursor
+            .selection
+            .0
+            .bound_case(&self.bounds.text)
+        {
+            self.buffer.current.cursor.selection.0 = range_after.start();
+        }
+        if let BoundCase::BewteenRanges { range_after, .. } = self
+            .buffer
+            .current
+            .cursor
+            .selection
+            .1
+            .bound_case(&self.bounds.text)
+        {
+            self.buffer.current.cursor.selection.1 = range_after.start();
+        }
+
         let prior_selection = self.buffer.current.cursor.selection;
         let click_checker = EditorClickChecker {
             ui_rect: self.ui_rect,
