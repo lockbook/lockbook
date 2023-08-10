@@ -1,4 +1,8 @@
-use std::collections::HashSet;
+use std::{
+    collections::HashSet,
+    path::PathBuf,
+    sync::mpsc::{self, Receiver, Sender},
+};
 
 use eframe::egui;
 
@@ -10,10 +14,13 @@ pub struct TreeState {
     pub renaming: NodeRenamingState,
     pub request_scroll: bool,
     pub dnd: TreeDragAndDropState,
+    pub update_tx: Sender<TreeUpdate>,
+    pub update_rx: Receiver<TreeUpdate>,
 }
 
 impl Default for TreeState {
     fn default() -> Self {
+        let (update_tx, update_rx) = mpsc::channel();
         Self {
             id: egui::Id::new("filetree"),
             max_node_width: 0.0,
@@ -22,8 +29,15 @@ impl Default for TreeState {
             dnd: TreeDragAndDropState::default(),
             renaming: NodeRenamingState::default(),
             request_scroll: false,
+            update_tx,
+            update_rx,
         }
     }
+}
+
+pub enum TreeUpdate {
+    RevealFileDone((Vec<lb::Uuid>, lb::Uuid)),
+    ExportFile((lb::Uuid, PathBuf)),
 }
 
 impl TreeState {

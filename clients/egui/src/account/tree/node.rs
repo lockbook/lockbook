@@ -1,6 +1,8 @@
 use std::cmp::Ordering;
+use std::thread;
 
 use eframe::egui;
+use rfd::FileDialog;
 
 use crate::model::DocType;
 use crate::theme::Icon;
@@ -293,6 +295,19 @@ impl TreeNode {
         }
 
         ui.separator();
+
+        if ui.button("Export").clicked() {
+            let update_tx = state.update_tx.clone();
+            let exported_file = self.file.id;
+            thread::spawn(move || {
+                let folder = FileDialog::new().pick_folder();
+                if folder.is_some() {
+                    update_tx
+                        .send(TreeUpdate::ExportFile((exported_file, folder.unwrap())))
+                        .unwrap();
+                }
+            });
+        }
 
         let share = ui.add(egui::Button::new(
             egui::RichText::new("Share").color(ui.style().visuals.hyperlink_color),

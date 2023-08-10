@@ -68,7 +68,7 @@ impl AccountScreen {
             update_rx,
             background_tx,
             has_pending_shares,
-            tree: FileTree::new(files),
+            tree: FileTree::new(files, &core_clone),
             suggested: SuggestedDocs::new(&core_clone),
             sync: SyncPanel::new(sync_status),
             usage,
