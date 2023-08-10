@@ -12,7 +12,7 @@ struct BottomBar: View {
 #if os(iOS)
     var menu: some View {
         HStack {
-            if isiOS {
+            if isiOS && !sync.syncing {
                 Button(action: {
                     DI.files.createDoc(isDrawing: false)
                 }) {
@@ -49,6 +49,7 @@ struct BottomBar: View {
         if sync.syncing {
             ProgressView()
                 .frame(width: 40, height: 40, alignment: .center)
+                .padding(.trailing, 9)
         } else {
             Button(action: {
                 sync.sync()
@@ -67,9 +68,7 @@ struct BottomBar: View {
             Text("")
                 .font(.callout)
                 .foregroundColor(Color.gray)
-            
         } else {
-            
             Button(action: {
                 sync.sync()
                 status.work = 0
@@ -179,8 +178,24 @@ struct BottomBar: View {
             Text("Update required")
                 .foregroundColor(.secondary)
         } else if sync.syncing {
-            Text("Syncing...")
-                .foregroundColor(.secondary)
+            HStack {
+                if let isPushing = sync.isPushing {
+                    if let fileName = sync.pushPullFileName {
+                        Text("\(isPushing ? "Pushing" : "Pulling") file: \(fileName)")
+                            .foregroundColor(.secondary)
+                    } else {
+                        Text("\(isPushing ? "Pushing" : "Pulling") files...")
+                            .foregroundColor(.secondary)
+                    }
+                } else {
+                    Text("Syncing...")
+                        .foregroundColor(.secondary)
+                }
+                
+            #if os(iOS)
+                Spacer()
+            #endif
+            }
         } else if sync.outOfSpace {
             Text("Out of space")
                 .foregroundColor(.secondary)

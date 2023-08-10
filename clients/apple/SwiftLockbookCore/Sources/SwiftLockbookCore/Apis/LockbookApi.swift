@@ -11,7 +11,12 @@ public protocol LockbookApi {
     func deleteAccount() -> FfiResult<Empty, DeleteAccountError>
 
     // Work
-    func syncAll() -> FfiResult<Empty, SyncAllError>
+    func syncAll(
+        context: UnsafeRawPointer?,
+        // updateStatus(context, isPushing, fileName)
+        updateStatus: @escaping @convention(c) (UnsafePointer<Int8>?, Bool, UnsafePointer<Int8>?, Float) -> Void
+    ) -> FfiResult<Empty, SyncAllError>
+    func backgroundSync() -> FfiResult<Empty, SyncAllError>
     func calculateWork() -> FfiResult<WorkCalculated, CalculateWorkError>
     func getLastSyncedHumanString() -> FfiResult<String, GetLastSyncedError>
     func getLocalChanges() -> FfiResult<[UUID], GetLocalChangesError>
@@ -49,7 +54,13 @@ public protocol LockbookApi {
     
     // Search
     func searchFilePaths(input: String) ->FfiResult<[SearchResultItem], SearchFilePathsError>
-    func startSearch(context: UnsafeRawPointer?, updateStatus: @escaping @convention(c) (UnsafePointer<Int8>?, Int32, UnsafePointer<Int8>?) -> Void) -> FfiResult<Empty, GeneralSearchError>
+    func startSearch(
+        context: UnsafeRawPointer?,
+        // updateStatus(context, searchResultType, searchResultJson)
+        updateStatus: @escaping @convention(c) (UnsafePointer<Int8>?, Int32, UnsafePointer<Int8>?) -> Void
+    ) -> FfiResult<Empty, GeneralSearchError>
     func endSearch() -> FfiResult<Empty, GeneralSearchError>
     func searchQuery(query: String) -> FfiResult<Empty, GeneralSearchError>
+    
+    func freeText(s: UnsafePointer<Int8>)
 }

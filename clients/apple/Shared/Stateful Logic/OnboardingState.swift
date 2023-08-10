@@ -74,14 +74,7 @@ class OnboardingService: ObservableObject {
                 switch res {
                 case .success:
                     self.initialSyncing = true
-                    DispatchQueue.global(qos: .userInteractive).async {
-                        switch self.core.syncAll() {
-                        case .success:
-                            DispatchQueue.main.async { self.getAccountAndFinalize() }
-                        case .failure(let err):
-                            DI.errors.handleError(err)
-                        }
-                    }
+                    DI.sync.importSync()
                 case .failure(let error):
                     switch error.kind {
                     case .UiError(let importError):

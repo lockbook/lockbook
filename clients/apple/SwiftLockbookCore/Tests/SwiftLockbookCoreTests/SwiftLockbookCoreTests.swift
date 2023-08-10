@@ -85,7 +85,7 @@ class FFITests: XCTestCase {
         /// 1 KB of data
         let data = Data(count: 1000)
         assertSuccess(core.updateFile(id: createdFile.id, content: data.base64EncodedString()))
-        assertSuccess(core.syncAll())
+        assertSuccess(core.backgroundSync())
         assertSuccess(core.getFile(id: createdFile.id)) { $0 == data.base64EncodedString() }
     }
     
@@ -101,7 +101,7 @@ class FFITests: XCTestCase {
         /// 1 MB of data
         let data = Data(count: 1000*1000)
         assertSuccess(core.updateFile(id: createdFile.id, content: data.base64EncodedString()))
-        assertSuccess(core.syncAll())
+        assertSuccess(core.backgroundSync())
         assertSuccess(core.getFile(id: createdFile.id)) { $0 == data.base64EncodedString() }
     }
     func testUpdateContent10MB() throws {
@@ -116,7 +116,7 @@ class FFITests: XCTestCase {
         /// 10 MB of data
         let data = Data(count: 10*1000*1000)
         assertSuccess(core.updateFile(id: createdFile.id, content: data.base64EncodedString()))
-        assertSuccess(core.syncAll())
+        assertSuccess(core.backgroundSync())
         assertSuccess(core.getFile(id: createdFile.id)) { $0 == data.base64EncodedString() }
     }
     
@@ -142,7 +142,7 @@ class FFITests: XCTestCase {
         let core = freshCore()
         let _ = try core.createAccount(username: randomName(), apiLocation: url(), welcomeDoc: false).get()
         
-        let resultSync = core.syncAll()
+        let resultSync = core.backgroundSync()
         assertSuccess(resultSync)
     }
     
@@ -155,7 +155,7 @@ class FFITests: XCTestCase {
         
         (0..<numberOfFiles).forEach { _ in assertSuccess(core.createFile(name: randomName(), dirId: root.id, isFolder: false)) }
         
-        let resultSync = core.syncAll()
+        let resultSync = core.backgroundSync()
         
         assertSuccess(resultSync)
         
@@ -194,7 +194,7 @@ class FFITests: XCTestCase {
 
         assertSuccess(resultCalculate) { $0.count == 5 }
         
-        let resultSync = core.syncAll()
+        let resultSync = core.backgroundSync()
         
         assertSuccess(resultSync)
         

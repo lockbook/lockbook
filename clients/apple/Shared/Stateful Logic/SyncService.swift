@@ -4,7 +4,13 @@ import SwiftLockbookCore
 class SyncService: ObservableObject {
     let core: LockbookApi
     
-    @Published var syncing: Bool = false
+    // sync status
+    @Published public var syncing: Bool = false
+    @Published public var isPushing: Bool? = nil
+    @Published public var pushPullFileName: String? = nil
+    @Published public var syncProgress: Float = 0.0
+    
+    // sync results
     @Published var offline: Bool = false
     @Published var upgrade: Bool = false
     
@@ -42,7 +48,9 @@ class SyncService: ObservableObject {
         DI.status.setLastSynced()
         DI.status.checkForLocalWork()
         DI.share.calculatePendingShares()
+        #if os(macOS)
         DI.settings.calculateUsage()
+        #endif
     }
     
     func backgroundSync(onSuccess: (() -> Void)? = nil, onFailure: (() -> Void)? = nil) {
@@ -57,39 +65,53 @@ class SyncService: ObservableObject {
         
         syncing = true
 
-        print("Syncing...")
-        let result = self.core.syncAll()
-        print("Finished syncing...")
-        
-        syncing = false
-        
-        switch result {
-        case .success(_):
-            self.outOfSpace = false
-            self.offline = false
-            self.postSyncSteps()
-            onSuccess?()
-        case .failure(let error):
-            switch error.kind {
-            case .UiError(let uiError):
-                switch uiError {
-                case .CouldNotReachServer:
-                    self.offline = true
-                case .ClientUpdateRequired:
-                    self.upgrade = true
-                case .Retry:
-                    // TODO
-                    DI.errors.handleError(ErrorWithTitle(title: "Retry", message: "SyncService wants retry"))
-                case .UsageIsOverDataCap:
-                    self.outOfSpace = true
-                }
-            default:
-                DI.errors.handleError(error)
-            }
+        withUnsafePointer(to: self) { syncServicePtr in
+            let result = self.core.backgroundSync()
             
-            onFailure?()
+            DispatchQueue.main.async {
+                self.cleanupSyncStatus()
+                
+                switch result {
+                case .success(_):
+                    self.outOfSpace = false
+                    self.offline = false
+                    self.postSyncSteps()
+                    onSuccess?()
+                case .failure(let error):
+                    print("background sync error: \(error.message)")
+                    
+                    onFailure?()
+                }
+            }
         }
-
+    }
+    
+    func cleanupSyncStatus() {
+        self.syncing = false
+        self.isPushing = nil
+        self.pushPullFileName = nil
+        self.syncProgress = 0.0
+    }
+    
+    func importSync() {
+        syncing = true
+                
+        DispatchQueue.global(qos: .userInteractive).async {
+            withUnsafePointer(to: self) { syncServicePtr in
+                let result = self.core.syncAll(context: syncServicePtr, updateStatus: updateSyncStatus)
+                
+                DispatchQueue.main.async {
+                    self.cleanupSyncStatus()
+                    
+                    switch result {
+                    case .success(_):
+                        DI.onboarding.getAccountAndFinalize()
+                    case .failure(let error):
+                        DI.errors.handleError(error)
+                    }
+                }
+            }
+        }
     }
     
     func sync() {
@@ -105,37 +127,56 @@ class SyncService: ObservableObject {
         syncing = true
                 
         DispatchQueue.global(qos: .userInteractive).async {
-            print("Syncing...")
-            let result = self.core.syncAll()
-            print("Finished syncing...")
-
-            DispatchQueue.main.async {
-                self.syncing = false
+            withUnsafePointer(to: self) { syncServicePtr in
+                print("Syncing...")
+                let result = self.core.syncAll(context: syncServicePtr, updateStatus: updateSyncStatus)
+                print("Finished syncing...")
                 
-                switch result {
-                case .success(_):
-                    self.outOfSpace = false
-                    self.offline = false
-                    self.postSyncSteps()
-                case .failure(let error):
-                    switch error.kind {
-                    case .UiError(let uiError):
-                        switch uiError {
-                        case .CouldNotReachServer:
-                            self.offline = true
-                        case .ClientUpdateRequired:
-                            self.upgrade = true
-                        case .Retry:
-                            // TODO
-                            DI.errors.handleError(ErrorWithTitle(title: "Retry", message: "SyncService wants retry"))
-                        case .UsageIsOverDataCap:
-                            self.outOfSpace = true
+                DispatchQueue.main.async {
+                    self.cleanupSyncStatus()
+                    
+                    switch result {
+                    case .success(_):
+                        self.outOfSpace = false
+                        self.offline = false
+                        self.postSyncSteps()
+                    case .failure(let error):
+                        switch error.kind {
+                        case .UiError(let uiError):
+                            switch uiError {
+                            case .CouldNotReachServer:
+                                self.offline = true
+                            case .ClientUpdateRequired:
+                                self.upgrade = true
+                            case .Retry:
+                                // TODO
+                                DI.errors.handleError(ErrorWithTitle(title: "Retry", message: "SyncService wants retry"))
+                            case .UsageIsOverDataCap:
+                                self.outOfSpace = true
+                            }
+                        default:
+                            DI.errors.handleError(error)
                         }
-                    default:
-                        DI.errors.handleError(error)
                     }
                 }
             }
         }
     }
 }
+
+func updateSyncStatus(context: UnsafePointer<Int8>?, isPushing: Bool, maybeFileNamePtr: UnsafePointer<Int8>?, syncProgress: Float) -> Void {
+    DispatchQueue.main.sync {
+        guard let syncService = UnsafeRawPointer(context)?.load(as: SyncService.self) else {
+            return
+        }
+        
+        syncService.isPushing = isPushing
+        syncService.syncProgress = syncProgress
+        
+        if let fileNamePtr = maybeFileNamePtr {
+            syncService.pushPullFileName = String(cString: fileNamePtr)
+            syncService.core.freeText(s: fileNamePtr)
+        }
+    }
+}
+
