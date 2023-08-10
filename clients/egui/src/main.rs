@@ -91,7 +91,9 @@ impl eframe::App for Lockbook {
 
                     *self = match maybe_acct_data {
                         Some(acct_data) => {
-                            let acct_scr = AccountScreen::new(settings, core, acct_data, ctx);
+                            let is_new_user = false;
+                            let acct_scr =
+                                AccountScreen::new(settings, core, acct_data, ctx, is_new_user);
                             Self::Account(acct_scr)
                         }
                         None => Self::Onboard(OnboardScreen::new(settings, core)),
@@ -106,7 +108,8 @@ impl eframe::App for Lockbook {
                 if let Some(handoff) = screen.update(ctx) {
                     let OnboardHandOff { settings, core, acct_data } = handoff;
 
-                    let acct_scr = AccountScreen::new(settings, core, acct_data, ctx);
+                    let is_new_user = true;
+                    let acct_scr = AccountScreen::new(settings, core, acct_data, ctx, is_new_user);
                     *self = Self::Account(acct_scr);
 
                     ctx.request_repaint();

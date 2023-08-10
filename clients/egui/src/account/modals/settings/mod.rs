@@ -59,7 +59,10 @@ impl SettingsModal {
                 let usage_info =
                     UsageSettingsInfo { sub_info_result, metrics_result, uncompressed_result };
 
-                info_tx.send(usage_info).unwrap();
+                match info_tx.send(usage_info) {
+                    Ok(_) => (),
+                    Err(err) => println!("{}", err.to_string()),
+                }
             }
         });
 
@@ -170,7 +173,6 @@ impl super::Modal for SettingsModal {
 
         ui.set_max_height(ui.available_size().y - 400.0);
         ui.set_width(520.0);
-
         StripBuilder::new(ui)
             .size(Size::exact(115.0))
             .size(Size::remainder())
@@ -179,7 +181,9 @@ impl super::Modal for SettingsModal {
                 strip.cell(|ui| {
                     ui.add_space(12.0);
                     match &self.active_tab {
-                        SettingsTab::Account => self.show_account_tab(ui),
+                        SettingsTab::Account => {
+                            self.show_account_tab(ui);
+                        }
                         SettingsTab::Usage => {
                             resp = self.show_usage_tab(ui);
                         }
