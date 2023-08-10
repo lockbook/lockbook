@@ -39,6 +39,7 @@ pub struct AccountScreen {
     background_tx: mpsc::Sender<BackgroundEvent>,
 
     tree: FileTree,
+    has_pending_shares: bool,
     suggested: SuggestedDocs,
     sync: SyncPanel,
     usage: Result<Usage, String>,
@@ -54,7 +55,7 @@ impl AccountScreen {
     ) -> Self {
         let (update_tx, update_rx) = mpsc::channel();
 
-        let AccountScreenInitData { sync_status, files, usage } = acct_data;
+        let AccountScreenInitData { sync_status, files, usage, has_pending_shares } = acct_data;
         let core_clone = core.clone();
 
         let background = BackgroundWorker::new(ctx, &update_tx);
@@ -66,6 +67,7 @@ impl AccountScreen {
             update_tx,
             update_rx,
             background_tx,
+            has_pending_shares,
             tree: FileTree::new(files),
             suggested: SuggestedDocs::new(&core_clone),
             sync: SyncPanel::new(sync_status),
@@ -257,7 +259,6 @@ impl AccountScreen {
                 }
                 AccountUpdate::SyncUpdate(update) => {
                     self.process_sync_update(ctx, update);
-                    self.suggested.recalc_and_redraw(ctx, &self.core);
                 }
                 AccountUpdate::DoneDeleting => self.modals.confirm_delete = None,
                 AccountUpdate::ReloadTree(root) => self.tree.root = root,
@@ -312,6 +313,9 @@ impl AccountScreen {
                     if self.settings.read().unwrap().auto_sync {
                         self.perform_sync(ctx)
                     }
+                }
+                AccountUpdate::FoundPendingShares(has_pending_shares) => {
+                    self.has_pending_shares = has_pending_shares
                 }
             }
         }
@@ -487,15 +491,7 @@ impl AccountScreen {
                 ui.add_space(5.0);
 
                 let incoming_shares_btn = Button::default()
-                    .icon(
-                        &Icon::SHARED_FOLDER.badge(
-                            !self
-                                .core
-                                .get_pending_shares()
-                                .unwrap_or_default()
-                                .is_empty(),
-                        ),
-                    )
+                    .icon(&Icon::SHARED_FOLDER.badge(self.has_pending_shares))
                     .show(ui);
                 if incoming_shares_btn.clicked() {
                     self.update_tx.send(OpenModal::AcceptShare.into()).unwrap();
@@ -868,6 +864,7 @@ pub enum AccountUpdate {
     AutoSyncSignal,
 
     ShareAccepted(Result<lb::File, String>),
+    FoundPendingShares(bool),
 
     DoneDeleting,
 

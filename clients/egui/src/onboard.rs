@@ -297,11 +297,19 @@ fn load_account_data(core: &lb::Core) -> Result<AccountScreenInitData, String> {
         Err(err) => return Err(format!("{:?}", err)), // TODO
     };
 
+    let has_pending_shares = match core.get_pending_shares() {
+        Ok(files) => !files.is_empty(),
+        Err(err) => {
+            eprintln!("{:?}", err);
+            false
+        }
+    };
+
     let sync_status = core
         .get_last_synced_human_string()
         .map_err(|err| format!("{:?}", err));
 
-    Ok(AccountScreenInitData { sync_status, files, usage })
+    Ok(AccountScreenInitData { sync_status, files, usage, has_pending_shares })
 }
 
 #[derive(Clone, Copy, PartialEq)]
