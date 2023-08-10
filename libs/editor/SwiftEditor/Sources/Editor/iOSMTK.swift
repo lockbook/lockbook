@@ -114,6 +114,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
         self.toolbarState!.toggleNumberList = numberedList
         self.toolbarState!.toggleHeading = header
         self.toolbarState!.tab = tab
+        self.toolbarState!.undoRedo = undoRedo
     }
     
     public func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {
@@ -482,6 +483,21 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     @objc func keyboardSelectAll() {
         select_all(self.editorHandle)
         self.setNeedsDisplay()
+    }
+        
+    @objc func undoRedo(redo: Bool) {
+        undo_redo(self.editorHandle, redo)
+        self.setNeedsDisplay(self.frame)
+    }
+    
+    @objc func undo() {
+        undo_redo(self.editorHandle, false)
+        self.setNeedsDisplay(self.frame)
+    }
+    
+    @objc func redo() {
+        undo_redo(self.editorHandle, true)
+        self.setNeedsDisplay(self.frame)
     }
     
     func updateText(_ s: String) {

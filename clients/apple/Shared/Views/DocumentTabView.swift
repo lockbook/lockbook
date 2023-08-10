@@ -89,19 +89,19 @@ struct DocumentTabView: View {
 
 struct NoTabsView: View {
     
-
+    
     var logo: Image {
-        #if os(iOS)
+#if os(iOS)
         Image(uiImage: UIImage(named: "logo")!)
-        #else
+#else
         Image(nsImage: NSImage(named: NSImage.Name("logo"))!)
-        #endif
+#endif
     }
     
     var body: some View {
         VStack() {
             Spacer()
-
+            
             Text("You have no open documents.")
                 .noTabTextFormatting()
                 .padding(.bottom, 3)
@@ -126,20 +126,16 @@ struct NoTabsView: View {
                 Text("Create a new folder: ⌘⇧N")
                     .noTabTextFormatting()
 #endif
-
+                
             }
             .padding()
             
             Spacer()
         }
     }
-    
-    
-    
 }
 
 extension Text {
-    
     func noTabTextFormatting() -> Text {
         return self
             .font(.title2)

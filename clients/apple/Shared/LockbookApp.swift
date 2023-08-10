@@ -49,6 +49,16 @@ import AppKit
                 }).keyboardShortcut("W", modifiers: .command)
             }
             
+            CommandGroup(replacing: .textEditing) {
+                Button("Undo", action: {
+                    DI.currentDoc.undoRedoSelectedDoc(redo: false)
+                }).keyboardShortcut("Z", modifiers: .control)
+
+                Button("Redo", action: {
+                    DI.currentDoc.undoRedoSelectedDoc(redo: true)
+                }).keyboardShortcut("Z", modifiers: [.control, .shift])
+            }
+            
             CommandGroup(replacing: .textFormatting) {
                 Menu("Headings") {
                     Button("Heading 1", action: {

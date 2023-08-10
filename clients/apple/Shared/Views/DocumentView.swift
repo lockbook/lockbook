@@ -2,13 +2,19 @@ import SwiftUI
 import SwiftLockbookCore
 import PencilKit
 import SwiftEditor
-
 #if os(iOS)
+import UIKit
+
 struct iOSDocumentViewWrapper: View {
     let id: UUID
     
+    @State var showUndoRedoAlert: Bool = false
+    
     var body: some View {
         DocumentView(id: id, isiPhone: true)
+            .onAppear {
+                DI.currentDoc.selectedDoc = id
+            }
             .onDisappear {
                 if let meta = DI.currentDoc.openDocuments[id]?.dismissForLink {
                     print("starting to open link")
@@ -18,6 +24,38 @@ struct iOSDocumentViewWrapper: View {
                 DI.currentDoc.cleanupOldDocs(true, id)
             }
             .iPhoneMarkdownToolbar(id: id)
+            .onShake {
+                showUndoRedoAlert = true
+            }
+            .alert("Would you like to undo or redo changes to your document?", isPresented: Binding(get: { showUndoRedoAlert }, set: {_ in showUndoRedoAlert = false })) {
+                Button("Undo", action: {
+                    DI.currentDoc.undoRedoSelectedDoc(redo: false)
+                })
+                Button("Redo", action: {
+                    DI.currentDoc.undoRedoSelectedDoc(redo: true)
+                })
+                Button("Cancel", role: .cancel, action: {})
+            }
+    }
+}
+
+extension UIDevice {
+    static let deviceDidShakeNotification = Notification.Name(rawValue: "deviceDidShakeNotification")
+}
+
+extension UIWindow {
+    open override func motionEnded(_ motion: UIEvent.EventSubtype, with event: UIEvent?) {
+        super.motionEnded(motion, with: event)
+        NotificationCenter.default.post(name: UIDevice.deviceDidShakeNotification, object: event)
+    }
+}
+
+extension View {
+    func onShake(perform: @escaping () -> Void) -> some View {
+        self
+            .onReceive(NotificationCenter.default.publisher(for: UIDevice.deviceDidShakeNotification)) { _ in
+                perform()
+            }
     }
 }
 #endif
@@ -336,12 +374,13 @@ struct MarkdownToolbar: View {
                 .help("Todo List: ⌘⇧9")
             }
 
-            #if os(iOS)
-
             Divider()
                 .frame(height: 20)
 
             HStack(spacing: 15) {
+                
+                #if os(iOS)
+                
                 Button(action: {
                     toolbarState.tab(false)
                 }) {
@@ -355,9 +394,25 @@ struct MarkdownToolbar: View {
                     MarkdownEditorImage(systemImageName: "arrow.left.to.line.compact", isSelected: false)
                 }
                 .buttonStyle(.borderless)
-            }
+                
+                #endif
+                
+                Button(action: {
+                    toolbarState.undoRedo(false)
+                }) {
+                    MarkdownEditorImage(systemImageName: "arrow.uturn.backward", isSelected: false)
+                }
+                .buttonStyle(.borderless)
+                .help("Undo: ⌃Z")
 
-            #endif
+                Button(action: {
+                    toolbarState.undoRedo(true)
+                }) {
+                    MarkdownEditorImage(systemImageName: "arrow.uturn.forward", isSelected: false)
+                }
+                .buttonStyle(.borderless)
+                .help("Redo: ⌃⇧Z")
+            }
 
             Spacer()
         }

@@ -34,6 +34,7 @@ public class ToolbarState: ObservableObject {
     public var toggleBold: () -> Void = {}
     public var toggleItalic: () -> Void = {}
     public var tab: (Bool) -> Void = {_ in }
+    public var undoRedo: (Bool) -> Void = {_ in }
     
     public init() {}
 }

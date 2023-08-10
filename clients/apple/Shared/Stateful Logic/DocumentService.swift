@@ -157,6 +157,12 @@ class DocumentService: ObservableObject {
             }
         }
     }
+    
+    func undoRedoSelectedDoc(redo: Bool) {
+        if let id = selectedDoc {
+            openDocuments[id]?.textDocumentToolbar?.undoRedo(redo)
+        }
+    }
 }
 
 public enum TextFormatting {

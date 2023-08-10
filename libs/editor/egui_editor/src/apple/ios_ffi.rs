@@ -589,3 +589,20 @@ pub unsafe extern "C" fn indent_at_cursor(obj: *mut c_void, deindent: bool) {
         .custom_events
         .push(Modification::Indent { deindent });
 }
+
+/// # Safety
+/// obj must be a valid pointer to WgpuEditor
+#[no_mangle]
+pub unsafe extern "C" fn undo_redo(obj: *mut c_void, redo: bool) {
+    let obj = &mut *(obj as *mut WgpuEditor);
+
+    if redo {
+        obj.editor
+            .custom_events
+            .push(Modification::Redo);
+    } else {
+        obj.editor
+            .custom_events
+            .push(Modification::Undo);
+    }
+}
