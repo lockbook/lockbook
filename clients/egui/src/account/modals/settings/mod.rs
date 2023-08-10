@@ -143,8 +143,12 @@ impl SettingsModal {
             egui::Id::from(format!("tab_label_{}", text)),
             egui::Sense::click(),
         );
+
         if response.clicked() {
             self.active_tab = tab;
+        }
+        if response.hovered() {
+            ui.output_mut(|o| o.cursor_icon = egui::CursorIcon::PointingHand);
         }
 
         separator(ui);

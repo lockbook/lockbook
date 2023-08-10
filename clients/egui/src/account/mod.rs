@@ -105,43 +105,38 @@ impl AccountScreen {
             .send(BackgroundEvent::EguiUpdate)
             .unwrap();
 
-        let mut sidebar_width = 0.0;
-        if !self.settings.read().unwrap().zen_mode {
-            sidebar_width = egui::SidePanel::left("sidebar_panel")
-                .frame(egui::Frame::none().fill(ctx.style().visuals.panel_fill))
-                .min_width(300.0)
-                .show(ctx, |ui| {
-                    ui.set_enabled(!self.is_any_modal_open());
+        let is_expanded = !self.settings.read().unwrap().zen_mode;
 
-                    ui.with_layout(egui::Layout::bottom_up(egui::Align::Min), |ui| {
-                        ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
+        egui::SidePanel::left("sidebar_panel")
+            .frame(egui::Frame::none().fill(ctx.style().visuals.panel_fill))
+            .min_width(300.0)
+            .show_animated(ctx, is_expanded, |ui| {
+                ui.set_enabled(!self.is_any_modal_open());
 
-                        self.show_sync_panel(ui);
+                ui.with_layout(egui::Layout::bottom_up(egui::Align::Min), |ui| {
+                    ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
 
-                        separator(ui);
+                    self.show_sync_panel(ui);
 
-                        self.show_nav_panel(ui);
+                    separator(ui);
 
-                        ui.vertical(|ui| {
-                            if let Some(file) = self.suggested.show(ui) {
-                                self.open_file(file, ctx);
-                            }
-                            ui.add_space(20.0);
-                            self.show_tree(ui);
-                        })
-                    });
-                })
-                .response
-                .rect
-                .max
-                .x;
-        }
+                    self.show_nav_panel(ui);
+
+                    ui.vertical(|ui| {
+                        if let Some(file) = self.suggested.show(ui) {
+                            self.open_file(file, ctx);
+                        }
+                        ui.add_space(20.0);
+                        self.show_tree(ui);
+                    })
+                });
+            });
 
         egui::CentralPanel::default()
             .frame(egui::Frame::default().fill(ctx.style().visuals.widgets.noninteractive.bg_fill))
             .show(ctx, |ui| self.show_workspace(frame, ui));
 
-        self.show_any_modals(ctx, 0.0 - (sidebar_width / 2.0));
+        self.show_any_modals(ctx, 0.0);
     }
 
     fn process_updates(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
