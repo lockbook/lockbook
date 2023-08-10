@@ -300,10 +300,9 @@ impl TreeNode {
             let update_tx = state.update_tx.clone();
             let exported_file = self.file.id;
             thread::spawn(move || {
-                let folder = FileDialog::new().pick_folder();
-                if folder.is_some() {
+                if let Some(folder) = FileDialog::new().pick_folder() {
                     update_tx
-                        .send(TreeUpdate::ExportFile((exported_file, folder.unwrap())))
+                        .send(TreeUpdate::ExportFile((exported_file, folder)))
                         .unwrap();
                 }
             });

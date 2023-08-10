@@ -66,11 +66,7 @@ impl FileTree {
                     {
                         Ok(_) => {
                             // todo: replace okay message with a toast
-                            println!(
-                                "exported {} to {}",
-                                exported_file,
-                                dest.to_string_lossy().to_string()
-                            );
+                            println!("exported {} to {}", exported_file, dest.to_string_lossy());
                         }
                         Err(err) => eprintln!("{:#?}", err.kind),
                     }
