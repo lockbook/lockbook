@@ -140,9 +140,9 @@ impl AccountScreen {
             .frame(egui::Frame::default().fill(ctx.style().visuals.widgets.noninteractive.bg_fill))
             .show(ctx, |ui| self.show_workspace(frame, ui));
 
-        if !self.is_new_user {
-            self.modals.account_backup = Some(AccountBackup::new("hi"));
-            self.is_new_user = true;
+        if self.is_new_user {
+            self.modals.account_backup = Some(AccountBackup);
+            self.is_new_user = false;
         }
         self.show_any_modals(ctx, 0.0);
     }

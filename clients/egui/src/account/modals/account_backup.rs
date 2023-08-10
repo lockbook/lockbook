@@ -2,18 +2,11 @@ use eframe::egui;
 
 use crate::{theme::Icon, widgets::Button};
 
-pub struct AccountBackup {
-    err: String,
-}
+pub struct AccountBackup;
 
 pub enum AccountBackupParams {
     Backup,
     DeferBackup,
-}
-impl AccountBackup {
-    pub fn new(err: impl ToString) -> Self {
-        Self { err: err.to_string() }
-    }
 }
 
 impl super::Modal for AccountBackup {

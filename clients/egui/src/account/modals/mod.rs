@@ -68,7 +68,7 @@ impl super::AccountScreen {
             if let Some(submission) = response.inner {
                 match submission {
                     account_backup::AccountBackupParams::Backup => {
-                        self.modals.settings = Some(SettingsModal::new(&self.core, &self.settings));
+                        self.update_tx.send(OpenModal::Settings.into()).unwrap();
                         self.modals.account_backup = None;
                     }
                     account_backup::AccountBackupParams::DeferBackup => {
