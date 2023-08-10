@@ -2,6 +2,9 @@ mod node;
 mod response;
 mod state;
 
+use std::sync::mpsc::{self, Receiver, Sender};
+use std::thread;
+
 pub use self::node::TreeNode;
 
 use eframe::egui;
@@ -9,8 +12,14 @@ use eframe::egui;
 use self::response::NodeResponse;
 use self::state::*;
 
+pub enum TreeUpdate {
+    RevealFileDone((Vec<lb::Uuid>, lb::Uuid)),
+}
+
 pub struct FileTree {
     pub root: TreeNode,
+    update_tx: Sender<TreeUpdate>,
+    update_rx: Receiver<TreeUpdate>,
     state: TreeState,
 }
 
@@ -21,7 +30,9 @@ impl FileTree {
         let mut state = TreeState::default();
         state.expanded.insert(root.file.id);
 
-        Self { root, state }
+        let (update_tx, update_rx) = mpsc::channel();
+
+        Self { root, state, update_tx, update_rx }
     }
 
     pub fn expand_to(&mut self, id: lb::Uuid) {
@@ -45,6 +56,20 @@ impl FileTree {
     }
 
     pub fn show(&mut self, ui: &mut egui::Ui) -> NodeResponse {
+        while let Ok(update) = self.update_rx.try_recv() {
+            match update {
+                TreeUpdate::RevealFileDone((expanded_files, selected)) => {
+                    self.state.request_scroll = true;
+
+                    expanded_files.iter().for_each(|f| {
+                        self.state.expanded.insert(*f);
+                    });
+                    self.state.selected.clear();
+                    self.state.selected.insert(selected);
+                }
+            }
+        }
+
         ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
         let mut is_hovered = false;
         let mut r = egui::Frame::none().show(ui, |ui| {
@@ -151,21 +176,25 @@ impl FileTree {
     }
 
     /// expand the parents of the file and select it
-    // todo trigger scroll if needed
     pub fn reveal_file(&mut self, id: lb::Uuid, core: &lb::Core) {
-        let mut curr = core.get_file_by_id(id).unwrap();
-        loop {
-            let parent = core.get_file_by_id(curr.parent).unwrap();
-            self.state.expanded.insert(parent.id);
-            if parent == curr {
-                break;
+        let core = core.clone();
+        let update_tx = self.update_tx.clone();
+        thread::spawn(move || {
+            let mut curr = core.get_file_by_id(id).unwrap();
+            let mut expanded = vec![];
+            loop {
+                let parent = core.get_file_by_id(curr.parent).unwrap();
+                expanded.push(parent.id);
+                if parent == curr {
+                    break;
+                }
+                curr = parent;
             }
-            curr = parent;
-        }
 
-        self.state.request_scroll = true;
-        self.state.selected.clear();
-        self.state.selected.insert(id);
+            update_tx
+                .send(TreeUpdate::RevealFileDone((expanded, id)))
+                .unwrap();
+        });
     }
 }
 

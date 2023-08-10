@@ -86,6 +86,14 @@ impl SplashScreen {
                     Err(err) => Err(format!("{:?}", err)),
                 };
 
+                let has_pending_shares = match core.get_pending_shares() {
+                    Ok(files) => !files.is_empty(),
+                    Err(err) => {
+                        eprintln!("{:?}", err);
+                        false
+                    }
+                };
+
                 tx.send(SplashUpdate::Status("Loading files...".to_string()))
                     .unwrap();
 
@@ -109,7 +117,8 @@ impl SplashScreen {
                 tx.send(SplashUpdate::Status("Calculating suggested documents...".to_string()))
                     .unwrap();
 
-                let acct_data = AccountScreenInitData { sync_status, files, usage };
+                let acct_data =
+                    AccountScreenInitData { sync_status, files, usage, has_pending_shares };
 
                 tx.send(SplashUpdate::Done((core, Some(acct_data))))
                     .unwrap();
