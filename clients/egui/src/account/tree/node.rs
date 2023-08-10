@@ -306,6 +306,7 @@ impl TreeNode {
                         .unwrap();
                 }
             });
+            ui.close_menu();
         }
 
         let share = ui.add(egui::Button::new(
