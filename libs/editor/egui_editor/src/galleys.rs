@@ -172,6 +172,7 @@ pub fn calc(
 
                             if !head_size_locked {
                                 head_size += text_range_portion.range.len();
+                                head_size_locked = true;
                             }
                         } else {
                             // uncaptured syntax characters have syntax style applied on top of node style
