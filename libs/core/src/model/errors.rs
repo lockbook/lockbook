@@ -42,7 +42,7 @@ impl Display for CoreError {
         match self {
             CoreError::AccountExists => write!(f, "an account already exists"),
             CoreError::AccountNonexistent => write!(f, "you need an account to do that"),
-            CoreError::AccountStringCorrupted => write!(f, "account String Corrupted"),
+            CoreError::AccountStringCorrupted => write!(f, "Account String corrupted"),
             CoreError::AlreadyCanceled => write!(f, "your subscription has already been cancelled"),
             CoreError::AlreadyPremium => write!(f, "your account is already premium"),
             CoreError::AppStoreAccountAlreadyLinked => {

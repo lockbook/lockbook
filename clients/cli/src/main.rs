@@ -1,4 +1,5 @@
 mod account;
+mod debug;
 mod input;
 
 use account::ApiUrl;
@@ -10,10 +11,11 @@ use cli_rs::{
     parser::Cmd,
 };
 
+use input::FileInput;
 use lb::Core;
 
 fn run() -> CliResult<()> {
-    let core = core()?;
+    let core = &core()?;
 
     Command::name("lockbook")
         .subcommand(
@@ -25,35 +27,38 @@ fn run() -> CliResult<()> {
                         .input(Flag::<ApiUrl>::new("api_url")
                             .description("location of the lockbook server you're trying to use. If not provided will check the API_URL env var, and then fall back to https://api.prod.lockbook.net"))
                         .handler(|username, api_url| {
-                            account::new(&core, username.get(), api_url.get())
+                            account::new(core, username.get(), api_url.get())
                         })
                 )
                 .subcommand(
                     Command::name("import")
                         .description("import an existing account by piping in the account string")
-                        .handler(|| account::import(&core))
+                        .handler(|| account::import(core))
                 )
                 .subcommand(
                     Command::name("export")
                         .description("reveal your account's private key")
                         .input(Flag::bool("skip-check"))
-                        .handler(|skip_check| account::export(&core, skip_check.get()))
+                        .handler(|skip_check| account::export(core, skip_check.get()))
                 )
                 .subcommand(
                     Command::name("subscribe")
                         .description("start a monthly subscription for massively increased storage")
-                        .handler(|| account::subscribe(&core))
+                        .handler(|| account::subscribe(core))
                 )
                 .subcommand(
                     Command::name("unsubscribe")
                         .description("cancel an existing subscription")
-                        .handler(|| account::unsubscribe(&core))
+                        .handler(|| account::unsubscribe(core))
                 )
                 .subcommand(
                     Command::name("status")
                         .description("show your account status")
-                        .handler(|| account::status(&core))
+                        .handler(|| account::status(core))
                 )
+        )
+        .subcommand(
+            Command::name("copy")
         )
         .subcommand(
             Command::name("debug")
@@ -65,8 +70,9 @@ fn run() -> CliResult<()> {
                 .subcommand(
                     Command::name("info")
                         .description("print metadata associated with a file")
-                        .input(Arg::str("target"))
-                        .handler(|target| todo!("info for {}", target.get()))
+                        .input(Arg::<FileInput>::name("target")
+                            .completor(|prompt| input::file_completor(core, prompt).unwrap_or(vec![])))
+                        .handler(|target| debug::info(core, target.get()))
                 )
                 .subcommand(
                     Command::name("whoami")
@@ -169,7 +175,7 @@ fn run() -> CliResult<()> {
         .subcommand(
             Command::name("sync")
                 .description("sync your local changes back to lockbook servers")
-                .handler(|| todo!("syncing"))
+                .handler(|| sync(core))
         )
         .with_completions()
         .parse();
@@ -190,4 +196,18 @@ fn core() -> CliResult<Core> {
 
     Core::init(&lb::Config { writeable_path, logs: true, colored_logs: true })
         .map_err(|err| CliError::from(err.msg))
+}
+
+fn sync(core: &Core) -> CliResult<()> {
+    println!("syncing...");
+    core.sync(Some(Box::new(|sp: lb::SyncProgress| {
+        use lb::ClientWorkUnit::*;
+        match sp.current_work_unit {
+            PullMetadata => println!("pulling file tree updates"),
+            PushMetadata => println!("pushing file tree updates"),
+            PullDocument(f) => println!("pulling: {}", f.name),
+            PushDocument(f) => println!("pushing: {}", f.name),
+        };
+    })))?;
+    Ok(())
 }
