@@ -2,6 +2,12 @@ mod account;
 mod debug;
 mod input;
 
+use std::{
+    cell::Cell,
+    io::{self, Write},
+    path::PathBuf,
+};
+
 use account::ApiUrl;
 use cli_rs::{
     arg::Arg,
@@ -12,7 +18,7 @@ use cli_rs::{
 };
 
 use input::FileInput;
-use lb::Core;
+use lb::{Core, Filter, ImportStatus};
 
 fn run() -> CliResult<()> {
     let core = &core()?;
@@ -59,30 +65,36 @@ fn run() -> CliResult<()> {
         )
         .subcommand(
             Command::name("copy")
+                .description("import files from your file system into lockbook")
+                .input(Arg::<PathBuf>::name("disk-path").description("path of file on disk"))
+                .input(Arg::<FileInput>::name("dest")
+                       .description("the path or id of a folder within lockbook to place the file.")
+                       .completor(|prompt| input::file_completor(core, prompt, Some(Filter::FoldersOnly))))
+                .handler(|disk, parent| copy(core, disk.get(), parent.get()))
         )
         .subcommand(
             Command::name("debug")
                 .subcommand(
                     Command::name("validate")
                         .description("helps find invalid states within your lockbook")
-                        .handler(|| todo!("validate"))
+                        .handler(|| debug::validate(core))
                 )
                 .subcommand(
                     Command::name("info")
                         .description("print metadata associated with a file")
                         .input(Arg::<FileInput>::name("target")
-                            .completor(|prompt| input::file_completor(core, prompt).unwrap_or(vec![])))
+                            .completor(|prompt| input::file_completor(core, prompt, None)))
                         .handler(|target| debug::info(core, target.get()))
                 )
                 .subcommand(
                     Command::name("whoami")
                         .description("print who is logged into this lockbook")
-                        .handler(|| todo!("whoami"))
+                        .handler(|| debug::whoami(core))
                 )
                 .subcommand(
                     Command::name("whereami")
                         .description("print information about where this lockbook is stored and it's server url")
-                        .handler(|| todo!("whereami"))
+                        .handler(|| debug::whoami(core))
                 )
         )
         .subcommand(
@@ -196,6 +208,26 @@ fn core() -> CliResult<Core> {
 
     Core::init(&lb::Config { writeable_path, logs: true, colored_logs: true })
         .map_err(|err| CliError::from(err.msg))
+}
+
+fn copy(core: &Core, disk: PathBuf, parent: FileInput) -> CliResult<()> {
+    let parent = parent.find(core)?.id;
+
+    let total = Cell::new(0);
+    let nth_file = Cell::new(0);
+    let update_status = move |status: ImportStatus| match status {
+        ImportStatus::CalculatedTotal(n_files) => total.set(n_files),
+        ImportStatus::StartingItem(disk_path) => {
+            nth_file.set(nth_file.get() + 1);
+            print!("({}/{}) importing: {}... ", nth_file.get(), total.get(), disk_path);
+            io::stdout().flush().unwrap();
+        }
+        ImportStatus::FinishedItem(_meta) => println!("done."),
+    };
+
+    core.import_files(&[disk], parent, &update_status)?;
+
+    Ok(())
 }
 
 fn sync(core: &Core) -> CliResult<()> {

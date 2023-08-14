@@ -5,7 +5,7 @@ use std::{
 };
 
 use cli_rs::cli_error::{CliError, CliResult};
-use lb::{Core, File};
+use lb::{Core, File, Filter};
 
 #[derive(Clone, Debug)]
 pub enum FileInput {
@@ -35,9 +35,9 @@ impl FromStr for FileInput {
     }
 }
 
-pub fn file_completor(core: &Core, prompt: &str) -> CliResult<Vec<String>> {
+pub fn file_completor(core: &Core, prompt: &str, filter: Option<Filter>) -> CliResult<Vec<String>> {
     if prompt.starts_with(|c: char| c.is_ascii_hexdigit()) {
-        return id_completor(core, prompt);
+        return id_completor(core, prompt, filter);
     }
 
     let working_dir = prompt
@@ -50,6 +50,11 @@ pub fn file_completor(core: &Core, prompt: &str) -> CliResult<Vec<String>> {
     let candidates = core
         .get_children(parent.id)?
         .into_iter()
+        .filter(|f| match filter {
+            Some(Filter::FoldersOnly) => f.is_folder(),
+            Some(Filter::DocumentsOnly) => f.is_document(),
+            _ => true,
+        })
         .map(|file| {
             let name = &file.name;
             if file.is_folder() {
@@ -63,11 +68,16 @@ pub fn file_completor(core: &Core, prompt: &str) -> CliResult<Vec<String>> {
     Ok(candidates)
 }
 
-pub fn id_completor(core: &Core, prompt: &str) -> CliResult<Vec<String>> {
+pub fn id_completor(core: &Core, prompt: &str, filter: Option<Filter>) -> CliResult<Vec<String>> {
     // todo: potential optimization opportunity inside core
     Ok(core
         .list_metadatas()?
         .into_iter()
+        .filter(|f| match filter {
+            Some(Filter::FoldersOnly) => f.is_folder(),
+            Some(Filter::DocumentsOnly) => f.is_document(),
+            _ => true,
+        })
         .map(|f| f.id.to_string())
         .filter(|cand| cand.starts_with(prompt))
         .collect())
