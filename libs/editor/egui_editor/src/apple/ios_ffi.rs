@@ -597,13 +597,9 @@ pub unsafe extern "C" fn undo_redo(obj: *mut c_void, redo: bool) {
     let obj = &mut *(obj as *mut WgpuEditor);
 
     if redo {
-        obj.editor
-            .custom_events
-            .push(Modification::Redo);
+        obj.editor.custom_events.push(Modification::Redo);
     } else {
-        obj.editor
-            .custom_events
-            .push(Modification::Undo);
+        obj.editor.custom_events.push(Modification::Undo);
     }
 }
 
