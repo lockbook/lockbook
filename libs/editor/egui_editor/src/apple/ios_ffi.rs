@@ -606,3 +606,21 @@ pub unsafe extern "C" fn undo_redo(obj: *mut c_void, redo: bool) {
             .push(Modification::Undo);
     }
 }
+
+/// # Safety
+/// obj must be a valid pointer to WgpuEditor
+#[no_mangle]
+pub unsafe extern "C" fn can_undo(obj: *mut c_void) -> bool {
+    let obj = &mut *(obj as *mut WgpuEditor);
+
+    !obj.editor.buffer.undo_queue.is_empty()
+}
+
+/// # Safety
+/// obj must be a valid pointer to WgpuEditor
+#[no_mangle]
+pub unsafe extern "C" fn can_redo(obj: *mut c_void) -> bool {
+    let obj = &mut *(obj as *mut WgpuEditor);
+
+    !obj.editor.buffer.redo_stack.is_empty()
+}

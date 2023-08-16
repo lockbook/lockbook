@@ -7,9 +7,7 @@ import UIKit
 
 struct iOSDocumentViewWrapper: View {
     let id: UUID
-    
-    @State var showUndoRedoAlert: Bool = false
-    
+        
     var body: some View {
         DocumentView(id: id, isiPhone: true)
             .onAppear {
@@ -24,38 +22,6 @@ struct iOSDocumentViewWrapper: View {
                 DI.currentDoc.cleanupOldDocs(true, id)
             }
             .iPhoneMarkdownToolbar(id: id)
-            .onShake {
-                showUndoRedoAlert = true
-            }
-            .alert("Would you like to undo or redo changes to your document?", isPresented: Binding(get: { showUndoRedoAlert }, set: {_ in showUndoRedoAlert = false })) {
-                Button("Undo", action: {
-                    DI.currentDoc.undoRedoSelectedDoc(redo: false)
-                })
-                Button("Redo", action: {
-                    DI.currentDoc.undoRedoSelectedDoc(redo: true)
-                })
-                Button("Cancel", role: .cancel, action: {})
-            }
-    }
-}
-
-extension UIDevice {
-    static let deviceDidShakeNotification = Notification.Name(rawValue: "deviceDidShakeNotification")
-}
-
-extension UIWindow {
-    open override func motionEnded(_ motion: UIEvent.EventSubtype, with event: UIEvent?) {
-        super.motionEnded(motion, with: event)
-        NotificationCenter.default.post(name: UIDevice.deviceDidShakeNotification, object: event)
-    }
-}
-
-extension View {
-    func onShake(perform: @escaping () -> Void) -> some View {
-        self
-            .onReceive(NotificationCenter.default.publisher(for: UIDevice.deviceDidShakeNotification)) { _ in
-                perform()
-            }
     }
 }
 #endif
