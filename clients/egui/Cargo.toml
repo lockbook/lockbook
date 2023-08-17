@@ -7,6 +7,7 @@ edition = "2021"
 lb = { package = "lockbook-core", path = "../../libs/core", default-features = false, features=["native-tls"] }
 lbeditor = { package = "egui_editor", path = "../../libs/editor/egui_editor" }
 eframe = "0.22.0"
+egui-notify= "0.7.0"
 egui-winit = "0.22.0"
 egui_extras = { version = "0.22.0", features = ["image"] }
 image = { version = "0.24", default-features = false, features = ["png", "jpeg", "gif", "webp", "bmp", "ico"] }

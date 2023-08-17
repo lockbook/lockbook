@@ -37,7 +37,7 @@ impl Default for TreeState {
 
 pub enum TreeUpdate {
     RevealFileDone((Vec<lb::Uuid>, lb::Uuid)),
-    ExportFile((lb::Uuid, PathBuf)),
+    ExportFile((lb::File, PathBuf)),
 }
 
 impl TreeState {

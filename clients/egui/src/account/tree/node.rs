@@ -298,7 +298,7 @@ impl TreeNode {
 
         if ui.button("Export").clicked() {
             let update_tx = state.update_tx.clone();
-            let exported_file = self.file.id;
+            let exported_file = self.file.clone();
             thread::spawn(move || {
                 if let Some(folder) = FileDialog::new().pick_folder() {
                     update_tx

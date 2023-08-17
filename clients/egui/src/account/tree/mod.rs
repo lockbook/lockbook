@@ -48,32 +48,6 @@ impl FileTree {
     }
 
     pub fn show(&mut self, ui: &mut egui::Ui) -> NodeResponse {
-        while let Ok(update) = self.state.update_rx.try_recv() {
-            match update {
-                TreeUpdate::RevealFileDone((expanded_files, selected)) => {
-                    self.state.request_scroll = true;
-
-                    expanded_files.iter().for_each(|f| {
-                        self.state.expanded.insert(*f);
-                    });
-                    self.state.selected.clear();
-                    self.state.selected.insert(selected);
-                }
-                TreeUpdate::ExportFile((exported_file, dest)) => {
-                    match self
-                        .core
-                        .export_file(exported_file, dest.clone(), true, None)
-                    {
-                        Ok(_) => {
-                            // todo: replace okay message with a toast
-                            println!("exported {} to {}", exported_file, dest.to_string_lossy());
-                        }
-                        Err(err) => eprintln!("{:#?}", err.kind),
-                    }
-                }
-            }
-        }
-
         ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
         let mut is_hovered = false;
         let mut r = egui::Frame::none().show(ui, |ui| {
@@ -116,6 +90,31 @@ impl FileTree {
             }
         }
         ui.expand_to_include_rect(ui.available_rect_before_wrap());
+
+        while let Ok(update) = self.state.update_rx.try_recv() {
+            match update {
+                TreeUpdate::RevealFileDone((expanded_files, selected)) => {
+                    self.state.request_scroll = true;
+
+                    expanded_files.iter().for_each(|f| {
+                        self.state.expanded.insert(*f);
+                    });
+                    self.state.selected.clear();
+                    self.state.selected.insert(selected);
+                }
+                TreeUpdate::ExportFile((exported_file, dest)) => {
+                    match self
+                        .core
+                        .export_file(exported_file.id, dest.clone(), true, None)
+                    {
+                        Ok(_) => {
+                            r.inner.export_file = Some(Ok((exported_file, dest)));
+                        }
+                        Err(err) => r.inner.export_file = Some(Err(err)),
+                    }
+                }
+            }
+        }
         r.inner
     }
 
