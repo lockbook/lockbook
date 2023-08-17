@@ -484,7 +484,7 @@ impl AccountScreen {
         if let Some(res) = resp.export_file {
             match res {
                 Ok((src, dest)) => self.toasts.success(format!(
-                    "Exported {} to \"{}\"",
+                    "Exported \"{}\" to \"{}\"",
                     src.name,
                     dest.file_name()
                         .unwrap_or(OsStr::new("/"))
