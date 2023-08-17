@@ -2,7 +2,6 @@ mod node;
 mod response;
 mod state;
 
-use std::sync::mpsc::{self, Receiver, Sender};
 use std::thread;
 
 pub use self::node::TreeNode;
@@ -12,27 +11,20 @@ use eframe::egui;
 use self::response::NodeResponse;
 use self::state::*;
 
-pub enum TreeUpdate {
-    RevealFileDone((Vec<lb::Uuid>, lb::Uuid)),
-}
-
 pub struct FileTree {
     pub root: TreeNode,
-    update_tx: Sender<TreeUpdate>,
-    update_rx: Receiver<TreeUpdate>,
     state: TreeState,
+    core: lb::Core,
 }
 
 impl FileTree {
-    pub fn new(all_metas: Vec<lb::File>) -> Self {
+    pub fn new(all_metas: Vec<lb::File>, core: &lb::Core) -> Self {
         let root = create_root_node(all_metas);
 
         let mut state = TreeState::default();
         state.expanded.insert(root.file.id);
 
-        let (update_tx, update_rx) = mpsc::channel();
-
-        Self { root, state, update_tx, update_rx }
+        Self { root, state, core: core.clone() }
     }
 
     pub fn expand_to(&mut self, id: lb::Uuid) {
@@ -56,20 +48,6 @@ impl FileTree {
     }
 
     pub fn show(&mut self, ui: &mut egui::Ui) -> NodeResponse {
-        while let Ok(update) = self.update_rx.try_recv() {
-            match update {
-                TreeUpdate::RevealFileDone((expanded_files, selected)) => {
-                    self.state.request_scroll = true;
-
-                    expanded_files.iter().for_each(|f| {
-                        self.state.expanded.insert(*f);
-                    });
-                    self.state.selected.clear();
-                    self.state.selected.insert(selected);
-                }
-            }
-        }
-
         ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
         let mut is_hovered = false;
         let mut r = egui::Frame::none().show(ui, |ui| {
@@ -112,6 +90,31 @@ impl FileTree {
             }
         }
         ui.expand_to_include_rect(ui.available_rect_before_wrap());
+
+        while let Ok(update) = self.state.update_rx.try_recv() {
+            match update {
+                TreeUpdate::RevealFileDone((expanded_files, selected)) => {
+                    self.state.request_scroll = true;
+
+                    expanded_files.iter().for_each(|f| {
+                        self.state.expanded.insert(*f);
+                    });
+                    self.state.selected.clear();
+                    self.state.selected.insert(selected);
+                }
+                TreeUpdate::ExportFile((exported_file, dest)) => {
+                    match self
+                        .core
+                        .export_file(exported_file.id, dest.clone(), true, None)
+                    {
+                        Ok(_) => {
+                            r.inner.export_file = Some(Ok((exported_file, dest)));
+                        }
+                        Err(err) => r.inner.export_file = Some(Err(err)),
+                    }
+                }
+            }
+        }
         r.inner
     }
 
@@ -178,7 +181,7 @@ impl FileTree {
     /// expand the parents of the file and select it
     pub fn reveal_file(&mut self, id: lb::Uuid, core: &lb::Core) {
         let core = core.clone();
-        let update_tx = self.update_tx.clone();
+        let update_tx = self.state.update_tx.clone();
         thread::spawn(move || {
             let mut curr = core.get_file_by_id(id).unwrap();
             let mut expanded = vec![];
