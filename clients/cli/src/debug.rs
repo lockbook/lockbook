@@ -38,4 +38,3 @@ pub fn whereami(core: &Core) -> Result<(), CliError> {
     println!("Core: {}", config.writeable_path);
     Ok(())
 }
-
