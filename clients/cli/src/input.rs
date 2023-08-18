@@ -1,5 +1,5 @@
 use std::{
-    fmt::{Debug, Display},
+    fmt::{self, Debug, Display, Formatter},
     io::{self, Write},
     str::FromStr,
 };
@@ -11,6 +11,15 @@ use lb::{Core, File, Filter};
 pub enum FileInput {
     Id(lb::Uuid),
     Path(String),
+}
+
+impl Display for FileInput {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        match self {
+            FileInput::Id(inner) => write!(f, "{inner}"),
+            FileInput::Path(inner) => write!(f, "{inner}"),
+        }
+    }
 }
 
 impl FileInput {
@@ -36,7 +45,7 @@ impl FromStr for FileInput {
 }
 
 pub fn file_completor(core: &Core, prompt: &str, filter: Option<Filter>) -> CliResult<Vec<String>> {
-    if prompt.starts_with(|c: char| c.is_ascii_hexdigit()) {
+    if !prompt.is_empty() && prompt.chars().all(|c| c == '-' || c.is_ascii_hexdigit()) {
         return id_completor(core, prompt, filter);
     }
 
@@ -52,7 +61,8 @@ pub fn file_completor(core: &Core, prompt: &str, filter: Option<Filter>) -> CliR
         .into_iter()
         .filter(|f| match filter {
             Some(Filter::FoldersOnly) => f.is_folder(),
-            Some(Filter::DocumentsOnly) => f.is_document(),
+            // documents could be inside folders
+            // leaf nodes only doesn't make sense in this context
             _ => true,
         })
         .map(|file| {
