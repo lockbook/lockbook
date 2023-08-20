@@ -53,11 +53,8 @@ pub fn calc(
     let mut past_selection_start = false;
     let mut past_selection_end = false;
 
-    // head_size = head size of first ast node if it has a captured head, otherwise zero
-    // tail_size = tail size of last ast_node if it has a captured tail, otherwise zero
+    // head_size = head size of first ast node if it produces an annotation
     let mut head_size: RelCharOffset = 0.into();
-    let mut head_size_locked: bool = false;
-    let mut tail_size: RelCharOffset = 0.into();
 
     let mut annotation: Option<Annotation> = Default::default();
     let mut annotation_text_format = Default::default();
@@ -145,14 +142,16 @@ pub fn calc(
                 }
 
                 // only the first portion of a head text range gets that range's annotation
+                let mut is_annotation = false;
                 if text_range.range_type == AstTextRangeType::Head
                     && text_range.range.0 == text_range_portion.range.0
                     && captured
                 {
                     if annotation.is_none() {
+                        annotation = text_range_portion.annotation(ast);
                         annotation_text_format = text_format.clone();
+                        is_annotation = annotation.is_some();
                     }
-                    annotation = text_range_portion.annotation(ast).or(annotation);
                 }
 
                 // render tab-only text as spaces
@@ -172,48 +171,28 @@ pub fn calc(
                         if captured {
                             // need to append empty text to layout so that the style is applied
                             layout.append("", 0.0, text_format);
-
-                            if !head_size_locked {
-                                head_size += text_range_portion.range.len();
-                                head_size_locked = true;
-                            }
                         } else {
                             // uncaptured syntax characters have syntax style applied on top of node style
                             RenderStyle::Syntax.apply_style(&mut text_format, appearance);
                             layout.append(&text, 0.0, text_format);
-
-                            head_size_locked = true;
                         }
 
-                        if !text_range_portion.range.is_empty() {
-                            tail_size = 0.into();
+                        if is_annotation {
+                            head_size = text_range_portion.range.len();
                         }
                     }
                     AstTextRangeType::Tail => {
                         if captured {
                             // need to append empty text to layout so that the style is applied
                             layout.append("", 0.0, text_format);
-
-                            tail_size += text_range_portion.range.len();
                         } else {
                             // uncaptured syntax characters have syntax style applied on top of node style
                             RenderStyle::Syntax.apply_style(&mut text_format, appearance);
                             layout.append(&text, 0.0, text_format);
-
-                            tail_size = 0.into()
-                        }
-
-                        if !text_range_portion.range.is_empty() {
-                            head_size_locked = true;
                         }
                     }
                     AstTextRangeType::Text => {
                         layout.append(&text, 0.0, text_format);
-
-                        if !text_range_portion.range.is_empty() {
-                            head_size_locked = true;
-                            tail_size = 0.into();
-                        }
                     }
                 }
             }
@@ -232,7 +211,7 @@ pub fn calc(
                 job: mem::take(&mut layout),
                 annotation: mem::take(&mut annotation),
                 head_size: mem::take(&mut head_size),
-                tail_size: mem::take(&mut tail_size),
+                tail_size: 0.into(),
                 annotation_text_format: mem::take(&mut annotation_text_format),
             };
             result
@@ -241,7 +220,6 @@ pub fn calc(
 
             paragraph_idx += 1;
             emit_galley = false;
-            head_size_locked = false;
         }
 
         if paragraph_idx == bounds.paragraphs.len() || maybe_text_range.is_none() {
