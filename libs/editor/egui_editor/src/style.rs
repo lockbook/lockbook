@@ -98,7 +98,7 @@ pub enum ListItemType {
 impl ListItemType {
     pub fn head(&self) -> &'static str {
         match self {
-            Self::Bulleted => "*",
+            Self::Bulleted => "* ",
             Self::Numbered => "1. ",
             Self::Todo => "* [ ] ",
         }
