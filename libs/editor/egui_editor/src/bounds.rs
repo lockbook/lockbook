@@ -187,6 +187,19 @@ pub fn calc_text(ast: &Ast, appearance: &Appearance, segs: &UnicodeSegs) -> Text
         // empty range at end of doc
         result.push((segs.last_cursor_position(), segs.last_cursor_position()));
     }
+
+    // if let Some(first) = result.first() {
+    //     if first.start() != 0 {
+    //         // prepend empty range so that doc start is always a valid cursor location
+    //         result.splice(0..0, iter::once((0.into(), 0.into())));
+    //     }
+    // }
+    // if let Some(last) = result.last() {
+    //     if last.end() != segs.last_cursor_position() {
+    //         // append empty range so that doc end is always a valid cursor location
+    //         result.push((segs.last_cursor_position(), segs.last_cursor_position()));
+    //     }
+    // }
     if result.is_empty() {
         result = vec![(0.into(), 0.into())];
     }
