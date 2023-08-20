@@ -139,36 +139,25 @@ impl AccountScreen {
 
                     separator(ui);
 
-                        ui.vertical(|ui| {
-                            ui.add_space(15.0);
+                    self.show_nav_panel(ui);
 
-                            if let Some(&file) = self.full_search_doc.show(ui, &self.core) {
-                                self.open_file(file, ctx);
-                            }
-                          
+                    ui.vertical(|ui| {
+                        ui.add_space(15.0);
+                        if let Some(&file) = self.full_search_doc.show(ui, &self.core) {
+                            self.open_file(file, ctx);
+                        }
+                        ui.add_space(15.0);
+
+                        if self.full_search_doc.results.is_empty() {
                             if let Some(file) = self.suggested.show(ui) {
                                 self.open_file(file, ctx);
                             }
-                          
                             ui.add_space(15.0);
-
-                            if self.full_search_doc.results.is_empty() {
-                                if let Some(file) = self.suggested.show(ui) {
-                                    self.open_file(file, ctx);
-                                }
-                                ui.add_space(20.0);
-                                self.show_tree(ui);
-                            }
-                        });
+                            self.show_tree(ui);
+                        }
                     });
-                })
-                .response
-                .rect
-                .max
-                .x;
-        }
-
-
+                });
+            });
 
         egui::CentralPanel::default()
             .frame(egui::Frame::default().fill(ctx.style().visuals.widgets.noninteractive.bg_fill))

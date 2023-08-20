@@ -96,7 +96,7 @@ impl SuggestedDocs {
                         ui.horizontal(|ui| {
                             for f in self.recs.iter() {
                                 let r = egui::Frame::default()
-                                    .outer_margin(egui::Margin::symmetric(10.0, 20.0))
+                                    .outer_margin(egui::Margin::symmetric(10.0, 15.0))
                                     .show(ui, |ui| Self::suggested_card(ui, f));
                                 if r.inner.is_some() {
                                     return r.inner;
