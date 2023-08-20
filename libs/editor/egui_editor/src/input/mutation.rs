@@ -67,7 +67,18 @@ pub fn calc(
                 ast,
                 &mut mutation,
             );
-            if style.node_type() != MarkdownNodeType::Inline(InlineNodeType::Link) {
+            if current_cursor.selection.is_empty() {
+                // toggling style at end of styled range moves cursor to outside of styled range
+                if let Some(text_range) = ast.text_range_at_offset(current_cursor.selection.1) {
+                    if text_range.node(ast).node_type() == style.node_type()
+                        && text_range.range_type == AstTextRangeType::Tail
+                    {
+                        mutation.push(SubMutation::Cursor {
+                            cursor: (text_range.range.end(), text_range.range.end()).into(),
+                        });
+                    }
+                }
+            } else if style.node_type() != MarkdownNodeType::Inline(InlineNodeType::Link) {
                 // toggling link style leaves cursor where you can type link destination
                 mutation.push(SubMutation::Cursor { cursor: current_cursor });
             }
@@ -582,8 +593,8 @@ fn apply_style(
     mutation: &mut Vec<SubMutation>,
 ) {
     if buffer.is_empty() {
-        insert_head(cursor.selection.start(), style.clone(), buffer, mutation);
-        insert_tail(cursor.selection.start(), style, buffer, mutation);
+        insert_head(cursor.selection.start(), style.clone(), mutation);
+        insert_tail(cursor.selection.start(), style, mutation);
         return;
     }
 
@@ -646,24 +657,24 @@ fn apply_style(
     if unapply {
         if let Some(last_start_ancestor) = last_start_ancestor {
             if ast.nodes[last_start_ancestor].text_range.start() < cursor.selection.start() {
-                insert_tail(cursor.selection.start(), style.clone(), buffer, mutation);
+                insert_tail(cursor.selection.start(), style.clone(), mutation);
             } else {
                 dehead_ast_node(last_start_ancestor, ast, mutation);
             }
         }
         if let Some(last_end_ancestor) = last_end_ancestor {
             if ast.nodes[last_end_ancestor].text_range.end() > cursor.selection.end() {
-                insert_head(cursor.selection.end(), style.clone(), buffer, mutation);
+                insert_head(cursor.selection.end(), style.clone(), mutation);
             } else {
                 detail_ast_node(last_end_ancestor, ast, mutation);
             }
         }
     } else {
         if last_start_ancestor.is_none() && start_range.range_type == AstTextRangeType::Text {
-            insert_head(cursor.selection.start(), style.clone(), buffer, mutation)
+            insert_head(cursor.selection.start(), style.clone(), mutation)
         }
         if last_end_ancestor.is_none() && end_range.range_type == AstTextRangeType::Text {
-            insert_tail(cursor.selection.end(), style.clone(), buffer, mutation)
+            insert_tail(cursor.selection.end(), style.clone(), mutation)
         }
     }
 
@@ -711,36 +722,14 @@ fn detail_ast_node(node_idx: usize, ast: &Ast, mutation: &mut Vec<SubMutation>) 
     mutation.push(SubMutation::Insert { text: "".to_string(), advance_cursor: false });
 }
 
-fn insert_head(
-    offset: DocCharOffset, style: MarkdownNode, buffer: &SubBuffer, mutation: &mut Vec<SubMutation>,
-) {
-    let mut text = style.node_type().head().to_string();
-
-    // add leading/trailing whitespace if needed
-    if style.node_type().needs_whitespace()
-        && offset != 0
-        && !buffer[(offset - 1, offset)].contains(|c: char| c.is_whitespace())
-    {
-        text = " ".to_string() + &text;
-    }
-
+fn insert_head(offset: DocCharOffset, style: MarkdownNode, mutation: &mut Vec<SubMutation>) {
+    let text = style.node_type().head().to_string();
     mutation.push(SubMutation::Cursor { cursor: offset.into() });
     mutation.push(SubMutation::Insert { text, advance_cursor: true });
 }
 
-fn insert_tail(
-    offset: DocCharOffset, style: MarkdownNode, buffer: &SubBuffer, mutation: &mut Vec<SubMutation>,
-) {
-    let mut text = style.node_type().tail().to_string();
-
-    // add leading/trailing whitespace if needed
-    if style.node_type().needs_whitespace()
-        && offset != buffer.segs.last_cursor_position()
-        && !buffer[(offset, offset + 1)].contains(|c: char| c.is_whitespace())
-    {
-        text += " ";
-    }
-
+fn insert_tail(offset: DocCharOffset, style: MarkdownNode, mutation: &mut Vec<SubMutation>) {
+    let text = style.node_type().tail().to_string();
     if style.node_type() == MarkdownNodeType::Inline(InlineNodeType::Link) {
         // leave cursor in link tail where you can type the link destination
         mutation.push(SubMutation::Cursor { cursor: offset.into() });
