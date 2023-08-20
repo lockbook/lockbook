@@ -197,8 +197,9 @@ impl Appearance {
         self.bullet_radius.unwrap_or(2.5)
     }
 
-    pub fn checkbox_dim(&self) -> f32 {
-        self.checkbox_dim.unwrap_or(12.0)
+    pub fn checkbox_dim(&self, touch_mode: bool) -> f32 {
+        self.checkbox_dim
+            .unwrap_or(if touch_mode { 16.0 } else { 12.0 })
     }
 
     pub fn checkbox_rounding(&self) -> f32 {

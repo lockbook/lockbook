@@ -9,7 +9,7 @@ use egui::{Align2, Color32, FontId, Pos2, Rect, Rounding, Sense, Stroke, Ui, Vec
 use pulldown_cmark::HeadingLevel;
 
 impl Editor {
-    pub fn draw_text(&mut self, mut ui_size: Vec2, ui: &mut Ui) {
+    pub fn draw_text(&mut self, mut ui_size: Vec2, ui: &mut Ui, touch_mode: bool) {
         let bullet_radius = self.appearance.bullet_radius();
         for galley in &self.galleys.galleys {
             // draw annotations
@@ -49,13 +49,13 @@ impl Editor {
                         }
                         ListItem::Todo(checked) => {
                             ui.painter().rect_filled(
-                                galley.checkbox_bounds(&self.appearance),
+                                galley.checkbox_bounds(touch_mode, &self.appearance),
                                 self.appearance.checkbox_rounding(),
                                 self.appearance.checkbox_bg(),
                             );
                             if *checked {
                                 ui.painter().line_segment(
-                                    galley.checkbox_slash(&self.appearance),
+                                    galley.checkbox_slash(touch_mode, &self.appearance),
                                     Stroke {
                                         width: self.appearance.checkbox_slash_width(),
                                         color: self.appearance.text(),
