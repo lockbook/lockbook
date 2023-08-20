@@ -27,6 +27,7 @@ fn run() -> CliResult<()> {
     let core = &core()?;
 
     Command::name("lockbook")
+        .description("The private, polished note-taking platform.") 
         .subcommand(
             Command::name("account")
                 .description("account management commands")
@@ -77,6 +78,7 @@ fn run() -> CliResult<()> {
         )
         .subcommand(
             Command::name("debug")
+                .description("investigative commands")
                 .subcommand(
                     Command::name("validate")
                         .description("helps find invalid states within your lockbook")
