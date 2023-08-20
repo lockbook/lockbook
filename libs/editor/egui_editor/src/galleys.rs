@@ -193,15 +193,18 @@ pub fn calc(
                         if captured {
                             // need to append empty text to layout so that the style is applied
                             layout.append("", 0.0, text_format);
+
+                            tail_size += text_range_portion.range.len();
                         } else {
                             // uncaptured syntax characters have syntax style applied on top of node style
                             RenderStyle::Syntax.apply_style(&mut text_format, appearance);
                             layout.append(&text, 0.0, text_format);
+
+                            tail_size = 0.into()
                         }
 
                         if !text_range_portion.range.is_empty() {
                             head_size_locked = true;
-                            tail_size += text_range_portion.range.len();
                         }
                     }
                     AstTextRangeType::Text => {
