@@ -182,7 +182,7 @@ impl Appearance {
     }
 
     pub fn strikethrough(&self) -> Color32 {
-        self.strikethrough.unwrap_or(PINK).get(self.current_theme)
+        self.strikethrough.unwrap_or(BLACK).get(self.current_theme)
     }
 
     pub fn link(&self) -> Color32 {
