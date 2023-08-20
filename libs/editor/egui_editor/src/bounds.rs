@@ -9,7 +9,6 @@ use crate::unicode_segs::UnicodeSegs;
 use crate::Editor;
 use egui::epaint::text::cursor::RCursor;
 use std::collections::HashSet;
-use std::iter;
 use unicode_segmentation::UnicodeSegmentation;
 
 pub type Words = Vec<(DocCharOffset, DocCharOffset)>;
@@ -146,15 +145,27 @@ pub fn calc_paragraphs(buffer: &SubBuffer, ast: &Ast) -> Paragraphs {
 
 pub fn calc_text(ast: &Ast, appearance: &Appearance, segs: &UnicodeSegs) -> Text {
     let mut result = vec![];
+    let mut last_range_pushed = false;
     for text_range in ast.iter_text_ranges() {
-        if text_range.range_type == AstTextRangeType::Text
+        let this_range_pushed = if text_range.range_type == AstTextRangeType::Text
             || !appearance
                 .markdown_capture()
                 .contains(&text_range.node(ast).node_type())
         {
-            // text ranges and uncaptured syntax ranges
+            // text range or uncaptured syntax range
             result.push(text_range.range);
-        } else if text_range.range_type == AstTextRangeType::Tail {
+            true
+        } else {
+            false
+        };
+
+        if !this_range_pushed && !last_range_pushed {
+            // empty range between captured ranges
+            result.push((text_range.range.0, text_range.range.0));
+        }
+        last_range_pushed = this_range_pushed;
+
+        if text_range.range_type == AstTextRangeType::Tail {
             if let MarkdownNode::Inline(InlineNode::Link(_, _, title)) = text_range.node(ast) {
                 // empty range at end of text in link url
                 // [title](http://url.com "title")
@@ -172,18 +183,23 @@ pub fn calc_text(ast: &Ast, appearance: &Appearance, segs: &UnicodeSegs) -> Text
         }
     }
 
-    if let Some(first) = result.first() {
-        if first.start() != 0 {
-            // prepend empty range so that doc start is always a valid cursor location
-            result.splice(0..0, iter::once((0.into(), 0.into())));
-        }
+    if !last_range_pushed {
+        // empty range at end of doc
+        result.push((segs.last_cursor_position(), segs.last_cursor_position()));
     }
-    if let Some(last) = result.last() {
-        if last.end() != segs.last_cursor_position() {
-            // append empty range so that doc end is always a valid cursor location
-            result.push((segs.last_cursor_position(), segs.last_cursor_position()));
-        }
-    }
+
+    // if let Some(first) = result.first() {
+    //     if first.start() != 0 {
+    //         // prepend empty range so that doc start is always a valid cursor location
+    //         result.splice(0..0, iter::once((0.into(), 0.into())));
+    //     }
+    // }
+    // if let Some(last) = result.last() {
+    //     if last.end() != segs.last_cursor_position() {
+    //         // append empty range so that doc end is always a valid cursor location
+    //         result.push((segs.last_cursor_position(), segs.last_cursor_position()));
+    //     }
+    // }
     if result.is_empty() {
         result = vec![(0.into(), 0.into())];
     }
@@ -262,7 +278,7 @@ pub enum BoundCase {
         range_after: (DocCharOffset, DocCharOffset),
     },
     // xx | yy
-    BewteenRanges {
+    BetweenRanges {
         range_before: (DocCharOffset, DocCharOffset),
         range_after: (DocCharOffset, DocCharOffset),
     },
@@ -338,7 +354,7 @@ impl DocCharOffset {
                 }
                 BoundCase::AtEndOfRangeBefore { range_before, .. } => Some(range_before),
                 BoundCase::AtStartOfRangeAfter { range_after, .. } => Some(range_after),
-                BoundCase::BewteenRanges { range_before, range_after } => {
+                BoundCase::BetweenRanges { range_before, range_after } => {
                     if backwards {
                         Some(range_before)
                     } else {
@@ -419,7 +435,7 @@ impl DocCharOffset {
                     Some((self, self + 1))
                 }
             }
-            BoundCase::BewteenRanges { range_before, range_after } => {
+            BoundCase::BetweenRanges { range_before, range_after } => {
                 Some((range_before.end(), range_after.start()))
             }
         }
@@ -469,7 +485,7 @@ impl DocCharOffset {
                 } else if self == range_after.start() {
                     BoundCase::AtStartOfRangeAfter { range_before, range_after }
                 } else {
-                    BoundCase::BewteenRanges { range_before, range_after }
+                    BoundCase::BetweenRanges { range_before, range_after }
                 }
             }
         }
