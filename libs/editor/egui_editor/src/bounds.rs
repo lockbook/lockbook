@@ -98,7 +98,7 @@ pub fn calc_lines(galleys: &Galleys, ast: &Ast, text: &Text) -> Lines {
 
             // if the range bounds are in the middle of a syntax sequence, expand the range to include the whole sequence
             // this supports selecting a line that starts or ends with a syntax sequence that's captured until the selection happens
-            while let Some(text_range) = text_range_iter.next() {
+            for text_range in text_range_iter.by_ref() {
                 if text_range.range.start() > range.end() {
                     break;
                 }
