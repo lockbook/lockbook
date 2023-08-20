@@ -14,7 +14,7 @@ use super::canonical::Bound;
 pub trait ClickChecker {
     fn ui(&self, pos: Pos2) -> bool; // was the click even in the ui?
     fn text(&self, pos: Pos2) -> Option<usize>; // returns galley index
-    fn checkbox(&self, pos: Pos2) -> Option<usize>; // returns galley index of checkbox
+    fn checkbox(&self, pos: Pos2, touch_mode: bool) -> Option<usize>; // returns galley index of checkbox
     fn link(&self, pos: Pos2) -> Option<String>; // returns url to open
 }
 
@@ -55,10 +55,13 @@ impl<'a> ClickChecker for &'a EditorClickChecker<'a> {
         None
     }
 
-    fn checkbox(&self, pos: Pos2) -> Option<usize> {
+    fn checkbox(&self, pos: Pos2, touch_mode: bool) -> Option<usize> {
         for (galley_idx, galley) in self.galleys.galleys.iter().enumerate() {
             if let Some(Annotation::Item(ListItem::Todo(_), ..)) = galley.annotation {
-                if galley.checkbox_bounds(self.appearance).contains(pos) {
+                if galley
+                    .checkbox_bounds(touch_mode, self.appearance)
+                    .contains(pos)
+                {
                     return Some(galley_idx);
                 }
             }

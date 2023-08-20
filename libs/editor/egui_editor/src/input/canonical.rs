@@ -281,7 +281,7 @@ pub fn calc(
             pointer_state.release();
             let location = Location::Pos(*pos);
 
-            if let Some(galley_idx) = click_checker.checkbox(*pos) {
+            if let Some(galley_idx) = click_checker.checkbox(*pos, touch_mode) {
                 Some(Modification::ToggleCheckbox(galley_idx))
             } else if let Some(url) = click_checker.link(*pos) {
                 if touch_mode || click_mods.command {
@@ -388,7 +388,7 @@ mod test {
             self.text
         }
 
-        fn checkbox(&self, _pos: Pos2) -> Option<usize> {
+        fn checkbox(&self, _pos: Pos2, _touch_mode: bool) -> Option<usize> {
             self.checkbox
         }
 

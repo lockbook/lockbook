@@ -4,14 +4,13 @@ use crate::bounds::{Bounds, Text};
 use crate::buffer::SubBuffer;
 use crate::galleys::{GalleyInfo, Galleys};
 use crate::input::canonical::{Increment, Offset};
-use crate::offset_types::{DocCharOffset, RangeExt};
+use crate::offset_types::DocCharOffset;
 use egui::epaint::text::cursor::Cursor as EguiCursor;
 use egui::{Pos2, Vec2};
 
 impl DocCharOffset {
-    #[allow(clippy::too_many_arguments)]
     pub fn advance(
-        self, maybe_x_target: &mut Option<f32>, offset: Offset, backwards: bool, fix: bool,
+        self, maybe_x_target: &mut Option<f32>, offset: Offset, backwards: bool,
         buffer: &SubBuffer, galleys: &Galleys, bounds: &Bounds,
     ) -> Self {
         let maybe_x_target_value = mem::take(maybe_x_target);
@@ -27,7 +26,6 @@ impl DocCharOffset {
                 result
             }
         }
-        .fix(backwards, fix, galleys)
     }
 
     fn advance_by_line(
@@ -84,46 +82,6 @@ impl DocCharOffset {
             }
 
             galleys.char_offset_by_galley_and_cursor(new_galley_idx, &new_ecursor, text)
-        }
-    }
-
-    fn fix(self, prefer_backwards: bool, fix: bool, galleys: &Galleys) -> Self {
-        let galley_idx = galleys.galley_at_char(self);
-        let galley = &galleys[galley_idx];
-        let galley_text_range = galley.text_range();
-
-        if self < galley_text_range.start() {
-            if prefer_backwards {
-                if !fix && galley_idx == 0 {
-                    // move cursor to beginning of annotation text (invalid at end of frame)
-                    galley.range.start()
-                } else if galley_idx == 0 {
-                    self
-                } else {
-                    // move cursor backwards into text of preceding galley
-                    galleys[galley_idx - 1].text_range().end()
-                }
-            } else {
-                // move cursor forwards into galley text
-                galley_text_range.start()
-            }
-        } else if self > galley_text_range.end() {
-            if !prefer_backwards {
-                if !fix && galley_idx == galleys.len() - 1 {
-                    // move cursor to end of annotation text (invalid at end of frame)
-                    galley.range.end()
-                } else if galley_idx == galleys.len() - 1 {
-                    self
-                } else {
-                    // move cursor forwards into text of next galley
-                    galleys[galley_idx + 1].text_range().start()
-                }
-            } else {
-                // move cursor backwards into galley text
-                galley_text_range.end()
-            }
-        } else {
-            self
         }
     }
 
