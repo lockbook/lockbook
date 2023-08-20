@@ -416,6 +416,7 @@ impl Debug for RelCharOffset {
 
 pub trait RangeExt<Element: Sub<Element>>: Ord + Sized {
     fn contains(&self, value: Element) -> bool;
+    fn intersects(&self, other: &(Element, Element)) -> bool;
     fn start(&self) -> Element;
     fn end(&self) -> Element;
     fn len(&self) -> <Element as Sub>::Output;
@@ -429,6 +430,11 @@ where
     /// returns whether the range includes the value, treating the (start, end) bounds as (inclusive, inclusive)
     fn contains(&self, value: T) -> bool {
         self.start() <= value && value <= self.end()
+    }
+
+    /// returns whether the range intersects another range, treating the (start, end) bounds as (inclusive, inclusive)
+    fn intersects(&self, other: &(T, T)) -> bool {
+        self.start() <= other.end() && other.start() <= self.end()
     }
 
     fn start(&self) -> T {

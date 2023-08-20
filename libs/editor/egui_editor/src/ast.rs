@@ -1,4 +1,5 @@
 use crate::buffer::SubBuffer;
+use crate::input::cursor::Cursor;
 use crate::layouts::Annotation;
 use crate::offset_types::{DocCharOffset, RangeExt};
 use crate::style::{
@@ -508,6 +509,14 @@ impl AstTextRange {
             }
             MarkdownNode::Block(BlockNode::Rule) => Some(Annotation::Rule),
             _ => None,
+        }
+    }
+
+    pub fn intersects_selection(&self, ast: &Ast, cursor: Cursor) -> bool {
+        if let Some(&ast_node_idx) = self.ancestors.last() {
+            ast.nodes[ast_node_idx].range.intersects(&cursor.selection)
+        } else {
+            false
         }
     }
 }

@@ -266,9 +266,9 @@ code block
 
 fin"#;
 pub static TEST_MARKDOWN_50: &str = r#"# Editor Demo
-Featuring:
+## Featuring a **bold** subheading,
 1. a **bold** list item,
-    * an *italic* list item,
+    * an *italic and **bold italic*** list item,
     - [ ] a `code` list item,
 
 ```
