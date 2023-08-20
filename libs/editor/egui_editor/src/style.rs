@@ -21,8 +21,8 @@ impl MarkdownNodeType {
             Self::Document => "",
             Self::Paragraph => "",
             Self::Inline(InlineNodeType::Code) => "`",
-            Self::Inline(InlineNodeType::Bold) => "__",
-            Self::Inline(InlineNodeType::Italic) => "_",
+            Self::Inline(InlineNodeType::Bold) => "**",
+            Self::Inline(InlineNodeType::Italic) => "*",
             Self::Inline(InlineNodeType::Strikethrough) => "~~",
             Self::Inline(InlineNodeType::Link) => "[",
             Self::Inline(InlineNodeType::Image) => {
@@ -47,8 +47,8 @@ impl MarkdownNodeType {
             Self::Document => "",
             Self::Paragraph => "",
             Self::Inline(InlineNodeType::Code) => "`",
-            Self::Inline(InlineNodeType::Bold) => "__",
-            Self::Inline(InlineNodeType::Italic) => "_",
+            Self::Inline(InlineNodeType::Bold) => "**",
+            Self::Inline(InlineNodeType::Italic) => "*",
             Self::Inline(InlineNodeType::Strikethrough) => "~~",
             Self::Inline(InlineNodeType::Link) => "]()",
             Self::Inline(InlineNodeType::Image) => {
@@ -62,10 +62,6 @@ impl MarkdownNodeType {
             Self::Block(BlockNodeType::ListItem(..)) => "",
             Self::Block(BlockNodeType::Rule) => "",
         }
-    }
-
-    pub fn needs_whitespace(&self) -> bool {
-        matches!(self, Self::Inline(InlineNodeType::Bold | InlineNodeType::Italic))
     }
 }
 
