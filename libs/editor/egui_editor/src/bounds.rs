@@ -1,8 +1,9 @@
-use crate::appearance::Appearance;
+use crate::appearance::{Appearance, CaptureCondition};
 use crate::ast::{Ast, AstTextRangeType};
 use crate::buffer::SubBuffer;
 use crate::galleys::Galleys;
 use crate::input::canonical::Bound;
+use crate::input::cursor::Cursor;
 use crate::offset_types::{DocByteOffset, DocCharOffset, RangeExt, RelByteOffset};
 use crate::style::{InlineNode, MarkdownNode};
 use crate::unicode_segs::UnicodeSegs;
@@ -36,10 +37,14 @@ pub fn calc_words(buffer: &SubBuffer, ast: &Ast, appearance: &Appearance) -> Wor
         match text_range.range_type {
             AstTextRangeType::Head | AstTextRangeType::Tail => {
                 // syntax sequences count as words but only if they're not captured
-                if !appearance
-                    .markdown_capture()
-                    .contains(&text_range.node(ast).node_type())
-                {
+                let captured = match appearance.markdown_capture(text_range.node(ast).node_type()) {
+                    CaptureCondition::Always => true,
+                    CaptureCondition::NoCursor => {
+                        !text_range.intersects_selection(ast, buffer.cursor)
+                    }
+                    CaptureCondition::Never => false,
+                };
+                if !captured {
                     result.push(text_range.range)
                 }
             }
@@ -143,15 +148,17 @@ pub fn calc_paragraphs(buffer: &SubBuffer, ast: &Ast) -> Paragraphs {
     result
 }
 
-pub fn calc_text(ast: &Ast, appearance: &Appearance, segs: &UnicodeSegs) -> Text {
+pub fn calc_text(ast: &Ast, appearance: &Appearance, segs: &UnicodeSegs, cursor: Cursor) -> Text {
     let mut result = vec![];
     let mut last_range_pushed = false;
     for text_range in ast.iter_text_ranges() {
-        let this_range_pushed = if text_range.range_type == AstTextRangeType::Text
-            || !appearance
-                .markdown_capture()
-                .contains(&text_range.node(ast).node_type())
-        {
+        let captured = match appearance.markdown_capture(text_range.node(ast).node_type()) {
+            CaptureCondition::Always => true,
+            CaptureCondition::NoCursor => !text_range.intersects_selection(ast, cursor),
+            CaptureCondition::Never => false,
+        };
+
+        let this_range_pushed = if text_range.range_type == AstTextRangeType::Text || !captured {
             // text range or uncaptured syntax range
             result.push(text_range.range);
             true

@@ -307,8 +307,14 @@ impl Editor {
             self.bounds.words =
                 bounds::calc_words(&self.buffer.current, &self.ast, &self.appearance);
             self.bounds.paragraphs = bounds::calc_paragraphs(&self.buffer.current, &self.ast);
-            self.bounds.text =
-                bounds::calc_text(&self.ast, &self.appearance, &self.buffer.current.segs);
+        }
+        if text_updated || selection_updated {
+            self.bounds.text = bounds::calc_text(
+                &self.ast,
+                &self.appearance,
+                &self.buffer.current.segs,
+                self.buffer.current.cursor,
+            );
         }
         if text_updated || selection_updated || theme_updated {
             self.images = images::calc(&self.ast, &self.images, &self.client, ui);

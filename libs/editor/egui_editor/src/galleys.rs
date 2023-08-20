@@ -1,4 +1,4 @@
-use crate::appearance::Appearance;
+use crate::appearance::{Appearance, CaptureCondition};
 use crate::ast::{Ast, AstTextRangeType};
 use crate::bounds::{Bounds, Text};
 use crate::buffer::SubBuffer;
@@ -123,6 +123,14 @@ pub fn calc(
                     (text_range_portion, in_selection)
                 };
 
+                let captured = match appearance.markdown_capture(text_range.node(ast).node_type()) {
+                    CaptureCondition::Always => true,
+                    CaptureCondition::NoCursor => {
+                        !text_range.intersects_selection(ast, buffer.cursor)
+                    }
+                    CaptureCondition::Never => false,
+                };
+
                 // construct text format using all styles except the last (current node)
                 // only actual text (not head/tail) of each element gets the actual element style
                 let mut text_format = TextFormat::default();
@@ -139,9 +147,7 @@ pub fn calc(
                 // only the first portion of a head text range gets that range's annotation
                 if text_range.range_type == AstTextRangeType::Head
                     && text_range.range.0 == text_range_portion.range.0
-                    && appearance
-                        .markdown_capture()
-                        .contains(&text_range_portion.node(ast).node_type())
+                    && captured
                 {
                     if annotation.is_none() {
                         annotation_text_format = text_format.clone();
@@ -163,10 +169,7 @@ pub fn calc(
                     .apply_style(&mut text_format, appearance);
                 match text_range_portion.range_type {
                     AstTextRangeType::Head => {
-                        if appearance
-                            .markdown_capture()
-                            .contains(&text_range_portion.node(ast).node_type())
-                        {
+                        if captured {
                             // need to append empty text to layout so that the style is applied
                             layout.append("", 0.0, text_format);
 
@@ -187,10 +190,7 @@ pub fn calc(
                         }
                     }
                     AstTextRangeType::Tail => {
-                        if appearance
-                            .markdown_capture()
-                            .contains(&text_range_portion.node(ast).node_type())
-                        {
+                        if captured {
                             // need to append empty text to layout so that the style is applied
                             layout.append("", 0.0, text_format);
                         } else {
