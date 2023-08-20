@@ -90,7 +90,7 @@ impl FullDocSearch {
                 self.send_search_results();
             }
 
-            if self.is_searching.load(std::sync::atomic::Ordering::Relaxed) == true {
+            if self.is_searching.load(std::sync::atomic::Ordering::Relaxed) {
                 ui.add_space(20.0);
                 ui.spinner();
             }
@@ -163,7 +163,7 @@ impl FullDocSearch {
                                 let font_size = 15.0;
                                 self.show_content_match(
                                     ui,
-                                    &content_matches.iter().max().unwrap(),
+                                    content_matches.iter().max().unwrap(),
                                     font_size,
                                 );
                             });
