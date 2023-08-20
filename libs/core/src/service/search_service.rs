@@ -135,7 +135,8 @@ impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {
     }
 
     fn recv_with_debounce(
-        search_rx: &Receiver<SearchRequest>, debounce_duration: Duration,
+        search_rx: &Receiver<SearchRequest>,
+        debounce_duration: Duration,
     ) -> Result<SearchRequest, UnexpectedError> {
         let mut result = search_rx.recv()?;
 
@@ -149,7 +150,8 @@ impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {
     }
 
     fn search_loop(
-        results_tx: &Sender<SearchResult>, search_rx: Receiver<SearchRequest>,
+        results_tx: &Sender<SearchResult>,
+        search_rx: Receiver<SearchRequest>,
         files_info: Vec<SearchableFileInfo>,
     ) -> Result<(), UnexpectedError> {
         let files_info = Arc::new(files_info);
@@ -186,8 +188,10 @@ impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {
     }
 
     fn search(
-        results_tx: &Sender<SearchResult>, files_info: Arc<Vec<SearchableFileInfo>>,
-        should_continue: Arc<AtomicBool>, search: String,
+        results_tx: &Sender<SearchResult>,
+        files_info: Arc<Vec<SearchableFileInfo>>,
+        should_continue: Arc<AtomicBool>,
+        search: String,
     ) -> Result<(), UnexpectedError> {
         let mut no_matches = true;
 
@@ -217,8 +221,11 @@ impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {
     }
 
     fn search_file_names(
-        results_tx: &Sender<SearchResult>, should_continue: &Arc<AtomicBool>,
-        files_info: &Arc<Vec<SearchableFileInfo>>, search: &str, no_matches: &mut bool,
+        results_tx: &Sender<SearchResult>,
+        should_continue: &Arc<AtomicBool>,
+        files_info: &Arc<Vec<SearchableFileInfo>>,
+        search: &str,
+        no_matches: &mut bool,
     ) -> Result<(), UnexpectedError> {
         for info in files_info.as_ref() {
             if !should_continue.load(atomic::Ordering::Relaxed) {
@@ -258,8 +265,11 @@ impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {
     }
 
     fn search_file_contents(
-        results_tx: &Sender<SearchResult>, should_continue: &Arc<AtomicBool>,
-        files_info: &Arc<Vec<SearchableFileInfo>>, search: &str, no_matches: &mut bool,
+        results_tx: &Sender<SearchResult>,
+        should_continue: &Arc<AtomicBool>,
+        files_info: &Arc<Vec<SearchableFileInfo>>,
+        search: &str,
+        no_matches: &mut bool,
     ) -> Result<(), UnexpectedError> {
         for info in files_info.as_ref() {
             if !should_continue.load(atomic::Ordering::Relaxed) {
@@ -319,7 +329,8 @@ impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {
     }
 
     fn optimize_searched_text(
-        paragraph: &str, matched_indices: Vec<usize>,
+        paragraph: &str,
+        matched_indices: Vec<usize>,
     ) -> Result<(String, Vec<usize>), UnexpectedError> {
         if paragraph.len() <= IDEAL_CONTENT_MATCH_LENGTH {
             return Ok((paragraph.to_string(), matched_indices));
@@ -407,7 +418,7 @@ impl SearchResult {
                 Some(*score)
             }
             SearchResult::FileContentMatches { id: _, path: _, content_matches } => {
-                Some(content_matches[0].score)
+                Some(content_matches.iter().max().unwrap().score)
             }
             _ => None,
         }
@@ -448,3 +459,23 @@ pub struct ContentMatch {
     pub matched_indices: Vec<usize>,
     pub score: i64,
 }
+
+impl Ord for ContentMatch {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.score.cmp(&other.score)
+    }
+}
+
+impl PartialOrd for ContentMatch {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl PartialEq for ContentMatch {
+    fn eq(&self, other: &Self) -> bool {
+        self.score == other.score
+    }
+}
+
+impl Eq for ContentMatch {}

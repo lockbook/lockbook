@@ -1,5 +1,5 @@
 use std::{
-    sync::{mpsc, Arc, RwLock},
+    sync::{atomic::AtomicBool, mpsc, Arc},
     thread,
 };
 
@@ -15,7 +15,7 @@ use crate::{model::DocType, theme::Icon, widgets::Button};
 pub struct FullDocSearch {
     results_rx: mpsc::Receiver<SearchResult>,
     results_tx: mpsc::Sender<SearchResult>,
-    is_searching: Arc<RwLock<bool>>,
+    is_searching: Arc<AtomicBool>,
     pub search_channel: StartSearchInfo,
     x_margin: f32,
     pub query: String,
@@ -26,7 +26,7 @@ impl FullDocSearch {
     pub fn new(core: &lb::Core) -> Self {
         let (results_tx, results_rx) = mpsc::channel();
         let search_channel = core.start_search().unwrap();
-        let is_searching = Arc::new(RwLock::new(false));
+        let is_searching = Arc::new(AtomicBool::new(false));
 
         Self {
             results_rx,
@@ -85,11 +85,12 @@ impl FullDocSearch {
             if output.response.changed() && !self.query.is_empty() {
                 self.results = vec![]; // return Some(*id.unwrap());
 
-                *self.is_searching.write().unwrap() = true;
+                self.is_searching
+                    .store(true, std::sync::atomic::Ordering::Relaxed);
                 self.send_search_results();
             }
 
-            if self.is_searching.read().unwrap().eq(&true) {
+            if self.is_searching.load(std::sync::atomic::Ordering::Relaxed) == true {
                 ui.add_space(20.0);
                 ui.spinner();
             }
@@ -125,7 +126,7 @@ impl FullDocSearch {
                 results_tx.send(sr).unwrap();
                 match results_rx.try_recv() {
                     Err(e) if e.is_empty() => {
-                        *is_searching.write().unwrap() = false;
+                        is_searching.store(false, std::sync::atomic::Ordering::Relaxed);
                     }
                     _ => (),
                 }
@@ -159,7 +160,12 @@ impl FullDocSearch {
                         ui.horizontal(|ui| {
                             ui.add_space(15.0);
                             ui.horizontal_wrapped(|ui| {
-                                self.show_content_match(ui, &content_matches[0], 15.0);
+                                let font_size = 15.0;
+                                self.show_content_match(
+                                    ui,
+                                    &content_matches.iter().max().unwrap(),
+                                    font_size,
+                                );
                             });
                         });
                     }
@@ -204,7 +210,7 @@ impl FullDocSearch {
             ui.add_space(7.0);
 
             let mut job = egui::text::LayoutJob::single_section(
-                path.to_owned(),
+                file.name.clone(),
                 egui::TextFormat::simple(
                     egui::FontId::proportional(18.0),
                     ui.visuals().text_color(),
