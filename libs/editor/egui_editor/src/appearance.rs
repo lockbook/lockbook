@@ -2,9 +2,8 @@ use std::collections::HashSet;
 
 use egui::ecolor::Hsva;
 use egui::{Color32, Visuals};
-use pulldown_cmark::HeadingLevel;
 
-use crate::style::{BlockNodeType, InlineNodeType, ListItemType, MarkdownNodeType};
+use crate::style::{BlockNodeType, InlineNodeType, MarkdownNodeType};
 
 // Apple colors: https://developer.apple.com/design/human-interface-guidelines/foundations/color/
 pub const RED: ThemedColor =
@@ -49,44 +48,6 @@ pub const GRAY_6: ThemedColor =
     ThemedColor { light: Color32::from_rgb(242, 242, 247), dark: Color32::from_rgb(28, 28, 30) };
 pub const WHITE: ThemedColor =
     ThemedColor { light: Color32::from_rgb(240, 240, 240), dark: Color32::from_rgb(18, 18, 18) };
-
-// presets for markdown syntax char capture
-pub fn plain_text() -> HashSet<MarkdownNodeType> {
-    HashSet::new()
-}
-pub fn blocks() -> HashSet<MarkdownNodeType> {
-    vec![
-        MarkdownNodeType::Block(BlockNodeType::Heading(HeadingLevel::H1)),
-        MarkdownNodeType::Block(BlockNodeType::Heading(HeadingLevel::H2)),
-        MarkdownNodeType::Block(BlockNodeType::Heading(HeadingLevel::H3)),
-        MarkdownNodeType::Block(BlockNodeType::Heading(HeadingLevel::H4)),
-        MarkdownNodeType::Block(BlockNodeType::Heading(HeadingLevel::H5)),
-        MarkdownNodeType::Block(BlockNodeType::Heading(HeadingLevel::H6)),
-        MarkdownNodeType::Block(BlockNodeType::Quote),
-        MarkdownNodeType::Block(BlockNodeType::Code),
-        MarkdownNodeType::Block(BlockNodeType::ListItem(ListItemType::Bulleted)),
-        MarkdownNodeType::Block(BlockNodeType::ListItem(ListItemType::Numbered)),
-        MarkdownNodeType::Block(BlockNodeType::ListItem(ListItemType::Todo)),
-        MarkdownNodeType::Block(BlockNodeType::Rule),
-    ]
-    .into_iter()
-    .collect()
-}
-pub fn rich_text() -> HashSet<MarkdownNodeType> {
-    let mut result = blocks();
-    result.extend(
-        vec![
-            MarkdownNodeType::Inline(InlineNodeType::Code),
-            MarkdownNodeType::Inline(InlineNodeType::Bold),
-            MarkdownNodeType::Inline(InlineNodeType::Italic),
-            MarkdownNodeType::Inline(InlineNodeType::Strikethrough),
-            MarkdownNodeType::Inline(InlineNodeType::Link),
-            MarkdownNodeType::Inline(InlineNodeType::Image),
-        ]
-        .into_iter(),
-    );
-    result
-}
 
 /// provides a mechanism for the application developer to override colors for dark mode and light
 /// mode and for us to provide defaults
@@ -218,9 +179,28 @@ impl Appearance {
         self.image_padding.unwrap_or(12.0)
     }
 
-    pub fn markdown_capture(&self) -> HashSet<MarkdownNodeType> {
-        self.markdown_capture.clone().unwrap_or_else(rich_text)
+    pub fn markdown_capture(&self, node_type: MarkdownNodeType) -> CaptureCondition {
+        match node_type {
+            MarkdownNodeType::Block(BlockNodeType::ListItem(_)) => CaptureCondition::Always,
+            MarkdownNodeType::Block(BlockNodeType::Heading(_))
+            | MarkdownNodeType::Block(BlockNodeType::Quote)
+            | MarkdownNodeType::Block(BlockNodeType::Code)
+            | MarkdownNodeType::Block(BlockNodeType::Rule)
+            | MarkdownNodeType::Inline(InlineNodeType::Code)
+            | MarkdownNodeType::Inline(InlineNodeType::Bold)
+            | MarkdownNodeType::Inline(InlineNodeType::Italic)
+            | MarkdownNodeType::Inline(InlineNodeType::Strikethrough)
+            | MarkdownNodeType::Inline(InlineNodeType::Link)
+            | MarkdownNodeType::Inline(InlineNodeType::Image) => CaptureCondition::NoCursor,
+            MarkdownNodeType::Document | MarkdownNodeType::Paragraph => CaptureCondition::Never,
+        }
     }
+}
+
+pub enum CaptureCondition {
+    Always,
+    NoCursor,
+    Never,
 }
 
 #[derive(Default, Clone, Copy, PartialEq, Eq)]

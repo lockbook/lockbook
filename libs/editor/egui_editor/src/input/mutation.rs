@@ -150,8 +150,9 @@ pub fn calc(
                 if ast_text_range.range_type == AstTextRangeType::Tail
                     && ast_text_range.node(ast).node_type()
                         == MarkdownNodeType::Inline(InlineNodeType::Link)
+                    && ast_text_range.range.end() != cursor.selection.1
                 {
-                    // cursor inside captured link url -> move cursor to end of link
+                    // cursor inside link url -> move cursor to end of link
                     mutation.push(SubMutation::Cursor {
                         cursor: (ast_text_range.range.end(), ast_text_range.range.end()).into(),
                     });
