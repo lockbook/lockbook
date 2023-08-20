@@ -1,16 +1,120 @@
 use crate::appearance::Appearance;
 use egui::{FontFamily, Stroke, TextFormat};
 use pulldown_cmark::{HeadingLevel, LinkType};
+use std::hash::Hash;
 use std::sync::Arc;
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+/// Represents a type of markdown node e.g. link, not a particular node e.g. link to google.com (see MarkdownNode)
+#[derive(Clone, Debug, Default, Hash, PartialEq, Eq)]
+pub enum MarkdownNodeType {
+    #[default]
+    Document,
+    Paragraph,
+
+    Inline(InlineNodeType),
+    Block(BlockNodeType),
+}
+
+impl MarkdownNodeType {
+    pub fn head(&self) -> &'static str {
+        match self {
+            Self::Document => "",
+            Self::Paragraph => "",
+            Self::Inline(InlineNodeType::Code) => "`",
+            Self::Inline(InlineNodeType::Bold) => "__",
+            Self::Inline(InlineNodeType::Italic) => "_",
+            Self::Inline(InlineNodeType::Strikethrough) => "~~",
+            Self::Inline(InlineNodeType::Link) => "[",
+            Self::Inline(InlineNodeType::Image) => {
+                unimplemented!()
+            }
+            Self::Block(BlockNodeType::Heading(..)) => {
+                unimplemented!()
+            }
+            Self::Block(BlockNodeType::Quote) => {
+                unimplemented!()
+            }
+            Self::Block(BlockNodeType::Code) => {
+                unimplemented!()
+            }
+            Self::Block(BlockNodeType::ListItem(item_type)) => item_type.head(), // todo: support indentation
+            Self::Block(BlockNodeType::Rule) => "***",
+        }
+    }
+
+    pub fn tail(&self) -> &'static str {
+        match self {
+            Self::Document => "",
+            Self::Paragraph => "",
+            Self::Inline(InlineNodeType::Code) => "`",
+            Self::Inline(InlineNodeType::Bold) => "__",
+            Self::Inline(InlineNodeType::Italic) => "_",
+            Self::Inline(InlineNodeType::Strikethrough) => "~~",
+            Self::Inline(InlineNodeType::Link) => "]()",
+            Self::Inline(InlineNodeType::Image) => {
+                unimplemented!()
+            }
+            Self::Block(BlockNodeType::Heading(..)) => "",
+            Self::Block(BlockNodeType::Quote) => "",
+            Self::Block(BlockNodeType::Code) => {
+                unimplemented!()
+            }
+            Self::Block(BlockNodeType::ListItem(..)) => "",
+            Self::Block(BlockNodeType::Rule) => "",
+        }
+    }
+
+    pub fn needs_whitespace(&self) -> bool {
+        matches!(self, Self::Inline(InlineNodeType::Bold | InlineNodeType::Italic))
+    }
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Eq)]
+pub enum InlineNodeType {
+    Code,
+    Bold,
+    Italic,
+    Strikethrough,
+    Link,
+    Image,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Eq)]
+pub enum BlockNodeType {
+    Heading(HeadingLevel),
+    Quote,
+    Code,
+    ListItem(ListItemType),
+    Rule,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Eq)]
+pub enum ListItemType {
+    Bulleted,
+    Numbered,
+    Todo,
+}
+
+impl ListItemType {
+    pub fn head(&self) -> &'static str {
+        match self {
+            Self::Bulleted => "*",
+            Self::Numbered => "1. ",
+            Self::Todo => "* [ ] ",
+        }
+    }
+}
+
+/// Represents a style that can be applied to rendered text
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum RenderStyle {
     Selection,
     Syntax,
     Markdown(MarkdownNode),
 }
 
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+/// Represents a particular markdown node e.g. link to google.com, not a type of node e.g. link (see MarkdownNodeType)
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
 pub enum MarkdownNode {
     #[default]
     Document,
@@ -30,78 +134,96 @@ pub enum InlineNode {
     Image(LinkType, Url, Title), // todo: swap strings for text ranges and impl Copy
 }
 
-// if you add a variant to InlineNode, you have to also add it here
-// two nodes should be considered equal if toggling the style for one should remove the other
-// todo: better pattern where you don't have to just remember to update this
+impl InlineNode {
+    fn node_type(&self) -> InlineNodeType {
+        match self {
+            Self::Code => InlineNodeType::Code,
+            Self::Bold => InlineNodeType::Bold,
+            Self::Italic => InlineNodeType::Italic,
+            Self::Strikethrough => InlineNodeType::Strikethrough,
+            Self::Link(..) => InlineNodeType::Link,
+            Self::Image(..) => InlineNodeType::Image,
+        }
+    }
+}
+
 impl PartialEq for InlineNode {
     fn eq(&self, other: &Self) -> bool {
-        matches!(
-            (self, other),
-            (Self::Code, Self::Code)
-                | (Self::Bold, Self::Bold)
-                | (Self::Italic, Self::Italic)
-                | (Self::Strikethrough, Self::Strikethrough)
-                | (Self::Link(..), Self::Link(..))
-                | (Self::Image(..), Self::Image(..))
-        )
+        self.node_type() == other.node_type()
     }
 }
 
 impl Eq for InlineNode {}
 
-#[derive(Clone, Copy, Debug, Eq)]
+impl Hash for InlineNode {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.node_type().hash(state);
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
 pub enum BlockNode {
     Heading(HeadingLevel),
     Quote,
     Code,
-    ListItem(ItemType, IndentLevel),
+    ListItem(ListItem, IndentLevel),
+    Rule,
 }
 
-// if you add a variant to BlockNode, you have to also add it here
-// two nodes should be considered equal if toggling the style for one should remove the other
-// todo: better pattern where you don't have to just remember to update this
-impl PartialEq for BlockNode {
-    fn eq(&self, other: &Self) -> bool {
-        match (self, other) {
-            (Self::Quote, Self::Quote)
-            | (Self::Code, Self::Code)
-            | (Self::Heading(..), Self::Heading(..)) => true,
-            (Self::ListItem(item_type_a, ..), Self::ListItem(item_type_b, ..)) => {
-                item_type_a == item_type_b
-            }
-            _ => false,
+impl BlockNode {
+    fn node_type(&self) -> BlockNodeType {
+        match self {
+            Self::Heading(level) => BlockNodeType::Heading(*level),
+            Self::Quote => BlockNodeType::Quote,
+            Self::Code => BlockNodeType::Code,
+            Self::ListItem(item, ..) => BlockNodeType::ListItem(item.item_type()),
+            Self::Rule => BlockNodeType::Rule,
         }
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq)]
-pub enum ItemType {
+impl PartialEq for BlockNode {
+    fn eq(&self, other: &Self) -> bool {
+        self.node_type() == other.node_type()
+    }
+}
+
+impl Eq for BlockNode {}
+
+impl Hash for BlockNode {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.node_type().hash(state);
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+pub enum ListItem {
     Bulleted,
     Numbered(usize),
     Todo(bool),
 }
 
-impl ItemType {
-    pub fn head(&self) -> &'static str {
+impl ListItem {
+    pub fn item_type(&self) -> ListItemType {
         match self {
-            ItemType::Bulleted => "- ",
-            ItemType::Numbered(_) => "1. ", // todo: support other numbers
-            ItemType::Todo(true) => "- [x] ",
-            ItemType::Todo(false) => "- [ ] ",
+            ListItem::Bulleted => ListItemType::Bulleted,
+            ListItem::Numbered(_) => ListItemType::Numbered,
+            ListItem::Todo(_) => ListItemType::Todo,
         }
     }
 }
 
-// Ignore inner values in enum variant comparison
-// Note: you need to remember to incorporate new variants here!
-impl PartialEq for ItemType {
+impl PartialEq for ListItem {
     fn eq(&self, other: &Self) -> bool {
-        matches!(
-            (self, other),
-            (ItemType::Bulleted, ItemType::Bulleted)
-                | (ItemType::Numbered(_), ItemType::Numbered(_))
-                | (ItemType::Todo(_), ItemType::Todo(_))
-        )
+        self.item_type() == other.item_type()
+    }
+}
+
+impl Eq for ListItem {}
+
+impl Hash for ListItem {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.item_type().hash(state);
     }
 }
 
@@ -161,63 +283,19 @@ impl RenderStyle {
                 text_format.color = vis.code();
             }
             RenderStyle::Markdown(MarkdownNode::Block(BlockNode::ListItem(..))) => {}
+            RenderStyle::Markdown(MarkdownNode::Block(BlockNode::Rule)) => {}
         }
     }
 }
 
 impl MarkdownNode {
-    pub fn head(&self) -> &'static str {
+    pub fn node_type(&self) -> MarkdownNodeType {
         match self {
-            Self::Document => "",
-            Self::Paragraph => "",
-            Self::Inline(InlineNode::Code) => "`",
-            Self::Inline(InlineNode::Bold) => "__",
-            Self::Inline(InlineNode::Italic) => "_",
-            Self::Inline(InlineNode::Strikethrough) => "~~",
-            Self::Inline(InlineNode::Link(..)) => {
-                unimplemented!()
-            }
-            Self::Inline(InlineNode::Image(..)) => {
-                unimplemented!()
-            }
-            Self::Block(BlockNode::Heading(..)) => {
-                unimplemented!()
-            }
-            Self::Block(BlockNode::Quote) => {
-                unimplemented!()
-            }
-            Self::Block(BlockNode::Code) => {
-                unimplemented!()
-            }
-            Self::Block(BlockNode::ListItem(item_type, ..)) => item_type.head(), // todo: support indentation
+            Self::Document => MarkdownNodeType::Document,
+            Self::Paragraph => MarkdownNodeType::Paragraph,
+            Self::Inline(inline_node) => MarkdownNodeType::Inline(inline_node.node_type()),
+            Self::Block(block_node) => MarkdownNodeType::Block(block_node.node_type()),
         }
-    }
-
-    pub fn tail(&self) -> &'static str {
-        match self {
-            Self::Document => "",
-            Self::Paragraph => "",
-            Self::Inline(InlineNode::Code) => "`",
-            Self::Inline(InlineNode::Bold) => "__",
-            Self::Inline(InlineNode::Italic) => "_",
-            Self::Inline(InlineNode::Strikethrough) => "~~",
-            Self::Inline(InlineNode::Link(..)) => {
-                unimplemented!()
-            }
-            Self::Inline(InlineNode::Image(..)) => {
-                unimplemented!()
-            }
-            Self::Block(BlockNode::Heading(..)) => "",
-            Self::Block(BlockNode::Quote) => "",
-            Self::Block(BlockNode::Code) => {
-                unimplemented!()
-            }
-            Self::Block(BlockNode::ListItem(..)) => "",
-        }
-    }
-
-    pub fn needs_whitespace(&self) -> bool {
-        matches!(self, Self::Inline(InlineNode::Bold | InlineNode::Italic))
     }
 }
 

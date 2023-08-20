@@ -1,6 +1,6 @@
 use std::mem;
 
-use crate::bounds::Bounds;
+use crate::bounds::{Bounds, Text};
 use crate::buffer::SubBuffer;
 use crate::galleys::{GalleyInfo, Galleys};
 use crate::input::canonical::{Increment, Offset};
@@ -19,8 +19,8 @@ impl DocCharOffset {
             Offset::To(bound) => self.advance_to_bound(bound, backwards, bounds),
             Offset::Next(bound) => self.advance_to_next_bound(bound, backwards, bounds),
             Offset::By(Increment::Line) => {
-                let x_target = maybe_x_target_value.unwrap_or(self.x(galleys));
-                let result = self.advance_by_line(x_target, backwards, galleys);
+                let x_target = maybe_x_target_value.unwrap_or(self.x(galleys, &bounds.text));
+                let result = self.advance_by_line(x_target, backwards, galleys, &bounds.text);
                 if self != 0 && self != buffer.segs.last_cursor_position() {
                     *maybe_x_target = Some(x_target);
                 }
@@ -30,8 +30,10 @@ impl DocCharOffset {
         .fix(backwards, fix, galleys)
     }
 
-    fn advance_by_line(self, x_target: f32, backwards: bool, galleys: &Galleys) -> Self {
-        let (cur_galley_idx, cur_ecursor) = galleys.galley_and_cursor_by_char_offset(self);
+    fn advance_by_line(
+        self, x_target: f32, backwards: bool, galleys: &Galleys, text: &Text,
+    ) -> Self {
+        let (cur_galley_idx, cur_ecursor) = galleys.galley_and_cursor_by_char_offset(self, text);
         let cur_galley = &galleys[cur_galley_idx];
         if backwards {
             let at_top_of_cur_galley = cur_ecursor.rcursor.row == 0;
@@ -56,7 +58,7 @@ impl DocCharOffset {
                 new_ecursor = Self::from_x(x_target, &galleys[new_galley_idx], new_ecursor);
             }
 
-            galleys.char_offset_by_galley_and_cursor(new_galley_idx, &new_ecursor)
+            galleys.char_offset_by_galley_and_cursor(new_galley_idx, &new_ecursor, text)
         } else {
             let at_bottom_of_cur_galley =
                 cur_ecursor.rcursor.row == cur_galley.galley.rows.len() - 1;
@@ -81,7 +83,7 @@ impl DocCharOffset {
                 new_ecursor = Self::from_x(x_target, &galleys[new_galley_idx], new_ecursor);
             }
 
-            galleys.char_offset_by_galley_and_cursor(new_galley_idx, &new_ecursor)
+            galleys.char_offset_by_galley_and_cursor(new_galley_idx, &new_ecursor, text)
         }
     }
 
@@ -126,8 +128,8 @@ impl DocCharOffset {
     }
 
     /// returns the x coordinate of the absolute position of `self` in `galley`
-    fn x(self, galleys: &Galleys) -> f32 {
-        let (cur_galley_idx, cur_cursor) = galleys.galley_and_cursor_by_char_offset(self);
+    fn x(self, galleys: &Galleys, text: &Text) -> f32 {
+        let (cur_galley_idx, cur_cursor) = galleys.galley_and_cursor_by_char_offset(self, text);
         let cur_galley = &galleys[cur_galley_idx];
         Self::x_impl(cur_galley, cur_cursor)
     }

@@ -8,8 +8,9 @@ mod tree;
 mod workspace;
 
 use std::collections::HashMap;
+use std::ffi::OsStr;
 use std::sync::{mpsc, Arc, RwLock};
-use std::time::Instant;
+use std::time::{Duration, Instant};
 use std::{path, thread};
 
 use eframe::egui;
@@ -34,6 +35,7 @@ pub struct AccountScreen {
     ctx: egui::Context,
     settings: Arc<RwLock<Settings>>,
     core: lb::Core,
+    toasts: egui_notify::Toasts,
 
     update_tx: mpsc::Sender<AccountUpdate>,
     update_rx: mpsc::Receiver<AccountUpdate>,
@@ -41,6 +43,7 @@ pub struct AccountScreen {
     background_tx: mpsc::Sender<BackgroundEvent>,
 
     tree: FileTree,
+    has_pending_shares: bool,
     suggested: SuggestedDocs,
     full_search_doc: FullDocSearch,
     sync: SyncPanel,
@@ -57,19 +60,25 @@ impl AccountScreen {
     ) -> Self {
         let (update_tx, update_rx) = mpsc::channel();
 
-        let AccountScreenInitData { sync_status, files, usage } = acct_data;
+        let AccountScreenInitData { sync_status, files, usage, has_pending_shares } = acct_data;
         let core_clone = core.clone();
 
         let background = BackgroundWorker::new(ctx, &update_tx);
         let background_tx = background.spawn_worker();
 
+        let toasts = egui_notify::Toasts::default()
+            .with_margin(egui::vec2(40.0, 30.0))
+            .with_padding(egui::vec2(20.0, 20.0));
+
         Self {
             settings,
             core,
+            toasts,
             update_tx,
             update_rx,
             background_tx,
-            tree: FileTree::new(files),
+            has_pending_shares,
+            tree: FileTree::new(files, &core_clone),
             suggested: SuggestedDocs::new(&core_clone),
             full_search_doc: FullDocSearch::new(&core_clone),
             sync: SyncPanel::new(sync_status),
@@ -103,6 +112,7 @@ impl AccountScreen {
         self.process_updates(ctx, frame);
         self.process_keys(ctx, frame);
         self.process_dropped_files(ctx);
+        self.toasts.show(ctx);
 
         if self.shutdown.is_some() {
             egui::CentralPanel::default()
@@ -114,29 +124,33 @@ impl AccountScreen {
             .send(BackgroundEvent::EguiUpdate)
             .unwrap();
 
-        let mut sidebar_width = 0.0;
-        if !self.settings.read().unwrap().zen_mode {
-            sidebar_width = egui::SidePanel::left("sidebar_panel")
-                .frame(egui::Frame::none().fill(ctx.style().visuals.panel_fill))
-                .min_width(300.0)
-                .show(ctx, |ui| {
-                    ui.set_enabled(!self.is_any_modal_open());
+        let is_expanded = !self.settings.read().unwrap().zen_mode;
 
-                    ui.with_layout(egui::Layout::bottom_up(egui::Align::Min), |ui| {
-                        ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
+        egui::SidePanel::left("sidebar_panel")
+            .frame(egui::Frame::none().fill(ctx.style().visuals.panel_fill))
+            .min_width(300.0)
+            .show_animated(ctx, is_expanded, |ui| {
+                ui.set_enabled(!self.is_any_modal_open());
 
-                        self.show_sync_panel(ui);
+                ui.with_layout(egui::Layout::bottom_up(egui::Align::Min), |ui| {
+                    ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
 
-                        separator(ui);
+                    self.show_sync_panel(ui);
 
-                        self.show_nav_panel(ui);
+                    separator(ui);
 
                         ui.vertical(|ui| {
                             ui.add_space(15.0);
+
                             if let Some(&file) = self.full_search_doc.show(ui, &self.core) {
                                 self.open_file(file, ctx);
                             }
-                            ui.add_space(10.0);
+                          
+                            if let Some(file) = self.suggested.show(ui) {
+                                self.open_file(file, ctx);
+                            }
+                          
+                            ui.add_space(15.0);
 
                             if self.full_search_doc.results.is_empty() {
                                 if let Some(file) = self.suggested.show(ui) {
@@ -154,11 +168,13 @@ impl AccountScreen {
                 .x;
         }
 
+
+
         egui::CentralPanel::default()
             .frame(egui::Frame::default().fill(ctx.style().visuals.widgets.noninteractive.bg_fill))
             .show(ctx, |ui| self.show_workspace(frame, ui));
 
-        self.show_any_modals(ctx, 0.0 - (sidebar_width / 2.0));
+        self.show_any_modals(ctx, 0.0);
     }
 
     fn process_updates(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
@@ -279,7 +295,6 @@ impl AccountScreen {
                 }
                 AccountUpdate::SyncUpdate(update) => {
                     self.process_sync_update(ctx, update);
-                    self.suggested.recalc_and_redraw(ctx, &self.core);
                 }
                 AccountUpdate::DoneDeleting => self.modals.confirm_delete = None,
                 AccountUpdate::ReloadTree(root) => self.tree.root = root,
@@ -334,6 +349,9 @@ impl AccountScreen {
                     if self.settings.read().unwrap().auto_sync {
                         self.perform_sync(ctx)
                     }
+                }
+                AccountUpdate::FoundPendingShares(has_pending_shares) => {
+                    self.has_pending_shares = has_pending_shares
                 }
             }
         }
@@ -490,6 +508,26 @@ impl AccountScreen {
         if let Some(id) = resp.dropped_on {
             self.move_selected_files_to(ui.ctx(), id);
         }
+
+        if let Some(res) = resp.export_file {
+            match res {
+                Ok((src, dest)) => self.toasts.success(format!(
+                    "Exported \"{}\" to \"{}\"",
+                    src.name,
+                    dest.file_name()
+                        .unwrap_or(OsStr::new("/"))
+                        .to_string_lossy()
+                )),
+                Err(err) => {
+                    eprintln!("couldn't export file {:#?}", err.backtrace);
+                    self.toasts
+                        .error(format!("{:#?}, failed to export file", err.kind))
+                }
+            }
+            .set_closable(false)
+            .set_show_progress_bar(false)
+            .set_duration(Some(Duration::from_secs(7)));
+        }
     }
 
     fn show_nav_panel(&mut self, ui: &mut egui::Ui) {
@@ -509,16 +547,9 @@ impl AccountScreen {
                 ui.add_space(5.0);
 
                 let incoming_shares_btn = Button::default()
-                    .icon(
-                        &Icon::SHARED_FOLDER.badge(
-                            !self
-                                .core
-                                .get_pending_shares()
-                                .unwrap_or_default()
-                                .is_empty(),
-                        ),
-                    )
+                    .icon(&Icon::SHARED_FOLDER.badge(self.has_pending_shares))
                     .show(ui);
+
                 if incoming_shares_btn.clicked() {
                     self.update_tx.send(OpenModal::AcceptShare.into()).unwrap();
                     ui.ctx().request_repaint();
@@ -833,11 +864,23 @@ impl AccountScreen {
         });
     }
 
-    fn delete_files(&self, ctx: &egui::Context, files: Vec<lb::File>) {
+    fn delete_files(&mut self, ctx: &egui::Context, files: Vec<lb::File>) {
         let core = self.core.clone();
         let update_tx = self.update_tx.clone();
         let ctx = ctx.clone();
 
+        let tab_ids = self
+            .workspace
+            .tabs
+            .iter()
+            .map(|t| t.id)
+            .collect::<Vec<lb::Uuid>>();
+
+        for (i, f) in files.iter().enumerate() {
+            if tab_ids.contains(&f.id) {
+                self.close_tab(&ctx, i)
+            }
+        }
         thread::spawn(move || {
             for f in &files {
                 core.delete_file(f.id).unwrap(); // TODO
@@ -878,6 +921,7 @@ pub enum AccountUpdate {
     AutoSyncSignal,
 
     ShareAccepted(Result<lb::File, String>),
+    FoundPendingShares(bool),
 
     DoneDeleting,
 

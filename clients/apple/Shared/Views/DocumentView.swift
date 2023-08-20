@@ -9,12 +9,7 @@ struct iOSDocumentViewWrapper: View {
     
     var body: some View {
         DocumentView(id: id, isiPhone: true)
-            .onAppear {
-                print("document op: opening \(DI.files.idsAndFiles[id]?.name)")
-            }
             .onDisappear {
-                print("document op: closing \(DI.files.idsAndFiles[id]?.name)")
-
                 if let meta = DI.currentDoc.openDocuments[id]?.dismissForLink {
                     print("starting to open link")
                     DI.currentDoc.justOpenedLink = meta
@@ -302,6 +297,14 @@ struct MarkdownToolbar: View {
                 }
                 .buttonStyle(.borderless)
                 .help("Inline Code: ⌘⇧C")
+                
+                Button(action: {
+                    toolbarState.toggleStrikethrough()
+                }) {
+                    MarkdownEditorImage(systemImageName: "strikethrough", isSelected: toolbarState.isStrikethroughSelected)
+                }
+                .buttonStyle(.borderless)
+                .help("Strikethrough: ⌘⇧S")
             }
 
             Divider()

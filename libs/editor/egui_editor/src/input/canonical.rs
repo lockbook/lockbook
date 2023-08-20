@@ -4,6 +4,7 @@ use crate::offset_types::{DocCharOffset, RelCharOffset};
 use crate::style::{InlineNode, MarkdownNode};
 use crate::{CTextPosition, CTextRange};
 use egui::{Event, Key, Modifiers, PointerButton, Pos2};
+use pulldown_cmark::LinkType;
 use std::time::Instant;
 
 /// text location
@@ -222,6 +223,16 @@ pub fn calc(
                 style: MarkdownNode::Inline(InlineNode::Strikethrough),
             })
         }
+        Event::Key { key: Key::K, pressed: true, modifiers, .. } if modifiers.command => {
+            Some(Modification::ToggleStyle {
+                region: Region::Selection,
+                style: MarkdownNode::Inline(InlineNode::Link(
+                    LinkType::Inline,
+                    "".into(),
+                    "".into(),
+                )),
+            })
+        }
         Event::Key { key: Key::Num7, pressed: true, modifiers, .. }
             if modifiers.command && modifiers.shift =>
         {
@@ -240,30 +251,12 @@ pub fn calc(
         Event::PointerButton { pos, button: PointerButton::Primary, pressed: true, modifiers }
             if click_checker.ui(*pos) =>
         {
-            if let Some(galley_idx) = click_checker.checkbox(*pos) {
-                Some(Modification::ToggleCheckbox(galley_idx))
-            } else if modifiers.command {
-                if let Some(url) = click_checker.link(*pos) {
-                    Some(Modification::OpenUrl(url))
-                } else {
-                    pointer_state.press(now, *pos, *modifiers);
-                    None
-                }
-            } else {
-                if touch_mode {
-                    if let Some(url) = click_checker.link(*pos) {
-                        println!("opening link rust side");
-                        return Some(Modification::OpenUrl(url));
-                    }
-                }
-
-                pointer_state.press(now, *pos, *modifiers);
-                None
-            }
+            pointer_state.press(now, *pos, *modifiers);
+            None
         }
         Event::PointerMoved(pos) if click_checker.ui(*pos) => {
             pointer_state.drag(now, *pos);
-            if pointer_state.click_pos.is_some() && !touch_mode {
+            if pointer_state.click_dragged.unwrap_or_default() && !touch_mode {
                 if pointer_state.click_mods.unwrap_or_default().shift {
                     Some(Modification::Select { region: Region::ToLocation(Location::Pos(*pos)) })
                 } else if let Some(click_pos) = pointer_state.click_pos {
@@ -280,9 +273,7 @@ pub fn calc(
                 None
             }
         }
-        Event::PointerButton { pos, button: PointerButton::Primary, pressed: false, .. }
-            if click_checker.ui(*pos) =>
-        {
+        Event::PointerButton { pos, button: PointerButton::Primary, pressed: false, .. } => {
             let click_type = pointer_state.click_type.unwrap_or_default();
             let click_pos = pointer_state.click_pos.unwrap_or_default();
             let click_mods = pointer_state.click_mods.unwrap_or_default();
@@ -290,41 +281,58 @@ pub fn calc(
             pointer_state.release();
             let location = Location::Pos(*pos);
 
-            if click_checker.checkbox(*pos).is_none() && click_checker.link(*pos).is_none() {
-                Some(Modification::Select {
-                    region: if click_mods.shift {
-                        Region::ToLocation(location)
-                    } else {
-                        match click_type {
-                            ClickType::Single => {
-                                if touch_mode {
-                                    if !click_dragged {
-                                        Region::Location(location)
-                                    } else {
-                                        return None;
-                                    }
-                                } else {
-                                    Region::BetweenLocations {
-                                        start: Location::Pos(click_pos),
-                                        end: location,
-                                    }
-                                }
-                            }
-                            ClickType::Double => {
-                                Region::BoundAt { bound: Bound::Word, location, backwards: true }
-                            }
-                            ClickType::Triple => {
-                                Region::BoundAt { bound: Bound::Line, location, backwards: true }
-                            }
-                            ClickType::Quadruple => {
-                                Region::BoundAt { bound: Bound::Doc, location, backwards: true }
-                            }
-                        }
-                    },
-                })
+            if let Some(galley_idx) = click_checker.checkbox(*pos) {
+                Some(Modification::ToggleCheckbox(galley_idx))
+            } else if let Some(url) = click_checker.link(*pos) {
+                if touch_mode || click_mods.command {
+                    Some(Modification::OpenUrl(url))
+                } else {
+                    None
+                }
             } else {
                 None
             }
+            .or_else(|| {
+                if click_checker.ui(*pos) {
+                    Some(Modification::Select {
+                        region: if click_mods.shift {
+                            Region::ToLocation(location)
+                        } else {
+                            match click_type {
+                                ClickType::Single => {
+                                    if touch_mode {
+                                        if !click_dragged {
+                                            Region::Location(location)
+                                        } else {
+                                            return None;
+                                        }
+                                    } else {
+                                        Region::BetweenLocations {
+                                            start: Location::Pos(click_pos),
+                                            end: location,
+                                        }
+                                    }
+                                }
+                                ClickType::Double => Region::BoundAt {
+                                    bound: Bound::Word,
+                                    location,
+                                    backwards: true,
+                                },
+                                ClickType::Triple => Region::BoundAt {
+                                    bound: Bound::Line,
+                                    location,
+                                    backwards: true,
+                                },
+                                ClickType::Quadruple => {
+                                    Region::BoundAt { bound: Bound::Doc, location, backwards: true }
+                                }
+                            }
+                        },
+                    })
+                } else {
+                    None
+                }
+            })
         }
         Event::Key { key: Key::F2, pressed: true, .. } => Some(Modification::ToggleDebug),
         _ => None,

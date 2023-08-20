@@ -1,12 +1,14 @@
 use crate::ast::{Ast, AstTextRangeType};
-use crate::bounds::Bounds;
+use crate::bounds::{Bounds, Text};
 use crate::buffer::{EditorMutation, Mutation, SubBuffer, SubMutation};
 use crate::galleys::Galleys;
 use crate::input::canonical::{Bound, Location, Modification, Offset, Region};
 use crate::input::cursor::Cursor;
 use crate::layouts::Annotation;
 use crate::offset_types::{DocCharOffset, RangeExt};
-use crate::style::{BlockNode, ItemType, MarkdownNode, RenderStyle};
+use crate::style::{
+    BlockNode, InlineNodeType, ListItem, ListItemType, MarkdownNode, MarkdownNodeType, RenderStyle,
+};
 use crate::unicode_segs::UnicodeSegs;
 use egui::Pos2;
 use std::cmp::Ordering;
@@ -60,17 +62,21 @@ pub fn calc(
             apply_style(
                 cursor,
                 style.clone(),
-                region_completely_styled(cursor, RenderStyle::Markdown(style), ast),
+                region_completely_styled(cursor, RenderStyle::Markdown(style.clone()), ast),
                 buffer,
                 ast,
                 &mut mutation,
             );
-            mutation.push(SubMutation::Cursor { cursor: current_cursor });
+            if style.node_type() != MarkdownNodeType::Inline(InlineNodeType::Link) {
+                // toggling link style leaves cursor where you can type link destination
+                mutation.push(SubMutation::Cursor { cursor: current_cursor });
+            }
         }
         Modification::Newline { advance_cursor } => {
             let mut cursor = current_cursor;
             let galley_idx = galleys.galley_at_char(cursor.selection.1);
             let galley = &galleys[galley_idx];
+            let ast_text_range = ast.text_range_at_offset(cursor.selection.1);
             if matches!(galley.annotation, Some(Annotation::Item(..))) {
                 // cursor at end of list item
                 if galley.size() - galley.head_size - galley.tail_size == 0 {
@@ -87,13 +93,13 @@ pub fn calc(
                         .push(SubMutation::Insert { text: "\n".to_string(), advance_cursor: true });
 
                     match galley.annotation {
-                        Some(Annotation::Item(ItemType::Bulleted, _)) => {
+                        Some(Annotation::Item(ListItem::Bulleted, _)) => {
                             mutation.push(SubMutation::Insert {
                                 text: galley.head(buffer).to_string(),
                                 advance_cursor: true,
                             });
                         }
-                        Some(Annotation::Item(ItemType::Numbered(cur_number), indent_level)) => {
+                        Some(Annotation::Item(ListItem::Numbered(cur_number), indent_level)) => {
                             let head = galley.head(buffer);
                             let text = head[0..head.len() - (cur_number).to_string().len() - 2]
                                 .to_string()
@@ -111,12 +117,13 @@ pub fn calc(
                                 cursor,
                             ));
                         }
-                        Some(Annotation::Item(ItemType::Todo(_), _)) => {
+                        Some(Annotation::Item(ListItem::Todo(_), _)) => {
                             let head = galley.head(buffer);
-                            let text = head[0..head.len() - 6].to_string() + "- [ ] ";
+                            let text = head[0..head.len() - 6].to_string() + "* [ ] ";
                             mutation.push(SubMutation::Insert { text, advance_cursor: true });
                         }
                         Some(Annotation::Image(_, _, _)) => {}
+                        Some(Annotation::HeadingRule) => {}
                         Some(Annotation::Rule) => {}
                         None => {}
                     }
@@ -128,6 +135,18 @@ pub fn calc(
                 mutation.push(SubMutation::Cursor { cursor: galley.range.start().into() });
                 mutation.push(SubMutation::Insert { text: "\n".to_string(), advance_cursor: true });
                 mutation.push(SubMutation::Cursor { cursor });
+            } else if let Some(ast_text_range) = ast_text_range {
+                if ast_text_range.range_type == AstTextRangeType::Tail
+                    && ast_text_range.node(ast).node_type()
+                        == MarkdownNodeType::Inline(InlineNodeType::Link)
+                {
+                    // cursor inside captured link url -> move cursor to end of link
+                    mutation.push(SubMutation::Cursor {
+                        cursor: (ast_text_range.range.end(), ast_text_range.range.end()).into(),
+                    });
+                } else {
+                    mutation.push(SubMutation::Insert { text: "\n".to_string(), advance_cursor });
+                }
             } else {
                 mutation.push(SubMutation::Insert { text: "\n".to_string(), advance_cursor });
             }
@@ -223,7 +242,7 @@ pub fn calc(
 
                         // re-number numbered lists
                         if new_indent_level != *indent_level {
-                            if let ItemType::Numbered(cur_number) = item_type {
+                            if let ListItem::Numbered(cur_number) = item_type {
                                 // assign a new_number to this item based on position in new nested list
                                 let new_number = {
                                     let mut new_number = 1;
@@ -232,7 +251,7 @@ pub fn calc(
                                         prior_galley_idx -= 1;
                                         let prior_galley = &galleys[prior_galley_idx];
                                         if let Some(Annotation::Item(
-                                            ItemType::Numbered(prior_number),
+                                            ListItem::Numbered(prior_number),
                                             prior_indent_level,
                                         )) = prior_galley.annotation
                                         {
@@ -320,6 +339,7 @@ pub fn calc(
                         }
                     }
                     Annotation::Image(..) => {}
+                    Annotation::HeadingRule => {}
                     Annotation::Rule => {}
                 }
             } else if !deindent {
@@ -351,7 +371,7 @@ pub fn calc(
         }
         Modification::ToggleCheckbox(galley_idx) => {
             let galley = &galleys[galley_idx];
-            if let Some(Annotation::Item(ItemType::Todo(checked), ..)) = galley.annotation {
+            if let Some(Annotation::Item(ListItem::Todo(checked), ..)) = galley.annotation {
                 mutation.push(SubMutation::Cursor {
                     cursor: (
                         galley.range.start() + galley.head_size - 6,
@@ -360,7 +380,7 @@ pub fn calc(
                         .into(),
                 });
                 mutation.push(SubMutation::Insert {
-                    text: if checked { "- [ ] " } else { "- [x] " }.to_string(),
+                    text: if checked { "* [ ] " } else { "* [x] " }.to_string(),
                     advance_cursor: true,
                 });
                 mutation.push(SubMutation::Cursor { cursor: current_cursor });
@@ -404,7 +424,7 @@ pub fn calc(
             let galley = &galleys.galleys[galley_idx];
 
             match &galley.annotation {
-                Some(Annotation::Item(ItemType::Bulleted, ..)) => {
+                Some(Annotation::Item(ListItem::Bulleted, ..)) => {
                     list_mutation_replacement(&mut mutation, ast, current_cursor, None);
                 }
                 Some(Annotation::Item(..)) => {
@@ -412,7 +432,7 @@ pub fn calc(
                         &mut mutation,
                         ast,
                         current_cursor,
-                        Some(ItemType::Bulleted),
+                        Some(ListItemType::Bulleted),
                     );
                 }
                 _ => {
@@ -430,7 +450,7 @@ pub fn calc(
                         ),
                     });
                     mutation.push(SubMutation::Insert {
-                        text: ItemType::Bulleted.head().to_string(),
+                        text: ListItemType::Bulleted.head().to_string(),
                         advance_cursor: true,
                     });
 
@@ -443,7 +463,7 @@ pub fn calc(
             let galley = &galleys.galleys[galley_idx];
 
             match &galley.annotation {
-                Some(Annotation::Item(ItemType::Numbered(..), ..)) => {
+                Some(Annotation::Item(ListItem::Numbered(..), ..)) => {
                     list_mutation_replacement(&mut mutation, ast, current_cursor, None);
                 }
                 Some(Annotation::Item(..)) => {
@@ -451,7 +471,7 @@ pub fn calc(
                         &mut mutation,
                         ast,
                         current_cursor,
-                        Some(ItemType::Numbered(1)),
+                        Some(ListItemType::Numbered),
                     );
                 }
                 _ => {
@@ -469,7 +489,7 @@ pub fn calc(
                         ),
                     });
                     mutation.push(SubMutation::Insert {
-                        text: ItemType::Numbered(1).head().to_string(),
+                        text: ListItemType::Numbered.head().to_string(),
                         advance_cursor: true,
                     });
 
@@ -482,7 +502,7 @@ pub fn calc(
             let galley = &galleys.galleys[galley_idx];
 
             match &galley.annotation {
-                Some(Annotation::Item(ItemType::Todo(..), ..)) => {
+                Some(Annotation::Item(ListItem::Todo(..), ..)) => {
                     list_mutation_replacement(&mut mutation, ast, current_cursor, None);
                 }
                 Some(Annotation::Item(..)) => {
@@ -490,7 +510,7 @@ pub fn calc(
                         &mut mutation,
                         ast,
                         current_cursor,
-                        Some(ItemType::Todo(false)),
+                        Some(ListItemType::Todo),
                     );
                 }
                 _ => {
@@ -508,7 +528,7 @@ pub fn calc(
                         ),
                     });
                     mutation.push(SubMutation::Insert {
-                        text: ItemType::Todo(false).head().to_string(),
+                        text: ListItemType::Todo.head().to_string(),
                         advance_cursor: true,
                     });
 
@@ -694,10 +714,10 @@ fn detail_ast_node(node_idx: usize, ast: &Ast, mutation: &mut Vec<SubMutation>) 
 fn insert_head(
     offset: DocCharOffset, style: MarkdownNode, buffer: &SubBuffer, mutation: &mut Vec<SubMutation>,
 ) {
-    let mut text = style.head().to_string();
+    let mut text = style.node_type().head().to_string();
 
     // add leading/trailing whitespace if needed
-    if style.needs_whitespace()
+    if style.node_type().needs_whitespace()
         && offset != 0
         && !buffer[(offset - 1, offset)].contains(|c: char| c.is_whitespace())
     {
@@ -711,22 +731,32 @@ fn insert_head(
 fn insert_tail(
     offset: DocCharOffset, style: MarkdownNode, buffer: &SubBuffer, mutation: &mut Vec<SubMutation>,
 ) {
-    let mut text = style.tail().to_string();
+    let mut text = style.node_type().tail().to_string();
 
     // add leading/trailing whitespace if needed
-    if style.needs_whitespace()
+    if style.node_type().needs_whitespace()
         && offset != buffer.segs.last_cursor_position()
         && !buffer[(offset, offset + 1)].contains(|c: char| c.is_whitespace())
     {
         text += " ";
     }
 
-    mutation.push(SubMutation::Cursor { cursor: offset.into() });
-    mutation.push(SubMutation::Insert { text, advance_cursor: false });
+    if style.node_type() == MarkdownNodeType::Inline(InlineNodeType::Link) {
+        // leave cursor in link tail where you can type the link destination
+        mutation.push(SubMutation::Cursor { cursor: offset.into() });
+        mutation.push(SubMutation::Insert { text: text[0..2].to_string(), advance_cursor: true });
+        mutation.push(SubMutation::Insert {
+            text: text[2..text.len()].to_string(),
+            advance_cursor: false,
+        });
+    } else {
+        mutation.push(SubMutation::Cursor { cursor: offset.into() });
+        mutation.push(SubMutation::Insert { text, advance_cursor: false });
+    }
 }
 
 fn list_mutation_replacement(
-    mutation: &mut Vec<SubMutation>, ast: &Ast, current_cursor: Cursor, to: Option<ItemType>,
+    mutation: &mut Vec<SubMutation>, ast: &Ast, current_cursor: Cursor, to: Option<ListItemType>,
 ) {
     let mut ast_node_idx = ast.ast_node_at_char(current_cursor.selection.1);
     loop {
@@ -756,16 +786,17 @@ pub fn region_to_cursor(
 ) -> Cursor {
     match region {
         Region::Location(location) => {
-            location_to_char_offset(location, current_cursor, galleys, &buffer.segs).into()
+            location_to_char_offset(location, current_cursor, galleys, &buffer.segs, &bounds.text)
+                .into()
         }
         Region::ToLocation(location) => (
             current_cursor.selection.0,
-            location_to_char_offset(location, current_cursor, galleys, &buffer.segs),
+            location_to_char_offset(location, current_cursor, galleys, &buffer.segs, &bounds.text),
         )
             .into(),
         Region::BetweenLocations { start, end } => (
-            location_to_char_offset(start, current_cursor, galleys, &buffer.segs),
-            location_to_char_offset(end, current_cursor, galleys, &buffer.segs),
+            location_to_char_offset(start, current_cursor, galleys, &buffer.segs, &bounds.text),
+            location_to_char_offset(end, current_cursor, galleys, &buffer.segs, &bounds.text),
         )
             .into(),
         Region::Selection => current_cursor,
@@ -808,7 +839,13 @@ pub fn region_to_cursor(
             range.into()
         }
         Region::BoundAt { bound, location, backwards } => {
-            let offset = location_to_char_offset(location, current_cursor, galleys, &buffer.segs);
+            let offset = location_to_char_offset(
+                location,
+                current_cursor,
+                galleys,
+                &buffer.segs,
+                &bounds.text,
+            );
             let range = offset
                 .range_bound(bound, backwards, false, bounds)
                 .unwrap_or((offset, offset));
@@ -818,16 +855,18 @@ pub fn region_to_cursor(
 }
 
 pub fn location_to_char_offset(
-    location: Location, current_cursor: Cursor, galleys: &Galleys, segs: &UnicodeSegs,
+    location: Location, current_cursor: Cursor, galleys: &Galleys, segs: &UnicodeSegs, text: &Text,
 ) -> DocCharOffset {
     match location {
         Location::CurrentCursor => current_cursor.selection.1,
         Location::DocCharOffset(o) => o,
-        Location::Pos(pos) => pos_to_char_offset(pos, galleys, segs),
+        Location::Pos(pos) => pos_to_char_offset(pos, galleys, segs, text),
     }
 }
 
-pub fn pos_to_char_offset(pos: Pos2, galleys: &Galleys, segs: &UnicodeSegs) -> DocCharOffset {
+pub fn pos_to_char_offset(
+    pos: Pos2, galleys: &Galleys, segs: &UnicodeSegs, text: &Text,
+) -> DocCharOffset {
     if !galleys.is_empty() && pos.y < galleys[0].galley_location.min.y {
         // click position is above first galley
         0.into()
@@ -842,7 +881,7 @@ pub fn pos_to_char_offset(pos: Pos2, galleys: &Galleys, segs: &UnicodeSegs) -> D
                 // click position is in a galley
                 let relative_pos = pos - galley.text_location;
                 let new_cursor = galley.galley.cursor_from_pos(relative_pos);
-                result = galleys.char_offset_by_galley_and_cursor(galley_idx, &new_cursor);
+                result = galleys.char_offset_by_galley_and_cursor(galley_idx, &new_cursor, text);
             }
         }
         result
@@ -872,7 +911,7 @@ pub fn increment_numbered_list_items(
                     break; // end of nested list
                 }
                 Ordering::Equal => {
-                    if let ItemType::Numbered(cur_number) = item_type {
+                    if let ListItem::Numbered(cur_number) = item_type {
                         // replace cur_number with next_number in head
                         modifications.push(SubMutation::Cursor {
                             cursor: (galley.range.start(), galley.range.start() + galley.head_size)

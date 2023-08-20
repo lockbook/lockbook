@@ -29,6 +29,7 @@ class SearchService: ObservableObject {
                         }
                         
                         let data = String(cString: searchResult!).data(using: .utf8)!
+                        searchService.core.freeText(s: searchResult!)
                         
                         var searchResults: [SearchResult] = []
                         if case .SearchSuccessful(let originalSearchResults) = searchService.searchPathAndContentState {

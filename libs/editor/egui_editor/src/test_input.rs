@@ -1,6 +1,6 @@
 pub static TEST_MARKDOWN: &str = TEST_MARKDOWN_50;
 
-pub static TEST_MARKDOWN_ALL: [&str; 54] = [
+pub static TEST_MARKDOWN_ALL: [&str; 55] = [
     TEST_MARKDOWN_0,
     TEST_MARKDOWN_1,
     TEST_MARKDOWN_2,
@@ -54,6 +54,7 @@ pub static TEST_MARKDOWN_ALL: [&str; 54] = [
     TEST_MARKDOWN_50,
     TEST_MARKDOWN_51,
     TEST_MARKDOWN_52,
+    TEST_MARKDOWN_53,
     "1. *",
 ];
 
@@ -269,13 +270,15 @@ Featuring:
 1. a __bold__ list item,
     * an _italic_ list item,
     - [ ] a `code` list item,
-    
+
 ```
 a code block
 ```
 
 > a quote,
 
+a ~~rule~~
+***
 and a link to our [website](http://lockbook.net)!
 "#;
 
@@ -294,4 +297,9 @@ _apples`apples`_
 
 
 - [ ] 
+"#;
+pub static TEST_MARKDOWN_53: &str = r#"# Rules
+What do you know about rules?
+***
+Rules rule!
 "#;

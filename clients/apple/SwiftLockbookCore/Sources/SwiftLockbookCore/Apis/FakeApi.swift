@@ -32,11 +32,15 @@ public struct FakeApi: LockbookApi {
     public func deleteAccount() -> FfiResult<Empty, DeleteAccountError> {
         .failure(.init(unexpected: "LAZY"))
     }
-
-    public func syncAll() -> FfiResult<Empty, SyncAllError> {
+    
+    public func syncAll(context: UnsafeRawPointer?, updateStatus: @escaping @convention(c) (UnsafePointer<Int8>?, Bool, UnsafePointer<Int8>?, Float) -> Void) -> FfiResult<Empty, SyncAllError> {
         .failure(.init(unexpected: "LAZY"))
     }
     
+    public func backgroundSync() -> FfiResult<Empty, SyncAllError> {
+        .failure(.init(unexpected: "LAZY"))
+    }
+
     public func calculateWork() -> FfiResult<WorkCalculated, CalculateWorkError> {
         .failure(.init(unexpected: "LAZY"))
     }
@@ -175,6 +179,8 @@ Vestibulum ante ipsum primis in vel.
     public func timeAgo(timeStamp: Int64) -> String {
         ""
     }
+    
+    public func freeText(s: UnsafePointer<Int8>) {}
     
     public let username: Account.Username = "jeff"
     public static let root = File(fileType: .Folder, id: UUID(uuidString: "aa9c473b-79d3-4d11-b6c7-7c82d6fb94cc").unsafelyUnwrapped, parent: UUID(uuidString: "aa9c473b-79d3-4d11-b6c7-7c82d6fb94cc").unsafelyUnwrapped, name: "jeff", lastModifiedBy: "jeff",  lastModified: 1587384000000, shares: [])

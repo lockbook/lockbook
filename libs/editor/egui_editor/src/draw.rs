@@ -2,7 +2,7 @@ use crate::appearance::YELLOW;
 use crate::input::canonical::{Location, Modification, Region};
 use crate::layouts::Annotation;
 use crate::offset_types::RangeExt;
-use crate::style::{BlockNode, InlineNode, ItemType, MarkdownNode, RenderStyle};
+use crate::style::{BlockNode, InlineNode, ListItem, MarkdownNode, RenderStyle};
 use crate::Editor;
 use egui::text::LayoutJob;
 use egui::{Align2, Color32, FontId, Pos2, Rect, Rounding, Sense, Stroke, Ui, Vec2};
@@ -16,7 +16,7 @@ impl Editor {
             if let Some(annotation) = &galley.annotation {
                 match annotation {
                     Annotation::Item(item_type, indent_level) => match item_type {
-                        ItemType::Bulleted => {
+                        ListItem::Bulleted => {
                             let bullet_point = galley.bullet_center();
                             match indent_level {
                                 0 => ui.painter().circle_filled(
@@ -31,7 +31,7 @@ impl Editor {
                                 ),
                             }
                         }
-                        ItemType::Numbered(num) => {
+                        ListItem::Numbered(num) => {
                             let mut job = LayoutJob::default();
 
                             let mut text_format = galley.annotation_text_format.clone();
@@ -47,7 +47,7 @@ impl Editor {
                                 .anchor_rect(Rect::from_min_size(pos.max, galley.size()));
                             ui.painter().galley(rect.min, galley);
                         }
-                        ItemType::Todo(checked) => {
+                        ListItem::Todo(checked) => {
                             ui.painter().rect_filled(
                                 galley.checkbox_bounds(&self.appearance),
                                 self.appearance.checkbox_rounding(),
@@ -64,13 +64,21 @@ impl Editor {
                             }
                         }
                     },
-                    Annotation::Rule => {
-                        let mut max = galley.galley_location.max;
-                        max.y -= 7.0;
+                    Annotation::HeadingRule => {
+                        let y = galley.galley_location.max.y - 7.0;
+                        let min = Pos2 { x: galley.galley_location.min.x, y };
+                        let max = Pos2 { x: galley.galley_location.max.x, y };
 
-                        let mut min = galley.galley_location.max;
-                        min.y -= 7.0;
-                        min.x = galley.galley_location.min.x;
+                        ui.painter().line_segment(
+                            [min, max],
+                            Stroke::new(0.3, self.appearance.heading_line()),
+                        );
+                    }
+                    Annotation::Rule => {
+                        let y =
+                            galley.galley_location.min.y + galley.galley_location.height() / 2.0;
+                        let min = Pos2 { x: galley.galley_location.min.x, y };
+                        let max = Pos2 { x: galley.galley_location.max.x, y };
 
                         ui.painter().line_segment(
                             [min, max],
@@ -105,8 +113,8 @@ impl Editor {
     pub fn draw_cursor(&mut self, ui: &mut Ui, touch_mode: bool) {
         // determine cursor style
         let cursor = self.buffer.current.cursor;
-        let selection_start_line = cursor.start_line(&self.galleys);
-        let selection_end_line = cursor.end_line(&self.galleys);
+        let selection_start_line = cursor.start_line(&self.galleys, &self.bounds.text);
+        let selection_end_line = cursor.end_line(&self.galleys, &self.bounds.text);
 
         let color = if touch_mode { self.appearance.cursor() } else { self.appearance.text() };
         let stroke = Stroke { width: 1.0, color };

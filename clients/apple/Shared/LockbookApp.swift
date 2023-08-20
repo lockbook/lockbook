@@ -50,21 +50,23 @@ import AppKit
             }
             
             CommandGroup(replacing: .textFormatting) {
-                Button("Heading 1", action: {
-                    DI.currentDoc.formatSelectedDocSelectedText(.Heading(1))
-                }).keyboardShortcut("1", modifiers: [.command, .control])
-
-                Button("Heading 2", action: {
-                    DI.currentDoc.formatSelectedDocSelectedText(.Heading(2))
-                }).keyboardShortcut("2", modifiers: [.command, .control])
-
-                Button("Heading 3", action: {
-                    DI.currentDoc.formatSelectedDocSelectedText(.Heading(3))
-                }).keyboardShortcut("3", modifiers: [.command, .control])
-
-                Button("Heading 4", action: {
-                    DI.currentDoc.formatSelectedDocSelectedText(.Heading(4))
-                }).keyboardShortcut("4", modifiers: [.command, .control])
+                Menu("Headings") {
+                    Button("Heading 1", action: {
+                        DI.currentDoc.formatSelectedDocSelectedText(.Heading(1))
+                    }).keyboardShortcut("1", modifiers: [.command, .control])
+                    
+                    Button("Heading 2", action: {
+                        DI.currentDoc.formatSelectedDocSelectedText(.Heading(2))
+                    }).keyboardShortcut("2", modifiers: [.command, .control])
+                    
+                    Button("Heading 3", action: {
+                        DI.currentDoc.formatSelectedDocSelectedText(.Heading(3))
+                    }).keyboardShortcut("3", modifiers: [.command, .control])
+                    
+                    Button("Heading 4", action: {
+                        DI.currentDoc.formatSelectedDocSelectedText(.Heading(4))
+                    }).keyboardShortcut("4", modifiers: [.command, .control])
+                }
 
                 Button("Bold", action: {
                     DI.currentDoc.formatSelectedDocSelectedText(.Bold)
@@ -77,6 +79,10 @@ import AppKit
                 Button("Inline Code", action: {
                     DI.currentDoc.formatSelectedDocSelectedText(.InlineCode)
                 }).keyboardShortcut("C", modifiers: [.command, .shift])
+                
+                Button("Strikethrough", action: {
+                    DI.currentDoc.formatSelectedDocSelectedText(.Strikethrough)
+                }).keyboardShortcut("S", modifiers: [.command, .shift])
                 
                 Button("Number List", action: {
                     DI.currentDoc.formatSelectedDocSelectedText(.NumberList)
@@ -198,7 +204,6 @@ import AppKit
                                     var laterOpenForIphone = false
                                     if let docInfo = DI.currentDoc.openDocuments.values.first,
                                        docInfo.isiPhone {
-                                        print("dismissing for link")
                                         docInfo.dismissForLink = meta
                                         laterOpenForIphone.toggle()
                                     }
@@ -250,7 +255,9 @@ extension View {
             .onChange(of: scenePhase, perform: { newValue in
                 switch newValue {
                 case .background:
-                    appDelegate.scheduleBackgroundTask(initialRun: true)
+                    if !DI.onboarding.initialSyncing {
+                        appDelegate.scheduleBackgroundTask(initialRun: true)
+                    }
                 case .active:
                     appDelegate.endBackgroundTasks()
                 default:
@@ -262,7 +269,9 @@ extension View {
             .onReceive(
                 NotificationCenter.default.publisher(for: NSApplication.willResignActiveNotification),
                 perform: { _ in
-                    appDelegate.scheduleBackgroundTask(initialRun: true)
+                    if !DI.onboarding.initialSyncing {
+                        appDelegate.scheduleBackgroundTask(initialRun: true)
+                    }
                 })
             .onReceive(
                 NotificationCenter.default.publisher(for: NSApplication.willBecomeActiveNotification),
@@ -285,14 +294,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         return true
     }
-    
-    let operationQueue = OperationQueue()
-    
+        
     func scheduleBackgroundTask(initialRun: Bool) {
         let newSyncTask = DispatchWorkItem {
-            DI.sync.sync()
-            
-            self.scheduleBackgroundTask(initialRun: false)
+            DI.sync.backgroundSync(onSuccess: {
+                self.scheduleBackgroundTask(initialRun: false)
+            }, onFailure: {
+                self.scheduleBackgroundTask(initialRun: false)
+            })
         }
         
         DispatchQueue.main.asyncAfter(deadline: .now() + .seconds((initialRun ? backgroundSyncStartSecs : backgroundSyncContSecs)), execute: newSyncTask)
@@ -348,7 +357,13 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         request.requiresExternalPower = false
         request.requiresNetworkConnectivity = true
         
-        try! BGTaskScheduler.shared.submit(request)
+        do {
+            try BGTaskScheduler.shared.submit(request)
+            print("scheduled background task")
+            
+        } catch {
+            print("could not schedule background task")
+        }
     }
     
     func endBackgroundTasks() {

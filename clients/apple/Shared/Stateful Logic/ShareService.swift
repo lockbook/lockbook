@@ -50,7 +50,6 @@ class ShareService: ObservableObject {
     func calculateShareInfo(id: UUID) {
         let maybeMeta = DI.files.idsAndFiles[id]
         
-        print("calculating share info for \(maybeMeta?.name) with \(maybeMeta?.shares.map({ share in share.sharedWith}))")
         if let meta = maybeMeta {
             var writeAccessUsers: [String] = []
             var readAccessUsers: [String] = []

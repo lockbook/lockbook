@@ -1,4 +1,4 @@
-use crate::bounds::Bounds;
+use crate::bounds::{Bounds, Text};
 use crate::buffer::SubBuffer;
 use crate::galleys::Galleys;
 use crate::input::canonical::Offset;
@@ -130,16 +130,16 @@ impl Cursor {
         );
     }
 
-    pub fn start_line(&self, galleys: &Galleys) -> [Pos2; 2] {
-        self.line(galleys, self.selection.0)
+    pub fn start_line(&self, galleys: &Galleys, text: &Text) -> [Pos2; 2] {
+        self.line(galleys, self.selection.0, text)
     }
 
-    pub fn end_line(&self, galleys: &Galleys) -> [Pos2; 2] {
-        self.line(galleys, self.selection.1)
+    pub fn end_line(&self, galleys: &Galleys, text: &Text) -> [Pos2; 2] {
+        self.line(galleys, self.selection.1, text)
     }
 
-    fn line(&self, galleys: &Galleys, offset: DocCharOffset) -> [Pos2; 2] {
-        let (galley_idx, cursor) = galleys.galley_and_cursor_by_char_offset(offset);
+    fn line(&self, galleys: &Galleys, offset: DocCharOffset, text: &Text) -> [Pos2; 2] {
+        let (galley_idx, cursor) = galleys.galley_and_cursor_by_char_offset(offset, text);
         let galley = &galleys[galley_idx];
 
         let max = DocCharOffset::cursor_to_pos_abs(galley, cursor);
@@ -207,10 +207,10 @@ impl PointerState {
             if pos.distance(click_pos) > DRAG_DISTANCE {
                 self.click_dragged = Some(true);
             }
-        }
-        if let Some(click_time) = self.last_click_times.0 {
-            if t - click_time > DRAG_DURATION {
-                self.click_dragged = Some(true);
+            if let Some(click_time) = self.last_click_times.0 {
+                if t - click_time > DRAG_DURATION {
+                    self.click_dragged = Some(true);
+                }
             }
         }
     }

@@ -9,7 +9,7 @@ use egui::{Color32, Context, Event, FontDefinitions, Frame, Pos2, Rect, Sense, U
 
 use crate::appearance::Appearance;
 use crate::ast::Ast;
-use crate::bounds::Bounds;
+use crate::bounds::{BoundCase, Bounds};
 use crate::buffer::Buffer;
 use crate::debug::DebugInfo;
 use crate::galleys::Galleys;
@@ -19,7 +19,7 @@ use crate::input::click_checker::{ClickChecker, EditorClickChecker};
 use crate::input::cursor::{Cursor, PointerState};
 use crate::input::events;
 use crate::offset_types::{DocCharOffset, RangeExt};
-use crate::style::{BlockNode, InlineNode, ItemType, MarkdownNode};
+use crate::style::{BlockNode, InlineNode, ListItem, MarkdownNode};
 use crate::test_input::TEST_MARKDOWN;
 use crate::{ast, bounds, galleys, images, register_fonts};
 
@@ -43,6 +43,7 @@ pub struct EditorResponse {
     pub cursor_in_bold: bool,
     pub cursor_in_italic: bool,
     pub cursor_in_inline_code: bool,
+    pub cursor_in_strikethrough: bool,
 
     pub opened_url: *const c_char,
 }
@@ -68,6 +69,7 @@ pub struct EditorResponse {
     pub cursor_in_bold: bool,
     pub cursor_in_italic: bool,
     pub cursor_in_inline_code: bool,
+    pub cursor_in_strikethrough: bool,
 }
 
 impl Default for EditorResponse {
@@ -92,6 +94,7 @@ impl Default for EditorResponse {
             cursor_in_bold: false,
             cursor_in_italic: false,
             cursor_in_inline_code: false,
+            cursor_in_strikethrough: false,
 
             #[cfg(any(target_os = "ios", target_os = "macos"))]
             opened_url: ptr::null(),
@@ -301,8 +304,11 @@ impl Editor {
         // recalculate dependent state
         if text_updated {
             self.ast = ast::calc(&self.buffer.current);
-            self.bounds.words = bounds::calc_words(&self.buffer.current, &self.ast);
+            self.bounds.words =
+                bounds::calc_words(&self.buffer.current, &self.ast, &self.appearance);
             self.bounds.paragraphs = bounds::calc_paragraphs(&self.buffer.current, &self.ast);
+            self.bounds.text =
+                bounds::calc_text(&self.ast, &self.appearance, &self.buffer.current.segs);
         }
         if text_updated || selection_updated || theme_updated {
             self.images = images::calc(&self.ast, &self.images, &self.client, ui);
@@ -315,7 +321,7 @@ impl Editor {
             &self.appearance,
             ui,
         );
-        self.bounds.lines = bounds::calc_lines(&self.galleys);
+        self.bounds.lines = bounds::calc_lines(&self.galleys, &self.bounds.text);
         self.initialized = true;
 
         // draw
@@ -334,7 +340,11 @@ impl Editor {
                 .unwrap() // there's always a document
         };
         if selection_updated && self.buffer.current.cursor.selection != all_selection {
-            let cursor_end_line = self.buffer.current.cursor.end_line(&self.galleys);
+            let cursor_end_line = self
+                .buffer
+                .current
+                .cursor
+                .end_line(&self.galleys, &self.bounds.text);
             let rect = Rect { min: cursor_end_line[0], max: cursor_end_line[1] };
             ui.scroll_to_rect(rect, None);
         }
@@ -379,14 +389,17 @@ impl Editor {
                     MarkdownNode::Inline(InlineNode::Bold) => result.cursor_in_bold = true,
                     MarkdownNode::Inline(InlineNode::Italic) => result.cursor_in_italic = true,
                     MarkdownNode::Inline(InlineNode::Code) => result.cursor_in_inline_code = true,
+                    MarkdownNode::Inline(InlineNode::Strikethrough) => {
+                        result.cursor_in_strikethrough = true
+                    }
                     MarkdownNode::Block(BlockNode::Heading(..)) => result.cursor_in_heading = true,
-                    MarkdownNode::Block(BlockNode::ListItem(ItemType::Bulleted, ..)) => {
+                    MarkdownNode::Block(BlockNode::ListItem(ListItem::Bulleted, ..)) => {
                         result.cursor_in_bullet_list = true
                     }
-                    MarkdownNode::Block(BlockNode::ListItem(ItemType::Numbered(..), ..)) => {
+                    MarkdownNode::Block(BlockNode::ListItem(ListItem::Numbered(..), ..)) => {
                         result.cursor_in_number_list = true
                     }
-                    MarkdownNode::Block(BlockNode::ListItem(ItemType::Todo(..), ..)) => {
+                    MarkdownNode::Block(BlockNode::ListItem(ListItem::Todo(..), ..)) => {
                         result.cursor_in_todo_list = true
                     }
                     _ => {}
@@ -400,6 +413,28 @@ impl Editor {
     pub fn process_events(
         &mut self, events: &[Event], custom_events: &[Modification], touch_mode: bool,
     ) {
+        // if the cursor is in an invalid location, move it to the next valid location
+        if let BoundCase::BewteenRanges { range_after, .. } = self
+            .buffer
+            .current
+            .cursor
+            .selection
+            .0
+            .bound_case(&self.bounds.text)
+        {
+            self.buffer.current.cursor.selection.0 = range_after.start();
+        }
+        if let BoundCase::BewteenRanges { range_after, .. } = self
+            .buffer
+            .current
+            .cursor
+            .selection
+            .1
+            .bound_case(&self.bounds.text)
+        {
+            self.buffer.current.cursor.selection.1 = range_after.start();
+        }
+
         let prior_selection = self.buffer.current.cursor.selection;
         let click_checker = EditorClickChecker {
             ui_rect: self.ui_rect,
@@ -471,8 +506,12 @@ impl Editor {
 
             if touched_cursor || touched_selection || double_touched_for_selection {
                 // set menu location
-                self.maybe_menu_location =
-                    Some(self.buffer.current.cursor.end_line(&self.galleys)[0]);
+                self.maybe_menu_location = Some(
+                    self.buffer
+                        .current
+                        .cursor
+                        .end_line(&self.galleys, &self.bounds.text)[0],
+                );
             } else {
                 self.maybe_menu_location = None;
             }
@@ -481,6 +520,15 @@ impl Editor {
                 self.buffer.current.cursor.selection = prior_selection;
             }
         }
+
+        // assume https for urls without a scheme
+        let maybe_opened_url = maybe_opened_url.map(|url| {
+            if !url.contains("://") {
+                format!("https://{}", url)
+            } else {
+                url
+            }
+        });
 
         // put cut or copied text in clipboard
         self.maybe_to_clipboard = maybe_to_clipboard;
@@ -505,9 +553,9 @@ impl Editor {
     pub fn get_potential_text_title(&self) -> Option<String> {
         let mut maybe_chosen: Option<(DocCharOffset, DocCharOffset)> = None;
 
-        for paragraph in &self.bounds.paragraphs {
-            if !paragraph.is_empty() {
-                maybe_chosen = Some(*paragraph);
+        for text_range in &self.bounds.text {
+            if !text_range.is_empty() {
+                maybe_chosen = Some(*text_range);
                 break;
             }
         }

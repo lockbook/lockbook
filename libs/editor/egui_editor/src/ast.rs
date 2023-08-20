@@ -1,7 +1,9 @@
 use crate::buffer::SubBuffer;
 use crate::layouts::Annotation;
 use crate::offset_types::{DocCharOffset, RangeExt};
-use crate::style::{BlockNode, InlineNode, ItemType, MarkdownNode};
+use crate::style::{
+    BlockNode, BlockNodeType, InlineNode, ListItem, MarkdownNode, MarkdownNodeType,
+};
 use crate::Editor;
 use pulldown_cmark::{Event, HeadingLevel, LinkType, OffsetIter, Options, Parser, Tag};
 
@@ -141,6 +143,14 @@ impl Ast {
                         buffer,
                     );
                 }
+                Event::Rule => {
+                    self.push_child(
+                        current_idx,
+                        MarkdownNode::Block(BlockNode::Rule),
+                        range,
+                        buffer,
+                    );
+                }
                 Event::End(_) => {
                     if skipped == 0 {
                         break;
@@ -153,23 +163,23 @@ impl Ast {
         }
     }
 
-    fn item_type(text: &str) -> ItemType {
+    fn item_type(text: &str) -> ListItem {
         let text = text.trim_start();
         if text.starts_with("+ [ ]") || text.starts_with("* [ ]") || text.starts_with("- [ ]") {
-            ItemType::Todo(false)
+            ListItem::Todo(false)
         } else if text.starts_with("+ [x]")
             || text.starts_with("* [x]")
             || text.starts_with("- [x]")
         {
-            ItemType::Todo(true)
+            ListItem::Todo(true)
         } else if let Some(prefix) = text.split('.').next() {
             if let Ok(num) = prefix.parse::<usize>() {
-                ItemType::Numbered(num)
+                ListItem::Numbered(num)
             } else {
-                ItemType::Bulleted // default to bullet
+                ListItem::Bulleted // default to bullet
             }
         } else {
-            ItemType::Bulleted // default to bullet
+            ListItem::Bulleted // default to bullet
         }
     }
 
@@ -213,11 +223,19 @@ impl Ast {
                 range.1 += 1;
             }
 
+            // capture up to one trailing newline for rules
+            if markdown_node.node_type() == MarkdownNodeType::Block(BlockNodeType::Rule)
+                && range.1 < buffer.segs.last_cursor_position()
+                && buffer[(range.0, range.1 + 1)].ends_with('\n')
+            {
+                range.1 += 1;
+            }
+
             // clamp range to text range of parent
             let parent_text_range = self.nodes[parent_idx].text_range;
             let (min, max) = parent_text_range;
-            range.0 = std::cmp::max(std::cmp::min(range.0, max), min);
-            range.1 = std::cmp::max(std::cmp::min(range.1, max), min);
+            range.0 = range.0.max(min).min(max);
+            range.1 = range.1.max(min).min(max);
 
             if range.is_empty() {
                 return None;
@@ -275,7 +293,6 @@ impl Ast {
                         /*
                             code block
                         */
-                        text_range.0 += buffer[range].len() - buffer[range].trim_start().len();
                     }
                     if text_range.1 < text_range.0 {
                         /*
@@ -296,9 +313,9 @@ impl Ast {
 
                     text_range.0 += buffer[range].len() - buffer[range].trim_start().len();
                     text_range.0 += match item_type {
-                        ItemType::Bulleted => 1,
-                        ItemType::Numbered(n) => 1 + n.to_string().len(),
-                        ItemType::Todo(_) => 5,
+                        ListItem::Bulleted => 1,
+                        ListItem::Numbered(n) => 1 + n.to_string().len(),
+                        ListItem::Todo(_) => 5,
                     };
 
                     // correct cmark behavior with no space in syntax chars
@@ -307,6 +324,21 @@ impl Ast {
                     } else {
                         markdown_node = MarkdownNode::Paragraph;
                         text_range.0 = original_text_range_0;
+                    }
+                }
+                MarkdownNode::Block(BlockNode::Rule) => {
+                    // ---
+                    // ***
+                    // ___
+                    // -------------------
+                    // *******************
+                    // ___________________
+
+                    // require a trailing newline
+                    if !buffer[range].ends_with('\n') {
+                        markdown_node = MarkdownNode::Paragraph;
+                    } else {
+                        text_range.0 = text_range.1 - 1;
                     }
                 }
                 MarkdownNode::Inline(InlineNode::Code) => {
@@ -331,10 +363,16 @@ impl Ast {
                 }
                 MarkdownNode::Inline(InlineNode::Link(LinkType::Inline, url, title)) => {
                     // [title](http://url.com "title")
-                    text_range.0 += 1;
-                    text_range.1 -= url.len() + 3;
-                    if !title.is_empty() {
-                        text_range.1 -= title.len() + 3;
+
+                    // require url
+                    if url.is_empty() {
+                        markdown_node = MarkdownNode::Paragraph;
+                    } else {
+                        text_range.0 += 1;
+                        text_range.1 -= url.len() + 3;
+                        if !title.is_empty() {
+                            text_range.1 -= title.len() + 3;
+                        }
                     }
                 }
                 MarkdownNode::Inline(InlineNode::Image(LinkType::Inline, url, title)) => {
@@ -370,7 +408,7 @@ impl Ast {
     }
 
     /// Returns the AstTextRange at the given offset. Prefers the previous range when at a boundary.
-    fn text_range_at_offset(&self, offset: DocCharOffset) -> Option<AstTextRange> {
+    pub fn text_range_at_offset(&self, offset: DocCharOffset) -> Option<AstTextRange> {
         let mut end_range = None;
         for text_range in self.iter_text_ranges() {
             if text_range.range.contains(offset) {
@@ -459,13 +497,16 @@ impl AstTextRange {
 
     pub fn annotation(&self, ast: &Ast) -> Option<Annotation> {
         match self.node(ast) {
-            MarkdownNode::Block(BlockNode::Heading(HeadingLevel::H1)) => Some(Annotation::Rule),
+            MarkdownNode::Block(BlockNode::Heading(HeadingLevel::H1)) => {
+                Some(Annotation::HeadingRule)
+            }
             MarkdownNode::Inline(InlineNode::Image(link_type, url, title)) => {
                 Some(Annotation::Image(link_type, url, title))
             }
             MarkdownNode::Block(BlockNode::ListItem(item_type, indent_level)) => {
                 Some(Annotation::Item(item_type, indent_level))
             }
+            MarkdownNode::Block(BlockNode::Rule) => Some(Annotation::Rule),
             _ => None,
         }
     }

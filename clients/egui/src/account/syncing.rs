@@ -1,4 +1,5 @@
 use std::sync::{Arc, Mutex};
+use std::thread;
 
 use eframe::egui;
 
@@ -53,8 +54,19 @@ impl super::AccountScreen {
                     self.sync.phase = SyncPhase::IdleGood;
                     if let Ok(work) = result {
                         self.refresh_tree_and_workspace(ctx, work);
+                        self.suggested.recalc_and_redraw(ctx, &self.core);
                     }
                     self.refresh_sync_status(ctx);
+
+                    let core = self.core.clone();
+                    let update_tx = self.update_tx.clone();
+                    thread::spawn(move || {
+                        update_tx
+                            .send(AccountUpdate::FoundPendingShares(
+                                !core.get_pending_shares().unwrap().is_empty(),
+                            ))
+                            .unwrap();
+                    });
                 }
                 Err(err) => {
                     self.sync.phase = SyncPhase::IdleError;

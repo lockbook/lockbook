@@ -1,11 +1,11 @@
 use crate::appearance::Appearance;
 use crate::ast::{Ast, AstTextRangeType};
-use crate::bounds::Bounds;
+use crate::bounds::{Bounds, Text};
 use crate::buffer::SubBuffer;
 use crate::images::ImageCache;
 use crate::layouts::{Annotation, LayoutJobInfo};
 use crate::offset_types::{DocCharOffset, RangeExt, RelCharOffset};
-use crate::style::{BlockNode, MarkdownNode, RenderStyle};
+use crate::style::{MarkdownNode, RenderStyle};
 use crate::Editor;
 use egui::epaint::text::cursor::Cursor;
 use egui::text::{CCursor, LayoutJob};
@@ -25,9 +25,10 @@ pub struct GalleyInfo {
     pub galley: Arc<Galley>,
     pub annotation: Option<Annotation>,
 
-    // is it better to store this information in Annotation?
+    // the head and tail size of a galley are always the head size of the first ast node and tail size of the last ast node
     pub head_size: RelCharOffset,
     pub tail_size: RelCharOffset,
+
     pub text_location: Pos2,
     pub galley_location: Rect,
     pub image: Option<ImageInfo>,
@@ -52,8 +53,12 @@ pub fn calc(
     let mut past_selection_start = false;
     let mut past_selection_end = false;
 
-    let mut head_size = Default::default();
-    let mut tail_size = Default::default();
+    // head_size = head size of first ast node if it has a captured head, otherwise zero
+    // tail_size = tail size of last ast_node if it has a captured tail, otherwise zero
+    let mut head_size: RelCharOffset = 0.into();
+    let mut head_size_locked: bool = false;
+    let mut tail_size: RelCharOffset = 0.into();
+
     let mut annotation: Option<Annotation> = Default::default();
     let mut annotation_text_format = Default::default();
     let mut layout: LayoutJob = Default::default();
@@ -134,49 +139,78 @@ pub fn calc(
                 // only the first portion of a head text range gets that range's annotation
                 if text_range.range_type == AstTextRangeType::Head
                     && text_range.range.0 == text_range_portion.range.0
+                    && appearance
+                        .markdown_capture()
+                        .contains(&text_range_portion.node(ast).node_type())
                 {
+                    if annotation.is_none() {
+                        annotation_text_format = text_format.clone();
+                    }
                     annotation = text_range_portion.annotation(ast).or(annotation);
-                    annotation_text_format = text_format.clone();
                 }
 
+                // render tab-only text as spaces
+                // tab characters have weird rendering behavior in egui e.g. tab-only galleys are not rendered even though empty galleys are
+                // see https://github.com/lockbook/lockbook/issues/1983, https://github.com/emilk/egui/issues/3203
+                let text = {
+                    let mut this = buffer[text_range_portion.range].to_string();
+                    if buffer[paragraph] == "\t".repeat(buffer[paragraph].len()) {
+                        this = " ".repeat(this.len()).to_string();
+                    }
+                    this
+                };
+                RenderStyle::Markdown(text_range_portion.node(ast))
+                    .apply_style(&mut text_format, appearance);
                 match text_range_portion.range_type {
                     AstTextRangeType::Head => {
-                        if matches!(
-                            text_range_portion.node(ast),
-                            MarkdownNode::Block(BlockNode::Heading(..))
-                                | MarkdownNode::Block(BlockNode::ListItem(..))
-                        ) {
-                            // these elements have syntax characters captured
-                            head_size = text_range_portion.range.len();
-
-                            // apply style e.g. so empty headers still have big font
-                            RenderStyle::Markdown(text_range_portion.node(ast))
-                                .apply_style(&mut text_format, appearance);
+                        if appearance
+                            .markdown_capture()
+                            .contains(&text_range_portion.node(ast).node_type())
+                        {
+                            // need to append empty text to layout so that the style is applied
                             layout.append("", 0.0, text_format);
+
+                            if !head_size_locked {
+                                head_size += text_range_portion.range.len();
+                                head_size_locked = true;
+                            }
                         } else {
-                            // for other elements, apply the syntax style to head/tail characters
+                            // uncaptured syntax characters have syntax style applied on top of node style
                             RenderStyle::Syntax.apply_style(&mut text_format, appearance);
-                            layout.append(&buffer[text_range_portion.range], 0.0, text_format);
+                            layout.append(&text, 0.0, text_format);
+
+                            head_size_locked = true;
                         }
-                        tail_size = 0.into();
+
+                        if !text_range_portion.range.is_empty() {
+                            tail_size = 0.into();
+                        }
                     }
                     AstTextRangeType::Tail => {
-                        // there aren't any captured tail characters, so apply syntax style to all tail characters
-                        RenderStyle::Syntax.apply_style(&mut text_format, appearance);
-                        layout.append(&buffer[text_range_portion.range], 0.0, text_format);
+                        if appearance
+                            .markdown_capture()
+                            .contains(&text_range_portion.node(ast).node_type())
+                        {
+                            // need to append empty text to layout so that the style is applied
+                            layout.append("", 0.0, text_format);
+                        } else {
+                            // uncaptured syntax characters have syntax style applied on top of node style
+                            RenderStyle::Syntax.apply_style(&mut text_format, appearance);
+                            layout.append(&text, 0.0, text_format);
+                        }
 
-                        // note, the tail of a galley is always zero
-                        // it used to be nonzero when newlines were included in galleys and captured in tail
-                        // now, newlines are omitted from galley ranges and exist in-between galleys
-                        // this code is still here for when we start capturing more syntax characters e.g. line ends in `code`
-                        // tail_size = text_range_portion.range.len();
+                        if !text_range_portion.range.is_empty() {
+                            head_size_locked = true;
+                            tail_size += text_range_portion.range.len();
+                        }
                     }
                     AstTextRangeType::Text => {
-                        RenderStyle::Markdown(text_range_portion.node(ast))
-                            .apply_style(&mut text_format, appearance);
-                        layout.append(&buffer[text_range_portion.range], 0.0, text_format);
+                        layout.append(&text, 0.0, text_format);
 
-                        tail_size = 0.into();
+                        if !text_range_portion.range.is_empty() {
+                            head_size_locked = true;
+                            tail_size = 0.into();
+                        }
                     }
                 }
             }
@@ -204,6 +238,7 @@ pub fn calc(
 
             paragraph_idx += 1;
             emit_galley = false;
+            head_size_locked = false;
         }
 
         if paragraph_idx == bounds.paragraphs.len() || maybe_text_range.is_none() {
@@ -241,26 +276,67 @@ impl Galleys {
         self.galleys.len() - 1
     }
 
-    pub fn galley_and_cursor_by_char_offset(&self, char_offset: DocCharOffset) -> (usize, Cursor) {
+    pub fn galley_and_cursor_by_char_offset(
+        &self, char_offset: DocCharOffset, text: &Text,
+    ) -> (usize, Cursor) {
         let galley_index = self.galley_at_char(char_offset);
         let galley = &self.galleys[galley_index];
         let galley_text_range = galley.text_range();
-        let cursor = galley.galley.from_ccursor(CCursor {
-            index: (char_offset.clamp(galley_text_range.start(), galley_text_range.end())
-                - galley_text_range.start())
-            .0,
-            prefer_next_row: true,
-        });
+        let char_offset = char_offset.clamp(galley_text_range.start(), galley_text_range.end());
 
+        // adjust for captured syntax chars
+        let mut rendered_chars: RelCharOffset = 0.into();
+        for text_range in text {
+            if text_range.end() <= galley_text_range.start() {
+                continue;
+            }
+            if text_range.start() >= char_offset {
+                break;
+            }
+
+            let text_range = (
+                text_range.start().max(galley_text_range.start()),
+                text_range.end().min(char_offset),
+            );
+            rendered_chars += text_range.len();
+        }
+
+        let cursor = galley
+            .galley
+            .from_ccursor(CCursor { index: rendered_chars.0, prefer_next_row: true });
         (galley_index, cursor)
     }
 
     pub fn char_offset_by_galley_and_cursor(
-        &self, galley_idx: usize, cursor: &Cursor,
+        &self, galley_idx: usize, cursor: &Cursor, text: &Text,
     ) -> DocCharOffset {
         let galley = &self.galleys[galley_idx];
         let galley_text_range = galley.text_range();
         let mut result = galley_text_range.start() + cursor.ccursor.index;
+
+        // adjust for captured syntax chars
+        let mut last_range: Option<(DocCharOffset, DocCharOffset)> = None;
+        for text_range in text {
+            if text_range.end() <= galley_text_range.start() {
+                continue;
+            }
+
+            let text_range = (
+                text_range.start().max(galley_text_range.start()),
+                text_range.end().min(galley_text_range.end()),
+            );
+            if let Some(last_range) = last_range {
+                result += text_range.start() - last_range.end();
+            } else {
+                result += text_range.start() - galley_text_range.start();
+            }
+
+            if text_range.end() >= result {
+                break;
+            }
+
+            last_range = Some(text_range);
+        }
 
         // correct for prefer_next_row behavior
         let read_cursor = galley.galley.from_ccursor(CCursor {
@@ -332,7 +408,7 @@ impl GalleyInfo {
             offset.x = *indent_level as f32 * 20.0 + 20.0
         }
 
-        if let Some(Annotation::Rule) = annotation {
+        if let Some(Annotation::HeadingRule) = annotation {
             offset.y = appearance.rule_height();
         }
 
@@ -402,7 +478,7 @@ impl GalleyInfo {
 
 impl Editor {
     pub fn print_galleys(&self) {
-        println!("layouts:");
+        println!("galleys:");
         for galley in &self.galleys.galleys {
             println!(
                 "galley: range: {:?}, annotation: {:?}, head: {:?}, tail: {:?}",
