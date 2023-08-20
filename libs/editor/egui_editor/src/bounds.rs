@@ -75,6 +75,7 @@ pub fn calc_words(buffer: &SubBuffer, ast: &Ast, appearance: &Appearance) -> Wor
 pub fn calc_lines(galleys: &Galleys, ast: &Ast, text: &Text) -> Lines {
     let mut result = vec![];
     let galleys = galleys;
+    let mut text_range_iter = ast.iter_text_ranges();
     for (galley_idx, galley) in galleys.galleys.iter().enumerate() {
         for (row_idx, _) in galley.galley.rows.iter().enumerate() {
             let start_cursor = galley
@@ -97,18 +98,19 @@ pub fn calc_lines(galleys: &Galleys, ast: &Ast, text: &Text) -> Lines {
 
             // if the range bounds are in the middle of a syntax sequence, expand the range to include the whole sequence
             // this supports selecting a line that starts or ends with a syntax sequence that's captured until the selection happens
-            for text_range in ast.iter_text_ranges() {
-                if text_range.range_type == AstTextRangeType::Text {
-                    continue;
-                }
+            while let Some(text_range) = text_range_iter.next() {
                 if text_range.range.start() > range.end() {
                     break;
+                }
+                if text_range.range_type == AstTextRangeType::Text {
+                    continue;
                 }
                 if text_range.range.contains(range.0) {
                     range.0 = text_range.range.0;
                 }
                 if text_range.range.contains(range.1) {
                     range.1 = text_range.range.1;
+                    break;
                 }
             }
 
