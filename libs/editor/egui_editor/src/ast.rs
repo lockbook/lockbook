@@ -364,8 +364,8 @@ impl Ast {
                 MarkdownNode::Inline(InlineNode::Link(LinkType::Inline, url, title)) => {
                     // [title](http://url.com "title")
 
-                    // require url
-                    if url.is_empty() {
+                    // require url and title
+                    if url.is_empty() || buffer[range].starts_with("[]") {
                         markdown_node = MarkdownNode::Paragraph;
                     } else {
                         text_range.0 += 1;

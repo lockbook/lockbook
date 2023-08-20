@@ -98,7 +98,7 @@ pub enum ListItemType {
 impl ListItemType {
     pub fn head(&self) -> &'static str {
         match self {
-            Self::Bulleted => "*",
+            Self::Bulleted => "* ",
             Self::Numbered => "1. ",
             Self::Todo => "* [ ] ",
         }
@@ -259,7 +259,7 @@ impl RenderStyle {
                 text_format.italics = true;
             }
             RenderStyle::Markdown(MarkdownNode::Inline(InlineNode::Strikethrough)) => {
-                text_format.strikethrough = Stroke { width: 0.5, color: vis.strikethrough() };
+                text_format.strikethrough = Stroke { width: 1.5, color: vis.strikethrough() };
             }
             RenderStyle::Markdown(MarkdownNode::Inline(InlineNode::Link(..))) => {
                 text_format.color = vis.link();

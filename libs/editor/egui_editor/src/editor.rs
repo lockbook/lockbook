@@ -325,7 +325,7 @@ impl Editor {
         self.initialized = true;
 
         // draw
-        self.draw_text(self.ui_rect.size(), ui);
+        self.draw_text(self.ui_rect.size(), ui, touch_mode);
         if ui.memory(|m| m.has_focus(id)) {
             self.draw_cursor(ui, touch_mode);
         }
@@ -414,7 +414,7 @@ impl Editor {
         &mut self, events: &[Event], custom_events: &[Modification], touch_mode: bool,
     ) {
         // if the cursor is in an invalid location, move it to the next valid location
-        if let BoundCase::BewteenRanges { range_after, .. } = self
+        if let BoundCase::BetweenRanges { range_after, .. } = self
             .buffer
             .current
             .cursor
@@ -424,7 +424,7 @@ impl Editor {
         {
             self.buffer.current.cursor.selection.0 = range_after.start();
         }
-        if let BoundCase::BewteenRanges { range_after, .. } = self
+        if let BoundCase::BetweenRanges { range_after, .. } = self
             .buffer
             .current
             .cursor
