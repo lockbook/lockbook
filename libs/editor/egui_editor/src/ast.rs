@@ -407,7 +407,7 @@ impl Ast {
         }
     }
 
-    /// Returns the AstTextRange at the given offset. Prefers the previous range when at a boundary.
+    /// Returns the AstTextRange at the given offset. Prefers the next range when at a boundary.
     pub fn text_range_at_offset(&self, offset: DocCharOffset) -> Option<AstTextRange> {
         let mut end_range = None;
         for text_range in self.iter_text_ranges() {
