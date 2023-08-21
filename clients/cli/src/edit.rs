@@ -1,16 +1,22 @@
-use std::fs;
-use std::io::Write;
-use std::path::{Path, PathBuf};
+use std::{
+    convert::Infallible,
+    env, fs,
+    io::Write,
+    path::{Path, PathBuf},
+    str::FromStr,
+};
 
+use cli_rs::{
+    cli_error::{CliError, CliResult},
+    flag::Flag,
+};
 use hotwatch::{Event, EventKind, Hotwatch};
-
 use lb::{Core, Uuid};
 
-use crate::resolve_target_to_file;
-use crate::CliError;
+use crate::input::FileInput;
 
-pub fn edit(core: &Core, target: &str) -> Result<(), CliError> {
-    let f = resolve_target_to_file(core, target)?;
+pub fn edit(core: &Core, editor: Editor, target: FileInput) -> CliResult<()> {
+    let f = target.find(core)?;
 
     let file_content = core.read_document(f.id)?;
 
@@ -18,13 +24,13 @@ pub fn edit(core: &Core, target: &str) -> Result<(), CliError> {
     temp_file_path.push(f.name);
 
     let mut file_handle = fs::File::create(&temp_file_path).map_err(|err| {
-        CliError::Console(format!("couldn't open temporary file for writing: {:#?}", err))
+        CliError::from(format!("couldn't open temporary file for writing: {:#?}", err))
     })?;
     file_handle.write_all(&file_content)?;
     file_handle.sync_all()?;
 
     let maybe_watcher = set_up_auto_save(core, f.id, &temp_file_path);
-    let edit_was_successful = edit_file_with_editor(&temp_file_path);
+    let edit_was_successful = edit_file_with_editor(editor, &temp_file_path);
 
     if let Some(mut watcher) = maybe_watcher {
         watcher
@@ -35,7 +41,7 @@ pub fn edit(core: &Core, target: &str) -> Result<(), CliError> {
     if edit_was_successful {
         match save_temp_file_contents(core, f.id, &temp_file_path) {
             Ok(_) => println!("Document encrypted and saved. Cleaning up temporary file."),
-            Err(err) => eprintln!("{}", err),
+            Err(err) => eprintln!("{:?}", err),
         }
     } else {
         eprintln!("Your editor indicated a problem, aborting and cleaning up");
@@ -49,14 +55,14 @@ fn create_tmp_dir() -> Result<PathBuf, CliError> {
     let mut dir = std::env::temp_dir();
     dir.push(Uuid::new_v4().to_string());
     fs::create_dir(&dir).map_err(|err| {
-        CliError::Console(format!("couldn't open temporary file for writing: {:#?}", err))
+        CliError::from(format!("couldn't open temporary file for writing: {:#?}", err))
     })?;
     Ok(dir)
 }
 
 // In ascending order of superiority
-#[derive(Debug)]
-enum Editor {
+#[derive(Debug, Clone, Copy)]
+pub enum Editor {
     Vim,
     Nvim,
     Emacs,
@@ -65,36 +71,61 @@ enum Editor {
     Code,
 }
 
-fn get_editor() -> Editor {
-    let default_editor = if cfg!(target_os = "windows") { Editor::Code } else { Editor::Vim };
-    match std::env::var("LOCKBOOK_EDITOR") {
-        Ok(editor) => match editor.to_lowercase().as_str() {
+impl Default for Editor {
+    fn default() -> Self {
+        let default = if cfg!(target_os = "windows") { Editor::Code } else { Editor::Vim };
+
+        env::var("LOCKBOOK_EDITOR")
+            .map(|s| s.parse().unwrap())
+            .unwrap_or_else(|_| {
+                eprintln!("LOCKBOOK_EDITOR not set, assuming {:?}", default);
+                default
+            })
+    }
+}
+
+pub fn editor_flag() -> Flag<'static, Editor> {
+    Flag::new("editor")
+        .description("optional editor flag, if not present falls back to LOCKBOOK_EDITOR, if not present falls back to a platform default")
+        .completor(|prompt| {
+            Ok(["vim", "nvim", "emacs", "nano", "sublime", "code"]
+                .into_iter()
+                .filter(|entry| entry.starts_with(prompt))
+                .map(|s| s.to_string())
+                .collect())
+    })
+}
+
+impl FromStr for Editor {
+    type Err = Infallible;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let editor = match s.to_lowercase().as_str() {
             "vim" => Editor::Vim,
             "nvim" => Editor::Nvim,
             "emacs" => Editor::Emacs,
             "nano" => Editor::Nano,
             "subl" | "sublime" => Editor::Sublime,
             "code" => Editor::Code,
-            _ => {
+            unsupported => {
+                let default = Editor::default();
                 eprintln!(
                     "{} is not yet supported, make a github issue! Falling back to {:?}.",
-                    editor, default_editor
+                    unsupported, default
                 );
-                default_editor
+                default
             }
-        },
-        Err(_) => {
-            eprintln!("LOCKBOOK_EDITOR not set, assuming {:?}", default_editor);
-            default_editor
-        }
+        };
+
+        Ok(editor)
     }
 }
 
 #[cfg(target_os = "windows")]
-fn edit_file_with_editor<S: AsRef<Path>>(path: S) -> bool {
+fn edit_file_with_editor<S: AsRef<Path>>(path: S, editor: Editor) -> bool {
     let path_str = path.as_ref().display();
 
-    let command = match get_editor() {
+    let command = match editor {
         Editor::Vim | Editor::Nvim | Editor::Emacs | Editor::Nano => {
             eprintln!("Terminal editors are not supported on windows! Set LOCKBOOK_EDITOR to a visual editor.");
             return false;
@@ -114,10 +145,10 @@ fn edit_file_with_editor<S: AsRef<Path>>(path: S) -> bool {
 }
 
 #[cfg(not(target_os = "windows"))]
-fn edit_file_with_editor<S: AsRef<Path>>(path: S) -> bool {
+fn edit_file_with_editor<S: AsRef<Path>>(editor: Editor, path: S) -> bool {
     let path_str = path.as_ref().display();
 
-    let command = match get_editor() {
+    let command = match editor {
         Editor::Vim => format!("</dev/tty vim {}", path_str),
         Editor::Nvim => format!("</dev/tty nvim {}", path_str),
         Editor::Emacs => format!("</dev/tty emacs {}", path_str),
@@ -146,7 +177,7 @@ fn set_up_auto_save<P: AsRef<Path>>(core: &Core, id: Uuid, path: P) -> Option<Ho
                 .watch(path.clone(), move |event: Event| {
                     if let EventKind::Modify(_) = event.kind {
                         if let Err(err) = save_temp_file_contents(&core, id, &path) {
-                            eprintln!("{}", err);
+                            eprintln!("{:?}", err);
                         }
                     }
                 })
@@ -164,7 +195,7 @@ fn set_up_auto_save<P: AsRef<Path>>(core: &Core, id: Uuid, path: P) -> Option<Ho
 fn save_temp_file_contents<P: AsRef<Path>>(core: &Core, id: Uuid, path: P) -> Result<(), CliError> {
     let secret = fs::read_to_string(&path)
         .map_err(|err| {
-            CliError::Console(format!(
+            CliError::from(format!(
                 "could not read from temporary file, not deleting {}, err: {:#?}",
                 path.as_ref().display(),
                 err

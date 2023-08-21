@@ -1,18 +1,14 @@
 [package]
-name = "lockbook-cli"
 version = "0.7.6"
+name = "lockbook-cli"
 edition = "2021"
-description = "The private, polished note-taking platform."
 
 [[bin]]
 name = "lockbook"
 path = "src/main.rs"
 
 [dependencies]
-is-terminal = "0.4.7"
-clap = { version = "4.1.4", features = ["derive"] }
-clap_complete = "4.2.0"
-strum = { version = "0.24", features = ["derive"] }
-shellwords = "1.1.0"
-hotwatch = "0.5.0"
+cli-rs = "0.1.5"
 lb = { path = "../../libs/core", package = "lockbook-core" }
+is-terminal = "0.4.7"
+hotwatch = "0.5.0"

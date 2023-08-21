@@ -1,162 +1,251 @@
 mod account;
-mod completions;
 mod debug;
 mod edit;
-mod error;
 mod imex;
+mod input;
 mod list;
 mod share;
 
-use std::fmt;
-use std::io::{self, Write};
-use std::path::PathBuf;
-use std::str::FromStr;
+use std::{
+    io::{self, Write},
+    path::PathBuf,
+};
 
-use clap::Parser;
+use account::ApiUrl;
+use cli_rs::{
+    arg::Arg,
+    cli_error::{CliError, CliResult, Exit},
+    command::Command,
+    flag::Flag,
+    parser::Cmd,
+};
 
-use clap_complete::Shell;
-use completions::DynValueName::{LbAnyPath, LbFolderPath};
-use lb::Core;
+use input::FileInput;
+use lb::{Core, Filter, Uuid};
 
-use self::error::CliError;
+fn run() -> CliResult<()> {
+    let core = &core()?;
 
-const ID_PREFIX_LEN: usize = 8;
+    Command::name("lockbook")
+        .description("The private, polished note-taking platform.") 
+        .subcommand(
+            Command::name("account")
+                .description("account management commands")
+                .subcommand(
+                    Command::name("new")
+                        .input(Arg::str("username").description("your desired username."))
+                        .input(Flag::<ApiUrl>::new("api_url")
+                            .description("location of the lockbook server you're trying to use. If not provided will check the API_URL env var, and then fall back to https://api.prod.lockbook.net"))
+                        .handler(|username, api_url| {
+                            account::new(core, username.get(), api_url.get())
+                        })
+                )
+                .subcommand(
+                    Command::name("import")
+                        .description("import an existing account by piping in the account string")
+                        .handler(|| account::import(core))
+                )
+                .subcommand(
+                    Command::name("export")
+                        .description("reveal your account's private key")
+                        .input(Flag::bool("skip-check").description("don't ask for confirmation to reveal the private key"))
+                        .handler(|skip_check| account::export(core, skip_check.get()))
+                )
+                .subcommand(
+                    Command::name("subscribe")
+                        .description("start a monthly subscription for massively increased storage")
+                        .handler(|| account::subscribe(core))
+                )
+                .subcommand(
+                    Command::name("unsubscribe")
+                        .description("cancel an existing subscription")
+                        .handler(|| account::unsubscribe(core))
+                )
+                .subcommand(
+                    Command::name("status")
+                        .description("show your account status")
+                        .handler(|| account::status(core))
+                )
+        )
+        .subcommand(
+            Command::name("copy")
+                .description("import files from your file system into lockbook")
+                .input(Arg::<PathBuf>::name("disk-path").description("path of file on disk"))
+                .input(Arg::<FileInput>::name("dest")
+                       .description("the path or id of a folder within lockbook to place the file.")
+                       .completor(|prompt| input::file_completor(core, prompt, Some(Filter::FoldersOnly))))
+                .handler(|disk, parent| imex::copy(core, disk.get(), parent.get()))
+        )
+        .subcommand(
+            Command::name("debug")
+                .description("investigative commands")
+                .subcommand(
+                    Command::name("validate")
+                        .description("helps find invalid states within your lockbook")
+                        .handler(|| debug::validate(core))
+                )
+                .subcommand(
+                    Command::name("info")
+                        .description("print metadata associated with a file")
+                        .input(Arg::<FileInput>::name("target").description("id or path of file to debug")
+                            .completor(|prompt| input::file_completor(core, prompt, None)))
+                        .handler(|target| debug::info(core, target.get()))
+                )
+                .subcommand(
+                    Command::name("whoami")
+                        .description("print who is logged into this lockbook")
+                        .handler(|| debug::whoami(core))
+                )
+                .subcommand(
+                    Command::name("whereami")
+                        .description("print information about where this lockbook is stored and it's server url")
+                        .handler(|| debug::whereami(core))
+                )
+        )
+        .subcommand(
+            Command::name("delete")
+                .description("delete a file")
+                .input(Flag::bool("force"))
+                .input(Arg::<FileInput>::name("target").description("path of id of file to delete")
+                            .completor(|prompt| input::file_completor(core, prompt, None)))
+                .handler(|force, target| delete(core, force.get(), target.get()))
+        )
+        .subcommand(
+            Command::name("edit")
+                .description("edit a document")
+                .input(edit::editor_flag())
+                .input(Arg::<FileInput>::name("target").description("path or id of file to edit")
+                            .completor(|prompt| input::file_completor(core, prompt, None)))
+                .handler(|editor, target| edit::edit(core, editor.get(), target.get()))
+        )
+        .subcommand(
+            Command::name("export")
+                .description("export a lockbook file to your file system")
+                .input(Arg::<FileInput>::name("target")
+                            .completor(|prompt| input::file_completor(core, prompt, None)))
+                .input(Arg::<PathBuf>::name("dest"))
+                .handler(|target, dest| imex::export(core, target.get(), dest.get()))
+        )
+        .subcommand(
+            Command::name("list")
+                .description("list files and file information")
+                .input(Flag::bool("long").description("display more information"))
+                .input(Flag::bool("recursive").description("include all children of the given directory, recursively"))
+                .input(Flag::bool("paths").description("include more info (such as the file ID)"))
+                .input(Arg::<FileInput>::name("target").description("file path location whose files will be listed")
+                            .completor(|prompt| input::file_completor(core, prompt, Some(Filter::FoldersOnly)))
+                            .default(FileInput::Path("/".to_string())))
+                .handler(|long, recur, paths, target| list::list(core, long.get(), recur.get(), paths.get(), target.get()))
+        )
+        .subcommand(
+            Command::name("move")
+                .description("move a file to a new parent")
+                .input(Arg::<FileInput>::name("src-target").description("lockbook file path or ID of the file to move")
+                            .completor(|prompt| input::file_completor(core, prompt, None)))
+                .input(Arg::<FileInput>::name("dest").description("lockbook file path or ID of the new parent folder")
+                            .completor(|prompt| input::file_completor(core, prompt, Some(Filter::FoldersOnly))))
+                .handler(|src, dst| move_file(core, src.get(), dst.get()))
+        )
+        .subcommand(
+            Command::name("new")
+                .description("create a new file at the given path or do nothing if it exists")
+                .input(Arg::<FileInput>::name("path").description("create a new file at the given path or do nothing if it exists")
+                            .completor(|prompt| input::file_completor(core, prompt, Some(Filter::FoldersOnly))))
+                .handler(|target| create_file(core, target.get()))
+        )
+        .subcommand(
+            Command::name("print")
+                .description("print a document to stdout")
+                .input(Arg::<FileInput>::name("target").description("lockbook file path or ID")
+                            .completor(|prompt| input::file_completor(core, prompt, None)))
+                .handler(|target| print(core, target.get()))
+        )
+        .subcommand(
+            Command::name("rename")
+                .description("rename a file")
+                .input(Arg::<FileInput>::name("target").description("lockbook file path or ID of file to rename")
+                            .completor(|prompt| input::file_completor(core, prompt, None)))
+                .input(Arg::str("new_name"))
+                .handler(|target, new_name| rename(core, target.get(), new_name.get()))
+        )
+        .subcommand(
+            Command::name("share")
+                .description("sharing related commands")
+                .subcommand(
+                    Command::name("new")
+                        .input(Arg::<FileInput>::name("target").description("lockbook file path or ID of file to rename")
+                            .completor(|prompt| input::file_completor(core, prompt, None)))
+                        .input(Arg::str("username"))
+                        .input(Flag::bool("read-only"))
+                        .handler(|target, username, ro| share::new(core, target.get(), username.get(), ro.get()))
+                )
+                .subcommand(
+                    Command::name("pending")
+                        .description("list pending shares")
+                        .handler(|| share::pending(core))
+                )
+                .subcommand(
+                    Command::name("accept")
+                        .description("accept a pending share by adding it to your file tree")
+                        .input(Arg::<Uuid>::name("pending-share-id").description("ID of pending share")
+                                    .completor(|prompt| share::pending_share_completor(core, prompt)))
+                        .input(Arg::<FileInput>::name("target").description("lockbook file path or ID of the folder you want to place this shared file")
+                            .completor(|prompt| input::file_completor(core, prompt, Some(Filter::FoldersOnly))))
+                        .handler(|id, dest| share::accept(core, id.get(), dest.get()))
+                )
+                .subcommand(
+                    Command::name("delete")
+                        .description("delete a pending share")
+                        .input(Arg::<Uuid>::name("share-id").description("ID of pending share to delete")
+                               .completor(|prompt| share::pending_share_completor(core, prompt)))
+                        .handler(|target| share::delete(core, target.get()))
+                )
+        )
+        .subcommand(
+            Command::name("sync")
+                .description("sync your local changes back to lockbook servers")
+                .handler(|| sync(core))
+        )
+        .with_completions()
+        .parse();
 
-#[derive(Parser, Debug)]
-#[command(version, about)]
-pub enum LbCli {
-    /// account related commands
-    #[command(subcommand, alias("acct"))]
-    Account(account::AccountCmd),
-    /// import files from your file system into lockbook
-    Copy {
-        /// paths of file on disk
-        disk_files: Vec<PathBuf>,
-        /// lockbook file path or ID destination
-        #[arg(value_name = LbFolderPath.as_ref())]
-        dest: String,
-    },
-    /// investigative commands
-    #[command(subcommand)]
-    Debug(debug::DebugCmd),
-    /// delete a file
-    #[command(alias("rm"))]
-    Delete {
-        /// lockbook file path or ID
-        #[arg(value_name = LbAnyPath.as_ref())]
-        target: String,
-        /// do not prompt for confirmation before deleting
-        force: bool,
-    },
-    /// edit a document
-    Edit {
-        /// lockbook file path or ID
-        #[arg(default_value="/", value_name = LbAnyPath.as_ref())]
-        target: String,
-    },
-    /// export a lockbook file to your file system
-    Export {
-        /// the path or id of a lockbook folder
-        #[arg(value_name = LbFolderPath.as_ref())]
-        target: String,
-        /// a filesystem directory (defaults to current directory)
-        dest: Option<PathBuf>,
-    },
-    /// list files and file information
-    #[command(alias("ls"))]
-    List(list::ListArgs),
-    /// move a file to a new parent
-    #[command(alias("mv"))]
-    Move {
-        /// lockbook file path or ID of the file to move
-        #[arg(value_name = LbAnyPath.as_ref())]
-        src_target: String,
-        /// lockbook file path or ID of the new parent
-        #[arg(value_name = LbFolderPath.as_ref())]
-        dest_target: String,
-    },
-    /// create a new file at the given path or do nothing if it exists
-    New {
-        /// lockbook file path
-        #[arg(value_name = LbFolderPath.as_ref())]
-        path: String,
-    },
-    /// print a document to stdout
-    Print {
-        /// lockbook file path or ID
-        #[arg(value_name = LbAnyPath.as_ref())]
-        target: String,
-    },
-    /// rename a file
-    Rename {
-        /// lockbook file path or ID
-        #[arg(value_name = LbAnyPath.as_ref())]
-        target: String,
-        /// the file's new name
-        new_name: String,
-    },
-    /// sharing related commands
-    #[command(subcommand)]
-    Share(share::ShareCmd),
-    /// file sync
-    Sync,
-
-    /// generate cli completions
-    Completions { shell: Shell },
-
-    #[command(hide(true))]
-    Complete { input: String, cursor_pos: i32 },
+    Ok(())
 }
 
-fn input<T>(prompt: impl fmt::Display) -> Result<T, CliError>
-where
-    T: FromStr,
-    <T as FromStr>::Err: fmt::Debug,
-{
-    print!("{}", prompt);
-    io::stdout().flush()?;
-
-    let mut answer = String::new();
-    io::stdin()
-        .read_line(&mut answer)
-        .expect("failed to read from stdin");
-    answer.retain(|c| c != '\n' && c != '\r');
-
-    Ok(answer.parse::<T>().unwrap())
+fn main() {
+    run().exit();
 }
 
-pub fn maybe_get_by_path(core: &lb::Core, p: &str) -> Result<Option<lb::File>, CliError> {
-    match core.get_by_path(p) {
-        Ok(f) => Ok(Some(f)),
-        Err(err) => match err.kind {
-            lb::CoreError::FileNonexistent => Ok(None),
-            _ => Err(err.into()),
-        },
-    }
+fn core() -> CliResult<Core> {
+    let writeable_path = match (std::env::var("LOCKBOOK_PATH"), std::env::var("HOME")) {
+        (Ok(s), _) => s,
+        (Err(_), Ok(s)) => format!("{}/.lockbook/cli", s),
+        _ => return Err("no cli location".into()),
+    };
+
+    Core::init(&lb::Config { writeable_path, logs: true, colored_logs: true })
+        .map_err(|err| CliError::from(err.msg))
 }
 
-fn resolve_target_to_file(core: &Core, t: &str) -> Result<lb::File, CliError> {
-    match lb::Uuid::parse_str(t) {
-        Ok(id) => core.get_file_by_id(id).map_err(|err| err.into()),
-        Err(_) => core.get_by_path(t).map_err(|err| err.into()),
-    }
+fn sync(core: &Core) -> CliResult<()> {
+    println!("syncing...");
+    core.sync(Some(Box::new(|sp: lb::SyncProgress| {
+        use lb::ClientWorkUnit::*;
+        match sp.current_work_unit {
+            PullMetadata => println!("pulling file tree updates"),
+            PushMetadata => println!("pushing file tree updates"),
+            PullDocument(f) => println!("pulling: {}", f.name),
+            PushDocument(f) => println!("pushing: {}", f.name),
+        };
+    })))?;
+    Ok(())
 }
 
-fn resolve_target_to_id(core: &Core, t: &str) -> Result<lb::Uuid, CliError> {
-    if let Ok(id) = lb::Uuid::parse_str(t) {
-        return Ok(id);
-    }
-    match core.get_by_path(t) {
-        Ok(f) => Ok(f.id),
-        Err(err) => Err(err.into()),
-    }
-}
-
-fn delete(core: &Core, target: &str, force: bool) -> Result<(), CliError> {
-    let f = resolve_target_to_file(core, target)?;
+fn delete(core: &Core, force: bool, target: FileInput) -> Result<(), CliError> {
+    let f = target.find(core)?;
 
     if !force {
-        let mut phrase = format!("delete '{}'", target);
+        let mut phrase = format!("delete '{target}'");
 
         if f.is_folder() {
             let count = core
@@ -171,7 +260,7 @@ fn delete(core: &Core, target: &str, force: bool) -> Result<(), CliError> {
             };
         }
 
-        let answer: String = input(format!("are you sure you want to {phrase}? [y/n]: "))?;
+        let answer: String = input::std_in(format!("are you sure you want to {phrase}? [y/n]: "))?;
         if answer != "y" && answer != "Y" {
             println!("aborted.");
             return Ok(());
@@ -182,47 +271,22 @@ fn delete(core: &Core, target: &str, force: bool) -> Result<(), CliError> {
     Ok(())
 }
 
-fn move_file(core: &Core, src: &str, dest: &str) -> Result<(), CliError> {
-    let src_id = resolve_target_to_id(core, src)?;
-    let dest_id = resolve_target_to_id(core, dest)?;
-    core.move_file(src_id, dest_id).map_err(|err| {
-        CliError::Console(format!("could not move '{}' to '{}': {:?}", src_id, dest_id, err))
-    })
-}
-
-fn print(core: &Core, target: &str) -> Result<(), CliError> {
-    let id = resolve_target_to_id(core, target)?;
-    let content = core.read_document(id)?;
-    print!("{}", String::from_utf8_lossy(&content));
-    io::stdout().flush()?;
+fn move_file(core: &Core, src: FileInput, dest: FileInput) -> CliResult<()> {
+    let src = src.find(core)?;
+    let dest = dest.find(core)?;
+    core.move_file(src.id, dest.id)?;
     Ok(())
 }
 
-fn rename(core: &Core, target: &str, new_name: &str) -> Result<(), CliError> {
-    let id = resolve_target_to_id(core, target)?;
-    core.rename_file(id, new_name)?;
-    Ok(())
-}
+fn create_file(core: &Core, path: FileInput) -> CliResult<()> {
+    let FileInput::Path(path) = path else {
+        return Err(CliError::from("cannot create a file using ids"));
+    };
 
-fn sync(core: &Core) -> Result<(), CliError> {
-    println!("syncing...");
-    core.sync(Some(Box::new(|sp: lb::SyncProgress| {
-        use lb::ClientWorkUnit::*;
-        match sp.current_work_unit {
-            PullMetadata => println!("pulling file tree updates"),
-            PushMetadata => println!("pushing file tree updates"),
-            PullDocument(f) => println!("pulling: {}", f.name),
-            PushDocument(f) => println!("pushing: {}", f.name),
-        };
-    })))?;
-    Ok(())
-}
-
-fn create(core: &Core, path: &str) -> Result<(), CliError> {
-    match core.get_by_path(path) {
+    match core.get_by_path(&path) {
         Ok(_f) => Ok(()),
         Err(err) => match err.kind {
-            lb::CoreError::FileNonexistent => match core.create_at_path(path) {
+            lb::CoreError::FileNonexistent => match core.create_at_path(&path) {
                 Ok(_f) => Ok(()),
                 Err(err) => Err(err.into()),
             },
@@ -231,50 +295,16 @@ fn create(core: &Core, path: &str) -> Result<(), CliError> {
     }
 }
 
-fn run() -> Result<(), CliError> {
-    let writeable_path = match (std::env::var("LOCKBOOK_PATH"), std::env::var("HOME")) {
-        (Ok(s), _) => s,
-        (Err(_), Ok(s)) => format!("{}/.lockbook/cli", s),
-        _ => return Err(CliError::Console("no cli location".to_string())),
-    };
-
-    let core = Core::init(&lb::Config { writeable_path, logs: true, colored_logs: true })?;
-
-    let cmd = LbCli::parse();
-    if !matches!(cmd, LbCli::Account(account::AccountCmd::New { .. }))
-        && !matches!(cmd, LbCli::Account(account::AccountCmd::Import))
-        && !matches!(cmd, LbCli::Complete { .. })
-    {
-        let _ = core.get_account().map_err(|err| match err.kind {
-            lb::CoreError::AccountNonexistent => CliError::Console(
-                "no account! run 'init' or 'init --restore' to get started.".to_string(),
-            ),
-            _ => err.into(),
-        })?;
-    }
-
-    match cmd {
-        LbCli::Account(cmd) => account::account(&core, cmd),
-        LbCli::Copy { disk_files, dest } => imex::copy(&core, &disk_files, &dest),
-        LbCli::Debug(cmd) => debug::debug(&core, cmd),
-        LbCli::Delete { target, force } => delete(&core, &target, force),
-        LbCli::Edit { target } => edit::edit(&core, &target),
-        LbCli::Export { target, dest } => imex::export(&core, &target, dest),
-        LbCli::List(args) => list::list(&core, args),
-        LbCli::Move { src_target, dest_target } => move_file(&core, &src_target, &dest_target),
-        LbCli::New { path } => create(&core, &path),
-        LbCli::Print { target } => print(&core, &target),
-        LbCli::Rename { target, new_name } => rename(&core, &target, &new_name),
-        LbCli::Share(cmd) => share::share(&core, cmd),
-        LbCli::Sync => sync(&core),
-        LbCli::Completions { shell } => completions::generate_completions(shell),
-        LbCli::Complete { input, cursor_pos } => completions::complete(&core, input, cursor_pos),
-    }
+fn print(core: &Core, target: FileInput) -> Result<(), CliError> {
+    let id = target.find(core)?.id;
+    let content = core.read_document(id)?;
+    print!("{}", String::from_utf8_lossy(&content));
+    io::stdout().flush()?;
+    Ok(())
 }
 
-fn main() {
-    if let Err(err) = run() {
-        eprint!("{}", err);
-        std::process::exit(1)
-    }
+fn rename(core: &Core, target: FileInput, new_name: String) -> Result<(), CliError> {
+    let id = target.find(core)?.id;
+    core.rename_file(id, &new_name)?;
+    Ok(())
 }
