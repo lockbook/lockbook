@@ -1,4 +1,5 @@
 use crate::buffer::SubBuffer;
+use crate::input::cursor::Cursor;
 use crate::layouts::Annotation;
 use crate::offset_types::{DocCharOffset, RangeExt};
 use crate::style::{
@@ -364,8 +365,8 @@ impl Ast {
                 MarkdownNode::Inline(InlineNode::Link(LinkType::Inline, url, title)) => {
                     // [title](http://url.com "title")
 
-                    // require url
-                    if url.is_empty() {
+                    // require url and title
+                    if url.is_empty() || buffer[range].starts_with("[]") {
                         markdown_node = MarkdownNode::Paragraph;
                     } else {
                         text_range.0 += 1;
@@ -407,7 +408,7 @@ impl Ast {
         }
     }
 
-    /// Returns the AstTextRange at the given offset. Prefers the previous range when at a boundary.
+    /// Returns the AstTextRange at the given offset. Prefers the next range when at a boundary.
     pub fn text_range_at_offset(&self, offset: DocCharOffset) -> Option<AstTextRange> {
         let mut end_range = None;
         for text_range in self.iter_text_ranges() {
@@ -508,6 +509,14 @@ impl AstTextRange {
             }
             MarkdownNode::Block(BlockNode::Rule) => Some(Annotation::Rule),
             _ => None,
+        }
+    }
+
+    pub fn intersects_selection(&self, ast: &Ast, cursor: Cursor) -> bool {
+        if let Some(&ast_node_idx) = self.ancestors.last() {
+            ast.nodes[ast_node_idx].range.intersects(&cursor.selection)
+        } else {
+            false
         }
     }
 }

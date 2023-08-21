@@ -1,4 +1,4 @@
-use crate::appearance::Appearance;
+use crate::appearance::{Appearance, CaptureCondition};
 use crate::ast::{Ast, AstTextRangeType};
 use crate::bounds::{Bounds, Text};
 use crate::buffer::SubBuffer;
@@ -53,11 +53,8 @@ pub fn calc(
     let mut past_selection_start = false;
     let mut past_selection_end = false;
 
-    // head_size = head size of first ast node if it has a captured head, otherwise zero
-    // tail_size = tail size of last ast_node if it has a captured tail, otherwise zero
+    // head_size = head size of first ast node if it produces an annotation
     let mut head_size: RelCharOffset = 0.into();
-    let mut head_size_locked: bool = false;
-    let mut tail_size: RelCharOffset = 0.into();
 
     let mut annotation: Option<Annotation> = Default::default();
     let mut annotation_text_format = Default::default();
@@ -123,6 +120,14 @@ pub fn calc(
                     (text_range_portion, in_selection)
                 };
 
+                let captured = match appearance.markdown_capture(text_range.node(ast).node_type()) {
+                    CaptureCondition::Always => true,
+                    CaptureCondition::NoCursor => {
+                        !text_range.intersects_selection(ast, buffer.cursor)
+                    }
+                    CaptureCondition::Never => false,
+                };
+
                 // construct text format using all styles except the last (current node)
                 // only actual text (not head/tail) of each element gets the actual element style
                 let mut text_format = TextFormat::default();
@@ -137,16 +142,15 @@ pub fn calc(
                 }
 
                 // only the first portion of a head text range gets that range's annotation
+                let mut is_annotation = false;
                 if text_range.range_type == AstTextRangeType::Head
                     && text_range.range.0 == text_range_portion.range.0
-                    && appearance
-                        .markdown_capture()
-                        .contains(&text_range_portion.node(ast).node_type())
+                    && captured
+                    && annotation.is_none()
                 {
-                    if annotation.is_none() {
-                        annotation_text_format = text_format.clone();
-                    }
-                    annotation = text_range_portion.annotation(ast).or(annotation);
+                    annotation = text_range_portion.annotation(ast);
+                    annotation_text_format = text_format.clone();
+                    is_annotation = annotation.is_some();
                 }
 
                 // render tab-only text as spaces
@@ -163,53 +167,31 @@ pub fn calc(
                     .apply_style(&mut text_format, appearance);
                 match text_range_portion.range_type {
                     AstTextRangeType::Head => {
-                        if appearance
-                            .markdown_capture()
-                            .contains(&text_range_portion.node(ast).node_type())
-                        {
+                        if captured {
                             // need to append empty text to layout so that the style is applied
                             layout.append("", 0.0, text_format);
-
-                            if !head_size_locked {
-                                head_size += text_range_portion.range.len();
-                            }
                         } else {
                             // uncaptured syntax characters have syntax style applied on top of node style
                             RenderStyle::Syntax.apply_style(&mut text_format, appearance);
                             layout.append(&text, 0.0, text_format);
-
-                            head_size_locked = true;
                         }
 
-                        if !text_range_portion.range.is_empty() {
-                            tail_size = 0.into();
+                        if is_annotation {
+                            head_size = text_range_portion.range.len();
                         }
                     }
                     AstTextRangeType::Tail => {
-                        if appearance
-                            .markdown_capture()
-                            .contains(&text_range_portion.node(ast).node_type())
-                        {
+                        if captured {
                             // need to append empty text to layout so that the style is applied
                             layout.append("", 0.0, text_format);
                         } else {
                             // uncaptured syntax characters have syntax style applied on top of node style
                             RenderStyle::Syntax.apply_style(&mut text_format, appearance);
                             layout.append(&text, 0.0, text_format);
-                        }
-
-                        if !text_range_portion.range.is_empty() {
-                            head_size_locked = true;
-                            tail_size += text_range_portion.range.len();
                         }
                     }
                     AstTextRangeType::Text => {
                         layout.append(&text, 0.0, text_format);
-
-                        if !text_range_portion.range.is_empty() {
-                            head_size_locked = true;
-                            tail_size = 0.into();
-                        }
                     }
                 }
             }
@@ -228,7 +210,7 @@ pub fn calc(
                 job: mem::take(&mut layout),
                 annotation: mem::take(&mut annotation),
                 head_size: mem::take(&mut head_size),
-                tail_size: mem::take(&mut tail_size),
+                tail_size: 0.into(),
                 annotation_text_format: mem::take(&mut annotation_text_format),
             };
             result
@@ -237,7 +219,6 @@ pub fn calc(
 
             paragraph_idx += 1;
             emit_galley = false;
-            head_size_locked = false;
         }
 
         if paragraph_idx == bounds.paragraphs.len() || maybe_text_range.is_none() {
@@ -443,12 +424,12 @@ impl GalleyInfo {
         Rect { min, max }
     }
 
-    pub fn checkbox_bounds(&self, appearance: &Appearance) -> Rect {
+    pub fn checkbox_bounds(&self, touch_mode: bool, appearance: &Appearance) -> Rect {
         let bullet_center = self.bullet_center();
         let mut min = bullet_center;
         let mut max = bullet_center;
 
-        let dim = appearance.checkbox_dim();
+        let dim = appearance.checkbox_dim(touch_mode);
         min.x -= dim / 2.0;
         max.x += dim / 2.0;
         min.y -= dim / 2.0;
@@ -457,8 +438,8 @@ impl GalleyInfo {
         Rect { min, max }
     }
 
-    pub fn checkbox_slash(&self, appearance: &Appearance) -> [Pos2; 2] {
-        let bounds = self.checkbox_bounds(appearance);
+    pub fn checkbox_slash(&self, touch_mode: bool, appearance: &Appearance) -> [Pos2; 2] {
+        let bounds = self.checkbox_bounds(touch_mode, appearance);
         [Pos2 { x: bounds.min.x, y: bounds.max.y }, Pos2 { x: bounds.max.x, y: bounds.min.y }]
     }
 

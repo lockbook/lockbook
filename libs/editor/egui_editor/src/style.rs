@@ -21,8 +21,8 @@ impl MarkdownNodeType {
             Self::Document => "",
             Self::Paragraph => "",
             Self::Inline(InlineNodeType::Code) => "`",
-            Self::Inline(InlineNodeType::Bold) => "__",
-            Self::Inline(InlineNodeType::Italic) => "_",
+            Self::Inline(InlineNodeType::Bold) => "**",
+            Self::Inline(InlineNodeType::Italic) => "*",
             Self::Inline(InlineNodeType::Strikethrough) => "~~",
             Self::Inline(InlineNodeType::Link) => "[",
             Self::Inline(InlineNodeType::Image) => {
@@ -47,8 +47,8 @@ impl MarkdownNodeType {
             Self::Document => "",
             Self::Paragraph => "",
             Self::Inline(InlineNodeType::Code) => "`",
-            Self::Inline(InlineNodeType::Bold) => "__",
-            Self::Inline(InlineNodeType::Italic) => "_",
+            Self::Inline(InlineNodeType::Bold) => "**",
+            Self::Inline(InlineNodeType::Italic) => "*",
             Self::Inline(InlineNodeType::Strikethrough) => "~~",
             Self::Inline(InlineNodeType::Link) => "]()",
             Self::Inline(InlineNodeType::Image) => {
@@ -62,10 +62,6 @@ impl MarkdownNodeType {
             Self::Block(BlockNodeType::ListItem(..)) => "",
             Self::Block(BlockNodeType::Rule) => "",
         }
-    }
-
-    pub fn needs_whitespace(&self) -> bool {
-        matches!(self, Self::Inline(InlineNodeType::Bold | InlineNodeType::Italic))
     }
 }
 
@@ -98,7 +94,7 @@ pub enum ListItemType {
 impl ListItemType {
     pub fn head(&self) -> &'static str {
         match self {
-            Self::Bulleted => "*",
+            Self::Bulleted => "* ",
             Self::Numbered => "1. ",
             Self::Todo => "* [ ] ",
         }
@@ -259,7 +255,7 @@ impl RenderStyle {
                 text_format.italics = true;
             }
             RenderStyle::Markdown(MarkdownNode::Inline(InlineNode::Strikethrough)) => {
-                text_format.strikethrough = Stroke { width: 0.5, color: vis.strikethrough() };
+                text_format.strikethrough = Stroke { width: 1.5, color: vis.strikethrough() };
             }
             RenderStyle::Markdown(MarkdownNode::Inline(InlineNode::Link(..))) => {
                 text_format.color = vis.link();

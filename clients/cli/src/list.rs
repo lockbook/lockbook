@@ -1,44 +1,41 @@
-use std::cmp::Ordering;
-use std::path::Path;
+use std::{cmp::Ordering, path::Path};
 
-use clap::Parser;
+use cli_rs::cli_error::CliResult;
+use lb::{Core, File, Uuid};
 
-use lb::Core;
-use lb::File;
-use lb::Uuid;
+use crate::input::FileInput;
 
-use crate::CliError;
-use crate::ID_PREFIX_LEN;
+const ID_PREFIX_LEN: usize = 8;
 
-#[derive(Parser, Debug)]
-pub struct ListArgs {
-    /// include all children of the given directory, recursively
-    #[clap(short, long)]
-    pub recursive: bool,
+pub fn list(
+    core: &Core, long: bool, recursive: bool, mut paths: bool, target: FileInput,
+) -> CliResult<()> {
+    let id = target.find(core)?.id;
 
-    /// include more info (such as the file ID)
-    #[clap(short, long)]
-    pub long: bool,
+    let mut files =
+        if recursive { core.get_and_get_children_recursively(id)? } else { core.get_children(id)? };
 
-    /// display absolute paths instead of just names
-    #[clap(long)]
-    pub paths: bool,
+    // Discard root if present. This guarantees every file to have a `dirname` and `name`.
+    if let Some(pos) = files.iter().position(|f| f.id == f.parent) {
+        let _ = files.swap_remove(pos);
+    }
 
-    /// only show directories
-    #[clap(long)]
-    pub dirs: bool,
+    if recursive {
+        paths = true
+    };
 
-    /// only show documents
-    #[clap(long)]
-    pub docs: bool,
+    let mut cfg = LsConfig {
+        my_name: core.get_account()?.username,
+        w_id: ID_PREFIX_LEN,
+        w_name: 0,
+        long,
+        paths,
+    };
 
-    /// print full UUIDs instead of truncated ones
-    #[clap(long)]
-    pub ids: bool,
-
-    /// file path location whose files will be listed
-    #[clap(default_value = "/")]
-    pub directory: String,
+    for ch in get_children(core, &files, id, &mut cfg)? {
+        print_node(&ch, &cfg);
+    }
+    Ok(())
 }
 
 struct LsConfig {
@@ -47,8 +44,6 @@ struct LsConfig {
     w_name: usize,
     long: bool,
     paths: bool,
-    dirs: bool,
-    docs: bool,
 }
 
 struct FileNode {
@@ -62,9 +57,8 @@ struct FileNode {
 }
 
 fn print_node(node: &FileNode, cfg: &LsConfig) {
-    if (!cfg.dirs && !cfg.docs) || (cfg.dirs && node.is_dir) || (cfg.docs && !node.is_dir) {
-        println!("{}", node_string(node, cfg));
-    }
+    println!("{}", node_string(node, cfg));
+
     for ch in &node.children {
         print_node(ch, cfg);
     }
@@ -98,7 +92,7 @@ fn node_string(node: &FileNode, cfg: &LsConfig) -> String {
 
 fn get_children(
     core: &Core, files: &[File], parent: Uuid, cfg: &mut LsConfig,
-) -> Result<Vec<FileNode>, CliError> {
+) -> CliResult<Vec<FileNode>> {
     let mut children = Vec::new();
     for f in files {
         if f.parent == parent {
@@ -109,7 +103,7 @@ fn get_children(
             }
             // Parent directory.
             let dirname = {
-                let path = get_path_by_id(core, f.id)?;
+                let path = core.get_path_by_id(f.id)?;
                 let mut dn = Path::new(&path)
                     .parent()
                     .unwrap()
@@ -169,43 +163,4 @@ fn get_children(
         a.name.cmp(&b.name)
     });
     Ok(children)
-}
-
-pub fn list(core: &Core, args: ListArgs) -> Result<(), CliError> {
-    let id = core.get_by_path(&args.directory)?.id;
-
-    let mut files = if args.recursive {
-        core.get_and_get_children_recursively(id)?
-    } else {
-        core.get_children(id)?
-    };
-    // Discard root if present. This guarantees every file to have a `dirname` and `name`.
-    if let Some(pos) = files.iter().position(|f| f.id == f.parent) {
-        let _ = files.swap_remove(pos);
-    }
-
-    let w_id = if args.ids { Uuid::nil().to_string().len() } else { ID_PREFIX_LEN };
-
-    let mut cfg = LsConfig {
-        my_name: core.get_account()?.username,
-        w_id,
-        w_name: 0,
-        long: args.long,
-        paths: args.paths,
-        dirs: args.dirs,
-        docs: args.docs,
-    };
-    if args.ids {
-        cfg.long = true;
-    }
-
-    for ch in get_children(core, &files, id, &mut cfg)? {
-        print_node(&ch, &cfg);
-    }
-    Ok(())
-}
-
-fn get_path_by_id(core: &Core, id: Uuid) -> Result<String, CliError> {
-    core.get_path_by_id(id)
-        .map_err(|err| CliError::Console(format!("getting path for id '{}': {:?}", id, err)))
 }

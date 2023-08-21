@@ -1,6 +1,7 @@
 use std::backtrace::Backtrace;
 use std::collections::HashSet;
-use std::fmt;
+use std::fmt::Display;
+use std::fmt::{self, Formatter};
 use std::io;
 use std::sync::PoisonError;
 
@@ -18,6 +19,114 @@ pub type LbResult<T> = Result<T, LbError>;
 pub struct LbError {
     pub kind: CoreError,
     pub backtrace: Option<Backtrace>,
+}
+
+/// Using this within core has limited meaning as the unexpected / expected error
+/// calculation that happens in lib.rs won't have taken place. So in some sense
+/// printing this out anywhere within core is going to be _unexpected_
+impl Display for LbError {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        match &self.backtrace {
+            Some(backtrace) => {
+                writeln!(f, "unexpected error: {:?}: {}", self.kind, self.kind).unwrap();
+                writeln!(f, "{backtrace}").unwrap();
+                Ok(())
+            }
+            None => write!(f, "{}", self.kind),
+        }
+    }
+}
+
+impl Display for CoreError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            CoreError::AccountExists => write!(f, "an account already exists"),
+            CoreError::AccountNonexistent => write!(f, "you need an account to do that"),
+            CoreError::AccountStringCorrupted => write!(f, "Account String corrupted"),
+            CoreError::AlreadyCanceled => write!(f, "your subscription has already been cancelled"),
+            CoreError::AlreadyPremium => write!(f, "your account is already premium"),
+            CoreError::AppStoreAccountAlreadyLinked => {
+                write!(f, "your account is already linked to the App Store")
+            }
+            CoreError::CannotCancelSubscriptionForAppStore => {
+                write!(f, "you cannot cancel an app store subscription from here")
+            }
+            CoreError::CardDecline => write!(f, "your card was declined"),
+            CoreError::CardExpired => write!(f, "your card is expired"),
+            CoreError::CardInsufficientFunds => write!(f, "this card has insufficient funds"),
+            CoreError::CardInvalidCvc => write!(f, "invalid cvc"),
+            CoreError::CardInvalidExpMonth => write!(f, "invalid expiration month"),
+            CoreError::CardInvalidExpYear => write!(f, "invalid expiration year"),
+            CoreError::CardInvalidNumber => write!(f, "invalid card number"),
+            CoreError::CardNotSupported => write!(f, "card not supported by stripe"),
+            CoreError::ClientUpdateRequired => {
+                write!(f, "you need a newer version of lockbook to do that")
+            }
+            CoreError::CurrentUsageIsMoreThanNewTier => {
+                write!(f, "you need to delete some files before downgrading your usage")
+            }
+            CoreError::DiskPathInvalid => write!(f, "disk path invalid"),
+            CoreError::DiskPathTaken => write!(f, "disk path not available"),
+            CoreError::DrawingInvalid => write!(f, "not a valid drawing"),
+            CoreError::ExistingRequestPending => {
+                write!(f, "existing billing request in progress, please wait and try again")
+            }
+            CoreError::FileNameContainsSlash => write!(f, "file names cannot contain slashes"),
+            CoreError::FileNameTooLong => write!(f, "that file name is too long"),
+            CoreError::FileNameEmpty => write!(f, "file name cannot be empty"),
+            CoreError::FileNonexistent => write!(f, "that file does not exist"),
+            CoreError::FileNotDocument => write!(f, "that file is not a document"),
+            CoreError::FileNotFolder => write!(f, "that file is not a folder"),
+            CoreError::FileParentNonexistent => write!(f, "could not find a parent"),
+            CoreError::FolderMovedIntoSelf => write!(f, "you cannot move a folder into itself"),
+            CoreError::InsufficientPermission => {
+                write!(f, "you don't have the permission to do that")
+            }
+            CoreError::InvalidPurchaseToken => write!(f, "invalid purchase token"),
+            CoreError::InvalidAuthDetails => {
+                write!(f, "our server failed to authenticate your request, please try again")
+            }
+            CoreError::LinkInSharedFolder => {
+                write!(f, "you cannot move a link into a shared folder")
+            }
+            CoreError::LinkTargetIsOwned => {
+                write!(f, "you cannot create a link to a file that you own")
+            }
+            CoreError::LinkTargetNonexistent => write!(f, "that link target does not exist"),
+            CoreError::MultipleLinksToSameFile => {
+                write!(f, "you cannot have multiple links to the same file")
+            }
+            CoreError::NotPremium => write!(f, "you do not currently have a premium subscription"),
+            CoreError::UsageIsOverDataCap => {
+                write!(f, "you're out of space")
+            }
+            CoreError::UsageIsOverFreeTierDataCap => {
+                write!(f, "you're out of space, you can purchase additional space")
+            }
+            CoreError::OldCardDoesNotExist => write!(f, "no existing card found"),
+            CoreError::PathContainsEmptyFileName => {
+                write!(f, "that path contains an empty file name")
+            }
+            CoreError::PathTaken => write!(f, "that path is not available"),
+            CoreError::RootModificationInvalid => write!(f, "you cannot modify your root"),
+            CoreError::RootNonexistent => write!(f, "no root found"),
+            CoreError::ServerDisabled => write!(
+                f,
+                "the server is not accepting this action at the moment, please try again later"
+            ),
+            CoreError::ServerUnreachable => write!(f, "could not reach server"),
+            CoreError::ShareAlreadyExists => write!(f, "that share already exists"),
+            CoreError::ShareNonexistent => write!(f, "share non-existent"),
+            CoreError::TryAgain => write!(f, "please try again"),
+            CoreError::UsernameInvalid => write!(f, "that username is invalid"),
+            CoreError::UsernameNotFound => write!(f, "username not found"),
+            CoreError::UsernamePublicKeyMismatch => {
+                write!(f, "that username doesn't match that public key")
+            }
+            CoreError::UsernameTaken => write!(f, "username not available"),
+            CoreError::Unexpected(msg) => write!(f, "unexpected error: {msg}"),
+        }
+    }
 }
 
 impl From<CoreError> for LbError {

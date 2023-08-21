@@ -7,8 +7,9 @@ mod tree;
 mod workspace;
 
 use std::collections::HashMap;
+use std::ffi::OsStr;
 use std::sync::{mpsc, Arc, RwLock};
-use std::time::Instant;
+use std::time::{Duration, Instant};
 use std::{path, thread};
 
 use eframe::egui;
@@ -32,6 +33,7 @@ pub struct AccountScreen {
     ctx: egui::Context,
     settings: Arc<RwLock<Settings>>,
     core: lb::Core,
+    toasts: egui_notify::Toasts,
 
     update_tx: mpsc::Sender<AccountUpdate>,
     update_rx: mpsc::Receiver<AccountUpdate>,
@@ -62,15 +64,20 @@ impl AccountScreen {
         let background = BackgroundWorker::new(ctx, &update_tx);
         let background_tx = background.spawn_worker();
 
+        let toasts = egui_notify::Toasts::default()
+            .with_margin(egui::vec2(40.0, 30.0))
+            .with_padding(egui::vec2(20.0, 20.0));
+
         Self {
             settings,
             core,
+            toasts,
             update_tx,
             update_rx,
             background_tx,
             has_pending_shares,
             is_new_user,
-            tree: FileTree::new(files),
+            tree: FileTree::new(files, &core_clone),
             suggested: SuggestedDocs::new(&core_clone),
             sync: SyncPanel::new(sync_status),
             usage,
@@ -98,6 +105,7 @@ impl AccountScreen {
         self.process_updates(ctx, frame);
         self.process_keys(ctx, frame);
         self.process_dropped_files(ctx);
+        self.toasts.show(ctx);
 
         if self.shutdown.is_some() {
             egui::CentralPanel::default()
@@ -478,6 +486,26 @@ impl AccountScreen {
         if let Some(id) = resp.dropped_on {
             self.move_selected_files_to(ui.ctx(), id);
         }
+
+        if let Some(res) = resp.export_file {
+            match res {
+                Ok((src, dest)) => self.toasts.success(format!(
+                    "Exported \"{}\" to \"{}\"",
+                    src.name,
+                    dest.file_name()
+                        .unwrap_or(OsStr::new("/"))
+                        .to_string_lossy()
+                )),
+                Err(err) => {
+                    eprintln!("couldn't export file {:#?}", err.backtrace);
+                    self.toasts
+                        .error(format!("{:#?}, failed to export file", err.kind))
+                }
+            }
+            .set_closable(false)
+            .set_show_progress_bar(false)
+            .set_duration(Some(Duration::from_secs(7)));
+        }
     }
 
     fn show_nav_panel(&mut self, ui: &mut egui::Ui) {
@@ -499,6 +527,7 @@ impl AccountScreen {
                 let incoming_shares_btn = Button::default()
                     .icon(&Icon::SHARED_FOLDER.badge(self.has_pending_shares))
                     .show(ui);
+
                 if incoming_shares_btn.clicked() {
                     self.update_tx.send(OpenModal::AcceptShare.into()).unwrap();
                     ui.ctx().request_repaint();

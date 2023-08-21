@@ -307,8 +307,14 @@ impl Editor {
             self.bounds.words =
                 bounds::calc_words(&self.buffer.current, &self.ast, &self.appearance);
             self.bounds.paragraphs = bounds::calc_paragraphs(&self.buffer.current, &self.ast);
-            self.bounds.text =
-                bounds::calc_text(&self.ast, &self.appearance, &self.buffer.current.segs);
+        }
+        if text_updated || selection_updated {
+            self.bounds.text = bounds::calc_text(
+                &self.ast,
+                &self.appearance,
+                &self.buffer.current.segs,
+                self.buffer.current.cursor,
+            );
         }
         if text_updated || selection_updated || theme_updated {
             self.images = images::calc(&self.ast, &self.images, &self.client, ui);
@@ -321,11 +327,11 @@ impl Editor {
             &self.appearance,
             ui,
         );
-        self.bounds.lines = bounds::calc_lines(&self.galleys, &self.bounds.text);
+        self.bounds.lines = bounds::calc_lines(&self.galleys, &self.ast, &self.bounds.text);
         self.initialized = true;
 
         // draw
-        self.draw_text(self.ui_rect.size(), ui);
+        self.draw_text(self.ui_rect.size(), ui, touch_mode);
         if ui.memory(|m| m.has_focus(id)) {
             self.draw_cursor(ui, touch_mode);
         }
@@ -414,7 +420,7 @@ impl Editor {
         &mut self, events: &[Event], custom_events: &[Modification], touch_mode: bool,
     ) {
         // if the cursor is in an invalid location, move it to the next valid location
-        if let BoundCase::BewteenRanges { range_after, .. } = self
+        if let BoundCase::BetweenRanges { range_after, .. } = self
             .buffer
             .current
             .cursor
@@ -424,7 +430,7 @@ impl Editor {
         {
             self.buffer.current.cursor.selection.0 = range_after.start();
         }
-        if let BoundCase::BewteenRanges { range_after, .. } = self
+        if let BoundCase::BetweenRanges { range_after, .. } = self
             .buffer
             .current
             .cursor
