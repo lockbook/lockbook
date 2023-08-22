@@ -42,16 +42,14 @@ impl FullDocSearch {
     pub fn show(&mut self, ui: &mut egui::Ui, core: &lb::Core) -> Option<&lb::Uuid> {
         while let Ok(res) = self.results_rx.try_recv() {
             if let SearchResult::FileContentMatches { id, path, content_matches } = res {
-                if !content_matches.is_empty() {
-                    content_matches.into_iter().for_each(|cm| {
-                        let expanded_res = SearchResult::FileContentMatches {
-                            id,
-                            path: path.clone(),
-                            content_matches: vec![cm],
-                        };
-                        self.results.push(expanded_res);
-                    })
-                }
+                content_matches.into_iter().for_each(|cm| {
+                    let expanded_res = SearchResult::FileContentMatches {
+                        id,
+                        path: path.clone(),
+                        content_matches: vec![cm],
+                    };
+                    self.results.push(expanded_res);
+                })
             } else {
                 self.results.push(res);
             }
