@@ -64,8 +64,30 @@ nav {
 
 }
 .padded-link{
-    display: block;
+    display: inline-block;
     padding: 10px 20px;
+}
+#download-hero{
+  position:relative;
+}
+#tagline-hero{
+  margin-top: -10px;
+  margin-bottom: 120px;
+}
+#hero-cta {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+}
+#hero-cta .get-lockbook {
+  margin-right: 20px;
+}
+#device-mockup-collage{
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 52%;
+  content: url(device-mockup-collage-jpg);
 }
 #social{
     height: auto;
@@ -90,8 +112,8 @@ p.code{
     font-family: monospace;
     font-size: 0.7em;
 }
-@media (min-aspect-ratio: 1/1), (min-width: 800px) {
 
+@media (min-aspect-ratio: 1/1), (min-width: 800px) {
 
     @media (min-height: 450px) {
         .container {
@@ -115,6 +137,11 @@ p.code{
         width: 50%;
     }
 
+
+    .indented-content {
+        padding-left: 170px;
+        width: 100%;
+    }
     .centered {
         display: flex;
         justify-content: center;
@@ -122,7 +149,10 @@ p.code{
         height: 100%;
         width: 100%;
     }
-
+    #download-hero .centered{
+        align-items: baseline;
+        padding-top: 220px;
+  }
     .content {
         padding: 50px;
         width: 100%;
@@ -137,6 +167,9 @@ p.code{
         justify-content: center;
     }
     nav{
+        display: none;
+    }
+    #device-mockup-collage{
         display: none;
     }
 }
@@ -170,6 +203,14 @@ p {
     font-weight: 300;
 }
 
+#available-platforms{
+    font-size: 16px;
+}
+
+#download-hero h1{ 
+    line-height: 40px;
+}
+
 /* * * * Colors * * * */
 
 .button {
@@ -178,12 +219,17 @@ p {
 }
 .link.filled-link{
     color: var(--background);
-    background-color:  rgb(0, 122, 255);
-    border-radius: 5px;
+    background-color:  var(--blue);
 }
+.link.bordered-link{
+    border: 1px solid var(--blue);
+}
+
 .link, a {
-    color: rgb(0, 122, 255);
+    color: var(--blue); 
     text-decoration: none;
+    border-radius: 5px;
+    text-align: center;
 }
 
 #term-icon:hover {
@@ -198,7 +244,7 @@ p {
 }
 
 #windows-icon:hover {
-    color: rgb(0, 122, 255);
+    color: var(--blue);
     transition: color 250ms linear;
 }
 
@@ -218,7 +264,7 @@ h1 {
     font-size: 2em;
 }
 
-#native, #pricing, #social {
+#native, #pricing, #social, #download-center {
     background: var(--background-900);
     color: var(--foreground);
 }
@@ -240,6 +286,7 @@ h1 {
 *{
     --background: white;
     --background-900: rgb(225, 225, 225);
+    --blue: rgb(0, 122, 255);
     --foreground: black;
 }
 
@@ -291,4 +338,3 @@ h1 {
     }
 }
 
-/* * * * Images * * * */
