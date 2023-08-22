@@ -407,7 +407,7 @@ impl SearchResult {
                 Some(*score)
             }
             SearchResult::FileContentMatches { id: _, path: _, content_matches } => {
-                Some(content_matches.iter().max().unwrap().score)
+                Some(content_matches[0].score)
             }
             _ => None,
         }
@@ -448,23 +448,3 @@ pub struct ContentMatch {
     pub matched_indices: Vec<usize>,
     pub score: i64,
 }
-
-impl Ord for ContentMatch {
-    fn cmp(&self, other: &Self) -> Ordering {
-        self.score.cmp(&other.score)
-    }
-}
-
-impl PartialOrd for ContentMatch {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl PartialEq for ContentMatch {
-    fn eq(&self, other: &Self) -> bool {
-        self.score == other.score
-    }
-}
-
-impl Eq for ContentMatch {}

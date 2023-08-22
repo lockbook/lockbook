@@ -41,13 +41,28 @@ impl FullDocSearch {
 
     pub fn show(&mut self, ui: &mut egui::Ui, core: &lb::Core) -> Option<&lb::Uuid> {
         while let Ok(res) = self.results_rx.try_recv() {
-            self.results.push(res);
+            if let SearchResult::FileContentMatches { id, path, content_matches } = res {
+                if !content_matches.is_empty() {
+                    content_matches.into_iter().for_each(|cm| {
+                        let expanded_res = SearchResult::FileContentMatches {
+                            id,
+                            path: path.clone(),
+                            content_matches: vec![cm],
+                        };
+                        self.results.push(expanded_res);
+                    })
+                }
+            } else {
+                self.results.push(res);
+            }
+
             self.results.sort_by(|a, b| {
                 b.get_score()
                     .unwrap_or_default()
                     .cmp(&a.get_score().unwrap_or_default())
             });
         }
+
         ui.vertical_centered(|ui| {
             let output = egui::TextEdit::singleline(&mut self.query)
                 .desired_width(ui.available_size_before_wrap().x - 5.0)
@@ -83,7 +98,7 @@ impl FullDocSearch {
             };
 
             if output.response.changed() && !self.query.is_empty() {
-                self.results = vec![]; // return Some(*id.unwrap());
+                self.results = vec![];
 
                 self.is_searching
                     .store(true, std::sync::atomic::Ordering::Relaxed);
@@ -161,11 +176,7 @@ impl FullDocSearch {
                             ui.add_space(15.0);
                             ui.horizontal_wrapped(|ui| {
                                 let font_size = 15.0;
-                                self.show_content_match(
-                                    ui,
-                                    content_matches.iter().max().unwrap(),
-                                    font_size,
-                                );
+                                self.show_content_match(ui, &content_matches[0], font_size);
                             });
                         });
                     }
