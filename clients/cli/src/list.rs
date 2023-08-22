@@ -3,13 +3,15 @@ use std::{cmp::Ordering, path::Path};
 use cli_rs::cli_error::CliResult;
 use lb::{Core, File, Uuid};
 
-use crate::input::FileInput;
+use crate::{ensure_account_and_root, input::FileInput};
 
 const ID_PREFIX_LEN: usize = 8;
 
 pub fn list(
     core: &Core, long: bool, recursive: bool, mut paths: bool, target: FileInput,
 ) -> CliResult<()> {
+    ensure_account_and_root(core)?;
+
     let id = target.find(core)?.id;
 
     let mut files =
