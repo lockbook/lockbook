@@ -1,4 +1,5 @@
 mod accept_share;
+mod account_backup;
 mod confirm_delete;
 mod create_share;
 mod error;
@@ -9,6 +10,7 @@ mod search;
 mod settings;
 
 pub use accept_share::AcceptShareModal;
+pub use account_backup::AccountBackup;
 pub use confirm_delete::ConfirmDeleteModal;
 pub use create_share::{CreateShareModal, CreateShareParams};
 pub use error::ErrorModal;
@@ -27,6 +29,7 @@ use eframe::egui;
 #[derive(Default)]
 pub struct Modals {
     pub accept_share: Option<AcceptShareModal>,
+    pub account_backup: Option<AccountBackup>,
     pub confirm_delete: Option<ConfirmDeleteModal>,
     pub create_share: Option<CreateShareModal>,
     pub error: Option<ErrorModal>,
@@ -57,6 +60,20 @@ impl super::AccountScreen {
                     // close and reopen the modal to force a state reload and make the deleted share disappear
                     self.modals.accept_share = None;
                     self.update_tx.send(OpenModal::AcceptShare.into()).unwrap();
+                }
+            }
+        }
+
+        if let Some(response) = show(ctx, x_offset, &mut self.modals.account_backup) {
+            if let Some(submission) = response.inner {
+                match submission {
+                    account_backup::AccountBackupParams::Backup => {
+                        self.update_tx.send(OpenModal::Settings.into()).unwrap();
+                        self.modals.account_backup = None;
+                    }
+                    account_backup::AccountBackupParams::DeferBackup => {
+                        self.modals.account_backup = None
+                    }
                 }
             }
         }
@@ -140,6 +157,7 @@ impl super::AccountScreen {
         let m = &self.modals;
         m.settings.is_some()
             || m.accept_share.is_some()
+            || m.account_backup.is_some()
             || m.new_doc.is_some()
             || m.new_folder.is_some()
             || m.create_share.is_some()
@@ -182,6 +200,10 @@ impl super::AccountScreen {
         }
         if m.accept_share.is_some() {
             m.confirm_delete = None;
+            return true;
+        }
+        if m.account_backup.is_some() {
+            m.account_backup = None;
             return true;
         }
         if m.file_picker.is_some() {

@@ -42,6 +42,7 @@ pub struct AccountScreen {
 
     tree: FileTree,
     has_pending_shares: bool,
+    is_new_user: bool,
     suggested: SuggestedDocs,
     sync: SyncPanel,
     usage: Result<Usage, String>,
@@ -53,7 +54,7 @@ pub struct AccountScreen {
 impl AccountScreen {
     pub fn new(
         settings: Arc<RwLock<Settings>>, core: lb::Core, acct_data: AccountScreenInitData,
-        ctx: &egui::Context,
+        ctx: &egui::Context, is_new_user: bool,
     ) -> Self {
         let (update_tx, update_rx) = mpsc::channel();
 
@@ -75,6 +76,7 @@ impl AccountScreen {
             update_rx,
             background_tx,
             has_pending_shares,
+            is_new_user,
             tree: FileTree::new(files, &core_clone),
             suggested: SuggestedDocs::new(&core_clone),
             sync: SyncPanel::new(sync_status),
@@ -146,6 +148,10 @@ impl AccountScreen {
             .frame(egui::Frame::default().fill(ctx.style().visuals.widgets.noninteractive.bg_fill))
             .show(ctx, |ui| self.show_workspace(frame, ui));
 
+        if self.is_new_user {
+            self.modals.account_backup = Some(AccountBackup);
+            self.is_new_user = false;
+        }
         self.show_any_modals(ctx, 0.0);
     }
 

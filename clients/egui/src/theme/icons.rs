@@ -61,6 +61,7 @@ impl Icon {
     pub const VIDEO_LABEL: Self = ic("\u{e071}"); // Video Label
     pub const VISIBILITY_ON: Self = ic("\u{e8f4}"); // Visibility On
     pub const VISIBILITY_OFF: Self = ic("\u{e8f5}"); // Visibility Off
+    pub const WARNING: Self = ic("\u{e001}"); // Visibility Off
 
     //pub const ARTICLE: Self = ic("\u{ef42}");
     //pub const COMMAND_KEY: Self = Self('\u{eae7}');
@@ -69,7 +70,6 @@ impl Icon {
     //pub const FIND_REPLACE: Self = ic("\u{e881}"); // Find Replace
     //pub const SHIELD: Self = Self("\u{e8e8}");
     //pub const SHIELD_OFF: Self = Self("\u{e9d4}");
-    //pub const WARNING: Self = Self("\u{e002}");
     //pub const RECTANGLE: Self = ic("\u{eb54}"); // Rectangle
     //pub const PALETTE: Self = ic("\u{e40a}"); // Palette
     //pub const QR_CODE: Self = ic("\u{e00a}"); // Qr Code 2
