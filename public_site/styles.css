@@ -79,15 +79,48 @@ nav {
     flex-direction: row;
     align-items: center;
 }
-#hero-cta .get-lockbook {
-  margin-right: 20px;
-}
 #device-mockup-collage{
   position: absolute;
   right: 0;
   bottom: 0;
   width: 52%;
   content: url(device-mockup-collage-jpg);
+}
+#gui-download-center .indented-content {
+  max-width: 840px;
+  padding: 0;
+}
+
+#gui-download-center .indented-content p, #cli-download-center .tagline {
+  margin-top: -20px;
+  margin-bottom: 40px;
+}
+#available-platforms-nav{
+  position: relative;
+}
+#available-platforms-nav::before{
+  content: "";
+  width: 2px;
+height: 35%;
+background: var(--foreground);
+position: absolute;
+display: flex;
+top: 50%;
+transform: translateY(-50%);
+left: 22px;
+opacity: 0.1;
+}
+#available-platforms-nav li{
+  list-style: none;
+}
+#available-platforms-nav a{
+  display:block;
+  text-align: left;
+  padding:7px;
+}
+#cli-screenshot{
+  width: 100%;
+  content: url(cli-screenshot.png);
 }
 #social{
     height: auto;
@@ -149,10 +182,21 @@ p.code{
         height: 100%;
         width: 100%;
     }
+
+#hero-cta .get-lockbook-gui {
+  margin-right: 20px;
+}
     #download-hero .centered{
         align-items: baseline;
         padding-top: 220px;
   }
+
+#gui-download-center{
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 170px;
+}
     .content {
         padding: 50px;
         width: 100%;
@@ -172,6 +216,19 @@ p.code{
     #device-mockup-collage{
         display: none;
     }
+    #available-platforms-nav{
+      display: flex;
+      padding: 0;
+  }
+  #cli-download-center{
+    display: flex;
+    flex-direction: column-reverse;
+  }
+  #hero-cta{
+    flex-direction: column;
+    text-align: center;
+    align-items: initial;
+  }
 }
 
 /* * * * Font * * * */
@@ -223,6 +280,7 @@ p {
 }
 .link.bordered-link{
     border: 1px solid var(--blue);
+    background-color: transparent;
 }
 
 .link, a {
@@ -230,6 +288,9 @@ p {
     text-decoration: none;
     border-radius: 5px;
     text-align: center;
+    font-size: inherit;
+    font-weight: 300;
+    cursor: pointer;
 }
 
 #term-icon:hover {
@@ -264,7 +325,7 @@ h1 {
     font-size: 2em;
 }
 
-#native, #pricing, #social, #download-center {
+#native, #pricing, #social, #gui-download-center {
     background: var(--background-900);
     color: var(--foreground);
 }
