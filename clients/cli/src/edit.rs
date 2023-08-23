@@ -13,9 +13,11 @@ use cli_rs::{
 use hotwatch::{Event, EventKind, Hotwatch};
 use lb::{Core, Uuid};
 
-use crate::input::FileInput;
+use crate::{ensure_account_and_root, input::FileInput};
 
 pub fn edit(core: &Core, editor: Editor, target: FileInput) -> CliResult<()> {
+    ensure_account_and_root(core)?;
+
     let f = target.find(core)?;
 
     let file_content = core.read_document(f.id)?;

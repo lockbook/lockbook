@@ -21,7 +21,7 @@ use cli_rs::{
 };
 
 use input::FileInput;
-use lb::{Core, Filter, Uuid};
+use lb::{Core, CoreError, Filter, Uuid};
 
 fn run() -> CliResult<()> {
     let core = &core()?;
@@ -228,6 +228,8 @@ fn core() -> CliResult<Core> {
 }
 
 fn sync(core: &Core) -> CliResult<()> {
+    ensure_account(core)?;
+
     println!("syncing...");
     core.sync(Some(Box::new(|sp: lb::SyncProgress| {
         use lb::ClientWorkUnit::*;
@@ -242,6 +244,8 @@ fn sync(core: &Core) -> CliResult<()> {
 }
 
 fn delete(core: &Core, force: bool, target: FileInput) -> Result<(), CliError> {
+    ensure_account_and_root(core)?;
+
     let f = target.find(core)?;
 
     if !force {
@@ -272,6 +276,8 @@ fn delete(core: &Core, force: bool, target: FileInput) -> Result<(), CliError> {
 }
 
 fn move_file(core: &Core, src: FileInput, dest: FileInput) -> CliResult<()> {
+    ensure_account_and_root(core)?;
+
     let src = src.find(core)?;
     let dest = dest.find(core)?;
     core.move_file(src.id, dest.id)?;
@@ -279,6 +285,8 @@ fn move_file(core: &Core, src: FileInput, dest: FileInput) -> CliResult<()> {
 }
 
 fn create_file(core: &Core, path: FileInput) -> CliResult<()> {
+    ensure_account_and_root(core)?;
+
     let FileInput::Path(path) = path else {
         return Err(CliError::from("cannot create a file using ids"));
     };
@@ -296,6 +304,8 @@ fn create_file(core: &Core, path: FileInput) -> CliResult<()> {
 }
 
 fn print(core: &Core, target: FileInput) -> Result<(), CliError> {
+    ensure_account_and_root(core)?;
+
     let id = target.find(core)?.id;
     let content = core.read_document(id)?;
     print!("{}", String::from_utf8_lossy(&content));
@@ -304,7 +314,30 @@ fn print(core: &Core, target: FileInput) -> Result<(), CliError> {
 }
 
 fn rename(core: &Core, target: FileInput, new_name: String) -> Result<(), CliError> {
+    ensure_account_and_root(core)?;
+
     let id = target.find(core)?.id;
     core.rename_file(id, &new_name)?;
+    Ok(())
+}
+
+fn ensure_account(core: &Core) -> CliResult<()> {
+    if let Err(e) = core.get_account() {
+        if e.kind == CoreError::AccountNonexistent {
+            return Err(CliError::from("no account found, run lockbook account import"));
+        }
+    }
+
+    Ok(())
+}
+
+fn ensure_account_and_root(core: &Core) -> CliResult<()> {
+    ensure_account(core)?;
+    if let Err(e) = core.get_root() {
+        if e.kind == CoreError::RootNonexistent {
+            return Err(CliError::from("no root found, have you synced yet?"));
+        }
+    }
+
     Ok(())
 }

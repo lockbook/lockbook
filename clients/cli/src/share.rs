@@ -1,9 +1,11 @@
 use cli_rs::cli_error::{CliError, CliResult};
 use lb::{Core, Uuid};
 
-use crate::input::FileInput;
+use crate::{ensure_account_and_root, input::FileInput};
 
 pub fn new(core: &Core, target: FileInput, username: String, read_only: bool) -> CliResult<()> {
+    ensure_account_and_root(core)?;
+
     let id = target.find(core)?.id;
     let mode = if read_only { lb::ShareMode::Read } else { lb::ShareMode::Write };
     core.share_file(id, &username, mode)?;
@@ -12,6 +14,8 @@ pub fn new(core: &Core, target: FileInput, username: String, read_only: bool) ->
 }
 
 pub fn pending(core: &Core) -> CliResult<()> {
+    ensure_account_and_root(core)?;
+
     let pending_shares = to_share_infos(core.get_pending_shares()?);
     if pending_shares.is_empty() {
         println!("no pending shares.");
@@ -22,6 +26,8 @@ pub fn pending(core: &Core) -> CliResult<()> {
 }
 
 pub fn accept(core: &Core, target: Uuid, dest: FileInput) -> CliResult<()> {
+    ensure_account_and_root(core)?;
+
     let share = core
         .get_pending_shares()?
         .into_iter()
@@ -36,6 +42,8 @@ pub fn accept(core: &Core, target: Uuid, dest: FileInput) -> CliResult<()> {
 }
 
 pub fn delete(core: &Core, target: Uuid) -> Result<(), CliError> {
+    ensure_account_and_root(core)?;
+
     let share = core
         .get_pending_shares()?
         .into_iter()

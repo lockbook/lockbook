@@ -8,9 +8,11 @@ use std::{
 use cli_rs::cli_error::CliResult;
 use lb::{Core, ImportStatus};
 
-use crate::input::FileInput;
+use crate::{ensure_account_and_root, input::FileInput};
 
 pub fn copy(core: &Core, disk: PathBuf, parent: FileInput) -> CliResult<()> {
+    ensure_account_and_root(core)?;
+
     let parent = parent.find(core)?.id;
 
     let total = Cell::new(0);
@@ -31,6 +33,8 @@ pub fn copy(core: &Core, disk: PathBuf, parent: FileInput) -> CliResult<()> {
 }
 
 pub fn export(core: &Core, target: FileInput, dest: PathBuf) -> CliResult<()> {
+    ensure_account_and_root(core)?;
+
     let target_file = target.find(core)?;
 
     println!("exporting '{}'...", target_file.name);

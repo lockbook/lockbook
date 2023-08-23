@@ -5,7 +5,7 @@ use lb::Core;
 
 use is_terminal::IsTerminal;
 
-use crate::input;
+use crate::{ensure_account, input};
 
 pub fn new(core: &Core, username: String, api_url: ApiUrl) -> CliResult<()> {
     println!("generating keys and checking for username availability...");
@@ -35,6 +35,8 @@ pub fn import(core: &Core) -> CliResult<()> {
 }
 
 pub fn export(core: &Core, skip_check: bool) -> CliResult<()> {
+    ensure_account(core)?;
+
     let should_ask = !skip_check;
     let mut should_show = false;
 
@@ -57,6 +59,8 @@ pub fn export(core: &Core, skip_check: bool) -> CliResult<()> {
 }
 
 pub fn subscribe(core: &Core) -> Result<(), CliError> {
+    ensure_account(core)?;
+
     println!("checking for existing payment methods...");
     let existing_card =
         core.get_subscription_info()?
@@ -93,6 +97,8 @@ pub fn subscribe(core: &Core) -> Result<(), CliError> {
 }
 
 pub fn unsubscribe(core: &Core) -> Result<(), CliError> {
+    ensure_account(core)?;
+
     let answer: String =
         input::std_in("are you sure you would like to cancel your subscription? [y/n]: ")?;
     if answer == "y" || answer == "Y" {
@@ -103,6 +109,8 @@ pub fn unsubscribe(core: &Core) -> Result<(), CliError> {
 }
 
 pub fn status(core: &Core) -> Result<(), CliError> {
+    ensure_account(core)?;
+
     let cap = core.get_usage()?;
     let pct = (cap.server_usage.exact * 100) / cap.data_cap.exact;
 
