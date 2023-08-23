@@ -106,7 +106,12 @@ impl Drive {
                     let core_path = core_path.to_str().unwrap().to_string();
 
                     let new_path = newpath.parent().unwrap();
-                    let new_path = new_path.to_str().unwrap().to_string();
+                    let new_path = new_path.iter().last().unwrap();
+                    let mut new_path = new_path.to_str().unwrap().to_string();
+                    new_path.push('/');
+
+                    println!("{:?}", core_path);
+                    println!("{:?}", new_path);
 
                     self.pending_events
                         .lock()
