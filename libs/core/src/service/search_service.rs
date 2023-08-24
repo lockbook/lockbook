@@ -400,6 +400,20 @@ impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {
     }
 }
 
+impl SearchResult {
+    pub fn get_score(&self) -> Option<i64> {
+        match self {
+            SearchResult::FileNameMatch { id: _, path: _, matched_indices: _, score } => {
+                Some(*score)
+            }
+            SearchResult::FileContentMatches { id: _, path: _, content_matches } => {
+                Some(content_matches[0].score)
+            }
+            _ => None,
+        }
+    }
+}
+
 pub struct StartSearchInfo {
     pub search_tx: Sender<SearchRequest>,
     pub results_rx: Receiver<SearchResult>,
