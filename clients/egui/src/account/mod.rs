@@ -1,4 +1,5 @@
 mod background;
+mod full_doc_search;
 mod modals;
 mod suggested_docs;
 mod syncing;
@@ -21,6 +22,7 @@ use crate::util::NUM_KEYS;
 use crate::widgets::{separator, Button};
 
 use self::background::*;
+use self::full_doc_search::FullDocSearch;
 use self::modals::*;
 
 use self::suggested_docs::SuggestedDocs;
@@ -44,6 +46,7 @@ pub struct AccountScreen {
     has_pending_shares: bool,
     is_new_user: bool,
     suggested: SuggestedDocs,
+    full_search_doc: FullDocSearch,
     sync: SyncPanel,
     usage: Result<Usage, String>,
     workspace: Workspace,
@@ -79,6 +82,7 @@ impl AccountScreen {
             is_new_user,
             tree: FileTree::new(files, &core_clone),
             suggested: SuggestedDocs::new(&core_clone),
+            full_search_doc: FullDocSearch::new(&core_clone),
             sync: SyncPanel::new(sync_status),
             usage,
             workspace: Workspace::new(),
@@ -91,6 +95,11 @@ impl AccountScreen {
     pub fn begin_shutdown(&mut self) {
         self.shutdown = Some(AccountShutdownProgress::default());
         self.save_all_tabs(&self.ctx);
+        self.full_search_doc
+            .search_channel
+            .search_tx
+            .send(lb::service::search_service::SearchRequest::EndSearch)
+            .unwrap();
         self.background_tx.send(BackgroundEvent::Shutdown).unwrap();
     }
 
@@ -135,12 +144,20 @@ impl AccountScreen {
                     self.show_nav_panel(ui);
 
                     ui.vertical(|ui| {
-                        if let Some(file) = self.suggested.show(ui) {
+                        ui.add_space(15.0);
+                        if let Some(&file) = self.full_search_doc.show(ui, &self.core) {
                             self.open_file(file, ctx);
                         }
-                        ui.add_space(20.0);
-                        self.show_tree(ui);
-                    })
+                        ui.add_space(15.0);
+
+                        if self.full_search_doc.results.is_empty() {
+                            if let Some(file) = self.suggested.show(ui) {
+                                self.open_file(file, ctx);
+                            }
+                            ui.add_space(15.0);
+                            self.show_tree(ui);
+                        }
+                    });
                 });
             });
 
