@@ -181,7 +181,7 @@ p.code{
         width: 100%;
     }
 
-#hero-cta .get-lockbook-gui {
+#hero-cta .get-lockbook-gui, .get-lockbook-cli{
   margin-right: 20px;
 }
     #download-hero .centered{
@@ -230,6 +230,18 @@ p.code{
     flex-direction: column;
     text-align: center;
     align-items: initial;
+  }
+  #download-hero .indented-content{
+    height: 100vh;
+display: flex;
+flex-direction: column;
+justify-content: space-around;
+  }
+  #gui-download-center{
+min-height: 490px;
+display: flex;
+flex-direction: column;
+justify-content: space-between;
   }
 }
 
@@ -285,7 +297,7 @@ p {
     background-color: transparent;
 }
 
-.link, a {
+.link {
     color: var(--blue); 
     text-decoration: none;
     border-radius: 5px;
@@ -295,6 +307,10 @@ p {
     cursor: pointer;
     background: transparent;
     border:none;
+}
+.lockbook-home-link{
+  text-decoration:none;
+  color: var(--foreground)
 }
 .active {
   text-decoration: underline var(--blue);
