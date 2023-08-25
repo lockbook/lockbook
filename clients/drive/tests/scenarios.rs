@@ -111,7 +111,40 @@ fn move_file_test() {
     assert_eq!(files.len(), 4);
 }
 
+#[test]
+fn remove_file_test(){
+    let dest = new_test_dir("new_file");
 
+    let drive = Drive::test_drive();
+
+    let core = drive.c.clone();
+
+    let clone_drive = drive.clone();
+    let dest_clone = dest.clone();
+
+    thread::spawn(move || clone_drive.check_for_changes(dest_clone));
+    thread::sleep(Duration::from_millis(100));
+
+    let mut dest = drive.get_dest();
+    dest.push("test.md");
+
+    fs::File::create(&dest).unwrap();
+    thread::sleep(Duration::from_millis(100));
+
+    let filesprev = core.list_metadatas().unwrap();
+    thread::sleep(Duration::from_millis(100));
+
+    fs::remove_file(&dest).unwrap();
+    thread::sleep(Duration::from_millis(100));
+
+    let filesnew = core.list_metadatas().unwrap();
+    println!("{:#?}", filesprev.iter());
+    println!("{:#?}", filesnew.iter());
+    let f = filesnew.iter().any(|m| m.name == "test.md");
+    assert_eq!(f, false);
+    assert_eq!(filesprev.len(), 2);
+    assert_eq!(filesnew.len(), 1);
+}
 //Make create_file_test pass -- you're creating an extra folder inside root
 //Write more tests (ideally look at code and write test for each branch)
 //As soon as reliable, update on it
