@@ -29,4 +29,23 @@ document.querySelectorAll(".get-lockbook-gui").forEach((el) => {
 
 
 /** gui download center navigation **/
+let header = document.querySelector("#gui-download-center h2");
+let tagline = document.querySelector("#gui-download-center .tagline")
+let primaryDownload = document.querySelector("#gui-download-center .link")
+
+let downloadNavLinks = document.querySelectorAll("#available-platforms-nav button")
+downloadNavLinks.forEach(dLink =>{
+  if (dLink.dataset.platform === OSName){
+    dLink.classList.add("active")
+
+    primaryDownload.textContent = `Get for ${dLink.dataset.platform}`
+    primaryDownload.href = OSDownloadMap[dLink.dataset.platform]
+  }
+  dLink.addEventListener("click", () =>{
+    downloadNavLinks.forEach(link => link.classList.remove("active"))
+    dLink.classList.add("active")
+    primaryDownload.textContent = `Get for ${dLink.dataset.platform}`
+    primaryDownload.href = OSDownloadMap[dLink.dataset.platform]
+  })
+})
 

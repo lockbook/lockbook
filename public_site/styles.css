@@ -113,14 +113,12 @@ opacity: 0.1;
 #available-platforms-nav li{
   list-style: none;
 }
-#available-platforms-nav a{
-  display:block;
+#available-platforms-nav .link{
   text-align: left;
   padding:7px;
 }
-#cli-screenshot{
-  width: 100%;
-  content: url(cli-screenshot.png);
+#cli-download-center .left .centered > div{
+  flex: 1
 }
 #social{
     height: auto;
@@ -201,6 +199,10 @@ p.code{
         padding: 50px;
         width: 100%;
     }
+
+#cli-download-center .left .centered {
+  padding: 50px;
+}
 }
 
 @media (max-aspect-ratio: 1/1) and (max-width: 800px) {
@@ -291,8 +293,12 @@ p {
     font-size: inherit;
     font-weight: 300;
     cursor: pointer;
+    background: transparent;
+    border:none;
 }
-
+.active {
+  text-decoration: underline var(--blue);
+}
 #term-icon:hover {
     filter: invert(0.5);
     transition: color 250ms linear;
