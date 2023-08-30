@@ -710,7 +710,6 @@ impl AccountScreen {
                         let number = caps.get(1).unwrap().as_str().parse::<i32>().unwrap() + 1;
                         if number > max {
                             max = number;
-                            println!("max increase");
                         }
                     }
                 });
