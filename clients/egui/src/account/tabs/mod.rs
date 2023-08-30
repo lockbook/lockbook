@@ -13,6 +13,7 @@ use std::time::Instant;
 pub struct Tab {
     pub id: lb::Uuid,
     pub name: String,
+    pub rename: Option<String>,
     pub path: String,
     pub failure: Option<TabFailure>,
     pub content: Option<TabContent>,

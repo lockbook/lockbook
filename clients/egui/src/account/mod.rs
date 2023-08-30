@@ -14,6 +14,8 @@ use std::time::{Duration, Instant};
 use std::{path, thread};
 
 use eframe::egui;
+use lb::FileType;
+use regex::Regex;
 
 use crate::model::{AccountScreenInitData, Usage};
 use crate::settings::Settings;
@@ -210,7 +212,6 @@ impl AccountScreen {
                         ));
                     }
                     OpenModal::InitiateShare(target) => self.open_share_modal(target),
-                    OpenModal::NewDoc(maybe_parent) => self.open_new_doc_modal(maybe_parent),
                     OpenModal::NewFolder(maybe_parent) => self.open_new_folder_modal(maybe_parent),
                     OpenModal::Settings => {
                         self.modals.settings = Some(SettingsModal::new(&self.core, &self.settings));
@@ -240,13 +241,11 @@ impl AccountScreen {
                             self.open_file(id, ctx);
                         }
                         // Close whichever new file modal was open.
-                        self.modals.new_doc = None;
                         self.modals.new_folder = None;
+                        ctx.request_repaint();
                     }
                     Err(msg) => {
-                        if let Some(m) = &mut self.modals.new_doc {
-                            m.err_msg = Some(msg)
-                        } else if let Some(m) = &mut self.modals.new_folder {
+                        if let Some(m) = &mut self.modals.new_folder {
                             m.err_msg = Some(msg)
                         }
                     }
@@ -364,10 +363,9 @@ impl AccountScreen {
         {
             ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape));
         }
-
         // Ctrl-N pressed while new file modal is not open.
-        if self.modals.new_doc.is_none() && ctx.input_mut(|i| i.consume_key(CTRL, egui::Key::N)) {
-            self.open_new_doc_modal(None);
+        if ctx.input_mut(|i| i.consume_key(CTRL, egui::Key::N)) {
+            self.create_file();
         }
 
         // Ctrl-S to save current tab.
@@ -462,11 +460,8 @@ impl AccountScreen {
             .show(ui, |ui| self.tree.show(ui))
             .inner;
 
-        if let Some(file) = resp.new_doc_modal {
-            self.update_tx
-                .send(OpenModal::NewDoc(Some(file)).into())
-                .unwrap();
-            ui.ctx().request_repaint();
+        if resp.new_file.is_some() {
+            self.create_file();
         }
 
         if let Some(file) = resp.new_folder_modal {
@@ -636,7 +631,6 @@ impl AccountScreen {
                             }
                         })
                 };
-
                 let now = Instant::now();
                 update_tx
                     .send(AccountUpdate::ReloadTab(
@@ -645,6 +639,7 @@ impl AccountScreen {
                             id,
                             name,
                             path,
+                            rename: None,
                             content: content.ok(),
                             failure: None,
                             last_changed: now,
@@ -658,19 +653,7 @@ impl AccountScreen {
         });
     }
 
-    fn open_new_doc_modal(&mut self, maybe_parent: Option<lb::File>) {
-        self.open_new_file_modal(maybe_parent, lb::FileType::Document);
-    }
-
     fn open_new_folder_modal(&mut self, maybe_parent: Option<lb::File>) {
-        self.open_new_file_modal(maybe_parent, lb::FileType::Folder);
-    }
-
-    fn open_share_modal(&mut self, target: lb::File) {
-        self.modals.create_share = Some(CreateShareModal::new(target));
-    }
-
-    fn open_new_file_modal(&mut self, maybe_parent: Option<lb::File>, typ: lb::FileType) {
         let parent_id = match maybe_parent {
             Some(f) => {
                 if f.is_folder() {
@@ -683,15 +666,14 @@ impl AccountScreen {
         };
 
         let parent_path = self.core.get_path_by_id(parent_id).unwrap();
-
-        if typ == lb::FileType::Folder {
-            self.modals.new_folder = Some(NewFolderModal::new(parent_path));
-        } else {
-            self.modals.new_doc = Some(NewDocModal::new(parent_path));
-        }
+        self.modals.new_folder = Some(NewFolderModal::new(parent_path));
     }
 
-    fn create_file(&mut self, params: NewFileParams) {
+    fn open_share_modal(&mut self, target: lb::File) {
+        self.modals.create_share = Some(CreateShareModal::new(target));
+    }
+
+    fn create_folder(&mut self, params: NewFileParams) {
         let parent = self.core.get_by_path(&params.parent_path).unwrap();
 
         let core = self.core.clone();
@@ -699,6 +681,46 @@ impl AccountScreen {
         thread::spawn(move || {
             let result = core
                 .create_file(&params.name, parent.id, params.ftype)
+                .map_err(|err| format!("{:?}", err));
+            update_tx.send(AccountUpdate::FileCreated(result)).unwrap();
+        });
+    }
+    fn create_file(&mut self) {
+        let mut focused_parent = self.tree.root.file.id;
+        for id in self.tree.state.selected.drain() {
+            focused_parent = id;
+        }
+        let core = self.core.clone();
+        let update_tx = self.update_tx.clone();
+        thread::spawn(move || {
+            let mut max = 1;
+
+            let focused_parent = core.get_file_by_id(focused_parent).unwrap();
+            let focused_parent = if focused_parent.file_type == FileType::Document {
+                focused_parent.parent
+            } else {
+                focused_parent.id
+            };
+            core.get_children(focused_parent)
+                .unwrap()
+                .iter()
+                .for_each(|f| {
+                    let re = Regex::new(r"^untitled-(\d+)\.\w*$").unwrap();
+                    if let Some(caps) = re.captures(&f.name) {
+                        let number = caps.get(1).unwrap().as_str().parse::<i32>().unwrap() + 1;
+                        if number > max {
+                            max = number;
+                            println!("max increase");
+                        }
+                    }
+                });
+
+            let result = core
+                .create_file(
+                    &format!("untitled-{}.md", max),
+                    focused_parent,
+                    lb::FileType::Document,
+                )
                 .map_err(|err| format!("{:?}", err));
             update_tx.send(AccountUpdate::FileCreated(result)).unwrap();
         });
@@ -928,7 +950,6 @@ pub enum AccountUpdate {
 }
 
 pub enum OpenModal {
-    NewDoc(Option<lb::File>),
     NewFolder(Option<lb::File>),
     InitiateShare(lb::File),
     Settings,

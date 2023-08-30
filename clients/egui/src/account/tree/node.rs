@@ -263,7 +263,7 @@ impl TreeNode {
         ui.spacing_mut().button_padding = egui::vec2(4.0, 4.0);
 
         if ui.button("New Document").clicked() {
-            node_resp.new_doc_modal = Some(self.file.clone());
+            node_resp.new_file = Some(true);
             ui.close_menu();
         }
         if ui.button("New Folder").clicked() {
