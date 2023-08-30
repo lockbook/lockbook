@@ -13,6 +13,12 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     var editMenuInteraction: UIEditMenuInteraction?
     var hasSelection: Bool = false
     
+    var textUndoManager = iOSUndoManager()
+
+    public override var undoManager: UndoManager? {
+        return textUndoManager
+    }
+    
     var pasteBoardEventId: Int = 0
     var lastKnownTapLocation: Float? = nil
     override init(frame frameRect: CGRect, device: MTLDevice?) {
@@ -104,6 +110,10 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     public func setInitialContent(_ s: String) {
         let metalLayer = UnsafeMutableRawPointer(Unmanaged.passUnretained(self.layer).toOpaque())
         self.editorHandle = init_editor(metalLayer, s, isDarkMode())
+        self.textUndoManager.editorHandle = self.editorHandle
+        self.textUndoManager.onUndoRedo = {
+            self.setNeedsDisplay(self.frame)
+        }
         
         self.toolbarState!.toggleBold = bold
         self.toolbarState!.toggleItalic = italic
@@ -114,6 +124,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
         self.toolbarState!.toggleNumberList = numberedList
         self.toolbarState!.toggleHeading = header
         self.toolbarState!.tab = tab
+        self.toolbarState!.undoRedo = undoRedo
     }
     
     public func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {
@@ -483,6 +494,11 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
         select_all(self.editorHandle)
         self.setNeedsDisplay()
     }
+        
+    func undoRedo(redo: Bool) {
+        undo_redo(self.editorHandle, redo)
+        self.setNeedsDisplay(self.frame)
+    }
     
     func updateText(_ s: String) {
         set_text(editorHandle, s)
@@ -607,3 +623,32 @@ class LBTokenizer: NSObject, UITextInputTokenizer {
     }
 }
 #endif
+
+
+class iOSUndoManager: UndoManager {
+    
+    public var editorHandle: UnsafeMutableRawPointer? = nil
+    var onUndoRedo: (() -> Void)? = nil
+    
+    override var canUndo: Bool {
+        get {
+            can_undo(editorHandle)
+        }
+    }
+    
+    override var canRedo: Bool {
+        get {
+            can_redo(editorHandle)
+        }
+    }
+    
+    override func undo() {
+        undo_redo(editorHandle, false)
+        onUndoRedo?()
+    }
+    
+    override func redo() {
+        undo_redo(editorHandle, true)
+        onUndoRedo?()
+    }
+}

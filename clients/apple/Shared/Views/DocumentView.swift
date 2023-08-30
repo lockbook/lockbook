@@ -2,13 +2,17 @@ import SwiftUI
 import SwiftLockbookCore
 import PencilKit
 import SwiftEditor
-
 #if os(iOS)
+import UIKit
+
 struct iOSDocumentViewWrapper: View {
     let id: UUID
-    
+        
     var body: some View {
         DocumentView(id: id, isiPhone: true)
+            .onAppear {
+                DI.currentDoc.selectedDoc = id
+            }
             .onDisappear {
                 if let meta = DI.currentDoc.openDocuments[id]?.dismissForLink {
                     print("starting to open link")
@@ -336,12 +340,13 @@ struct MarkdownToolbar: View {
                 .help("Todo List: ⌘⇧9")
             }
 
-            #if os(iOS)
-
             Divider()
                 .frame(height: 20)
 
             HStack(spacing: 15) {
+                
+                #if os(iOS)
+                
                 Button(action: {
                     toolbarState.tab(false)
                 }) {
@@ -355,9 +360,25 @@ struct MarkdownToolbar: View {
                     MarkdownEditorImage(systemImageName: "arrow.left.to.line.compact", isSelected: false)
                 }
                 .buttonStyle(.borderless)
-            }
+                
+                #endif
+                
+                Button(action: {
+                    toolbarState.undoRedo(false)
+                }) {
+                    MarkdownEditorImage(systemImageName: "arrow.uturn.backward", isSelected: false)
+                }
+                .buttonStyle(.borderless)
+                .help("Undo: ⌃Z")
 
-            #endif
+                Button(action: {
+                    toolbarState.undoRedo(true)
+                }) {
+                    MarkdownEditorImage(systemImageName: "arrow.uturn.forward", isSelected: false)
+                }
+                .buttonStyle(.borderless)
+                .help("Redo: ⌃⇧Z")
+            }
 
             Spacer()
         }
