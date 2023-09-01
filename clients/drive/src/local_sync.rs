@@ -146,7 +146,9 @@ impl Drive {
                     let old_name = old_name.to_str().unwrap().to_string();
 
                     let new_path = newpath.parent().unwrap();
-                    let new_path = new_path.to_str().unwrap().to_string();
+                    let new_path = new_path.iter().last().unwrap();
+                    let mut new_path = new_path.to_str().unwrap().to_string();
+                    new_path.push('/');
 
                     let new_name = newpath.iter().last().unwrap();
                     let new_name = new_name.to_str().unwrap().to_string();
