@@ -47,7 +47,7 @@ pub fn calc_words(
 ) -> Words {
     let mut result = vec![];
 
-    for text_range in ast.iter_text_ranges() {
+    for text_range in ast_ranges {
         if text_range.range_type != AstTextRangeType::Text
             && appearance.markdown_capture(text_range.node(ast).node_type())
                 == CaptureCondition::Always

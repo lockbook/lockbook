@@ -5,7 +5,7 @@ use crate::galleys::Galleys;
 use crate::input::canonical::{Location, Modification, Offset, Region};
 use crate::input::cursor::Cursor;
 use crate::layouts::Annotation;
-use crate::offset_types::{DocCharOffset, RangeExt};
+use crate::offset_types::{DocCharOffset, RangeExt, RangeIterExt};
 use crate::style::{InlineNodeType, ListItem, MarkdownNode, MarkdownNodeType};
 use crate::unicode_segs::UnicodeSegs;
 use egui::Pos2;
@@ -58,13 +58,13 @@ pub fn calc(
         }
         Modification::ToggleStyle { region, style } => {
             let cursor = region_to_cursor(region, current_cursor, buffer, galleys, bounds);
-            let unapply = region_completely_styled(cursor, &style, ast);
+            let unapply = region_completely_styled(cursor, &style, ast, &bounds.ast);
             if !unapply {
-                for conflict in conflicting_styles(cursor, &style, ast) {
-                    apply_style(cursor, conflict, true, buffer, ast, &mut mutation)
+                for conflict in conflicting_styles(cursor, &style, ast, &bounds.ast) {
+                    apply_style(cursor, conflict, true, buffer, ast, &bounds.ast, &mut mutation)
                 }
             }
-            apply_style(cursor, style.clone(), unapply, buffer, ast, &mut mutation);
+            apply_style(cursor, style.clone(), unapply, buffer, ast, &bounds.ast, &mut mutation);
             if current_cursor.selection.is_empty() {
                 // toggling style at end of styled range moves cursor to outside of styled range
                 if let Some(text_range) = bounds
@@ -409,12 +409,14 @@ pub fn calc(
 }
 
 /// Returns true if all text in `cursor` has style `style`
-fn region_completely_styled(cursor: Cursor, style: &MarkdownNode, ast: &Ast) -> bool {
+fn region_completely_styled(
+    cursor: Cursor, style: &MarkdownNode, ast: &Ast, ast_ranges: &AstTextRanges,
+) -> bool {
     if cursor.selection.is_empty() {
         return false;
     }
 
-    for text_range in ast.iter_text_ranges() {
+    for text_range in ast_ranges {
         // skip ranges before or after the cursor
         if text_range.range.end() <= cursor.selection.start() {
             continue;
@@ -425,7 +427,7 @@ fn region_completely_styled(cursor: Cursor, style: &MarkdownNode, ast: &Ast) -> 
 
         // look for at least one ancestor that applies the style
         let mut styled = false;
-        for ancestor in text_range.ancestors {
+        for &ancestor in &text_range.ancestors {
             if &ast.nodes[ancestor].node_type == style {
                 styled = true;
                 break;
@@ -441,13 +443,15 @@ fn region_completely_styled(cursor: Cursor, style: &MarkdownNode, ast: &Ast) -> 
 }
 
 /// Returns true if text in `cursor` has any style which should be removed before applying `style`
-fn conflicting_styles(cursor: Cursor, style: &MarkdownNode, ast: &Ast) -> HashSet<MarkdownNode> {
+fn conflicting_styles(
+    cursor: Cursor, style: &MarkdownNode, ast: &Ast, ast_ranges: &AstTextRanges,
+) -> HashSet<MarkdownNode> {
     let mut result = HashSet::new();
     if cursor.selection.is_empty() {
         return result;
     }
 
-    for text_range in ast.iter_text_ranges() {
+    for text_range in ast_ranges {
         // skip ranges before or after the cursor
         if text_range.range.end() <= cursor.selection.start() {
             continue;
@@ -457,7 +461,7 @@ fn conflicting_styles(cursor: Cursor, style: &MarkdownNode, ast: &Ast) -> HashSe
         }
 
         // look for at least one ancestor that applies a conflicting style
-        for ancestor in text_range.ancestors {
+        for &ancestor in &text_range.ancestors {
             if ast.nodes[ancestor]
                 .node_type
                 .node_type()
@@ -571,9 +575,9 @@ fn apply_style(
 
     // remove head and tail for nodes between nodes containing start and end
     let mut found_start_range = false;
-    for text_range in ast.iter_text_ranges() {
+    for text_range in ast_ranges {
         // skip ranges until we pass the range containing the selection start (handled above)
-        if text_range == start_range {
+        if text_range == &start_range {
             found_start_range = true;
         }
         if !found_start_range {
