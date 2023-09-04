@@ -2,6 +2,7 @@ use std::collections::HashSet;
 
 use egui::ecolor::Hsva;
 use egui::{Color32, Visuals};
+use pulldown_cmark::HeadingLevel;
 
 use crate::style::{BlockNodeType, InlineNodeType, MarkdownNodeType};
 
@@ -76,6 +77,7 @@ pub struct Appearance {
     pub checkbox_slash_width: Option<f32>,
     pub rule_height: Option<f32>,
     pub image_padding: Option<f32>,
+    pub base_font_size: Option<f32>,
 
     // capture of markdown syntax characters
     pub markdown_capture: Option<HashSet<MarkdownNodeType>>,
@@ -194,6 +196,26 @@ impl Appearance {
             | MarkdownNodeType::Inline(InlineNodeType::Image) => CaptureCondition::NoCursor,
             MarkdownNodeType::Document | MarkdownNodeType::Paragraph => CaptureCondition::Never,
         }
+    }
+
+    pub fn font_size(&self) -> f32 {
+        self.base_font_size.unwrap_or(16.0)
+    }
+
+    pub fn monospace_font_size(&self) -> f32 {
+        self.font_size() * 14.0 / 16.0
+    }
+
+    pub fn heading_size(&self, level: &HeadingLevel) -> f32 {
+        (match level {
+            HeadingLevel::H1 => 32.0,
+            HeadingLevel::H2 => 28.0,
+            HeadingLevel::H3 => 25.0,
+            HeadingLevel::H4 => 22.0,
+            HeadingLevel::H5 => 19.0,
+            HeadingLevel::H6 => 17.0,
+        }) * self.font_size()
+            / 16.0
     }
 }
 
