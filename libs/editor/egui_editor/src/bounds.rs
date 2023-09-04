@@ -623,42 +623,26 @@ impl<Range: RangeExt<DocCharOffset>> RangesExt for Vec<Range> {
 pub fn join<'r, const N: usize>(
     ranges: [&'r [(DocCharOffset, DocCharOffset)]; N],
 ) -> RangeJoinIter<'r, N> {
-    RangeJoinIter { ranges, in_range: [false; N], current: [Some(0); N] }
+    RangeJoinIter {
+        ranges,
+        in_range: [false; N],
+        current: [Some(0); N],
+        current_end: Some(0.into()),
+    }
 }
 
 pub struct RangeJoinIter<'r, const N: usize> {
     ranges: [&'r [(DocCharOffset, DocCharOffset)]; N],
     in_range: [bool; N],
     current: [Option<usize>; N],
+    current_end: Option<DocCharOffset>,
 }
 
 impl<'r, const N: usize> Iterator for RangeJoinIter<'r, N> {
-    type Item = [Option<usize>; N];
+    type Item = ([Option<usize>; N], (DocCharOffset, DocCharOffset));
 
     fn next(&mut self) -> Option<Self::Item> {
-        // determine the next end of a range
-        let mut next_end: Option<DocCharOffset> = None;
-        for (idx, &in_range) in self.in_range.iter().enumerate() {
-            let next_range = if let Some(next) = self.current[idx] {
-                self.ranges[idx][next]
-            } else {
-                // when we're beyond the last range in a set of ranges, we no longer consider that set's next range
-                continue;
-            };
-
-            let end = if in_range {
-                next_range.end()
-            } else {
-                // if we're not in a range, we're between ranges and next stores the next one
-                // the start of the next range is the end of the between-ranges range
-                next_range.start()
-            };
-
-            next_end =
-                if let Some(next_end) = next_end { Some(next_end.min(end)) } else { Some(end) };
-        }
-
-        if let Some(next_end) = next_end {
+        if let Some(current_end) = self.current_end {
             // advance all ranges that end at next end
             for idx in 0..self.in_range.len() {
                 let in_range = self.in_range[idx];
@@ -668,8 +652,8 @@ impl<'r, const N: usize> Iterator for RangeJoinIter<'r, N> {
                     let range = self.ranges[idx][current];
 
                     // must be at end of current range
-                    if (in_range && next_end == range.end())
-                        || (!in_range && next_end == range.start())
+                    if (in_range && current_end == range.end())
+                        || (!in_range && current_end == range.start())
                     {
                         if !in_range {
                             // advance to the range after the current between-ranges range
@@ -680,7 +664,7 @@ impl<'r, const N: usize> Iterator for RangeJoinIter<'r, N> {
                                 self.current[idx] = Some(current + 1);
 
                                 // if the next range starts after next_end, we're between ranges
-                                if self.ranges[idx][current + 1].start() > next_end {
+                                if self.ranges[idx][current + 1].start() > current_end {
                                     self.in_range[idx] = false;
                                 }
                             } else {
@@ -692,13 +676,47 @@ impl<'r, const N: usize> Iterator for RangeJoinIter<'r, N> {
             }
 
             // exclude between-ranges ranges from result
-            let mut result = self.current.clone();
-            for (idx, &in_range) in self.in_range.iter().enumerate() {
-                if !in_range {
-                    result[idx] = None;
+            let idx_result = {
+                let mut this = self.current.clone();
+                for (idx, &in_range) in self.in_range.iter().enumerate() {
+                    if !in_range {
+                        this[idx] = None;
+                    }
                 }
+                this
+            };
+
+            // determine the next end of a range
+            let mut next_end: Option<DocCharOffset> = None;
+            for (idx, &in_range) in self.in_range.iter().enumerate() {
+                let next_range = if let Some(next) = self.current[idx] {
+                    self.ranges[idx][next]
+                } else {
+                    // when we're beyond the last range in a set of ranges, we no longer consider that set's next range
+                    continue;
+                };
+
+                let end = if in_range {
+                    next_range.end()
+                } else {
+                    // if we're not in a range, we're between ranges and next stores the next one
+                    // the start of the next range is the end of the between-ranges range
+                    next_range.start()
+                };
+
+                next_end =
+                    if let Some(next_end) = next_end { Some(next_end.min(end)) } else { Some(end) };
             }
-            Some(result)
+
+            // if there's no next end of a range, we're beyond the last range in all sets of ranges, so we're done
+            let next_end = if let Some(next_end) = next_end {
+                self.current_end = Some(next_end);
+                next_end
+            } else {
+                return None;
+            };
+
+            Some((idx_result, (current_end, next_end)))
         } else {
             // we're beyond the last range in all sets of ranges
             None
@@ -2054,11 +2072,10 @@ mod test {
         assert_eq!(
             result,
             &[
-                [Some(0), Some(0), None],    // (0, 3)
-                [Some(0), Some(0), Some(0)], // (3, 5)
-                [Some(0), Some(1), Some(0)], // (5, 7)
-                [Some(0), Some(1), None],    // (7, 10)
-                [None, None, None]           // fin
+                ([Some(0), Some(0), None], (0.into(), 3.into())),
+                ([Some(0), Some(0), Some(0)], (3.into(), 5.into())),
+                ([Some(0), Some(1), Some(0)], (5.into(), 7.into())),
+                ([Some(0), Some(1), None], (7.into(), 10.into())),
             ]
         )
     }
