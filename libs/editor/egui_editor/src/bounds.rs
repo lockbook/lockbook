@@ -35,7 +35,7 @@ pub fn calc_words(buffer: &SubBuffer, ast: &Ast, appearance: &Appearance) -> Wor
     for text_range in ast.iter_text_ranges() {
         if text_range.range_type != AstTextRangeType::Text
             && appearance.markdown_capture(text_range.node(ast).node_type())
-                == CaptureCondition::Never
+                == CaptureCondition::Always
         {
             // skip always-captured syntax sequences
             continue;
