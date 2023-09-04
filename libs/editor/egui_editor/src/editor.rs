@@ -306,13 +306,19 @@ impl Editor {
         if text_updated {
             self.ast = ast::calc(&self.buffer.current);
             self.bounds.ast = bounds::calc_ast(&self.ast);
-            self.bounds.words =
-                bounds::calc_words(&self.buffer.current, &self.ast, &self.appearance);
-            self.bounds.paragraphs = bounds::calc_paragraphs(&self.buffer.current, &self.ast);
+            self.bounds.words = bounds::calc_words(
+                &self.buffer.current,
+                &self.ast,
+                &self.bounds.ast,
+                &self.appearance,
+            );
+            self.bounds.paragraphs =
+                bounds::calc_paragraphs(&self.buffer.current, &self.bounds.ast);
         }
         if text_updated || selection_updated {
             self.bounds.text = bounds::calc_text(
                 &self.ast,
+                &self.bounds.ast,
                 &self.appearance,
                 &self.buffer.current.segs,
                 self.buffer.current.cursor,
@@ -330,7 +336,7 @@ impl Editor {
             &self.appearance,
             ui,
         );
-        self.bounds.lines = bounds::calc_lines(&self.galleys, &self.ast, &self.bounds.text);
+        self.bounds.lines = bounds::calc_lines(&self.galleys, &self.bounds.ast, &self.bounds.text);
         self.initialized = true;
 
         // draw

@@ -42,7 +42,9 @@ pub fn calc_ast(ast: &Ast) -> AstTextRanges {
     ast.iter_text_ranges().collect()
 }
 
-pub fn calc_words(buffer: &SubBuffer, ast: &Ast, appearance: &Appearance) -> Words {
+pub fn calc_words(
+    buffer: &SubBuffer, ast: &Ast, ast_ranges: &AstTextRanges, appearance: &Appearance,
+) -> Words {
     let mut result = vec![];
 
     for text_range in ast.iter_text_ranges() {
@@ -82,10 +84,10 @@ pub fn calc_words(buffer: &SubBuffer, ast: &Ast, appearance: &Appearance) -> Wor
     result
 }
 
-pub fn calc_lines(galleys: &Galleys, ast: &Ast, text: &Text) -> Lines {
+pub fn calc_lines(galleys: &Galleys, ast: &AstTextRanges, text: &Text) -> Lines {
     let mut result = vec![];
     let galleys = galleys;
-    let mut text_range_iter = ast.iter_text_ranges();
+    let mut text_range_iter = ast.iter();
     for (galley_idx, galley) in galleys.galleys.iter().enumerate() {
         for (row_idx, _) in galley.galley.rows.iter().enumerate() {
             let start_cursor = galley
@@ -136,12 +138,12 @@ pub fn calc_lines(galleys: &Galleys, ast: &Ast, text: &Text) -> Lines {
     result
 }
 
-pub fn calc_paragraphs(buffer: &SubBuffer, ast: &Ast) -> Paragraphs {
+pub fn calc_paragraphs(buffer: &SubBuffer, ast: &AstTextRanges) -> Paragraphs {
     let mut result = vec![];
 
     let captured_newlines = {
         let mut captured_newlines = HashSet::new();
-        for text_range in ast.iter_text_ranges() {
+        for text_range in ast {
             match text_range.range_type {
                 AstTextRangeType::Head | AstTextRangeType::Tail => {
                     // newlines in syntax sequences don't break paragraphs
@@ -176,10 +178,13 @@ pub fn calc_paragraphs(buffer: &SubBuffer, ast: &Ast) -> Paragraphs {
     result
 }
 
-pub fn calc_text(ast: &Ast, appearance: &Appearance, segs: &UnicodeSegs, cursor: Cursor) -> Text {
+pub fn calc_text(
+    ast: &Ast, ast_ranges: &AstTextRanges, appearance: &Appearance, segs: &UnicodeSegs,
+    cursor: Cursor,
+) -> Text {
     let mut result = vec![];
     let mut last_range_pushed = false;
-    for text_range in ast.iter_text_ranges() {
+    for text_range in ast_ranges {
         let captured = match appearance.markdown_capture(text_range.node(ast).node_type()) {
             CaptureCondition::Always => true,
             CaptureCondition::NoCursor => !text_range.intersects_selection(ast, cursor),

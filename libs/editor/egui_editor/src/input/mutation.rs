@@ -1,5 +1,5 @@
 use crate::ast::{Ast, AstTextRangeType};
-use crate::bounds::{Bounds, Text};
+use crate::bounds::{AstTextRanges, Bounds, Text};
 use crate::buffer::{EditorMutation, Mutation, SubBuffer, SubMutation};
 use crate::galleys::Galleys;
 use crate::input::canonical::{Location, Modification, Offset, Region};
@@ -463,7 +463,7 @@ fn conflicting_styles(cursor: Cursor, style: &MarkdownNode, ast: &Ast) -> HashSe
 /// Applies or unapplies `style` to `cursor`, splitting or joining surrounding styles as necessary.
 fn apply_style(
     cursor: Cursor, style: MarkdownNode, unapply: bool, buffer: &SubBuffer, ast: &Ast,
-    mutation: &mut Vec<SubMutation>,
+    ast_ranges: &AstTextRanges, mutation: &mut Vec<SubMutation>,
 ) {
     if buffer.is_empty() {
         insert_head(cursor.selection.start(), style.clone(), mutation);
