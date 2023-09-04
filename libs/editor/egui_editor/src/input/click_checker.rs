@@ -79,7 +79,7 @@ impl<'a> ClickChecker for &'a EditorClickChecker<'a> {
         );
         for ast_node in &self.ast.nodes {
             if let MarkdownNode::Inline(InlineNode::Link(_, url, _)) = &ast_node.node_type {
-                if ast_node.range.contains(offset) {
+                if ast_node.range.contains_inclusive(offset) {
                     return Some(url.to_string());
                 }
             }

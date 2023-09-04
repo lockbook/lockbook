@@ -476,12 +476,15 @@ fn apply_style(
     let mut end_range = None;
     for text_range in ast.iter_text_ranges() {
         // when at bound, start prefers next
-        if text_range.range.contains(cursor.selection.start()) {
+        if text_range
+            .range
+            .contains_inclusive(cursor.selection.start())
+        {
             start_range = Some(text_range.clone());
         }
         // when at bound, end prefers previous unless selection is empty
         if (cursor.selection.is_empty() || end_range.is_none())
-            && text_range.range.contains(cursor.selection.end())
+            && text_range.range.contains_inclusive(cursor.selection.end())
         {
             end_range = Some(text_range);
         }

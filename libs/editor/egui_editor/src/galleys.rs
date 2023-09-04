@@ -250,7 +250,7 @@ impl Galleys {
     pub fn galley_at_char(&self, offset: DocCharOffset) -> usize {
         for i in 0..self.galleys.len() {
             let galley = &self.galleys[i];
-            if galley.range.contains(offset) {
+            if galley.range.contains_inclusive(offset) {
                 return i;
             }
         }

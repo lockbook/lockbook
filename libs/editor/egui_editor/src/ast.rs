@@ -1,7 +1,7 @@
 use crate::buffer::SubBuffer;
 use crate::input::cursor::Cursor;
 use crate::layouts::Annotation;
-use crate::offset_types::{DocCharOffset, RangeExt};
+use crate::offset_types::{DocCharOffset, RangeExt, RelCharOffset};
 use crate::style::{
     BlockNode, BlockNodeType, InlineNode, ListItem, MarkdownNode, MarkdownNodeType,
 };
@@ -61,7 +61,7 @@ impl Ast {
         let mut smallest_chosen_ast_range = usize::MAX;
 
         for i in 0..self.nodes.len() {
-            if self.nodes[i].range.contains(offset)
+            if self.nodes[i].range.contains_inclusive(offset)
                 && self.nodes[i].range.len().0 < smallest_chosen_ast_range
             {
                 chosen = i;
@@ -412,7 +412,7 @@ impl Ast {
     pub fn text_range_at_offset(&self, offset: DocCharOffset) -> Option<AstTextRange> {
         let mut end_range = None;
         for text_range in self.iter_text_ranges() {
-            if text_range.range.contains(offset) {
+            if text_range.range.contains_inclusive(offset) {
                 end_range = Some(text_range);
             }
         }
@@ -426,7 +426,7 @@ impl Ast {
             for ancestor_node_idx in text_range.ancestors {
                 let ancestor_node = &self.nodes[ancestor_node_idx];
                 // offset must be in text range (not head/tail syntax chars) to apply
-                if ancestor_node.text_range.contains(offset) {
+                if ancestor_node.text_range.contains_inclusive(offset) {
                     result.push(ancestor_node.node_type.clone());
                 }
             }
@@ -514,10 +514,42 @@ impl AstTextRange {
 
     pub fn intersects_selection(&self, ast: &Ast, cursor: Cursor) -> bool {
         if let Some(&ast_node_idx) = self.ancestors.last() {
-            ast.nodes[ast_node_idx].range.intersects(&cursor.selection)
+            ast.nodes[ast_node_idx]
+                .range
+                .intersects_allow_empty(&cursor.selection)
         } else {
             false
         }
+    }
+}
+
+impl RangeExt<DocCharOffset> for AstTextRange {
+    /// returns whether the range includes the value
+    fn contains(&self, value: DocCharOffset, start_inclusive: bool, end_inclusive: bool) -> bool {
+        self.range.contains(value, start_inclusive, end_inclusive)
+    }
+
+    /// returns whether the range intersects another range
+    fn intersects(
+        &self, other: &(DocCharOffset, DocCharOffset), allow_empty_intersection: bool,
+    ) -> bool {
+        self.range.intersects(other, allow_empty_intersection)
+    }
+
+    fn start(&self) -> DocCharOffset {
+        self.range.start()
+    }
+
+    fn end(&self) -> DocCharOffset {
+        self.range.end()
+    }
+
+    fn len(&self) -> RelCharOffset {
+        self.range.len()
+    }
+
+    fn is_empty(&self) -> bool {
+        self.range.is_empty()
     }
 }
 

@@ -305,6 +305,7 @@ impl Editor {
         // recalculate dependent state
         if text_updated {
             self.ast = ast::calc(&self.buffer.current);
+            self.bounds.ast = bounds::calc_ast(&self.ast);
             self.bounds.words =
                 bounds::calc_words(&self.buffer.current, &self.ast, &self.appearance);
             self.bounds.paragraphs = bounds::calc_paragraphs(&self.buffer.current, &self.ast);
@@ -511,7 +512,7 @@ impl Editor {
                     .any(|e| matches!(e, Modification::Select { region: Region::Location(..) }));
 
             let touched_selection = current_selection.is_empty()
-                && prior_selection.contains(current_selection.1)
+                && prior_selection.contains_inclusive(current_selection.1)
                 && touched_a_galley
                 && combined_events
                     .iter()

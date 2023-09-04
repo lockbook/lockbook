@@ -1,5 +1,5 @@
 use crate::appearance::{Appearance, CaptureCondition};
-use crate::ast::{Ast, AstTextRangeType};
+use crate::ast::{Ast, AstTextRange, AstTextRangeType};
 use crate::buffer::SubBuffer;
 use crate::galleys::Galleys;
 use crate::input::canonical::Bound;
@@ -9,9 +9,11 @@ use crate::unicode_segs::UnicodeSegs;
 use crate::Editor;
 use egui::epaint::text::cursor::RCursor;
 use linkify::LinkFinder;
+use std::cmp::Ordering;
 use std::collections::HashSet;
 use unicode_segmentation::UnicodeSegmentation;
 
+pub type AstTextRanges = Vec<AstTextRange>;
 pub type Words = Vec<(DocCharOffset, DocCharOffset)>;
 pub type Lines = Vec<(DocCharOffset, DocCharOffset)>;
 pub type Paragraphs = Vec<(DocCharOffset, DocCharOffset)>;
@@ -23,6 +25,8 @@ pub type PlainTextLinks = Vec<(DocCharOffset, DocCharOffset)>;
 /// inferred from the other regions.
 #[derive(Debug, Default)]
 pub struct Bounds {
+    pub ast: AstTextRanges,
+
     pub words: Words,
     pub lines: Lines,
     pub paragraphs: Paragraphs,
@@ -32,6 +36,10 @@ pub struct Bounds {
 
     /// Plain text links are styled and clickable but aren't markdown links.
     pub links: PlainTextLinks,
+}
+
+pub fn calc_ast(ast: &Ast) -> AstTextRanges {
+    ast.iter_text_ranges().collect()
 }
 
 pub fn calc_words(buffer: &SubBuffer, ast: &Ast, appearance: &Appearance) -> Words {
@@ -107,10 +115,10 @@ pub fn calc_lines(galleys: &Galleys, ast: &Ast, text: &Text) -> Lines {
                 if text_range.range_type == AstTextRangeType::Text {
                     continue;
                 }
-                if text_range.range.contains(range.0) {
+                if text_range.range.contains_inclusive(range.0) {
                     range.0 = text_range.range.0;
                 }
-                if text_range.range.contains(range.1) {
+                if text_range.range.contains_inclusive(range.1) {
                     range.1 = text_range.range.1;
                     break;
                 }
@@ -537,6 +545,61 @@ impl DocCharOffset {
     /// you're beyond the furthest bound, this snaps you into it, even if that moves you in the opposite direction.
     pub fn advance_to_next_bound(self, bound: Bound, backwards: bool, bounds: &Bounds) -> Self {
         self.advance_bound(bound, backwards, true, bounds)
+    }
+}
+
+pub trait RangesExt {
+    /// Efficiently finds the sorted, possibly empty set of ranges that contain `offset`
+    fn find(&self, offset: DocCharOffset, start_inclusive: bool, end_inclusive: bool)
+        -> Vec<usize>;
+}
+
+impl<Range: RangeExt<DocCharOffset>> RangesExt for Vec<Range> {
+    fn find(
+        &self, offset: DocCharOffset, start_inclusive: bool, end_inclusive: bool,
+    ) -> Vec<usize> {
+        let mut result = Vec::new();
+        if let Ok(idx) = self.binary_search_by(|range| {
+            if offset < range.start() {
+                Ordering::Less
+            } else if offset == range.start() {
+                if start_inclusive {
+                    Ordering::Equal
+                } else {
+                    Ordering::Less
+                }
+            } else if offset > range.start() && offset > range.end() {
+                Ordering::Equal
+            } else if offset == range.end() {
+                if end_inclusive {
+                    Ordering::Equal
+                } else {
+                    Ordering::Greater
+                }
+            } else if offset > range.end() {
+                Ordering::Greater
+            } else {
+                unreachable!()
+            }
+        }) {
+            let mut start_idx = idx;
+            while idx > 0 && self[idx - 1].contains(offset, start_inclusive, end_inclusive) {
+                start_idx -= 1;
+                result.push(start_idx);
+            }
+            result.reverse();
+
+            result.push(idx);
+
+            let mut end_idx = idx;
+            while end_idx < self.len() - 1
+                && self[end_idx + 1].contains(offset, start_inclusive, end_inclusive)
+            {
+                end_idx += 1;
+                result.push(end_idx);
+            }
+        }
+        result
     }
 }
 
