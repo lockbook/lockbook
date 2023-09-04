@@ -4,7 +4,6 @@ use crate::{Editor, IntegrationOutput, WgpuEditor};
 use egui::{Context, Event, Visuals};
 use egui_wgpu_backend::wgpu::CompositeAlphaMode;
 use egui_wgpu_backend::{wgpu, ScreenDescriptor};
-use pulldown_cmark::HeadingLevel;
 use std::ffi::{c_char, c_void, CStr, CString};
 use std::time::Instant;
 
@@ -186,9 +185,7 @@ pub unsafe extern "C" fn apply_style_to_selection_header(obj: *mut c_void, headi
 
     obj.editor
         .custom_events
-        .push(Modification::toggle_block_style(BlockNode::Heading(
-            HeadingLevel::try_from(heading_size as usize).unwrap_or(HeadingLevel::H1),
-        )));
+        .push(Modification::toggle_heading_style(heading_size as usize));
     obj.raw_input.events.push(Event::Copy);
 }
 

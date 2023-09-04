@@ -380,11 +380,17 @@ pub fn calc(
 }
 
 impl Modification {
-    pub fn toggle_block_style(block: BlockNode) -> Modification {
+    pub fn toggle_block_style(block: BlockNode) -> Self {
         Modification::ToggleStyle {
             region: Region::Bound { bound: Bound::Paragraph, backwards: false },
             style: MarkdownNode::Block(block),
         }
+    }
+
+    pub fn toggle_heading_style(level: usize) -> Self {
+        Self::toggle_block_style(BlockNode::Heading(
+            HeadingLevel::try_from(level).unwrap_or(HeadingLevel::H1),
+        ))
     }
 }
 
