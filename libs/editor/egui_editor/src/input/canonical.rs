@@ -206,10 +206,14 @@ pub fn calc(
         Event::Key { key: Key::C, pressed: true, modifiers, .. }
             if modifiers.command && modifiers.shift =>
         {
-            Some(Modification::ToggleStyle {
-                region: Region::Selection,
-                style: MarkdownNode::Inline(InlineNode::Code),
-            })
+            if !modifiers.alt {
+                Some(Modification::ToggleStyle {
+                    region: Region::Selection,
+                    style: MarkdownNode::Inline(InlineNode::Code),
+                })
+            } else {
+                Some(Modification::toggle_block_style(BlockNode::Code))
+            }
         }
         Event::Key { key: Key::X, pressed: true, modifiers, .. }
             if modifiers.command && modifiers.shift =>
@@ -273,6 +277,16 @@ pub fn calc(
             if modifiers.command && modifiers.alt =>
         {
             Some(Modification::toggle_block_style(BlockNode::Heading(HeadingLevel::H6)))
+        }
+        Event::Key { key: Key::Q, pressed: true, modifiers, .. }
+            if modifiers.command && modifiers.alt =>
+        {
+            Some(Modification::toggle_block_style(BlockNode::Quote))
+        }
+        Event::Key { key: Key::R, pressed: true, modifiers, .. }
+            if modifiers.command && modifiers.alt =>
+        {
+            Some(Modification::toggle_block_style(BlockNode::Rule))
         }
         Event::PointerButton { pos, button: PointerButton::Primary, pressed: true, modifiers }
             if click_checker.ui(*pos) =>
