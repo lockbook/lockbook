@@ -620,6 +620,92 @@ impl<Range: RangeExt<DocCharOffset>> RangesExt for Vec<Range> {
     }
 }
 
+pub fn join<'r, const N: usize>(
+    ranges: [&'r [(DocCharOffset, DocCharOffset)]; N],
+) -> RangeJoinIter<'r, N> {
+    RangeJoinIter { ranges, in_range: [false; N], current: [Some(0); N] }
+}
+
+pub struct RangeJoinIter<'r, const N: usize> {
+    ranges: [&'r [(DocCharOffset, DocCharOffset)]; N],
+    in_range: [bool; N],
+    current: [Option<usize>; N],
+}
+
+impl<'r, const N: usize> Iterator for RangeJoinIter<'r, N> {
+    type Item = [Option<usize>; N];
+
+    fn next(&mut self) -> Option<Self::Item> {
+        // determine the next end of a range
+        let mut next_end: Option<DocCharOffset> = None;
+        for (idx, &in_range) in self.in_range.iter().enumerate() {
+            let next_range = if let Some(next) = self.current[idx] {
+                self.ranges[idx][next]
+            } else {
+                // when we're beyond the last range in a set of ranges, we no longer consider that set's next range
+                continue;
+            };
+
+            let end = if in_range {
+                next_range.end()
+            } else {
+                // if we're not in a range, we're between ranges and next stores the next one
+                // the start of the next range is the end of the between-ranges range
+                next_range.start()
+            };
+
+            next_end =
+                if let Some(next_end) = next_end { Some(next_end.min(end)) } else { Some(end) };
+        }
+
+        if let Some(next_end) = next_end {
+            // advance all ranges that end at next end
+            for idx in 0..self.in_range.len() {
+                let in_range = self.in_range[idx];
+
+                // range set must not be out of ranges
+                if let Some(current) = self.current[idx] {
+                    let range = self.ranges[idx][current];
+
+                    // must be at end of current range
+                    if (in_range && next_end == range.end())
+                        || (!in_range && next_end == range.start())
+                    {
+                        if !in_range {
+                            // advance to the range after the current between-ranges range
+                            self.in_range[idx] = true;
+                        } else {
+                            // advance to the next range, if any
+                            if current < self.ranges[idx].len() - 1 {
+                                self.current[idx] = Some(current + 1);
+
+                                // if the next range starts after next_end, we're between ranges
+                                if self.ranges[idx][current + 1].start() > next_end {
+                                    self.in_range[idx] = false;
+                                }
+                            } else {
+                                self.current[idx] = None;
+                            }
+                        }
+                    }
+                }
+            }
+
+            // exclude between-ranges ranges from result
+            let mut result = self.current.clone();
+            for (idx, &in_range) in self.in_range.iter().enumerate() {
+                if !in_range {
+                    result[idx] = None;
+                }
+            }
+            Some(result)
+        } else {
+            // we're beyond the last range in all sets of ranges
+            None
+        }
+    }
+}
+
 impl Editor {
     pub fn print_bounds(&self) {
         println!("words: {:?}", self.ranges_text(&self.bounds.words));
@@ -641,7 +727,7 @@ impl Editor {
 mod test {
     use crate::{input::canonical::Bound, offset_types::DocCharOffset};
 
-    use super::Bounds;
+    use super::{join, Bounds};
 
     #[test]
     fn range_before_after_no_ranges() {
@@ -1955,5 +2041,25 @@ mod test {
             DocCharOffset(8).advance_to_next_bound(Bound::Char, true, &bounds),
             DocCharOffset(6)
         );
+    }
+
+    #[test]
+    fn range_join_iter() {
+        let a = vec![(0.into(), 10.into())];
+        let b = vec![(0.into(), 5.into()), (5.into(), 10.into())];
+        let c = vec![(3.into(), 7.into())];
+
+        let result = join([&a, &b, &c]).collect::<Vec<_>>();
+
+        assert_eq!(
+            result,
+            &[
+                [Some(0), Some(0), None],    // (0, 3)
+                [Some(0), Some(0), Some(0)], // (3, 5)
+                [Some(0), Some(1), Some(0)], // (5, 7)
+                [Some(0), Some(1), None],    // (7, 10)
+                [None, None, None]           // fin
+            ]
+        )
     }
 }
