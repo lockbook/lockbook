@@ -8,6 +8,7 @@ use crate::offset_types::{DocByteOffset, DocCharOffset, RangeExt, RelByteOffset}
 use crate::unicode_segs::UnicodeSegs;
 use crate::Editor;
 use egui::epaint::text::cursor::RCursor;
+use linkify::LinkFinder;
 use std::collections::HashSet;
 use unicode_segmentation::UnicodeSegmentation;
 
@@ -15,6 +16,7 @@ pub type Words = Vec<(DocCharOffset, DocCharOffset)>;
 pub type Lines = Vec<(DocCharOffset, DocCharOffset)>;
 pub type Paragraphs = Vec<(DocCharOffset, DocCharOffset)>;
 pub type Text = Vec<(DocCharOffset, DocCharOffset)>;
+pub type PlainTextLinks = Vec<(DocCharOffset, DocCharOffset)>;
 
 /// Represents bounds of various text regions in the buffer. Region bounds are inclusive on both sides. Regions do not
 /// overlap, have region.0 <= region.1, and are sorted. Character and doc regions are not stored explicitly but can be
@@ -27,6 +29,9 @@ pub struct Bounds {
 
     /// Text consists of all rendered text. Every valid cursor position is in some possibly-empty text range.
     pub text: Text,
+
+    /// Plain text links are styled and clickable but aren't markdown links.
+    pub links: PlainTextLinks,
 }
 
 pub fn calc_words(buffer: &SubBuffer, ast: &Ast, appearance: &Appearance) -> Words {
@@ -194,6 +199,27 @@ pub fn calc_text(ast: &Ast, appearance: &Appearance, segs: &UnicodeSegs, cursor:
     }
     if result.is_empty() {
         result = vec![(0.into(), 0.into())];
+    }
+
+    result
+}
+
+pub fn calc_links(buffer: &SubBuffer, text: &Text) -> PlainTextLinks {
+    let finder = {
+        let mut this = LinkFinder::new();
+        this.kinds(&[linkify::LinkKind::Url])
+            .url_must_have_scheme(false)
+            .url_can_be_iri(false); // ignore links with international characters for phishing prevention
+        this
+    };
+
+    let mut result = vec![];
+    for &text_range in text {
+        for span in finder.spans(&buffer[text_range]) {
+            if span.kind().is_some() {
+                result.push((text_range.0 + span.start(), text_range.0 + span.end()));
+            }
+        }
     }
 
     result
@@ -520,6 +546,7 @@ impl Editor {
         println!("lines: {:?}", self.ranges_text(&self.bounds.lines));
         println!("paragraphs: {:?}", self.ranges_text(&self.bounds.paragraphs));
         println!("text: {:?}", self.ranges_text(&self.bounds.text));
+        println!("links: {:?}", self.ranges_text(&self.bounds.links));
     }
 
     fn ranges_text(&self, ranges: &[(DocCharOffset, DocCharOffset)]) -> Vec<String> {

@@ -316,6 +316,7 @@ impl Editor {
                 &self.buffer.current.segs,
                 self.buffer.current.cursor,
             );
+            self.bounds.links = bounds::calc_links(&self.buffer.current, &self.bounds.text);
         }
         if text_updated || selection_updated || theme_updated {
             self.images = images::calc(&self.ast, &self.images, &self.client, ui);
