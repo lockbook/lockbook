@@ -33,38 +33,30 @@ pub fn calc_words(buffer: &SubBuffer, ast: &Ast, appearance: &Appearance) -> Wor
     let mut result = vec![];
 
     for text_range in ast.iter_text_ranges() {
-        match text_range.range_type {
-            AstTextRangeType::Head | AstTextRangeType::Tail => {
-                // syntax sequences count as words but only if they're not captured
-                let captured = match appearance.markdown_capture(text_range.node(ast).node_type()) {
-                    CaptureCondition::Always => true,
-                    CaptureCondition::NoCursor => {
-                        !text_range.intersects_selection(ast, buffer.cursor)
-                    }
-                    CaptureCondition::Never => false,
-                };
-                if !captured {
-                    result.push(text_range.range)
-                }
-            }
-            AstTextRangeType::Text => {
-                let mut prev_char_offset = text_range.range.0;
-                let mut prev_word = "";
-                for (byte_offset, word) in
-                    (buffer[text_range.range].to_string() + " ").split_word_bound_indices()
-                {
-                    let char_offset = buffer.segs.offset_to_char(
-                        buffer.segs.offset_to_byte(text_range.range.0) + RelByteOffset(byte_offset),
-                    );
+        if text_range.range_type != AstTextRangeType::Text
+            && appearance.markdown_capture(text_range.node(ast).node_type())
+                == CaptureCondition::Never
+        {
+            // skip always-captured syntax sequences
+            continue;
+        } else {
+            // remaining text and syntax sequences (including link URLs etc) are split into words
+            let mut prev_char_offset = text_range.range.0;
+            let mut prev_word = "";
+            for (byte_offset, word) in
+                (buffer[text_range.range].to_string() + " ").split_word_bound_indices()
+            {
+                let char_offset = buffer.segs.offset_to_char(
+                    buffer.segs.offset_to_byte(text_range.range.0) + RelByteOffset(byte_offset),
+                );
 
-                    if !prev_word.trim().is_empty() {
-                        // whitespace-only sequences don't count as words
-                        result.push((prev_char_offset, char_offset));
-                    }
-
-                    prev_char_offset = char_offset;
-                    prev_word = word;
+                if !prev_word.trim().is_empty() {
+                    // whitespace-only sequences don't count as words
+                    result.push((prev_char_offset, char_offset));
                 }
+
+                prev_char_offset = char_offset;
+                prev_word = word;
             }
         }
     }
