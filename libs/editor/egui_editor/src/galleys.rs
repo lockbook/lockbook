@@ -1,6 +1,6 @@
 use crate::appearance::{Appearance, CaptureCondition};
 use crate::ast::{Ast, AstTextRangeType};
-use crate::bounds::{Bounds, Text};
+use crate::bounds::{self, Bounds, Text};
 use crate::buffer::SubBuffer;
 use crate::images::ImageCache;
 use crate::layouts::{Annotation, LayoutJobInfo};
@@ -10,9 +10,9 @@ use crate::Editor;
 use egui::epaint::text::cursor::Cursor;
 use egui::text::{CCursor, LayoutJob};
 use egui::{Galley, Pos2, Rect, Sense, TextFormat, TextureId, Ui, Vec2};
+use std::mem;
 use std::ops::Index;
 use std::sync::Arc;
-use std::{cmp, mem};
 
 #[derive(Default)]
 pub struct Galleys {
@@ -48,157 +48,109 @@ pub fn calc(
 ) -> Galleys {
     let mut result: Galleys = Default::default();
 
-    let mut emit_galley = false;
-    let mut paragraph_idx = 0;
-    let mut past_selection_start = false;
-    let mut past_selection_end = false;
-
-    // head_size = head size of first ast node if it produces an annotation
     let mut head_size: RelCharOffset = 0.into();
-
     let mut annotation: Option<Annotation> = Default::default();
     let mut annotation_text_format = Default::default();
     let mut layout: LayoutJob = Default::default();
 
-    let mut text_range_iter = ast.iter_text_ranges();
-    let mut maybe_text_range = text_range_iter.next();
-
-    // combine ast text ranges, paragraphs, and selection
-    // each paragraph gets a galley; ast text ranges and selection determine styles and captured characters
-    loop {
+    // join ast text ranges, paragraphs, plaintext links, and selection
+    // emit one galley per paragraph; other data is used to determine style
+    let ast_ranges = bounds
+        .ast
+        .iter()
+        .map(|range| range.range)
+        .collect::<Vec<_>>();
+    for ([ast_idx, paragraph_idx, link_idx, selection_idx], text_range_portion) in
+        bounds::join([&ast_ranges, &bounds.paragraphs, &bounds.links, &[buffer.cursor.selection]])
+    {
+        // ast text ranges and paragraphs are contiguous
+        let ast_idx = if let Some(ast_idx) = ast_idx {
+            ast_idx
+        } else {
+            continue;
+        };
+        let paragraph_idx = if let Some(paragraph_idx) = paragraph_idx {
+            paragraph_idx
+        } else {
+            continue;
+        };
+        let text_range = &bounds.ast[ast_idx];
         let paragraph = bounds.paragraphs[paragraph_idx];
-        if let Some(text_range) = maybe_text_range.clone() {
-            if paragraph.1 < text_range.range.0 {
-                // paragraph ends before text_range starts -> emit galley
-                emit_galley = true;
-            } else if text_range.range.1 < paragraph.0 {
-                // text range ends before paragraph starts -> skip text range
-                maybe_text_range = text_range_iter.next();
-            } else {
-                // paragraph and text range overlap -> add non-syntax range text to layout
-                let (text_range_portion, in_selection) = {
-                    let mut text_range_portion = text_range.clone();
-                    let mut in_selection = false;
+        let maybe_link_range = link_idx.map(|link_idx| bounds.links[link_idx].clone());
+        let in_selection = selection_idx.is_some();
 
-                    // truncate text range to fit in paragraph
-                    text_range_portion.range.0 = cmp::max(text_range_portion.range.0, paragraph.0);
-                    text_range_portion.range.1 = cmp::min(text_range_portion.range.1, paragraph.1);
+        let captured = match appearance.markdown_capture(text_range.node(ast).node_type()) {
+            CaptureCondition::Always => true,
+            CaptureCondition::NoCursor => !text_range.intersects_selection(ast, buffer.cursor),
+            CaptureCondition::Never => false,
+        };
 
-                    // truncate text range to fit before, in, or after selection
-                    if !past_selection_start {
-                        // before selection start
-                        text_range_portion.range.1 =
-                            cmp::min(text_range_portion.range.1, buffer.cursor.selection.start());
-                    } else if !past_selection_end {
-                        // in selection
-                        text_range_portion.range.0 =
-                            cmp::max(text_range_portion.range.0, buffer.cursor.selection.start());
-                        text_range_portion.range.1 =
-                            cmp::min(text_range_portion.range.1, buffer.cursor.selection.end());
+        // construct text format using all styles except the last (current node)
+        // only actual text (not head/tail) of each element gets the actual element style
+        let mut text_format = TextFormat::default();
+        for &node_idx in &text_range.ancestors[0..text_range.ancestors.len() - 1] {
+            RenderStyle::Markdown(ast.nodes[node_idx].node_type.clone())
+                .apply_style(&mut text_format, appearance);
+        }
+        if in_selection {
+            RenderStyle::Selection.apply_style(&mut text_format, appearance);
+        }
 
-                        in_selection = true;
-                    } else {
-                        // after selection end
-                        text_range_portion.range.0 =
-                            cmp::max(text_range_portion.range.0, buffer.cursor.selection.end());
-                    }
+        // only the first portion of a head text range gets that range's annotation
+        let mut is_annotation = false;
+        if text_range.range_type == AstTextRangeType::Head
+            && text_range.range.start() == text_range_portion.start()
+            && captured
+            && annotation.is_none()
+        {
+            annotation = text_range.annotation(ast);
+            annotation_text_format = text_format.clone();
+            is_annotation = annotation.is_some();
+        }
 
-                    // advance text range, paragraph, and cursor if they were completed
-                    if text_range_portion.range.1 >= text_range.range.1 {
-                        maybe_text_range = text_range_iter.next();
-                    }
-                    if text_range_portion.range.1 >= paragraph.1 {
-                        emit_galley = true;
-                    }
-                    if text_range_portion.range.1 >= buffer.cursor.selection.start() {
-                        past_selection_start = true;
-                    }
-                    if text_range_portion.range.1 >= buffer.cursor.selection.end() {
-                        past_selection_end = true;
-                    }
-
-                    (text_range_portion, in_selection)
-                };
-
-                let captured = match appearance.markdown_capture(text_range.node(ast).node_type()) {
-                    CaptureCondition::Always => true,
-                    CaptureCondition::NoCursor => {
-                        !text_range.intersects_selection(ast, buffer.cursor)
-                    }
-                    CaptureCondition::Never => false,
-                };
-
-                // construct text format using all styles except the last (current node)
-                // only actual text (not head/tail) of each element gets the actual element style
-                let mut text_format = TextFormat::default();
-                for &node_idx in
-                    &text_range_portion.ancestors[0..text_range_portion.ancestors.len() - 1]
-                {
-                    RenderStyle::Markdown(ast.nodes[node_idx].node_type.clone())
-                        .apply_style(&mut text_format, appearance);
-                }
-                if in_selection {
-                    RenderStyle::Selection.apply_style(&mut text_format, appearance);
+        // render tab-only text as spaces
+        // tab characters have weird rendering behavior in egui e.g. tab-only galleys are not rendered even though empty galleys are
+        // see https://github.com/lockbook/lockbook/issues/1983, https://github.com/emilk/egui/issues/3203
+        let text = {
+            let mut this = buffer[text_range_portion].to_string();
+            if buffer[paragraph] == "\t".repeat(buffer[paragraph].len()) {
+                this = " ".repeat(this.len()).to_string();
+            }
+            this
+        };
+        RenderStyle::Markdown(text_range.node(ast)).apply_style(&mut text_format, appearance);
+        match text_range.range_type {
+            AstTextRangeType::Head => {
+                if captured {
+                    // need to append empty text to layout so that the style is applied
+                    layout.append("", 0.0, text_format);
+                } else {
+                    // uncaptured syntax characters have syntax style applied on top of node style
+                    RenderStyle::Syntax.apply_style(&mut text_format, appearance);
+                    layout.append(&text, 0.0, text_format);
                 }
 
-                // only the first portion of a head text range gets that range's annotation
-                let mut is_annotation = false;
-                if text_range.range_type == AstTextRangeType::Head
-                    && text_range.range.0 == text_range_portion.range.0
-                    && (captured
-                    || text_range_portion.annotation(ast) == Some(Annotation::HeadingRule)) // heading rules drawn reglardless of capture
-                        && annotation.is_none()
-                {
-                    annotation = text_range_portion.annotation(ast);
-                    annotation_text_format = text_format.clone();
-                    is_annotation = annotation.is_some();
+                if is_annotation {
+                    head_size = text_range.range.len();
                 }
-
-                // render tab-only text as spaces
-                // tab characters have weird rendering behavior in egui e.g. tab-only galleys are not rendered even though empty galleys are
-                // see https://github.com/lockbook/lockbook/issues/1983, https://github.com/emilk/egui/issues/3203
-                let text = {
-                    let mut this = buffer[text_range_portion.range].to_string();
-                    if buffer[paragraph] == "\t".repeat(buffer[paragraph].len()) {
-                        this = " ".repeat(this.len()).to_string();
-                    }
-                    this
-                };
-                RenderStyle::Markdown(text_range_portion.node(ast))
-                    .apply_style(&mut text_format, appearance);
-                match text_range_portion.range_type {
-                    AstTextRangeType::Head => {
-                        if captured {
-                            // need to append empty text to layout so that the style is applied
-                            layout.append("", 0.0, text_format);
-                        } else {
-                            // uncaptured syntax characters have syntax style applied on top of node style
-                            RenderStyle::Syntax.apply_style(&mut text_format, appearance);
-                            layout.append(&text, 0.0, text_format);
-                        }
-
-                        if captured && is_annotation {
-                            head_size = text_range_portion.range.len();
-                        }
-                    }
-                    AstTextRangeType::Tail => {
-                        if captured {
-                            // need to append empty text to layout so that the style is applied
-                            layout.append("", 0.0, text_format);
-                        } else {
-                            // uncaptured syntax characters have syntax style applied on top of node style
-                            RenderStyle::Syntax.apply_style(&mut text_format, appearance);
-                            layout.append(&text, 0.0, text_format);
-                        }
-                    }
-                    AstTextRangeType::Text => {
-                        layout.append(&text, 0.0, text_format);
-                    }
+            }
+            AstTextRangeType::Tail => {
+                if captured {
+                    // need to append empty text to layout so that the style is applied
+                    layout.append("", 0.0, text_format);
+                } else {
+                    // uncaptured syntax characters have syntax style applied on top of node style
+                    RenderStyle::Syntax.apply_style(&mut text_format, appearance);
+                    layout.append(&text, 0.0, text_format);
                 }
+            }
+            AstTextRangeType::Text => {
+                layout.append(&text, 0.0, text_format);
             }
         }
 
-        if emit_galley || maybe_text_range.is_none() {
+        if text_range.range.end() == paragraph.end() {
+            // emit a galley
             if layout.is_empty() {
                 // dummy text with document style
                 let mut text_format = Default::default();
@@ -217,13 +169,6 @@ pub fn calc(
             result
                 .galleys
                 .push(GalleyInfo::from(layout_info, images, appearance, ui));
-
-            paragraph_idx += 1;
-            emit_galley = false;
-        }
-
-        if paragraph_idx == bounds.paragraphs.len() || maybe_text_range.is_none() {
-            break;
         }
     }
 

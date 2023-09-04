@@ -594,7 +594,7 @@ impl<Range: RangeExt<DocCharOffset>> RangesExt for Vec<Range> {
         }) {
             Ok(idx) => {
                 let mut start = idx;
-                while idx > 0 && self[idx - 1].contains(offset, start_inclusive, end_inclusive) {
+                while start > 0 && self[idx - 1].contains(offset, start_inclusive, end_inclusive) {
                     start -= 1;
                 }
 
@@ -623,12 +623,18 @@ impl<Range: RangeExt<DocCharOffset>> RangesExt for Vec<Range> {
 pub fn join<'r, const N: usize>(
     ranges: [&'r [(DocCharOffset, DocCharOffset)]; N],
 ) -> RangeJoinIter<'r, N> {
-    RangeJoinIter {
+    let mut result = RangeJoinIter {
         ranges,
         in_range: [false; N],
-        current: [Some(0); N],
+        current: [None; N],
         current_end: Some(0.into()),
+    };
+    for (idx, range) in ranges.iter().enumerate() {
+        if !range.is_empty() {
+            result.current[idx] = Some(0);
+        }
     }
+    result
 }
 
 pub struct RangeJoinIter<'r, const N: usize> {
@@ -2059,6 +2065,17 @@ mod test {
             DocCharOffset(8).advance_to_next_bound(Bound::Char, true, &bounds),
             DocCharOffset(6)
         );
+    }
+
+    #[test]
+    fn range_join_iter_empty() {
+        let a: Vec<(DocCharOffset, DocCharOffset)> = vec![];
+        let b: Vec<(DocCharOffset, DocCharOffset)> = vec![];
+        let c: Vec<(DocCharOffset, DocCharOffset)> = vec![];
+
+        let result = join([&a, &b, &c]).collect::<Vec<_>>();
+
+        assert_eq!(result, &[]);
     }
 
     #[test]
