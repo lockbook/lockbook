@@ -398,7 +398,7 @@ impl Editor {
         if self.buffer.current.cursor.selection.is_empty() {
             for style in self
                 .ast
-                .styles_at_offset(self.buffer.current.cursor.selection.start())
+                .styles_at_offset(self.buffer.current.cursor.selection.start(), &self.bounds.ast)
             {
                 match style {
                     MarkdownNode::Inline(InlineNode::Bold) => result.cursor_in_bold = true,

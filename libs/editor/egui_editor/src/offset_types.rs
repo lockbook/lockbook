@@ -489,3 +489,47 @@ where
         (self.into(), self.into())
     }
 }
+
+pub trait RangeIterExt {
+    type Item;
+    type Iter: DoubleEndedIterator<Item = Self::Item>;
+    fn iter(self) -> Self::Iter;
+}
+
+impl RangeIterExt for (usize, usize) {
+    type Item = usize;
+    type Iter = RangeIter;
+    fn iter(self) -> Self::Iter {
+        RangeIter { start_inclusive: self.0, end_exclusive: self.1 }
+    }
+}
+
+pub struct RangeIter {
+    start_inclusive: usize,
+    end_exclusive: usize,
+}
+
+impl Iterator for RangeIter {
+    type Item = usize;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.start_inclusive < self.end_exclusive {
+            let result = self.start_inclusive;
+            self.start_inclusive += 1;
+            Some(result)
+        } else {
+            None
+        }
+    }
+}
+
+impl DoubleEndedIterator for RangeIter {
+    fn next_back(&mut self) -> Option<Self::Item> {
+        if self.start_inclusive < self.end_exclusive {
+            self.end_exclusive -= 1;
+            Some(self.end_exclusive)
+        } else {
+            None
+        }
+    }
+}

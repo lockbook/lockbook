@@ -1,7 +1,8 @@
+use crate::bounds::{AstTextRanges, RangesExt};
 use crate::buffer::SubBuffer;
 use crate::input::cursor::Cursor;
 use crate::layouts::Annotation;
-use crate::offset_types::{DocCharOffset, RangeExt, RelCharOffset};
+use crate::offset_types::{DocCharOffset, RangeExt, RangeIterExt, RelCharOffset};
 use crate::style::{
     BlockNode, BlockNodeType, InlineNode, ListItem, MarkdownNode, MarkdownNodeType,
 };
@@ -408,22 +409,14 @@ impl Ast {
         }
     }
 
-    /// Returns the AstTextRange at the given offset. Prefers the next range when at a boundary.
-    pub fn text_range_at_offset(&self, offset: DocCharOffset) -> Option<AstTextRange> {
-        let mut end_range = None;
-        for text_range in self.iter_text_ranges() {
-            if text_range.range.contains_inclusive(offset) {
-                end_range = Some(text_range);
-            }
-        }
-        end_range
-    }
-
     /// Returns all styles applied to the text just before the given offset if any, or just after when at the document start.
-    pub fn styles_at_offset(&self, offset: DocCharOffset) -> Vec<MarkdownNode> {
+    pub fn styles_at_offset(
+        &self, offset: DocCharOffset, bounds: &AstTextRanges,
+    ) -> Vec<MarkdownNode> {
         let mut result = Vec::default();
-        if let Some(text_range) = self.text_range_at_offset(offset) {
-            for ancestor_node_idx in text_range.ancestors {
+        if let Some(text_range) = bounds.find_containing(offset, true, true).iter().last() {
+            let text_range = &bounds[text_range];
+            for &ancestor_node_idx in &text_range.ancestors {
                 let ancestor_node = &self.nodes[ancestor_node_idx];
                 // offset must be in text range (not head/tail syntax chars) to apply
                 if ancestor_node.text_range.contains_inclusive(offset) {

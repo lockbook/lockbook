@@ -1,5 +1,5 @@
 use crate::ast::{Ast, AstTextRangeType};
-use crate::bounds::{AstTextRanges, Bounds, Text};
+use crate::bounds::{AstTextRanges, Bounds, RangesExt, Text};
 use crate::buffer::{EditorMutation, Mutation, SubBuffer, SubMutation};
 use crate::galleys::Galleys;
 use crate::input::canonical::{Location, Modification, Offset, Region};
@@ -67,7 +67,13 @@ pub fn calc(
             apply_style(cursor, style.clone(), unapply, buffer, ast, &mut mutation);
             if current_cursor.selection.is_empty() {
                 // toggling style at end of styled range moves cursor to outside of styled range
-                if let Some(text_range) = ast.text_range_at_offset(current_cursor.selection.1) {
+                if let Some(text_range) = bounds
+                    .ast
+                    .find_containing(current_cursor.selection.1, true, true)
+                    .iter()
+                    .last()
+                {
+                    let text_range = &bounds.ast[text_range];
                     if text_range.node(ast).node_type() == style.node_type()
                         && text_range.range_type == AstTextRangeType::Tail
                     {
@@ -85,7 +91,11 @@ pub fn calc(
             let mut cursor = current_cursor;
             let galley_idx = galleys.galley_at_char(cursor.selection.1);
             let galley = &galleys[galley_idx];
-            let ast_text_range = ast.text_range_at_offset(cursor.selection.1);
+            let ast_text_range = bounds
+                .ast
+                .find_containing(current_cursor.selection.1, true, true)
+                .iter()
+                .last();
             if matches!(galley.annotation, Some(Annotation::Item(..))) {
                 // cursor at end of list item
                 if galley.size() - galley.head_size - galley.tail_size == 0 {
@@ -145,6 +155,7 @@ pub fn calc(
                 mutation.push(SubMutation::Insert { text: "\n".to_string(), advance_cursor: true });
                 mutation.push(SubMutation::Cursor { cursor });
             } else if let Some(ast_text_range) = ast_text_range {
+                let ast_text_range = &bounds.ast[ast_text_range];
                 if ast_text_range.range_type == AstTextRangeType::Tail
                     && ast_text_range.node(ast).node_type()
                         == MarkdownNodeType::Inline(InlineNodeType::Link)
@@ -474,7 +485,7 @@ fn apply_style(
     // find range containing cursor start and cursor end
     let mut start_range = None;
     let mut end_range = None;
-    for text_range in ast.iter_text_ranges() {
+    for text_range in ast_ranges {
         // when at bound, start prefers next
         if text_range
             .range

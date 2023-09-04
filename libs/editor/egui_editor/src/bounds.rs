@@ -554,17 +554,22 @@ impl DocCharOffset {
 }
 
 pub trait RangesExt {
-    /// Efficiently finds the sorted, possibly empty set of ranges that contain `offset`
-    fn find(&self, offset: DocCharOffset, start_inclusive: bool, end_inclusive: bool)
-        -> Vec<usize>;
+    /// Efficiently finds the possibly empty (inclusive, exclusive) range of ranges that contain `offset`
+    fn find_containing(
+        &self, offset: DocCharOffset, start_inclusive: bool, end_inclusive: bool,
+    ) -> (usize, usize);
+
+    /// Efficiently finds the possibly empty (inclusive, exclusive) range of ranges that intersect `range`
+    fn find_intersecting(
+        &self, range: (DocCharOffset, DocCharOffset), allow_empty: bool,
+    ) -> (usize, usize);
 }
 
 impl<Range: RangeExt<DocCharOffset>> RangesExt for Vec<Range> {
-    fn find(
+    fn find_containing(
         &self, offset: DocCharOffset, start_inclusive: bool, end_inclusive: bool,
-    ) -> Vec<usize> {
-        let mut result = Vec::new();
-        if let Ok(idx) = self.binary_search_by(|range| {
+    ) -> (usize, usize) {
+        match self.binary_search_by(|range| {
             if offset < range.start() {
                 Ordering::Less
             } else if offset == range.start() {
@@ -587,24 +592,31 @@ impl<Range: RangeExt<DocCharOffset>> RangesExt for Vec<Range> {
                 unreachable!()
             }
         }) {
-            let mut start_idx = idx;
-            while idx > 0 && self[idx - 1].contains(offset, start_inclusive, end_inclusive) {
-                start_idx -= 1;
-                result.push(start_idx);
-            }
-            result.reverse();
+            Ok(idx) => {
+                let mut start = idx;
+                while idx > 0 && self[idx - 1].contains(offset, start_inclusive, end_inclusive) {
+                    start -= 1;
+                }
 
-            result.push(idx);
+                let mut end = idx;
+                while end < self.len() - 1
+                    && self[end + 1].contains(offset, start_inclusive, end_inclusive)
+                {
+                    end += 1;
+                }
 
-            let mut end_idx = idx;
-            while end_idx < self.len() - 1
-                && self[end_idx + 1].contains(offset, start_inclusive, end_inclusive)
-            {
-                end_idx += 1;
-                result.push(end_idx);
+                (start, end)
             }
+            Err(idx) => (idx, idx),
         }
-        result
+    }
+
+    fn find_intersecting(
+        &self, range: (DocCharOffset, DocCharOffset), allow_empty: bool,
+    ) -> (usize, usize) {
+        let (start_start, _) = self.find_containing(range.start(), allow_empty, false);
+        let (_, end_end) = self.find_containing(range.end(), false, allow_empty);
+        (start_start, end_end)
     }
 }
 
