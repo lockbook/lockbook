@@ -39,6 +39,11 @@ pub fn calc_words(buffer: &SubBuffer, ast: &Ast, appearance: &Appearance) -> Wor
         {
             // skip always-captured syntax sequences
             continue;
+        } else if text_range.range_type != AstTextRangeType::Text
+            && !text_range.node(ast).node_type().syntax_includes_text()
+        {
+            // syntax sequences for node types without text count as single words
+            result.push(text_range.range);
         } else {
             // remaining text and syntax sequences (including link URLs etc) are split into words
             let mut prev_char_offset = text_range.range.0;

@@ -63,6 +63,11 @@ impl MarkdownNodeType {
             Self::Block(BlockNodeType::Rule) => "",
         }
     }
+
+    /// Returns true if the markdown syntax for the node contains text which should be split into words for word bounds calculation
+    pub fn syntax_includes_text(&self) -> bool {
+        matches!(self, Self::Inline(InlineNodeType::Link) | Self::Inline(InlineNodeType::Image))
+    }
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
