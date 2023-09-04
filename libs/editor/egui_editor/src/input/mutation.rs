@@ -2,16 +2,15 @@ use crate::ast::{Ast, AstTextRangeType};
 use crate::bounds::{Bounds, Text};
 use crate::buffer::{EditorMutation, Mutation, SubBuffer, SubMutation};
 use crate::galleys::Galleys;
-use crate::input::canonical::{Bound, Location, Modification, Offset, Region};
+use crate::input::canonical::{Location, Modification, Offset, Region};
 use crate::input::cursor::Cursor;
 use crate::layouts::Annotation;
 use crate::offset_types::{DocCharOffset, RangeExt};
-use crate::style::{
-    BlockNode, InlineNodeType, ListItem, ListItemType, MarkdownNode, MarkdownNodeType, RenderStyle,
-};
+use crate::style::{InlineNodeType, ListItem, MarkdownNode, MarkdownNodeType};
 use crate::unicode_segs::UnicodeSegs;
 use egui::Pos2;
 use std::cmp::Ordering;
+use std::collections::HashSet;
 use unicode_segmentation::UnicodeSegmentation;
 
 pub fn calc(
@@ -59,14 +58,13 @@ pub fn calc(
         }
         Modification::ToggleStyle { region, style } => {
             let cursor = region_to_cursor(region, current_cursor, buffer, galleys, bounds);
-            apply_style(
-                cursor,
-                style.clone(),
-                region_completely_styled(cursor, RenderStyle::Markdown(style.clone()), ast),
-                buffer,
-                ast,
-                &mut mutation,
-            );
+            let unapply = region_completely_styled(cursor, &style, ast);
+            if !unapply {
+                for conflict in conflicting_styles(cursor, &style, ast) {
+                    apply_style(cursor, conflict, true, buffer, ast, &mut mutation)
+                }
+            }
+            apply_style(cursor, style.clone(), unapply, buffer, ast, &mut mutation);
             if current_cursor.selection.is_empty() {
                 // toggling style at end of styled range moves cursor to outside of styled range
                 if let Some(text_range) = ast.text_range_at_offset(current_cursor.selection.1) {
@@ -398,194 +396,71 @@ pub fn calc(
                 mutation.push(SubMutation::Cursor { cursor: current_cursor });
             }
         }
-        Modification::Heading(heading_size) => {
-            let galley_idx = galleys.galley_at_char(current_cursor.selection.start());
-            let galley = &galleys.galleys[galley_idx];
-
-            let headings: String = std::iter::repeat("#")
-                .take(heading_size as usize)
-                .chain(std::iter::once(" "))
-                .collect();
-
-            let line_cursor = region_to_cursor(
-                Region::ToOffset {
-                    offset: Offset::To(Bound::Line),
-                    backwards: true,
-                    extend_selection: false,
-                },
-                current_cursor,
-                buffer,
-                galleys,
-                bounds,
-            );
-
-            mutation.push(SubMutation::Cursor {
-                cursor: (
-                    line_cursor.selection.start() - galley.head_size,
-                    line_cursor.selection.start(),
-                )
-                    .into(),
-            });
-
-            mutation.push(SubMutation::Insert { text: headings, advance_cursor: true });
-
-            mutation.push(SubMutation::Cursor { cursor: current_cursor });
-        }
-        Modification::BulletListItem => {
-            let galley_idx = galleys.galley_at_char(current_cursor.selection.start());
-            let galley = &galleys.galleys[galley_idx];
-
-            match &galley.annotation {
-                Some(Annotation::Item(ListItem::Bulleted, ..)) => {
-                    list_mutation_replacement(&mut mutation, ast, current_cursor, None);
-                }
-                Some(Annotation::Item(..)) => {
-                    list_mutation_replacement(
-                        &mut mutation,
-                        ast,
-                        current_cursor,
-                        Some(ListItemType::Bulleted),
-                    );
-                }
-                _ => {
-                    mutation.push(SubMutation::Cursor {
-                        cursor: region_to_cursor(
-                            Region::ToOffset {
-                                offset: Offset::To(Bound::Paragraph),
-                                backwards: true,
-                                extend_selection: false,
-                            },
-                            current_cursor,
-                            buffer,
-                            galleys,
-                            bounds,
-                        ),
-                    });
-                    mutation.push(SubMutation::Insert {
-                        text: ListItemType::Bulleted.head().to_string(),
-                        advance_cursor: true,
-                    });
-
-                    mutation.push(SubMutation::Cursor { cursor: current_cursor });
-                }
-            }
-        }
-        Modification::NumberListItem => {
-            let galley_idx = galleys.galley_at_char(current_cursor.selection.start());
-            let galley = &galleys.galleys[galley_idx];
-
-            match &galley.annotation {
-                Some(Annotation::Item(ListItem::Numbered(..), ..)) => {
-                    list_mutation_replacement(&mut mutation, ast, current_cursor, None);
-                }
-                Some(Annotation::Item(..)) => {
-                    list_mutation_replacement(
-                        &mut mutation,
-                        ast,
-                        current_cursor,
-                        Some(ListItemType::Numbered),
-                    );
-                }
-                _ => {
-                    mutation.push(SubMutation::Cursor {
-                        cursor: region_to_cursor(
-                            Region::ToOffset {
-                                offset: Offset::To(Bound::Paragraph),
-                                backwards: true,
-                                extend_selection: false,
-                            },
-                            current_cursor,
-                            buffer,
-                            galleys,
-                            bounds,
-                        ),
-                    });
-                    mutation.push(SubMutation::Insert {
-                        text: ListItemType::Numbered.head().to_string(),
-                        advance_cursor: true,
-                    });
-
-                    mutation.push(SubMutation::Cursor { cursor: current_cursor });
-                }
-            }
-        }
-        Modification::TodoListItem => {
-            let galley_idx = galleys.galley_at_char(current_cursor.selection.start());
-            let galley = &galleys.galleys[galley_idx];
-
-            match &galley.annotation {
-                Some(Annotation::Item(ListItem::Todo(..), ..)) => {
-                    list_mutation_replacement(&mut mutation, ast, current_cursor, None);
-                }
-                Some(Annotation::Item(..)) => {
-                    list_mutation_replacement(
-                        &mut mutation,
-                        ast,
-                        current_cursor,
-                        Some(ListItemType::Todo),
-                    );
-                }
-                _ => {
-                    mutation.push(SubMutation::Cursor {
-                        cursor: region_to_cursor(
-                            Region::ToOffset {
-                                offset: Offset::To(Bound::Paragraph),
-                                backwards: true,
-                                extend_selection: false,
-                            },
-                            current_cursor,
-                            buffer,
-                            galleys,
-                            bounds,
-                        ),
-                    });
-                    mutation.push(SubMutation::Insert {
-                        text: ListItemType::Todo.head().to_string(),
-                        advance_cursor: true,
-                    });
-
-                    mutation.push(SubMutation::Cursor { cursor: current_cursor });
-                }
-            }
-        }
     }
     EditorMutation::Buffer(mutation)
 }
 
 /// Returns true if all text in `cursor` has style `style`
-fn region_completely_styled(cursor: Cursor, style: RenderStyle, ast: &Ast) -> bool {
+fn region_completely_styled(cursor: Cursor, style: &MarkdownNode, ast: &Ast) -> bool {
     if cursor.selection.is_empty() {
         return false;
     }
 
-    if let RenderStyle::Markdown(style) = style {
-        for text_range in ast.iter_text_ranges() {
-            // skip ranges before or after the cursor
-            if text_range.range.end() <= cursor.selection.start() {
-                continue;
-            }
-            if cursor.selection.end() <= text_range.range.start() {
+    for text_range in ast.iter_text_ranges() {
+        // skip ranges before or after the cursor
+        if text_range.range.end() <= cursor.selection.start() {
+            continue;
+        }
+        if cursor.selection.end() <= text_range.range.start() {
+            break;
+        }
+
+        // look for at least one ancestor that applies the style
+        let mut styled = false;
+        for ancestor in text_range.ancestors {
+            if &ast.nodes[ancestor].node_type == style {
+                styled = true;
                 break;
-            }
-
-            // look for at least one ancestor that applies the style
-            let mut styled = false;
-            for ancestor in text_range.ancestors {
-                if ast.nodes[ancestor].node_type == style {
-                    styled = true;
-                    break;
-                }
-            }
-
-            if !styled {
-                return false;
             }
         }
 
-        true
-    } else {
-        unimplemented!()
+        if !styled {
+            return false;
+        }
     }
+
+    true
+}
+
+/// Returns true if text in `cursor` has any style which should be removed before applying `style`
+fn conflicting_styles(cursor: Cursor, style: &MarkdownNode, ast: &Ast) -> HashSet<MarkdownNode> {
+    let mut result = HashSet::new();
+    if cursor.selection.is_empty() {
+        return result;
+    }
+
+    for text_range in ast.iter_text_ranges() {
+        // skip ranges before or after the cursor
+        if text_range.range.end() <= cursor.selection.start() {
+            continue;
+        }
+        if cursor.selection.end() <= text_range.range.start() {
+            break;
+        }
+
+        // look for at least one ancestor that applies a conflicting style
+        for ancestor in text_range.ancestors {
+            if ast.nodes[ancestor]
+                .node_type
+                .node_type()
+                .conflicts_with(&style.node_type())
+            {
+                result.insert(ast.nodes[ancestor].node_type.clone());
+            }
+        }
+    }
+
+    result
 }
 
 /// Applies or unapplies `style` to `cursor`, splitting or joining surrounding styles as necessary.
@@ -648,6 +523,7 @@ fn apply_style(
         }
     }
     if last_start_ancestor != last_end_ancestor {
+        // if start and end are in different nodes, detail start and dehead end (remove syntax characters inside selection)
         if let Some(last_start_ancestor) = last_start_ancestor {
             detail_ast_node(last_start_ancestor, ast, mutation);
         }
@@ -656,6 +532,7 @@ fn apply_style(
         }
     }
     if unapply {
+        // if unapplying, tail or dehead node containing start to crop styled region to selection
         if let Some(last_start_ancestor) = last_start_ancestor {
             if ast.nodes[last_start_ancestor].text_range.start() < cursor.selection.start() {
                 insert_tail(cursor.selection.start(), style.clone(), mutation);
@@ -663,6 +540,7 @@ fn apply_style(
                 dehead_ast_node(last_start_ancestor, ast, mutation);
             }
         }
+        // if unapplying, head or detail node containing end to crop styled region to selection
         if let Some(last_end_ancestor) = last_end_ancestor {
             if ast.nodes[last_end_ancestor].text_range.end() > cursor.selection.end() {
                 insert_head(cursor.selection.end(), style.clone(), mutation);
@@ -671,10 +549,11 @@ fn apply_style(
             }
         }
     } else {
-        if last_start_ancestor.is_none() && start_range.range_type == AstTextRangeType::Text {
+        // if applying, head start and/or tail end to extend styled region to selection
+        if last_start_ancestor.is_none() {
             insert_head(cursor.selection.start(), style.clone(), mutation)
         }
-        if last_end_ancestor.is_none() && end_range.range_type == AstTextRangeType::Text {
+        if last_end_ancestor.is_none() {
             insert_tail(cursor.selection.end(), style.clone(), mutation)
         }
     }
@@ -682,7 +561,7 @@ fn apply_style(
     // remove head and tail for nodes between nodes containing start and end
     let mut found_start_range = false;
     for text_range in ast.iter_text_ranges() {
-        // skip ranges until we pass the range containing the selection start
+        // skip ranges until we pass the range containing the selection start (handled above)
         if text_range == start_range {
             found_start_range = true;
         }
@@ -690,7 +569,7 @@ fn apply_style(
             continue;
         }
 
-        // stop when we find the range containing the selection end
+        // stop when we find the range containing the selection end (handled above)
         if text_range == end_range {
             break;
         }
@@ -742,32 +621,6 @@ fn insert_tail(offset: DocCharOffset, style: MarkdownNode, mutation: &mut Vec<Su
     } else {
         mutation.push(SubMutation::Cursor { cursor: offset.into() });
         mutation.push(SubMutation::Insert { text, advance_cursor: false });
-    }
-}
-
-fn list_mutation_replacement(
-    mutation: &mut Vec<SubMutation>, ast: &Ast, current_cursor: Cursor, to: Option<ListItemType>,
-) {
-    let mut ast_node_idx = ast.ast_node_at_char(current_cursor.selection.1);
-    loop {
-        let ast_node = &ast.nodes[ast_node_idx];
-        if let MarkdownNode::Block(BlockNode::ListItem(..)) = ast_node.node_type {
-            // found a list item
-            let text = to
-                .map(|t| t.head().to_string())
-                .unwrap_or_else(|| "".to_string());
-            mutation.push(SubMutation::Cursor { cursor: ast_node.head_range().into() });
-            mutation.push(SubMutation::Insert { text, advance_cursor: true });
-            mutation.push(SubMutation::Cursor { cursor: current_cursor });
-
-            break;
-        } else if let Some(parent_node_idx) = ast.parent(ast_node_idx) {
-            // check other ast nodes we're in
-            ast_node_idx = parent_node_idx;
-        } else {
-            // not in a list item
-            break;
-        }
     }
 }
 
