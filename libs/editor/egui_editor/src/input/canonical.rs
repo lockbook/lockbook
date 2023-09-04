@@ -1,10 +1,10 @@
 use crate::input::click_checker::ClickChecker;
 use crate::input::cursor::{ClickType, PointerState};
 use crate::offset_types::{DocCharOffset, RelCharOffset};
-use crate::style::{InlineNode, MarkdownNode};
+use crate::style::{BlockNode, InlineNode, ListItem, MarkdownNode};
 use crate::{CTextPosition, CTextRange};
 use egui::{Event, Key, Modifiers, PointerButton, Pos2};
-use pulldown_cmark::LinkType;
+use pulldown_cmark::{HeadingLevel, LinkType};
 use std::time::Instant;
 
 /// text location
@@ -93,10 +93,6 @@ pub enum Modification {
     ToggleDebug,
     ToggleCheckbox(usize),
     OpenUrl(String),
-    Heading(u32),
-    BulletListItem,
-    NumberListItem,
-    TodoListItem,
 }
 
 impl From<&Modifiers> for Offset {
@@ -236,17 +232,47 @@ pub fn calc(
         Event::Key { key: Key::Num7, pressed: true, modifiers, .. }
             if modifiers.command && modifiers.shift =>
         {
-            Some(Modification::NumberListItem)
+            Some(Modification::toggle_block_style(BlockNode::ListItem(ListItem::Numbered(1), 0)))
         }
         Event::Key { key: Key::Num8, pressed: true, modifiers, .. }
             if modifiers.command && modifiers.shift =>
         {
-            Some(Modification::BulletListItem)
+            Some(Modification::toggle_block_style(BlockNode::ListItem(ListItem::Bulleted, 0)))
         }
         Event::Key { key: Key::Num9, pressed: true, modifiers, .. }
             if modifiers.command && modifiers.shift =>
         {
-            Some(Modification::TodoListItem)
+            Some(Modification::toggle_block_style(BlockNode::ListItem(ListItem::Todo(false), 0)))
+        }
+        Event::Key { key: Key::Num1, pressed: true, modifiers, .. }
+            if modifiers.command && modifiers.alt =>
+        {
+            Some(Modification::toggle_block_style(BlockNode::Heading(HeadingLevel::H1)))
+        }
+        Event::Key { key: Key::Num2, pressed: true, modifiers, .. }
+            if modifiers.command && modifiers.alt =>
+        {
+            Some(Modification::toggle_block_style(BlockNode::Heading(HeadingLevel::H2)))
+        }
+        Event::Key { key: Key::Num3, pressed: true, modifiers, .. }
+            if modifiers.command && modifiers.alt =>
+        {
+            Some(Modification::toggle_block_style(BlockNode::Heading(HeadingLevel::H3)))
+        }
+        Event::Key { key: Key::Num4, pressed: true, modifiers, .. }
+            if modifiers.command && modifiers.alt =>
+        {
+            Some(Modification::toggle_block_style(BlockNode::Heading(HeadingLevel::H4)))
+        }
+        Event::Key { key: Key::Num5, pressed: true, modifiers, .. }
+            if modifiers.command && modifiers.alt =>
+        {
+            Some(Modification::toggle_block_style(BlockNode::Heading(HeadingLevel::H5)))
+        }
+        Event::Key { key: Key::Num6, pressed: true, modifiers, .. }
+            if modifiers.command && modifiers.alt =>
+        {
+            Some(Modification::toggle_block_style(BlockNode::Heading(HeadingLevel::H6)))
         }
         Event::PointerButton { pos, button: PointerButton::Primary, pressed: true, modifiers }
             if click_checker.ui(*pos) =>
@@ -336,6 +362,15 @@ pub fn calc(
         }
         Event::Key { key: Key::F2, pressed: true, .. } => Some(Modification::ToggleDebug),
         _ => None,
+    }
+}
+
+impl Modification {
+    pub fn toggle_block_style(block: BlockNode) -> Modification {
+        Modification::ToggleStyle {
+            region: Region::Bound { bound: Bound::Paragraph, backwards: false },
+            style: MarkdownNode::Block(block),
+        }
     }
 }
 

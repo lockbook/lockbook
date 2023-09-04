@@ -1,9 +1,10 @@
 use crate::input::canonical::{Modification, Region};
-use crate::style::{InlineNode, MarkdownNode};
+use crate::style::{BlockNode, InlineNode, ListItem, MarkdownNode};
 use crate::{Editor, IntegrationOutput, WgpuEditor};
 use egui::{Context, Event, Visuals};
 use egui_wgpu_backend::wgpu::CompositeAlphaMode;
 use egui_wgpu_backend::{wgpu, ScreenDescriptor};
+use pulldown_cmark::HeadingLevel;
 use std::ffi::{c_char, c_void, CStr, CString};
 use std::time::Instant;
 
@@ -185,7 +186,9 @@ pub unsafe extern "C" fn apply_style_to_selection_header(obj: *mut c_void, headi
 
     obj.editor
         .custom_events
-        .push(Modification::Heading(heading_size));
+        .push(Modification::toggle_block_style(BlockNode::Heading(
+            HeadingLevel::try_from(heading_size as usize).unwrap_or(HeadingLevel::H1),
+        )));
     obj.raw_input.events.push(Event::Copy);
 }
 
@@ -195,7 +198,9 @@ pub unsafe extern "C" fn apply_style_to_selection_header(obj: *mut c_void, headi
 pub unsafe extern "C" fn apply_style_to_selection_bulleted_list(obj: *mut c_void) {
     let obj = &mut *(obj as *mut WgpuEditor);
 
-    obj.editor.custom_events.push(Modification::BulletListItem);
+    obj.editor
+        .custom_events
+        .push(Modification::toggle_block_style(BlockNode::ListItem(ListItem::Bulleted, 0)));
 }
 
 /// # Safety
@@ -204,7 +209,9 @@ pub unsafe extern "C" fn apply_style_to_selection_bulleted_list(obj: *mut c_void
 pub unsafe extern "C" fn apply_style_to_selection_numbered_list(obj: *mut c_void) {
     let obj = &mut *(obj as *mut WgpuEditor);
 
-    obj.editor.custom_events.push(Modification::NumberListItem);
+    obj.editor
+        .custom_events
+        .push(Modification::toggle_block_style(BlockNode::ListItem(ListItem::Numbered(1), 0)));
 }
 
 /// # Safety
@@ -213,7 +220,9 @@ pub unsafe extern "C" fn apply_style_to_selection_numbered_list(obj: *mut c_void
 pub unsafe extern "C" fn apply_style_to_selection_todo_list(obj: *mut c_void) {
     let obj = &mut *(obj as *mut WgpuEditor);
 
-    obj.editor.custom_events.push(Modification::TodoListItem);
+    obj.editor
+        .custom_events
+        .push(Modification::toggle_block_style(BlockNode::ListItem(ListItem::Todo(false), 0)));
 }
 
 /// # Safety
