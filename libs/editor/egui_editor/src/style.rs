@@ -28,15 +28,14 @@ impl MarkdownNodeType {
             Self::Inline(InlineNodeType::Image) => {
                 unimplemented!()
             }
-            Self::Block(BlockNodeType::Heading(..)) => {
-                unimplemented!()
-            }
-            Self::Block(BlockNodeType::Quote) => {
-                unimplemented!()
-            }
-            Self::Block(BlockNodeType::Code) => {
-                unimplemented!()
-            }
+            Self::Block(BlockNodeType::Heading(HeadingLevel::H1)) => "# ",
+            Self::Block(BlockNodeType::Heading(HeadingLevel::H2)) => "## ",
+            Self::Block(BlockNodeType::Heading(HeadingLevel::H3)) => "### ",
+            Self::Block(BlockNodeType::Heading(HeadingLevel::H4)) => "#### ",
+            Self::Block(BlockNodeType::Heading(HeadingLevel::H5)) => "##### ",
+            Self::Block(BlockNodeType::Heading(HeadingLevel::H6)) => "###### ",
+            Self::Block(BlockNodeType::Quote) => "> ",
+            Self::Block(BlockNodeType::Code) => "```\n",
             Self::Block(BlockNodeType::ListItem(item_type)) => item_type.head(), // todo: support indentation
             Self::Block(BlockNodeType::Rule) => "***",
         }
@@ -56,9 +55,7 @@ impl MarkdownNodeType {
             }
             Self::Block(BlockNodeType::Heading(..)) => "",
             Self::Block(BlockNodeType::Quote) => "",
-            Self::Block(BlockNodeType::Code) => {
-                unimplemented!()
-            }
+            Self::Block(BlockNodeType::Code) => "\n```",
             Self::Block(BlockNodeType::ListItem(..)) => "",
             Self::Block(BlockNodeType::Rule) => "",
         }
@@ -67,6 +64,10 @@ impl MarkdownNodeType {
     /// Returns true if the markdown syntax for the node contains text which should be split into words for word bounds calculation
     pub fn syntax_includes_text(&self) -> bool {
         matches!(self, Self::Inline(InlineNodeType::Link) | Self::Inline(InlineNodeType::Image))
+    }
+
+    pub fn conflicts_with(&self, other: &MarkdownNodeType) -> bool {
+        matches!((self, other), (Self::Block(..), Self::Block(..)))
     }
 }
 
