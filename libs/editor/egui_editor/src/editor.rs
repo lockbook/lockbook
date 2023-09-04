@@ -464,6 +464,7 @@ impl Editor {
             custom_events,
             &click_checker,
             touch_mode,
+            &self.appearance,
             &mut self.pointer_state,
         );
         let (text_updated, maybe_to_clipboard, maybe_opened_url) = events::process(
@@ -473,6 +474,7 @@ impl Editor {
             &self.ast,
             &mut self.buffer,
             &mut self.debug,
+            &mut self.appearance,
         );
 
         // in touch mode, check if we should open the menu

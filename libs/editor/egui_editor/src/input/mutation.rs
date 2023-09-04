@@ -373,12 +373,9 @@ pub fn calc(
                 text: current_cursor.selection_text(buffer).to_string(),
             });
         }
-        Modification::OpenUrl(url) => {
-            mutation.push(SubMutation::OpenedUrl { url });
-        }
-        Modification::ToggleDebug => {
-            mutation.push(SubMutation::DebugToggle);
-        }
+        Modification::OpenUrl(url) => mutation.push(SubMutation::OpenedUrl { url }),
+        Modification::ToggleDebug => mutation.push(SubMutation::DebugToggle),
+        Modification::SetBaseFontSize(size) => mutation.push(SubMutation::SetBaseFontSize(size)),
         Modification::ToggleCheckbox(galley_idx) => {
             let galley = &galleys[galley_idx];
             if let Some(Annotation::Item(ListItem::Todo(checked), ..)) = galley.annotation {
