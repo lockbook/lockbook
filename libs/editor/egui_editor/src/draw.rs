@@ -157,6 +157,20 @@ impl Editor {
 
         // draw cursor for selection end
         ui.painter().line_segment(selection_end_line, stroke);
+        ui.painter().line_segment(
+            [
+                Pos2 { x: selection_end_line[0].x - 2.0, y: selection_end_line[0].y },
+                Pos2 { x: selection_end_line[0].x + 2.0, y: selection_end_line[0].y },
+            ],
+            stroke,
+        );
+        ui.painter().line_segment(
+            [
+                Pos2 { x: selection_end_line[1].x - 2.0, y: selection_end_line[1].y },
+                Pos2 { x: selection_end_line[1].x + 2.0, y: selection_end_line[1].y },
+            ],
+            stroke,
+        );
 
         if touch_mode {
             // draw cursor for selection start
