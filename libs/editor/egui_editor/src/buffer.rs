@@ -1,3 +1,4 @@
+use crate::appearance::Appearance;
 use crate::debug::DebugInfo;
 use crate::input::cursor::Cursor;
 use crate::offset_types::{DocByteOffset, DocCharOffset, RangeExt, RelCharOffset};
@@ -33,8 +34,9 @@ pub enum SubMutation {
     Insert { text: String, advance_cursor: bool }, // insert text at cursor location
     Delete(RelCharOffset),                         // delete selection or characters before cursor
     DebugToggle,                                   // toggle debug overlay
-    ToClipboard { text: String },                  // cut or copy text to clipboard
-    OpenedUrl { url: String },                     // open a url
+    SetBaseFontSize(f32), // set font size for plain text (other sizes scaled)
+    ToClipboard { text: String }, // cut or copy text to clipboard
+    OpenedUrl { url: String }, // open a url
 }
 
 #[derive(Debug)]
@@ -88,7 +90,7 @@ impl Buffer {
     /// (optional), and a link that was opened (optional)
     // todo: less cloning
     pub fn apply(
-        &mut self, modification: Mutation, debug: &mut DebugInfo,
+        &mut self, modification: Mutation, debug: &mut DebugInfo, appearance: &mut Appearance,
     ) -> (bool, Option<String>, Option<String>) {
         let now = Instant::now();
 
@@ -110,7 +112,7 @@ impl Buffer {
                         // when modifications overflow the queue, apply them to undo_base
                         if let Some(undo_mods) = self.undo_queue.pop_front() {
                             for m in undo_mods {
-                                self.undo_base.apply_modification(m, debug);
+                                self.undo_base.apply_modification(m, debug, appearance);
                             }
                         }
                     }
@@ -129,11 +131,12 @@ impl Buffer {
 
         self.last_apply = now;
         self.redo_stack = Vec::new();
-        self.current.apply_modification(modification, debug)
+        self.current
+            .apply_modification(modification, debug, appearance)
     }
 
     /// undoes one modification, if able
-    pub fn undo(&mut self, debug: &mut DebugInfo) {
+    pub fn undo(&mut self, debug: &mut DebugInfo, appearance: &mut Appearance) {
         if let Some(current_text_mods) = &self.current_text_mods {
             // don't undo cursor-only updates
             if !current_text_mods.iter().any(|modification| {
@@ -142,7 +145,8 @@ impl Buffer {
                     .any(|m| matches!(m, SubMutation::Insert { .. } | SubMutation::Delete(..)))
             }) {
                 for m in current_text_mods {
-                    self.current.apply_modification(m.clone(), debug);
+                    self.current
+                        .apply_modification(m.clone(), debug, appearance);
                 }
                 return;
             }
@@ -160,7 +164,8 @@ impl Buffer {
             // undo the current modification by applying the whole queue but not the current modification
             while let Some(mods) = mods_to_apply.pop_front() {
                 for m in &mods {
-                    self.current.apply_modification(m.clone(), debug);
+                    self.current
+                        .apply_modification(m.clone(), debug, appearance);
                 }
 
                 // final element of the queue moved from queue to current
@@ -175,14 +180,14 @@ impl Buffer {
     }
 
     /// redoes one modification, if able
-    pub fn redo(&mut self, debug: &mut DebugInfo) {
+    pub fn redo(&mut self, debug: &mut DebugInfo, appearance: &mut Appearance) {
         if let Some(mods) = self.redo_stack.pop() {
             if let Some(current_text_mods) = &self.current_text_mods {
                 self.undo_queue.push_back(current_text_mods.clone());
             }
             self.current_text_mods = Some(mods.clone());
             for m in mods {
-                self.current.apply_modification(m, debug);
+                self.current.apply_modification(m, debug, appearance);
             }
         }
     }
@@ -200,7 +205,7 @@ impl SubBuffer {
     }
 
     fn apply_modification(
-        &mut self, mut mods: Mutation, debug: &mut DebugInfo,
+        &mut self, mut mods: Mutation, debug: &mut DebugInfo, appearance: &mut Appearance,
     ) -> (bool, Option<String>, Option<String>) {
         let mut text_updated = false;
         let mut to_clipboard = None;
@@ -250,6 +255,9 @@ impl SubBuffer {
                 }
                 SubMutation::DebugToggle => {
                     debug.draw_enabled = !debug.draw_enabled;
+                }
+                SubMutation::SetBaseFontSize(size) => {
+                    appearance.base_font_size = Some(size);
                 }
                 SubMutation::ToClipboard { text } => {
                     to_clipboard = Some(text);
@@ -469,10 +477,11 @@ mod test {
         let mut buffer: SubBuffer = "".into();
         buffer.cursor = Default::default();
         let mut debug = Default::default();
+        let mut appearance = Default::default();
 
         let mods = Default::default();
 
-        let (text_updated, _, _) = buffer.apply_modification(mods, &mut debug);
+        let (text_updated, _, _) = buffer.apply_modification(mods, &mut debug, &mut appearance);
 
         assert_eq!(buffer.text, "");
         assert_eq!(buffer.cursor, Default::default());
@@ -485,10 +494,11 @@ mod test {
         let mut buffer: SubBuffer = "document content".into();
         buffer.cursor = 9.into();
         let mut debug = Default::default();
+        let mut appearance = Default::default();
 
         let mods = Default::default();
 
-        let (text_updated, _, _) = buffer.apply_modification(mods, &mut debug);
+        let (text_updated, _, _) = buffer.apply_modification(mods, &mut debug, &mut appearance);
 
         assert_eq!(buffer.text, "document content");
         assert_eq!(buffer.cursor, 9.into());
@@ -501,10 +511,11 @@ mod test {
         let mut buffer: SubBuffer = "document content".into();
         buffer.cursor = 9.into();
         let mut debug = Default::default();
+        let mut appearance = Default::default();
 
         let mods = vec![SubMutation::Insert { text: "new ".to_string(), advance_cursor: true }];
 
-        let (text_updated, _, _) = buffer.apply_modification(mods, &mut debug);
+        let (text_updated, _, _) = buffer.apply_modification(mods, &mut debug, &mut appearance);
 
         assert_eq!(buffer.text, "document new content");
         assert_eq!(buffer.cursor, 13.into());
@@ -517,10 +528,11 @@ mod test {
         let mut buffer: SubBuffer = "document content".into();
         buffer.cursor = 9.into();
         let mut debug = Default::default();
+        let mut appearance = Default::default();
 
         let mods = vec![SubMutation::Insert { text: "new ".to_string(), advance_cursor: false }];
 
-        let (text_updated, _, _) = buffer.apply_modification(mods, &mut debug);
+        let (text_updated, _, _) = buffer.apply_modification(mods, &mut debug, &mut appearance);
 
         assert_eq!(buffer.text, "document new content");
         assert_eq!(buffer.cursor, 9.into());
@@ -593,6 +605,7 @@ mod test {
             buffer.cursor = case.cursor_a;
 
             let mut debug = Default::default();
+            let mut appearance = Default::default();
 
             let mods = vec![
                 SubMutation::Insert { text: "a".to_string(), advance_cursor: true },
@@ -600,7 +613,7 @@ mod test {
                 SubMutation::Insert { text: "b".to_string(), advance_cursor: true },
             ];
 
-            let (text_updated, _, _) = buffer.apply_modification(mods, &mut debug);
+            let (text_updated, _, _) = buffer.apply_modification(mods, &mut debug, &mut appearance);
 
             assert_eq!(buffer.text, case.expected_buffer);
             assert_eq!(buffer.cursor.selection.1 .0, case.expected_cursor.0);
