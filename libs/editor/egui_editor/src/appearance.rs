@@ -197,6 +197,7 @@ impl Appearance {
     }
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub enum CaptureCondition {
     Always,
     NoCursor,
