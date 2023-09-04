@@ -20,7 +20,6 @@ use crate::input::cursor::{Cursor, PointerState};
 use crate::input::events;
 use crate::offset_types::{DocCharOffset, RangeExt};
 use crate::style::{BlockNode, InlineNode, ListItem, MarkdownNode};
-use crate::test_input::TEST_MARKDOWN;
 use crate::{ast, bounds, galleys, images, register_fonts};
 
 #[cfg(any(target_os = "ios", target_os = "macos"))]
@@ -150,7 +149,7 @@ impl Default for Editor {
             appearance: Default::default(),
             client: Default::default(),
 
-            buffer: TEST_MARKDOWN.into(),
+            buffer: "".into(),
             pointer_state: Default::default(),
             debug: Default::default(),
             images: Default::default(),
