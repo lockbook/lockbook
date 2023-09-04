@@ -125,12 +125,13 @@ pub struct Editor {
     // computed state from last frame
     pub ui_rect: Rect,
 
-    // state computed from processing events but not yet incorporated into drawn frame
+    // state computed from processing events as client feedback
     pub maybe_to_clipboard: Option<String>,
     pub maybe_opened_url: Option<String>,
     pub text_updated: bool,
     pub selection_updated: bool,
     pub maybe_menu_location: Option<Pos2>,
+    pub pointer_over_text: bool,
 
     // events not supported by egui; integrations push to this vec and editor processes and clears it
     pub custom_events: Vec<Modification>,
@@ -166,6 +167,7 @@ impl Default for Editor {
             text_updated: Default::default(),
             selection_updated: Default::default(),
             maybe_menu_location: Default::default(),
+            pointer_over_text: Default::default(),
 
             custom_events: Default::default(),
 
@@ -413,6 +415,13 @@ impl Editor {
             }
         }
 
+        // set cursor style
+        if self.pointer_over_text {
+            ui.output_mut(|o| o.cursor_icon = egui::CursorIcon::Text);
+        } else {
+            ui.output_mut(|o| o.cursor_icon = egui::CursorIcon::Default);
+        }
+
         result
     }
 
@@ -475,6 +484,11 @@ impl Editor {
             appearance: &self.appearance,
             bounds: &self.bounds,
         };
+        let pointer_over_text = self
+            .pointer_state
+            .pointer_pos
+            .map(|pos| (&click_checker).text(pos).is_some())
+            .unwrap_or_default();
         if touch_mode {
             let current_cursor = self.buffer.current.cursor;
             let current_selection = current_cursor.selection;
@@ -536,11 +550,12 @@ impl Editor {
             }
         });
 
-        // put cut or copied text in clipboard
+        // update editor output
         self.maybe_to_clipboard = maybe_to_clipboard;
         self.maybe_opened_url = maybe_opened_url;
         self.text_updated = text_updated;
         self.selection_updated = self.buffer.current.cursor.selection != prior_selection;
+        self.pointer_over_text = pointer_over_text;
     }
 
     pub fn set_text(&mut self, text: String) {

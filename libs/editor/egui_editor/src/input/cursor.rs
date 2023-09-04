@@ -143,6 +143,7 @@ pub struct PointerState {
     pub click_pos: Option<Pos2>,
     pub click_mods: Option<Modifiers>,
     pub click_dragged: Option<bool>,
+    pub pointer_pos: Option<Pos2>,
 
     /// Time of release of last few presses, used for double & triple click detection
     pub last_click_times: (Option<Instant>, Option<Instant>, Option<Instant>, Option<Instant>),
@@ -182,6 +183,7 @@ impl PointerState {
         self.click_pos = Some(pos);
         self.click_mods = Some(modifiers);
         self.click_dragged = Some(false);
+        self.pointer_pos = Some(pos)
     }
 
     pub fn drag(&mut self, t: Instant, pos: Pos2) {
@@ -195,6 +197,7 @@ impl PointerState {
                 }
             }
         }
+        self.pointer_pos = Some(pos)
     }
 
     pub fn release(&mut self) {
