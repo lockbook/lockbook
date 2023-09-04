@@ -149,7 +149,7 @@ impl Default for Editor {
             appearance: Default::default(),
             client: Default::default(),
 
-            buffer: TEST_MARKDOWN.into(),
+            buffer: "".into(),
             pointer_state: Default::default(),
             debug: Default::default(),
             images: Default::default(),
