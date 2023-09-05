@@ -715,8 +715,8 @@ pub fn pos_to_char_offset(
         let mut result = 0.into();
         for galley_idx in 0..galleys.len() {
             let galley = &galleys[galley_idx];
-            if galley.galley_location.min.y <= pos.y {
-                if pos.y <= galley.galley_location.max.y {
+            if pos.y <= galley.galley_location.max.y {
+                if galley.galley_location.min.y <= pos.y {
                     // click position is in a galley
                 } else {
                     // click position is between galleys
@@ -725,6 +725,7 @@ pub fn pos_to_char_offset(
                 let relative_pos = pos - galley.text_location;
                 let new_cursor = galley.galley.cursor_from_pos(relative_pos);
                 result = galleys.char_offset_by_galley_and_cursor(galley_idx, &new_cursor, text);
+                break;
             }
         }
         result
