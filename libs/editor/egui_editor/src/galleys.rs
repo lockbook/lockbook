@@ -104,7 +104,8 @@ pub fn calc(
             let mut is_annotation = false;
             if text_range.range_type == AstTextRangeType::Head
                 && text_range.range.start() == text_range_portion.start()
-                && captured
+                && (captured
+                    || text_range.annotation(ast) == Some(Annotation::HeadingRule)) // heading rules drawn reglardless of capture
                 && annotation.is_none()
             {
                 annotation = text_range.annotation(ast);
@@ -134,7 +135,7 @@ pub fn calc(
                         layout.append(&text, 0.0, text_format);
                     }
 
-                    if is_annotation {
+                    if captured && is_annotation {
                         head_size = text_range.range.len();
                     }
                 }
