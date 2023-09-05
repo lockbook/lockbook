@@ -99,6 +99,9 @@ pub fn calc(
             if in_selection {
                 RenderStyle::Selection.apply_style(&mut text_format, appearance);
             }
+            if maybe_link_range.is_some() {
+                RenderStyle::PlaintextLink.apply_style(&mut text_format, appearance);
+            }
 
             // only the first portion of a head text range gets that range's annotation
             let mut is_annotation = false;

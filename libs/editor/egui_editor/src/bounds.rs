@@ -578,7 +578,7 @@ impl<Range: RangeExt<DocCharOffset>> RangesExt for Vec<Range> {
                 } else {
                     Ordering::Less
                 }
-            } else if offset > range.start() && offset > range.end() {
+            } else if offset > range.start() && offset < range.end() {
                 Ordering::Equal
             } else if offset == range.end() {
                 if end_inclusive {
