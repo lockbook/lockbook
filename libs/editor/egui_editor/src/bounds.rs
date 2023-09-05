@@ -2081,7 +2081,7 @@ mod test {
     #[test]
     fn range_join_iter() {
         let a = vec![(0.into(), 10.into())];
-        let b = vec![(0.into(), 5.into()), (5.into(), 10.into())];
+        let b = vec![(0.into(), 5.into()), (5.into(), 5.into()), (5.into(), 10.into())];
         let c = vec![(3.into(), 7.into())];
 
         let result = join([&a, &b, &c]).collect::<Vec<_>>();
@@ -2091,8 +2091,9 @@ mod test {
             &[
                 ([Some(0), Some(0), None], (0.into(), 3.into())),
                 ([Some(0), Some(0), Some(0)], (3.into(), 5.into())),
-                ([Some(0), Some(1), Some(0)], (5.into(), 7.into())),
-                ([Some(0), Some(1), None], (7.into(), 10.into())),
+                ([Some(0), Some(1), Some(0)], (5.into(), 5.into())),
+                ([Some(0), Some(2), Some(0)], (5.into(), 7.into())),
+                ([Some(0), Some(2), None], (7.into(), 10.into())),
             ]
         )
     }
