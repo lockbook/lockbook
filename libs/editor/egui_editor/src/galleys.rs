@@ -177,7 +177,7 @@ pub fn calc(
                             layout.append(&text, 0.0, text_format);
                         }
 
-                        if is_annotation {
+                        if captured && is_annotation {
                             head_size = text_range_portion.range.len();
                         }
                     }
