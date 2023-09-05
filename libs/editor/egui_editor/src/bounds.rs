@@ -620,9 +620,7 @@ impl<Range: RangeExt<DocCharOffset>> RangesExt for Vec<Range> {
     }
 }
 
-pub fn join<'r, const N: usize>(
-    ranges: [&'r [(DocCharOffset, DocCharOffset)]; N],
-) -> RangeJoinIter<'r, N> {
+pub fn join<const N: usize>(ranges: [&[(DocCharOffset, DocCharOffset)]; N]) -> RangeJoinIter<N> {
     let mut result = RangeJoinIter {
         ranges,
         in_range: [false; N],
@@ -683,7 +681,7 @@ impl<'r, const N: usize> Iterator for RangeJoinIter<'r, N> {
 
             // exclude between-ranges ranges from result
             let idx_result = {
-                let mut this = self.current.clone();
+                let mut this = self.current;
                 for (idx, &in_range) in self.in_range.iter().enumerate() {
                     if !in_range {
                         this[idx] = None;

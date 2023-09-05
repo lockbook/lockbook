@@ -80,7 +80,7 @@ pub fn calc(
 
         if let Some(ast_idx) = ast_idx {
             let text_range = &bounds.ast[ast_idx];
-            let maybe_link_range = link_idx.map(|link_idx| bounds.links[link_idx].clone());
+            let maybe_link_range = link_idx.map(|link_idx| bounds.links[link_idx]);
             let in_selection = selection_idx.is_some();
 
             let captured = match appearance.markdown_capture(text_range.node(ast).node_type()) {
