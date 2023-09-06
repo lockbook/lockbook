@@ -622,8 +622,6 @@ class LBTokenizer: NSObject, UITextInputTokenizer {
         return LBTextRange(c: result)
     }
 }
-#endif
-
 
 class iOSUndoManager: UndoManager {
     
@@ -652,3 +650,4 @@ class iOSUndoManager: UndoManager {
         onUndoRedo?()
     }
 }
+#endif
