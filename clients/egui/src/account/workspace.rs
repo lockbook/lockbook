@@ -275,7 +275,7 @@ impl super::AccountScreen {
         ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
 
         ui.vertical(|ui| {
-            if !self.workspace.tabs.is_empty()   {
+            if !self.workspace.tabs.is_empty() {
                 ui.horizontal(|ui| {
                     for (i, maybe_resp) in self
                         .workspace
