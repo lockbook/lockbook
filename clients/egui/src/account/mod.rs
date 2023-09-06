@@ -14,8 +14,7 @@ use std::time::{Duration, Instant};
 use std::{path, thread};
 
 use eframe::egui;
-use lb::FileType;
-use regex::Regex;
+use lb::{FileType, NameComponents};
 
 use crate::model::{AccountScreenInitData, Usage};
 use crate::settings::Settings;
@@ -693,7 +692,7 @@ impl AccountScreen {
         let core = self.core.clone();
         let update_tx = self.update_tx.clone();
         thread::spawn(move || {
-            let mut max = 1;
+            let mut max = NameComponents::from("untitled-0.md");
 
             let focused_parent = core.get_file_by_id(focused_parent).unwrap();
             let focused_parent = if focused_parent.file_type == FileType::Document {
@@ -705,18 +704,17 @@ impl AccountScreen {
                 .unwrap()
                 .iter()
                 .for_each(|f| {
-                    let re = Regex::new(r"^untitled-(\d+)\.\w*$").unwrap();
-                    if let Some(caps) = re.captures(&f.name) {
-                        let number = caps.get(1).unwrap().as_str().parse::<i32>().unwrap() + 1;
-                        if number > max {
-                            max = number;
+                    let nc = NameComponents::from(&f.name);
+                    if let Some(variant) = nc.variant {
+                        if variant > max.variant.unwrap_or_default() {
+                            max = nc;
                         }
                     }
                 });
 
             let result = core
                 .create_file(
-                    &format!("untitled-{}.md", max),
+                    max.generate_next().to_name().as_str(),
                     focused_parent,
                     lb::FileType::Document,
                 )
