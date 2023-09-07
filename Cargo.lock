@@ -3355,7 +3355,6 @@ dependencies = [
  "egui_extras",
  "image",
  "lockbook-core",
- "regex",
  "rfd",
  "serde",
  "serde_json",
