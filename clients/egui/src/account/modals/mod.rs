@@ -95,7 +95,7 @@ impl super::AccountScreen {
 
         if let Some(response) = show(ctx, x_offset, &mut self.modals.search) {
             if let Some(submission) = response.inner {
-                self.open_file(submission.id, ctx);
+                self.open_file(submission.id, ctx, false);
                 if submission.close {
                     self.modals.search = None;
                 }

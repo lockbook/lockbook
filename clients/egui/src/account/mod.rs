@@ -147,13 +147,13 @@ impl AccountScreen {
                     ui.vertical(|ui| {
                         ui.add_space(15.0);
                         if let Some(&file) = self.full_search_doc.show(ui, &self.core) {
-                            self.open_file(file, ctx);
+                            self.open_file(file, ctx, false);
                         }
                         ui.add_space(15.0);
 
                         if self.full_search_doc.results.is_empty() {
                             if let Some(file) = self.suggested.show(ui) {
-                                self.open_file(file, ctx);
+                                self.open_file(file, ctx, false);
                             }
                             ui.add_space(15.0);
                             self.show_tree(ui);
@@ -237,7 +237,7 @@ impl AccountScreen {
                         self.tree.root.insert(f);
                         self.tree.reveal_file(id, &self.core);
                         if is_doc {
-                            self.open_file(id, ctx);
+                            self.open_file(id, ctx, true);
                         }
                         // Close whichever new file modal was open.
                         self.modals.new_folder = None;
@@ -345,6 +345,28 @@ impl AccountScreen {
                 }
                 AccountUpdate::FoundPendingShares(has_pending_shares) => {
                     self.has_pending_shares = has_pending_shares
+                }
+                AccountUpdate::EditorNameSignal(new_name) => {
+                    let tab = &self.workspace.tabs[self.workspace.active_tab];
+                    if tab.is_new_file {
+                        let core = self.core.clone();
+                        let new_name = format!("{}.md", new_name);
+                        let update_tx = self.update_tx.clone();
+                        let id = tab.id.clone();
+
+                        thread::spawn(move || {
+                            core.rename_file(id, new_name.as_str()).unwrap();
+
+                            let mut new_child_paths = HashMap::new();
+                            for f in core.get_and_get_children_recursively(id).unwrap() {
+                                new_child_paths.insert(f.id, core.get_path_by_id(f.id).unwrap());
+                            }
+
+                            update_tx
+                                .send(AccountUpdate::FileRenamed { id, new_name, new_child_paths })
+                                .unwrap();
+                        });
+                    }
                 }
             }
         }
@@ -482,7 +504,7 @@ impl AccountScreen {
         }
 
         for id in resp.open_requests {
-            self.open_file(id, ui.ctx());
+            self.open_file(id, ui.ctx(), false);
         }
 
         if resp.delete_request {
@@ -577,11 +599,11 @@ impl AccountScreen {
             .collect::<Vec<lb::Uuid>>();
 
         let core = self.core.clone();
-        let update_tx = self.update_tx.clone();
         let ctx = ctx.clone();
 
         let settings = &self.settings.read().unwrap();
         let toolbar_visibility = settings.toolbar_visibility;
+        let update_tx = self.update_tx.clone();
 
         thread::spawn(move || {
             let all_metas = core.list_metadatas().unwrap();
@@ -622,7 +644,11 @@ impl AccountScreen {
                         .map_err(|err| TabFailure::Unexpected(format!("{:?}", err))) // todo(steve)
                         .map(|bytes| {
                             if ext == "md" {
-                                TabContent::Markdown(Markdown::boxed(&bytes, &toolbar_visibility))
+                                TabContent::Markdown(Markdown::boxed(
+                                    &bytes,
+                                    &toolbar_visibility,
+                                    update_tx.clone(),
+                                ))
                             } else if is_supported_image_fmt(ext) {
                                 TabContent::Image(ImageViewer::boxed(id.to_string(), &bytes))
                             } else {
@@ -643,6 +669,7 @@ impl AccountScreen {
                             failure: None,
                             last_changed: now,
                             last_saved: now,
+                            is_new_file: false,
                         }),
                     ))
                     .unwrap();
@@ -735,7 +762,7 @@ impl AccountScreen {
         });
     }
 
-    fn open_file(&mut self, id: lb::Uuid, ctx: &egui::Context) {
+    fn open_file(&mut self, id: lb::Uuid, ctx: &egui::Context, is_new_file: bool) {
         if self.workspace.goto_tab_id(id) {
             ctx.request_repaint();
             return;
@@ -749,14 +776,14 @@ impl AccountScreen {
 
         let fpath = self.core.get_path_by_id(id).unwrap(); // TODO
 
-        self.workspace.open_tab(id, &fname, &fpath);
+        self.workspace.open_tab(id, &fname, &fpath, is_new_file);
 
         let core = self.core.clone();
-        let update_tx = self.update_tx.clone();
         let ctx = ctx.clone();
 
         let settings = &self.settings.read().unwrap();
         let toolbar_visibility = settings.toolbar_visibility;
+        let update_tx = self.update_tx.clone();
 
         thread::spawn(move || {
             let ext = fname.split('.').last().unwrap_or_default();
@@ -770,7 +797,11 @@ impl AccountScreen {
                     .map_err(|err| TabFailure::Unexpected(format!("{:?}", err))) // todo(steve)
                     .map(|bytes| {
                         if ext == "md" {
-                            TabContent::Markdown(Markdown::boxed(&bytes, &toolbar_visibility))
+                            TabContent::Markdown(Markdown::boxed(
+                                &bytes,
+                                &toolbar_visibility,
+                                update_tx.clone(),
+                            ))
                         } else if is_supported_image_fmt(ext) {
                             TabContent::Image(ImageViewer::boxed(id.to_string(), &bytes))
                         } else {
@@ -925,6 +956,7 @@ pub enum AccountUpdate {
         new_name: String,
         new_child_paths: HashMap<lb::Uuid, String>,
     },
+    EditorNameSignal(String),
     FileDeleted(lb::File),
 
     /// if a file has been imported successfully refresh the tree, otherwise show what went wrong

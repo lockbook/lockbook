@@ -18,6 +18,7 @@ pub struct Tab {
     pub failure: Option<TabFailure>,
     pub content: Option<TabContent>,
 
+    pub is_new_file: bool,
     pub last_changed: Instant,
     pub last_saved: Instant,
 }

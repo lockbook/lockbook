@@ -26,7 +26,7 @@ impl Workspace {
         }
     }
 
-    pub fn open_tab(&mut self, id: lb::Uuid, name: &str, path: &str) {
+    pub fn open_tab(&mut self, id: lb::Uuid, name: &str, path: &str, is_new_file: bool) {
         let now = Instant::now();
         self.tabs.push(Tab {
             id,
@@ -36,6 +36,7 @@ impl Workspace {
             failure: None,
             content: None,
             last_changed: now,
+            is_new_file,
             last_saved: now,
         });
         self.active_tab = self.tabs.len() - 1;
