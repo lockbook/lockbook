@@ -3,19 +3,19 @@ use crate::ast::Ast;
 use crate::bounds::Bounds;
 use crate::buffer::Buffer;
 use crate::galleys::Galleys;
+use crate::input::canonical::Bound;
 use crate::input::mutation;
 use crate::layouts::Annotation;
-use crate::offset_types::RangeExt;
+use crate::offset_types::{DocCharOffset, RangeExt};
 use crate::style::{InlineNode, ListItem, MarkdownNode};
 use egui::{Pos2, Rect};
-
-use super::canonical::Bound;
 
 pub trait ClickChecker {
     fn ui(&self, pos: Pos2) -> bool; // was the click even in the ui?
     fn text(&self, pos: Pos2) -> Option<usize>; // returns galley index
     fn checkbox(&self, pos: Pos2, touch_mode: bool) -> Option<usize>; // returns galley index of checkbox
     fn link(&self, pos: Pos2) -> Option<String>; // returns url to open
+    fn pos_to_char_offset(&self, pos: Pos2) -> DocCharOffset; // converts pos to char offset
 }
 
 pub struct EditorClickChecker<'a> {
@@ -85,5 +85,14 @@ impl<'a> ClickChecker for &'a EditorClickChecker<'a> {
             }
         }
         None
+    }
+
+    fn pos_to_char_offset(&self, pos: Pos2) -> DocCharOffset {
+        mutation::pos_to_char_offset(
+            pos,
+            self.galleys,
+            &self.buffer.current.segs,
+            &self.bounds.text,
+        )
     }
 }

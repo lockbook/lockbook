@@ -20,7 +20,6 @@ use crate::input::cursor::{Cursor, PointerState};
 use crate::input::events;
 use crate::offset_types::{DocCharOffset, RangeExt};
 use crate::style::{BlockNode, InlineNode, ListItem, MarkdownNode};
-use crate::test_input::TEST_MARKDOWN;
 use crate::{ast, bounds, galleys, images, register_fonts};
 
 #[cfg(any(target_os = "ios", target_os = "macos"))]
@@ -125,12 +124,13 @@ pub struct Editor {
     // computed state from last frame
     pub ui_rect: Rect,
 
-    // state computed from processing events but not yet incorporated into drawn frame
+    // state computed from processing events as client feedback
     pub maybe_to_clipboard: Option<String>,
     pub maybe_opened_url: Option<String>,
     pub text_updated: bool,
     pub selection_updated: bool,
     pub maybe_menu_location: Option<Pos2>,
+    pub pointer_over_text: bool,
 
     // events not supported by egui; integrations push to this vec and editor processes and clears it
     pub custom_events: Vec<Modification>,
@@ -149,7 +149,7 @@ impl Default for Editor {
             appearance: Default::default(),
             client: Default::default(),
 
-            buffer: TEST_MARKDOWN.into(),
+            buffer: "".into(),
             pointer_state: Default::default(),
             debug: Default::default(),
             images: Default::default(),
@@ -166,6 +166,7 @@ impl Default for Editor {
             text_updated: Default::default(),
             selection_updated: Default::default(),
             maybe_menu_location: Default::default(),
+            pointer_over_text: Default::default(),
 
             custom_events: Default::default(),
 
@@ -413,6 +414,13 @@ impl Editor {
             }
         }
 
+        // set cursor style
+        if self.pointer_over_text {
+            ui.output_mut(|o| o.cursor_icon = egui::CursorIcon::Text);
+        } else {
+            ui.output_mut(|o| o.cursor_icon = egui::CursorIcon::Default);
+        }
+
         result
     }
 
@@ -455,6 +463,7 @@ impl Editor {
             custom_events,
             &click_checker,
             touch_mode,
+            &self.appearance,
             &mut self.pointer_state,
         );
         let (text_updated, maybe_to_clipboard, maybe_opened_url) = events::process(
@@ -464,6 +473,7 @@ impl Editor {
             &self.ast,
             &mut self.buffer,
             &mut self.debug,
+            &mut self.appearance,
         );
 
         // in touch mode, check if we should open the menu
@@ -475,6 +485,11 @@ impl Editor {
             appearance: &self.appearance,
             bounds: &self.bounds,
         };
+        let pointer_over_text = self
+            .pointer_state
+            .pointer_pos
+            .map(|pos| (&click_checker).text(pos).is_some())
+            .unwrap_or_default();
         if touch_mode {
             let current_cursor = self.buffer.current.cursor;
             let current_selection = current_cursor.selection;
@@ -536,11 +551,12 @@ impl Editor {
             }
         });
 
-        // put cut or copied text in clipboard
+        // update editor output
         self.maybe_to_clipboard = maybe_to_clipboard;
         self.maybe_opened_url = maybe_opened_url;
         self.text_updated = text_updated;
         self.selection_updated = self.buffer.current.cursor.selection != prior_selection;
+        self.pointer_over_text = pointer_over_text;
     }
 
     pub fn set_text(&mut self, text: String) {

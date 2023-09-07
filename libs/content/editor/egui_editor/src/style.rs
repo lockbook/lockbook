@@ -28,15 +28,14 @@ impl MarkdownNodeType {
             Self::Inline(InlineNodeType::Image) => {
                 unimplemented!()
             }
-            Self::Block(BlockNodeType::Heading(..)) => {
-                unimplemented!()
-            }
-            Self::Block(BlockNodeType::Quote) => {
-                unimplemented!()
-            }
-            Self::Block(BlockNodeType::Code) => {
-                unimplemented!()
-            }
+            Self::Block(BlockNodeType::Heading(HeadingLevel::H1)) => "# ",
+            Self::Block(BlockNodeType::Heading(HeadingLevel::H2)) => "## ",
+            Self::Block(BlockNodeType::Heading(HeadingLevel::H3)) => "### ",
+            Self::Block(BlockNodeType::Heading(HeadingLevel::H4)) => "#### ",
+            Self::Block(BlockNodeType::Heading(HeadingLevel::H5)) => "##### ",
+            Self::Block(BlockNodeType::Heading(HeadingLevel::H6)) => "###### ",
+            Self::Block(BlockNodeType::Quote) => "> ",
+            Self::Block(BlockNodeType::Code) => "```\n",
             Self::Block(BlockNodeType::ListItem(item_type)) => item_type.head(), // todo: support indentation
             Self::Block(BlockNodeType::Rule) => "***",
         }
@@ -56,12 +55,19 @@ impl MarkdownNodeType {
             }
             Self::Block(BlockNodeType::Heading(..)) => "",
             Self::Block(BlockNodeType::Quote) => "",
-            Self::Block(BlockNodeType::Code) => {
-                unimplemented!()
-            }
+            Self::Block(BlockNodeType::Code) => "\n```",
             Self::Block(BlockNodeType::ListItem(..)) => "",
             Self::Block(BlockNodeType::Rule) => "",
         }
+    }
+
+    /// Returns true if the markdown syntax for the node contains text which should be split into words for word bounds calculation
+    pub fn syntax_includes_text(&self) -> bool {
+        matches!(self, Self::Inline(InlineNodeType::Link) | Self::Inline(InlineNodeType::Image))
+    }
+
+    pub fn conflicts_with(&self, other: &MarkdownNodeType) -> bool {
+        matches!((self, other), (Self::Block(..), Self::Block(..)))
     }
 }
 
@@ -237,14 +243,14 @@ impl RenderStyle {
                 text_format.color = vis.syntax();
             }
             RenderStyle::Markdown(MarkdownNode::Document) => {
-                text_format.font_id.size = 16.0;
+                text_format.font_id.size = vis.font_size();
                 text_format.color = vis.text();
             }
             RenderStyle::Markdown(MarkdownNode::Paragraph) => {}
             RenderStyle::Markdown(MarkdownNode::Inline(InlineNode::Code)) => {
                 text_format.font_id.family = FontFamily::Monospace;
                 text_format.color = vis.code();
-                text_format.font_id.size = 14.0;
+                text_format.font_id.size = vis.monospace_font_size();
             }
             RenderStyle::Markdown(MarkdownNode::Inline(InlineNode::Bold)) => {
                 text_format.color = vis.bold();
@@ -267,7 +273,7 @@ impl RenderStyle {
                 if level == &HeadingLevel::H1 {
                     text_format.font_id.family = FontFamily::Name(Arc::from("Bold"));
                 }
-                text_format.font_id.size = heading_size(level);
+                text_format.font_id.size = vis.heading_size(level);
                 text_format.color = vis.heading();
             }
             RenderStyle::Markdown(MarkdownNode::Block(BlockNode::Quote)) => {
@@ -275,7 +281,7 @@ impl RenderStyle {
             }
             RenderStyle::Markdown(MarkdownNode::Block(BlockNode::Code)) => {
                 text_format.font_id.family = FontFamily::Monospace;
-                text_format.font_id.size = 14.0;
+                text_format.font_id.size = vis.monospace_font_size();
                 text_format.color = vis.code();
             }
             RenderStyle::Markdown(MarkdownNode::Block(BlockNode::ListItem(..))) => {}
@@ -292,17 +298,5 @@ impl MarkdownNode {
             Self::Inline(inline_node) => MarkdownNodeType::Inline(inline_node.node_type()),
             Self::Block(block_node) => MarkdownNodeType::Block(block_node.node_type()),
         }
-    }
-}
-
-// todo: move to appearance
-fn heading_size(level: &HeadingLevel) -> f32 {
-    match level {
-        HeadingLevel::H1 => 32.0,
-        HeadingLevel::H2 => 28.0,
-        HeadingLevel::H3 => 25.0,
-        HeadingLevel::H4 => 22.0,
-        HeadingLevel::H5 => 19.0,
-        HeadingLevel::H6 => 17.0,
     }
 }

@@ -1,7 +1,7 @@
 use eframe::egui;
 use lbeditor::{
     input::canonical::{Modification, Region},
-    style::{InlineNode, MarkdownNode},
+    style::{BlockNode, InlineNode, ListItem, MarkdownNode},
     Editor,
 };
 
@@ -161,7 +161,7 @@ fn get_buttons(visibility: &ToolBarVisibility) -> Vec<ToolbarButton> {
                 id: "header".to_string(),
                 callback: |e, t| {
                     e.custom_events
-                        .push(Modification::Heading(t.header_click_count as u32));
+                        .push(Modification::toggle_heading_style(t.header_click_count));
                     if t.header_click_count > 5 {
                         t.header_click_count = 6;
                     } else {
@@ -202,12 +202,24 @@ fn get_buttons(visibility: &ToolBarVisibility) -> Vec<ToolbarButton> {
             ToolbarButton {
                 icon: Icon::NUMBER_LIST,
                 id: "number_list".to_string(),
-                callback: |e, _| e.custom_events.push(Modification::NumberListItem),
+                callback: |e, _| {
+                    e.custom_events
+                        .push(Modification::toggle_block_style(BlockNode::ListItem(
+                            ListItem::Numbered(1),
+                            0,
+                        )))
+                },
             },
             ToolbarButton {
                 icon: Icon::TODO_LIST,
                 id: "todo_list".to_string(),
-                callback: |e, _| e.custom_events.push(Modification::TodoListItem),
+                callback: |e, _| {
+                    e.custom_events
+                        .push(Modification::toggle_block_style(BlockNode::ListItem(
+                            ListItem::Todo(false),
+                            0,
+                        )))
+                },
             },
             ToolbarButton {
                 icon: Icon::VISIBILITY_OFF,
