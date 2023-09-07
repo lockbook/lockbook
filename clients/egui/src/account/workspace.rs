@@ -2,7 +2,6 @@ use std::time::Instant;
 
 use eframe::egui;
 use egui_extras::RetainedImage;
-use egui_winit::egui::TextEdit;
 
 use crate::widgets::separator;
 use crate::{theme::Icon, widgets::Button};
@@ -119,7 +118,7 @@ fn tab_label(ui: &mut egui::Ui, t: &mut Tab, is_active: bool) -> Option<TabLabel
             let res = ui
                 .allocate_ui_at_rect(rect, |ui| {
                     ui.add(
-                        TextEdit::singleline(str)
+                        egui::TextEdit::singleline(str)
                             .frame(false)
                             .id(egui::Id::new("rename_tab")),
                     )
