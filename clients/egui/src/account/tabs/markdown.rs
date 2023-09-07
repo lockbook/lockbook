@@ -36,7 +36,6 @@ impl Markdown {
             let res = self.editor.scroll_ui(ui);
             self.toolbar.show(ui, &mut self.editor);
             if let Some(title) = &res.potential_title {
-                println!("pot title is {}", title);
                 self.update_tx
                     .send(AccountUpdate::EditorNameSignal(title.clone()))
                     .unwrap();
