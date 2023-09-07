@@ -305,17 +305,25 @@ impl Editor {
         // recalculate dependent state
         if text_updated {
             self.ast = ast::calc(&self.buffer.current);
-            self.bounds.words =
-                bounds::calc_words(&self.buffer.current, &self.ast, &self.appearance);
-            self.bounds.paragraphs = bounds::calc_paragraphs(&self.buffer.current, &self.ast);
+            self.bounds.ast = bounds::calc_ast(&self.ast);
+            self.bounds.words = bounds::calc_words(
+                &self.buffer.current,
+                &self.ast,
+                &self.bounds.ast,
+                &self.appearance,
+            );
+            self.bounds.paragraphs =
+                bounds::calc_paragraphs(&self.buffer.current, &self.bounds.ast);
         }
         if text_updated || selection_updated {
             self.bounds.text = bounds::calc_text(
                 &self.ast,
+                &self.bounds.ast,
                 &self.appearance,
                 &self.buffer.current.segs,
                 self.buffer.current.cursor,
             );
+            self.bounds.links = bounds::calc_links(&self.buffer.current, &self.bounds.text);
         }
         if text_updated || selection_updated || theme_updated {
             self.images = images::calc(&self.ast, &self.images, &self.client, ui);
@@ -328,7 +336,7 @@ impl Editor {
             &self.appearance,
             ui,
         );
-        self.bounds.lines = bounds::calc_lines(&self.galleys, &self.ast, &self.bounds.text);
+        self.bounds.lines = bounds::calc_lines(&self.galleys, &self.bounds.ast, &self.bounds.text);
         self.initialized = true;
 
         // draw
@@ -390,7 +398,7 @@ impl Editor {
         if self.buffer.current.cursor.selection.is_empty() {
             for style in self
                 .ast
-                .styles_at_offset(self.buffer.current.cursor.selection.start())
+                .styles_at_offset(self.buffer.current.cursor.selection.start(), &self.bounds.ast)
             {
                 match style {
                     MarkdownNode::Inline(InlineNode::Bold) => result.cursor_in_bold = true,
@@ -510,7 +518,7 @@ impl Editor {
                     .any(|e| matches!(e, Modification::Select { region: Region::Location(..) }));
 
             let touched_selection = current_selection.is_empty()
-                && prior_selection.contains(current_selection.1)
+                && prior_selection.contains_inclusive(current_selection.1)
                 && touched_a_galley
                 && combined_events
                     .iter()

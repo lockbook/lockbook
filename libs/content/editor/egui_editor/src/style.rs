@@ -111,6 +111,7 @@ impl ListItemType {
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum RenderStyle {
     Selection,
+    PlaintextLink,
     Syntax,
     Markdown(MarkdownNode),
 }
@@ -238,6 +239,9 @@ impl RenderStyle {
         match self {
             RenderStyle::Selection => {
                 text_format.background = vis.selection_bg();
+            }
+            RenderStyle::PlaintextLink => {
+                text_format.color = vis.link();
             }
             RenderStyle::Syntax => {
                 text_format.color = vis.syntax();
