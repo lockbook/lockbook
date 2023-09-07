@@ -123,7 +123,10 @@ impl Editor {
             let mut selection_end_line = selection_end_line;
             let mut stroke = stroke;
 
-            for style in self.ast.styles_at_offset(cursor.selection.1) {
+            for style in self
+                .ast
+                .styles_at_offset(cursor.selection.1, &self.bounds.ast)
+            {
                 match style {
                     MarkdownNode::Inline(InlineNode::Bold)
                     | MarkdownNode::Block(BlockNode::Heading(HeadingLevel::H1)) => {

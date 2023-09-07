@@ -414,27 +414,37 @@ impl Debug for RelCharOffset {
     }
 }
 
-pub trait RangeExt<Element: Sub<Element>>: Ord + Sized {
-    fn contains(&self, value: Element) -> bool;
-    fn intersects(&self, other: &(Element, Element)) -> bool;
+pub trait RangeExt<Element: Sub<Element>>: Sized {
+    fn contains(&self, value: Element, start_inclusive: bool, end_inclusive: bool) -> bool;
+    fn intersects(&self, other: &(Element, Element), allow_empty_intersection: bool) -> bool;
     fn start(&self) -> Element;
     fn end(&self) -> Element;
     fn len(&self) -> <Element as Sub>::Output;
     fn is_empty(&self) -> bool;
+
+    fn contains_inclusive(&self, value: Element) -> bool {
+        self.contains(value, true, true)
+    }
+    fn intersects_allow_empty(&self, other: &(Element, Element)) -> bool {
+        self.intersects(other, true)
+    }
 }
 
 impl<T> RangeExt<T> for (T, T)
 where
     T: Ord + Sized + Copy + Sub<T>,
 {
-    /// returns whether the range includes the value, treating the (start, end) bounds as (inclusive, inclusive)
-    fn contains(&self, value: T) -> bool {
-        self.start() <= value && value <= self.end()
+    /// returns whether the range includes the value
+    fn contains(&self, value: T, start_inclusive: bool, end_inclusive: bool) -> bool {
+        (self.start() < value || (start_inclusive && self.start() == value))
+            && (value < self.end() || (end_inclusive && self.end() == value))
     }
 
-    /// returns whether the range intersects another range, treating the (start, end) bounds as (inclusive, inclusive)
-    fn intersects(&self, other: &(T, T)) -> bool {
-        self.start() <= other.end() && other.start() <= self.end()
+    /// returns whether the range intersects another range
+    fn intersects(&self, other: &(T, T), allow_empty_intersection: bool) -> bool {
+        (self.start() < other.end() || (allow_empty_intersection && self.start() == other.end()))
+            && (other.start() < self.end()
+                || (allow_empty_intersection && other.start() == self.end()))
     }
 
     fn start(&self) -> T {
@@ -477,5 +487,49 @@ where
 {
     fn into_range(self) -> (I, I) {
         (self.into(), self.into())
+    }
+}
+
+pub trait RangeIterExt {
+    type Item;
+    type Iter: DoubleEndedIterator<Item = Self::Item>;
+    fn iter(self) -> Self::Iter;
+}
+
+impl RangeIterExt for (usize, usize) {
+    type Item = usize;
+    type Iter = RangeIter;
+    fn iter(self) -> Self::Iter {
+        RangeIter { start_inclusive: self.0, end_exclusive: self.1 }
+    }
+}
+
+pub struct RangeIter {
+    start_inclusive: usize,
+    end_exclusive: usize,
+}
+
+impl Iterator for RangeIter {
+    type Item = usize;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.start_inclusive < self.end_exclusive {
+            let result = self.start_inclusive;
+            self.start_inclusive += 1;
+            Some(result)
+        } else {
+            None
+        }
+    }
+}
+
+impl DoubleEndedIterator for RangeIter {
+    fn next_back(&mut self) -> Option<Self::Item> {
+        if self.start_inclusive < self.end_exclusive {
+            self.end_exclusive -= 1;
+            Some(self.end_exclusive)
+        } else {
+            None
+        }
     }
 }

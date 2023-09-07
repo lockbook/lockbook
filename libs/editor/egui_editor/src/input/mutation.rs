@@ -1,11 +1,11 @@
 use crate::ast::{Ast, AstTextRangeType};
-use crate::bounds::{Bounds, Text};
+use crate::bounds::{AstTextRanges, Bounds, RangesExt, Text};
 use crate::buffer::{EditorMutation, Mutation, SubBuffer, SubMutation};
 use crate::galleys::Galleys;
 use crate::input::canonical::{Location, Modification, Offset, Region};
 use crate::input::cursor::Cursor;
 use crate::layouts::Annotation;
-use crate::offset_types::{DocCharOffset, RangeExt};
+use crate::offset_types::{DocCharOffset, RangeExt, RangeIterExt};
 use crate::style::{InlineNodeType, ListItem, MarkdownNode, MarkdownNodeType};
 use crate::unicode_segs::UnicodeSegs;
 use egui::Pos2;
@@ -58,16 +58,22 @@ pub fn calc(
         }
         Modification::ToggleStyle { region, style } => {
             let cursor = region_to_cursor(region, current_cursor, buffer, galleys, bounds);
-            let unapply = region_completely_styled(cursor, &style, ast);
+            let unapply = region_completely_styled(cursor, &style, ast, &bounds.ast);
             if !unapply {
-                for conflict in conflicting_styles(cursor, &style, ast) {
-                    apply_style(cursor, conflict, true, buffer, ast, &mut mutation)
+                for conflict in conflicting_styles(cursor, &style, ast, &bounds.ast) {
+                    apply_style(cursor, conflict, true, buffer, ast, &bounds.ast, &mut mutation)
                 }
             }
-            apply_style(cursor, style.clone(), unapply, buffer, ast, &mut mutation);
+            apply_style(cursor, style.clone(), unapply, buffer, ast, &bounds.ast, &mut mutation);
             if current_cursor.selection.is_empty() {
                 // toggling style at end of styled range moves cursor to outside of styled range
-                if let Some(text_range) = ast.text_range_at_offset(current_cursor.selection.1) {
+                if let Some(text_range) = bounds
+                    .ast
+                    .find_containing(current_cursor.selection.1, true, true)
+                    .iter()
+                    .last()
+                {
+                    let text_range = &bounds.ast[text_range];
                     if text_range.node(ast).node_type() == style.node_type()
                         && text_range.range_type == AstTextRangeType::Tail
                     {
@@ -85,7 +91,11 @@ pub fn calc(
             let mut cursor = current_cursor;
             let galley_idx = galleys.galley_at_char(cursor.selection.1);
             let galley = &galleys[galley_idx];
-            let ast_text_range = ast.text_range_at_offset(cursor.selection.1);
+            let ast_text_range = bounds
+                .ast
+                .find_containing(current_cursor.selection.1, true, true)
+                .iter()
+                .last();
             if matches!(galley.annotation, Some(Annotation::Item(..))) {
                 // cursor at end of list item
                 if galley.size() - galley.head_size - galley.tail_size == 0 {
@@ -145,6 +155,7 @@ pub fn calc(
                 mutation.push(SubMutation::Insert { text: "\n".to_string(), advance_cursor: true });
                 mutation.push(SubMutation::Cursor { cursor });
             } else if let Some(ast_text_range) = ast_text_range {
+                let ast_text_range = &bounds.ast[ast_text_range];
                 if ast_text_range.range_type == AstTextRangeType::Tail
                     && ast_text_range.node(ast).node_type()
                         == MarkdownNodeType::Inline(InlineNodeType::Link)
@@ -398,12 +409,14 @@ pub fn calc(
 }
 
 /// Returns true if all text in `cursor` has style `style`
-fn region_completely_styled(cursor: Cursor, style: &MarkdownNode, ast: &Ast) -> bool {
+fn region_completely_styled(
+    cursor: Cursor, style: &MarkdownNode, ast: &Ast, ast_ranges: &AstTextRanges,
+) -> bool {
     if cursor.selection.is_empty() {
         return false;
     }
 
-    for text_range in ast.iter_text_ranges() {
+    for text_range in ast_ranges {
         // skip ranges before or after the cursor
         if text_range.range.end() <= cursor.selection.start() {
             continue;
@@ -414,7 +427,7 @@ fn region_completely_styled(cursor: Cursor, style: &MarkdownNode, ast: &Ast) -> 
 
         // look for at least one ancestor that applies the style
         let mut styled = false;
-        for ancestor in text_range.ancestors {
+        for &ancestor in &text_range.ancestors {
             if &ast.nodes[ancestor].node_type == style {
                 styled = true;
                 break;
@@ -430,13 +443,15 @@ fn region_completely_styled(cursor: Cursor, style: &MarkdownNode, ast: &Ast) -> 
 }
 
 /// Returns true if text in `cursor` has any style which should be removed before applying `style`
-fn conflicting_styles(cursor: Cursor, style: &MarkdownNode, ast: &Ast) -> HashSet<MarkdownNode> {
+fn conflicting_styles(
+    cursor: Cursor, style: &MarkdownNode, ast: &Ast, ast_ranges: &AstTextRanges,
+) -> HashSet<MarkdownNode> {
     let mut result = HashSet::new();
     if cursor.selection.is_empty() {
         return result;
     }
 
-    for text_range in ast.iter_text_ranges() {
+    for text_range in ast_ranges {
         // skip ranges before or after the cursor
         if text_range.range.end() <= cursor.selection.start() {
             continue;
@@ -446,7 +461,7 @@ fn conflicting_styles(cursor: Cursor, style: &MarkdownNode, ast: &Ast) -> HashSe
         }
 
         // look for at least one ancestor that applies a conflicting style
-        for ancestor in text_range.ancestors {
+        for &ancestor in &text_range.ancestors {
             if ast.nodes[ancestor]
                 .node_type
                 .node_type()
@@ -463,7 +478,7 @@ fn conflicting_styles(cursor: Cursor, style: &MarkdownNode, ast: &Ast) -> HashSe
 /// Applies or unapplies `style` to `cursor`, splitting or joining surrounding styles as necessary.
 fn apply_style(
     cursor: Cursor, style: MarkdownNode, unapply: bool, buffer: &SubBuffer, ast: &Ast,
-    mutation: &mut Vec<SubMutation>,
+    ast_ranges: &AstTextRanges, mutation: &mut Vec<SubMutation>,
 ) {
     if buffer.is_empty() {
         insert_head(cursor.selection.start(), style.clone(), mutation);
@@ -474,14 +489,17 @@ fn apply_style(
     // find range containing cursor start and cursor end
     let mut start_range = None;
     let mut end_range = None;
-    for text_range in ast.iter_text_ranges() {
+    for text_range in ast_ranges {
         // when at bound, start prefers next
-        if text_range.range.contains(cursor.selection.start()) {
+        if text_range
+            .range
+            .contains_inclusive(cursor.selection.start())
+        {
             start_range = Some(text_range.clone());
         }
         // when at bound, end prefers previous unless selection is empty
         if (cursor.selection.is_empty() || end_range.is_none())
-            && text_range.range.contains(cursor.selection.end())
+            && text_range.range.contains_inclusive(cursor.selection.end())
         {
             end_range = Some(text_range);
         }
@@ -557,9 +575,9 @@ fn apply_style(
 
     // remove head and tail for nodes between nodes containing start and end
     let mut found_start_range = false;
-    for text_range in ast.iter_text_ranges() {
+    for text_range in ast_ranges {
         // skip ranges until we pass the range containing the selection start (handled above)
-        if text_range == start_range {
+        if text_range == &start_range {
             found_start_range = true;
         }
         if !found_start_range {
@@ -715,8 +733,8 @@ pub fn pos_to_char_offset(
         let mut result = 0.into();
         for galley_idx in 0..galleys.len() {
             let galley = &galleys[galley_idx];
-            if galley.galley_location.min.y <= pos.y {
-                if pos.y <= galley.galley_location.max.y {
+            if pos.y <= galley.galley_location.max.y {
+                if galley.galley_location.min.y <= pos.y {
                     // click position is in a galley
                 } else {
                     // click position is between galleys
@@ -725,6 +743,7 @@ pub fn pos_to_char_offset(
                 let relative_pos = pos - galley.text_location;
                 let new_cursor = galley.galley.cursor_from_pos(relative_pos);
                 result = galleys.char_offset_by_galley_and_cursor(galley_idx, &new_cursor, text);
+                break;
             }
         }
         result

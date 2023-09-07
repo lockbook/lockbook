@@ -1,5 +1,5 @@
 use crate::appearance::{Appearance, CaptureCondition};
-use crate::ast::{Ast, AstTextRangeType};
+use crate::ast::{Ast, AstTextRange, AstTextRangeType};
 use crate::buffer::SubBuffer;
 use crate::galleys::Galleys;
 use crate::input::canonical::Bound;
@@ -8,31 +8,46 @@ use crate::offset_types::{DocByteOffset, DocCharOffset, RangeExt, RelByteOffset}
 use crate::unicode_segs::UnicodeSegs;
 use crate::Editor;
 use egui::epaint::text::cursor::RCursor;
+use linkify::LinkFinder;
+use std::cmp::Ordering;
 use std::collections::HashSet;
 use unicode_segmentation::UnicodeSegmentation;
 
+pub type AstTextRanges = Vec<AstTextRange>;
 pub type Words = Vec<(DocCharOffset, DocCharOffset)>;
 pub type Lines = Vec<(DocCharOffset, DocCharOffset)>;
 pub type Paragraphs = Vec<(DocCharOffset, DocCharOffset)>;
 pub type Text = Vec<(DocCharOffset, DocCharOffset)>;
+pub type PlainTextLinks = Vec<(DocCharOffset, DocCharOffset)>;
 
 /// Represents bounds of various text regions in the buffer. Region bounds are inclusive on both sides. Regions do not
 /// overlap, have region.0 <= region.1, and are sorted. Character and doc regions are not stored explicitly but can be
 /// inferred from the other regions.
 #[derive(Debug, Default)]
 pub struct Bounds {
+    pub ast: AstTextRanges,
+
     pub words: Words,
     pub lines: Lines,
     pub paragraphs: Paragraphs,
 
     /// Text consists of all rendered text. Every valid cursor position is in some possibly-empty text range.
     pub text: Text,
+
+    /// Plain text links are styled and clickable but aren't markdown links.
+    pub links: PlainTextLinks,
 }
 
-pub fn calc_words(buffer: &SubBuffer, ast: &Ast, appearance: &Appearance) -> Words {
+pub fn calc_ast(ast: &Ast) -> AstTextRanges {
+    ast.iter_text_ranges().collect()
+}
+
+pub fn calc_words(
+    buffer: &SubBuffer, ast: &Ast, ast_ranges: &AstTextRanges, appearance: &Appearance,
+) -> Words {
     let mut result = vec![];
 
-    for text_range in ast.iter_text_ranges() {
+    for text_range in ast_ranges {
         if text_range.range_type != AstTextRangeType::Text
             && appearance.markdown_capture(text_range.node(ast).node_type())
                 == CaptureCondition::Always
@@ -69,10 +84,10 @@ pub fn calc_words(buffer: &SubBuffer, ast: &Ast, appearance: &Appearance) -> Wor
     result
 }
 
-pub fn calc_lines(galleys: &Galleys, ast: &Ast, text: &Text) -> Lines {
+pub fn calc_lines(galleys: &Galleys, ast: &AstTextRanges, text: &Text) -> Lines {
     let mut result = vec![];
     let galleys = galleys;
-    let mut text_range_iter = ast.iter_text_ranges();
+    let mut text_range_iter = ast.iter();
     for (galley_idx, galley) in galleys.galleys.iter().enumerate() {
         for (row_idx, _) in galley.galley.rows.iter().enumerate() {
             let start_cursor = galley
@@ -102,10 +117,10 @@ pub fn calc_lines(galleys: &Galleys, ast: &Ast, text: &Text) -> Lines {
                 if text_range.range_type == AstTextRangeType::Text {
                     continue;
                 }
-                if text_range.range.contains(range.0) {
+                if text_range.range.contains_inclusive(range.0) {
                     range.0 = text_range.range.0;
                 }
-                if text_range.range.contains(range.1) {
+                if text_range.range.contains_inclusive(range.1) {
                     range.1 = text_range.range.1;
                     break;
                 }
@@ -123,12 +138,12 @@ pub fn calc_lines(galleys: &Galleys, ast: &Ast, text: &Text) -> Lines {
     result
 }
 
-pub fn calc_paragraphs(buffer: &SubBuffer, ast: &Ast) -> Paragraphs {
+pub fn calc_paragraphs(buffer: &SubBuffer, ast: &AstTextRanges) -> Paragraphs {
     let mut result = vec![];
 
     let captured_newlines = {
         let mut captured_newlines = HashSet::new();
-        for text_range in ast.iter_text_ranges() {
+        for text_range in ast {
             match text_range.range_type {
                 AstTextRangeType::Head | AstTextRangeType::Tail => {
                     // newlines in syntax sequences don't break paragraphs
@@ -163,10 +178,13 @@ pub fn calc_paragraphs(buffer: &SubBuffer, ast: &Ast) -> Paragraphs {
     result
 }
 
-pub fn calc_text(ast: &Ast, appearance: &Appearance, segs: &UnicodeSegs, cursor: Cursor) -> Text {
+pub fn calc_text(
+    ast: &Ast, ast_ranges: &AstTextRanges, appearance: &Appearance, segs: &UnicodeSegs,
+    cursor: Cursor,
+) -> Text {
     let mut result = vec![];
     let mut last_range_pushed = false;
-    for text_range in ast.iter_text_ranges() {
+    for text_range in ast_ranges {
         let captured = match appearance.markdown_capture(text_range.node(ast).node_type()) {
             CaptureCondition::Always => true,
             CaptureCondition::NoCursor => !text_range.intersects_selection(ast, cursor),
@@ -194,6 +212,27 @@ pub fn calc_text(ast: &Ast, appearance: &Appearance, segs: &UnicodeSegs, cursor:
     }
     if result.is_empty() {
         result = vec![(0.into(), 0.into())];
+    }
+
+    result
+}
+
+pub fn calc_links(buffer: &SubBuffer, text: &Text) -> PlainTextLinks {
+    let finder = {
+        let mut this = LinkFinder::new();
+        this.kinds(&[linkify::LinkKind::Url])
+            .url_must_have_scheme(false)
+            .url_can_be_iri(false); // ignore links with international characters for phishing prevention
+        this
+    };
+
+    let mut result = vec![];
+    for &text_range in text {
+        for span in finder.spans(&buffer[text_range]) {
+            if span.kind().is_some() {
+                result.push((text_range.0 + span.start(), text_range.0 + span.end()));
+            }
+        }
     }
 
     result
@@ -514,12 +553,188 @@ impl DocCharOffset {
     }
 }
 
+pub trait RangesExt {
+    /// Efficiently finds the possibly empty (inclusive, exclusive) range of ranges that contain `offset`
+    fn find_containing(
+        &self, offset: DocCharOffset, start_inclusive: bool, end_inclusive: bool,
+    ) -> (usize, usize);
+
+    /// Efficiently finds the possibly empty (inclusive, exclusive) range of ranges that intersect `range`
+    fn find_intersecting(
+        &self, range: (DocCharOffset, DocCharOffset), allow_empty: bool,
+    ) -> (usize, usize);
+}
+
+impl<Range: RangeExt<DocCharOffset>> RangesExt for Vec<Range> {
+    fn find_containing(
+        &self, offset: DocCharOffset, start_inclusive: bool, end_inclusive: bool,
+    ) -> (usize, usize) {
+        match self.binary_search_by(|range| {
+            if offset < range.start() {
+                Ordering::Less
+            } else if offset == range.start() {
+                if start_inclusive {
+                    Ordering::Equal
+                } else {
+                    Ordering::Less
+                }
+            } else if offset > range.start() && offset < range.end() {
+                Ordering::Equal
+            } else if offset == range.end() {
+                if end_inclusive {
+                    Ordering::Equal
+                } else {
+                    Ordering::Greater
+                }
+            } else if offset > range.end() {
+                Ordering::Greater
+            } else {
+                unreachable!()
+            }
+        }) {
+            Ok(idx) => {
+                let mut start = idx;
+                while start > 0 && self[idx - 1].contains(offset, start_inclusive, end_inclusive) {
+                    start -= 1;
+                }
+
+                let mut end = idx;
+                while end < self.len() - 1
+                    && self[end + 1].contains(offset, start_inclusive, end_inclusive)
+                {
+                    end += 1;
+                }
+
+                (start, end)
+            }
+            Err(idx) => (idx, idx),
+        }
+    }
+
+    fn find_intersecting(
+        &self, range: (DocCharOffset, DocCharOffset), allow_empty: bool,
+    ) -> (usize, usize) {
+        let (start_start, _) = self.find_containing(range.start(), allow_empty, false);
+        let (_, end_end) = self.find_containing(range.end(), false, allow_empty);
+        (start_start, end_end)
+    }
+}
+
+pub fn join<const N: usize>(ranges: [&[(DocCharOffset, DocCharOffset)]; N]) -> RangeJoinIter<N> {
+    let mut result = RangeJoinIter {
+        ranges,
+        in_range: [false; N],
+        current: [None; N],
+        current_end: Some(0.into()),
+    };
+    for (idx, range) in ranges.iter().enumerate() {
+        if !range.is_empty() {
+            result.current[idx] = Some(0);
+        }
+    }
+    result
+}
+
+pub struct RangeJoinIter<'r, const N: usize> {
+    ranges: [&'r [(DocCharOffset, DocCharOffset)]; N],
+    in_range: [bool; N],
+    current: [Option<usize>; N],
+    current_end: Option<DocCharOffset>,
+}
+
+impl<'r, const N: usize> Iterator for RangeJoinIter<'r, N> {
+    type Item = ([Option<usize>; N], (DocCharOffset, DocCharOffset));
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some(current_end) = self.current_end {
+            // advance all ranges that end at next end
+            for idx in 0..self.in_range.len() {
+                let in_range = self.in_range[idx];
+
+                // range set must not be out of ranges
+                if let Some(current) = self.current[idx] {
+                    let range = self.ranges[idx][current];
+
+                    // must be at end of current range
+                    if (in_range && current_end == range.end())
+                        || (!in_range && current_end == range.start())
+                    {
+                        if !in_range {
+                            // advance to the range after the current between-ranges range
+                            self.in_range[idx] = true;
+                        } else {
+                            // advance to the next range, if any
+                            if current < self.ranges[idx].len() - 1 {
+                                self.current[idx] = Some(current + 1);
+
+                                // if the next range starts after next_end, we're between ranges
+                                if self.ranges[idx][current + 1].start() > current_end {
+                                    self.in_range[idx] = false;
+                                }
+                            } else {
+                                self.current[idx] = None;
+                            }
+                        }
+                    }
+                }
+            }
+
+            // exclude between-ranges ranges from result
+            let idx_result = {
+                let mut this = self.current;
+                for (idx, &in_range) in self.in_range.iter().enumerate() {
+                    if !in_range {
+                        this[idx] = None;
+                    }
+                }
+                this
+            };
+
+            // determine the next end of a range
+            let mut next_end: Option<DocCharOffset> = None;
+            for (idx, &in_range) in self.in_range.iter().enumerate() {
+                let next_range = if let Some(next) = self.current[idx] {
+                    self.ranges[idx][next]
+                } else {
+                    // when we're beyond the last range in a set of ranges, we no longer consider that set's next range
+                    continue;
+                };
+
+                let end = if in_range {
+                    next_range.end()
+                } else {
+                    // if we're not in a range, we're between ranges and next stores the next one
+                    // the start of the next range is the end of the between-ranges range
+                    next_range.start()
+                };
+
+                next_end =
+                    if let Some(next_end) = next_end { Some(next_end.min(end)) } else { Some(end) };
+            }
+
+            // if there's no next end of a range, we're beyond the last range in all sets of ranges, so we're done
+            let next_end = if let Some(next_end) = next_end {
+                self.current_end = Some(next_end);
+                next_end
+            } else {
+                return None;
+            };
+
+            Some((idx_result, (current_end, next_end)))
+        } else {
+            // we're beyond the last range in all sets of ranges
+            None
+        }
+    }
+}
+
 impl Editor {
     pub fn print_bounds(&self) {
         println!("words: {:?}", self.ranges_text(&self.bounds.words));
         println!("lines: {:?}", self.ranges_text(&self.bounds.lines));
         println!("paragraphs: {:?}", self.ranges_text(&self.bounds.paragraphs));
         println!("text: {:?}", self.ranges_text(&self.bounds.text));
+        println!("links: {:?}", self.ranges_text(&self.bounds.links));
     }
 
     fn ranges_text(&self, ranges: &[(DocCharOffset, DocCharOffset)]) -> Vec<String> {
@@ -534,7 +749,7 @@ impl Editor {
 mod test {
     use crate::{input::canonical::Bound, offset_types::DocCharOffset};
 
-    use super::Bounds;
+    use super::{join, Bounds};
 
     #[test]
     fn range_before_after_no_ranges() {
@@ -1848,5 +2063,36 @@ mod test {
             DocCharOffset(8).advance_to_next_bound(Bound::Char, true, &bounds),
             DocCharOffset(6)
         );
+    }
+
+    #[test]
+    fn range_join_iter_empty() {
+        let a: Vec<(DocCharOffset, DocCharOffset)> = vec![];
+        let b: Vec<(DocCharOffset, DocCharOffset)> = vec![];
+        let c: Vec<(DocCharOffset, DocCharOffset)> = vec![];
+
+        let result = join([&a, &b, &c]).collect::<Vec<_>>();
+
+        assert_eq!(result, &[]);
+    }
+
+    #[test]
+    fn range_join_iter() {
+        let a = vec![(0.into(), 10.into())];
+        let b = vec![(0.into(), 5.into()), (5.into(), 5.into()), (5.into(), 10.into())];
+        let c = vec![(3.into(), 7.into())];
+
+        let result = join([&a, &b, &c]).collect::<Vec<_>>();
+
+        assert_eq!(
+            result,
+            &[
+                ([Some(0), Some(0), None], (0.into(), 3.into())),
+                ([Some(0), Some(0), Some(0)], (3.into(), 5.into())),
+                ([Some(0), Some(1), Some(0)], (5.into(), 5.into())),
+                ([Some(0), Some(2), Some(0)], (5.into(), 7.into())),
+                ([Some(0), Some(2), None], (7.into(), 10.into())),
+            ]
+        )
     }
 }
