@@ -35,15 +35,6 @@ pub unsafe extern "C" fn insert_text(obj: *mut c_void, content: *const c_char) {
 pub unsafe extern "C" fn backspace(obj: *mut c_void) {
     let obj = &mut *(obj as *mut WgpuEditor);
 
-    // iOS selects the previous character before deleting it, but we prefer the behavior when the selection is empty
-    // because it e.g. deletes annotations in one keystroke (consistent with other platforms)
-    obj.raw_input.events.push(Event::Key {
-        key: Key::ArrowRight,
-        pressed: true,
-        repeat: false,
-        modifiers: Default::default(),
-    });
-
     obj.raw_input.events.push(Event::Key {
         key: Key::Backspace,
         pressed: true,
@@ -427,7 +418,7 @@ pub unsafe extern "C" fn is_position_within_bound(
     };
     if let Some(range) = pos.range_bound(bound, backwards, false, &obj.editor.bounds) {
         // this implementation doesn't meet the specification in apple's docs, but the implementation that does creates word jumping bugs
-        if range.contains(pos) {
+        if range.contains_inclusive(pos) {
             return true;
         }
     }
