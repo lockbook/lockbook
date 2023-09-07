@@ -352,7 +352,7 @@ impl AccountScreen {
                         let core = self.core.clone();
                         let new_name = format!("{}.md", new_name);
                         let update_tx = self.update_tx.clone();
-                        let id = tab.id.clone();
+                        let id = tab.id;
 
                         thread::spawn(move || {
                             core.rename_file(id, new_name.as_str()).unwrap();
