@@ -347,25 +347,31 @@ impl AccountScreen {
                     self.has_pending_shares = has_pending_shares
                 }
                 AccountUpdate::EditorNameSignal(new_name) => {
-                    let tab = &self.workspace.tabs[self.workspace.active_tab];
-                    if tab.is_new_file {
-                        let core = self.core.clone();
-                        let new_name = format!("{}.md", new_name);
-                        let update_tx = self.update_tx.clone();
-                        let id = tab.id;
+                    if let Some(tab) = &self.workspace.tabs.get(self.workspace.active_tab) {
+                        if tab.is_new_file {
+                            let core = self.core.clone();
+                            let new_name = format!("{}.md", new_name);
+                            let update_tx = self.update_tx.clone();
+                            let id = tab.id;
 
-                        thread::spawn(move || {
-                            core.rename_file(id, new_name.as_str()).unwrap();
+                            thread::spawn(move || {
+                                core.rename_file(id, new_name.as_str()).unwrap();
 
-                            let mut new_child_paths = HashMap::new();
-                            for f in core.get_and_get_children_recursively(id).unwrap() {
-                                new_child_paths.insert(f.id, core.get_path_by_id(f.id).unwrap());
-                            }
+                                let mut new_child_paths = HashMap::new();
+                                for f in core.get_and_get_children_recursively(id).unwrap() {
+                                    new_child_paths
+                                        .insert(f.id, core.get_path_by_id(f.id).unwrap());
+                                }
 
-                            update_tx
-                                .send(AccountUpdate::FileRenamed { id, new_name, new_child_paths })
-                                .unwrap();
-                        });
+                                update_tx
+                                    .send(AccountUpdate::FileRenamed {
+                                        id,
+                                        new_name,
+                                        new_child_paths,
+                                    })
+                                    .unwrap();
+                            });
+                        }
                     }
                 }
             }
@@ -718,34 +724,55 @@ impl AccountScreen {
         }
         let core = self.core.clone();
         let update_tx = self.update_tx.clone();
-        thread::spawn(move || {
-            let mut max = NameComponents::from("untitled-0.md");
 
+        thread::spawn(move || {
             let focused_parent = core.get_file_by_id(focused_parent).unwrap();
             let focused_parent = if focused_parent.file_type == FileType::Document {
                 focused_parent.parent
             } else {
                 focused_parent.id
             };
-            core.get_children(focused_parent)
+
+            let mut new_file = NameComponents::from("untitled.md");
+
+            let mut children: Vec<NameComponents> = core
+                .get_children(focused_parent)
                 .unwrap()
                 .iter()
-                .for_each(|f| {
+                .filter_map(|f| {
                     let nc = NameComponents::from(&f.name);
-                    if let Some(variant) = nc.variant {
-                        if variant > max.variant.unwrap_or_default() {
-                            max = nc;
-                        }
+                    if nc.name == new_file.name {
+                        Some(nc)
+                    } else {
+                        None
                     }
-                });
+                })
+                .collect();
+
+            children.sort_by(|a, b| {
+                a.variant
+                    .unwrap_or_default()
+                    .cmp(&b.variant.unwrap_or_default())
+            });
+
+            for (i, child) in children.iter().enumerate() {
+                if i == 0 && child.variant.unwrap_or_default() > 0 {
+                    break;
+                }
+                if let Some(next) = children.get(i + 1) {
+                    if next.variant.unwrap_or_default() != child.variant.unwrap_or_default() + 1 {
+                        new_file = child.generate_next();
+                        break;
+                    }
+                } else {
+                    new_file = child.generate_next();
+                }
+            }
 
             let result = core
-                .create_file(
-                    max.generate_next().to_name().as_str(),
-                    focused_parent,
-                    lb::FileType::Document,
-                )
+                .create_file(new_file.to_name().as_str(), focused_parent, lb::FileType::Document)
                 .map_err(|err| format!("{:?}", err));
+
             update_tx.send(AccountUpdate::FileCreated(result)).unwrap();
         });
     }
