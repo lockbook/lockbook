@@ -346,32 +346,25 @@ impl AccountScreen {
                 AccountUpdate::FoundPendingShares(has_pending_shares) => {
                     self.has_pending_shares = has_pending_shares
                 }
-                AccountUpdate::EditorNameSignal(new_name) => {
+                AccountUpdate::EditorRenameSignal(new_name) => {
                     if let Some(tab) = &self.workspace.tabs.get(self.workspace.active_tab) {
-                        if tab.is_new_file {
-                            let core = self.core.clone();
-                            let new_name = format!("{}.md", new_name);
-                            let update_tx = self.update_tx.clone();
-                            let id = tab.id;
+                        let core = self.core.clone();
+                        let new_name = format!("{}.md", new_name);
+                        let update_tx = self.update_tx.clone();
+                        let id = tab.id;
 
-                            thread::spawn(move || {
-                                core.rename_file(id, new_name.as_str()).unwrap();
+                        thread::spawn(move || {
+                            core.rename_file(id, new_name.as_str()).unwrap();
 
-                                let mut new_child_paths = HashMap::new();
-                                for f in core.get_and_get_children_recursively(id).unwrap() {
-                                    new_child_paths
-                                        .insert(f.id, core.get_path_by_id(f.id).unwrap());
-                                }
+                            let mut new_child_paths = HashMap::new();
+                            for f in core.get_and_get_children_recursively(id).unwrap() {
+                                new_child_paths.insert(f.id, core.get_path_by_id(f.id).unwrap());
+                            }
 
-                                update_tx
-                                    .send(AccountUpdate::FileRenamed {
-                                        id,
-                                        new_name,
-                                        new_child_paths,
-                                    })
-                                    .unwrap();
-                            });
-                        }
+                            update_tx
+                                .send(AccountUpdate::FileRenamed { id, new_name, new_child_paths })
+                                .unwrap();
+                        });
                     }
                 }
             }
@@ -654,6 +647,7 @@ impl AccountScreen {
                                     &bytes,
                                     &toolbar_visibility,
                                     update_tx.clone(),
+                                    false,
                                 ))
                             } else if is_supported_image_fmt(ext) {
                                 TabContent::Image(ImageViewer::boxed(id.to_string(), &bytes))
@@ -717,6 +711,7 @@ impl AccountScreen {
             update_tx.send(AccountUpdate::FileCreated(result)).unwrap();
         });
     }
+
     fn create_file(&mut self) {
         let mut focused_parent = self.tree.root.file.id;
         for id in self.tree.state.selected.drain() {
@@ -828,6 +823,7 @@ impl AccountScreen {
                                 &bytes,
                                 &toolbar_visibility,
                                 update_tx.clone(),
+                                is_new_file,
                             ))
                         } else if is_supported_image_fmt(ext) {
                             TabContent::Image(ImageViewer::boxed(id.to_string(), &bytes))
@@ -983,7 +979,7 @@ pub enum AccountUpdate {
         new_name: String,
         new_child_paths: HashMap<lb::Uuid, String>,
     },
-    EditorNameSignal(String),
+    EditorRenameSignal(String),
     FileDeleted(lb::File),
 
     /// if a file has been imported successfully refresh the tree, otherwise show what went wrong

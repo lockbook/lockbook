@@ -12,11 +12,13 @@ pub struct Markdown {
     pub editor: Editor,
     pub toolbar: ToolBar,
     update_tx: Sender<AccountUpdate>,
+    new_file: bool,
 }
 
 impl Markdown {
     pub fn boxed(
         bytes: &[u8], toolbar_visibility: &ToolBarVisibility, update_tx: Sender<AccountUpdate>,
+        new_file: bool,
     ) -> Box<Self> {
         let content = String::from_utf8_lossy(bytes).to_string();
         let mut editor = Editor::default();
@@ -24,7 +26,7 @@ impl Markdown {
 
         let toolbar = ToolBar::new(toolbar_visibility);
 
-        Box::new(Self { editor, toolbar, update_tx })
+        Box::new(Self { editor, toolbar, update_tx, new_file })
     }
 
     pub fn past_first_frame(&self) -> bool {
@@ -35,10 +37,12 @@ impl Markdown {
         ui.vertical(|ui| {
             let res = self.editor.scroll_ui(ui);
             self.toolbar.show(ui, &mut self.editor);
-            if let Some(title) = &res.potential_title {
-                self.update_tx
-                    .send(AccountUpdate::EditorNameSignal(title.clone()))
-                    .unwrap();
+            if self.new_file {
+                if let Some(title) = &res.potential_title {
+                    self.update_tx
+                        .send(AccountUpdate::EditorRenameSignal(title.trim().to_string()))
+                        .unwrap();
+                }
             }
             res
         })
