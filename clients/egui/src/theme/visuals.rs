@@ -16,6 +16,6 @@ pub fn dark(primary: lb::ColorAlias) -> egui::Visuals {
 pub fn light(primary: lb::ColorAlias) -> egui::Visuals {
     let mut v = egui::Visuals::light();
     v.widgets.hovered.bg_fill = v.widgets.active.bg_fill;
-    v.widgets.active.bg_fill = ThemePalette::DARK[primary];
+    v.widgets.active.bg_fill = ThemePalette::LIGHT[primary];
     v
 }
