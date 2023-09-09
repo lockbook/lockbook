@@ -177,9 +177,14 @@ impl TreeNode {
         let depth_inset = self.depth_inset() + 5.0;
         let wrap_width = ui.available_width();
 
-        let icon = if self.file.is_folder() { Icon::FOLDER_OPEN } else { self.icon() };
+        let icon = if self.file.is_folder() {
+            let wt: egui::WidgetText = (&Icon::FOLDER_OPEN).into();
+            wt.color(ui.visuals().hyperlink_color)
+        } else {
+            let wt: egui::WidgetText = (&self.icon()).into();
+            wt.color(ui.visuals().text_color().gamma_multiply(0.6))
+        };
 
-        let icon: egui::WidgetText = (&icon).into();
         let icon = icon.into_galley(ui, Some(false), wrap_width, egui::TextStyle::Body);
 
         let text: egui::WidgetText = (&self.file.name).into();
@@ -197,9 +202,9 @@ impl TreeNode {
         let (rect, resp) = ui.allocate_exact_size(desired_size, egui::Sense::click_and_drag());
         if ui.is_rect_visible(rect) {
             let bg = if state.selected.contains(&self.file.id) {
-                ui.visuals().widgets.active.bg_fill
+                ui.visuals().code_bg_color.gamma_multiply(0.6)
             } else if resp.hovered() {
-                ui.visuals().widgets.hovered.bg_fill
+                ui.visuals().code_bg_color.gamma_multiply(0.3)
             } else {
                 ui.visuals().panel_fill
             };

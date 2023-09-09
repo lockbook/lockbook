@@ -224,6 +224,13 @@ impl super::AccountScreen {
 
             ui.visuals_mut().widgets.inactive.bg_fill = ui.visuals().widgets.active.bg_fill;
             ui.visuals_mut().widgets.hovered.bg_fill = ui.visuals().widgets.active.bg_fill;
+
+            let text_stroke =
+                egui::Stroke { color: ui.visuals().extreme_bg_color, ..Default::default() };
+            ui.visuals_mut().widgets.inactive.fg_stroke = text_stroke;
+            ui.visuals_mut().widgets.active.fg_stroke = text_stroke;
+            ui.visuals_mut().widgets.hovered.fg_stroke = text_stroke;
+
             if Button::default()
                 .text("New document")
                 .frame(true)

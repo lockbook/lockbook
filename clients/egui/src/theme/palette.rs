@@ -29,7 +29,7 @@ impl ThemePalette {
         red: Color32::from_rgb(255, 59, 48),
         green: Color32::from_rgb(40, 205, 65),
         yellow: Color32::from_rgb(255, 204, 0),
-        blue: Color32::from_rgb(165, 208, 255),
+        blue: Color32::from_rgb(10, 132, 255),
         magenta: Color32::from_rgb(175, 82, 222),
         cyan: Color32::from_rgb(85, 190, 240),
         white: Color32::from_rgb(255, 255, 255),
