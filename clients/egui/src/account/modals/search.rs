@@ -230,6 +230,8 @@ impl super::Modal for SearchModal {
         let buffer =
             if self.arrow_index.is_some() { &mut self.arrowed_path } else { &mut self.input };
 
+        ui.set_width(600.0);
+
         let out = ui
             .vertical_centered(|ui| {
                 egui::TextEdit::singleline(buffer)
