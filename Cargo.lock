@@ -1001,9 +1001,9 @@ checksum = "2da6da31387c7e4ef160ffab6d5e7f00c42626fe39aea70a7b0f1773f7dd6c1b"
 
 [[package]]
 name = "cli-rs"
-version = "0.1.6"
+version = "0.1.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7d533df6f55f3c197fb62ce0503bf1b1f1497dcff3e9de66c232410474621631"
+checksum = "e3c51bef9219a61f609dc38b24b4f1d31428ca695f652e841b257e10afb65599"
 dependencies = [
  "colored",
 ]
