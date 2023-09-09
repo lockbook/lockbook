@@ -3,8 +3,13 @@ use std::thread;
 
 use eframe::egui;
 
-use lb::service::search_service::SearchResultItem;
+use crate::model::DocType;
 
+struct SearchResultItem {
+    id: lb::Uuid,
+    path: String,
+    name: String,
+}
 pub struct SearchModal {
     requests: mpsc::Sender<String>,
     responses: mpsc::Receiver<Result<Vec<SearchResultItem>, String>>,
@@ -36,7 +41,17 @@ impl SearchModal {
 
                     let res = core
                         .search_file_paths(&input)
-                        .map_err(|err| format!("{:?}", err));
+                        .map_err(|err| format!("{:?}", err))
+                        .map(|search_results| {
+                            search_results
+                                .iter()
+                                .map(|sr| SearchResultItem {
+                                    id: sr.id,
+                                    path: sr.path.clone(),
+                                    name: core.get_file_by_id(sr.id).unwrap().name,
+                                })
+                                .collect()
+                        });
                     response_tx.send(res).unwrap();
 
                     *is_searching.write().unwrap() = false;
@@ -100,41 +115,78 @@ impl SearchModal {
     fn draw_search_result(
         &self, ui: &mut egui::Ui, res: &SearchResultItem, index: usize,
     ) -> egui::Response {
-        let text: egui::WidgetText = (&res.path).into();
-
-        let padding = ui.spacing().button_padding;
-
+        let padding = egui::vec2(10.0, 20.0);
         let wrap_width = ui.available_width();
-        let text = text.into_galley(ui, Some(false), wrap_width, egui::TextStyle::Body);
 
-        let desired_size =
-            egui::vec2(ui.available_size_before_wrap().x, text.size().y + padding.y * 2.0);
+        let icon: egui::WidgetText = (&DocType::from_name(res.path.as_str())
+            .to_icon()
+            .size(30.0)
+            .color(ui.visuals().text_color().gamma_multiply(0.5)))
+            .into();
+        let icon = icon.into_galley(ui, Some(true), wrap_width, egui::TextStyle::Body);
+
+        let name_text: egui::WidgetText = (&res.name).into();
+        let name_text = name_text.into_galley(ui, Some(true), wrap_width, egui::TextStyle::Body);
+
+        let path_text: egui::WidgetText = (&res.path).into();
+        let path_text = path_text
+            .color(ui.visuals().text_color().gamma_multiply(0.7))
+            .into_galley(ui, Some(false), wrap_width, egui::TextStyle::Body);
+
+        let desired_size = egui::vec2(
+            ui.available_size_before_wrap().x,
+            name_text.size().y + path_text.size().y + padding.y * 2.0,
+        );
 
         let (rect, resp) = ui.allocate_at_least(desired_size, egui::Sense::click_and_drag());
-        resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, text.text()));
+        resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, name_text.text()));
 
         if ui.is_rect_visible(rect) {
             let visuals = ui.style().interact(&resp);
 
-            let text_pos =
-                egui::pos2(rect.min.x + padding.x, rect.center().y - 0.5 * text.size().y);
+            let icon_pos =
+                egui::pos2(rect.min.x + padding.x, rect.center().y - 0.5 * name_text.size().y);
 
-            let maybe_fill = if self.arrow_index == Some(index) {
-                Some(ui.style().visuals.widgets.hovered.bg_fill)
-            } else if resp.hovered() {
-                Some(ui.style().visuals.widgets.active.bg_fill)
-            } else {
-                None
-            };
+            let name_text_pos = egui::pos2(
+                rect.min.x + padding.x * 2.0 + icon.size().x,
+                rect.min.y + name_text.size().y,
+            );
+            let path_text_pos = egui::pos2(
+                rect.min.x + padding.x * 2.0 + icon.size().x,
+                name_text_pos.y + path_text.size().y,
+            );
+
+            let maybe_fill =
+                if self.arrow_index == Some(index) || (index == 0 && self.arrow_index.is_none()) {
+                    Some(
+                        ui.style()
+                            .visuals
+                            .widgets
+                            .active
+                            .bg_fill
+                            .gamma_multiply(0.4),
+                    )
+                } else if resp.hovered() {
+                    Some(
+                        ui.style()
+                            .visuals
+                            .widgets
+                            .active
+                            .bg_fill
+                            .gamma_multiply(0.1),
+                    )
+                } else {
+                    None
+                };
 
             if let Some(fill) = maybe_fill {
-                let stroke: Option<egui::Stroke> = None;
-                let stroke = stroke.unwrap_or(visuals.bg_stroke);
                 ui.painter()
-                    .rect(rect.expand(visuals.expansion), 0.0, fill, stroke);
+                    .rect(rect.expand(visuals.expansion), 0.0, fill, egui::Stroke::NONE);
             }
 
-            text.paint_with_visuals(ui.painter(), text_pos, visuals);
+            icon.paint_with_visuals(ui.painter(), icon_pos, visuals);
+            name_text.paint_with_visuals(ui.painter(), name_text_pos, visuals);
+            path_text.paint_with_visuals(ui.painter(), path_text_pos, visuals);
         }
 
         resp
@@ -143,7 +195,7 @@ impl SearchModal {
 
 impl super::Modal for SearchModal {
     const ANCHOR: egui::Align2 = egui::Align2::CENTER_TOP;
-    const Y_OFFSET: f32 = 40.0;
+    const Y_OFFSET: f32 = 200.0;
 
     type Response = Option<SearchItemSelection>;
 
@@ -175,15 +227,19 @@ impl super::Modal for SearchModal {
 
         let mut resp = None;
 
-        ui.set_min_width(420.0);
-
         let buffer =
             if self.arrow_index.is_some() { &mut self.arrowed_path } else { &mut self.input };
 
-        let out = egui::TextEdit::singleline(buffer)
-            .desired_width(ui.available_size_before_wrap().x)
-            .margin(egui::vec2(6.0, 6.0))
-            .show(ui);
+        ui.set_width(600.0);
+
+        let out = ui
+            .vertical_centered(|ui| {
+                egui::TextEdit::singleline(buffer)
+                    .desired_width(f32::INFINITY)
+                    .margin(egui::vec2(6.0, 6.0))
+                    .show(ui)
+            })
+            .inner;
 
         if out.response.lost_focus()
             && ui.input(|i| i.key_pressed(egui::Key::Enter))
@@ -215,21 +271,30 @@ impl super::Modal for SearchModal {
         } else if !self.results.is_empty() {
             ui.add_space(5.0);
 
-            for (index, res) in self.results.iter().enumerate() {
-                if self.draw_search_result(ui, res, index).clicked() {
-                    let keep_open = {
-                        let m = ui.input(|i| i.modifiers);
-                        m.ctrl && !m.alt && !m.shift
-                    };
-                    resp = Some(SearchItemSelection { id: res.id, close: !keep_open });
-                    self.field_needs_focus = true;
-                    ui.ctx().request_repaint();
-                }
-            }
+            egui::ScrollArea::vertical()
+                .max_height(500.0)
+                .show(ui, |ui| {
+                    for (index, res) in self.results.iter().enumerate() {
+                        if self.draw_search_result(ui, res, index).clicked() {
+                            let keep_open = {
+                                let m = ui.input(|i| i.modifiers);
+                                m.ctrl && !m.alt && !m.shift
+                            };
+                            resp = Some(SearchItemSelection { id: res.id, close: !keep_open });
+                            self.field_needs_focus = true;
+                            ui.ctx().request_repaint();
+                        }
+                    }
+                });
         }
 
         if *self.is_searching.read().unwrap() {
-            ui.spinner();
+            ui.allocate_ui_at_rect(out.response.rect, |ui| {
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    ui.add_space(10.0);
+                    ui.spinner();
+                })
+            });
         }
 
         resp
