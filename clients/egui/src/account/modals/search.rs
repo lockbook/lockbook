@@ -157,7 +157,7 @@ impl SearchModal {
             );
 
             let maybe_fill =
-                if self.arrow_index == Some(index) || (index == 0 && self.arrow_index == None) {
+                if self.arrow_index == Some(index) || (index == 0 && self.arrow_index.is_none()) {
                     Some(
                         ui.style()
                             .visuals
@@ -230,10 +230,14 @@ impl super::Modal for SearchModal {
         let buffer =
             if self.arrow_index.is_some() { &mut self.arrowed_path } else { &mut self.input };
 
-        let out = egui::TextEdit::singleline(buffer)
-            .desired_width(f32::INFINITY)
-            .margin(egui::vec2(6.0, 6.0))
-            .show(ui);
+        let out = ui
+            .vertical_centered(|ui| {
+                egui::TextEdit::singleline(buffer)
+                    .desired_width(f32::INFINITY)
+                    .margin(egui::vec2(6.0, 6.0))
+                    .show(ui)
+            })
+            .inner;
 
         if out.response.lost_focus()
             && ui.input(|i| i.key_pressed(egui::Key::Enter))
