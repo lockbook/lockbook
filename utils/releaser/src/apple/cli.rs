@@ -91,6 +91,7 @@ class Lockbook < Formula
 
   def install
     bin.install "lockbook"
+    generate_completions_from_executable(bin/"lockbook", "completions")
   end
 end
 "#
