@@ -2,6 +2,7 @@
 use std::ffi::{c_char, CString};
 #[cfg(any(target_os = "ios", target_os = "macos"))]
 use std::ptr;
+use std::time::{Duration, SystemTime};
 use std::{cmp, mem};
 
 use egui::os::OperatingSystem;
@@ -342,7 +343,20 @@ impl Editor {
         // draw
         self.draw_text(self.ui_rect.size(), ui, touch_mode);
         if ui.memory(|m| m.has_focus(id)) {
-            self.draw_cursor(ui, touch_mode);
+            // if even number of seconds in current time, draw cursor
+            let now = SystemTime::now();
+            let secs = now
+                .duration_since(SystemTime::UNIX_EPOCH)
+                .unwrap()
+                .as_millis();
+            let draw_cursor = secs % 1000 < 500;
+            if draw_cursor {
+                self.draw_cursor(ui, touch_mode);
+                println!("drawing cursor");
+            } else {
+                println!("NOT drawing cursor");
+            }
+            ui.ctx().request_repaint_after(Duration::from_millis(100));
         }
         if self.debug.draw_enabled {
             self.draw_debug(ui);
