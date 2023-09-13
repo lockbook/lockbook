@@ -36,5 +36,8 @@ impl super::SettingsModal {
                 ui.label("Show usage in sidebar");
             });
         });
+
+
+
     }
 }
