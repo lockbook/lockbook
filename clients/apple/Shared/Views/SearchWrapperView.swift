@@ -282,36 +282,51 @@ struct SearchResultCellView: View {
     let path: String
     let matchedIndices: [Int]
     
+    let index: Int
+    let selected: Int
+    
     @State var pathModified: Text = Text("")
     @State var nameModified: Text = Text("")
     
     var body: some View {
         HStack {
-            Image(systemName: "doc.text.fill")
+            Image(systemName: documentExtensionToImage(name: name))
                 .resizable()
                 .frame(width: 20, height: 25)
                 .padding(.horizontal, 10)
-                .foregroundColor(.primary)
+                .foregroundColor(index == selected ? .white : .primary)
             
             VStack(alignment: .leading) {
-                HStack {
-                    nameModified
-                        .font(.system(size: 16))
-                        .multilineTextAlignment(.leading)
-                    Spacer()
-                }
-                HStack {
-                    pathModified
-                        .multilineTextAlignment(.leading)
-                    Spacer()
-                }
+                nameModified
+                    .font(.system(size: 16))
+                    .multilineTextAlignment(.leading)
+                    .foregroundColor(index == selected ? .white : .primary)
+                
+                pathModified
+                    .multilineTextAlignment(.leading)
+                    .foregroundColor(index == selected ? .white : .gray)
+            }
+            
+            Spacer()
+            
+            if index < 10 {
+                Text("⌘\(index)")
+                    .padding(.horizontal)
+                    .foregroundColor(index == selected ? .white : .gray)
             }
         }
         .frame(height: 40)
         .padding(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
+        .contentShape(Rectangle())
         .onAppear {
             underlineMatchedSegments()
         }
+        .onTapGesture {
+            DI.search.pathSearchSelected = index
+            
+            DI.search.openPathAtIndex(index: index)
+        }
+        .background(index == selected ? RoundedRectangle(cornerSize: CGSize(width: 5, height: 5)).foregroundColor(.blue.opacity(0.8)) : RoundedRectangle(cornerSize: CGSize(width: 5, height: 5)).foregroundColor(.clear))
     }
     
     func underlineMatchedSegments() {

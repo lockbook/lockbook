@@ -8,8 +8,11 @@ class SearchService: ObservableObject {
     init(_ core: LockbookApi) {
         self.core = core
     }
+        
+    var pathSearchTask: DispatchWorkItem? = nil
+    @Published var pathSearchState: SearchPathState = .NotSearching
+    @Published var pathSearchSelected = 0
     
-    @Published var isPathSearching: Bool = false
     @Published var pathsSearchResult: Array<FilePathInfo> = []
     @Published var searchPathAndContentState: SearchPathAndContentState = .NotSearching
     
@@ -103,8 +106,41 @@ class SearchService: ObservableObject {
         }
     }
     
+    func asyncSearchFilePath(input: String) {
+        self.pathSearchState = .Searching
+        self.pathSearchSelected = 0
+        
+        pathSearchTask?.cancel()
+        
+        let newPathSearchTask = DispatchWorkItem {
+            switch self.core.searchFilePaths(input: input) {
+            case .success(let paths):
+                self.pathSearchState = .SearchSuccessful(paths)
+            case .failure(let err):
+                self.pathSearchState = .Idle
+                DI.errors.handleError(err)
+            }
+        }
+        
+        DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(200), execute: newPathSearchTask)
+        
+        pathSearchTask = newPathSearchTask
+    }
+    
+    func openPathAtIndex(index: Int) {
+        if case .SearchSuccessful(let paths) = pathSearchState,
+           index < paths.count {
+            DI.currentDoc.cleanupOldDocs()
+
+            DI.currentDoc.openDoc(id: paths[index].id)
+            DI.currentDoc.setSelectedOpenDocById(maybeId: paths[index].id)
+            
+            pathSearchState = .NotSearching
+        }
+    }
+    
     func startPathSearch() {
-        isPathSearching = true
+        pathSearchState = .Idle
     }
     
     func submitSearch(id: UUID) {
@@ -151,5 +187,12 @@ public enum SearchPathAndContentState {
     case Searching
     case NoMatch
     case SearchSuccessful([SearchResult])
+}
+
+public enum SearchPathState: Equatable {
+    case NotSearching
+    case Idle
+    case Searching
+    case SearchSuccessful([SearchResultItem])
 }
 

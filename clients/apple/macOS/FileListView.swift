@@ -74,10 +74,7 @@ struct DetailView: View {
     @EnvironmentObject var currentSelection: DocumentService
     @EnvironmentObject var search: SearchService
     @EnvironmentObject var share: ShareService
-    
-    @State var quickActionBarVisible = false
-    @State var selectedFile: SearchResultItem? = nil
-    
+        
     var body: some View {
         ZStack {
             if currentSelection.isPendingSharesOpen {
@@ -86,31 +83,6 @@ struct DetailView: View {
                 DocumentTabView()
             }
             
-            QuickActionBar<SearchResultItem, SearchResultCellView>(
-                location: .window,
-                visible: $search.isPathSearching,
-                barWidth: 400,
-                showKeyboardShortcuts: true,
-                selectedItem: $selectedFile,
-                placeholderText: "Search files",
-                itemsForSearchTerm: { searchTask in
-                    let maybeSearchResults = search.searchFilePath(input: searchTask.searchTerm)
-                    
-                    if let results = maybeSearchResults {
-                        searchTask.complete(with: results)
-                    }
-                },
-                viewForItem: { searchResult, searchTerm in
-                    let (name, path) = searchResult.getNameAndPath()
-
-                    return SearchResultCellView(name: name, path: path, matchedIndices: searchResult.matchedIndices)
-                }
-            )
-            .onChange(of: selectedFile) { newValue in
-                if let submittedId = newValue?.id {
-                    search.submitSearch(id: submittedId)
-                }
-            }
         }
         .toolbar {
             ToolbarItemGroup {
