@@ -14,5 +14,5 @@ rustup target add aarch64-apple-ios x86_64-apple-ios aarch64-apple-darwin x86_64
 ```
 
 Steps:
-1. In `/libs/core_external_interface` run `make swift_libs` which will generate Core libs and place them into the correct location within your Xcode project.
+1. In `/libs/core/core_external_interface` run `make swift_libs` which will generate Core libs and place them into the correct location within your Xcode project.
 2. Open Xcode, import the project and hit the Run button.

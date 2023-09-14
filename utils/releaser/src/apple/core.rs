@@ -43,7 +43,7 @@ fn clean_dirs() {
 
 fn header() {
     let header = Command::new("cbindgen")
-        .args(["../core_external_interface/src/c_interface.rs", "-l", "c"])
+        .args(["./core_external_interface/src/c_interface.rs", "-l", "c"])
         .current_dir("libs/core")
         .success_output();
 
@@ -55,17 +55,17 @@ fn build_libs() {
     // Build the iOS targets
     Command::new("cargo")
         .args(["build", "--release", "--target=aarch64-apple-ios"])
-        .current_dir("libs/core_external_interface")
+        .current_dir("libs/core/core_external_interface")
         .assert_success();
 
     // Build the macOS targets
     Command::new("cargo")
         .args(["build", "--release", "--target=x86_64-apple-darwin"])
-        .current_dir("libs/core_external_interface")
+        .current_dir("libs/core/core_external_interface")
         .assert_success();
     Command::new("cargo")
         .args(["build", "--release", "--target=aarch64-apple-darwin"])
-        .current_dir("libs/core_external_interface")
+        .current_dir("libs/core/core_external_interface")
         .assert_success();
 
     // lipo macOS binaries together
