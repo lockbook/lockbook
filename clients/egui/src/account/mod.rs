@@ -728,41 +728,8 @@ impl AccountScreen {
                 focused_parent.id
             };
 
-            let mut new_file = NameComponents::from("untitled.md");
-
-            let mut children: Vec<NameComponents> = core
-                .get_children(focused_parent)
-                .unwrap()
-                .iter()
-                .filter_map(|f| {
-                    let nc = NameComponents::from(&f.name);
-                    if nc.name == new_file.name {
-                        Some(nc)
-                    } else {
-                        None
-                    }
-                })
-                .collect();
-
-            children.sort_by(|a, b| {
-                a.variant
-                    .unwrap_or_default()
-                    .cmp(&b.variant.unwrap_or_default())
-            });
-
-            for (i, child) in children.iter().enumerate() {
-                if i == 0 && child.variant.unwrap_or_default() > 0 {
-                    break;
-                }
-                if let Some(next) = children.get(i + 1) {
-                    if next.variant.unwrap_or_default() != child.variant.unwrap_or_default() + 1 {
-                        new_file = child.generate_next();
-                        break;
-                    }
-                } else {
-                    new_file = child.generate_next();
-                }
-            }
+            let new_file = NameComponents::from("untitled.md")
+                .next_in_children(core.get_children(focused_parent).unwrap());
 
             let result = core
                 .create_file(new_file.to_name().as_str(), focused_parent, lb::FileType::Document)
