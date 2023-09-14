@@ -42,12 +42,12 @@ tracing-subscriber = "0.3.9"
 tracing-appender = "0.2"
 sublime_fuzzy = "0.7.0"
 crossbeam = "0.8.1"
-lockbook-shared = { path = "libs/shared" }
+lockbook-shared = { path = "../libs/shared" }
 qrcode-generator = "4.1.6"
 db-rs = "0.2.1"
 db-rs-derive = "0.2.1"
 
-lockbook-server = { path = "../../server/server", optional = true }
+lockbook-server = { path = "../../../server/server", optional = true }
 tokio = { version = "1.5.0", optional = true }
 
 [dev-dependencies]
@@ -58,7 +58,7 @@ variant_count = "1.1.0"
 num_cpus = "1.13.0"
 rand = "0.8.4"
 tempfile = { version = "3.1.0" }
-test_utils = { path = "libs/test_utils" }
+test_utils = { path = "../libs/test_utils" }
 
 [[bench]]
 name = "bench_main"

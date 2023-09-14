@@ -4,7 +4,7 @@ version = "0.8.0"
 edition = "2021"
 
 [dependencies]
-lockbook-core = { path = "../../" }
+lockbook-core = { path = "../../../core/core" }
 lockbook-shared = { path = "../shared" }
 bincode = "1.3.3"
 itertools = "0.10.1"

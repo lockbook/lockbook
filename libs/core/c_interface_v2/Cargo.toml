@@ -7,5 +7,5 @@ edition = "2021"
 crate-type = ["lib", "staticlib", "cdylib"]
 
 [dependencies]
-lockbook-core = { path = "../" }
+lockbook-core = { path = "../core" }
 libc = "0.2.139"
