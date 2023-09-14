@@ -14,6 +14,7 @@ use std::time::{Duration, Instant};
 use std::{path, thread};
 
 use eframe::egui;
+use lb::{FileType, NameComponents};
 
 use crate::model::{AccountScreenInitData, Usage};
 use crate::settings::Settings;
@@ -146,13 +147,13 @@ impl AccountScreen {
                     ui.vertical(|ui| {
                         ui.add_space(15.0);
                         if let Some(&file) = self.full_search_doc.show(ui, &self.core) {
-                            self.open_file(file, ctx);
+                            self.open_file(file, ctx, false);
                         }
                         ui.add_space(15.0);
 
                         if self.full_search_doc.results.is_empty() {
                             if let Some(file) = self.suggested.show(ui) {
-                                self.open_file(file, ctx);
+                                self.open_file(file, ctx, false);
                             }
                             ui.add_space(15.0);
                             self.show_tree(ui);
@@ -210,7 +211,6 @@ impl AccountScreen {
                         ));
                     }
                     OpenModal::InitiateShare(target) => self.open_share_modal(target),
-                    OpenModal::NewDoc(maybe_parent) => self.open_new_doc_modal(maybe_parent),
                     OpenModal::NewFolder(maybe_parent) => self.open_new_folder_modal(maybe_parent),
                     OpenModal::Settings => {
                         self.modals.settings = Some(SettingsModal::new(&self.core, &self.settings));
@@ -237,16 +237,14 @@ impl AccountScreen {
                         self.tree.root.insert(f);
                         self.tree.reveal_file(id, &self.core);
                         if is_doc {
-                            self.open_file(id, ctx);
+                            self.open_file(id, ctx, true);
                         }
                         // Close whichever new file modal was open.
-                        self.modals.new_doc = None;
                         self.modals.new_folder = None;
+                        ctx.request_repaint();
                     }
                     Err(msg) => {
-                        if let Some(m) = &mut self.modals.new_doc {
-                            m.err_msg = Some(msg)
-                        } else if let Some(m) = &mut self.modals.new_folder {
+                        if let Some(m) = &mut self.modals.new_folder {
                             m.err_msg = Some(msg)
                         }
                     }
@@ -348,6 +346,27 @@ impl AccountScreen {
                 AccountUpdate::FoundPendingShares(has_pending_shares) => {
                     self.has_pending_shares = has_pending_shares
                 }
+                AccountUpdate::EditorRenameSignal(new_name) => {
+                    if let Some(tab) = &self.workspace.tabs.get(self.workspace.active_tab) {
+                        let core = self.core.clone();
+                        let new_name = format!("{}.md", new_name);
+                        let update_tx = self.update_tx.clone();
+                        let id = tab.id;
+
+                        thread::spawn(move || {
+                            core.rename_file(id, new_name.as_str()).unwrap();
+
+                            let mut new_child_paths = HashMap::new();
+                            for f in core.get_and_get_children_recursively(id).unwrap() {
+                                new_child_paths.insert(f.id, core.get_path_by_id(f.id).unwrap());
+                            }
+
+                            update_tx
+                                .send(AccountUpdate::FileRenamed { id, new_name, new_child_paths })
+                                .unwrap();
+                        });
+                    }
+                }
             }
         }
     }
@@ -364,10 +383,9 @@ impl AccountScreen {
         {
             ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape));
         }
-
         // Ctrl-N pressed while new file modal is not open.
-        if self.modals.new_doc.is_none() && ctx.input_mut(|i| i.consume_key(CTRL, egui::Key::N)) {
-            self.open_new_doc_modal(None);
+        if ctx.input_mut(|i| i.consume_key(CTRL, egui::Key::N)) {
+            self.create_file();
         }
 
         // Ctrl-S to save current tab.
@@ -462,11 +480,8 @@ impl AccountScreen {
             .show(ui, |ui| self.tree.show(ui))
             .inner;
 
-        if let Some(file) = resp.new_doc_modal {
-            self.update_tx
-                .send(OpenModal::NewDoc(Some(file)).into())
-                .unwrap();
-            ui.ctx().request_repaint();
+        if resp.new_file.is_some() {
+            self.create_file();
         }
 
         if let Some(file) = resp.new_folder_modal {
@@ -488,7 +503,7 @@ impl AccountScreen {
         }
 
         for id in resp.open_requests {
-            self.open_file(id, ui.ctx());
+            self.open_file(id, ui.ctx(), false);
         }
 
         if resp.delete_request {
@@ -583,11 +598,11 @@ impl AccountScreen {
             .collect::<Vec<lb::Uuid>>();
 
         let core = self.core.clone();
-        let update_tx = self.update_tx.clone();
         let ctx = ctx.clone();
 
         let settings = &self.settings.read().unwrap();
         let toolbar_visibility = settings.toolbar_visibility;
+        let update_tx = self.update_tx.clone();
 
         thread::spawn(move || {
             let all_metas = core.list_metadatas().unwrap();
@@ -628,7 +643,12 @@ impl AccountScreen {
                         .map_err(|err| TabFailure::Unexpected(format!("{:?}", err))) // todo(steve)
                         .map(|bytes| {
                             if ext == "md" {
-                                TabContent::Markdown(Markdown::boxed(&bytes, &toolbar_visibility))
+                                TabContent::Markdown(Markdown::boxed(
+                                    &bytes,
+                                    &toolbar_visibility,
+                                    update_tx.clone(),
+                                    false,
+                                ))
                             } else if is_supported_image_fmt(ext) {
                                 TabContent::Image(ImageViewer::boxed(id.to_string(), &bytes))
                             } else {
@@ -636,7 +656,6 @@ impl AccountScreen {
                             }
                         })
                 };
-
                 let now = Instant::now();
                 update_tx
                     .send(AccountUpdate::ReloadTab(
@@ -645,10 +664,12 @@ impl AccountScreen {
                             id,
                             name,
                             path,
+                            rename: None,
                             content: content.ok(),
                             failure: None,
                             last_changed: now,
                             last_saved: now,
+                            is_new_file: false,
                         }),
                     ))
                     .unwrap();
@@ -658,19 +679,7 @@ impl AccountScreen {
         });
     }
 
-    fn open_new_doc_modal(&mut self, maybe_parent: Option<lb::File>) {
-        self.open_new_file_modal(maybe_parent, lb::FileType::Document);
-    }
-
     fn open_new_folder_modal(&mut self, maybe_parent: Option<lb::File>) {
-        self.open_new_file_modal(maybe_parent, lb::FileType::Folder);
-    }
-
-    fn open_share_modal(&mut self, target: lb::File) {
-        self.modals.create_share = Some(CreateShareModal::new(target));
-    }
-
-    fn open_new_file_modal(&mut self, maybe_parent: Option<lb::File>, typ: lb::FileType) {
         let parent_id = match maybe_parent {
             Some(f) => {
                 if f.is_folder() {
@@ -683,15 +692,14 @@ impl AccountScreen {
         };
 
         let parent_path = self.core.get_path_by_id(parent_id).unwrap();
-
-        if typ == lb::FileType::Folder {
-            self.modals.new_folder = Some(NewFolderModal::new(parent_path));
-        } else {
-            self.modals.new_doc = Some(NewDocModal::new(parent_path));
-        }
+        self.modals.new_folder = Some(NewFolderModal::new(parent_path));
     }
 
-    fn create_file(&mut self, params: NewFileParams) {
+    fn open_share_modal(&mut self, target: lb::File) {
+        self.modals.create_share = Some(CreateShareModal::new(target));
+    }
+
+    fn create_folder(&mut self, params: NewFileParams) {
         let parent = self.core.get_by_path(&params.parent_path).unwrap();
 
         let core = self.core.clone();
@@ -700,6 +708,33 @@ impl AccountScreen {
             let result = core
                 .create_file(&params.name, parent.id, params.ftype)
                 .map_err(|err| format!("{:?}", err));
+            update_tx.send(AccountUpdate::FileCreated(result)).unwrap();
+        });
+    }
+
+    fn create_file(&mut self) {
+        let mut focused_parent = self.tree.root.file.id;
+        for id in self.tree.state.selected.drain() {
+            focused_parent = id;
+        }
+        let core = self.core.clone();
+        let update_tx = self.update_tx.clone();
+
+        thread::spawn(move || {
+            let focused_parent = core.get_file_by_id(focused_parent).unwrap();
+            let focused_parent = if focused_parent.file_type == FileType::Document {
+                focused_parent.parent
+            } else {
+                focused_parent.id
+            };
+
+            let new_file = NameComponents::from("untitled.md")
+                .next_in_children(core.get_children(focused_parent).unwrap());
+
+            let result = core
+                .create_file(new_file.to_name().as_str(), focused_parent, lb::FileType::Document)
+                .map_err(|err| format!("{:?}", err));
+
             update_tx.send(AccountUpdate::FileCreated(result)).unwrap();
         });
     }
@@ -716,7 +751,7 @@ impl AccountScreen {
         });
     }
 
-    fn open_file(&mut self, id: lb::Uuid, ctx: &egui::Context) {
+    fn open_file(&mut self, id: lb::Uuid, ctx: &egui::Context, is_new_file: bool) {
         if self.workspace.goto_tab_id(id) {
             ctx.request_repaint();
             return;
@@ -730,14 +765,14 @@ impl AccountScreen {
 
         let fpath = self.core.get_path_by_id(id).unwrap(); // TODO
 
-        self.workspace.open_tab(id, &fname, &fpath);
+        self.workspace.open_tab(id, &fname, &fpath, is_new_file);
 
         let core = self.core.clone();
-        let update_tx = self.update_tx.clone();
         let ctx = ctx.clone();
 
         let settings = &self.settings.read().unwrap();
         let toolbar_visibility = settings.toolbar_visibility;
+        let update_tx = self.update_tx.clone();
 
         thread::spawn(move || {
             let ext = fname.split('.').last().unwrap_or_default();
@@ -751,7 +786,12 @@ impl AccountScreen {
                     .map_err(|err| TabFailure::Unexpected(format!("{:?}", err))) // todo(steve)
                     .map(|bytes| {
                         if ext == "md" {
-                            TabContent::Markdown(Markdown::boxed(&bytes, &toolbar_visibility))
+                            TabContent::Markdown(Markdown::boxed(
+                                &bytes,
+                                &toolbar_visibility,
+                                update_tx.clone(),
+                                is_new_file,
+                            ))
                         } else if is_supported_image_fmt(ext) {
                             TabContent::Image(ImageViewer::boxed(id.to_string(), &bytes))
                         } else {
@@ -906,6 +946,7 @@ pub enum AccountUpdate {
         new_name: String,
         new_child_paths: HashMap<lb::Uuid, String>,
     },
+    EditorRenameSignal(String),
     FileDeleted(lb::File),
 
     /// if a file has been imported successfully refresh the tree, otherwise show what went wrong
@@ -928,7 +969,6 @@ pub enum AccountUpdate {
 }
 
 pub enum OpenModal {
-    NewDoc(Option<lb::File>),
     NewFolder(Option<lb::File>),
     InitiateShare(lb::File),
     Settings,

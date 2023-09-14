@@ -13,10 +13,12 @@ use std::time::Instant;
 pub struct Tab {
     pub id: lb::Uuid,
     pub name: String,
+    pub rename: Option<String>,
     pub path: String,
     pub failure: Option<TabFailure>,
     pub content: Option<TabContent>,
 
+    pub is_new_file: bool,
     pub last_changed: Instant,
     pub last_saved: Instant,
 }

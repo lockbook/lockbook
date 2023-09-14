@@ -17,7 +17,7 @@ pub use error::ErrorModal;
 pub use file_picker::FilePicker;
 pub use file_picker::FilePickerAction;
 pub use help::HelpModal;
-pub use new_file::{NewDocModal, NewFileParams, NewFolderModal};
+pub use new_file::{NewFileParams, NewFolderModal};
 pub use search::SearchModal;
 pub use settings::{SettingsModal, SettingsResponse};
 
@@ -35,7 +35,6 @@ pub struct Modals {
     pub error: Option<ErrorModal>,
     pub file_picker: Option<FilePicker>,
     pub help: Option<HelpModal>,
-    pub new_doc: Option<NewDocModal>,
     pub new_folder: Option<NewFolderModal>,
     pub search: Option<SearchModal>,
     pub settings: Option<SettingsModal>,
@@ -96,22 +95,16 @@ impl super::AccountScreen {
 
         if let Some(response) = show(ctx, x_offset, &mut self.modals.search) {
             if let Some(submission) = response.inner {
-                self.open_file(submission.id, ctx);
+                self.open_file(submission.id, ctx, false);
                 if submission.close {
                     self.modals.search = None;
                 }
             }
         }
 
-        if let Some(response) = show(ctx, x_offset, &mut self.modals.new_doc) {
-            if let Some(submission) = response.inner {
-                self.create_file(submission);
-            }
-        }
-
         if let Some(response) = show(ctx, x_offset, &mut self.modals.new_folder) {
             if let Some(submission) = response.inner {
-                self.create_file(submission);
+                self.create_folder(submission);
             }
         }
 
@@ -158,7 +151,6 @@ impl super::AccountScreen {
         m.settings.is_some()
             || m.accept_share.is_some()
             || m.account_backup.is_some()
-            || m.new_doc.is_some()
             || m.new_folder.is_some()
             || m.create_share.is_some()
             || m.file_picker.is_some()
@@ -172,10 +164,6 @@ impl super::AccountScreen {
         if m.settings.is_some() {
             m.settings = None;
             self.save_settings();
-            return true;
-        }
-        if m.new_doc.is_some() {
-            m.new_doc = None;
             return true;
         }
         if m.new_folder.is_some() {

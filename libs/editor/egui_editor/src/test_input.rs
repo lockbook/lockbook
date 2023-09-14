@@ -1,4 +1,4 @@
-pub static TEST_MARKDOWN: &str = TEST_MARKDOWN_50;
+pub static TEST_MARKDOWN: &str = TEST_MARKDOWN_54;
 
 pub static TEST_MARKDOWN_ALL: [&str; 55] = [
     TEST_MARKDOWN_0,
@@ -303,3 +303,5 @@ What do you know about rules?
 ***
 Rules rule!
 "#;
+
+pub static TEST_MARKDOWN_54: &str = r#""#;
