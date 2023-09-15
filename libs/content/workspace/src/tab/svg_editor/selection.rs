@@ -162,10 +162,7 @@ impl Selection {
             };
 
             for e in r.events.iter() {
-                if input_state.is_multi_touch
-                    || (selection_ctx.settings.pencil_only_drawing
-                        && selection_ctx.is_locked_vw_pen_only)
-                {
+                if input_state.is_multi_touch {
                     break;
                 }
 

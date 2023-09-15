@@ -16,6 +16,8 @@ use web_time::Instant;
 
 use self::history::History;
 use crate::tab::ExtendedInput;
+use crate::tab::svg_editor::pen::PathEvent;
+use crate::tab::svg_editor::roger::{Roger, RogerConfig};
 use crate::tab::svg_editor::toolbar::Toolbar;
 use crate::theme::palette::ThemePalette;
 use crate::workspace::WsPersistentStore;
@@ -38,7 +40,7 @@ use resvg::usvg::Transform;
 use serde::{Deserialize, Serialize};
 pub use toolbar::Tool;
 use toolbar::{ToolContext, ToolbarContext};
-use tracing::{Level, info, span};
+use tracing::{debug, info};
 
 pub struct SVGEditor {
     pub buffer: Buffer,
@@ -49,6 +51,8 @@ pub struct SVGEditor {
 
     history: History,
     pub toolbar: Toolbar,
+
+    roger: Roger,
     lb: Lb,
     pub open_file: Uuid,
     has_islands_interaction: bool,
@@ -184,6 +188,8 @@ impl SVGEditor {
             info!(id=?open_file, "creating canvas with read only mode");
         }
 
+        debug!(?settings.pencil_only_drawing, "building canvas with");
+
         Self {
             buffer,
             opened_content: Buffer::new(content),
@@ -207,15 +213,12 @@ impl SVGEditor {
             viewport_settings,
             cfg,
             read_only,
+            roger: Roger::new(RogerConfig::new(settings.pencil_only_drawing, read_only)),
         }
     }
 
     pub fn show(&mut self, ui: &mut egui::Ui) -> Response {
         set_style(ui);
-        ui.input(|r| println!("{:#?}", r.events));
-        let frame = ui.ctx().frame_nr();
-        let span = span!(Level::TRACE, "showing canvas widget", frame);
-        let _ = span.enter();
 
         self.viewport_settings.container_rect = ui.available_rect_before_wrap();
         self.input_ctx.update(ui);
@@ -348,7 +351,6 @@ impl SVGEditor {
                 })
             }) || cfg!(target_os = "ios"),
             settings: &mut self.settings,
-            is_locked_vw_pen_only: self.toolbar.gesture_handler.is_locked_vw_pen_only_draw(),
             viewport_settings: &mut self.viewport_settings,
             toolbar_has_interaction: self.has_islands_interaction,
         };
@@ -359,33 +361,74 @@ impl SVGEditor {
             return;
         }
 
-        if !self.read_only {
-            match self.toolbar.active_tool {
-                Tool::Pen => {
-                    self.toolbar.pen.handle_input(ui, &mut tool_context);
+        for event in self.roger.process(ui) {
+            let maybe_tool_event = match event {
+                roger::RogerEvent::ToolStart(payload) | roger::RogerEvent::ToolRun(payload) => {
+                    Some(PathEvent::Draw(payload))
                 }
-                Tool::Highlighter => {
-                    self.toolbar.highlighter.handle_input(ui, &mut tool_context);
+                roger::RogerEvent::ToolEnd(payload) => Some(PathEvent::End(payload)),
+                roger::RogerEvent::ToolCancel => Some(PathEvent::CancelStroke),
+                roger::RogerEvent::ToolHover(payload) => Some(PathEvent::Hover(payload)),
+                roger::RogerEvent::ViewportChange => {
+                    self.toolbar.gesture_handler.handle_input(
+                        ui,
+                        &mut tool_context,
+                        self.toolbar.hide_overlay,
+                    );
+                    None
                 }
-                Tool::Eraser => {
-                    self.toolbar.eraser.handle_input(ui, &mut tool_context);
+                roger::RogerEvent::ViewportChangeWithToolCancel => {
+                    self.toolbar.gesture_handler.handle_input(
+                        ui,
+                        &mut tool_context,
+                        self.toolbar.hide_overlay,
+                    );
+                    Some(PathEvent::CancelStroke)
                 }
-                Tool::Selection => {
-                    self.toolbar.selection.handle_input(ui, &mut tool_context);
+                roger::RogerEvent::Gesture(num_touches) => {
+                    // todo: show a popup if the gesture has no effect, ex: undo stack empty
+                    if num_touches == 2 {
+                        tool_context.history.undo(tool_context.buffer)
+                    } else if num_touches == 3 {
+                        tool_context.history.redo(tool_context.buffer)
+                    }
+                    None
                 }
-                Tool::Shapes => self.toolbar.shapes_tool.handle_input(ui, &mut tool_context),
+            };
+            if let Some(tool_event) = maybe_tool_event {
+                self.toolbar
+                    .pen
+                    .handle_path_event(tool_event, &mut tool_context);
             }
-        } else {
-            *tool_context.allow_viewport_changes = true;
         }
 
-        if !self.has_islands_interaction {
-            self.toolbar.gesture_handler.handle_input(
-                ui,
-                &mut tool_context,
-                self.toolbar.hide_overlay,
-            );
-        }
+        // if !self.read_only {
+        //     match self.toolbar.active_tool {
+        //         Tool::Pen => {
+        //             self.toolbar.pen.handle_input(ui, &mut tool_context);
+        //         }
+        //         Tool::Highlighter => {
+        //             self.toolbar.highlighter.handle_input(ui, &mut tool_context);
+        //         }
+        //         Tool::Eraser => {
+        //             self.toolbar.eraser.handle_input(ui, &mut tool_context);
+        //         }
+        //         Tool::Selection => {
+        //             self.toolbar.selection.handle_input(ui, &mut tool_context);
+        //         }
+        //         Tool::Shapes => self.toolbar.shapes_tool.handle_input(ui, &mut tool_context),
+        //     }
+        // } else {
+        //     *tool_context.allow_viewport_changes = true;
+        // }
+
+        // if !self.has_islands_interaction {
+        //     self.toolbar.gesture_handler.handle_input(
+        //         ui,
+        //         &mut tool_context,
+        //         self.toolbar.hide_overlay,
+        //     );
+        // }
     }
 
     fn show_canvas(&mut self, ui: &mut egui::Ui) -> DiffState {

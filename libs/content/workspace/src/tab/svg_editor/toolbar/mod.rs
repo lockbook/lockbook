@@ -80,7 +80,6 @@ pub struct ToolContext<'a> {
     pub allow_viewport_changes: &'a mut bool,
     pub is_touch_frame: bool,
     pub settings: &'a mut CanvasSettings,
-    pub is_locked_vw_pen_only: bool,
     pub viewport_settings: &'a mut ViewportSettings,
     pub toolbar_has_interaction: bool,
 }

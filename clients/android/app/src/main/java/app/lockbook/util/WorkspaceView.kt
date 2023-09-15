@@ -267,62 +267,62 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
         }
 
         val action = event.action and MotionEvent.ACTION_MASK
+        val actionIndex = event.actionIndex
+        val touchType = event.getToolType(actionIndex)
+        val pressure = if (touchType == MotionEvent.TOOL_TYPE_STYLUS) {
+            event.pressure
+        }else {
+            Float.NaN
+        }
 
-        for (i in 0 until event.pointerCount) {
-            val pointerId = event.getPointerId(i)
-
-            when (action) {
-                MotionEvent.ACTION_DOWN, MotionEvent.ACTION_POINTER_DOWN, SPEN_ACTION_DOWN -> {
-                    if (contextMenu != null) {
-                        contextMenu!!.finish()
-                    }
-
-                    if (action == SPEN_ACTION_DOWN) {
-                        eraserToggledOnByPen = true
-                        Workspace.toggleEraserSVG(WGPU_OBJ, true)
-                    } else if (eraserToggledOnByPen) {
-                        eraserToggledOnByPen = false
-                        Workspace.toggleEraserSVG(WGPU_OBJ, false)
-                    }
-
-                    Workspace.touchesBegin(
-                        WGPU_OBJ,
-                        pointerId,
-                        adjustTouchPoint(event.getX(i)),
-                        adjustTouchPoint(event.getY(i) + touchOffsetY),
-                        0.0f
-                    )
+        when (action){
+            MotionEvent.ACTION_DOWN, MotionEvent.ACTION_POINTER_DOWN -> {
+                if (contextMenu != null) {
+                    contextMenu!!.finish()
                 }
 
-                MotionEvent.ACTION_MOVE, SPEN_ACTION_MOVE -> {
+
+                val pointerId = event.getPointerId(actionIndex)
+                Workspace.touchesBegin(
+                    WGPU_OBJ,
+                    pointerId,
+                    adjustTouchPoint(event.getX(actionIndex)),
+                    adjustTouchPoint(event.getY(actionIndex) + touchOffsetY),
+                    pressure
+                )
+            }
+            MotionEvent.ACTION_MOVE -> {
+                // MOVE events need to loop - all pointers moved
+                for (i in 0 until event.pointerCount) {
+                    val pointerId = event.getPointerId(i)
                     Workspace.touchesMoved(
                         WGPU_OBJ,
                         pointerId,
                         adjustTouchPoint(event.getX(i)),
                         adjustTouchPoint(event.getY(i) + touchOffsetY),
-                        0.0f
+                        pressure
                     )
                 }
-
-                MotionEvent.ACTION_UP, MotionEvent.ACTION_POINTER_UP, SPEN_ACTION_UP -> {
-                    Workspace.touchesEnded(
-                        WGPU_OBJ,
-                        pointerId,
-                        adjustTouchPoint(event.getX(i)),
-                        adjustTouchPoint(event.getY(i) + touchOffsetY),
-                        0.0f
-                    )
-                }
-
-                MotionEvent.ACTION_CANCEL -> {
-                    Workspace.touchesCancelled(
-                        WGPU_OBJ,
-                        pointerId,
-                        adjustTouchPoint(event.getX(i)),
-                        adjustTouchPoint(event.getY(i) + touchOffsetY),
-                        0.0f
-                    )
-                }
+            }
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_POINTER_UP -> {
+                val pointerId = event.getPointerId(actionIndex)
+                Workspace.touchesEnded(
+                    WGPU_OBJ,
+                    pointerId,
+                    adjustTouchPoint(event.getX(actionIndex)),
+                    adjustTouchPoint(event.getY(actionIndex) + touchOffsetY),
+                    pressure
+                )
+            }
+            MotionEvent.ACTION_CANCEL -> {
+                val pointerId = event.getPointerId(actionIndex)
+                Workspace.touchesCancelled(
+                    WGPU_OBJ,
+                    pointerId,
+                    adjustTouchPoint(event.getX(actionIndex)),
+                    adjustTouchPoint(event.getY(actionIndex) + touchOffsetY),
+                    pressure
+                )
             }
         }
 

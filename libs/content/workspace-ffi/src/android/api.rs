@@ -111,7 +111,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_touchesBegin(
         id: TouchId(id as u64),
         phase: TouchPhase::Start,
         pos: Pos2 { x, y },
-        force: Some(pressure),
+        force: get_force(pressure),
     });
 
     obj.renderer
@@ -136,7 +136,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_touchesMoved(
         id: TouchId(id as u64),
         phase: TouchPhase::Move,
         pos: Pos2 { x, y },
-        force: Some(pressure),
+        force: get_force(pressure),
     });
 
     obj.renderer
@@ -156,7 +156,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_touchesEnded(
         id: TouchId(id as u64),
         phase: TouchPhase::End,
         pos: Pos2 { x, y },
-        force: Some(pressure),
+        force: get_force(pressure),
     });
 
     obj.renderer
@@ -183,10 +183,14 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_touchesCancelled(
         id: TouchId(id as u64),
         phase: TouchPhase::Cancel,
         pos: Pos2 { x, y },
-        force: Some(pressure),
+        force: get_force(pressure),
     });
 
     obj.renderer.raw_input.events.push(egui::Event::PointerGone);
+}
+
+fn get_force(pressure: f32) -> Option<f32> {
+    if pressure.is_nan() { None } else { Some(pressure) }
 }
 
 #[derive(Debug, Serialize)]

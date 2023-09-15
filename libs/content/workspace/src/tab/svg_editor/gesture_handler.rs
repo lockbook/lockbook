@@ -1,8 +1,6 @@
 use std::collections::HashMap;
 
-use egui::TouchPhase;
 use resvg::usvg::Transform;
-use tracing::trace;
 
 use crate::tab::ExtendedInput as _;
 use crate::tab::svg_editor::toolbar::{MINI_MAP_WIDTH, Toolbar};
@@ -20,53 +18,15 @@ pub const MIN_ZOOM_LEVEL: f32 = 0.1;
 
 #[derive(Default)]
 pub struct GestureHandler {
-    current_gesture: Option<Gesture>,
     pub is_zoom_locked: bool,
     pub is_pan_x_locked: bool,
     pub is_pan_y_locked: bool,
-}
-
-#[derive(Clone, Debug)]
-struct Gesture {
-    /// min, max
-    touch_infos: HashMap<u64, TouchInfo>,
-}
-
-#[derive(Clone, Copy, Debug, Default)]
-struct TouchInfo {
-    is_active: bool,
-    lifetime_distance: f32,
-    frame_delta: egui::Vec2,
-    last_pos: Option<egui::Pos2>,
-}
-
-#[derive(PartialEq, Clone, Copy, Debug)]
-enum Shortcut {
-    Undo,
-    Redo,
 }
 
 impl GestureHandler {
     pub fn handle_input(
         &mut self, ui: &mut egui::Ui, gesture_ctx: &mut ToolContext, hide_overlay: bool,
     ) {
-        if !*gesture_ctx.allow_viewport_changes {
-            self.current_gesture = None;
-            return;
-        }
-
-        if let Some(current_gesture) = &mut self.current_gesture {
-            for info in current_gesture.touch_infos.values_mut() {
-                info.frame_delta = egui::vec2(0.0, 0.0);
-            }
-        }
-
-        ui.input(|r| {
-            // go through the touches and reset how much they moved in the last frame
-            for e in r.events.iter() {
-                self.handle_event(e, gesture_ctx)
-            }
-        });
         for e in ui.ctx().read_events() {
             match e {
                 crate::Event::Undo => gesture_ctx.history.undo(gesture_ctx.buffer),
@@ -75,76 +35,6 @@ impl GestureHandler {
             };
         }
         self.change_viewport(ui, gesture_ctx, hide_overlay);
-    }
-
-    fn handle_event(&mut self, event: &egui::Event, gesture_ctx: &mut ToolContext) {
-        if let egui::Event::Touch { device_id: _, id, phase, pos, force } = *event {
-            if force.is_some() {
-                return;
-            }
-            if let Some(current_gest) = &mut self.current_gesture {
-                match phase {
-                    TouchPhase::Start => {
-                        // add this to the list of touches in the gesture
-                        if current_gest
-                            .touch_infos
-                            .insert(
-                                id.0,
-                                TouchInfo {
-                                    last_pos: Some(pos),
-                                    is_active: true,
-                                    ..Default::default()
-                                },
-                            )
-                            .is_some()
-                        {
-                            trace!("duplicate start for a touch id")
-                        }
-                    }
-                    TouchPhase::Move => {
-                        if let Some(touch_info) = current_gest.touch_infos.get_mut(&id.0) {
-                            if let Some(last_pos) = touch_info.last_pos {
-                                touch_info.frame_delta = pos - last_pos;
-                                touch_info.lifetime_distance += last_pos.distance(pos);
-                            }
-                            touch_info.last_pos = Some(pos);
-                        }
-                    }
-                    TouchPhase::End => {
-                        // mark this touch as inactive in touches hashmap
-                        if let Some(touch_info) = current_gest.touch_infos.get_mut(&id.0) {
-                            touch_info.is_active = false;
-                        }
-
-                        // if this is the last active touch then end the gesture
-                        if current_gest
-                            .touch_infos
-                            .values()
-                            .all(|info| !info.is_active)
-                        {
-                            self.apply_shortcut(gesture_ctx);
-                            self.current_gesture = None;
-                        }
-                    }
-                    TouchPhase::Cancel => {
-                        // don't just mark as inactive insdies fof touches but completly remove it
-                        if current_gest.touch_infos.remove(&id.0).is_none() {
-                            trace!(?id, "tryed to cancel touch  which is not in current gesture",);
-                        }
-                    }
-                }
-            } else if phase == egui::TouchPhase::Start {
-                let mut touch_infos = HashMap::new();
-                touch_infos.insert(
-                    id.0,
-                    TouchInfo { last_pos: Some(pos), is_active: true, ..Default::default() },
-                );
-
-                self.current_gesture = Some(Gesture { touch_infos })
-            } else if phase == egui::TouchPhase::Cancel {
-                trace!(?id, "no gesture in progress but tried to cancel touch");
-            }
-        }
     }
 
     fn change_viewport(
@@ -207,50 +97,6 @@ impl GestureHandler {
 
         if pan.is_some() || is_zooming {
             transform_canvas(gesture_ctx.buffer, gesture_ctx.viewport_settings, t);
-        }
-    }
-
-    fn apply_shortcut(&mut self, gesture_ctx: &mut ToolContext<'_>) {
-        let current_gesture = match self.current_gesture {
-            Some(ref mut val) => val,
-            None => return,
-        };
-
-        if current_gesture
-            .touch_infos
-            .values()
-            .any(|info| info.lifetime_distance != 0.0)
-        {
-            return;
-        };
-        let num_touches = current_gesture.touch_infos.len();
-        let intended_shortcut = if num_touches == 2 {
-            Shortcut::Undo
-        } else if num_touches == 3 {
-            Shortcut::Redo
-        } else {
-            trace!(num_touches, "no configured for num touches");
-            return;
-        };
-
-        match intended_shortcut {
-            Shortcut::Undo => gesture_ctx.history.undo(gesture_ctx.buffer),
-            Shortcut::Redo => gesture_ctx.history.redo(gesture_ctx.buffer),
-        };
-        trace!(num_touches, "applied gesture");
-    }
-
-    // todo: tech debt lol, should refactor the eraser instead of doing this
-    pub fn is_locked_vw_pen_only_draw(&self) -> bool {
-        if let Some(current_gesture) = &self.current_gesture {
-            current_gesture
-                .touch_infos
-                .values()
-                .filter(|v| v.is_active)
-                .count()
-                > 0
-        } else {
-            false
         }
     }
 }
