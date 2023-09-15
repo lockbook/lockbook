@@ -144,6 +144,17 @@ class WorkspaceFragment : Fragment() {
             }
         }
 
+        model.workspaceBackRequested.observe(viewLifecycleOwner) {
+            val navigatedBack = workspaceWrapper.workspaceView.back()
+            if (!navigatedBack) {
+                activityModel.updateMainScreenUI(UpdateMainScreenUI.CloseWorkspacePane)
+            }
+        }
+
+        model.workspaceForwardRequested.observe(viewLifecycleOwner) {
+            workspaceWrapper.workspaceView.forward()
+        }
+
         binding.workspaceToolbar.setNavigationIcon(R.drawable.ic_baseline_arrow_back_24)
 
         getCurrentFile()?.let {
@@ -220,6 +231,11 @@ class WorkspaceFragment : Fragment() {
         }
 
         return binding.root
+    }
+
+    override fun onDestroyView() {
+        _binding = null
+        super.onDestroyView()
     }
 
     private fun toggleBottomSheetExpansion(shouldExpand: Boolean) {

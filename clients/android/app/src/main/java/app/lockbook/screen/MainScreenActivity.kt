@@ -225,7 +225,7 @@ class MainScreenActivity : AppCompatActivity() {
                     if (supportFragmentManager.findFragmentById(R.id.detail_container) !is WorkspaceFragment) {
                         model.updateMainScreenUI(UpdateMainScreenUI.PopBackstackToWorkspace)
                     } else if (slidingPaneLayout.isSlideable && slidingPaneLayout.isOpen) { // if you are on a small display where only files or an editor show once at a time, you want to handle behavior a bit differently
-                        model.updateMainScreenUI(UpdateMainScreenUI.CloseWorkspacePane)
+                        workspaceModel.requestWorkspaceBack()
                     } else if (maybeGetSearchFilesFragment() != null) {
                         updateMainScreenUI(UpdateMainScreenUI.ShowFiles)
                     } else if (maybeGetFilesFragment() == null || maybeGetFilesFragment()?.onBackPressed() == true) {

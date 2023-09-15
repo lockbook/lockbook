@@ -72,6 +72,24 @@ class WorkspaceViewModel : ViewModel() {
     val _isRendering = MutableLiveData<Boolean>()
     val isRendering: LiveData<Boolean>
         get() = _isRendering
+
+    /** request workspace view to navigate within tab history **/
+    private val _workspaceBackRequested = SingleMutableLiveData<Unit>()
+    val workspaceBackRequested: LiveData<Unit>
+        get() = _workspaceBackRequested
+
+    /** request workspace view to navigate forward within tab history **/
+    private val _workspaceForwardRequested = SingleMutableLiveData<Unit>()
+    val workspaceForwardRequested: LiveData<Unit>
+        get() = _workspaceForwardRequested
+
+    fun requestWorkspaceBack() {
+        _workspaceBackRequested.postValue(Unit)
+    }
+
+    fun requestWorkspaceForward() {
+        _workspaceForwardRequested.postValue(Unit)
+    }
 }
 
 data class WorkspaceTab(

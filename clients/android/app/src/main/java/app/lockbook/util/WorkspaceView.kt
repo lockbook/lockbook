@@ -720,6 +720,32 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
         Workspace.showTabs(WGPU_OBJ, show)
     }
 
+    fun back(): Boolean {
+        if (WGPU_OBJ == Long.MAX_VALUE || surface == null) {
+            return false
+        }
+
+        val didNavigate = Workspace.back(WGPU_OBJ)
+        if (didNavigate) {
+            drawImmediately()
+        }
+
+        return didNavigate
+    }
+
+    fun forward(): Boolean {
+        if (WGPU_OBJ == Long.MAX_VALUE || surface == null) {
+            return false
+        }
+
+        val didNavigate = Workspace.forward(WGPU_OBJ)
+        if (didNavigate) {
+            drawImmediately()
+        }
+
+        return didNavigate
+    }
+
     fun isPenOnlyDraw(): Boolean {
         if (WGPU_OBJ == Long.MAX_VALUE || surface == null) {
             return false
