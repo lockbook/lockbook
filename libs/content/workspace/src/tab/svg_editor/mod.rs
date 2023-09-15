@@ -36,7 +36,7 @@ use resvg::usvg::Transform;
 use serde::{Deserialize, Serialize};
 pub use toolbar::Tool;
 use toolbar::{ToolContext, ToolbarContext};
-use tracing::{Level, span};
+use tracing::{Level, error, span};
 
 pub struct SVGEditor {
     pub buffer: Buffer,
@@ -310,6 +310,18 @@ impl SVGEditor {
 
         self.handle_clip_input(ui);
 
+        let has_click_outside_islands = ui.input(|r| {
+            r.events.iter().any(|e| match *e {
+                egui::Event::PointerButton { pos, button, pressed, modifiers } => {
+                    pressed == true && !self.detect_islands_interaction(pos)
+                }
+                egui::Event::Touch { device_id, id, phase, pos, force } => {
+                    phase == egui::TouchPhase::Start && !self.detect_islands_interaction(pos)
+                }
+                _ => false,
+            })
+        });
+
         let mut tool_context = ToolContext {
             painter: &mut self.painter,
             buffer: &mut self.buffer,
@@ -330,6 +342,13 @@ impl SVGEditor {
 
         if self.has_islands_interaction {
             self.toolbar.pen.end_path(&mut tool_context, false);
+            return;
+        }
+
+        if has_click_outside_islands {
+            error!("detected click outside islands, closing popovers");
+            self.toolbar
+                .close_all_popovers(tool_context.settings, &mut self.cfg);
             return;
         }
 
