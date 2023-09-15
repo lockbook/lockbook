@@ -9,6 +9,9 @@ import android.content.res.Configuration
 import android.graphics.PixelFormat
 import android.graphics.PointF
 import android.graphics.Rect
+import android.os.Handler
+import android.os.HandlerThread
+import android.os.Looper
 import android.view.ActionMode
 import android.view.Choreographer
 import android.view.GestureDetector
@@ -39,6 +42,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.android.asCoroutineDispatcher
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -49,141 +53,40 @@ import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
 import net.lockbook.Lb
 import java.util.concurrent.ConcurrentLinkedDeque
+import java.util.concurrent.CountDownLatch
 import java.util.concurrent.atomic.AtomicReference
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
+import kotlin.math.min
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.TimeSource
 
 @SuppressLint("ViewConstructor", "SoonBlockedPrivateApi")
 class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceView(context), SurfaceHolder.Callback2 {
 
-    private val logger = AppLogger.getLogger("WorkspaceView")
 
     private var surface: Surface? = null
     var wrapperView: View? = null
     var contextMenu: ActionMode? = null
 
-    private val renderScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
-    private var renderJob: Job? = null
+    private var redrawTask: Runnable = Runnable {
+        invalidate()
+    }
+
+    var ignoreSelectionUpdate = false
 
     private val ioScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
-
-    private val nativeLock = ReentrantLock()
-
-    private val redrawChannel = Channel<Unit>(Channel.CONFLATED)
 
     private val frameOutputJsonParser = Json {
         ignoreUnknownKeys = true
     }
 
     private val scroller = OverScroller(context)
-
     private var gestureStartPositions: Array<PointF> = emptyArray()
     private val pendingDx = AtomicReference(0f)
     private val pendingDy = AtomicReference(0f)
     private var propagateFlick = false
 
-    var textMutations = AtomicReference(ConcurrentLinkedDeque<Pair<WsTextMutation, WorkspaceTextState>>())
-
-    var lastFrameTransform = 0
-
-
-    data class WorkspaceTextState(
-        val textLength: Int,
-        val buffer: String,
-        val frameCount: Int
-    ): Comparable<WorkspaceTextState> {
-        override fun compareTo(other: WorkspaceTextState): Int =
-            textLength.compareTo(other.textLength)
-    }
-
-     val pendingWorkspaceTextState = AtomicReference(
-        WorkspaceTextState(
-            textLength = 0,
-            buffer = "",
-            frameCount = 0
-        )
-    )
-
-    sealed class WsTextMutation {
-        data class Replace(
-            var start: Int,
-            var end: Int,
-            val text: String,
-            var batchEditCount: Int,
-        ) : WsTextMutation()
-
-        data class InsertAtCursor(
-            val text: String
-        ) : WsTextMutation()
-
-        data class Insert(
-            val where: Int,
-            val text: String
-        ) : WsTextMutation()
-
-        data class Append(
-            val text: String
-        ) : WsTextMutation()
-
-        object NotifySelectionUpdate : WsTextMutation()
-
-        object WsNotifySelectionUpdate : WsTextMutation()
-
-        data class ClipboardPaste(
-            val text: String
-        ) : WsTextMutation()
-
-        data class ClipboardPasteImage(
-            val bytes: ByteArray,
-            val isPaste: Boolean,
-        ) : WsTextMutation()
-
-        data class SendKeyEvent(
-            val keyCode: Int,
-            val content: String,
-            val isDown: Boolean,
-            val isAlt: Boolean,
-            val isCtrl: Boolean,
-            val isShift: Boolean,
-        ) : WsTextMutation()
-
-        data class SetSelection(
-            var start: Int,
-            var end: Int,
-        ) : WsTextMutation()
-
-        object SelectAll : WsTextMutation()
-        object ClipboardCut : WsTextMutation()
-        object ClipboardCopy : WsTextMutation()
-        object Clear : WsTextMutation()
-
-        fun transformed(offset: Int): WsTextMutation {
-            return when (this) {
-                is Replace -> {
-                    this.start += offset
-                    this.end += offset
-                    this
-                }
-                is SetSelection -> {
-                    this.start += offset
-                    this.end += offset
-                    this
-                }
-                else -> this
-            }
-        }
-
-        fun delta(): Int {
-            return when (this) {
-                is Replace -> {
-                    this.text.length - (this.start - this.end)
-                }
-                else -> 0
-            }
-        }
-    }
 
     private val scrollListener = object : GestureDetector.SimpleOnGestureListener() {
         override fun onDown(e: MotionEvent): Boolean {
@@ -259,7 +162,6 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
     private val pendingFocusX = AtomicReference(0f)
     private val pendingFocusY = AtomicReference(0f)
 
-    var lastFrameDirty = false
 
     private val scaleListener = object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
         override fun onScaleBegin(detector: ScaleGestureDetector): Boolean {
@@ -303,52 +205,6 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
 
     var motionEventPredictor = MotionEventPredictor.newInstance(this)
 
-    fun startRendering() {
-
-        renderJob?.cancel()
-        renderJob = renderScope.launch {
-            val timeSource = TimeSource.Monotonic
-            // Move this OUTSIDE the while loop so it persists
-            var fastModeDeadline = timeSource.markNow()
-
-            // FPS tracking
-            var frameCount = 0
-            var fpsWindowStart = timeSource.markNow()
-            var currentFps = 0f
-
-            while (isActive) {
-                val delayTime = drawWorkspace()
-
-                frameCount++
-                val elapsed = (fpsWindowStart.elapsedNow()).inWholeMilliseconds
-                if (elapsed >= 1000L) {
-                    currentFps = frameCount * 1000f / elapsed
-                    model._fps.postValue(currentFps)
-                    frameCount = 0
-                    fpsWindowStart = timeSource.markNow()
-                }
-
-                // 2. Determine if we are currently in the "sticky" window
-                val isSticky = fastModeDeadline.hasNotPassedNow()
-
-                // 3. If sticky, blast (0ms delay). Otherwise, use standard delay.
-                val effectiveDelay = if (isSticky) 0L else delayTime
-
-                select<Unit> {
-                    redrawChannel.onReceive {
-                        fastModeDeadline = timeSource.markNow() + 1000.milliseconds
-                    }
-                    onTimeout(effectiveDelay) {
-                    }
-                }
-            }
-        }
-    }
-
-    fun stopRendering() {
-        renderJob?.cancel()
-        nativeLock.withLock { }
-    }
 
     @SuppressLint("ClickableViewAccessibility")
     override fun onTouchEvent(event: MotionEvent?): Boolean {
@@ -382,6 +238,7 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
                         event.getX(event.actionIndex) / density,
                         event.getY(event.actionIndex) / density,
                     )
+                    drawImmediately()
                 }
             }
             return true
@@ -389,21 +246,17 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
         return super.onHoverEvent(event)
     }
 
+
     override fun surfaceCreated(holder: SurfaceHolder) {
-
         surface = holder.surface
-
-        if (WGPU_OBJ != Long.MAX_VALUE) {
-            Workspace.dropWS(WGPU_OBJ)
-        }
-
-        WGPU_OBJ = Long.MAX_VALUE
 
         WGPU_OBJ = Workspace.initWS(
             surface!!,
             Lb.lb,
             (context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES,
         )
+
+        model._shouldShowTabs.postValue(Unit)
 
         setWillNotDraw(false)
 
@@ -414,33 +267,19 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
     }
 
     override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
-
         if (WGPU_OBJ == Long.MAX_VALUE || surface == null) {
             return
         }
 
-        stopRendering()
-
-        nativeLock.withLock {
-            Workspace.resizeWS(
-                WGPU_OBJ,
-                holder.surface,
-                context.resources.displayMetrics.scaledDensity
-            )
-        }
-
-        startRendering()
+        Workspace.resizeWS(
+            WGPU_OBJ,
+            holder.surface,
+            context.resources.displayMetrics.scaledDensity
+        )
     }
 
     override fun surfaceDestroyed(holder: SurfaceHolder) {
-        stopRendering()
-    }
-
-    override fun onDetachedFromWindow() {
-        renderScope.cancel()
-        ioScope.cancel()
-
-        super.onDetachedFromWindow()
+        surface = null
     }
 
     fun setBottomInset(inset: Int) {
@@ -453,219 +292,92 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
         drawImmediately()
     }
 
-    private suspend fun drawWorkspace(): Long {
-        var containsNotify = false
-        var pastedImageThisFrame = false
-        val responseJson = nativeLock.withLock {
-            if (WGPU_OBJ == Long.MAX_VALUE || surface == null || surface?.isValid != true) {
-                return 0
-            }
-
-            val dx = pendingDx.getAndSet(0f)
-            val dy = pendingDy.getAndSet(0f)
-            val zoom = pendingZoom.getAndSet(1f)
-            val focusX = pendingFocusX.getAndSet(0f)
-            val focusY = pendingFocusY.getAndSet(0f)
-
-            if (dx != 0f || dy != 0f || zoom != 1f) {
-                Workspace.multiTouch(
-                    WGPU_OBJ,
-                    dx,
-                    dy,
-                    zoom, focusX, focusY,
-                    gestureStartPositions.map { it.x }.toFloatArray(),
-                    gestureStartPositions.map { it.y }.toFloatArray()
-                )
-            }
-
-            // Guard again right before the native call
-            if (surface?.isValid != true) {
-                return 0
-            }
-
-            val thisFrameDirty = textMutations.get().any { it.first is WsTextMutation.Replace }
-            while (true) {
-                val event = textMutations.get().pollFirst() ?: break
-                val mutation = event.first
-                if (pendingWorkspaceTextState.get().textLength != event.second.textLength){
-                    val transform = pendingWorkspaceTextState.get().textLength - event.second.textLength
-                    logger.d("stale event t:${transform}")
-                    mutation.transformed(transform)
-                }
-                when (mutation) {
-                    is WsTextMutation.Replace -> {
-                        logger.i("REPL ${mutation.start} ${mutation.end} ${mutation.text}")
-
-                        Workspace.replace(WGPU_OBJ, mutation.start, mutation.end, mutation.text)
-                    }
-                    is WsTextMutation.InsertAtCursor -> {
-                        logger.i("INSERT ${mutation.text}")
-
-                        Workspace.insertTextAtCursor(WGPU_OBJ, mutation.text)
-                    }
-                    is WsTextMutation.ClipboardPaste -> {
-                        logger.i("PASTE ${mutation.text}")
-                        Workspace.clipboardPaste(WGPU_OBJ, mutation.text)
-                    }
-                    is WsTextMutation.ClipboardPasteImage -> {
-                        pastedImageThisFrame = true
-                        Workspace.clipboardSendImage(WGPU_OBJ, mutation.bytes, mutation.isPaste)
-                    }
-                    is WsTextMutation.SendKeyEvent -> {
-                        logger.i("KEY ${mutation.keyCode} ${mutation.content}")
-
-                        Workspace.sendKeyEvent(WGPU_OBJ, mutation.keyCode, mutation.content, mutation.isDown, mutation.isAlt, mutation.isCtrl, mutation.isShift)
-                    }
-                    is WsTextMutation.SelectAll -> {
-                        logger.i("SELECT ALL")
-                        Workspace.selectAll(WGPU_OBJ)
-                    }
-                    is WsTextMutation.ClipboardCut -> {
-                        logger.i("CUT")
-                        Workspace.clipboardCut(WGPU_OBJ)
-                    }
-                    is WsTextMutation.ClipboardCopy -> {
-                        logger.i("COPY")
-                        Workspace.clipboardCopy(WGPU_OBJ)
-                    }
-                    is WsTextMutation.NotifySelectionUpdate -> {
-                        logger.i("NOTIFY SEL UPDATE")
-                        containsNotify = true
-                    }
-                    WsTextMutation.WsNotifySelectionUpdate -> {
-                        logger.i("NOTIFY WS SEL UPDATE")
-//                        containsNotify = !lastFrameDirty
-//                        
-                    }
-                    is WsTextMutation.Clear -> {
-                        logger.i("CLEAR")
-
-                        Workspace.clear(WGPU_OBJ)
-                    }
-                    is WsTextMutation.SetSelection -> {
-                        logger.i("SET SELECTION")
-                        Workspace.setSelection(WGPU_OBJ, mutation.start, mutation.end)
-                    }
-                    is WsTextMutation.Append -> {
-                        logger.i("APPEND")
-                        Workspace.append(WGPU_OBJ, mutation.text)
-                    }
-                    is WsTextMutation.Insert -> {
-                        logger.i("INSERT ${mutation.where} ${mutation.text}")
-
-                        Workspace.insert(WGPU_OBJ, mutation.where, mutation.text)
-                    }
-                }
-            }
-
-            val res = Workspace.enterFrame(WGPU_OBJ)
-            logger.w("ENDF")
-            lastFrameDirty = thisFrameDirty
-            updateWorkspaceState()
-
-            res
+    fun drawWorkspace() {
+        if (WGPU_OBJ == Long.MAX_VALUE || surface == null || surface?.isValid != true) {
+            return
         }
 
-        val response: AndroidResponse = frameOutputJsonParser.decodeFromString(responseJson)
+        // Guard again right before the native call
+        if (surface?.isValid != true) {
+            return
+        }
 
-        withContext(Dispatchers.Main) {
-            if (response.urlOpened.isNotEmpty()) {
-                try {
-                    val browserIntent = Intent(Intent.ACTION_VIEW, response.urlOpened.toUri())
-                    startActivity(context, browserIntent, null)
-                } catch (err: Exception) {
-                    Toast.makeText(context, err.message, Toast.LENGTH_SHORT).show()
-                }
-            }
-
-            if (!response.docCreated.isNullUUID()) {
-                model._openFile.postValue(response.docCreated to true)
-            }
-
-            if (pastedImageThisFrame) {
-                // The rust side has now processed the paste event during `enterFrame()`,
-                // so the imported file should exist and a file tree refresh will pick it up.
-                model._refreshFilesRequested.postValue(Unit)
-            }
-
-            if (response.tabTitleClicked) {
-                model._tabTitleClicked.postValue(Unit)
-                Workspace.unfocusTitle(WGPU_OBJ)
-            }
-
-            if (response.copiedText.isNotEmpty()) {
-                (App.applicationContext().getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager)
-                    .setPrimaryClip(ClipData.newPlainText("", response.copiedText))
-            }
-
-            if (response.tabsChanged) {
-                val newTab = Workspace.currentTab(WGPU_OBJ).toModelTab()
-                model._currentTab.value = newTab
-            }
-
-            if (!response.selectedFile.isNullUUID()) {
-                val newTab = Workspace.currentTab(WGPU_OBJ).toModelTab()
-                model._currentTab.value = newTab
-            }
-
-            if (model.currentTab.value?.type == WorkspaceTabType.Markdown) {
-                (wrapperView as? WorkspaceTextInputWrapper)?.let { textInputWrapper ->
-
-                    if (response.textUpdated && contextMenu != null) {
-                        contextMenu?.finish()
-                    }
-
-                    if (response.selectionUpdated && textMutations.get().isEmpty()) {
-                        textMutations.get().add(WsTextMutation.NotifySelectionUpdate to pendingWorkspaceTextState.get())
-                    }
-
-                    response.virtualKeyboardShown?.let { model._showKeyboard.value = it }
+        val res = Workspace.enterFrame(WGPU_OBJ)
 
 
-                    if (response.hasEditMenu && contextMenu == null) {
-                        val actionModeCallback =
-                            TextEditorContextMenu(textInputWrapper)
+        val response: AndroidResponse = frameOutputJsonParser.decodeFromString(res)
+        val currentTab = if (response.tabsChanged || !response.selectedFile.isNullUUID()) {
+            Workspace.currentTab(WGPU_OBJ).toModelTab()
+        } else {
+            null
+        }
 
-                        contextMenu = this@WorkspaceView.startActionMode(
-                            FloatingTextEditorContextMenu(
-                                actionModeCallback,
-                                response.editMenuX,
-                                response.editMenuY
-                            ),
-                            ActionMode.TYPE_FLOATING
-                        )
-                    }
-                }
+
+        if (response.urlOpened.isNotEmpty()) {
+            try {
+                val browserIntent = Intent(Intent.ACTION_VIEW, response.urlOpened.toUri())
+                startActivity(context, browserIntent, null)
+            } catch (err: Exception) {
+                Toast.makeText(context, err.message, Toast.LENGTH_SHORT).show()
             }
         }
 
-//        return min(response.redrawIn, 500u).toLong()
-        return response.redrawIn.toLong()
-    }
+        if (!response.docCreated.isNullUUID()) {
+            model._openFile.postValue(response.docCreated to true)
+        }
 
+        if (response.copiedText.isNotEmpty()) {
+            (App.applicationContext()
+                .getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager)
+                .setPrimaryClip(ClipData.newPlainText("", response.copiedText))
+        }
 
-    private fun updateWorkspaceState() {
-        pendingWorkspaceTextState.set(
-            WorkspaceTextState(
-                textLength = Workspace.getTextLength(WorkspaceView.WGPU_OBJ),
-                buffer = Workspace.getBuffer(WGPU_OBJ),
-                frameCount = pendingWorkspaceTextState.get().frameCount + 1
-            )
-        )
+        if (currentTab != null) {
+            model._currentTab.value = currentTab
+        }
 
         if (model.currentTab.value?.type == WorkspaceTabType.Markdown) {
             (wrapperView as? WorkspaceTextInputWrapper)?.let { textInputWrapper ->
-                val selection: JTextRange = Workspace.getSelection(WGPU_OBJ)
-                textInputWrapper.wsInputConnection.wsEditable.selectionStart.set(selection.start)
-                textInputWrapper.wsInputConnection.wsEditable.selectionEnd.set(selection.end)
-                textInputWrapper.wsInputConnection.applySelectionNotification()
+
+                if (response.textUpdated && contextMenu != null) {
+                    contextMenu?.finish()
+                }
+
+                if (response.selectionUpdated) {
+                    textInputWrapper.wsInputConnection.notifySelectionUpdated()
+                }
+
+                response.virtualKeyboardShown?.let { model._showKeyboard.value = it }
+
+
+                if (response.hasEditMenu && contextMenu == null) {
+                    val actionModeCallback =
+                        TextEditorContextMenu(textInputWrapper)
+
+                    contextMenu = this@WorkspaceView.startActionMode(
+                        FloatingTextEditorContextMenu(
+                            actionModeCallback,
+                            response.editMenuX,
+                            response.editMenuY
+                        ),
+                        ActionMode.TYPE_FLOATING
+                    )
+                }
             }
         }
 
+//        if (response.redrawIn < 100u) {
+            invalidate()
+//        } else {
+//            handler.postDelayed(redrawTask, min(response.redrawIn, 500u).toLong())
+//        }
     }
 
+
     fun drawImmediately() {
-        redrawChannel.trySend(Unit)
+        ignoreSelectionUpdate = true
+        drawWorkspace()
+        ignoreSelectionUpdate = false
     }
 
     fun launchIo(block: suspend () -> Unit) {
@@ -677,6 +389,7 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
             return
         }
         Workspace.createDocAt(WGPU_OBJ, payload.first, payload.second)
+
         drawImmediately()
     }
 
@@ -782,15 +495,15 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
         drawImmediately()
     }
 
-    fun openDoc(id: String, newFile: Boolean): WorkspaceTabType? {
+    fun openDoc(id: String, newFile: Boolean) {
         if (WGPU_OBJ == Long.MAX_VALUE || surface == null) {
-            return null
+            return
         }
 
         val tab = Workspace.openDoc(WGPU_OBJ, id, newFile)
         drawImmediately()
 
-        return WorkspaceTabType.fromInt(tab)
+        return
     }
 
     fun back(): Boolean {
@@ -913,10 +626,7 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
         }
 
         private fun populateMenuWithItems(menu: Menu) {
-
-            val emptySelection = textInputWrapper.wsInputConnection.wsEditable.selectionEnd.get() ==
-                    textInputWrapper.wsInputConnection.wsEditable.selectionStart.get()
-            if (!emptySelection) {
+            if (!textInputWrapper.wsInputConnection.wsEditable.getSelection().isEmpty()) {
                 menu.add(Menu.NONE, android.R.id.cut, 0, "Cut")
                     .setAlphabeticShortcut('x')
                     .setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS)

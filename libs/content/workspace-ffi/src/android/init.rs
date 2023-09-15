@@ -18,6 +18,7 @@ use workspace_rs::theme::palette_v2::{Mode, Theme, ThemeExt as _};
 use workspace_rs::theme::visuals;
 use workspace_rs::workspace::Workspace;
 
+use super::render_thread::RenderThread;
 use crate::WgpuWorkspace;
 
 pub struct NativeWindow {
@@ -79,13 +80,18 @@ pub unsafe extern "system" fn Java_app_lockbook_workspace_Workspace_initWS(
     let mut native_window = NativeWindow::new(&env, surface);
     let mut renderer =
         RendererState::from_surface(SurfaceTargetUnsafe::from_window(&mut native_window).unwrap());
+    let font_system = workspace_rs::register_font_system(&renderer.context);
+    let sample_count = renderer.backend().sample_count;
+    let format =
+        RendererState::text_format(&renderer.backend().adapter, &renderer.backend().surface);
+    let backend = renderer.backend_mut();
     workspace_rs::register_render_callback_resources(
-        &renderer.device,
-        &renderer.queue,
-        RendererState::text_format(&renderer.adapter, &renderer.surface),
-        &mut renderer.renderer,
-        workspace_rs::register_font_system(&renderer.context),
-        renderer.sample_count,
+        &backend.device,
+        &backend.queue,
+        format,
+        &mut backend.renderer,
+        font_system,
+        sample_count,
     );
 
     visuals::init(&renderer.context);
@@ -99,7 +105,8 @@ pub unsafe extern "system" fn Java_app_lockbook_workspace_Workspace_initWS(
     renderer.context.set_fonts(fonts);
     egui_extras::install_image_loaders(&renderer.context);
 
-    let obj = WgpuWorkspace { workspace, renderer };
+    let render_thread = RenderThread::spawn(renderer.take_backend());
+    let obj = WgpuWorkspace { workspace, renderer, render_thread: Some(render_thread) };
 
     Box::into_raw(Box::new(obj)) as jlong
 }

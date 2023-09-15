@@ -1,4 +1,4 @@
-use egui_wgpu_renderer::RendererState;
+use egui_wgpu_renderer::{PreparedFrame, RendererState};
 use workspace_rs::workspace::Workspace;
 
 /// cbindgen:ignore
@@ -12,10 +12,12 @@ pub use response::Response;
 pub struct WgpuWorkspace<'window> {
     pub renderer: RendererState<'window>,
     pub workspace: Workspace,
+    #[cfg(target_os = "android")]
+    pub render_thread: Option<android::render_thread::RenderThread>,
 }
 
 impl WgpuWorkspace<'_> {
-    pub fn frame(&mut self) -> Response {
+    pub fn prepare_frame(&mut self) -> (PreparedFrame, Response) {
         self.renderer.begin_frame();
         if cfg!(target_os = "android") || cfg!(target_os = "ios") {
             self.renderer
@@ -41,8 +43,34 @@ impl WgpuWorkspace<'_> {
             })
             .inner;
 
-        let (platform, viewport) = self.renderer.end_frame();
+        let prepared = self.renderer.prepare_frame();
+        let response = Response::new(
+            &self.renderer.context,
+            &prepared.platform_output,
+            &prepared.viewport_output,
+            workspace_response,
+        );
 
-        Response::new(&self.renderer.context, platform, viewport, workspace_response)
+        (prepared, response)
+    }
+
+    pub fn render_prepared_frame(&mut self, prepared: PreparedFrame) {
+        #[cfg(target_os = "android")]
+        if let Some(render_thread) = &self.render_thread {
+            render_thread.render(
+                prepared,
+                self.renderer.screen.size_in_pixels,
+                self.renderer.screen.pixels_per_point,
+            );
+            return;
+        }
+
+        self.renderer.render_prepared_frame(prepared);
+    }
+
+    pub fn frame(&mut self) -> Response {
+        let (prepared, response) = self.prepare_frame();
+        self.render_prepared_frame(prepared);
+        response
     }
 }

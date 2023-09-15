@@ -376,13 +376,18 @@ pub fn init<W: raw_window_handle::HasWindowHandle + raw_window_handle::HasDispla
     window: &W, dark_mode: bool,
 ) -> WgpuLockbook<'_> {
     let mut renderer = RendererState::init_window(window);
+    let font_system = workspace_rs::register_font_system(&renderer.context);
+    let sample_count = renderer.backend().sample_count;
+    let format =
+        RendererState::text_format(&renderer.backend().adapter, &renderer.backend().surface);
+    let backend = renderer.backend_mut();
     workspace_rs::register_render_callback_resources(
-        &renderer.device,
-        &renderer.queue,
-        RendererState::text_format(&renderer.adapter, &renderer.surface),
-        &mut renderer.renderer,
-        workspace_rs::register_font_system(&renderer.context),
-        renderer.sample_count,
+        &backend.device,
+        &backend.queue,
+        format,
+        &mut backend.renderer,
+        font_system,
+        sample_count,
     );
 
     workspace_rs::theme::visuals::init(&renderer.context);

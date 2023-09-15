@@ -5,6 +5,7 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.net.Uri
 import android.os.Build
+import android.os.Handler
 import android.provider.OpenableColumns
 import android.text.Editable
 import android.text.Selection
@@ -18,6 +19,7 @@ import android.widget.Toast
 import android.view.inputmethod.TextAttribute
 import app.lockbook.App
 import app.lockbook.screen.WorkspaceTextInputWrapper
+import app.lockbook.workspace.Workspace
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
@@ -34,7 +36,7 @@ class WorkspaceTextInputConnection(val workspaceView: WorkspaceView, val textInp
 
     val wsEditable = WorkspaceTextEditable(workspaceView, this)
 
-    var batchEditCount = AtomicReference(0)
+    var batchEditCount = 0 
 
     private var cursorMonitorStatus = CursorMonitorStatus()
 
@@ -42,41 +44,29 @@ class WorkspaceTextInputConnection(val workspaceView: WorkspaceView, val textInp
     private fun getClipboardManager(): ClipboardManager = App.applicationContext().getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
 
     fun notifySelectionUpdated(isImmediate: Boolean = false) {
-        pushTextMutationEvent(WorkspaceView.WsTextMutation.NotifySelectionUpdate)
+        if ((batchEditCount == 0 && cursorMonitorStatus.monitor) || isImmediate) {
+            val selection = wsEditable.getSelection()
+
+            getInputMethodManager().updateSelection(
+                textInputWrapper,
+                selection.start,
+                selection.end,
+                wsEditable.composingStart,
+                wsEditable.composingEnd
+            )
+        }
     }
 
-    fun pushTextMutationEvent(event: WorkspaceView.WsTextMutation){
-        workspaceView.textMutations.get().add(event to workspaceView.pendingWorkspaceTextState.get())
-    }
-    fun applySelectionNotification(isImmediate: Boolean = false) {
-//        logger.i("APPLY SEL")
-
-        getInputMethodManager().updateSelection(
-            textInputWrapper,
-            wsEditable.selectionStart.get(),
-            wsEditable.selectionEnd.get(),
-            wsEditable.composingStart,
-            wsEditable.composingEnd
-        )
-    }
 
     override fun sendKeyEvent(event: KeyEvent?): Boolean {
         super.sendKeyEvent(event)
-        logger.i("SNED KEY")
 
         if (event != null) {
             val content = event.unicodeChar.toChar().toString()
-            pushTextMutationEvent(WorkspaceView.WsTextMutation.SendKeyEvent(
-                event.keyCode,
-                content,
-                event.action == KeyEvent.ACTION_DOWN,
-                event.isAltPressed,
-                event.isCtrlPressed,
-                event.isShiftPressed
-            ))
+            Workspace.sendKeyEvent(WorkspaceView.WGPU_OBJ, event.keyCode, content, event.action == KeyEvent.ACTION_DOWN, event.isAltPressed, event.isCtrlPressed, event.isShiftPressed)
         }
 
-        workspaceView.drawImmediately()
+        workspaceView.invalidate()
 
         return true
     }
@@ -84,9 +74,9 @@ class WorkspaceTextInputConnection(val workspaceView: WorkspaceView, val textInp
     override fun performContextMenuAction(id: Int): Boolean {
 
         when (id) {
-            android.R.id.selectAll ->pushTextMutationEvent(WorkspaceView.WsTextMutation.SelectAll)
-            android.R.id.cut ->pushTextMutationEvent(WorkspaceView.WsTextMutation.ClipboardCut)
-            android.R.id.copy -> pushTextMutationEvent(WorkspaceView.WsTextMutation.ClipboardCopy)
+            android.R.id.selectAll -> Workspace.selectAll(WorkspaceView.WGPU_OBJ)
+            android.R.id.cut ->Workspace.clipboardCut(WorkspaceView.WGPU_OBJ)
+            android.R.id.copy -> Workspace.clipboardCopy(WorkspaceView.WGPU_OBJ)
             android.R.id.paste -> {
                 val clip = getClipboardManager().primaryClip ?: return false
                 if (clip.itemCount < 1) return false
@@ -117,9 +107,8 @@ class WorkspaceTextInputConnection(val workspaceView: WorkspaceView, val textInp
                         }
 
                         if (bytes != null) {
-                            workspaceView.textMutations.get().add(
-                                WorkspaceView.WsTextMutation.ClipboardPasteImage(bytes, true) to workspaceView.pendingWorkspaceTextState.get()
-                            )
+                            Workspace.clipboardSendImage(WorkspaceView.WGPU_OBJ, bytes, true)
+
                             workspaceView.drawImmediately()
                         }
                     }
@@ -129,8 +118,9 @@ class WorkspaceTextInputConnection(val workspaceView: WorkspaceView, val textInp
 
                 val clipboardText = item.text
                 if (clipboardText != null) {
-                    workspaceView.textMutations.get().add(
-                        WorkspaceView.WsTextMutation.ClipboardPaste(clipboardText.toString()) to workspaceView.pendingWorkspaceTextState.get()
+                    Workspace.clipboardPaste(
+                        WorkspaceView.WGPU_OBJ,
+                        clipboardText.toString()
                     )
                 }
             }
@@ -141,7 +131,7 @@ class WorkspaceTextInputConnection(val workspaceView: WorkspaceView, val textInp
             else -> return false
         }
 
-        workspaceView.drawImmediately()
+        workspaceView.invalidate()
 
         return true
     }
@@ -227,8 +217,6 @@ class WorkspaceTextInputConnection(val workspaceView: WorkspaceView, val textInp
     }
 
     override fun requestCursorUpdates(cursorUpdateMode: Int): Boolean {
-        logger.i("REQ CURSOR UPDATES")
-
         val isImmediate = (cursorUpdateMode and InputConnection.CURSOR_UPDATE_IMMEDIATE) != 0
         val isMonitor = (cursorUpdateMode and InputConnection.CURSOR_UPDATE_MONITOR) != 0
 
@@ -273,68 +261,30 @@ class WorkspaceTextInputConnection(val workspaceView: WorkspaceView, val textInp
         val et = ExtractedText()
         val text: CharSequence = wsEditable
         et.text = text
-        et.selectionStart = wsEditable.selectionStart.get()
-        et.selectionEnd = wsEditable.selectionEnd.get()
+        et.selectionStart = wsEditable.selectionStart
+        et.selectionEnd = wsEditable.selectionEnd
         et.startOffset = 0
         et.partialStartOffset = -1
         et.partialEndOffset = -1
         return et
     }
 
-    @Synchronized
     override fun beginBatchEdit(): Boolean {
-        logger.i("START BATCH" + batchEditCount.get())
+        batchEditCount += 1
 
-        batchEditCount.getAndUpdate { it + 1 }
         return true
     }
 
-    @Synchronized
     override fun endBatchEdit(): Boolean {
-        logger.d("END BATCH" + batchEditCount.get())
-
-        batchEditCount.getAndUpdate { (it - 1.coerceAtLeast(0)) }
+        batchEditCount = (batchEditCount - 1).coerceAtLeast(0)
         notifySelectionUpdated()
 
-        val isBatchEditing = batchEditCount.get() > 0
-        if (!isBatchEditing) {
-            wsEditable.flushQueue()
-        }
-        return isBatchEditing
+        return batchEditCount > 0
     }
 
     override fun getEditable(): Editable {
         return wsEditable
     }
 
-    override fun deleteSurroundingText(beforeLength: Int, afterLength: Int): Boolean {
-        if (wsEditable.selectionEnd.get() != wsEditable.selectionStart.get() && wsEditable.selectionEnd.get() - wsEditable.selectionStart.get() == beforeLength - afterLength){
-            logger.d("DEL SURROUNDING a: ${beforeLength} ${afterLength}")
-            wsEditable.replace(wsEditable.selectionStart.get(), wsEditable.selectionEnd.get(), "")
-            return true
-        }
-        logger.d("DEL SURROUNDING b: ${beforeLength} ${afterLength}")
-        return super.deleteSurroundingText(beforeLength, afterLength)
-    }
 
-    override fun commitText(
-        text: CharSequence,
-        newCursorPosition: Int,
-        textAttribute: TextAttribute?
-    ): Boolean {
-        logger.i("COMMIT TEXT ${text} ${newCursorPosition} ${textAttribute}")
-        return super.commitText(text, newCursorPosition, textAttribute)
-    }
-
-    override fun commitText(text: CharSequence?, newCursorPosition: Int): Boolean {
-        logger.i("COMMIT TEXT ${text} ${newCursorPosition}")
-        return super.commitText(text, newCursorPosition)
-    }
-    /**
-     * REPL 1235 1235 d
-     * --
-     * REPLACE 1237 1237 o
-     * DELETE 1235 1237
-     * REPLACE 1237 1237 so
-     */
 }

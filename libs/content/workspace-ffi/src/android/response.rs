@@ -16,7 +16,6 @@ pub struct AndroidResponse {
     selected_file: Uuid,
     doc_created: Uuid,
 
-    tab_title_clicked: bool,
     tabs_changed: bool,
 
     has_edit_menu: bool,
@@ -37,7 +36,7 @@ impl From<crate::Response> for AndroidResponse {
                     file_moved: _,
                     file_deleted: _,
                     new_folder_clicked: _,
-                    tab_title_clicked,
+                    tab_title_clicked: _,
                     file_created,
                     markdown_editor_text_updated,
                     markdown_editor_selection_updated,
@@ -65,7 +64,6 @@ impl From<crate::Response> for AndroidResponse {
         Self {
             selected_file: selected_file.unwrap_or_default(),
             doc_created,
-            tab_title_clicked,
             tabs_changed,
             redraw_in: redraw_in.unwrap_or(u64::MAX),
             copied_text,

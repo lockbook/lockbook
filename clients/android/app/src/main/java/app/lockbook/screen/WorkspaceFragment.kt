@@ -47,6 +47,7 @@ import app.lockbook.util.VerticalTabItemHolder
 import app.lockbook.util.WorkspaceTextInputConnection
 import app.lockbook.util.WorkspaceView
 import app.lockbook.util.getIconResource
+import app.lockbook.workspace.Workspace
 import com.afollestad.recyclical.setup
 import com.afollestad.recyclical.withItem
 import net.lockbook.File
@@ -120,9 +121,9 @@ class WorkspaceFragment : Fragment() {
 
         model.isRendering.observe(viewLifecycleOwner) { isRendering ->
             if (isRendering) {
-                workspaceWrapper.workspaceView.startRendering()
+//                workspaceWrapper.workspaceView.startRendering()
             } else {
-                workspaceWrapper.workspaceView.stopRendering()
+//                workspaceWrapper.workspaceView.stopRendering()
             }
         }
 
@@ -695,7 +696,7 @@ class WorkspaceTextInputWrapper(context: Context, val workspaceView: WorkspaceVi
             tabSheetScrollDetector.onTouchEvent(event)
         }
 
-        workspaceView.drawImmediately()
+        workspaceView.invalidate()
 
         return true
     }
@@ -715,8 +716,8 @@ class WorkspaceTextInputWrapper(context: Context, val workspaceView: WorkspaceVi
             EditorInfoCompat.setContentMimeTypes(outAttrs, arrayOf("image/*"))
 
             outAttrs.imeOptions = EditorInfo.IME_FLAG_NO_FULLSCREEN
-            outAttrs.initialSelStart = wsInputConnection.wsEditable.selectionStart.get()
-            outAttrs.initialSelEnd = wsInputConnection.wsEditable.selectionEnd.get()
+            outAttrs.initialSelStart = wsInputConnection.wsEditable.selectionStart
+            outAttrs.initialSelEnd = wsInputConnection.wsEditable.selectionEnd
         }
 
         if (outAttrs == null) {
@@ -768,9 +769,7 @@ class WorkspaceTextInputWrapper(context: Context, val workspaceView: WorkspaceVi
             }
 
             if (bytes != null) {
-                workspaceView.textMutations.get().add(
-                    WorkspaceView.WsTextMutation.ClipboardPasteImage(bytes, true) to workspaceView.pendingWorkspaceTextState.get()
-                )
+                Workspace.clipboardSendImage(WorkspaceView.WGPU_OBJ, bytes, true)
                 workspaceView.drawImmediately()
             } else {
                 Toast
