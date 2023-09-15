@@ -2,8 +2,6 @@ package app.lockbook.model
 
 import net.lockbook.File
 import net.lockbook.Lb
-import net.lockbook.LbError
-import timber.log.Timber
 
 class FileModel(
     val root: File,
@@ -49,17 +47,17 @@ class FileModel(
     fun getFileDir(): MutableList<File> {
         var curr: File = parent
         val temp: MutableList<File> = mutableListOf()
-        while(true)  {
+        while (true) {
             temp.add(curr)
 
-            if(curr.isRoot){
+            if (curr.isRoot) {
                 break
             }
 
             curr = idsAndFiles[curr.parent] ?: break
         }
         temp.reverse()
-        return temp;
+        return temp
     }
     fun enterFolder(newParent: File) {
         parent = newParent
@@ -70,8 +68,6 @@ class FileModel(
         parent = idsAndFiles[parent.parent]!!
         refreshChildren()
     }
-
-
 
     private fun refreshChildren() {
         children = sortFiles(idsAndFiles.values.filter { it.parent == parent.id && it.id != it.parent })

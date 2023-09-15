@@ -46,7 +46,7 @@ class FilesListFragment : Fragment(), FilesFragment {
     private val menu get() = binding.filesToolbar
     private var actionModeMenu: ActionMode? = null
 
-    private var currentTab : WorkspaceTab = WorkspaceTab.Welcome
+    private var currentTab: WorkspaceTab = WorkspaceTab.Welcome
     private val actionModeMenuCallback: ActionMode.Callback by lazy {
         object : ActionMode.Callback {
             override fun onCreateActionMode(mode: ActionMode?, menu: Menu?): Boolean {
@@ -130,7 +130,6 @@ class FilesListFragment : Fragment(), FilesFragment {
 
         setUpFilesList()
 
-
         model.breadcrumbItems.observe(viewLifecycleOwner) {
             binding.filesBreadcrumbBar.setBreadCrumbItems(it)
         }
@@ -203,7 +202,7 @@ class FilesListFragment : Fragment(), FilesFragment {
         }
 
         workspaceModel.currentTab.observe(viewLifecycleOwner) {
-            if (currentTab != it){
+            if (currentTab != it) {
                 model.fileModel.idsAndFiles[it.id]?.let { child ->
                     model.fileModel.idsAndFiles[child.parent]?.let { parent ->
                         model.enterFolder(parent)
@@ -617,7 +616,7 @@ class FilesListFragment : Fragment(), FilesFragment {
         }
     }
 
-    private fun getBreadcrumbItems() : MutableList<BreadCrumbItem>{
+    private fun getBreadcrumbItems(): MutableList<BreadCrumbItem> {
         return model.fileModel.getFileDir().map { BreadCrumbItem(it) }.toMutableList()
     }
 

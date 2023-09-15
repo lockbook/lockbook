@@ -48,7 +48,6 @@ class BreadCrumbView : FrameLayout {
                 breadCrumbAdapter.setTextSize(textSize)
             }
         }
-
     }
 
     private fun createAndAddRecyclerView(context: Context) {

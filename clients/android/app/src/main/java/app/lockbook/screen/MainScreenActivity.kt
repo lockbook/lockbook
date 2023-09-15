@@ -310,7 +310,6 @@ class MainScreenActivity : AppCompatActivity(), BottomNavProvider {
                 if (supportFragmentManager.findFragmentById(R.id.detail_container) !is WorkspaceFragment) {
                     supportFragmentManager.popBackStack(WorkspaceFragment.BACKSTACK_TAG, FragmentManager.POP_BACK_STACK_INCLUSIVE)
                 }
-
             }
             UpdateMainScreenUI.ShowSearch -> navHost().navController.navigate(R.id.action_files_to_search)
             UpdateMainScreenUI.ShowFiles -> navHost().navController.popBackStack()
