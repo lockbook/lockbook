@@ -250,13 +250,12 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
     override fun surfaceCreated(holder: SurfaceHolder) {
         surface = holder.surface
 
-        WGPU_OBJ = Workspace.initWS(
+        WGPU_OBJ = Workspace.initWSOffloaded(
             surface!!,
             Lb.lb,
             (context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES,
         )
 
-        model._shouldShowTabs.postValue(Unit)
 
         setWillNotDraw(false)
 
@@ -302,7 +301,7 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
             return
         }
 
-        val res = Workspace.enterFrame(WGPU_OBJ)
+        val res = Workspace.enterFrameOffloaded(WGPU_OBJ)
 
 
         val response: AndroidResponse = frameOutputJsonParser.decodeFromString(res)

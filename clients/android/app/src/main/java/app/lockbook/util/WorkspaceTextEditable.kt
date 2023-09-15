@@ -205,7 +205,7 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
         source?.let { realText ->
             replace(st, en, realText.subSequence(start, end))
         }
-        wsInputConnection.workspaceView.drawImmediately()
+        view.drawImmediately()
         return this
     }
 

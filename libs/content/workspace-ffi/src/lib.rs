@@ -55,6 +55,10 @@ impl WgpuWorkspace<'_> {
     }
 
     pub fn render_prepared_frame(&mut self, prepared: PreparedFrame) {
+        self.renderer.render_prepared_frame(prepared);
+    }
+
+    pub fn render_prepared_frame_offloaded(&mut self, prepared: PreparedFrame) {
         #[cfg(target_os = "android")]
         if let Some(render_thread) = &self.render_thread {
             render_thread.render(
@@ -71,6 +75,12 @@ impl WgpuWorkspace<'_> {
     pub fn frame(&mut self) -> Response {
         let (prepared, response) = self.prepare_frame();
         self.render_prepared_frame(prepared);
+        response
+    }
+
+    pub fn frame_offloaded(&mut self) -> Response {
+        let (prepared, response) = self.prepare_frame();
+        self.render_prepared_frame_offloaded(prepared);
         response
     }
 }

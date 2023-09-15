@@ -82,9 +82,11 @@ object Workspace {
     }
 
     external fun initWS(surface: Surface, core: Long, darkMode: Boolean): Long
+    external fun initWSOffloaded(surface: Surface, core: Long, darkMode: Boolean): Long
     external fun dropWS(ptr: Long)
 
     external fun enterFrame(rustObj: Long): String
+    external fun enterFrameOffloaded(rustObj: Long): String
     external fun resizeWS(rustObj: Long, surface: Surface, scaleFactor: Float)
     external fun setBottomInset(rustObj: Long, inset: Int)
 

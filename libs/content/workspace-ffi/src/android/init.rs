@@ -76,6 +76,19 @@ impl HasWindowHandle for NativeWindow {
 pub unsafe extern "system" fn Java_app_lockbook_workspace_Workspace_initWS(
     env: JNIEnv, _: JClass, surface: jobject, core: jlong, dark_mode: bool,
 ) -> jlong {
+    init_ws(env, surface, core, dark_mode, false)
+}
+
+#[no_mangle]
+pub unsafe extern "system" fn Java_app_lockbook_workspace_Workspace_initWSOffloaded(
+    env: JNIEnv, _: JClass, surface: jobject, core: jlong, dark_mode: bool,
+) -> jlong {
+    init_ws(env, surface, core, dark_mode, true)
+}
+
+unsafe fn init_ws(
+    env: JNIEnv, surface: jobject, core: jlong, dark_mode: bool, offloaded: bool,
+) -> jlong {
     let core = unsafe { &mut *(core as *mut Lb) };
     let mut native_window = NativeWindow::new(&env, surface);
     let mut renderer =
@@ -105,8 +118,9 @@ pub unsafe extern "system" fn Java_app_lockbook_workspace_Workspace_initWS(
     renderer.context.set_fonts(fonts);
     egui_extras::install_image_loaders(&renderer.context);
 
-    let render_thread = RenderThread::spawn(renderer.take_backend());
-    let obj = WgpuWorkspace { workspace, renderer, render_thread: Some(render_thread) };
+    let render_thread =
+        if offloaded { Some(RenderThread::spawn(renderer.take_backend())) } else { None };
+    let obj = WgpuWorkspace { workspace, renderer, render_thread };
 
     Box::into_raw(Box::new(obj)) as jlong
 }

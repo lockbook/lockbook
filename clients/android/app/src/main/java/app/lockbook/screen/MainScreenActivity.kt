@@ -214,10 +214,6 @@ class MainScreenActivity : AppCompatActivity() {
             }
         }
 
-        workspaceModel.shouldShowTabs.observe(this) {
-            workspaceModel._showTabs.postValue(!binding.slidingPaneLayout.isSlideable)
-        }
-
         onBackPressedDispatcher.addCallback(
             this,
             object : OnBackPressedCallback(true) {

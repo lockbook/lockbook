@@ -46,6 +46,39 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_enterFrame(
     }
 }
 
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_enterFrameOffloaded(
+    env: JNIEnv, _: JClass, obj: jlong,
+) -> jstring {
+    let maybe_err = catch_unwind(|| {
+        let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+        let response: AndroidResponse = obj.frame_offloaded().into();
+        serde_json::to_string(&response).unwrap()
+    });
+
+    match maybe_err {
+        Ok(ok) => env
+            .new_string(ok)
+            .expect("Couldn't create JString from rust string!")
+            .into_raw(),
+        Err(err) => {
+            if let Some(err_str) = err.downcast_ref::<&str>() {
+                env.new_string(*err_str)
+                    .expect("Couldn't create JString from rust string!")
+                    .into_raw()
+            } else if let Some(err_string) = err.downcast_ref::<String>() {
+                env.new_string(err_string.as_str())
+                    .expect("Couldn't create JString from rust string!")
+                    .into_raw()
+            } else {
+                env.new_string("Unknown error occurred")
+                    .expect("Couldn't create JString from rust string!")
+                    .into_raw()
+            }
+        }
+    }
+}
+
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_workspace_Workspace_sendKeyEvent(
     mut env: JNIEnv, _: JClass, obj: jlong, key_code: jint, content: JString, pressed: jboolean,

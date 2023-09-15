@@ -119,14 +119,6 @@ class WorkspaceFragment : Fragment() {
             filesListModel.reloadFiles()
         }
 
-        model.isRendering.observe(viewLifecycleOwner) { isRendering ->
-            if (isRendering) {
-//                workspaceWrapper.workspaceView.startRendering()
-            } else {
-//                workspaceWrapper.workspaceView.stopRendering()
-            }
-        }
-
         model.bottomInset.observe(viewLifecycleOwner) {
             println("ad-tra: set bottom inset ")
             workspaceWrapper.workspaceView.setBottomInset(it)
@@ -564,7 +556,7 @@ class WorkspaceWrapperView(context: Context, val model: WorkspaceViewModel) : Fr
 
     private fun topInsetPxForTextWrapper(): Int {
         val scaledDensity = context.resources.displayMetrics.scaledDensity
-        val topInsetDp = if (model.showTabs.value == true) TAB_BAR_HEIGHT else TEXT_TOOL_BAR_HEIGHT
+        val topInsetDp =  TEXT_TOOL_BAR_HEIGHT
         return (topInsetDp * scaledDensity).toInt()
     }
 
