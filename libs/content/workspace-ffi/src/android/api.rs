@@ -485,7 +485,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_getSelection(
     let (none, start, end) = match obj.workspace.current_tab_markdown_mut() {
         Some(markdown) => {
             let (start, end) = markdown.edit.renderer.buffer.current.selection;
-            JTextRange { none: false, start: start.0, end: end.0 }
+            (false, start.0, end.0)
         }
         None => (true, 0, 0),
     };

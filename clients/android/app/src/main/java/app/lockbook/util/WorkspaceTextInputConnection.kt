@@ -118,7 +118,7 @@ class WorkspaceTextInputConnection(val workspaceView: WorkspaceView, val textInp
 
                         if (bytes != null) {
                             workspaceView.textMutations.get().add(
-                                WorkspaceView.WsTextMutation.ClipboardPasteImage(bytes, true) to -1
+                                WorkspaceView.WsTextMutation.ClipboardPasteImage(bytes, true) to workspaceView.pendingWorkspaceTextState.get()
                             )
                             workspaceView.drawImmediately()
                         }
@@ -130,7 +130,7 @@ class WorkspaceTextInputConnection(val workspaceView: WorkspaceView, val textInp
                 val clipboardText = item.text
                 if (clipboardText != null) {
                     workspaceView.textMutations.get().add(
-                        WorkspaceView.WsTextMutation.ClipboardPaste(clipboardText.toString()) to -1
+                        WorkspaceView.WsTextMutation.ClipboardPaste(clipboardText.toString()) to workspaceView.pendingWorkspaceTextState.get()
                     )
                 }
             }

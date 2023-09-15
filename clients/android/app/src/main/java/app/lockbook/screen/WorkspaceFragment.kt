@@ -101,9 +101,9 @@ class WorkspaceFragment : Fragment() {
             workspaceWrapper.workspaceView.createDocAt(it)
         }
 
-        model.fps.observe(viewLifecycleOwner){
-            updateToolbarOnTabChange(WorkspaceTabType.Markdown, null)
-        }
+//        model.fps.observe(viewLifecycleOwner){
+//            updateToolbarOnTabChange(WorkspaceTabType.Markdown, null)
+//        }
 
         model.closeFile.observe(viewLifecycleOwner) { id ->
             workspaceWrapper.workspaceView.closeDoc(id)
@@ -682,11 +682,11 @@ class WorkspaceTextInputWrapper(context: Context, val workspaceView: WorkspaceVi
                 val slopTouchThreshold = ViewConfiguration.get(context).scaledTouchSlop
                 val nonSloppyTouch = abs(event.x - touchStartX).toInt() < slopTouchThreshold &&
                     abs(event.y - touchStartY).toInt() < slopTouchThreshold
-
-                if (!bottomSheetExpanded && !keyboardShown && duration < 300 && nonSloppyTouch) {
+                println("ad-tra: openning keyboard $bottomSheetExpanded $keyboardShown $duration $nonSloppyTouch")
+//                if (!bottomSheetExpanded && !keyboardShown && duration < 300 && nonSloppyTouch) {
                     (context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager)
                         .showSoftInput(this, InputMethodManager.SHOW_IMPLICIT)
-                }
+//                }
             }
         }
 
@@ -769,7 +769,7 @@ class WorkspaceTextInputWrapper(context: Context, val workspaceView: WorkspaceVi
 
             if (bytes != null) {
                 workspaceView.textMutations.get().add(
-                    WorkspaceView.WsTextMutation.ClipboardPasteImage(bytes, true) to -1
+                    WorkspaceView.WsTextMutation.ClipboardPasteImage(bytes, true) to workspaceView.pendingWorkspaceTextState.get()
                 )
                 workspaceView.drawImmediately()
             } else {
