@@ -12,8 +12,8 @@ cargo build --lib --release \
   --target=aarch64-apple-ios-sim
 
 cd ../../../../
-mkdir -p libs/editor/SwiftEditor/Libs
-lipo -create target/x86_64-apple-darwin/release/libegui_editor.a target/aarch64-apple-darwin/release/libegui_editor.a -output libs/editor/SwiftEditor/Libs/libegui_editor.a
+mkdir -p libs/content/editor/SwiftEditor/Libs
+lipo -create target/x86_64-apple-darwin/release/libegui_editor.a target/aarch64-apple-darwin/release/libegui_editor.a -output libs/content/editor/SwiftEditor/Libs/libegui_editor.a
 cd libs/content/editor/SwiftEditor/Libs
 xcodebuild -create-xcframework \
   -library libegui_editor.a -headers ../../egui_editor/include \
