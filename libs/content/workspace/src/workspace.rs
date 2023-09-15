@@ -1,7 +1,6 @@
 use chrono::Local;
 use egui::{Context, ViewportCommand};
 
-use lb_rs::Uuid;
 use lb_rs::blocking::Lb;
 use lb_rs::model::account::Account;
 use lb_rs::model::errors::{LbErr, LbErrKind, Unexpected};
@@ -11,6 +10,7 @@ use lb_rs::model::filename::NameComponents;
 use lb_rs::model::svg;
 use lb_rs::model::svg::buffer::Buffer;
 use lb_rs::service::events::{self, Actor, Event};
+use lb_rs::{Uuid, spawn};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
@@ -912,11 +912,11 @@ impl WsPersistentStore {
     fn write_to_file(&self) {
         let data = self.data.clone();
         let path = self.path.clone();
-        // thread::spawn(move || {
-        //     let data = data.read().unwrap();
-        //     let content = serde_json::to_string(&*data).unwrap();
-        //     fs::write(path, content)
-        // });
+        spawn!({
+            let data = data.read().unwrap();
+            let content = serde_json::to_string(&*data).unwrap();
+            fs::write(path, content);
+        });
     }
 }
 

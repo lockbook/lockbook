@@ -58,7 +58,7 @@ pub fn calc<'ast>(
     //             result.map.insert(url.clone(), image_state.clone());
 
     //             // fetch image
-    //             thread::spawn(move || {
+    //             spawn!(move || {
     //                 let texture_manager = ctx.tex_manager();
 
     //                 let texture_result = (|| -> Result<TextureId, String> {
