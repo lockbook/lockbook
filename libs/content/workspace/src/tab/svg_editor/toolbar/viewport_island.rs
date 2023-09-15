@@ -456,7 +456,7 @@ fn show_background_color_selector(ui: &mut egui::Ui, tlbr_ctx: &mut ToolbarConte
                     egui::Stroke { width: 0.5, color: stroke_color }
                 },
             );
-            ui.add_space(10.0);
+            ui.add_space(7.0);
         }
     });
 }
