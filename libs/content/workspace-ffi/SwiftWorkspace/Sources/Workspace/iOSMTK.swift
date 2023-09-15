@@ -723,9 +723,9 @@ public class iOSMTKDrawingWrapper: UIView, UIPencilInteractionDelegate, UIEditMe
         pan.allowedScrollTypesMask = .all
         
         if (prefersPencilOnlyDrawing){
-            pan.maximumNumberOfTouches = 1
-        }else{
             pan.maximumNumberOfTouches = 0
+        }else{
+            pan.maximumNumberOfTouches = 1
         }
         
         pan.allowedTouchTypes = [NSNumber(value: UITouch.TouchType.direct.rawValue), NSNumber(value: UITouch.TouchType.indirect.rawValue)]
