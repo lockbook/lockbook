@@ -110,54 +110,6 @@ impl Pen {
         }
     }
 
-    /// returns true if a path is being built
-    pub fn handle_input(&mut self, ui: &mut egui::Ui, pen_ctx: &mut ToolContext) -> bool {
-        if pen_ctx.toolbar_has_interaction {
-            self.cancel_path(pen_ctx);
-        }
-
-        let input_state =
-            PenPointerInput { is_multi_touch: is_multi_touch(ui), is_scroll: is_scroll(ui) };
-        let mut is_drawing = false;
-
-        // clear the previous predicted touches and replace them with the actual touches
-        if self.path_builder.first_predicted_mg.is_some() {
-            self.handle_path_event(PathEvent::ClearPredictedTouches, pen_ctx);
-        }
-
-        // handle std egui input events
-        ui.input(|r| {
-            r.events.iter().for_each(|e| {
-                if let Some(path_event) =
-                    self.map_ui_event(IntegrationEvent::Native(e), pen_ctx, &input_state)
-                {
-                    trace!(?path_event, "native events");
-                    self.handle_path_event(path_event, pen_ctx);
-                    if matches!(path_event, PathEvent::Draw(..)) {
-                        is_drawing = true;
-                    }
-                }
-            });
-        });
-
-        // handle custom input events
-        ui.ctx().read_events().iter().for_each(|e| {
-            if let Some(path_event) =
-                self.map_ui_event(IntegrationEvent::Custom(e), pen_ctx, &input_state)
-            {
-                self.handle_path_event(path_event, pen_ctx);
-                if matches!(path_event, PathEvent::Draw(..)) {
-                    is_drawing = true;
-                }
-            }
-        });
-
-        // draw hover pos
-        self.show_hover_point(ui, pen_ctx);
-
-        is_drawing
-    }
-
     fn show_hover_point(&mut self, ui: &mut egui::Ui, pen_ctx: &mut ToolContext<'_>) {
         let old_layer = pen_ctx.painter.layer_id();
 

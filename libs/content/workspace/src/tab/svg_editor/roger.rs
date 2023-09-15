@@ -5,8 +5,6 @@ use time::Duration;
 use tracing::{debug, warn};
 use web_time::Instant;
 
-use crate::{tab::svg_editor::roger, widgets::button};
-
 #[derive(Debug)]
 pub struct Roger {
     touches: Vec<TouchInfo>,
@@ -16,6 +14,7 @@ pub struct Roger {
     viewport_changing: Option<Instant>,
     config: RogerConfig,
     is_touch_frame: bool, // as we traverse the input event stream do we see touch events.
+    last_roger_event: Option<RogerEvent>, // for logging, keep track of the last roger event we emitted to reduce log volume
 }
 
 #[derive(Debug, Default)]
@@ -135,6 +134,7 @@ impl Roger {
             tool_start_touch: None,
             config,
             is_touch_frame: false,
+            last_roger_event: None,
         }
     }
 
@@ -150,29 +150,17 @@ impl Roger {
             .filter_map(|event| {
                 let roger_event = self.ui_to_roger_event(event, layout);
 
+                debug!(?event, ?roger_event, ?self, "roger event generation");
+
                 if self.config.is_read_only
                     && !matches!(roger_event, Some(RogerEvent::ViewportChange))
                 {
                     return None;
                 }
 
-                // if self.event_collides_with_layout(roger_event, layout) {
-                //     warn!(?roger_event, "roger event collides with layout, dropping event");
-                //     return None;
-                // }
-
                 roger_event
             })
             .collect();
-
-        // debug
-        for (i, event) in result.iter().enumerate() {
-            debug!(
-                ?event,
-                touches_count = self.touches.iter().count(),
-                pen_only = self.config.pencil_only_drawing
-            );
-        }
 
         result
     }
@@ -182,36 +170,6 @@ impl Roger {
             return true;
         }
         ctx.overlay_areas.iter().any(|area| area.contains(pos))
-        // match event {
-        //     RogerEvent::ToolStart(payload) => {
-        //         let overlay_hit = ctx
-        //             .overlay_areas
-        //             .iter()
-        //             .any(|area| area.contains(payload.pos));
-        //         if overlay_hit {
-        //             return true;
-        //         }
-
-        //         !ctx.draw_area.contains(payload.pos)
-        //     }
-        //     RogerEvent::ViewportChange | RogerEvent::ViewportChangeWithToolCancel => {
-        //         let buttons_hit = self
-        //             .buttons
-        //             .values()
-        //             .any(|b| ctx.overlay_areas.iter().any(|area| area.contains(b.1)));
-        //         if buttons_hit {
-        //             return true;
-        //         }
-        //         let touches_hit = self.touches.iter().any(|t| {
-        //             ctx.overlay_areas
-        //                 .iter()
-        //                 .any(|area| area.contains(t.last_pos))
-        //         });
-        //         touches_hit
-        //     }
-        //     // todo: should check that a gesture originates in the draw area
-        //     _ => false,
-        // }
     }
 
     fn ui_to_roger_event(
@@ -270,10 +228,7 @@ impl Roger {
                 // for pen tool, you wanna end.
                 None
             }
-            egui::Event::PointerGone => {
-                println!("Pointer gone");
-                None
-            }
+            egui::Event::PointerGone => None,
             egui::Event::MouseWheel { unit, delta, modifiers } => {
                 if self.tool_running.is_none() {
                     self.viewport_changing = Some(Instant::now());
@@ -294,8 +249,30 @@ impl Roger {
                 }
                 None
             }
+            egui::Event::WindowFocused(gained_focus) => {
+                if !self.touches.is_empty() || self.is_touch_frame || gained_focus {
+                    return None;
+                }
+
+                // we've lost window focus
+                if self.tool_running.is_some() {
+                    self.reset_state();
+                    return Some(RogerEvent::ToolCancel);
+                }
+
+                self.reset_state();
+                None
+            }
             _ => None,
         }
+    }
+
+    fn reset_state(&mut self) {
+        self.touches.clear();
+        self.buttons.clear();
+        self.tool_running = None;
+        self.viewport_changing = None;
+        self.tool_start_touch = None;
     }
 
     fn touch_to_roger_event(
@@ -574,14 +551,17 @@ mod tests {
         }
     }
 
-    fn move_touch(id: u64, pos: egui::Pos2, force: Option<f32>) -> egui::Event {
-        egui::Event::Touch {
-            device_id: TouchDeviceId(0),
-            id: TouchId(id),
-            phase: TouchPhase::Move,
-            pos,
-            force,
-        }
+    fn move_touch(id: u64, pos: egui::Pos2, force: Option<f32>) -> Vec<egui::Event> {
+        vec![
+            egui::Event::Touch {
+                device_id: TouchDeviceId(0),
+                id: TouchId(id),
+                phase: TouchPhase::Move,
+                pos,
+                force,
+            },
+            egui::Event::PointerMoved(pos),
+        ]
     }
 
     fn pointer_moved(pos: egui::Pos2) -> egui::Event {
@@ -653,10 +633,7 @@ mod tests {
 
         let test = RogerTestRunner::new(vec![
             RogerTestFrame::new(start_touch(1, pos, force), vec![RogerEvent::ToolStart(payload)]),
-            RogerTestFrame::new(
-                vec![move_touch(1, pos, force)],
-                vec![RogerEvent::ToolRun(payload)],
-            ),
+            RogerTestFrame::new(move_touch(1, pos, force), vec![RogerEvent::ToolRun(payload)]),
             RogerTestFrame::new(end_touch(1, pos, force), vec![RogerEvent::ToolEnd(payload)]),
         ]);
 
@@ -671,7 +648,7 @@ mod tests {
 
         let test = RogerTestRunner::new(vec![
             RogerTestFrame::new(start_touch(1, pos, None), vec![RogerEvent::ToolStart(payload)]),
-            RogerTestFrame::new(vec![move_touch(1, pos, None)], vec![RogerEvent::ToolRun(payload)]),
+            RogerTestFrame::new(move_touch(1, pos, None), vec![RogerEvent::ToolRun(payload)]),
             RogerTestFrame::new(end_touch(1, pos, None), vec![RogerEvent::ToolEnd(payload)]),
         ]);
 
@@ -679,14 +656,14 @@ mod tests {
     }
 
     #[test]
-    fn single_finger_touch_pencil_only_mode() {
+    fn single_finger_touch_pencil_only_mode_big_movement() {
         let mut roger = Roger::new(RogerConfig::new(true, false));
         let pos = egui::Pos2::new(10.0, 10.0);
 
         let test = RogerTestRunner::new(vec![
             RogerTestFrame::new(start_touch(1, pos, None), vec![RogerEvent::ViewportChange]),
             RogerTestFrame::new(
-                vec![move_touch(1, pos + egui::vec2(10.0, 10.0), None)],
+                move_touch(1, pos + egui::vec2(10.0, 10.0), None), // big movement will not trigger a gesture
                 vec![RogerEvent::ViewportChange],
             ),
             RogerTestFrame::new(end_touch(1, pos, None), vec![]),
@@ -703,7 +680,7 @@ mod tests {
         let test = RogerTestRunner::new(vec![
             RogerTestFrame::new(start_touch(1, pos, None), vec![RogerEvent::ViewportChange]),
             RogerTestFrame::new(
-                vec![move_touch(1, pos + egui::vec2(0.0, 3.0), None)], // small movement will triger a gesture©
+                move_touch(1, pos + egui::vec2(0.0, 3.0), None), // small movement will trigger a gesture
                 vec![RogerEvent::ViewportChange],
             ),
             RogerTestFrame::new(end_touch(1, pos, None), vec![RogerEvent::Gesture(1)]),
@@ -730,14 +707,57 @@ mod tests {
                 start_touch(2, pos2, None), // Second finger within 200ms
                 vec![RogerEvent::ViewportChangeWithToolCancel],
             ),
-            RogerTestFrame::new(
-                vec![move_touch(1, pos1, None), move_touch(2, pos2, None)],
-                vec![RogerEvent::ViewportChange, RogerEvent::ViewportChange],
-            ),
+            RogerTestFrame::new(move_touch(1, pos1, None), vec![RogerEvent::ViewportChange]),
+            RogerTestFrame::new(move_touch(2, pos2, None), vec![RogerEvent::ViewportChange]),
             RogerTestFrame::new(end_touch(1, pos1, None), vec![]),
             RogerTestFrame::new(
                 end_touch(2, pos2, None),
                 vec![RogerEvent::Gesture(2)], // Two finger tap gesture
+            ),
+        ]);
+
+        test.eval(&mut roger, &LayoutContext::default());
+    }
+
+    #[test]
+    fn two_finger_viewport_change_then_pen() {
+        let mut roger = Roger::new(RogerConfig::default());
+        let pos1 = egui::Pos2::new(10.0, 10.0);
+        let pos2 = egui::Pos2::new(20.0, 20.0);
+        let pos3 = egui::Pos2::new(30.0, 30.0);
+
+        let pen_payload = ToolPayload { pos: pos3, force: Some(0.5), id: Some(TouchId(3)) };
+
+        let test = RogerTestRunner::new(vec![
+            RogerTestFrame::new(
+                start_touch(1, pos1, None),
+                vec![RogerEvent::ToolStart(ToolPayload {
+                    pos: pos1,
+                    force: None,
+                    id: Some(TouchId(1)),
+                })],
+            ),
+            RogerTestFrame::new(
+                start_touch(2, pos2, None), // Second finger within 200ms
+                vec![RogerEvent::ViewportChangeWithToolCancel],
+            ),
+            RogerTestFrame::new(
+                move_touch(1, pos1 + egui::vec2(10.0, 10.0), None),
+                vec![RogerEvent::ViewportChange],
+            ),
+            RogerTestFrame::new(
+                move_touch(2, pos2 + egui::vec2(10.0, 10.0), None),
+                vec![RogerEvent::ViewportChange],
+            ),
+            RogerTestFrame::new(end_touch(1, pos1, None), vec![]),
+            RogerTestFrame::new(end_touch(2, pos2, None), vec![]),
+            RogerTestFrame::new(
+                start_touch(3, pen_payload.pos, pen_payload.force),
+                vec![RogerEvent::ToolStart(pen_payload)],
+            ),
+            RogerTestFrame::new(
+                move_touch(3, pen_payload.pos, pen_payload.force),
+                vec![RogerEvent::ToolRun(pen_payload)],
             ),
         ]);
 
@@ -761,10 +781,7 @@ mod tests {
                 start_touch(2, pos2, None), // Finger starts - should be ignored
                 vec![],
             ),
-            RogerTestFrame::new(
-                vec![move_touch(1, pos1, force)],
-                vec![RogerEvent::ToolRun(pen_payload)],
-            ),
+            RogerTestFrame::new(move_touch(1, pos1, force), vec![RogerEvent::ToolRun(pen_payload)]),
             RogerTestFrame::new(end_touch(1, pos1, force), vec![RogerEvent::ToolEnd(pen_payload)]),
         ]);
 
@@ -797,7 +814,7 @@ mod tests {
                 vec![],
             ),
             RogerTestFrame::new(
-                vec![move_touch(1, pos1, force)],
+                move_touch(1, pos1, force),
                 vec![RogerEvent::ToolRun(pen_1_payload)],
             ),
             RogerTestFrame::new(end_touch(2, pos2, None), vec![]),
@@ -836,9 +853,9 @@ mod tests {
                 start_touch(2, pos2, force), // Pen starts, but it's ignored because the finger that runs the tool started first
                 vec![],
             ),
-            RogerTestFrame::new(vec![move_touch(2, pos2, force)], vec![]),
+            RogerTestFrame::new(move_touch(2, pos2, force), vec![]),
             RogerTestFrame::new(
-                vec![move_touch(1, pos2, None)],
+                move_touch(1, pos2, None),
                 vec![RogerEvent::ToolRun(ToolPayload {
                     pos: pos2,
                     force: None,
@@ -860,10 +877,7 @@ mod tests {
 
         let test = RogerTestRunner::new(vec![
             RogerTestFrame::new(start_touch(1, pos, force), vec![RogerEvent::ToolStart(payload)]),
-            RogerTestFrame::new(
-                vec![move_touch(1, pos, force)],
-                vec![RogerEvent::ToolRun(payload)],
-            ),
+            RogerTestFrame::new(move_touch(1, pos, force), vec![RogerEvent::ToolRun(payload)]),
             RogerTestFrame::new(cancel_touch(1, pos, force), vec![RogerEvent::ToolCancel]),
         ]);
 
@@ -908,13 +922,8 @@ mod tests {
                 .concat(),
                 vec![RogerEvent::ToolStart(touch_payload)],
             ),
-            RogerTestFrame::new(
-                vec![
-                    move_touch(1, pos, None),
-                    pointer_moved(pos), // Mouse move during touch - ignored
-                ],
-                vec![RogerEvent::ToolRun(touch_payload)],
-            ),
+            RogerTestFrame::new(move_touch(1, pos, None), vec![RogerEvent::ToolRun(touch_payload)]),
+            RogerTestFrame::new(vec![pointer_moved(pos)], vec![]),
         ]);
 
         test.eval(&mut roger, &LayoutContext::default());
@@ -953,11 +962,11 @@ mod tests {
                 vec![RogerEvent::ToolStart(ToolPayload { pos: pos1, force, id: Some(TouchId(1)) })],
             ),
             RogerTestFrame::new(
-                vec![move_touch(1, pos2, force)],
+                move_touch(1, pos2, force),
                 vec![RogerEvent::ToolRun(ToolPayload { pos: pos2, force, id: Some(TouchId(1)) })],
             ),
             RogerTestFrame::new(
-                vec![move_touch(1, pos3, force)],
+                move_touch(1, pos3, force),
                 vec![RogerEvent::ToolRun(ToolPayload { pos: pos3, force, id: Some(TouchId(1)) })],
             ),
         ]);
@@ -981,7 +990,7 @@ mod tests {
 
         let test = RogerTestRunner::new(vec![
             RogerTestFrame::new(start_touch(1, pos1, force), vec![]),
-            RogerTestFrame::new(vec![move_touch(1, pos1, force)], vec![]),
+            RogerTestFrame::new(move_touch(1, pos1, force), vec![]),
         ]);
 
         test.eval(&mut roger, &layout);
