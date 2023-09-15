@@ -24,8 +24,11 @@
 
     <ImageView
         android:id="@+id/folder_action_icon"
-        android:layout_width="17dp"
-        android:layout_height="17dp"
+        android:layout_width="20dp"
+        android:layout_height="20dp"
+        android:background="@drawable/file_tree_action_icon_background"
+        android:padding="3dp"
+        app:tint="?attr/colorOnSecondaryContainer"
         app:layout_constraintBottom_toBottomOf="@+id/folder_icon"
         app:layout_constraintEnd_toEndOf="@+id/folder_icon"
         android:contentDescription="@string/folder_action" />

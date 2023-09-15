@@ -12,9 +12,9 @@ import net.lockbook.File
 import net.lockbook.File.FileType
 import java.util.UUID
 
-sealed class FileViewHolderInfo(open val fileMetadata: File, open val needToBePushed: Boolean, open val needsToBePulled: Boolean) {
-    data class DocumentViewHolderInfo(override val fileMetadata: File, override val needToBePushed: Boolean, override val needsToBePulled: Boolean) : FileViewHolderInfo(fileMetadata, needToBePushed, needsToBePulled)
-    data class FolderViewHolderInfo(override val fileMetadata: File, override val needToBePushed: Boolean, override val needsToBePulled: Boolean) : FileViewHolderInfo(fileMetadata, needToBePushed, needsToBePulled)
+sealed class FileViewHolderInfo(open val fileMetadata: File, open val needToBePushed: Boolean, open val needsToBePulled: Boolean, open val isShared: Boolean) {
+    data class DocumentViewHolderInfo(override val fileMetadata: File, override val needToBePushed: Boolean, override val needsToBePulled: Boolean, override val isShared: Boolean) : FileViewHolderInfo(fileMetadata, needToBePushed, needsToBePulled, isShared)
+    data class FolderViewHolderInfo(override val fileMetadata: File, override val needToBePushed: Boolean, override val needsToBePulled: Boolean, override val isShared: Boolean) : FileViewHolderInfo(fileMetadata, needToBePushed, needsToBePulled, isShared)
 }
 
 class DocumentViewHolder(itemView: View) : ViewHolder(itemView) {
@@ -40,10 +40,11 @@ class BasicFileItemHolder(itemView: View) : ViewHolder(itemView) {
 fun List<File>.intoViewHolderInfo(localChanges: Set<UUID>?, serverChanges: Set<UUID>?): List<FileViewHolderInfo> = this.map { fileMetadata ->
     val isDirtyLocally = localChanges?.contains(UUID.fromString(fileMetadata.id)) ?: false
     val needsToBePulled = serverChanges?.contains(UUID.fromString(fileMetadata.id)) ?: false
+    val isShared = fileMetadata.shares.isNotEmpty()
 
     when (fileMetadata.type) {
-        FileType.Document -> FileViewHolderInfo.DocumentViewHolderInfo(fileMetadata, isDirtyLocally, needsToBePulled)
-        FileType.Folder, FileType.Link -> FileViewHolderInfo.FolderViewHolderInfo(fileMetadata, isDirtyLocally, needsToBePulled)
+        FileType.Document -> FileViewHolderInfo.DocumentViewHolderInfo(fileMetadata, isDirtyLocally, needsToBePulled, isShared)
+        FileType.Folder, FileType.Link -> FileViewHolderInfo.FolderViewHolderInfo(fileMetadata, isDirtyLocally, needsToBePulled, isShared)
     }
 }
 

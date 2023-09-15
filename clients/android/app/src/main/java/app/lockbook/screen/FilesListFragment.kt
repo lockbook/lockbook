@@ -310,7 +310,7 @@ class FilesListFragment : Fragment(), FilesFragment {
                                 R.color.md_theme_inverseOnSurface
                             }
                             fileItemHolder.setBackgroundResource(background)
-                            actionIcon.setImageResource(R.drawable.ic_baseline_check_circle_24)
+                            actionIcon.setImageResource(R.drawable.ic_baseline_check_small_24)
                             actionIcon.visibility = View.VISIBLE
                         }
                         item.needsToBePulled -> {
@@ -321,6 +321,11 @@ class FilesListFragment : Fragment(), FilesFragment {
                         item.needToBePushed -> {
                             fileItemHolder.setBackgroundResource(0)
                             actionIcon.setImageResource(R.drawable.ic_baseline_cloud_upload_24)
+                            actionIcon.visibility = View.VISIBLE
+                        }
+                        item.isShared -> {
+                            fileItemHolder.setBackgroundResource(0)
+                            actionIcon.setImageResource(R.drawable.ic_baseline_group_24)
                             actionIcon.visibility = View.VISIBLE
                         }
                         else -> {
@@ -365,7 +370,7 @@ class FilesListFragment : Fragment(), FilesFragment {
                                 R.color.md_theme_inverseOnSurface
                             }
                             fileItemHolder.setBackgroundResource(background)
-                            actionIcon.setImageResource(R.drawable.ic_baseline_check_circle_24)
+                            actionIcon.setImageResource(R.drawable.ic_baseline_check_small_24)
                             actionIcon.visibility = View.VISIBLE
                         }
                         item.needsToBePulled -> {
@@ -376,6 +381,11 @@ class FilesListFragment : Fragment(), FilesFragment {
                         item.needToBePushed -> {
                             fileItemHolder.setBackgroundResource(0)
                             actionIcon.setImageResource(R.drawable.ic_baseline_cloud_upload_24)
+                            actionIcon.visibility = View.VISIBLE
+                        }
+                        item.isShared -> {
+                            fileItemHolder.setBackgroundResource(0)
+                            actionIcon.setImageResource(R.drawable.ic_baseline_group_24)
                             actionIcon.visibility = View.VISIBLE
                         }
                         else -> {
