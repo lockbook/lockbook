@@ -569,14 +569,16 @@ fn apply_style(
         }
     } else {
         // if applying, head start and/or tail end to extend styled region to selection
-        if last_start_ancestor.is_none() && !cursor.selection.is_empty() {
+        if last_start_ancestor.is_none() {
             let offset =
-                adjust_for_whitespace(buffer, cursor.selection.start(), style.node_type(), false);
+                adjust_for_whitespace(buffer, cursor.selection.start(), style.node_type(), false)
+                    .min(cursor.selection.end());
             insert_head(offset, style.clone(), mutation)
         }
-        if last_end_ancestor.is_none() && !cursor.selection.is_empty() {
+        if last_end_ancestor.is_none() {
             let offset =
-                adjust_for_whitespace(buffer, cursor.selection.end(), style.node_type(), true);
+                adjust_for_whitespace(buffer, cursor.selection.end(), style.node_type(), true)
+                    .max(cursor.selection.start());
             insert_tail(offset, style.clone(), mutation)
         }
     }
@@ -630,13 +632,17 @@ fn adjust_for_whitespace(
 ) -> DocCharOffset {
     if matches!(style, MarkdownNodeType::Inline(..)) {
         loop {
-            if (tail && offset == 0) || (!tail && offset == buffer.segs.last_cursor_position() - 1)
-            {
-                break;
-            }
-
-            let c =
-                if tail { &buffer[(offset - 1, offset)] } else { &buffer[(offset, offset + 1)] };
+            let c = if tail {
+                if offset == 0 {
+                    break;
+                }
+                &buffer[(offset - 1, offset)]
+            } else {
+                if offset == buffer.segs.last_cursor_position() {
+                    break;
+                }
+                &buffer[(offset, offset + 1)]
+            };
             if c == " " {
                 if tail {
                     offset -= 1
