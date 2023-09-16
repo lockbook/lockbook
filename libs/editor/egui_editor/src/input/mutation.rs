@@ -512,29 +512,25 @@ fn apply_style(
 
     // modify head/tail for nodes containing cursor start and cursor end
     let mut last_start_ancestor: Option<usize> = None;
-    if start_range.range_type == AstTextRangeType::Text {
-        for &ancestor in &start_range.ancestors {
-            // dehead and detail all but the last ancestor applying the style
-            if let Some(prev_ancestor) = last_start_ancestor {
-                dehead_ast_node(prev_ancestor, ast, mutation);
-                detail_ast_node(prev_ancestor, ast, mutation);
-            }
-            if ast.nodes[ancestor].node_type == style {
-                last_start_ancestor = Some(ancestor);
-            }
+    for &ancestor in &start_range.ancestors {
+        // dehead and detail all but the last ancestor applying the style
+        if let Some(prev_ancestor) = last_start_ancestor {
+            dehead_ast_node(prev_ancestor, ast, mutation);
+            detail_ast_node(prev_ancestor, ast, mutation);
+        }
+        if ast.nodes[ancestor].node_type == style {
+            last_start_ancestor = Some(ancestor);
         }
     }
     let mut last_end_ancestor: Option<usize> = None;
-    if end_range.range_type == AstTextRangeType::Text {
-        for &ancestor in &end_range.ancestors {
-            // dehead and detail all but the last ancestor applying the style
-            if let Some(prev_ancestor) = last_end_ancestor {
-                dehead_ast_node(prev_ancestor, ast, mutation);
-                detail_ast_node(prev_ancestor, ast, mutation);
-            }
-            if ast.nodes[ancestor].node_type == style {
-                last_end_ancestor = Some(ancestor);
-            }
+    for &ancestor in &end_range.ancestors {
+        // dehead and detail all but the last ancestor applying the style
+        if let Some(prev_ancestor) = last_end_ancestor {
+            dehead_ast_node(prev_ancestor, ast, mutation);
+            detail_ast_node(prev_ancestor, ast, mutation);
+        }
+        if ast.nodes[ancestor].node_type == style {
+            last_end_ancestor = Some(ancestor);
         }
     }
     if last_start_ancestor != last_end_ancestor {
@@ -565,10 +561,10 @@ fn apply_style(
         }
     } else {
         // if applying, head start and/or tail end to extend styled region to selection
-        if last_start_ancestor.is_none() {
+        if last_start_ancestor.is_none() && !cursor.selection.is_empty() {
             insert_head(cursor.selection.start(), style.clone(), mutation)
         }
-        if last_end_ancestor.is_none() {
+        if last_end_ancestor.is_none() && !cursor.selection.is_empty() {
             insert_tail(cursor.selection.end(), style.clone(), mutation)
         }
     }

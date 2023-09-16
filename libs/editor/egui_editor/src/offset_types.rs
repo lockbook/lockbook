@@ -533,3 +533,54 @@ impl DoubleEndedIterator for RangeIter {
         }
     }
 }
+
+#[cfg(test)]
+mod test {
+    use crate::offset_types::RangeExt;
+
+    #[test]
+    fn contains() {
+        assert_eq!((1, 3).contains(0, false, false), false);
+        assert_eq!((1, 3).contains(1, false, false), false);
+        assert_eq!((1, 3).contains(2, false, false), true);
+        assert_eq!((1, 3).contains(3, false, false), false);
+        assert_eq!((1, 3).contains(4, false, false), false);
+
+        assert_eq!((1, 3).contains(0, true, false), false);
+        assert_eq!((1, 3).contains(1, true, false), true);
+        assert_eq!((1, 3).contains(2, true, false), true);
+        assert_eq!((1, 3).contains(3, true, false), false);
+        assert_eq!((1, 3).contains(4, true, false), false);
+
+        assert_eq!((1, 3).contains(0, false, true), false);
+        assert_eq!((1, 3).contains(1, false, true), false);
+        assert_eq!((1, 3).contains(2, false, true), true);
+        assert_eq!((1, 3).contains(3, false, true), true);
+        assert_eq!((1, 3).contains(4, false, true), false);
+
+        assert_eq!((1, 3).contains(0, true, true), false);
+        assert_eq!((1, 3).contains(1, true, true), true);
+        assert_eq!((1, 3).contains(2, true, true), true);
+        assert_eq!((1, 3).contains(3, true, true), true);
+        assert_eq!((1, 3).contains(4, true, true), false);
+    }
+
+    #[test]
+    fn contains_empty() {
+        assert_eq!((1, 1).contains(0, false, false), false);
+        assert_eq!((1, 1).contains(1, false, false), false);
+        assert_eq!((1, 1).contains(2, false, false), false);
+
+        assert_eq!((1, 1).contains(0, true, false), false);
+        assert_eq!((1, 1).contains(1, true, false), false);
+        assert_eq!((1, 1).contains(2, true, false), false);
+
+        assert_eq!((1, 1).contains(0, false, true), false);
+        assert_eq!((1, 1).contains(1, false, true), false);
+        assert_eq!((1, 1).contains(2, false, true), false);
+
+        assert_eq!((1, 1).contains(0, true, true), false);
+        assert_eq!((1, 1).contains(1, true, true), true);
+        assert_eq!((1, 1).contains(2, true, true), false);
+    }
+}
