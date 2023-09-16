@@ -540,47 +540,47 @@ mod test {
 
     #[test]
     fn contains() {
-        assert_eq!((1, 3).contains(0, false, false), false);
-        assert_eq!((1, 3).contains(1, false, false), false);
-        assert_eq!((1, 3).contains(2, false, false), true);
-        assert_eq!((1, 3).contains(3, false, false), false);
-        assert_eq!((1, 3).contains(4, false, false), false);
+        assert!(!(1, 3).contains(0, false, false));
+        assert!(!(1, 3).contains(1, false, false));
+        assert!((1, 3).contains(2, false, false));
+        assert!(!(1, 3).contains(3, false, false));
+        assert!(!(1, 3).contains(4, false, false));
 
-        assert_eq!((1, 3).contains(0, true, false), false);
-        assert_eq!((1, 3).contains(1, true, false), true);
-        assert_eq!((1, 3).contains(2, true, false), true);
-        assert_eq!((1, 3).contains(3, true, false), false);
-        assert_eq!((1, 3).contains(4, true, false), false);
+        assert!(!(1, 3).contains(0, true, false));
+        assert!((1, 3).contains(1, true, false));
+        assert!((1, 3).contains(2, true, false));
+        assert!(!(1, 3).contains(3, true, false));
+        assert!(!(1, 3).contains(4, true, false));
 
-        assert_eq!((1, 3).contains(0, false, true), false);
-        assert_eq!((1, 3).contains(1, false, true), false);
-        assert_eq!((1, 3).contains(2, false, true), true);
-        assert_eq!((1, 3).contains(3, false, true), true);
-        assert_eq!((1, 3).contains(4, false, true), false);
+        assert!(!(1, 3).contains(0, false, true));
+        assert!(!(1, 3).contains(1, false, true));
+        assert!((1, 3).contains(2, false, true));
+        assert!((1, 3).contains(3, false, true));
+        assert!(!(1, 3).contains(4, false, true));
 
-        assert_eq!((1, 3).contains(0, true, true), false);
-        assert_eq!((1, 3).contains(1, true, true), true);
-        assert_eq!((1, 3).contains(2, true, true), true);
-        assert_eq!((1, 3).contains(3, true, true), true);
-        assert_eq!((1, 3).contains(4, true, true), false);
+        assert!(!(1, 3).contains(0, true, true));
+        assert!((1, 3).contains(1, true, true));
+        assert!((1, 3).contains(2, true, true));
+        assert!((1, 3).contains(3, true, true));
+        assert!(!(1, 3).contains(4, true, true));
     }
 
     #[test]
     fn contains_empty() {
-        assert_eq!((1, 1).contains(0, false, false), false);
-        assert_eq!((1, 1).contains(1, false, false), false);
-        assert_eq!((1, 1).contains(2, false, false), false);
+        assert!(!(1, 1).contains(0, false, false));
+        assert!(!(1, 1).contains(1, false, false));
+        assert!(!(1, 1).contains(2, false, false));
 
-        assert_eq!((1, 1).contains(0, true, false), false);
-        assert_eq!((1, 1).contains(1, true, false), false);
-        assert_eq!((1, 1).contains(2, true, false), false);
+        assert!(!(1, 1).contains(0, true, false));
+        assert!(!(1, 1).contains(1, true, false));
+        assert!(!(1, 1).contains(2, true, false));
 
-        assert_eq!((1, 1).contains(0, false, true), false);
-        assert_eq!((1, 1).contains(1, false, true), false);
-        assert_eq!((1, 1).contains(2, false, true), false);
+        assert!(!(1, 1).contains(0, false, true));
+        assert!(!(1, 1).contains(1, false, true));
+        assert!(!(1, 1).contains(2, false, true));
 
-        assert_eq!((1, 1).contains(0, true, true), false);
-        assert_eq!((1, 1).contains(1, true, true), true);
-        assert_eq!((1, 1).contains(2, true, true), false);
+        assert!(!(1, 1).contains(0, true, true));
+        assert!((1, 1).contains(1, true, true));
+        assert!(!(1, 1).contains(2, true, true));
     }
 }
