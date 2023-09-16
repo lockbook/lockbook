@@ -124,7 +124,7 @@ impl FromStr for Editor {
 }
 
 #[cfg(target_os = "windows")]
-fn edit_file_with_editor<S: AsRef<Path>>(path: S, editor: Editor) -> bool {
+fn edit_file_with_editor<S: AsRef<Path>>(editor: Editor, path: S) -> bool {
     let path_str = path.as_ref().display();
 
     let command = match editor {
