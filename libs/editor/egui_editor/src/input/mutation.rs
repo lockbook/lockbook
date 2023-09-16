@@ -546,7 +546,13 @@ fn apply_style(
         // if unapplying, tail or dehead node containing start to crop styled region to selection
         if let Some(last_start_ancestor) = last_start_ancestor {
             if ast.nodes[last_start_ancestor].text_range.start() < cursor.selection.start() {
-                insert_tail(cursor.selection.start(), style.clone(), mutation);
+                let offset = adjust_for_whitespace(
+                    buffer,
+                    cursor.selection.start(),
+                    style.node_type(),
+                    true,
+                );
+                insert_tail(offset, style.clone(), mutation);
             } else {
                 dehead_ast_node(last_start_ancestor, ast, mutation);
             }
@@ -554,7 +560,9 @@ fn apply_style(
         // if unapplying, head or detail node containing end to crop styled region to selection
         if let Some(last_end_ancestor) = last_end_ancestor {
             if ast.nodes[last_end_ancestor].text_range.end() > cursor.selection.end() {
-                insert_head(cursor.selection.end(), style.clone(), mutation);
+                let offset =
+                    adjust_for_whitespace(buffer, cursor.selection.end(), style.node_type(), false);
+                insert_head(offset, style.clone(), mutation);
             } else {
                 detail_ast_node(last_end_ancestor, ast, mutation);
             }
@@ -562,10 +570,14 @@ fn apply_style(
     } else {
         // if applying, head start and/or tail end to extend styled region to selection
         if last_start_ancestor.is_none() && !cursor.selection.is_empty() {
-            insert_head(cursor.selection.start(), style.clone(), mutation)
+            let offset =
+                adjust_for_whitespace(buffer, cursor.selection.start(), style.node_type(), false);
+            insert_head(offset, style.clone(), mutation)
         }
         if last_end_ancestor.is_none() && !cursor.selection.is_empty() {
-            insert_tail(cursor.selection.end(), style.clone(), mutation)
+            let offset =
+                adjust_for_whitespace(buffer, cursor.selection.end(), style.node_type(), true);
+            insert_tail(offset, style.clone(), mutation)
         }
     }
 
@@ -611,6 +623,32 @@ fn detail_ast_node(node_idx: usize, ast: &Ast, mutation: &mut Vec<SubMutation>) 
     let node = &ast.nodes[node_idx];
     mutation.push(SubMutation::Cursor { cursor: (node.text_range.end(), node.range.end()).into() });
     mutation.push(SubMutation::Insert { text: "".to_string(), advance_cursor: false });
+}
+
+fn adjust_for_whitespace(
+    buffer: &SubBuffer, mut offset: DocCharOffset, style: MarkdownNodeType, tail: bool,
+) -> DocCharOffset {
+    if matches!(style, MarkdownNodeType::Inline(..)) {
+        loop {
+            if (tail && offset == 0) || (!tail && offset == buffer.segs.last_cursor_position() - 1)
+            {
+                break;
+            }
+
+            let c =
+                if tail { &buffer[(offset - 1, offset)] } else { &buffer[(offset, offset + 1)] };
+            if c == " " {
+                if tail {
+                    offset -= 1
+                } else {
+                    offset += 1
+                }
+            } else {
+                break;
+            }
+        }
+    }
+    offset
 }
 
 fn insert_head(offset: DocCharOffset, style: MarkdownNode, mutation: &mut Vec<SubMutation>) {
