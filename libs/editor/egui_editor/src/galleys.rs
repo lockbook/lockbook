@@ -1,6 +1,6 @@
 use crate::appearance::{Appearance, CaptureCondition};
 use crate::ast::{Ast, AstTextRangeType};
-use crate::bounds::{self, Bounds, Text};
+use crate::bounds::{self, Bounds, RangesExt, Text};
 use crate::buffer::SubBuffer;
 use crate::images::ImageCache;
 use crate::layouts::{Annotation, LayoutJobInfo};
@@ -83,9 +83,18 @@ pub fn calc(
             let maybe_link_range = link_idx.map(|link_idx| bounds.links[link_idx]);
             let in_selection = selection_idx.is_some();
 
+            // todo: de-duplicate capture logic with the same logic in bounds::calc_text
+            let cursor_paragraphs: Vec<(DocCharOffset, DocCharOffset)> = bounds
+                .paragraphs
+                .iter()
+                .filter(|&range| range.intersects(&buffer.cursor.selection, true))
+                .copied()
+                .collect();
             let captured = match appearance.markdown_capture(text_range.node(ast).node_type()) {
                 CaptureCondition::Always => true,
-                CaptureCondition::NoCursor => !text_range.intersects_selection(ast, buffer.cursor),
+                CaptureCondition::NoCursor => cursor_paragraphs
+                    .find_intersecting(text_range.range, true)
+                    .is_empty(),
                 CaptureCondition::Never => false,
             };
 

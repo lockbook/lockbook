@@ -1,6 +1,5 @@
 use crate::bounds::{AstTextRanges, RangesExt};
 use crate::buffer::SubBuffer;
-use crate::input::cursor::Cursor;
 use crate::layouts::Annotation;
 use crate::offset_types::{DocCharOffset, RangeExt, RangeIterExt, RelCharOffset};
 use crate::style::{
@@ -515,11 +514,9 @@ impl AstTextRange {
         }
     }
 
-    pub fn intersects_selection(&self, ast: &Ast, cursor: Cursor) -> bool {
+    pub fn intersects(&self, ast: &Ast, range: &(DocCharOffset, DocCharOffset)) -> bool {
         if let Some(&ast_node_idx) = self.ancestors.last() {
-            ast.nodes[ast_node_idx]
-                .range
-                .intersects_allow_empty(&cursor.selection)
+            ast.nodes[ast_node_idx].range.intersects_allow_empty(range)
         } else {
             false
         }

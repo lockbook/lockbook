@@ -319,6 +319,7 @@ impl Editor {
             self.bounds.text = bounds::calc_text(
                 &self.ast,
                 &self.bounds.ast,
+                &self.bounds.paragraphs,
                 &self.appearance,
                 &self.buffer.current.segs,
                 self.buffer.current.cursor,

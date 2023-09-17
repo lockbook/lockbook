@@ -179,15 +179,23 @@ pub fn calc_paragraphs(buffer: &SubBuffer, ast: &AstTextRanges) -> Paragraphs {
 }
 
 pub fn calc_text(
-    ast: &Ast, ast_ranges: &AstTextRanges, appearance: &Appearance, segs: &UnicodeSegs,
-    cursor: Cursor,
+    ast: &Ast, ast_ranges: &AstTextRanges, paragraphs: &Paragraphs, appearance: &Appearance,
+    segs: &UnicodeSegs, cursor: Cursor,
 ) -> Text {
     let mut result = vec![];
     let mut last_range_pushed = false;
+
+    let cursor_paragraphs: Vec<(DocCharOffset, DocCharOffset)> = paragraphs
+        .iter()
+        .filter(|&range| range.intersects(&cursor.selection, true))
+        .copied()
+        .collect();
     for text_range in ast_ranges {
         let captured = match appearance.markdown_capture(text_range.node(ast).node_type()) {
             CaptureCondition::Always => true,
-            CaptureCondition::NoCursor => !text_range.intersects_selection(ast, cursor),
+            CaptureCondition::NoCursor => cursor_paragraphs
+                .find_intersecting(text_range.range, true)
+                .is_empty(),
             CaptureCondition::Never => false,
         };
 
