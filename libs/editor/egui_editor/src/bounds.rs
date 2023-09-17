@@ -616,8 +616,8 @@ impl<Range: RangeExt<DocCharOffset>> RangesExt for Vec<Range> {
     fn find_intersecting(
         &self, range: (DocCharOffset, DocCharOffset), allow_empty: bool,
     ) -> (usize, usize) {
-        let (start_start, _) = self.find_containing(range.start(), allow_empty, false);
-        let (_, end_end) = self.find_containing(range.end(), false, allow_empty);
+        let (start_start, _) = self.find_containing(range.start(), false, allow_empty);
+        let (_, end_end) = self.find_containing(range.end(), allow_empty, false);
         (start_start, end_end)
     }
 }
@@ -2114,6 +2114,36 @@ mod test {
         assert_eq!(ranges.find_containing(6.into(), true, true), (1, 4));
         assert_eq!(ranges.find_containing(7.into(), true, true), (3, 4));
         assert_eq!(ranges.find_containing(8.into(), true, true), (4, 4));
+    }
+
+    #[test]
+    fn find_intersecting_empty() {
+        let ranges: Vec<(DocCharOffset, DocCharOffset)> = vec![
+            (1.into(), 3.into()),
+            (5.into(), 6.into()),
+            (6.into(), 6.into()),
+            (6.into(), 7.into()),
+        ];
+
+        assert_eq!(ranges.find_intersecting((0.into(), 0.into()), false), (0, 0));
+        assert_eq!(ranges.find_intersecting((1.into(), 1.into()), false), (0, 0));
+        assert_eq!(ranges.find_intersecting((2.into(), 2.into()), false), (0, 1));
+        assert_eq!(ranges.find_intersecting((3.into(), 3.into()), false), (1, 1));
+        assert_eq!(ranges.find_intersecting((4.into(), 4.into()), false), (1, 1));
+        assert_eq!(ranges.find_intersecting((5.into(), 5.into()), false), (1, 1));
+        assert_eq!(ranges.find_intersecting((6.into(), 6.into()), false), (3, 3));
+        assert_eq!(ranges.find_intersecting((7.into(), 7.into()), false), (4, 4));
+        assert_eq!(ranges.find_intersecting((8.into(), 8.into()), false), (4, 4));
+
+        assert_eq!(ranges.find_intersecting((0.into(), 0.into()), true), (0, 0));
+        assert_eq!(ranges.find_intersecting((1.into(), 1.into()), true), (0, 1));
+        assert_eq!(ranges.find_intersecting((2.into(), 2.into()), true), (0, 1));
+        assert_eq!(ranges.find_intersecting((3.into(), 3.into()), true), (0, 1));
+        assert_eq!(ranges.find_intersecting((4.into(), 4.into()), true), (1, 1));
+        assert_eq!(ranges.find_intersecting((5.into(), 5.into()), true), (1, 2));
+        assert_eq!(ranges.find_intersecting((6.into(), 6.into()), true), (1, 4));
+        assert_eq!(ranges.find_intersecting((7.into(), 7.into()), true), (3, 4));
+        assert_eq!(ranges.find_intersecting((8.into(), 8.into()), true), (4, 4));
     }
 
     #[test]
