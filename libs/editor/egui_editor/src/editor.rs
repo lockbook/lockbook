@@ -352,10 +352,6 @@ impl Editor {
             let draw_cursor = secs % 1000 < 500;
             if draw_cursor {
                 self.draw_cursor(ui, touch_mode);
-                println!("drawing cursor");
-            } else {
-                println!("NOT drawing cursor");
-            }
             ui.ctx().request_repaint_after(Duration::from_millis(100));
         }
         if self.debug.draw_enabled {
