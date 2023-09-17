@@ -18,6 +18,13 @@ pub fn calc(
     for node in &ast.nodes {
         if let MarkdownNode::Inline(InlineNode::Image(_, url, title)) = &node.node_type {
             let (url, title) = (url.clone(), title.clone());
+
+            if result.map.contains_key(&url) {
+                // the second removal of the same image from the prior cache is always a cache miss and causes performance issues
+                // we need to remove cache hits from the prior cache to avoid freeing them from the texture manager
+                continue;
+            }
+
             if let Some(cached) = prior_cache.map.remove(&url) {
                 // re-use image from previous cache (even it if failed to load)
                 result.map.insert(url, cached);
