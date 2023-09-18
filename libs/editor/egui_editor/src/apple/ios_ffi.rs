@@ -22,6 +22,10 @@ pub unsafe extern "C" fn insert_text(obj: *mut c_void, content: *const c_char) {
         obj.editor
             .custom_events
             .push(Modification::Newline { advance_cursor: true });
+    } else if content == "\t" {
+        obj.editor
+            .custom_events
+            .push(Modification::Indent { deindent: false });
     } else {
         obj.raw_input.events.push(Event::Text(content))
     }
