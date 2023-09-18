@@ -91,7 +91,7 @@ struct BookView: View {
                 iPad
                 
                 if search.pathSearchState != .NotSearching {
-                    SearchActionBar()
+                    PathSearchActionBar()
                 }
             }
         } else {
@@ -102,7 +102,7 @@ struct BookView: View {
             macOS
             
             if search.pathSearchState != .NotSearching {
-                SearchActionBar()
+                PathSearchActionBar()
             }
         }
         #endif

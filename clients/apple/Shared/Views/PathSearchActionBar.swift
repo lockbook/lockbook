@@ -4,7 +4,7 @@ import SwiftLockbookCore
 import UIKit
 #endif
 
-struct SearchActionBar: View {
+struct PathSearchActionBar: View {
     @State var text: String = ""
     
     @EnvironmentObject var search: SearchService

@@ -124,7 +124,7 @@ class SearchService: ObservableObject {
                 DispatchQueue.main.async {
                     switch result {
                     case .success(let paths):
-                        if currentSearchTimestamp == self.lastSearchTimestamp {
+                        if currentSearchTimestamp == self.lastSearchTimestamp && self.pathSearchState != .NotSearching {
                             self.pathSearchState = .SearchSuccessful(paths)
                         }
                     case .failure(let err):
