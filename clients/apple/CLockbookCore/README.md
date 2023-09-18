@@ -1,6 +1,6 @@
 # CLockbookCore
 
-At the moment SPM (Swift Package Manager) doesn't allow for mixed-language packges.
+At the moment SPM (Swift Package Manager) doesn't allow for mixed-language packages.
 
 A way to circumvent this is dedicating on module to "C code" and importing it into your "Swift code" module.
 

@@ -80,7 +80,7 @@ clients/apple/libs/
 
 **/target/
 
-core/lockbook_core.h
+lb-rs/lockbook_core.h
 
 server/server/**/*.rs.bk
 server/server/ca-certificate.crt
