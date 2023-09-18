@@ -5,5 +5,5 @@ edition = "2021"
 
 [dependencies]
 clap = { version = "4.1.4", features = ["derive"] }
-lockbook-core = { path = "../../libs/core/core" }
+lb = { path = "../../libs/lb/lb-rs", package = "lb-rs" }
 dialoguer = { version = "0.10.1", features = ["fuzzy-select"] }

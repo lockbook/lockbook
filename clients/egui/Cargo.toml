@@ -4,7 +4,7 @@ version = "0.8.0"
 edition = "2021"
 
 [dependencies]
-lb = { package = "lockbook-core", path = "../../libs/core/core", default-features = false, features=["native-tls"] }
+lb = { path = "../../libs/lb/lb-rs", default-features = false, features=["native-tls"], package = "lb-rs" }
 lbeditor = { package = "egui_editor", path = "../../libs/content/editor/egui_editor" }
 eframe = "0.22.0"
 egui-notify= "0.7.0"

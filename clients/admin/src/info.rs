@@ -1,9 +1,9 @@
-use lockbook_core::{AccountIdentifier, Duration};
+use lb::{AccountIdentifier, Duration};
 use std::iter;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::Res;
-use lockbook_core::{ChronoHumanDuration, Core, FileLike, LazyTree, ServerFile, TreeLike, Uuid};
+use lb::{ChronoHumanDuration, Core, FileLike, LazyTree, ServerFile, TreeLike, Uuid};
 
 pub fn file(core: &Core, id: Uuid) -> Res<()> {
     let info = core.admin_file_info(id)?;

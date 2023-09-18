@@ -108,7 +108,7 @@ version = "0.8.0"
 dependencies = [
  "clap 4.3.11",
  "dialoguer",
- "lockbook-core",
+ "lb-rs",
 ]
 
 [[package]]
@@ -795,14 +795,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "c_interface_v2"
-version = "0.8.0"
-dependencies = [
- "libc",
- "lockbook-core",
-]
-
-[[package]]
 name = "cairo-sys-rs"
 version = "0.16.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1210,23 +1202,6 @@ dependencies = [
  "bitflags 1.3.2",
  "core-foundation",
  "libc",
-]
-
-[[package]]
-name = "core_external_interface"
-version = "0.8.0"
-dependencies = [
- "basic-human-duration",
- "crossbeam",
- "jni 0.13.1",
- "lazy_static",
- "lockbook-core",
- "serde",
- "serde_json",
- "strum",
- "strum_macros",
- "time",
- "tracing",
 ]
 
 [[package]]
@@ -3161,6 +3136,68 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e2abad23fbc42b3700f2f279844dc832adb2b2eb069b2df918f455c4e18cc646"
 
 [[package]]
+name = "lb-c-v1"
+version = "0.8.0"
+dependencies = [
+ "basic-human-duration",
+ "crossbeam",
+ "jni 0.13.1",
+ "lazy_static",
+ "lb-rs",
+ "serde",
+ "serde_json",
+ "strum",
+ "strum_macros",
+ "time",
+ "tracing",
+]
+
+[[package]]
+name = "lb-c-v2"
+version = "0.8.0"
+dependencies = [
+ "lb-rs",
+ "libc",
+]
+
+[[package]]
+name = "lb-rs"
+version = "0.8.0"
+dependencies = [
+ "base64 0.13.1",
+ "basic-human-duration",
+ "bincode",
+ "criterion",
+ "crossbeam",
+ "db-rs",
+ "db-rs-derive",
+ "diffy",
+ "image",
+ "indicatif",
+ "itertools",
+ "libsecp256k1",
+ "lockbook-server",
+ "lockbook-shared",
+ "num_cpus",
+ "qrcode-generator",
+ "rand 0.8.5",
+ "raqote",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "sublime_fuzzy",
+ "tempfile",
+ "test_utils",
+ "time",
+ "tokio",
+ "tracing",
+ "tracing-appender",
+ "tracing-subscriber",
+ "uuid 1.4.0",
+ "variant_count",
+]
+
+[[package]]
 name = "lebe"
 version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3302,44 +3339,7 @@ dependencies = [
  "cli-rs",
  "hotwatch",
  "is-terminal",
- "lockbook-core",
-]
-
-[[package]]
-name = "lockbook-core"
-version = "0.8.0"
-dependencies = [
- "base64 0.13.1",
- "basic-human-duration",
- "bincode",
- "criterion",
- "crossbeam",
- "db-rs",
- "db-rs-derive",
- "diffy",
- "image",
- "indicatif",
- "itertools",
- "libsecp256k1",
- "lockbook-server",
- "lockbook-shared",
- "num_cpus",
- "qrcode-generator",
- "rand 0.8.5",
- "raqote",
- "reqwest",
- "serde",
- "serde_json",
- "sublime_fuzzy",
- "tempfile",
- "test_utils",
- "time",
- "tokio",
- "tracing",
- "tracing-appender",
- "tracing-subscriber",
- "uuid 1.4.0",
- "variant_count",
+ "lb-rs",
 ]
 
 [[package]]
@@ -3364,7 +3364,7 @@ dependencies = [
  "egui_editor",
  "egui_extras",
  "image",
- "lockbook-core",
+ "lb-rs",
  "rfd",
  "serde",
  "serde_json",
@@ -5425,7 +5425,7 @@ version = "0.8.0"
 dependencies = [
  "bincode",
  "itertools",
- "lockbook-core",
+ "lb-rs",
  "lockbook-shared",
  "time",
  "uuid 1.4.0",

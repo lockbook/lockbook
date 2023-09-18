@@ -1,7 +1,7 @@
 use crate::{Res, Uuid};
 use dialoguer::theme::ColorfulTheme;
 use dialoguer::Confirm;
-use lockbook_core::Core;
+use lb::Core;
 
 pub fn file(core: &Core, id: Uuid) -> Res<()> {
     let maybe_confirm = Confirm::with_theme(&ColorfulTheme::default())

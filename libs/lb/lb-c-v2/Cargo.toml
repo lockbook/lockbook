@@ -1,0 +1,11 @@
+[package]
+name = "lb-c-v2"
+version = "0.8.0"
+edition = "2021"
+
+[lib]
+crate-type = ["lib", "staticlib", "cdylib"]
+
+[dependencies]
+lb = { path = "../lb-rs", package = "lb-rs"}
+libc = "0.2.139"
