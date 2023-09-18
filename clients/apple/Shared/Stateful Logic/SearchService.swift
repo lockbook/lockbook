@@ -12,6 +12,7 @@ class SearchService: ObservableObject {
     var pathSearchTask: DispatchWorkItem? = nil
     @Published var pathSearchState: SearchPathState = .NotSearching
     @Published var pathSearchSelected = 0
+    var lastSearchTimestamp = 0
     
     @Published var pathsSearchResult: Array<FilePathInfo> = []
     @Published var searchPathAndContentState: SearchPathAndContentState = .NotSearching
@@ -112,13 +113,25 @@ class SearchService: ObservableObject {
         
         pathSearchTask?.cancel()
         
+        lastSearchTimestamp = Int(Date().timeIntervalSince1970 * 1_000)
+        let currentSearchTimestamp = lastSearchTimestamp
+        
         let newPathSearchTask = DispatchWorkItem {
-            switch self.core.searchFilePaths(input: input) {
-            case .success(let paths):
-                self.pathSearchState = .SearchSuccessful(paths)
-            case .failure(let err):
-                self.pathSearchState = .Idle
-                DI.errors.handleError(err)
+            DispatchQueue.global(qos: .userInteractive).async {
+                
+                let result = self.core.searchFilePaths(input: input)
+                
+                DispatchQueue.main.async {
+                    switch result {
+                    case .success(let paths):
+                        if currentSearchTimestamp == self.lastSearchTimestamp {
+                            self.pathSearchState = .SearchSuccessful(paths)
+                        }
+                    case .failure(let err):
+                        self.pathSearchState = .Idle
+                        DI.errors.handleError(err)
+                    }
+                }
             }
         }
         
@@ -136,7 +149,18 @@ class SearchService: ObservableObject {
             DI.currentDoc.setSelectedOpenDocById(maybeId: paths[index].id)
             
             pathSearchState = .NotSearching
+            pathSearchSelected = 0
         }
+    }
+    
+    func selectNextPath() {
+        if case .SearchSuccessful(let paths) = pathSearchState {
+            pathSearchSelected = min(paths.count - 1, pathSearchSelected + 1)
+        }
+    }
+    
+    func selectPreviousPath() {
+        pathSearchSelected = max(0, pathSearchSelected - 1)
     }
     
     func startPathSearch() {

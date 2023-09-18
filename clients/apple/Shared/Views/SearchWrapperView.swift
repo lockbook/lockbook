@@ -1,5 +1,8 @@
 import SwiftUI
 import SwiftLockbookCore
+#if os(iOS)
+import UIKit
+#endif
 
 struct SearchWrapperView<Content: View>: View {
     @EnvironmentObject var search: SearchService
@@ -277,92 +280,3 @@ struct SearchFileContentCell: View {
     }
 }
 
-struct SearchResultCellView: View {
-    let name: String
-    let path: String
-    let matchedIndices: [Int]
-    
-    let index: Int
-    let selected: Int
-    
-    @State var pathModified: Text = Text("")
-    @State var nameModified: Text = Text("")
-    
-    var body: some View {
-        HStack {
-            Image(systemName: documentExtensionToImage(name: name))
-                .resizable()
-                .frame(width: 20, height: 25)
-                .padding(.horizontal, 10)
-                .foregroundColor(index == selected ? .white : .primary)
-            
-            VStack(alignment: .leading) {
-                nameModified
-                    .font(.system(size: 16))
-                    .multilineTextAlignment(.leading)
-                    .foregroundColor(index == selected ? .white : .primary)
-                
-                pathModified
-                    .multilineTextAlignment(.leading)
-                    .foregroundColor(index == selected ? .white : .gray)
-            }
-            
-            Spacer()
-            
-            if index < 10 {
-                Text("⌘\(index)")
-                    .padding(.horizontal)
-                    .foregroundColor(index == selected ? .white : .gray)
-            }
-        }
-        .frame(height: 40)
-        .padding(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
-        .contentShape(Rectangle())
-        .onAppear {
-            underlineMatchedSegments()
-        }
-        .onTapGesture {
-            DI.search.pathSearchSelected = index
-            
-            DI.search.openPathAtIndex(index: index)
-        }
-        .background(index == selected ? RoundedRectangle(cornerSize: CGSize(width: 5, height: 5)).foregroundColor(.blue.opacity(0.8)) : RoundedRectangle(cornerSize: CGSize(width: 5, height: 5)).foregroundColor(.clear))
-    }
-    
-    func underlineMatchedSegments() {
-        let matchedIndicesHash = Set(matchedIndices)
-        
-        var pathOffset = 1;
-        
-        if(path.count - 1 > 0) {
-            pathModified = Text("")
-            
-            for index in 0...path.count - 1 {
-                let correctIndex = String.Index(utf16Offset: index, in: path)
-                let newPart = Text(path[correctIndex...correctIndex])
-                
-                if(matchedIndicesHash.contains(index + 1)) {
-                    pathModified = pathModified + newPart.bold()
-                } else {
-                    pathModified = pathModified + newPart
-                }
-            }
-            
-            pathOffset = 2
-        }
-                
-        if(name.count - 1 > 0) {
-            nameModified = Text("")
-            for index in 0...name.count - 1 {
-                let correctIndex = String.Index(utf16Offset: index, in: name)
-                let newPart = Text(name[correctIndex...correctIndex])
-                
-                if(matchedIndicesHash.contains(index + path.count + pathOffset)) {
-                    nameModified = nameModified + newPart.bold()
-                } else {
-                    nameModified = nameModified + newPart
-                }
-            }
-        }
-    }
-}

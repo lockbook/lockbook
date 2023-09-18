@@ -178,64 +178,7 @@ import AppKit
                     .disabled(search.pathSearchState != .NotSearching)
                 }
             }
-            
-            CommandMenu("Search Bar") {
-                Button("Open result 1", action: {
-                    DI.search.openPathAtIndex(index: 0)
-                })
-                .keyboardShortcut("1", modifiers: .command)
-                .disabled(search.pathSearchState == .NotSearching)
-                
-                Button("Open result 2", action: {
-                    DI.search.openPathAtIndex(index: 1)
-                })
-                .keyboardShortcut("2", modifiers: .command)
-                .disabled(search.pathSearchState == .NotSearching)
-                
-                Button("Open result 3", action: {
-                    DI.search.openPathAtIndex(index: 2)
-                })
-                .keyboardShortcut("3", modifiers: .command)
-                .disabled(search.pathSearchState == .NotSearching)
-                
-                Button("Open result 4", action: {
-                    DI.search.openPathAtIndex(index: 3)
-                })
-                .keyboardShortcut("4", modifiers: .command)
-                .disabled(search.pathSearchState == .NotSearching)
-                
-                Button("Open result 5", action: {
-                    DI.search.openPathAtIndex(index: 4)
-                })
-                .keyboardShortcut("5", modifiers: .command)
-                .disabled(search.pathSearchState == .NotSearching)
-                
-                Button("Open result 6", action: {
-                    DI.search.openPathAtIndex(index: 5)
-                })
-                .keyboardShortcut("6", modifiers: .command)
-                .disabled(search.pathSearchState == .NotSearching)
-                
-                Button("Open result 7", action: {
-                    DI.search.openPathAtIndex(index: 6)
-                })
-                .keyboardShortcut("7", modifiers: .command)
-                .disabled(search.pathSearchState == .NotSearching)
-                
-                Button("Open result 8", action: {
-                    DI.search.openPathAtIndex(index: 7)
-                })
-                .keyboardShortcut("8", modifiers: .command)
-                .disabled(search.pathSearchState == .NotSearching)
-                
-                Button("Open result 9", action: {
-                    DI.search.openPathAtIndex(index: 8)
-                })
-                .keyboardShortcut("9", modifiers: .command)
-                .disabled(search.pathSearchState == .NotSearching)
-                
-            }
-            
+                        
             CommandMenu("Lockbook") {
                 Button("Sync", action: { DI.sync.sync() }).keyboardShortcut("S", modifiers: .command)
                 Button("Search Paths", action: { DI.search.startPathSearch() }).keyboardShortcut("O", modifiers: .command)
