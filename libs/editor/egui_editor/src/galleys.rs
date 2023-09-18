@@ -295,7 +295,8 @@ impl GalleyInfo {
 
         // allocate space for image
         let image = if let Some(Annotation::Image(_, url, _)) = &job.annotation {
-            if let Some(&texture) = images.map.get(url) {
+            if let Some(Some(texture)) = images.map.get(url) {
+                let texture = *texture;
                 let [image_width, image_height] =
                     ui.ctx().tex_manager().read().meta(texture).unwrap().size;
                 let [image_width, image_height] = [image_width as f32, image_height as f32];
