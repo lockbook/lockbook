@@ -304,7 +304,7 @@ impl GalleyInfo {
                     f32::min(ui.available_width() - appearance.image_padding() * 2.0, image_width);
                 let height = image_height * width / image_width + appearance.image_padding() * 2.0;
                 let (location, _) =
-                    ui.allocate_exact_size(Vec2::new(ui.available_width(), height), Sense::hover());
+                    ui.allocate_exact_size(Vec2::new(width, height), Sense::hover());
                 Some(ImageInfo { location, texture })
             } else {
                 None
