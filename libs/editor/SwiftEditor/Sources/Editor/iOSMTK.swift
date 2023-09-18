@@ -530,16 +530,26 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     }
     
     override public var keyCommands: [UIKeyCommand]? {
+        let deleteWord = UIKeyCommand(input: UIKeyCommand.inputDelete, modifierFlags: [.alternate], action: #selector(deleteWord))
+        
+        deleteWord.wantsPriorityOverSystemBehavior = true
+        
         return [
             UIKeyCommand(input: "c", modifierFlags: .command, action: #selector(clipboardCopy)),
             UIKeyCommand(input: "x", modifierFlags: .command, action: #selector(clipboardCut)),
             UIKeyCommand(input: "v", modifierFlags: .command, action: #selector(clipboardPaste)),
             UIKeyCommand(input: "a", modifierFlags: .command, action: #selector(keyboardSelectAll)),
+            deleteWord,
         ]
     }
     
     deinit {
         deinit_editor(editorHandle)
+    }
+    
+    @objc func deleteWord() {
+        delete_word(editorHandle)
+        setNeedsDisplay(self.frame)
     }
     
     required init(coder: NSCoder) {

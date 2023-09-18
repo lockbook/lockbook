@@ -5,7 +5,7 @@ use crate::offset_types::{DocCharOffset, RangeExt};
 use crate::{
     CPoint, CRect, CTextGranularity, CTextLayoutDirection, CTextPosition, CTextRange, WgpuEditor,
 };
-use egui::{Event, Key, PointerButton, Pos2, TouchDeviceId, TouchId, TouchPhase};
+use egui::{Event, Key, Modifiers, PointerButton, Pos2, TouchDeviceId, TouchId, TouchPhase};
 use std::cmp;
 use std::ffi::{c_char, c_void, CStr, CString};
 
@@ -624,4 +624,17 @@ pub unsafe extern "C" fn can_redo(obj: *mut c_void) -> bool {
     let obj = &mut *(obj as *mut WgpuEditor);
 
     !obj.editor.buffer.redo_stack.is_empty()
+}
+
+/// # Safety
+/// obj must be a valid pointer to WgpuEditor
+///
+/// https://developer.apple.com/documentation/uikit/uikeyinput/1614543-inserttext
+#[no_mangle]
+pub unsafe extern "C" fn delete_word(obj: *mut c_void) {
+    let obj = &mut *(obj as *mut WgpuEditor);
+
+    obj.raw_input
+        .events
+        .push(Event::Key { key: Key::Backspace, pressed: true, repeat: false, modifiers: Modifiers::ALT });
 }
