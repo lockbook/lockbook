@@ -8,8 +8,8 @@ use std::process::Command;
 static INC: &str = "clients/apple/CLockbookCore/Sources/CLockbookCore/include/";
 static IOS_LIB_DIR: &str = "clients/apple/CLockbookCore/Sources/CLockbookCore/lib_ios/";
 static MAC_LIB_DIR: &str = "clients/apple/CLockbookCore/Sources/CLockbookCore/lib/";
-static LIB: &str = "liblockbook_core_external_interface.a";
-static HEAD: &str = "lockbook_core.h";
+static LIB: &str = "liblb_rs.a";
+static HEAD: &str = "lb-rs.h";
 
 pub fn build() {
     clean_dirs();
@@ -52,20 +52,22 @@ fn header() {
 }
 
 fn build_libs() {
+    let c_interface = "libs/lb/lb-c-v1";
+
     // Build the iOS targets
     Command::new("cargo")
         .args(["build", "--release", "--target=aarch64-apple-ios"])
-        .current_dir("libs/core/core_external_interface")
+        .current_dir(c_interface)
         .assert_success();
 
     // Build the macOS targets
     Command::new("cargo")
         .args(["build", "--release", "--target=x86_64-apple-darwin"])
-        .current_dir("libs/core/core_external_interface")
+        .current_dir(c_interface)
         .assert_success();
     Command::new("cargo")
         .args(["build", "--release", "--target=aarch64-apple-darwin"])
-        .current_dir("libs/core/core_external_interface")
+        .current_dir(c_interface)
         .assert_success();
 
     // lipo macOS binaries together
@@ -74,9 +76,9 @@ fn build_libs() {
         .args([
             "-create",
             "-output",
-            "target/universal-macos/liblockbook_core_external_interface.a",
-            "target/x86_64-apple-darwin/release/liblockbook_core_external_interface.a",
-            "target/aarch64-apple-darwin/release/liblockbook_core_external_interface.a",
+            "target/universal-macos/liblb_rs.a",
+            "target/x86_64-apple-darwin/release/liblb_rs.a",
+            "target/aarch64-apple-darwin/release/liblb_rs.a",
         ])
         .assert_success();
 }

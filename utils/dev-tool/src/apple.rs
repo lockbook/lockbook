@@ -4,8 +4,8 @@ use std::fs::{self, File};
 use std::io::Write;
 use std::process::{Command, Stdio};
 
-const LIB_NAME_HEADER: &str = "lockbook_core.h";
-const LIB_NAME: &str = "liblockbook_core_external_interface.a";
+const LIB_NAME_HEADER: &str = "lb-rs.h";
+const LIB_NAME: &str = "liblb_rs.a";
 
 pub fn run_swift_tests(tool_env: &ToolEnvironment) {
     dotenvy::from_path(utils::local_env_path(&tool_env.root_dir)).unwrap();

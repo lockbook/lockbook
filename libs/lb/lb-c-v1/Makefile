@@ -62,63 +62,63 @@ linux_jni:
 lib_c_for_swift_ios:
 	@{ command -v cargo || { echo "Y'ain't got cargo"; exit 1; } }
 	@echo "Creating header"
-	@rm ${swift_inc}lockbook_core.h || true
-	cbindgen src/c_interface.rs -l c > lockbook_core.h
+	@rm ${swift_inc}${headerName} || true
+	cbindgen src/c_interface.rs -l c > ${headerName}
 	@mkdir -p ${swift_inc}
-	cp lockbook_core.h ${swift_inc}
+	cp ${headerName} ${swift_inc}
 	@echo "Building fat library"
-	@rm ${swift_lib_ios}liblockbook_core_external_interface.a || true
+	@rm ${swift_lib_ios}liblb_rs.a || true
 	cargo build --release --target=aarch64-apple-ios
 	@mkdir -p ${swift_lib_ios}
-	cp ../../../target/aarch64-apple-ios/release/liblockbook_core_external_interface.a ${swift_lib_ios}
+	cp ../../../target/aarch64-apple-ios/release/liblb_rs.a ${swift_lib_ios}
 
 .PHONY: lib_c_for_swift_ios_sim
 lib_c_for_swift_ios_sim:
 	@{ command -v cargo || { echo "Y'ain't got cargo"; exit 1; } }
 	@echo "Creating header"
-	@rm ${swift_inc}lockbook_core.h || true
-	cbindgen src/c_interface.rs -l c > lockbook_core.h
+	@rm ${swift_inc}${headerName} || true
+	cbindgen src/c_interface.rs -l c > ${headerName}
 	@mkdir -p ${swift_inc}
-	cp lockbook_core.h ${swift_inc}
+	cp ${headerName} ${swift_inc}
 	@echo "Building fat library"
-	@rm ${swift_lib_ios_sim}liblockbook_core_external_interface.a || true
+	@rm ${swift_lib_ios_sim}liblb_rs.a || true
 	cargo build --release --target=aarch64-apple-ios-sim
 	cargo build --release --target=x86_64-apple-ios
 	@mkdir -p ${swift_lib_ios_sim}
-	lipo -create -output ${swift_lib_ios_sim}liblockbook_core_external_interface.a ../../../target/aarch64-apple-ios-sim/release/liblockbook_core_external_interface.a ../../../target/x86_64-apple-ios/release/liblockbook_core_external_interface.a
+	lipo -create -output ${swift_lib_ios_sim}liblb_rs.a ../../../target/aarch64-apple-ios-sim/release/liblb_rs.a ../../../target/x86_64-apple-ios/release/liblb_rs.a
 
 # for non lipo builds (linux)
 .PHONY: lib_c_for_swift_native
 lib_c_for_swift_native:
 	@{ command -v cargo || { echo "Y'ain't got cargo"; exit 1; } }
 	@echo "Creating header"
-	@rm ${swift_inc}lockbook_core.h || echo "no prior .h"
-	cbindgen src/c_interface.rs -l c > lockbook_core.h
+	@rm ${swift_inc}${headerName} || echo "no prior .h"
+	cbindgen src/c_interface.rs -l c > ${headerName}
 	@mkdir -p ${swift_inc}
-	cp lockbook_core.h ${swift_inc}
+	cp ${headerName} ${swift_inc}
 	@echo "Building fat library"
-	@rm ${swift_lib}liblockbook_core_external_interface.a || echo "no prior .a"
+	@rm ${swift_lib}liblb_rs.a || echo "no prior .a"
 	cargo build --release
 	@mkdir -p ${swift_lib}
-	cp ../../../target/release/liblockbook_core_external_interface.a ${swift_lib}
+	cp ../../../target/release/liblb_rs.a ${swift_lib}
 
 .PHONY: lib_c_for_swift_universal
 lib_c_for_swift_universal:
 	@{ command -v cargo || { echo "Y'ain't got cargo"; exit 1; } }
 	@echo "Creating header"
-	@rm ${swift_inc}lockbook_core.h || echo "no prior .h"
-	cbindgen src/c_interface.rs -l c > lockbook_core.h
+	@rm ${swift_inc}${headerName} || echo "no prior .h"
+	cbindgen src/c_interface.rs -l c > ${headerName}
 	@mkdir -p ${swift_inc}
-	cp lockbook_core.h ${swift_inc}
+	cp ${headerName} ${swift_inc}
 	@echo "Building fat library"
-	@rm ${swift_lib}liblockbook_core_external_interface.a || echo "no prior .a"
+	@rm ${swift_lib}liblb_rs.a || echo "no prior .a"
 	cargo build --release --target=x86_64-apple-darwin
 	cargo build --release --target=aarch64-apple-darwin
 	rm -rf ../../../target/xcode-lipo-universal
 	mkdir ../../../target/xcode-lipo-universal
-	lipo -create -output ../../../target/xcode-lipo-universal/liblockbook_core_external_interface.a ../../../target/x86_64-apple-darwin/release/liblockbook_core_external_interface.a ../../../target/aarch64-apple-darwin/release/liblockbook_core_external_interface.a
+	lipo -create -output ../../../target/xcode-lipo-universal/liblb_rs.a ../../../target/x86_64-apple-darwin/release/liblb_rs.a ../../../target/aarch64-apple-darwin/release/liblb_rs.a
 	@mkdir -p ${swift_lib}
-	cp ../../../target/xcode-lipo-universal/liblockbook_core_external_interface.a ${swift_lib}
+	cp ../../../target/xcode-lipo-universal/liblb_rs.a ${swift_lib}
 
 .PHONY: swift_libs
 swift_libs: lib_c_for_swift_universal lib_c_for_swift_ios lib_c_for_swift_ios_sim
@@ -133,10 +133,11 @@ lib_c_for_windows:
 	-cp ../../../target/release/${windowsLibName} ${windows_lib}
 
 MIN_VER = 22
-jniLibs = '../../../clients/android/core/src/main/jniLibs'
-libName = 'liblockbook_core_external_interface.so'
+jniLibs = '../../../clients/android/lb-rs/src/main/jniLibs'
+libName = 'liblb-rs'
 macosLibName = 'liblockbook_core_external_interface.dylib'
 windowsLibName = 'liblockbook_core_external_interface.dll'
+headerName = 'lb-rs.h'
 
 # Swift Library Location
 swift_inc := ../../../clients/apple/CLockbookCore/Sources/CLockbookCore/include/

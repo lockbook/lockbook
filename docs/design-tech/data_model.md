@@ -128,4 +128,4 @@ Delete is the only "unsafe operation" since you can delete a file without having
 Archiving a file is the "safe" version of deleting a file. 
 
 [signal-link]: https://support.signal.org/hc/en-us/articles/360007060632-What-is-a-safety-number-and-why-do-I-see-that-it-changed-
-[sync-service]: https://github.com/lockbook/lockbook/blob/master/core/src/service/sync_service.rs
+[sync-service]: https://github.com/lockbook/lockbook/blob/master/libs/lb/lb-rs/src/service/sync_service.rs

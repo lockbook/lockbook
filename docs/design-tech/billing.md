@@ -127,7 +127,7 @@ The verification happens like apple's, the token is a prompt for you to go and c
 
 ## Billing States
 
-There are 4 states of a Google Play subscription (described by the `GooglePlayAccountState` enum in `core/libs/shared/src/api.rs`):
+There are 4 states of a Google Play subscription (described by the `GooglePlayAccountState` enum in `lb-rs/libs/shared/src/api.rs`):
 
 1. `Ok`: The user has a valid subscription that is renewing monthly.
 2. `Canceled`: The user's subscription has been canceled, but they still have premium benefits until the end of their billing cycle.

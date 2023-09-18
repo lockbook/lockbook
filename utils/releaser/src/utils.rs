@@ -33,7 +33,7 @@ pub fn lb_repo() -> RepoInfo<'static> {
 }
 
 pub fn core_version() -> String {
-    let core = fs::read_to_string("libs/core/Cargo.toml").unwrap();
+    let core = fs::read_to_string("libs/lb/lb-rs/Cargo.toml").unwrap();
     core.parse::<Value>().unwrap()["package"]["version"]
         .as_str()
         .unwrap()
