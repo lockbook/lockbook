@@ -25,15 +25,17 @@ impl Workspace {
         }
     }
 
-    pub fn open_tab(&mut self, id: lb::Uuid, name: &str, path: &str) {
+    pub fn open_tab(&mut self, id: lb::Uuid, name: &str, path: &str, is_new_file: bool) {
         let now = Instant::now();
         self.tabs.push(Tab {
             id,
+            rename: None,
             name: name.to_owned(),
             path: path.to_owned(),
             failure: None,
             content: None,
             last_changed: now,
+            is_new_file,
             last_saved: now,
         });
         self.active_tab = self.tabs.len() - 1;
@@ -73,9 +75,10 @@ impl Workspace {
 enum TabLabelResponse {
     Clicked,
     Closed,
+    Renamed(String),
 }
 
-fn tab_label(ui: &mut egui::Ui, t: &Tab, is_active: bool) -> Option<TabLabelResponse> {
+fn tab_label(ui: &mut egui::Ui, t: &mut Tab, is_active: bool) -> Option<TabLabelResponse> {
     let mut lbl_resp = None;
 
     let padding = egui::vec2(15.0, 15.0);
@@ -109,51 +112,74 @@ fn tab_label(ui: &mut egui::Ui, t: &Tab, is_active: bool) -> Option<TabLabelResp
             }
         }
 
-        let bg = if resp.hovered() && !close_hovered {
-            ui.visuals().widgets.hovered.bg_fill
-        } else {
-            ui.visuals().widgets.noninteractive.bg_fill
-        };
-        ui.painter().rect(rect, 0.0, bg, egui::Stroke::NONE);
-
         let text_pos = egui::pos2(rect.min.x + padding.x, rect.center().y - 0.5 * text.size().y);
 
-        text.paint_with_visuals(ui.painter(), text_pos, visuals);
+        if let Some(ref mut str) = t.rename {
+            let res = ui
+                .allocate_ui_at_rect(rect, |ui| {
+                    ui.add(
+                        egui::TextEdit::singleline(str)
+                            .frame(false)
+                            .id(egui::Id::new("rename_tab")),
+                    )
+                })
+                .inner;
 
-        if close_hovered {
-            ui.painter().rect(
-                close_btn_rect,
-                0.0,
-                ui.visuals().widgets.hovered.bg_fill,
-                egui::Stroke::NONE,
-            );
-        }
+            res.request_focus();
 
-        let icon_draw_pos = egui::pos2(
-            rect.max.x - padding.x - x_icon.size - 1.0,
-            rect.center().y - x_icon.size / 4.1 - 1.0,
-        );
-
-        let icon: egui::WidgetText = (&x_icon).into();
-        icon.into_galley(ui, Some(false), wrap_width, egui::TextStyle::Body)
-            .paint_with_visuals(ui.painter(), icon_draw_pos, visuals);
-
-        let close_resp = ui.interact(
-            close_btn_rect,
-            egui::Id::new(format!("close-btn-{}", t.id)),
-            egui::Sense::click(),
-        );
-        // First, we check if the close button was clicked.
-        if close_resp.clicked() {
-            lbl_resp = Some(TabLabelResponse::Closed);
+            if res.lost_focus()
+                || ui.input(|i| {
+                    i.pointer.primary_clicked()
+                        && !rect.contains(i.pointer.interact_pos().unwrap_or_default())
+                })
+                || ui.input(|i| i.key_pressed(egui::Key::Enter))
+            {
+                lbl_resp = Some(TabLabelResponse::Renamed(str.to_owned()))
+            }
         } else {
-            // Then, we check if the tab label was clicked so that a close button click
-            // wouldn't also count here.
-            let resp = resp.interact(egui::Sense::click());
-            if resp.clicked() {
-                lbl_resp = Some(TabLabelResponse::Clicked);
-            } else if resp.middle_clicked() {
+            let bg = if resp.hovered() && !close_hovered {
+                ui.visuals().widgets.hovered.bg_fill
+            } else {
+                ui.visuals().widgets.noninteractive.bg_fill
+            };
+            ui.painter().rect(rect, 0.0, bg, egui::Stroke::NONE);
+            text.paint_with_visuals(ui.painter(), text_pos, visuals);
+
+            if close_hovered {
+                ui.painter().rect(
+                    close_btn_rect,
+                    0.0,
+                    ui.visuals().widgets.hovered.bg_fill,
+                    egui::Stroke::NONE,
+                );
+            }
+
+            let icon_draw_pos = egui::pos2(
+                rect.max.x - padding.x - x_icon.size - 1.0,
+                rect.center().y - x_icon.size / 4.1 - 1.0,
+            );
+
+            let icon: egui::WidgetText = (&x_icon).into();
+            icon.into_galley(ui, Some(false), wrap_width, egui::TextStyle::Body)
+                .paint_with_visuals(ui.painter(), icon_draw_pos, visuals);
+
+            let close_resp = ui.interact(
+                close_btn_rect,
+                egui::Id::new(format!("close-btn-{}", t.id)),
+                egui::Sense::click(),
+            );
+            // First, we check if the close button was clicked.
+            if close_resp.clicked() {
                 lbl_resp = Some(TabLabelResponse::Closed);
+            } else {
+                // Then, we check if the tab label was clicked so that a close button click
+                // wouldn't also count here.
+                let resp = resp.interact(egui::Sense::click());
+                if resp.clicked() {
+                    lbl_resp = Some(TabLabelResponse::Clicked);
+                } else if resp.middle_clicked() {
+                    lbl_resp = Some(TabLabelResponse::Closed);
+                }
             }
         }
 
@@ -224,14 +250,20 @@ impl super::AccountScreen {
 
             ui.visuals_mut().widgets.inactive.bg_fill = ui.visuals().widgets.active.bg_fill;
             ui.visuals_mut().widgets.hovered.bg_fill = ui.visuals().widgets.active.bg_fill;
+
+            let text_stroke =
+                egui::Stroke { color: ui.visuals().extreme_bg_color, ..Default::default() };
+            ui.visuals_mut().widgets.inactive.fg_stroke = text_stroke;
+            ui.visuals_mut().widgets.active.fg_stroke = text_stroke;
+            ui.visuals_mut().widgets.hovered.fg_stroke = text_stroke;
+
             if Button::default()
                 .text("New document")
                 .frame(true)
                 .show(ui)
                 .clicked()
             {
-                self.update_tx.send(OpenModal::NewDoc(None).into()).unwrap();
-                ui.ctx().request_repaint();
+                self.create_file();
             }
             ui.visuals_mut().widgets.inactive.fg_stroke =
                 egui::Stroke { color: ui.visuals().widgets.active.bg_fill, ..Default::default() };
@@ -250,14 +282,14 @@ impl super::AccountScreen {
         ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
 
         ui.vertical(|ui| {
-            if self.workspace.tabs.len() > 1 {
+            if !self.workspace.tabs.is_empty() {
                 ui.horizontal(|ui| {
                     for (i, maybe_resp) in self
                         .workspace
                         .tabs
-                        .iter()
+                        .iter_mut()
                         .enumerate()
-                        .map(|(i, t)| tab_label(ui, t, self.workspace.active_tab == i))
+                        .map(|(i, t)| (tab_label(ui, t, self.workspace.active_tab == i)))
                         .collect::<Vec<Option<TabLabelResponse>>>()
                         .iter()
                         .enumerate()
@@ -265,9 +297,36 @@ impl super::AccountScreen {
                         if let Some(resp) = maybe_resp {
                             match resp {
                                 TabLabelResponse::Clicked => {
-                                    self.workspace.active_tab = i;
-                                    frame.set_window_title(&self.workspace.tabs[i].name);
-                                    self.tree.reveal_file(self.workspace.tabs[i].id, &self.core);
+                                    if self.workspace.active_tab == i {
+                                        // we should rename the file.
+
+                                        let active_name = self.workspace.tabs[i].name.clone();
+
+                                        let mut rename_edit_state =
+                                            egui::text_edit::TextEditState::default();
+                                        rename_edit_state.set_ccursor_range(Some(
+                                            egui::text_edit::CCursorRange {
+                                                primary: egui::text::CCursor::new(
+                                                    active_name
+                                                        .rfind('.')
+                                                        .unwrap_or(active_name.len()),
+                                                ),
+                                                secondary: egui::text::CCursor::new(0),
+                                            },
+                                        ));
+                                        egui::TextEdit::store_state(
+                                            ui.ctx(),
+                                            egui::Id::new("rename_tab"),
+                                            rename_edit_state,
+                                        );
+                                        self.workspace.tabs[i].rename = Some(active_name);
+                                    } else {
+                                        self.workspace.tabs[i].rename = None;
+                                        self.workspace.active_tab = i;
+                                        frame.set_window_title(&self.workspace.tabs[i].name);
+                                        self.tree
+                                            .reveal_file(self.workspace.tabs[i].id, &self.core);
+                                    }
                                 }
                                 TabLabelResponse::Closed => {
                                     self.close_tab(ui.ctx(), i);
@@ -275,6 +334,11 @@ impl super::AccountScreen {
                                         Some(tab) => &tab.name,
                                         None => "Lockbook",
                                     });
+                                }
+                                TabLabelResponse::Renamed(name) => {
+                                    self.workspace.tabs[i].rename = None;
+                                    let id = self.workspace.current_tab().unwrap().id;
+                                    self.rename_file((id, name.clone()), ui.ctx());
                                 }
                             }
                             ui.ctx().request_repaint();

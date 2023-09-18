@@ -121,7 +121,8 @@ pub fn calc(
             // see https://github.com/lockbook/lockbook/issues/1983, https://github.com/emilk/egui/issues/3203
             let text = {
                 let mut this = buffer[text_range_portion].to_string();
-                if buffer[paragraph] == "\t".repeat(buffer[paragraph].len()) {
+                let paragraph_body = &buffer[(paragraph.0 + head_size, paragraph.1)];
+                if paragraph_body == "\t".repeat(paragraph_body.len()) {
                     this = " ".repeat(this.len()).to_string();
                 }
                 this
@@ -295,7 +296,8 @@ impl GalleyInfo {
 
         // allocate space for image
         let image = if let Some(Annotation::Image(_, url, _)) = &job.annotation {
-            if let Some(&texture) = images.map.get(url) {
+            if let Some(Some(texture)) = images.map.get(url) {
+                let texture = *texture;
                 let [image_width, image_height] =
                     ui.ctx().tex_manager().read().meta(texture).unwrap().size;
                 let [image_width, image_height] = [image_width as f32, image_height as f32];
@@ -303,7 +305,7 @@ impl GalleyInfo {
                     f32::min(ui.available_width() - appearance.image_padding() * 2.0, image_width);
                 let height = image_height * width / image_width + appearance.image_padding() * 2.0;
                 let (location, _) =
-                    ui.allocate_exact_size(Vec2::new(ui.available_width(), height), Sense::hover());
+                    ui.allocate_exact_size(Vec2::new(width, height), Sense::hover());
                 Some(ImageInfo { location, texture })
             } else {
                 None

@@ -1,16 +1,16 @@
 use crate::ast::{Ast, AstTextRangeType};
 use crate::bounds::{AstTextRanges, Bounds, RangesExt, Text};
-use crate::buffer::{EditorMutation, Mutation, SubBuffer, SubMutation};
+use crate::buffer::{EditorMutation, SubBuffer, SubMutation};
 use crate::galleys::Galleys;
 use crate::input::canonical::{Location, Modification, Offset, Region};
 use crate::input::cursor::Cursor;
 use crate::layouts::Annotation;
 use crate::offset_types::{DocCharOffset, RangeExt, RangeIterExt};
-use crate::style::{InlineNodeType, ListItem, MarkdownNode, MarkdownNodeType};
+use crate::style::{BlockNode, InlineNodeType, ListItem, MarkdownNode, MarkdownNodeType};
 use crate::unicode_segs::UnicodeSegs;
 use egui::Pos2;
 use std::cmp::Ordering;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use unicode_segmentation::UnicodeSegmentation;
 
 pub fn calc(
@@ -126,15 +126,41 @@ pub fn calc(
                                 + ". ";
                             mutation.push(SubMutation::Insert { text, advance_cursor: true });
 
-                            mutation.extend(increment_numbered_list_items(
-                                galley_idx,
-                                indent_level,
-                                1,
-                                false,
-                                galleys,
-                                buffer,
-                                cursor,
-                            ));
+                            let renumbered_galleys = {
+                                let mut this = HashMap::new();
+                                increment_numbered_list_items(
+                                    galley_idx,
+                                    indent_level,
+                                    1,
+                                    false,
+                                    galleys,
+                                    &mut this,
+                                );
+                                this
+                            };
+                            for (galley_idx, galley_new_number) in renumbered_galleys {
+                                let galley = &galleys[galley_idx];
+                                if let Some(Annotation::Item(
+                                    ListItem::Numbered(galley_cur_number),
+                                    ..,
+                                )) = galley.annotation
+                                {
+                                    mutation.push(SubMutation::Cursor {
+                                        cursor: (
+                                            galley.range.start() + galley.head_size,
+                                            galley.range.start() + galley.head_size
+                                                - (galley_cur_number).to_string().len()
+                                                - 2,
+                                        )
+                                            .into(),
+                                    });
+                                    mutation.push(SubMutation::Insert {
+                                        text: galley_new_number.to_string() + ". ",
+                                        advance_cursor: true,
+                                    });
+                                    mutation.push(SubMutation::Cursor { cursor: current_cursor });
+                                }
+                            }
                         }
                         Some(Annotation::Item(ListItem::Todo(_), _)) => {
                             let head = galley.head(buffer);
@@ -177,193 +203,276 @@ pub fn calc(
         Modification::Indent { deindent } => {
             // if we're in a list item, tab/shift+tab will indent/de-indent
             // otherwise, tab will insert a tab and shift tab will do nothing
-            let galley_idx = galleys.galley_at_char(current_cursor.selection.1);
-            let galley = &galleys[galley_idx];
-            if let Some(annotation) = &galley.annotation {
-                match annotation {
-                    Annotation::Item(item_type, indent_level) => {
-                        // todo: this needs more attention e.g. list items doubly indented using 2-space indents
-                        let galley_text = &buffer[(galley.range.start(), galley.range.end())];
-                        let indent_seq = if galley_text.starts_with('\t') {
-                            "\t"
-                        } else if galley_text.starts_with("    ") {
-                            "    "
-                        } else if galley_text.starts_with("  ") {
-                            "  "
-                        } else {
-                            "\t"
-                        };
+            let mut processed_galleys = HashSet::new();
+            let mut indented_galleys = HashMap::new();
+            let mut renumbered_galleys = HashMap::new();
 
-                        // indent or de-indent if able
-                        let new_indent_level = if deindent {
-                            let mut can_deindent = true;
-                            if *indent_level == 0 {
-                                can_deindent = false; // cannot de-indent un-indented list item
-                            } else if galley_idx != galleys.len() - 1 {
-                                let next_galley = &galleys[galley_idx + 1];
-                                if let Some(Annotation::Item(next_item_type, next_indent_level)) =
-                                    &next_galley.annotation
-                                {
-                                    if next_item_type == item_type
-                                        && next_indent_level > indent_level
-                                    {
-                                        can_deindent = false; // list item cannot be de-indented if already indented less than next item
-                                    }
-                                }
-                            }
+            let ast_text_ranges = bounds.ast.find_intersecting(current_cursor.selection, true);
 
-                            if can_deindent {
-                                // de-indentation: select text, delete selection, restore cursor
-                                mutation.push(SubMutation::Cursor {
-                                    cursor: (
-                                        galley.range.start(),
-                                        galley.range.start() + indent_seq.len(),
-                                    )
-                                        .into(),
-                                });
-                                mutation.push(SubMutation::Delete(0.into()));
-                                mutation.push(SubMutation::Cursor { cursor: current_cursor });
+            // iterate forwards for indent and backwards for de-indent because when indenting, the indentation of the
+            // prior item constraints the indentation of the current item, and when de-indenting, the indentation of
+            // the next item constraints the indentation of the current item
+            let mut ast_text_ranges_iter = ast_text_ranges.iter();
+            while let Some(ast_text_range) = if deindent {
+                ast_text_ranges_iter.next_back()
+            } else {
+                ast_text_ranges_iter.next()
+            } {
+                let ast_node = bounds.ast[ast_text_range]
+                    .ancestors
+                    .last()
+                    .copied()
+                    .unwrap(); // ast text ranges always have themselves as the last ancestor
+                let galley_idx = galleys.galley_at_char(ast.nodes[ast_node].text_range.start());
+                let galley = &galleys[galley_idx];
+                if !processed_galleys.insert(galley_idx) {
+                    continue; // only process each galley once
+                }
 
-                                indent_level - 1
-                            } else {
-                                *indent_level
-                            }
-                        } else {
-                            let mut can_indent = true;
-                            if galley_idx == 0 {
-                                can_indent = false; // first galley cannot be indented
-                            }
-                            let prior_galley = &galleys[galley_idx - 1];
-                            if let Some(Annotation::Item(_, prior_indent_level)) =
-                                &prior_galley.annotation
-                            {
-                                if prior_indent_level < indent_level {
-                                    can_indent = false; // list item cannot be indented if already indented more than prior item
-                                }
-                            } else {
-                                can_indent = false; // first list item of a list cannot be indented
-                            }
+                let cur_indent_level =
+                    if let MarkdownNode::Block(BlockNode::ListItem(_, indent_level)) =
+                        ast.nodes[ast_node].node_type
+                    {
+                        indent_level
+                    } else {
+                        continue; // only process list items
+                    };
 
-                            if can_indent {
-                                // indentation: set cursor to galley start, insert indentation sequence, restore cursor
-                                mutation.push(SubMutation::Cursor {
-                                    cursor: galley.range.start().into(),
-                                });
-                                mutation.push(SubMutation::Insert {
-                                    text: indent_seq.to_string(),
-                                    advance_cursor: true,
-                                });
-                                mutation.push(SubMutation::Cursor { cursor: current_cursor });
+                // todo: this needs more attention e.g. list items doubly indented using 2-space indents
+                // tracked by https://github.com/lockbook/lockbook/issues/1842
+                let galley_text = &buffer[(galley.range.start(), galley.range.end())];
+                let indent_seq = if galley_text.starts_with('\t') {
+                    "\t"
+                } else if galley_text.starts_with("    ") {
+                    "    "
+                } else if galley_text.starts_with("  ") {
+                    "  "
+                } else {
+                    "\t"
+                };
 
-                                indent_level + 1
-                            } else {
-                                *indent_level
-                            }
-                        };
-
-                        // re-number numbered lists
-                        if new_indent_level != *indent_level {
-                            if let ListItem::Numbered(cur_number) = item_type {
-                                // assign a new_number to this item based on position in new nested list
-                                let new_number = {
-                                    let mut new_number = 1;
-                                    let mut prior_galley_idx = galley_idx;
-                                    while prior_galley_idx > 0 {
-                                        prior_galley_idx -= 1;
-                                        let prior_galley = &galleys[prior_galley_idx];
-                                        if let Some(Annotation::Item(
-                                            ListItem::Numbered(prior_number),
-                                            prior_indent_level,
-                                        )) = prior_galley.annotation
-                                        {
-                                            match prior_indent_level.cmp(&new_indent_level) {
-                                                Ordering::Greater => {
-                                                    continue; // skip more-nested list items
-                                                }
-                                                Ordering::Less => {
-                                                    break; // our element is the first in its sublist
-                                                }
-                                                Ordering::Equal => {
-                                                    new_number = prior_number + 1; // our element comes after this one in its sublist
-                                                    break;
-                                                }
-                                            }
-                                        } else {
-                                            break;
-                                        }
-                                    }
-                                    new_number
-                                };
-
-                                // replace cur_number with new_number in head
-                                mutation.push(SubMutation::Cursor {
-                                    cursor: (
-                                        galley.range.start() + galley.head_size,
-                                        galley.range.start() + galley.head_size
-                                            - (cur_number).to_string().len()
-                                            - 2,
-                                    )
-                                        .into(),
-                                });
-                                mutation.push(SubMutation::Insert {
-                                    text: new_number.to_string() + ". ",
-                                    advance_cursor: true,
-                                });
-                                mutation.push(SubMutation::Cursor { cursor: current_cursor });
-
-                                if deindent {
-                                    // decrement numbers in old list by this item's old number
-                                    mutation.extend(increment_numbered_list_items(
-                                        galley_idx,
-                                        *indent_level,
-                                        *cur_number,
-                                        true,
-                                        galleys,
-                                        buffer,
-                                        current_cursor,
-                                    ));
-
-                                    // increment numbers in new nested list by one
-                                    mutation.extend(increment_numbered_list_items(
-                                        galley_idx,
-                                        new_indent_level,
-                                        1,
-                                        false,
-                                        galleys,
-                                        buffer,
-                                        current_cursor,
-                                    ));
-                                } else {
-                                    // decrement numbers in old list by one
-                                    mutation.extend(increment_numbered_list_items(
-                                        galley_idx,
-                                        *indent_level,
-                                        1,
-                                        true,
-                                        galleys,
-                                        buffer,
-                                        current_cursor,
-                                    ));
-
-                                    // increment numbers in new nested list by this item's new number
-                                    mutation.extend(increment_numbered_list_items(
-                                        galley_idx,
-                                        new_indent_level,
-                                        new_number,
-                                        false,
-                                        galleys,
-                                        buffer,
-                                        current_cursor,
-                                    ));
-                                }
+                // indent or de-indent if able
+                let new_indent_level = if deindent {
+                    let mut can_deindent = true;
+                    if cur_indent_level == 0 {
+                        can_deindent = false; // cannot de-indent un-indented list item
+                    } else if galley_idx != galleys.len() - 1 {
+                        let next_galley = &galleys[galley_idx + 1];
+                        if let Some(Annotation::Item(.., next_indent_level)) =
+                            &next_galley.annotation
+                        {
+                            let next_indent_level = indented_galleys
+                                .get(&(galley_idx + 1))
+                                .copied()
+                                .unwrap_or(*next_indent_level);
+                            if next_indent_level > cur_indent_level {
+                                can_deindent = false; // list item cannot be de-indented if already indented less than next item
                             }
                         }
                     }
-                    Annotation::Image(..) => {}
-                    Annotation::HeadingRule => {}
-                    Annotation::Rule => {}
+
+                    if can_deindent {
+                        // de-indentation: select text, delete selection, restore cursor
+                        mutation.push(SubMutation::Cursor {
+                            cursor: (galley.range.start(), galley.range.start() + indent_seq.len())
+                                .into(),
+                        });
+                        mutation.push(SubMutation::Delete(0.into()));
+                        mutation.push(SubMutation::Cursor { cursor: current_cursor });
+
+                        cur_indent_level - 1
+                    } else {
+                        cur_indent_level
+                    }
+                } else {
+                    let mut can_indent = true;
+                    if galley_idx == 0 {
+                        can_indent = false; // first galley cannot be indented
+                    } else {
+                        let prior_galley = &galleys[galley_idx - 1];
+                        if let Some(Annotation::Item(_, prior_indent_level)) =
+                            &prior_galley.annotation
+                        {
+                            let prior_indent_level = indented_galleys
+                                .get(&(galley_idx - 1))
+                                .copied()
+                                .unwrap_or(*prior_indent_level);
+                            if prior_indent_level < cur_indent_level {
+                                can_indent = false; // list item cannot be indented if already indented more than prior item
+                            }
+                        } else {
+                            can_indent = false; // first list item of a list cannot be indented
+                        }
+                    }
+
+                    if can_indent {
+                        // indentation: set cursor to galley start, insert indentation sequence, restore cursor
+                        mutation.push(SubMutation::Cursor { cursor: galley.range.start().into() });
+                        mutation.push(SubMutation::Insert {
+                            text: indent_seq.to_string(),
+                            advance_cursor: true,
+                        });
+                        mutation.push(SubMutation::Cursor { cursor: current_cursor });
+
+                        cur_indent_level + 1
+                    } else {
+                        cur_indent_level
+                    }
+                };
+
+                if new_indent_level != cur_indent_level {
+                    indented_galleys.insert(galley_idx, new_indent_level);
                 }
-            } else if !deindent {
+            }
+
+            // always iterate forwards when renumbering because numbers are based on prior numbers for both indent
+            // and deindent operations
+            processed_galleys.clear();
+            for ast_text_range in ast_text_ranges.iter() {
+                let ast_node = bounds.ast[ast_text_range]
+                    .ancestors
+                    .last()
+                    .copied()
+                    .unwrap(); // ast text ranges always have themselves as the last ancestor
+                let galley_idx = galleys.galley_at_char(ast.nodes[ast_node].text_range.start());
+                if !processed_galleys.insert(galley_idx) {
+                    continue; // only process each galley once
+                }
+
+                let (cur_number, cur_indent_level) = if let MarkdownNode::Block(
+                    BlockNode::ListItem(ListItem::Numbered(cur_number), indent_level),
+                ) = ast.nodes[ast_node].node_type
+                {
+                    (cur_number, indent_level)
+                } else {
+                    continue; // only process numbered list items
+                };
+                let new_indent_level =
+                    if let Some(new_indent_level) = indented_galleys.get(&galley_idx).copied() {
+                        new_indent_level
+                    } else {
+                        continue; // only process indented galleys
+                    };
+
+                // re-number numbered lists
+                let cur_number = renumbered_galleys
+                    .get(&galley_idx)
+                    .copied()
+                    .unwrap_or(cur_number);
+
+                // assign a new_number to this item based on position in new nested list
+                let new_number = {
+                    let mut new_number = 1;
+                    let mut prior_galley_idx = galley_idx;
+                    while prior_galley_idx > 0 {
+                        prior_galley_idx -= 1;
+                        let prior_galley = &galleys[prior_galley_idx];
+                        if let Some(Annotation::Item(
+                            ListItem::Numbered(prior_number),
+                            prior_indent_level,
+                        )) = prior_galley.annotation
+                        {
+                            // if prior galley has already been processed, use its new indent level and number
+                            let prior_indent_level = indented_galleys
+                                .get(&prior_galley_idx)
+                                .copied()
+                                .unwrap_or(prior_indent_level);
+                            let prior_number = renumbered_galleys
+                                .get(&prior_galley_idx)
+                                .copied()
+                                .unwrap_or(prior_number);
+
+                            match prior_indent_level.cmp(&new_indent_level) {
+                                Ordering::Greater => {
+                                    continue; // skip more-nested list items
+                                }
+                                Ordering::Less => {
+                                    break; // our element is the first in its sublist
+                                }
+                                Ordering::Equal => {
+                                    new_number = prior_number + 1; // our element comes after this one in its sublist
+                                    break;
+                                }
+                            }
+                        } else {
+                            break;
+                        }
+                    }
+
+                    renumbered_galleys.insert(galley_idx, new_number);
+
+                    new_number
+                };
+
+                renumbered_galleys.insert(galley_idx, new_number);
+
+                if deindent {
+                    // decrement numbers in old list by this item's old number
+                    increment_numbered_list_items(
+                        galley_idx,
+                        cur_indent_level,
+                        cur_number,
+                        true,
+                        galleys,
+                        &mut renumbered_galleys,
+                    );
+
+                    // increment numbers in new nested list by one
+                    increment_numbered_list_items(
+                        galley_idx,
+                        new_indent_level,
+                        1,
+                        false,
+                        galleys,
+                        &mut renumbered_galleys,
+                    );
+                } else {
+                    // decrement numbers in old list by one
+                    increment_numbered_list_items(
+                        galley_idx,
+                        cur_indent_level,
+                        1,
+                        true,
+                        galleys,
+                        &mut renumbered_galleys,
+                    );
+
+                    // increment numbers in new nested list by this item's new number
+                    increment_numbered_list_items(
+                        galley_idx,
+                        new_indent_level,
+                        new_number,
+                        false,
+                        galleys,
+                        &mut renumbered_galleys,
+                    );
+                }
+            }
+
+            // apply renumber operations once at the end because otherwise they stack up and clobber each other
+            for (galley_idx, new_number) in renumbered_galleys {
+                let galley = &galleys[galley_idx];
+                if let Some(Annotation::Item(ListItem::Numbered(cur_number), ..)) =
+                    galley.annotation
+                {
+                    mutation.push(SubMutation::Cursor {
+                        cursor: (
+                            galley.range.start() + galley.head_size,
+                            galley.range.start() + galley.head_size
+                                - (cur_number).to_string().len()
+                                - 2,
+                        )
+                            .into(),
+                    });
+                    mutation.push(SubMutation::Insert {
+                        text: new_number.to_string() + ". ",
+                        advance_cursor: true,
+                    });
+                    mutation.push(SubMutation::Cursor { cursor: current_cursor });
+                }
+            }
+
+            if processed_galleys.is_empty() && !deindent {
                 mutation.push(SubMutation::Insert { text: "\t".to_string(), advance_cursor: true });
             }
         }
@@ -512,29 +621,25 @@ fn apply_style(
 
     // modify head/tail for nodes containing cursor start and cursor end
     let mut last_start_ancestor: Option<usize> = None;
-    if start_range.range_type == AstTextRangeType::Text {
-        for &ancestor in &start_range.ancestors {
-            // dehead and detail all but the last ancestor applying the style
-            if let Some(prev_ancestor) = last_start_ancestor {
-                dehead_ast_node(prev_ancestor, ast, mutation);
-                detail_ast_node(prev_ancestor, ast, mutation);
-            }
-            if ast.nodes[ancestor].node_type == style {
-                last_start_ancestor = Some(ancestor);
-            }
+    for &ancestor in &start_range.ancestors {
+        // dehead and detail all but the last ancestor applying the style
+        if let Some(prev_ancestor) = last_start_ancestor {
+            dehead_ast_node(prev_ancestor, ast, mutation);
+            detail_ast_node(prev_ancestor, ast, mutation);
+        }
+        if ast.nodes[ancestor].node_type == style {
+            last_start_ancestor = Some(ancestor);
         }
     }
     let mut last_end_ancestor: Option<usize> = None;
-    if end_range.range_type == AstTextRangeType::Text {
-        for &ancestor in &end_range.ancestors {
-            // dehead and detail all but the last ancestor applying the style
-            if let Some(prev_ancestor) = last_end_ancestor {
-                dehead_ast_node(prev_ancestor, ast, mutation);
-                detail_ast_node(prev_ancestor, ast, mutation);
-            }
-            if ast.nodes[ancestor].node_type == style {
-                last_end_ancestor = Some(ancestor);
-            }
+    for &ancestor in &end_range.ancestors {
+        // dehead and detail all but the last ancestor applying the style
+        if let Some(prev_ancestor) = last_end_ancestor {
+            dehead_ast_node(prev_ancestor, ast, mutation);
+            detail_ast_node(prev_ancestor, ast, mutation);
+        }
+        if ast.nodes[ancestor].node_type == style {
+            last_end_ancestor = Some(ancestor);
         }
     }
     if last_start_ancestor != last_end_ancestor {
@@ -550,7 +655,13 @@ fn apply_style(
         // if unapplying, tail or dehead node containing start to crop styled region to selection
         if let Some(last_start_ancestor) = last_start_ancestor {
             if ast.nodes[last_start_ancestor].text_range.start() < cursor.selection.start() {
-                insert_tail(cursor.selection.start(), style.clone(), mutation);
+                let offset = adjust_for_whitespace(
+                    buffer,
+                    cursor.selection.start(),
+                    style.node_type(),
+                    true,
+                );
+                insert_tail(offset, style.clone(), mutation);
             } else {
                 dehead_ast_node(last_start_ancestor, ast, mutation);
             }
@@ -558,7 +669,9 @@ fn apply_style(
         // if unapplying, head or detail node containing end to crop styled region to selection
         if let Some(last_end_ancestor) = last_end_ancestor {
             if ast.nodes[last_end_ancestor].text_range.end() > cursor.selection.end() {
-                insert_head(cursor.selection.end(), style.clone(), mutation);
+                let offset =
+                    adjust_for_whitespace(buffer, cursor.selection.end(), style.node_type(), false);
+                insert_head(offset, style.clone(), mutation);
             } else {
                 detail_ast_node(last_end_ancestor, ast, mutation);
             }
@@ -566,10 +679,16 @@ fn apply_style(
     } else {
         // if applying, head start and/or tail end to extend styled region to selection
         if last_start_ancestor.is_none() {
-            insert_head(cursor.selection.start(), style.clone(), mutation)
+            let offset =
+                adjust_for_whitespace(buffer, cursor.selection.start(), style.node_type(), false)
+                    .min(cursor.selection.end());
+            insert_head(offset, style.clone(), mutation)
         }
         if last_end_ancestor.is_none() {
-            insert_tail(cursor.selection.end(), style.clone(), mutation)
+            let offset =
+                adjust_for_whitespace(buffer, cursor.selection.end(), style.node_type(), true)
+                    .max(cursor.selection.start());
+            insert_tail(offset, style.clone(), mutation)
         }
     }
 
@@ -615,6 +734,36 @@ fn detail_ast_node(node_idx: usize, ast: &Ast, mutation: &mut Vec<SubMutation>) 
     let node = &ast.nodes[node_idx];
     mutation.push(SubMutation::Cursor { cursor: (node.text_range.end(), node.range.end()).into() });
     mutation.push(SubMutation::Insert { text: "".to_string(), advance_cursor: false });
+}
+
+fn adjust_for_whitespace(
+    buffer: &SubBuffer, mut offset: DocCharOffset, style: MarkdownNodeType, tail: bool,
+) -> DocCharOffset {
+    if matches!(style, MarkdownNodeType::Inline(..)) {
+        loop {
+            let c = if tail {
+                if offset == 0 {
+                    break;
+                }
+                &buffer[(offset - 1, offset)]
+            } else {
+                if offset == buffer.segs.last_cursor_position() {
+                    break;
+                }
+                &buffer[(offset, offset + 1)]
+            };
+            if c == " " {
+                if tail {
+                    offset -= 1
+                } else {
+                    offset += 1
+                }
+            } else {
+                break;
+            }
+        }
+    }
+    offset
 }
 
 fn insert_head(offset: DocCharOffset, style: MarkdownNode, mutation: &mut Vec<SubMutation>) {
@@ -750,13 +899,11 @@ pub fn pos_to_char_offset(
     }
 }
 
-#[allow(clippy::too_many_arguments)]
-pub fn increment_numbered_list_items(
+// appends modifications to `mutation` to renumber list items and returns numbers assigned to each galley
+fn increment_numbered_list_items(
     starting_galley_idx: usize, indent_level: u8, amount: usize, decrement: bool,
-    galleys: &Galleys, buffer: &SubBuffer, cursor: Cursor,
-) -> Mutation {
-    let mut modifications = Vec::new();
-
+    galleys: &Galleys, renumbers: &mut HashMap<usize, usize>,
+) {
     let mut galley_idx = starting_galley_idx;
     loop {
         galley_idx += 1;
@@ -774,23 +921,17 @@ pub fn increment_numbered_list_items(
                 }
                 Ordering::Equal => {
                     if let ListItem::Numbered(cur_number) = item_type {
+                        // if galley has already been processed, use its most recently assigned number
+                        let cur_number = renumbers.get(&galley_idx).unwrap_or(cur_number);
+
                         // replace cur_number with next_number in head
-                        modifications.push(SubMutation::Cursor {
-                            cursor: (galley.range.start(), galley.range.start() + galley.head_size)
-                                .into(),
-                        });
-                        let head = galley.head(buffer);
-                        let text = head[0..head.len() - (cur_number).to_string().len() - 2]
-                            .to_string()
-                            + &(if !decrement {
-                                cur_number.saturating_add(amount)
-                            } else {
-                                cur_number.saturating_sub(amount)
-                            })
-                            .to_string()
-                            + ". ";
-                        modifications.push(SubMutation::Insert { text, advance_cursor: true });
-                        modifications.push(SubMutation::Cursor { cursor });
+                        let new_number = if !decrement {
+                            cur_number.saturating_add(amount)
+                        } else {
+                            cur_number.saturating_sub(amount)
+                        };
+
+                        renumbers.insert(galley_idx, new_number);
                     }
                 }
             }
@@ -798,6 +939,4 @@ pub fn increment_numbered_list_items(
             break;
         }
     }
-
-    modifications
 }

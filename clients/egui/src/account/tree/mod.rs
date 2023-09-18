@@ -13,7 +13,7 @@ use self::state::*;
 
 pub struct FileTree {
     pub root: TreeNode,
-    state: TreeState,
+    pub state: TreeState,
     core: lb::Core,
 }
 
@@ -66,7 +66,7 @@ impl FileTree {
             ui.spacing_mut().button_padding = egui::vec2(4.0, 4.0);
 
             if ui.button("New Document").clicked() {
-                r.inner.new_doc_modal = Some(self.root.file.clone());
+                r.inner.new_file = Some(true);
                 ui.close_menu();
             }
             if ui.button("New Folder").clicked() {
@@ -179,6 +179,7 @@ impl FileTree {
     }
 
     /// expand the parents of the file and select it
+    // todo: remove this, duplicate of expand_to()
     pub fn reveal_file(&mut self, id: lb::Uuid, core: &lb::Core) {
         let core = core.clone();
         let update_tx = self.state.update_tx.clone();

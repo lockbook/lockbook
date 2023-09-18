@@ -327,6 +327,16 @@ impl Ast {
                         markdown_node = MarkdownNode::Paragraph;
                         text_range.0 = original_text_range_0;
                     }
+
+                    // prevent same-line list item nesting
+                    // 1. * nested item
+                    let parent_node = &self.nodes[parent_idx];
+                    if let MarkdownNode::Block(BlockNode::ListItem(..)) = parent_node.node_type {
+                        if !buffer[(parent_node.range.0, range.0)].contains('\n') {
+                            markdown_node = MarkdownNode::Paragraph;
+                            text_range.0 = original_text_range_0;
+                        }
+                    }
                 }
                 MarkdownNode::Block(BlockNode::Rule) => {
                     // ---

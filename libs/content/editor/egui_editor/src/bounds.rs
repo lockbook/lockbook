@@ -571,12 +571,14 @@ impl<Range: RangeExt<DocCharOffset>> RangesExt for Vec<Range> {
     ) -> (usize, usize) {
         match self.binary_search_by(|range| {
             if offset < range.start() {
-                Ordering::Less
+                Ordering::Greater
             } else if offset == range.start() {
-                if start_inclusive {
+                if offset == range.end() && !end_inclusive {
+                    Ordering::Less
+                } else if start_inclusive {
                     Ordering::Equal
                 } else {
-                    Ordering::Less
+                    Ordering::Greater
                 }
             } else if offset > range.start() && offset < range.end() {
                 Ordering::Equal
@@ -584,23 +586,23 @@ impl<Range: RangeExt<DocCharOffset>> RangesExt for Vec<Range> {
                 if end_inclusive {
                     Ordering::Equal
                 } else {
-                    Ordering::Greater
+                    Ordering::Less
                 }
             } else if offset > range.end() {
-                Ordering::Greater
+                Ordering::Less
             } else {
                 unreachable!()
             }
         }) {
             Ok(idx) => {
                 let mut start = idx;
-                while start > 0 && self[idx - 1].contains(offset, start_inclusive, end_inclusive) {
+                while start > 0 && self[start - 1].contains(offset, start_inclusive, end_inclusive)
+                {
                     start -= 1;
                 }
 
                 let mut end = idx;
-                while end < self.len() - 1
-                    && self[end + 1].contains(offset, start_inclusive, end_inclusive)
+                while end < self.len() && self[end].contains(offset, start_inclusive, end_inclusive)
                 {
                     end += 1;
                 }
@@ -614,8 +616,8 @@ impl<Range: RangeExt<DocCharOffset>> RangesExt for Vec<Range> {
     fn find_intersecting(
         &self, range: (DocCharOffset, DocCharOffset), allow_empty: bool,
     ) -> (usize, usize) {
-        let (start_start, _) = self.find_containing(range.start(), allow_empty, false);
-        let (_, end_end) = self.find_containing(range.end(), false, allow_empty);
+        let (start_start, _) = self.find_containing(range.start(), false, allow_empty);
+        let (_, end_end) = self.find_containing(range.end(), allow_empty, false);
         (start_start, end_end)
     }
 }
@@ -747,9 +749,8 @@ impl Editor {
 
 #[cfg(test)]
 mod test {
+    use super::{join, Bounds, RangesExt};
     use crate::{input::canonical::Bound, offset_types::DocCharOffset};
-
-    use super::{join, Bounds};
 
     #[test]
     fn range_before_after_no_ranges() {
@@ -2063,6 +2064,86 @@ mod test {
             DocCharOffset(8).advance_to_next_bound(Bound::Char, true, &bounds),
             DocCharOffset(6)
         );
+    }
+
+    #[test]
+    fn find_containing() {
+        let ranges: Vec<(DocCharOffset, DocCharOffset)> = vec![
+            (1.into(), 3.into()),
+            (5.into(), 6.into()),
+            (6.into(), 6.into()),
+            (6.into(), 7.into()),
+        ];
+
+        assert_eq!(ranges.find_containing(0.into(), false, false), (0, 0));
+        assert_eq!(ranges.find_containing(1.into(), false, false), (0, 0));
+        assert_eq!(ranges.find_containing(2.into(), false, false), (0, 1));
+        assert_eq!(ranges.find_containing(3.into(), false, false), (1, 1));
+        assert_eq!(ranges.find_containing(4.into(), false, false), (1, 1));
+        assert_eq!(ranges.find_containing(5.into(), false, false), (1, 1));
+        assert_eq!(ranges.find_containing(6.into(), false, false), (3, 3));
+        assert_eq!(ranges.find_containing(7.into(), false, false), (4, 4));
+        assert_eq!(ranges.find_containing(8.into(), false, false), (4, 4));
+
+        assert_eq!(ranges.find_containing(0.into(), true, false), (0, 0));
+        assert_eq!(ranges.find_containing(1.into(), true, false), (0, 1));
+        assert_eq!(ranges.find_containing(2.into(), true, false), (0, 1));
+        assert_eq!(ranges.find_containing(3.into(), true, false), (1, 1));
+        assert_eq!(ranges.find_containing(4.into(), true, false), (1, 1));
+        assert_eq!(ranges.find_containing(5.into(), true, false), (1, 2));
+        assert_eq!(ranges.find_containing(6.into(), true, false), (3, 4));
+        assert_eq!(ranges.find_containing(7.into(), true, false), (4, 4));
+        assert_eq!(ranges.find_containing(8.into(), true, false), (4, 4));
+
+        assert_eq!(ranges.find_containing(0.into(), false, true), (0, 0));
+        assert_eq!(ranges.find_containing(1.into(), false, true), (0, 0));
+        assert_eq!(ranges.find_containing(2.into(), false, true), (0, 1));
+        assert_eq!(ranges.find_containing(3.into(), false, true), (0, 1));
+        assert_eq!(ranges.find_containing(4.into(), false, true), (1, 1));
+        assert_eq!(ranges.find_containing(5.into(), false, true), (1, 1));
+        assert_eq!(ranges.find_containing(6.into(), false, true), (1, 2));
+        assert_eq!(ranges.find_containing(7.into(), false, true), (3, 4));
+        assert_eq!(ranges.find_containing(8.into(), false, true), (4, 4));
+
+        assert_eq!(ranges.find_containing(0.into(), true, true), (0, 0));
+        assert_eq!(ranges.find_containing(1.into(), true, true), (0, 1));
+        assert_eq!(ranges.find_containing(2.into(), true, true), (0, 1));
+        assert_eq!(ranges.find_containing(3.into(), true, true), (0, 1));
+        assert_eq!(ranges.find_containing(4.into(), true, true), (1, 1));
+        assert_eq!(ranges.find_containing(5.into(), true, true), (1, 2));
+        assert_eq!(ranges.find_containing(6.into(), true, true), (1, 4));
+        assert_eq!(ranges.find_containing(7.into(), true, true), (3, 4));
+        assert_eq!(ranges.find_containing(8.into(), true, true), (4, 4));
+    }
+
+    #[test]
+    fn find_intersecting_empty() {
+        let ranges: Vec<(DocCharOffset, DocCharOffset)> = vec![
+            (1.into(), 3.into()),
+            (5.into(), 6.into()),
+            (6.into(), 6.into()),
+            (6.into(), 7.into()),
+        ];
+
+        assert_eq!(ranges.find_intersecting((0.into(), 0.into()), false), (0, 0));
+        assert_eq!(ranges.find_intersecting((1.into(), 1.into()), false), (0, 0));
+        assert_eq!(ranges.find_intersecting((2.into(), 2.into()), false), (0, 1));
+        assert_eq!(ranges.find_intersecting((3.into(), 3.into()), false), (1, 1));
+        assert_eq!(ranges.find_intersecting((4.into(), 4.into()), false), (1, 1));
+        assert_eq!(ranges.find_intersecting((5.into(), 5.into()), false), (1, 1));
+        assert_eq!(ranges.find_intersecting((6.into(), 6.into()), false), (3, 3));
+        assert_eq!(ranges.find_intersecting((7.into(), 7.into()), false), (4, 4));
+        assert_eq!(ranges.find_intersecting((8.into(), 8.into()), false), (4, 4));
+
+        assert_eq!(ranges.find_intersecting((0.into(), 0.into()), true), (0, 0));
+        assert_eq!(ranges.find_intersecting((1.into(), 1.into()), true), (0, 1));
+        assert_eq!(ranges.find_intersecting((2.into(), 2.into()), true), (0, 1));
+        assert_eq!(ranges.find_intersecting((3.into(), 3.into()), true), (0, 1));
+        assert_eq!(ranges.find_intersecting((4.into(), 4.into()), true), (1, 1));
+        assert_eq!(ranges.find_intersecting((5.into(), 5.into()), true), (1, 2));
+        assert_eq!(ranges.find_intersecting((6.into(), 6.into()), true), (1, 4));
+        assert_eq!(ranges.find_intersecting((7.into(), 7.into()), true), (3, 4));
+        assert_eq!(ranges.find_intersecting((8.into(), 8.into()), true), (4, 4));
     }
 
     #[test]

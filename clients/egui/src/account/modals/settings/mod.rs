@@ -29,6 +29,7 @@ pub struct SettingsModal {
     account: AccountSettings,
     usage: UsageSettings,
     active_tab: SettingsTab,
+    version: String,
 }
 
 pub enum SettingsResponse {
@@ -69,6 +70,7 @@ impl SettingsModal {
             account: AccountSettings::new(export_result),
             usage: UsageSettings { info: None, info_tx, info_rx, upgrading: None },
             active_tab: SettingsTab::Account,
+            version: env!("CARGO_PKG_VERSION").to_string(),
         }
     }
 
@@ -153,6 +155,19 @@ impl SettingsModal {
 
         separator(ui);
     }
+
+    fn show_version(&self, ui: &mut egui::Ui) -> egui::InnerResponse<()> {
+        ui.with_layout(egui::Layout::bottom_up(egui::Align::Max), |ui| {
+            ui.add_space(15.0);
+            ui.horizontal(|ui| {
+                ui.add_space(15.0);
+                ui.label(
+                    egui::RichText::from(format!("Version: {}", &self.version))
+                        .color(egui::Color32::GRAY),
+                );
+            });
+        })
+    }
 }
 
 impl super::Modal for SettingsModal {
@@ -188,6 +203,7 @@ impl super::Modal for SettingsModal {
                         }
                         SettingsTab::General => self.show_general_tab(ui),
                     }
+                    self.show_version(ui);
                 });
             });
 
