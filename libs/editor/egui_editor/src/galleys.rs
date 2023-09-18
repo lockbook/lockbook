@@ -121,7 +121,8 @@ pub fn calc(
             // see https://github.com/lockbook/lockbook/issues/1983, https://github.com/emilk/egui/issues/3203
             let text = {
                 let mut this = buffer[text_range_portion].to_string();
-                if buffer[paragraph] == "\t".repeat(buffer[paragraph].len()) {
+                let paragraph_body = &buffer[(paragraph.0 + head_size, paragraph.1)];
+                if paragraph_body == "\t".repeat(paragraph_body.len()) {
                     this = " ".repeat(this.len()).to_string();
                 }
                 this
