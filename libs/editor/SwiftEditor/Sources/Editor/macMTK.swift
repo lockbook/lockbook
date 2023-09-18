@@ -139,6 +139,10 @@ public class MacMTK: MTKView, MTKViewDelegate {
     
     public override func keyDown(with event: NSEvent) {
         setClipboard()
+        if checkIfImagePasted(event) {
+            return
+        }
+        
         key_event(editorHandle, event.keyCode, event.modifierFlags.contains(.shift), event.modifierFlags.contains(.control), event.modifierFlags.contains(.option), event.modifierFlags.contains(.command), true, event.characters)
         setNeedsDisplay(self.frame)
     }
@@ -165,6 +169,44 @@ public class MacMTK: MTKView, MTKViewDelegate {
             system_clipboard_changed(editorHandle, theString)
         }
         self.pasteBoardEventId = NSPasteboard.general.changeCount
+    }
+    
+    func checkIfImagePasted(_ event: NSEvent) -> Bool {
+        if #available(macOS 13.0, *) {
+            if event.keyCode == 9 // v key
+                && event.modifierFlags.contains(.command) {
+                if let data = NSPasteboard.general.data(forType: .png) ?? NSPasteboard.general.data(forType: .tiff) {
+                    if let path = pasteImage(data: data) {
+                        paste_text(editorHandle, path)
+                        setNeedsDisplay(self.frame)
+                    }
+                    
+                    return true
+                }
+            }
+        }
+        
+        return false
+    }
+    
+    func pasteImage(data: Data) -> String? {
+        if let url = createTempDir() {
+            let imageUrl = url.appendingPathComponent(String(UUID().uuidString.prefix(10)), conformingTo: .tiff)
+            if #available(macOS 13.0, *) {
+                print("importing \(imageUrl.path(percentEncoded: true))")
+            } else {
+                // Fallback on earlier versions
+            }
+            do {
+                try data.write(to: imageUrl)
+            } catch {
+                return nil
+            }
+            
+            return editorState!.importFile(imageUrl)
+        }
+        
+        return nil
     }
     
     func getCoppiedText() -> String {

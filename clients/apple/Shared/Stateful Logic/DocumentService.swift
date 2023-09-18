@@ -282,7 +282,16 @@ class DocumentLoadingInfo: ObservableObject {
             DispatchQueue.main.async {
                 switch operation {
                 case .success(let txt):
-                    self.textDocument = EditorState(text: txt, isiPhone: self.isiPhone)
+                    self.textDocument = EditorState(text: txt, isiPhone: self.isiPhone) { url in
+                        DI.importExport.importFilesSync(sources:[url.path(percentEncoded: false)], destination: self.meta.parent)
+                        
+                        if let parentPath = DI.files.getPathByIdOrParent(maybeId: self.meta.parent) {
+                            
+                            return "lb:/\(parentPath)\(url.lastPathComponent)"
+                        } else {
+                            return nil
+                        }
+                    }
                     self.textDocumentToolbar = ToolbarState()
                     self
                         .textDocument!

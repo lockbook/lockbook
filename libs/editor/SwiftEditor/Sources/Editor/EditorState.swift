@@ -9,10 +9,18 @@ public class EditorState: ObservableObject {
     
     public var isiPhone: Bool
     
-    public init(text: String, isiPhone: Bool) {
+    public var importFile: (URL) -> String?
+    
+    public init(text: String, isiPhone: Bool, importFile: @escaping (URL) -> String?) {
         self.text = text
         self.isiPhone = isiPhone
+        self.importFile = importFile
     }
+}
+
+public enum SupportedImportImageFormats {
+    case png
+    case tiff
 }
 
 public class ToolbarState: ObservableObject {
@@ -44,3 +52,17 @@ public class NameState: ObservableObject {
     
     public init() {}
 }
+
+func createTempDir() -> URL? {
+    let fileManager = FileManager.default
+    let tempTempURL = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("editor-tmp").appendingPathComponent(UUID().uuidString)
+    
+    do {
+        try fileManager.createDirectory(at: tempTempURL, withIntermediateDirectories: true, attributes: nil)
+    } catch {
+        return nil
+    }
+    
+    return tempTempURL
+}
+

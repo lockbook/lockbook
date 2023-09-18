@@ -147,6 +147,16 @@ pub unsafe extern "C" fn free_text(s: *mut c_void) {
 }
 
 /// # Safety
+/// obj must be a valid pointer to WgpuEditor
+#[no_mangle]
+pub unsafe extern "C" fn paste_text(obj: *mut c_void, content: *const c_char) {
+    let obj = &mut *(obj as *mut WgpuEditor);
+    let content = CStr::from_ptr(content).to_str().unwrap().into();
+
+    obj.raw_input.events.push(Event::Paste(content));
+}
+
+/// # Safety
 #[no_mangle]
 pub unsafe extern "C" fn deinit_editor(obj: *mut c_void) {
     let _ = Box::from_raw(obj as *mut WgpuEditor);
