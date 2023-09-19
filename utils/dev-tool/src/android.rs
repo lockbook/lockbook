@@ -100,7 +100,11 @@ pub fn make_android_test_lib(tool_env: &ToolEnvironment) {
 
     println!(
         "{}\n{}\n\n",
-        tool_env.target_dir.join("release").join(NDK_LIB_NAME).exists(),
+        tool_env
+            .target_dir
+            .join("release")
+            .join(NDK_LIB_NAME)
+            .exists(),
         jni_lib_dir.join("desktop").join(NDK_LIB_NAME).exists()
     );
     fs::copy(
