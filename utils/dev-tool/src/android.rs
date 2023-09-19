@@ -98,6 +98,11 @@ pub fn make_android_test_lib(tool_env: &ToolEnvironment) {
 
     fs::create_dir_all(jni_lib_dir.join("desktop")).unwrap();
 
+    println!(
+        "{}\n{}\n\n",
+        tool_env.target_dir.join("release").join(NDK_LIB_NAME).exists(),
+        jni_lib_dir.join("desktop").join(NDK_LIB_NAME).exists()
+    );
     fs::copy(
         tool_env.target_dir.join("release").join(NDK_LIB_NAME),
         jni_lib_dir.join("desktop").join(NDK_LIB_NAME),
