@@ -549,7 +549,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     func unimplemented() {
         print("unimplemented!")
         Thread.callStackSymbols.forEach{print($0)}
-        exit(-69)
+//        exit(-69)
     }
 }
 
