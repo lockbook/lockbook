@@ -12,13 +12,13 @@ public struct EditorView: UIViewRepresentable {
     @Environment(\.horizontalSizeClass) var horizontal
     @Environment(\.verticalSizeClass) var vertical
     
-    public init(_ editorState: EditorState, _ toolbarState: ToolbarState, _ nameState: NameState) {
+    public init(_ editorState: EditorState, _ coreHandle: UnsafeMutableRawPointer?, _ toolbarState: ToolbarState, _ nameState: NameState) {
         self.editorState = editorState
         mtkView.editorState = editorState
         mtkView.toolbarState = toolbarState
         mtkView.nameState = nameState
         
-        mtkView.setInitialContent(editorState.text)
+        mtkView.setInitialContent(coreHandle, editorState.text)
     }
 
     public func makeUIView(context: Context) -> iOSMTK {
