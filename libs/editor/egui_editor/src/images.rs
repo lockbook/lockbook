@@ -1,6 +1,7 @@
 use crate::ast::Ast;
 use crate::style::{InlineNode, MarkdownNode, Url};
 use egui::{ColorImage, TextureId, Ui};
+use lb::Uuid;
 use std::collections::HashMap;
 use std::ops::Deref;
 use std::sync::{Arc, Mutex};
@@ -20,7 +21,8 @@ pub enum ImageState {
 }
 
 pub fn calc(
-    ast: &Ast, prior_cache: &ImageCache, client: &reqwest::blocking::Client, ui: &Ui,
+    ast: &Ast, prior_cache: &ImageCache, client: &reqwest::blocking::Client, core: &lb::Core,
+    ui: &Ui,
 ) -> ImageCache {
     let mut result = ImageCache::default();
 
@@ -42,6 +44,7 @@ pub fn calc(
                 let url = url.clone();
                 let image_state: Arc<Mutex<ImageState>> = Default::default();
                 let client = client.clone();
+                let core = core.clone();
                 let ctx = ui.ctx().clone();
 
                 result.map.insert(url.clone(), image_state.clone());
@@ -49,14 +52,35 @@ pub fn calc(
                 // download image
                 thread::spawn(move || {
                     let texture_manager = ctx.tex_manager();
-                    let image_bytes = match download_image(&client, &url) {
-                        Ok(image_bytes) => image_bytes,
-                        Err(_) => {
+
+                    // use core for lb:// urls
+                    // todo: also handle relative paths
+                    let image_bytes = if url.starts_with("lb://") {
+                        if let Ok(id) = Uuid::parse_str(&url[5..]) {
+                            match core.read_document(id) {
+                                Ok(bytes) => bytes,
+                                Err(_) => {
+                                    *image_state.lock().unwrap() = ImageState::Failed;
+                                    ctx.request_repaint();
+                                    return;
+                                }
+                            }
+                        } else {
                             *image_state.lock().unwrap() = ImageState::Failed;
                             ctx.request_repaint();
                             return;
                         }
+                    } else {
+                        match download_image(&client, &url) {
+                            Ok(image_bytes) => image_bytes,
+                            Err(_) => {
+                                *image_state.lock().unwrap() = ImageState::Failed;
+                                ctx.request_repaint();
+                                return;
+                            }
+                        }
                     };
+
                     let image = match image::load_from_memory(&image_bytes) {
                         Ok(image) => image,
                         Err(_) => {
