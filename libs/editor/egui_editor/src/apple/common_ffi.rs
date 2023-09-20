@@ -10,8 +10,10 @@ use std::time::Instant;
 /// # Safety
 #[no_mangle]
 pub unsafe extern "C" fn init_editor(
-    metal_layer: *mut c_void, content: *const c_char, dark_mode: bool,
+    core: *mut c_void, metal_layer: *mut c_void, content: *const c_char, dark_mode: bool,
 ) -> *mut c_void {
+    let core = unsafe { &mut *(core as *mut lb::Core) };
+
     let backends = wgpu::util::backend_bits_from_env().unwrap_or_else(wgpu::Backends::all);
     let instance_desc = wgpu::InstanceDescriptor { backends, ..Default::default() };
     let instance = wgpu::Instance::new(instance_desc);
@@ -35,7 +37,7 @@ pub unsafe extern "C" fn init_editor(
 
     let context = Context::default();
     context.set_visuals(if dark_mode { Visuals::dark() } else { Visuals::light() });
-    let mut editor = Editor::default();
+    let mut editor = Editor::new(core.clone());
     editor.set_font(&context);
     editor.buffer = CStr::from_ptr(content).to_str().unwrap().into();
 

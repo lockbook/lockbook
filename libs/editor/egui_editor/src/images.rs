@@ -5,7 +5,6 @@ use std::collections::HashMap;
 use std::ops::Deref;
 use std::sync::{Arc, Mutex};
 use std::thread;
-use std::time::Duration;
 
 #[derive(Clone, Default)]
 pub struct ImageCache {

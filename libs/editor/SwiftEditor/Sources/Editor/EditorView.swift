@@ -51,9 +51,9 @@ public struct EditorView: View {
     
     let nsEditorView: NSEditorView
     
-    public init(_ editorState: EditorState, _ toolbarState: ToolbarState, _ nameState: NameState) {
+    public init(_ editorState: EditorState, _ coreHandle: UnsafeMutableRawPointer?, _ toolbarState: ToolbarState, _ nameState: NameState) {
         self.editorState = editorState
-        nsEditorView = NSEditorView(editorState, toolbarState, nameState)
+        nsEditorView = NSEditorView(editorState, coreHandle, toolbarState, nameState)
     }
     
     public var body: some View {
@@ -77,13 +77,13 @@ public struct NSEditorView: NSViewRepresentable {
     
     let mtkView: MacMTK = MacMTK()
     
-    public init(_ editorState: EditorState, _ toolbarState: ToolbarState, _ nameState: NameState) {
+    public init(_ editorState: EditorState, _ coreHandle: UnsafeMutableRawPointer?, _ toolbarState: ToolbarState, _ nameState: NameState) {
         self.editorState = editorState
         mtkView.editorState = editorState
         mtkView.toolbarState = toolbarState
         mtkView.nameState = nameState
         
-        mtkView.setInitialContent(editorState.text)
+        mtkView.setInitialContent(coreHandle, editorState.text)
     }
     
     public func docChanged(_ s: String) {
