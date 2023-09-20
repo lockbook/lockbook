@@ -310,7 +310,7 @@ impl GalleyInfo {
                         image_height * width / image_width + appearance.image_padding() * 2.0;
                     ui.allocate_exact_size(Vec2::new(width, height), Sense::hover())
                 } else {
-                    ui.allocate_exact_size(Vec2::new(100.0, 100.0), Sense::hover())
+                    ui.allocate_exact_size(Vec2::new(200.0, 200.0), Sense::hover())
                 };
                 Some(ImageInfo { location, image_state })
             } else {

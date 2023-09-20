@@ -154,7 +154,7 @@ impl Editor {
 
             appearance: Default::default(),
 
-            buffer: crate::test_input::TEST_MARKDOWN_45.into(),
+            buffer: "".into(),
             pointer_state: Default::default(),
             debug: Default::default(),
             images: Default::default(),

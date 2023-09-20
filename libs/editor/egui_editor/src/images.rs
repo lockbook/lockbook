@@ -17,7 +17,7 @@ pub enum ImageState {
     #[default]
     Loading,
     Loaded(TextureId),
-    Failed,
+    Failed(String),
 }
 
 pub fn calc(
@@ -56,25 +56,27 @@ pub fn calc(
                     // use core for lb:// urls
                     // todo: also handle relative paths
                     let image_bytes = if let Some(stripped) = url.strip_prefix("lb://") {
-                        if let Ok(id) = Uuid::parse_str(stripped) {
-                            match core.read_document(id) {
+                        match Uuid::parse_str(stripped) {
+                            Ok(id) => match core.read_document(id) {
                                 Ok(bytes) => bytes,
-                                Err(_) => {
-                                    *image_state.lock().unwrap() = ImageState::Failed;
+                                Err(e) => {
+                                    *image_state.lock().unwrap() =
+                                        ImageState::Failed(e.to_string());
                                     ctx.request_repaint();
                                     return;
                                 }
+                            },
+                            Err(e) => {
+                                *image_state.lock().unwrap() = ImageState::Failed(e.to_string());
+                                ctx.request_repaint();
+                                return;
                             }
-                        } else {
-                            *image_state.lock().unwrap() = ImageState::Failed;
-                            ctx.request_repaint();
-                            return;
                         }
                     } else {
                         match download_image(&client, &url) {
                             Ok(image_bytes) => image_bytes,
-                            Err(_) => {
-                                *image_state.lock().unwrap() = ImageState::Failed;
+                            Err(e) => {
+                                *image_state.lock().unwrap() = ImageState::Failed(e.to_string());
                                 ctx.request_repaint();
                                 return;
                             }
@@ -83,8 +85,8 @@ pub fn calc(
 
                     let image = match image::load_from_memory(&image_bytes) {
                         Ok(image) => image,
-                        Err(_) => {
-                            *image_state.lock().unwrap() = ImageState::Failed;
+                        Err(e) => {
+                            *image_state.lock().unwrap() = ImageState::Failed(e.to_string());
                             ctx.request_repaint();
                             return;
                         }
