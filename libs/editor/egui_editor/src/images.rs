@@ -55,8 +55,8 @@ pub fn calc(
 
                     // use core for lb:// urls
                     // todo: also handle relative paths
-                    let image_bytes = if url.starts_with("lb://") {
-                        if let Ok(id) = Uuid::parse_str(&url[5..]) {
+                    let image_bytes = if let Some(stripped) = url.strip_prefix("lb://") {
+                        if let Ok(id) = Uuid::parse_str(stripped) {
                             match core.read_document(id) {
                                 Ok(bytes) => bytes,
                                 Err(_) => {
