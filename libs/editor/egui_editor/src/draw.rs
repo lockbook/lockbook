@@ -114,7 +114,7 @@ impl Editor {
                         ui.painter().text(
                             image.location.center_top(),
                             Align2::CENTER_TOP,
-                            format!("Failed to load image."),
+                            "Failed to load image.",
                             FontId::default(),
                             PINK.get(self.appearance.current_theme),
                         );
