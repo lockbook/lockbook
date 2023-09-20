@@ -1,4 +1,5 @@
 use crate::appearance::YELLOW;
+use crate::images::ImageState;
 use crate::input::canonical::{Location, Modification, Region};
 use crate::layouts::Annotation;
 use crate::offset_types::RangeExt;
@@ -91,9 +92,40 @@ impl Editor {
 
             // draw images
             if let Some(image) = &galley.image {
-                let uv = Rect { min: Pos2 { x: 0.0, y: 0.0 }, max: Pos2 { x: 1.0, y: 1.0 } };
-                ui.painter()
-                    .image(image.texture, image.location, uv, Color32::WHITE);
+                match image.image_state {
+                    ImageState::Loading => {
+                        // todo: better icon
+                        ui.painter().line_segment(
+                            [
+                                Pos2 { x: image.location.min.x, y: image.location.max.y },
+                                Pos2 { x: image.location.max.x, y: image.location.min.y },
+                            ],
+                            Stroke {
+                                width: self.appearance.checkbox_slash_width(),
+                                color: self.appearance.text(),
+                            },
+                        );
+                    }
+                    ImageState::Loaded(texture_id) => {
+                        let uv =
+                            Rect { min: Pos2 { x: 0.0, y: 0.0 }, max: Pos2 { x: 1.0, y: 1.0 } };
+                        ui.painter()
+                            .image(texture_id, image.location, uv, Color32::WHITE);
+                    }
+                    ImageState::Failed => {
+                        // todo: better icon
+                        ui.painter().line_segment(
+                            [
+                                Pos2 { x: image.location.min.x, y: image.location.min.y },
+                                Pos2 { x: image.location.max.x, y: image.location.max.y },
+                            ],
+                            Stroke {
+                                width: self.appearance.checkbox_slash_width(),
+                                color: self.appearance.text(),
+                            },
+                        );
+                    }
+                }
             }
 
             // draw text

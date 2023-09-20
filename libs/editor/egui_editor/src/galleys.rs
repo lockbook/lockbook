@@ -2,16 +2,16 @@ use crate::appearance::{Appearance, CaptureCondition};
 use crate::ast::{Ast, AstTextRangeType};
 use crate::bounds::{self, Bounds, Text};
 use crate::buffer::SubBuffer;
-use crate::images::ImageCache;
+use crate::images::{ImageCache, ImageState};
 use crate::layouts::{Annotation, LayoutJobInfo};
 use crate::offset_types::{DocCharOffset, RangeExt, RelCharOffset};
 use crate::style::{MarkdownNode, RenderStyle};
 use crate::Editor;
 use egui::epaint::text::cursor::Cursor;
 use egui::text::{CCursor, LayoutJob};
-use egui::{Galley, Pos2, Rect, Sense, TextFormat, TextureId, Ui, Vec2};
+use egui::{Galley, Pos2, Rect, Sense, TextFormat, Ui, Vec2};
 use std::mem;
-use std::ops::Index;
+use std::ops::{Deref, Index};
 use std::sync::Arc;
 
 #[derive(Default)]
@@ -39,7 +39,7 @@ pub struct GalleyInfo {
 #[derive(Debug)]
 pub struct ImageInfo {
     pub location: Rect,
-    pub texture: TextureId,
+    pub image_state: ImageState,
 }
 
 pub fn calc(
@@ -296,17 +296,23 @@ impl GalleyInfo {
 
         // allocate space for image
         let image = if let Some(Annotation::Image(_, url, _)) = &job.annotation {
-            if let Some(Some(texture)) = images.map.get(url) {
-                let texture = *texture;
-                let [image_width, image_height] =
-                    ui.ctx().tex_manager().read().meta(texture).unwrap().size;
-                let [image_width, image_height] = [image_width as f32, image_height as f32];
-                let width =
-                    f32::min(ui.available_width() - appearance.image_padding() * 2.0, image_width);
-                let height = image_height * width / image_width + appearance.image_padding() * 2.0;
-                let (location, _) =
-                    ui.allocate_exact_size(Vec2::new(width, height), Sense::hover());
-                Some(ImageInfo { location, texture })
+            if let Some(image_state) = images.map.get(url) {
+                let image_state = image_state.lock().unwrap().deref().clone();
+                let (location, _) = if let ImageState::Loaded(texture) = image_state {
+                    let [image_width, image_height] =
+                        ui.ctx().tex_manager().read().meta(texture).unwrap().size;
+                    let [image_width, image_height] = [image_width as f32, image_height as f32];
+                    let width = f32::min(
+                        ui.available_width() - appearance.image_padding() * 2.0,
+                        image_width,
+                    );
+                    let height =
+                        image_height * width / image_width + appearance.image_padding() * 2.0;
+                    ui.allocate_exact_size(Vec2::new(width, height), Sense::hover())
+                } else {
+                    ui.allocate_exact_size(Vec2::new(100.0, 100.0), Sense::hover())
+                };
+                Some(ImageInfo { location, image_state })
             } else {
                 None
             }
