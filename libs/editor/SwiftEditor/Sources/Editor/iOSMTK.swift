@@ -107,9 +107,9 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
         self.setNeedsDisplay(self.frame)
     }
         
-    public func setInitialContent(_ s: String) {
+    public func setInitialContent(_ coreHandle: UnsafeMutableRawPointer?, _ s: String) {
         let metalLayer = UnsafeMutableRawPointer(Unmanaged.passUnretained(self.layer).toOpaque())
-        self.editorHandle = init_editor(metalLayer, s, isDarkMode())
+        self.editorHandle = init_editor(coreHandle, metalLayer, s, isDarkMode())
         self.textUndoManager.editorHandle = self.editorHandle
         self.textUndoManager.onUndoRedo = {
             self.setNeedsDisplay(self.frame)

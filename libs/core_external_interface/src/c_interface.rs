@@ -2,7 +2,7 @@ use basic_human_duration::ChronoHumanDuration;
 use crossbeam::channel::Sender;
 use lazy_static::lazy_static;
 use std::ffi::{CStr, CString};
-use std::os::raw::c_char;
+use std::os::raw::{c_char, c_void};
 use std::path::PathBuf;
 use std::ptr;
 use std::sync::{Arc, Mutex};
@@ -703,6 +703,15 @@ pub unsafe extern "C" fn time_ago(time_stamp: i64) -> *const c_char {
     } else {
         "never".to_string()
     })
+}
+
+/// # Safety
+///
+/// Be sure to call `release_pointer` on the result of this function to free the data.
+#[no_mangle]
+pub unsafe extern "C" fn get_core_ptr() -> *mut c_void {
+    let obj = static_state::get().expect("Could not get core");
+    Box::into_raw(Box::new(obj)) as *mut c_void
 }
 
 // FOR INTEGRATION TESTS ONLY

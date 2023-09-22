@@ -5,6 +5,7 @@ import Bridge
 public class MacMTK: MTKView, MTKViewDelegate {
     
     var editorHandle: UnsafeMutableRawPointer?
+    var coreHandle: UnsafeMutableRawPointer?
     var trackingArea : NSTrackingArea?
     var pasteBoardEventId: Int = 0
         
@@ -78,9 +79,9 @@ public class MacMTK: MTKView, MTKViewDelegate {
         return true
     }
     
-    public func setInitialContent(_ s: String) {
+    public func setInitialContent(_ coreHandle: UnsafeMutableRawPointer?, _ s: String) {
         let metalLayer = UnsafeMutableRawPointer(Unmanaged.passUnretained(self.layer!).toOpaque())
-        self.editorHandle = init_editor(metalLayer, s, isDarkMode())
+        self.editorHandle = init_editor(coreHandle, metalLayer, s, isDarkMode())
         
         self.toolbarState!.toggleBold = bold
         self.toolbarState!.toggleItalic = italic
