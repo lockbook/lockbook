@@ -634,7 +634,10 @@ pub unsafe extern "C" fn can_redo(obj: *mut c_void) -> bool {
 pub unsafe extern "C" fn delete_word(obj: *mut c_void) {
     let obj = &mut *(obj as *mut WgpuEditor);
 
-    obj.raw_input
-        .events
-        .push(Event::Key { key: Key::Backspace, pressed: true, repeat: false, modifiers: Modifiers::ALT });
+    obj.raw_input.events.push(Event::Key {
+        key: Key::Backspace,
+        pressed: true,
+        repeat: false,
+        modifiers: Modifiers::ALT,
+    });
 }
