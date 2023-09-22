@@ -105,9 +105,12 @@ pub struct Editor {
     pub id: egui::Id,
     pub initialized: bool,
 
+    // dependencies
+    pub core: lb::Core,
+    pub client: reqwest::blocking::Client,
+
     // config
     pub appearance: Appearance,
-    pub client: reqwest::blocking::Client, // todo: don't download images on the UI thread
 
     // state
     pub buffer: Buffer,
@@ -140,14 +143,16 @@ pub struct Editor {
     pub scroll_area_offset: Vec2,
 }
 
-impl Default for Editor {
-    fn default() -> Self {
+impl Editor {
+    pub fn new(core: lb::Core) -> Self {
         Self {
             id: egui::Id::null(),
             initialized: Default::default(),
 
-            appearance: Default::default(),
+            core,
             client: Default::default(),
+
+            appearance: Default::default(),
 
             buffer: "".into(),
             pointer_state: Default::default(),
@@ -174,9 +179,7 @@ impl Default for Editor {
             scroll_area_offset: Default::default(),
         }
     }
-}
 
-impl Editor {
     pub fn draw(&mut self, ctx: &Context) -> EditorResponse {
         let fill = if ctx.style().visuals.dark_mode { Color32::BLACK } else { Color32::WHITE };
         egui::CentralPanel::default()
@@ -326,7 +329,7 @@ impl Editor {
             self.bounds.links = bounds::calc_links(&self.buffer.current, &self.bounds.text);
         }
         if text_updated || selection_updated || theme_updated {
-            self.images = images::calc(&self.ast, &self.images, &self.client, ui);
+            self.images = images::calc(&self.ast, &self.images, &self.client, &self.core, ui);
         }
         self.galleys = galleys::calc(
             &self.ast,

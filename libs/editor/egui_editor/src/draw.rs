@@ -1,4 +1,5 @@
-use crate::appearance::YELLOW;
+use crate::appearance::{BLACK, PINK, YELLOW};
+use crate::images::ImageState;
 use crate::input::canonical::{Location, Modification, Region};
 use crate::layouts::Annotation;
 use crate::offset_types::RangeExt;
@@ -91,9 +92,34 @@ impl Editor {
 
             // draw images
             if let Some(image) = &galley.image {
-                let uv = Rect { min: Pos2 { x: 0.0, y: 0.0 }, max: Pos2 { x: 1.0, y: 1.0 } };
-                ui.painter()
-                    .image(image.texture, image.location, uv, Color32::WHITE);
+                match &image.image_state {
+                    ImageState::Loading => {
+                        self.draw_image_placeholder(ui, image.location);
+                        ui.painter().text(
+                            image.location.center_top(),
+                            Align2::CENTER_TOP,
+                            "Loading image...",
+                            FontId::default(),
+                            PINK.get(self.appearance.current_theme),
+                        );
+                    }
+                    ImageState::Loaded(texture_id) => {
+                        let uv =
+                            Rect { min: Pos2 { x: 0.0, y: 0.0 }, max: Pos2 { x: 1.0, y: 1.0 } };
+                        ui.painter()
+                            .image(*texture_id, image.location, uv, Color32::WHITE);
+                    }
+                    ImageState::Failed(_) => {
+                        self.draw_image_placeholder(ui, image.location);
+                        ui.painter().text(
+                            image.location.center_top(),
+                            Align2::CENTER_TOP,
+                            "Failed to load image.",
+                            FontId::default(),
+                            PINK.get(self.appearance.current_theme),
+                        );
+                    }
+                }
             }
 
             // draw text
@@ -108,6 +134,37 @@ impl Editor {
             .size()
             .y;
         ui.allocate_exact_size(ui_size, Sense::hover());
+    }
+
+    pub fn draw_image_placeholder(&self, ui: &mut Ui, location: Rect) {
+        let stroke = Stroke::new(0.3, BLACK.get(self.appearance.current_theme));
+
+        // outer rect
+        let outer_rect = location;
+        ui.painter()
+            .rect(outer_rect, 0.0, Color32::TRANSPARENT, stroke);
+
+        // inner rect
+        let inner_rect = location.expand(-20.0);
+        ui.painter()
+            .rect(inner_rect, 0.0, Color32::TRANSPARENT, stroke);
+
+        // mountain
+        let peak = inner_rect.center() - Vec2 { x: 20.0, y: 0.0 };
+        let base_left = inner_rect.left_bottom() - Vec2 { x: 0.0, y: 20.0 };
+        let base_right = inner_rect.right_bottom() - Vec2 { x: 20.0, y: 0.0 };
+        ui.painter().line_segment([peak, base_left], stroke);
+        ui.painter().line_segment([peak, base_right], stroke);
+
+        let tree_line_left = peak + Vec2 { x: 20.0, y: 20.0 };
+        let tree_line_right = peak + Vec2 { x: -20.0, y: 20.0 };
+        ui.painter()
+            .line_segment([tree_line_left, tree_line_right], stroke);
+
+        // sun
+        let sun_center = inner_rect.right_top() + Vec2 { x: -40.0, y: 40.0 };
+        ui.painter()
+            .circle(sun_center, 10.0, Color32::TRANSPARENT, stroke);
     }
 
     pub fn draw_cursor(&mut self, ui: &mut Ui, touch_mode: bool) {

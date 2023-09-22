@@ -644,6 +644,7 @@ impl AccountScreen {
                         .map(|bytes| {
                             if ext == "md" {
                                 TabContent::Markdown(Markdown::boxed(
+                                    core.clone(),
                                     &bytes,
                                     &toolbar_visibility,
                                     update_tx.clone(),
@@ -787,6 +788,7 @@ impl AccountScreen {
                     .map(|bytes| {
                         if ext == "md" {
                             TabContent::Markdown(Markdown::boxed(
+                                core.clone(),
                                 &bytes,
                                 &toolbar_visibility,
                                 update_tx.clone(),

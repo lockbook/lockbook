@@ -1,3 +1,4 @@
+import CLockbookCore
 import SwiftUI
 import SwiftLockbookCore
 import PencilKit
@@ -504,8 +505,9 @@ struct MarkdownEditor: View {
     let editor: EditorView
     
     public init(_ editorState: EditorState, _ toolbarState: ToolbarState, _ nameState: NameState) {
+        let coreHandle = get_core_ptr()
         self.editorState = editorState
-        self.editor = EditorView(editorState, toolbarState, nameState)
+        self.editor = EditorView(editorState, coreHandle, toolbarState, nameState)
     }
         
     var body: some View {
