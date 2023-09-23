@@ -1,6 +1,7 @@
 import SwiftUI
 import SwiftLockbookCore
 import AlertToast
+import Introspect
 
 struct BookView: View {
 
@@ -8,6 +9,7 @@ struct BookView: View {
     @EnvironmentObject var onboarding: OnboardingService
     @EnvironmentObject var files: FileService
     @EnvironmentObject var share: ShareService
+    @EnvironmentObject var search: SearchService
 
     let currentFolder: File
     let account: Account
@@ -85,12 +87,24 @@ struct BookView: View {
     var platformFileTree: some View {
         #if os(iOS)
         if horizontal == .regular && vertical == .regular {
-            iPad
+            ZStack {
+                iPad
+                
+                if search.pathSearchState != .NotSearching {
+                    PathSearchActionBar()
+                }
+            }
         } else {
             iOS
         }
         #else
-        macOS
+        ZStack {
+            macOS
+            
+            if search.pathSearchState != .NotSearching {
+                PathSearchActionBar()
+            }
+        }
         #endif
     }
 }

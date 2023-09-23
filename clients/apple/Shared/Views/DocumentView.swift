@@ -480,7 +480,6 @@ struct DocumentTitle: View {
                         name = fileName
                     }
                 }
-                
             })
             .textFieldStyle(.plain)
             .font(.largeTitle)
