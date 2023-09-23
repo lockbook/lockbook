@@ -25,6 +25,8 @@
 		476436CD29B7DE4E00FBDC59 /* SearchService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 476436CB29B7DE4E00FBDC59 /* SearchService.swift */; };
 		4772A43A29E8656A0032D586 /* SearchWrapperView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4772A43929E8656A0032D586 /* SearchWrapperView.swift */; };
 		4772A43B29E8656A0032D586 /* SearchWrapperView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4772A43929E8656A0032D586 /* SearchWrapperView.swift */; };
+		4779C62D2AB8C09E007C0100 /* PathSearchActionBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4779C62C2AB8C09E007C0100 /* PathSearchActionBar.swift */; };
+		4779C62E2AB8C09E007C0100 /* PathSearchActionBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4779C62C2AB8C09E007C0100 /* PathSearchActionBar.swift */; };
 		477CC4902967A53C00714456 /* ShareFileSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 477CC48F2967A53C00714456 /* ShareFileSheet.swift */; };
 		477CC4912967A53C00714456 /* ShareFileSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 477CC48F2967A53C00714456 /* ShareFileSheet.swift */; };
 		47837E292A72EA7500863FA4 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B273394C26C8A4B400303EAE /* Assets.xcassets */; };
@@ -163,6 +165,7 @@
 		4761F30E2A1832B4002ED338 /* ManageSubscription.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManageSubscription.swift; sourceTree = "<group>"; };
 		476436CB29B7DE4E00FBDC59 /* SearchService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SearchService.swift; path = "Shared/Stateful Logic/SearchService.swift"; sourceTree = SOURCE_ROOT; };
 		4772A43929E8656A0032D586 /* SearchWrapperView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchWrapperView.swift; sourceTree = "<group>"; };
+		4779C62C2AB8C09E007C0100 /* PathSearchActionBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PathSearchActionBar.swift; sourceTree = "<group>"; };
 		477CC48F2967A53C00714456 /* ShareFileSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareFileSheet.swift; sourceTree = "<group>"; };
 		47A273022A5B922D0006DD7F /* DocumentTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentTabView.swift; sourceTree = "<group>"; };
 		47A45FBA2969047B00573044 /* ShareService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareService.swift; sourceTree = "<group>"; };
@@ -441,6 +444,7 @@
 				4709DC37296609F100426106 /* PendingSharesView.swift */,
 				4709C76F29FDAAE9004449EF /* SuggestedDocs.swift */,
 				4761F30E2A1832B4002ED338 /* ManageSubscription.swift */,
+				4779C62C2AB8C09E007C0100 /* PathSearchActionBar.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -639,6 +643,7 @@
 				B249B9E8282AF6B1004F5300 /* OutlineBranch.swift in Sources */,
 				473A3DCE29AC354B0017BC6A /* FilePathBreadcrumb.swift in Sources */,
 				EA4559BE25169F7D003AD80A /* CodeScannerView.swift in Sources */,
+				4779C62D2AB8C09E007C0100 /* PathSearchActionBar.swift in Sources */,
 				EAEDCD0B2516FC1C00EBE313 /* BookView.swift in Sources */,
 				873559BE26C31210008B3C36 /* SettingsView.swift in Sources */,
 				874A88F826D5453C00F010C8 /* ToolbarModel.swift in Sources */,
@@ -689,6 +694,7 @@
 				4709DC3F2966260500426106 /* AcceptShareSheet.swift in Sources */,
 				8715F92927161CC60051689E /* OnboardingView.swift in Sources */,
 				870DC09F26BDE6F4002E9A92 /* SettingsView.swift in Sources */,
+				4779C62E2AB8C09E007C0100 /* PathSearchActionBar.swift in Sources */,
 				47FAA4C929EC830600DB606E /* BranchState.swift in Sources */,
 				47A45FBC2969047B00573044 /* ShareService.swift in Sources */,
 				877FB55726D18AA60008AB3F /* AccountService.swift in Sources */,
