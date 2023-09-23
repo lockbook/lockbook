@@ -1,11 +1,11 @@
 Source: lockbook
 Section: utils
 Priority: extra
-Maintainer: Smail Barkouch <smailbarkouch1@gmail.com>
-Standards-Version: 4.1.4
+Maintainer: Parth Mehrotra <parth@mehrotra.me>
+Standards-Version: 0.8.0
 Build-Depends: debhelper (>=10), git, ca-certificates
 
 Package: lockbook
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}
-Description: A secure, private, minimal, cross-platform document editor.
+Description: The private, polished note-taking platform.
