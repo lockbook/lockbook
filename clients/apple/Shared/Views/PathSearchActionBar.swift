@@ -90,7 +90,7 @@ struct PathSearchActionBar: View {
                 }
                 .padding(.top, geometry.size.height / 4.5)
                 .padding(.leading, (geometry.size.width / 2) - 250)
-                .padding(.bottom)
+                .padding(.bottom, 100)
             }
         }
     }
