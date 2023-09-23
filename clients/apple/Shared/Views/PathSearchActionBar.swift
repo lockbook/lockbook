@@ -77,8 +77,15 @@ struct PathSearchActionBar: View {
                     }
                     .padding()
                     .background(
+                        
                         RoundedRectangle(cornerSize: CGSize(width: 20, height: 20))
-                            .foregroundColor(.white)
+                            .foregroundColor({
+                                #if os(iOS)
+                                Color(UIColor.secondarySystemBackground)
+                                #else
+                                Color(nsColor: .windowBackgroundColor)
+                                #endif
+                            }())
                             .shadow(radius: 10)
                     )
                     .frame(width: 500)
@@ -309,6 +316,7 @@ public struct PathSearchTextFieldWrapper: NSViewRepresentable {
         textField.focusRingType = .none
         textField.delegate = context.coordinator
         textField.font = .systemFont(ofSize: 15)
+        textField.backgroundColor = nil
         
         return textField
     }
