@@ -22,13 +22,6 @@ public struct EditorView: UIViewRepresentable {
     }
 
     public func makeUIView(context: Context) -> iOSMTK {
-        if editorState.isiPhone {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6, execute: {
-                mtkView.becomeFirstResponder()
-                editorState.shouldFocus = false
-            })
-        }
-        
         return mtkView
     }
     
@@ -38,7 +31,7 @@ public struct EditorView: UIViewRepresentable {
             editorState.reload = false
         }
         
-        if editorState.shouldFocus && !editorState.isiPhone {
+        if editorState.shouldFocus {
             mtkView.becomeFirstResponder()
             editorState.shouldFocus = false
         }
