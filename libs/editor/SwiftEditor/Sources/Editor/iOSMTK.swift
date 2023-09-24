@@ -66,7 +66,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
         if let image = UIPasteboard.general.image {
             if let url = createTempDir(),
                let data = image.pngData() ?? image.jpegData(compressionQuality: 1.0){
-                let imageUrl = url.appendingPathComponent(String(UUID().uuidString.prefix(10)), conformingTo: .tiff)
+                let imageUrl = url.appendingPathComponent(String(UUID().uuidString.prefix(10).lowercased()), conformingTo: .png)
                 
                 do {
                     try data.write(to: imageUrl)

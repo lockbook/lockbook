@@ -289,7 +289,7 @@ class DocumentLoadingInfo: ObservableObject {
                         
                         if let parentPath = DI.files.getPathByIdOrParent(maybeId: self.meta.parent) {
                             if let file = DI.files.getFileByPath(path: parentPath + url.lastPathComponent) {
-                                return "![alt text](lb://\(file.id.uuidString.lowercased()))"
+                                return "![\((url.lastPathComponent as NSString).deletingPathExtension)](lb://\(file.id.uuidString.lowercased()))"
                             }
                         }
                         

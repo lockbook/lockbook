@@ -176,7 +176,7 @@ public class MacMTK: MTKView, MTKViewDelegate {
             && event.modifierFlags.contains(.command) {
             if let data = NSPasteboard.general.data(forType: .png) ?? NSPasteboard.general.data(forType: .tiff),
                let url = createTempDir() {
-                let imageUrl = url.appendingPathComponent(String(UUID().uuidString.prefix(10)), conformingTo: .tiff)
+                let imageUrl = url.appendingPathComponent(String(UUID().uuidString.prefix(10).lowercased()), conformingTo: .png)
                 
                 do {
                     try data.write(to: imageUrl)

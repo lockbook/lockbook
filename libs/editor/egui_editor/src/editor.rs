@@ -344,7 +344,7 @@ impl Editor {
         self.initialized = true;
 
         if self.images.any_loading() {
-            ui.ctx().request_repaint_after(Duration::from_millis(125));
+            ui.ctx().request_repaint_after(Duration::from_millis(50));
         }
 
         // draw
