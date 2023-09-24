@@ -1721,6 +1721,7 @@ dependencies = [
  "egui",
  "egui_wgpu_backend",
  "image",
+ "lb-fonts",
  "libc",
  "linkify",
  "lockbook-core",
@@ -3162,6 +3163,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e2abad23fbc42b3700f2f279844dc832adb2b2eb069b2df918f455c4e18cc646"
 
 [[package]]
+name = "lb-fonts"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bf6be762972ae53199c1d626bd9bf428f7f53bb855c4b59996cad7586225001e"
+
+[[package]]
 name = "lebe"
 version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3365,6 +3372,7 @@ dependencies = [
  "egui_editor",
  "egui_extras",
  "image",
+ "lb-fonts",
  "lockbook-core",
  "rfd",
  "serde",
