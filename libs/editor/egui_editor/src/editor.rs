@@ -2,6 +2,7 @@
 use std::ffi::{c_char, CString};
 #[cfg(any(target_os = "ios", target_os = "macos"))]
 use std::ptr;
+use std::time::Duration;
 use std::{cmp, mem};
 
 use egui::os::OperatingSystem;
@@ -341,6 +342,10 @@ impl Editor {
         );
         self.bounds.lines = bounds::calc_lines(&self.galleys, &self.bounds.ast, &self.bounds.text);
         self.initialized = true;
+
+        if self.images.any_loading() {
+            ui.ctx().request_repaint_after(Duration::from_millis(125));
+        }
 
         // draw
         self.draw_text(self.ui_rect.size(), ui, touch_mode);

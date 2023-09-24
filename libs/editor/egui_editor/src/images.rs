@@ -127,3 +127,15 @@ fn download_image(
     let response = client.get(url).send()?.bytes()?.to_vec();
     Ok(response)
 }
+
+impl ImageCache {
+    pub fn any_loading(&self) -> bool {
+        self.map.values().any(|state| {
+            if let ImageState::Loading = state.lock().unwrap().deref() {
+                true
+            } else {
+                false
+            }
+        })
+    }
+}
