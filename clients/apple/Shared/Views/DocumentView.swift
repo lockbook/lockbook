@@ -370,7 +370,7 @@ struct MarkdownToolbar: View {
                     MarkdownEditorImage(systemImageName: "arrow.uturn.backward", isSelected: false)
                 }
                 .buttonStyle(.borderless)
-                .help("Undo: ⌃Z")
+                .help("Undo: ⌘Z")
 
                 Button(action: {
                     toolbarState.undoRedo(true)
@@ -378,9 +378,9 @@ struct MarkdownToolbar: View {
                     MarkdownEditorImage(systemImageName: "arrow.uturn.forward", isSelected: false)
                 }
                 .buttonStyle(.borderless)
-                .help("Redo: ⌃⇧Z")
+                .help("Redo: ⌘⇧Z")
             }
-
+            
             Spacer()
         }
     }

@@ -74,6 +74,11 @@ public class MacMTK: MTKView, MTKViewDelegate {
         apply_style_to_selection_strikethrough(editorHandle)
         self.setNeedsDisplay(self.frame)
     }
+    
+    func undoRedo(redo: Bool) {
+        undo_redo(self.editorHandle, redo)
+        self.setNeedsDisplay(self.frame)
+    }
 
     public override var acceptsFirstResponder: Bool {
         return true
@@ -91,6 +96,7 @@ public class MacMTK: MTKView, MTKViewDelegate {
         self.toolbarState!.toggleStrikethrough = strikethrough
         self.toolbarState!.toggleNumberList = numberedList
         self.toolbarState!.toggleHeading = header
+        self.toolbarState!.undoRedo = undoRedo
         
         becomeFirstResponder()
     }
