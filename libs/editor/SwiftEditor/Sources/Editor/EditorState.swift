@@ -4,8 +4,10 @@ import Combine
 public class EditorState: ObservableObject {
     
     @Published public var text: String
-    @Published public var reload: Bool = false
+    @Published public var reloadText: Bool = false
+    @Published public var reloadView: Bool = false
     @Published public var shouldFocus: Bool = true
+    @Published public var pasted: Bool = false
     
     public var isiPhone: Bool
     

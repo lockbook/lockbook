@@ -239,8 +239,11 @@ class DocumentLoadingInfo: ObservableObject {
                     switch operation {
                     case .success(let txt):
                         if let editor = self.textDocument {
-                            if editor.text != txt {
-                                editor.reload = true
+                            if self.textDocument?.pasted == true {
+                                editor.reloadView = true
+                                self.textDocument?.pasted = false
+                            } else if editor.text != txt {
+                                editor.reloadText = true
                                 editor.text = txt
                             }
                         }
@@ -260,7 +263,6 @@ class DocumentLoadingInfo: ObservableObject {
         case .Unknown:
             print("cannot reload unknown content type")
         }
-
     }
 
     private func drawingAutosaver() {
@@ -286,11 +288,12 @@ class DocumentLoadingInfo: ObservableObject {
                         DI.importExport.importFilesSync(sources:[url.path(percentEncoded: false)], destination: self.meta.parent)
                         
                         if let parentPath = DI.files.getPathByIdOrParent(maybeId: self.meta.parent) {
-                            
-                            return "lb:/\(parentPath)\(url.lastPathComponent)"
-                        } else {
-                            return nil
+                            if let file = DI.files.getFileByPath(path: parentPath + url.lastPathComponent) {
+                                return "![alt text](lb://\(file.id.uuidString.lowercased()))"
+                            }
                         }
+                        
+                        return nil
                     }
                     self.textDocumentToolbar = ToolbarState()
                     self

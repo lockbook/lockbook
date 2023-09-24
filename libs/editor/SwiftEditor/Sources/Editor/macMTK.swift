@@ -172,17 +172,15 @@ public class MacMTK: MTKView, MTKViewDelegate {
     }
     
     func checkIfImagePasted(_ event: NSEvent) -> Bool {
-        if #available(macOS 13.0, *) {
-            if event.keyCode == 9 // v key
-                && event.modifierFlags.contains(.command) {
-                if let data = NSPasteboard.general.data(forType: .png) ?? NSPasteboard.general.data(forType: .tiff) {
-                    if let path = pasteImage(data: data) {
-                        paste_text(editorHandle, path)
-                        setNeedsDisplay(self.frame)
-                    }
-                    
-                    return true
+        if event.keyCode == 9
+            && event.modifierFlags.contains(.command) {
+            if let data = NSPasteboard.general.data(forType: .png) ?? NSPasteboard.general.data(forType: .tiff) {
+                if let path = pasteImage(data: data) {
+                    paste_text(editorHandle, path)
+                    editorState?.pasted = true
                 }
+                
+                return true
             }
         }
         
@@ -192,11 +190,7 @@ public class MacMTK: MTKView, MTKViewDelegate {
     func pasteImage(data: Data) -> String? {
         if let url = createTempDir() {
             let imageUrl = url.appendingPathComponent(String(UUID().uuidString.prefix(10)), conformingTo: .tiff)
-            if #available(macOS 13.0, *) {
-                print("importing \(imageUrl.path(percentEncoded: true))")
-            } else {
-                // Fallback on earlier versions
-            }
+            
             do {
                 try data.write(to: imageUrl)
             } catch {

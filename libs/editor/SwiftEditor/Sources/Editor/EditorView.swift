@@ -33,9 +33,14 @@ public struct EditorView: UIViewRepresentable {
     }
     
     public func updateUIView(_ uiView: iOSMTK, context: Context) {
-        if editorState.reload {
+        if editorState.reloadText {
             mtkView.updateText(editorState.text)
-            editorState.reload = false
+            editorState.reloadText = false
+        }
+        
+        if editorState.reloadView {
+            mtkView.setNeedsDisplay(mtkView.frame)
+            editorState.reloadView = false
         }
         
         if editorState.shouldFocus && !editorState.isiPhone {
@@ -95,9 +100,14 @@ public struct NSEditorView: NSViewRepresentable {
     }
     
     public func updateNSView(_ nsView: MTKView, context: NSViewRepresentableContext<NSEditorView>) {
-        if editorState.reload {
+        if editorState.reloadText {
             mtkView.updateText(editorState.text)
-            editorState.reload = false
+            editorState.reloadText = false
+        }
+        
+        if editorState.reloadView {
+            mtkView.setNeedsDisplay(mtkView.frame)
+            editorState.reloadView = false
         }
         
         if editorState.shouldFocus {
