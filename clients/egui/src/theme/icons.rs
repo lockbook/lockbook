@@ -1,7 +1,5 @@
 use eframe::egui;
 
-pub const MATERIAL_ICON_FONT: &[u8] = include_bytes!("../../material-icons-outlined-regular.otf");
-
 #[derive(Clone, PartialEq)]
 pub struct Icon {
     pub has_badge: bool,
