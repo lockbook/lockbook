@@ -180,14 +180,21 @@ pub fn calc_paragraphs(buffer: &SubBuffer, ast: &AstTextRanges) -> Paragraphs {
 
 pub fn calc_text(
     ast: &Ast, ast_ranges: &AstTextRanges, appearance: &Appearance, segs: &UnicodeSegs,
-    cursor: Cursor,
+    cursor: Cursor, pointer_offset: Option<DocCharOffset>,
 ) -> Text {
     let mut result = vec![];
     let mut last_range_pushed = false;
     for text_range in ast_ranges {
+        let ast_node_range = ast.nodes[*text_range.ancestors.last().unwrap()].range;
+        let intersects_selection = ast_node_range.intersects_allow_empty(&cursor.selection);
+        let intersects_pointer = pointer_offset
+            .map(|pointer_offset| {
+                ast_node_range.intersects(&(pointer_offset, pointer_offset), true)
+            })
+            .unwrap_or(false);
         let captured = match appearance.markdown_capture(text_range.node(ast).node_type()) {
             CaptureCondition::Always => true,
-            CaptureCondition::NoCursor => !text_range.intersects_selection(ast, cursor),
+            CaptureCondition::NoCursor => !(intersects_selection || intersects_pointer),
             CaptureCondition::Never => false,
         };
 
