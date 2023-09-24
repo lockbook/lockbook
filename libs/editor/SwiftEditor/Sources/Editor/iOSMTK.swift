@@ -62,6 +62,30 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
         
     }
     
+    func pasteImageInClipboard() -> Bool {
+        if let image = UIPasteboard.general.image {
+            if let url = createTempDir(),
+               let data = image.pngData() ?? image.jpegData(compressionQuality: 1.0){
+                let imageUrl = url.appendingPathComponent(String(UUID().uuidString.prefix(10).lowercased()), conformingTo: .png)
+                
+                do {
+                    try data.write(to: imageUrl)
+                } catch {
+                    return false
+                }
+                
+                if let lbImageURL = editorState!.importFile(imageUrl) {
+                    paste_text(editorHandle, lbImageURL)
+                    editorState?.pasted = true
+                    
+                    return true
+                }
+            }
+        }
+        
+        return false
+    }
+    
     public func header(headingSize: UInt32) {
         apply_style_to_selection_header(editorHandle, headingSize)
         self.setNeedsDisplay(self.frame)
@@ -491,6 +515,11 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     
     @objc func clipboardPaste() {
         self.setClipboard()
+        
+        if pasteImageInClipboard() {
+            return
+        }
+        
         clipboard_paste(self.editorHandle)
         self.setNeedsDisplay()
     }

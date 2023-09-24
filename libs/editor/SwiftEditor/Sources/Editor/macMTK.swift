@@ -145,6 +145,10 @@ public class MacMTK: MTKView, MTKViewDelegate {
     
     public override func keyDown(with event: NSEvent) {
         setClipboard()
+        if pasteImageInClipboard(event) {
+            return
+        }
+        
         key_event(editorHandle, event.keyCode, event.modifierFlags.contains(.shift), event.modifierFlags.contains(.control), event.modifierFlags.contains(.option), event.modifierFlags.contains(.command), true, event.characters)
         setNeedsDisplay(self.frame)
     }
@@ -171,6 +175,31 @@ public class MacMTK: MTKView, MTKViewDelegate {
             system_clipboard_changed(editorHandle, theString)
         }
         self.pasteBoardEventId = NSPasteboard.general.changeCount
+    }
+    
+    func pasteImageInClipboard(_ event: NSEvent) -> Bool {
+        if event.keyCode == 9
+            && event.modifierFlags.contains(.command) {
+            if let data = NSPasteboard.general.data(forType: .png) ?? NSPasteboard.general.data(forType: .tiff),
+               let url = createTempDir() {
+                let imageUrl = url.appendingPathComponent(String(UUID().uuidString.prefix(10).lowercased()), conformingTo: .png)
+                
+                do {
+                    try data.write(to: imageUrl)
+                } catch {
+                    return false
+                }
+                
+                if let lbImageURL = editorState!.importFile(imageUrl) {
+                    paste_text(editorHandle, lbImageURL)
+                    editorState?.pasted = true
+                    
+                    return true
+                }
+            }
+        }
+        
+        return false
     }
     
     func getCoppiedText() -> String {
