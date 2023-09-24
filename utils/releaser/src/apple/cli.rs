@@ -1,5 +1,5 @@
+use crate::secrets::Github;
 use crate::utils::{core_version, lb_repo, sha_file, CommandRunner};
-use crate::Github;
 use gh_release::ReleaseClient;
 use std::fs;
 use std::fs::{File, OpenOptions};
@@ -8,12 +8,12 @@ use std::process::Command;
 
 static CLI_NAME: &str = "lockbook-cli-macos.tar.gz";
 
-pub fn release(gh: &Github) {
+pub fn release() {
     build_x86();
     build_arm();
     lipo_binaries();
     tar_binary();
-    upload(gh);
+    upload();
     update_brew();
 }
 
@@ -53,8 +53,9 @@ fn tarred_binary() -> String {
     format!("target/universal-cli/{CLI_NAME}")
 }
 
-fn upload(gh: &Github) {
-    let client = ReleaseClient::new(gh.0.clone()).unwrap();
+fn upload() {
+    let gh = Github::env();
+    let client = ReleaseClient::new(gh.0).unwrap();
     let release = client
         .get_release_by_tag_name(&lb_repo(), &core_version())
         .unwrap();

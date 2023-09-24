@@ -4,13 +4,13 @@ use std::process::Command;
 
 use gh_release::ReleaseClient;
 
+use crate::secrets::Github;
 use crate::utils::{core_version, lb_repo, CommandRunner};
-use crate::Github;
 
-pub fn release(gh: &Github) {
+pub fn release() {
     build();
     zip_binary();
-    upload(gh);
+    upload();
 }
 
 fn build() {
@@ -30,8 +30,9 @@ fn zip_binary() {
     zip.finish().unwrap();
 }
 
-fn upload(gh: &Github) {
-    let client = ReleaseClient::new(gh.0.clone()).unwrap();
+fn upload() {
+    let gh = Github::env();
+    let client = ReleaseClient::new(gh.0).unwrap();
     let release = client
         .get_release_by_tag_name(&lb_repo(), &core_version())
         .unwrap();

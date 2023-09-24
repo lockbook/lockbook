@@ -1,16 +1,16 @@
+use crate::secrets::Github;
 use crate::utils::{core_version, lb_repo, CommandRunner};
-use crate::Github;
 use gh_release::ReleaseClient;
 use std::fs;
 use std::fs::{File, OpenOptions};
 use std::io::Write;
 use std::process::Command;
 
-pub fn release(gh: &Github) {
+pub fn release() {
     update_aur();
     update_snap();
     build_x86();
-    upload(gh);
+    upload();
 }
 
 pub fn build_x86() {
@@ -71,8 +71,10 @@ apps:
         .assert_success();
 }
 
-pub fn upload(gh: &Github) {
-    let client = ReleaseClient::new(gh.0.clone()).unwrap();
+pub fn upload() {
+    let gh = Github::env();
+
+    let client = ReleaseClient::new(gh.0).unwrap();
     let release = client
         .get_release_by_tag_name(&lb_repo(), &core_version())
         .unwrap();
