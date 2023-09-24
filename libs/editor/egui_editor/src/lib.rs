@@ -241,5 +241,7 @@ pub fn register_fonts(fonts: &mut FontDefinitions) {
 
     fonts
         .families
-        .insert(FontFamily::Name(Arc::from("icons")), vec!["material_icons".to_owned()]);
+        .get_mut(&egui::FontFamily::Monospace)
+        .unwrap()
+        .push("material_icons".to_owned());
 }
