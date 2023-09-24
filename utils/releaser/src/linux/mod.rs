@@ -1,11 +1,11 @@
 use cli_rs::cli_error::CliResult;
 
-mod cli;
-mod desktop;
+pub mod cli;
+pub mod desktop;
 
 pub fn release() -> CliResult<()> {
-    cli::release();
-    desktop::release();
+    cli::release()?;
+    desktop::release()?;
 
     Ok(())
 }

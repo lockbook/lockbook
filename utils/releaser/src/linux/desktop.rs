@@ -1,15 +1,17 @@
 use crate::secrets::Github;
 use crate::utils::{core_version, lb_repo, CommandRunner};
+use cli_rs::cli_error::CliResult;
 use gh_release::ReleaseClient;
 use std::fs::{File, OpenOptions};
 use std::io::Write;
 use std::process::Command;
 
-pub fn release() {
+pub fn release() -> CliResult<()> {
     update_aur();
     update_snap();
     build_x86();
     upload();
+    Ok(())
 }
 
 pub fn update_snap() {

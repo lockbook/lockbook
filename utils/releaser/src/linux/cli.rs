@@ -1,16 +1,18 @@
 use crate::secrets::Github;
 use crate::utils::{core_version, lb_repo, CommandRunner};
+use cli_rs::cli_error::CliResult;
 use gh_release::ReleaseClient;
 use std::fs;
 use std::fs::{File, OpenOptions};
 use std::io::Write;
 use std::process::Command;
 
-pub fn release() {
-    update_aur();
-    update_snap();
-    build_x86();
-    upload();
+pub fn release() -> CliResult<()> {
+    upload_deb()?;
+    bin_gh()?;
+    update_aur()?;
+    update_snap()?;
+    Ok(())
 }
 
 pub fn build_x86() {
@@ -19,7 +21,7 @@ pub fn build_x86() {
         .assert_success();
 }
 
-pub fn update_snap() {
+pub fn update_snap() -> CliResult<()> {
     let version = core_version();
     let snap_name = format!("lockbook_{version}_amd64.snap");
 
@@ -69,9 +71,77 @@ apps:
         .args(["upload", "--release=stable", &snap_name])
         .current_dir("utils/dev/snap-packages/lockbook/")
         .assert_success();
+
+    Ok(())
 }
 
-pub fn upload() {
+pub fn upload_deb() -> CliResult<()> {
+    let core_version = &core_version();
+    let gh = Github::env();
+
+    let deb_scripts_location = "utils/releaser/debian-build-scripts/ppa-lockbook/";
+    Command::new("dch")
+        .args([
+            "--newversion",
+            core_version,
+            "see changelog at https://github.com/lockbook/lockbook/releases/latest",
+        ])
+        .current_dir(deb_scripts_location)
+        .env("DEBEMAIL", "Parth<parth@mehrotra.me>")
+        .assert_success();
+
+    let new_control = format!(
+        r#"
+Source: lockbook
+Section: utils
+Priority: extra
+Maintainer: Parth Mehrotra <parth@mehrotra.me>
+Standards-Version: {core_version}
+Build-Depends: debhelper (>=10), git, ca-certificates
+
+Package: lockbook
+Architecture: any
+Depends: ${{shlibs:Depends}}, ${{misc:Depends}}
+Description: The private, polished note-taking platform.
+"#
+    );
+
+    let mut file = OpenOptions::new()
+        .write(true)
+        .create(true)
+        .truncate(true)
+        .open("utils/releaser/debian-build-scripts/ppa-lockbook/debian/control")
+        .unwrap();
+    file.write_all(new_control.as_bytes()).unwrap();
+
+    Command::new("debuild")
+        .current_dir(deb_scripts_location)
+        .assert_success();
+
+    let client = ReleaseClient::new(gh.0).unwrap();
+    let release = client
+        .get_release_by_tag_name(&lb_repo(), core_version)
+        .unwrap();
+
+    let deb_file = format!("lockbook_{core_version}_amd64.deb");
+
+    let output = File::open(format!("utils/releaser/debian-build-scripts/{deb_file}")).unwrap();
+
+    client
+        .upload_release_asset(
+            &lb_repo(),
+            release.id,
+            &deb_file,
+            "application/octet-stream",
+            output,
+            None,
+        )
+        .unwrap();
+    Ok(())
+}
+
+pub fn bin_gh() -> CliResult<()> {
+    build_x86();
     let gh = Github::env();
 
     let client = ReleaseClient::new(gh.0).unwrap();
@@ -83,17 +153,19 @@ pub fn upload() {
         .upload_release_asset(
             &lb_repo(),
             release.id,
-            "lockbook-cli",
+            "lockbook-cli-linux",
             "application/octet-stream",
             file,
             None,
         )
         .unwrap();
+    Ok(())
 }
 
-pub fn update_aur() {
+pub fn update_aur() -> CliResult<()> {
     overwrite_lockbook_pkg();
     push_aur();
+    Ok(())
 }
 
 pub fn overwrite_lockbook_pkg() {

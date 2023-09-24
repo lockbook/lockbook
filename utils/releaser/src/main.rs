@@ -51,7 +51,19 @@ fn main() {
         .subcommand(Command::name("android").handler(android::release))
         .subcommand(Command::name("windows").handler(windows::release))
         .subcommand(Command::name("public-site").handler(public_site::release))
-        .subcommand(Command::name("linux").handler(linux::release))
+        .subcommand(
+            Command::name("linux")
+                .subcommand(Command::name("all").handler(linux::release))
+                .subcommand(
+                    Command::name("cli")
+                        .subcommand(Command::name("all").handler(linux::cli::release))
+                        .subcommand(Command::name("gh").handler(linux::cli::bin_gh))
+                        .subcommand(Command::name("deb").handler(linux::cli::upload_deb))
+                        .subcommand(Command::name("snap").handler(linux::cli::update_snap))
+                        .subcommand(Command::name("aur").handler(linux::cli::update_aur)),
+                )
+                .subcommand(Command::name("desktop").handler(linux::desktop::release)),
+        )
         .with_completions()
         .parse();
 }
