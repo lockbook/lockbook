@@ -152,6 +152,10 @@ Vestibulum ante ipsum primis in vel.
         .failure(.init(unexpected: "LAZY"))
     }
     
+    public func getFileByPath(path: String) -> FfiResult<File, GetFileByPathError> {
+        .failure(.init(unexpected: "LAZY"))
+    }
+    
     public func searchFilePaths(input: String) ->FfiResult<[SearchResultItem], SearchFilePathsError> {
         .failure(.init(unexpected: "LAZY"))
     }

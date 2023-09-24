@@ -12,7 +12,7 @@ pub struct ImageCache {
     pub map: HashMap<Url, Arc<Mutex<ImageState>>>,
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub enum ImageState {
     #[default]
     Loading,
@@ -126,4 +126,12 @@ fn download_image(
 ) -> Result<Vec<u8>, reqwest::Error> {
     let response = client.get(url).send()?.bytes()?.to_vec();
     Ok(response)
+}
+
+impl ImageCache {
+    pub fn any_loading(&self) -> bool {
+        self.map
+            .values()
+            .any(|state| &ImageState::Loading == state.lock().unwrap().deref())
+    }
 }

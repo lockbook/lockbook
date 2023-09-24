@@ -43,6 +43,7 @@ public protocol LockbookApi {
     func exportDrawingToDisk(id: UUID, destination: String) ->FfiResult<Empty, ExportDrawingToDiskError>
     func importFiles(sources: [String], destination: UUID) ->FfiResult<Empty, ImportFilesError>
     func getFileById(id: UUID) -> FfiResult<File, GetFileByIdError>
+    func getFileByPath(path: String) -> FfiResult<File, GetFileByPathError>
     func suggestedDocs() -> FfiResult<[UUID], SuggestedDocsError>
     func getPathById(id: UUID) -> FfiResult<String, GetPathByIdError>
     

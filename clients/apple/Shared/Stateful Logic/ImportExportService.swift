@@ -38,7 +38,6 @@ class ImportExportService: ObservableObject {
             return nil
         }
         
-        
         if meta.fileType == .Document && meta.name.hasSuffix(".draw") {
             destination = destination.appendingPathComponent(meta.name + ".jpeg")
             let operation = DI.core.exportDrawingToDisk(id: meta.id, destination: destination.path())

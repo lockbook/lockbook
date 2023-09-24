@@ -382,6 +382,16 @@ class FileService: ObservableObject {
         }
     }
     
+    public func getFileByPath(path: String) -> File? {
+        switch core.getFileByPath(path: path) {
+        case .success(let file):
+            return file
+        case .failure(let err):
+            DI.errors.handleError(err)
+            return nil
+        }
+    }
+    
     public func copyFileLink(id: UUID) {
         #if os(iOS)
         UIPasteboard.general.string = "lb://\(id.uuidString.lowercased())"

@@ -118,8 +118,14 @@ struct DocumentView: View, Equatable {
                         .title("")
                     }
                 case .Unknown:
-                    Text("\(model.meta.name) cannot be opened on this device.")
-                        .title(model.meta.name)
+                    VStack {
+                        Spacer()
+                        
+                        Text("\(model.meta.name) cannot be opened on this device.")
+                            .title(model.meta.name)
+                        
+                        Spacer()
+                    }
                 }
             }
         }
