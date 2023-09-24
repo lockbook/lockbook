@@ -20,11 +20,6 @@ public class EditorState: ObservableObject {
     }
 }
 
-public enum SupportedImportImageFormats {
-    case png
-    case tiff
-}
-
 public class ToolbarState: ObservableObject {
     @Published public var isBulletListSelected: Bool = false
     @Published public var isNumberListSelected: Bool = false

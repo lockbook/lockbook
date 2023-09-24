@@ -148,6 +148,8 @@ pub unsafe extern "C" fn free_text(s: *mut c_void) {
 
 /// # Safety
 /// obj must be a valid pointer to WgpuEditor
+///
+/// used solely for image pasting
 #[no_mangle]
 pub unsafe extern "C" fn paste_text(obj: *mut c_void, content: *const c_char) {
     let obj = &mut *(obj as *mut WgpuEditor);

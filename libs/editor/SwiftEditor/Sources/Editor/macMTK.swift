@@ -139,7 +139,7 @@ public class MacMTK: MTKView, MTKViewDelegate {
     
     public override func keyDown(with event: NSEvent) {
         setClipboard()
-        if checkIfImagePasted(event) {
+        if pasteImageInClipboard(event) {
             return
         }
         
@@ -171,36 +171,29 @@ public class MacMTK: MTKView, MTKViewDelegate {
         self.pasteBoardEventId = NSPasteboard.general.changeCount
     }
     
-    func checkIfImagePasted(_ event: NSEvent) -> Bool {
+    func pasteImageInClipboard(_ event: NSEvent) -> Bool {
         if event.keyCode == 9
             && event.modifierFlags.contains(.command) {
-            if let data = NSPasteboard.general.data(forType: .png) ?? NSPasteboard.general.data(forType: .tiff) {
-                if let path = pasteImage(data: data) {
-                    paste_text(editorHandle, path)
-                    editorState?.pasted = true
+            if let data = NSPasteboard.general.data(forType: .png) ?? NSPasteboard.general.data(forType: .tiff),
+               let url = createTempDir() {
+                let imageUrl = url.appendingPathComponent(String(UUID().uuidString.prefix(10)), conformingTo: .tiff)
+                
+                do {
+                    try data.write(to: imageUrl)
+                } catch {
+                    return false
                 }
                 
-                return true
+                if let lbImageURL = editorState!.importFile(imageUrl) {
+                    paste_text(editorHandle, lbImageURL)
+                    editorState?.pasted = true
+                    
+                    return true
+                }
             }
         }
         
         return false
-    }
-    
-    func pasteImage(data: Data) -> String? {
-        if let url = createTempDir() {
-            let imageUrl = url.appendingPathComponent(String(UUID().uuidString.prefix(10)), conformingTo: .tiff)
-            
-            do {
-                try data.write(to: imageUrl)
-            } catch {
-                return nil
-            }
-            
-            return editorState!.importFile(imageUrl)
-        }
-        
-        return nil
     }
     
     func getCoppiedText() -> String {
