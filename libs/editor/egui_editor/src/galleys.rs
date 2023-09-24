@@ -108,7 +108,7 @@ pub fn calc(
             if text_range.range_type == AstTextRangeType::Head
                 && text_range.range.start() == text_range_portion.start()
                 && (captured
-                    || text_range.annotation(ast) == Some(Annotation::HeadingRule)) // heading rules drawn reglardless of capture
+                    || matches!(text_range.annotation(ast), Some(Annotation::HeadingRule | Annotation::Image(..)))) // heading rules and images drawn reglardless of capture
                 && annotation.is_none()
             {
                 annotation = text_range.annotation(ast);
