@@ -106,6 +106,11 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
         indent_at_cursor(editorHandle, deindent)
         self.setNeedsDisplay(self.frame)
     }
+    
+    // used for shortcut
+    @objc public func deindent() {
+        tab(deindent: true)
+    }
         
     public func setInitialContent(_ coreHandle: UnsafeMutableRawPointer?, _ s: String) {
         let metalLayer = UnsafeMutableRawPointer(Unmanaged.passUnretained(self.layer).toOpaque())
@@ -530,15 +535,18 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     }
     
     override public var keyCommands: [UIKeyCommand]? {
+        let deindent = UIKeyCommand(input: "\t", modifierFlags: .shift, action: #selector(deindent))
         let deleteWord = UIKeyCommand(input: UIKeyCommand.inputDelete, modifierFlags: [.alternate], action: #selector(deleteWord))
         
         deleteWord.wantsPriorityOverSystemBehavior = true
+        deindent.wantsPriorityOverSystemBehavior = true
         
         return [
             UIKeyCommand(input: "c", modifierFlags: .command, action: #selector(clipboardCopy)),
             UIKeyCommand(input: "x", modifierFlags: .command, action: #selector(clipboardCut)),
             UIKeyCommand(input: "v", modifierFlags: .command, action: #selector(clipboardPaste)),
             UIKeyCommand(input: "a", modifierFlags: .command, action: #selector(keyboardSelectAll)),
+            deindent,
             deleteWord,
         ]
     }
