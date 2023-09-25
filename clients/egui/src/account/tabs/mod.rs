@@ -1,11 +1,13 @@
 mod drawing;
 mod image_viewer;
 mod markdown;
+mod pdf_viewer;
 mod plain_text;
 
 pub use drawing::Drawing;
 pub use image_viewer::ImageViewer;
 pub use markdown::Markdown;
+pub use pdf_viewer::PdfViewer;
 pub use plain_text::PlainText;
 
 use std::time::Instant;
@@ -60,6 +62,7 @@ pub enum TabContent {
     Image(Box<ImageViewer>),
     Markdown(Box<Markdown>),
     PlainText(Box<PlainText>),
+    PDF(Box<PdfViewer>),
 }
 
 pub enum TabFailure {
