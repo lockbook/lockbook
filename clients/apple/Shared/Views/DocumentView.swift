@@ -153,17 +153,17 @@ extension View {
         self.toolbar {
             if let meta = DI.files.idsAndFiles[id] {
                 Button(action: {
-                    exportFileAndShowShareSheet(meta: meta)
+                    DI.sheets.sharingFileInfo = meta
                 }, label: {
-                    Label("Share externally to...", systemImage: "person.wave.2.fill")
+                    Label("Share", systemImage: "person.wave.2.fill")
                 })
                 .foregroundColor(.blue)
                 .padding(.trailing, 10)
-
+                
                 Button(action: {
-                    DI.sheets.sharingFileInfo = meta
+                    exportFileAndShowShareSheet(meta: meta)
                 }, label: {
-                    Label("Share", systemImage: "square.and.arrow.up.fill")
+                    Label("Share externally to...", systemImage: "square.and.arrow.up.fill")
                 })
                 .foregroundColor(.blue)
                 .padding(.trailing, 10)

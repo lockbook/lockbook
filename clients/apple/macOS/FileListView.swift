@@ -98,7 +98,7 @@ struct DetailView: View {
                         Button(action: {
                             view.view.exportFileAndShowShareSheet(meta: meta)
                         }, label: {
-                            Label("Share externally to...", systemImage: "person.wave.2.fill")
+                            Label("Share externally to...", systemImage: "square.and.arrow.up.fill")
                                 .imageScale(.large)
                         })
                         .foregroundColor(.blue)
@@ -108,7 +108,7 @@ struct DetailView: View {
                     Button(action: {
                         DI.sheets.sharingFileInfo = meta
                     }, label: {
-                        Label("Share", systemImage: "square.and.arrow.up.fill")
+                        Label("Share", systemImage: "person.wave.2.fill")
                             .imageScale(.large)
                     })
                     .foregroundColor(.blue)
