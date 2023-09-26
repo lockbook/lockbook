@@ -264,7 +264,7 @@ public class MacMTK: MTKView, MTKViewDelegate {
         let newRedrawTask = DispatchWorkItem {
             self.setNeedsDisplay(self.frame)
         }
-        DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(Int(max(UInt64(output.redraw_in), UInt64(Int.max)))), execute: newRedrawTask)
+        DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(Int(truncatingIfNeeded: output.redraw_in)), execute: newRedrawTask)
         redrawTask = newRedrawTask
 
         if has_copied_text(editorHandle) {
