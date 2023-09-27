@@ -26,7 +26,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     override init(frame frameRect: CGRect, device: MTLDevice?) {
         super.init(frame: frameRect, device: device)
         
-        self.isPaused = false
+        self.isPaused = true
         self.enableSetNeedsDisplay = true
         self.delegate = self
         self.editMenuInteraction = UIEditMenuInteraction(delegate: self)
