@@ -1,18 +1,21 @@
 use crate::secrets::Github;
 use crate::utils::{core_version, lb_repo, CommandRunner};
+use cli_rs::cli_error::CliResult;
 use gh_release::ReleaseClient;
 use std::fs::File;
 use std::process::Command;
 use std::thread;
 use std::time::Duration;
 
-pub fn deploy_server(gh: &Github) {
+pub fn deploy() -> CliResult<()> {
     build_server();
     backup_old_server();
     replace_old_server();
     restart_server();
     check_server_status();
-    upload(gh);
+    upload();
+
+    Ok(())
 }
 
 fn build_server() {
@@ -56,8 +59,9 @@ fn check_server_status() {
         .assert_success()
 }
 
-fn upload(gh: &Github) {
-    let client = ReleaseClient::new(gh.0.clone()).unwrap();
+fn upload() {
+    let gh = Github::env();
+    let client = ReleaseClient::new(gh.0).unwrap();
     let release = client
         .get_release_by_tag_name(&lb_repo(), &core_version())
         .unwrap();

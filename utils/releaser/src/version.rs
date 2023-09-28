@@ -1,13 +1,14 @@
 use crate::utils::{core_version, CommandRunner};
-use clap::ValueEnum;
+use cli_rs::cli_error::CliResult;
 use regex::{Captures, Regex};
 use std::fmt::{Display, Formatter};
 use std::fs;
 use std::process::Command;
+use std::str::FromStr;
 use time::OffsetDateTime;
 use toml_edit::{value, Document};
 
-pub fn bump(bump_type: BumpType) {
+pub fn bump(bump_type: BumpType) -> CliResult<()> {
     let new_version = determine_new_version(bump_type);
 
     ensure_clean_start_state();
@@ -18,15 +19,30 @@ pub fn bump(bump_type: BumpType) {
     generate_lockfile();
 
     push_to_git(&new_version);
+
+    Ok(())
 }
 
-#[derive(Copy, Clone, ValueEnum, PartialEq, Default, Debug)]
+#[derive(Copy, Clone, PartialEq, Default, Debug)]
 pub enum BumpType {
     Major,
     Minor,
 
     #[default]
     Patch,
+}
+
+impl FromStr for BumpType {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_ref() {
+            "patch" => Ok(Self::Patch),
+            "minor" => Ok(Self::Minor),
+            "major" => Ok(Self::Major),
+            _ => Err(format!("{s} is not patch minor or major")),
+        }
+    }
 }
 
 impl Display for BumpType {

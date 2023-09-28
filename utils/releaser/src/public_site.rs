@@ -2,12 +2,13 @@ use std::path::Path;
 use std::path::PathBuf;
 use std::process::Command;
 
+use cli_rs::cli_error::CliResult;
 use fs_extra::dir::copy;
 use fs_extra::dir::CopyOptions;
 
 use crate::utils::{root, CommandRunner};
 
-pub fn release() {
+pub fn release() -> CliResult<()> {
     let mut path = work_dir();
 
     clone(&mut path);
@@ -15,6 +16,8 @@ pub fn release() {
     remove_old(&path);
     copy_public_site(&path);
     push(&path);
+
+    Ok(())
 }
 
 fn work_dir() -> PathBuf {

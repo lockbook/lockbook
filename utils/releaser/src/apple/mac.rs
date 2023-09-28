@@ -1,15 +1,14 @@
-use crate::secrets::AppStore;
+use crate::secrets::{AppStore, Github};
 use crate::utils::{core_version, lb_repo, CommandRunner};
-use crate::Github;
 use gh_release::ReleaseClient;
 use std::fs::File;
 use std::process::Command;
 
-pub fn release(asc: &AppStore, gh: &Github) {
+pub fn release() {
     archive();
-    notarize(asc);
-    upload_gh(gh);
-    upload_app_store(asc);
+    notarize();
+    upload_gh();
+    upload_app_store();
 }
 
 fn archive() {
@@ -58,7 +57,8 @@ fn archive() {
         .assert_success();
 }
 
-fn notarize(asc: &AppStore) {
+fn notarize() {
+    let asc = AppStore::env();
     Command::new("ditto")
         .arg("-c")
         .arg("-k")
@@ -97,8 +97,9 @@ fn notarize(asc: &AppStore) {
         .assert_success();
 }
 
-fn upload_gh(gh: &Github) {
-    let client = ReleaseClient::new(gh.0.clone()).unwrap();
+fn upload_gh() {
+    let gh = Github::env();
+    let client = ReleaseClient::new(gh.0).unwrap();
     let release = client
         .get_release_by_tag_name(&lb_repo(), &core_version())
         .unwrap();
@@ -115,7 +116,9 @@ fn upload_gh(gh: &Github) {
         .unwrap();
 }
 
-fn upload_app_store(asc: &AppStore) {
+fn upload_app_store() {
+    let asc = AppStore::env();
+
     Command::new("xcrun")
         .args([
             "altool",

@@ -1,10 +1,9 @@
-use crate::utils::CommandRunner;
-use crate::AppStore;
+use crate::{secrets::AppStore, utils::CommandRunner};
 use std::process::Command;
 
-pub fn release(asc: &AppStore) {
+pub fn release() {
     archive();
-    upload(asc);
+    upload();
 }
 
 fn archive() {
@@ -38,7 +37,8 @@ fn archive() {
         .assert_success();
 }
 
-fn upload(asc: &AppStore) {
+fn upload() {
+    let asc = AppStore::env();
     Command::new("xcrun")
         .args([
             "altool",
