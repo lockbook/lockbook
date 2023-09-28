@@ -9,62 +9,61 @@ mod utils;
 mod version;
 mod windows;
 
-use crate::secrets::*;
+use cli_rs::arg::Arg;
+use cli_rs::command::Command;
+use cli_rs::parser::Cmd;
+use version::BumpType;
+
 use crate::utils::root;
-
-use clap::Parser;
-
-#[derive(Parser, PartialEq)]
-#[structopt(name = "basic")]
-enum Releaser {
-    All,
-    DeployServer,
-    ReleaseApple,
-    ReleaseAndroid,
-    ReleaseWindows,
-    ReleasePublicSite,
-    ReleaseLinux,
-    CreateGithubRelease,
-    BumpVersion {
-        #[arg(short, long, name = "bump type", default_value_t)]
-        increment: version::BumpType,
-    },
-}
 
 fn main() {
     // Fail fast if we're invoking from the wrong location
     root();
 
-    from_args(Releaser::parse());
-}
-
-fn from_args(releaser: Releaser) {
-    match releaser {
-        Releaser::DeployServer => server::deploy_server(&Github::env()),
-        Releaser::ReleaseApple => apple::release_apple(&Github::env(), &AppStore::env()),
-        Releaser::ReleaseAndroid => android::release_android(&Github::env(), &PlayStore::env()),
-        Releaser::ReleaseWindows => windows::release(&Github::env()),
-        Releaser::ReleasePublicSite => public_site::release(),
-        Releaser::ReleaseLinux => linux::release_linux(),
-        Releaser::CreateGithubRelease => github::create_gh_release(&Github::env()),
-        Releaser::BumpVersion { increment } => version::bump(increment),
-        Releaser::All => {
-            let releases = if cfg!(target_os = "macos") {
-                vec![Releaser::ReleaseApple]
-            } else if cfg!(target_os = "linux") {
-                vec![
-                    Releaser::DeployServer,
-                    Releaser::ReleaseLinux,
-                    Releaser::ReleaseAndroid,
-                    Releaser::ReleasePublicSite,
-                ]
-            } else {
-                vec![Releaser::ReleaseWindows]
-            };
-
-            for releaser in releases {
-                from_args(releaser);
+    Command::name("releaser")
+        .description("Lockbook's release automation")
+        .subcommand(
+            Command::name("bump-versions")
+                .input(Arg::name("bump-type").default(BumpType::Patch))
+                .handler(|bump| version::bump(bump.get())),
+        )
+        .subcommand(Command::name("github-release").handler(github::create_release))
+        .subcommand(Command::name("all").handler(|| {
+            if cfg!(target_os = "macos") {
+                github::create_release()?;
+                apple::release()?;
             }
-        }
-    }
+
+            if cfg!(target_os = "linux") {
+                server::deploy()?;
+                linux::release()?;
+                android::release()?;
+                public_site::release()?;
+            }
+
+            if cfg!(target_os = "windows") {
+                windows::release()?;
+            }
+            Ok(())
+        }))
+        .subcommand(Command::name("server").handler(server::deploy))
+        .subcommand(Command::name("apple").handler(apple::release))
+        .subcommand(Command::name("android").handler(android::release))
+        .subcommand(Command::name("windows").handler(windows::release))
+        .subcommand(Command::name("public-site").handler(public_site::release))
+        .subcommand(
+            Command::name("linux")
+                .subcommand(Command::name("all").handler(linux::release))
+                .subcommand(
+                    Command::name("cli")
+                        .subcommand(Command::name("all").handler(linux::cli::release))
+                        .subcommand(Command::name("gh").handler(linux::cli::bin_gh))
+                        .subcommand(Command::name("deb").handler(linux::cli::upload_deb))
+                        .subcommand(Command::name("snap").handler(linux::cli::update_snap))
+                        .subcommand(Command::name("aur").handler(linux::cli::update_aur)),
+                )
+                .subcommand(Command::name("desktop").handler(linux::desktop::release)),
+        )
+        .with_completions()
+        .parse();
 }

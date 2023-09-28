@@ -4,14 +4,17 @@ use std::process::Command;
 
 use gh_release::ReleaseClient;
 
-use crate::utils::{core_version, lb_repo, CommandRunner};
-use crate::Github;
+use crate::{
+    secrets::Github,
+    utils::{core_version, lb_repo, CommandRunner},
+};
 
-pub fn release_installers(gh: &Github) {
-    build_x86(gh);
+pub fn release_installers() {
+    build_x86();
 }
 
-fn build_x86(gh: &Github) {
+fn build_x86() {
+    let gh = Github::env();
     Command::new("cargo")
         .args(["build", "-p", "lockbook-egui", "--release", "--target=x86_64-pc-windows-msvc"])
         .assert_success();
@@ -22,7 +25,7 @@ fn build_x86(gh: &Github) {
         .assert_success();
 
     upload(
-        gh,
+        &gh,
         "lockbook-windows-setup-x86_64.exe",
         "target/x86_64-pc-windows-msvc/release/winstaller.exe",
     );

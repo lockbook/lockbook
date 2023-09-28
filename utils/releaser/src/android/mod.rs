@@ -1,6 +1,6 @@
-use crate::secrets::PlayStore;
+use crate::secrets::*;
 use crate::utils::{android_version_code, core_version, lb_repo, CommandRunner};
-use crate::Github;
+use cli_rs::cli_error::CliResult;
 use gh_release::ReleaseClient;
 use google_androidpublisher3::api::{AppEdit, LocalizedText, Track, TrackRelease};
 use google_androidpublisher3::{hyper, hyper_rustls, oauth2, AndroidPublisher};
@@ -21,11 +21,12 @@ const STATUS: &str = "completed";
 const DEFAULT_LOC: &str = "en-US";
 const MIME: &str = "application/octet-stream";
 
-pub fn release_android(gh: &Github, ps: &PlayStore) {
+pub fn release() -> CliResult<()> {
     core::build_libs();
     build_android();
-    release_gh(gh);
-    release_play_store(ps);
+    release_gh();
+    release_play_store();
+    Ok(())
 }
 
 fn build_android() {
@@ -40,8 +41,9 @@ fn build_android() {
         .assert_success();
 }
 
-fn release_gh(gh: &Github) {
-    let client = ReleaseClient::new(gh.0.clone()).unwrap();
+fn release_gh() {
+    let gh = Github::env();
+    let client = ReleaseClient::new(gh.0).unwrap();
     let release = client
         .get_release_by_tag_name(&lb_repo(), &core_version())
         .unwrap();
@@ -59,9 +61,10 @@ fn release_gh(gh: &Github) {
         .unwrap();
 }
 
-fn release_play_store(ps: &PlayStore) {
+fn release_play_store() {
+    let ps = PlayStore::env();
     let service_account_key: oauth2::ServiceAccountKey =
-        oauth2::parse_service_account_key(&ps.service_account_key).unwrap();
+        oauth2::parse_service_account_key(ps.service_account_key).unwrap();
 
     let runtime = Runtime::new().unwrap();
 
