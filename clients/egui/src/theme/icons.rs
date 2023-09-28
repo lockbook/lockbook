@@ -61,7 +61,10 @@ impl Icon {
     pub const VISIBILITY_ON: Self = ic("\u{e8f4}"); // Visibility On
     pub const VISIBILITY_OFF: Self = ic("\u{e8f5}"); // Visibility Off
     pub const WARNING: Self = ic("\u{e001}"); // Visibility Off
-
+    pub const ZOOM_IN: Self = ic("\u{e145}"); // Visibility Off
+    pub const ZOOM_OUT: Self = ic("\u{e15b}"); // Visibility Off
+    
+    
     //pub const ARTICLE: Self = ic("\u{ef42}");
     //pub const COMMAND_KEY: Self = Self('\u{eae7}');
     //pub const SWAP_HORIZONTAL: Self = Self('\u{e933}'); // Swap Horizontal Circle
