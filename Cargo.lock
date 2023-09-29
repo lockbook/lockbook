@@ -1001,9 +1001,9 @@ checksum = "2da6da31387c7e4ef160ffab6d5e7f00c42626fe39aea70a7b0f1773f7dd6c1b"
 
 [[package]]
 name = "cli-rs"
-version = "0.1.8"
+version = "0.1.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c5369d0e9f71fb3c8d323e858f56d2070ae1ed6ab94034adde801ecfab12dd2a"
+checksum = "4b7ac7347ae96dbff4c6b254e3834cc2f0465778309ec6afb9c43e7b1b0abe8a"
 dependencies = [
  "cli-rs-command-gen",
  "colored",
@@ -1011,9 +1011,9 @@ dependencies = [
 
 [[package]]
 name = "cli-rs-command-gen"
-version = "0.1.8"
+version = "0.1.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ae859a5e4bdd51e4ea8eaecbef63b3213a521e35474e1326fd8751b9b4768a59"
+checksum = "86d5e98ab2d417550cfa67d3e2ae37d92dccf356ae106d4fe86eec9e756e64ce"
 dependencies = [
  "proc-macro2",
  "quote",
