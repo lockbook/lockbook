@@ -13,6 +13,8 @@ public class MacMTK: MTKView, MTKViewDelegate {
     var toolbarState: ToolbarState?
     var nameState: NameState?
     
+    var redrawTask: DispatchWorkItem? = nil
+    
     override init(frame frameRect: CGRect, device: MTLDevice?) {
         super.init(frame: frameRect, device: device)
         self.delegate = self
@@ -262,7 +264,13 @@ public class MacMTK: MTKView, MTKViewDelegate {
             }
         }
 
-        view.isPaused = !output.redraw
+        redrawTask?.cancel()
+        let newRedrawTask = DispatchWorkItem {
+            self.setNeedsDisplay(self.frame)
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(Int(truncatingIfNeeded: output.redraw_in)), execute: newRedrawTask)
+        redrawTask = newRedrawTask
+
         if has_copied_text(editorHandle) {
             NSPasteboard.general.clearContents()
             NSPasteboard.general.setString(getCoppiedText(), forType: .string)

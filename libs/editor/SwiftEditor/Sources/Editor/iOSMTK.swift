@@ -14,6 +14,8 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     var hasSelection: Bool = false
     
     var textUndoManager = iOSUndoManager()
+    
+    var redrawTask: DispatchWorkItem? = nil
 
     public override var undoManager: UndoManager? {
         return textUndoManager
@@ -24,7 +26,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     override init(frame frameRect: CGRect, device: MTLDevice?) {
         super.init(frame: frameRect, device: device)
         
-        self.isPaused = false
+        self.isPaused = true
         self.enableSetNeedsDisplay = true
         self.delegate = self
         self.editMenuInteraction = UIEditMenuInteraction(delegate: self)
@@ -175,7 +177,6 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
         dark_mode(editorHandle, isDarkMode())
         set_scale(editorHandle, Float(self.contentScaleFactor))
         let output = draw_editor(editorHandle)
-        self.isPaused = !output.redraw
         
         toolbarState?.isHeadingSelected = output.editor_response.cursor_in_heading;
         toolbarState?.isTodoListSelected = output.editor_response.cursor_in_todo_list;
@@ -224,6 +225,13 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
         if has_copied_text(editorHandle) {
             UIPasteboard.general.string = getCoppiedText()
         }
+        
+        redrawTask?.cancel()
+        let newRedrawTask = DispatchWorkItem {
+            self.setNeedsDisplay(self.frame)
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(Int(truncatingIfNeeded: output.redraw_in)), execute: newRedrawTask)
+        redrawTask = newRedrawTask
     }
     
     func getCoppiedText() -> String {
