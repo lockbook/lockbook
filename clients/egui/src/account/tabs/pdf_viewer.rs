@@ -1,30 +1,26 @@
 use eframe::egui;
 use pdfium_render::prelude::*;
-
-use crate::{
-    theme::Icon,
-    widgets::{Button, ToolBar},
-};
+use pdfium_wrapper::PdfiumWrapper;
 
 pub struct PdfViewer {
     content: Vec<egui::TextureHandle>,
-    current_page_num: usize,
     zoom_factor: f32,
+    fit_page_zoom: f32,
     sao: Option<egui::scroll_area::ScrollAreaOutput<()>>,
 }
 
+const ZOOM_STOP: f32 = 0.1;
+const MAX_ZOOM_IN_STOPS: f32 = 15.0;
+
 impl PdfViewer {
     pub fn boxed(bytes: &[u8], ctx: &egui::Context) -> Box<Self> {
-        let bindings = Pdfium::bind_to_library(Pdfium::pdfium_platform_library_name_at_path("./"))
-            .or_else(|_| Pdfium::bind_to_system_library())
-            .unwrap();
-
         let render_config = PdfRenderConfig::new()
             .set_target_width(2000)
             .set_maximum_height(2000)
             .rotate_if_landscape(PdfPageRenderRotation::Degrees90, true);
 
-        let content = Pdfium::new(bindings)
+        let content: Vec<egui::TextureHandle> = PdfiumWrapper::new()
+            .pdfium
             .load_pdf_from_byte_slice(bytes, None)
             .unwrap()
             .pages()
@@ -39,7 +35,11 @@ impl PdfViewer {
             })
             .collect();
 
-        Box::new(Self { content, current_page_num: 0, zoom_factor: 0.5, sao: None })
+        let mut fit_page_zoom = 0.0;
+        if let Some(page) = content.get(0) {
+            fit_page_zoom = ctx.used_rect().height() / page.size()[1] as f32;
+        }
+        Box::new(Self { content, zoom_factor: 2.0, fit_page_zoom, sao: None })
     }
 
     pub fn show(&mut self, ui: &mut egui::Ui) {
@@ -71,30 +71,24 @@ impl PdfViewer {
                                 * self.zoom_factor as f32
                                 * self.content.len() as f32
                                 + 10.0 * self.content.len() as f32;
+
                             let aspect = total_height / offset;
 
                             if res.clicked() {
                                 if ui.input(|r| r.modifiers.alt) {
-                                    self.zoom_factor -= 0.1;
-                                    let new_offset: f32 = (self.content[0].size()[1] as f32
-                                        * (self.zoom_factor as f32)
-                                        * self.content.len() as f32
-                                        + 10.0 * self.content.len() as f32)
-                                        / aspect;
-
-                                    println!("scrolling by {new_offset}");
-                                    ui.scroll_with_delta(egui::vec2(0.0, -(new_offset - offset)));
+                                    self.zoom_factor =
+                                        (self.zoom_factor - ZOOM_STOP).max(ZOOM_STOP);
                                 } else {
-                                    self.zoom_factor += 0.1;
-                                    let new_offset: f32 = (self.content[0].size()[1] as f32
-                                        * (self.zoom_factor as f32)
-                                        * self.content.len() as f32
-                                        + 10.0 * self.content.len() as f32)
-                                        / aspect;
-
-                                    println!("scrolling by {new_offset}");
-                                    ui.scroll_with_delta(egui::vec2(0.0, -(new_offset - offset)));
+                                    self.zoom_factor = (self.zoom_factor + ZOOM_STOP)
+                                        .min(ZOOM_STOP * MAX_ZOOM_IN_STOPS + self.fit_page_zoom);
                                 }
+
+                                let new_offset: f32 = (self.content[0].size()[1] as f32
+                                    * (self.zoom_factor as f32)
+                                    * self.content.len() as f32
+                                    + 10.0 * self.content.len() as f32)
+                                    / aspect;
+                                ui.scroll_with_delta(egui::vec2(100.0, -(new_offset - offset)));
                             }
 
                             if res
