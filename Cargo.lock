@@ -3256,6 +3256,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bf6be762972ae53199c1d626bd9bf428f7f53bb855c4b59996cad7586225001e"
 
 [[package]]
+name = "lb-pdf"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "28b3e90b80a8999a49a439f4a1326e2698444240bd9eff2324e3979eca6f5ca0"
+dependencies = [
+ "pdfium-render",
+]
+
+[[package]]
 name = "lebe"
 version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3460,9 +3469,9 @@ dependencies = [
  "egui_extras",
  "image",
  "lb-fonts",
+ "lb-pdf",
  "lockbook-core",
  "pdfium-render",
- "pdfium-wrapper",
  "rfd",
  "serde",
  "serde_json",
@@ -4295,13 +4304,6 @@ dependencies = [
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",
-]
-
-[[package]]
-name = "pdfium-wrapper"
-version = "0.1.0"
-dependencies = [
- "pdfium-render",
 ]
 
 [[package]]

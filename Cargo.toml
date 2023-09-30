@@ -9,7 +9,6 @@ members = [
 	"libs/c_interface_v2",
 	"libs/core_external_interface",
 	"libs/editor/egui_editor",
-	"libs/pdfium-wrapper",
 	"server/server",
 	"clients/cli",
 	"clients/egui",

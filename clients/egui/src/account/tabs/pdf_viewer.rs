@@ -1,8 +1,6 @@
-use std::path::Path;
-
 use eframe::egui;
+use lb_pdf::PdfiumWrapper;
 use pdfium_render::prelude::*;
-use pdfium_wrapper::PdfiumWrapper;
 
 use crate::util::data_dir;
 
