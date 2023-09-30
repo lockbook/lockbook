@@ -1,12 +1,12 @@
 use crate::input::canonical::{Modification, Region};
 use crate::style::{BlockNode, InlineNode, ListItem, MarkdownNode};
 use crate::{Editor, IntegrationOutput, WgpuEditor};
+use egui::os::OperatingSystem;
 use egui::{Context, Event, Pos2, Vec2, Visuals};
 use egui_wgpu_backend::wgpu::CompositeAlphaMode;
 use egui_wgpu_backend::{wgpu, ScreenDescriptor};
 use std::ffi::{c_char, c_void, CStr, CString};
 use std::time::Instant;
-use egui::os::OperatingSystem;
 
 /// # Safety
 #[no_mangle]
@@ -201,10 +201,7 @@ pub unsafe extern "C" fn scroll_wheel(obj: *mut c_void, scroll_wheel: f32) {
     if matches!(obj.context.os(), OperatingSystem::IOS) {
         obj.raw_input
             .events
-            .push(Event::PointerMoved(Pos2 {
-                x: 1.0,
-                y: 1.0
-            }));
+            .push(Event::PointerMoved(Pos2 { x: 1.0, y: 1.0 }));
     }
 
     obj.raw_input
@@ -212,9 +209,7 @@ pub unsafe extern "C" fn scroll_wheel(obj: *mut c_void, scroll_wheel: f32) {
         .push(Event::Scroll(Vec2::new(0.0, scroll_wheel)));
 
     if matches!(obj.context.os(), OperatingSystem::IOS) {
-        obj.raw_input
-            .events
-            .push(Event::PointerGone);
+        obj.raw_input.events.push(Event::PointerGone);
     }
 }
 
