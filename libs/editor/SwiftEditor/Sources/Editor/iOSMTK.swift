@@ -3,8 +3,10 @@ import UIKit
 import MetalKit
 import Bridge
 import SwiftUI
+import MobileCoreServices
+import UniformTypeIdentifiers
 
-public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractionDelegate {
+public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractionDelegate, UIDropInteractionDelegate {
     
     var editorHandle: UnsafeMutableRawPointer?
     var editorState: EditorState?
@@ -36,6 +38,49 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
         tap.allowedScrollTypesMask = .all
         tap.maximumNumberOfTouches  = 0
         self.addGestureRecognizer(tap)
+        
+        // drop support
+        let dropInteraction = UIDropInteraction(delegate: self)
+        self.addInteraction(dropInteraction)
+    }
+    
+    public func dropInteraction(_ interaction: UIDropInteraction, canHandle session: UIDropSession) -> Bool {
+        return session.hasItemsConforming(toTypeIdentifiers: [kUTTypeText as String, kUTTypeImage as String])
+    }
+    
+    public func dropInteraction(_ interaction: UIDropInteraction, sessionDidUpdate session: UIDropSession) -> UIDropProposal {
+        let dropLocation = session.location(in: self)
+        let operation: UIDropOperation
+
+        if self.frame.contains(dropLocation) {
+            operation = .copy
+        } else {
+            operation = .cancel
+        }
+        
+        return UIDropProposal(operation: operation)
+    }
+    
+    public func dropInteraction(_ interaction: UIDropInteraction, performDrop session: UIDropSession) {
+        if session.hasItemsConforming(toTypeIdentifiers: [kUTTypeImage as String]) {
+                session.loadObjects(ofClass: UIImage.self) { imageItems in
+                    let images = imageItems as? [UIImage] ?? []
+                    
+                    for image in images {
+                        self.importImageOrText(image, nil)
+                    }
+                }
+            }
+            
+            if session.hasItemsConforming(toTypeIdentifiers: [kUTTypeText as String]) {
+                session.loadObjects(ofClass: NSAttributedString.self) { textItems in
+                    let attributedStrings = textItems as? [NSAttributedString] ?? []
+                    
+                    for attributedString in attributedStrings {
+                        self.importImageOrText(nil, attributedString.string)
+                    }
+                }
+            }
     }
     
     @objc func handleTrackpadScroll(_ sender: UIPanGestureRecognizer? = nil) {
@@ -60,30 +105,6 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
             self.setNeedsDisplay()
         }
         
-    }
-    
-    func pasteImageInClipboard() -> Bool {
-        if let image = UIPasteboard.general.image {
-            if let url = createTempDir(),
-               let data = image.pngData() ?? image.jpegData(compressionQuality: 1.0){
-                let imageUrl = url.appendingPathComponent(String(UUID().uuidString.prefix(10).lowercased()), conformingTo: .png)
-                
-                do {
-                    try data.write(to: imageUrl)
-                } catch {
-                    return false
-                }
-                
-                if let lbImageURL = editorState!.importFile(imageUrl) {
-                    paste_text(editorHandle, lbImageURL)
-                    editorState?.pasted = true
-                    
-                    return true
-                }
-            }
-        }
-        
-        return false
     }
     
     public func header(headingSize: UInt32) {
@@ -134,6 +155,33 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     // used for shortcut
     @objc public func deindent() {
         tab(deindent: true)
+    }
+    
+    func importImageOrText(_ image: UIImage?, _ text: String?) -> Bool {
+        if let data = image?.pngData() ?? image?.jpegData(compressionQuality: 1.0),
+           let url = createTempDir() {
+            let imageUrl = url.appendingPathComponent(String(UUID().uuidString.prefix(10).lowercased()), conformingTo: .png)
+            
+            do {
+                try data.write(to: imageUrl)
+            } catch {
+                return false
+            }
+            
+            if let lbImageURL = editorState!.importFile(imageUrl) {
+                paste_text(editorHandle, lbImageURL)
+                editorState?.pasted = true
+                
+                return true
+            }
+        } else if let text = text {
+            paste_text(editorHandle, text)
+            editorState?.pasted = true
+            
+            return true
+        }
+        
+        return false
     }
         
     public func setInitialContent(_ coreHandle: UnsafeMutableRawPointer?, _ s: String) {
@@ -516,7 +564,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     @objc func clipboardPaste() {
         self.setClipboard()
         
-        if pasteImageInClipboard() {
+        if importImageOrText(UIPasteboard.general.image, UIPasteboard.general.string) {
             return
         }
         

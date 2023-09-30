@@ -563,6 +563,7 @@ pub unsafe extern "C" fn position_at_point(obj: *mut c_void, point: CPoint) -> C
         segs,
         text,
     );
+
     CTextPosition { none: false, pos: offset.0 }
 }
 

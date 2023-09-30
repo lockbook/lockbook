@@ -98,7 +98,16 @@ public class MacMTK: MTKView, MTKViewDelegate {
         self.toolbarState!.toggleHeading = header
         self.toolbarState!.undoRedo = undoRedo
         
+        registerForDraggedTypes([.png, .tiff, .fileContents, .string])
         becomeFirstResponder()
+    }
+    
+    public override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
+        return .copy
+    }
+    
+    public override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
+        return importFromPasteboard(sender.draggingPasteboard, isDropOperation: true)
     }
     
     public override func mouseDragged(with event: NSEvent) {
@@ -177,26 +186,48 @@ public class MacMTK: MTKView, MTKViewDelegate {
         self.pasteBoardEventId = NSPasteboard.general.changeCount
     }
     
+    func importFromPasteboard(_ pasteBoard: NSPasteboard, isDropOperation: Bool) -> Bool {
+        if let data = pasteBoard.data(forType: .png) ?? pasteBoard.data(forType: .tiff),
+           let url = createTempDir() {
+            let imageUrl = url.appendingPathComponent(String(UUID().uuidString.prefix(10).lowercased()), conformingTo: .png)
+            
+            do {
+                try data.write(to: imageUrl)
+            } catch {
+                return false
+            }
+            
+            if let lbImageURL = editorState!.importFile(imageUrl) {
+                paste_text(editorHandle, lbImageURL)
+                editorState?.pasted = true
+                
+                return true
+            }
+        } else if isDropOperation {
+            if let data = pasteBoard.data(forType: .fileURL) {
+                if let url = URL(dataRepresentation: data, relativeTo: nil) {
+                    if let markdownURL = editorState!.importFile(url) {
+                        paste_text(editorHandle, markdownURL)
+                        editorState?.pasted = true
+                        
+                        return true
+                    }
+                }
+            } else if let data = pasteBoard.data(forType: .string) {
+                paste_text(editorHandle, String(data: data, encoding: .utf8))
+                editorState?.pasted = true
+                
+                return true
+            }
+        }
+        
+        return false
+    }
+    
     func pasteImageInClipboard(_ event: NSEvent) -> Bool {
         if event.keyCode == 9
             && event.modifierFlags.contains(.command) {
-            if let data = NSPasteboard.general.data(forType: .png) ?? NSPasteboard.general.data(forType: .tiff),
-               let url = createTempDir() {
-                let imageUrl = url.appendingPathComponent(String(UUID().uuidString.prefix(10).lowercased()), conformingTo: .png)
-                
-                do {
-                    try data.write(to: imageUrl)
-                } catch {
-                    return false
-                }
-                
-                if let lbImageURL = editorState!.importFile(imageUrl) {
-                    paste_text(editorHandle, lbImageURL)
-                    editorState?.pasted = true
-                    
-                    return true
-                }
-            }
+            return importFromPasteboard(NSPasteboard.general, isDropOperation: false)
         }
         
         return false
@@ -232,7 +263,7 @@ public class MacMTK: MTKView, MTKViewDelegate {
         dark_mode(editorHandle, isDarkMode())
         set_scale(editorHandle, scale)
         let output = draw_editor(editorHandle)
-
+        
         toolbarState?.isHeadingSelected = output.editor_response.cursor_in_heading;
         toolbarState?.isTodoListSelected = output.editor_response.cursor_in_todo_list;
         toolbarState?.isBulletListSelected = output.editor_response.cursor_in_bullet_list;
