@@ -20,6 +20,10 @@ public class MacMTK: MTKView, MTKViewDelegate {
         self.enableSetNeedsDisplay = true
     }
     
+    public override func resetCursorRects() {
+        addCursorRect(self.frame, cursor: NSCursor.iBeam)
+    }
+    
     public override func updateTrackingAreas() {
         if trackingArea != nil {
             self.removeTrackingArea(trackingArea!)
