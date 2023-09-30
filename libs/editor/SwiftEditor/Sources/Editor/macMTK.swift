@@ -13,11 +13,17 @@ public class MacMTK: MTKView, MTKViewDelegate {
     var toolbarState: ToolbarState?
     var nameState: NameState?
     
+    var redrawTask: DispatchWorkItem? = nil
+    
     override init(frame frameRect: CGRect, device: MTLDevice?) {
         super.init(frame: frameRect, device: device)
         self.delegate = self
         self.isPaused = true
         self.enableSetNeedsDisplay = true
+    }
+    
+    public override func resetCursorRects() {
+        addCursorRect(self.frame, cursor: NSCursor.iBeam)
     }
     
     public override func updateTrackingAreas() {
@@ -98,7 +104,7 @@ public class MacMTK: MTKView, MTKViewDelegate {
         self.toolbarState!.toggleHeading = header
         self.toolbarState!.undoRedo = undoRedo
         
-        registerForDraggedTypes([.png, .tiff, .fileContents, .string])
+        registerForDraggedTypes([.png, .tiff, .fileURL, .string])
         becomeFirstResponder()
     }
     
@@ -289,7 +295,13 @@ public class MacMTK: MTKView, MTKViewDelegate {
             }
         }
 
-        view.isPaused = !output.redraw
+        redrawTask?.cancel()
+        let newRedrawTask = DispatchWorkItem {
+            self.setNeedsDisplay(self.frame)
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(Int(truncatingIfNeeded: output.redraw_in)), execute: newRedrawTask)
+        redrawTask = newRedrawTask
+
         if has_copied_text(editorHandle) {
             NSPasteboard.general.clearContents()
             NSPasteboard.general.setString(getCoppiedText(), forType: .string)

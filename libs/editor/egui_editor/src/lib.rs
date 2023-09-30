@@ -103,7 +103,7 @@ pub struct WgpuEditor {
 #[repr(C)]
 #[derive(Debug, Default)]
 pub struct IntegrationOutput {
-    pub redraw: bool,
+    pub redraw_in: u64,
 
     pub editor_response: EditorResponse,
 }
@@ -172,7 +172,7 @@ impl WgpuEditor {
             .remove_textures(tdelta)
             .expect("remove texture ok");
 
-        out.redraw = full_output.repaint_after.as_millis() < 100;
+        out.redraw_in = full_output.repaint_after.as_millis() as u64;
         out
     }
 
