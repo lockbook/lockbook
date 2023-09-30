@@ -125,7 +125,7 @@ struct BottomBar: View {
                         .foregroundColor(.gray)
                         .font(.callout)
                     
-                    if settings.usageProgress <= 0.8 {
+                    if settings.usageProgress <= 0.8 && settings.tier != .Premium {
                         Button(action: {
                             showUpgradeToPremium()
                         }, label: {
