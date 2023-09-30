@@ -62,7 +62,7 @@ pub enum TabContent {
     Image(Box<ImageViewer>),
     Markdown(Box<Markdown>),
     PlainText(Box<PlainText>),
-    PDF(Box<PdfViewer>),
+    Pdf(Box<PdfViewer>),
 }
 
 pub enum TabFailure {

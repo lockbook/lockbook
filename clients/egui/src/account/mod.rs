@@ -799,7 +799,7 @@ impl AccountScreen {
                         } else if is_supported_image_fmt(ext) {
                             TabContent::Image(ImageViewer::boxed(id.to_string(), &bytes))
                         } else if ext == "pdf" {
-                            TabContent::PDF(PdfViewer::boxed(&bytes, &ctx))
+                            TabContent::Pdf(PdfViewer::boxed(&bytes, &ctx))
                         } else {
                             TabContent::PlainText(PlainText::boxed(&bytes))
                         }

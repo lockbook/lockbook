@@ -77,7 +77,7 @@ impl PdfViewer {
                             };
 
                             let total_height = self.content[0].size()[1] as f32
-                                * self.zoom_factor as f32
+                                * self.zoom_factor
                                 * self.content.len() as f32
                                 + 10.0 * self.content.len() as f32;
 
@@ -93,7 +93,7 @@ impl PdfViewer {
                                 }
 
                                 let new_offset: f32 = (self.content[0].size()[1] as f32
-                                    * (self.zoom_factor as f32)
+                                    * self.zoom_factor
                                     * self.content.len() as f32
                                     + 10.0 * self.content.len() as f32)
                                     / aspect;
