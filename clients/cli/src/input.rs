@@ -73,6 +73,7 @@ pub fn file_completor(core: &Core, prompt: &str, filter: Option<Filter>) -> CliR
                 format!("{working_dir}{name}")
             }
         })
+        .filter(|completion| completion.starts_with(prompt))
         .collect();
 
     Ok(candidates)

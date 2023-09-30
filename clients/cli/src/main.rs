@@ -28,6 +28,7 @@ fn run() -> CliResult<()> {
 
     Command::name("lockbook")
         .description("The private, polished note-taking platform.") 
+        .version(env!("CARGO_PKG_VERSION"))
         .subcommand(
             Command::name("account")
                 .description("account management commands")
