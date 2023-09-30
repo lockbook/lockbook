@@ -263,7 +263,7 @@ public class MacMTK: MTKView, MTKViewDelegate {
         dark_mode(editorHandle, isDarkMode())
         set_scale(editorHandle, scale)
         let output = draw_editor(editorHandle)
-        
+
         toolbarState?.isHeadingSelected = output.editor_response.cursor_in_heading;
         toolbarState?.isTodoListSelected = output.editor_response.cursor_in_todo_list;
         toolbarState?.isBulletListSelected = output.editor_response.cursor_in_bullet_list;
