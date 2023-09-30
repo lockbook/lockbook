@@ -17,9 +17,7 @@ pub unsafe extern "C" fn key_event(
 
     obj.raw_input.modifiers = modifiers;
 
-    let Some(key) = NSKeys::from(key_code) else {
-        return
-    };
+    let Some(key) = NSKeys::from(key_code) else { return };
 
     let mut clip_event = false;
     if pressed && key == NSKeys::V && modifiers.command {

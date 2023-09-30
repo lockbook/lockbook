@@ -391,7 +391,7 @@ impl super::AccountScreen {
                             }
                             TabContent::PlainText(txt) => txt.show(ui),
                             TabContent::Image(img) => img.show(ui),
-                            TabContent::PDF(pdf) => pdf.show(ui)
+                            TabContent::PDF(pdf) => pdf.show(ui),
                         };
                     } else {
                         ui.spinner();
