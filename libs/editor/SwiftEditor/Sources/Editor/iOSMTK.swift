@@ -31,11 +31,21 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
         self.addInteraction(self.editMenuInteraction!)
         self.preferredFramesPerSecond = 120
         
-        // ipad trackpad support
-        let tap = UIPanGestureRecognizer(target: self, action: #selector(self.handleTrackpadScroll(_:)))
-        tap.allowedScrollTypesMask = .all
-        tap.maximumNumberOfTouches  = 0
+        let tap = UITapGestureRecognizer(target: self, action: #selector(self.handleTap(_:)))
+        tap.cancelsTouchesInView = false
         self.addGestureRecognizer(tap)
+        
+        // ipad trackpad support
+        let pan = UIPanGestureRecognizer(target: self, action: #selector(self.handleTrackpadScroll(_:)))
+        pan.allowedScrollTypesMask = .all
+        pan.maximumNumberOfTouches  = 0
+        self.addGestureRecognizer(pan)
+    }
+    
+    @objc func handleTap(_ sender: UITapGestureRecognizer) {
+        if sender.state == .ended {
+            becomeFirstResponder()
+        }
     }
     
     @objc func handleTrackpadScroll(_ sender: UIPanGestureRecognizer? = nil) {
@@ -192,10 +202,6 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
                 
                 UIApplication.shared.open(url)
             }
-        }
-        
-        if output.editor_response.selection_updated {
-            becomeFirstResponder()
         }
         
         if output.editor_response.show_edit_menu {

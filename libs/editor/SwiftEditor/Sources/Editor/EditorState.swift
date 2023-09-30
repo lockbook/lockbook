@@ -6,8 +6,8 @@ public class EditorState: ObservableObject {
     @Published public var text: String
     @Published public var reloadText: Bool = false
     @Published public var reloadView: Bool = false
-    @Published public var shouldFocus: Bool = true
     @Published public var pasted: Bool = false
+    @Published public var shouldFocus: Bool
     
     public var isiPhone: Bool
     
@@ -17,6 +17,8 @@ public class EditorState: ObservableObject {
         self.text = text
         self.isiPhone = isiPhone
         self.importFile = importFile
+        
+        self.shouldFocus = !isiPhone
     }
 }
 
