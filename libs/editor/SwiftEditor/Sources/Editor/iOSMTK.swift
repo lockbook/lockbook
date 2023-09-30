@@ -3,8 +3,10 @@ import UIKit
 import MetalKit
 import Bridge
 import SwiftUI
+import MobileCoreServices
+import UniformTypeIdentifiers
 
-public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractionDelegate {
+public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractionDelegate, UIDropInteractionDelegate {
     
     var editorHandle: UnsafeMutableRawPointer?
     var editorState: EditorState?
@@ -14,7 +16,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     var hasSelection: Bool = false
     
     var textUndoManager = iOSUndoManager()
-    
+
     var redrawTask: DispatchWorkItem? = nil
 
     public override var undoManager: UndoManager? {
@@ -32,21 +34,75 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
         self.editMenuInteraction = UIEditMenuInteraction(delegate: self)
         self.addInteraction(self.editMenuInteraction!)
         self.preferredFramesPerSecond = 120
-        
+
+        // regain focus on tap
         let tap = UITapGestureRecognizer(target: self, action: #selector(self.handleTap(_:)))
         tap.cancelsTouchesInView = false
         self.addGestureRecognizer(tap)
-        
+
         // ipad trackpad support
         let pan = UIPanGestureRecognizer(target: self, action: #selector(self.handleTrackpadScroll(_:)))
         pan.allowedScrollTypesMask = .all
         pan.maximumNumberOfTouches  = 0
         self.addGestureRecognizer(pan)
+
+        // drop support
+        let dropInteraction = UIDropInteraction(delegate: self)
+        self.addInteraction(dropInteraction)
     }
-    
+
     @objc func handleTap(_ sender: UITapGestureRecognizer) {
         if sender.state == .ended {
             becomeFirstResponder()
+        }
+    }
+
+    public func dropInteraction(_ interaction: UIDropInteraction, canHandle session: UIDropSession) -> Bool {
+        guard session.items.count == 1 else { return false }
+        
+        return session.hasItemsConforming(toTypeIdentifiers: [UTType.image.identifier, UTType.fileURL.identifier, UTType.text.identifier])
+    }
+
+    public func dropInteraction(_ interaction: UIDropInteraction, sessionDidUpdate session: UIDropSession) -> UIDropProposal {
+        let dropLocation = session.location(in: self)
+        let operation: UIDropOperation
+
+        if self.frame.contains(dropLocation) {
+            operation = .copy
+        } else {
+            operation = .cancel
+        }
+
+        return UIDropProposal(operation: operation)
+    }
+
+    public func dropInteraction(_ interaction: UIDropInteraction, performDrop session: UIDropSession) {
+        if session.hasItemsConforming(toTypeIdentifiers: [UTType.image.identifier as String]) {
+            session.loadObjects(ofClass: UIImage.self) { imageItems in
+                let images = imageItems as? [UIImage] ?? []
+
+                for image in images {
+                    let _ = self.importContent(.image(image))
+                }
+            }
+        }
+
+        if session.hasItemsConforming(toTypeIdentifiers: [UTType.text.identifier as String]) {
+            session.loadObjects(ofClass: NSAttributedString.self) { textItems in
+                let attributedStrings = textItems as? [NSAttributedString] ?? []
+
+                for attributedString in attributedStrings {
+                    let _ = self.importContent(.text(attributedString.string))
+                }
+            }
+        }
+
+        if session.hasItemsConforming(toTypeIdentifiers: [UTType.fileURL.identifier as String]) {
+            session.loadObjects(ofClass: URL.self) { urlItems in
+                for url in urlItems {
+                    let _ = self.importContent(.url(url))
+                }
+            }
         }
     }
     
@@ -73,31 +129,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
         }
         
     }
-    
-    func pasteImageInClipboard() -> Bool {
-        if let image = UIPasteboard.general.image {
-            if let url = createTempDir(),
-               let data = image.pngData() ?? image.jpegData(compressionQuality: 1.0){
-                let imageUrl = url.appendingPathComponent(String(UUID().uuidString.prefix(10).lowercased()), conformingTo: .png)
-                
-                do {
-                    try data.write(to: imageUrl)
-                } catch {
-                    return false
-                }
-                
-                if let lbImageURL = editorState!.importFile(imageUrl) {
-                    paste_text(editorHandle, lbImageURL)
-                    editorState?.pasted = true
-                    
-                    return true
-                }
-            }
-        }
-        
-        return false
-    }
-    
+
     public func header(headingSize: UInt32) {
         apply_style_to_selection_header(editorHandle, headingSize)
         self.setNeedsDisplay(self.frame)
@@ -147,7 +179,44 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     @objc public func deindent() {
         tab(deindent: true)
     }
+
+    func importContent(_ importFormat: SupportedImportFormat) -> Bool {
+        switch importFormat {
+        case .url(let url):
+            if let markdownURL = editorState!.importFile(url) {
+                paste_text(editorHandle, markdownURL)
+                editorState?.pasted = true
+                
+                return true
+            }
+        case .image(let image):
+            if let data = image.pngData() ?? image.jpegData(compressionQuality: 1.0),
+               let url = createTempDir() {
+                let imageUrl = url.appendingPathComponent(String(UUID().uuidString.prefix(10).lowercased()), conformingTo: .png)
+
+                do {
+                    try data.write(to: imageUrl)
+                } catch {
+                    return false
+                }
+
+                if let lbImageURL = editorState!.importFile(imageUrl) {
+                    paste_text(editorHandle, lbImageURL)
+                    editorState?.pasted = true
+
+                    return true
+                }
+            }
+        case .text(let text):
+            paste_text(editorHandle, text)
+            editorState?.pasted = true
+
+            return true
+        }
         
+        return false
+    }
+
     public func setInitialContent(_ coreHandle: UnsafeMutableRawPointer?, _ s: String) {
         let metalLayer = UnsafeMutableRawPointer(Unmanaged.passUnretained(self.layer).toOpaque())
         self.editorHandle = init_editor(coreHandle, metalLayer, s, isDarkMode())
@@ -204,7 +273,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
                 UIApplication.shared.open(url)
             }
         }
-        
+
         if output.editor_response.show_edit_menu {
             self.hasSelection = output.editor_response.has_selection
             let location = CGPoint(
@@ -225,7 +294,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
         if has_copied_text(editorHandle) {
             UIPasteboard.general.string = getCoppiedText()
         }
-        
+
         redrawTask?.cancel()
         let newRedrawTask = DispatchWorkItem {
             self.setNeedsDisplay(self.frame)
@@ -530,10 +599,12 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     @objc func clipboardPaste() {
         self.setClipboard()
         
-        if pasteImageInClipboard() {
-            return
+        if let image = UIPasteboard.general.image {
+            if importContent(.image(image)) {
+                return
+            }
         }
-        
+
         clipboard_paste(self.editorHandle)
         self.setNeedsDisplay()
     }
@@ -711,4 +782,11 @@ class iOSUndoManager: UndoManager {
         onUndoRedo?()
     }
 }
+
+public enum SupportedImportFormat {
+    case url(URL)
+    case image(UIImage)
+    case text(String)
+}
+
 #endif

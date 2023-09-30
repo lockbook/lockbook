@@ -285,11 +285,14 @@ class DocumentLoadingInfo: ObservableObject {
                 switch operation {
                 case .success(let txt):
                     self.textDocument = EditorState(text: txt, isiPhone: self.isiPhone) { url in
-                        DI.importExport.importFilesSync(sources:[url.path(percentEncoded: false)], destination: self.meta.parent)
+                        let isSuccess = DI.importExport.importFilesSync(sources:[url.path(percentEncoded: false)], destination: self.meta.parent)
                         
-                        if let parentPath = DI.files.getPathByIdOrParent(maybeId: self.meta.parent) {
+                        if let parentPath = DI.files.getPathByIdOrParent(maybeId: self.meta.parent),
+                           isSuccess {
                             if let file = DI.files.getFileByPath(path: parentPath + url.lastPathComponent) {
-                                return "![\((url.lastPathComponent as NSString).deletingPathExtension)](lb://\(file.id.uuidString.lowercased()))"
+                                let isImage = url.pathExtension == "png" || url.pathExtension == "jpeg" || url.pathExtension == "tiff"
+                        
+                                return "\(isImage ? "!" : "")[\((url.lastPathComponent as NSString).deletingPathExtension)](lb://\(file.id.uuidString.lowercased()))"
                             }
                         }
                         
