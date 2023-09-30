@@ -98,7 +98,6 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
         }
 
         if session.hasItemsConforming(toTypeIdentifiers: [UTType.fileURL.identifier as String]) {
-            print("drop interaction!")
             session.loadObjects(ofClass: URL.self) { urlItems in
                 for url in urlItems {
                     let _ = self.importContent(.url(url))
