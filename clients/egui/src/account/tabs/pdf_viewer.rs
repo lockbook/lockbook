@@ -1,6 +1,10 @@
+use std::path::Path;
+
 use eframe::egui;
 use pdfium_render::prelude::*;
 use pdfium_wrapper::PdfiumWrapper;
+
+use crate::util::data_dir;
 
 pub struct PdfViewer {
     content: Vec<egui::TextureHandle>,
@@ -19,8 +23,15 @@ impl PdfViewer {
             .set_maximum_height(2000)
             .rotate_if_landscape(PdfPageRenderRotation::Degrees90, true);
 
-        let content: Vec<egui::TextureHandle> = PdfiumWrapper::new()
-            .pdfium
+        let pdfium_binary_path = format!("{}/egui", data_dir().unwrap());
+
+        PdfiumWrapper::init(&pdfium_binary_path);
+        let bindings = Pdfium::bind_to_library(Pdfium::pdfium_platform_library_name_at_path(
+            &pdfium_binary_path,
+        ))
+        .unwrap();
+
+        let content: Vec<egui::TextureHandle> = Pdfium::new(bindings)
             .load_pdf_from_byte_slice(bytes, None)
             .unwrap()
             .pages()
@@ -39,7 +50,7 @@ impl PdfViewer {
         if let Some(page) = content.get(0) {
             fit_page_zoom = ctx.used_rect().height() / page.size()[1] as f32;
         }
-        Box::new(Self { content, zoom_factor: 2.0, fit_page_zoom, sao: None })
+        Box::new(Self { content, zoom_factor: fit_page_zoom, fit_page_zoom, sao: None })
     }
 
     pub fn show(&mut self, ui: &mut egui::Ui) {

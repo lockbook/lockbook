@@ -3462,6 +3462,7 @@ dependencies = [
  "lb-fonts",
  "lockbook-core",
  "pdfium-render",
+ "pdfium-wrapper",
  "rfd",
  "serde",
  "serde_json",
@@ -4294,6 +4295,13 @@ dependencies = [
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",
+]
+
+[[package]]
+name = "pdfium-wrapper"
+version = "0.1.0"
+dependencies = [
+ "pdfium-render",
 ]
 
 [[package]]
