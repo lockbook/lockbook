@@ -1,7 +1,8 @@
 use crate::input::canonical::{Modification, Region};
 use crate::style::{BlockNode, InlineNode, ListItem, MarkdownNode};
 use crate::{Editor, IntegrationOutput, WgpuEditor};
-use egui::{Context, Event, Visuals};
+use egui::os::OperatingSystem;
+use egui::{Context, Event, Pos2, Vec2, Visuals};
 use egui_wgpu_backend::wgpu::CompositeAlphaMode;
 use egui_wgpu_backend::{wgpu, ScreenDescriptor};
 use std::ffi::{c_char, c_void, CStr, CString};
@@ -188,6 +189,27 @@ async fn request_device(
             panic!("request_device failed: {:?}", err);
         }
         Ok((device, queue)) => (adapter, device, queue),
+    }
+}
+
+/// (macos only)
+/// # Safety
+#[no_mangle]
+pub unsafe extern "C" fn scroll_wheel(obj: *mut c_void, scroll_wheel: f32) {
+    let obj = &mut *(obj as *mut WgpuEditor);
+
+    if matches!(obj.context.os(), OperatingSystem::IOS) {
+        obj.raw_input
+            .events
+            .push(Event::PointerMoved(Pos2 { x: 1.0, y: 1.0 }));
+    }
+
+    obj.raw_input
+        .events
+        .push(Event::Scroll(Vec2::new(0.0, scroll_wheel)));
+
+    if matches!(obj.context.os(), OperatingSystem::IOS) {
+        obj.raw_input.events.push(Event::PointerGone);
     }
 }
 
