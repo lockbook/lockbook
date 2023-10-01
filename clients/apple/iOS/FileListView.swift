@@ -7,6 +7,7 @@ struct FileListView: View {
     @EnvironmentObject var fileService: FileService
     @EnvironmentObject var search: SearchService
     @EnvironmentObject var sync: SyncService
+    @EnvironmentObject var currentDoc: DocumentService
     
     @Environment(\.colorScheme) var colorScheme
 
@@ -19,8 +20,8 @@ struct FileListView: View {
     
     var body: some View {
         VStack {
-            if let doc = (DI.currentDoc.justCreatedDoc ?? DI.currentDoc.justOpenedLink), doc.fileType == .Document {
-                NavigationLink(destination: iOSDocumentViewWrapper(id: doc.id), isActive: Binding(get: { DI.currentDoc.openDocuments[doc.id] != nil }, set: { _ in DI.currentDoc.openDocuments[doc.id] = nil }) ) {
+            if let doc = (currentDoc.justCreatedDoc ?? currentDoc.justOpenedLink), doc.fileType == .Document {
+                NavigationLink(destination: iOSDocumentViewWrapper(id: doc.id), isActive: Binding(get: { currentDoc.openDocuments[doc.id] != nil }, set: { _ in currentDoc.openDocuments[doc.id] = nil }) ) {
                     EmptyView()
                 }
                 .hidden()

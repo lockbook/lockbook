@@ -16,7 +16,6 @@ struct iOSDocumentViewWrapper: View {
             }
             .onDisappear {
                 if let meta = DI.currentDoc.openDocuments[id]?.dismissForLink {
-                    print("starting to open link")
                     DI.currentDoc.justOpenedLink = meta
                 }
                 
