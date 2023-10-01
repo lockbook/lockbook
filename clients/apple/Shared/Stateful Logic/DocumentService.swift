@@ -11,8 +11,12 @@ class DocumentService: ObservableObject {
     var openDocumentsKeyArr: [UUID] {
         get {
             Array(openDocuments.keys).sorted(by: { lhid, rhid in
-                openDocuments[lhid]!.timeCreated < openDocuments[rhid]!.timeCreated
+                guard let lhTimeCreated = openDocuments[lhid], let rhTimeCreated = openDocuments[rhid] else {
+                    return false
+                }
                 
+                
+                return lhTimeCreated.timeCreated < rhTimeCreated.timeCreated
             })
         }
     }
@@ -26,8 +30,9 @@ class DocumentService: ObservableObject {
     var justOpenedLink: File? = nil
 
     func openDoc(id: UUID, isiPhone: Bool = false) {
-        if openDocuments[id] == nil {
-            openDocuments[id] = DocumentLoadingInfo(DI.files.idsAndFiles[id]!, isiPhone)
+        if let meta = DI.files.idsAndFiles[id],
+           openDocuments[id] == nil {
+            openDocuments[id] = DocumentLoadingInfo(meta, isiPhone)
         }
     }
     
