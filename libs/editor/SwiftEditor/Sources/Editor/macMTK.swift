@@ -296,11 +296,14 @@ public class MacMTK: MTKView, MTKViewDelegate {
         }
 
         redrawTask?.cancel()
-        let newRedrawTask = DispatchWorkItem {
-            self.setNeedsDisplay(self.frame)
+        self.isPaused = output.redraw_in > 100
+        if self.isPaused {
+            let newRedrawTask = DispatchWorkItem {
+                self.setNeedsDisplay(self.frame)
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(Int(truncatingIfNeeded: output.redraw_in)), execute: newRedrawTask)
+            redrawTask = newRedrawTask
         }
-        DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(Int(truncatingIfNeeded: output.redraw_in)), execute: newRedrawTask)
-        redrawTask = newRedrawTask
 
         if has_copied_text(editorHandle) {
             NSPasteboard.general.clearContents()

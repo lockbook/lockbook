@@ -296,11 +296,14 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
         }
 
         redrawTask?.cancel()
-        let newRedrawTask = DispatchWorkItem {
-            self.setNeedsDisplay(self.frame)
+        self.isPaused = output.redraw_in > 100
+        if self.isPaused {
+            let newRedrawTask = DispatchWorkItem {
+                self.setNeedsDisplay(self.frame)
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(Int(truncatingIfNeeded: output.redraw_in)), execute: newRedrawTask)
+            redrawTask = newRedrawTask
         }
-        DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(Int(truncatingIfNeeded: output.redraw_in)), execute: newRedrawTask)
-        redrawTask = newRedrawTask
     }
     
     func getCoppiedText() -> String {
