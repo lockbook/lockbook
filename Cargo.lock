@@ -3257,9 +3257,9 @@ checksum = "bf6be762972ae53199c1d626bd9bf428f7f53bb855c4b59996cad7586225001e"
 
 [[package]]
 name = "lb-pdf"
-version = "0.1.0"
+version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "28b3e90b80a8999a49a439f4a1326e2698444240bd9eff2324e3979eca6f5ca0"
+checksum = "34169bfa1db3c8d0f7f8176ec35884ea6ed9602d759ec64a74ba0a42f13c1ec5"
 dependencies = [
  "pdfium-render",
 ]
