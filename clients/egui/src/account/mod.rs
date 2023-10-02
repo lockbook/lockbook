@@ -28,7 +28,9 @@ use self::modals::*;
 
 use self::suggested_docs::SuggestedDocs;
 use self::syncing::{SyncPanel, SyncUpdate};
-use self::tabs::{Drawing, ImageViewer, Markdown, PlainText, Tab, TabContent, TabFailure};
+use self::tabs::{
+    Drawing, ImageViewer, Markdown, PdfViewer, PlainText, Tab, TabContent, TabFailure,
+};
 use self::tree::{FileTree, TreeNode};
 use self::workspace::Workspace;
 
@@ -796,6 +798,8 @@ impl AccountScreen {
                             ))
                         } else if is_supported_image_fmt(ext) {
                             TabContent::Image(ImageViewer::boxed(id.to_string(), &bytes))
+                        } else if ext == "pdf" {
+                            TabContent::Pdf(PdfViewer::boxed(&bytes, &ctx))
                         } else {
                             TabContent::PlainText(PlainText::boxed(&bytes))
                         }
