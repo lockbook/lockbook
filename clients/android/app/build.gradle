@@ -139,5 +139,5 @@ dependencies {
     implementation "androidx.work:work-runtime-ktx:$work_version"
     implementation "com.android.billingclient:billing-ktx:$billing_version"
 
-    implementation project(':core')
+    implementation project(':lb-rs')
 }
