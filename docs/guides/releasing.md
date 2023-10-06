@@ -71,4 +71,6 @@ The steps to setup `snapcraft`:
 
 In addition, you must clone the [lockbook aur repository](https://github.com/lockbook/aur-lockbook) and the [lockbook desktop aur repository](https://github.com/lockbook/aur-lockbook-desktop). These two repositories must exist in the same directory the lockbook monorepo is located in. You must also set the remote repository aliases, `github` and `aur`, to their respective urls for each repository. 
 
+For debian releases you need the `devscripts` and `debhelper` packages.
+
 To release only to linux: run `cargo run -p releaser -- release-linux`.
