@@ -360,7 +360,7 @@ pub fn calc(
                                     backwards: true,
                                 },
                                 ClickType::Triple => Region::BoundAt {
-                                    bound: Bound::Line,
+                                    bound: Bound::Paragraph,
                                     location,
                                     backwards: true,
                                 },

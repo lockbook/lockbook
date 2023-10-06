@@ -36,20 +36,47 @@ impl<'a> ClickChecker for &'a EditorClickChecker<'a> {
         for (galley_idx, galley) in self.galleys.galleys.iter().enumerate() {
             if galley.galley_location.contains(pos) {
                 // galleys stretch across the screen, so we need to check if we're to the right of the text
+                // use a tolerance of 10.0 for x and a tolerance of one line for y (supports noncapture when pointer is over a code block)
                 let offset = mutation::pos_to_char_offset(
                     pos,
                     self.galleys,
                     &self.buffer.current.segs,
                     &self.bounds.text,
                 );
-                let line_end_offset = offset.advance_to_bound(Bound::Line, false, self.bounds);
-                let (_, egui_cursor) = self
-                    .galleys
-                    .galley_and_cursor_by_char_offset(line_end_offset, &self.bounds.text);
-                let end_pos_x =
-                    galley.galley.pos_from_cursor(&egui_cursor).max.x + galley.text_location.x;
+
+                let prev_line_end_pos_x = {
+                    let line_start_offset = offset
+                        .advance_to_bound(Bound::Line, true, self.bounds)
+                        .advance_to_next_bound(Bound::Line, true, self.bounds);
+                    let line_end_offset =
+                        line_start_offset.advance_to_bound(Bound::Line, false, self.bounds);
+                    let (_, egui_cursor) = self
+                        .galleys
+                        .galley_and_cursor_by_char_offset(line_end_offset, &self.bounds.text);
+                    galley.galley.pos_from_cursor(&egui_cursor).max.x + galley.text_location.x
+                };
+                let curr_line_end_pos_x = {
+                    let line_end_offset = offset.advance_to_bound(Bound::Line, false, self.bounds);
+                    let (_, egui_cursor) = self
+                        .galleys
+                        .galley_and_cursor_by_char_offset(line_end_offset, &self.bounds.text);
+                    galley.galley.pos_from_cursor(&egui_cursor).max.x + galley.text_location.x
+                };
+                let next_line_end_pos_x = {
+                    let line_end_offset = offset
+                        .advance_to_bound(Bound::Line, false, self.bounds)
+                        .advance_to_next_bound(Bound::Line, false, self.bounds);
+                    let (_, egui_cursor) = self
+                        .galleys
+                        .galley_and_cursor_by_char_offset(line_end_offset, &self.bounds.text);
+                    galley.galley.pos_from_cursor(&egui_cursor).max.x + galley.text_location.x
+                };
+
+                let max_pos_x = prev_line_end_pos_x
+                    .max(curr_line_end_pos_x)
+                    .max(next_line_end_pos_x);
                 let tolerance = 10.0;
-                return if end_pos_x + tolerance > pos.x { Some(galley_idx) } else { None };
+                return if max_pos_x + tolerance > pos.x { Some(galley_idx) } else { None };
             }
         }
         None

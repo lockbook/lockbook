@@ -44,7 +44,7 @@ pub struct ImageInfo {
 
 pub fn calc(
     ast: &Ast, buffer: &SubBuffer, bounds: &Bounds, images: &ImageCache, appearance: &Appearance,
-    ui: &mut Ui,
+    pointer_offset: Option<DocCharOffset>, ui: &mut Ui,
 ) -> Galleys {
     let mut result: Galleys = Default::default();
 
@@ -83,9 +83,17 @@ pub fn calc(
             let maybe_link_range = link_idx.map(|link_idx| bounds.links[link_idx]);
             let in_selection = selection_idx.is_some();
 
+            let ast_node_range = ast.nodes[*text_range.ancestors.last().unwrap()].range;
+            let intersects_selection =
+                ast_node_range.intersects_allow_empty(&buffer.cursor.selection);
+            let intersects_pointer = pointer_offset
+                .map(|pointer_offset| {
+                    ast_node_range.intersects(&(pointer_offset, pointer_offset), true)
+                })
+                .unwrap_or(false);
             let captured = match appearance.markdown_capture(text_range.node(ast).node_type()) {
                 CaptureCondition::Always => true,
-                CaptureCondition::NoCursor => !text_range.intersects_selection(ast, buffer.cursor),
+                CaptureCondition::NoCursor => !(intersects_selection || intersects_pointer),
                 CaptureCondition::Never => false,
             };
 
