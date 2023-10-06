@@ -4,7 +4,7 @@ version = "0.8.2"
 edition = "2021"
 
 [lib]
-name = "lockbook_core_external_interface"
+name = "lb_c_v1"
 crate-type = ["lib", "staticlib", "cdylib"]
 
 [dependencies]

@@ -6,7 +6,7 @@ use std::path::Path;
 use std::process::Command;
 
 const MIN_NDK_VERSION: u32 = 22;
-const NDK_LIB_NAME: &str = "liblb-rs";
+const NDK_LIB_NAME: &str = "liblb_c_v1";
 
 pub fn fmt_android(tool_env: &ToolEnvironment) {
     let android_dir = utils::android_dir(&tool_env.root_dir);
@@ -107,6 +107,9 @@ pub fn make_android_test_lib(tool_env: &ToolEnvironment) {
             .exists(),
         jni_lib_dir.join("desktop").join(NDK_LIB_NAME).exists()
     );
+    println!("{:#?}", tool_env.target_dir.join("release").join(NDK_LIB_NAME));
+    println!("{:#?}", jni_lib_dir.join("desktop").join(NDK_LIB_NAME));
+
     fs::copy(
         tool_env.target_dir.join("release").join(NDK_LIB_NAME),
         jni_lib_dir.join("desktop").join(NDK_LIB_NAME),

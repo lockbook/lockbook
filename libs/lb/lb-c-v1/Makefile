@@ -67,10 +67,10 @@ lib_c_for_swift_ios:
 	@mkdir -p ${swift_inc}
 	cp ${headerName} ${swift_inc}
 	@echo "Building fat library"
-	@rm ${swift_lib_ios}liblb_rs.a || true
+	@rm ${swift_lib_ios}liblb_c_v1.a || true
 	cargo build --release --target=aarch64-apple-ios
 	@mkdir -p ${swift_lib_ios}
-	cp ../../../target/aarch64-apple-ios/release/liblb_rs.a ${swift_lib_ios}
+	cp ../../../target/aarch64-apple-ios/release/liblb_c_v1.a ${swift_lib_ios}
 
 .PHONY: lib_c_for_swift_ios_sim
 lib_c_for_swift_ios_sim:
@@ -81,11 +81,11 @@ lib_c_for_swift_ios_sim:
 	@mkdir -p ${swift_inc}
 	cp ${headerName} ${swift_inc}
 	@echo "Building fat library"
-	@rm ${swift_lib_ios_sim}liblb_rs.a || true
+	@rm ${swift_lib_ios_sim}liblb_c_v1.a || true
 	cargo build --release --target=aarch64-apple-ios-sim
 	cargo build --release --target=x86_64-apple-ios
 	@mkdir -p ${swift_lib_ios_sim}
-	lipo -create -output ${swift_lib_ios_sim}liblb_rs.a ../../../target/aarch64-apple-ios-sim/release/liblb_rs.a ../../../target/x86_64-apple-ios/release/liblb_rs.a
+	lipo -create -output ${swift_lib_ios_sim}liblb_c_v1.a ../../../target/aarch64-apple-ios-sim/release/liblb_c_v1.a ../../../target/x86_64-apple-ios/release/liblb_c_v1.a
 
 # for non lipo builds (linux)
 .PHONY: lib_c_for_swift_native
@@ -97,10 +97,10 @@ lib_c_for_swift_native:
 	@mkdir -p ${swift_inc}
 	cp ${headerName} ${swift_inc}
 	@echo "Building fat library"
-	@rm ${swift_lib}liblb_rs.a || echo "no prior .a"
+	@rm ${swift_lib}liblb_c_v1.a || echo "no prior .a"
 	cargo build --release
 	@mkdir -p ${swift_lib}
-	cp ../../../target/release/liblb_rs.a ${swift_lib}
+	cp ../../../target/release/liblb_c_v1.a ${swift_lib}
 
 .PHONY: lib_c_for_swift_universal
 lib_c_for_swift_universal:
@@ -111,14 +111,14 @@ lib_c_for_swift_universal:
 	@mkdir -p ${swift_inc}
 	cp ${headerName} ${swift_inc}
 	@echo "Building fat library"
-	@rm ${swift_lib}liblb_rs.a || echo "no prior .a"
+	@rm ${swift_lib}liblb_c_v1.a || echo "no prior .a"
 	cargo build --release --target=x86_64-apple-darwin
 	cargo build --release --target=aarch64-apple-darwin
 	rm -rf ../../../target/xcode-lipo-universal
 	mkdir ../../../target/xcode-lipo-universal
-	lipo -create -output ../../../target/xcode-lipo-universal/liblb_rs.a ../../../target/x86_64-apple-darwin/release/liblb_rs.a ../../../target/aarch64-apple-darwin/release/liblb_rs.a
+	lipo -create -output ../../../target/xcode-lipo-universal/liblb_c_v1.a ../../../target/x86_64-apple-darwin/release/liblb_c_v1.a ../../../target/aarch64-apple-darwin/release/liblb_c_v1.a
 	@mkdir -p ${swift_lib}
-	cp ../../../target/xcode-lipo-universal/liblb_rs.a ${swift_lib}
+	cp ../../../target/xcode-lipo-universal/liblb_c_v1.a ${swift_lib}
 
 .PHONY: swift_libs
 swift_libs: lib_c_for_swift_universal lib_c_for_swift_ios lib_c_for_swift_ios_sim
@@ -134,10 +134,10 @@ lib_c_for_windows:
 
 MIN_VER = 22
 jniLibs = '../../../clients/android/lb-rs/src/main/jniLibs'
-libName = 'liblb-rs'
-macosLibName = 'liblockbook_core_external_interface.dylib'
-windowsLibName = 'liblockbook_core_external_interface.dll'
-headerName = 'lb-rs.h'
+libName = 'liblb_c_v1'
+macosLibName = 'liblb_c_v1.dylib'
+windowsLibName = 'liblb_c_v1.dll'
+headerName = 'liblb_c_v1.h'
 
 # Swift Library Location
 swift_inc := ../../../clients/apple/CLockbookCore/Sources/CLockbookCore/include/
