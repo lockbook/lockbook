@@ -1,7 +1,8 @@
 use crate::input::canonical::{Modification, Region};
 use crate::style::{BlockNode, InlineNode, ListItem, MarkdownNode};
 use crate::{Editor, IntegrationOutput, WgpuEditor};
-use egui::{Context, Event, Visuals};
+use egui::os::OperatingSystem;
+use egui::{Context, Event, Pos2, Vec2, Visuals};
 use egui_wgpu_backend::wgpu::CompositeAlphaMode;
 use egui_wgpu_backend::{wgpu, ScreenDescriptor};
 use std::ffi::{c_char, c_void, CStr, CString};
@@ -10,8 +11,10 @@ use std::time::Instant;
 /// # Safety
 #[no_mangle]
 pub unsafe extern "C" fn init_editor(
-    metal_layer: *mut c_void, content: *const c_char, dark_mode: bool,
+    core: *mut c_void, metal_layer: *mut c_void, content: *const c_char, dark_mode: bool,
 ) -> *mut c_void {
+    let core = unsafe { &mut *(core as *mut lb::Core) };
+
     let backends = wgpu::util::backend_bits_from_env().unwrap_or_else(wgpu::Backends::all);
     let instance_desc = wgpu::InstanceDescriptor { backends, ..Default::default() };
     let instance = wgpu::Instance::new(instance_desc);
@@ -35,7 +38,7 @@ pub unsafe extern "C" fn init_editor(
 
     let context = Context::default();
     context.set_visuals(if dark_mode { Visuals::dark() } else { Visuals::light() });
-    let mut editor = Editor::default();
+    let mut editor = Editor::new(core.clone());
     editor.set_font(&context);
     editor.buffer = CStr::from_ptr(content).to_str().unwrap().into();
 
@@ -145,6 +148,18 @@ pub unsafe extern "C" fn free_text(s: *mut c_void) {
 }
 
 /// # Safety
+/// obj must be a valid pointer to WgpuEditor
+///
+/// used solely for image pasting
+#[no_mangle]
+pub unsafe extern "C" fn paste_text(obj: *mut c_void, content: *const c_char) {
+    let obj = &mut *(obj as *mut WgpuEditor);
+    let content = CStr::from_ptr(content).to_str().unwrap().into();
+
+    obj.raw_input.events.push(Event::Paste(content));
+}
+
+/// # Safety
 #[no_mangle]
 pub unsafe extern "C" fn deinit_editor(obj: *mut c_void) {
     let _ = Box::from_raw(obj as *mut WgpuEditor);
@@ -174,6 +189,27 @@ async fn request_device(
             panic!("request_device failed: {:?}", err);
         }
         Ok((device, queue)) => (adapter, device, queue),
+    }
+}
+
+/// (macos only)
+/// # Safety
+#[no_mangle]
+pub unsafe extern "C" fn scroll_wheel(obj: *mut c_void, scroll_wheel: f32) {
+    let obj = &mut *(obj as *mut WgpuEditor);
+
+    if matches!(obj.context.os(), OperatingSystem::IOS) {
+        obj.raw_input
+            .events
+            .push(Event::PointerMoved(Pos2 { x: 1.0, y: 1.0 }));
+    }
+
+    obj.raw_input
+        .events
+        .push(Event::Scroll(Vec2::new(0.0, scroll_wheel)));
+
+    if matches!(obj.context.os(), OperatingSystem::IOS) {
+        obj.raw_input.events.push(Event::PointerGone);
     }
 }
 

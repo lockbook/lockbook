@@ -12,33 +12,31 @@ public struct EditorView: UIViewRepresentable {
     @Environment(\.horizontalSizeClass) var horizontal
     @Environment(\.verticalSizeClass) var vertical
     
-    public init(_ editorState: EditorState, _ toolbarState: ToolbarState, _ nameState: NameState) {
+    public init(_ editorState: EditorState, _ coreHandle: UnsafeMutableRawPointer?, _ toolbarState: ToolbarState, _ nameState: NameState) {
         self.editorState = editorState
         mtkView.editorState = editorState
         mtkView.toolbarState = toolbarState
         mtkView.nameState = nameState
         
-        mtkView.setInitialContent(editorState.text)
+        mtkView.setInitialContent(coreHandle, editorState.text)
     }
 
     public func makeUIView(context: Context) -> iOSMTK {
-        if editorState.isiPhone {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6, execute: {
-                mtkView.becomeFirstResponder()
-                editorState.shouldFocus = false
-            })
-        }
-        
         return mtkView
     }
     
     public func updateUIView(_ uiView: iOSMTK, context: Context) {
-        if editorState.reload {
+        if editorState.reloadText {
             mtkView.updateText(editorState.text)
-            editorState.reload = false
+            editorState.reloadText = false
         }
         
-        if editorState.shouldFocus && !editorState.isiPhone {
+        if editorState.reloadView {
+            mtkView.setNeedsDisplay(mtkView.frame)
+            editorState.reloadView = false
+        }
+        
+        if editorState.shouldFocus {
             mtkView.becomeFirstResponder()
             editorState.shouldFocus = false
         }
@@ -51,9 +49,9 @@ public struct EditorView: View {
     
     let nsEditorView: NSEditorView
     
-    public init(_ editorState: EditorState, _ toolbarState: ToolbarState, _ nameState: NameState) {
+    public init(_ editorState: EditorState, _ coreHandle: UnsafeMutableRawPointer?, _ toolbarState: ToolbarState, _ nameState: NameState) {
         self.editorState = editorState
-        nsEditorView = NSEditorView(editorState, toolbarState, nameState)
+        nsEditorView = NSEditorView(editorState, coreHandle, toolbarState, nameState)
     }
     
     public var body: some View {
@@ -77,13 +75,13 @@ public struct NSEditorView: NSViewRepresentable {
     
     let mtkView: MacMTK = MacMTK()
     
-    public init(_ editorState: EditorState, _ toolbarState: ToolbarState, _ nameState: NameState) {
+    public init(_ editorState: EditorState, _ coreHandle: UnsafeMutableRawPointer?, _ toolbarState: ToolbarState, _ nameState: NameState) {
         self.editorState = editorState
         mtkView.editorState = editorState
         mtkView.toolbarState = toolbarState
         mtkView.nameState = nameState
         
-        mtkView.setInitialContent(editorState.text)
+        mtkView.setInitialContent(coreHandle, editorState.text)
     }
     
     public func docChanged(_ s: String) {
@@ -95,9 +93,14 @@ public struct NSEditorView: NSViewRepresentable {
     }
     
     public func updateNSView(_ nsView: MTKView, context: NSViewRepresentableContext<NSEditorView>) {
-        if editorState.reload {
+        if editorState.reloadText {
             mtkView.updateText(editorState.text)
-            editorState.reload = false
+            editorState.reloadText = false
+        }
+        
+        if editorState.reloadView {
+            mtkView.setNeedsDisplay(mtkView.frame)
+            editorState.reloadView = false
         }
         
         if editorState.shouldFocus {

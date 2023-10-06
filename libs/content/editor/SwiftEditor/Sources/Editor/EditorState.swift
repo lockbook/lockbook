@@ -4,14 +4,21 @@ import Combine
 public class EditorState: ObservableObject {
     
     @Published public var text: String
-    @Published public var reload: Bool = false
-    @Published public var shouldFocus: Bool = true
+    @Published public var reloadText: Bool = false
+    @Published public var reloadView: Bool = false
+    @Published public var pasted: Bool = false
+    @Published public var shouldFocus: Bool
     
     public var isiPhone: Bool
     
-    public init(text: String, isiPhone: Bool) {
+    public var importFile: (URL) -> String?
+    
+    public init(text: String, isiPhone: Bool, importFile: @escaping (URL) -> String?) {
         self.text = text
         self.isiPhone = isiPhone
+        self.importFile = importFile
+        
+        self.shouldFocus = !isiPhone
     }
 }
 
@@ -44,3 +51,17 @@ public class NameState: ObservableObject {
     
     public init() {}
 }
+
+func createTempDir() -> URL? {
+    let fileManager = FileManager.default
+    let tempTempURL = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("editor-tmp").appendingPathComponent(UUID().uuidString)
+    
+    do {
+        try fileManager.createDirectory(at: tempTempURL, withIntermediateDirectories: true, attributes: nil)
+    } catch {
+        return nil
+    }
+    
+    return tempTempURL
+}
+

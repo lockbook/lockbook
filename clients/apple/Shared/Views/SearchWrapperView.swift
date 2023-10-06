@@ -1,5 +1,8 @@
 import SwiftUI
 import SwiftLockbookCore
+#if os(iOS)
+import UIKit
+#endif
 
 struct SearchWrapperView<Content: View>: View {
     @EnvironmentObject var search: SearchService
@@ -80,7 +83,7 @@ struct SearchWrapperView<Content: View>: View {
         .onChange(of: searchInput) { newInput in
             if !newInput.isEmpty {
                 search.search(query: newInput)
-            } else {
+            } else if isSearching {
                 search.searchPathAndContentState = .Idle
             }
         }
@@ -277,77 +280,3 @@ struct SearchFileContentCell: View {
     }
 }
 
-struct SearchResultCellView: View {
-    let name: String
-    let path: String
-    let matchedIndices: [Int]
-    
-    @State var pathModified: Text = Text("")
-    @State var nameModified: Text = Text("")
-    
-    var body: some View {
-        HStack {
-            Image(systemName: "doc.text.fill")
-                .resizable()
-                .frame(width: 20, height: 25)
-                .padding(.horizontal, 10)
-                .foregroundColor(.primary)
-            
-            VStack(alignment: .leading) {
-                HStack {
-                    nameModified
-                        .font(.system(size: 16))
-                        .multilineTextAlignment(.leading)
-                    Spacer()
-                }
-                HStack {
-                    pathModified
-                        .multilineTextAlignment(.leading)
-                    Spacer()
-                }
-            }
-        }
-        .frame(height: 40)
-        .padding(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
-        .onAppear {
-            underlineMatchedSegments()
-        }
-    }
-    
-    func underlineMatchedSegments() {
-        let matchedIndicesHash = Set(matchedIndices)
-        
-        var pathOffset = 1;
-        
-        if(path.count - 1 > 0) {
-            pathModified = Text("")
-            
-            for index in 0...path.count - 1 {
-                let correctIndex = String.Index(utf16Offset: index, in: path)
-                let newPart = Text(path[correctIndex...correctIndex])
-                
-                if(matchedIndicesHash.contains(index + 1)) {
-                    pathModified = pathModified + newPart.bold()
-                } else {
-                    pathModified = pathModified + newPart
-                }
-            }
-            
-            pathOffset = 2
-        }
-                
-        if(name.count - 1 > 0) {
-            nameModified = Text("")
-            for index in 0...name.count - 1 {
-                let correctIndex = String.Index(utf16Offset: index, in: name)
-                let newPart = Text(name[correctIndex...correctIndex])
-                
-                if(matchedIndicesHash.contains(index + path.count + pathOffset)) {
-                    nameModified = nameModified + newPart.bold()
-                } else {
-                    nameModified = nameModified + newPart
-                }
-            }
-        }
-    }
-}

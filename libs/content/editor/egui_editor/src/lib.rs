@@ -103,7 +103,7 @@ pub struct WgpuEditor {
 #[repr(C)]
 #[derive(Debug, Default)]
 pub struct IntegrationOutput {
-    pub redraw: bool,
+    pub redraw_in: u64,
 
     pub editor_response: EditorResponse,
 }
@@ -172,7 +172,7 @@ impl WgpuEditor {
             .remove_textures(tdelta)
             .expect("remove texture ok");
 
-        out.redraw = full_output.repaint_after.as_millis() < 100;
+        out.redraw_in = full_output.repaint_after.as_millis() as u64;
         out
     }
 
@@ -208,18 +208,20 @@ impl WgpuEditor {
 }
 
 pub fn register_fonts(fonts: &mut FontDefinitions) {
-    fonts.font_data.insert(
-        "pt_sans".to_string(),
-        FontData::from_static(include_bytes!("../fonts/PTSans-Regular.ttf")),
-    );
-    fonts.font_data.insert(
-        "pt_mono".to_string(),
-        FontData::from_static(include_bytes!("../fonts/PTMono-Regular.ttf")),
-    );
-    fonts.font_data.insert(
-        "pt_bold".to_string(),
-        FontData::from_static(include_bytes!("../fonts/PTSans-Bold.ttf")),
-    );
+    fonts
+        .font_data
+        .insert("pt_sans".to_string(), FontData::from_static(lb_fonts::PT_SANS_REGULAR));
+    fonts
+        .font_data
+        .insert("pt_mono".to_string(), FontData::from_static(lb_fonts::PT_MONO_REGULAR));
+    fonts
+        .font_data
+        .insert("pt_bold".to_string(), FontData::from_static(lb_fonts::PT_SANS_BOLD));
+    fonts.font_data.insert("material_icons".to_owned(), {
+        let mut font = egui::FontData::from_static(lb_fonts::MATERIAL_ICONS_OUTLINED_REGULAR);
+        font.tweak.y_offset_factor = -0.1;
+        font
+    });
 
     fonts
         .families
@@ -236,4 +238,10 @@ pub fn register_fonts(fonts: &mut FontDefinitions) {
         .get_mut(&FontFamily::Monospace)
         .unwrap()
         .insert(0, "pt_mono".to_string());
+
+    fonts
+        .families
+        .get_mut(&egui::FontFamily::Monospace)
+        .unwrap()
+        .push("material_icons".to_owned());
 }

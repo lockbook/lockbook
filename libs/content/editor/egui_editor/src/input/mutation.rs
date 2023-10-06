@@ -203,7 +203,8 @@ pub fn calc(
         Modification::Indent { deindent } => {
             // if we're in a list item, tab/shift+tab will indent/de-indent
             // otherwise, tab will insert a tab and shift tab will do nothing
-            let mut processed_galleys = HashSet::new();
+            let mut indentation_processed_galleys = HashSet::new();
+            let mut renumbering_processed_galleys = HashSet::new();
             let mut indented_galleys = HashMap::new();
             let mut renumbered_galleys = HashMap::new();
 
@@ -225,9 +226,6 @@ pub fn calc(
                     .unwrap(); // ast text ranges always have themselves as the last ancestor
                 let galley_idx = galleys.galley_at_char(ast.nodes[ast_node].text_range.start());
                 let galley = &galleys[galley_idx];
-                if !processed_galleys.insert(galley_idx) {
-                    continue; // only process each galley once
-                }
 
                 let cur_indent_level =
                     if let MarkdownNode::Block(BlockNode::ListItem(_, indent_level)) =
@@ -237,6 +235,9 @@ pub fn calc(
                     } else {
                         continue; // only process list items
                     };
+                if !indentation_processed_galleys.insert(galley_idx) {
+                    continue; // only process each galley once
+                }
 
                 // todo: this needs more attention e.g. list items doubly indented using 2-space indents
                 // tracked by https://github.com/lockbook/lockbook/issues/1842
@@ -327,7 +328,6 @@ pub fn calc(
 
             // always iterate forwards when renumbering because numbers are based on prior numbers for both indent
             // and deindent operations
-            processed_galleys.clear();
             for ast_text_range in ast_text_ranges.iter() {
                 let ast_node = bounds.ast[ast_text_range]
                     .ancestors
@@ -335,9 +335,6 @@ pub fn calc(
                     .copied()
                     .unwrap(); // ast text ranges always have themselves as the last ancestor
                 let galley_idx = galleys.galley_at_char(ast.nodes[ast_node].text_range.start());
-                if !processed_galleys.insert(galley_idx) {
-                    continue; // only process each galley once
-                }
 
                 let (cur_number, cur_indent_level) = if let MarkdownNode::Block(
                     BlockNode::ListItem(ListItem::Numbered(cur_number), indent_level),
@@ -353,6 +350,9 @@ pub fn calc(
                     } else {
                         continue; // only process indented galleys
                     };
+                if !renumbering_processed_galleys.insert(galley_idx) {
+                    continue; // only process each galley once
+                }
 
                 // re-number numbered lists
                 let cur_number = renumbered_galleys
@@ -472,7 +472,7 @@ pub fn calc(
                 }
             }
 
-            if processed_galleys.is_empty() && !deindent {
+            if indentation_processed_galleys.is_empty() && !deindent {
                 mutation.push(SubMutation::Insert { text: "\t".to_string(), advance_cursor: true });
             }
         }

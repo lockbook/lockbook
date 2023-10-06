@@ -48,11 +48,11 @@ struct OutlineContextMenu: View {
                 }
 
                 Button(action: { DI.sheets.sharingFileInfo = meta}) {
-                    Label("Share", systemImage: "shareplay")
+                    Label("Share", systemImage: "person.wave.2.fill")
                 }
 
                 Button(action: { exportFileAndShowShareSheet(meta: meta) }) {
-                    Label("Share externally to...", systemImage: "person.wave.2.fill")
+                    Label("Share externally to...", systemImage: "square.and.arrow.up.fill")
                 }
             }
 

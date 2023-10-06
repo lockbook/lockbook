@@ -1,7 +1,5 @@
 use eframe::egui;
 
-pub const MATERIAL_ICON_FONT: &[u8] = include_bytes!("../../material-icons-outlined-regular.otf");
-
 #[derive(Clone, PartialEq)]
 pub struct Icon {
     pub has_badge: bool,
@@ -63,6 +61,8 @@ impl Icon {
     pub const VISIBILITY_ON: Self = ic("\u{e8f4}"); // Visibility On
     pub const VISIBILITY_OFF: Self = ic("\u{e8f5}"); // Visibility Off
     pub const WARNING: Self = ic("\u{e001}"); // Visibility Off
+    pub const ZOOM_IN: Self = ic("\u{e145}"); // Visibility Off
+    pub const ZOOM_OUT: Self = ic("\u{e15b}"); // Visibility Off
 
     //pub const ARTICLE: Self = ic("\u{ef42}");
     //pub const COMMAND_KEY: Self = Self('\u{eae7}');

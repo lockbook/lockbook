@@ -2,16 +2,16 @@ use crate::appearance::{Appearance, CaptureCondition};
 use crate::ast::{Ast, AstTextRangeType};
 use crate::bounds::{self, Bounds, Text};
 use crate::buffer::SubBuffer;
-use crate::images::ImageCache;
+use crate::images::{ImageCache, ImageState};
 use crate::layouts::{Annotation, LayoutJobInfo};
 use crate::offset_types::{DocCharOffset, RangeExt, RelCharOffset};
 use crate::style::{MarkdownNode, RenderStyle};
 use crate::Editor;
 use egui::epaint::text::cursor::Cursor;
 use egui::text::{CCursor, LayoutJob};
-use egui::{Galley, Pos2, Rect, Sense, TextFormat, TextureId, Ui, Vec2};
+use egui::{Galley, Pos2, Rect, Sense, TextFormat, Ui, Vec2};
 use std::mem;
-use std::ops::Index;
+use std::ops::{Deref, Index};
 use std::sync::Arc;
 
 #[derive(Default)]
@@ -39,12 +39,12 @@ pub struct GalleyInfo {
 #[derive(Debug)]
 pub struct ImageInfo {
     pub location: Rect,
-    pub texture: TextureId,
+    pub image_state: ImageState,
 }
 
 pub fn calc(
     ast: &Ast, buffer: &SubBuffer, bounds: &Bounds, images: &ImageCache, appearance: &Appearance,
-    ui: &mut Ui,
+    pointer_offset: Option<DocCharOffset>, ui: &mut Ui,
 ) -> Galleys {
     let mut result: Galleys = Default::default();
 
@@ -83,9 +83,17 @@ pub fn calc(
             let maybe_link_range = link_idx.map(|link_idx| bounds.links[link_idx]);
             let in_selection = selection_idx.is_some();
 
+            let ast_node_range = ast.nodes[*text_range.ancestors.last().unwrap()].range;
+            let intersects_selection =
+                ast_node_range.intersects_allow_empty(&buffer.cursor.selection);
+            let intersects_pointer = pointer_offset
+                .map(|pointer_offset| {
+                    ast_node_range.intersects(&(pointer_offset, pointer_offset), true)
+                })
+                .unwrap_or(false);
             let captured = match appearance.markdown_capture(text_range.node(ast).node_type()) {
                 CaptureCondition::Always => true,
-                CaptureCondition::NoCursor => !text_range.intersects_selection(ast, buffer.cursor),
+                CaptureCondition::NoCursor => !(intersects_selection || intersects_pointer),
                 CaptureCondition::Never => false,
             };
 
@@ -108,7 +116,7 @@ pub fn calc(
             if text_range.range_type == AstTextRangeType::Head
                 && text_range.range.start() == text_range_portion.start()
                 && (captured
-                    || text_range.annotation(ast) == Some(Annotation::HeadingRule)) // heading rules drawn reglardless of capture
+                    || matches!(text_range.annotation(ast), Some(Annotation::HeadingRule | Annotation::Image(..)))) // heading rules and images drawn reglardless of capture
                 && annotation.is_none()
             {
                 annotation = text_range.annotation(ast);
@@ -296,17 +304,23 @@ impl GalleyInfo {
 
         // allocate space for image
         let image = if let Some(Annotation::Image(_, url, _)) = &job.annotation {
-            if let Some(Some(texture)) = images.map.get(url) {
-                let texture = *texture;
-                let [image_width, image_height] =
-                    ui.ctx().tex_manager().read().meta(texture).unwrap().size;
-                let [image_width, image_height] = [image_width as f32, image_height as f32];
-                let width =
-                    f32::min(ui.available_width() - appearance.image_padding() * 2.0, image_width);
-                let height = image_height * width / image_width + appearance.image_padding() * 2.0;
-                let (location, _) =
-                    ui.allocate_exact_size(Vec2::new(width, height), Sense::hover());
-                Some(ImageInfo { location, texture })
+            if let Some(image_state) = images.map.get(url) {
+                let image_state = image_state.lock().unwrap().deref().clone();
+                let (location, _) = if let ImageState::Loaded(texture) = image_state {
+                    let [image_width, image_height] =
+                        ui.ctx().tex_manager().read().meta(texture).unwrap().size;
+                    let [image_width, image_height] = [image_width as f32, image_height as f32];
+                    let width = f32::min(
+                        ui.available_width() - appearance.image_padding() * 2.0,
+                        image_width,
+                    );
+                    let height =
+                        image_height * width / image_width + appearance.image_padding() * 2.0;
+                    ui.allocate_exact_size(Vec2::new(width, height), Sense::hover())
+                } else {
+                    ui.allocate_exact_size(Vec2::new(200.0, 200.0), Sense::hover())
+                };
+                Some(ImageInfo { location, image_state })
             } else {
                 None
             }

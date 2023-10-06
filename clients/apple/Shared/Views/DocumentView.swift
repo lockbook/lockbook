@@ -1,3 +1,4 @@
+import CLockbookCore
 import SwiftUI
 import SwiftLockbookCore
 import PencilKit
@@ -15,7 +16,6 @@ struct iOSDocumentViewWrapper: View {
             }
             .onDisappear {
                 if let meta = DI.currentDoc.openDocuments[id]?.dismissForLink {
-                    print("starting to open link")
                     DI.currentDoc.justOpenedLink = meta
                 }
                 
@@ -117,8 +117,14 @@ struct DocumentView: View, Equatable {
                         .title("")
                     }
                 case .Unknown:
-                    Text("\(model.meta.name) cannot be opened on this device.")
-                        .title(model.meta.name)
+                    VStack {
+                        Spacer()
+                        
+                        Text("\(model.meta.name) cannot be opened on this device.")
+                            .title(model.meta.name)
+                        
+                        Spacer()
+                    }
                 }
             }
         }
@@ -146,17 +152,17 @@ extension View {
         self.toolbar {
             if let meta = DI.files.idsAndFiles[id] {
                 Button(action: {
-                    exportFileAndShowShareSheet(meta: meta)
+                    DI.sheets.sharingFileInfo = meta
                 }, label: {
-                    Label("Share externally to...", systemImage: "person.wave.2.fill")
+                    Label("Share", systemImage: "person.wave.2.fill")
                 })
                 .foregroundColor(.blue)
                 .padding(.trailing, 10)
-
+                
                 Button(action: {
-                    DI.sheets.sharingFileInfo = meta
+                    exportFileAndShowShareSheet(meta: meta)
                 }, label: {
-                    Label("Share", systemImage: "square.and.arrow.up.fill")
+                    Label("Share externally to...", systemImage: "square.and.arrow.up.fill")
                 })
                 .foregroundColor(.blue)
                 .padding(.trailing, 10)
@@ -369,7 +375,7 @@ struct MarkdownToolbar: View {
                     MarkdownEditorImage(systemImageName: "arrow.uturn.backward", isSelected: false)
                 }
                 .buttonStyle(.borderless)
-                .help("Undo: ⌃Z")
+                .help("Undo: ⌘Z")
 
                 Button(action: {
                     toolbarState.undoRedo(true)
@@ -377,9 +383,9 @@ struct MarkdownToolbar: View {
                     MarkdownEditorImage(systemImageName: "arrow.uturn.forward", isSelected: false)
                 }
                 .buttonStyle(.borderless)
-                .help("Redo: ⌃⇧Z")
+                .help("Redo: ⌘⇧Z")
             }
-
+            
             Spacer()
         }
     }
@@ -479,7 +485,6 @@ struct DocumentTitle: View {
                         name = fileName
                     }
                 }
-                
             })
             .textFieldStyle(.plain)
             .font(.largeTitle)
@@ -504,8 +509,9 @@ struct MarkdownEditor: View {
     let editor: EditorView
     
     public init(_ editorState: EditorState, _ toolbarState: ToolbarState, _ nameState: NameState) {
+        let coreHandle = get_core_ptr()
         self.editorState = editorState
-        self.editor = EditorView(editorState, toolbarState, nameState)
+        self.editor = EditorView(editorState, coreHandle, toolbarState, nameState)
     }
         
     var body: some View {

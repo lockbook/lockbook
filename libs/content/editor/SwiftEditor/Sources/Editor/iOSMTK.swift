@@ -3,8 +3,10 @@ import UIKit
 import MetalKit
 import Bridge
 import SwiftUI
+import MobileCoreServices
+import UniformTypeIdentifiers
 
-public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractionDelegate {
+public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractionDelegate, UIDropInteractionDelegate {
     
     var editorHandle: UnsafeMutableRawPointer?
     var editorState: EditorState?
@@ -15,6 +17,8 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     
     var textUndoManager = iOSUndoManager()
 
+    var redrawTask: DispatchWorkItem? = nil
+
     public override var undoManager: UndoManager? {
         return textUndoManager
     }
@@ -24,18 +28,82 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     override init(frame frameRect: CGRect, device: MTLDevice?) {
         super.init(frame: frameRect, device: device)
         
-        self.isPaused = false
+        self.isPaused = true
         self.enableSetNeedsDisplay = true
         self.delegate = self
         self.editMenuInteraction = UIEditMenuInteraction(delegate: self)
         self.addInteraction(self.editMenuInteraction!)
         self.preferredFramesPerSecond = 120
-        
-        // ipad trackpad support
-        let tap = UIPanGestureRecognizer(target: self, action: #selector(self.handleTrackpadScroll(_:)))
-        tap.allowedScrollTypesMask = .all
-        tap.maximumNumberOfTouches  = 0
+
+        // regain focus on tap
+        let tap = UITapGestureRecognizer(target: self, action: #selector(self.handleTap(_:)))
+        tap.cancelsTouchesInView = false
         self.addGestureRecognizer(tap)
+
+        // ipad trackpad support
+        let pan = UIPanGestureRecognizer(target: self, action: #selector(self.handleTrackpadScroll(_:)))
+        pan.allowedScrollTypesMask = .all
+        pan.maximumNumberOfTouches  = 0
+        self.addGestureRecognizer(pan)
+
+        // drop support
+        let dropInteraction = UIDropInteraction(delegate: self)
+        self.addInteraction(dropInteraction)
+    }
+
+    @objc func handleTap(_ sender: UITapGestureRecognizer) {
+        if sender.state == .ended {
+            becomeFirstResponder()
+        }
+    }
+
+    public func dropInteraction(_ interaction: UIDropInteraction, canHandle session: UIDropSession) -> Bool {
+        guard session.items.count == 1 else { return false }
+        
+        return session.hasItemsConforming(toTypeIdentifiers: [UTType.image.identifier, UTType.fileURL.identifier, UTType.text.identifier])
+    }
+
+    public func dropInteraction(_ interaction: UIDropInteraction, sessionDidUpdate session: UIDropSession) -> UIDropProposal {
+        let dropLocation = session.location(in: self)
+        let operation: UIDropOperation
+
+        if self.frame.contains(dropLocation) {
+            operation = .copy
+        } else {
+            operation = .cancel
+        }
+
+        return UIDropProposal(operation: operation)
+    }
+
+    public func dropInteraction(_ interaction: UIDropInteraction, performDrop session: UIDropSession) {
+        if session.hasItemsConforming(toTypeIdentifiers: [UTType.image.identifier as String]) {
+            session.loadObjects(ofClass: UIImage.self) { imageItems in
+                let images = imageItems as? [UIImage] ?? []
+
+                for image in images {
+                    let _ = self.importContent(.image(image))
+                }
+            }
+        }
+
+        if session.hasItemsConforming(toTypeIdentifiers: [UTType.text.identifier as String]) {
+            session.loadObjects(ofClass: NSAttributedString.self) { textItems in
+                let attributedStrings = textItems as? [NSAttributedString] ?? []
+
+                for attributedString in attributedStrings {
+                    let _ = self.importContent(.text(attributedString.string))
+                }
+            }
+        }
+
+        if session.hasItemsConforming(toTypeIdentifiers: [UTType.fileURL.identifier as String]) {
+            session.loadObjects(ofClass: URL.self) { urlItems in
+                for url in urlItems {
+                    let _ = self.importContent(.url(url))
+                }
+            }
+        }
     }
     
     @objc func handleTrackpadScroll(_ sender: UIPanGestureRecognizer? = nil) {
@@ -61,7 +129,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
         }
         
     }
-    
+
     public func header(headingSize: UInt32) {
         apply_style_to_selection_header(editorHandle, headingSize)
         self.setNeedsDisplay(self.frame)
@@ -106,10 +174,52 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
         indent_at_cursor(editorHandle, deindent)
         self.setNeedsDisplay(self.frame)
     }
+    
+    // used for shortcut
+    @objc public func deindent() {
+        tab(deindent: true)
+    }
+
+    func importContent(_ importFormat: SupportedImportFormat) -> Bool {
+        switch importFormat {
+        case .url(let url):
+            if let markdownURL = editorState!.importFile(url) {
+                paste_text(editorHandle, markdownURL)
+                editorState?.pasted = true
+                
+                return true
+            }
+        case .image(let image):
+            if let data = image.pngData() ?? image.jpegData(compressionQuality: 1.0),
+               let url = createTempDir() {
+                let imageUrl = url.appendingPathComponent(String(UUID().uuidString.prefix(10).lowercased()), conformingTo: .png)
+
+                do {
+                    try data.write(to: imageUrl)
+                } catch {
+                    return false
+                }
+
+                if let lbImageURL = editorState!.importFile(imageUrl) {
+                    paste_text(editorHandle, lbImageURL)
+                    editorState?.pasted = true
+
+                    return true
+                }
+            }
+        case .text(let text):
+            paste_text(editorHandle, text)
+            editorState?.pasted = true
+
+            return true
+        }
         
-    public func setInitialContent(_ s: String) {
+        return false
+    }
+
+    public func setInitialContent(_ coreHandle: UnsafeMutableRawPointer?, _ s: String) {
         let metalLayer = UnsafeMutableRawPointer(Unmanaged.passUnretained(self.layer).toOpaque())
-        self.editorHandle = init_editor(metalLayer, s, isDarkMode())
+        self.editorHandle = init_editor(coreHandle, metalLayer, s, isDarkMode())
         self.textUndoManager.editorHandle = self.editorHandle
         self.textUndoManager.onUndoRedo = {
             self.setNeedsDisplay(self.frame)
@@ -136,7 +246,6 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
         dark_mode(editorHandle, isDarkMode())
         set_scale(editorHandle, Float(self.contentScaleFactor))
         let output = draw_editor(editorHandle)
-        self.isPaused = !output.redraw
         
         toolbarState?.isHeadingSelected = output.editor_response.cursor_in_heading;
         toolbarState?.isTodoListSelected = output.editor_response.cursor_in_todo_list;
@@ -164,11 +273,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
                 UIApplication.shared.open(url)
             }
         }
-        
-        if output.editor_response.selection_updated {
-            becomeFirstResponder()
-        }
-        
+
         if output.editor_response.show_edit_menu {
             self.hasSelection = output.editor_response.has_selection
             let location = CGPoint(
@@ -188,6 +293,16 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
         
         if has_copied_text(editorHandle) {
             UIPasteboard.general.string = getCoppiedText()
+        }
+
+        redrawTask?.cancel()
+        self.isPaused = output.redraw_in > 100
+        if self.isPaused {
+            let newRedrawTask = DispatchWorkItem {
+                self.setNeedsDisplay(self.frame)
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(Int(truncatingIfNeeded: output.redraw_in)), execute: newRedrawTask)
+            redrawTask = newRedrawTask
         }
     }
     
@@ -486,6 +601,13 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     
     @objc func clipboardPaste() {
         self.setClipboard()
+        
+        if let image = UIPasteboard.general.image {
+            if importContent(.image(image)) {
+                return
+            }
+        }
+
         clipboard_paste(self.editorHandle)
         self.setNeedsDisplay()
     }
@@ -530,16 +652,29 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     }
     
     override public var keyCommands: [UIKeyCommand]? {
+        let deindent = UIKeyCommand(input: "\t", modifierFlags: .shift, action: #selector(deindent))
+        let deleteWord = UIKeyCommand(input: UIKeyCommand.inputDelete, modifierFlags: [.alternate], action: #selector(deleteWord))
+        
+        deleteWord.wantsPriorityOverSystemBehavior = true
+        deindent.wantsPriorityOverSystemBehavior = true
+        
         return [
             UIKeyCommand(input: "c", modifierFlags: .command, action: #selector(clipboardCopy)),
             UIKeyCommand(input: "x", modifierFlags: .command, action: #selector(clipboardCut)),
             UIKeyCommand(input: "v", modifierFlags: .command, action: #selector(clipboardPaste)),
             UIKeyCommand(input: "a", modifierFlags: .command, action: #selector(keyboardSelectAll)),
+            deindent,
+            deleteWord,
         ]
     }
     
     deinit {
         deinit_editor(editorHandle)
+    }
+    
+    @objc func deleteWord() {
+        delete_word(editorHandle)
+        setNeedsDisplay(self.frame)
     }
     
     required init(coder: NSCoder) {
@@ -549,7 +684,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     func unimplemented() {
         print("unimplemented!")
         Thread.callStackSymbols.forEach{print($0)}
-        exit(-69)
+//        exit(-69)
     }
 }
 
@@ -650,4 +785,11 @@ class iOSUndoManager: UndoManager {
         onUndoRedo?()
     }
 }
+
+public enum SupportedImportFormat {
+    case url(URL)
+    case image(UIImage)
+    case text(String)
+}
+
 #endif

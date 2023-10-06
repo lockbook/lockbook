@@ -17,11 +17,11 @@ pub struct Markdown {
 
 impl Markdown {
     pub fn boxed(
-        bytes: &[u8], toolbar_visibility: &ToolBarVisibility, update_tx: Sender<AccountUpdate>,
-        new_file: bool,
+        core: lb::Core, bytes: &[u8], toolbar_visibility: &ToolBarVisibility,
+        update_tx: Sender<AccountUpdate>, new_file: bool,
     ) -> Box<Self> {
         let content = String::from_utf8_lossy(bytes).to_string();
-        let mut editor = Editor::default();
+        let mut editor = Editor::new(core);
         editor.set_text(content);
 
         let toolbar = ToolBar::new(toolbar_visibility);

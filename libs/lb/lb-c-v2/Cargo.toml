@@ -1,6 +1,6 @@
 [package]
 name = "lb-c-v2"
-version = "0.8.0"
+version = "0.8.2"
 edition = "2021"
 
 [lib]

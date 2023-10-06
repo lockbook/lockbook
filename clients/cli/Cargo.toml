@@ -1,5 +1,5 @@
 [package]
-version = "0.8.0"
+version = "0.8.2"
 name = "lockbook-cli"
 edition = "2021"
 
@@ -8,7 +8,7 @@ name = "lockbook"
 path = "src/main.rs"
 
 [dependencies]
-cli-rs = "0.1.6"
 lb = { path = "../../libs/lb/lb-rs", package = "lb-rs" }
+cli-rs = "0.1.12"
 is-terminal = "0.4.7"
 hotwatch = "0.5.0"
