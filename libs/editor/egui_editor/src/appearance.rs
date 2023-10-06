@@ -81,6 +81,7 @@ pub struct Appearance {
 
     // capture of markdown syntax characters
     pub markdown_capture: Option<HashSet<MarkdownNodeType>>,
+    pub markdown_capture_disabled: bool,
 }
 
 impl Appearance {
@@ -182,7 +183,7 @@ impl Appearance {
     }
 
     pub fn markdown_capture(&self, node_type: MarkdownNodeType) -> CaptureCondition {
-        match node_type {
+        let result = match node_type {
             MarkdownNodeType::Block(BlockNodeType::ListItem(_)) => CaptureCondition::Always,
             MarkdownNodeType::Block(BlockNodeType::Heading(_))
             | MarkdownNodeType::Block(BlockNodeType::Quote)
@@ -195,6 +196,12 @@ impl Appearance {
             | MarkdownNodeType::Inline(InlineNodeType::Link)
             | MarkdownNodeType::Inline(InlineNodeType::Image) => CaptureCondition::NoCursor,
             MarkdownNodeType::Document | MarkdownNodeType::Paragraph => CaptureCondition::Never,
+        };
+        match (result, self.markdown_capture_disabled) {
+            (CaptureCondition::Always, _) => CaptureCondition::Always,
+            (CaptureCondition::NoCursor, true) => CaptureCondition::Never,
+            (CaptureCondition::NoCursor, false) => CaptureCondition::NoCursor,
+            (CaptureCondition::Never, _) => CaptureCondition::Never,
         }
     }
 

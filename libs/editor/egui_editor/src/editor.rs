@@ -134,7 +134,8 @@ pub struct Editor {
     pub text_updated: bool,
     pub selection_updated: bool,
     pub maybe_menu_location: Option<Pos2>,
-    pub pointer_over_text: bool,
+    pub pointer_offset: Option<DocCharOffset>,
+    pub pointer_offset_updated: bool,
 
     // events not supported by egui; integrations push to this vec and editor processes and clears it
     pub custom_events: Vec<Modification>,
@@ -172,7 +173,8 @@ impl Editor {
             text_updated: Default::default(),
             selection_updated: Default::default(),
             maybe_menu_location: Default::default(),
-            pointer_over_text: Default::default(),
+            pointer_offset: Default::default(),
+            pointer_offset_updated: Default::default(),
 
             custom_events: Default::default(),
 
@@ -275,7 +277,7 @@ impl Editor {
         }
 
         // process events
-        let (text_updated, selection_updated) = if self.initialized {
+        let (text_updated, selection_updated, pointer_offset_updated) = if self.initialized {
             if ui.memory(|m| m.has_focus(id)) {
                 let custom_events = mem::take(&mut self.custom_events);
                 self.process_events(events, &custom_events, touch_mode);
@@ -287,9 +289,9 @@ impl Editor {
                         o.open_url = Some(egui::output::OpenUrl::new_tab(opened_url))
                     });
                 }
-                (self.text_updated, self.selection_updated)
+                (self.text_updated, self.selection_updated, self.pointer_offset_updated)
             } else {
-                (false, false)
+                (false, false, false)
             }
         } else {
             ui.memory_mut(|m| m.request_focus(id));
@@ -303,13 +305,20 @@ impl Editor {
                 },
             });
 
-            (true, true)
+            (true, true, true)
+        };
+        let appearance_updated = {
+            let capture_already_disabled = self.appearance.markdown_capture_disabled;
+            self.appearance.markdown_capture_disabled = ui.input(|i| i.modifiers.command); // command key disables capture
+            capture_already_disabled != self.appearance.markdown_capture_disabled
         };
 
         // recalculate dependent state
         if text_updated {
             self.ast = ast::calc(&self.buffer.current);
             self.bounds.ast = bounds::calc_ast(&self.ast);
+        }
+        if text_updated || appearance_updated {
             self.bounds.words = bounds::calc_words(
                 &self.buffer.current,
                 &self.ast,
@@ -319,13 +328,14 @@ impl Editor {
             self.bounds.paragraphs =
                 bounds::calc_paragraphs(&self.buffer.current, &self.bounds.ast);
         }
-        if text_updated || selection_updated {
+        if text_updated || selection_updated || appearance_updated || pointer_offset_updated {
             self.bounds.text = bounds::calc_text(
                 &self.ast,
                 &self.bounds.ast,
                 &self.appearance,
                 &self.buffer.current.segs,
                 self.buffer.current.cursor,
+                self.pointer_offset,
             );
             self.bounds.links = bounds::calc_links(&self.buffer.current, &self.bounds.text);
         }
@@ -338,6 +348,7 @@ impl Editor {
             &self.bounds,
             &self.images,
             &self.appearance,
+            self.pointer_offset,
             ui,
         );
         self.bounds.lines = bounds::calc_lines(&self.galleys, &self.bounds.ast, &self.bounds.text);
@@ -431,7 +442,7 @@ impl Editor {
         }
 
         // set cursor style
-        if self.pointer_over_text {
+        if self.pointer_offset.is_some() {
             ui.output_mut(|o| o.cursor_icon = egui::CursorIcon::Text);
         } else {
             ui.output_mut(|o| o.cursor_icon = egui::CursorIcon::Default);
@@ -466,6 +477,7 @@ impl Editor {
         }
 
         let prior_selection = self.buffer.current.cursor.selection;
+        let prior_pointer_offset = self.pointer_offset;
         let click_checker = EditorClickChecker {
             ui_rect: self.ui_rect,
             galleys: &self.galleys,
@@ -501,11 +513,13 @@ impl Editor {
             appearance: &self.appearance,
             bounds: &self.bounds,
         };
-        let pointer_over_text = self
-            .pointer_state
-            .pointer_pos
-            .map(|pos| (&click_checker).text(pos).is_some())
-            .unwrap_or_default();
+        let pointer_offset = self.pointer_state.pointer_pos.and_then(|pos| {
+            if (&click_checker).text(pos).is_some() {
+                Some((&click_checker).pos_to_char_offset(pos))
+            } else {
+                None
+            }
+        });
         if touch_mode {
             let current_cursor = self.buffer.current.cursor;
             let current_selection = current_cursor.selection;
@@ -572,7 +586,8 @@ impl Editor {
         self.maybe_opened_url = maybe_opened_url;
         self.text_updated = text_updated;
         self.selection_updated = self.buffer.current.cursor.selection != prior_selection;
-        self.pointer_over_text = pointer_over_text;
+        self.pointer_offset = pointer_offset;
+        self.pointer_offset_updated = pointer_offset != prior_pointer_offset;
     }
 
     pub fn set_text(&mut self, text: String) {
