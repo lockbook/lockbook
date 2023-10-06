@@ -15,7 +15,7 @@ pub struct AESEncrypted<T: DeserializeOwned> {
     pub value: Vec<u8>,
     #[serde(with = "serde_bytes")]
     pub nonce: Vec<u8>,
-    #[serde(skip_serializing)]
+    #[serde(skip_serializing, default = "PhantomData::default")]
     pub _t: PhantomData<T>,
 }
 
