@@ -1,0 +1,13 @@
+[package]
+name = "lockbook-windows"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+egui = "0.22.0"
+egui_wgpu_backend = "0.24.0"
+pollster = "0.2"
+windows = { package = "windows", features = ["Foundation_Numerics", "Win32_System_Com", "Win32_Foundation", "Win32_Graphics_Direct2D_Common", "Win32_Graphics_Direct3D", "Win32_Graphics_Direct3D11", "Win32_Graphics_Dxgi_Common", "Win32_Graphics_Gdi", "Win32_System_LibraryLoader", "Win32_System_Performance", "Win32_System_SystemInformation", "Win32_UI_Animation", "Win32_UI_WindowsAndMessaging"] }
+lbeditor = { package = "egui_editor", path = "../../libs/editor/egui_editor" }
+lb = { package = "lockbook-core", path = "../../libs/core", default-features = false, features=["native-tls"] }
+raw-window-handle = "0.5"
