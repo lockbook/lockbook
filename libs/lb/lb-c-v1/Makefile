@@ -134,7 +134,7 @@ lib_c_for_windows:
 
 MIN_VER = 22
 jniLibs = '../../../clients/android/lb-rs/src/main/jniLibs'
-libName = 'liblb_c_v1'
+libName = 'liblb_c_v1.so'
 macosLibName = 'liblb_c_v1.dylib'
 windowsLibName = 'liblb_c_v1.dll'
 headerName = 'liblb_c_v1.h'

@@ -6,7 +6,7 @@ use std::path::Path;
 use std::process::Command;
 
 const MIN_NDK_VERSION: u32 = 22;
-const NDK_LIB_NAME: &str = "liblb_c_v1";
+const NDK_LIB_NAME: &str = "liblb_c_v1.so";
 
 pub fn fmt_android(tool_env: &ToolEnvironment) {
     let android_dir = utils::android_dir(&tool_env.root_dir);

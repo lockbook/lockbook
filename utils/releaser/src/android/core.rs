@@ -3,7 +3,7 @@ use std::fs;
 use std::process::Command;
 
 const MIN_NDK_VERSION: u32 = 22;
-const NDK_LIB_NAME: &str = "liblb_c_v1";
+const NDK_LIB_NAME: &str = "liblb_c_v1.so";
 const JNI_LIB: &str = "clients/android/lb-rs/src/main/jniLibs";
 
 const ARCH64: &str = "aarch64-linux-android";
