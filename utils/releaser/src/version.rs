@@ -87,9 +87,15 @@ fn handle_apple(version: &str) {
             .args(["-c", &format!("Set CFBundleShortVersionString {version}"), plist])
             .assert_success();
         let now = OffsetDateTime::now_utc();
+
         let month = now.month() as u8;
         let day = now.day();
         let year = now.year();
+
+        // add leading zeros where missing
+        let month = format!("{:0>2}", month);
+        let day = format!("{:0>2}", day);
+
         Command::new("/usr/libexec/Plistbuddy")
             .args(["-c", &format!("Set CFBundleVersion {year}{month}{day}"), plist])
             .assert_success();
