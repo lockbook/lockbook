@@ -80,7 +80,7 @@ clients/apple/libs/
 
 **/target/
 
-lb-rs/lb-rs.h
+lb-rs/lb_rs.h
 
 server/server/**/*.rs.bk
 server/server/ca-certificate.crt
@@ -94,7 +94,7 @@ server/server/qa-ca-certificate.crt
 clients/android/lb-rs/src/main/jniLibs/
 liblb_rs.a
 liblb_rs.a
-lb-rs.h
+lb_rs.h
 *.log
 lb_rs.dll
 

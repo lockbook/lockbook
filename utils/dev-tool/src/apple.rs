@@ -4,7 +4,7 @@ use std::fs::{self, File};
 use std::io::Write;
 use std::process::{Command, Stdio};
 
-const LIB_NAME_HEADER: &str = "lb-rs.h";
+const LIB_NAME_HEADER: &str = "lb_rs.h";
 const LIB_NAME: &str = "liblb_rs.a";
 
 pub fn run_swift_tests(tool_env: &ToolEnvironment) {

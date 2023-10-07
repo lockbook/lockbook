@@ -8,8 +8,8 @@ use std::process::Command;
 static INC: &str = "clients/apple/CLockbookCore/Sources/CLockbookCore/include/";
 static IOS_LIB_DIR: &str = "clients/apple/CLockbookCore/Sources/CLockbookCore/lib_ios/";
 static MAC_LIB_DIR: &str = "clients/apple/CLockbookCore/Sources/CLockbookCore/lib/";
-static LIB: &str = "liblb_rs.a";
-static HEAD: &str = "lb-rs.h";
+static LIB: &str = "liblb_c_v1.a";
+static HEAD: &str = "lb_rs.h";
 
 pub fn build() {
     clean_dirs();
@@ -76,9 +76,9 @@ fn build_libs() {
         .args([
             "-create",
             "-output",
-            "target/universal-macos/liblb_rs.a",
-            "target/x86_64-apple-darwin/release/liblb_rs.a",
-            "target/aarch64-apple-darwin/release/liblb_rs.a",
+            "target/universal-macos/liblb_c_v1.a",
+            "target/x86_64-apple-darwin/release/liblb_c_v1.a",
+            "target/aarch64-apple-darwin/release/liblb_c_v1.a",
         ])
         .assert_success();
 }
