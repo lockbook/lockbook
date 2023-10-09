@@ -10,9 +10,9 @@ use std::ffi::c_void;
 use std::time::Instant;
 use windows::core::ComInterface;
 use windows::{
-    Win32::Foundation, Win32::Graphics::Direct2D, Win32::Graphics::Direct3D,
-    Win32::Graphics::Direct3D11, Win32::Graphics::Dxgi, Win32::Graphics::Gdi, Win32::System::Com,
-    Win32::System::LibraryLoader, Win32::UI::WindowsAndMessaging,
+    Win32, Win32::Graphics::Direct2D, Win32::Graphics::Direct3D, Win32::Graphics::Direct3D11,
+    Win32::Graphics::Dxgi, Win32::Graphics::Gdi, Win32::System::Com, Win32::System::LibraryLoader,
+    Win32::UI::WindowsAndMessaging,
 };
 
 // taken from windows-rs examples
@@ -25,12 +25,13 @@ fn main() -> windows::core::Result<()> {
 }
 
 struct Window {
-    handle: Foundation::HWND,
+    handle: Win32::Foundation::HWND,
     factory: Direct2D::ID2D1Factory1,
     dxfactory: Dxgi::IDXGIFactory2,
 
     target: Option<Direct2D::ID2D1DeviceContext>,
     swapchain: Option<Dxgi::IDXGISwapChain1>,
+    bitmap: Option<Direct2D::ID2D1Bitmap1>,
     dpi: f32,
     visible: bool,
     occlusion: u32,
@@ -48,11 +49,12 @@ impl Window {
         unsafe { factory.GetDesktopDpi(&mut dpi, &mut dpiy) };
 
         Ok(Window {
-            handle: Foundation::HWND(0),
+            handle: Win32::Foundation::HWND(0),
             factory,
             dxfactory,
             target: None,
             swapchain: None,
+            bitmap: None,
             dpi,
             visible: false,
             occlusion: 0,
@@ -69,8 +71,31 @@ impl Window {
             let swapchain = create_swapchain(&device, self.handle)?;
             create_swapchain_bitmap(&swapchain, &target)?;
 
+            let bitmap = {
+                let size_f = unsafe { target.GetSize() };
+
+                let size_u = Direct2D::Common::D2D_SIZE_U {
+                    width: (size_f.width * self.dpi / 96.0) as u32,
+                    height: (size_f.height * self.dpi / 96.0) as u32,
+                };
+
+                let properties = Direct2D::D2D1_BITMAP_PROPERTIES1 {
+                    pixelFormat: Direct2D::Common::D2D1_PIXEL_FORMAT {
+                        format: Dxgi::Common::DXGI_FORMAT_B8G8R8A8_UNORM,
+                        alphaMode: Direct2D::Common::D2D1_ALPHA_MODE_PREMULTIPLIED,
+                    },
+                    dpiX: self.dpi,
+                    dpiY: self.dpi,
+                    bitmapOptions: Direct2D::D2D1_BITMAP_OPTIONS_TARGET,
+                    ..Default::default()
+                };
+
+                unsafe { target.CreateBitmap2(size_u, None, 0, &properties) }
+            }?;
+
             self.target = Some(target);
             self.swapchain = Some(swapchain);
+            self.bitmap = Some(bitmap);
 
             let mut core = lb::Core::init(&lb::Config {
                 logs: false,
@@ -85,19 +110,10 @@ impl Window {
             self.editor = Some(init_editor(&mut core, &native_window, false));
         }
 
-        let target = self.target.as_ref().unwrap();
-        unsafe { target.BeginDraw() };
-
-        if let Some(editor) = &mut self.editor {
-            editor.frame();
-        };
-
-        unsafe {
-            target.EndDraw(None, None)?;
-        }
+        self.draw().unwrap();
 
         if let Err(error) = self.present(1, 0) {
-            if error.code() == Foundation::DXGI_STATUS_OCCLUDED {
+            if error.code() == Win32::Foundation::DXGI_STATUS_OCCLUDED {
                 self.occlusion = unsafe {
                     self.dxfactory
                         .RegisterOcclusionStatusWindow(self.handle, WindowsAndMessaging::WM_USER)?
@@ -106,6 +122,39 @@ impl Window {
             } else {
                 self.release_device();
             }
+        }
+
+        Ok(())
+    }
+
+    fn draw(&mut self) -> windows::core::Result<()> {
+        let target = self.target.as_ref().unwrap();
+        let bitmap = self.bitmap.as_ref().unwrap();
+
+        unsafe {
+            target.BeginDraw();
+
+            target.Clear(Some(&Direct2D::Common::D2D1_COLOR_F { r: 1.0, g: 1.0, b: 1.0, a: 1.0 }));
+
+            let previous = target.GetTarget()?;
+            target.SetTarget(bitmap);
+            target.Clear(None);
+
+            if let Some(editor) = &mut self.editor {
+                editor.frame();
+            };
+
+            target.SetTarget(&previous);
+
+            target.DrawImage(
+                bitmap,
+                None,
+                None,
+                Direct2D::D2D1_INTERPOLATION_MODE_LINEAR,
+                Direct2D::Common::D2D1_COMPOSITE_MODE_SOURCE_OVER,
+            );
+
+            target.EndDraw(None, None)?;
         }
 
         Ok(())
@@ -142,8 +191,9 @@ impl Window {
     }
 
     fn message_handler(
-        &mut self, message: u32, wparam: Foundation::WPARAM, lparam: Foundation::LPARAM,
-    ) -> Foundation::LRESULT {
+        &mut self, message: u32, wparam: Win32::Foundation::WPARAM,
+        lparam: Win32::Foundation::LPARAM,
+    ) -> Win32::Foundation::LRESULT {
         unsafe {
             match message {
                 WindowsAndMessaging::WM_PAINT => {
@@ -151,17 +201,17 @@ impl Window {
                     Gdi::BeginPaint(self.handle, &mut ps);
                     self.render().unwrap();
                     Gdi::EndPaint(self.handle, &ps);
-                    Foundation::LRESULT(0)
+                    Win32::Foundation::LRESULT(0)
                 }
                 WindowsAndMessaging::WM_SIZE => {
                     if wparam.0 != WindowsAndMessaging::SIZE_MINIMIZED as usize {
                         self.resize_swapchain_bitmap().unwrap();
                     }
-                    Foundation::LRESULT(0)
+                    Win32::Foundation::LRESULT(0)
                 }
                 WindowsAndMessaging::WM_DISPLAYCHANGE => {
                     self.render().unwrap();
-                    Foundation::LRESULT(0)
+                    Win32::Foundation::LRESULT(0)
                 }
                 WindowsAndMessaging::WM_USER => {
                     if self.present(0, Dxgi::DXGI_PRESENT_TEST).is_ok() {
@@ -169,15 +219,15 @@ impl Window {
                         self.occlusion = 0;
                         self.visible = true;
                     }
-                    Foundation::LRESULT(0)
+                    Win32::Foundation::LRESULT(0)
                 }
                 WindowsAndMessaging::WM_ACTIVATE => {
                     self.visible = true; // TODO: unpack !HIWORD(wparam);
-                    Foundation::LRESULT(0)
+                    Win32::Foundation::LRESULT(0)
                 }
                 WindowsAndMessaging::WM_DESTROY => {
                     WindowsAndMessaging::PostQuitMessage(0);
-                    Foundation::LRESULT(0)
+                    Win32::Foundation::LRESULT(0)
                 }
                 _ => WindowsAndMessaging::DefWindowProcA(self.handle, message, wparam, lparam),
             }
@@ -254,9 +304,9 @@ impl Window {
     }
 
     extern "system" fn wndproc(
-        window: Foundation::HWND, message: u32, wparam: Foundation::WPARAM,
-        lparam: Foundation::LPARAM,
-    ) -> Foundation::LRESULT {
+        window: Win32::Foundation::HWND, message: u32, wparam: Win32::Foundation::WPARAM,
+        lparam: Win32::Foundation::LPARAM,
+    ) -> Win32::Foundation::LRESULT {
         unsafe {
             if message == WindowsAndMessaging::WM_NCCREATE {
                 let cs = lparam.0 as *const WindowsAndMessaging::CREATESTRUCTA;
@@ -382,7 +432,7 @@ fn create_swapchain_bitmap(
 }
 
 fn create_swapchain(
-    device: &Direct3D11::ID3D11Device, window: Foundation::HWND,
+    device: &Direct3D11::ID3D11Device, window: Win32::Foundation::HWND,
 ) -> windows::core::Result<Dxgi::IDXGISwapChain1> {
     let factory = get_dxgi_factory(device)?;
 
@@ -485,7 +535,7 @@ pub struct NativeWindow {
 }
 
 impl NativeWindow {
-    pub fn new(window: Foundation::HWND) -> Self {
+    pub fn new(window: Win32::Foundation::HWND) -> Self {
         let mut handle = Win32WindowHandle::empty();
         handle.hwnd = window.0 as *mut c_void;
         Self { handle }
