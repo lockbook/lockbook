@@ -133,7 +133,7 @@ lib_c_for_windows:
 	-cp ../../target/release/${windowsLibName} ${windows_lib}
 
 MIN_VER = 22
-jniLibs = '../../clients/android/core/src/main/jniLibs'
+jniLibs = '../../clients/android/lb-rs/src/main/jniLibs'
 libName = 'liblb_external_interface.so'
 macosLibName = 'liblb_external_interface.dylib'
 windowsLibName = 'liblb_external_interface.dll'

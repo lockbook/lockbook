@@ -30,7 +30,7 @@ pub fn android_dir<P: AsRef<Path>>(root: P) -> PathBuf {
 }
 
 pub fn jni_lib_dir<P: AsRef<Path>>(root: P) -> PathBuf {
-    android_dir(root).join("core/src/main/jniLibs")
+    android_dir(root).join("lb-rs/src/main/jniLibs")
 }
 
 pub fn swift_core_dir<P: AsRef<Path>>(root: P) -> PathBuf {
