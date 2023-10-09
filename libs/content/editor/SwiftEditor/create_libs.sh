@@ -17,8 +17,8 @@ lipo -create target/x86_64-apple-darwin/release/libegui_editor.a target/aarch64-
 cd libs/editor/SwiftEditor/Libs
 xcodebuild -create-xcframework \
   -library libegui_editor.a -headers ../../egui_editor/include \
-  -library ../../../../target/aarch64-apple-ios/release/libegui_editor.a -headers ../../egui_editor/include \
-  -library ../../../../target/aarch64-apple-ios-sim/release/libegui_editor.a -headers ../../egui_editor/include \
+  -library ../../../../../../target/aarch64-apple-ios/release/libegui_editor.a -headers ../../egui_editor/include \
+  -library ../../../../../../target/aarch64-apple-ios-sim/release/libegui_editor.a -headers ../../egui_editor/include \
   -output egui_editor.xcframework
 
 rm -rf libegui_editor.a

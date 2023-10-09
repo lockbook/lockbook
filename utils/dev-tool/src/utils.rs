@@ -48,7 +48,7 @@ pub fn swift_lib<P: AsRef<Path>>(root: P) -> PathBuf {
 }
 
 pub fn lb_external_interface_dir<P: AsRef<Path>>(root: P) -> PathBuf {
-    root.as_ref().join("libs/lb_external_interface")
+    root.as_ref().join("libs/lb/lb_external_interface")
 }
 
 pub fn local_env_path<P: AsRef<Path>>(root: P) -> PathBuf {
