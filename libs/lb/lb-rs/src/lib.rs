@@ -367,7 +367,6 @@ impl<Client: Requester, Docs: DocumentService> CoreLib<Client, Docs> {
             .expected_errs(&[CoreError::ServerUnreachable, CoreError::ClientUpdateRequired])
     }
 
-    // todo: expose work calculated (return value)
     #[instrument(level = "debug", skip_all, err(Debug))]
     pub fn sync(&self, f: Option<Box<dyn Fn(SyncProgress)>>) -> Result<WorkCalculated, LbError> {
         self.in_tx(|s| {
