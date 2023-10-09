@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use lockbook_core::{File, FileType, ImportStatus, Share, ShareMode, SupportedImageFormats, Uuid};
+use lb_rs::{File, FileType, ImportStatus, Share, ShareMode, SupportedImageFormats, Uuid};
 
 use crate::*;
 

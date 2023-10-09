@@ -1,12 +1,12 @@
 [package]
-name = "lockbook-core"
+name = "lb-rs"
 version = "0.8.2"
 edition = "2021"
 description = "The functional components of the iOS and Android lockbook clients."
 license = "BSD-3-Clause"
 
 [lib]
-name = "lockbook_core"
+name = "lb_rs"
 crate-type = ["lib", "staticlib", "cdylib"]
 bench = false
 

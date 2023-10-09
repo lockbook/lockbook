@@ -11,8 +11,8 @@ use serde::Serialize;
 use std::sync::{Arc, Mutex};
 use time::Duration;
 
-use lockbook_core::service::search_service::{SearchRequest, SearchResult};
-use lockbook_core::{
+use lb_rs::service::search_service::{SearchRequest, SearchResult};
+use lb_rs::{
     clock, unexpected_only, ClientWorkUnit, Config, Drawing, FileType, RankingWeights, ShareMode,
     SupportedImageFormats, SyncProgress, UnexpectedError, Uuid,
 };

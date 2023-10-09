@@ -1,7 +1,7 @@
 use serde::Serialize;
 use strum_macros::EnumIter;
 
-use lockbook_core::{CoreError, LbError};
+use lb_rs::{CoreError, LbError};
 
 use self::Error::UiError;
 

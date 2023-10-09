@@ -108,7 +108,7 @@ version = "0.8.2"
 dependencies = [
  "clap 4.3.11",
  "dialoguer",
- "lockbook-core",
+ "lb-rs",
 ]
 
 [[package]]
@@ -821,8 +821,8 @@ dependencies = [
 name = "c_interface_v2"
 version = "0.8.2"
 dependencies = [
+ "lb-rs",
  "libc",
- "lockbook-core",
 ]
 
 [[package]]
@@ -1783,9 +1783,9 @@ dependencies = [
  "egui_wgpu_backend",
  "image",
  "lb-fonts",
+ "lb-rs",
  "libc",
  "linkify",
- "lockbook-core",
  "pollster",
  "pulldown-cmark",
  "rand 0.8.5",
@@ -3260,6 +3260,43 @@ dependencies = [
 ]
 
 [[package]]
+name = "lb-rs"
+version = "0.8.2"
+dependencies = [
+ "base64 0.13.1",
+ "basic-human-duration",
+ "bincode",
+ "criterion",
+ "crossbeam",
+ "db-rs",
+ "db-rs-derive",
+ "diffy",
+ "image",
+ "indicatif",
+ "itertools",
+ "libsecp256k1",
+ "lockbook-server",
+ "lockbook-shared",
+ "num_cpus",
+ "qrcode-generator",
+ "rand 0.8.5",
+ "raqote",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "sublime_fuzzy",
+ "tempfile",
+ "test_utils",
+ "time 0.3.23",
+ "tokio",
+ "tracing",
+ "tracing-appender",
+ "tracing-subscriber",
+ "uuid 1.4.0",
+ "variant_count",
+]
+
+[[package]]
 name = "lb_external_interface"
 version = "0.8.2"
 dependencies = [
@@ -3267,7 +3304,7 @@ dependencies = [
  "crossbeam",
  "jni 0.13.1",
  "lazy_static",
- "lockbook-core",
+ "lb-rs",
  "serde",
  "serde_json",
  "strum",
@@ -3418,44 +3455,7 @@ dependencies = [
  "cli-rs",
  "hotwatch",
  "is-terminal",
- "lockbook-core",
-]
-
-[[package]]
-name = "lockbook-core"
-version = "0.8.2"
-dependencies = [
- "base64 0.13.1",
- "basic-human-duration",
- "bincode",
- "criterion",
- "crossbeam",
- "db-rs",
- "db-rs-derive",
- "diffy",
- "image",
- "indicatif",
- "itertools",
- "libsecp256k1",
- "lockbook-server",
- "lockbook-shared",
- "num_cpus",
- "qrcode-generator",
- "rand 0.8.5",
- "raqote",
- "reqwest",
- "serde",
- "serde_json",
- "sublime_fuzzy",
- "tempfile",
- "test_utils",
- "time 0.3.23",
- "tokio",
- "tracing",
- "tracing-appender",
- "tracing-subscriber",
- "uuid 1.4.0",
- "variant_count",
+ "lb-rs",
 ]
 
 [[package]]
@@ -3482,7 +3482,7 @@ dependencies = [
  "image",
  "lb-fonts",
  "lb-pdf",
- "lockbook-core",
+ "lb-rs",
  "pdfium-render",
  "rfd",
  "serde",
@@ -5605,7 +5605,7 @@ version = "0.8.2"
 dependencies = [
  "bincode",
  "itertools",
- "lockbook-core",
+ "lb-rs",
  "lockbook-shared",
  "time 0.3.23",
  "uuid 1.4.0",

@@ -1,4 +1,4 @@
-use lockbook_core::{ClientWorkUnit, WorkUnit};
+use lb_rs::{ClientWorkUnit, WorkUnit};
 
 use crate::*;
 

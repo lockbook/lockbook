@@ -6,7 +6,7 @@ mod sync_and_usage;
 use std::ffi::{c_char, c_void};
 use std::ptr::null_mut;
 
-use lockbook_core::{Config, Core, CoreError};
+use lb_rs::{Config, Core, CoreError};
 
 use crate::files::*;
 
@@ -42,7 +42,7 @@ pub struct LbError {
     trace: *mut c_char,
 }
 
-unsafe fn lberr(le: lockbook_core::LbError) -> LbError {
+unsafe fn lberr(le: lb_rs::LbError) -> LbError {
     let mut e = lb_error_none();
     e.msg = cstr(format!("{:?}", le.kind));
     e.code = lb_error_code(le.kind);
@@ -52,7 +52,7 @@ unsafe fn lberr(le: lockbook_core::LbError) -> LbError {
     e
 }
 
-unsafe fn lberr_unexpected(ue: lockbook_core::UnexpectedError) -> LbError {
+unsafe fn lberr_unexpected(ue: lb_rs::UnexpectedError) -> LbError {
     let mut e = lb_error_none();
     e.msg = cstr(ue.msg);
     e.code = LbErrorCode::Unexpected;

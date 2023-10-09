@@ -25,7 +25,7 @@ reqwest = { version = "0.11", features = ["blocking"] }
 unicode-segmentation = "1.10.0"
 rand = "0.8.5"
 linkify = "0.10.0"
-lb = { package = "lockbook-core", path = "../../../lb/core", default-features = false, features=["native-tls"] }
+lb = { package = "lb-rs", path = "../../../lb/lb-rs", default-features = false, features=["native-tls"] }
 
 #eframe = { version = "0.19.0", optional = true, default-features = false, features = ['wgpu', 'dark-light'] }
 eframe = { version = "0.22.0", optional = true }

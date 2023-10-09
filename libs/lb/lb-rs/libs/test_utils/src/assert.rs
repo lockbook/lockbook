@@ -1,6 +1,6 @@
 use crate::{get_dirty_ids, slices_equal_ignore_order, test_core_from};
-use lockbook_core::service::api_service::Requester;
-use lockbook_core::Core;
+use lb_rs::service::api_service::Requester;
+use lb_rs::Core;
 use lockbook_shared::api::GetUpdatesRequest;
 use lockbook_shared::file_like::FileLike;
 use lockbook_shared::file_metadata::FileType;

@@ -1,9 +1,9 @@
 pub mod assert;
 
 use itertools::Itertools;
-use lockbook_core::service::api_service::Requester;
-use lockbook_core::DocumentService;
-use lockbook_core::{Core, CoreLib};
+use lb_rs::service::api_service::Requester;
+use lb_rs::DocumentService;
+use lb_rs::{Core, CoreLib};
 use lockbook_shared::api::{PaymentMethod, StripeAccountTier};
 use lockbook_shared::core_config::Config;
 use lockbook_shared::crypto::EncryptedDocument;

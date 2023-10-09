@@ -14,7 +14,7 @@ use std::path::PathBuf;
 use serde_json::{json, value::Value};
 use strum::IntoEnumIterator;
 
-use lockbook_core::*;
+use lb_rs::*;
 
 use self::errors::*;
 
@@ -59,12 +59,12 @@ impl_get_variants!(
 
 #[derive(Clone)]
 pub struct FfiCore {
-    core: lockbook_core::Core,
+    core: lb_rs::Core,
 }
 
 impl FfiCore {
     pub fn init(config: &Config) -> Result<Self, UnexpectedError> {
-        let core = lockbook_core::Core::init(config)?;
+        let core = lb_rs::Core::init(config)?;
         Ok(Self { core })
     }
 

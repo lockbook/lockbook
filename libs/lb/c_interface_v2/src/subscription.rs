@@ -1,4 +1,4 @@
-use lockbook_core::{PaymentMethod, PaymentPlatform, StripeAccountTier};
+use lb_rs::{PaymentMethod, PaymentPlatform, StripeAccountTier};
 
 use crate::*;
 

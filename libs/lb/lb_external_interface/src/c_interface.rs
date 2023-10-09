@@ -11,8 +11,8 @@ use serde::Serialize;
 use serde_json::json;
 use time::Duration;
 
-use lockbook_core::service::search_service::{SearchRequest, SearchResult};
-use lockbook_core::{
+use lb_rs::service::search_service::{SearchRequest, SearchResult};
+use lb_rs::{
     clock, Config, FileType, ImportStatus, ShareMode, SupportedImageFormats, SyncProgress,
     UnexpectedError, Uuid,
 };
@@ -731,7 +731,7 @@ mod tests {
             let ffi_val = std::ffi::CStr::from_ptr(super::default_api_location())
                 .to_str()
                 .expect("Could not C String -> Rust str");
-            assert_eq!(lockbook_core::DEFAULT_API_LOCATION, ffi_val)
+            assert_eq!(lb_rs::DEFAULT_API_LOCATION, ffi_val)
         }
     }
 }

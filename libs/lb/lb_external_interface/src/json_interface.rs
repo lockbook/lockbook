@@ -22,7 +22,7 @@ where
 #[cfg(test)]
 mod unit_tests {
     use crate::json_interface::translate;
-    use lockbook_core::UnexpectedError;
+    use lb_rs::UnexpectedError;
 
     #[test]
     fn sanity_check() {
