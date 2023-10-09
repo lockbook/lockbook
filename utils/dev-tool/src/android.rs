@@ -6,7 +6,7 @@ use std::path::Path;
 use std::process::Command;
 
 const MIN_NDK_VERSION: u32 = 22;
-const NDK_LIB_NAME: &str = "liblockbook_core_external_interface.so";
+const NDK_LIB_NAME: &str = "liblb_external_interface.so";
 
 pub fn fmt_android(tool_env: &ToolEnvironment) {
     let android_dir = utils::android_dir(&tool_env.root_dir);
@@ -40,7 +40,7 @@ pub fn run_kotlin_tests(tool_env: &ToolEnvironment) {
 }
 
 pub fn make_android_libs(tool_env: &ToolEnvironment) {
-    let ext_iface_dir = utils::core_external_interface_dir(&tool_env.root_dir);
+    let ext_iface_dir = utils::lb_external_interface_dir(&tool_env.root_dir);
 
     build_core_for_android_arch(&ext_iface_dir, "aarch64-linux-android");
     build_core_for_android_arch(&ext_iface_dir, "armv7-linux-androideabi");
@@ -91,7 +91,7 @@ pub fn make_android_libs(tool_env: &ToolEnvironment) {
 pub fn make_android_test_lib(tool_env: &ToolEnvironment) {
     Command::new("cargo")
         .args(["build", "--lib", "--release"])
-        .current_dir(&utils::core_external_interface_dir(&tool_env.root_dir))
+        .current_dir(&utils::lb_external_interface_dir(&tool_env.root_dir))
         .assert_success();
 
     let jni_lib_dir = utils::jni_lib_dir(&tool_env.root_dir);

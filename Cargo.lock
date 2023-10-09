@@ -1291,23 +1291,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "core_external_interface"
-version = "0.8.2"
-dependencies = [
- "basic-human-duration",
- "crossbeam",
- "jni 0.13.1",
- "lazy_static",
- "lockbook-core",
- "serde",
- "serde_json",
- "strum",
- "strum_macros",
- "time 0.3.23",
- "tracing",
-]
-
-[[package]]
 name = "cpufeatures"
 version = "0.2.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3274,6 +3257,23 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "34169bfa1db3c8d0f7f8176ec35884ea6ed9602d759ec64a74ba0a42f13c1ec5"
 dependencies = [
  "pdfium-render",
+]
+
+[[package]]
+name = "lb_external_interface"
+version = "0.8.2"
+dependencies = [
+ "basic-human-duration",
+ "crossbeam",
+ "jni 0.13.1",
+ "lazy_static",
+ "lockbook-core",
+ "serde",
+ "serde_json",
+ "strum",
+ "strum_macros",
+ "time 0.3.23",
+ "tracing",
 ]
 
 [[package]]
