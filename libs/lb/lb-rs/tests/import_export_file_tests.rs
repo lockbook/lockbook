@@ -1,4 +1,4 @@
-use lockbook_core::service::import_export_service::{ExportFileInfo, ImportStatus};
+use lb_rs::service::import_export_service::{ExportFileInfo, ImportStatus};
 use lockbook_shared::file_metadata::FileType;
 use rand::Rng;
 

@@ -1,4 +1,4 @@
-use lockbook_core::service::api_service::{ApiError, Network, Requester};
+use lb_rs::service::api_service::{ApiError, Network, Requester};
 use lockbook_shared::account::{Account, MAX_USERNAME_LENGTH};
 use lockbook_shared::api::*;
 use lockbook_shared::file_metadata::FileMetadata;

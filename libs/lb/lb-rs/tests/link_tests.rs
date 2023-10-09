@@ -1,4 +1,4 @@
-use lockbook_core::{Core, File};
+use lb_rs::{Core, File};
 use lockbook_shared::file::ShareMode;
 use std::collections::HashSet;
 use test_utils::*;
@@ -424,7 +424,7 @@ fn link_resolving() {
 
     let folder = cores[0].create_at_path("lockbook/").unwrap();
     let file = cores[0]
-        .create_file("test.md", folder.id, lockbook_core::FileType::Document)
+        .create_file("test.md", folder.id, lb_rs::FileType::Document)
         .unwrap();
     cores[0]
         .share_file(folder.id, &accounts[1].username, ShareMode::Write)

@@ -1,5 +1,5 @@
-use lockbook_core::model::drawing;
-use lockbook_core::{ColorAlias, Drawing, Stroke, SupportedImageFormats};
+use lb_rs::model::drawing;
+use lb_rs::{ColorAlias, Drawing, Stroke, SupportedImageFormats};
 use test_utils::test_core_with_account;
 
 #[test]

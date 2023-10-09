@@ -1,4 +1,4 @@
-use lockbook_core::service::api_service::no_network::CoreIP;
+use lb_rs::service::api_service::no_network::CoreIP;
 
 use super::trial::{Action, Trial};
 use std::{
