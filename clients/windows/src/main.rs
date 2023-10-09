@@ -25,14 +25,8 @@ trait DXSample {
     fn render(&mut self);
     fn on_key_up(&mut self, _key: u8);
     fn on_key_down(&mut self, _key: u8);
-
-    fn title(&self) -> String {
-        "DXSample".into()
-    }
-
-    fn window_size(&self) -> (i32, i32) {
-        (640, 480)
-    }
+    fn title(&self) -> String;
+    fn window_size(&self) -> (i32, i32);
 }
 
 fn run_sample<S>() -> Result<()>
@@ -197,29 +191,24 @@ mod d3d12_hello_triangle {
         }
 
         fn title(&self) -> String {
-            "D3D12 Hello Triangle".into()
+            "Lockbook".into()
         }
 
         fn window_size(&self) -> (i32, i32) {
-            (1280, 720)
+            (1000, 1000)
         }
 
         fn update(&mut self) {}
 
         fn render(&mut self) {
             if let Some(resources) = &mut self.resources {
-                println!("render");
                 resources.editor.frame();
             }
         }
 
-        fn on_key_up(&mut self, _key: u8) {
-            println!("on_key_up")
-        }
+        fn on_key_up(&mut self, _key: u8) {}
 
-        fn on_key_down(&mut self, _key: u8) {
-            println!("on_key_down")
-        }
+        fn on_key_down(&mut self, _key: u8) {}
     }
 
     fn create_device() -> Result<IDXGIFactory4> {
