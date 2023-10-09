@@ -8,29 +8,29 @@ use raw_window_handle::{
 };
 use std::ffi::c_void;
 use std::time::Instant;
+use windows::core::ComInterface;
 use windows::{
-    core::*, Win32::Foundation::*, Win32::Graphics::Direct2D::Common::*,
-    Win32::Graphics::Direct2D::*, Win32::Graphics::Direct3D::*, Win32::Graphics::Direct3D11::*,
-    Win32::Graphics::Dxgi::Common::*, Win32::Graphics::Dxgi::*, Win32::Graphics::Gdi::*,
-    Win32::System::Com::*, Win32::System::LibraryLoader::*, Win32::UI::WindowsAndMessaging::*,
+    Win32::Foundation, Win32::Graphics::Direct2D, Win32::Graphics::Direct3D,
+    Win32::Graphics::Direct3D11, Win32::Graphics::Dxgi, Win32::Graphics::Gdi, Win32::System::Com,
+    Win32::System::LibraryLoader, Win32::UI::WindowsAndMessaging,
 };
 
 // taken from windows-rs examples
-fn main() -> Result<()> {
+fn main() -> windows::core::Result<()> {
     unsafe {
-        CoInitializeEx(None, COINIT_MULTITHREADED)?;
+        Com::CoInitializeEx(None, Com::COINIT_MULTITHREADED)?;
     }
     let mut window = Window::new()?;
     window.run()
 }
 
 struct Window {
-    handle: HWND,
-    factory: ID2D1Factory1,
-    dxfactory: IDXGIFactory2,
+    handle: Foundation::HWND,
+    factory: Direct2D::ID2D1Factory1,
+    dxfactory: Dxgi::IDXGIFactory2,
 
-    target: Option<ID2D1DeviceContext>,
-    swapchain: Option<IDXGISwapChain1>,
+    target: Option<Direct2D::ID2D1DeviceContext>,
+    swapchain: Option<Dxgi::IDXGISwapChain1>,
     dpi: f32,
     visible: bool,
     occlusion: u32,
@@ -39,16 +39,16 @@ struct Window {
 }
 
 impl Window {
-    fn new() -> Result<Self> {
+    fn new() -> windows::core::Result<Self> {
         let factory = create_factory()?;
-        let dxfactory: IDXGIFactory2 = unsafe { CreateDXGIFactory1()? };
+        let dxfactory: Dxgi::IDXGIFactory2 = unsafe { Dxgi::CreateDXGIFactory1()? };
 
         let mut dpi = 0.0;
         let mut dpiy = 0.0;
         unsafe { factory.GetDesktopDpi(&mut dpi, &mut dpiy) };
 
         Ok(Window {
-            handle: HWND(0),
+            handle: Foundation::HWND(0),
             factory,
             dxfactory,
             target: None,
@@ -60,7 +60,7 @@ impl Window {
         })
     }
 
-    fn render(&mut self) -> Result<()> {
+    fn render(&mut self) -> windows::core::Result<()> {
         if self.target.is_none() {
             let device = create_device()?;
             let target = create_render_target(&self.factory, &device)?;
@@ -89,7 +89,6 @@ impl Window {
         unsafe { target.BeginDraw() };
 
         if let Some(editor) = &mut self.editor {
-            println!("editor frame");
             editor.frame();
         };
 
@@ -98,10 +97,10 @@ impl Window {
         }
 
         if let Err(error) = self.present(1, 0) {
-            if error.code() == DXGI_STATUS_OCCLUDED {
+            if error.code() == Foundation::DXGI_STATUS_OCCLUDED {
                 self.occlusion = unsafe {
                     self.dxfactory
-                        .RegisterOcclusionStatusWindow(self.handle, WM_USER)?
+                        .RegisterOcclusionStatusWindow(self.handle, WindowsAndMessaging::WM_USER)?
                 };
                 self.visible = false;
             } else {
@@ -117,18 +116,18 @@ impl Window {
         self.swapchain = None;
     }
 
-    fn present(&self, sync: u32, flags: u32) -> Result<()> {
+    fn present(&self, sync: u32, flags: u32) -> windows::core::Result<()> {
         unsafe { self.swapchain.as_ref().unwrap().Present(sync, flags).ok() }
     }
 
-    fn resize_swapchain_bitmap(&mut self) -> Result<()> {
+    fn resize_swapchain_bitmap(&mut self) -> windows::core::Result<()> {
         if let Some(target) = &self.target {
             let swapchain = self.swapchain.as_ref().unwrap();
             unsafe { target.SetTarget(None) };
 
             if unsafe {
                 swapchain
-                    .ResizeBuffers(0, 0, 0, DXGI_FORMAT_UNKNOWN, 0)
+                    .ResizeBuffers(0, 0, 0, Dxgi::Common::DXGI_FORMAT_UNKNOWN, 0)
                     .is_ok()
             } {
                 create_swapchain_bitmap(swapchain, target)?;
@@ -142,75 +141,77 @@ impl Window {
         Ok(())
     }
 
-    fn message_handler(&mut self, message: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
+    fn message_handler(
+        &mut self, message: u32, wparam: Foundation::WPARAM, lparam: Foundation::LPARAM,
+    ) -> Foundation::LRESULT {
         unsafe {
             match message {
-                WM_PAINT => {
-                    let mut ps = PAINTSTRUCT::default();
-                    BeginPaint(self.handle, &mut ps);
+                WindowsAndMessaging::WM_PAINT => {
+                    let mut ps = Gdi::PAINTSTRUCT::default();
+                    Gdi::BeginPaint(self.handle, &mut ps);
                     self.render().unwrap();
-                    EndPaint(self.handle, &ps);
-                    LRESULT(0)
+                    Gdi::EndPaint(self.handle, &ps);
+                    Foundation::LRESULT(0)
                 }
-                WM_SIZE => {
-                    if wparam.0 != SIZE_MINIMIZED as usize {
+                WindowsAndMessaging::WM_SIZE => {
+                    if wparam.0 != WindowsAndMessaging::SIZE_MINIMIZED as usize {
                         self.resize_swapchain_bitmap().unwrap();
                     }
-                    LRESULT(0)
+                    Foundation::LRESULT(0)
                 }
-                WM_DISPLAYCHANGE => {
+                WindowsAndMessaging::WM_DISPLAYCHANGE => {
                     self.render().unwrap();
-                    LRESULT(0)
+                    Foundation::LRESULT(0)
                 }
-                WM_USER => {
-                    if self.present(0, DXGI_PRESENT_TEST).is_ok() {
+                WindowsAndMessaging::WM_USER => {
+                    if self.present(0, Dxgi::DXGI_PRESENT_TEST).is_ok() {
                         self.dxfactory.UnregisterOcclusionStatus(self.occlusion);
                         self.occlusion = 0;
                         self.visible = true;
                     }
-                    LRESULT(0)
+                    Foundation::LRESULT(0)
                 }
-                WM_ACTIVATE => {
+                WindowsAndMessaging::WM_ACTIVATE => {
                     self.visible = true; // TODO: unpack !HIWORD(wparam);
-                    LRESULT(0)
+                    Foundation::LRESULT(0)
                 }
-                WM_DESTROY => {
-                    PostQuitMessage(0);
-                    LRESULT(0)
+                WindowsAndMessaging::WM_DESTROY => {
+                    WindowsAndMessaging::PostQuitMessage(0);
+                    Foundation::LRESULT(0)
                 }
-                _ => DefWindowProcA(self.handle, message, wparam, lparam),
+                _ => WindowsAndMessaging::DefWindowProcA(self.handle, message, wparam, lparam),
             }
         }
     }
 
-    fn run(&mut self) -> Result<()> {
+    fn run(&mut self) -> windows::core::Result<()> {
         unsafe {
-            let instance = GetModuleHandleA(None)?;
+            let instance = LibraryLoader::GetModuleHandleA(None)?;
             debug_assert!(instance.0 != 0);
-            let window_class = s!("window");
+            let window_class = windows::core::s!("window");
 
-            let wc = WNDCLASSA {
-                hCursor: LoadCursorW(None, IDC_HAND)?,
+            let wc = WindowsAndMessaging::WNDCLASSA {
+                hCursor: WindowsAndMessaging::LoadCursorW(None, WindowsAndMessaging::IDC_HAND)?,
                 hInstance: instance.into(),
                 lpszClassName: window_class,
 
-                style: CS_HREDRAW | CS_VREDRAW,
+                style: WindowsAndMessaging::CS_HREDRAW | WindowsAndMessaging::CS_VREDRAW,
                 lpfnWndProc: Some(Self::wndproc),
                 ..Default::default()
             };
 
-            let atom = RegisterClassA(&wc);
+            let atom = WindowsAndMessaging::RegisterClassA(&wc);
             debug_assert!(atom != 0);
 
-            let handle = CreateWindowExA(
-                WINDOW_EX_STYLE::default(),
+            let handle = WindowsAndMessaging::CreateWindowExA(
+                WindowsAndMessaging::WINDOW_EX_STYLE::default(),
                 window_class,
-                s!("Sample Window"),
-                WS_OVERLAPPEDWINDOW | WS_VISIBLE,
-                CW_USEDEFAULT,
-                CW_USEDEFAULT,
-                CW_USEDEFAULT,
-                CW_USEDEFAULT,
+                windows::core::s!("Sample Window"),
+                WindowsAndMessaging::WS_OVERLAPPEDWINDOW | WindowsAndMessaging::WS_VISIBLE,
+                WindowsAndMessaging::CW_USEDEFAULT,
+                WindowsAndMessaging::CW_USEDEFAULT,
+                WindowsAndMessaging::CW_USEDEFAULT,
+                WindowsAndMessaging::CW_USEDEFAULT,
                 None,
                 None,
                 instance,
@@ -219,81 +220,101 @@ impl Window {
 
             debug_assert!(handle.0 != 0);
             debug_assert!(handle == self.handle);
-            let mut message = MSG::default();
+            let mut message = WindowsAndMessaging::MSG::default();
 
             loop {
                 if self.visible {
                     self.render()?;
 
-                    while PeekMessageA(&mut message, None, 0, 0, PM_REMOVE).into() {
-                        if message.message == WM_QUIT {
+                    while WindowsAndMessaging::PeekMessageA(
+                        &mut message,
+                        None,
+                        0,
+                        0,
+                        WindowsAndMessaging::PM_REMOVE,
+                    )
+                    .into()
+                    {
+                        if message.message == WindowsAndMessaging::WM_QUIT {
                             return Ok(());
                         }
-                        DispatchMessageA(&message);
+                        WindowsAndMessaging::DispatchMessageA(&message);
                     }
                 } else {
-                    GetMessageA(&mut message, None, 0, 0);
+                    WindowsAndMessaging::GetMessageA(&mut message, None, 0, 0);
 
-                    if message.message == WM_QUIT {
+                    if message.message == WindowsAndMessaging::WM_QUIT {
                         return Ok(());
                     }
 
-                    DispatchMessageA(&message);
+                    WindowsAndMessaging::DispatchMessageA(&message);
                 }
             }
         }
     }
 
     extern "system" fn wndproc(
-        window: HWND, message: u32, wparam: WPARAM, lparam: LPARAM,
-    ) -> LRESULT {
+        window: Foundation::HWND, message: u32, wparam: Foundation::WPARAM,
+        lparam: Foundation::LPARAM,
+    ) -> Foundation::LRESULT {
         unsafe {
-            if message == WM_NCCREATE {
-                let cs = lparam.0 as *const CREATESTRUCTA;
+            if message == WindowsAndMessaging::WM_NCCREATE {
+                let cs = lparam.0 as *const WindowsAndMessaging::CREATESTRUCTA;
                 let this = (*cs).lpCreateParams as *mut Self;
                 (*this).handle = window;
 
-                SetWindowLongPtrA(window, GWLP_USERDATA, this as _);
+                WindowsAndMessaging::SetWindowLongPtrA(
+                    window,
+                    WindowsAndMessaging::GWLP_USERDATA,
+                    this as _,
+                );
             } else {
-                let this = GetWindowLongPtrA(window, GWLP_USERDATA) as *mut Self;
+                let this = WindowsAndMessaging::GetWindowLongPtrA(
+                    window,
+                    WindowsAndMessaging::GWLP_USERDATA,
+                ) as *mut Self;
 
                 if !this.is_null() {
                     return (*this).message_handler(message, wparam, lparam);
                 }
             }
 
-            DefWindowProcA(window, message, wparam, lparam)
+            WindowsAndMessaging::DefWindowProcA(window, message, wparam, lparam)
         }
     }
 }
 
-fn create_factory() -> Result<ID2D1Factory1> {
-    let mut options = D2D1_FACTORY_OPTIONS::default();
+fn create_factory() -> windows::core::Result<Direct2D::ID2D1Factory1> {
+    let mut options = Direct2D::D2D1_FACTORY_OPTIONS::default();
 
     if cfg!(debug_assertions) {
-        options.debugLevel = D2D1_DEBUG_LEVEL_INFORMATION;
+        options.debugLevel = Direct2D::D2D1_DEBUG_LEVEL_INFORMATION;
     }
 
-    unsafe { D2D1CreateFactory(D2D1_FACTORY_TYPE_SINGLE_THREADED, Some(&options)) }
+    unsafe {
+        Direct2D::D2D1CreateFactory(Direct2D::D2D1_FACTORY_TYPE_SINGLE_THREADED, Some(&options))
+    }
 }
 
-fn create_device_with_type(drive_type: D3D_DRIVER_TYPE) -> Result<ID3D11Device> {
-    let mut flags = D3D11_CREATE_DEVICE_BGRA_SUPPORT;
+fn create_device_with_type(
+    drive_type: Direct3D::D3D_DRIVER_TYPE,
+) -> windows::core::Result<Direct3D11::ID3D11Device> {
+    let mut flags = Direct3D11::D3D11_CREATE_DEVICE_BGRA_SUPPORT;
 
     if cfg!(debug_assertions) {
-        flags |= D3D11_CREATE_DEVICE_DEBUG;
+        flags |= Direct3D11::D3D11_CREATE_DEVICE_DEBUG;
     }
 
     let mut device = None;
 
     unsafe {
-        D3D11CreateDevice(
+        Direct3D11::D3D11CreateDevice(
             None,
             drive_type,
             None,
             flags,
             None,
-            D3D11_SDK_VERSION,
+            Direct3D11::D3D11_SDK_VERSION,
             Some(&mut device),
             None,
             None,
@@ -302,12 +323,12 @@ fn create_device_with_type(drive_type: D3D_DRIVER_TYPE) -> Result<ID3D11Device> 
     }
 }
 
-fn create_device() -> Result<ID3D11Device> {
-    let mut result = create_device_with_type(D3D_DRIVER_TYPE_HARDWARE);
+fn create_device() -> windows::core::Result<Direct3D11::ID3D11Device> {
+    let mut result = create_device_with_type(Direct3D::D3D_DRIVER_TYPE_HARDWARE);
 
     if let Err(err) = &result {
-        if err.code() == DXGI_ERROR_UNSUPPORTED {
-            result = create_device_with_type(D3D_DRIVER_TYPE_WARP);
+        if err.code() == Dxgi::DXGI_ERROR_UNSUPPORTED {
+            result = create_device_with_type(Direct3D::D3D_DRIVER_TYPE_WARP);
         }
     }
 
@@ -315,35 +336,40 @@ fn create_device() -> Result<ID3D11Device> {
 }
 
 fn create_render_target(
-    factory: &ID2D1Factory1, device: &ID3D11Device,
-) -> Result<ID2D1DeviceContext> {
+    factory: &Direct2D::ID2D1Factory1, device: &Direct3D11::ID3D11Device,
+) -> windows::core::Result<Direct2D::ID2D1DeviceContext> {
     unsafe {
-        let d2device = factory.CreateDevice(&device.cast::<IDXGIDevice>()?)?;
+        let d2device = factory.CreateDevice(&device.cast::<Dxgi::IDXGIDevice>()?)?;
 
-        let target = d2device.CreateDeviceContext(D2D1_DEVICE_CONTEXT_OPTIONS_NONE)?;
+        let target = d2device.CreateDeviceContext(Direct2D::D2D1_DEVICE_CONTEXT_OPTIONS_NONE)?;
 
-        target.SetUnitMode(D2D1_UNIT_MODE_DIPS);
+        target.SetUnitMode(Direct2D::D2D1_UNIT_MODE_DIPS);
 
         Ok(target)
     }
 }
 
-fn get_dxgi_factory(device: &ID3D11Device) -> Result<IDXGIFactory2> {
-    let dxdevice = device.cast::<IDXGIDevice>()?;
+fn get_dxgi_factory(
+    device: &Direct3D11::ID3D11Device,
+) -> windows::core::Result<Dxgi::IDXGIFactory2> {
+    let dxdevice = device.cast::<Dxgi::IDXGIDevice>()?;
     unsafe { dxdevice.GetAdapter()?.GetParent() }
 }
 
-fn create_swapchain_bitmap(swapchain: &IDXGISwapChain1, target: &ID2D1DeviceContext) -> Result<()> {
-    let surface: IDXGISurface = unsafe { swapchain.GetBuffer(0)? };
+fn create_swapchain_bitmap(
+    swapchain: &Dxgi::IDXGISwapChain1, target: &Direct2D::ID2D1DeviceContext,
+) -> windows::core::Result<()> {
+    let surface: Dxgi::IDXGISurface = unsafe { swapchain.GetBuffer(0)? };
 
-    let props = D2D1_BITMAP_PROPERTIES1 {
-        pixelFormat: D2D1_PIXEL_FORMAT {
-            format: DXGI_FORMAT_B8G8R8A8_UNORM,
-            alphaMode: D2D1_ALPHA_MODE_IGNORE,
+    let props = Direct2D::D2D1_BITMAP_PROPERTIES1 {
+        pixelFormat: Direct2D::Common::D2D1_PIXEL_FORMAT {
+            format: Dxgi::Common::DXGI_FORMAT_B8G8R8A8_UNORM,
+            alphaMode: Direct2D::Common::D2D1_ALPHA_MODE_IGNORE,
         },
         dpiX: 96.0,
         dpiY: 96.0,
-        bitmapOptions: D2D1_BITMAP_OPTIONS_TARGET | D2D1_BITMAP_OPTIONS_CANNOT_DRAW,
+        bitmapOptions: Direct2D::D2D1_BITMAP_OPTIONS_TARGET
+            | Direct2D::D2D1_BITMAP_OPTIONS_CANNOT_DRAW,
         ..Default::default()
     };
 
@@ -355,15 +381,17 @@ fn create_swapchain_bitmap(swapchain: &IDXGISwapChain1, target: &ID2D1DeviceCont
     Ok(())
 }
 
-fn create_swapchain(device: &ID3D11Device, window: HWND) -> Result<IDXGISwapChain1> {
+fn create_swapchain(
+    device: &Direct3D11::ID3D11Device, window: Foundation::HWND,
+) -> windows::core::Result<Dxgi::IDXGISwapChain1> {
     let factory = get_dxgi_factory(device)?;
 
-    let props = DXGI_SWAP_CHAIN_DESC1 {
-        Format: DXGI_FORMAT_B8G8R8A8_UNORM,
-        SampleDesc: DXGI_SAMPLE_DESC { Count: 1, Quality: 0 },
-        BufferUsage: DXGI_USAGE_RENDER_TARGET_OUTPUT,
+    let props = Dxgi::DXGI_SWAP_CHAIN_DESC1 {
+        Format: Dxgi::Common::DXGI_FORMAT_B8G8R8A8_UNORM,
+        SampleDesc: Dxgi::Common::DXGI_SAMPLE_DESC { Count: 1, Quality: 0 },
+        BufferUsage: Dxgi::DXGI_USAGE_RENDER_TARGET_OUTPUT,
         BufferCount: 2,
-        SwapEffect: DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL,
+        SwapEffect: Dxgi::DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL,
         ..Default::default()
     };
 
@@ -457,7 +485,7 @@ pub struct NativeWindow {
 }
 
 impl NativeWindow {
-    pub fn new(window: HWND) -> Self {
+    pub fn new(window: Foundation::HWND) -> Self {
         let mut handle = Win32WindowHandle::empty();
         handle.hwnd = window.0 as *mut c_void;
         Self { handle }
