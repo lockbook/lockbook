@@ -1,4 +1,4 @@
-use lockbook_core::CoreError;
+use lb_rs::CoreError;
 use lockbook_shared::filename::MAX_FILENAME_LENGTH;
 use test_utils::{assert_matches, test_core_with_account};
 use uuid::Uuid;

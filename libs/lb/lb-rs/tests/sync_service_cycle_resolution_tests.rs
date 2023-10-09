@@ -1,4 +1,4 @@
-use lockbook_core::Core;
+use lb_rs::Core;
 use test_utils::*;
 
 /// Tests which are constructed to test cycle resolution. These are tests that setup two synced

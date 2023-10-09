@@ -1,4 +1,4 @@
-use lockbook_core::service::api_service::Requester;
+use lb_rs::service::api_service::Requester;
 use lockbook_shared::api::*;
 use lockbook_shared::file_like::FileLike;
 use lockbook_shared::file_metadata::FileDiff;

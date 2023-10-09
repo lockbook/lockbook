@@ -1,6 +1,6 @@
 use std::{thread::sleep, time::Duration};
 
-use lockbook_core::{Core, RankingWeights, Uuid};
+use lb_rs::{Core, RankingWeights, Uuid};
 use test_utils::*;
 
 #[test]

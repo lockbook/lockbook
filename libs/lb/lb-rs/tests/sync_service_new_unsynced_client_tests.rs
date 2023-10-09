@@ -1,4 +1,4 @@
-use lockbook_core::Core;
+use lb_rs::Core;
 use test_utils::*;
 
 /// Tests that operate on one client, sync it, then create a new client without syncing (new client

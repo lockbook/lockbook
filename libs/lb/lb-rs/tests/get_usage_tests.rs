@@ -1,5 +1,5 @@
 use image::EncodableLayout;
-use lockbook_core::{Core, CoreError, DocumentService, OnDiskDocuments, ShareMode};
+use lb_rs::{Core, CoreError, DocumentService, OnDiskDocuments, ShareMode};
 use lockbook_shared::api::{FREE_TIER_USAGE_SIZE, METADATA_FEE};
 use lockbook_shared::file_like::FileLike;
 use lockbook_shared::file_metadata::FileType;

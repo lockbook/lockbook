@@ -1,7 +1,7 @@
 use libsecp256k1::PublicKey;
 
-use lockbook_core::get_code_version;
-use lockbook_core::service::api_service::{ApiError, Network, Requester};
+use lb_rs::get_code_version;
+use lb_rs::service::api_service::{ApiError, Network, Requester};
 use lockbook_shared::api::{GetPublicKeyError, GetPublicKeyRequest, GetPublicKeyResponse};
 use lockbook_shared::clock::{get_time, Timestamp};
 use test_utils::assert_matches;

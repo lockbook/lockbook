@@ -1,4 +1,4 @@
-use lockbook_core::Core;
+use lb_rs::Core;
 use lockbook_shared::file::ShareMode;
 use test_utils::*;
 

@@ -1,5 +1,5 @@
 use image::EncodableLayout;
-use lockbook_core::service::api_service::{ApiError, Requester};
+use lb_rs::service::api_service::{ApiError, Requester};
 
 use lockbook_shared::api::{
     CancelSubscriptionError, CancelSubscriptionRequest, PaymentMethod, StripeAccountTier,

@@ -1,4 +1,4 @@
-use lockbook_core::Core;
+use lb_rs::Core;
 use test_utils::*;
 
 /// Tests that setup two synced clients, operate on one client, and sync both (work should be none,

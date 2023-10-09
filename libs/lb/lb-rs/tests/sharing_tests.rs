@@ -1,4 +1,4 @@
-use lockbook_core::{Core, CoreError};
+use lb_rs::{Core, CoreError};
 use lockbook_shared::file::ShareMode;
 use lockbook_shared::file_metadata::FileType;
 use test_utils::*;

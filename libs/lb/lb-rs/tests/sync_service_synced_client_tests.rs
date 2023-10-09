@@ -1,4 +1,4 @@
-use lockbook_core::Core;
+use lb_rs::Core;
 use test_utils::*;
 
 /// Tests that operate on one device and sync (work should be none, deleted files should be pruned)

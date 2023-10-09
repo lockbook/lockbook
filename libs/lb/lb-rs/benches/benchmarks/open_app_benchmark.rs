@@ -1,6 +1,6 @@
 use crate::*;
 use criterion::{black_box, criterion_group, Criterion};
-use lockbook_core::Core;
+use lb_rs::Core;
 use lockbook_shared::file_metadata::FileType;
 use test_utils::*;
 use uuid::Uuid;

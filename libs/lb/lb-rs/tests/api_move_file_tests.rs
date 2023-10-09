@@ -1,4 +1,4 @@
-use lockbook_core::service::api_service::{ApiError, Requester};
+use lb_rs::service::api_service::{ApiError, Requester};
 use test_utils::*;
 use uuid::Uuid;
 

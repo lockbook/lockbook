@@ -1,5 +1,5 @@
-use lockbook_core::TestRepoError::*;
-use lockbook_core::Warning::*;
+use lb_rs::TestRepoError::*;
+use lb_rs::Warning::*;
 use lockbook_shared::file_like::FileLike;
 use lockbook_shared::file_metadata::FileType::Document;
 use lockbook_shared::secret_filename::SecretFileName;

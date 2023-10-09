@@ -2,7 +2,7 @@ use std::cmp::Ordering;
 
 use crate::Actions::*;
 use indicatif::{ProgressBar, ProgressStyle};
-use lockbook_core::{Core, CoreError};
+use lb_rs::{Core, CoreError};
 use lockbook_shared::file::File;
 use lockbook_shared::file_metadata::FileType::{Document, Folder};
 use rand::distributions::{Alphanumeric, Distribution, Standard};

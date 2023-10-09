@@ -1,4 +1,4 @@
-use lockbook_core::service::api_service::Requester;
+use lb_rs::service::api_service::Requester;
 use lockbook_shared::api::{GetSubscriptionInfoRequest, UpgradeAccountStripeRequest};
 use test_utils::{generate_premium_account_tier, test_core_with_account, test_credit_cards};
 

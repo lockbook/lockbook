@@ -1,5 +1,5 @@
-use lockbook_core::DocumentService;
-use lockbook_core::OnDiskDocuments;
+use lb_rs::DocumentService;
+use lb_rs::OnDiskDocuments;
 use uuid::Uuid;
 
 use lockbook_shared::crypto::AESEncrypted;

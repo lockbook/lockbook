@@ -1,4 +1,4 @@
-use lockbook_core::service::usage_service::UsageItemMetric;
+use lb_rs::service::usage_service::UsageItemMetric;
 use test_utils::*;
 
 #[test]

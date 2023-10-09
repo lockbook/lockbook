@@ -1,4 +1,4 @@
-use lockbook_core::CoreError;
+use lb_rs::CoreError;
 use lockbook_shared::file_metadata::FileType;
 use lockbook_shared::path_ops::Filter::{DocumentsOnly, FoldersOnly, LeafNodesOnly};
 use test_utils::*;

@@ -1,4 +1,4 @@
-use lockbook_core::service::api_service::{ApiError, Requester};
+use lb_rs::service::api_service::{ApiError, Requester};
 use lockbook_shared::api::*;
 use lockbook_shared::crypto::AESEncrypted;
 use lockbook_shared::file_metadata::FileDiff;
