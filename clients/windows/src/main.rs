@@ -6,7 +6,6 @@ use raw_window_handle::{
     HasRawDisplayHandle, HasRawWindowHandle, RawDisplayHandle, RawWindowHandle, Win32WindowHandle,
     WindowsDisplayHandle,
 };
-use std::ffi::c_void;
 use std::time::Instant;
 use windows::core::ComInterface;
 use windows::{
@@ -17,6 +16,7 @@ use windows::{
 
 // taken from windows-rs examples
 fn main() -> windows::core::Result<()> {
+    env_logger::init();
     unsafe {
         Com::CoInitializeEx(None, Com::COINIT_MULTITHREADED)?;
     }
@@ -60,71 +60,6 @@ impl Window {
             occlusion: 0,
             editor: None,
         })
-    }
-
-    fn render(&mut self) -> windows::core::Result<()> {
-        if self.target.is_none() {
-            let device = create_device()?;
-            let target = create_render_target(&self.factory, &device)?;
-            unsafe { target.SetDpi(self.dpi, self.dpi) };
-
-            let swapchain = create_swapchain(&device, self.handle)?;
-            create_swapchain_bitmap(&swapchain, &target)?;
-
-            let bitmap = {
-                let size_f = unsafe { target.GetSize() };
-
-                let size_u = Direct2D::Common::D2D_SIZE_U {
-                    width: (size_f.width * self.dpi / 96.0) as u32,
-                    height: (size_f.height * self.dpi / 96.0) as u32,
-                };
-
-                let properties = Direct2D::D2D1_BITMAP_PROPERTIES1 {
-                    pixelFormat: Direct2D::Common::D2D1_PIXEL_FORMAT {
-                        format: Dxgi::Common::DXGI_FORMAT_B8G8R8A8_UNORM,
-                        alphaMode: Direct2D::Common::D2D1_ALPHA_MODE_PREMULTIPLIED,
-                    },
-                    dpiX: self.dpi,
-                    dpiY: self.dpi,
-                    bitmapOptions: Direct2D::D2D1_BITMAP_OPTIONS_TARGET,
-                    ..Default::default()
-                };
-
-                unsafe { target.CreateBitmap2(size_u, None, 0, &properties) }
-            }?;
-
-            self.target = Some(target);
-            self.swapchain = Some(swapchain);
-            self.bitmap = Some(bitmap);
-
-            let mut core = lb::Core::init(&lb::Config {
-                logs: false,
-                colored_logs: false,
-                writeable_path: format!(
-                    "{}/.lockbook/cli",
-                    std::env::var("HOME").unwrap_or(".".to_string())
-                ),
-            })
-            .unwrap();
-            let native_window = NativeWindow::new(self.handle);
-            self.editor = Some(init_editor(&mut core, &native_window, false));
-        }
-
-        self.draw().unwrap();
-
-        if let Err(error) = self.present(1, 0) {
-            if error.code() == Win32::Foundation::DXGI_STATUS_OCCLUDED {
-                self.occlusion = unsafe {
-                    self.dxfactory
-                        .RegisterOcclusionStatusWindow(self.handle, WindowsAndMessaging::WM_USER)?
-                };
-                self.visible = false;
-            } else {
-                self.release_device();
-            }
-        }
-
-        Ok(())
     }
 
     fn draw(&mut self) -> windows::core::Result<()> {
@@ -188,50 +123,6 @@ impl Window {
         }
 
         Ok(())
-    }
-
-    fn message_handler(
-        &mut self, message: u32, wparam: Win32::Foundation::WPARAM,
-        lparam: Win32::Foundation::LPARAM,
-    ) -> Win32::Foundation::LRESULT {
-        unsafe {
-            match message {
-                WindowsAndMessaging::WM_PAINT => {
-                    let mut ps = Gdi::PAINTSTRUCT::default();
-                    Gdi::BeginPaint(self.handle, &mut ps);
-                    self.render().unwrap();
-                    Gdi::EndPaint(self.handle, &ps);
-                    Win32::Foundation::LRESULT(0)
-                }
-                WindowsAndMessaging::WM_SIZE => {
-                    if wparam.0 != WindowsAndMessaging::SIZE_MINIMIZED as usize {
-                        self.resize_swapchain_bitmap().unwrap();
-                    }
-                    Win32::Foundation::LRESULT(0)
-                }
-                WindowsAndMessaging::WM_DISPLAYCHANGE => {
-                    self.render().unwrap();
-                    Win32::Foundation::LRESULT(0)
-                }
-                WindowsAndMessaging::WM_USER => {
-                    if self.present(0, Dxgi::DXGI_PRESENT_TEST).is_ok() {
-                        self.dxfactory.UnregisterOcclusionStatus(self.occlusion);
-                        self.occlusion = 0;
-                        self.visible = true;
-                    }
-                    Win32::Foundation::LRESULT(0)
-                }
-                WindowsAndMessaging::WM_ACTIVATE => {
-                    self.visible = true; // TODO: unpack !HIWORD(wparam);
-                    Win32::Foundation::LRESULT(0)
-                }
-                WindowsAndMessaging::WM_DESTROY => {
-                    WindowsAndMessaging::PostQuitMessage(0);
-                    Win32::Foundation::LRESULT(0)
-                }
-                _ => WindowsAndMessaging::DefWindowProcA(self.handle, message, wparam, lparam),
-            }
-        }
     }
 
     fn run(&mut self) -> windows::core::Result<()> {
@@ -303,6 +194,71 @@ impl Window {
         }
     }
 
+    fn render(&mut self) -> windows::core::Result<()> {
+        if self.target.is_none() {
+            let device = create_device()?;
+            let target = create_render_target(&self.factory, &device)?;
+            unsafe { target.SetDpi(self.dpi, self.dpi) };
+
+            let swapchain = create_swapchain(&device, self.handle)?;
+            create_swapchain_bitmap(&swapchain, &target)?;
+
+            let bitmap = {
+                let size_f = unsafe { target.GetSize() };
+
+                let size_u = Direct2D::Common::D2D_SIZE_U {
+                    width: (size_f.width * self.dpi / 96.0) as u32,
+                    height: (size_f.height * self.dpi / 96.0) as u32,
+                };
+
+                let properties = Direct2D::D2D1_BITMAP_PROPERTIES1 {
+                    pixelFormat: Direct2D::Common::D2D1_PIXEL_FORMAT {
+                        format: Dxgi::Common::DXGI_FORMAT_B8G8R8A8_UNORM,
+                        alphaMode: Direct2D::Common::D2D1_ALPHA_MODE_PREMULTIPLIED,
+                    },
+                    dpiX: self.dpi,
+                    dpiY: self.dpi,
+                    bitmapOptions: Direct2D::D2D1_BITMAP_OPTIONS_TARGET,
+                    ..Default::default()
+                };
+
+                unsafe { target.CreateBitmap2(size_u, None, 0, &properties) }
+            }?;
+
+            self.target = Some(target);
+            self.swapchain = Some(swapchain);
+            self.bitmap = Some(bitmap);
+
+            let mut core = lb::Core::init(&lb::Config {
+                logs: false,
+                colored_logs: false,
+                writeable_path: format!(
+                    "{}/.lockbook/cli",
+                    std::env::var("HOME").unwrap_or(".".to_string())
+                ),
+            })
+            .unwrap();
+            let native_window = NativeWindow::new(self.handle);
+            self.editor = Some(init_editor(&mut core, &native_window, false));
+        }
+
+        self.draw().unwrap();
+
+        if let Err(error) = self.present(1, 0) {
+            if error.code() == Win32::Foundation::DXGI_STATUS_OCCLUDED {
+                self.occlusion = unsafe {
+                    self.dxfactory
+                        .RegisterOcclusionStatusWindow(self.handle, WindowsAndMessaging::WM_USER)?
+                };
+                self.visible = false;
+            } else {
+                self.release_device();
+            }
+        }
+
+        Ok(())
+    }
+
     extern "system" fn wndproc(
         window: Win32::Foundation::HWND, message: u32, wparam: Win32::Foundation::WPARAM,
         lparam: Win32::Foundation::LPARAM,
@@ -330,6 +286,50 @@ impl Window {
             }
 
             WindowsAndMessaging::DefWindowProcA(window, message, wparam, lparam)
+        }
+    }
+
+    fn message_handler(
+        &mut self, message: u32, wparam: Win32::Foundation::WPARAM,
+        lparam: Win32::Foundation::LPARAM,
+    ) -> Win32::Foundation::LRESULT {
+        unsafe {
+            match message {
+                WindowsAndMessaging::WM_PAINT => {
+                    let mut ps = Gdi::PAINTSTRUCT::default();
+                    Gdi::BeginPaint(self.handle, &mut ps);
+                    self.render().unwrap();
+                    Gdi::EndPaint(self.handle, &ps);
+                    Win32::Foundation::LRESULT(0)
+                }
+                WindowsAndMessaging::WM_SIZE => {
+                    if wparam.0 != WindowsAndMessaging::SIZE_MINIMIZED as usize {
+                        self.resize_swapchain_bitmap().unwrap();
+                    }
+                    Win32::Foundation::LRESULT(0)
+                }
+                WindowsAndMessaging::WM_DISPLAYCHANGE => {
+                    self.render().unwrap();
+                    Win32::Foundation::LRESULT(0)
+                }
+                WindowsAndMessaging::WM_USER => {
+                    if self.present(0, Dxgi::DXGI_PRESENT_TEST).is_ok() {
+                        self.dxfactory.UnregisterOcclusionStatus(self.occlusion);
+                        self.occlusion = 0;
+                        self.visible = true;
+                    }
+                    Win32::Foundation::LRESULT(0)
+                }
+                WindowsAndMessaging::WM_ACTIVATE => {
+                    self.visible = true; // TODO: unpack !HIWORD(wparam);
+                    Win32::Foundation::LRESULT(0)
+                }
+                WindowsAndMessaging::WM_DESTROY => {
+                    WindowsAndMessaging::PostQuitMessage(0);
+                    Win32::Foundation::LRESULT(0)
+                }
+                _ => WindowsAndMessaging::DefWindowProcA(self.handle, message, wparam, lparam),
+            }
         }
     }
 }
@@ -528,16 +528,21 @@ async fn request_device(
     }
 }
 
-// NativeWindow taken from Smail's android PR
+// NativeWindow taken from Smail's android PR:
 // https://github.com/lockbook/lockbook/pull/1835/files#diff-0f28854a868a55fcd30ff5f0fda476aed540b2e1fc3762415ac6e0588ed76fb6
 pub struct NativeWindow {
     handle: Win32WindowHandle,
 }
 
+// Smails implementations adapted for windows with reference to winit's windows implementation:
+// https://github.com/rust-windowing/winit/blob/ee0db52ac49d64b46c500ef31d7f5f5107ce871a/src/platform_impl/windows/window.rs#L334-L346
 impl NativeWindow {
     pub fn new(window: Win32::Foundation::HWND) -> Self {
         let mut handle = Win32WindowHandle::empty();
-        handle.hwnd = window.0 as *mut c_void;
+        handle.hwnd = window.0 as *mut _;
+        let hinstance = unsafe { get_window_long(window, WindowsAndMessaging::GWLP_HINSTANCE) };
+        handle.hinstance = hinstance as *mut _;
+
         Self { handle }
     }
 }
@@ -552,4 +557,14 @@ unsafe impl HasRawDisplayHandle for NativeWindow {
     fn raw_display_handle(&self) -> RawDisplayHandle {
         RawDisplayHandle::Windows(WindowsDisplayHandle::empty())
     }
+}
+
+#[inline(always)]
+unsafe fn get_window_long(
+    hwnd: Win32::Foundation::HWND, nindex: WindowsAndMessaging::WINDOW_LONG_PTR_INDEX,
+) -> isize {
+    #[cfg(target_pointer_width = "64")]
+    return unsafe { WindowsAndMessaging::GetWindowLongPtrW(hwnd, nindex) };
+    #[cfg(target_pointer_width = "32")]
+    return unsafe { WindowsAndMessaging::GetWindowLongW(hwnd, nindex) as isize };
 }

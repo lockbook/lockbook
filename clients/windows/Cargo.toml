@@ -11,3 +11,4 @@ windows = { package = "windows", features = ["Foundation_Numerics", "Win32_Syste
 lbeditor = { package = "egui_editor", path = "../../libs/editor/egui_editor" }
 lb = { package = "lockbook-core", path = "../../libs/core", default-features = false, features=["native-tls"] }
 raw-window-handle = "0.5"
+env_logger = "0.10"
