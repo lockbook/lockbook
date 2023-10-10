@@ -240,7 +240,6 @@ pub fn init_editor<
     };
 
     obj.frame();
-    obj.editor.buffer = "# hello from editor".into();
 
     obj
 }
