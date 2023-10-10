@@ -196,14 +196,10 @@ pub fn init_editor<
 >(
     core: &mut lb::Core, window: &W, dark_mode: bool,
 ) -> WgpuEditor {
-    // let backends = wgpu::util::backend_bits_from_env().unwrap_or_else(wgpu::Backends::all);
-    // let backends = wgpu::Backends::VULKAN;
-    // let backends = wgpu::Backends::DX11;
-    let backends = wgpu::Backends::DX12;
+    let backends = wgpu::util::backend_bits_from_env().unwrap_or_else(wgpu::Backends::all);
     let instance_desc = wgpu::InstanceDescriptor { backends, ..Default::default() };
     let instance = wgpu::Instance::new(instance_desc);
     let surface = unsafe { instance.create_surface(window) }.unwrap();
-    // instance.create_surface_from_visual(visual)
     let (adapter, device, queue) =
         pollster::block_on(request_device(&instance, backends, &surface));
     let format = surface.get_capabilities(&adapter).formats[0];
