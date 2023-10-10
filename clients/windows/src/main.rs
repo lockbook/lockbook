@@ -10,7 +10,7 @@ use std::mem::transmute;
 use std::time::{Duration, Instant};
 use windows::{
     core::*, Win32::Foundation::*, Win32::Graphics::Direct3D12::*, Win32::Graphics::Dxgi::*,
-    Win32::System::LibraryLoader::*, Win32::UI::WindowsAndMessaging::*,
+    Win32::System::LibraryLoader::*, Win32::UI::HiDpi::*, Win32::UI::WindowsAndMessaging::*,
 };
 
 fn main() -> Result<()> {
@@ -53,6 +53,17 @@ fn main() -> Result<()> {
         println!("AdjustWindowRect failed: {:?}", unsafe { GetLastError() });
         unsafe { PostQuitMessage(1) };
     };
+
+    // "This function returns TRUE if the operation was successful, and FALSE otherwise"
+    // https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-setprocessdpiawarenesscontext
+    // "Setting the process-default DPI awareness via API call can lead to unexpected application behavior... This is probably bullshit"
+    // https://www.anthropicstudios.com/2022/01/13/asking-windows-nicely/#setting-dpi-awareness-programmatically
+    if unsafe { SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2) }
+        == windows::Win32::Foundation::FALSE
+    {
+        println!("SetProcessDpiAwarenessContext failed: {:?}", unsafe { GetLastError() });
+        unsafe { PostQuitMessage(1) };
+    }
 
     let hwnd = unsafe {
         CreateWindowExA(
@@ -147,6 +158,9 @@ extern "system" fn handle_messages(
             let handled = if let Some(mut window) = window {
                 let window = unsafe { window.as_mut() };
                 if let Some(resources) = &mut window.resources {
+                    let editor = &mut resources.editor;
+                    // winit used as reference for interesting events
+                    // https://github.com/rust-windowing/winit/blob/789a4979801cffc20c9dfbc34e72c15ebf3c737c/src/platform_impl/windows/event_loop.rs#L1071
                     match message {
                         WM_KEYDOWN => {
                             // todo: handle keydown
@@ -156,8 +170,38 @@ extern "system" fn handle_messages(
                             // todo: handle keyup
                             true
                         }
+                        WM_SIZE => {
+                            editor.screen.physical_width = loword(lparam.0 as u32) as u32;
+                            editor.screen.physical_height = hiword(lparam.0 as u32) as u32;
+                            true
+                        }
+                        WM_DPICHANGED => {
+                            // convert the new DPI to a scale factor
+                            let new_dpi_x = loword(wparam.0 as u32);
+                            let new_scale_factor = dpi_to_scale_factor(new_dpi_x);
+                            editor.screen.scale_factor = new_scale_factor;
+
+                            // resize the window based on Window's suggestion
+                            let suggested_rect = unsafe { *(lparam.0 as *const RECT) };
+                            editor.screen.physical_width =
+                                (suggested_rect.right - suggested_rect.left) as u32;
+                            editor.screen.physical_height =
+                                (suggested_rect.bottom - suggested_rect.top) as u32;
+
+                            true
+                        }
+                        // WM_MOUSEMOVE | WM_MOUSELEAVE | WM_MOUSEWHEEL | WM_MOUSEHWHEEL
+                        // | WM_LBUTTONDOWN | WM_LBUTTONUP | WM_RBUTTONDOWN | WM_RBUTTONUP => {
+                        //     todo!("handle mouse events");
+                        // }
+                        WM_TOUCH => {
+                            todo!("handle touch events");
+                        }
+                        WM_POINTERDOWN | WM_POINTERUPDATE | WM_POINTERUP => {
+                            todo!("handle pointer events"); // how are these different from touch and mouse events?
+                        }
                         WM_PAINT => {
-                            resources.editor.frame();
+                            editor.frame();
                             true
                         }
                         _ => false,
@@ -203,7 +247,7 @@ pub fn init_editor<
         pollster::block_on(request_device(&instance, backends, &surface));
     let format = surface.get_capabilities(&adapter).formats[0];
     let screen =
-        ScreenDescriptor { physical_width: 1000, physical_height: 1000, scale_factor: 1.0 };
+        ScreenDescriptor { physical_width: 1000, physical_height: 1000, scale_factor: 1.0 }; // initial value overridden by resize
     let surface_config = wgpu::SurfaceConfiguration {
         usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
         format,
@@ -305,4 +349,20 @@ unsafe fn get_window_long(hwnd: HWND, nindex: WINDOW_LONG_PTR_INDEX) -> isize {
     return unsafe { GetWindowLongPtrW(hwnd, nindex) };
     #[cfg(target_pointer_width = "32")]
     return unsafe { GetWindowLongW(hwnd, nindex) as isize };
+}
+
+// https://github.com/rust-windowing/winit/blob/789a4979801cffc20c9dfbc34e72c15ebf3c737c/src/platform_impl/windows/mod.rs#L144C1-L152C2
+#[inline(always)]
+pub(crate) const fn loword(x: u32) -> u16 {
+    (x & 0xFFFF) as u16
+}
+
+#[inline(always)]
+const fn hiword(x: u32) -> u16 {
+    ((x >> 16) & 0xFFFF) as u16
+}
+
+// https://github.com/rust-windowing/winit/blob/789a4979801cffc20c9dfbc34e72c15ebf3c737c/src/platform_impl/windows/dpi.rs#L75C1-L78C2
+pub fn dpi_to_scale_factor(dpi: u16) -> f32 {
+    dpi as f32 / USER_DEFAULT_SCREEN_DPI as f32
 }

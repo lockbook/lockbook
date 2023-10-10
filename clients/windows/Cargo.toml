@@ -7,7 +7,7 @@ edition = "2021"
 egui = "0.22.0"
 egui_wgpu_backend = "0.24.0"
 pollster = "0.2"
-windows = { package = "windows", features = ["Win32_Foundation", "Win32_Graphics_Direct3D_Fxc", "Win32_Graphics_Direct3D12", "Win32_Graphics_Dxgi_Common", "Win32_Graphics_Gdi", "Win32_Security", "Win32_System_LibraryLoader", "Win32_System_Threading", "Win32_System_WindowsProgramming", "Win32_UI_WindowsAndMessaging"] }
+windows = { package = "windows", features = ["Win32_UI_HiDpi", "Win32_Foundation", "Win32_Graphics_Direct3D_Fxc", "Win32_Graphics_Direct3D12", "Win32_Graphics_Dxgi_Common", "Win32_Graphics_Gdi", "Win32_Security", "Win32_System_LibraryLoader", "Win32_System_Threading", "Win32_System_WindowsProgramming", "Win32_UI_WindowsAndMessaging"] }
 lbeditor = { package = "egui_editor", path = "../../libs/editor/egui_editor" }
 lb = { package = "lockbook-core", path = "../../libs/core", default-features = false, features=["native-tls"] }
 raw-window-handle = "0.5"
