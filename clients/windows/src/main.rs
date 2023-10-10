@@ -6,7 +6,7 @@ use raw_window_handle::{
     HasRawDisplayHandle, HasRawWindowHandle, RawDisplayHandle, RawWindowHandle, Win32WindowHandle,
     WindowsDisplayHandle,
 };
-use std::time::Instant;
+use std::time::{Duration, Instant};
 use windows::{
     core::*, Win32::Foundation::*, Win32::Graphics::Direct3D12::*, Win32::Graphics::Dxgi::*,
     Win32::System::LibraryLoader::*, Win32::UI::WindowsAndMessaging::*,
@@ -14,77 +14,96 @@ use windows::{
 
 use std::mem::transmute;
 
-trait DXSample {
-    fn new() -> Result<Self>
-    where
-        Self: Sized;
+fn main() -> Result<()> {
+    env_logger::init();
 
-    fn bind_to_window(&mut self, hwnd: &HWND) -> Result<()>;
-
-    fn update(&mut self);
-    fn render(&mut self);
-    fn on_key_up(&mut self, _key: u8);
-    fn on_key_down(&mut self, _key: u8);
-    fn title(&self) -> String;
-    fn window_size(&self) -> (i32, i32);
-}
-
-fn run_sample<S>() -> Result<()>
-where
-    S: DXSample,
-{
     let instance = unsafe { GetModuleHandleA(None)? };
 
     let wc = WNDCLASSEXA {
         cbSize: std::mem::size_of::<WNDCLASSEXA>() as u32,
         style: CS_HREDRAW | CS_VREDRAW,
-        lpfnWndProc: Some(wndproc::<S>),
+        lpfnWndProc: Some(wndproc), // "Long Pointer to FuNction WiNDows PROCedure" (message handling callback)
         hInstance: instance.into(),
         hCursor: unsafe { LoadCursorW(None, IDC_ARROW)? },
-        lpszClassName: s!("RustWindowClass"),
+        lpszClassName: s!("Lockbook"),
         ..Default::default()
     };
+    debug_assert_ne!(unsafe { RegisterClassExA(&wc) }, 0);
 
-    let mut sample = S::new()?;
+    let dxgi_factory: IDXGIFactory4 = {
+        if cfg!(debug_assertions) {
+            unsafe {
+                let mut debug: Option<ID3D12Debug> = None;
+                if let Some(debug) = D3D12GetDebugInterface(&mut debug).ok().and(debug) {
+                    debug.EnableDebugLayer();
+                }
+            }
+        }
 
-    let size = sample.window_size();
+        let dxgi_factory_flags = if cfg!(debug_assertions) { DXGI_CREATE_FACTORY_DEBUG } else { 0 };
+        unsafe { CreateDXGIFactory2(dxgi_factory_flags) }?
+    };
+    let mut window = Window::default();
 
-    let atom = unsafe { RegisterClassExA(&wc) };
-    debug_assert_ne!(atom, 0);
-
-    let mut window_rect = RECT { left: 0, top: 0, right: size.0, bottom: size.1 };
-    unsafe { AdjustWindowRect(&mut window_rect, WS_OVERLAPPEDWINDOW, false) };
-
-    let mut title = sample.title();
-
-    title.push('\0');
+    let mut window_rect = RECT { left: 0, top: 0, right: 1000, bottom: 1000 };
+    if unsafe { AdjustWindowRect(&mut window_rect, WS_OVERLAPPEDWINDOW, false) }
+        == windows::Win32::Foundation::FALSE
+    {
+        // "If the function succeeds, the return value is nonzero."
+        // https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-adjustwindowrect
+        println!("AdjustWindowRect failed: {:?}", unsafe { GetLastError() });
+        unsafe { PostQuitMessage(1) };
+    };
 
     let hwnd = unsafe {
         CreateWindowExA(
             WINDOW_EX_STYLE::default(),
-            s!("RustWindowClass"),
-            PCSTR(title.as_ptr()),
+            s!("Lockbook"),
+            PCSTR(s!("Lockbook\0").as_ptr()),
             WS_OVERLAPPEDWINDOW,
             CW_USEDEFAULT,
             CW_USEDEFAULT,
             window_rect.right - window_rect.left,
             window_rect.bottom - window_rect.top,
-            None, // no parent window
-            None, // no menus
+            None,
+            None,
             instance,
-            Some(&mut sample as *mut _ as _),
+            Some(&mut window as *mut _ as _), // pass a pointer to our Window struct as the window's "user data"
         )
     };
 
-    sample.bind_to_window(&hwnd)?;
+    unsafe {
+        dxgi_factory.MakeWindowAssociation(hwnd, DXGI_MWA_NO_ALT_ENTER)?;
+    }
+
+    let mut core = lb::Core::init(&lb::Config {
+        logs: false,
+        colored_logs: false,
+        writeable_path: format!(
+            "{}/.lockbook/cli",
+            std::env::var("HOME").unwrap_or(".".to_string())
+        ),
+    })
+    .unwrap();
+    let editor = init_editor(&mut core, &WindowWrapper::new(hwnd), false);
+
+    window.resources = Some(Resources { editor });
+
+    // "If the window was previously visible, the return value is nonzero."
+    // https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-showwindow
     unsafe { ShowWindow(hwnd, SW_SHOW) };
 
+    let mut message = MSG::default();
+    let mut last_frame = Instant::now();
     loop {
-        let mut message = MSG::default();
-
         if unsafe { PeekMessageA(&mut message, None, 0, 0, PM_REMOVE) }.into() {
             unsafe {
+                // "If the message is translated [...], the return value is nonzero."
+                // https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-translatemessage
                 TranslateMessage(&message);
+
+                // "...the return value generally is ignored."
+                // https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-dispatchmessage
                 DispatchMessageA(&message);
             }
 
@@ -92,33 +111,22 @@ where
                 break;
             }
         }
+
+        // target framerate
+        let frame_period = Duration::from_micros(8333);
+        let now = Instant::now();
+        let elapsed = now - last_frame;
+        if elapsed < frame_period {
+            std::thread::sleep(frame_period - elapsed);
+        }
+        last_frame = now;
     }
 
     Ok(())
 }
 
-fn sample_wndproc<S: DXSample>(sample: &mut S, message: u32, wparam: WPARAM) -> bool {
-    match message {
-        WM_KEYDOWN => {
-            sample.on_key_down(wparam.0 as u8);
-            true
-        }
-        WM_KEYUP => {
-            sample.on_key_up(wparam.0 as u8);
-            true
-        }
-        WM_PAINT => {
-            sample.update();
-            sample.render();
-            true
-        }
-        _ => false,
-    }
-}
-
-extern "system" fn wndproc<S: DXSample>(
-    window: HWND, message: u32, wparam: WPARAM, lparam: LPARAM,
-) -> LRESULT {
+// callback invoked when Windows sends a message to the window
+extern "system" fn wndproc(window: HWND, message: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
     match message {
         WM_CREATE => {
             unsafe {
@@ -132,109 +140,50 @@ extern "system" fn wndproc<S: DXSample>(
             LRESULT::default()
         }
         _ => {
+            // retrieve the pointer to our Window struct from the window's "user data" and handle non-create/non-destroy messages
             let user_data = unsafe { GetWindowLongPtrA(window, GWLP_USERDATA) };
-            let sample = std::ptr::NonNull::<S>::new(user_data as _);
+            let sample = std::ptr::NonNull::<Window>::new(user_data as _);
             let handled = sample
                 .map_or(false, |mut s| sample_wndproc(unsafe { s.as_mut() }, message, wparam));
 
             if handled {
                 LRESULT::default()
             } else {
+                // use the default handling for messages we don't care about
                 unsafe { DefWindowProcA(window, message, wparam, lparam) }
             }
         }
     }
 }
 
-mod d3d12_hello_triangle {
-    use super::*;
-
-    pub struct Sample {
-        dxgi_factory: IDXGIFactory4,
-        resources: Option<Resources>,
-    }
-
-    struct Resources {
-        core: lb::Core,
-        editor: lbeditor::WgpuEditor,
-    }
-
-    impl DXSample for Sample {
-        fn new() -> Result<Self> {
-            let dxgi_factory = create_device()?;
-
-            Ok(Sample { dxgi_factory, resources: None })
+// application-specific portion of the callback above; returns true if we handled the given message
+fn sample_wndproc(window: &mut Window, message: u32, wparam: WPARAM) -> bool {
+    match message {
+        WM_KEYDOWN => {
+            // todo: handle keydown
+            true
         }
-
-        fn bind_to_window(&mut self, hwnd: &HWND) -> Result<()> {
-            // This sample does not support fullscreen transitions
-            unsafe {
-                self.dxgi_factory
-                    .MakeWindowAssociation(*hwnd, DXGI_MWA_NO_ALT_ENTER)?;
-            }
-
-            let mut core = lb::Core::init(&lb::Config {
-                logs: false,
-                colored_logs: false,
-                writeable_path: format!(
-                    "{}/.lockbook/cli",
-                    std::env::var("HOME").unwrap_or(".".to_string())
-                ),
-            })
-            .unwrap();
-            let native_window = NativeWindow::new(*hwnd);
-            let editor = init_editor(&mut core, &native_window, false);
-
-            self.resources = Some(Resources { core, editor });
-
-            Ok(())
+        WM_KEYUP => {
+            // todo: handle keyup
+            true
         }
-
-        fn title(&self) -> String {
-            "Lockbook".into()
-        }
-
-        fn window_size(&self) -> (i32, i32) {
-            (1000, 1000)
-        }
-
-        fn update(&mut self) {}
-
-        fn render(&mut self) {
-            if let Some(resources) = &mut self.resources {
+        WM_PAINT => {
+            if let Some(resources) = &mut window.resources {
                 resources.editor.frame();
             }
+            true
         }
-
-        fn on_key_up(&mut self, _key: u8) {}
-
-        fn on_key_down(&mut self, _key: u8) {}
-    }
-
-    fn create_device() -> Result<IDXGIFactory4> {
-        if cfg!(debug_assertions) {
-            unsafe {
-                let mut debug: Option<ID3D12Debug> = None;
-                if let Some(debug) = D3D12GetDebugInterface(&mut debug).ok().and(debug) {
-                    debug.EnableDebugLayer();
-                }
-            }
-        }
-
-        let dxgi_factory_flags = if cfg!(debug_assertions) { DXGI_CREATE_FACTORY_DEBUG } else { 0 };
-
-        let dxgi_factory: IDXGIFactory4 = unsafe { CreateDXGIFactory2(dxgi_factory_flags) }?;
-
-        Ok(dxgi_factory)
+        _ => false,
     }
 }
 
-fn main() -> Result<()> {
-    env_logger::init();
+#[derive(Default)]
+pub struct Window {
+    resources: Option<Resources>,
+}
 
-    run_sample::<d3d12_hello_triangle::Sample>()?;
-
-    Ok(())
+struct Resources {
+    editor: lbeditor::WgpuEditor,
 }
 
 // Taken from other lockbook code
@@ -323,13 +272,13 @@ async fn request_device(
 
 // NativeWindow taken from Smail's android PR:
 // https://github.com/lockbook/lockbook/pull/1835/files#diff-0f28854a868a55fcd30ff5f0fda476aed540b2e1fc3762415ac6e0588ed76fb6
-pub struct NativeWindow {
+pub struct WindowWrapper {
     handle: Win32WindowHandle,
 }
 
 // Smails implementations adapted for windows with reference to winit's windows implementation:
 // https://github.com/rust-windowing/winit/blob/ee0db52ac49d64b46c500ef31d7f5f5107ce871a/src/platform_impl/windows/window.rs#L334-L346
-impl NativeWindow {
+impl WindowWrapper {
     pub fn new(window: HWND) -> Self {
         let mut handle = Win32WindowHandle::empty();
         handle.hwnd = window.0 as *mut _;
@@ -340,13 +289,13 @@ impl NativeWindow {
     }
 }
 
-unsafe impl HasRawWindowHandle for NativeWindow {
+unsafe impl HasRawWindowHandle for WindowWrapper {
     fn raw_window_handle(&self) -> RawWindowHandle {
         RawWindowHandle::Win32(self.handle)
     }
 }
 
-unsafe impl HasRawDisplayHandle for NativeWindow {
+unsafe impl HasRawDisplayHandle for WindowWrapper {
     fn raw_display_handle(&self) -> RawDisplayHandle {
         RawDisplayHandle::Windows(WindowsDisplayHandle::empty())
     }
