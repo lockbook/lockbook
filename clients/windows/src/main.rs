@@ -142,7 +142,7 @@ extern "system" fn handle_messages(
             LRESULT::default()
         }
         _ => {
-            // retrieve the pointer to our Window struct from the window's "user data" and handle non-create/non-destroy messages
+            // retrieve the pointer to our Window struct from the window's "user data"
             let user_data = unsafe { GetWindowLongPtrA(window_handle, GWLP_USERDATA) };
             let window = std::ptr::NonNull::<Window>::new(user_data as _);
             let handled = if let Some(mut window) = window {
