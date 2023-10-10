@@ -92,7 +92,7 @@ containers/prod.env
 containers/devtest.env
 server/server/qa-ca-certificate.crt
 clients/android/lb-rs/src/main/jniLibs/
-liblb_rs.a
+liblb_external_interface.a
 lb_rs.h
 *.log
 lb_rs.dll
@@ -104,7 +104,7 @@ lockbook-server
 
 !docs/guides/build
 
-libs/editor/SwiftEditor/Libs/
-libs/editor/egui_editor/include
+libs/content/editor/SwiftEditor/Libs/
+libs/content/editor/egui_editor/include
 
 clients/apple/lockbook.xcworkspace/xcshareddata/swiftpm/Package.resolved
