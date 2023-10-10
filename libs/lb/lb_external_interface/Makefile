@@ -133,16 +133,16 @@ lib_c_for_windows:
 	-cp ../../../target/release/${windowsLibName} ${windows_lib}
 
 MIN_VER = 22
-jniLibs = '../../clients/android/lb-rs/src/main/jniLibs'
+jniLibs = '../../../clients/android/lb-rs/src/main/jniLibs'
 libName = 'liblb_external_interface.so'
 macosLibName = 'liblb_external_interface.dylib'
 windowsLibName = 'liblb_external_interface.dll'
 
 # Swift Library Location
-swift_inc := ../../clients/apple/CLockbookCore/Sources/CLockbookCore/include/
-swift_lib := ../../clients/apple/CLockbookCore/Sources/CLockbookCore/lib/
-swift_lib_ios := ../../clients/apple/CLockbookCore/Sources/CLockbookCore/lib_ios/
-swift_lib_ios_sim := ../../clients/apple/CLockbookCore/Sources/CLockbookCore/lib_ios_sim/
+swift_inc := ../../../clients/apple/CLockbookCore/Sources/CLockbookCore/include/
+swift_lib := ../../../clients/apple/CLockbookCore/Sources/CLockbookCore/lib/
+swift_lib_ios := ../../../clients/apple/CLockbookCore/Sources/CLockbookCore/lib_ios/
+swift_lib_ios_sim := ../../../clients/apple/CLockbookCore/Sources/CLockbookCore/lib_ios_sim/
 
 # Windows Library Location
-windows_lib := ../../clients/windows/core/
+windows_lib := ../../../clients/windows/core/
