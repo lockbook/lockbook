@@ -6,13 +6,12 @@ use raw_window_handle::{
     HasRawDisplayHandle, HasRawWindowHandle, RawDisplayHandle, RawWindowHandle, Win32WindowHandle,
     WindowsDisplayHandle,
 };
+use std::mem::transmute;
 use std::time::{Duration, Instant};
 use windows::{
     core::*, Win32::Foundation::*, Win32::Graphics::Direct3D12::*, Win32::Graphics::Dxgi::*,
     Win32::System::LibraryLoader::*, Win32::UI::WindowsAndMessaging::*,
 };
-
-use std::mem::transmute;
 
 fn main() -> Result<()> {
     env_logger::init();
