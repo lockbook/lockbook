@@ -22,7 +22,7 @@ fn main() -> Result<()> {
     let wc = WNDCLASSEXA {
         cbSize: std::mem::size_of::<WNDCLASSEXA>() as u32,
         style: CS_HREDRAW | CS_VREDRAW,
-        lpfnWndProc: Some(wndproc), // "Long Pointer to FuNction WiNDows PROCedure" (message handling callback)
+        lpfnWndProc: Some(handle_messages), // "Long Pointer to FuNction WiNDows PROCedure" (message handling callback)
         hInstance: instance.into(),
         hCursor: unsafe { LoadCursorW(None, IDC_ARROW)? },
         lpszClassName: s!("Lockbook"),
@@ -126,12 +126,14 @@ fn main() -> Result<()> {
 }
 
 // callback invoked when Windows sends a message to the window
-extern "system" fn wndproc(window: HWND, message: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
+extern "system" fn handle_messages(
+    window_handle: HWND, message: u32, wparam: WPARAM, lparam: LPARAM,
+) -> LRESULT {
     match message {
         WM_CREATE => {
             unsafe {
                 let create_struct: &CREATESTRUCTA = transmute(lparam);
-                SetWindowLongPtrA(window, GWLP_USERDATA, create_struct.lpCreateParams as _);
+                SetWindowLongPtrA(window_handle, GWLP_USERDATA, create_struct.lpCreateParams as _);
             }
             LRESULT::default()
         }
@@ -141,39 +143,40 @@ extern "system" fn wndproc(window: HWND, message: u32, wparam: WPARAM, lparam: L
         }
         _ => {
             // retrieve the pointer to our Window struct from the window's "user data" and handle non-create/non-destroy messages
-            let user_data = unsafe { GetWindowLongPtrA(window, GWLP_USERDATA) };
-            let sample = std::ptr::NonNull::<Window>::new(user_data as _);
-            let handled = sample
-                .map_or(false, |mut s| sample_wndproc(unsafe { s.as_mut() }, message, wparam));
+            let user_data = unsafe { GetWindowLongPtrA(window_handle, GWLP_USERDATA) };
+            let window = std::ptr::NonNull::<Window>::new(user_data as _);
+            let handled = if let Some(mut window) = window {
+                let window = unsafe { window.as_mut() };
+                if let Some(resources) = &mut window.resources {
+                    match message {
+                        WM_KEYDOWN => {
+                            // todo: handle keydown
+                            true
+                        }
+                        WM_KEYUP => {
+                            // todo: handle keyup
+                            true
+                        }
+                        WM_PAINT => {
+                            resources.editor.frame();
+                            true
+                        }
+                        _ => false,
+                    }
+                } else {
+                    false
+                }
+            } else {
+                false
+            };
 
             if handled {
                 LRESULT::default()
             } else {
                 // use the default handling for messages we don't care about
-                unsafe { DefWindowProcA(window, message, wparam, lparam) }
+                unsafe { DefWindowProcA(window_handle, message, wparam, lparam) }
             }
         }
-    }
-}
-
-// application-specific portion of the callback above; returns true if we handled the given message
-fn sample_wndproc(window: &mut Window, message: u32, wparam: WPARAM) -> bool {
-    match message {
-        WM_KEYDOWN => {
-            // todo: handle keydown
-            true
-        }
-        WM_KEYUP => {
-            // todo: handle keyup
-            true
-        }
-        WM_PAINT => {
-            if let Some(resources) = &mut window.resources {
-                resources.editor.frame();
-            }
-            true
-        }
-        _ => false,
     }
 }
 
@@ -182,6 +185,7 @@ pub struct Window {
     resources: Option<Resources>,
 }
 
+// resources must be populated after the window is created
 struct Resources {
     editor: lbeditor::WgpuEditor,
 }
