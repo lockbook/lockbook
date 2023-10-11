@@ -2,16 +2,17 @@ use egui::{Context, Visuals};
 use egui_wgpu_backend::wgpu::CompositeAlphaMode;
 use egui_wgpu_backend::{wgpu, ScreenDescriptor};
 use lbeditor::{Editor, WgpuEditor};
-use raw_window_handle::{
-    HasRawDisplayHandle, HasRawWindowHandle, RawDisplayHandle, RawWindowHandle, Win32WindowHandle,
-    WindowsDisplayHandle,
-};
+
 use std::mem::transmute;
 use std::time::{Duration, Instant};
 use windows::{
     core::*, Win32::Foundation::*, Win32::Graphics::Direct3D12::*, Win32::Graphics::Dxgi::*,
-    Win32::System::LibraryLoader::*, Win32::UI::HiDpi::*, Win32::UI::WindowsAndMessaging::*,
+    Win32::System::LibraryLoader::*, Win32::UI::HiDpi::*, Win32::UI::Input::KeyboardAndMouse::*,
+    Win32::UI::WindowsAndMessaging::*,
 };
+
+mod keyboard;
+mod window;
 
 fn main() -> Result<()> {
     env_logger::init();
@@ -45,24 +46,14 @@ fn main() -> Result<()> {
     let mut window = Window::default();
 
     let mut window_rect = RECT { left: 0, top: 0, right: 1000, bottom: 1000 };
-    if unsafe { AdjustWindowRect(&mut window_rect, WS_OVERLAPPEDWINDOW, false) }
-        == windows::Win32::Foundation::FALSE
-    {
-        // "If the function succeeds, the return value is nonzero."
-        // https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-adjustwindowrect
-        println!("AdjustWindowRect failed: {:?}", unsafe { GetLastError() });
-        unsafe { PostQuitMessage(1) };
-    };
+    unsafe {
+        AdjustWindowRect(&mut window_rect, WS_OVERLAPPEDWINDOW, false)?;
+    }
 
-    // "This function returns TRUE if the operation was successful, and FALSE otherwise"
-    // https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-setprocessdpiawarenesscontext
-    // "Setting the process-default DPI awareness via API call can lead to unexpected application behavior... This is probably bullshit"
+    // "'Setting the process-default DPI awareness via API call can lead to unexpected application behavior'... This is probably bullshit"
     // https://www.anthropicstudios.com/2022/01/13/asking-windows-nicely/#setting-dpi-awareness-programmatically
-    if unsafe { SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2) }
-        == windows::Win32::Foundation::FALSE
-    {
-        println!("SetProcessDpiAwarenessContext failed: {:?}", unsafe { GetLastError() });
-        unsafe { PostQuitMessage(1) };
+    unsafe {
+        SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2)?;
     }
 
     let hwnd = unsafe {
@@ -95,7 +86,7 @@ fn main() -> Result<()> {
         ),
     })
     .unwrap();
-    let editor = init_editor(&mut core, &WindowWrapper::new(hwnd), false);
+    let editor = init_editor(&mut core, &crate::window::Window::new(hwnd), false);
 
     window.resources = Some(Resources { editor });
 
@@ -159,16 +150,46 @@ extern "system" fn handle_messages(
                 let window = unsafe { window.as_mut() };
                 if let Some(resources) = &mut window.resources {
                     let editor = &mut resources.editor;
+
+                    // window doesn't receive key up messages when out of focus so we use GetKeyState instead
+                    // https://stackoverflow.com/questions/43858986/win32-keyboard-managing-when-key-released-while-not-focused
+                    let modifiers = egui::Modifiers {
+                        alt: unsafe { GetKeyState(VK_MENU.0 as i32) } & 0x8000u16 as i16 != 0,
+                        ctrl: unsafe { GetKeyState(VK_CONTROL.0 as i32) } & 0x8000u16 as i16 != 0,
+                        shift: unsafe { GetKeyState(VK_SHIFT.0 as i32) } & 0x8000u16 as i16 != 0,
+                        mac_cmd: false,
+                        command: unsafe { GetKeyState(VK_CONTROL.0 as i32) } & 0x8000u16 as i16
+                            != 0,
+                    };
+
                     // winit used as reference for interesting events
                     // https://github.com/rust-windowing/winit/blob/789a4979801cffc20c9dfbc34e72c15ebf3c737c/src/platform_impl/windows/event_loop.rs#L1071
                     match message {
                         WM_KEYDOWN => {
-                            // todo: handle keydown
-                            true
+                            if let Some(key) = keyboard::egui_key(wparam) {
+                                editor.raw_input.events.push(egui::Event::Key {
+                                    key,
+                                    pressed: true,
+                                    repeat: false,
+                                    modifiers,
+                                });
+                                true
+                            } else {
+                                false
+                            }
                         }
                         WM_KEYUP => {
-                            // todo: handle keyup
-                            true
+                            if let Some(key) = keyboard::egui_key(wparam) {
+                                editor.raw_input.events.push(egui::Event::Key {
+                                    key,
+                                    pressed: false,
+                                    repeat: false,
+                                    modifiers,
+                                });
+                                true
+                            } else {
+                                false
+                            }
                         }
                         WM_SIZE => {
                             editor.screen.physical_width = loword(lparam.0 as u32) as u32;
@@ -310,45 +331,6 @@ async fn request_device(
         }
         Ok((device, queue)) => (adapter, device, queue),
     }
-}
-
-// NativeWindow taken from Smail's android PR:
-// https://github.com/lockbook/lockbook/pull/1835/files#diff-0f28854a868a55fcd30ff5f0fda476aed540b2e1fc3762415ac6e0588ed76fb6
-pub struct WindowWrapper {
-    handle: Win32WindowHandle,
-}
-
-// Smails implementations adapted for windows with reference to winit's windows implementation:
-// https://github.com/rust-windowing/winit/blob/ee0db52ac49d64b46c500ef31d7f5f5107ce871a/src/platform_impl/windows/window.rs#L334-L346
-impl WindowWrapper {
-    pub fn new(window: HWND) -> Self {
-        let mut handle = Win32WindowHandle::empty();
-        handle.hwnd = window.0 as *mut _;
-        let hinstance = unsafe { get_window_long(window, GWLP_HINSTANCE) };
-        handle.hinstance = hinstance as *mut _;
-
-        Self { handle }
-    }
-}
-
-unsafe impl HasRawWindowHandle for WindowWrapper {
-    fn raw_window_handle(&self) -> RawWindowHandle {
-        RawWindowHandle::Win32(self.handle)
-    }
-}
-
-unsafe impl HasRawDisplayHandle for WindowWrapper {
-    fn raw_display_handle(&self) -> RawDisplayHandle {
-        RawDisplayHandle::Windows(WindowsDisplayHandle::empty())
-    }
-}
-
-#[inline(always)]
-unsafe fn get_window_long(hwnd: HWND, nindex: WINDOW_LONG_PTR_INDEX) -> isize {
-    #[cfg(target_pointer_width = "64")]
-    return unsafe { GetWindowLongPtrW(hwnd, nindex) };
-    #[cfg(target_pointer_width = "32")]
-    return unsafe { GetWindowLongW(hwnd, nindex) as isize };
 }
 
 // https://github.com/rust-windowing/winit/blob/789a4979801cffc20c9dfbc34e72c15ebf3c737c/src/platform_impl/windows/mod.rs#L144C1-L152C2
