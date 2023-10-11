@@ -23,7 +23,7 @@ fn main() -> Result<()> {
         style: CS_HREDRAW | CS_VREDRAW,
         lpfnWndProc: Some(handle_messages), // "Long Pointer to FuNction WiNDows PROCedure" (message handling callback)
         hInstance: instance.into(),
-        hCursor: unsafe { LoadCursorW(None, IDC_ARROW)? },
+        hCursor: unsafe { LoadCursorW(None, IDC_ARROW) }?,
         lpszClassName: s!("Lockbook"),
         ..Default::default()
     };
@@ -45,15 +45,11 @@ fn main() -> Result<()> {
     let mut window = Window::default();
 
     let mut window_rect = RECT { left: 0, top: 0, right: 1000, bottom: 1000 };
-    unsafe {
-        AdjustWindowRect(&mut window_rect, WS_OVERLAPPEDWINDOW, false)?;
-    }
+    unsafe { AdjustWindowRect(&mut window_rect, WS_OVERLAPPEDWINDOW, false) }?;
 
     // "'Setting the process-default DPI awareness via API call can lead to unexpected application behavior'... This is probably bullshit"
     // https://www.anthropicstudios.com/2022/01/13/asking-windows-nicely/#setting-dpi-awareness-programmatically
-    unsafe {
-        SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2)?;
-    }
+    unsafe { SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2) }?;
 
     let hwnd = unsafe {
         CreateWindowExA(
@@ -72,9 +68,7 @@ fn main() -> Result<()> {
         )
     };
 
-    unsafe {
-        dxgi_factory.MakeWindowAssociation(hwnd, DXGI_MWA_NO_ALT_ENTER)?;
-    }
+    unsafe { dxgi_factory.MakeWindowAssociation(hwnd, DXGI_MWA_NO_ALT_ENTER) }?;
 
     let mut core = lb::Core::init(&lb::Config {
         logs: false,
