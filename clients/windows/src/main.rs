@@ -2,7 +2,6 @@ use egui::{Context, Visuals};
 use egui_wgpu_backend::wgpu::CompositeAlphaMode;
 use egui_wgpu_backend::{wgpu, ScreenDescriptor};
 use lbeditor::{Editor, WgpuEditor};
-
 use std::mem::transmute;
 use std::time::{Duration, Instant};
 use windows::{
@@ -151,6 +150,11 @@ extern "system" fn handle_messages(
                 if let Some(resources) = &mut window.resources {
                     let editor = &mut resources.editor;
 
+                    let loword_l = loword_l(lparam);
+                    let hiword_l = hiword_l(lparam);
+                    let loword_w = loword_w(wparam);
+                    let pos = egui::Pos2 { x: loword_l as f32, y: hiword_l as f32 };
+
                     // window doesn't receive key up messages when out of focus so we use GetKeyState instead
                     // https://stackoverflow.com/questions/43858986/win32-keyboard-managing-when-key-released-while-not-focused
                     let modifiers = egui::Modifiers {
@@ -161,60 +165,57 @@ extern "system" fn handle_messages(
                         command: unsafe { GetKeyState(VK_CONTROL.0 as i32) } & 0x8000u16 as i16
                             != 0,
                     };
+                    editor.raw_input.modifiers = modifiers;
 
                     // winit used as reference for interesting events
                     // https://github.com/rust-windowing/winit/blob/789a4979801cffc20c9dfbc34e72c15ebf3c737c/src/platform_impl/windows/event_loop.rs#L1071
                     match message {
-                        WM_KEYDOWN => {
-                            if let Some(key) = keyboard::egui_key(wparam) {
-                                editor.raw_input.events.push(egui::Event::Key {
-                                    key,
-                                    pressed: true,
-                                    repeat: false,
-                                    modifiers,
-                                });
-                                true
-                            } else {
-                                false
-                            }
-                        }
-                        WM_KEYUP => {
-                            if let Some(key) = keyboard::egui_key(wparam) {
-                                editor.raw_input.events.push(egui::Event::Key {
-                                    key,
-                                    pressed: false,
-                                    repeat: false,
-                                    modifiers,
-                                });
-                                true
-                            } else {
-                                false
-                            }
-                        }
-                        WM_SIZE => {
-                            editor.screen.physical_width = loword(lparam.0 as u32) as u32;
-                            editor.screen.physical_height = hiword(lparam.0 as u32) as u32;
+                        WM_KEYDOWN => key_event(wparam, true, modifiers, editor),
+                        WM_KEYUP => key_event(wparam, false, modifiers, editor),
+                        WM_LBUTTONDOWN => {
+                            pointer_button_event(
+                                pos,
+                                egui::PointerButton::Primary,
+                                true,
+                                modifiers,
+                                editor,
+                            );
                             true
                         }
-                        WM_DPICHANGED => {
-                            // convert the new DPI to a scale factor
-                            let new_dpi_x = loword(wparam.0 as u32);
-                            let new_scale_factor = dpi_to_scale_factor(new_dpi_x);
-                            editor.screen.scale_factor = new_scale_factor;
-
-                            // resize the window based on Window's suggestion
-                            let suggested_rect = unsafe { *(lparam.0 as *const RECT) };
-                            editor.screen.physical_width =
-                                (suggested_rect.right - suggested_rect.left) as u32;
-                            editor.screen.physical_height =
-                                (suggested_rect.bottom - suggested_rect.top) as u32;
-
+                        WM_LBUTTONUP => {
+                            pointer_button_event(
+                                pos,
+                                egui::PointerButton::Primary,
+                                false,
+                                modifiers,
+                                editor,
+                            );
                             true
                         }
-                        // WM_MOUSEMOVE | WM_MOUSELEAVE | WM_MOUSEWHEEL | WM_MOUSEHWHEEL
-                        // | WM_LBUTTONDOWN | WM_LBUTTONUP | WM_RBUTTONDOWN | WM_RBUTTONUP => {
-                        //     todo!("handle mouse events");
-                        // }
+                        WM_RBUTTONDOWN => {
+                            pointer_button_event(
+                                pos,
+                                egui::PointerButton::Secondary,
+                                true,
+                                modifiers,
+                                editor,
+                            );
+                            true
+                        }
+                        WM_RBUTTONUP => {
+                            pointer_button_event(
+                                pos,
+                                egui::PointerButton::Secondary,
+                                false,
+                                modifiers,
+                                editor,
+                            );
+                            true
+                        }
+                        WM_MOUSEMOVE => {
+                            editor.raw_input.events.push(egui::Event::PointerMoved(pos));
+                            true
+                        }
                         WM_TOUCH => {
                             todo!("handle touch events");
                         }
@@ -223,6 +224,26 @@ extern "system" fn handle_messages(
                         }
                         WM_PAINT => {
                             editor.frame();
+                            true
+                        }
+                        WM_SIZE => {
+                            editor.screen.physical_width = loword_l;
+                            editor.screen.physical_height = hiword_l;
+                            true
+                        }
+                        WM_DPICHANGED => {
+                            // assign a scale factor based on the new DPI
+                            let new_dpi_x = loword_w;
+                            let new_scale_factor = dpi_to_scale_factor(new_dpi_x);
+                            editor.screen.scale_factor = new_scale_factor;
+
+                            // resize the window based on Windows' suggestion
+                            let suggested_rect = unsafe { *(lparam.0 as *const RECT) };
+                            editor.screen.physical_width =
+                                (suggested_rect.right - suggested_rect.left) as u32;
+                            editor.screen.physical_height =
+                                (suggested_rect.bottom - suggested_rect.top) as u32;
+
                             true
                         }
                         _ => false,
@@ -242,6 +263,49 @@ extern "system" fn handle_messages(
             }
         }
     }
+}
+
+fn key_event(
+    wparam: WPARAM, pressed: bool, modifiers: egui::Modifiers, editor: &mut WgpuEditor,
+) -> bool {
+    // text
+    if pressed && (modifiers.shift_only() || modifiers.is_none()) {
+        if let Some(text) = keyboard::key_text(wparam, modifiers.shift) {
+            editor
+                .raw_input
+                .events
+                .push(egui::Event::Text(text.to_owned()));
+            return true;
+        }
+    }
+
+    if let Some(key) = keyboard::egui_key(wparam) {
+        // ctrl + v
+        if pressed && key == egui::Key::V && modifiers.command {
+            let clip = editor.from_host.clone().unwrap_or_default();
+            editor.raw_input.events.push(egui::Event::Paste(clip));
+            return true;
+        }
+
+        // other egui keys
+        editor
+            .raw_input
+            .events
+            .push(egui::Event::Key { key, pressed, repeat: false, modifiers });
+        return true;
+    }
+
+    false
+}
+
+fn pointer_button_event(
+    pos: egui::Pos2, button: egui::PointerButton, pressed: bool, modifiers: egui::Modifiers,
+    editor: &mut WgpuEditor,
+) {
+    editor
+        .raw_input
+        .events
+        .push(egui::Event::PointerButton { pos, button, pressed, modifiers });
 }
 
 #[derive(Default)]
@@ -335,13 +399,18 @@ async fn request_device(
 
 // https://github.com/rust-windowing/winit/blob/789a4979801cffc20c9dfbc34e72c15ebf3c737c/src/platform_impl/windows/mod.rs#L144C1-L152C2
 #[inline(always)]
-pub(crate) const fn loword(x: u32) -> u16 {
-    (x & 0xFFFF) as u16
+const fn loword_l(lparam: LPARAM) -> u32 {
+    (lparam.0 & 0xFFFF) as _
 }
 
 #[inline(always)]
-const fn hiword(x: u32) -> u16 {
-    ((x >> 16) & 0xFFFF) as u16
+const fn hiword_l(lparam: LPARAM) -> u32 {
+    ((lparam.0 >> 16) & 0xFFFF) as _
+}
+
+#[inline(always)]
+const fn loword_w(wparam: WPARAM) -> u16 {
+    (wparam.0 & 0xFFFF) as _
 }
 
 // https://github.com/rust-windowing/winit/blob/789a4979801cffc20c9dfbc34e72c15ebf3c737c/src/platform_impl/windows/dpi.rs#L75C1-L78C2
