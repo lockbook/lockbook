@@ -8,11 +8,11 @@ Prerequisites:
 ```
 cargo install cbindgen
 ```
-5. Toolchain targets for building Core for iOS, macOS, and various simulator targets
+5. Toolchain targets for building lb-rs for iOS, macOS, and various simulator targets
 ```bash
 rustup target add aarch64-apple-ios x86_64-apple-ios aarch64-apple-darwin x86_64-apple-darwin aarch64-apple-ios-sim
 ```
 
 Steps:
-1. In `/libs/core_external_interface` run `make swift_libs` which will generate Core libs and place them into the correct location within your Xcode project.
+1. In `/libs/lb/lb_external_interface` run `make swift_libs` which will generate lb-rs libs and place them into the correct location within your Xcode project.
 2. Open Xcode, import the project and hit the Run button.

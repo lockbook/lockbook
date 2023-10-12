@@ -1,6 +1,6 @@
 # Performance Monitoring
 
-Our performance monitoring stack creates nice SVGs based on run scenarios defined in `core/benches`.
+Our performance monitoring stack creates nice SVGs based on run scenarios defined in `lb-rs/benches`.
 The following tools are used:
 
 [Criterion.rs](https://bheisler.github.io/criterion.rs/book/user_guide/profiling.html) we use Criterion, a Rust package, to make bench-markable sections of code and benchmark-style tests.

@@ -30,7 +30,7 @@ pub fn android_dir<P: AsRef<Path>>(root: P) -> PathBuf {
 }
 
 pub fn jni_lib_dir<P: AsRef<Path>>(root: P) -> PathBuf {
-    android_dir(root).join("core/src/main/jniLibs")
+    android_dir(root).join("lb-rs/src/main/jniLibs")
 }
 
 pub fn swift_core_dir<P: AsRef<Path>>(root: P) -> PathBuf {
@@ -47,8 +47,8 @@ pub fn swift_lib<P: AsRef<Path>>(root: P) -> PathBuf {
         .join("clients/apple/CLockbookCore/Sources/CLockbookCore/lib")
 }
 
-pub fn core_external_interface_dir<P: AsRef<Path>>(root: P) -> PathBuf {
-    root.as_ref().join("libs/core_external_interface")
+pub fn lb_external_interface_dir<P: AsRef<Path>>(root: P) -> PathBuf {
+    root.as_ref().join("libs/lb/lb_external_interface")
 }
 
 pub fn local_env_path<P: AsRef<Path>>(root: P) -> PathBuf {

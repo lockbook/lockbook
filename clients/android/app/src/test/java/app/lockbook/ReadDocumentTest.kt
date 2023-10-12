@@ -14,7 +14,7 @@ class ReadDocumentTest {
         @BeforeClass
         @JvmStatic
         fun loadLib() {
-            System.loadLibrary("lockbook_core_external_interface")
+            System.loadLibrary("lb_external_interface")
         }
     }
 

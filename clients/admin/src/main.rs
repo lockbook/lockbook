@@ -10,9 +10,7 @@ use std::env;
 
 use crate::error::Error;
 use crate::indexes::CliIndex;
-use lockbook_core::{
-    Config, Core, GooglePlayAccountState, StripeAccountState, UnixTimeMillis, Uuid,
-};
+use lb::{Config, Core, GooglePlayAccountState, StripeAccountState, UnixTimeMillis, Uuid};
 
 #[derive(Debug, PartialEq, Eq, Parser)]
 pub enum Admin {

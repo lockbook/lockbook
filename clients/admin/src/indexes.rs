@@ -1,7 +1,7 @@
 use crate::Res;
 use clap::Subcommand;
 
-use lockbook_core::{Core, ServerIndex};
+use lb::{Core, ServerIndex};
 
 #[derive(Debug, PartialEq, Eq, Subcommand)]
 pub enum CliIndex {

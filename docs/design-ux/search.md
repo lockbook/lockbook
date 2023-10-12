@@ -6,7 +6,7 @@
 
 # Filename search
 
-You hand core a string, core will hand you back a list of paths that this string matches. Should use some sort of `fzf`
+You hand lb-rs a string, lb-rs will hand you back a list of paths that this string matches. Should use some sort of `fzf`
 style search. Can be integrated into quick-navigation of applications like it's done in the Linux application.
 
 # Lockbook Content Search
@@ -95,4 +95,4 @@ My thoughts on how we'd go about improving the performance of these searches sho
 + consider changes to on-disk format
 + consider caching some of these things into static space.
     + caching into static space allows us to not require ffi callers to hang on to a pointer
-    + complicates things within core because multiple processes may change what's on disk.
+    + complicates things within lb-rs because multiple processes may change what's on disk.
