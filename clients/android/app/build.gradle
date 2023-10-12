@@ -67,7 +67,7 @@ android {
 
     testOptions {
         unitTests.all {
-            jvmArgs '-Djava.library.path=../core/src/main/jniLibs/desktop'
+            jvmArgs '-Djava.library.path=../lb-rs/src/main/jniLibs/desktop'
         }
     }
 
@@ -139,5 +139,5 @@ dependencies {
     implementation "androidx.work:work-runtime-ktx:$work_version"
     implementation "com.android.billingclient:billing-ktx:$billing_version"
 
-    implementation project(':core')
+    implementation project(':lb-rs')
 }

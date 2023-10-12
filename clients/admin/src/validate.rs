@@ -1,5 +1,5 @@
 use crate::Res;
-use lockbook_core::Core;
+use lb::Core;
 
 pub fn account(core: &Core, username: String) -> Res<()> {
     println!("Validating {username}...");

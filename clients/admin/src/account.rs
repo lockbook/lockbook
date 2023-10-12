@@ -1,5 +1,5 @@
 use crate::{Error, GooglePlayAccountState, Res, SetUserTier, StripeAccountState};
-use lockbook_core::{
+use lb::{
     base64, AccountFilter, AccountIdentifier, AdminSetUserTierInfo, AppStoreAccountState, Core,
     PublicKey,
 };
