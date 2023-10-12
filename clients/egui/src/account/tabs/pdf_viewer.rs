@@ -2,7 +2,7 @@ use eframe::egui;
 use lb_pdf::PdfiumWrapper;
 use pdfium_render::prelude::*;
 
-use crate::util::data_dir;
+use crate::{theme::Icon, util::data_dir, widgets::Button};
 
 pub struct PdfViewer {
     content: Vec<egui::TextureHandle>,
@@ -45,7 +45,7 @@ impl PdfViewer {
                 let image_buffer = image.to_rgba8();
                 let pixels = image_buffer.as_flat_samples();
                 let image = egui::ColorImage::from_rgba_unmultiplied(size, pixels.as_slice());
-                ctx.load_texture("foo", image, egui::TextureOptions::LINEAR)
+                ctx.load_texture("pdf_image", image, egui::TextureOptions::LINEAR)
             })
             .collect();
 
@@ -64,7 +64,10 @@ impl PdfViewer {
     }
 
     pub fn show(&mut self, ui: &mut egui::Ui) {
-        self.show_toolbar(ui);
+        ui.vertical(|ui| {
+            self.show_toolbar(ui);
+            ui.separator();
+        });
 
         let mut sao = egui::ScrollArea::both();
         if let Some(delta) = self.scroll_update {
@@ -95,17 +98,6 @@ impl PdfViewer {
                         if res.clicked_by(egui::PointerButton::Secondary) {
                             self.update_zoom_factor(ZoomFactor::Decrease);
                         }
-
-                        if res
-                            .rect
-                            .contains(ui.ctx().pointer_hover_pos().unwrap_or_default())
-                        {
-                            if ui.input(|r| r.modifiers.alt) {
-                                ui.output_mut(|w| w.cursor_icon = egui::CursorIcon::ZoomOut);
-                            } else {
-                                ui.output_mut(|w| w.cursor_icon = egui::CursorIcon::ZoomIn);
-                            }
-                        }
                     })
                 });
             })
@@ -115,19 +107,50 @@ impl PdfViewer {
     }
 
     fn show_toolbar(&mut self, ui: &mut egui::Ui) {
-        ui.with_layout(egui::Layout::right_to_left(egui::Align::Min), |ui| {
-            ui.horizontal(|ui| {
-                if ui.button("+").clicked() {
-                    self.update_zoom_factor(ZoomFactor::Increase);
-                }
+        let zoom_controls_width = 150.0;
+        let zoom_controls_height = 30.0;
+
+        let centered_rect = egui::Rect {
+            min: egui::pos2(
+                ui.available_rect_before_wrap().left()
+                    + ((ui.available_rect_before_wrap().width() - zoom_controls_width) / 2.0),
+                ui.available_rect_before_wrap().top(),
+            ),
+            max: egui::pos2(
+                ui.available_rect_before_wrap().left()
+                    + ((ui.available_rect_before_wrap().width() - zoom_controls_width) / 2.0)
+                    + 150.0,
+                ui.available_rect_before_wrap().top() + zoom_controls_height,
+            ),
+        };
+
+        ui.allocate_ui_at_rect(centered_rect, |ui| {
+            // ui.spacing_mut().button_padding = egui::vec2(5.0, 5.0);
+            ui.columns(3, |cols| {
+                cols[0].vertical_centered(|ui| {
+                    if Button::default().icon(&Icon::ZOOM_OUT).show(ui).clicked() {
+                        self.update_zoom_factor(ZoomFactor::Decrease);
+                    }
+                });
 
                 let normalized_zoom_factor =
                     ((self.zoom_factor - self.fit_page_zoom) / ZOOM_STOP).round() * 10.0 + 100.0;
-                ui.label(format!("{}%", normalized_zoom_factor));
+                cols[1].horizontal_centered(|ui| {
+                    ui.add_space(7.0);
+                    ui.vertical(|ui| {
+                        ui.add_space(7.0);
+                        ui.colored_label(
+                            ui.visuals().text_color().gamma_multiply(0.7),
+                            format!("{}%", normalized_zoom_factor),
+                        );
+                    });
+                });
 
-                if ui.button("-").clicked() {
-                    self.update_zoom_factor(ZoomFactor::Decrease);
-                }
+                cols[2].vertical_centered(|ui| {
+                    if Button::default().icon(&Icon::ZOOM_IN).show(ui).clicked() {
+                        self.update_zoom_factor(ZoomFactor::Increase);
+                    };
+                });
             });
         });
     }
