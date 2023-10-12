@@ -8,9 +8,14 @@ pub struct PdfViewer {
     content: Vec<egui::TextureHandle>,
     zoom_factor: f32,
     fit_page_zoom: f32,
-    sao: Option<egui::scroll_area::ScrollAreaOutput<()>>,
+    sa_offset: Option<egui::Vec2>,
+    scroll_update: Option<f32>,
 }
 
+enum ZoomFactor {
+    Increase,
+    Decrease,
+}
 const ZOOM_STOP: f32 = 0.1;
 const MAX_ZOOM_IN_STOPS: f32 = 15.0;
 
@@ -48,71 +53,104 @@ impl PdfViewer {
         if let Some(page) = content.get(0) {
             fit_page_zoom = ctx.used_rect().height() / page.size()[1] as f32;
         }
-        Box::new(Self { content, zoom_factor: fit_page_zoom, fit_page_zoom, sao: None })
+
+        Box::new(Self {
+            content,
+            zoom_factor: fit_page_zoom,
+            fit_page_zoom,
+            sa_offset: None,
+            scroll_update: None,
+        })
     }
 
     pub fn show(&mut self, ui: &mut egui::Ui) {
-        self.sao = Some(
-            egui::ScrollArea::both()
-                .id_source("sao_pdf")
-                .show(ui, |ui| {
-                    ui.vertical_centered(|ui| {
-                        self.content.iter().for_each(|p| {
-                            let res = ui.add(
-                                egui::Image::new(
-                                    p,
-                                    egui::vec2(
-                                        p.size()[0] as f32 * self.zoom_factor,
-                                        p.size()[1] as f32 * self.zoom_factor,
-                                    ),
-                                )
-                                .sense(egui::Sense::click()),
-                            );
-                            ui.add_space(10.0);
+        self.show_toolbar(ui);
 
-                            let offset: f32 = if self.sao.as_ref().is_some() {
-                                self.sao.as_ref().unwrap().state.offset.y
+        let mut sao = egui::ScrollArea::both();
+        if let Some(delta) = self.scroll_update {
+            sao = sao.vertical_scroll_offset(delta);
+            self.scroll_update = None;
+        }
+
+        self.sa_offset = Some(
+            sao.show(ui, |ui| {
+                ui.vertical_centered(|ui| {
+                    self.content.clone().iter().for_each(|p| {
+                        let res = ui.add(
+                            egui::Image::new(
+                                p,
+                                egui::vec2(
+                                    p.size()[0] as f32 * self.zoom_factor,
+                                    p.size()[1] as f32 * self.zoom_factor,
+                                ),
+                            )
+                            .sense(egui::Sense::click()),
+                        );
+                        ui.add_space(10.0);
+
+                        if res.clicked() {
+                            self.update_zoom_factor(ZoomFactor::Increase);
+                        }
+
+                        if res.clicked_by(egui::PointerButton::Secondary) {
+                            self.update_zoom_factor(ZoomFactor::Decrease);
+                        }
+
+                        if res
+                            .rect
+                            .contains(ui.ctx().pointer_hover_pos().unwrap_or_default())
+                        {
+                            if ui.input(|r| r.modifiers.alt) {
+                                ui.output_mut(|w| w.cursor_icon = egui::CursorIcon::ZoomOut);
                             } else {
-                                0.0
-                            };
-
-                            let total_height = self.content[0].size()[1] as f32
-                                * self.zoom_factor
-                                * self.content.len() as f32
-                                + 10.0 * self.content.len() as f32;
-
-                            let aspect = total_height / offset;
-
-                            if res.clicked() {
-                                if ui.input(|r| r.modifiers.alt) {
-                                    self.zoom_factor =
-                                        (self.zoom_factor - ZOOM_STOP).max(ZOOM_STOP);
-                                } else {
-                                    self.zoom_factor = (self.zoom_factor + ZOOM_STOP)
-                                        .min(ZOOM_STOP * MAX_ZOOM_IN_STOPS + self.fit_page_zoom);
-                                }
-
-                                let new_offset: f32 = (self.content[0].size()[1] as f32
-                                    * self.zoom_factor
-                                    * self.content.len() as f32
-                                    + 10.0 * self.content.len() as f32)
-                                    / aspect;
-                                ui.scroll_with_delta(egui::vec2(100.0, -(new_offset - offset)));
+                                ui.output_mut(|w| w.cursor_icon = egui::CursorIcon::ZoomIn);
                             }
-
-                            if res
-                                .rect
-                                .contains(ui.ctx().pointer_hover_pos().unwrap_or_default())
-                            {
-                                if ui.input(|r| r.modifiers.alt) {
-                                    ui.output_mut(|w| w.cursor_icon = egui::CursorIcon::ZoomOut);
-                                } else {
-                                    ui.output_mut(|w| w.cursor_icon = egui::CursorIcon::ZoomIn);
-                                }
-                            }
-                        })
-                    });
-                }),
+                        }
+                    })
+                });
+            })
+            .state
+            .offset,
         );
+    }
+
+    fn show_toolbar(&mut self, ui: &mut egui::Ui) {
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Min), |ui| {
+            ui.horizontal(|ui| {
+                if ui.button("+").clicked() {
+                    self.update_zoom_factor(ZoomFactor::Increase);
+                }
+
+                let normalized_zoom_factor =
+                    ((self.zoom_factor - self.fit_page_zoom) / ZOOM_STOP).round() * 10.0 + 100.0;
+                ui.label(format!("{}%", normalized_zoom_factor));
+
+                if ui.button("-").clicked() {
+                    self.update_zoom_factor(ZoomFactor::Decrease);
+                }
+            });
+        });
+    }
+
+    fn update_zoom_factor(&mut self, mode: ZoomFactor) {
+        let y_offset = self.sa_offset.unwrap_or(egui::vec2(0.0, 0.0)).y;
+
+        let total_height = self.get_sao_height();
+        let aspect = total_height / y_offset;
+
+        self.zoom_factor = match mode {
+            ZoomFactor::Increase => (self.zoom_factor + ZOOM_STOP)
+                .min(ZOOM_STOP * MAX_ZOOM_IN_STOPS + self.fit_page_zoom),
+            ZoomFactor::Decrease => (self.zoom_factor - ZOOM_STOP).max(ZOOM_STOP),
+        };
+
+        let new_offset: f32 = self.get_sao_height() / aspect;
+
+        self.scroll_update = Some(new_offset);
+    }
+
+    fn get_sao_height(&self) -> f32 {
+        self.content[0].size()[1] as f32 * self.zoom_factor * self.content.len() as f32
+            + 10.0 * self.content.len() as f32
     }
 }
