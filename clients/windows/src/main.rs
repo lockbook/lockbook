@@ -263,21 +263,8 @@ fn handled_messages_impl(
                 } else if touch.dwFlags & TOUCHEVENTF_MOVE != TOUCHEVENTF_FLAGS(0) {
                     egui::TouchPhase::Move
                 } else {
-                    println!("unrecognized touch phase");
                     continue;
                 };
-
-                let egui_touch = egui::Event::Touch {
-                    device_id: egui::TouchDeviceId(touch.hSource.0 as _),
-                    id: touch.dwID.into(),
-                    phase,
-                    pos: egui::Pos2 {
-                        x: touch.x as f32 / window.dpi_scale,
-                        y: touch.y as f32 / window.dpi_scale,
-                    },
-                    force: 0.0,
-                };
-                println!("touch: {:?}", egui_touch);
 
                 app.raw_input.events.push(egui::Event::Touch {
                     device_id: egui::TouchDeviceId(touch.hSource.0 as _),
