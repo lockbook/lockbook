@@ -1,7 +1,7 @@
 use egui::{Context, Visuals};
 use egui_wgpu_backend::wgpu::CompositeAlphaMode;
 use egui_wgpu_backend::{wgpu, ScreenDescriptor};
-use lbeditor::{Editor, WgpuEditor};
+use lbeguiapp::WgpuLockbook;
 use std::mem::transmute;
 use std::time::{Duration, Instant};
 use windows::{
@@ -70,18 +70,9 @@ fn main() -> Result<()> {
 
     unsafe { dxgi_factory.MakeWindowAssociation(hwnd, DXGI_MWA_NO_ALT_ENTER) }?;
 
-    let mut core = lb::Core::init(&lb::Config {
-        logs: false,
-        colored_logs: false,
-        writeable_path: format!(
-            "{}/.lockbook/cli",
-            std::env::var("HOME").unwrap_or(".".to_string())
-        ),
-    })
-    .unwrap();
-    let editor = init_editor(&mut core, &crate::window::Window::new(hwnd), false);
+    let editor = init(&crate::window::Window::new(hwnd), false);
 
-    window.resources = Some(Resources { editor });
+    window.resources = Some(Resources { app: editor });
 
     // "If the window was previously visible, the return value is nonzero."
     // https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-showwindow
@@ -142,7 +133,7 @@ extern "system" fn handle_messages(
             let handled = if let Some(mut window) = window {
                 let window = unsafe { window.as_mut() };
                 if let Some(resources) = &mut window.resources {
-                    let editor = &mut resources.editor;
+                    let app = &mut resources.app;
 
                     let loword_l = loword_l(lparam);
                     let hiword_l = hiword_l(lparam);
@@ -159,20 +150,20 @@ extern "system" fn handle_messages(
                         command: unsafe { GetKeyState(VK_CONTROL.0 as i32) } & 0x8000u16 as i16
                             != 0,
                     };
-                    editor.raw_input.modifiers = modifiers;
+                    app.raw_input.modifiers = modifiers;
 
                     // winit used as reference for interesting events
                     // https://github.com/rust-windowing/winit/blob/789a4979801cffc20c9dfbc34e72c15ebf3c737c/src/platform_impl/windows/event_loop.rs#L1071
                     match message {
-                        WM_KEYDOWN => key_event(wparam, true, modifiers, editor),
-                        WM_KEYUP => key_event(wparam, false, modifiers, editor),
+                        WM_KEYDOWN => key_event(wparam, true, modifiers, app),
+                        WM_KEYUP => key_event(wparam, false, modifiers, app),
                         WM_LBUTTONDOWN => {
                             pointer_button_event(
                                 pos,
                                 egui::PointerButton::Primary,
                                 true,
                                 modifiers,
-                                editor,
+                                app,
                             );
                             true
                         }
@@ -182,7 +173,7 @@ extern "system" fn handle_messages(
                                 egui::PointerButton::Primary,
                                 false,
                                 modifiers,
-                                editor,
+                                app,
                             );
                             true
                         }
@@ -192,7 +183,7 @@ extern "system" fn handle_messages(
                                 egui::PointerButton::Secondary,
                                 true,
                                 modifiers,
-                                editor,
+                                app,
                             );
                             true
                         }
@@ -202,12 +193,12 @@ extern "system" fn handle_messages(
                                 egui::PointerButton::Secondary,
                                 false,
                                 modifiers,
-                                editor,
+                                app,
                             );
                             true
                         }
                         WM_MOUSEMOVE => {
-                            editor.raw_input.events.push(egui::Event::PointerMoved(pos));
+                            app.raw_input.events.push(egui::Event::PointerMoved(pos));
                             true
                         }
                         WM_TOUCH => {
@@ -217,25 +208,25 @@ extern "system" fn handle_messages(
                             todo!("handle pointer events"); // how are these different from touch and mouse events?
                         }
                         WM_PAINT => {
-                            editor.frame();
+                            app.frame();
                             true
                         }
                         WM_SIZE => {
-                            editor.screen.physical_width = loword_l;
-                            editor.screen.physical_height = hiword_l;
+                            app.screen.physical_width = loword_l;
+                            app.screen.physical_height = hiword_l;
                             true
                         }
                         WM_DPICHANGED => {
                             // assign a scale factor based on the new DPI
                             let new_dpi_x = loword_w;
                             let new_scale_factor = dpi_to_scale_factor(new_dpi_x);
-                            editor.screen.scale_factor = new_scale_factor;
+                            app.screen.scale_factor = new_scale_factor;
 
                             // resize the window based on Windows' suggestion
                             let suggested_rect = unsafe { *(lparam.0 as *const RECT) };
-                            editor.screen.physical_width =
+                            app.screen.physical_width =
                                 (suggested_rect.right - suggested_rect.left) as u32;
-                            editor.screen.physical_height =
+                            app.screen.physical_height =
                                 (suggested_rect.bottom - suggested_rect.top) as u32;
 
                             true
@@ -260,7 +251,7 @@ extern "system" fn handle_messages(
 }
 
 fn key_event(
-    wparam: WPARAM, pressed: bool, modifiers: egui::Modifiers, editor: &mut WgpuEditor,
+    wparam: WPARAM, pressed: bool, modifiers: egui::Modifiers, editor: &mut WgpuLockbook,
 ) -> bool {
     // text
     if pressed && (modifiers.shift_only() || modifiers.is_none()) {
@@ -294,7 +285,7 @@ fn key_event(
 
 fn pointer_button_event(
     pos: egui::Pos2, button: egui::PointerButton, pressed: bool, modifiers: egui::Modifiers,
-    editor: &mut WgpuEditor,
+    editor: &mut WgpuLockbook,
 ) {
     editor
         .raw_input
@@ -309,15 +300,13 @@ pub struct Window {
 
 // resources must be populated after the window is created
 struct Resources {
-    editor: lbeditor::WgpuEditor,
+    app: WgpuLockbook,
 }
 
 // Taken from other lockbook code
-pub fn init_editor<
-    W: raw_window_handle::HasRawWindowHandle + raw_window_handle::HasRawDisplayHandle,
->(
-    core: &mut lb::Core, window: &W, dark_mode: bool,
-) -> WgpuEditor {
+pub fn init<W: raw_window_handle::HasRawWindowHandle + raw_window_handle::HasRawDisplayHandle>(
+    window: &W, dark_mode: bool,
+) -> WgpuLockbook {
     let backends = wgpu::util::backend_bits_from_env().unwrap_or_else(wgpu::Backends::all);
     let instance_desc = wgpu::InstanceDescriptor { backends, ..Default::default() };
     let instance = wgpu::Instance::new(instance_desc);
@@ -341,12 +330,15 @@ pub fn init_editor<
 
     let context = Context::default();
     context.set_visuals(if dark_mode { Visuals::dark() } else { Visuals::light() });
-    let mut editor = Editor::new(core.clone());
-    editor.set_font(&context);
-    editor.buffer = "# hello from editor".into();
+
+    let (settings, maybe_settings_err) = match lbeguiapp::Settings::read_from_file() {
+        Ok(s) => (s, None),
+        Err(err) => (Default::default(), Some(err.to_string())),
+    };
+    let app = lbeguiapp::Lockbook::new(&context, settings, maybe_settings_err);
 
     let start_time = Instant::now();
-    let mut obj = WgpuEditor {
+    let mut obj = WgpuLockbook {
         start_time,
         device,
         queue,
@@ -358,7 +350,7 @@ pub fn init_editor<
         raw_input: Default::default(),
         from_egui: None,
         from_host: None,
-        editor,
+        app,
     };
 
     obj.frame();

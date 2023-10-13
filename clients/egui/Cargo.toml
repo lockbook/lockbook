@@ -9,6 +9,7 @@ lbeditor = { package = "egui_editor", path = "../../libs/content/editor/egui_edi
 eframe = "0.22.0"
 egui-notify= "0.7.0"
 egui-winit = "0.22.0"
+egui_wgpu_backend = "0.24.0"
 egui_extras = { version = "0.22.0", features = ["image"] }
 image = { version = "0.24", default-features = false, features = ["png", "jpeg", "gif", "webp", "bmp", "ico"] }
 dark-light = "1.0.0"
