@@ -42,10 +42,11 @@ fn main() -> Result<()> {
         let dxgi_factory_flags = if cfg!(debug_assertions) { DXGI_CREATE_FACTORY_DEBUG } else { 0 };
         unsafe { CreateDXGIFactory2(dxgi_factory_flags) }?
     };
-    let mut window = Window::default();
 
-    let mut window_rect = RECT { left: 0, top: 0, right: 1000, bottom: 1000 };
+    let mut window_rect = RECT { left: 0, top: 0, right: 1300, bottom: 800 };
     unsafe { AdjustWindowRect(&mut window_rect, WS_OVERLAPPEDWINDOW, false) }?;
+
+    let mut window = Window::default();
 
     // "'Setting the process-default DPI awareness via API call can lead to unexpected application behavior'... This is probably bullshit"
     // https://www.anthropicstudios.com/2022/01/13/asking-windows-nicely/#setting-dpi-awareness-programmatically
@@ -73,6 +74,7 @@ fn main() -> Result<()> {
     let editor = init(&crate::window::Window::new(hwnd), false);
 
     window.resources = Some(Resources { app: editor });
+    window.dpi_scale = dpi_to_scale_factor(unsafe { GetDpiForWindow(hwnd) } as _);
 
     // "If the window was previously visible, the return value is nonzero."
     // https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-showwindow
@@ -114,140 +116,141 @@ fn main() -> Result<()> {
 extern "system" fn handle_messages(
     window_handle: HWND, message: u32, wparam: WPARAM, lparam: LPARAM,
 ) -> LRESULT {
-    match message {
-        WM_CREATE => {
-            unsafe {
-                let create_struct: &CREATESTRUCTA = transmute(lparam);
-                SetWindowLongPtrA(window_handle, GWLP_USERDATA, create_struct.lpCreateParams as _);
-            }
-            LRESULT::default()
-        }
+    if handled_messages_impl(window_handle, message, wparam, lparam) {
+        LRESULT::default()
+    } else {
+        // use the default handling for unhandled messages
+        unsafe { DefWindowProcA(window_handle, message, wparam, lparam) }
+    }
+}
+
+fn handled_messages_impl(
+    window_handle: HWND, message: u32, wparam: WPARAM, lparam: LPARAM,
+) -> bool {
+    let mut handled = false;
+
+    // events always processed
+    handled |= match message {
+        // Events processed even if we haven't initialized yet
+        WM_CREATE => unsafe {
+            let create_struct: &CREATESTRUCTA = transmute(lparam);
+            SetWindowLongPtrA(window_handle, GWLP_USERDATA, create_struct.lpCreateParams as _);
+            true
+        },
         WM_DESTROY => {
             unsafe { PostQuitMessage(0) };
-            LRESULT::default()
+            true
         }
-        _ => {
-            // retrieve the pointer to our Window struct from the window's "user data"
-            let user_data = unsafe { GetWindowLongPtrA(window_handle, GWLP_USERDATA) };
-            let window = std::ptr::NonNull::<Window>::new(user_data as _);
-            let handled = if let Some(mut window) = window {
-                let window = unsafe { window.as_mut() };
-                if let Some(resources) = &mut window.resources {
-                    let app = &mut resources.app;
+        _ => false,
+    };
 
-                    let loword_l = loword_l(lparam);
-                    let hiword_l = hiword_l(lparam);
-                    let loword_w = loword_w(wparam);
-                    let pos = egui::Pos2 { x: loword_l as f32, y: hiword_l as f32 };
-
-                    // window doesn't receive key up messages when out of focus so we use GetKeyState instead
-                    // https://stackoverflow.com/questions/43858986/win32-keyboard-managing-when-key-released-while-not-focused
-                    let modifiers = egui::Modifiers {
-                        alt: unsafe { GetKeyState(VK_MENU.0 as i32) } & 0x8000u16 as i16 != 0,
-                        ctrl: unsafe { GetKeyState(VK_CONTROL.0 as i32) } & 0x8000u16 as i16 != 0,
-                        shift: unsafe { GetKeyState(VK_SHIFT.0 as i32) } & 0x8000u16 as i16 != 0,
-                        mac_cmd: false,
-                        command: unsafe { GetKeyState(VK_CONTROL.0 as i32) } & 0x8000u16 as i16
-                            != 0,
-                    };
-                    app.raw_input.modifiers = modifiers;
-
-                    // winit used as reference for interesting events
-                    // https://github.com/rust-windowing/winit/blob/789a4979801cffc20c9dfbc34e72c15ebf3c737c/src/platform_impl/windows/event_loop.rs#L1071
-                    match message {
-                        WM_KEYDOWN => key_event(wparam, true, modifiers, app),
-                        WM_KEYUP => key_event(wparam, false, modifiers, app),
-                        WM_LBUTTONDOWN => {
-                            pointer_button_event(
-                                pos,
-                                egui::PointerButton::Primary,
-                                true,
-                                modifiers,
-                                app,
-                            );
-                            true
-                        }
-                        WM_LBUTTONUP => {
-                            pointer_button_event(
-                                pos,
-                                egui::PointerButton::Primary,
-                                false,
-                                modifiers,
-                                app,
-                            );
-                            true
-                        }
-                        WM_RBUTTONDOWN => {
-                            pointer_button_event(
-                                pos,
-                                egui::PointerButton::Secondary,
-                                true,
-                                modifiers,
-                                app,
-                            );
-                            true
-                        }
-                        WM_RBUTTONUP => {
-                            pointer_button_event(
-                                pos,
-                                egui::PointerButton::Secondary,
-                                false,
-                                modifiers,
-                                app,
-                            );
-                            true
-                        }
-                        WM_MOUSEMOVE => {
-                            app.raw_input.events.push(egui::Event::PointerMoved(pos));
-                            true
-                        }
-                        WM_TOUCH => {
-                            todo!("handle touch events");
-                        }
-                        WM_POINTERDOWN | WM_POINTERUPDATE | WM_POINTERUP => {
-                            todo!("handle pointer events"); // how are these different from touch and mouse events?
-                        }
-                        WM_PAINT => {
-                            app.frame();
-                            true
-                        }
-                        WM_SIZE => {
-                            app.screen.physical_width = loword_l;
-                            app.screen.physical_height = hiword_l;
-                            true
-                        }
-                        WM_DPICHANGED => {
-                            // assign a scale factor based on the new DPI
-                            let new_dpi_x = loword_w;
-                            let new_scale_factor = dpi_to_scale_factor(new_dpi_x);
-                            app.screen.scale_factor = new_scale_factor;
-
-                            // resize the window based on Windows' suggestion
-                            let suggested_rect = unsafe { *(lparam.0 as *const RECT) };
-                            app.screen.physical_width =
-                                (suggested_rect.right - suggested_rect.left) as u32;
-                            app.screen.physical_height =
-                                (suggested_rect.bottom - suggested_rect.top) as u32;
-
-                            true
-                        }
-                        _ => false,
-                    }
-                } else {
-                    false
-                }
-            } else {
-                false
-            };
-
-            if handled {
-                LRESULT::default()
-            } else {
-                // use the default handling for messages we don't care about
-                unsafe { DefWindowProcA(window_handle, message, wparam, lparam) }
-            }
+    // get window
+    let window = {
+        // retrieve the pointer to our Window struct from the window's "user data"
+        let user_data = unsafe { GetWindowLongPtrA(window_handle, GWLP_USERDATA) };
+        let window = std::ptr::NonNull::<Window>::new(user_data as _);
+        if let Some(mut window) = window {
+            unsafe { window.as_mut() }
+        } else {
+            return handled;
         }
-    }
+    };
+
+    // parse params
+    let loword_l = loword_l(lparam);
+    let hiword_l = hiword_l(lparam);
+    let loword_w = loword_w(wparam);
+
+    // events processed only after window is created
+    handled |= match message {
+        WM_SIZE => {
+            window.width = loword_l;
+            window.height = hiword_l;
+            true
+        }
+        WM_DPICHANGED => {
+            // assign a scale factor based on the new DPI
+            let new_dpi_x = loword_w;
+            let new_scale_factor = dpi_to_scale_factor(new_dpi_x);
+            window.dpi_scale = new_scale_factor;
+
+            // resize the window based on Windows' suggestion
+            let suggested_rect = unsafe { *(lparam.0 as *const RECT) };
+            window.width = (suggested_rect.right - suggested_rect.left) as u32;
+            window.height = (suggested_rect.bottom - suggested_rect.top) as u32;
+
+            true
+        }
+        _ => false,
+    };
+
+    // get app
+    let app = {
+        if let Some(resources) = &mut window.resources {
+            &mut resources.app
+        } else {
+            return handled;
+        }
+    };
+
+    // parse position
+    let pos = egui::Pos2 { x: loword_l as f32, y: hiword_l as f32 };
+
+    // tell app about events it might have missed
+    app.raw_input.pixels_per_point = Some(window.dpi_scale);
+    app.screen.scale_factor = window.dpi_scale;
+    app.screen.physical_width = window.width;
+    app.screen.physical_height = window.height;
+
+    // window doesn't receive key up messages when out of focus so we use GetKeyState instead
+    // https://stackoverflow.com/questions/43858986/win32-keyboard-managing-when-key-released-while-not-focused
+    let modifiers = egui::Modifiers {
+        alt: unsafe { GetKeyState(VK_MENU.0 as i32) } & 0x8000u16 as i16 != 0,
+        ctrl: unsafe { GetKeyState(VK_CONTROL.0 as i32) } & 0x8000u16 as i16 != 0,
+        shift: unsafe { GetKeyState(VK_SHIFT.0 as i32) } & 0x8000u16 as i16 != 0,
+        mac_cmd: false,
+        command: unsafe { GetKeyState(VK_CONTROL.0 as i32) } & 0x8000u16 as i16 != 0,
+    };
+    app.raw_input.modifiers = modifiers;
+
+    // events processed only after app is initialized
+    handled |= match message {
+        WM_KEYDOWN => key_event(wparam, true, modifiers, app),
+        WM_KEYUP => key_event(wparam, false, modifiers, app),
+        WM_LBUTTONDOWN => {
+            pointer_button_event(pos, egui::PointerButton::Primary, true, modifiers, app);
+            true
+        }
+        WM_LBUTTONUP => {
+            pointer_button_event(pos, egui::PointerButton::Primary, false, modifiers, app);
+            true
+        }
+        WM_RBUTTONDOWN => {
+            pointer_button_event(pos, egui::PointerButton::Secondary, true, modifiers, app);
+            true
+        }
+        WM_RBUTTONUP => {
+            pointer_button_event(pos, egui::PointerButton::Secondary, false, modifiers, app);
+            true
+        }
+        WM_MOUSEMOVE => {
+            app.raw_input.events.push(egui::Event::PointerMoved(pos));
+            true
+        }
+        WM_TOUCH => {
+            todo!("handle touch events");
+        }
+        WM_POINTERDOWN | WM_POINTERUPDATE | WM_POINTERUP => {
+            todo!("handle pointer events"); // how are these different from touch and mouse events?
+        }
+        WM_PAINT => {
+            app.frame();
+            true
+        }
+        _ => false,
+    };
+
+    handled
 }
 
 fn key_event(
@@ -296,6 +299,9 @@ fn pointer_button_event(
 #[derive(Default)]
 pub struct Window {
     resources: Option<Resources>,
+    width: u32,
+    height: u32,
+    dpi_scale: f32,
 }
 
 // resources must be populated after the window is created
