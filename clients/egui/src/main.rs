@@ -49,18 +49,7 @@ fn main() {
             ..Default::default()
         },
         Box::new(|cc: &eframe::CreationContext| {
-            let settings = Arc::new(RwLock::new(settings));
-
-            let mut fonts = egui::FontDefinitions::default();
-            lbeditor::register_fonts(&mut fonts);
-            theme::register_fonts(&mut fonts);
-            cc.egui_ctx.set_fonts(fonts);
-
-            theme::init(&settings, &cc.egui_ctx);
-
-            let splash = SplashScreen::new(settings, maybe_settings_err);
-            splash.start_loading_core(&cc.egui_ctx);
-            Box::new(Lockbook::Splash(splash))
+            Box::new(Lockbook::new(&cc.egui_ctx, settings, maybe_settings_err))
         }),
     )
     .unwrap();
@@ -79,8 +68,30 @@ enum Lockbook {
     Account(AccountScreen),
 }
 
-impl eframe::App for Lockbook {
-    fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
+#[derive(Default)]
+pub struct UpdateOutput {
+    close: bool,
+    set_window_title: Option<String>,
+}
+
+impl Lockbook {
+    fn new(ctx: &egui::Context, settings: Settings, maybe_settings_err: Option<String>) -> Self {
+        let settings = Arc::new(RwLock::new(settings));
+
+        let mut fonts = egui::FontDefinitions::default();
+        lbeditor::register_fonts(&mut fonts);
+        theme::register_fonts(&mut fonts);
+        ctx.set_fonts(fonts);
+
+        theme::init(&settings, ctx);
+
+        let splash = SplashScreen::new(settings, maybe_settings_err);
+        splash.start_loading_core(ctx);
+        Lockbook::Splash(splash)
+    }
+
+    fn update(&mut self, ctx: &egui::Context) -> UpdateOutput {
+        let mut output = Default::default();
         match self {
             // If we're on the Splash screen, we're waiting for the handoff to transition to the
             // Account or Onboard screen. Once we get it, we adjust the application state and
@@ -100,7 +111,7 @@ impl eframe::App for Lockbook {
                     };
 
                     ctx.request_repaint();
-                }
+                };
             }
             // If we're on the Onboard screen, we're waiting for the handoff to transition to the
             // Account screen.
@@ -117,11 +128,24 @@ impl eframe::App for Lockbook {
             }
             // On the account screen, we're just waiting for it to gracefully shutdown.
             Self::Account(screen) => {
-                screen.update(ctx, frame);
+                screen.update(ctx, &mut output);
                 if screen.is_shutdown() {
-                    frame.close();
+                    output.close = true;
                 }
             }
+        }
+        output
+    }
+}
+
+impl eframe::App for Lockbook {
+    fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
+        let output = self.update(ctx);
+        if output.close {
+            frame.close();
+        }
+        if let Some(set_window_title) = output.set_window_title {
+            frame.set_window_title(&set_window_title);
         }
     }
 
