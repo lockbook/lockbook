@@ -1,8 +1,9 @@
+use clipboard_win::{formats, get_clipboard, set_clipboard};
 use egui::{Context, Visuals};
 use egui_wgpu_backend::wgpu::CompositeAlphaMode;
 use egui_wgpu_backend::{wgpu, ScreenDescriptor};
 use lbeguiapp::WgpuLockbook;
-use std::mem::transmute;
+use std::mem::{self, transmute};
 use std::time::{Duration, Instant};
 use windows::{
     core::*, Win32::Foundation::*, Win32::Graphics::Direct3D12::*, Win32::Graphics::Dxgi::*,
@@ -71,9 +72,9 @@ fn main() -> Result<()> {
 
     unsafe { dxgi_factory.MakeWindowAssociation(hwnd, DXGI_MWA_NO_ALT_ENTER) }?;
 
-    let editor = init(&crate::window::Window::new(hwnd), false);
+    let app = init(&crate::window::Window::new(hwnd), false);
 
-    window.resources = Some(Resources { app: editor });
+    window.resources = Some(Resources { app });
     window.dpi_scale = dpi_to_scale_factor(unsafe { GetDpiForWindow(hwnd) } as _);
 
     // "If the window was previously visible, the return value is nonzero."
@@ -194,7 +195,8 @@ fn handled_messages_impl(
     };
 
     // parse position
-    let pos = egui::Pos2 { x: loword_l as f32, y: hiword_l as f32 };
+    let pos =
+        egui::Pos2 { x: loword_l as f32 / window.dpi_scale, y: hiword_l as f32 / window.dpi_scale };
 
     // tell app about events it might have missed
     app.raw_input.pixels_per_point = Some(window.dpi_scale);
@@ -245,6 +247,11 @@ fn handled_messages_impl(
         }
         WM_PAINT => {
             app.frame();
+
+            if let Some(copied_text) = mem::take(&mut app.from_egui) {
+                set_clipboard(formats::Unicode, copied_text).expect("set clipboard");
+            }
+
             true
         }
         _ => false,
@@ -254,30 +261,30 @@ fn handled_messages_impl(
 }
 
 fn key_event(
-    wparam: WPARAM, pressed: bool, modifiers: egui::Modifiers, editor: &mut WgpuLockbook,
+    wparam: WPARAM, pressed: bool, modifiers: egui::Modifiers, app: &mut WgpuLockbook,
 ) -> bool {
     // text
     if pressed && (modifiers.shift_only() || modifiers.is_none()) {
         if let Some(text) = keyboard::key_text(wparam, modifiers.shift) {
-            editor
-                .raw_input
+            app.raw_input
                 .events
                 .push(egui::Event::Text(text.to_owned()));
             return true;
         }
     }
 
+    // todo: something is wrong with input
     if let Some(key) = keyboard::egui_key(wparam) {
         // ctrl + v
         if pressed && key == egui::Key::V && modifiers.command {
-            let clip = editor.from_host.clone().unwrap_or_default();
-            editor.raw_input.events.push(egui::Event::Paste(clip));
+            // somewhat weird that app.from_host isn't involved here
+            let clipboard: String = get_clipboard(formats::Unicode).expect("get clipboard");
+            app.raw_input.events.push(egui::Event::Paste(clipboard));
             return true;
         }
 
         // other egui keys
-        editor
-            .raw_input
+        app.raw_input
             .events
             .push(egui::Event::Key { key, pressed, repeat: false, modifiers });
         return true;
@@ -288,10 +295,9 @@ fn key_event(
 
 fn pointer_button_event(
     pos: egui::Pos2, button: egui::PointerButton, pressed: bool, modifiers: egui::Modifiers,
-    editor: &mut WgpuLockbook,
+    app: &mut WgpuLockbook,
 ) {
-    editor
-        .raw_input
+    app.raw_input
         .events
         .push(egui::Event::PointerButton { pos, button, pressed, modifiers });
 }

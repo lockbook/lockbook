@@ -3581,6 +3581,7 @@ name = "lockbook-windows"
 version = "0.1.0"
 dependencies = [
  "array-init",
+ "clipboard-win",
  "egui",
  "egui_editor",
  "egui_wgpu_backend",

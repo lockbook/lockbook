@@ -13,6 +13,7 @@ lb = { package = "lockbook-core", path = "../../libs/core", default-features = f
 raw-window-handle = "0.5"
 env_logger = "0.10"
 array-init = "2.0.0"
+clipboard-win = "4.5.0"
 
 [dependencies.windows]
 version = "0.51.1"
