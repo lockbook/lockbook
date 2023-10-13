@@ -3,12 +3,12 @@ use egui::{Context, Visuals};
 use egui_wgpu_backend::wgpu::CompositeAlphaMode;
 use egui_wgpu_backend::{wgpu, ScreenDescriptor};
 use lbeguiapp::WgpuLockbook;
-use std::mem::{self, transmute};
+use std::mem::{self, size_of, transmute};
 use std::time::{Duration, Instant};
 use windows::{
     core::*, Win32::Foundation::*, Win32::Graphics::Direct3D12::*, Win32::Graphics::Dxgi::*,
     Win32::System::LibraryLoader::*, Win32::UI::HiDpi::*, Win32::UI::Input::KeyboardAndMouse::*,
-    Win32::UI::WindowsAndMessaging::*,
+    Win32::UI::Input::Touch::*, Win32::UI::WindowsAndMessaging::*,
 };
 
 mod keyboard;
@@ -240,10 +240,45 @@ fn handled_messages_impl(
             true
         }
         WM_TOUCH => {
-            todo!("handle touch events");
-        }
-        WM_POINTERDOWN | WM_POINTERUPDATE | WM_POINTERUP => {
-            todo!("handle pointer events"); // how are these different from touch and mouse events?
+            let touches = {
+                let num_touches = loword_w as usize;
+                let mut touches = vec![TOUCHINPUT::default(); num_touches];
+                unsafe {
+                    GetTouchInputInfo(
+                        HTOUCHINPUT(lparam.0),
+                        &mut touches,
+                        size_of::<TOUCHINPUT>() as _,
+                    )
+                }
+                .unwrap();
+                touches
+            };
+
+            for touch in touches {
+                // todo: distinguish between touch and pen so you can rest hand on tablet while drawing (not supported by egui)
+                let phase = if touch.dwFlags & TOUCHEVENTF_DOWN != TOUCHEVENTF_FLAGS(0) {
+                    egui::TouchPhase::Start
+                } else if touch.dwFlags & TOUCHEVENTF_UP != TOUCHEVENTF_FLAGS(0) {
+                    egui::TouchPhase::End
+                } else if touch.dwFlags & TOUCHEVENTF_MOVE != TOUCHEVENTF_FLAGS(0) {
+                    egui::TouchPhase::Move
+                } else {
+                    continue;
+                };
+
+                app.raw_input.events.push(egui::Event::Touch {
+                    device_id: egui::TouchDeviceId(touch.hSource.0 as _),
+                    id: touch.dwID.into(),
+                    phase,
+                    pos: egui::Pos2 {
+                        x: touch.x as f32 / window.dpi_scale,
+                        y: touch.y as f32 / window.dpi_scale,
+                    },
+                    force: 0.0,
+                })
+            }
+
+            true
         }
         WM_PAINT => {
             app.frame();
@@ -273,7 +308,7 @@ fn key_event(
         }
     }
 
-    // todo: something is wrong with input
+    // todo: something feels weird about this
     if let Some(key) = keyboard::egui_key(wparam) {
         // ctrl + v
         if pressed && key == egui::Key::V && modifiers.command {
