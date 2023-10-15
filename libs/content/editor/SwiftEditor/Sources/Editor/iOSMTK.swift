@@ -298,11 +298,15 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
         redrawTask?.cancel()
         self.isPaused = output.redraw_in > 100
         if self.isPaused {
-            let newRedrawTask = DispatchWorkItem {
-                self.setNeedsDisplay(self.frame)
+            let redrawIn = Int(truncatingIfNeeded: output.redraw_in)
+            
+            if redrawIn != -1 {
+                let newRedrawTask = DispatchWorkItem {
+                    self.setNeedsDisplay(self.frame)
+                }
+                DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(redrawIn), execute: newRedrawTask)
+                redrawTask = newRedrawTask
             }
-            DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(Int(truncatingIfNeeded: output.redraw_in)), execute: newRedrawTask)
-            redrawTask = newRedrawTask
         }
     }
     

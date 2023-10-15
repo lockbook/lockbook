@@ -20,6 +20,7 @@ public class MacMTK: MTKView, MTKViewDelegate {
         self.delegate = self
         self.isPaused = true
         self.enableSetNeedsDisplay = true
+        self.preferredFramesPerSecond = 120
     }
     
     public override func resetCursorRects() {
@@ -117,12 +118,20 @@ public class MacMTK: MTKView, MTKViewDelegate {
     }
     
     public override func mouseDragged(with event: NSEvent) {
+        if window?.firstResponder != self {
+            return
+        }
+
         let local = viewCoordinates(event)
         mouse_moved(editorHandle, Float(local.x), Float(local.y))
         setNeedsDisplay(self.frame)
     }
     
     public override func mouseMoved(with event: NSEvent) {
+        if window?.firstResponder != self {
+            return
+        }
+
         let local = viewCoordinates(event)
         mouse_moved(editorHandle, Float(local.x), Float(local.y))
         setNeedsDisplay(self.frame)
@@ -298,11 +307,15 @@ public class MacMTK: MTKView, MTKViewDelegate {
         redrawTask?.cancel()
         self.isPaused = output.redraw_in > 100
         if self.isPaused {
-            let newRedrawTask = DispatchWorkItem {
-                self.setNeedsDisplay(self.frame)
+            let redrawIn = Int(truncatingIfNeeded: output.redraw_in)
+            
+            if redrawIn != -1 {
+                let newRedrawTask = DispatchWorkItem {
+                    self.setNeedsDisplay(self.frame)
+                }
+                DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(redrawIn), execute: newRedrawTask)
+                redrawTask = newRedrawTask
             }
-            DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(Int(truncatingIfNeeded: output.redraw_in)), execute: newRedrawTask)
-            redrawTask = newRedrawTask
         }
 
         if has_copied_text(editorHandle) {
