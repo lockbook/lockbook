@@ -375,8 +375,6 @@ impl PdfViewer {
             if let Some(offset) = content.offset {
                 self.sidebar.scroll_update = Some(offset);
             }
-        } else {
-            return;
         }
     }
     // todo: refactor for dynamic sizing
