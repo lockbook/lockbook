@@ -3,15 +3,21 @@ use eframe::{egui, epaint};
 pub struct ProgressBar {
     height: f32,
     percent: f32,
+    is_error: bool,
 }
 
 impl ProgressBar {
     pub fn new() -> Self {
-        Self { height: 5.0, percent: 0.0 }
+        Self { height: 5.0, percent: 0.0, is_error: false }
     }
 
     pub fn percent(self, percent: f32) -> Self {
         Self { percent, ..self }
+    }
+
+    pub fn is_error(mut self, is_error: bool) -> Self {
+        self.is_error = is_error;
+        self
     }
 
     pub fn show(self, ui: &mut egui::Ui) -> egui::Response {
@@ -39,7 +45,11 @@ impl ProgressBar {
             ui.painter().add(epaint::RectShape {
                 rect: progress_rect,
                 rounding,
-                fill: ui.visuals().widgets.active.bg_fill,
+                fill: if self.is_error {
+                    ui.visuals().error_fg_color
+                } else {
+                    ui.visuals().widgets.active.bg_fill
+                },
                 stroke,
             });
         }

@@ -16,7 +16,7 @@ use self::account_tab::*;
 use self::usage_tab::*;
 
 #[derive(PartialEq)]
-enum SettingsTab {
+pub enum SettingsTab {
     Account,
     Usage,
     Appearance,
@@ -28,7 +28,7 @@ pub struct SettingsModal {
     settings: Arc<RwLock<Settings>>,
     account: AccountSettings,
     usage: UsageSettings,
-    active_tab: SettingsTab,
+    pub active_tab: SettingsTab,
     version: String,
 }
 

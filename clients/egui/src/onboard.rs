@@ -103,6 +103,10 @@ impl OnboardScreen {
                         match err {
                             SyncError::Major(msg) => self.import_err = Some(msg),
                             SyncError::Minor(msg) => self.import_err = Some(msg),
+                            SyncError::UsageIsOverDataCap => {
+                                self.import_err =
+                                    Some("Usage is over data dap. You need to Upgrade".to_string())
+                            }
                         }
                     } else {
                         self.import_status = Some("Loading account data...".to_string());

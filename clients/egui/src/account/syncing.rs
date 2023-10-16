@@ -7,17 +7,27 @@ use crate::model::{SyncError, Usage};
 use crate::theme::Icon;
 use crate::widgets::{Button, ProgressBar};
 
+use super::modals::{SettingsModal, SettingsTab};
 use super::AccountUpdate;
 
 pub struct SyncPanel {
-    status: Result<String, String>,
+    status: Result<String, SyncStatusError>,
     lock: Arc<Mutex<()>>,
     phase: SyncPhase,
 }
 
+pub enum SyncStatusError {
+    Msg(String),
+    UsageIsOverDataCap,
+}
+
 impl SyncPanel {
     pub fn new(status: Result<String, String>) -> Self {
-        Self { status, lock: Arc::new(Mutex::new(())), phase: SyncPhase::IdleGood }
+        Self {
+            status: status.map_err(|err| SyncStatusError::Msg(err)),
+            lock: Arc::new(Mutex::new(())),
+            phase: SyncPhase::IdleGood,
+        }
     }
 }
 
@@ -71,8 +81,11 @@ impl super::AccountScreen {
                 Err(err) => {
                     self.sync.phase = SyncPhase::IdleError;
                     match err {
-                        SyncError::Minor(msg) => self.sync.status = Err(msg),
-                        SyncError::Major(msg) => println!("major sync error: {}", msg), // TODO
+                        SyncError::Minor(msg) => self.sync.status = Err(SyncStatusError::Msg(msg)),
+                        SyncError::Major(msg) => println!("major sync error: {}", msg),
+                        SyncError::UsageIsOverDataCap => {
+                            self.sync.status = Err(SyncStatusError::UsageIsOverDataCap)
+                        } // TODO
                     }
                 }
             },
@@ -107,7 +120,13 @@ impl super::AccountScreen {
 
                         ui.add_space(8.0);
 
-                        ProgressBar::new().percent(usage.percent).show(ui);
+                        ProgressBar::new()
+                            .percent(usage.percent)
+                            .is_error(matches!(
+                                self.sync.status,
+                                Err(SyncStatusError::UsageIsOverDataCap)
+                            ))
+                            .show(ui);
                     });
                 }
                 Err(err) => {
@@ -160,10 +179,28 @@ impl super::AccountScreen {
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     ui.add_space(10.0);
                     match &self.sync.status {
-                        Ok(s) => ui.label(
-                            egui::RichText::new(format!("Updated {s}")).color(egui::Color32::GRAY),
-                        ),
-                        Err(msg) => ui.label(egui::RichText::new(msg).color(egui::Color32::RED)),
+                        Ok(s) => {
+                            ui.label(
+                                egui::RichText::new(format!("Updated {s}"))
+                                    .color(egui::Color32::GRAY),
+                            );
+                        }
+                        Err(err) => match err {
+                            SyncStatusError::Msg(msg) => {
+                                ui.label(
+                                    egui::RichText::new(msg).color(ui.visuals().error_fg_color),
+                                );
+                            }
+                            SyncStatusError::UsageIsOverDataCap => {
+                                if ui.button("Upgrade").clicked() {
+                                    self.modals.settings =
+                                        Some(SettingsModal::new(&self.core, &self.settings));
+                                    if let Some(settings_modal) = &mut self.modals.settings {
+                                        settings_modal.active_tab = SettingsTab::Usage;
+                                    }
+                                }
+                            }
+                        },
                     };
                 });
             },
@@ -175,7 +212,7 @@ impl super::AccountScreen {
     pub fn set_sync_status<T: ToString>(&mut self, res: Result<String, T>) {
         self.sync.status = match res {
             Ok(s) => Ok(s),
-            Err(v) => Err(v.to_string()),
+            Err(v) => Err(SyncStatusError::Msg(v.to_string())),
         };
     }
 

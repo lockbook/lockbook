@@ -63,12 +63,16 @@ impl DocType {
 pub enum SyncError {
     Major(String),
     Minor(String),
+    UsageIsOverDataCap,
 }
 
 impl From<lb::LbError> for SyncError {
     fn from(err: lb::LbError) -> Self {
         match err.kind {
             lb::CoreError::Unexpected(msg) => Self::Major(msg),
+            lb::CoreError::UsageIsOverDataCap | lb::CoreError::UsageIsOverFreeTierDataCap => {
+                Self::UsageIsOverDataCap
+            }
             _ => Self::Minor(format!("{:?}", err)),
         }
     }
