@@ -15,7 +15,7 @@ impl ProgressBar {
         Self { percent, ..self }
     }
 
-    pub fn is_error(mut self, is_error: bool) -> Self {
+    pub fn error(mut self, is_error: bool) -> Self {
         self.is_error = is_error;
         self
     }

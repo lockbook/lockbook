@@ -24,7 +24,7 @@ pub enum SyncStatusError {
 impl SyncPanel {
     pub fn new(status: Result<String, String>) -> Self {
         Self {
-            status: status.map_err(|err| SyncStatusError::Msg(err)),
+            status: status.map_err(SyncStatusError::Msg),
             lock: Arc::new(Mutex::new(())),
             phase: SyncPhase::IdleGood,
         }
@@ -122,7 +122,7 @@ impl super::AccountScreen {
 
                         ProgressBar::new()
                             .percent(usage.percent)
-                            .is_error(matches!(
+                            .error(matches!(
                                 self.sync.status,
                                 Err(SyncStatusError::UsageIsOverDataCap)
                             ))
