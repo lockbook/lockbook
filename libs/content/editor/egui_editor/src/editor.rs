@@ -1,3 +1,4 @@
+use serde::Serialize;
 #[cfg(any(target_os = "ios", target_os = "macos"))]
 use std::ffi::{c_char, CString};
 #[cfg(any(target_os = "ios", target_os = "macos"))]
@@ -25,7 +26,7 @@ use crate::{ast, bounds, galleys, images, register_fonts};
 
 #[cfg(any(target_os = "ios", target_os = "macos"))]
 #[repr(C)]
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct EditorResponse {
     pub text_updated: bool,
     pub potential_title: *const c_char,
@@ -51,7 +52,7 @@ pub struct EditorResponse {
 // two structs are used instead of conditional compilation (`cfg`) for `potential_title` because the header
 // files generated for Swift will include both types of `potential_title`. this causes compilation issues in Swift.
 #[cfg(not(any(target_os = "ios", target_os = "macos")))]
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct EditorResponse {
     pub text_updated: bool,
     pub potential_title: Option<String>,

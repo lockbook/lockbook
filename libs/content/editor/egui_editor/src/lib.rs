@@ -2,10 +2,12 @@ pub use crate::editor::{Editor, EditorResponse};
 use egui::{FontData, FontDefinitions, FontFamily, Pos2, Rect};
 use egui_wgpu_backend::wgpu;
 use egui_wgpu_backend::wgpu::CompositeAlphaMode;
+use serde::Serialize;
 use std::iter;
 use std::sync::Arc;
 use std::time::Instant;
 
+pub mod android;
 pub mod appearance;
 pub mod ast;
 pub mod bounds;
@@ -101,7 +103,7 @@ pub struct WgpuEditor {
 }
 
 #[repr(C)]
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Serialize)]
 pub struct IntegrationOutput {
     pub redraw_in: u64,
 

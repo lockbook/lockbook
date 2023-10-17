@@ -91,6 +91,13 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_init(
 }
 
 #[no_mangle]
+pub extern "system" fn Java_app_lockbook_core_CoreKt_getCorePtr(
+    _env: JNIEnv, _: JClass,
+) -> jlong {
+    Box::into_raw(Box::new(static_state::get().expect("Could not get core"))) as jlong
+}
+
+#[no_mangle]
 pub extern "system" fn Java_app_lockbook_core_CoreKt_createAccount(
     env: JNIEnv, _: JClass, jusername: JString, japi_url: JString, jwelcome_doc: jboolean,
 ) -> jstring {

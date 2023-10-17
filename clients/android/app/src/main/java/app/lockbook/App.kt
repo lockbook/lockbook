@@ -24,8 +24,14 @@ class App : Application() {
     var isInImportSync = false
     var isNewAccount = false
 
+    init {
+        instance = this
+    }
+
     override fun onCreate() {
         super.onCreate()
+        Timber.plant(Timber.DebugTree())
+
         loadLockbookCore()
 
         ProcessLifecycleOwner.get().lifecycle
@@ -36,6 +42,11 @@ class App : Application() {
 
     companion object {
         const val PERIODIC_SYNC_TAG = "periodic_sync"
+        var instance: App? = null
+
+        fun applicationContext() : Context {
+            return instance!!.applicationContext
+        }
     }
 
     private fun loadLockbookCore() {

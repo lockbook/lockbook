@@ -31,7 +31,6 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         _binding = SplashScreenBinding.inflate(layoutInflater)
         setContentView(binding.root)
-        Timber.plant(Timber.DebugTree())
 
         handleAccountState()
     }
