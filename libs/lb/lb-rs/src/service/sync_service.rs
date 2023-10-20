@@ -73,6 +73,7 @@ fn get_work_units(op: &SyncOperation) -> Vec<WorkUnit> {
 
 impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {
     #[instrument(level = "debug", skip_all, err(Debug))]
+    // todo: make this not do a full sync
     pub(crate) fn calculate_work(&mut self) -> LbResult<WorkCalculated> {
         let mut work_units: Vec<WorkUnit> = Vec::new();
         let mut sync_context = SyncContext {
