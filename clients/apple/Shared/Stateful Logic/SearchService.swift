@@ -113,13 +113,15 @@ class SearchService: ObservableObject {
         
         pathSearchTask?.cancel()
         
-        lastSearchTimestamp = Int(Date().timeIntervalSince1970 * 1_000)
+        lastSearchTimestamp = Int(Date().timeIntervalSince1970)
         let currentSearchTimestamp = lastSearchTimestamp
         
         let newPathSearchTask = DispatchWorkItem {
+            print("starting search \(self.lastSearchTimestamp == currentSearchTimestamp)")
             DispatchQueue.global(qos: .userInteractive).async {
                 
                 let result = self.core.searchFilePaths(input: input)
+                print("finished search \(self.lastSearchTimestamp == currentSearchTimestamp)")
                 
                 DispatchQueue.main.async {
                     switch result {
@@ -135,9 +137,8 @@ class SearchService: ObservableObject {
             }
         }
         
-        DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(200), execute: newPathSearchTask)
-        
         pathSearchTask = newPathSearchTask
+        DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(300), execute: newPathSearchTask)
     }
     
     func openPathAtIndex(index: Int) {

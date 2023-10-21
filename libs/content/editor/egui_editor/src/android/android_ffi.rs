@@ -194,27 +194,6 @@ pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_getSelectedText
         .into_raw()
 }
 
-// #[no_mangle]
-// pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_getCursorCapsMode(
-//     env: JNIEnv, _: JClass, obj: jlong, regModes: jint
-// ) -> jstring {
-//     let obj = unsafe { &mut *(obj as *mut WgpuEditor) };
-//
-//     let cursor: Cursor = (
-//         obj.editor.buffer.current.cursor.selection.start(),
-//         obj.editor.buffer.current.cursor.selection.end() + (n as usize)
-//     )
-//         .into();
-//
-//     let buffer = &obj.editor.buffer.current;
-//     let text = cursor.selection_text(buffer);
-//
-//     env
-//         .new_string(text)
-//         .expect("Couldn't create JString from rust string!")
-//         .into_raw()
-// }
-
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_deleteSurroundingText(
     _env: JNIEnv, _: JClass, obj: jlong, before_length: jint, after_length: jint
@@ -394,3 +373,106 @@ pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_touchesEnded(
     obj.raw_input.events.push(Event::PointerGone);
 }
 
+// editable stuff
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_getTextLength(
+    _env: JNIEnv, _: JClass, obj: jlong
+) -> jint {
+    let obj = unsafe { &mut *(obj as *mut WgpuEditor) };
+
+    return obj.editor.buffer.current.segs.last_cursor_position().0 as jint
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_clear(
+    _env: JNIEnv, _: JClass, obj: jlong
+) {
+    let obj = unsafe { &mut *(obj as *mut WgpuEditor) };
+
+    obj.editor.custom_events.push(Modification::Replace {
+        region: Region::BetweenLocations {
+            start: Location::DocCharOffset(DocCharOffset(0)),
+            end: Location::DocCharOffset(obj.editor.buffer.current.segs.last_cursor_position())
+        },
+        text: "".to_string()
+    })
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_replace(
+    mut env: JNIEnv, _: JClass, obj: jlong, start: jint, end: jint, text: JString
+) {
+    let obj = unsafe { &mut *(obj as *mut WgpuEditor) };
+
+    let text: String = match env
+        .get_string(&text) {
+        Ok(cont) => cont.into(),
+        Err(err) => format!("error: {:?}", err)
+    };
+
+    obj.editor.custom_events.push(Modification::Replace {
+        region: Region::BetweenLocations {
+            start: Location::DocCharOffset(DocCharOffset(start as usize)),
+            end: Location::DocCharOffset(DocCharOffset(end as usize))
+        },
+        text
+    })
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_insert(
+    mut env: JNIEnv, _: JClass, obj: jlong, index: jint, text: JString
+) {
+    let obj = unsafe { &mut *(obj as *mut WgpuEditor) };
+
+    let text: String = match env
+        .get_string(&text) {
+        Ok(cont) => cont.into(),
+        Err(err) => format!("error: {:?}", err)
+    };
+
+    let loc = Location::DocCharOffset(DocCharOffset(index as usize));
+
+    obj.editor.custom_events.push(Modification::Replace {
+        region: Region::BetweenLocations { start: loc, end: loc },
+        text
+    })
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_append(
+    mut env: JNIEnv, _: JClass, obj: jlong, text: JString
+) {
+    let obj = unsafe { &mut *(obj as *mut WgpuEditor) };
+
+    let text: String = match env
+        .get_string(&text) {
+        Ok(cont) => cont.into(),
+        Err(err) => format!("error: {:?}", err)
+    };
+
+    let loc = Location::DocCharOffset(obj.editor.buffer.current.segs.last_cursor_position());
+
+    obj.editor.custom_events.push(Modification::Replace {
+        region: Region::BetweenLocations { start: loc, end: loc },
+        text
+    })
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_getTextInRange(
+    env: JNIEnv, _: JClass, obj: jlong, start: jint, end: jint
+) -> jstring {
+    let obj = unsafe { &mut *(obj as *mut WgpuEditor) };
+
+    let cursor: Cursor = (start as usize, end as usize).into();
+
+    let buffer = &obj.editor.buffer.current;
+    let text = cursor.selection_text(buffer);
+
+    env
+        .new_string(text)
+        .expect("Couldn't create JString from rust string!")
+        .into_raw()
+}
