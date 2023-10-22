@@ -244,6 +244,8 @@ fn handled_messages_impl(
         }
         // hugely inspired by winit: https://github.com/rust-windowing/winit/blob/master/src/platform_impl/windows/event_loop.rs#L1829
         WM_POINTERDOWN | WM_POINTERUPDATE | WM_POINTERUP => {
+            println!("pointer event");
+
             let (pointer_id, pointer_infos) = {
                 let pointer_id = loword_w(wparam);
                 let mut entries_count = 0u32;
@@ -325,37 +327,35 @@ fn handled_messages_impl(
                     continue;
                 }
 
-                // todo: egui doesn't support force input
-                // let normalize_pointer_pressure = |pressure| match pressure {
-                // https://github.com/rust-windowing/winit/blob/master/src/platform_impl/windows/event_loop.rs#L910C1-L915C2
-                //     1..=1024 => Some(pressure as f32 / 1024.0),
-                //     _ => None,
-                // };
-                // let force = match pointer_info.pointerType {
-                //     PT_TOUCH => {
-                //         let mut touch_info = mem::MaybeUninit::uninit();
-                //         if unsafe {
-                //             GetPointerTouchInfo(pointer_info.pointerId, touch_info.as_mut_ptr())
-                //         }
-                //         .is_err()
-                //         {
-                //             continue;
-                //         };
-                //         normalize_pointer_pressure(unsafe { touch_info.assume_init().pressure })
-                //     }
-                //     PT_PEN => {
-                //         let mut pen_info = mem::MaybeUninit::uninit();
-                //         if unsafe {
-                //             GetPointerPenInfo(pointer_info.pointerId, pen_info.as_mut_ptr())
-                //         }
-                //         .is_err()
-                //         {
-                //             continue;
-                //         };
-                //         normalize_pointer_pressure(unsafe { pen_info.assume_init().pressure })
-                //     }
-                //     _ => None,
-                // };
+                let normalize_pointer_pressure = |pressure| {
+                    // https://github.com/rust-windowing/winit/blob/master/src/platform_impl/windows/event_loop.rs#L910C1-L915C2
+                    pressure as f32 / 1024.0
+                };
+                let force = match pointer_info.pointerType {
+                    PT_TOUCH => {
+                        let mut touch_info = mem::MaybeUninit::uninit();
+                        if unsafe {
+                            GetPointerTouchInfo(pointer_info.pointerId, touch_info.as_mut_ptr())
+                        }
+                        .is_err()
+                        {
+                            continue;
+                        };
+                        normalize_pointer_pressure(unsafe { touch_info.assume_init().pressure })
+                    }
+                    PT_PEN => {
+                        let mut pen_info = mem::MaybeUninit::uninit();
+                        if unsafe {
+                            GetPointerPenInfo(pointer_info.pointerId, pen_info.as_mut_ptr())
+                        }
+                        .is_err()
+                        {
+                            continue;
+                        };
+                        normalize_pointer_pressure(unsafe { pen_info.assume_init().pressure })
+                    }
+                    _ => 0.0,
+                };
 
                 let phase = if has_flag(pointer_info.pointerFlags, POINTER_FLAG_DOWN) {
                     egui::TouchPhase::Start
@@ -376,7 +376,7 @@ fn handled_messages_impl(
                         x: x as f32 / window.dpi_scale,
                         y: y as f32 / window.dpi_scale,
                     },
-                    force: 0.0,
+                    force,
                 });
             }
 
