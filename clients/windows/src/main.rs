@@ -355,10 +355,9 @@ fn handled_messages_impl(
                     _ => 0.0,
                 };
 
-                // todo: divide by dpi_scale?
                 let pos = egui::Pos2 {
-                    x: (location.x as f64 + x.fract()) as _,
-                    y: (location.y as f64 + y.fract()) as _,
+                    x: (location.x as f64 + x.fract()) as f32 / window.dpi_scale,
+                    y: (location.y as f64 + y.fract()) as f32 / window.dpi_scale,
                 };
 
                 // also send pointer events when we receive touch events, similar to ios ffi
@@ -442,10 +441,6 @@ fn pointer_button_event(
     pos: egui::Pos2, button: egui::PointerButton, pressed: bool, modifiers: egui::Modifiers,
     app: &mut WgpuLockbook,
 ) {
-    println!(
-        "push pointer button event: {:?}",
-        egui::Event::PointerButton { pos, button, pressed, modifiers }
-    );
     app.raw_input
         .events
         .push(egui::Event::PointerButton { pos, button, pressed, modifiers });
