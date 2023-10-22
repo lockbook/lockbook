@@ -31,5 +31,6 @@ features = [
     "Win32_UI_HiDpi",
     "Win32_UI_Input_KeyboardAndMouse",
     "Win32_UI_Input_Touch",
+    "Win32_UI_Input_Pointer",
     "Win32_UI_WindowsAndMessaging"
 ]

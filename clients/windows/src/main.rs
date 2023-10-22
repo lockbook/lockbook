@@ -3,12 +3,14 @@ use egui::{Context, Visuals};
 use egui_wgpu_backend::wgpu::CompositeAlphaMode;
 use egui_wgpu_backend::{wgpu, ScreenDescriptor};
 use lbeguiapp::WgpuLockbook;
-use std::mem::{self, size_of, transmute};
+use std::mem::{self, transmute};
+use std::ops::BitAnd;
 use std::time::{Duration, Instant};
 use windows::{
     core::*, Win32::Foundation::*, Win32::Graphics::Direct3D12::*, Win32::Graphics::Dxgi::*,
-    Win32::System::LibraryLoader::*, Win32::UI::HiDpi::*, Win32::UI::Input::KeyboardAndMouse::*,
-    Win32::UI::Input::Touch::*, Win32::UI::WindowsAndMessaging::*,
+    Win32::Graphics::Gdi::*, Win32::System::LibraryLoader::*, Win32::UI::HiDpi::*,
+    Win32::UI::Input::KeyboardAndMouse::*, Win32::UI::Input::Pointer::*,
+    Win32::UI::WindowsAndMessaging::*,
 };
 
 mod keyboard;
@@ -158,21 +160,20 @@ fn handled_messages_impl(
     };
 
     // parse params
-    let loword_l = loword_l(lparam);
-    let hiword_l = hiword_l(lparam);
-    let loword_w = loword_w(wparam);
+    let lparam_loword = loword_l(lparam);
+    let lparam_hiword = hiword_l(lparam);
+    let wparam_loword = loword_w(wparam);
 
     // events processed only after window is created
     handled |= match message {
         WM_SIZE => {
-            window.width = loword_l;
-            window.height = hiword_l;
+            window.width = lparam_loword;
+            window.height = lparam_hiword;
             true
         }
         WM_DPICHANGED => {
             // assign a scale factor based on the new DPI
-            let new_dpi_x = loword_w;
-            let new_scale_factor = dpi_to_scale_factor(new_dpi_x);
+            let new_scale_factor = dpi_to_scale_factor(wparam_loword as _);
             window.dpi_scale = new_scale_factor;
 
             // resize the window based on Windows' suggestion
@@ -195,8 +196,10 @@ fn handled_messages_impl(
     };
 
     // parse position
-    let pos =
-        egui::Pos2 { x: loword_l as f32 / window.dpi_scale, y: hiword_l as f32 / window.dpi_scale };
+    let pos = egui::Pos2 {
+        x: lparam_loword as f32 / window.dpi_scale,
+        y: lparam_hiword as f32 / window.dpi_scale,
+    };
 
     // tell app about events it might have missed
     app.raw_input.pixels_per_point = Some(window.dpi_scale);
@@ -239,44 +242,145 @@ fn handled_messages_impl(
             app.raw_input.events.push(egui::Event::PointerMoved(pos));
             true
         }
-        WM_TOUCH => {
-            let touches = {
-                let num_touches = loword_w as usize;
-                let mut touches = vec![TOUCHINPUT::default(); num_touches];
-                unsafe {
-                    GetTouchInputInfo(
-                        HTOUCHINPUT(lparam.0),
-                        &mut touches,
-                        size_of::<TOUCHINPUT>() as _,
+        // hugely inspired by winit: https://github.com/rust-windowing/winit/blob/master/src/platform_impl/windows/event_loop.rs#L1829
+        WM_POINTERDOWN | WM_POINTERUPDATE | WM_POINTERUP => {
+            let (pointer_id, pointer_infos) = {
+                let pointer_id = loword_w(wparam);
+                let mut entries_count = 0u32;
+                let mut pointers_count = 0u32;
+
+                if unsafe {
+                    GetPointerFrameInfoHistory(
+                        pointer_id,
+                        &mut entries_count,
+                        &mut pointers_count,
+                        None,
                     )
                 }
-                .unwrap();
-                touches
+                .is_err()
+                {
+                    return false;
+                }
+
+                let pointer_info_count = (entries_count * pointers_count) as usize;
+                let mut pointer_infos = Vec::with_capacity(pointer_info_count);
+                if unsafe {
+                    GetPointerFrameInfoHistory(
+                        pointer_id,
+                        &mut entries_count,
+                        &mut pointers_count,
+                        Some(pointer_infos.as_mut_ptr()),
+                    )
+                }
+                .is_err()
+                {
+                    return false;
+                }
+                unsafe { pointer_infos.set_len(pointer_info_count) };
+
+                (pointer_id, pointer_infos)
             };
 
-            for touch in touches {
-                // todo: distinguish between touch and pen so you can rest hand on tablet while drawing (not supported by egui)
-                let phase = if touch.dwFlags & TOUCHEVENTF_DOWN != TOUCHEVENTF_FLAGS(0) {
+            // https://docs.microsoft.com/en-us/windows/desktop/api/winuser/nf-winuser-getpointerframeinfohistory
+            // The information retrieved appears in reverse chronological order, with the most recent entry in the first
+            // row of the returned array
+            for pointer_info in pointer_infos.iter().rev() {
+                let mut device_rect = mem::MaybeUninit::uninit();
+                let mut display_rect = mem::MaybeUninit::uninit();
+
+                if unsafe {
+                    GetPointerDeviceRects(
+                        pointer_info.sourceDevice,
+                        device_rect.as_mut_ptr(),
+                        display_rect.as_mut_ptr(),
+                    )
+                }
+                .is_err()
+                {
+                    continue;
+                }
+
+                let device_rect = unsafe { device_rect.assume_init() };
+                let display_rect = unsafe { display_rect.assume_init() };
+
+                // For the most precise himetric to pixel conversion we calculate the ratio between the resolution
+                // of the display device (pixel) and the touch device (himetric).
+                let himetric_to_pixel_ratio_x = (display_rect.right - display_rect.left) as f64
+                    / (device_rect.right - device_rect.left) as f64;
+                let himetric_to_pixel_ratio_y = (display_rect.bottom - display_rect.top) as f64
+                    / (device_rect.bottom - device_rect.top) as f64;
+
+                // ptHimetricLocation's origin is 0,0 even on multi-monitor setups.
+                // On multi-monitor setups we need to translate the himetric location to the rect of the
+                // display device it's attached to.
+                let x = display_rect.left as f64
+                    + pointer_info.ptHimetricLocation.x as f64 * himetric_to_pixel_ratio_x;
+                let y = display_rect.top as f64
+                    + pointer_info.ptHimetricLocation.y as f64 * himetric_to_pixel_ratio_y;
+
+                let mut location = POINT { x: x.floor() as i32, y: y.floor() as i32 };
+
+                if unsafe { ScreenToClient(window_handle, &mut location) }.into() {
+                } else {
+                    continue;
+                }
+
+                // todo: egui doesn't support force input
+                // let normalize_pointer_pressure = |pressure| match pressure {
+                // https://github.com/rust-windowing/winit/blob/master/src/platform_impl/windows/event_loop.rs#L910C1-L915C2
+                //     1..=1024 => Some(pressure as f32 / 1024.0),
+                //     _ => None,
+                // };
+                // let force = match pointer_info.pointerType {
+                //     PT_TOUCH => {
+                //         let mut touch_info = mem::MaybeUninit::uninit();
+                //         if unsafe {
+                //             GetPointerTouchInfo(pointer_info.pointerId, touch_info.as_mut_ptr())
+                //         }
+                //         .is_err()
+                //         {
+                //             continue;
+                //         };
+                //         normalize_pointer_pressure(unsafe { touch_info.assume_init().pressure })
+                //     }
+                //     PT_PEN => {
+                //         let mut pen_info = mem::MaybeUninit::uninit();
+                //         if unsafe {
+                //             GetPointerPenInfo(pointer_info.pointerId, pen_info.as_mut_ptr())
+                //         }
+                //         .is_err()
+                //         {
+                //             continue;
+                //         };
+                //         normalize_pointer_pressure(unsafe { pen_info.assume_init().pressure })
+                //     }
+                //     _ => None,
+                // };
+
+                let phase = if has_flag(pointer_info.pointerFlags, POINTER_FLAG_DOWN) {
                     egui::TouchPhase::Start
-                } else if touch.dwFlags & TOUCHEVENTF_UP != TOUCHEVENTF_FLAGS(0) {
+                } else if has_flag(pointer_info.pointerFlags, POINTER_FLAG_UP) {
                     egui::TouchPhase::End
-                } else if touch.dwFlags & TOUCHEVENTF_MOVE != TOUCHEVENTF_FLAGS(0) {
+                } else if has_flag(pointer_info.pointerFlags, POINTER_FLAG_UPDATE) {
                     egui::TouchPhase::Move
                 } else {
                     continue;
                 };
-
+                let x = location.x as f64 + x.fract();
+                let y = location.y as f64 + y.fract();
                 app.raw_input.events.push(egui::Event::Touch {
-                    device_id: egui::TouchDeviceId(touch.hSource.0 as _),
-                    id: touch.dwID.into(),
+                    device_id: egui::TouchDeviceId(pointer_id as _),
+                    id: pointer_id.into(),
                     phase,
                     pos: egui::Pos2 {
-                        x: touch.x as f32 / window.dpi_scale,
-                        y: touch.y as f32 / window.dpi_scale,
+                        x: x as f32 / window.dpi_scale,
+                        y: y as f32 / window.dpi_scale,
                     },
                     force: 0.0,
-                })
+                });
             }
+
+            let _ = unsafe { SkipPointerFrameMessages(pointer_id) };
 
             true
         }
@@ -442,11 +546,19 @@ const fn hiword_l(lparam: LPARAM) -> u32 {
 }
 
 #[inline(always)]
-const fn loword_w(wparam: WPARAM) -> u16 {
+const fn loword_w(wparam: WPARAM) -> u32 {
     (wparam.0 & 0xFFFF) as _
 }
 
 // https://github.com/rust-windowing/winit/blob/789a4979801cffc20c9dfbc34e72c15ebf3c737c/src/platform_impl/windows/dpi.rs#L75C1-L78C2
 pub fn dpi_to_scale_factor(dpi: u16) -> f32 {
     dpi as f32 / USER_DEFAULT_SCREEN_DPI as f32
+}
+
+// https://github.com/rust-windowing/winit/blob/master/src/platform_impl/windows/util.rs#L50C1-L55C2
+fn has_flag<T>(bitset: T, flag: T) -> bool
+where
+    T: Copy + PartialEq + BitAnd<T, Output = T>,
+{
+    bitset & flag == flag
 }
