@@ -389,6 +389,26 @@ fn handled_messages_impl(
 
             true
         }
+        WM_MOUSEWHEEL => {
+            let y = (wparam.0 >> 16) as i16;
+            let y = y as f32 / WHEEL_DELTA as f32;
+            let y = y * 20.0; // arbitrary multiplier to make scrolling feel better
+            app.raw_input
+                .events
+                .push(egui::Event::Scroll(egui::Vec2 { x: 0.0, y }));
+
+            true
+        }
+        WM_MOUSEHWHEEL => {
+            let x = (wparam.0 >> 16) as i16;
+            let x = -x as f32 / WHEEL_DELTA as f32;
+            let x = x * 20.0; // arbitrary multiplier to make scrolling feel better
+            app.raw_input
+                .events
+                .push(egui::Event::Scroll(egui::Vec2 { x, y: 0.0 }));
+
+            true
+        }
         WM_PAINT => {
             app.frame();
 
