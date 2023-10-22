@@ -442,6 +442,10 @@ fn pointer_button_event(
     pos: egui::Pos2, button: egui::PointerButton, pressed: bool, modifiers: egui::Modifiers,
     app: &mut WgpuLockbook,
 ) {
+    println!(
+        "push pointer button event: {:?}",
+        egui::Event::PointerButton { pos, button, pressed, modifiers }
+    );
     app.raw_input
         .events
         .push(egui::Event::PointerButton { pos, button, pressed, modifiers });
