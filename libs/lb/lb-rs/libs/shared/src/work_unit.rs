@@ -1,19 +1,20 @@
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 use crate::file::File;
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(tag = "tag", content = "content")]
 pub enum WorkUnit {
-    LocalChange { metadata: File },
-    ServerChange { metadata: File },
+    LocalChange(Uuid),
+    ServerChange(Uuid),
 }
 
 impl WorkUnit {
-    pub fn get_metadata(&self) -> File {
+    pub fn id(&self) -> Uuid {
         match self {
-            WorkUnit::LocalChange { metadata } => metadata,
-            WorkUnit::ServerChange { metadata } => metadata,
+            WorkUnit::LocalChange(id) => id,
+            WorkUnit::ServerChange(id) => id,
         }
         .clone()
     }

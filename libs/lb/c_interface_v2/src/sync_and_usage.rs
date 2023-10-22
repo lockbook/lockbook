@@ -33,7 +33,7 @@ pub struct LbCalcWorkResult {
 #[repr(C)]
 pub struct LbWorkUnit {
     pub typ: LbWorkUnitType,
-    pub file: LbFile,
+    pub file: LbFileId,
 }
 
 #[repr(C)]
@@ -71,16 +71,16 @@ pub unsafe extern "C" fn lb_calculate_work(core: *mut c_void) -> LbCalcWorkResul
                     WorkUnit::LocalChange { .. } => LbWorkUnitType::Local,
                     WorkUnit::ServerChange { .. } => LbWorkUnitType::Server,
                 };
-                let file = lb_file_new(match wu {
-                    WorkUnit::LocalChange { metadata } => metadata,
-                    WorkUnit::ServerChange { metadata } => metadata,
+                let id = lb_file_new(match wu {
+                    WorkUnit::LocalChange(id) => id,
+                    WorkUnit::ServerChange(id) => id,
                 });
                 list.push(LbWorkUnit { typ, file });
             }
             let mut list = std::mem::ManuallyDrop::new(list);
             r.ok.units = list.as_mut_ptr();
             r.ok.num_units = list.len();
-            r.ok.last_server_update_at = work.most_recent_update_from_server;
+            r.ok.last_server_update_at = work.latest_server_ts;
         }
         Err(err) => r.err = lberr(err),
     }
