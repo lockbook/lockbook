@@ -364,19 +364,21 @@ fn handled_messages_impl(
                 } else {
                     continue;
                 };
+                // todo: divide by dpi_scale?
                 let pos = egui::Pos2 {
                     x: (location.x as f64 + x.fract()) as _,
                     y: (location.y as f64 + y.fract()) as _,
                 };
-                println!("pos: {:?}", pos);
 
-                app.raw_input.events.push(egui::Event::Touch {
+                let event = egui::Event::Touch {
                     device_id: egui::TouchDeviceId(pointer_id as _),
                     id: pointer_id.into(),
                     phase,
                     pos,
                     force,
-                });
+                };
+                println!("event: {:?}", event);
+                app.raw_input.events.push(event);
             }
 
             let _ = unsafe { SkipPointerFrameMessages(pointer_id) };
