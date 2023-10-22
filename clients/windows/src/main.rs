@@ -375,7 +375,7 @@ fn handled_messages_impl(
                     id: pointer_id.into(),
                     phase,
                     pos,
-                    force,
+                    force: 1.0,
                 };
                 println!("event: {:?}", event);
                 app.raw_input.events.push(event);
