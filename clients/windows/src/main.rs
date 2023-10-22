@@ -355,30 +355,35 @@ fn handled_messages_impl(
                     _ => 0.0,
                 };
 
-                let phase = if has_flag(pointer_info.pointerFlags, POINTER_FLAG_DOWN) {
-                    egui::TouchPhase::Start
-                } else if has_flag(pointer_info.pointerFlags, POINTER_FLAG_UP) {
-                    egui::TouchPhase::End
-                } else if has_flag(pointer_info.pointerFlags, POINTER_FLAG_UPDATE) {
-                    egui::TouchPhase::Move
-                } else {
-                    continue;
-                };
                 // todo: divide by dpi_scale?
                 let pos = egui::Pos2 {
                     x: (location.x as f64 + x.fract()) as _,
                     y: (location.y as f64 + y.fract()) as _,
                 };
 
-                let event = egui::Event::Touch {
+                // also send pointer events when we receive touch events, similar to ios ffi
+                // todo: account for other pointer flags e.g. to distinguish draw from erase
+                // todo: support resting palm on surface while drawing
+                let phase = if has_flag(pointer_info.pointerFlags, POINTER_FLAG_DOWN) {
+                    pointer_button_event(pos, egui::PointerButton::Primary, true, modifiers, app);
+                    egui::TouchPhase::Start
+                } else if has_flag(pointer_info.pointerFlags, POINTER_FLAG_UP) {
+                    pointer_button_event(pos, egui::PointerButton::Primary, false, modifiers, app);
+                    egui::TouchPhase::End
+                } else if has_flag(pointer_info.pointerFlags, POINTER_FLAG_UPDATE) {
+                    app.raw_input.events.push(egui::Event::PointerMoved(pos));
+                    egui::TouchPhase::Move
+                } else {
+                    continue;
+                };
+
+                app.raw_input.events.push(egui::Event::Touch {
                     device_id: egui::TouchDeviceId(pointer_id as _),
                     id: pointer_id.into(),
                     phase,
                     pos,
-                    force: 1.0,
-                };
-                println!("event: {:?}", event);
-                app.raw_input.events.push(event);
+                    force,
+                });
             }
 
             let _ = unsafe { SkipPointerFrameMessages(pointer_id) };
