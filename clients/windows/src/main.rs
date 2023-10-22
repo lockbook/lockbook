@@ -244,8 +244,6 @@ fn handled_messages_impl(
         }
         // hugely inspired by winit: https://github.com/rust-windowing/winit/blob/master/src/platform_impl/windows/event_loop.rs#L1829
         WM_POINTERDOWN | WM_POINTERUPDATE | WM_POINTERUP => {
-            println!("pointer event");
-
             let (pointer_id, pointer_infos) = {
                 let pointer_id = loword_w(wparam);
                 let mut entries_count = 0u32;
@@ -366,16 +364,19 @@ fn handled_messages_impl(
                 } else {
                     continue;
                 };
+                let pos = egui::Pos2 {
+                    x: location.x as f64 + x.fract() as _,
+                    y: location.y as f64 + y.fract() as _,
+                };
+                println!("pos: {:?}", pos);
+
                 let x = location.x as f64 + x.fract();
                 let y = location.y as f64 + y.fract();
                 app.raw_input.events.push(egui::Event::Touch {
                     device_id: egui::TouchDeviceId(pointer_id as _),
                     id: pointer_id.into(),
                     phase,
-                    pos: egui::Pos2 {
-                        x: x as f32 / window.dpi_scale,
-                        y: y as f32 / window.dpi_scale,
-                    },
+                    pos,
                     force,
                 });
             }
