@@ -365,13 +365,11 @@ fn handled_messages_impl(
                     continue;
                 };
                 let pos = egui::Pos2 {
-                    x: location.x as f64 + x.fract() as _,
-                    y: location.y as f64 + y.fract() as _,
+                    x: (location.x as f64 + x.fract()) as _,
+                    y: (location.y as f64 + y.fract()) as _,
                 };
                 println!("pos: {:?}", pos);
 
-                let x = location.x as f64 + x.fract();
-                let y = location.y as f64 + y.fract();
                 app.raw_input.events.push(egui::Event::Touch {
                     device_id: egui::TouchDeviceId(pointer_id as _),
                     id: pointer_id.into(),
