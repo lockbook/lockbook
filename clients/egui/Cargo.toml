@@ -18,6 +18,7 @@ rfd = "0.11.4"
 lb-fonts = "0.1.1"
 lb-pdf = "0.1.1"
 pdfium-render = "0.8.5"
+resvg = "0.36.0"
 
 [target.'cfg(windows)'.build-dependencies]
 winres = "0.1"

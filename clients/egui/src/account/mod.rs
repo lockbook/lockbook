@@ -29,7 +29,7 @@ use self::modals::*;
 use self::suggested_docs::SuggestedDocs;
 use self::syncing::{SyncPanel, SyncUpdate};
 use self::tabs::{
-    Drawing, ImageViewer, Markdown, PdfViewer, PlainText, Tab, TabContent, TabFailure,
+    Drawing, ImageViewer, Markdown, PdfViewer, PlainText, Tab, TabContent, TabFailure, SVGEditor,
 };
 use self::tree::{FileTree, TreeNode};
 use self::workspace::Workspace;
@@ -800,6 +800,8 @@ impl AccountScreen {
                             TabContent::Image(ImageViewer::boxed(id.to_string(), &bytes))
                         } else if ext == "pdf" {
                             TabContent::Pdf(PdfViewer::boxed(&bytes, &ctx))
+                        } else if ext == "svg" {
+                            TabContent::Svg(SVGEditor::boxed(&bytes, &ctx))
                         } else {
                             TabContent::PlainText(PlainText::boxed(&bytes))
                         }
