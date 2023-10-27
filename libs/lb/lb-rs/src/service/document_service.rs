@@ -39,11 +39,16 @@ impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {
         self.docs.insert(&id, hmac, &encrypted_document)?;
 
         self.add_doc_event(activity_service::DocEvent::Write(id, get_time().0))?;
-
+        self.cleanup()?;
         Ok(())
     }
 
     pub(crate) fn cleanup(&mut self) -> LbResult<()> {
+        if !self.syncing {
+            debug!("skipping doc cleanup due to active sync");
+            return Ok(());
+        }
+
         self.db
             .base_metadata
             .stage(&mut self.db.local_metadata)

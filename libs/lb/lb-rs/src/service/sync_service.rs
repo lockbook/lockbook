@@ -1,12 +1,13 @@
 use std::collections::{HashMap, HashSet};
 
 use lockbook_shared::access_info::UserAccessMode;
+use lockbook_shared::account::Account;
 use lockbook_shared::api::{
-    ChangeDocRequest, GetDocRequest, GetFileIdsRequest, GetUpdatesRequest, GetUpdatesResponse,
-    GetUsernameError, GetUsernameRequest, UpsertRequest,
+    ChangeDocRequest, GetDocRequest, GetFileIdsRequest, GetUpdatesRequest, GetUsernameError,
+    GetUsernameRequest, UpsertRequest,
 };
 use lockbook_shared::document_repo::DocumentService;
-use lockbook_shared::file::{File, ShareMode};
+use lockbook_shared::file::ShareMode;
 use lockbook_shared::file_like::FileLike;
 use lockbook_shared::file_metadata::{FileDiff, FileType, Owner};
 use lockbook_shared::filename::{DocumentType, NameComponents};
@@ -20,7 +21,7 @@ use serde::Serialize;
 use uuid::Uuid;
 
 use crate::service::api_service::ApiError;
-use crate::{CoreError, CoreState, LbResult, Requester};
+use crate::{CoreError, CoreLib, CoreState, LbResult, Requester};
 
 #[derive(Debug, Serialize, Clone)]
 pub struct WorkCalculated {
@@ -33,6 +34,294 @@ pub struct SyncProgress {
     pub total: usize,
     pub progress: usize,
     pub current_work_unit: ClientWorkUnit,
+}
+
+pub struct SyncContext<Client: Requester, Docs: DocumentService> {
+    core: CoreLib<Client, Docs>,
+    client: Client,
+    docs: Docs,
+
+    account: Account,
+    last_synced: u64,
+    remote_changes: Vec<SignedFile>,
+    update_as_of: u64,
+    pushed_metas: Vec<FileDiff<SignedFile>>,
+    pushed_docs: Vec<FileDiff<SignedFile>>,
+}
+
+impl<Client: Requester, Docs: DocumentService> SyncContext<Client, Docs> {
+    pub fn sync(core: &CoreLib<Client, Docs>) -> LbResult<WorkCalculated> {
+        let mut context = SyncContext::setup(core)?;
+
+        let sync_result = context
+            .fetch_meta()
+            .and_then(|_| context.fetch_docs())
+            .and_then(|_| context.merge())
+            .and_then(|_| context.push_meta())
+            .and_then(|_| context.push_docs())
+            .and_then(|_| context.commit_last_synced());
+
+        let cleanup = context.must_cleanup();
+
+        sync_result?;
+        cleanup?;
+
+        Ok(context.work_calculated())
+    }
+
+    fn setup(core: &CoreLib<Client, Docs>) -> LbResult<Self> {
+        let mut inner = core.inner.lock()?;
+        let core = core.clone();
+
+        inner.syncing = true;
+        let client = inner.client.clone();
+        let account = inner.get_account()?.clone();
+        let last_synced = inner.db.last_synced.get().copied().unwrap_or_default() as u64;
+        let docs = inner.docs.clone();
+
+        Ok(Self {
+            core,
+            client,
+            docs,
+            account,
+            last_synced,
+
+            update_as_of: Default::default(),
+            remote_changes: Default::default(),
+            pushed_docs: Default::default(),
+            pushed_metas: Default::default(),
+        })
+    }
+
+    fn fetch_meta(&mut self) -> LbResult<()> {
+        let updates = self.client.request(
+            &self.account,
+            GetUpdatesRequest { since_metadata_version: self.last_synced },
+        )?;
+
+        self.core.in_tx(|tx| {
+            let (mut remote_changes, update_as_of) = {
+                let mut remote_changes = updates.file_metadata;
+                let update_as_of = updates.as_of_metadata_version;
+
+                remote_changes = tx.prune_remote_orphans(remote_changes)?;
+                tx.populate_public_key_cache(&remote_changes)?;
+
+                let remote = (&tx.db.base_metadata)
+                    .stage(remote_changes)
+                    .pruned()?
+                    .to_lazy();
+
+                let (_, remote_changes) = remote.unstage();
+                (remote_changes, update_as_of)
+            };
+
+            // initialize root if this is the first pull on this device
+            if tx.db.root.get().is_none() {
+                let root = remote_changes
+                    .all_files()?
+                    .into_iter()
+                    .find(|f| f.is_root())
+                    .ok_or(CoreError::RootNonexistent)?;
+                tx.db.root.insert(*root.id())?;
+            }
+
+            self.remote_changes = remote_changes;
+            self.update_as_of = update_as_of;
+
+            Ok(())
+        })?;
+
+        Ok(())
+    }
+
+    fn fetch_docs(&mut self) -> LbResult<()> {
+        let mut docs_to_pull = vec![];
+
+        self.core.in_tx(|tx| {
+            let mut remote = (&tx.db.base_metadata).stage(&self.remote_changes).to_lazy(); // this used to be owned remote changes
+            for id in remote.tree.staged.owned_ids() {
+                if remote.calculate_deleted(&id)? {
+                    continue;
+                }
+                let remote_hmac = remote.find(&id)?.document_hmac().cloned();
+                let base_hmac = remote
+                    .tree
+                    .base
+                    .maybe_find(&id)
+                    .and_then(|f| f.document_hmac())
+                    .cloned();
+                if base_hmac == remote_hmac {
+                    continue;
+                }
+
+                if let Some(remote_hmac) = remote_hmac {
+                    docs_to_pull.push((id, remote_hmac));
+                }
+            }
+            Ok(())
+        })?;
+
+        for (id, hmac) in docs_to_pull {
+            let remote_document = self
+                .client
+                .request(&self.account, GetDocRequest { id, hmac })?;
+            self.docs
+                .insert(&id, Some(&hmac), &remote_document.content)?;
+        }
+
+        Ok(())
+    }
+
+    fn merge(&self) -> LbResult<()> {
+        self.core.in_tx(|tx| tx.merge(&self.remote_changes))
+    }
+
+    /// Updates remote and base metadata to local.
+    fn push_meta(&mut self) -> LbResult<()> {
+        let mut updates = vec![];
+        let mut local_changes_no_digests = Vec::new();
+
+        self.core.in_tx(|tx| {
+            // remote = local
+            let mut local = tx.db.base_metadata.stage(&tx.db.local_metadata).to_lazy();
+
+            for id in local.tree.staged.owned_ids() {
+                let mut local_change = local.tree.staged.find(&id)?.timestamped_value.value.clone();
+                let maybe_base_file = local.tree.base.maybe_find(&id);
+
+                // change everything but document hmac and re-sign
+                local_change.document_hmac =
+                    maybe_base_file.and_then(|f| f.timestamped_value.value.document_hmac);
+                let local_change = local_change.sign(tx.get_account()?)?;
+
+                local_changes_no_digests.push(local_change.clone());
+                let file_diff = FileDiff { old: maybe_base_file.cloned(), new: local_change };
+                updates.push(file_diff);
+            }
+
+            Ok(())
+        })?;
+
+        if !updates.is_empty() {
+            self.client
+                .request(&self.account, UpsertRequest { updates: updates.clone() })?;
+            self.pushed_metas = updates;
+        }
+
+        self.core.in_tx(|tx| {
+            // base = local
+            (&mut tx.db.base_metadata)
+                .to_lazy()
+                .stage(local_changes_no_digests)
+                .promote()?;
+            tx.cleanup_local_metadata()?;
+
+            Ok(())
+        })?;
+
+        Ok(())
+    }
+
+    /// Updates remote and base files to local. Assumes metadata is already pushed for all new files.
+    fn push_docs(&mut self) -> LbResult<()> {
+        let mut updates = vec![];
+        let mut local_changes_digests_only = vec![];
+
+        self.core.in_tx(|tx| {
+            let mut local = tx.db.base_metadata.stage(&tx.db.local_metadata).to_lazy();
+
+            for id in local.tree.staged.owned_ids() {
+                let base_file = local.tree.base.find(&id)?.clone();
+
+                // change only document hmac and re-sign
+                let mut local_change = base_file.timestamped_value.value.clone();
+                local_change.document_hmac = local.find(&id)?.timestamped_value.value.document_hmac;
+
+                if base_file.document_hmac() == local_change.document_hmac()
+                    || local_change.document_hmac.is_none()
+                {
+                    continue;
+                }
+
+                let local_change = local_change.sign(tx.get_account()?)?;
+
+                updates.push(FileDiff { old: Some(base_file), new: local_change.clone() });
+                local_changes_digests_only.push(local_change);
+            }
+            Ok(())
+        })?;
+
+        for diff in updates.clone() {
+            let id = diff.new.id();
+            let hmac = diff.new.document_hmac();
+
+            let local_document_change = self.docs.get(&id, hmac)?;
+
+            // remote = local
+            self.client.request(
+                &self.account,
+                ChangeDocRequest { diff, new_content: local_document_change },
+            )?;
+        }
+
+        self.pushed_docs = updates;
+
+        self.core.in_tx(|tx| {
+            // base = local (metadata)
+            (&mut tx.db.base_metadata)
+                .to_lazy()
+                .stage(local_changes_digests_only)
+                .promote()?;
+            tx.cleanup_local_metadata()?;
+            Ok(())
+        })?;
+
+        Ok(())
+    }
+
+    fn commit_last_synced(&self) -> LbResult<()> {
+        self.core.in_tx(|tx| {
+            tx.db.last_synced.insert(self.last_synced as i64)?;
+            Ok(())
+        })
+    }
+    fn must_cleanup(&self) -> LbResult<()> {
+        self.core.in_tx(|tx| {
+            tx.syncing = false;
+            tx.cleanup()
+        })?;
+
+        Ok(())
+    }
+
+    fn work_calculated(&self) -> WorkCalculated {
+        let mut local = HashSet::new();
+        let mut server = HashSet::new();
+        let mut work_units = vec![];
+
+        for meta in &self.pushed_metas {
+            local.insert(meta.new.id());
+        }
+
+        for meta in &self.pushed_docs {
+            local.insert(meta.new.id());
+        }
+
+        for meta in &self.remote_changes {
+            server.insert(meta.id());
+        }
+
+        for id in local {
+            work_units.push(WorkUnit::LocalChange(*id));
+        }
+
+        for id in server {
+            work_units.push(WorkUnit::ServerChange(*id));
+        }
+
+        WorkCalculated { work_units, latest_server_ts: self.update_as_of }
+    }
 }
 
 impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {
@@ -50,10 +339,9 @@ impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {
 
         let last_synced = self.db.last_synced.get().copied().unwrap_or_default() as u64;
         let remote_changes = self.client.request(
-            &self.get_account()?.clone(),
+            self.get_account()?,
             GetUpdatesRequest { since_metadata_version: last_synced },
         )?;
-        let latest_server_ts = remote_changes.as_of_metadata_version;
         let remote_dirty = remote_changes
             .file_metadata
             .into_iter()
@@ -62,92 +350,20 @@ impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {
 
         let mut work_units: Vec<WorkUnit> = Vec::new();
         work_units.extend(locally_dirty.chain(remote_dirty));
-        Ok(WorkCalculated { work_units, latest_server_ts })
-    }
-
-    pub fn sync<F: Fn(SyncProgress)>(
-        &mut self, report_sync_operation: Option<F>,
-    ) -> LbResult<WorkCalculated> {
-        self.prune()?;
-        let update_as_of = self.pull()?;
-        let last_synced = update_as_of as u64;
-        self.push_metadata()?;
-        self.push_documents()?;
-
-        self.db.last_synced.insert(last_synced as i64)?;
-
-        Ok(WorkCalculated { work_units: Vec::new(), latest_server_ts: update_as_of as u64 })
+        Ok(WorkCalculated { work_units, latest_server_ts: remote_changes.as_of_metadata_version })
     }
 
     /// Pulls remote changes and constructs a changeset Merge such that Stage<Stage<Stage<Base, Remote>, Local>, Merge> is valid.
     /// Promotes Base to Stage<Base, Remote> and Local to Stage<Local, Merge>
-    fn pull(&mut self) -> LbResult<i64> {
-        // fetch metadata updates
-        // todo: use a single fetch of metadata updates for calculating sync progress total and for running the sync
-        let (mut remote_changes, update_as_of) = {
-            let updates = self.get_updates()?;
-            let mut remote_changes = updates.file_metadata;
-            let update_as_of = updates.as_of_metadata_version;
-
-            remote_changes = self.prune_remote_orphans(remote_changes)?;
-            self.populate_public_key_cache(&remote_changes)?;
-
-            let mut remote = (&self.db.base_metadata)
-                .stage(remote_changes)
-                .pruned()?
-                .to_lazy();
-
-            let (_, remote_changes) = remote.unstage();
-            (remote_changes, update_as_of)
-        };
-
-        // initialize root if this is the first pull on this device
-        if self.db.root.get().is_none() {
-            let root = remote_changes
-                .all_files()?
-                .into_iter()
-                .find(|f| f.is_root())
-                .ok_or(CoreError::RootNonexistent)?;
-            self.db.root.insert(*root.id())?;
-        }
-
+    fn merge(&mut self, remote_changes: &Vec<SignedFile>) -> LbResult<()> {
         // fetch document updates and local documents for merge
         let me = Owner(self.get_public_key()?);
-        remote_changes = {
-            let mut remote = (&self.db.base_metadata).stage(remote_changes).to_lazy();
-            for id in remote.tree.staged.owned_ids() {
-                if remote.calculate_deleted(&id)? {
-                    continue;
-                }
-                let remote_hmac = remote.find(&id)?.document_hmac().cloned();
-                let base_hmac = remote
-                    .tree
-                    .base
-                    .maybe_find(&id)
-                    .and_then(|f| f.document_hmac())
-                    .cloned();
-                if base_hmac == remote_hmac {
-                    continue;
-                }
-
-                if let Some(remote_hmac) = remote_hmac {
-                    let remote_document = self
-                        .client
-                        .request(self.get_account()?, GetDocRequest { id, hmac: remote_hmac })?
-                        .content;
-                    self.docs
-                        .insert(&id, Some(&remote_hmac), &remote_document)?;
-                }
-            }
-            let (_, remote_changes) = remote.unstage();
-            remote_changes
-        };
 
         // compute merge changes
         let merge_changes = {
             // assemble trees
             let mut base = (&self.db.base_metadata).to_lazy();
-            let remote_unlazy = (&self.db.base_metadata).to_staged(&remote_changes);
+            let remote_unlazy = (&self.db.base_metadata).to_staged(remote_changes);
             let mut remote = remote_unlazy.as_lazy();
             let mut local = (&self.db.base_metadata)
                 .to_staged(&self.db.local_metadata)
@@ -683,7 +899,7 @@ impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {
 
         // base = remote; local = merge
         (&mut self.db.base_metadata)
-            .to_staged(remote_changes)
+            .to_staged(remote_changes.clone())
             .to_lazy()
             .promote()?;
         self.db.local_metadata.clear()?;
@@ -693,16 +909,7 @@ impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {
             .promote()?;
         self.cleanup_local_metadata()?;
 
-        Ok(update_as_of as i64)
-    }
-
-    pub(crate) fn get_updates(&self) -> LbResult<GetUpdatesResponse> {
-        let last_synced = self.db.last_synced.get().copied().unwrap_or_default() as u64;
-        let remote_changes = self.client.request(
-            self.get_account()?,
-            GetUpdatesRequest { since_metadata_version: last_synced },
-        )?;
-        Ok(remote_changes)
+        Ok(())
     }
 
     pub(crate) fn prune_remote_orphans(
@@ -758,101 +965,6 @@ impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {
         let mut local_staged = (&mut self.db.local_metadata).to_lazy().stage(None);
         local_staged.tree.removed = prunable_ids;
         local_staged.promote()?;
-
-        Ok(())
-    }
-
-    /// Updates remote and base metadata to local.
-    #[instrument(level = "debug", skip_all, err(Debug))]
-    fn push_metadata(&mut self) -> LbResult<()> {
-        // remote = local
-        let mut local_changes_no_digests = Vec::new();
-        let mut updates = Vec::new();
-        let mut local = self
-            .db
-            .base_metadata
-            .stage(&self.db.local_metadata)
-            .to_lazy();
-
-        for id in local.tree.staged.owned_ids() {
-            let mut local_change = local.tree.staged.find(&id)?.timestamped_value.value.clone();
-            let maybe_base_file = local.tree.base.maybe_find(&id);
-
-            // change everything but document hmac and re-sign
-            local_change.document_hmac =
-                maybe_base_file.and_then(|f| f.timestamped_value.value.document_hmac);
-            let local_change = local_change.sign(self.get_account()?)?;
-
-            local_changes_no_digests.push(local_change.clone());
-            let file_diff = FileDiff { old: maybe_base_file.cloned(), new: local_change };
-            updates.push(file_diff);
-        }
-
-        if !updates.is_empty() {
-            self.client
-                .request(self.get_account()?, UpsertRequest { updates })?;
-        }
-
-        // base = local
-        (&mut self.db.base_metadata)
-            .to_lazy()
-            .stage(local_changes_no_digests)
-            .promote()?;
-        self.cleanup_local_metadata()?;
-
-        Ok(())
-    }
-
-    /// Updates remote and base files to local. Assumes metadata is already pushed for all new files.
-    #[instrument(level = "debug", skip_all, err(Debug))]
-    fn push_documents(&mut self) -> LbResult<()> {
-        let mut local = self
-            .db
-            .base_metadata
-            .stage(&self.db.local_metadata)
-            .to_lazy();
-
-        let mut local_changes_digests_only = Vec::new();
-        for id in local.tree.staged.owned_ids() {
-            let base_file = local.tree.base.find(&id)?.clone();
-
-            // change only document hmac and re-sign
-            let mut local_change = base_file.timestamped_value.value.clone();
-            local_change.document_hmac = local.find(&id)?.timestamped_value.value.document_hmac;
-
-            if base_file.document_hmac() == local_change.document_hmac()
-                || local_change.document_hmac.is_none()
-            {
-                continue;
-            }
-
-            let local_change = local_change.sign(self.get_account()?)?;
-
-            let local_document_change = self.docs.get(&id, local_change.document_hmac())?;
-
-            // base = local (document)
-            // todo: remove?
-            self.docs
-                .insert(&id, local_change.document_hmac(), &local_document_change)?;
-
-            // remote = local
-            self.client.request(
-                self.get_account()?,
-                ChangeDocRequest {
-                    diff: FileDiff { old: Some(base_file), new: local_change.clone() },
-                    new_content: local_document_change,
-                },
-            )?;
-
-            local_changes_digests_only.push(local_change);
-        }
-
-        // base = local (metadata)
-        (&mut self.db.base_metadata)
-            .to_lazy()
-            .stage(local_changes_digests_only)
-            .promote()?;
-        self.cleanup_local_metadata()?;
 
         Ok(())
     }
