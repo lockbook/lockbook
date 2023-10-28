@@ -32,7 +32,7 @@ pub use lockbook_shared::path_ops::Filter;
 pub use lockbook_shared::server_file::ServerFile;
 pub use lockbook_shared::tree_like::{TreeLike, TreeLikeMut};
 pub use lockbook_shared::usage::bytes_to_human;
-pub use lockbook_shared::work_unit::{ClientWorkUnit, WorkUnit};
+pub use lockbook_shared::work_unit::WorkUnit;
 
 pub use crate::model::drawing::SupportedImageFormats;
 pub use crate::model::errors::{

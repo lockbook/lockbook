@@ -3,8 +3,8 @@ use std::collections::{HashMap, HashSet};
 use lockbook_shared::access_info::UserAccessMode;
 use lockbook_shared::account::Account;
 use lockbook_shared::api::{
-    ChangeDocRequest, GetDocRequest, GetFileIdsRequest, GetUpdatesRequest, GetUsernameError,
-    GetUsernameRequest, UpsertRequest,
+    ChangeDocRequest, GetDocRequest, GetDocumentError, GetDocumentResponse, GetFileIdsRequest,
+    GetUpdatesRequest, GetUsernameError, GetUsernameRequest, UpsertRequest,
 };
 use lockbook_shared::document_repo::DocumentService;
 use lockbook_shared::file::ShareMode;
@@ -14,8 +14,8 @@ use lockbook_shared::filename::{DocumentType, NameComponents};
 use lockbook_shared::signed_file::SignedFile;
 use lockbook_shared::staged::StagedTreeLikeMut;
 use lockbook_shared::tree_like::TreeLike;
-use lockbook_shared::work_unit::{ClientWorkUnit, WorkUnit};
-use lockbook_shared::{symkey, SharedErrorKind, ValidationFailure};
+use lockbook_shared::work_unit::WorkUnit;
+use lockbook_shared::{symkey, SharedErrorKind, SharedResult, ValidationFailure};
 
 use serde::Serialize;
 use uuid::Uuid;
@@ -33,7 +33,8 @@ pub struct WorkCalculated {
 pub struct SyncProgress {
     pub total: usize,
     pub progress: usize,
-    pub current_work_unit: ClientWorkUnit,
+    pub file_being_processed: Uuid,
+    pub msg: String,
 }
 
 pub struct SyncContext<Client: Requester, Docs: DocumentService> {
@@ -54,7 +55,8 @@ impl<Client: Requester, Docs: DocumentService> SyncContext<Client, Docs> {
         let mut context = SyncContext::setup(core)?;
 
         let sync_result = context
-            .fetch_meta()
+            .prune()
+            .and_then(|_| context.fetch_meta())
             .and_then(|_| context.fetch_docs())
             .and_then(|_| context.merge())
             .and_then(|_| context.push_meta())
@@ -74,7 +76,6 @@ impl<Client: Requester, Docs: DocumentService> SyncContext<Client, Docs> {
         let core = core.clone();
 
         inner.syncing = true;
-        inner.prune()?;
         let client = inner.client.clone();
         let account = inner.get_account()?.clone();
         let last_synced = inner.db.last_synced.get().copied().unwrap_or_default() as u64;
@@ -92,6 +93,17 @@ impl<Client: Requester, Docs: DocumentService> SyncContext<Client, Docs> {
             pushed_docs: Default::default(),
             pushed_metas: Default::default(),
         })
+    }
+
+    fn prune(&mut self) -> LbResult<()> {
+        let server_ids = self
+            .client
+            .request(&self.account, GetFileIdsRequest {})?
+            .ids;
+
+        self.core.in_tx(|tx| tx.prune(server_ids))?;
+
+        Ok(())
     }
 
     fn fetch_meta(&mut self) -> LbResult<()> {
@@ -163,6 +175,7 @@ impl<Client: Requester, Docs: DocumentService> SyncContext<Client, Docs> {
             Ok(())
         })?;
 
+        // todo: parallelize
         for (id, hmac) in docs_to_pull {
             let remote_document = self
                 .client
@@ -253,6 +266,7 @@ impl<Client: Requester, Docs: DocumentService> SyncContext<Client, Docs> {
             Ok(())
         })?;
 
+        // todo: parallelize
         for diff in updates.clone() {
             let id = diff.new.id();
             let hmac = diff.new.document_hmac();
@@ -328,7 +342,11 @@ impl<Client: Requester, Docs: DocumentService> SyncContext<Client, Docs> {
 impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {
     #[instrument(level = "debug", skip_all, err(Debug))]
     pub(crate) fn calculate_work(&mut self) -> LbResult<WorkCalculated> {
-        self.prune()?;
+        let server_ids = self
+            .client
+            .request(self.get_account()?, GetFileIdsRequest {})?
+            .ids;
+        self.prune(server_ids)?;
 
         let locally_dirty = self
             .db
@@ -933,17 +951,13 @@ impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {
         Ok(result)
     }
 
-    fn prune(&mut self) -> LbResult<()> {
+    fn prune(&mut self, server_ids: HashSet<Uuid>) -> LbResult<()> {
         let mut local = self
             .db
             .base_metadata
             .stage(&self.db.local_metadata)
             .to_lazy();
         let base_ids = local.tree.base.owned_ids();
-        let server_ids = self
-            .client
-            .request(self.get_account()?, GetFileIdsRequest {})?
-            .ids;
 
         let mut prunable_ids = base_ids;
         prunable_ids.retain(|id| !server_ids.contains(id));

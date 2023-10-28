@@ -19,11 +19,3 @@ impl WorkUnit {
         .clone()
     }
 }
-
-#[derive(Debug, Serialize, Clone)]
-pub enum ClientWorkUnit {
-    PullMetadata,
-    PushMetadata,
-    PullDocument(File),
-    PushDocument(File),
-}
