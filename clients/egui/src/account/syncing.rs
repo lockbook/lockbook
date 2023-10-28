@@ -30,7 +30,7 @@ enum SyncPhase {
 pub enum SyncUpdate {
     Started,
     Progress(lb::SyncProgress),
-    Done(Result<lb::WorkCalculated, SyncError>),
+    Done(Result<lb::SyncStatus, SyncError>),
     SetStatus(Result<String, lb::UnexpectedError>),
     SetUsage(Usage),
 }

@@ -591,7 +591,7 @@ impl AccountScreen {
         }
     }
 
-    pub fn refresh_tree_and_workspace(&self, ctx: &egui::Context, work: lb::WorkCalculated) {
+    pub fn refresh_tree_and_workspace(&self, ctx: &egui::Context, work: lb::SyncStatus) {
         let opened_ids = self
             .workspace
             .tabs
@@ -1024,7 +1024,7 @@ fn consume_key(ctx: &egui::Context, key: char) -> bool {
     })
 }
 
-fn ids_changed_on_server(work: &lb::WorkCalculated) -> Vec<lb::Uuid> {
+fn ids_changed_on_server(work: &lb::SyncStatus) -> Vec<lb::Uuid> {
     work.work_units
         .iter()
         .filter_map(|wu| match wu {

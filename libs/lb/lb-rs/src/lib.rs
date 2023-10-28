@@ -41,7 +41,7 @@ pub use crate::model::errors::{
 pub use crate::service::activity_service::RankingWeights;
 pub use crate::service::import_export_service::{ExportFileInfo, ImportStatus};
 pub use crate::service::search_service::{SearchResultItem, StartSearchInfo};
-pub use crate::service::sync_service::{SyncProgress, WorkCalculated};
+pub use crate::service::sync_service::{SyncProgress, SyncStatus};
 pub use crate::service::usage_service::{UsageItemMetric, UsageMetrics};
 
 use std::collections::HashMap;
@@ -372,15 +372,15 @@ impl<Client: Requester, Docs: DocumentService> CoreLib<Client, Docs> {
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
-    pub fn calculate_work(&self) -> Result<WorkCalculated, LbError> {
+    pub fn calculate_work(&self) -> Result<SyncStatus, LbError> {
         self.in_tx(|s| s.calculate_work())
             .expected_errs(&[CoreError::ServerUnreachable, CoreError::ClientUpdateRequired])
     }
 
     // todo: expose work calculated (return value)
     #[instrument(level = "debug", skip_all, err(Debug))]
-    pub fn sync(&self, f: Option<Box<dyn Fn(SyncProgress)>>) -> Result<WorkCalculated, LbError> {
-        SyncContext::sync(&self).expected_errs(&[
+    pub fn sync(&self, f: Option<Box<dyn Fn(SyncProgress)>>) -> Result<SyncStatus, LbError> {
+        SyncContext::sync(&self, f).expected_errs(&[
             CoreError::ServerUnreachable,
             CoreError::ClientUpdateRequired,
             CoreError::UsageIsOverDataCap,

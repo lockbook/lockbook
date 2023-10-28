@@ -3,8 +3,8 @@ use std::collections::{HashMap, HashSet};
 use lockbook_shared::access_info::UserAccessMode;
 use lockbook_shared::account::Account;
 use lockbook_shared::api::{
-    ChangeDocRequest, GetDocRequest, GetDocumentError, GetDocumentResponse, GetFileIdsRequest,
-    GetUpdatesRequest, GetUsernameError, GetUsernameRequest, UpsertRequest,
+    ChangeDocRequest, GetDocRequest, GetFileIdsRequest, GetUpdatesRequest, GetUsernameError,
+    GetUsernameRequest, UpsertRequest,
 };
 use lockbook_shared::document_repo::DocumentService;
 use lockbook_shared::file::ShareMode;
@@ -15,7 +15,7 @@ use lockbook_shared::signed_file::SignedFile;
 use lockbook_shared::staged::StagedTreeLikeMut;
 use lockbook_shared::tree_like::TreeLike;
 use lockbook_shared::work_unit::WorkUnit;
-use lockbook_shared::{symkey, SharedErrorKind, SharedResult, ValidationFailure};
+use lockbook_shared::{symkey, SharedErrorKind, ValidationFailure};
 
 use serde::Serialize;
 use uuid::Uuid;
@@ -24,7 +24,7 @@ use crate::service::api_service::ApiError;
 use crate::{CoreError, CoreLib, CoreState, LbResult, Requester};
 
 #[derive(Debug, Serialize, Clone)]
-pub struct WorkCalculated {
+pub struct SyncStatus {
     pub work_units: Vec<WorkUnit>,
     pub latest_server_ts: u64,
 }
@@ -33,7 +33,7 @@ pub struct WorkCalculated {
 pub struct SyncProgress {
     pub total: usize,
     pub progress: usize,
-    pub file_being_processed: Uuid,
+    pub file_being_processed: Option<Uuid>,
     pub msg: String,
 }
 
@@ -41,6 +41,10 @@ pub struct SyncContext<Client: Requester, Docs: DocumentService> {
     core: CoreLib<Client, Docs>,
     client: Client,
     docs: Docs,
+
+    progress: Option<Box<dyn Fn(SyncProgress)>>,
+    current: usize,
+    total: usize,
 
     account: Account,
     last_synced: u64,
@@ -51,8 +55,10 @@ pub struct SyncContext<Client: Requester, Docs: DocumentService> {
 }
 
 impl<Client: Requester, Docs: DocumentService> SyncContext<Client, Docs> {
-    pub fn sync(core: &CoreLib<Client, Docs>) -> LbResult<WorkCalculated> {
-        let mut context = SyncContext::setup(core)?;
+    pub fn sync(
+        c: &CoreLib<Client, Docs>, f: Option<Box<dyn Fn(SyncProgress)>>,
+    ) -> LbResult<SyncStatus> {
+        let mut context = SyncContext::setup(c, f)?;
 
         let sync_result = context
             .prune()
@@ -68,10 +74,12 @@ impl<Client: Requester, Docs: DocumentService> SyncContext<Client, Docs> {
         sync_result?;
         cleanup?;
 
-        Ok(context.work_calculated())
+        Ok(context.summarize())
     }
 
-    fn setup(core: &CoreLib<Client, Docs>) -> LbResult<Self> {
+    fn setup(
+        core: &CoreLib<Client, Docs>, progress: Option<Box<dyn Fn(SyncProgress)>>,
+    ) -> LbResult<Self> {
         let mut inner = core.inner.lock()?;
         let core = core.clone();
 
@@ -81,12 +89,19 @@ impl<Client: Requester, Docs: DocumentService> SyncContext<Client, Docs> {
         let last_synced = inner.db.last_synced.get().copied().unwrap_or_default() as u64;
         let docs = inner.docs.clone();
 
+        let current = 0;
+        let total = 6;
+
         Ok(Self {
             core,
             client,
             docs,
             account,
             last_synced,
+
+            progress,
+            current,
+            total,
 
             update_as_of: Default::default(),
             remote_changes: Default::default(),
@@ -96,6 +111,7 @@ impl<Client: Requester, Docs: DocumentService> SyncContext<Client, Docs> {
     }
 
     fn prune(&mut self) -> LbResult<()> {
+        self.msg("Preparing Sync...");
         let server_ids = self
             .client
             .request(&self.account, GetFileIdsRequest {})?
@@ -107,6 +123,7 @@ impl<Client: Requester, Docs: DocumentService> SyncContext<Client, Docs> {
     }
 
     fn fetch_meta(&mut self) -> LbResult<()> {
+        self.msg("Fetching tree updates...");
         let updates = self.client.request(
             &self.account,
             GetUpdatesRequest { since_metadata_version: self.last_synced },
@@ -149,6 +166,7 @@ impl<Client: Requester, Docs: DocumentService> SyncContext<Client, Docs> {
     }
 
     fn fetch_docs(&mut self) -> LbResult<()> {
+        self.msg("Fetching documents...");
         let mut docs_to_pull = vec![];
 
         self.core.in_tx(|tx| {
@@ -175,8 +193,14 @@ impl<Client: Requester, Docs: DocumentService> SyncContext<Client, Docs> {
             Ok(())
         })?;
 
+        let num_docs = docs_to_pull.len();
+        self.total += num_docs;
+
         // todo: parallelize
-        for (id, hmac) in docs_to_pull {
+        for (idx, (id, hmac)) in docs_to_pull.iter().enumerate() {
+            let id = *id;
+            let hmac = *hmac;
+            self.file_msg(id, &format!("Downloading file {idx} of {num_docs}.")); // todo: add name
             let remote_document = self
                 .client
                 .request(&self.account, GetDocRequest { id, hmac })?;
@@ -187,12 +211,14 @@ impl<Client: Requester, Docs: DocumentService> SyncContext<Client, Docs> {
         Ok(())
     }
 
-    fn merge(&self) -> LbResult<()> {
+    fn merge(&mut self) -> LbResult<()> {
+        self.msg("Reconciling updates locally...");
         self.core.in_tx(|tx| tx.merge(&self.remote_changes))
     }
 
     /// Updates remote and base metadata to local.
     fn push_meta(&mut self) -> LbResult<()> {
+        self.msg("Pushing tree changes...");
         let mut updates = vec![];
         let mut local_changes_no_digests = Vec::new();
 
@@ -239,6 +265,7 @@ impl<Client: Requester, Docs: DocumentService> SyncContext<Client, Docs> {
 
     /// Updates remote and base files to local. Assumes metadata is already pushed for all new files.
     fn push_docs(&mut self) -> LbResult<()> {
+        self.msg("Pushing document changes...");
         let mut updates = vec![];
         let mut local_changes_digests_only = vec![];
 
@@ -267,9 +294,12 @@ impl<Client: Requester, Docs: DocumentService> SyncContext<Client, Docs> {
         })?;
 
         // todo: parallelize
-        for diff in updates.clone() {
+        let docs_count = updates.len();
+        self.total += docs_count;
+        for (idx, diff) in updates.clone().into_iter().enumerate() {
             let id = diff.new.id();
             let hmac = diff.new.document_hmac();
+            self.file_msg(*id, &format!("Pushing document {idx} / {docs_count}"));
 
             let local_document_change = self.docs.get(&id, hmac)?;
 
@@ -295,7 +325,8 @@ impl<Client: Requester, Docs: DocumentService> SyncContext<Client, Docs> {
         Ok(())
     }
 
-    fn commit_last_synced(&self) -> LbResult<()> {
+    fn commit_last_synced(&mut self) -> LbResult<()> {
+        self.msg("Cleaning up...");
         self.core.in_tx(|tx| {
             tx.db.last_synced.insert(self.last_synced as i64)?;
             Ok(())
@@ -310,7 +341,7 @@ impl<Client: Requester, Docs: DocumentService> SyncContext<Client, Docs> {
         Ok(())
     }
 
-    fn work_calculated(&self) -> WorkCalculated {
+    fn summarize(&self) -> SyncStatus {
         let mut local = HashSet::new();
         let mut server = HashSet::new();
         let mut work_units = vec![];
@@ -335,13 +366,49 @@ impl<Client: Requester, Docs: DocumentService> SyncContext<Client, Docs> {
             work_units.push(WorkUnit::ServerChange(*id));
         }
 
-        WorkCalculated { work_units, latest_server_ts: self.update_as_of }
+        SyncStatus { work_units, latest_server_ts: self.update_as_of }
+    }
+
+    fn msg(&mut self, msg: &str) {
+        self.current += 1;
+        if let Some(f) = &self.progress {
+            f(SyncProgress {
+                total: self.total,
+                progress: self.current,
+                file_being_processed: Default::default(),
+                msg: msg.to_string(),
+            })
+        }
+    }
+
+    fn file_msg(&mut self, id: Uuid, msg: &str) {
+        self.current += 1;
+        if let Some(f) = &self.progress {
+            f(SyncProgress {
+                total: self.total,
+                progress: self.current,
+                file_being_processed: Some(id),
+                msg: msg.to_string(),
+            })
+        }
+    }
+
+    fn done_msg(&mut self) {
+        self.current = self.total;
+        if let Some(f) = &self.progress {
+            f(SyncProgress {
+                total: self.total,
+                progress: self.current,
+                file_being_processed: None,
+                msg: "Sync successful!".to_string(),
+            })
+        }
     }
 }
 
 impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {
     #[instrument(level = "debug", skip_all, err(Debug))]
-    pub(crate) fn calculate_work(&mut self) -> LbResult<WorkCalculated> {
+    pub(crate) fn calculate_work(&mut self) -> LbResult<SyncStatus> {
         let server_ids = self
             .client
             .request(self.get_account()?, GetFileIdsRequest {})?
@@ -369,7 +436,7 @@ impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {
 
         let mut work_units: Vec<WorkUnit> = Vec::new();
         work_units.extend(locally_dirty.chain(remote_dirty));
-        Ok(WorkCalculated { work_units, latest_server_ts: remote_changes.as_of_metadata_version })
+        Ok(SyncStatus { work_units, latest_server_ts: remote_changes.as_of_metadata_version })
     }
 
     /// Pulls remote changes and constructs a changeset Merge such that Stage<Stage<Stage<Base, Remote>, Local>, Merge> is valid.
