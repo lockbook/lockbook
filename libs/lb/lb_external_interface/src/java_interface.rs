@@ -13,7 +13,7 @@ use time::Duration;
 
 use lb_rs::service::search_service::{SearchRequest, SearchResult};
 use lb_rs::{
-    clock, unexpected_only, ClientWorkUnit, Config, Drawing, FileType, RankingWeights, ShareMode,
+    clock, unexpected_only, Config, Drawing, FileType, RankingWeights, ShareMode,
     SupportedImageFormats, SyncProgress, UnexpectedError, Uuid,
 };
 

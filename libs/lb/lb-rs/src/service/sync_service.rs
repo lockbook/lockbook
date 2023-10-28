@@ -1,4 +1,5 @@
 use std::collections::{HashMap, HashSet};
+use std::fmt::{Display, Formatter};
 
 use lockbook_shared::access_info::UserAccessMode;
 use lockbook_shared::account::Account;
@@ -451,6 +452,12 @@ pub struct SyncProgress {
     pub progress: usize,
     pub file_being_processed: Option<Uuid>,
     pub msg: String,
+}
+
+impl Display for SyncProgress {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "[{} / {}]: {}", self.progress, self.total, self.msg)
+    }
 }
 
 impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {
