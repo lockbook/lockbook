@@ -56,11 +56,11 @@ class Account(
 )
 
 @Serializable
-data class WorkCalculated(
+data class SyncStatus(
     @SerialName("work_units")
     val workUnits: List<WorkUnit>,
-    @SerialName("most_recent_update_from_server")
-    val mostRecentUpdateFromServer: Long,
+    @SerialName("latest_server_ts")
+    val latestServerTS: Long,
 )
 
 @Serializable

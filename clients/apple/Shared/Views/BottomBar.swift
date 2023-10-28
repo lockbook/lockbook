@@ -179,19 +179,10 @@ struct BottomBar: View {
                 .foregroundColor(.secondary)
         } else if sync.syncing {
             HStack {
-                if let isPushing = sync.isPushing {
-                    if let fileName = sync.pushPullFileName {
-                        Text("\(isPushing ? "Pushing" : "Pulling") file: \(fileName)")
-                            .foregroundColor(.secondary)
-                    } else {
-                        Text("\(isPushing ? "Pushing" : "Pulling") files...")
-                            .foregroundColor(.secondary)
-                    }
-                } else {
-                    Text("Syncing...")
+                if let syncMsg = sync.syncMsg {
+                    Text(syncMsg)
                         .foregroundColor(.secondary)
                 }
-                
             #if os(iOS)
                 Spacer()
             #endif

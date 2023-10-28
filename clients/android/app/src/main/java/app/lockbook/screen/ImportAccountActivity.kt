@@ -43,7 +43,7 @@ class ImportAccountActivity : AppCompatActivity() {
             binding.importAccountProgressBar.max = stepInfo.total
             binding.importAccountProgressBar.progress = stepInfo.progress
 
-            binding.importInfo.text = stepInfo.action.toMessage()
+            binding.importInfo.text = stepInfo.msg
         }
 
         model.updateImportUI.observe(

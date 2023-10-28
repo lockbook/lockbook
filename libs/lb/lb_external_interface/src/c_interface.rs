@@ -4,7 +4,6 @@ use lazy_static::lazy_static;
 use std::ffi::{CStr, CString};
 use std::os::raw::{c_char, c_void};
 use std::path::PathBuf;
-use std::ptr;
 use std::sync::{Arc, Mutex};
 
 use serde::Serialize;
@@ -355,7 +354,7 @@ pub unsafe extern "C" fn calculate_work() -> *const c_char {
     })
 }
 
-pub type UpdateSyncStatus = extern "C" fn(*const c_char, bool, *const c_char, f32);
+pub type UpdateSyncStatus = extern "C" fn(*const c_char, *const c_char, f32);
 
 /// # Safety
 ///
@@ -365,17 +364,9 @@ pub unsafe extern "C" fn sync_all(
     context: *const c_char, update_status: UpdateSyncStatus,
 ) -> *const c_char {
     let closure = move |sync_progress: SyncProgress| {
-        let (is_pushing, file_name) = match sync_progress.current_work_unit {
-            ClientWorkUnit::PullMetadata => (false, ptr::null()),
-            ClientWorkUnit::PushMetadata => (true, ptr::null()),
-            ClientWorkUnit::PullDocument(file) => (false, c_string(file.name)),
-            ClientWorkUnit::PushDocument(file) => (true, c_string(file.name)),
-        };
-
         update_status(
             context,
-            is_pushing,
-            file_name,
+            c_string(sync_progress.msg),
             (sync_progress.progress as f32) / (sync_progress.total as f32),
         );
     };

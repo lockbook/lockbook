@@ -312,11 +312,11 @@ object CoreModel {
 
     private val calculateWorkParser = Json {
         serializersModule = SerializersModule {
-            createPolyRelation(WorkCalculated.serializer(), CalculateWorkError.serializer())
+            createPolyRelation(app.lockbook.util.SyncStatus.serializer(), CalculateWorkError.serializer())
         }
     }
 
-    fun calculateWork(): Result<WorkCalculated, CoreError<CalculateWorkError>> =
+    fun calculateWork(): Result<app.lockbook.util.SyncStatus, CoreError<CalculateWorkError>> =
         calculateWorkParser.tryParse(
             app.lockbook.core.calculateWork()
         )
