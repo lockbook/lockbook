@@ -187,29 +187,15 @@ pub fn calc_text(
     let mut result = vec![];
     let mut last_range_pushed = false;
     for text_range in ast_ranges {
-        let captured = {
-            let ast_node_range = ast.nodes[*text_range.ancestors.last().unwrap()].range;
-            let intersects_selection = ast_node_range.intersects_allow_empty(&cursor.selection);
-            let intersects_pointer = pointer_offset
-                .map(|pointer_offset| {
-                    ast_node_range.intersects(&(pointer_offset, pointer_offset), true)
-                })
-                .unwrap_or(false);
-
-            let text_range_paragraphs = paragraphs.find_intersecting(text_range.range, true);
-            let in_capture_disabled_paragraph = appearance
-                .markdown_capture_disabled_for_cursor_paragraph
-                && cursor_paragraphs.intersects(&text_range_paragraphs, false);
-
-            let captured = match appearance.markdown_capture(text_range.node(ast).node_type()) {
-                CaptureCondition::Always => true,
-                CaptureCondition::NoCursor => {
-                    !(intersects_selection || intersects_pointer || in_capture_disabled_paragraph)
-                }
-                CaptureCondition::Never => false,
-            };
-            captured
-        };
+        let captured = captured(
+            cursor,
+            paragraphs,
+            ast,
+            text_range,
+            pointer_offset,
+            appearance,
+            cursor_paragraphs,
+        );
 
         let this_range_pushed = if text_range.range_type == AstTextRangeType::Text || !captured {
             // text range or uncaptured syntax range
@@ -256,6 +242,30 @@ pub fn calc_links(buffer: &SubBuffer, text: &Text) -> PlainTextLinks {
     }
 
     result
+}
+
+pub fn captured(
+    cursor: Cursor, paragraphs: &Paragraphs, ast: &Ast, text_range: &AstTextRange,
+    pointer_offset: Option<DocCharOffset>, appearance: &Appearance,
+    cursor_paragraphs: (usize, usize),
+) -> bool {
+    let ast_node_range = ast.nodes[*text_range.ancestors.last().unwrap()].range;
+    let intersects_selection = ast_node_range.intersects_allow_empty(&cursor.selection);
+    let intersects_pointer = pointer_offset
+        .map(|pointer_offset| ast_node_range.intersects(&(pointer_offset, pointer_offset), true))
+        .unwrap_or(false);
+
+    let text_range_paragraphs = paragraphs.find_intersecting(text_range.range, true);
+    let in_capture_disabled_paragraph = appearance.markdown_capture_disabled_for_cursor_paragraph
+        && cursor_paragraphs.intersects(&text_range_paragraphs, false);
+
+    match appearance.markdown_capture(text_range.node(ast).node_type()) {
+        CaptureCondition::Always => true,
+        CaptureCondition::NoCursor => {
+            !(intersects_selection || intersects_pointer || in_capture_disabled_paragraph)
+        }
+        CaptureCondition::Never => false,
+    }
 }
 
 impl Bounds {
