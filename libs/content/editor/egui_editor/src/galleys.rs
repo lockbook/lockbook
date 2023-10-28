@@ -13,6 +13,7 @@ use egui::{Galley, Pos2, Rect, Sense, TextFormat, Ui, Vec2};
 use std::mem;
 use std::ops::{Deref, Index};
 use std::sync::Arc;
+use std::time::Instant;
 
 #[derive(Default)]
 pub struct Galleys {
@@ -44,7 +45,7 @@ pub struct ImageInfo {
 
 pub fn calc(
     ast: &Ast, buffer: &SubBuffer, bounds: &Bounds, images: &ImageCache, appearance: &Appearance,
-    pointer_offset: Option<DocCharOffset>, ui: &mut Ui,
+    pointer_offset: Option<DocCharOffset>, pointer_offset_updated_at: Instant, ui: &mut Ui,
 ) -> Galleys {
     let cursor_paragraphs = bounds
         .paragraphs
@@ -93,6 +94,7 @@ pub fn calc(
                 ast,
                 text_range,
                 pointer_offset,
+                pointer_offset_updated_at,
                 appearance,
                 cursor_paragraphs,
             );

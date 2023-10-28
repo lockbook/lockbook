@@ -2,7 +2,7 @@
 use std::ffi::{c_char, CString};
 #[cfg(any(target_os = "ios", target_os = "macos"))]
 use std::ptr;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use std::{cmp, mem};
 
 use egui::os::OperatingSystem;
@@ -134,8 +134,11 @@ pub struct Editor {
     pub text_updated: bool,
     pub selection_updated: bool,
     pub maybe_menu_location: Option<Pos2>,
+
+    // additional pointer state for syntax hover reveal with debounce
     pub pointer_offset: Option<DocCharOffset>,
     pub pointer_offset_updated: bool,
+    pub pointer_offset_updated_at: Instant,
 
     // events not supported by egui; integrations push to this vec and editor processes and clears it
     pub custom_events: Vec<Modification>,
@@ -173,8 +176,10 @@ impl Editor {
             text_updated: Default::default(),
             selection_updated: Default::default(),
             maybe_menu_location: Default::default(),
+
             pointer_offset: Default::default(),
             pointer_offset_updated: Default::default(),
+            pointer_offset_updated_at: Instant::now(),
 
             custom_events: Default::default(),
 
@@ -343,6 +348,7 @@ impl Editor {
                 &self.buffer.current.segs,
                 self.buffer.current.cursor,
                 self.pointer_offset,
+                self.pointer_offset_updated_at,
             );
             self.bounds.links = bounds::calc_links(&self.buffer.current, &self.bounds.text);
         }
@@ -356,12 +362,16 @@ impl Editor {
             &self.images,
             &self.appearance,
             self.pointer_offset,
+            self.pointer_offset_updated_at,
             ui,
         );
         self.bounds.lines = bounds::calc_lines(&self.galleys, &self.bounds.ast, &self.bounds.text);
         self.initialized = true;
 
-        if self.images.any_loading() {
+        if self.images.any_loading()
+            || self.pointer_offset_updated_at
+                > Instant::now() - bounds::HOVER_SYNTAX_REVEAL_DEBOUNCE
+        {
             ui.ctx().request_repaint_after(Duration::from_millis(50));
         }
 
@@ -595,6 +605,11 @@ impl Editor {
         self.selection_updated = self.buffer.current.cursor.selection != prior_selection;
         self.pointer_offset = pointer_offset;
         self.pointer_offset_updated = pointer_offset != prior_pointer_offset;
+        self.pointer_offset_updated_at = if self.pointer_offset_updated {
+            Instant::now()
+        } else {
+            self.pointer_offset_updated_at
+        };
     }
 
     pub fn set_text(&mut self, text: String) {
