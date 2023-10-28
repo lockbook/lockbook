@@ -59,6 +59,7 @@ impl<Client: Requester, Docs: DocumentService> SyncContext<Client, Docs> {
 
         let cleanup = context.must_cleanup();
 
+        context.done_msg();
         sync_result?;
         cleanup?;
 
@@ -123,7 +124,7 @@ impl<Client: Requester, Docs: DocumentService> SyncContext<Client, Docs> {
         )?;
 
         self.core.in_tx(|tx| {
-            let (mut remote_changes, update_as_of) = {
+            let (remote_changes, update_as_of) = {
                 let mut remote_changes = updates.file_metadata;
                 let update_as_of = updates.as_of_metadata_version;
 
@@ -255,7 +256,7 @@ impl<Client: Requester, Docs: DocumentService> SyncContext<Client, Docs> {
 
         self.core.in_tx(|tx| {
             // remote = local
-            let mut local = tx.db.base_metadata.stage(&tx.db.local_metadata).to_lazy();
+            let local = tx.db.base_metadata.stage(&tx.db.local_metadata).to_lazy();
 
             for id in local.tree.staged.owned_ids() {
                 let mut local_change = local.tree.staged.find(&id)?.timestamped_value.value.clone();
@@ -301,7 +302,7 @@ impl<Client: Requester, Docs: DocumentService> SyncContext<Client, Docs> {
         let mut local_changes_digests_only = vec![];
 
         self.core.in_tx(|tx| {
-            let mut local = tx.db.base_metadata.stage(&tx.db.local_metadata).to_lazy();
+            let local = tx.db.base_metadata.stage(&tx.db.local_metadata).to_lazy();
 
             for id in local.tree.staged.owned_ids() {
                 let base_file = local.tree.base.find(&id)?.clone();
