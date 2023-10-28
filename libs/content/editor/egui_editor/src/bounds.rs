@@ -1,6 +1,7 @@
 use crate::appearance::{Appearance, CaptureCondition};
 use crate::ast::{Ast, AstTextRange, AstTextRangeType};
 use crate::buffer::SubBuffer;
+use crate::editor::HoverSyntaxRevealDebounceState;
 use crate::galleys::Galleys;
 use crate::input::canonical::Bound;
 use crate::input::cursor::Cursor;
@@ -183,8 +184,8 @@ pub fn calc_paragraphs(buffer: &SubBuffer, ast: &AstTextRanges) -> Paragraphs {
 
 pub fn calc_text(
     ast: &Ast, ast_ranges: &AstTextRanges, paragraphs: &Paragraphs, appearance: &Appearance,
-    segs: &UnicodeSegs, cursor: Cursor, pointer_offset: Option<DocCharOffset>,
-    pointer_offset_updated_at: Instant,
+    segs: &UnicodeSegs, cursor: Cursor,
+    hover_syntax_reveal_debounce_state: HoverSyntaxRevealDebounceState,
 ) -> Text {
     let cursor_paragraphs = paragraphs.find_intersecting(cursor.selection, true);
 
@@ -196,8 +197,7 @@ pub fn calc_text(
             paragraphs,
             ast,
             text_range,
-            pointer_offset,
-            pointer_offset_updated_at,
+            hover_syntax_reveal_debounce_state,
             appearance,
             cursor_paragraphs,
         );
@@ -251,16 +251,17 @@ pub fn calc_links(buffer: &SubBuffer, text: &Text) -> PlainTextLinks {
 
 pub fn captured(
     cursor: Cursor, paragraphs: &Paragraphs, ast: &Ast, text_range: &AstTextRange,
-    pointer_offset: Option<DocCharOffset>, pointer_offset_updated_at: Instant,
-    appearance: &Appearance, cursor_paragraphs: (usize, usize),
+    hover_syntax_reveal_debounce_state: HoverSyntaxRevealDebounceState, appearance: &Appearance,
+    cursor_paragraphs: (usize, usize),
 ) -> bool {
     let ast_node_range = ast.nodes[*text_range.ancestors.last().unwrap()].range;
     let intersects_selection = ast_node_range.intersects_allow_empty(&cursor.selection);
 
-    let debounce_satisfied =
-        pointer_offset_updated_at < Instant::now() - HOVER_SYNTAX_REVEAL_DEBOUNCE;
+    let debounce_satisfied = hover_syntax_reveal_debounce_state.pointer_offset_updated_at
+        < Instant::now() - HOVER_SYNTAX_REVEAL_DEBOUNCE;
     let intersects_pointer = debounce_satisfied
-        && pointer_offset
+        && hover_syntax_reveal_debounce_state
+            .pointer_offset
             .map(|pointer_offset| {
                 ast_node_range.intersects(&(pointer_offset, pointer_offset), true)
             })

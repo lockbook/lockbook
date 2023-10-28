@@ -102,6 +102,13 @@ impl Default for EditorResponse {
     }
 }
 
+// makes for fewer arguments in a few places
+#[derive(Clone, Copy)]
+pub struct HoverSyntaxRevealDebounceState {
+    pub pointer_offset: Option<DocCharOffset>,
+    pub pointer_offset_updated_at: Instant,
+}
+
 pub struct Editor {
     pub id: egui::Id,
     pub initialized: bool,
@@ -136,9 +143,8 @@ pub struct Editor {
     pub maybe_menu_location: Option<Pos2>,
 
     // additional pointer state for syntax hover reveal with debounce
-    pub pointer_offset: Option<DocCharOffset>,
+    pub hover_syntax_reveal_debounce_state: HoverSyntaxRevealDebounceState,
     pub pointer_offset_updated: bool,
-    pub pointer_offset_updated_at: Instant,
 
     // events not supported by egui; integrations push to this vec and editor processes and clears it
     pub custom_events: Vec<Modification>,
@@ -177,9 +183,11 @@ impl Editor {
             selection_updated: Default::default(),
             maybe_menu_location: Default::default(),
 
-            pointer_offset: Default::default(),
+            hover_syntax_reveal_debounce_state: HoverSyntaxRevealDebounceState {
+                pointer_offset: None,
+                pointer_offset_updated_at: Instant::now(),
+            },
             pointer_offset_updated: Default::default(),
-            pointer_offset_updated_at: Instant::now(),
 
             custom_events: Default::default(),
 
@@ -347,8 +355,7 @@ impl Editor {
                 &self.appearance,
                 &self.buffer.current.segs,
                 self.buffer.current.cursor,
-                self.pointer_offset,
-                self.pointer_offset_updated_at,
+                self.hover_syntax_reveal_debounce_state,
             );
             self.bounds.links = bounds::calc_links(&self.buffer.current, &self.bounds.text);
         }
@@ -361,15 +368,16 @@ impl Editor {
             &self.bounds,
             &self.images,
             &self.appearance,
-            self.pointer_offset,
-            self.pointer_offset_updated_at,
+            self.hover_syntax_reveal_debounce_state,
             ui,
         );
         self.bounds.lines = bounds::calc_lines(&self.galleys, &self.bounds.ast, &self.bounds.text);
         self.initialized = true;
 
         if self.images.any_loading()
-            || self.pointer_offset_updated_at
+            || self
+                .hover_syntax_reveal_debounce_state
+                .pointer_offset_updated_at
                 > Instant::now() - bounds::HOVER_SYNTAX_REVEAL_DEBOUNCE
         {
             ui.ctx().request_repaint_after(Duration::from_millis(50));
@@ -459,7 +467,11 @@ impl Editor {
         }
 
         // set cursor style
-        if self.pointer_offset.is_some() {
+        if self
+            .hover_syntax_reveal_debounce_state
+            .pointer_offset
+            .is_some()
+        {
             ui.output_mut(|o| o.cursor_icon = egui::CursorIcon::Text);
         } else {
             ui.output_mut(|o| o.cursor_icon = egui::CursorIcon::Default);
@@ -494,7 +506,7 @@ impl Editor {
         }
 
         let prior_selection = self.buffer.current.cursor.selection;
-        let prior_pointer_offset = self.pointer_offset;
+        let prior_pointer_offset = self.hover_syntax_reveal_debounce_state.pointer_offset;
         let click_checker = EditorClickChecker {
             ui_rect: self.ui_rect,
             galleys: &self.galleys,
@@ -603,12 +615,14 @@ impl Editor {
         self.maybe_opened_url = maybe_opened_url;
         self.text_updated = text_updated;
         self.selection_updated = self.buffer.current.cursor.selection != prior_selection;
-        self.pointer_offset = pointer_offset;
+        self.hover_syntax_reveal_debounce_state.pointer_offset = pointer_offset;
         self.pointer_offset_updated = pointer_offset != prior_pointer_offset;
-        self.pointer_offset_updated_at = if self.pointer_offset_updated {
+        self.hover_syntax_reveal_debounce_state
+            .pointer_offset_updated_at = if self.pointer_offset_updated {
             Instant::now()
         } else {
-            self.pointer_offset_updated_at
+            self.hover_syntax_reveal_debounce_state
+                .pointer_offset_updated_at
         };
     }
 

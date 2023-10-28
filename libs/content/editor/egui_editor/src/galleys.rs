@@ -2,6 +2,7 @@ use crate::appearance::Appearance;
 use crate::ast::{Ast, AstTextRangeType};
 use crate::bounds::{self, Bounds, RangesExt, Text};
 use crate::buffer::SubBuffer;
+use crate::editor::HoverSyntaxRevealDebounceState;
 use crate::images::{ImageCache, ImageState};
 use crate::layouts::{Annotation, LayoutJobInfo};
 use crate::offset_types::{DocCharOffset, RangeExt, RelCharOffset};
@@ -13,7 +14,6 @@ use egui::{Galley, Pos2, Rect, Sense, TextFormat, Ui, Vec2};
 use std::mem;
 use std::ops::{Deref, Index};
 use std::sync::Arc;
-use std::time::Instant;
 
 #[derive(Default)]
 pub struct Galleys {
@@ -45,7 +45,7 @@ pub struct ImageInfo {
 
 pub fn calc(
     ast: &Ast, buffer: &SubBuffer, bounds: &Bounds, images: &ImageCache, appearance: &Appearance,
-    pointer_offset: Option<DocCharOffset>, pointer_offset_updated_at: Instant, ui: &mut Ui,
+    hover_syntax_reveal_debounce_state: HoverSyntaxRevealDebounceState, ui: &mut Ui,
 ) -> Galleys {
     let cursor_paragraphs = bounds
         .paragraphs
@@ -93,8 +93,7 @@ pub fn calc(
                 &bounds.paragraphs,
                 ast,
                 text_range,
-                pointer_offset,
-                pointer_offset_updated_at,
+                hover_syntax_reveal_debounce_state,
                 appearance,
                 cursor_paragraphs,
             );
