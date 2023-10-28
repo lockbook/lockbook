@@ -206,13 +206,12 @@ impl<Client: Requester, Docs: DocumentService> CoreLib<Client, Docs> {
 
     #[instrument(level = "debug", skip(self, content), err(Debug))]
     pub fn write_document(&self, id: Uuid, content: &[u8]) -> Result<(), LbError> {
-        Ok(self
-            .in_tx(|s| s.write_document(id, content))
+        self.in_tx(|s| s.write_document(id, content))
             .expected_errs(&[
                 CoreError::FileNonexistent,
                 CoreError::FileNotDocument,
                 CoreError::InsufficientPermission,
-            ])?)
+            ])
     }
 
     #[instrument(level = "debug", skip_all, err(Debug))]
@@ -380,7 +379,7 @@ impl<Client: Requester, Docs: DocumentService> CoreLib<Client, Docs> {
     // todo: expose work calculated (return value)
     #[instrument(level = "debug", skip_all, err(Debug))]
     pub fn sync(&self, f: Option<Box<dyn Fn(SyncProgress)>>) -> Result<SyncStatus, LbError> {
-        SyncContext::sync(&self, f).expected_errs(&[
+        SyncContext::sync(self, f).expected_errs(&[
             CoreError::ServerUnreachable,
             CoreError::ClientUpdateRequired,
             CoreError::UsageIsOverDataCap,

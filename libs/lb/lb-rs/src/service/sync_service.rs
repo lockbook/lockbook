@@ -131,7 +131,9 @@ impl<Client: Requester, Docs: DocumentService> SyncContext<Client, Docs> {
 
                 remote_changes = tx.prune_remote_orphans(remote_changes)?;
 
-                let remote = (&tx.db.base_metadata)
+                let remote = tx
+                    .db
+                    .base_metadata
                     .stage(remote_changes)
                     .pruned()?
                     .to_lazy();
@@ -172,7 +174,7 @@ impl<Client: Requester, Docs: DocumentService> SyncContext<Client, Docs> {
         let mut new_entries = HashMap::new();
 
         for owner in all_owners {
-            if !self.pk_cache.contains_key(&owner) {
+            if let std::collections::hash_map::Entry::Vacant(e) = self.pk_cache.entry(owner) {
                 let username_result = self
                     .client
                     .request(&self.account, GetUsernameRequest { key: owner.0 });
@@ -183,7 +185,7 @@ impl<Client: Requester, Docs: DocumentService> SyncContext<Client, Docs> {
                     _ => username_result?.username.clone(),
                 };
                 new_entries.insert(owner, username.clone());
-                self.pk_cache.insert(owner, username.clone());
+                e.insert(username.clone());
             }
         }
 
@@ -203,7 +205,7 @@ impl<Client: Requester, Docs: DocumentService> SyncContext<Client, Docs> {
         let mut docs_to_pull = vec![];
 
         self.core.in_tx(|tx| {
-            let mut remote = (&tx.db.base_metadata).stage(&self.remote_changes).to_lazy(); // this used to be owned remote changes
+            let mut remote = tx.db.base_metadata.stage(&self.remote_changes).to_lazy(); // this used to be owned remote changes
             for id in remote.tree.staged.owned_ids() {
                 if remote.calculate_deleted(&id)? {
                     continue;
@@ -335,7 +337,7 @@ impl<Client: Requester, Docs: DocumentService> SyncContext<Client, Docs> {
             // todo: file names here one day
             self.file_msg(*id, &format!("Pushing document {idx} / {docs_count}"));
 
-            let local_document_change = self.docs.get(&id, hmac)?;
+            let local_document_change = self.docs.get(id, hmac)?;
 
             // remote = local
             self.client.request(
