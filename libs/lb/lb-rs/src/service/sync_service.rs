@@ -74,6 +74,7 @@ impl<Client: Requester, Docs: DocumentService> SyncContext<Client, Docs> {
         let core = core.clone();
 
         inner.syncing = true;
+        inner.prune()?;
         let client = inner.client.clone();
         let account = inner.get_account()?.clone();
         let last_synced = inner.db.last_synced.get().copied().unwrap_or_default() as u64;
