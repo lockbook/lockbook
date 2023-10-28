@@ -1,6 +1,7 @@
 use crate::appearance::{Appearance, CaptureCondition};
 use crate::ast::{Ast, AstTextRange, AstTextRangeType};
 use crate::buffer::SubBuffer;
+use crate::editor::HoverSyntaxRevealDebounceState;
 use crate::galleys::Galleys;
 use crate::input::canonical::Bound;
 use crate::input::cursor::Cursor;
@@ -11,7 +12,10 @@ use egui::epaint::text::cursor::RCursor;
 use linkify::LinkFinder;
 use std::cmp::Ordering;
 use std::collections::HashSet;
+use std::time::{Duration, Instant};
 use unicode_segmentation::UnicodeSegmentation;
+
+pub const HOVER_SYNTAX_REVEAL_DEBOUNCE: Duration = Duration::from_millis(500);
 
 pub type AstTextRanges = Vec<AstTextRange>;
 pub type Words = Vec<(DocCharOffset, DocCharOffset)>;
@@ -179,24 +183,24 @@ pub fn calc_paragraphs(buffer: &SubBuffer, ast: &AstTextRanges) -> Paragraphs {
 }
 
 pub fn calc_text(
-    ast: &Ast, ast_ranges: &AstTextRanges, appearance: &Appearance, segs: &UnicodeSegs,
-    cursor: Cursor, pointer_offset: Option<DocCharOffset>,
+    ast: &Ast, ast_ranges: &AstTextRanges, paragraphs: &Paragraphs, appearance: &Appearance,
+    segs: &UnicodeSegs, cursor: Cursor,
+    hover_syntax_reveal_debounce_state: HoverSyntaxRevealDebounceState,
 ) -> Text {
+    let cursor_paragraphs = paragraphs.find_intersecting(cursor.selection, true);
+
     let mut result = vec![];
     let mut last_range_pushed = false;
     for text_range in ast_ranges {
-        let ast_node_range = ast.nodes[*text_range.ancestors.last().unwrap()].range;
-        let intersects_selection = ast_node_range.intersects_allow_empty(&cursor.selection);
-        let intersects_pointer = pointer_offset
-            .map(|pointer_offset| {
-                ast_node_range.intersects(&(pointer_offset, pointer_offset), true)
-            })
-            .unwrap_or(false);
-        let captured = match appearance.markdown_capture(text_range.node(ast).node_type()) {
-            CaptureCondition::Always => true,
-            CaptureCondition::NoCursor => !(intersects_selection || intersects_pointer),
-            CaptureCondition::Never => false,
-        };
+        let captured = captured(
+            cursor,
+            paragraphs,
+            ast,
+            text_range,
+            hover_syntax_reveal_debounce_state,
+            appearance,
+            cursor_paragraphs,
+        );
 
         let this_range_pushed = if text_range.range_type == AstTextRangeType::Text || !captured {
             // text range or uncaptured syntax range
@@ -243,6 +247,37 @@ pub fn calc_links(buffer: &SubBuffer, text: &Text) -> PlainTextLinks {
     }
 
     result
+}
+
+pub fn captured(
+    cursor: Cursor, paragraphs: &Paragraphs, ast: &Ast, text_range: &AstTextRange,
+    hover_syntax_reveal_debounce_state: HoverSyntaxRevealDebounceState, appearance: &Appearance,
+    cursor_paragraphs: (usize, usize),
+) -> bool {
+    let ast_node_range = ast.nodes[*text_range.ancestors.last().unwrap()].range;
+    let intersects_selection = ast_node_range.intersects_allow_empty(&cursor.selection);
+
+    let debounce_satisfied = hover_syntax_reveal_debounce_state.pointer_offset_updated_at
+        < Instant::now() - HOVER_SYNTAX_REVEAL_DEBOUNCE;
+    let intersects_pointer = debounce_satisfied
+        && hover_syntax_reveal_debounce_state
+            .pointer_offset
+            .map(|pointer_offset| {
+                ast_node_range.intersects(&(pointer_offset, pointer_offset), true)
+            })
+            .unwrap_or(false);
+
+    let text_range_paragraphs = paragraphs.find_intersecting(text_range.range, true);
+    let in_capture_disabled_paragraph = appearance.markdown_capture_disabled_for_cursor_paragraph
+        && cursor_paragraphs.intersects(&text_range_paragraphs, false);
+
+    match appearance.markdown_capture(text_range.node(ast).node_type()) {
+        CaptureCondition::Always => true,
+        CaptureCondition::NoCursor => {
+            !(intersects_selection || intersects_pointer || in_capture_disabled_paragraph)
+        }
+        CaptureCondition::Never => false,
+    }
 }
 
 impl Bounds {
