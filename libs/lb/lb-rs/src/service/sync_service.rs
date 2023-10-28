@@ -21,21 +21,7 @@ use serde::Serialize;
 use uuid::Uuid;
 
 use crate::service::api_service::ApiError;
-use crate::{CoreError, CoreLib, CoreState, LbResult, Requester};
-
-#[derive(Debug, Serialize, Clone)]
-pub struct SyncStatus {
-    pub work_units: Vec<WorkUnit>,
-    pub latest_server_ts: u64,
-}
-
-#[derive(Clone)]
-pub struct SyncProgress {
-    pub total: usize,
-    pub progress: usize,
-    pub file_being_processed: Option<Uuid>,
-    pub msg: String,
-}
+use crate::{CoreError, CoreLib, CoreState, LbError, LbResult, Requester};
 
 pub struct SyncContext<Client: Requester, Docs: DocumentService> {
     core: CoreLib<Client, Docs>,
@@ -83,6 +69,9 @@ impl<Client: Requester, Docs: DocumentService> SyncContext<Client, Docs> {
         let mut inner = core.inner.lock()?;
         let core = core.clone();
 
+        if inner.syncing {
+            return Err(LbError::from(CoreError::AlreadySyncing));
+        }
         inner.syncing = true;
         let client = inner.client.clone();
         let account = inner.get_account()?.clone();
@@ -404,6 +393,20 @@ impl<Client: Requester, Docs: DocumentService> SyncContext<Client, Docs> {
             })
         }
     }
+}
+
+#[derive(Debug, Serialize, Clone)]
+pub struct SyncStatus {
+    pub work_units: Vec<WorkUnit>,
+    pub latest_server_ts: u64,
+}
+
+#[derive(Clone)]
+pub struct SyncProgress {
+    pub total: usize,
+    pub progress: usize,
+    pub file_being_processed: Option<Uuid>,
+    pub msg: String,
 }
 
 impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {
