@@ -10,10 +10,9 @@ pub enum WorkUnit {
 
 impl WorkUnit {
     pub fn id(&self) -> Uuid {
-        match self {
+        *match self {
             WorkUnit::LocalChange(id) => id,
             WorkUnit::ServerChange(id) => id,
         }
-        .clone()
     }
 }
