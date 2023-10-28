@@ -33,6 +33,7 @@ pub struct SyncContext<Client: Requester, Docs: DocumentService> {
     total: usize,
 
     account: Account,
+    pk_cache: HashMap<Owner, String>,
     last_synced: u64,
     remote_changes: Vec<SignedFile>,
     update_as_of: u64,
@@ -49,6 +50,7 @@ impl<Client: Requester, Docs: DocumentService> SyncContext<Client, Docs> {
         let sync_result = context
             .prune()
             .and_then(|_| context.fetch_meta())
+            .and_then(|_| context.populate_pk_cache())
             .and_then(|_| context.fetch_docs())
             .and_then(|_| context.merge())
             .and_then(|_| context.push_meta())
@@ -77,9 +79,10 @@ impl<Client: Requester, Docs: DocumentService> SyncContext<Client, Docs> {
         let account = inner.get_account()?.clone();
         let last_synced = inner.db.last_synced.get().copied().unwrap_or_default() as u64;
         let docs = inner.docs.clone();
+        let pk_cache = inner.db.pub_key_lookup.get().clone();
 
         let current = 0;
-        let total = 6;
+        let total = 7;
 
         Ok(Self {
             core,
@@ -87,6 +90,7 @@ impl<Client: Requester, Docs: DocumentService> SyncContext<Client, Docs> {
             docs,
             account,
             last_synced,
+            pk_cache,
 
             progress,
             current,
@@ -124,7 +128,6 @@ impl<Client: Requester, Docs: DocumentService> SyncContext<Client, Docs> {
                 let update_as_of = updates.as_of_metadata_version;
 
                 remote_changes = tx.prune_remote_orphans(remote_changes)?;
-                tx.populate_public_key_cache(&remote_changes)?;
 
                 let remote = (&tx.db.base_metadata)
                     .stage(remote_changes)
@@ -147,6 +150,45 @@ impl<Client: Requester, Docs: DocumentService> SyncContext<Client, Docs> {
 
             self.remote_changes = remote_changes;
             self.update_as_of = update_as_of;
+
+            Ok(())
+        })?;
+
+        Ok(())
+    }
+
+    fn populate_pk_cache(&mut self) -> LbResult<()> {
+        self.msg("Updating public key cache...");
+        let mut all_owners = HashSet::new();
+        for file in &self.remote_changes {
+            for user_access_key in file.user_access_keys() {
+                all_owners.insert(Owner(user_access_key.encrypted_by));
+                all_owners.insert(Owner(user_access_key.encrypted_for));
+            }
+        }
+
+        let mut new_entries = HashMap::new();
+
+        for owner in all_owners {
+            if !self.pk_cache.contains_key(&owner) {
+                let username_result = self
+                    .client
+                    .request(&self.account, GetUsernameRequest { key: owner.0 });
+                let username = match username_result {
+                    Err(ApiError::Endpoint(GetUsernameError::UserNotFound)) => {
+                        "<unknown>".to_string()
+                    }
+                    _ => username_result?.username.clone(),
+                };
+                new_entries.insert(owner, username.clone());
+                self.pk_cache.insert(owner, username.clone());
+            }
+        }
+
+        self.core.in_tx(|tx| {
+            for (owner, username) in new_entries {
+                tx.db.pub_key_lookup.insert(owner, username)?;
+            }
 
             Ok(())
         })?;
@@ -288,6 +330,7 @@ impl<Client: Requester, Docs: DocumentService> SyncContext<Client, Docs> {
         for (idx, diff) in updates.clone().into_iter().enumerate() {
             let id = diff.new.id();
             let hmac = diff.new.document_hmac();
+            // todo: file names here one day
             self.file_msg(*id, &format!("Pushing document {idx} / {docs_count}"));
 
             let local_document_change = self.docs.get(&id, hmac)?;
@@ -1050,33 +1093,6 @@ impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {
         let mut local_staged = (&mut self.db.local_metadata).to_lazy().stage(None);
         local_staged.tree.removed = prunable_ids;
         local_staged.promote()?;
-
-        Ok(())
-    }
-
-    fn populate_public_key_cache(&mut self, files: &[SignedFile]) -> LbResult<()> {
-        let mut all_owners = HashSet::new();
-        for file in files {
-            for user_access_key in file.user_access_keys() {
-                all_owners.insert(Owner(user_access_key.encrypted_by));
-                all_owners.insert(Owner(user_access_key.encrypted_for));
-            }
-        }
-
-        for owner in all_owners {
-            if !self.db.pub_key_lookup.get().contains_key(&owner) {
-                let username_result = self
-                    .client
-                    .request(self.get_account()?, GetUsernameRequest { key: owner.0 });
-                let username = match username_result {
-                    Err(ApiError::Endpoint(GetUsernameError::UserNotFound)) => {
-                        "<unknown>".to_string()
-                    }
-                    _ => username_result?.username.clone(),
-                };
-                self.db.pub_key_lookup.insert(owner, username.clone())?;
-            }
-        }
 
         Ok(())
     }
