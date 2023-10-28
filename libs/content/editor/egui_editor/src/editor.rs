@@ -308,9 +308,15 @@ impl Editor {
             (true, true, true)
         };
         let appearance_updated = {
-            let capture_already_disabled = self.appearance.markdown_capture_disabled;
-            self.appearance.markdown_capture_disabled = ui.input(|i| i.modifiers.command); // command key disables capture
-            capture_already_disabled != self.appearance.markdown_capture_disabled
+            let capture_already_disabled = self
+                .appearance
+                .markdown_capture_disabled_for_cursor_paragraph;
+            self.appearance
+                .markdown_capture_disabled_for_cursor_paragraph = ui.input(|i| i.modifiers.command); // command key disables capture for current paragraph
+            capture_already_disabled
+                != self
+                    .appearance
+                    .markdown_capture_disabled_for_cursor_paragraph
         };
 
         // recalculate dependent state
@@ -332,6 +338,7 @@ impl Editor {
             self.bounds.text = bounds::calc_text(
                 &self.ast,
                 &self.bounds.ast,
+                &self.bounds.paragraphs,
                 &self.appearance,
                 &self.buffer.current.segs,
                 self.buffer.current.cursor,

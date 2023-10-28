@@ -1,6 +1,6 @@
 use crate::appearance::{Appearance, CaptureCondition};
 use crate::ast::{Ast, AstTextRangeType};
-use crate::bounds::{self, Bounds, Text};
+use crate::bounds::{self, Bounds, RangesExt, Text};
 use crate::buffer::SubBuffer;
 use crate::images::{ImageCache, ImageState};
 use crate::layouts::{Annotation, LayoutJobInfo};
@@ -46,6 +46,10 @@ pub fn calc(
     ast: &Ast, buffer: &SubBuffer, bounds: &Bounds, images: &ImageCache, appearance: &Appearance,
     pointer_offset: Option<DocCharOffset>, ui: &mut Ui,
 ) -> Galleys {
+    let cursor_paragraphs = bounds
+        .paragraphs
+        .find_intersecting(buffer.cursor.selection, true);
+
     let mut result: Galleys = Default::default();
 
     let mut head_size: RelCharOffset = 0.into();
@@ -83,18 +87,33 @@ pub fn calc(
             let maybe_link_range = link_idx.map(|link_idx| bounds.links[link_idx]);
             let in_selection = selection_idx.is_some();
 
-            let ast_node_range = ast.nodes[*text_range.ancestors.last().unwrap()].range;
-            let intersects_selection =
-                ast_node_range.intersects_allow_empty(&buffer.cursor.selection);
-            let intersects_pointer = pointer_offset
-                .map(|pointer_offset| {
-                    ast_node_range.intersects(&(pointer_offset, pointer_offset), true)
-                })
-                .unwrap_or(false);
-            let captured = match appearance.markdown_capture(text_range.node(ast).node_type()) {
-                CaptureCondition::Always => true,
-                CaptureCondition::NoCursor => !(intersects_selection || intersects_pointer),
-                CaptureCondition::Never => false,
+            let captured = {
+                let cursor = buffer.cursor;
+                let paragraphs = &bounds.paragraphs;
+
+                let ast_node_range = ast.nodes[*text_range.ancestors.last().unwrap()].range;
+                let intersects_selection = ast_node_range.intersects_allow_empty(&cursor.selection);
+                let intersects_pointer = pointer_offset
+                    .map(|pointer_offset| {
+                        ast_node_range.intersects(&(pointer_offset, pointer_offset), true)
+                    })
+                    .unwrap_or(false);
+
+                let text_range_paragraphs = paragraphs.find_intersecting(text_range.range, true);
+                let in_capture_disabled_paragraph = appearance
+                    .markdown_capture_disabled_for_cursor_paragraph
+                    && cursor_paragraphs.intersects(&text_range_paragraphs, false);
+
+                let captured = match appearance.markdown_capture(text_range.node(ast).node_type()) {
+                    CaptureCondition::Always => true,
+                    CaptureCondition::NoCursor => {
+                        !(intersects_selection
+                            || intersects_pointer
+                            || in_capture_disabled_paragraph)
+                    }
+                    CaptureCondition::Never => false,
+                };
+                captured
             };
 
             // construct text format using all styles except the last (current node)
