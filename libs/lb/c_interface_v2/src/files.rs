@@ -64,7 +64,7 @@ pub unsafe fn lb_file_free_ptr(f: *mut LbFile) {
 #[repr(C)]
 pub struct LbFileType {
     tag: LbFileTypeTag,
-    link_target: [u8; 16],
+    link_target: [u8; UUID_LEN],
 }
 
 #[repr(C)]

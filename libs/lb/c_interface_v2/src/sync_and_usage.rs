@@ -1,4 +1,4 @@
-use lb_rs::{ClientWorkUnit, WorkUnit};
+use lb_rs::WorkUnit;
 
 use crate::*;
 
@@ -18,10 +18,7 @@ pub unsafe extern "C" fn lb_work_calc_index(wc: LbWorkCalc, i: usize) -> *mut Lb
 /// # Safety
 #[no_mangle]
 pub unsafe extern "C" fn lb_work_calc_free(wc: LbWorkCalc) {
-    let units = Vec::from_raw_parts(wc.units, wc.num_units, wc.num_units);
-    for wu in units {
-        lb_file_free(wu.file);
-    }
+    Vec::from_raw_parts(wc.units, wc.num_units, wc.num_units);
 }
 
 #[repr(C)]
@@ -33,7 +30,7 @@ pub struct LbCalcWorkResult {
 #[repr(C)]
 pub struct LbWorkUnit {
     pub typ: LbWorkUnitType,
-    pub file: LbFile,
+    pub id: [u8; UUID_LEN],
 }
 
 #[repr(C)]
@@ -71,16 +68,17 @@ pub unsafe extern "C" fn lb_calculate_work(core: *mut c_void) -> LbCalcWorkResul
                     WorkUnit::LocalChange { .. } => LbWorkUnitType::Local,
                     WorkUnit::ServerChange { .. } => LbWorkUnitType::Server,
                 };
-                let file = lb_file_new(match wu {
-                    WorkUnit::LocalChange { metadata } => metadata,
-                    WorkUnit::ServerChange { metadata } => metadata,
-                });
-                list.push(LbWorkUnit { typ, file });
+                let id = match wu {
+                    WorkUnit::LocalChange(id) => id,
+                    WorkUnit::ServerChange(id) => id,
+                }
+                .into_bytes();
+                list.push(LbWorkUnit { typ, id });
             }
             let mut list = std::mem::ManuallyDrop::new(list);
             r.ok.units = list.as_mut_ptr();
             r.ok.num_units = list.len();
-            r.ok.last_server_update_at = work.most_recent_update_from_server;
+            r.ok.last_server_update_at = work.latest_server_ts;
         }
         Err(err) => r.err = lberr(err),
     }
@@ -91,26 +89,13 @@ pub unsafe extern "C" fn lb_calculate_work(core: *mut c_void) -> LbCalcWorkResul
 pub struct LbSyncProgress {
     total: u64,
     progress: u64,
-    current_wu: LbClientWorkUnit,
-}
-
-#[repr(C)]
-pub struct LbClientWorkUnit {
-    pull_meta: bool,
-    push_meta: bool,
-    pull_doc: *mut LbFile,
-    push_doc: *mut LbFile,
+    msg: *mut c_char,
 }
 
 /// # Safety
 #[no_mangle]
 pub unsafe extern "C" fn lb_sync_progress_free(sp: LbSyncProgress) {
-    if !sp.current_wu.pull_doc.is_null() {
-        lb_file_free_ptr(sp.current_wu.pull_doc);
-    }
-    if !sp.current_wu.push_doc.is_null() {
-        lb_file_free_ptr(sp.current_wu.push_doc);
-    }
+    libc::free(sp.msg as *mut c_void)
 }
 
 pub type LbSyncProgressCallback = unsafe extern "C" fn(LbSyncProgress, *mut c_void);
@@ -123,22 +108,10 @@ pub unsafe extern "C" fn lb_sync_all(
     core: *mut c_void, progress: LbSyncProgressCallback, user_data: *mut c_void,
 ) -> LbError {
     match core!(core).sync(Some(Box::new(move |sp| {
-        let mut cwu = LbClientWorkUnit {
-            pull_meta: false,
-            push_meta: false,
-            pull_doc: null_mut(),
-            push_doc: null_mut(),
-        };
-        match sp.current_work_unit {
-            ClientWorkUnit::PullMetadata => cwu.pull_meta = true,
-            ClientWorkUnit::PushMetadata => cwu.push_meta = true,
-            ClientWorkUnit::PullDocument(f) => cwu.pull_doc = &mut lb_file_new(f),
-            ClientWorkUnit::PushDocument(f) => cwu.push_doc = &mut lb_file_new(f),
-        };
         let c_sp = LbSyncProgress {
             total: sp.total as u64,
             progress: sp.progress as u64,
-            current_wu: cwu,
+            msg: cstr(sp.msg),
         };
         progress(c_sp, user_data);
     }))) {

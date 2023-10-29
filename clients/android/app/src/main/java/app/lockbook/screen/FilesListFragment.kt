@@ -25,6 +25,7 @@ import app.lockbook.App
 import app.lockbook.R
 import app.lockbook.databinding.FragmentFilesListBinding
 import app.lockbook.model.*
+import app.lockbook.model.SyncStatus
 import app.lockbook.ui.BreadCrumbItem
 import app.lockbook.util.*
 import com.afollestad.recyclical.setup
@@ -224,11 +225,12 @@ class FilesListFragment : Fragment(), FilesFragment {
             binding.syncHolder.visibility = View.GONE
             updateUI(UpdateFilesUI.ShowSyncSnackBar(syncStepInfo.total))
         } else {
+            binding.syncHolder.visibility = View.VISIBLE
             binding.syncProgressIndicator.apply {
                 max = syncStepInfo.total
                 progress = syncStepInfo.progress
             }
-            binding.syncText.text = syncStepInfo.action.toMessage()
+            binding.syncText.text = syncStepInfo.msg
         }
     }
 

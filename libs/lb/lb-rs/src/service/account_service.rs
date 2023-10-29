@@ -42,7 +42,6 @@ impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {
         if welcome_doc {
             let welcome_doc = self.create_file("welcome.md", &root_id, FileType::Document)?;
             self.write_document(welcome_doc.id, &Self::welcome_message(&username))?;
-            self.sync(Some(Box::new(|_| ())))?;
         }
 
         Ok(account)

@@ -233,13 +233,7 @@ fn sync(core: &Core) -> CliResult<()> {
 
     println!("syncing...");
     core.sync(Some(Box::new(|sp: lb::SyncProgress| {
-        use lb::ClientWorkUnit::*;
-        match sp.current_work_unit {
-            PullMetadata => println!("pulling file tree updates"),
-            PushMetadata => println!("pushing file tree updates"),
-            PullDocument(f) => println!("pulling: {}", f.name),
-            PushDocument(f) => println!("pushing: {}", f.name),
-        };
+        println!("{sp}");
     })))?;
     Ok(())
 }

@@ -35,7 +35,7 @@ pub enum ApiError<E> {
     Deserialize(String),
 }
 
-pub trait Requester {
+pub trait Requester: Clone {
     fn request<T: Request>(
         &self, account: &Account, request: T,
     ) -> Result<T::Response, ApiError<T::Error>>;
@@ -263,7 +263,8 @@ pub mod no_network {
             let db = CoreDb::init(db_rs::Config::no_io()).unwrap();
             let config = core_config.clone();
             let docs = CoreInMemDocuments::default();
-            let state = CoreState { config, public_key: None, db, client, docs };
+            let syncing = false;
+            let state = CoreState { config, public_key: None, db, client, docs, syncing };
             let inner = Arc::new(Mutex::new(state));
 
             Self { inner }
@@ -280,13 +281,14 @@ pub mod no_network {
             let client = inner.client.deep_copy();
             let docs = inner.docs.docs.lock().unwrap().clone();
             let docs = CoreInMemDocuments { docs: Arc::new(Mutex::new(docs)) };
-
+            let syncing = inner.syncing;
             let state = CoreState {
                 config,
                 public_key: inner.public_key,
                 db,
                 docs,
                 client: client.clone(),
+                syncing,
             };
             (Self { inner: Arc::new(Mutex::new(state)) }, client)
         }

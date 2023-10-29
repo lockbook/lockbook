@@ -38,6 +38,8 @@ impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {
             self.import_file_recursively(disk_path, &dest, update_status)?;
         }
 
+        self.cleanup()?;
+
         Ok(())
     }
 

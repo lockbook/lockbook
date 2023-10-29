@@ -90,8 +90,8 @@ pub fn get_dirty_ids(db: &Core, server: bool) -> Vec<Uuid> {
         .work_units
         .into_iter()
         .filter_map(|wu| match wu {
-            WorkUnit::LocalChange { metadata } if !server => Some(metadata.id),
-            WorkUnit::ServerChange { metadata } if server => Some(metadata.id),
+            WorkUnit::LocalChange(id) if !server => Some(id),
+            WorkUnit::ServerChange(id) if server => Some(id),
             _ => None,
         })
         .unique()

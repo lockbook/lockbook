@@ -13,7 +13,7 @@ use time::Duration;
 
 use lb_rs::service::search_service::{SearchRequest, SearchResult};
 use lb_rs::{
-    clock, unexpected_only, ClientWorkUnit, Config, Drawing, FileType, RankingWeights, ShareMode,
+    clock, unexpected_only, Config, Drawing, FileType, RankingWeights, ShareMode,
     SupportedImageFormats, SyncProgress, UnexpectedError, Uuid,
 };
 
@@ -454,30 +454,14 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_syncAll(
 ) -> jstring {
     let env_c = env.clone();
     let closure = move |sync_progress: SyncProgress| {
-        let (is_pushing, file_name) = match sync_progress.current_work_unit {
-            ClientWorkUnit::PullMetadata => (JValue::Bool(0), JValue::Object(JObject::null())),
-            ClientWorkUnit::PushMetadata => (JValue::Bool(1), JValue::Object(JObject::null())),
-            ClientWorkUnit::PullDocument(f) => {
-                let obj = env_c
-                    .new_string(f.name)
-                    .expect("Couldn't create JString from rust string!");
-
-                (JValue::Bool(0), JValue::Object(JObject::from(obj)))
-            }
-            ClientWorkUnit::PushDocument(f) => {
-                let obj = env_c
-                    .new_string(f.name)
-                    .expect("Couldn't create JString from rust string!");
-
-                (JValue::Bool(1), JValue::Object(JObject::from(obj)))
-            }
-        };
-
         let args = [
             JValue::Int(sync_progress.total as i32),
             JValue::Int(sync_progress.progress as i32),
-            is_pushing,
-            file_name,
+            JValue::Object(JObject::from(
+                env_c
+                    .new_string(sync_progress.msg)
+                    .expect("Couldn't create JString from rust string!"),
+            )),
         ]
         .to_vec();
 
@@ -485,7 +469,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_syncAll(
             .call_method(
                 jsyncmodel,
                 "updateSyncProgressAndTotal",
-                "(IIZLjava/lang/String;)V",
+                "(IILjava/lang/String;)V",
                 args.as_slice(),
             )
             .unwrap();

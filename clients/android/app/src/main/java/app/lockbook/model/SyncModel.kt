@@ -26,25 +26,9 @@ class SyncModel {
     fun updateSyncProgressAndTotal(
         total: Int,
         progress: Int,
-        isPushing: Boolean,
-        fileName: String?
+        msg: String?
     ) {
-        val syncAction = when {
-            isPushing && fileName != null -> {
-                SyncMessage.PushingDocument(fileName)
-            }
-            isPushing && fileName == null -> {
-                SyncMessage.PushingMetadata
-            }
-            !isPushing && fileName != null -> {
-                SyncMessage.PullingDocument(fileName)
-            }
-            else -> {
-                SyncMessage.PullingMetadata
-            }
-        }
-
-        val syncProgress = SyncStepInfo(progress, total, syncAction)
+        val syncProgress = SyncStepInfo(progress, total, msg ?: "")
         val newStatus = SyncStatus.Syncing(syncProgress)
         syncStatus = newStatus
 
@@ -70,19 +54,5 @@ sealed class SyncStatus {
 data class SyncStepInfo(
     var progress: Int,
     var total: Int,
-    var action: SyncMessage
+    var msg: String
 )
-
-sealed class SyncMessage {
-    object PullingMetadata : SyncMessage()
-    object PushingMetadata : SyncMessage()
-    data class PullingDocument(val fileName: String) : SyncMessage()
-    data class PushingDocument(val fileName: String) : SyncMessage()
-
-    fun toMessage(): String = when (val syncMessage = this) {
-        is PullingDocument -> "Pulling ${syncMessage.fileName}."
-        is PushingDocument -> "Pushing ${syncMessage.fileName}."
-        PullingMetadata -> "Pulling files."
-        PushingMetadata -> "Pushing files."
-    }
-}

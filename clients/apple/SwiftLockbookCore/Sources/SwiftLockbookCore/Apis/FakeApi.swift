@@ -33,7 +33,7 @@ public struct FakeApi: LockbookApi {
         .failure(.init(unexpected: "LAZY"))
     }
     
-    public func syncAll(context: UnsafeRawPointer?, updateStatus: @escaping @convention(c) (UnsafePointer<Int8>?, Bool, UnsafePointer<Int8>?, Float) -> Void) -> FfiResult<Empty, SyncAllError> {
+    public func syncAll(context: UnsafeRawPointer?, updateStatus: @escaping @convention(c) (UnsafePointer<Int8>?, UnsafePointer<Int8>?, Float) -> Void) -> FfiResult<Empty, SyncAllError> {
         .failure(.init(unexpected: "LAZY"))
     }
     
@@ -41,7 +41,7 @@ public struct FakeApi: LockbookApi {
         .failure(.init(unexpected: "LAZY"))
     }
 
-    public func calculateWork() -> FfiResult<WorkCalculated, CalculateWorkError> {
+    public func calculateWork() -> FfiResult<SyncStatus, CalculateWorkError> {
         .failure(.init(unexpected: "LAZY"))
     }
     

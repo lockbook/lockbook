@@ -307,7 +307,7 @@ class FilesListViewModel(application: Application, val syncModel: SyncModel) : A
         when (val calculateWorkResult = CoreModel.calculateWork()) {
             is Ok -> {
                 sidebarInfo.lastSynced = CoreModel.convertToHumanDuration(
-                    calculateWorkResult.value.mostRecentUpdateFromServer
+                    calculateWorkResult.value.latestServerTS
                 )
                 sidebarInfo.serverDirtyFilesCount = calculateWorkResult.value.workUnits.filter { it.tag == WorkUnitTag.ServerChange }.size
 

@@ -14,10 +14,10 @@ public protocol LockbookApi {
     func syncAll(
         context: UnsafeRawPointer?,
         // updateStatus(context, isPushing, fileName)
-        updateStatus: @escaping @convention(c) (UnsafePointer<Int8>?, Bool, UnsafePointer<Int8>?, Float) -> Void
+        updateStatus: @escaping @convention(c) (UnsafePointer<Int8>?, UnsafePointer<Int8>?, Float) -> Void
     ) -> FfiResult<Empty, SyncAllError>
     func backgroundSync() -> FfiResult<Empty, SyncAllError>
-    func calculateWork() -> FfiResult<WorkCalculated, CalculateWorkError>
+    func calculateWork() -> FfiResult<SyncStatus, CalculateWorkError>
     func getLastSyncedHumanString() -> FfiResult<String, GetLastSyncedError>
     func getLocalChanges() -> FfiResult<[UUID], GetLocalChangesError>
     

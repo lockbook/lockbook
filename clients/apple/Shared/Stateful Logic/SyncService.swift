@@ -6,8 +6,7 @@ class SyncService: ObservableObject {
     
     // sync status
     @Published public var syncing: Bool = false
-    @Published public var isPushing: Bool? = nil
-    @Published public var pushPullFileName: String? = nil
+    @Published public var syncMsg: String? = nil
     @Published public var syncProgress: Float = 0.0
     
     // sync results
@@ -88,8 +87,7 @@ class SyncService: ObservableObject {
     
     func cleanupSyncStatus() {
         self.syncing = false
-        self.isPushing = nil
-        self.pushPullFileName = nil
+        self.syncMsg = nil
         self.syncProgress = 0.0
     }
     
@@ -164,18 +162,17 @@ class SyncService: ObservableObject {
     }
 }
 
-func updateSyncStatus(context: UnsafePointer<Int8>?, isPushing: Bool, maybeFileNamePtr: UnsafePointer<Int8>?, syncProgress: Float) -> Void {
+func updateSyncStatus(context: UnsafePointer<Int8>?, cMsg: UnsafePointer<Int8>?, syncProgress: Float) -> Void {
     DispatchQueue.main.sync {
         guard let syncService = UnsafeRawPointer(context)?.load(as: SyncService.self) else {
             return
         }
         
-        syncService.isPushing = isPushing
         syncService.syncProgress = syncProgress
         
-        if let fileNamePtr = maybeFileNamePtr {
-            syncService.pushPullFileName = String(cString: fileNamePtr)
-            syncService.core.freeText(s: fileNamePtr)
+        if let cMsg = cMsg {
+            syncService.syncMsg = String(cString: cMsg)
+            syncService.core.freeText(s: cMsg)
         }
     }
 }

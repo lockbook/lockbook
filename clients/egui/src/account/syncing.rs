@@ -30,7 +30,7 @@ enum SyncPhase {
 pub enum SyncUpdate {
     Started,
     Progress(lb::SyncProgress),
-    Done(Result<lb::WorkCalculated, SyncError>),
+    Done(Result<lb::SyncStatus, SyncError>),
     SetStatus(Result<String, lb::UnexpectedError>),
     SetUsage(Usage),
 }
@@ -40,13 +40,7 @@ impl super::AccountScreen {
         match update {
             SyncUpdate::Started => self.sync.phase = SyncPhase::Syncing,
             SyncUpdate::Progress(progress) => {
-                let status = match &progress.current_work_unit {
-                    lb::ClientWorkUnit::PullMetadata => "Pulling file tree updates".to_string(),
-                    lb::ClientWorkUnit::PushMetadata => "Pushing file tree updates".to_string(),
-                    lb::ClientWorkUnit::PullDocument(f) => format!("Pulling: {}", f.name),
-                    lb::ClientWorkUnit::PushDocument(f) => format!("Pushing: {}", f.name),
-                };
-                self.sync.status = Ok(status);
+                self.sync.status = Ok(progress.to_string());
             }
             SyncUpdate::Done(result) => match result {
                 Ok(_) => {

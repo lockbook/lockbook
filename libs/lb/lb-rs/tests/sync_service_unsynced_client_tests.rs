@@ -71,6 +71,11 @@ fn rename() {
     core.validate().unwrap();
 }
 
+// the idea of the next three tests is to assert that new+deleted content isn't sent to the server
+// changes to sync made it cumbersome to detect this without actually performing the sync.
+// but those changes did make it easy to determine what happened during this sync. So these tests
+// will sync (even though the filename suggests they shouldn't), and will assert that nothing was
+// sent
 #[test]
 fn delete() {
     let core = test_core_with_account();
@@ -78,8 +83,8 @@ fn delete() {
     core.delete_file(doc.id).unwrap();
     assert::all_paths(&core, &["/"]);
     assert::all_document_contents(&core, &[]);
-    assert::local_work_paths(&core, &[]);
-    assert::server_work_paths(&core, &[]);
+    let summary = core.sync(None).unwrap();
+    assert!(summary.work_units.is_empty());
     core.validate().unwrap();
 }
 
@@ -90,8 +95,8 @@ fn delete_parent() {
     delete_path(&core, "/parent/").unwrap();
     assert::all_paths(&core, &["/"]);
     assert::all_document_contents(&core, &[]);
-    assert::local_work_paths(&core, &[]);
-    assert::server_work_paths(&core, &[]);
+    let summary = core.sync(None).unwrap();
+    assert!(summary.work_units.is_empty());
     core.validate().unwrap();
 }
 
@@ -102,7 +107,7 @@ fn delete_grandparent() {
     delete_path(&core, "/grandparent/").unwrap();
     assert::all_paths(&core, &["/"]);
     assert::all_document_contents(&core, &[]);
-    assert::local_work_paths(&core, &[]);
-    assert::server_work_paths(&core, &[]);
+    let summary = core.sync(None).unwrap();
+    assert!(summary.work_units.is_empty());
     core.validate().unwrap();
 }
