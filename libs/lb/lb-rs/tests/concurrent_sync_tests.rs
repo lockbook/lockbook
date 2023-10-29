@@ -37,3 +37,54 @@ fn test_sync_concurrently() {
 
     println!("{th1}");
 }
+
+#[test]
+#[ignore]
+fn test_sync_concurrently2() {
+    println!("test began");
+    let core = test_core_with_account();
+    let file = core.create_at_path("test.md").unwrap();
+    core.write_document(file.id, "t".repeat(1000).as_bytes())
+        .unwrap();
+    core.sync(None).unwrap();
+
+    let mut threads = vec![];
+
+    for _ in 0..1 {
+        let core1 = core.clone();
+        let th1 = thread::spawn(move || {
+            println!("in th1");
+            let start = SystemTime::now();
+            for _ in 0..10 {
+                println!("sync began");
+                if let Err(e) = core1.sync(None) {
+                    eprintln!("ERROR FOUND: {e}");
+                }
+                println!("sync end");
+            }
+            SystemTime::now().duration_since(start).unwrap().as_millis()
+        });
+        threads.push(th1);
+    }
+
+    for x in 0..100 {
+        let core2 = core.clone();
+        let th2 = thread::spawn(move || {
+            println!("in th2");
+            let start = SystemTime::now();
+            for i in 0..100 {
+                println!("write began");
+                if let Err(e) = core2.write_document(file.id, i.to_string().repeat(x).as_bytes()) {
+                    eprintln!("ERROR FOUND: {e}");
+                }
+                println!("write end");
+            }
+            SystemTime::now().duration_since(start).unwrap().as_millis()
+        });
+        threads.push(th2);
+    }
+
+    threads.into_iter().for_each(|th| {
+        th.join().unwrap();
+    });
+}
