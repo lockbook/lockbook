@@ -332,8 +332,6 @@ impl<Client: Requester, Docs: DocumentService> SyncContext<Client, Docs> {
             Ok(())
         })?;
 
-        thread::sleep(Duration::from_secs(1));
-
         // todo: parallelize
         let docs_count = updates.len();
         self.total += docs_count;
