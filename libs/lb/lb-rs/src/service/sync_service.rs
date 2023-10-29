@@ -1,5 +1,7 @@
 use std::collections::{HashMap, HashSet};
 use std::fmt::{Display, Formatter};
+use std::thread;
+use std::time::Duration;
 
 use lockbook_shared::access_info::UserAccessMode;
 use lockbook_shared::account::Account;
@@ -158,6 +160,7 @@ impl<Client: Requester, Docs: DocumentService> SyncContext<Client, Docs> {
             Ok(())
         })?;
 
+        thread::sleep(Duration::from_secs(1));
         Ok(())
     }
 
@@ -458,7 +461,7 @@ pub struct SyncProgress {
 
 impl Display for SyncProgress {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "[{} / {}]: {}", self.progress, self.total, self.msg)
+        write!(f, "[{} / {}]: {}", self.progress, self.total, self.msg)
     }
 }
 
