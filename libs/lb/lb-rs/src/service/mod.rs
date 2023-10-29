@@ -9,6 +9,7 @@ pub mod file_service;
 pub mod import_export_service;
 pub mod integrity_service;
 pub mod log_service;
+pub mod parallel_doc_ops;
 pub mod path_service;
 pub mod search_service;
 pub mod share_service;

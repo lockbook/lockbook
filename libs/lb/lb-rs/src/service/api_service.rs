@@ -35,7 +35,7 @@ pub enum ApiError<E> {
     Deserialize(String),
 }
 
-pub trait Requester: Clone {
+pub trait Requester: Clone + Send + Sync + 'static + Default {
     fn request<T: Request>(
         &self, account: &Account, request: T,
     ) -> Result<T::Response, ApiError<T::Error>>;

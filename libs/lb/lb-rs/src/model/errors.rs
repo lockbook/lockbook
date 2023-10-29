@@ -3,6 +3,7 @@ use std::collections::HashSet;
 use std::fmt::Display;
 use std::fmt::{self, Formatter};
 use std::io;
+use std::sync::mpsc::SendError;
 use std::sync::PoisonError;
 
 use serde::ser::SerializeStruct;
@@ -313,6 +314,12 @@ impl From<db_rs::DbError> for LbError {
 
 impl<G> From<PoisonError<G>> for LbError {
     fn from(err: PoisonError<G>) -> Self {
+        core_err_unexpected(err).into()
+    }
+}
+
+impl<T> From<SendError<T>> for LbError {
+    fn from(err: SendError<T>) -> Self {
         core_err_unexpected(err).into()
     }
 }

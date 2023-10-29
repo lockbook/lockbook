@@ -4,8 +4,8 @@ use std::fmt::{Display, Formatter};
 use lockbook_shared::access_info::UserAccessMode;
 use lockbook_shared::account::Account;
 use lockbook_shared::api::{
-    ChangeDocRequest, GetDocRequest, GetFileIdsRequest, GetUpdatesRequest, GetUpdatesResponse,
-    GetUsernameError, GetUsernameRequest, UpsertRequest,
+    ChangeDocRequest, GetFileIdsRequest, GetUpdatesRequest, GetUpdatesResponse, GetUsernameError,
+    GetUsernameRequest, UpsertRequest,
 };
 use lockbook_shared::document_repo::DocumentService;
 use lockbook_shared::file::ShareMode;
@@ -26,14 +26,14 @@ use crate::{CoreError, CoreLib, CoreState, LbError, LbResult, Requester};
 
 pub struct SyncContext<Client: Requester, Docs: DocumentService> {
     core: CoreLib<Client, Docs>,
-    client: Client,
-    docs: Docs,
+    pub(crate) client: Client,
+    pub(crate) docs: Docs,
 
     progress: Option<Box<dyn Fn(SyncProgress)>>,
     current: usize,
     total: usize,
 
-    account: Account,
+    pub(crate) account: Account,
     pk_cache: HashMap<Owner, String>,
     last_synced: u64,
     remote_changes: Vec<SignedFile>,
@@ -204,17 +204,7 @@ impl<Client: Requester, Docs: DocumentService> SyncContext<Client, Docs> {
         let num_docs = docs_to_pull.len();
         self.total += num_docs;
 
-        // todo: parallelize
-        for (idx, (id, hmac)) in docs_to_pull.iter().enumerate() {
-            let id = *id;
-            let hmac = *hmac;
-            self.file_msg(id, &format!("Downloading file {idx} of {num_docs}.")); // todo: add name
-            let remote_document = self
-                .client
-                .request(&self.account, GetDocRequest { id, hmac })?;
-            self.docs
-                .insert(&id, Some(&hmac), &remote_document.content)?;
-        }
+        self.para_pull(docs_to_pull)?;
 
         Ok(())
     }
@@ -382,7 +372,7 @@ impl<Client: Requester, Docs: DocumentService> SyncContext<Client, Docs> {
         SyncStatus { work_units, latest_server_ts: self.update_as_of }
     }
 
-    fn msg(&mut self, msg: &str) {
+    pub(crate) fn msg(&mut self, msg: &str) {
         self.current += 1;
         if let Some(f) = &self.progress {
             f(SyncProgress {
@@ -394,7 +384,7 @@ impl<Client: Requester, Docs: DocumentService> SyncContext<Client, Docs> {
         }
     }
 
-    fn file_msg(&mut self, id: Uuid, msg: &str) {
+    pub(crate) fn file_msg(&mut self, id: Uuid, msg: &str) {
         self.current += 1;
         if let Some(f) = &self.progress {
             f(SyncProgress {
