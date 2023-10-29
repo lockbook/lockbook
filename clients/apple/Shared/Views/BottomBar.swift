@@ -179,10 +179,8 @@ struct BottomBar: View {
                 .foregroundColor(.secondary)
         } else if sync.syncing {
             HStack {
-                if let syncMsg = sync.syncMsg {
-                    Text(syncMsg)
-                        .foregroundColor(.secondary)
-                }
+                Text(sync.syncMsg ?? " ")
+                    .foregroundColor(.secondary)
             #if os(iOS)
                 Spacer()
             #endif
