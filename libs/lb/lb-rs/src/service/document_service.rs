@@ -44,7 +44,7 @@ impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {
     }
 
     pub(crate) fn cleanup(&mut self) -> LbResult<()> {
-        if !self.syncing {
+        if self.syncing {
             debug!("skipping doc cleanup due to active sync");
             return Ok(());
         }
