@@ -1,7 +1,7 @@
 use lb_rs::Core;
 use std::thread;
 use std::time::{Duration, SystemTime};
-use test_utils::{test_config, test_core_with_account};
+use test_utils::{random_name, test_config, test_core_with_account, url};
 
 #[test]
 #[ignore]
@@ -87,4 +87,11 @@ fn test_sync_concurrently2() {
     threads.into_iter().for_each(|th| {
         th.join().unwrap();
     });
+}
+
+#[test]
+fn new_account_test() {
+    let core = Core::init(&test_config()).unwrap();
+    core.create_account(&random_name(), &url(), false).unwrap();
+    assert_eq!(core.calculate_work().unwrap().work_units, vec![]);
 }

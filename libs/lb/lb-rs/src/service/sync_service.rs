@@ -4,8 +4,8 @@ use std::fmt::{Display, Formatter};
 use lockbook_shared::access_info::UserAccessMode;
 use lockbook_shared::account::Account;
 use lockbook_shared::api::{
-    ChangeDocRequest, GetDocRequest, GetFileIdsRequest, GetUpdatesRequest, GetUsernameError,
-    GetUsernameRequest, UpsertRequest,
+    ChangeDocRequest, GetDocRequest, GetFileIdsRequest, GetUpdatesRequest, GetUpdatesResponse,
+    GetUsernameError, GetUsernameRequest, UpsertRequest,
 };
 use lockbook_shared::document_repo::DocumentService;
 use lockbook_shared::file::ShareMode;
@@ -126,39 +126,10 @@ impl<Client: Requester, Docs: DocumentService> SyncContext<Client, Docs> {
             GetUpdatesRequest { since_metadata_version: self.last_synced },
         )?;
 
-        self.core.in_tx(|tx| {
-            let (remote_changes, update_as_of) = {
-                let mut remote_changes = updates.file_metadata;
-                let update_as_of = updates.as_of_metadata_version;
-
-                remote_changes = tx.prune_remote_orphans(remote_changes)?;
-
-                let remote = tx
-                    .db
-                    .base_metadata
-                    .stage(remote_changes)
-                    .pruned()?
-                    .to_lazy();
-
-                let (_, remote_changes) = remote.unstage();
-                (remote_changes, update_as_of)
-            };
-
-            // initialize root if this is the first pull on this device
-            if tx.db.root.get().is_none() {
-                let root = remote_changes
-                    .all_files()?
-                    .into_iter()
-                    .find(|f| f.is_root())
-                    .ok_or(CoreError::RootNonexistent)?;
-                self.root = Some(*root.id());
-            }
-
-            self.remote_changes = remote_changes;
-            self.update_as_of = update_as_of;
-
-            Ok(())
-        })?;
+        let (remote, as_of, root) = self.core.in_tx(|tx| tx.dedup(updates))?;
+        self.remote_changes = remote;
+        self.update_as_of = as_of;
+        self.root = root;
 
         Ok(())
     }
@@ -471,6 +442,16 @@ impl Display for SyncProgress {
 impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {
     #[instrument(level = "debug", skip_all, err(Debug))]
     pub(crate) fn calculate_work(&mut self) -> LbResult<SyncStatus> {
+        let last_synced = self.db.last_synced.get().copied().unwrap_or_default() as u64;
+        let remote_changes = self.client.request(
+            self.get_account()?,
+            GetUpdatesRequest { since_metadata_version: last_synced },
+        )?;
+        let (deduped, latest_server_ts, _) = self.dedup(remote_changes)?;
+        let remote_dirty = deduped
+            .into_iter()
+            .map(|f| *f.id())
+            .map(WorkUnit::ServerChange);
         let server_ids = self
             .client
             .request(self.get_account()?, GetFileIdsRequest {})?
@@ -485,20 +466,43 @@ impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {
             .copied()
             .map(WorkUnit::LocalChange);
 
-        let last_synced = self.db.last_synced.get().copied().unwrap_or_default() as u64;
-        let remote_changes = self.client.request(
-            self.get_account()?,
-            GetUpdatesRequest { since_metadata_version: last_synced },
-        )?;
-        let remote_dirty = remote_changes
-            .file_metadata
-            .into_iter()
-            .map(|f| *f.id())
-            .map(WorkUnit::ServerChange);
-
         let mut work_units: Vec<WorkUnit> = Vec::new();
         work_units.extend(locally_dirty.chain(remote_dirty));
-        Ok(SyncStatus { work_units, latest_server_ts: remote_changes.as_of_metadata_version })
+        Ok(SyncStatus { work_units, latest_server_ts })
+    }
+
+    fn dedup(
+        &mut self, updates: GetUpdatesResponse,
+    ) -> LbResult<(Vec<SignedFile>, u64, Option<Uuid>)> {
+        let mut root_id = None;
+        let (remote_changes, update_as_of) = {
+            let mut remote_changes = updates.file_metadata;
+            let update_as_of = updates.as_of_metadata_version;
+
+            remote_changes = self.prune_remote_orphans(remote_changes)?;
+
+            let remote = self
+                .db
+                .base_metadata
+                .stage(remote_changes)
+                .pruned()?
+                .to_lazy();
+
+            let (_, remote_changes) = remote.unstage();
+            (remote_changes, update_as_of)
+        };
+
+        // initialize root if this is the first pull on this device
+        if self.db.root.get().is_none() {
+            let root = remote_changes
+                .all_files()?
+                .into_iter()
+                .find(|f| f.is_root())
+                .ok_or(CoreError::RootNonexistent)?;
+            root_id = Some(*root.id());
+        }
+
+        Ok((remote_changes, update_as_of, root_id))
     }
 
     /// Pulls remote changes and constructs a changeset Merge such that Stage<Stage<Stage<Base, Remote>, Local>, Merge> is valid.
