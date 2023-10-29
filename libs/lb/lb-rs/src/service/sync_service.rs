@@ -38,6 +38,7 @@ pub struct SyncContext<Client: Requester, Docs: DocumentService> {
     last_synced: u64,
     remote_changes: Vec<SignedFile>,
     update_as_of: u64,
+    root: Option<Uuid>,
     pushed_metas: Vec<FileDiff<SignedFile>>,
     pushed_docs: Vec<FileDiff<SignedFile>>,
 }
@@ -98,6 +99,7 @@ impl<Client: Requester, Docs: DocumentService> SyncContext<Client, Docs> {
             current,
             total,
 
+            root: Default::default(),
             update_as_of: Default::default(),
             remote_changes: Default::default(),
             pushed_docs: Default::default(),
@@ -149,7 +151,7 @@ impl<Client: Requester, Docs: DocumentService> SyncContext<Client, Docs> {
                     .into_iter()
                     .find(|f| f.is_root())
                     .ok_or(CoreError::RootNonexistent)?;
-                tx.db.root.insert(*root.id())?;
+                self.root = Some(*root.id());
             }
 
             self.remote_changes = remote_changes;
@@ -365,6 +367,10 @@ impl<Client: Requester, Docs: DocumentService> SyncContext<Client, Docs> {
         self.msg("Cleaning up...");
         self.core.in_tx(|tx| {
             tx.db.last_synced.insert(self.update_as_of as i64)?;
+
+            if let Some(root) = self.root {
+                tx.db.root.insert(root)?;
+            }
             Ok(())
         })
     }
