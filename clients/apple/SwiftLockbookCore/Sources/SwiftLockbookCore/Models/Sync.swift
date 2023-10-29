@@ -1,7 +1,7 @@
 import Foundation
 
 public struct WorkUnit: Decodable {
-    public var content: File
+    public var content: UUID
     public var tag: String
 }
 
