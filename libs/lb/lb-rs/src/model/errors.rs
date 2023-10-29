@@ -125,6 +125,9 @@ impl Display for CoreError {
             }
             CoreError::UsernameTaken => write!(f, "username not available"),
             CoreError::Unexpected(msg) => write!(f, "unexpected error: {msg}"),
+            CoreError::AlreadySyncing => {
+                write!(f, "A sync is already in progress, cannot begin another sync at this time!")
+            }
         }
     }
 }
@@ -247,6 +250,7 @@ pub enum CoreError {
     AlreadyCanceled,
     AlreadyPremium,
     AppStoreAccountAlreadyLinked,
+    AlreadySyncing,
     CannotCancelSubscriptionForAppStore,
     CardDecline,
     CardExpired,

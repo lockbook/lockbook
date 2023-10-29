@@ -10,7 +10,7 @@ use std::path::Path;
 use tracing::*;
 use uuid::Uuid;
 
-pub trait DocumentService {
+pub trait DocumentService: Clone {
     fn insert(
         &self, id: &Uuid, hmac: Option<&DocumentHmac>, document: &EncryptedDocument,
     ) -> SharedResult<()>;

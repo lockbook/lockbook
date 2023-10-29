@@ -32,7 +32,7 @@ pub use lockbook_shared::path_ops::Filter;
 pub use lockbook_shared::server_file::ServerFile;
 pub use lockbook_shared::tree_like::{TreeLike, TreeLikeMut};
 pub use lockbook_shared::usage::bytes_to_human;
-pub use lockbook_shared::work_unit::{ClientWorkUnit, WorkUnit};
+pub use lockbook_shared::work_unit::WorkUnit;
 
 pub use crate::model::drawing::SupportedImageFormats;
 pub use crate::model::errors::{
@@ -41,7 +41,7 @@ pub use crate::model::errors::{
 pub use crate::service::activity_service::RankingWeights;
 pub use crate::service::import_export_service::{ExportFileInfo, ImportStatus};
 pub use crate::service::search_service::{SearchResultItem, StartSearchInfo};
-pub use crate::service::sync_service::{SyncProgress, WorkCalculated};
+pub use crate::service::sync_service::{SyncProgress, SyncStatus};
 pub use crate::service::usage_service::{UsageItemMetric, UsageMetrics};
 
 use std::collections::HashMap;
@@ -57,6 +57,7 @@ use lockbook_shared::api::{
 use crate::repo::CoreDb;
 use crate::service::api_service::{Network, Requester};
 use crate::service::log_service;
+use crate::service::sync_service::SyncContext;
 
 pub type Core = CoreLib<Network, OnDiskDocuments>;
 
@@ -71,6 +72,7 @@ pub struct CoreState<Client: Requester, Docs: DocumentService> {
     pub db: CoreDb,
     pub docs: Docs,
     pub client: Client,
+    pub syncing: bool,
 }
 
 impl Core {
@@ -83,8 +85,9 @@ impl Core {
         let config = config.clone();
         let client = Network::default();
         let docs = OnDiskDocuments::from(&config);
+        let syncing = false;
 
-        let state = CoreState { config, public_key: None, db, client, docs };
+        let state = CoreState { config, public_key: None, db, client, docs, syncing };
         let inner = Arc::new(Mutex::new(state));
 
         Ok(Self { inner })
@@ -126,7 +129,8 @@ impl<Client: Requester, Docs: DocumentService> CoreLib<Client, Docs> {
     pub fn create_account(
         &self, username: &str, api_url: &str, welcome_doc: bool,
     ) -> LbResult<Account> {
-        self.in_tx(|s| s.create_account(username, api_url, welcome_doc))
+        let account = self
+            .in_tx(|s| s.create_account(username, api_url, welcome_doc))
             .expected_errs(&[
                 CoreError::AccountExists,
                 CoreError::UsernameTaken,
@@ -134,7 +138,13 @@ impl<Client: Requester, Docs: DocumentService> CoreLib<Client, Docs> {
                 CoreError::ServerDisabled,
                 CoreError::ServerUnreachable,
                 CoreError::ClientUpdateRequired,
-            ])
+            ])?;
+
+        if welcome_doc {
+            self.sync(None)?;
+        }
+
+        Ok(account)
     }
 
     #[instrument(level = "debug", skip_all, err(Debug))]
@@ -201,8 +211,7 @@ impl<Client: Requester, Docs: DocumentService> CoreLib<Client, Docs> {
                 CoreError::FileNonexistent,
                 CoreError::FileNotDocument,
                 CoreError::InsufficientPermission,
-            ])?;
-        self.in_tx(|s| s.cleanup())
+            ])
     }
 
     #[instrument(level = "debug", skip_all, err(Debug))]
@@ -362,20 +371,15 @@ impl<Client: Requester, Docs: DocumentService> CoreLib<Client, Docs> {
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
-    pub fn calculate_work(&self) -> Result<WorkCalculated, LbError> {
+    pub fn calculate_work(&self) -> Result<SyncStatus, LbError> {
         self.in_tx(|s| s.calculate_work())
             .expected_errs(&[CoreError::ServerUnreachable, CoreError::ClientUpdateRequired])
     }
 
     // todo: expose work calculated (return value)
     #[instrument(level = "debug", skip_all, err(Debug))]
-    pub fn sync(&self, f: Option<Box<dyn Fn(SyncProgress)>>) -> Result<WorkCalculated, LbError> {
-        self.in_tx(|s| {
-            let wc = s.sync(f)?;
-            s.cleanup()?;
-            Ok(wc)
-        })
-        .expected_errs(&[
+    pub fn sync(&self, f: Option<Box<dyn Fn(SyncProgress)>>) -> Result<SyncStatus, LbError> {
+        SyncContext::sync(self, f).expected_errs(&[
             CoreError::ServerUnreachable,
             CoreError::ClientUpdateRequired,
             CoreError::UsageIsOverDataCap,
@@ -428,11 +432,7 @@ impl<Client: Requester, Docs: DocumentService> CoreLib<Client, Docs> {
 
     #[instrument(level = "debug", skip(self, d), err(Debug))]
     pub fn save_drawing(&self, id: Uuid, d: &Drawing) -> Result<(), LbError> {
-        self.in_tx(|s| {
-            s.save_drawing(id, d)?;
-            s.cleanup()
-        })
-        .expected_errs(&[
+        self.in_tx(|s| s.save_drawing(id, d)).expected_errs(&[
             CoreError::DrawingInvalid,
             CoreError::FileNonexistent,
             CoreError::FileNotDocument,
@@ -471,16 +471,13 @@ impl<Client: Requester, Docs: DocumentService> CoreLib<Client, Docs> {
     pub fn import_files<F: Fn(ImportStatus)>(
         &self, sources: &[PathBuf], dest: Uuid, update_status: &F,
     ) -> Result<(), LbError> {
-        self.in_tx(|s| {
-            s.import_files(sources, dest, update_status)?;
-            s.cleanup()
-        })
-        .expected_errs(&[
-            CoreError::DiskPathInvalid,
-            CoreError::FileNonexistent,
-            CoreError::FileNotFolder,
-            CoreError::FileNameTooLong,
-        ])
+        self.in_tx(|s| s.import_files(sources, dest, update_status))
+            .expected_errs(&[
+                CoreError::DiskPathInvalid,
+                CoreError::FileNonexistent,
+                CoreError::FileNotFolder,
+                CoreError::FileNameTooLong,
+            ])
     }
 
     #[instrument(level = "debug", skip(self, export_progress), err(Debug))]

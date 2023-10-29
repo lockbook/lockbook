@@ -182,7 +182,7 @@ impl FfiCore {
         self.core.get_local_changes()
     }
 
-    pub fn calculate_work(&self) -> Result<WorkCalculated, Error<CalculateWorkError>> {
+    pub fn calculate_work(&self) -> Result<SyncStatus, Error<CalculateWorkError>> {
         Ok(self.core.calculate_work()?)
     }
 

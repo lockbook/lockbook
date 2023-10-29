@@ -120,6 +120,7 @@ fn lb_error_code(kind: CoreError) -> LbErrorCode {
         CoreError::UsernamePublicKeyMismatch => LbErrorCode::UsernamePublicKeyMismatch,
         CoreError::UsernameTaken => LbErrorCode::UsernameTaken,
         CoreError::Unexpected(_) => LbErrorCode::Unexpected,
+        CoreError::AlreadySyncing => LbErrorCode::AlreadySyncing,
     }
 }
 
@@ -200,6 +201,7 @@ pub enum LbErrorCode {
     UsernameNotFound,
     UsernamePublicKeyMismatch,
     UsernameTaken,
+    AlreadySyncing,
 }
 
 #[repr(C)]

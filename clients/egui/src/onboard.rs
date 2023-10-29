@@ -91,12 +91,7 @@ impl OnboardScreen {
                     }
                 }
                 Update::ImportSyncProgress(sp) => {
-                    self.import_status = Some(match &sp.current_work_unit {
-                        lb::ClientWorkUnit::PullMetadata => "Pulling file tree updates".to_string(),
-                        lb::ClientWorkUnit::PushMetadata => "Pushing file tree updates".to_string(),
-                        lb::ClientWorkUnit::PullDocument(f) => format!("Pulling: {}", f.name),
-                        lb::ClientWorkUnit::PushDocument(f) => format!("Pushing: {}", f.name),
-                    });
+                    self.import_status = Some(sp.to_string());
                 }
                 Update::ImportSyncDone(maybe_err) => {
                     if let Some(err) = maybe_err {
