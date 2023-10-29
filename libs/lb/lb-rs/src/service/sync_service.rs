@@ -1,7 +1,5 @@
 use std::collections::{HashMap, HashSet};
 use std::fmt::{Display, Formatter};
-use std::thread;
-use std::time::Duration;
 
 use lockbook_shared::access_info::UserAccessMode;
 use lockbook_shared::account::Account;
@@ -160,7 +158,6 @@ impl<Client: Requester, Docs: DocumentService> SyncContext<Client, Docs> {
             Ok(())
         })?;
 
-        thread::sleep(Duration::from_secs(1));
         Ok(())
     }
 
@@ -367,7 +364,7 @@ impl<Client: Requester, Docs: DocumentService> SyncContext<Client, Docs> {
     fn commit_last_synced(&mut self) -> LbResult<()> {
         self.msg("Cleaning up...");
         self.core.in_tx(|tx| {
-            tx.db.last_synced.insert(self.last_synced as i64)?;
+            tx.db.last_synced.insert(self.update_as_of as i64)?;
             Ok(())
         })
     }

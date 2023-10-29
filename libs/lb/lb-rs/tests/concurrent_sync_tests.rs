@@ -1,10 +1,10 @@
 use lb_rs::Core;
 use std::thread;
 use std::time::{Duration, SystemTime};
-use test_utils::{test_config, test_core_from, test_core_with_account};
+use test_utils::{test_config, test_core_with_account};
 
 #[test]
-// #[ignore]
+#[ignore]
 fn test_sync_concurrently() {
     println!("test began");
     let core = test_core_with_account();

@@ -1029,7 +1029,7 @@ fn ids_changed_on_server(work: &lb::SyncStatus) -> Vec<lb::Uuid> {
         .iter()
         .filter_map(|wu| match wu {
             lb::WorkUnit::LocalChange { .. } => None,
-            lb::WorkUnit::ServerChange { metadata } => Some(metadata.id),
+            lb::WorkUnit::ServerChange(id) => Some(*id),
         })
         .collect()
 }
