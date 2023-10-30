@@ -1,7 +1,7 @@
 use std::{io, str::FromStr};
 
 use cli_rs::cli_error::{CliError, CliResult};
-use lb::Core;
+use lb::{Core, WorkUnit};
 
 use is_terminal::IsTerminal;
 
@@ -110,6 +110,29 @@ pub fn unsubscribe(core: &Core) -> Result<(), CliError> {
 
 pub fn status(core: &Core) -> Result<(), CliError> {
     ensure_account(core)?;
+
+    let last_synced = core.get_last_synced_human_string()?;
+    println!("files last synced: {last_synced}");
+
+    let core_status = core.calculate_work()?;
+    let local = core_status
+        .work_units
+        .iter()
+        .filter_map(|wu| match wu {
+            WorkUnit::LocalChange(id) => Some(id),
+            WorkUnit::ServerChange(_) => None,
+        })
+        .count();
+    let server = core_status
+        .work_units
+        .iter()
+        .filter_map(|wu| match wu {
+            WorkUnit::ServerChange(id) => Some(id),
+            WorkUnit::LocalChange(_) => None,
+        })
+        .count();
+    println!("files ready to push: {local}");
+    println!("files ready to pull: {server}");
 
     let cap = core.get_usage()?;
     let pct = (cap.server_usage.exact * 100) / cap.data_cap.exact;
