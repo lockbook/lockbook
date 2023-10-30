@@ -64,15 +64,12 @@ data class SyncStatus(
 )
 
 @Serializable
-data class WorkUnit(val content: WorkUnitMetadata, val tag: WorkUnitTag)
+data class WorkUnit(val content: String, val tag: WorkUnitTag)
 
 enum class WorkUnitTag {
     LocalChange,
     ServerChange
 }
-
-@Serializable
-data class WorkUnitMetadata(val metadata: File)
 
 @Serializable
 data class Config(

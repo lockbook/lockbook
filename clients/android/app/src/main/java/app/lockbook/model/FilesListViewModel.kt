@@ -311,7 +311,7 @@ class FilesListViewModel(application: Application, val syncModel: SyncModel) : A
                 )
                 sidebarInfo.serverDirtyFilesCount = calculateWorkResult.value.workUnits.filter { it.tag == WorkUnitTag.ServerChange }.size
 
-                serverChanges = calculateWorkResult.value.workUnits.filter { it.tag == WorkUnitTag.ServerChange }.map { it.content.metadata.id }.toHashSet()
+                serverChanges = calculateWorkResult.value.workUnits.filter { it.tag == WorkUnitTag.ServerChange }.map { it.content }.toHashSet()
                 viewModelScope.launch(Dispatchers.Main) {
                     files.set(fileModel.children.intoViewHolderInfo(localChanges, serverChanges))
                 }
