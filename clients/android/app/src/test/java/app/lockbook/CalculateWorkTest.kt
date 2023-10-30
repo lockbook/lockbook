@@ -40,6 +40,6 @@ class CalculateWorkTest {
             FileType.Folder
         ).unwrapOk()
 
-        // CoreModel.calculateWork().unwrapOk()
+         CoreModel.calculateWork().unwrapOk()
     }
 }
