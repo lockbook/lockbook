@@ -12,7 +12,6 @@ members = [
 	"server/server",
 	"clients/cli",
 	"clients/egui",
-	"clients/windows",
 	"clients/admin",
 	"utils/dev-tool",
 	"utils/releaser",
