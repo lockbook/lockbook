@@ -129,7 +129,7 @@ struct BottomBar: View {
                         Button(action: {
                             showUpgradeToPremium()
                         }, label: {
-                            Image(systemName: "plus.circle.fill")
+                            Image(systemName: "dollarsign.circle")
                                 .foregroundColor(.gray)
                         })
                         

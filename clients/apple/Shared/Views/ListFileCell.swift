@@ -11,6 +11,14 @@ struct FileCell: View {
         cell
             .contextMenu(menuItems: {
                 // TODO: disast: https://stackoverflow.com/questions/70159437/context-menu-not-updating-in-swiftui
+                if meta.fileType == .Folder {
+                    Button(action: {
+                        DI.sheets.renamingFolderInfo = RenamingFolderInfo(id: meta.id, name: meta.name, parentPath: DI.files.getPathByIdOrParent(maybeId: meta.parent) ?? "ERROR")
+                    }) {
+                        Label("Rename", systemImage: "questionmark.folder")
+                    }
+                }
+                
                 Button(action: {
                     DI.files.deleteFile(id: meta.id)
                 }) {

@@ -35,6 +35,23 @@ class CreateFolder: NSMenuItem {
     }
 }
 
+class RenameFolder: NSMenuItem {
+    let file: File
+    init(file: File) {
+        self.file = file
+        super.init(title: "Rename", action: #selector(create(_:)), keyEquivalent: "")
+        target = self
+    }
+
+    required init(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    @objc func create(_ sender: AnyObject) {
+        DI.sheets.renamingFolderInfo = RenamingFolderInfo(id: file.id, name: file.name, parentPath: DI.files.getPathByIdOrParent(maybeId: file.parent) ?? "ERROR")
+    }
+}
+
 class Delete: NSMenuItem {
     let file: File
     init(file: File) {
