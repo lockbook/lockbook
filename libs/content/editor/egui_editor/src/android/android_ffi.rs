@@ -6,6 +6,7 @@ use egui_wgpu_backend::ScreenDescriptor;
 use jni::objects::{JClass, JString};
 use jni::sys::{jboolean, jfloat, jint, jlong, jobject, jstring};
 use jni::JNIEnv;
+use serde::Serialize;
 use std::time::Instant;
 use crate::android::keyboard::AndroidKeys;
 use crate::android::window;
@@ -476,3 +477,83 @@ pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_getTextInRange(
         .expect("Couldn't create JString from rust string!")
         .into_raw()
 }
+
+#[derive(Serialize)]
+pub struct AndroidRect {
+    min_x: f32,
+    min_y: f32,
+    max_x: f32,
+    max_y: f32,
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_getCharacterRect(
+    env: JNIEnv, _: JClass, obj: jlong, pos: jint
+) -> jstring {
+    let obj = unsafe { &mut *(obj as *mut WgpuEditor) };
+
+    let galleys = &obj.editor.galleys;
+    let text = &obj.editor.bounds.text;
+
+    let cursor: Cursor = Cursor::from(pos as usize);
+    let line = cursor.start_line(galleys, text);
+
+    let json = serde_json::to_string(&AndroidRect {
+        min_x: line[0].x,
+        min_y: line[0].y,
+        max_x: line[1].x,
+        max_y: line[1].y,
+    }).unwrap();
+
+    env
+        .new_string(json)
+        .expect("Couldn't create JString from rust string!")
+        .into_raw()
+}
+
+// context menu
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_selectAll(
+    _env: JNIEnv, _: JClass, obj: jlong
+) {
+    let obj = unsafe { &mut *(obj as *mut WgpuEditor) };
+
+    let buffer = &obj.editor.buffer.current;
+
+    obj.editor.custom_events.push(Modification::Select {
+        region: Region::BetweenLocations {
+            start: Location::DocCharOffset(DocCharOffset(0)),
+            end: Location::DocCharOffset(buffer.segs.last_cursor_position())
+        }
+    });
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_cut(
+    _env: JNIEnv, _: JClass, obj: jlong
+) {
+    let obj = unsafe { &mut *(obj as *mut WgpuEditor) };
+
+    obj.editor.custom_events.push(Modification::Cut);
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_copy(
+    _env: JNIEnv, _: JClass, obj: jlong
+) {
+    let obj = unsafe { &mut *(obj as *mut WgpuEditor) };
+
+    obj.editor.custom_events.push(Modification::Copy);
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_paste(
+    _env: JNIEnv, _: JClass, obj: jlong,
+) {
+    let obj = unsafe { &mut *(obj as *mut WgpuEditor) };
+
+    let clip = obj.from_host.clone().unwrap_or_default();
+    obj.raw_input.events.push(Event::Paste(clip));
+}
+

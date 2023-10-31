@@ -6,6 +6,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.EditText
+import androidx.appcompat.widget.AppCompatEditText
 import androidx.core.view.isVisible
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
@@ -54,7 +55,7 @@ class TextEditorFragment : Fragment() {
         _binding = FragmentTextEditorBinding.inflate(inflater, container, false)
         val name = (activityModel.detailScreen as DetailScreen.TextEditor).file.name
 
-//        EditText(context).setInputType()
+//        AppCompatEditText()
 
         textEditorToolbar.title = name
         textEditorToolbar.setOnMenuItemClickListener { item ->

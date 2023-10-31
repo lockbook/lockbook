@@ -13,10 +13,19 @@ data class EditorResponse(
     val textUpdated: Boolean,
     @SerialName("potential_title")
     val potentialTitle: String?,
+
+    @SerialName("show_edit_menu")
+    val showEditMenu: Boolean,
     @SerialName("has_selection")
     val hasSelection: Boolean,
     @SerialName("selection_updated")
     val selectionUpdated: Boolean,
+    @SerialName("edit_menu_x")
+    val editMenuX: Float,
+    @SerialName("edit_menu_y")
+    val editMenuY: Float,
+
+
     @SerialName("cursor_in_heading")
     val cursorInHeading: Boolean,
     @SerialName("cursor_in_bullet_list")
@@ -41,6 +50,18 @@ data class IntegrationOutput(
     val redrawIn: ULong,
     @SerialName("editor_response")
     val editorResponse: EditorResponse
+)
+
+@Serializable
+data class AndroidRect(
+    @SerialName("min_x")
+    val minX: Float,
+    @SerialName("min_y")
+    val minY: Float,
+    @SerialName("max_x")
+    val maxX: Float,
+    @SerialName("max_y")
+    val maxY: Float,
 )
 
 public class EGUIEditor {
@@ -74,5 +95,15 @@ public class EGUIEditor {
     external fun insert(rustObj: Long, index: Int, text: String)
     external fun append(rustObj: Long, text: String)
     external fun getTextInRange(rustObj: Long, start: Int, end: Int): String
+    external fun getCharacterRect(rustObj: Long, pos: Int): String
+
+    // context menu
+
+    external fun selectAll(rustObj: Long)
+    external fun cut(rustObj: Long)
+    external fun copy(rustObj: Long)
+    external fun paste(rustObj: Long)
+
+
 
 }
