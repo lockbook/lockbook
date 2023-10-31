@@ -3586,7 +3586,7 @@ dependencies = [
  "egui_editor",
  "egui_wgpu_backend",
  "env_logger",
- "lockbook-core",
+ "lb-rs",
  "lockbook-egui",
  "pollster",
  "raw-window-handle",

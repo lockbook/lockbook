@@ -4,16 +4,16 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-egui = "0.22.0"
-egui_wgpu_backend = "0.24.0"
-pollster = "0.2"
-lbeditor = { package = "egui_editor", path = "../../libs/editor/egui_editor" }
-lbeguiapp = { package = "lockbook-egui", path = "../egui" }
-lb = { package = "lockbook-core", path = "../../libs/core", default-features = false, features=["native-tls"] }
-raw-window-handle = "0.5"
-env_logger = "0.10"
 array-init = "2.0.0"
 clipboard-win = "4.5.0"
+egui = "0.22.0"
+egui_wgpu_backend = "0.24.0"
+env_logger = "0.10"
+lb = { package = "lb-rs", path = "../../libs/lb/lb-rs", default-features = false, features=["native-tls"] }
+lbeditor = { package = "egui_editor", path = "../../libs/content/editor/egui_editor" }
+lbeguiapp = { package = "lockbook-egui", path = "../egui" }
+pollster = "0.2"
+raw-window-handle = "0.5"
 
 [dependencies.windows]
 version = "0.51.1"
