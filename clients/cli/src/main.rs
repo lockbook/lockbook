@@ -204,11 +204,13 @@ fn main() {
 }
 
 fn core() -> CliResult<Core> {
-    let writeable_path = match (std::env::var("LOCKBOOK_PATH"), std::env::var("HOME")) {
-        (Ok(s), _) => s,
-        (Err(_), Ok(s)) => format!("{}/.lockbook/cli", s),
-        _ => return Err("no cli location".into()),
-    };
+    let writeable_path =
+        match (std::env::var("LOCKBOOK_PATH"), std::env::var("HOME"), std::env::var("HOMEPATH")) {
+            (Ok(s), _, _) => s,
+            (Err(_), Ok(s), _) => format!("{}/.lockbook/cli", s),
+            (Err(_), Err(_), Ok(s)) => format!("{}/.lockbook/cli", s),
+            _ => return Err("no cli location".into()),
+        };
 
     Core::init(&lb::Config { writeable_path, logs: true, colored_logs: true })
         .map_err(|err| CliError::from(err.msg))
