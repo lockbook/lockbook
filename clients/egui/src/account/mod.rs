@@ -21,6 +21,7 @@ use crate::settings::Settings;
 use crate::theme::Icon;
 use crate::util::NUM_KEYS;
 use crate::widgets::{separator, Button};
+use crate::UpdateOutput;
 
 use self::background::*;
 use self::full_doc_search::FullDocSearch;
@@ -113,16 +114,16 @@ impl AccountScreen {
         }
     }
 
-    pub fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
-        self.process_updates(ctx, frame);
-        self.process_keys(ctx, frame);
+    pub fn update(&mut self, ctx: &egui::Context, output: &mut UpdateOutput) {
+        self.process_updates(ctx, output);
+        self.process_keys(ctx, output);
         self.process_dropped_files(ctx);
         self.toasts.show(ctx);
 
         if self.shutdown.is_some() {
             egui::CentralPanel::default()
                 .show(ctx, |ui| ui.centered_and_justified(|ui| ui.label("Shutting down...")));
-            return;
+            return Default::default();
         }
 
         self.background_tx
@@ -166,7 +167,7 @@ impl AccountScreen {
 
         egui::CentralPanel::default()
             .frame(egui::Frame::default().fill(ctx.style().visuals.widgets.noninteractive.bg_fill))
-            .show(ctx, |ui| self.show_workspace(frame, ui));
+            .show(ctx, |ui| self.show_workspace(output, ui));
 
         if self.is_new_user {
             self.modals.account_backup = Some(AccountBackup);
@@ -175,7 +176,7 @@ impl AccountScreen {
         self.show_any_modals(ctx, 0.0);
     }
 
-    fn process_updates(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
+    fn process_updates(&mut self, ctx: &egui::Context, output: &mut UpdateOutput) {
         while let Ok(update) = self.update_rx.try_recv() {
             match update {
                 AccountUpdate::AutoSaveSignal => {
@@ -253,7 +254,7 @@ impl AccountScreen {
                 },
                 AccountUpdate::FileLoaded(id, content_result) => {
                     if let Some(tab) = self.workspace.get_mut_tab_by_id(id) {
-                        frame.set_window_title(&tab.name);
+                        output.set_window_title = Some(tab.name.clone());
                         self.tree.reveal_file(id, &self.core);
 
                         match content_result {
@@ -271,7 +272,7 @@ impl AccountScreen {
                     }
                     if let Some(tab) = self.workspace.current_tab() {
                         if tab.id == id {
-                            frame.set_window_title(&tab.name);
+                            output.set_window_title = Some(tab.name.clone());
                         }
                     }
                     self.suggested.recalc_and_redraw(ctx, &self.core);
@@ -304,7 +305,8 @@ impl AccountScreen {
                                     self.workspace.tabs[i] = new_tab;
                                     if let Some(open_tab) = focussed_tab_id {
                                         if tab_id == open_tab {
-                                            frame.set_window_title(&self.workspace.tabs[i].name);
+                                            output.set_window_title =
+                                                Some(self.workspace.tabs[i].name.clone());
                                         }
                                     }
                                     break;
@@ -373,7 +375,7 @@ impl AccountScreen {
         }
     }
 
-    fn process_keys(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
+    fn process_keys(&mut self, ctx: &egui::Context, output: &mut UpdateOutput) {
         const ALT: egui::Modifiers = egui::Modifiers::ALT;
         const CTRL: egui::Modifiers = egui::Modifiers::CTRL;
 
@@ -398,11 +400,12 @@ impl AccountScreen {
         // Ctrl-W to close current tab.
         if ctx.input_mut(|i| i.consume_key(CTRL, egui::Key::W)) && !self.workspace.is_empty() {
             self.close_tab(ctx, self.workspace.active_tab);
-            frame.set_window_title(
+            output.set_window_title = Some(
                 self.workspace
                     .current_tab()
                     .map(|tab| tab.name.as_str())
-                    .unwrap_or("Lockbook"),
+                    .unwrap_or("Lockbook")
+                    .to_owned(),
             );
             if let Some(active_t) = self.workspace.tabs.get(self.workspace.active_tab) {
                 self.tree.reveal_file(active_t.id, &self.core)
@@ -452,7 +455,7 @@ impl AccountScreen {
                         input.events.remove(index);
                     }
                     if let Some(tab) = self.workspace.current_tab() {
-                        frame.set_window_title(&tab.name);
+                        output.set_window_title = Some(tab.name.clone());
                     }
                     break;
                 }
