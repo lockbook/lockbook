@@ -95,7 +95,7 @@ impl Editor {
 
         let editor = editor.split('/').last().unwrap();
 
-        Ok(editor.parse().unwrap())
+        Ok(editor.parse().map_err(|_| "no EDITOR or VISUAL")?)
     }
 }
 
