@@ -175,11 +175,13 @@ pub fn calc(
                 region: Region::Bound { bound: Bound::Doc, backwards: true },
             })
         }
+        Event::Cut => Some(Modification::Cut),
         Event::Key { key: Key::X, pressed: true, modifiers, .. }
             if modifiers.command && !modifiers.shift =>
         {
             Some(Modification::Cut)
         }
+        Event::Copy => Some(Modification::Copy),
         Event::Key { key: Key::C, pressed: true, modifiers, .. }
             if modifiers.command && !modifiers.shift =>
         {
