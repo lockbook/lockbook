@@ -7,6 +7,7 @@ mod list;
 mod share;
 mod stream;
 
+use std::env;
 use std::path::PathBuf;
 
 use account::ApiUrl;
@@ -204,11 +205,15 @@ fn main() {
 }
 
 fn core() -> CliResult<Core> {
-    let writeable_path = match (std::env::var("LOCKBOOK_PATH"), std::env::var("HOME")) {
-        (Ok(s), _) => s,
-        (Err(_), Ok(s)) => format!("{}/.lockbook/cli", s),
-        _ => return Err("no cli location".into()),
-    };
+    let specified_path = env::var("LOCKBOOK_PATH");
+
+    let default_path = env::var("HOME") // unix
+        .or(env::var("HOMEPATH")) // windows
+        .map(|home| format!("{home}/.lockbook/cli"));
+
+    let writeable_path = specified_path
+        .or(default_path)
+        .map_err(|_| "no cli location")?;
 
     Core::init(&lb::Config { writeable_path, logs: true, colored_logs: true })
         .map_err(|err| CliError::from(err.msg))
