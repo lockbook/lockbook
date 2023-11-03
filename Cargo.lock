@@ -3538,6 +3538,7 @@ dependencies = [
  "rfd",
  "serde",
  "serde_json",
+ "svg",
  "winres",
 ]
 
@@ -5657,6 +5658,12 @@ name = "subtle"
 version = "2.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6bdef32e8150c2a081110b42772ffe7d7c9032b606bc226c8260fd97e0976601"
+
+[[package]]
+name = "svg"
+version = "0.14.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0d703a3635418d4e4d0e410009ddbfb65047ef9468b1d29afd3b057a5bc4c217"
 
 [[package]]
 name = "svgtypes"

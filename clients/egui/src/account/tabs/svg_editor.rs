@@ -4,26 +4,26 @@ use std::sync::mpsc;
 use eframe::egui;
 use resvg::tiny_skia::{PathBuilder, Pixmap};
 use resvg::usvg::{
-    self, Align, Color, Fill, NodeExt, NodeKind, NonZeroPositiveF32, NonZeroRect, Paint, Path,
-    Size, Stroke, Transform, TreeWriting, ViewBox, XmlOptions,
+    self, Align, Color, Fill, NodeExt, NodeKind, NonZeroPositiveF32, NonZeroRect, NormalizedF32,
+    Paint, Path, Size, Stroke, Transform, TreeWriting, ViewBox, XmlOptions,
 };
 
 pub struct SVGEditor {
     raw: Vec<u8>,
-    stroke_rx: mpsc::Receiver<(egui::Pos2, usize)>,
-    stroke_tx: mpsc::Sender<(egui::Pos2, usize)>,
+    draw_rx: mpsc::Receiver<(egui::Pos2, usize)>,
+    draw_tx: mpsc::Sender<(egui::Pos2, usize)>,
     path_builder: PathBuilder,
     id_counter: usize,
 }
 
 impl SVGEditor {
     pub fn boxed(bytes: &[u8], _ctx: &egui::Context) -> Box<Self> {
-        let (stroke_tx, stroke_rx) = mpsc::channel();
+        let (draw_tx, draw_rx) = mpsc::channel();
 
         Box::new(Self {
             raw: bytes.to_vec(),
-            stroke_rx,
-            stroke_tx,
+            draw_rx,
+            draw_tx,
             id_counter: 0,
             path_builder: PathBuilder::new(),
         })
@@ -50,6 +50,33 @@ impl SVGEditor {
         self.setup_path_events(ui);
         self.path_handler(&utree, ui);
 
+        self.show_svg_render(&utree, ui);
+        /*
+         * how to detect if there's a theme switch?
+         * 1. mismatch between egui dark_mode flag and  svg custom attribute data-theme says
+         * I think this is impossible with resvg because it erases any custom attributes
+         * 2. store global memory in egui cache
+         * 3. fire an event when setting up the light/dark in the settings modal
+         *
+         * ---
+         *
+         * how to change color dynamically?
+         * add css styles. difficulties will arise from the fact that resvg erases css after applying
+         * use stroke=url() to a def variable and ensure 2 way binding between variable value and theme state
+         *
+         * ==> resvg is pretty poor for manipulating and composing a tree. I'm going with Bodoni/svg
+         */
+        // approach 1
+        //, then go through each node and update color
+        // have data-color='label' store a hex that informs color
+
+        // approach 2
+        // if the egui says it's dark, but svg says it's light, then update defs
+
+        println!("{}", ui.visuals().dark_mode);
+    }
+
+    fn show_svg_render(&self, utree: &usvg::Tree, ui: &mut egui::Ui) {
         let tree = resvg::Tree::from_usvg(&utree);
 
         let pixmap_size = tree.size.to_int_size();
@@ -74,10 +101,20 @@ impl SVGEditor {
     }
 
     fn path_handler(&mut self, utree: &usvg::Tree, ui: &mut egui::Ui) {
-        while let Ok((pos, id)) = self.stroke_rx.try_recv() {
+        while let Ok((pos, id)) = self.draw_rx.try_recv() {
+            let text_color = ui.visuals().text_color();
             if let Some(node) = utree.node_by_id(&id.to_string()) {
                 if let NodeKind::Path(ref mut p) = *node.borrow_mut() {
                     self.path_builder.line_to(pos.x, pos.y);
+                    if let Some(stroke) = &mut p.stroke {
+                        // stroke.paint = Paint::Color(Color::new_rgb(
+                        //     text_color.r(),
+                        //     text_color.g(),
+                        //     text_color.b(),
+                        // ));
+                        stroke.paint = Paint::Color(Color::black());
+                        stroke.opacity = NormalizedF32::new(0.3).unwrap();
+                    }
                     p.data = Rc::new(self.path_builder.clone().finish().unwrap());
                 }
             } else {
@@ -87,9 +124,9 @@ impl SVGEditor {
                 self.path_builder.line_to(pos.x, pos.y);
                 let path = self.path_builder.clone().finish().unwrap();
 
-                let text_color = ui.visuals().text_color();
                 let mut stroke = Stroke::default();
                 stroke.width = NonZeroPositiveF32::new(4.0).unwrap();
+
                 stroke.paint =
                     Paint::Color(Color::new_rgb(text_color.r(), text_color.g(), text_color.b()));
 
@@ -104,6 +141,7 @@ impl SVGEditor {
                     text_bbox: None,
                     data: Rc::new(path),
                 });
+
                 let new_child = usvg::Node::new(node);
                 utree.root.append(new_child);
             }
@@ -115,7 +153,7 @@ impl SVGEditor {
     fn setup_path_events(&mut self, ui: &mut egui::Ui) {
         if let Some(cursor_pos) = ui.ctx().pointer_hover_pos() {
             if ui.input(|i| i.pointer.primary_down()) {
-                self.stroke_tx.send((cursor_pos, self.id_counter)).unwrap();
+                self.draw_tx.send((cursor_pos, self.id_counter)).unwrap();
             }
             if ui.input(|i| i.pointer.primary_released()) {
                 self.id_counter += 1;
