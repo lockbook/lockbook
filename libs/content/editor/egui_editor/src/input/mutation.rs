@@ -59,8 +59,10 @@ pub fn calc(
         Modification::ToggleStyle { region, style } => {
             let cursor = region_to_cursor(region, current_cursor, buffer, galleys, bounds);
             let unapply = region_completely_styled(cursor, &style, ast, &bounds.ast);
+            println!("unapply: {}", unapply);
             if !unapply {
                 for conflict in conflicting_styles(cursor, &style, ast, &bounds.ast) {
+                    println!("conflict");
                     apply_style(cursor, conflict, true, buffer, ast, &bounds.ast, &mut mutation)
                 }
             }
@@ -96,9 +98,7 @@ pub fn calc(
                 .find_containing(current_cursor.selection.1, true, true)
                 .iter()
                 .last();
-            let in_galley_text = ast_text_range
-                .map(|r| bounds.ast[r].range_type == AstTextRangeType::Text)
-                .unwrap_or_default();
+            let after_galley_head = current_cursor.selection.1 >= galley.text_range().start();
 
             'modification: {
                 if let Some(ast_text_range) = ast_text_range {
@@ -117,7 +117,7 @@ pub fn calc(
                 }
 
                 // insert new list item, remove current list item, or insert newline before current list item
-                if matches!(galley.annotation, Some(Annotation::Item(..))) && in_galley_text {
+                if matches!(galley.annotation, Some(Annotation::Item(..))) && after_galley_head {
                     // cursor at end of list item
                     if galley.size() - galley.head_size - galley.tail_size == 0 {
                         // empty list item -> delete current annotation
