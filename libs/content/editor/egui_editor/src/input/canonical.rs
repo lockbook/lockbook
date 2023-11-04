@@ -327,7 +327,7 @@ pub fn calc(
             if let Some(galley_idx) = click_checker.checkbox(*pos, touch_mode) {
                 Some(Modification::ToggleCheckbox(galley_idx))
             } else if let Some(url) = click_checker.link(*pos) {
-                if touch_mode || click_mods.command {
+                if (touch_mode && !click_dragged) || click_mods.command {
                     Some(Modification::OpenUrl(url))
                 } else {
                     None
