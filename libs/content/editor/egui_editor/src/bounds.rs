@@ -6,6 +6,7 @@ use crate::galleys::Galleys;
 use crate::input::canonical::Bound;
 use crate::input::cursor::Cursor;
 use crate::offset_types::{DocByteOffset, DocCharOffset, RangeExt, RelByteOffset};
+use crate::style::{BlockNodeType, MarkdownNodeType};
 use crate::unicode_segs::UnicodeSegs;
 use crate::Editor;
 use egui::epaint::text::cursor::RCursor;
@@ -228,7 +229,7 @@ pub fn calc_text(
     result
 }
 
-pub fn calc_links(buffer: &SubBuffer, text: &Text) -> PlainTextLinks {
+pub fn calc_links(buffer: &SubBuffer, text: &Text, ast: &Ast) -> PlainTextLinks {
     let finder = {
         let mut this = LinkFinder::new();
         this.kinds(&[linkify::LinkKind::Url])
@@ -239,10 +240,23 @@ pub fn calc_links(buffer: &SubBuffer, text: &Text) -> PlainTextLinks {
 
     let mut result = vec![];
     for &text_range in text {
-        for span in finder.spans(&buffer[text_range]) {
-            if span.kind().is_some() {
-                result.push((text_range.0 + span.start(), text_range.0 + span.end()));
+        'spans: for span in finder.spans(&buffer[text_range]) {
+            let link_range = (text_range.0 + span.start(), text_range.0 + span.end());
+
+            if span.kind().is_none() {
+                continue;
             }
+
+            // ignore links in code blocks because field references or method invocations can look like URLs
+            for node in &ast.nodes {
+                if node.node_type.node_type() == MarkdownNodeType::Block(BlockNodeType::Code)
+                    && node.range.intersects(&link_range, false)
+                {
+                    continue 'spans;
+                }
+            }
+
+            result.push(link_range);
         }
     }
 

@@ -96,105 +96,120 @@ pub fn calc(
                 .find_containing(current_cursor.selection.1, true, true)
                 .iter()
                 .last();
-            if matches!(galley.annotation, Some(Annotation::Item(..))) {
-                // cursor at end of list item
-                if galley.size() - galley.head_size - galley.tail_size == 0 {
-                    // empty list item -> delete current annotation
-                    mutation.push(SubMutation::Cursor {
-                        cursor: (galley.range.start(), galley.range.start() + galley.head_size)
-                            .into(),
-                    });
-                    mutation.push(SubMutation::Delete(0.into()));
-                    mutation.push(SubMutation::Cursor { cursor });
-                } else {
-                    // nonempty list item -> insert new list item
-                    mutation
-                        .push(SubMutation::Insert { text: "\n".to_string(), advance_cursor: true });
 
-                    match galley.annotation {
-                        Some(Annotation::Item(ListItem::Bulleted, _)) => {
-                            mutation.push(SubMutation::Insert {
-                                text: galley.head(buffer).to_string(),
-                                advance_cursor: true,
-                            });
-                        }
-                        Some(Annotation::Item(ListItem::Numbered(cur_number), indent_level)) => {
-                            let head = galley.head(buffer);
-                            let text = head[0..head.len() - (cur_number).to_string().len() - 2]
-                                .to_string()
-                                + &(cur_number + 1).to_string()
-                                + ". ";
-                            mutation.push(SubMutation::Insert { text, advance_cursor: true });
-
-                            let renumbered_galleys = {
-                                let mut this = HashMap::new();
-                                increment_numbered_list_items(
-                                    galley_idx,
-                                    indent_level,
-                                    1,
-                                    false,
-                                    galleys,
-                                    &mut this,
-                                );
-                                this
-                            };
-                            for (galley_idx, galley_new_number) in renumbered_galleys {
-                                let galley = &galleys[galley_idx];
-                                if let Some(Annotation::Item(
-                                    ListItem::Numbered(galley_cur_number),
-                                    ..,
-                                )) = galley.annotation
-                                {
-                                    mutation.push(SubMutation::Cursor {
-                                        cursor: (
-                                            galley.range.start() + galley.head_size,
-                                            galley.range.start() + galley.head_size
-                                                - (galley_cur_number).to_string().len()
-                                                - 2,
-                                        )
-                                            .into(),
-                                    });
-                                    mutation.push(SubMutation::Insert {
-                                        text: galley_new_number.to_string() + ". ",
-                                        advance_cursor: true,
-                                    });
-                                    mutation.push(SubMutation::Cursor { cursor: current_cursor });
-                                }
-                            }
-                        }
-                        Some(Annotation::Item(ListItem::Todo(_), _)) => {
-                            let head = galley.head(buffer);
-                            let text = head[0..head.len() - 6].to_string() + "* [ ] ";
-                            mutation.push(SubMutation::Insert { text, advance_cursor: true });
-                        }
-                        Some(Annotation::Image(_, _, _)) => {}
-                        Some(Annotation::HeadingRule) => {}
-                        Some(Annotation::Rule) => {}
-                        None => {}
+            'modification: {
+                if let Some(ast_text_range) = ast_text_range {
+                    let ast_text_range = &bounds.ast[ast_text_range];
+                    if ast_text_range.range_type == AstTextRangeType::Tail
+                        && ast_text_range.node(ast).node_type()
+                            == MarkdownNodeType::Inline(InlineNodeType::Link)
+                        && ast_text_range.range.end() != cursor.selection.1
+                    {
+                        // cursor inside link url -> move cursor to end of link
+                        mutation.push(SubMutation::Cursor {
+                            cursor: (ast_text_range.range.end(), ast_text_range.range.end()).into(),
+                        });
+                        break 'modification;
                     }
                 }
-            } else if cursor.selection.1 == galley.range.start() + galley.head_size
-                && !matches!(galley.annotation, Some(Annotation::Item(..)))
-            {
-                // cursor at start of non-list item -> insert newline before annotation
-                mutation.push(SubMutation::Cursor { cursor: galley.range.start().into() });
-                mutation.push(SubMutation::Insert { text: "\n".to_string(), advance_cursor: true });
-                mutation.push(SubMutation::Cursor { cursor });
-            } else if let Some(ast_text_range) = ast_text_range {
-                let ast_text_range = &bounds.ast[ast_text_range];
-                if ast_text_range.range_type == AstTextRangeType::Tail
-                    && ast_text_range.node(ast).node_type()
-                        == MarkdownNodeType::Inline(InlineNodeType::Link)
-                    && ast_text_range.range.end() != cursor.selection.1
+
+                // insert new list item, remove current list item, or insert newline before current list item
+                if matches!(galley.annotation, Some(Annotation::Item(..))) {
+                    // cursor at end of list item
+                    if galley.size() - galley.head_size - galley.tail_size == 0 {
+                        // empty list item -> delete current annotation
+                        mutation.push(SubMutation::Cursor {
+                            cursor: (galley.range.start(), galley.range.start() + galley.head_size)
+                                .into(),
+                        });
+                        mutation.push(SubMutation::Delete(0.into()));
+                        mutation.push(SubMutation::Cursor { cursor });
+                    } else {
+                        // nonempty list item -> insert new list item
+                        mutation.push(SubMutation::Insert {
+                            text: "\n".to_string(),
+                            advance_cursor: true,
+                        });
+
+                        match galley.annotation {
+                            Some(Annotation::Item(ListItem::Bulleted, _)) => {
+                                mutation.push(SubMutation::Insert {
+                                    text: galley.head(buffer).to_string(),
+                                    advance_cursor: true,
+                                });
+                            }
+                            Some(Annotation::Item(
+                                ListItem::Numbered(cur_number),
+                                indent_level,
+                            )) => {
+                                let head = galley.head(buffer);
+                                let text = head[0..head.len() - (cur_number).to_string().len() - 2]
+                                    .to_string()
+                                    + &(cur_number + 1).to_string()
+                                    + ". ";
+                                mutation.push(SubMutation::Insert { text, advance_cursor: true });
+
+                                let renumbered_galleys = {
+                                    let mut this = HashMap::new();
+                                    increment_numbered_list_items(
+                                        galley_idx,
+                                        indent_level,
+                                        1,
+                                        false,
+                                        galleys,
+                                        &mut this,
+                                    );
+                                    this
+                                };
+                                for (galley_idx, galley_new_number) in renumbered_galleys {
+                                    let galley = &galleys[galley_idx];
+                                    if let Some(Annotation::Item(
+                                        ListItem::Numbered(galley_cur_number),
+                                        ..,
+                                    )) = galley.annotation
+                                    {
+                                        mutation.push(SubMutation::Cursor {
+                                            cursor: (
+                                                galley.range.start() + galley.head_size,
+                                                galley.range.start() + galley.head_size
+                                                    - (galley_cur_number).to_string().len()
+                                                    - 2,
+                                            )
+                                                .into(),
+                                        });
+                                        mutation.push(SubMutation::Insert {
+                                            text: galley_new_number.to_string() + ". ",
+                                            advance_cursor: true,
+                                        });
+                                        mutation
+                                            .push(SubMutation::Cursor { cursor: current_cursor });
+                                    }
+                                }
+                            }
+                            Some(Annotation::Item(ListItem::Todo(_), _)) => {
+                                let head = galley.head(buffer);
+                                let text = head[0..head.len() - 6].to_string() + "* [ ] ";
+                                mutation.push(SubMutation::Insert { text, advance_cursor: true });
+                            }
+                            Some(Annotation::Image(_, _, _)) => {}
+                            Some(Annotation::HeadingRule) => {}
+                            Some(Annotation::Rule) => {}
+                            None => {}
+                        }
+                    }
+                    break 'modification;
+                } else if cursor.selection.1 == galley.range.start() + galley.head_size
+                    && !matches!(galley.annotation, Some(Annotation::Item(..)))
                 {
-                    // cursor inside link url -> move cursor to end of link
-                    mutation.push(SubMutation::Cursor {
-                        cursor: (ast_text_range.range.end(), ast_text_range.range.end()).into(),
-                    });
-                } else {
-                    mutation.push(SubMutation::Insert { text: "\n".to_string(), advance_cursor });
+                    // cursor at start of non-list item -> insert newline before annotation
+                    mutation.push(SubMutation::Cursor { cursor: galley.range.start().into() });
+                    mutation
+                        .push(SubMutation::Insert { text: "\n".to_string(), advance_cursor: true });
+                    mutation.push(SubMutation::Cursor { cursor });
+                    break 'modification;
                 }
-            } else {
+
+                // if it's none of the other things, just insert a newline
                 mutation.push(SubMutation::Insert { text: "\n".to_string(), advance_cursor });
             }
 

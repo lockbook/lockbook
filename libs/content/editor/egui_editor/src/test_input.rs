@@ -272,7 +272,7 @@ pub static TEST_MARKDOWN_50: &str = r#"# Editor Demo
     - [ ] a `code` list item,
 
 ```
-a code block
+a code block with a plaintextlink.com
 ```
 
 > a quote,

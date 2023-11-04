@@ -357,7 +357,8 @@ impl Editor {
                 self.buffer.current.cursor,
                 self.hover_syntax_reveal_debounce_state,
             );
-            self.bounds.links = bounds::calc_links(&self.buffer.current, &self.bounds.text);
+            self.bounds.links =
+                bounds::calc_links(&self.buffer.current, &self.bounds.text, &self.ast);
         }
         if text_updated || selection_updated || theme_updated {
             self.images = images::calc(&self.ast, &self.images, &self.client, &self.core, ui);
@@ -467,14 +468,31 @@ impl Editor {
         }
 
         // set cursor style
-        if self
-            .hover_syntax_reveal_debounce_state
-            .pointer_offset
-            .is_some()
         {
-            ui.output_mut(|o| o.cursor_icon = egui::CursorIcon::Text);
-        } else {
-            ui.output_mut(|o| o.cursor_icon = egui::CursorIcon::Default);
+            let click_checker = &EditorClickChecker {
+                ui_rect: self.ui_rect,
+                galleys: &self.galleys,
+                buffer: &self.buffer,
+                ast: &self.ast,
+                appearance: &self.appearance,
+                bounds: &self.bounds,
+            };
+            let hovering_link = ui
+                .input(|r| r.pointer.hover_pos())
+                .map(|pos| click_checker.link(pos).is_some())
+                .unwrap_or_default();
+            let hovering_text = ui
+                .input(|r| r.pointer.hover_pos())
+                .map(|pos| click_checker.text(pos).is_some())
+                .unwrap_or_default();
+            let cmd_down = ui.input(|i| i.modifiers.command);
+            if hovering_link && cmd_down {
+                ui.output_mut(|o| o.cursor_icon = egui::CursorIcon::PointingHand);
+            } else if hovering_text {
+                ui.output_mut(|o| o.cursor_icon = egui::CursorIcon::Text);
+            } else {
+                ui.output_mut(|o| o.cursor_icon = egui::CursorIcon::Default);
+            }
         }
 
         result

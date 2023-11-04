@@ -1,4 +1,5 @@
 use crate::appearance::{GRAY, YELLOW};
+use crate::bounds::RangesExt;
 use crate::images::ImageState;
 use crate::input::canonical::{Location, Modification, Region};
 use crate::layouts::Annotation;
@@ -189,6 +190,15 @@ impl Editor {
                     }
                     _ => {}
                 }
+            }
+
+            if !self
+                .bounds
+                .links
+                .find_containing(cursor.selection.1, true, true)
+                .is_empty()
+            {
+                stroke.color = self.appearance.link();
             }
 
             (selection_end_line, stroke)
