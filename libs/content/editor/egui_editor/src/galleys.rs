@@ -99,7 +99,6 @@ pub fn calc(
             );
 
             // construct text format using styles for all ancestor nodes
-            // only actual text (not head/tail) of each element gets the actual element style
             let mut text_format = TextFormat::default();
             for &node_idx in &text_range.ancestors[0..text_range.ancestors.len()] {
                 RenderStyle::Markdown(ast.nodes[node_idx].node_type.clone())
