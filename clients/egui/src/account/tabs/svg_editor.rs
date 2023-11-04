@@ -6,12 +6,12 @@ use std::sync::mpsc;
 use eframe::egui;
 use minidom::Element;
 use resvg::tiny_skia::{Path, PathBuilder, PathSegment, Pixmap};
-use resvg::usvg;
+use resvg::usvg::{self, Size, TreeWriting};
 
 use crate::theme::{Icon, ThemePalette};
 use crate::widgets::Button;
 const ICON_SIZE: f32 = 30.0;
-const COLOR_SWATCH_BTN_RADIUS: f32 = 10.0;
+const COLOR_SWATCH_BTN_RADIUS: f32 = 9.0;
 const THICKNESS_BTN_X_MARGIN: f32 = 5.0;
 const THICKNESS_BTN_WIDTH: f32 = 30.0;
 
@@ -106,9 +106,7 @@ impl SVGEditor {
         let mut utree: usvg::Tree =
             usvg::TreeParsing::from_data(self.svg.as_bytes(), &usvg::Options::default()).unwrap();
         let available_rect = ui.available_rect_before_wrap();
-        utree.size = utree.size.scale_to(
-            usvg::Size::from_wh(available_rect.width(), available_rect.height()).unwrap(),
-        );
+        utree.size = Size::from_wh(available_rect.width(), available_rect.height()).unwrap();
 
         utree.view_box.rect = usvg::NonZeroRect::from_ltrb(
             available_rect.left(),
@@ -132,13 +130,22 @@ impl SVGEditor {
         let texture = ui
             .ctx()
             .load_texture("svg_image", image, egui::TextureOptions::LINEAR);
-        ui.add(
-            egui::Image::new(
-                &texture,
-                egui::vec2(texture.size()[0] as f32, texture.size()[1] as f32),
-            )
-            .sense(egui::Sense::click()),
-        );
+
+        egui::ScrollArea::both().show(ui, |ui| {
+            let res = ui.add(
+                egui::Image::new(
+                    &texture,
+                    egui::vec2(texture.size()[0] as f32, texture.size()[1] as f32),
+                )
+                .sense(egui::Sense::click()),
+            );
+            ui.painter().rect_stroke(
+                res.rect,
+                egui::Rounding::none(),
+                egui::Stroke { width: 2.0, color: egui::Color32::DEBUG_COLOR },
+            );
+        });
+        println!("{}", utree.to_string(&usvg::XmlOptions::default()));
     }
 
     fn define_dynamic_colors(&mut self, ui: &mut egui::Ui) {
@@ -241,6 +248,7 @@ impl SVGEditor {
             }
 
             let mut buffer = Vec::new();
+
             self.root.write_to(&mut buffer).unwrap();
             self.svg = std::str::from_utf8(&buffer).unwrap().to_string();
             self.svg = self.svg.replace("xmlns='' ", "");
