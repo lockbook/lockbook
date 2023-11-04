@@ -21,4 +21,6 @@
   <color name="md_theme_outline">@color/md_theme_dark_outline</color>
 
   <color name="md_theme_progressWarning">@color/md_theme_dark_progressWarning</color>
+
+  <color name="selectedMarkdownButtonBackground">@color/selectedMarkdownButtonBackgroundDark</color>
 </resources>

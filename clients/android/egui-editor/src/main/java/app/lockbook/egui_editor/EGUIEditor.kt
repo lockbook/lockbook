@@ -8,7 +8,7 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 @Serializable
-data class EditorResponse(
+public data class EditorResponse(
     @SerialName("text_updated")
     val textUpdated: Boolean,
     @SerialName("potential_title")
@@ -24,7 +24,6 @@ data class EditorResponse(
     val editMenuX: Float,
     @SerialName("edit_menu_y")
     val editMenuY: Float,
-
 
     @SerialName("cursor_in_heading")
     val cursorInHeading: Boolean,
@@ -98,12 +97,27 @@ public class EGUIEditor {
     external fun getCharacterRect(rustObj: Long, pos: Int): String
 
     // context menu
-
     external fun selectAll(rustObj: Long)
-    external fun cut(rustObj: Long)
-    external fun copy(rustObj: Long)
-    external fun paste(rustObj: Long)
+    external fun clipboardCut(rustObj: Long)
+    external fun clipboardCopy(rustObj: Long)
+    external fun clipboardPaste(rustObj: Long)
+    external fun clipboardChanged(rustObj: Long, content: String)
+    external fun hasCopiedText(rustObj: Long): Boolean
+    external fun getCopiedText(rustObj: Long): String
 
+    // markdown styling
+    external fun applyStyleToSelectionHeading(rustObj: Long, headingSize: Int)
 
+    external fun applyStyleToSelectionBulletedList(rustObj: Long)
+    external fun applyStyleToSelectionNumberedList(rustObj: Long)
+    external fun applyStyleToSelectionTodoList(rustObj: Long)
 
+    external fun applyStyleToSelectionBold(rustObj: Long)
+    external fun applyStyleToSelectionItalic(rustObj: Long)
+    external fun applyStyleToSelectionInlineCode(rustObj: Long)
+    external fun applyStyleToSelectionStrikethrough(rustObj: Long)
+
+    external fun indentAtCursor(rustObj: Long, deindent: Boolean)
+
+    external fun undoRedo(rustObj: Long, redo: Boolean)
 }

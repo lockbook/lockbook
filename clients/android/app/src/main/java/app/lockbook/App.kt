@@ -44,7 +44,7 @@ class App : Application() {
         const val PERIODIC_SYNC_TAG = "periodic_sync"
         var instance: App? = null
 
-        fun applicationContext() : Context {
+        fun applicationContext(): Context {
             return instance!!.applicationContext
         }
     }

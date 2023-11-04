@@ -7,28 +7,31 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.viewModelScope
+import app.lockbook.egui_editor.EditorResponse
 import app.lockbook.util.*
 import com.github.michaelbull.result.Err
 import kotlinx.coroutines.*
-import timber.log.Timber
 
 class TextEditorViewModel(application: Application, val fileMetadata: File, private val text: String) :
     AndroidViewModel(application) {
 
     private val handler = Handler(Looper.myLooper()!!)
     var lastEdit = 0L
-    val editHistory = EditTextModel.EditHistory()
-
-    var currentContent: String = text
+    var isDirty = false
+    var currentContent = text
 
     private val _updateContent = MutableLiveData<Unit>()
     private val _notifyError = SingleMutableLiveData<LbError>()
+    val _editorUpdate = MutableLiveData<EditorResponse>()
 
     val notifyError: LiveData<LbError>
         get() = _notifyError
 
     val updateContent: LiveData<Unit>
         get() = _updateContent
+
+    val editorUpdate: LiveData<EditorResponse>
+        get() = _editorUpdate
 
     init {
         setUpTextView()
@@ -40,27 +43,25 @@ class TextEditorViewModel(application: Application, val fileMetadata: File, priv
 
     fun waitAndSaveContents(content: String) {
         currentContent = content
-        editHistory.isDirty = true
+        isDirty = true
         lastEdit = System.currentTimeMillis()
         val currentEdit = lastEdit
-
-        Timber.e("SAVING")
 
         handler.postDelayed(
             {
                 viewModelScope.launch(Dispatchers.IO) {
-                    if (currentEdit == lastEdit && editHistory.isDirty) {
+                    if (currentEdit == lastEdit && isDirty) {
                         val writeToDocumentResult =
                             CoreModel.writeToDocument(fileMetadata.id, content)
                         if (writeToDocumentResult is Err) {
                             _notifyError.postValue(writeToDocumentResult.error.toLbError(getRes()))
                         } else {
-                            editHistory.isDirty = false
+                            isDirty = false
                         }
                     }
                 }
             },
-            1000
+            500
         )
     }
 }

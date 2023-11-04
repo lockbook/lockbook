@@ -13,6 +13,7 @@ use crate::android::window;
 use crate::input::canonical::{Location, Modification, Region};
 use crate::input::cursor::Cursor;
 use crate::offset_types::{DocCharOffset, RangeExt};
+use crate::style::{BlockNode, InlineNode, ListItem, MarkdownNode};
 
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_createWgpuCanvas(
@@ -101,20 +102,6 @@ pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_resizeEditor(
     obj.screen.physical_height = native_window.get_height();
     obj.screen.scale_factor = scale_factor;
 }
-
-// #[no_mangle]
-// pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_setText(
-//     mut env: JNIEnv, _: JClass, obj: jlong, content: JString,
-// ) {
-//     let obj = unsafe { &mut *(obj as *mut WgpuEditor) };
-//
-//     let content: String = match env.get_string(&content) {
-//         Ok(cont) => cont.into(),
-//         Err(err) => format!("# The error is: {:?}", err)
-//     };
-//     obj.editor.buffer = content.as_str().into();
-//     obj.frame();
-// }
 
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_addText(
@@ -530,25 +517,61 @@ pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_selectAll(
 }
 
 #[no_mangle]
-pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_cut(
-    _env: JNIEnv, _: JClass, obj: jlong
+pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_clipboardChanged(
+    mut env: JNIEnv, _: JClass, obj: jlong, text: JString
 ) {
     let obj = unsafe { &mut *(obj as *mut WgpuEditor) };
 
+    let content: String = match env
+        .get_string(&text) {
+        Ok(cont) => cont.into(),
+        Err(_) => "didn't work?".to_string()
+    };
+
+    obj.from_host = Some(content);
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_hasCopiedText(
+    _env: JNIEnv, _: JClass, obj: jlong
+) -> jboolean {
+    let obj = unsafe { &mut *(obj as *mut WgpuEditor) };
+
+    if obj.from_egui.is_some() { 1 } else { 0 }
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_getCopiedText(
+    env: JNIEnv, _: JClass, obj: jlong
+) -> jstring {
+    let obj = unsafe { &mut *(obj as *mut WgpuEditor) };
+
+    let copied_text = obj.from_egui.take().unwrap_or_default();
+
+    env
+        .new_string(copied_text)
+        .expect("Couldn't create JString from rust string!")
+        .into_raw()
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_clipboardCut(
+    _env: JNIEnv, _: JClass, obj: jlong
+) {
+    let obj = unsafe { &mut *(obj as *mut WgpuEditor) };
     obj.editor.custom_events.push(Modification::Cut);
 }
 
 #[no_mangle]
-pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_copy(
+pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_clipboardCopy(
     _env: JNIEnv, _: JClass, obj: jlong
 ) {
     let obj = unsafe { &mut *(obj as *mut WgpuEditor) };
-
     obj.editor.custom_events.push(Modification::Copy);
 }
 
 #[no_mangle]
-pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_paste(
+pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_clipboardPaste(
     _env: JNIEnv, _: JClass, obj: jlong,
 ) {
     let obj = unsafe { &mut *(obj as *mut WgpuEditor) };
@@ -557,3 +580,122 @@ pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_paste(
     obj.raw_input.events.push(Event::Paste(clip));
 }
 
+// markdown syntax insert
+
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_applyStyleToSelectionHeading(
+    _env: JNIEnv, _: JClass, obj: jlong, heading_size: jint
+) {
+    let obj = unsafe { &mut *(obj as *mut WgpuEditor) };
+
+    obj.editor
+        .custom_events
+        .push(Modification::toggle_heading_style(heading_size as usize));
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_applyStyleToSelectionBulletedList(
+    _env: JNIEnv, _: JClass, obj: jlong
+) {
+    let obj = unsafe { &mut *(obj as *mut WgpuEditor) };
+
+    obj.editor
+        .custom_events
+        .push(Modification::toggle_block_style(BlockNode::ListItem(ListItem::Bulleted, 0)));
+}
+
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_applyStyleToSelectionNumberedList(
+    _env: JNIEnv, _: JClass, obj: jlong
+) {
+    let obj = unsafe { &mut *(obj as *mut WgpuEditor) };
+
+    obj.editor
+        .custom_events
+        .push(Modification::toggle_block_style(BlockNode::ListItem(ListItem::Numbered(1), 0)));
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_applyStyleToSelectionTodoList(
+    _env: JNIEnv, _: JClass, obj: jlong
+) {
+    let obj = unsafe { &mut *(obj as *mut WgpuEditor) };
+
+    obj.editor
+        .custom_events
+        .push(Modification::toggle_block_style(BlockNode::ListItem(ListItem::Todo(false), 0)));
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_applyStyleToSelectionBold(
+    _env: JNIEnv, _: JClass, obj: jlong
+) {
+    let obj = unsafe { &mut *(obj as *mut WgpuEditor) };
+
+    obj.editor.custom_events.push(Modification::ToggleStyle {
+        region: Region::Selection,
+        style: MarkdownNode::Inline(InlineNode::Bold),
+    });
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_applyStyleToSelectionItalic(
+    _env: JNIEnv, _: JClass, obj: jlong
+) {
+    let obj = unsafe { &mut *(obj as *mut WgpuEditor) };
+
+    obj.editor.custom_events.push(Modification::ToggleStyle {
+        region: Region::Selection,
+        style: MarkdownNode::Inline(InlineNode::Italic),
+    });
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_applyStyleToSelectionInlineCode(
+    _env: JNIEnv, _: JClass, obj: jlong
+) {
+    let obj = unsafe { &mut *(obj as *mut WgpuEditor) };
+
+    obj.editor.custom_events.push(Modification::ToggleStyle {
+        region: Region::Selection,
+        style: MarkdownNode::Inline(InlineNode::Code),
+    });
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_applyStyleToSelectionStrikethrough(
+    _env: JNIEnv, _: JClass, obj: jlong
+) {
+    let obj = unsafe { &mut *(obj as *mut WgpuEditor) };
+
+    obj.editor.custom_events.push(Modification::ToggleStyle {
+        region: Region::Selection,
+        style: MarkdownNode::Inline(InlineNode::Strikethrough),
+    });
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_indentAtCursor(
+    _env: JNIEnv, _: JClass, obj: jlong, deindent: jboolean
+) {
+    let obj = unsafe { &mut *(obj as *mut WgpuEditor) };
+
+    obj.editor
+        .custom_events
+        .push(Modification::Indent { deindent: deindent == 1 });
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_undoRedo(
+    _env: JNIEnv, _: JClass, obj: jlong, redo: jboolean
+) {
+    let obj = unsafe { &mut *(obj as *mut WgpuEditor) };
+
+    if redo == 1 {
+        obj.editor.custom_events.push(Modification::Redo);
+    } else {
+        obj.editor.custom_events.push(Modification::Undo);
+    }
+}

@@ -14,7 +14,6 @@ import app.lockbook.util.CoreError
 import app.lockbook.util.GetAccountError
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
-import timber.log.Timber
 import java.lang.ref.WeakReference
 
 class InitialLaunchFigureOuter : AppCompatActivity() {

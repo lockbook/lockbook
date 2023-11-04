@@ -20,18 +20,161 @@
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:fillViewport="true"
-        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintBottom_toTopOf="@+id/markdown_toolbar_scrollview"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/text_editor_toolbar">
 
-        <app.lockbook.util.MarkdownEditor
-            android:id="@+id/text_editor"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            />
-
-
     </ScrollView>
+
+    <HorizontalScrollView
+        android:id="@+id/markdown_toolbar_scrollview"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent">
+
+        <LinearLayout
+            android:id="@+id/markdown_toolbar"
+            android:layout_width="0dp"
+            android:layout_height="40dp"
+            android:layout_marginVertical="5dp"
+            android:orientation="horizontal">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/menu_markdown_title"
+                style="@style/Widget.Material3.Button.IconButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:contentDescription="@string/menu_markdown_title"
+                app:icon="@drawable/ic_baseline_title_24" />
+
+            <View
+                android:layout_width="2dp"
+                android:layout_height="match_parent"
+                android:layout_marginVertical="10dp"
+                android:background="?android:attr/listDivider"
+                android:layout_marginHorizontal="10dp"/>
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/menu_markdown_bold"
+                style="@style/Widget.Material3.Button.IconButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:contentDescription="@string/menu_markdown_bold"
+                app:icon="@drawable/ic_baseline_format_bold_24" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/menu_markdown_italic"
+                style="@style/Widget.Material3.Button.IconButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:contentDescription="@string/menu_markdown_italic"
+                app:icon="@drawable/ic_baseline_format_italic_24" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/menu_markdown_code"
+                style="@style/Widget.Material3.Button.IconButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:contentDescription="@string/menu_markdown_code"
+                app:icon="@drawable/ic_baseline_code_24" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/menu_markdown_strikethrough"
+                style="@style/Widget.Material3.Button.IconButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:contentDescription="@string/menu_markdown_strikethrough"
+                app:icon="@drawable/baseline_strikethrough_s_24" />
+
+            <View
+                android:layout_width="2dp"
+                android:layout_height="match_parent"
+                android:layout_marginVertical="10dp"
+                android:background="?android:attr/listDivider"
+                android:layout_marginHorizontal="10dp" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/menu_markdown_number_list"
+                style="@style/Widget.Material3.Button.IconButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:contentDescription="@string/menu_markdown_number_list"
+                app:icon="@drawable/baseline_format_list_numbered_24" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/menu_markdown_bullet_list"
+                style="@style/Widget.Material3.Button.IconButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:contentDescription="@string/menu_markdown_bullet_list"
+                app:icon="@drawable/baseline_format_list_bulleted_24" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/menu_markdown_todo_list"
+                style="@style/Widget.Material3.Button.IconButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:contentDescription="@string/menu_markdown_todo_list"
+                app:icon="@drawable/baseline_checklist_24" />
+
+            <View
+                android:layout_width="2dp"
+                android:layout_height="match_parent"
+                android:layout_marginVertical="10dp"
+                android:background="?android:attr/listDivider"
+                android:layout_marginHorizontal="10dp" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/menu_markdown_indent"
+                style="@style/Widget.Material3.Button.IconButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:contentDescription="@string/menu_markdown_indent"
+                app:icon="@drawable/baseline_format_indent_increase_24" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/menu_markdown_deindent"
+                style="@style/Widget.Material3.Button.IconButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:contentDescription="@string/menu_markdown_deindent"
+                app:icon="@drawable/baseline_format_indent_decrease_24" />
+
+            <View
+                android:layout_width="2dp"
+                android:layout_height="match_parent"
+                android:layout_marginVertical="10dp"
+                android:background="?android:attr/listDivider"
+                android:layout_marginHorizontal="10dp" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/menu_markdown_cut"
+                style="@style/Widget.Material3.Button.IconButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:contentDescription="@string/editor_cut"
+                app:icon="@drawable/baseline_content_cut_24" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/menu_markdown_copy"
+                style="@style/Widget.Material3.Button.IconButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:contentDescription="@string/editor_copy"
+                app:icon="@drawable/baseline_content_copy_24" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/menu_markdown_paste"
+                style="@style/Widget.Material3.Button.IconButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:contentDescription="@string/editor_paste"
+                app:icon="@drawable/baseline_content_paste_24" />
+
+        </LinearLayout>
+    </HorizontalScrollView>
 
 </androidx.constraintlayout.widget.ConstraintLayout>

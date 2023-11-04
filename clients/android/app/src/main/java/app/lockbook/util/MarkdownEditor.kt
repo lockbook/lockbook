@@ -1,17 +1,17 @@
 package app.lockbook.util
 
 import android.annotation.SuppressLint
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Context
 import android.content.res.Configuration
 import android.graphics.Canvas
 import android.graphics.PixelFormat
-import android.inputmethodservice.InputMethodService
 import android.os.Build
 import android.os.Bundle
 import android.text.Editable
 import android.text.InputFilter
 import android.text.Selection
-import android.text.method.TextKeyListener
 import android.text.style.SuggestionSpan
 import android.util.AttributeSet
 import android.view.KeyEvent
@@ -28,10 +28,6 @@ import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputConnection
 import android.view.inputmethod.InputContentInfo
 import android.view.inputmethod.InputMethodManager
-import android.view.textservice.SentenceSuggestionsInfo
-import android.view.textservice.SpellCheckerSession
-import android.view.textservice.SuggestionsInfo
-import android.view.textservice.TextInfo
 import android.view.textservice.TextServicesManager
 import app.lockbook.App
 import app.lockbook.egui_editor.AndroidRect
@@ -42,13 +38,10 @@ import app.lockbook.model.TextEditorViewModel
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
 import timber.log.Timber
-import java.util.Locale
 import kotlin.math.abs
 
-
 class MarkdownEditor : SurfaceView, SurfaceHolder.Callback2 {
-    private var wgpuObj: Long? = null
-    var content: String = ""
+    private var wgpuObj = Long.MAX_VALUE
 
     private var eguiEditor = EGUIEditor()
     private var inputManager: BaseEGUIInputConnect? = null
@@ -62,7 +55,12 @@ class MarkdownEditor : SurfaceView, SurfaceHolder.Callback2 {
 
     private var textSaver: TextEditorViewModel? = null
 
-    constructor(context: Context) : super(context) {
+    var redrawTask: Runnable = Runnable {
+        invalidate()
+    }
+
+    constructor(context: Context, textSaver: TextEditorViewModel) : super(context) {
+        this.textSaver = textSaver
     }
     constructor(context: Context, attrs: AttributeSet) : super(context, attrs) {
     }
@@ -79,60 +77,91 @@ class MarkdownEditor : SurfaceView, SurfaceHolder.Callback2 {
         holder.setFormat(PixelFormat.TRANSPARENT)
     }
 
-    fun adjustTouchPoint(axis: Float): Float {
+    private fun adjustTouchPoint(axis: Float): Float {
         return axis / context.resources.displayMetrics.scaledDensity
     }
 
-    fun setText(text: String, textSaver: TextEditorViewModel) {
-        this.textSaver = textSaver
-        content = text
-        eguiEditor.addText(wgpuObj ?: return, text)
-        (App.applicationContext().getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager).restartInput(this)
+    fun getText(): String? {
+        if (wgpuObj == Long.MAX_VALUE) {
+            return null
+        }
+
+        return eguiEditor.getAllText(wgpuObj)
     }
 
     @SuppressLint("ClickableViewAccessibility")
     override fun onTouchEvent(event: MotionEvent?): Boolean {
-        wgpuObj?.let { wgpuObj ->
-            if(event != null) {
-                requestFocus()
+        if (wgpuObj == Long.MAX_VALUE) {
+            return true
+        }
 
-                when(event.action) {
-                    MotionEvent.ACTION_DOWN -> {
-                        touchStartX = event.x
-                        touchStartY = event.y
+        if (event != null) {
+            requestFocus()
 
-                        eguiEditor.touchesBegin(wgpuObj, event.getPointerId(0), adjustTouchPoint(event.x), adjustTouchPoint(event.y), event.pressure)
-                    }
-                    MotionEvent.ACTION_MOVE -> {
-                        eguiEditor.touchesMoved(wgpuObj, event.getPointerId(0), adjustTouchPoint(event.x), adjustTouchPoint(event.y), event.pressure)
-                    }
-                    MotionEvent.ACTION_UP -> {
-                        val duration = event.eventTime - event.downTime
-                        if(duration < 300 && abs(event.x - touchStartX).toInt() < ViewConfiguration.get(context).scaledTouchSlop && abs(event.y - touchStartY).toInt() < ViewConfiguration.get(context).scaledTouchSlop) {
-                            (context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager)
-                                .showSoftInput(this, 0)
-                        }
+            when (event.action) {
+                MotionEvent.ACTION_DOWN -> {
+                    touchStartX = event.x
+                    touchStartY = event.y
 
-                        eguiEditor.touchesEnded(wgpuObj, event.getPointerId(0), adjustTouchPoint(event.x), adjustTouchPoint(event.y), event.pressure)
+                    eguiEditor.touchesBegin(
+                        wgpuObj,
+                        event.getPointerId(0),
+                        adjustTouchPoint(event.x),
+                        adjustTouchPoint(event.y),
+                        event.pressure
+                    )
+                }
+
+                MotionEvent.ACTION_MOVE -> {
+                    eguiEditor.touchesMoved(
+                        wgpuObj,
+                        event.getPointerId(0),
+                        adjustTouchPoint(event.x),
+                        adjustTouchPoint(event.y),
+                        event.pressure
+                    )
+                }
+
+                MotionEvent.ACTION_UP -> {
+                    val duration = event.eventTime - event.downTime
+                    if (duration < 300 && abs(event.x - touchStartX).toInt() < ViewConfiguration.get(
+                            context
+                        ).scaledTouchSlop && abs(event.y - touchStartY).toInt() < ViewConfiguration.get(
+                                context
+                            ).scaledTouchSlop
+                    ) {
+                        (context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager)
+                            .showSoftInput(this, 0)
                     }
+
+                    eguiEditor.touchesEnded(
+                        wgpuObj,
+                        event.getPointerId(0),
+                        adjustTouchPoint(event.x),
+                        adjustTouchPoint(event.y),
+                        event.pressure
+                    )
                 }
             }
+
+            invalidate()
         }
 
         return true
     }
 
     override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
-        Timber.e("Surface changed...")
+        if (wgpuObj == Long.MAX_VALUE) {
+            return
+        }
 
-        eguiEditor.resizeEditor(wgpuObj ?: return, holder.surface, context.resources.displayMetrics.scaledDensity)
+        eguiEditor.resizeEditor(wgpuObj, holder.surface, context.resources.displayMetrics.scaledDensity)
     }
 
     override fun surfaceCreated(holder: SurfaceHolder) {
-        Timber.e("Surface created...")
         holder.let { h ->
-            wgpuObj = eguiEditor.createWgpuCanvas(h.surface, CoreModel.getPtr(), content, context.resources.displayMetrics.scaledDensity, (context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES)
-            inputManager = BaseEGUIInputConnect(this, eguiEditor, wgpuObj!!, frameOutputJsonParser)
+            wgpuObj = eguiEditor.createWgpuCanvas(h.surface, CoreModel.getPtr(), textSaver!!.currentContent, context.resources.displayMetrics.scaledDensity, (context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES)
+            inputManager = BaseEGUIInputConnect(this, eguiEditor, wgpuObj, frameOutputJsonParser)
             (App.applicationContext().getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager).restartInput(this)
             setWillNotDraw(false)
         }
@@ -143,13 +172,13 @@ class MarkdownEditor : SurfaceView, SurfaceHolder.Callback2 {
 
     override fun surfaceDestroyed(holder: SurfaceHolder) {
         if (wgpuObj != Long.MAX_VALUE) {
-            eguiEditor.dropWgpuCanvas(wgpuObj ?: return)
+            eguiEditor.dropWgpuCanvas(wgpuObj)
             wgpuObj = Long.MAX_VALUE
         }
     }
 
     override fun surfaceRedrawNeeded(holder: SurfaceHolder) {
-        Timber.e("Surface redraw needed...")
+        invalidate()
     }
 
     override fun draw(canvas: Canvas?) {
@@ -159,27 +188,35 @@ class MarkdownEditor : SurfaceView, SurfaceHolder.Callback2 {
             return
         }
 
-        val responseJson = eguiEditor.enterFrame(wgpuObj ?: return)
+        val responseJson = eguiEditor.enterFrame(wgpuObj)
         val response: IntegrationOutput = frameOutputJsonParser.decodeFromString(responseJson)
-//        Timber.e("refresh! ${response.editorResponse.selectionUpdated} && ${inputManager?.monitorCursorUpdates == true}")
-        if(response.editorResponse.selectionUpdated && inputManager!!.monitorCursorUpdates) {
+
+        if (response.editorResponse.selectionUpdated && inputManager!!.monitorCursorUpdates) {
             inputManager!!.notifySelectionUpdated()
         }
 
-        if(response.editorResponse.textUpdated) {
-            val allText = eguiEditor.getAllText(wgpuObj!!)
-            textSaver!!.waitAndSaveContents(allText)
-
-            inputManager!!.spellChecker.getSentenceSuggestions(arrayOf(TextInfo(eguiEditor.getAllText(
-                wgpuObj!!
-            ))), 3)
+        if (response.editorResponse.textUpdated) {
+            textSaver!!.waitAndSaveContents(eguiEditor.getAllText(wgpuObj))
         }
 
-        if(response.editorResponse.showEditMenu && Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            showContextMenu(response.editorResponse.editMenuX, response.editorResponse.editMenuY)
+        textSaver!!._editorUpdate.postValue(response.editorResponse)
+
+        if (eguiEditor.hasCopiedText(wgpuObj)) {
+            inputManager?.getClipboardManager()?.setPrimaryClip(ClipData.newPlainText("lb copied text", eguiEditor.getCopiedText(wgpuObj)))
         }
 
-        invalidate()
+        handler.removeCallbacks(redrawTask)
+
+        Timber.e("redraw in... ${response.redrawIn} to ${response.redrawIn.toLong()}")
+
+        val redrawIn = response.redrawIn.toLong()
+        if (redrawIn != -1L) {
+            if (redrawIn < 100) {
+                invalidate()
+            } else {
+                handler.postDelayed(redrawTask, response.redrawIn.toLong())
+            }
+        }
     }
 
     override fun onCreateInputConnection(outAttrs: EditorInfo?): InputConnection? {
@@ -189,65 +226,97 @@ class MarkdownEditor : SurfaceView, SurfaceHolder.Callback2 {
     override fun onCheckIsTextEditor(): Boolean {
         return true
     }
+
+    fun insertStyling(styling: InsertMarkdownAction) {
+        if (wgpuObj == Long.MAX_VALUE) {
+            return
+        }
+
+        when (styling) {
+            is InsertMarkdownAction.Heading -> {
+                eguiEditor.applyStyleToSelectionHeading(wgpuObj, styling.headingSize)
+            }
+            InsertMarkdownAction.Bold -> eguiEditor.applyStyleToSelectionBold(wgpuObj)
+            InsertMarkdownAction.BulletList -> eguiEditor.applyStyleToSelectionBulletedList(wgpuObj)
+            InsertMarkdownAction.InlineCode -> eguiEditor.applyStyleToSelectionInlineCode(wgpuObj)
+            InsertMarkdownAction.Italic -> eguiEditor.applyStyleToSelectionItalic(wgpuObj)
+            InsertMarkdownAction.NumberList -> eguiEditor.applyStyleToSelectionNumberedList(wgpuObj)
+            InsertMarkdownAction.Strikethrough -> eguiEditor.applyStyleToSelectionStrikethrough(wgpuObj)
+            InsertMarkdownAction.TodoList -> eguiEditor.applyStyleToSelectionTodoList(wgpuObj)
+        }
+
+        invalidate()
+    }
+
+    fun indentAtCursor(deindent: Boolean) {
+        if (wgpuObj == Long.MAX_VALUE) {
+            return
+        }
+
+        eguiEditor.indentAtCursor(wgpuObj, deindent)
+    }
+
+    fun clipboardCut() {
+        inputManager?.performContextMenuAction(android.R.id.cut)
+    }
+
+    fun clipboardCopy() {
+        inputManager?.performContextMenuAction(android.R.id.copy)
+    }
+
+    fun clipboardPaste() {
+        inputManager?.performContextMenuAction(android.R.id.paste)
+    }
+
+    fun undoRedo(redo: Boolean) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            if (redo) {
+                inputManager?.performContextMenuAction(android.R.id.redo)
+            } else {
+                inputManager?.performContextMenuAction(android.R.id.undo)
+            }
+        }
+    }
 }
 
-class BaseEGUIInputConnect(val view: View, val eguiEditor: EGUIEditor, val wgpuObj: Long, val jsonParser: Json): BaseInputConnection(view, true) {
-    private var keyListener = TextKeyListener.getInstance(true, TextKeyListener.Capitalize.SENTENCES)
+sealed class InsertMarkdownAction {
+    data class Heading(val headingSize: Int) : InsertMarkdownAction()
+
+    object BulletList : InsertMarkdownAction()
+    object NumberList : InsertMarkdownAction()
+    object TodoList : InsertMarkdownAction()
+
+    object Bold : InsertMarkdownAction()
+    object Italic : InsertMarkdownAction()
+    object InlineCode : InsertMarkdownAction()
+    object Strikethrough : InsertMarkdownAction()
+}
+
+class BaseEGUIInputConnect(val view: View, val eguiEditor: EGUIEditor, val wgpuObj: Long, val jsonParser: Json) : BaseInputConnection(view, true) {
     private val eguiEditorEditable = EGUIEditorEditable(view, eguiEditor, wgpuObj)
     var monitorCursorUpdates = false
 
-    val spellChecker = getTextServicesManager().newSpellCheckerSession(
-        null,
-        Locale.ENGLISH,
-        object : SpellCheckerSession.SpellCheckerSessionListener {
-            override fun onGetSuggestions(results: Array<out SuggestionsInfo>?) {
-                Timber.e("THE SUGGESTIONS: ${results}")
-            }
-
-            override fun onGetSentenceSuggestions(results: Array<out SentenceSuggestionsInfo>?) {
-                Timber.e("THE SENTENCE SUGGESTIONS:")
-
-                val completions = mutableListOf<CompletionInfo>()
-
-                results?.forEach {
-                    for(i in 0 until it.suggestionsCount) {
-                        val sugg = it.getSuggestionsInfoAt(i) ?: continue
-                        for(j in 0 until sugg.suggestionsCount) {
-
-                            completions.add(CompletionInfo(((i * it.suggestionsCount) + j).toLong(), (i * it.suggestionsCount) + j, sugg.getSuggestionAt(j), sugg.getSuggestionAt(j)))
-                            Timber.e("A suggestion for $j in $i: ${sugg.getSuggestionAt(j)}")
-                        }
-                    }
-                }
-
-                setComposingRegion(0, 10)
-
-                Timber.e("sending in completions: ${completions.take(2).toTypedArray().map { it.text }}")
-                getInputMethodManager().displayCompletions(null, completions.take(2).toTypedArray())
-            }
-
-        },
-        true
-    )!!
-
     fun getInputMethodManager(): InputMethodManager = App.applicationContext().getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
-    fun getTextServicesManager(): TextServicesManager = App.applicationContext().getSystemService(Context.TEXT_SERVICES_MANAGER_SERVICE) as TextServicesManager
+    private fun getTextServicesManager(): TextServicesManager = App.applicationContext().getSystemService(Context.TEXT_SERVICES_MANAGER_SERVICE) as TextServicesManager
+    fun getClipboardManager(): ClipboardManager = App.applicationContext().getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
 
     fun notifySelectionUpdated() {
         Timber.e("updating selection: ${view.measuredWidth} ${view.measuredHeight}")
         var cursorAnchor = CursorAnchorInfo.Builder()
-        for(index in editable.indices) {
+        for (index in editable.indices) {
             val rect: AndroidRect = Json.decodeFromString(eguiEditor.getCharacterRect(wgpuObj, index))
             cursorAnchor = cursorAnchor.addCharacterBounds(index, rect.minX, rect.minY, rect.maxX, rect.maxY, CursorAnchorInfo.FLAG_HAS_VISIBLE_REGION)
         }
 
         getInputMethodManager()
-            .updateCursorAnchorInfo(view,
+            .updateCursorAnchorInfo(
+                view,
                 cursorAnchor
                     .setSelectionRange(eguiEditorEditable.getSelection().first, eguiEditorEditable.getSelection().second)
                     .setMatrix(null)
                     .setInsertionMarkerLocation(100f, 100f, 100f, 100f, CursorAnchorInfo.FLAG_HAS_VISIBLE_REGION)
-                    .build())
+                    .build()
+            )
     }
 
     override fun sendKeyEvent(event: KeyEvent?): Boolean {
@@ -256,18 +325,12 @@ class BaseEGUIInputConnect(val view: View, val eguiEditor: EGUIEditor, val wgpuO
         event?.let { realEvent ->
             val content = realEvent.unicodeChar.toChar().toString()
 
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-
-            }
-
             eguiEditor.sendKeyEvent(wgpuObj, realEvent.keyCode, content, realEvent.action == KeyEvent.ACTION_DOWN, realEvent.isAltPressed, realEvent.isCtrlPressed, realEvent.isShiftPressed)
         }
 
-        return true
-    }
+        view.invalidate()
 
-    override fun performSpellCheck(): Boolean {
-        return super.performSpellCheck()
+        return true
     }
 
     override fun commitCompletion(text: CompletionInfo?): Boolean {
@@ -277,64 +340,42 @@ class BaseEGUIInputConnect(val view: View, val eguiEditor: EGUIEditor, val wgpuO
     }
 
     override fun performContextMenuAction(id: Int): Boolean {
-        return when(id) {
-            android.R.id.selectAll -> {
-                eguiEditor.selectAll(wgpuObj)
-                true
-            }
-            android.R.id.cut -> {
-                eguiEditor.cut(wgpuObj)
-                true
-            }
-            android.R.id.copy -> {
-                eguiEditor.copy(wgpuObj)
-                true
-            }
+        when (id) {
+            android.R.id.undo -> eguiEditor.undoRedo(wgpuObj, false)
+            android.R.id.redo -> eguiEditor.undoRedo(wgpuObj, true)
+            android.R.id.selectAll -> eguiEditor.selectAll(wgpuObj)
+            android.R.id.cut -> eguiEditor.clipboardCut(wgpuObj)
+            android.R.id.copy -> eguiEditor.clipboardCopy(wgpuObj)
             android.R.id.paste -> {
-                eguiEditor.paste(wgpuObj)
-                true
+                getClipboardManager().primaryClip?.getItemAt(0)?.text.let { clipboardText ->
+                    eguiEditor.clipboardChanged(wgpuObj, clipboardText.toString())
+                }
+
+                eguiEditor.clipboardPaste(wgpuObj)
             }
             android.R.id.copyUrl,
             android.R.id.switchInputMethod,
             android.R.id.startSelectingText,
-            android.R.id.stopSelectingText -> false
-            else -> false
+            android.R.id.stopSelectingText -> {}
+            else -> return false
         }
-    }
 
-    override fun commitText(text: CharSequence?, newCursorPosition: Int): Boolean {
-        Timber.e("committing text")
-//        (context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager).
-        return super.commitText(text, newCursorPosition)
-    }
+        view.invalidate()
 
-    override fun commitContent(
-        inputContentInfo: InputContentInfo,
-        flags: Int,
-        opts: Bundle?
-    ): Boolean {
-        Timber.e("committing content")
-        return super.commitContent(inputContentInfo, flags, opts)
-    }
-
-    override fun commitCorrection(correctionInfo: CorrectionInfo?): Boolean {
-        Timber.e("committing correction")
-        return super.commitCorrection(correctionInfo)
+        return true
     }
 
     override fun requestCursorUpdates(cursorUpdateMode: Int): Boolean {
         val immediateFlag = cursorUpdateMode and InputConnection.CURSOR_UPDATE_IMMEDIATE == InputConnection.CURSOR_UPDATE_IMMEDIATE
         val monitorFlag = cursorUpdateMode and InputConnection.CURSOR_UPDATE_MONITOR == InputConnection.CURSOR_UPDATE_MONITOR
 
-        if(immediateFlag) {
+        if (immediateFlag) {
             notifySelectionUpdated()
         }
 
-        if(monitorFlag){
+        if (monitorFlag) {
             monitorCursorUpdates = true
         }
-
-        Timber.e("requesting cursor updates: $immediateFlag $monitorFlag")
 
         return true
     }
@@ -344,17 +385,17 @@ class BaseEGUIInputConnect(val view: View, val eguiEditor: EGUIEditor, val wgpuO
     }
 }
 
-class EGUIEditorEditable(val view: View, val eguiEditor: EGUIEditor, val wgpuObj: Long): Editable {
+class EGUIEditorEditable(val view: View, val eguiEditor: EGUIEditor, val wgpuObj: Long) : Editable {
 
-    var selectionStartSpanFlag = 0
-    var selectionEndSpanFlag = 0
+    private var selectionStartSpanFlag = 0
+    private var selectionEndSpanFlag = 0
 
-    var composingFlag = 0
+    private var composingFlag = 0
 
-    var composingStart = -1
-    var composingEnd = -1
+    private var composingStart = -1
+    private var composingEnd = -1
 
-    var suggestionSpans = mutableListOf<SuggestionSpanInfo>()
+    private var suggestionSpans = mutableListOf<SuggestionSpanInfo>()
 
     data class SuggestionSpanInfo(val span: SuggestionSpan, val start: Int, val end: Int, val flags: Int)
 
@@ -368,7 +409,6 @@ class EGUIEditorEditable(val view: View, val eguiEditor: EGUIEditor, val wgpuObj
     override fun get(index: Int): Char =
         eguiEditor.getTextInRange(wgpuObj, index, index)[0]
 
-
     override fun subSequence(startIndex: Int, endIndex: Int): CharSequence =
         eguiEditor.getTextInRange(wgpuObj, startIndex, endIndex)
 
@@ -378,9 +418,9 @@ class EGUIEditorEditable(val view: View, val eguiEditor: EGUIEditor, val wgpuObj
 
             Timber.e("get chars out from $start to $end $text ${getSelection()}")
 
-            var index = destoff;
-            for(char in text) {
-                if(index < realDest.size) {
+            var index = destoff
+            for (char in text) {
+                if (index < realDest.size) {
                     dest[index] = char
 
                     index++
@@ -393,7 +433,7 @@ class EGUIEditorEditable(val view: View, val eguiEditor: EGUIEditor, val wgpuObj
     override fun <T> getSpans(start: Int, end: Int, type: Class<T>?): Array<T> {
         Timber.e("getting spans: ${type?.canonicalName}")
 
-        if(type == SuggestionSpan::class.java) {
+        if (type == SuggestionSpan::class.java) {
             Timber.e("Get suggestion span: ${suggestionSpans.map { it.span.spanTypeId }}")
             return suggestionSpans.map { it.span }.toTypedArray() as Array<T>
         } else {
@@ -404,13 +444,15 @@ class EGUIEditorEditable(val view: View, val eguiEditor: EGUIEditor, val wgpuObj
     override fun getSpanStart(tag: Any?): Int {
         Timber.e("getting span: ${tag?.let { it::class.simpleName } ?: "null"}")
 
-        if(tag == Selection.SELECTION_START) {
+        if (tag == Selection.SELECTION_START) {
             return getSelection().first
-        } else if((tag?.let { it::class.qualifiedName }
-                ?: "null") == "android.view.inputmethod.ComposingText") {
+        } else if ((
+            tag?.let { it::class.qualifiedName }
+                ?: "null"
+            ) == "android.view.inputmethod.ComposingText"
+        ) {
             return composingStart
         }
-
 
         return -1
     }
@@ -418,10 +460,13 @@ class EGUIEditorEditable(val view: View, val eguiEditor: EGUIEditor, val wgpuObj
     override fun getSpanEnd(tag: Any?): Int {
         Timber.e("get span end: ${tag?.let { it::class.simpleName } ?: "null"}")
 
-        if(tag == Selection.SELECTION_END) {
+        if (tag == Selection.SELECTION_END) {
             return getSelection().second
-        } else if((tag?.let { it::class.qualifiedName }
-                ?: "null") == "android.view.inputmethod.ComposingText") {
+        } else if ((
+            tag?.let { it::class.qualifiedName }
+                ?: "null"
+            ) == "android.view.inputmethod.ComposingText"
+        ) {
             return composingEnd
         }
 
@@ -435,8 +480,11 @@ class EGUIEditorEditable(val view: View, val eguiEditor: EGUIEditor, val wgpuObj
             Selection.SELECTION_START -> selectionStartSpanFlag
             Selection.SELECTION_END -> selectionEndSpanFlag
             else -> {
-                if((tag?.let { it::class.qualifiedName }
-                        ?: "null") == "android.view.inputmethod.ComposingText") {
+                if ((
+                    tag?.let { it::class.qualifiedName }
+                        ?: "null"
+                    ) == "android.view.inputmethod.ComposingText"
+                ) {
                     return composingFlag
                 }
 
@@ -456,29 +504,26 @@ class EGUIEditorEditable(val view: View, val eguiEditor: EGUIEditor, val wgpuObj
     }
 
     override fun setSpan(what: Any?, start: Int, end: Int, flags: Int) {
-        Timber.e("set span: ${what?.let { it::class.qualifiedName } ?: "null"}")
-
-        if(what == Selection.SELECTION_START) {
+        if (what == Selection.SELECTION_START) {
             selectionStartSpanFlag = flags
             eguiEditor.setSelection(wgpuObj, start, getSelection().second)
-        } else if(what == Selection.SELECTION_END) {
+        } else if (what == Selection.SELECTION_END) {
             selectionEndSpanFlag = flags
             eguiEditor.setSelection(wgpuObj, getSelection().first, end)
-        } else if((what?.let { it::class.qualifiedName }
-                ?: "null") == "android.view.inputmethod.ComposingText") {
+        } else if ((
+            what?.let { it::class.qualifiedName }
+                ?: "null"
+            ) == "android.view.inputmethod.ComposingText"
+        ) {
             composingFlag = flags
             composingStart = start
             composingEnd = end
-        } else if(what is SuggestionSpan) {
+        } else if (what is SuggestionSpan) {
             suggestionSpans.add(SuggestionSpanInfo(what, start, end, flags))
         }
-
-        Timber.e("set suggestion for ${what == Selection.SELECTION_START} ${what == Selection.SELECTION_END}")
     }
 
-    override fun removeSpan(what: Any?) {
-        Timber.e("remove span: ${what?.let { it::class.qualifiedName } ?: "null"}")
-    }
+    override fun removeSpan(what: Any?) {}
 
     override fun append(text: CharSequence?): Editable {
         text?.let { realText ->
@@ -550,5 +595,4 @@ class EGUIEditorEditable(val view: View, val eguiEditor: EGUIEditor, val wgpuObj
     // no text needs to be filtered
     override fun getFilters(): Array<InputFilter> = arrayOf()
     override val length: Int = eguiEditor.getTextLength(wgpuObj)
-
 }
