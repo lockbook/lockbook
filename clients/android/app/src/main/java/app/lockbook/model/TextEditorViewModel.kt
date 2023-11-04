@@ -20,6 +20,9 @@ class TextEditorViewModel(application: Application, val fileMetadata: File, priv
     var isDirty = false
     var currentContent = text
 
+    var savedCursorStart = -1
+    var savedCursorEnd = -1
+
     private val _updateContent = MutableLiveData<Unit>()
     private val _notifyError = SingleMutableLiveData<LbError>()
     val _editorUpdate = MutableLiveData<EditorResponse>()

@@ -157,10 +157,14 @@ class MarkdownEditor : SurfaceView, SurfaceHolder.Callback2 {
     }
 
     override fun surfaceCreated(holder: SurfaceHolder) {
-        Timber.e("Creating surface")
         holder.let { h ->
             wgpuObj = eguiEditor.createWgpuCanvas(h.surface, CoreModel.getPtr(), textSaver!!.currentContent, context.resources.displayMetrics.scaledDensity, (context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES)
-            inputManager = BaseEGUIInputConnect(this, eguiEditor, wgpuObj, frameOutputJsonParser)
+            inputManager = BaseEGUIInputConnect(this, eguiEditor, wgpuObj)
+
+            if(textSaver!!.savedCursorEnd != -1 && textSaver!!.savedCursorStart != -1) {
+                eguiEditor.setSelection(wgpuObj, textSaver!!.savedCursorStart, textSaver!!.savedCursorEnd)
+            }
+
             (App.applicationContext().getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager).restartInput(this)
             setWillNotDraw(false)
         }
@@ -283,6 +287,14 @@ class MarkdownEditor : SurfaceView, SurfaceHolder.Callback2 {
             }
         }
     }
+
+    fun getCursorStart(): Int =
+        inputManager?.eguiEditorEditable?.getSelection()?.first ?: -1
+
+
+    fun getCursorEnd(): Int =
+        inputManager?.eguiEditorEditable?.getSelection()?.second ?: -1
+
 }
 
 sealed class InsertMarkdownAction {
@@ -298,8 +310,8 @@ sealed class InsertMarkdownAction {
     object Strikethrough : InsertMarkdownAction()
 }
 
-class BaseEGUIInputConnect(val view: View, val eguiEditor: EGUIEditor, val wgpuObj: Long, val jsonParser: Json) : BaseInputConnection(view, true) {
-    private val eguiEditorEditable = EGUIEditorEditable(view, eguiEditor, wgpuObj)
+class BaseEGUIInputConnect(val view: View, val eguiEditor: EGUIEditor, val wgpuObj: Long) : BaseInputConnection(view, true) {
+    val eguiEditorEditable = EGUIEditorEditable(view, eguiEditor, wgpuObj)
     var monitorCursorUpdates = false
 
     fun getInputMethodManager(): InputMethodManager = App.applicationContext().getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
