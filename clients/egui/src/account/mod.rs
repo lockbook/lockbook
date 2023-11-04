@@ -29,7 +29,7 @@ use self::modals::*;
 use self::suggested_docs::SuggestedDocs;
 use self::syncing::{SyncPanel, SyncUpdate};
 use self::tabs::{
-    Drawing, ImageViewer, Markdown, PdfViewer, PlainText, Tab, TabContent, TabFailure, SVGEditor,
+    Drawing, ImageViewer, Markdown, PdfViewer, PlainText, SVGEditor, Tab, TabContent, TabFailure,
 };
 use self::tree::{FileTree, TreeNode};
 use self::workspace::Workspace;

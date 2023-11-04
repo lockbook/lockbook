@@ -16,6 +16,7 @@ const fn ic(c: &'static str) -> Icon {
 impl Icon {
     pub const ACCOUNT: Self = ic("\u{e7ff}"); // Person Outline
     pub const ARROW_CIRCLE_DOWN: Self = ic("\u{f181}"); // Arrow Circle Down
+    pub const BRUSH: Self = ic("\u{e3ae}"); // Bold Text
     pub const BOLD: Self = ic("\u{e238}"); // Bold Text
     pub const CHECK_CIRCLE: Self = ic("\u{e86c}"); // Check Circle
     pub const CANCEL: Self = ic("\u{e5c9}"); // Cancel
@@ -60,6 +61,8 @@ impl Icon {
     pub const VIDEO_LABEL: Self = ic("\u{e071}"); // Video Label
     pub const VISIBILITY_ON: Self = ic("\u{e8f4}"); // Visibility On
     pub const VISIBILITY_OFF: Self = ic("\u{e8f5}"); // Visibility Off
+    pub const REDO: Self = ic("\u{e15A}");
+    pub const UNDO: Self = ic("\u{e166}");
     pub const WARNING: Self = ic("\u{e001}"); // Visibility Off
     pub const ZOOM_IN: Self = ic("\u{e145}"); // Visibility Off
     pub const ZOOM_OUT: Self = ic("\u{e15b}"); // Visibility Off
@@ -71,9 +74,9 @@ impl Icon {
     //pub const FIND_REPLACE: Self = ic("\u{e881}"); // Find Replace
     //pub const SHIELD: Self = Self("\u{e8e8}");
     //pub const SHIELD_OFF: Self = Self("\u{e9d4}");
-    //pub const RECTANGLE: Self = ic("\u{eb54}"); // Rectangle
-    //pub const PALETTE: Self = ic("\u{e40a}"); // Palette
-    //pub const QR_CODE: Self = ic("\u{e00a}"); // Qr Code 2
+    pub const RECTANGLE: Self = ic("\u{eb54}"); // Rectangle
+                                                //pub const PALETTE: Self = ic("\u{e40a}"); // Palette
+                                                //pub const QR_CODE: Self = ic("\u{e00a}"); // Qr Code 2
 
     pub fn color(self, color: egui::Color32) -> Self {
         let mut this = self;

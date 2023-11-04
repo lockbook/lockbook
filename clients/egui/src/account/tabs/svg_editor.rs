@@ -7,6 +7,10 @@ use minidom::Element;
 use resvg::tiny_skia::{Path, PathBuilder, PathSegment, Pixmap};
 use resvg::usvg;
 
+use crate::theme::{Icon, ThemePalette};
+use crate::widgets::Button;
+const ICON_SIZE: f32 = 30.0;
+const COLOR_SWATCH_BTN_RADIUS: f32 = 10.0;
 pub struct SVGEditor {
     svg: String,
     root: Element,
@@ -14,6 +18,13 @@ pub struct SVGEditor {
     draw_tx: mpsc::Sender<(egui::Pos2, usize)>,
     path_builder: PathBuilder,
     id_counter: usize,
+    toolbar: Toolbar,
+    inner_rect: egui::Rect,
+}
+
+struct Toolbar {
+    components: Vec<Component>,
+    active_color: Option<ColorSwatchButton>,
 }
 
 impl SVGEditor {
@@ -25,13 +36,37 @@ impl SVGEditor {
 
         let root: Element = svg.parse().unwrap();
 
+        let components = vec![
+            Component::Button(SimpleButton {
+                icon: Icon::UNDO,
+                callback: || {},
+                margin: egui::Margin::symmetric(4.0, 7.0),
+            }),
+            Component::Button(SimpleButton {
+                icon: Icon::REDO,
+                callback: || {},
+                margin: egui::Margin::symmetric(4.0, 7.0),
+            }),
+            Component::Separator(egui::Margin::symmetric(10.0, 0.0)),
+            Component::Button(SimpleButton {
+                icon: Icon::BRUSH,
+                callback: || {},
+                margin: egui::Margin::symmetric(4.0, 7.0),
+            }),
+            Component::Separator(egui::Margin::symmetric(10.0, 0.0)),
+        ];
+
+        let toolbar = Toolbar { components, active_color: None };
+
         Box::new(Self {
             svg,
             draw_rx,
             draw_tx,
             id_counter: 0,
             root,
+            toolbar,
             path_builder: PathBuilder::new(),
+            inner_rect: egui::Rect::NOTHING,
         })
     }
 
@@ -39,39 +74,23 @@ impl SVGEditor {
         self.setup_draw_events(ui);
         self.draw_event_handler();
 
-        if self.root.attr("data-dark-mode").is_none() {
-            self.root
-                .set_attr("data-dark-mode", format!("{}", ui.visuals().dark_mode));
-            self.build_color_defs(ui);
-        }
+        self.define_dynamic_colors(ui);
 
-        if let Some(svg_flag) = self.root.attr("data-dark-mode") {
-            let svg_flag: bool = svg_flag.parse().unwrap_or(false);
+        ui.vertical(|ui| {
+            egui::Frame::default()
+                .fill(if ui.visuals().dark_mode {
+                    egui::Color32::GRAY.gamma_multiply(0.03)
+                } else {
+                    ui.visuals().faint_bg_color
+                })
+                .show(ui, |ui| {
+                    self.toolbar.show(ui);
+                    ui.set_width(ui.available_width());
+                });
 
-            if svg_flag != ui.visuals().dark_mode {
-                self.build_color_defs(ui);
-                self.root
-                    .set_attr("data-dark-mode", format!("{}", ui.visuals().dark_mode));
-            }
-        }
-
-        self.render_svg(ui);
-    }
-
-    fn build_color_defs(&mut self, ui: &mut egui::Ui) {
-        let text_color = ui.visuals().text_color();
-        let color = format!("rgb({} {} {})", text_color.r(), text_color.g(), text_color.b());
-
-        let gradient = Element::builder("linearGradient", "")
-            .attr("id", "fg")
-            .append(
-                Element::builder("stop", "")
-                    .attr("stop-color", color)
-                    .build(),
-            )
-            .build();
-
-        self.root.borrow_mut().append_child(gradient);
+            self.inner_rect = ui.available_rect_before_wrap();
+            self.render_svg(ui);
+        });
     }
 
     fn render_svg(&self, ui: &mut egui::Ui) {
@@ -89,8 +108,6 @@ impl SVGEditor {
             available_rect.bottom(),
         )
         .unwrap();
-
-        // println!("{}", utree.to_string(&XmlOptions::default()));
 
         let tree = resvg::Tree::from_usvg(&utree);
 
@@ -115,6 +132,71 @@ impl SVGEditor {
         );
     }
 
+    fn define_dynamic_colors(&mut self, ui: &mut egui::Ui) {
+        if self.root.attr("data-dark-mode").is_none() {
+            self.root
+                .set_attr("data-dark-mode", format!("{}", ui.visuals().dark_mode));
+            self.build_color_defs(ui);
+        }
+
+        if let Some(svg_flag) = self.root.attr("data-dark-mode") {
+            let svg_flag: bool = svg_flag.parse().unwrap_or(false);
+
+            if svg_flag != ui.visuals().dark_mode {
+                self.build_color_defs(ui);
+                self.root
+                    .set_attr("data-dark-mode", format!("{}", ui.visuals().dark_mode));
+            }
+        }
+    }
+
+    fn build_color_defs(&mut self, ui: &mut egui::Ui) {
+        let theme_colors = ThemePalette::as_array(ui.visuals().dark_mode);
+        if self.toolbar.active_color.is_none() {
+            self.toolbar.active_color = Some(ColorSwatchButton {
+                id: "fg".to_string(),
+                color: theme_colors.iter().find(|p| p.0.eq("fg")).unwrap().1,
+            });
+        }
+
+        let btns = theme_colors.iter().map(|theme_color| {
+            Component::ColorSwatchButton(ColorSwatchButton {
+                id: theme_color.0.clone(),
+                color: theme_color.1,
+            })
+        });
+        self.toolbar.components = self
+            .toolbar
+            .components
+            .clone()
+            .into_iter()
+            .filter(|c| match c {
+                Component::ColorSwatchButton(_) => false,
+                _ => true,
+            })
+            .chain(btns)
+            .collect();
+
+        theme_colors.iter().for_each(|theme_color| {
+            let rgb_color =
+                format!("rgb({} {} {})", theme_color.1.r(), theme_color.1.g(), theme_color.1.b());
+            let gradient = Element::builder("linearGradient", "")
+                .attr("id", theme_color.0.as_str())
+                .append(
+                    Element::builder("stop", "")
+                        .attr("stop-color", rgb_color)
+                        .build(),
+                )
+                .build();
+            self.root.borrow_mut().append_child(gradient);
+
+            let mut buffer = Vec::new();
+            self.root.write_to(&mut buffer).unwrap();
+            self.svg = std::str::from_utf8(&buffer).unwrap().to_string();
+            self.svg = self.svg.replace("xmlns='' ", "");
+        });
+    }
+
     fn draw_event_handler(&mut self) {
         while let Ok((pos, id)) = self.draw_rx.try_recv() {
             let mut current_path = self.root.children_mut().find(|e| {
@@ -132,7 +214,12 @@ impl SVGEditor {
                 let data = get_path_data(path);
 
                 node.set_attr("d", data);
-                node.set_attr("stroke", "url(#fg)");
+
+                if let Some(color) = &self.toolbar.active_color {
+                    node.set_attr("stroke", format!("url(#{})", color.id));
+                } else {
+                    node.set_attr("stroke", "url(#fg)");
+                }
             } else {
                 self.path_builder.clear();
 
@@ -153,7 +240,7 @@ impl SVGEditor {
             let mut buffer = Vec::new();
             self.root.write_to(&mut buffer).unwrap();
             self.svg = std::str::from_utf8(&buffer).unwrap().to_string();
-            self.svg = self.svg.replace("xmlns=''", "");
+            self.svg = self.svg.replace("xmlns='' ", "");
 
             // println!("{}", self.svg);
         }
@@ -161,6 +248,9 @@ impl SVGEditor {
 
     fn setup_draw_events(&mut self, ui: &mut egui::Ui) {
         if let Some(cursor_pos) = ui.ctx().pointer_hover_pos() {
+            if !self.inner_rect.contains(cursor_pos) || !ui.is_enabled() {
+                return;
+            }
             if ui.input(|i| i.pointer.primary_down()) {
                 self.draw_tx.send((cursor_pos, self.id_counter)).unwrap();
             }
@@ -190,4 +280,123 @@ fn get_path_data(path: Path) -> String {
 
     s.pop(); // ' '
     return s;
+}
+
+#[derive(Clone)]
+enum Component {
+    Button(SimpleButton),
+    ColorSwatchButton(ColorSwatchButton),
+    Separator(egui::Margin),
+}
+#[derive(Clone)]
+struct SimpleButton {
+    icon: Icon,
+    callback: fn(),
+    margin: egui::Margin,
+}
+#[derive(Clone)]
+struct ColorSwatchButton {
+    id: String,
+    color: egui::Color32,
+}
+
+trait SizableComponent {
+    fn get_width(&self) -> f32;
+}
+impl SizableComponent for Component {
+    fn get_width(&self) -> f32 {
+        match self {
+            Component::Button(btn) => btn.margin.sum().x + ICON_SIZE,
+            Component::Separator(margin) => margin.sum().x,
+            Component::ColorSwatchButton(_color_btn) => COLOR_SWATCH_BTN_RADIUS * 3.14,
+        }
+    }
+}
+
+impl Toolbar {
+    fn width(&self) -> f32 {
+        self.components.iter().map(|c| c.get_width()).sum()
+    }
+    fn calculate_rect(&self, ui: &mut egui::Ui) -> egui::Rect {
+        let height = 0.0;
+        let available_rect = ui.available_rect_before_wrap();
+
+        let maximized_min_x = (available_rect.width() - self.width()) / 2.0 + available_rect.left();
+
+        let min_pos = egui::Pos2 { x: maximized_min_x, y: available_rect.top() + height };
+
+        let maximized_max_x =
+            available_rect.right() - (available_rect.width() - self.width()) / 2.0;
+
+        let max_pos = egui::Pos2 { x: maximized_max_x, y: available_rect.top() };
+        egui::Rect { min: min_pos, max: max_pos }
+    }
+
+    fn show(&mut self, ui: &mut egui::Ui) {
+        let rect = self.calculate_rect(ui);
+
+        ui.allocate_ui_at_rect(rect, |ui| {
+            ui.horizontal(|ui| {
+                self.components.iter().for_each(|c| match c {
+                    Component::Button(btn) => {
+                        egui::Frame::default()
+                            .inner_margin(btn.margin)
+                            .show(ui, |ui| {
+                                if Button::default().icon(&btn.icon).show(ui).clicked() {
+                                    (btn.callback)();
+                                }
+                            });
+                    }
+                    Component::Separator(margin) => {
+                        ui.add_space(margin.right);
+                        ui.add(egui::Separator::default().shrink(ui.available_height() * 0.3));
+                        ui.add_space(margin.left);
+                    }
+                    Component::ColorSwatchButton(btn) => {
+                        let (response, painter) = ui.allocate_painter(
+                            egui::vec2(COLOR_SWATCH_BTN_RADIUS * 3.14, ui.available_height()),
+                            egui::Sense::click(),
+                        );
+                        if response.clicked() {
+                            self.active_color =
+                                Some(ColorSwatchButton { id: btn.id.clone(), color: btn.color });
+                        }
+                        if let Some(active_color) = &self.active_color {
+                            let radius = if active_color.id.eq(&btn.id) {
+                                COLOR_SWATCH_BTN_RADIUS * 1.25
+                            } else {
+                                COLOR_SWATCH_BTN_RADIUS
+                            };
+                            let opacity = if active_color.id.eq(&btn.id) {
+                                1.0
+                            } else {
+                                if response.hovered() {
+                                    ui.output_mut(|w| {
+                                        w.cursor_icon = egui::CursorIcon::PointingHand
+                                    });
+                                    0.9
+                                } else {
+                                    0.5
+                                }
+                            };
+
+                            painter.circle_filled(
+                                response.rect.center(),
+                                radius,
+                                btn.color.gamma_multiply(opacity),
+                            );
+                        }
+                    }
+                });
+            });
+        });
+        ui.visuals_mut().widgets.noninteractive.bg_stroke.color = ui
+            .visuals()
+            .widgets
+            .noninteractive
+            .bg_stroke
+            .color
+            .gamma_multiply(0.4);
+        ui.separator();
+    }
 }
