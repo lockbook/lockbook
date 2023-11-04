@@ -500,6 +500,7 @@ pub unsafe extern "C" fn first_rect(obj: *mut c_void, range: CTextRange) -> CRec
     let buffer = &obj.editor.buffer.current;
     let galleys = &obj.editor.galleys;
     let text = &obj.editor.bounds.text;
+    let appearance = &obj.editor.appearance;
 
     let cursor_representing_rect: Cursor = {
         let range: (DocCharOffset, DocCharOffset) = range.into();
@@ -512,8 +513,8 @@ pub unsafe extern "C" fn first_rect(obj: *mut c_void, range: CTextRange) -> CRec
         (selection_start, end_of_rect).into()
     };
 
-    let start_line = cursor_representing_rect.start_line(galleys, text);
-    let end_line = cursor_representing_rect.end_line(galleys, text);
+    let start_line = cursor_representing_rect.start_line(galleys, text, appearance);
+    let end_line = cursor_representing_rect.end_line(galleys, text, appearance);
     CRect {
         min_x: (start_line[1].x + 1.0) as f64,
         min_y: start_line[0].y as f64,
@@ -573,9 +574,10 @@ pub unsafe extern "C" fn cursor_rect_at_position(obj: *mut c_void, pos: CTextPos
     let obj = &mut *(obj as *mut WgpuEditor);
     let galleys = &obj.editor.galleys;
     let text = &obj.editor.bounds.text;
+    let appearance = &obj.editor.appearance;
 
     let cursor: Cursor = pos.pos.into();
-    let line = cursor.start_line(galleys, text);
+    let line = cursor.start_line(galleys, text, appearance);
     let scroll = obj.editor.scroll_area_offset;
     CRect {
         min_x: (line[0].x - scroll.x) as f64,

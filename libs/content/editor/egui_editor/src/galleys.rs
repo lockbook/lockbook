@@ -86,7 +86,7 @@ pub fn calc(
         if let Some(ast_idx) = ast_idx {
             let text_range = &bounds.ast[ast_idx];
             let maybe_link_range = link_idx.map(|link_idx| bounds.links[link_idx]);
-            let in_selection = selection_idx.is_some();
+            let in_selection = selection_idx.is_some() && !buffer.cursor.selection.is_empty();
 
             let captured = bounds::captured(
                 buffer.cursor,
@@ -294,11 +294,26 @@ impl Galleys {
     }
 }
 
+// todo: weird thing here, x dim refers to area before the text, y dim refers to area after the
+// text
+pub fn annotation_offset(annotation: &Option<Annotation>, appearance: &Appearance) -> Vec2 {
+    let mut offset = Vec2::ZERO;
+    if let Some(Annotation::Item(_, indent_level)) = annotation {
+        offset.x = *indent_level as f32 * 20.0 + 30.0
+    }
+
+    if let Some(Annotation::HeadingRule) = annotation {
+        offset.y = appearance.rule_height();
+    }
+
+    offset
+}
+
 impl GalleyInfo {
     pub fn from(
         mut job: LayoutJobInfo, images: &ImageCache, appearance: &Appearance, ui: &mut Ui,
     ) -> Self {
-        let offset = Self::annotation_offset(&job.annotation, appearance);
+        let offset = annotation_offset(&job.annotation, appearance);
         job.job.wrap.max_width = ui.available_width() - offset.x;
 
         // allocate space for image
@@ -348,21 +363,6 @@ impl GalleyInfo {
             image,
             annotation_text_format: job.annotation_text_format,
         }
-    }
-
-    // todo: weird thing here, x dim refers to area before the text, y dim refers to area after the
-    // text
-    fn annotation_offset(annotation: &Option<Annotation>, appearance: &Appearance) -> Vec2 {
-        let mut offset = Vec2::ZERO;
-        if let Some(Annotation::Item(_, indent_level)) = annotation {
-            offset.x = *indent_level as f32 * 20.0 + 30.0
-        }
-
-        if let Some(Annotation::HeadingRule) = annotation {
-            offset.y = appearance.rule_height();
-        }
-
-        offset
     }
 
     pub fn cursor_height(&self) -> f32 {
