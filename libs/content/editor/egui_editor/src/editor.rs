@@ -10,13 +10,13 @@ use egui::{Color32, Context, Event, FontDefinitions, Frame, Pos2, Rect, Sense, U
 
 use crate::appearance::Appearance;
 use crate::ast::Ast;
-use crate::bounds::{BoundCase, Bounds};
+use crate::bounds::{BoundCase, Bounds, RangesExt};
 use crate::buffer::Buffer;
 use crate::debug::DebugInfo;
 use crate::galleys::Galleys;
 use crate::images::ImageCache;
 use crate::input::canonical::{Bound, Modification, Offset, Region};
-use crate::input::click_checker::{ClickChecker, EditorClickChecker};
+use crate::input::click_checker::{self, ClickChecker, EditorClickChecker};
 use crate::input::cursor::{Cursor, PointerState};
 use crate::input::events;
 use crate::offset_types::{DocCharOffset, RangeExt};
@@ -468,14 +468,31 @@ impl Editor {
         }
 
         // set cursor style
-        if self
-            .hover_syntax_reveal_debounce_state
-            .pointer_offset
-            .is_some()
         {
-            ui.output_mut(|o| o.cursor_icon = egui::CursorIcon::Text);
-        } else {
-            ui.output_mut(|o| o.cursor_icon = egui::CursorIcon::Default);
+            let click_checker = &EditorClickChecker {
+                ui_rect: self.ui_rect,
+                galleys: &self.galleys,
+                buffer: &self.buffer,
+                ast: &self.ast,
+                appearance: &self.appearance,
+                bounds: &self.bounds,
+            };
+            let hovering_link = ui
+                .input(|r| r.pointer.hover_pos())
+                .map(|pos| click_checker.link(pos).is_some())
+                .unwrap_or_default();
+            let hovering_text = ui
+                .input(|r| r.pointer.hover_pos())
+                .map(|pos| click_checker.text(pos).is_some())
+                .unwrap_or_default();
+            let cmd_down = ui.input(|i| i.modifiers.command);
+            if hovering_link && cmd_down {
+                ui.output_mut(|o| o.cursor_icon = egui::CursorIcon::PointingHand);
+            } else if hovering_text {
+                ui.output_mut(|o| o.cursor_icon = egui::CursorIcon::Text);
+            } else {
+                ui.output_mut(|o| o.cursor_icon = egui::CursorIcon::Default);
+            }
         }
 
         result
