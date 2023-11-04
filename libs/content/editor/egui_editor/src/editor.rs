@@ -10,13 +10,13 @@ use egui::{Color32, Context, Event, FontDefinitions, Frame, Pos2, Rect, Sense, U
 
 use crate::appearance::Appearance;
 use crate::ast::Ast;
-use crate::bounds::{BoundCase, Bounds, RangesExt};
+use crate::bounds::{BoundCase, Bounds};
 use crate::buffer::Buffer;
 use crate::debug::DebugInfo;
 use crate::galleys::Galleys;
 use crate::images::ImageCache;
 use crate::input::canonical::{Bound, Modification, Offset, Region};
-use crate::input::click_checker::{self, ClickChecker, EditorClickChecker};
+use crate::input::click_checker::{ClickChecker, EditorClickChecker};
 use crate::input::cursor::{Cursor, PointerState};
 use crate::input::events;
 use crate::offset_types::{DocCharOffset, RangeExt};
