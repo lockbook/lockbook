@@ -59,10 +59,8 @@ pub fn calc(
         Modification::ToggleStyle { region, style } => {
             let cursor = region_to_cursor(region, current_cursor, buffer, galleys, bounds);
             let unapply = region_completely_styled(cursor, &style, ast, &bounds.ast);
-            println!("unapply: {}", unapply);
             if !unapply {
                 for conflict in conflicting_styles(cursor, &style, ast, &bounds.ast) {
-                    println!("conflict");
                     apply_style(cursor, conflict, true, buffer, ast, &bounds.ast, &mut mutation)
                 }
             }
@@ -637,25 +635,15 @@ fn apply_style(
     let start_range = start_range.unwrap();
     let end_range = end_range.unwrap();
 
-    // modify head/tail for nodes containing cursor start and cursor end
+    // find nodes containing cursor start and cursor end
     let mut last_start_ancestor: Option<usize> = None;
     for &ancestor in &start_range.ancestors {
-        // dehead and detail all but the last ancestor applying the style
-        if let Some(prev_ancestor) = last_start_ancestor {
-            dehead_ast_node(prev_ancestor, ast, mutation);
-            detail_ast_node(prev_ancestor, ast, mutation);
-        }
         if ast.nodes[ancestor].node_type == style {
             last_start_ancestor = Some(ancestor);
         }
     }
     let mut last_end_ancestor: Option<usize> = None;
     for &ancestor in &end_range.ancestors {
-        // dehead and detail all but the last ancestor applying the style
-        if let Some(prev_ancestor) = last_end_ancestor {
-            dehead_ast_node(prev_ancestor, ast, mutation);
-            detail_ast_node(prev_ancestor, ast, mutation);
-        }
         if ast.nodes[ancestor].node_type == style {
             last_end_ancestor = Some(ancestor);
         }
