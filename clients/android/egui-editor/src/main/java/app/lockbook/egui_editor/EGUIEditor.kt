@@ -41,6 +41,9 @@ public data class EditorResponse(
     val cursorInInlineCode: Boolean,
     @SerialName("cursor_in_strikethrough")
     val cursorInStrikethrough: Boolean,
+
+    @SerialName("opened_url")
+    val openedURL: String?
 )
 
 @Serializable
@@ -71,6 +74,7 @@ public class EGUIEditor {
     external fun createWgpuCanvas(surface: Surface, core: Long, content: String, scaleFactor: Float, darkMode: Boolean): Long
     external fun enterFrame(rustObj: Long): String
     external fun resizeEditor(rustObj: Long, surface: Surface, scaleFactor: Float)
+    external fun changeSurface(rustObj: Long, surface: Surface, scaleFactor: Float)
 
     external fun touchesBegin(rustObj: Long, id: Int, x: Float, y: Float, pressure: Float)
     external fun touchesMoved(rustObj: Long, id: Int, x: Float, y: Float, pressure: Float)

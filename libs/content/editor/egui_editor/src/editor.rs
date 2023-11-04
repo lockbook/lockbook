@@ -71,6 +71,8 @@ pub struct EditorResponse {
     pub cursor_in_italic: bool,
     pub cursor_in_inline_code: bool,
     pub cursor_in_strikethrough: bool,
+
+    pub opened_url: Option<String>,
 }
 
 impl Default for EditorResponse {
@@ -99,6 +101,8 @@ impl Default for EditorResponse {
 
             #[cfg(any(target_os = "ios", target_os = "macos"))]
             opened_url: ptr::null(),
+            #[cfg(not(any(target_os = "ios", target_os = "macos")))]
+            opened_url: None,
         }
     }
 }
@@ -436,6 +440,10 @@ impl Editor {
                     .expect("Could not Rust String -> C String")
                     .into_raw() as *const c_char,
             };
+        }
+        #[cfg(not(any(target_os = "ios", target_os = "macos")))]
+        {
+            result.opened_url = self.maybe_opened_url.clone();
         }
 
         // determine styles at cursor location

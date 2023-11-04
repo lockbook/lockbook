@@ -1,11 +1,11 @@
+use core::ffi::c_void;
+use egui_wgpu_backend::wgpu;
+use jni::sys::jobject;
+use jni::JNIEnv;
 use raw_window_handle::{
     AndroidDisplayHandle, AndroidNdkWindowHandle, HasRawDisplayHandle, HasRawWindowHandle,
     RawDisplayHandle, RawWindowHandle,
 };
-use jni::JNIEnv;
-use jni::sys::jobject;
-use core::ffi::c_void;
-use egui_wgpu_backend::wgpu;
 
 pub struct NativeWindow {
     a_native_window: *mut ndk_sys::ANativeWindow,

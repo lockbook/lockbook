@@ -1,23 +1,24 @@
-use std::cmp::min;
-use crate::{CompositeAlphaMode, Editor, Pos2, wgpu, WgpuEditor};
+use crate::android::keyboard::AndroidKeys;
+use crate::android::window;
 use crate::android::window::NativeWindow;
+use crate::input::canonical::{Location, Modification, Region};
+use crate::input::cursor::Cursor;
+use crate::offset_types::{DocCharOffset, RangeExt};
+use crate::style::{BlockNode, InlineNode, ListItem, MarkdownNode};
+use crate::{wgpu, CompositeAlphaMode, Editor, Pos2, WgpuEditor};
 use egui::{Context, Event, PointerButton, TouchDeviceId, TouchId, TouchPhase, Visuals};
 use egui_wgpu_backend::ScreenDescriptor;
 use jni::objects::{JClass, JString};
 use jni::sys::{jboolean, jfloat, jint, jlong, jobject, jstring};
 use jni::JNIEnv;
 use serde::Serialize;
+use std::cmp::min;
 use std::time::Instant;
-use crate::android::keyboard::AndroidKeys;
-use crate::android::window;
-use crate::input::canonical::{Location, Modification, Region};
-use crate::input::cursor::Cursor;
-use crate::offset_types::{DocCharOffset, RangeExt};
-use crate::style::{BlockNode, InlineNode, ListItem, MarkdownNode};
 
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_createWgpuCanvas(
-    mut env: JNIEnv, _: JClass, surface: jobject, core: jlong, content: JString, scale_factor: jfloat, dark_mode: bool
+    mut env: JNIEnv, _: JClass, surface: jobject, core: jlong, content: JString,
+    scale_factor: jfloat, dark_mode: bool,
 ) -> jlong {
     let core = unsafe { &mut *(core as *mut lb::Core) };
 
@@ -46,10 +47,9 @@ pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_createWgpuCanva
     let mut editor = Editor::new(core.clone());
     editor.set_font(&context);
 
-    let content: String = match env
-        .get_string(&content) {
+    let content: String = match env.get_string(&content) {
         Ok(cont) => cont.into(),
-        Err(err) => format!("# The error is: {:?}", err)
+        Err(err) => format!("# The error is: {:?}", err),
     };
     editor.buffer = content.as_str().into();
 
@@ -78,22 +78,20 @@ pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_createWgpuCanva
     Box::into_raw(Box::new(obj)) as jlong
 }
 
-// optimizationcan create class through jni
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_enterFrame(
     env: JNIEnv, _: JClass, obj: jlong,
 ) -> jstring {
     let obj = unsafe { &mut *(obj as *mut WgpuEditor) };
 
-    env
-        .new_string(serde_json::to_string(&obj.frame()).unwrap())
+    env.new_string(serde_json::to_string(&obj.frame()).unwrap())
         .expect("Couldn't create JString from rust string!")
         .into_raw()
 }
 
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_resizeEditor(
-    env: JNIEnv, _: JClass, obj: jlong, surface: jobject, scale_factor: jfloat
+    env: JNIEnv, _: JClass, obj: jlong, surface: jobject, scale_factor: jfloat,
 ) {
     let obj = unsafe { &mut *(obj as *mut WgpuEditor) };
     let native_window = NativeWindow::new(&env, surface);
@@ -111,7 +109,7 @@ pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_addText(
 
     let content: String = match env.get_string(&content) {
         Ok(cont) => cont.into(),
-        Err(err) => format!("# The error is: {:?}", err)
+        Err(err) => format!("# The error is: {:?}", err),
     };
 
     obj.raw_input.events.push(Event::Text(content));
@@ -132,22 +130,21 @@ pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_getTextBeforeCu
 
     let cursor: Cursor = (
         obj.editor.buffer.current.cursor.selection.start() - (n as usize),
-        obj.editor.buffer.current.cursor.selection.end()
+        obj.editor.buffer.current.cursor.selection.end(),
     )
         .into();
 
     let buffer = &obj.editor.buffer.current;
     let text = cursor.selection_text(buffer);
 
-    env
-        .new_string(text)
+    env.new_string(text)
         .expect("Couldn't create JString from rust string!")
         .into_raw()
 }
 
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_getTextAfterCursor(
-    env: JNIEnv, _: JClass, obj: jlong, n: jint
+    env: JNIEnv, _: JClass, obj: jlong, n: jint,
 ) -> jstring {
     let obj = unsafe { &mut *(obj as *mut WgpuEditor) };
 
@@ -155,36 +152,44 @@ pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_getTextAfterCur
 
     let cursor: Cursor = (
         obj.editor.buffer.current.cursor.selection.start(),
-        DocCharOffset(min(obj.editor.buffer.current.cursor.selection.end().0.saturating_add(n as usize), buffer.segs.last_cursor_position().0))
+        DocCharOffset(min(
+            obj.editor
+                .buffer
+                .current
+                .cursor
+                .selection
+                .end()
+                .0
+                .saturating_add(n as usize),
+            buffer.segs.last_cursor_position().0,
+        )),
     )
         .into();
 
     let text = cursor.selection_text(buffer);
 
-    env
-        .new_string(text)
+    env.new_string(text)
         .expect("Couldn't create JString from rust string!")
         .into_raw()
 }
 
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_getSelectedText(
-    env: JNIEnv, _: JClass, obj: jlong
+    env: JNIEnv, _: JClass, obj: jlong,
 ) -> jstring {
     let obj = unsafe { &mut *(obj as *mut WgpuEditor) };
 
     let cursor = &obj.editor.buffer.current.cursor;
     let selected_text = String::from(cursor.selection_text(&obj.editor.buffer.current));
 
-    env
-        .new_string(selected_text)
+    env.new_string(selected_text)
         .expect("Couldn't create JString from rust string!")
         .into_raw()
 }
 
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_deleteSurroundingText(
-    _env: JNIEnv, _: JClass, obj: jlong, before_length: jint, after_length: jint
+    _env: JNIEnv, _: JClass, obj: jlong, before_length: jint, after_length: jint,
 ) {
     let obj = unsafe { &mut *(obj as *mut WgpuEditor) };
 
@@ -192,36 +197,39 @@ pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_deleteSurroundi
 
     obj.editor.custom_events.push(Modification::Replace {
         region: Region::BetweenLocations {
-            start: Location::DocCharOffset(current_cursor.selection.start() + (before_length as usize)),
-            end: Location::DocCharOffset(current_cursor.selection.start())
+            start: Location::DocCharOffset(
+                current_cursor.selection.start() + (before_length as usize),
+            ),
+            end: Location::DocCharOffset(current_cursor.selection.start()),
         },
-        text: "".to_string()
+        text: "".to_string(),
     });
 
     obj.editor.custom_events.push(Modification::Replace {
         region: Region::BetweenLocations {
-            start: Location::DocCharOffset(current_cursor.selection.end() + (after_length as usize)),
-            end: Location::DocCharOffset(current_cursor.selection.end())
+            start: Location::DocCharOffset(
+                current_cursor.selection.end() + (after_length as usize),
+            ),
+            end: Location::DocCharOffset(current_cursor.selection.end()),
         },
-        text: "".to_string()
+        text: "".to_string(),
     });
 }
 
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_getAllText(
-    env: JNIEnv, _: JClass, obj: jlong
+    env: JNIEnv, _: JClass, obj: jlong,
 ) -> jstring {
     let obj = unsafe { &mut *(obj as *mut WgpuEditor) };
 
-    env
-        .new_string(&obj.editor.buffer.current.text)
+    env.new_string(&obj.editor.buffer.current.text)
         .expect("Couldn't create JString from rust string!")
         .into_raw()
 }
 
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_getSelection(
-    env: JNIEnv, _: JClass, obj: jlong
+    env: JNIEnv, _: JClass, obj: jlong,
 ) -> jstring {
     let obj = unsafe { &mut *(obj as *mut WgpuEditor) };
 
@@ -231,29 +239,29 @@ pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_getSelection(
         selection_text = format!("{} {}", selection.start.0, selection.end.0);
     }
 
-    env
-        .new_string(selection_text)
+    env.new_string(selection_text)
         .expect("Couldn't create JString from rust string!")
         .into_raw()
 }
 
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_setSelection(
-    _env: JNIEnv, _: JClass, obj: jlong, start: jint, end: jint
+    _env: JNIEnv, _: JClass, obj: jlong, start: jint, end: jint,
 ) {
     let obj = unsafe { &mut *(obj as *mut WgpuEditor) };
 
     obj.editor.custom_events.push(Modification::Select {
         region: Region::BetweenLocations {
             start: Location::DocCharOffset(DocCharOffset(start as usize)),
-            end: Location::DocCharOffset(DocCharOffset(end as usize))
-        }
+            end: Location::DocCharOffset(DocCharOffset(end as usize)),
+        },
     });
 }
 
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_sendKeyEvent(
-    mut env: JNIEnv, _: JClass, obj: jlong, key_code: jint, content: JString, pressed: jboolean, alt: jboolean, ctrl: jboolean, shift: jboolean
+    mut env: JNIEnv, _: JClass, obj: jlong, key_code: jint, content: JString, pressed: jboolean,
+    alt: jboolean, ctrl: jboolean, shift: jboolean,
 ) {
     let obj = unsafe { &mut *(obj as *mut WgpuEditor) };
 
@@ -262,7 +270,7 @@ pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_sendKeyEvent(
         ctrl: ctrl == 1,
         shift: shift == 1,
         mac_cmd: false,
-        command: false
+        command: false,
     };
 
     obj.raw_input.modifiers = modifiers;
@@ -272,27 +280,28 @@ pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_sendKeyEvent(
     };
 
     if pressed == 1 && (modifiers.shift_only() || modifiers.is_none()) && key.valid_text() {
-        let text: String = match env
-            .get_string(&content) {
+        let text: String = match env.get_string(&content) {
             Ok(cont) => cont.into(),
-            Err(err) => format!("# The error is: {:?}", err)
+            Err(err) => format!("# The error is: {:?}", err),
         };
 
         obj.raw_input.events.push(Event::Text(text));
     }
 
     if let Some(key) = key.egui_key() {
-        obj.raw_input
-            .events
-            .push(Event::Key { key, pressed: pressed == 1, repeat: false, modifiers });
+        obj.raw_input.events.push(Event::Key {
+            key,
+            pressed: pressed == 1,
+            repeat: false,
+            modifiers,
+        });
     } else {
-
     }
 }
 
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_touchesBegin(
-    _env: JNIEnv, _: JClass, obj: jlong, id: jint, x: jfloat, y: jfloat, pressure: jfloat
+    _env: JNIEnv, _: JClass, obj: jlong, id: jint, x: jfloat, y: jfloat, pressure: jfloat,
 ) {
     let obj = unsafe { &mut *(obj as *mut WgpuEditor) };
 
@@ -316,7 +325,7 @@ pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_touchesBegin(
 
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_touchesMoved(
-    _env: JNIEnv, _: JClass, obj: jlong, id: jint, x: jfloat, y: jfloat, pressure: jfloat
+    _env: JNIEnv, _: JClass, obj: jlong, id: jint, x: jfloat, y: jfloat, pressure: jfloat,
 ) {
     let obj = unsafe { &mut *(obj as *mut WgpuEditor) };
 
@@ -337,7 +346,7 @@ pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_touchesMoved(
 
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_touchesEnded(
-    _env: JNIEnv, _: JClass, obj: jlong, id: jint, x: jfloat, y: jfloat, pressure: jfloat
+    _env: JNIEnv, _: JClass, obj: jlong, id: jint, x: jfloat, y: jfloat, pressure: jfloat,
 ) {
     let obj = unsafe { &mut *(obj as *mut WgpuEditor) };
 
@@ -365,92 +374,89 @@ pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_touchesEnded(
 
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_getTextLength(
-    _env: JNIEnv, _: JClass, obj: jlong
+    _env: JNIEnv, _: JClass, obj: jlong,
 ) -> jint {
     let obj = unsafe { &mut *(obj as *mut WgpuEditor) };
 
-    return obj.editor.buffer.current.segs.last_cursor_position().0 as jint
+    return obj.editor.buffer.current.segs.last_cursor_position().0 as jint;
 }
 
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_clear(
-    _env: JNIEnv, _: JClass, obj: jlong
+    _env: JNIEnv, _: JClass, obj: jlong,
 ) {
     let obj = unsafe { &mut *(obj as *mut WgpuEditor) };
 
     obj.editor.custom_events.push(Modification::Replace {
         region: Region::BetweenLocations {
             start: Location::DocCharOffset(DocCharOffset(0)),
-            end: Location::DocCharOffset(obj.editor.buffer.current.segs.last_cursor_position())
+            end: Location::DocCharOffset(obj.editor.buffer.current.segs.last_cursor_position()),
         },
-        text: "".to_string()
+        text: "".to_string(),
     })
 }
 
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_replace(
-    mut env: JNIEnv, _: JClass, obj: jlong, start: jint, end: jint, text: JString
+    mut env: JNIEnv, _: JClass, obj: jlong, start: jint, end: jint, text: JString,
 ) {
     let obj = unsafe { &mut *(obj as *mut WgpuEditor) };
 
-    let text: String = match env
-        .get_string(&text) {
+    let text: String = match env.get_string(&text) {
         Ok(cont) => cont.into(),
-        Err(err) => format!("error: {:?}", err)
+        Err(err) => format!("error: {:?}", err),
     };
 
     obj.editor.custom_events.push(Modification::Replace {
         region: Region::BetweenLocations {
             start: Location::DocCharOffset(DocCharOffset(start as usize)),
-            end: Location::DocCharOffset(DocCharOffset(end as usize))
+            end: Location::DocCharOffset(DocCharOffset(end as usize)),
         },
-        text
+        text,
     })
 }
 
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_insert(
-    mut env: JNIEnv, _: JClass, obj: jlong, index: jint, text: JString
+    mut env: JNIEnv, _: JClass, obj: jlong, index: jint, text: JString,
 ) {
     let obj = unsafe { &mut *(obj as *mut WgpuEditor) };
 
-    let text: String = match env
-        .get_string(&text) {
+    let text: String = match env.get_string(&text) {
         Ok(cont) => cont.into(),
-        Err(err) => format!("error: {:?}", err)
+        Err(err) => format!("error: {:?}", err),
     };
 
     let loc = Location::DocCharOffset(DocCharOffset(index as usize));
 
     obj.editor.custom_events.push(Modification::Replace {
         region: Region::BetweenLocations { start: loc, end: loc },
-        text
+        text,
     })
 }
 
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_append(
-    mut env: JNIEnv, _: JClass, obj: jlong, text: JString
+    mut env: JNIEnv, _: JClass, obj: jlong, text: JString,
 ) {
     let obj = unsafe { &mut *(obj as *mut WgpuEditor) };
 
-    let text: String = match env
-        .get_string(&text) {
+    let text: String = match env.get_string(&text) {
         Ok(cont) => cont.into(),
-        Err(err) => format!("error: {:?}", err)
+        Err(err) => format!("error: {:?}", err),
     };
 
     let loc = Location::DocCharOffset(obj.editor.buffer.current.segs.last_cursor_position());
 
     obj.editor.custom_events.push(Modification::Replace {
         region: Region::BetweenLocations { start: loc, end: loc },
-        text
+        text,
     })
 }
 
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_getTextInRange(
-    env: JNIEnv, _: JClass, obj: jlong, start: jint, end: jint
+    env: JNIEnv, _: JClass, obj: jlong, start: jint, end: jint,
 ) -> jstring {
     let obj = unsafe { &mut *(obj as *mut WgpuEditor) };
 
@@ -459,8 +465,7 @@ pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_getTextInRange(
     let buffer = &obj.editor.buffer.current;
     let text = cursor.selection_text(buffer);
 
-    env
-        .new_string(text)
+    env.new_string(text)
         .expect("Couldn't create JString from rust string!")
         .into_raw()
 }
@@ -475,7 +480,7 @@ pub struct AndroidRect {
 
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_getCharacterRect(
-    env: JNIEnv, _: JClass, obj: jlong, pos: jint
+    env: JNIEnv, _: JClass, obj: jlong, pos: jint,
 ) -> jstring {
     let obj = unsafe { &mut *(obj as *mut WgpuEditor) };
 
@@ -490,10 +495,10 @@ pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_getCharacterRec
         min_y: line[0].y,
         max_x: line[1].x,
         max_y: line[1].y,
-    }).unwrap();
+    })
+    .unwrap();
 
-    env
-        .new_string(json)
+    env.new_string(json)
         .expect("Couldn't create JString from rust string!")
         .into_raw()
 }
@@ -502,7 +507,7 @@ pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_getCharacterRec
 
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_selectAll(
-    _env: JNIEnv, _: JClass, obj: jlong
+    _env: JNIEnv, _: JClass, obj: jlong,
 ) {
     let obj = unsafe { &mut *(obj as *mut WgpuEditor) };
 
@@ -511,21 +516,20 @@ pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_selectAll(
     obj.editor.custom_events.push(Modification::Select {
         region: Region::BetweenLocations {
             start: Location::DocCharOffset(DocCharOffset(0)),
-            end: Location::DocCharOffset(buffer.segs.last_cursor_position())
-        }
+            end: Location::DocCharOffset(buffer.segs.last_cursor_position()),
+        },
     });
 }
 
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_clipboardChanged(
-    mut env: JNIEnv, _: JClass, obj: jlong, text: JString
+    mut env: JNIEnv, _: JClass, obj: jlong, text: JString,
 ) {
     let obj = unsafe { &mut *(obj as *mut WgpuEditor) };
 
-    let content: String = match env
-        .get_string(&text) {
+    let content: String = match env.get_string(&text) {
         Ok(cont) => cont.into(),
-        Err(_) => "didn't work?".to_string()
+        Err(_) => "didn't work?".to_string(),
     };
 
     obj.from_host = Some(content);
@@ -533,30 +537,33 @@ pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_clipboardChange
 
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_hasCopiedText(
-    _env: JNIEnv, _: JClass, obj: jlong
+    _env: JNIEnv, _: JClass, obj: jlong,
 ) -> jboolean {
     let obj = unsafe { &mut *(obj as *mut WgpuEditor) };
 
-    if obj.from_egui.is_some() { 1 } else { 0 }
+    if obj.from_egui.is_some() {
+        1
+    } else {
+        0
+    }
 }
 
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_getCopiedText(
-    env: JNIEnv, _: JClass, obj: jlong
+    env: JNIEnv, _: JClass, obj: jlong,
 ) -> jstring {
     let obj = unsafe { &mut *(obj as *mut WgpuEditor) };
 
     let copied_text = obj.from_egui.take().unwrap_or_default();
 
-    env
-        .new_string(copied_text)
+    env.new_string(copied_text)
         .expect("Couldn't create JString from rust string!")
         .into_raw()
 }
 
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_clipboardCut(
-    _env: JNIEnv, _: JClass, obj: jlong
+    _env: JNIEnv, _: JClass, obj: jlong,
 ) {
     let obj = unsafe { &mut *(obj as *mut WgpuEditor) };
     obj.editor.custom_events.push(Modification::Cut);
@@ -564,7 +571,7 @@ pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_clipboardCut(
 
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_clipboardCopy(
-    _env: JNIEnv, _: JClass, obj: jlong
+    _env: JNIEnv, _: JClass, obj: jlong,
 ) {
     let obj = unsafe { &mut *(obj as *mut WgpuEditor) };
     obj.editor.custom_events.push(Modification::Copy);
@@ -582,10 +589,9 @@ pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_clipboardPaste(
 
 // markdown syntax insert
 
-
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_applyStyleToSelectionHeading(
-    _env: JNIEnv, _: JClass, obj: jlong, heading_size: jint
+    _env: JNIEnv, _: JClass, obj: jlong, heading_size: jint,
 ) {
     let obj = unsafe { &mut *(obj as *mut WgpuEditor) };
 
@@ -596,7 +602,7 @@ pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_applyStyleToSel
 
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_applyStyleToSelectionBulletedList(
-    _env: JNIEnv, _: JClass, obj: jlong
+    _env: JNIEnv, _: JClass, obj: jlong,
 ) {
     let obj = unsafe { &mut *(obj as *mut WgpuEditor) };
 
@@ -605,10 +611,9 @@ pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_applyStyleToSel
         .push(Modification::toggle_block_style(BlockNode::ListItem(ListItem::Bulleted, 0)));
 }
 
-
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_applyStyleToSelectionNumberedList(
-    _env: JNIEnv, _: JClass, obj: jlong
+    _env: JNIEnv, _: JClass, obj: jlong,
 ) {
     let obj = unsafe { &mut *(obj as *mut WgpuEditor) };
 
@@ -619,7 +624,7 @@ pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_applyStyleToSel
 
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_applyStyleToSelectionTodoList(
-    _env: JNIEnv, _: JClass, obj: jlong
+    _env: JNIEnv, _: JClass, obj: jlong,
 ) {
     let obj = unsafe { &mut *(obj as *mut WgpuEditor) };
 
@@ -630,7 +635,7 @@ pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_applyStyleToSel
 
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_applyStyleToSelectionBold(
-    _env: JNIEnv, _: JClass, obj: jlong
+    _env: JNIEnv, _: JClass, obj: jlong,
 ) {
     let obj = unsafe { &mut *(obj as *mut WgpuEditor) };
 
@@ -642,7 +647,7 @@ pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_applyStyleToSel
 
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_applyStyleToSelectionItalic(
-    _env: JNIEnv, _: JClass, obj: jlong
+    _env: JNIEnv, _: JClass, obj: jlong,
 ) {
     let obj = unsafe { &mut *(obj as *mut WgpuEditor) };
 
@@ -654,7 +659,7 @@ pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_applyStyleToSel
 
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_applyStyleToSelectionInlineCode(
-    _env: JNIEnv, _: JClass, obj: jlong
+    _env: JNIEnv, _: JClass, obj: jlong,
 ) {
     let obj = unsafe { &mut *(obj as *mut WgpuEditor) };
 
@@ -666,7 +671,7 @@ pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_applyStyleToSel
 
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_applyStyleToSelectionStrikethrough(
-    _env: JNIEnv, _: JClass, obj: jlong
+    _env: JNIEnv, _: JClass, obj: jlong,
 ) {
     let obj = unsafe { &mut *(obj as *mut WgpuEditor) };
 
@@ -678,7 +683,7 @@ pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_applyStyleToSel
 
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_indentAtCursor(
-    _env: JNIEnv, _: JClass, obj: jlong, deindent: jboolean
+    _env: JNIEnv, _: JClass, obj: jlong, deindent: jboolean,
 ) {
     let obj = unsafe { &mut *(obj as *mut WgpuEditor) };
 
@@ -689,7 +694,7 @@ pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_indentAtCursor(
 
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_undoRedo(
-    _env: JNIEnv, _: JClass, obj: jlong, redo: jboolean
+    _env: JNIEnv, _: JClass, obj: jlong, redo: jboolean,
 ) {
     let obj = unsafe { &mut *(obj as *mut WgpuEditor) };
 

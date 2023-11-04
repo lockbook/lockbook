@@ -4,15 +4,15 @@ import android.annotation.SuppressLint
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.Intent
 import android.content.res.Configuration
 import android.graphics.Canvas
 import android.graphics.PixelFormat
+import android.net.Uri
 import android.os.Build
-import android.os.Bundle
 import android.text.Editable
 import android.text.InputFilter
 import android.text.Selection
-import android.text.style.SuggestionSpan
 import android.util.AttributeSet
 import android.view.KeyEvent
 import android.view.MotionEvent
@@ -21,16 +21,12 @@ import android.view.SurfaceView
 import android.view.View
 import android.view.ViewConfiguration
 import android.view.inputmethod.BaseInputConnection
-import android.view.inputmethod.CompletionInfo
-import android.view.inputmethod.CorrectionInfo
 import android.view.inputmethod.CursorAnchorInfo
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputConnection
-import android.view.inputmethod.InputContentInfo
 import android.view.inputmethod.InputMethodManager
-import android.view.textservice.TextServicesManager
+import androidx.core.content.ContextCompat.startActivity
 import app.lockbook.App
-import app.lockbook.egui_editor.AndroidRect
 import app.lockbook.egui_editor.EGUIEditor
 import app.lockbook.egui_editor.IntegrationOutput
 import app.lockbook.model.CoreModel
@@ -91,6 +87,8 @@ class MarkdownEditor : SurfaceView, SurfaceHolder.Callback2 {
 
     @SuppressLint("ClickableViewAccessibility")
     override fun onTouchEvent(event: MotionEvent?): Boolean {
+        Timber.e("TOUCH EVENT!")
+
         if (wgpuObj == Long.MAX_VALUE) {
             return true
         }
@@ -159,6 +157,7 @@ class MarkdownEditor : SurfaceView, SurfaceHolder.Callback2 {
     }
 
     override fun surfaceCreated(holder: SurfaceHolder) {
+        Timber.e("Creating surface")
         holder.let { h ->
             wgpuObj = eguiEditor.createWgpuCanvas(h.surface, CoreModel.getPtr(), textSaver!!.currentContent, context.resources.displayMetrics.scaledDensity, (context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES)
             inputManager = BaseEGUIInputConnect(this, eguiEditor, wgpuObj, frameOutputJsonParser)
@@ -171,6 +170,7 @@ class MarkdownEditor : SurfaceView, SurfaceHolder.Callback2 {
     }
 
     override fun surfaceDestroyed(holder: SurfaceHolder) {
+        Timber.e("Destroying surface")
         if (wgpuObj != Long.MAX_VALUE) {
             eguiEditor.dropWgpuCanvas(wgpuObj)
             wgpuObj = Long.MAX_VALUE
@@ -178,6 +178,7 @@ class MarkdownEditor : SurfaceView, SurfaceHolder.Callback2 {
     }
 
     override fun surfaceRedrawNeeded(holder: SurfaceHolder) {
+        Timber.e("Need to redraw surface")
         invalidate()
     }
 
@@ -191,6 +192,8 @@ class MarkdownEditor : SurfaceView, SurfaceHolder.Callback2 {
         val responseJson = eguiEditor.enterFrame(wgpuObj)
         val response: IntegrationOutput = frameOutputJsonParser.decodeFromString(responseJson)
 
+        textSaver!!._editorUpdate.postValue(response.editorResponse)
+
         if (response.editorResponse.selectionUpdated && inputManager!!.monitorCursorUpdates) {
             inputManager!!.notifySelectionUpdated()
         }
@@ -199,10 +202,13 @@ class MarkdownEditor : SurfaceView, SurfaceHolder.Callback2 {
             textSaver!!.waitAndSaveContents(eguiEditor.getAllText(wgpuObj))
         }
 
-        textSaver!!._editorUpdate.postValue(response.editorResponse)
-
         if (eguiEditor.hasCopiedText(wgpuObj)) {
             inputManager?.getClipboardManager()?.setPrimaryClip(ClipData.newPlainText("lb copied text", eguiEditor.getCopiedText(wgpuObj)))
+        }
+
+        response.editorResponse.openedURL?.let { openedURL ->
+            val browserIntent = Intent(Intent.ACTION_VIEW, Uri.parse(openedURL))
+            startActivity(context, browserIntent, null)
         }
 
         handler.removeCallbacks(redrawTask)
@@ -297,24 +303,14 @@ class BaseEGUIInputConnect(val view: View, val eguiEditor: EGUIEditor, val wgpuO
     var monitorCursorUpdates = false
 
     fun getInputMethodManager(): InputMethodManager = App.applicationContext().getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
-    private fun getTextServicesManager(): TextServicesManager = App.applicationContext().getSystemService(Context.TEXT_SERVICES_MANAGER_SERVICE) as TextServicesManager
     fun getClipboardManager(): ClipboardManager = App.applicationContext().getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
 
     fun notifySelectionUpdated() {
-        Timber.e("updating selection: ${view.measuredWidth} ${view.measuredHeight}")
-        var cursorAnchor = CursorAnchorInfo.Builder()
-        for (index in editable.indices) {
-            val rect: AndroidRect = Json.decodeFromString(eguiEditor.getCharacterRect(wgpuObj, index))
-            cursorAnchor = cursorAnchor.addCharacterBounds(index, rect.minX, rect.minY, rect.maxX, rect.maxY, CursorAnchorInfo.FLAG_HAS_VISIBLE_REGION)
-        }
-
         getInputMethodManager()
             .updateCursorAnchorInfo(
                 view,
-                cursorAnchor
+                CursorAnchorInfo.Builder()
                     .setSelectionRange(eguiEditorEditable.getSelection().first, eguiEditorEditable.getSelection().second)
-                    .setMatrix(null)
-                    .setInsertionMarkerLocation(100f, 100f, 100f, 100f, CursorAnchorInfo.FLAG_HAS_VISIBLE_REGION)
                     .build()
             )
     }
@@ -331,12 +327,6 @@ class BaseEGUIInputConnect(val view: View, val eguiEditor: EGUIEditor, val wgpuO
         view.invalidate()
 
         return true
-    }
-
-    override fun commitCompletion(text: CompletionInfo?): Boolean {
-        Timber.e("committing completion: ${text?.text}")
-
-        return super.commitCompletion(text)
     }
 
     override fun performContextMenuAction(id: Int): Boolean {
@@ -390,15 +380,6 @@ class EGUIEditorEditable(val view: View, val eguiEditor: EGUIEditor, val wgpuObj
     private var selectionStartSpanFlag = 0
     private var selectionEndSpanFlag = 0
 
-    private var composingFlag = 0
-
-    private var composingStart = -1
-    private var composingEnd = -1
-
-    private var suggestionSpans = mutableListOf<SuggestionSpanInfo>()
-
-    data class SuggestionSpanInfo(val span: SuggestionSpan, val start: Int, val end: Int, val flags: Int)
-
     fun getSelection(): Pair<Int, Int> {
         val selStr = eguiEditor.getSelection(wgpuObj)
         val selections = selStr.split(" ").map { it.toIntOrNull() ?: 0 }
@@ -416,8 +397,6 @@ class EGUIEditorEditable(val view: View, val eguiEditor: EGUIEditor, val wgpuObj
         dest?.let { realDest ->
             val text = eguiEditor.getTextInRange(wgpuObj, start, end)
 
-            Timber.e("get chars out from $start to $end $text ${getSelection()}")
-
             var index = destoff
             for (char in text) {
                 if (index < realDest.size) {
@@ -431,68 +410,30 @@ class EGUIEditorEditable(val view: View, val eguiEditor: EGUIEditor, val wgpuObj
         }
     }
     override fun <T> getSpans(start: Int, end: Int, type: Class<T>?): Array<T> {
-        Timber.e("getting spans: ${type?.canonicalName}")
-
-        if (type == SuggestionSpan::class.java) {
-            Timber.e("Get suggestion span: ${suggestionSpans.map { it.span.spanTypeId }}")
-            return suggestionSpans.map { it.span }.toTypedArray() as Array<T>
-        } else {
-            return arrayOf<Any>() as Array<T>
-        }
+        return arrayOf<Any>() as Array<T>
     }
 
     override fun getSpanStart(tag: Any?): Int {
-        Timber.e("getting span: ${tag?.let { it::class.simpleName } ?: "null"}")
-
         if (tag == Selection.SELECTION_START) {
             return getSelection().first
-        } else if ((
-            tag?.let { it::class.qualifiedName }
-                ?: "null"
-            ) == "android.view.inputmethod.ComposingText"
-        ) {
-            return composingStart
         }
 
         return -1
     }
 
     override fun getSpanEnd(tag: Any?): Int {
-        Timber.e("get span end: ${tag?.let { it::class.simpleName } ?: "null"}")
-
         if (tag == Selection.SELECTION_END) {
             return getSelection().second
-        } else if ((
-            tag?.let { it::class.qualifiedName }
-                ?: "null"
-            ) == "android.view.inputmethod.ComposingText"
-        ) {
-            return composingEnd
         }
 
         return -1
     }
 
     override fun getSpanFlags(tag: Any?): Int {
-        Timber.e("get span flags: ${tag?.let { it::class.simpleName } ?: "null"}")
-
         return when (tag) {
             Selection.SELECTION_START -> selectionStartSpanFlag
             Selection.SELECTION_END -> selectionEndSpanFlag
             else -> {
-                if ((
-                    tag?.let { it::class.qualifiedName }
-                        ?: "null"
-                    ) == "android.view.inputmethod.ComposingText"
-                ) {
-                    return composingFlag
-                }
-
-                for (suggestionInfo in suggestionSpans) {
-                    if (suggestionInfo == tag) {
-                        return suggestionInfo.flags
-                    }
-                }
 
                 0
             }
@@ -510,16 +451,6 @@ class EGUIEditorEditable(val view: View, val eguiEditor: EGUIEditor, val wgpuObj
         } else if (what == Selection.SELECTION_END) {
             selectionEndSpanFlag = flags
             eguiEditor.setSelection(wgpuObj, getSelection().first, end)
-        } else if ((
-            what?.let { it::class.qualifiedName }
-                ?: "null"
-            ) == "android.view.inputmethod.ComposingText"
-        ) {
-            composingFlag = flags
-            composingStart = start
-            composingEnd = end
-        } else if (what is SuggestionSpan) {
-            suggestionSpans.add(SuggestionSpanInfo(what, start, end, flags))
         }
     }
 
