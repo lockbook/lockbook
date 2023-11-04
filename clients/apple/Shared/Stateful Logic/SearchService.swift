@@ -115,12 +115,12 @@ class SearchService: ObservableObject {
         
         lastSearchTimestamp = Int(Date().timeIntervalSince1970 * 1_000)
         let currentSearchTimestamp = lastSearchTimestamp
-
+        
         let newPathSearchTask = DispatchWorkItem {
             DispatchQueue.global(qos: .userInteractive).async {
-
+                
                 let result = self.core.searchFilePaths(input: input)
-
+                
                 DispatchQueue.main.async {
                     switch result {
                     case .success(let paths):
@@ -134,12 +134,12 @@ class SearchService: ObservableObject {
                 }
             }
         }
-
+        
         DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(200), execute: newPathSearchTask)
-
+        
         pathSearchTask = newPathSearchTask
     }
-
+    
     func openPathAtIndex(index: Int) {
         if case .SearchSuccessful(let paths) = pathSearchState,
            index < paths.count {
@@ -147,26 +147,26 @@ class SearchService: ObservableObject {
 
             DI.currentDoc.openDoc(id: paths[index].id)
             DI.currentDoc.setSelectedOpenDocById(maybeId: paths[index].id)
-
+            
             pathSearchState = .NotSearching
             pathSearchSelected = 0
         }
     }
-
+    
     func selectNextPath() {
         if case .SearchSuccessful(let paths) = pathSearchState {
             pathSearchSelected = min(paths.count - 1, pathSearchSelected + 1)
         }
     }
-
+    
     func selectPreviousPath() {
         pathSearchSelected = max(0, pathSearchSelected - 1)
     }
-
+    
     func startPathSearch() {
         pathSearchState = .Idle
     }
-
+    
     func submitSearch(id: UUID) {
         DI.currentDoc.cleanupOldDocs()
         DI.currentDoc.openDoc(id: id)
@@ -176,7 +176,7 @@ class SearchService: ObservableObject {
 
 struct FilePathInfo: Identifiable {
     let id = UUID()
-
+    
     let meta: File
     let searchResult: SearchResultItem
 }
@@ -190,7 +190,7 @@ public enum SearchResult: Identifiable {
             return id
         }
     }
-
+    
     public var score: Int {
         switch self {
         case .PathMatch(_, _, _, _, _, let score):
@@ -198,9 +198,9 @@ public enum SearchResult: Identifiable {
         case .ContentMatch(_, _, _, _, _, _, let score):
             return score
         }
-
+        
     }
-
+    
     case PathMatch(id: UUID = UUID(), meta: File, name: String, path: String, matchedIndices: [Int], score: Int)
     case ContentMatch(id: UUID = UUID(), meta: File, name: String, path: String, paragraph: String, matchedIndices: [Int], score: Int)
 }
@@ -219,3 +219,4 @@ public enum SearchPathState: Equatable {
     case Searching
     case SearchSuccessful([SearchResultItem])
 }
+

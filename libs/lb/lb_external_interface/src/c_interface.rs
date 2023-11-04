@@ -10,7 +10,6 @@ use serde::Serialize;
 use serde_json::json;
 use time::Duration;
 
-
 use lb_rs::service::search_service::{SearchRequest, SearchResult};
 use lb_rs::{
     clock, Config, FileType, ImportStatus, ShareMode, SupportedImageFormats, SyncProgress,
