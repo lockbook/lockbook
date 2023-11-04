@@ -9,6 +9,12 @@ struct CreatingFolderInfo: Identifiable {
     let maybeParent: UUID?
 }
 
+struct RenamingFolderInfo: Identifiable {
+    let id: UUID
+    let name: String
+    let parentPath: String
+}
+
 
 class SheetState: ObservableObject {
     // These can't just be a part of OutlineContextMenu because the view goes away before
@@ -24,6 +30,19 @@ class SheetState: ObservableObject {
     @Published var creatingFolderInfo: CreatingFolderInfo? {
         didSet {
             creatingFolder = creatingFolderInfo != nil
+        }
+    }
+    
+    @Published var renamingFolder: Bool = false {
+        didSet {
+            if !renamingFolder && renamingFolderInfo != nil {
+                renamingFolderInfo = nil
+            }
+        }
+    }
+    @Published var renamingFolderInfo: RenamingFolderInfo? {
+        didSet {
+            renamingFolder = renamingFolderInfo != nil
         }
     }
     

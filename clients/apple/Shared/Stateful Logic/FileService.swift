@@ -14,6 +14,8 @@ class FileService: ObservableObject {
         }
     }
     @Published var successfulAction: FileAction? = nil
+    
+    var hasRootLoaded = false
 
     // File Service keeps track of the parent being displayed on iOS. Since this functionality is not used for macOS, it is conditionally compiled.
 #if os(iOS)
@@ -161,6 +163,7 @@ class FileService: ObservableObject {
             #if os(macOS)
             idsAndFiles[id]?.name = name
             #endif
+            refresh()
             return nil
         case .failure(let error):
             switch error.kind {
@@ -267,6 +270,7 @@ class FileService: ObservableObject {
             }
         }
         openFileChecks()
+        hasRootLoaded = true
     }
 
     private func openFileChecks() {
@@ -303,7 +307,7 @@ class FileService: ObservableObject {
             
             var name = ""
             let fileExt = isDrawing ? ".draw" : ".md"
-            let namePart = isDrawing ? "untitled-drawing-" : "untitled-doc-"
+            let namePart = "untitled-"
             var attempt = 0
             
             while(true) {
