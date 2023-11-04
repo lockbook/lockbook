@@ -2,12 +2,13 @@ pub use crate::editor::{Editor, EditorResponse};
 use egui::{FontData, FontDefinitions, FontFamily, Pos2, Rect};
 use egui_wgpu_backend::wgpu;
 use egui_wgpu_backend::wgpu::CompositeAlphaMode;
-use serde::Serialize;
 use std::iter;
 use std::sync::Arc;
 use std::time::Instant;
 
-pub mod android;
+#[cfg(not(any(target_os = "ios", target_os = "macos")))]
+use serde::Serialize;
+
 pub mod appearance;
 pub mod ast;
 pub mod bounds;
@@ -26,6 +27,9 @@ pub mod unicode_segs;
 
 #[cfg(target_vendor = "apple")]
 pub mod apple;
+
+#[cfg(target_os = "android")]
+pub mod android;
 
 /// https://developer.apple.com/documentation/uikit/uitextrange
 #[repr(C)]
@@ -102,11 +106,18 @@ pub struct WgpuEditor {
     pub editor: Editor,
 }
 
+#[cfg(any(target_os = "ios", target_os = "macos"))]
 #[repr(C)]
+#[derive(Debug, Default)]
+pub struct IntegrationOutput {
+    pub redraw_in: u64,
+    pub editor_response: EditorResponse,
+}
+
+#[cfg(not(any(target_os = "ios", target_os = "macos")))]
 #[derive(Debug, Default, Serialize)]
 pub struct IntegrationOutput {
     pub redraw_in: u64,
-
     pub editor_response: EditorResponse,
 }
 

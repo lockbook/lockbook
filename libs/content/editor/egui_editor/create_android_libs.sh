@@ -1,11 +1,7 @@
 #!/bin/bash
 set -ae
 
-cargo ndk --target aarch64-linux-android --platform 22 -- build --release
-cargo ndk --target armv7-linux-androideabi --platform 22 -- build --release
-cargo ndk --target i686-linux-android --platform 22 -- build --release
-cargo ndk --target x86_64-linux-android --platform 22 -- build --release
-
+cargo ndk --target aarch64-linux-android --target armv7-linux-androideabi --target i686-linux-android --target x86_64-linux-android --platform 22 -- build --release
 cd ../../../../
 
 mkdir -p clients/android/egui-editor/src/main/jniLibs/arm64-v8a/

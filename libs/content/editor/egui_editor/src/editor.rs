@@ -1,3 +1,4 @@
+#[cfg(not(any(target_os = "ios", target_os = "macos")))]
 use serde::Serialize;
 #[cfg(any(target_os = "ios", target_os = "macos"))]
 use std::ffi::{c_char, CString};
@@ -26,7 +27,7 @@ use crate::{ast, bounds, galleys, images, register_fonts};
 
 #[cfg(any(target_os = "ios", target_os = "macos"))]
 #[repr(C)]
-#[derive(Debug, Serialize)]
+#[derive(Debug)]
 pub struct EditorResponse {
     pub text_updated: bool,
     pub potential_title: *const c_char,
