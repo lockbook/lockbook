@@ -242,6 +242,7 @@ impl RenderStyle {
             }
             RenderStyle::PlaintextLink => {
                 text_format.color = vis.link();
+                text_format.underline = Stroke { width: 1.5, color: vis.link() };
             }
             RenderStyle::Syntax => {
                 text_format.color = vis.syntax();
@@ -269,6 +270,7 @@ impl RenderStyle {
             }
             RenderStyle::Markdown(MarkdownNode::Inline(InlineNode::Link(..))) => {
                 text_format.color = vis.link();
+                text_format.underline = Stroke { width: 1.5, color: vis.link() };
             }
             RenderStyle::Markdown(MarkdownNode::Inline(InlineNode::Image(..))) => {
                 text_format.italics = true;
