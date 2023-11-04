@@ -141,7 +141,11 @@ pub fn calc(
             Some(Modification::Select {
                 region: Region::ToOffset {
                     offset: if matches!(key, Key::Home | Key::End) {
-                        Offset::To(Bound::Line)
+                        if modifiers.command {
+                            Offset::To(Bound::Doc)
+                        } else {
+                            Offset::To(Bound::Line)
+                        }
                     } else {
                         Offset::from(modifiers)
                     },
@@ -1070,6 +1074,32 @@ mod test {
     }
 
     #[test]
+    fn calc_cmd_home() {
+        assert!(matches!(
+            calc(
+                &Event::Key {
+                    key: Key::Home,
+                    pressed: true,
+                    repeat: false,
+                    modifiers: Modifiers { command: true, ..Default::default() },
+                },
+                TestClickChecker::default(),
+                &mut Default::default(),
+                Instant::now(),
+                false,
+                &Default::default()
+            ),
+            Some(Modification::Select {
+                region: Region::ToOffset {
+                    offset: Offset::To(Bound::Doc),
+                    backwards: true,
+                    extend_selection: false,
+                },
+            })
+        ));
+    }
+
+    #[test]
     fn calc_shift_home() {
         assert!(matches!(
             calc(
@@ -1088,6 +1118,32 @@ mod test {
             Some(Modification::Select {
                 region: Region::ToOffset {
                     offset: Offset::To(Bound::Line),
+                    backwards: true,
+                    extend_selection: true,
+                },
+            })
+        ));
+    }
+
+    #[test]
+    fn calc_cmd_shift_home() {
+        assert!(matches!(
+            calc(
+                &Event::Key {
+                    key: Key::Home,
+                    pressed: true,
+                    repeat: false,
+                    modifiers: Modifiers { command: true, shift: true, ..Default::default() },
+                },
+                TestClickChecker::default(),
+                &mut Default::default(),
+                Instant::now(),
+                false,
+                &Default::default()
+            ),
+            Some(Modification::Select {
+                region: Region::ToOffset {
+                    offset: Offset::To(Bound::Doc),
                     backwards: true,
                     extend_selection: true,
                 },
