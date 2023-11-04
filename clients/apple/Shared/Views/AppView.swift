@@ -18,7 +18,14 @@ struct AppView: View {
                 case .some(let root):
                     BookView(currentFolder: root, account: account)
                 case .none:
-                    Label("Please sync!", systemImage: "arrow.right.arrow.left.circle.fill")
+                    if files.hasRootLoaded {
+                        OnboardingView().onAppear {
+                            DI.onboarding.initialSyncing = true
+                            DI.sync.importSync()
+                        }
+                    } else {
+                        Label("Loading...", systemImage: "clock.arrow.circlepath")
+                    }
                 }
             }
         }

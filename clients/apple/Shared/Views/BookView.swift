@@ -25,6 +25,7 @@ struct BookView: View {
             .sheet(isPresented: $onboarding.anAccountWasCreatedThisSession, content: BeforeYouStart.init)
             .sheet(isPresented: $sheets.sharingFile, content: ShareFileSheet.init)
             .sheet(isPresented: $sheets.creatingFolder, content: NewFolderSheet.init)
+            .sheet(isPresented: $sheets.renamingFolder, content: RenameFolderSheet.init)
             .toast(isPresenting: Binding(get: { files.successfulAction != nil }, set: { _ in files.successfulAction = nil }), duration: 2, tapToDismiss: true) {
                 postFileAction()
             }

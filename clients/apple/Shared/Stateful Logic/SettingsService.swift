@@ -84,6 +84,8 @@ class SettingsService: ObservableObject {
     
     func calculateUsage() {
         DispatchQueue.global(qos: .userInteractive).async {
+            self.offline = false
+            
             switch self.core.getUsage() {
             case .success(let usages):
                 switch self.core.getUncompressedUsage() {
@@ -92,7 +94,6 @@ class SettingsService: ObservableObject {
                         self.usages = PrerequisiteInformation(serverUsages: usages, uncompressedUsage: uncompressedUsage)
                     }
                 case .failure(let err):
-                    // TODO handle an explicit offline mode here
                     switch err.kind {
                     case .UiError(let uiError):
                         switch uiError {
@@ -105,10 +106,13 @@ class SettingsService: ObservableObject {
                     default:
                         DI.errors.handleError(err)
                     }
-                    DI.errors.handleError(err)
                 }
             case .failure(let err):
-                DI.errors.handleError(err)
+                if(err.kind == .UiError(.CouldNotReachServer)) {
+                    self.offline = true
+                } else {
+                    DI.errors.handleError(err)
+                }
             }
         }
     }
