@@ -12,6 +12,9 @@ use crate::theme::{Icon, ThemePalette};
 use crate::widgets::Button;
 const ICON_SIZE: f32 = 30.0;
 const COLOR_SWATCH_BTN_RADIUS: f32 = 10.0;
+const THICKNESS_BTN_X_MARGIN: f32 = 5.0;
+const THICKNESS_BTN_WIDTH: f32 = 30.0;
+
 pub struct SVGEditor {
     svg: String,
     root: Element,
@@ -25,7 +28,8 @@ pub struct SVGEditor {
 
 struct Toolbar {
     components: Vec<Component>,
-    active_color: Option<ColorSwatchButton>,
+    active_color: Option<ColorSwatch>,
+    active_stroke_width: u32,
 }
 
 impl SVGEditor {
@@ -55,9 +59,13 @@ impl SVGEditor {
                 margin: egui::Margin::symmetric(4.0, 7.0),
             }),
             Component::Separator(egui::Margin::symmetric(10.0, 0.0)),
+            Component::StrokeWidth(3),
+            Component::StrokeWidth(6),
+            Component::StrokeWidth(9),
+            Component::Separator(egui::Margin::symmetric(10.0, 0.0)),
         ];
 
-        let toolbar = Toolbar { components, active_color: None };
+        let toolbar = Toolbar { components, active_color: None, active_stroke_width: 3 };
 
         Box::new(Self {
             svg,
@@ -154,24 +162,21 @@ impl SVGEditor {
     fn build_color_defs(&mut self, ui: &mut egui::Ui) {
         let theme_colors = ThemePalette::as_array(ui.visuals().dark_mode);
         if self.toolbar.active_color.is_none() {
-            self.toolbar.active_color = Some(ColorSwatchButton {
+            self.toolbar.active_color = Some(ColorSwatch {
                 id: "fg".to_string(),
                 color: theme_colors.iter().find(|p| p.0.eq("fg")).unwrap().1,
             });
         }
 
         let btns = theme_colors.iter().map(|theme_color| {
-            Component::ColorSwatchButton(ColorSwatchButton {
-                id: theme_color.0.clone(),
-                color: theme_color.1,
-            })
+            Component::ColorSwatch(ColorSwatch { id: theme_color.0.clone(), color: theme_color.1 })
         });
         self.toolbar.components = self
             .toolbar
             .components
             .clone()
             .into_iter()
-            .filter(|c| !matches!(c, Component::ColorSwatchButton(_)))
+            .filter(|c| !matches!(c, Component::ColorSwatch(_)))
             .chain(btns)
             .collect();
 
@@ -226,7 +231,7 @@ impl SVGEditor {
                 let path = self.path_builder.clone().finish().unwrap();
                 let data = get_path_data(path);
                 let child = Element::builder("path", "")
-                    .attr("stroke-width", 3)
+                    .attr("stroke-width", self.toolbar.active_stroke_width.to_string())
                     .attr("fill", "none")
                     .attr("id", id)
                     .attr("d", data)
@@ -283,7 +288,8 @@ fn get_path_data(path: Path) -> String {
 #[derive(Clone)]
 enum Component {
     Button(SimpleButton),
-    ColorSwatchButton(ColorSwatchButton),
+    ColorSwatch(ColorSwatch),
+    StrokeWidth(u32),
     Separator(egui::Margin),
 }
 #[derive(Clone)]
@@ -293,7 +299,7 @@ struct SimpleButton {
     margin: egui::Margin,
 }
 #[derive(Clone)]
-struct ColorSwatchButton {
+struct ColorSwatch {
     id: String,
     color: egui::Color32,
 }
@@ -306,7 +312,8 @@ impl SizableComponent for Component {
         match self {
             Component::Button(btn) => btn.margin.sum().x + ICON_SIZE,
             Component::Separator(margin) => margin.sum().x,
-            Component::ColorSwatchButton(_color_btn) => COLOR_SWATCH_BTN_RADIUS * PI,
+            Component::ColorSwatch(_color_btn) => COLOR_SWATCH_BTN_RADIUS * PI,
+            Component::StrokeWidth(_) => THICKNESS_BTN_WIDTH + THICKNESS_BTN_X_MARGIN * 2.0,
         }
     }
 }
@@ -350,21 +357,16 @@ impl Toolbar {
                         ui.add(egui::Separator::default().shrink(ui.available_height() * 0.3));
                         ui.add_space(margin.left);
                     }
-                    Component::ColorSwatchButton(btn) => {
+                    Component::ColorSwatch(btn) => {
                         let (response, painter) = ui.allocate_painter(
                             egui::vec2(COLOR_SWATCH_BTN_RADIUS * PI, ui.available_height()),
                             egui::Sense::click(),
                         );
                         if response.clicked() {
                             self.active_color =
-                                Some(ColorSwatchButton { id: btn.id.clone(), color: btn.color });
+                                Some(ColorSwatch { id: btn.id.clone(), color: btn.color });
                         }
                         if let Some(active_color) = &self.active_color {
-                            let radius = if active_color.id.eq(&btn.id) {
-                                COLOR_SWATCH_BTN_RADIUS * 1.25
-                            } else {
-                                COLOR_SWATCH_BTN_RADIUS
-                            };
                             let opacity = if active_color.id.eq(&btn.id) {
                                 1.0
                             } else if response.hovered() {
@@ -374,12 +376,58 @@ impl Toolbar {
                                 0.5
                             };
 
+                            if active_color.id.eq(&btn.id) {
+                                painter.rect_filled(
+                                    response.rect.shrink2(egui::vec2(0.0, 5.0)),
+                                    egui::Rounding::same(8.0),
+                                    btn.color.gamma_multiply(0.2),
+                                )
+                            }
                             painter.circle_filled(
                                 response.rect.center(),
-                                radius,
+                                COLOR_SWATCH_BTN_RADIUS,
                                 btn.color.gamma_multiply(opacity),
                             );
                         }
+                    }
+                    Component::StrokeWidth(thickness) => {
+                        ui.add_space(THICKNESS_BTN_X_MARGIN);
+                        let (response, painter) = ui.allocate_painter(
+                            egui::vec2(THICKNESS_BTN_WIDTH, ui.available_height()),
+                            egui::Sense::click(),
+                        );
+
+                        let rect = egui::Rect {
+                            min: egui::Pos2 {
+                                x: response.rect.left(),
+                                y: response.rect.center().y - (*thickness as f32 / 3.0),
+                            },
+                            max: egui::Pos2 {
+                                x: response.rect.right(),
+                                y: response.rect.center().y + (*thickness as f32 / 3.0),
+                            },
+                        };
+
+                        if thickness.eq(&self.active_stroke_width) {
+                            painter.rect_filled(
+                                response.rect.shrink2(egui::vec2(0.0, 5.0)),
+                                egui::Rounding::same(8.0),
+                                egui::Color32::GRAY.gamma_multiply(0.1),
+                            )
+                        }
+                        if response.clicked() {
+                            self.active_stroke_width = *thickness;
+                        }
+                        if response.hovered() {
+                            ui.output_mut(|w| w.cursor_icon = egui::CursorIcon::PointingHand);
+                        }
+
+                        painter.rect_filled(
+                            rect,
+                            egui::Rounding::same(2.0),
+                            ui.visuals().text_color().gamma_multiply(0.8),
+                        );
+                        ui.add_space(THICKNESS_BTN_X_MARGIN);
                     }
                 });
             });
