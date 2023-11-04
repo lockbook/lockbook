@@ -101,7 +101,7 @@ pub fn calc(
             // construct text format using all styles except the last (current node)
             // only actual text (not head/tail) of each element gets the actual element style
             let mut text_format = TextFormat::default();
-            for &node_idx in &text_range.ancestors[0..text_range.ancestors.len() - 1] {
+            for &node_idx in &text_range.ancestors[0..text_range.ancestors.len()] {
                 RenderStyle::Markdown(ast.nodes[node_idx].node_type.clone())
                     .apply_style(&mut text_format, appearance);
             }
@@ -136,7 +136,6 @@ pub fn calc(
                 }
                 this
             };
-            RenderStyle::Markdown(text_range.node(ast)).apply_style(&mut text_format, appearance);
             match text_range.range_type {
                 AstTextRangeType::Head => {
                     if captured {
