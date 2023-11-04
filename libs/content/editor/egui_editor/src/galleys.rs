@@ -355,7 +355,7 @@ impl GalleyInfo {
     fn annotation_offset(annotation: &Option<Annotation>, appearance: &Appearance) -> Vec2 {
         let mut offset = Vec2::ZERO;
         if let Some(Annotation::Item(_, indent_level)) = annotation {
-            offset.x = *indent_level as f32 * 20.0 + 20.0
+            offset.x = *indent_level as f32 * 20.0 + 30.0
         }
 
         if let Some(Annotation::HeadingRule) = annotation {
