@@ -132,17 +132,12 @@ impl SVGEditor {
             .load_texture("svg_image", image, egui::TextureOptions::LINEAR);
 
         egui::ScrollArea::both().show(ui, |ui| {
-            let res = ui.add(
+            ui.add(
                 egui::Image::new(
                     &texture,
                     egui::vec2(texture.size()[0] as f32, texture.size()[1] as f32),
                 )
                 .sense(egui::Sense::click()),
-            );
-            ui.painter().rect_stroke(
-                res.rect,
-                egui::Rounding::none(),
-                egui::Stroke { width: 2.0, color: egui::Color32::DEBUG_COLOR },
             );
         });
         println!("{}", utree.to_string(&usvg::XmlOptions::default()));
