@@ -1,4 +1,5 @@
 use std::borrow::BorrowMut;
+use std::f32::consts::PI;
 use std::fmt::Write;
 use std::sync::mpsc;
 
@@ -95,7 +96,7 @@ impl SVGEditor {
 
     fn render_svg(&self, ui: &mut egui::Ui) {
         let mut utree: usvg::Tree =
-            usvg::TreeParsing::from_data(&self.svg.as_bytes(), &usvg::Options::default()).unwrap();
+            usvg::TreeParsing::from_data(self.svg.as_bytes(), &usvg::Options::default()).unwrap();
         let available_rect = ui.available_rect_before_wrap();
         utree.size = utree.size.scale_to(
             usvg::Size::from_wh(available_rect.width(), available_rect.height()).unwrap(),
@@ -117,7 +118,7 @@ impl SVGEditor {
         tree.render(usvg::Transform::default(), &mut pixmap.as_mut());
         let image = egui::ColorImage::from_rgba_unmultiplied(
             [pixmap.width() as usize, pixmap.height() as usize],
-            &pixmap.data(),
+            pixmap.data(),
         );
 
         let texture = ui
@@ -170,10 +171,7 @@ impl SVGEditor {
             .components
             .clone()
             .into_iter()
-            .filter(|c| match c {
-                Component::ColorSwatchButton(_) => false,
-                _ => true,
-            })
+            .filter(|c| !matches!(c, Component::ColorSwatchButton(_)))
             .chain(btns)
             .collect();
 
@@ -273,13 +271,13 @@ fn get_path_data(path: Path) -> String {
             PathSegment::CubicTo(p0, p1, p2) => s.write_str(
                 format!("C {} {} {} {} {} {} ", p0.x, p0.y, p1.x, p1.y, p2.x, p2.y).as_str(),
             ),
-            PathSegment::Close => s.write_str(format!("Z ").as_str()),
+            PathSegment::Close => s.write_str("Z "),
         }
         .unwrap();
     }
 
     s.pop(); // ' '
-    return s;
+    s
 }
 
 #[derive(Clone)]
@@ -308,7 +306,7 @@ impl SizableComponent for Component {
         match self {
             Component::Button(btn) => btn.margin.sum().x + ICON_SIZE,
             Component::Separator(margin) => margin.sum().x,
-            Component::ColorSwatchButton(_color_btn) => COLOR_SWATCH_BTN_RADIUS * 3.14,
+            Component::ColorSwatchButton(_color_btn) => COLOR_SWATCH_BTN_RADIUS * PI,
         }
     }
 }
@@ -354,7 +352,7 @@ impl Toolbar {
                     }
                     Component::ColorSwatchButton(btn) => {
                         let (response, painter) = ui.allocate_painter(
-                            egui::vec2(COLOR_SWATCH_BTN_RADIUS * 3.14, ui.available_height()),
+                            egui::vec2(COLOR_SWATCH_BTN_RADIUS * PI, ui.available_height()),
                             egui::Sense::click(),
                         );
                         if response.clicked() {
@@ -369,15 +367,11 @@ impl Toolbar {
                             };
                             let opacity = if active_color.id.eq(&btn.id) {
                                 1.0
+                            } else if response.hovered() {
+                                ui.output_mut(|w| w.cursor_icon = egui::CursorIcon::PointingHand);
+                                0.9
                             } else {
-                                if response.hovered() {
-                                    ui.output_mut(|w| {
-                                        w.cursor_icon = egui::CursorIcon::PointingHand
-                                    });
-                                    0.9
-                                } else {
-                                    0.5
-                                }
+                                0.5
                             };
 
                             painter.circle_filled(
