@@ -67,13 +67,13 @@ pub fn calc(
             let mut removed_conflicting_list_item = false;
             let mut list_item_indent_level = 0;
             if !unapply {
-                for conflict in conflicting_styles(cursor, &style, ast, &bounds.ast) {
+                for conflict in conflicting_styles(cursor.selection, &style, ast, &bounds.ast) {
                     if let MarkdownNode::Block(BlockNode::ListItem(_, indent_level)) = conflict {
                         if !removed_conflicting_list_item {
                             list_item_indent_level = indent_level;
                             removed_conflicting_list_item = true;
                             apply_style(
-                                cursor,
+                                cursor.selection,
                                 conflict,
                                 true,
                                 buffer,
@@ -84,7 +84,7 @@ pub fn calc(
                         }
                     } else {
                         apply_style(
-                            cursor,
+                            cursor.selection,
                             conflict,
                             true,
                             buffer,
@@ -100,7 +100,15 @@ pub fn calc(
             };
 
             // apply style
-            apply_style(cursor, style.clone(), unapply, buffer, ast, &bounds.ast, &mut mutation);
+            apply_style(
+                cursor.selection,
+                style.clone(),
+                unapply,
+                buffer,
+                ast,
+                &bounds.ast,
+                &mut mutation,
+            );
 
             // modify cursor
             if current_cursor.selection.is_empty() {
@@ -589,14 +597,8 @@ fn should_unapply(
         }
 
         // look for at least one ancestor that applies the style
-        let mut styled = false;
         let mut found_list_item = false;
         for &ancestor in text_range.ancestors.iter().rev() {
-            // node type must match
-            if ast.nodes[ancestor].node_type.node_type() != style.node_type() {
-                continue;
-            }
-
             // only consider the innermost list item
             if matches!(style.node_type(), MarkdownNodeType::Block(BlockNodeType::ListItem(..))) {
                 if found_list_item {
@@ -606,48 +608,35 @@ fn should_unapply(
                 }
             }
 
-            // cursor must terminate in node's head and tail
-            if !ast.nodes[ancestor]
-                .head_range()
-                .contains_inclusive(cursor.selection.start())
-            {
-                continue;
-            }
-            if !ast.nodes[ancestor]
-                .tail_range()
-                .contains_inclusive(cursor.selection.end())
-            {
+            // node type must match
+            if ast.nodes[ancestor].node_type.node_type() != style.node_type() {
                 continue;
             }
 
-            styled = true;
-            break;
-        }
-
-        if !styled {
-            return false;
+            return true;
         }
     }
 
-    true
+    false
 }
 
 /// Returns list of nodes whose styles should be removed before applying `style`
 fn conflicting_styles(
-    cursor: Cursor, style: &MarkdownNode, ast: &Ast, ast_ranges: &AstTextRanges,
+    selection: (DocCharOffset, DocCharOffset), style: &MarkdownNode, ast: &Ast,
+    ast_ranges: &AstTextRanges,
 ) -> Vec<MarkdownNode> {
     let mut result = Vec::new();
     let mut dedup_set = HashSet::new();
-    if cursor.selection.is_empty() {
+    if selection.is_empty() {
         return result;
     }
 
     for text_range in ast_ranges {
         // skip ranges before or after the cursor
-        if text_range.range.end() <= cursor.selection.start() {
+        if text_range.range.end() <= selection.start() {
             continue;
         }
-        if cursor.selection.end() <= text_range.range.start() {
+        if selection.end() <= text_range.range.start() {
             break;
         }
 
@@ -655,17 +644,17 @@ fn conflicting_styles(
         let mut found_list_item = false;
         for &ancestor in text_range.ancestors.iter().rev() {
             let node = &ast.nodes[ancestor].node_type;
-            if node.node_type().conflicts_with(&style.node_type()) {
-                // only remove the innermost conflicting list item
-                if matches!(node.node_type(), MarkdownNodeType::Block(BlockNodeType::ListItem(..)))
-                {
-                    if found_list_item {
-                        continue;
-                    } else {
-                        found_list_item = true;
-                    }
-                }
 
+            // only remove the innermost conflicting list item
+            if matches!(node.node_type(), MarkdownNodeType::Block(BlockNodeType::ListItem(..))) {
+                if found_list_item {
+                    continue;
+                } else {
+                    found_list_item = true;
+                }
+            }
+
+            if node.node_type().conflicts_with(&style.node_type()) {
                 if dedup_set.insert(node.clone()) {
                     result.push(node.clone());
                 }
@@ -678,12 +667,12 @@ fn conflicting_styles(
 
 /// Applies or unapplies `style` to `cursor`, splitting or joining surrounding styles as necessary.
 fn apply_style(
-    cursor: Cursor, style: MarkdownNode, unapply: bool, buffer: &SubBuffer, ast: &Ast,
-    ast_ranges: &AstTextRanges, mutation: &mut Vec<SubMutation>,
+    selection: (DocCharOffset, DocCharOffset), style: MarkdownNode, unapply: bool,
+    buffer: &SubBuffer, ast: &Ast, ast_ranges: &AstTextRanges, mutation: &mut Vec<SubMutation>,
 ) {
     if buffer.is_empty() {
-        insert_head(cursor.selection.start(), style.clone(), mutation);
-        insert_tail(cursor.selection.start(), style, mutation);
+        insert_head(selection.start(), style.clone(), mutation);
+        insert_tail(selection.start(), style, mutation);
         return;
     }
 
@@ -692,15 +681,12 @@ fn apply_style(
     let mut end_range = None;
     for text_range in ast_ranges {
         // when at bound, start prefers next
-        if text_range
-            .range
-            .contains_inclusive(cursor.selection.start())
-        {
+        if text_range.range.contains_inclusive(selection.start()) {
             start_range = Some(text_range.clone());
         }
         // when at bound, end prefers previous unless selection is empty
-        if (cursor.selection.is_empty() || end_range.is_none())
-            && text_range.range.contains_inclusive(cursor.selection.end())
+        if (selection.is_empty() || end_range.is_none())
+            && text_range.range.contains_inclusive(selection.end())
         {
             end_range = Some(text_range);
         }
@@ -755,13 +741,9 @@ fn apply_style(
     if unapply {
         // if unapplying, tail or dehead node containing start to crop styled region to selection
         if let Some(last_start_ancestor) = last_start_ancestor {
-            if ast.nodes[last_start_ancestor].text_range.start() < cursor.selection.start() {
-                let offset = adjust_for_whitespace(
-                    buffer,
-                    cursor.selection.start(),
-                    style.node_type(),
-                    true,
-                );
+            if ast.nodes[last_start_ancestor].text_range.start() < selection.start() {
+                let offset =
+                    adjust_for_whitespace(buffer, selection.start(), style.node_type(), true);
                 insert_tail(offset, style.clone(), mutation);
             } else {
                 dehead_ast_node(last_start_ancestor, ast, mutation);
@@ -769,9 +751,9 @@ fn apply_style(
         }
         // if unapplying, head or detail node containing end to crop styled region to selection
         if let Some(last_end_ancestor) = last_end_ancestor {
-            if ast.nodes[last_end_ancestor].text_range.end() > cursor.selection.end() {
+            if ast.nodes[last_end_ancestor].text_range.end() > selection.end() {
                 let offset =
-                    adjust_for_whitespace(buffer, cursor.selection.end(), style.node_type(), false);
+                    adjust_for_whitespace(buffer, selection.end(), style.node_type(), false);
                 insert_head(offset, style.clone(), mutation);
             } else {
                 detail_ast_node(last_end_ancestor, ast, mutation);
@@ -780,15 +762,13 @@ fn apply_style(
     } else {
         // if applying, head start and/or tail end to extend styled region to selection
         if last_start_ancestor.is_none() {
-            let offset =
-                adjust_for_whitespace(buffer, cursor.selection.start(), style.node_type(), false)
-                    .min(cursor.selection.end());
+            let offset = adjust_for_whitespace(buffer, selection.start(), style.node_type(), false)
+                .min(selection.end());
             insert_head(offset, style.clone(), mutation)
         }
         if last_end_ancestor.is_none() {
-            let offset =
-                adjust_for_whitespace(buffer, cursor.selection.end(), style.node_type(), true)
-                    .max(cursor.selection.start());
+            let offset = adjust_for_whitespace(buffer, selection.end(), style.node_type(), true)
+                .max(selection.start());
             insert_tail(offset, style.clone(), mutation)
         }
     }
