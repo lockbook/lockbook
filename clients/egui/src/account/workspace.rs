@@ -395,7 +395,7 @@ impl super::AccountScreen {
                             TabContent::Svg(svg) => {
                                 svg.show(ui);
                                 tab.last_changed = Instant::now();
-                            },
+                            }
                         };
                     } else {
                         ui.spinner();
