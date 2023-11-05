@@ -14,7 +14,7 @@ const ICON_SIZE: f32 = 30.0;
 const COLOR_SWATCH_BTN_RADIUS: f32 = 9.0;
 const THICKNESS_BTN_X_MARGIN: f32 = 5.0;
 const THICKNESS_BTN_WIDTH: f32 = 30.0;
-pub const INITIAL_SVG_CONTENT: &str = "<svg xmlns=\"http://www.w3.org/2000/svg\" ></svg>";
+const INITIAL_SVG_CONTENT: &str = "<svg xmlns=\"http://www.w3.org/2000/svg\" ></svg>";
 const ZOOM_STOP: f32 = 0.1;
 
 pub struct SVGEditor {
