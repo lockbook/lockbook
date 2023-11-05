@@ -14,16 +14,20 @@ const ICON_SIZE: f32 = 30.0;
 const COLOR_SWATCH_BTN_RADIUS: f32 = 9.0;
 const THICKNESS_BTN_X_MARGIN: f32 = 5.0;
 const THICKNESS_BTN_WIDTH: f32 = 30.0;
+pub const INITIAL_SVG_CONTENT: &str = "<svg xmlns=\"http://www.w3.org/2000/svg\" ></svg>";
+const ZOOM_STOP: f32 = 0.1;
 
 pub struct SVGEditor {
-    svg: String,
+    pub content: String,
     root: Element,
     draw_rx: mpsc::Receiver<(egui::Pos2, usize)>,
     draw_tx: mpsc::Sender<(egui::Pos2, usize)>,
     path_builder: PathBuilder,
+    zoom_factor: f32,
     id_counter: usize,
     toolbar: Toolbar,
     inner_rect: egui::Rect,
+    sao_offset: egui::Vec2,
 }
 
 struct Toolbar {
@@ -37,25 +41,43 @@ impl SVGEditor {
         let (draw_tx, draw_rx) = mpsc::channel();
 
         // todo: handle invalid utf8
-        let svg = std::str::from_utf8(bytes).unwrap().to_string();
-
-        let root: Element = svg.parse().unwrap();
+        let mut content = std::str::from_utf8(bytes).unwrap().to_string();
+        if content.is_empty() {
+            content = INITIAL_SVG_CONTENT.to_string();
+        }
+        println!("{}", content);
+        let root: Element = content.parse().unwrap();
 
         let components = vec![
             Component::Button(SimpleButton {
                 icon: Icon::UNDO,
                 callback: || {},
                 margin: egui::Margin::symmetric(4.0, 7.0),
+                coming_soon_text: Some(
+                    "Undo/Redo will be added in the next version. Stay Tuned!".to_string(),
+                ),
             }),
             Component::Button(SimpleButton {
                 icon: Icon::REDO,
                 callback: || {},
                 margin: egui::Margin::symmetric(4.0, 7.0),
+                coming_soon_text: Some(
+                    "Undo/Redo will be added in the next version. Stay Tuned!".to_string(),
+                ),
             }),
             Component::Separator(egui::Margin::symmetric(10.0, 0.0)),
             Component::Button(SimpleButton {
                 icon: Icon::BRUSH,
                 callback: || {},
+                coming_soon_text: None,
+                margin: egui::Margin::symmetric(4.0, 7.0),
+            }),
+            Component::Button(SimpleButton {
+                icon: Icon::ERASER,
+                callback: || {},
+                coming_soon_text: Some(
+                    "Eraser will be added in the next version. Stay Tuned!".to_string(),
+                ),
                 margin: egui::Margin::symmetric(4.0, 7.0),
             }),
             Component::Separator(egui::Margin::symmetric(10.0, 0.0)),
@@ -68,14 +90,16 @@ impl SVGEditor {
         let toolbar = Toolbar { components, active_color: None, active_stroke_width: 3 };
 
         Box::new(Self {
-            svg,
+            content,
             draw_rx,
             draw_tx,
             id_counter: 0,
             root,
             toolbar,
+            sao_offset: egui::vec2(0.0, 0.0),
             path_builder: PathBuilder::new(),
             inner_rect: egui::Rect::NOTHING,
+            zoom_factor: 1.0,
         })
     }
 
@@ -102,9 +126,16 @@ impl SVGEditor {
         });
     }
 
-    fn render_svg(&self, ui: &mut egui::Ui) {
+    pub fn get_minimal_content(&self) -> String {
+        let utree: usvg::Tree =
+            usvg::TreeParsing::from_data(self.content.as_bytes(), &usvg::Options::default())
+                .unwrap();
+        utree.to_string(&usvg::XmlOptions::default())
+    }
+    fn render_svg(&mut self, ui: &mut egui::Ui) {
         let mut utree: usvg::Tree =
-            usvg::TreeParsing::from_data(self.svg.as_bytes(), &usvg::Options::default()).unwrap();
+            usvg::TreeParsing::from_data(self.content.as_bytes(), &usvg::Options::default())
+                .unwrap();
         let available_rect = ui.available_rect_before_wrap();
         utree.size = Size::from_wh(available_rect.width(), available_rect.height()).unwrap();
 
@@ -131,16 +162,21 @@ impl SVGEditor {
             .ctx()
             .load_texture("svg_image", image, egui::TextureOptions::LINEAR);
 
-        egui::ScrollArea::both().show(ui, |ui| {
-            ui.add(
-                egui::Image::new(
-                    &texture,
-                    egui::vec2(texture.size()[0] as f32, texture.size()[1] as f32),
-                )
-                .sense(egui::Sense::click()),
-            );
-        });
-        println!("{}", utree.to_string(&usvg::XmlOptions::default()));
+        self.sao_offset = egui::ScrollArea::both()
+            .show(ui, |ui| {
+                ui.add(
+                    egui::Image::new(
+                        &texture,
+                        egui::vec2(
+                            texture.size()[0] as f32 * self.zoom_factor,
+                            texture.size()[1] as f32 * self.zoom_factor,
+                        ),
+                    )
+                    .sense(egui::Sense::click()),
+                );
+            })
+            .state
+            .offset;
     }
 
     fn define_dynamic_colors(&mut self, ui: &mut egui::Ui) {
@@ -197,8 +233,8 @@ impl SVGEditor {
 
             let mut buffer = Vec::new();
             self.root.write_to(&mut buffer).unwrap();
-            self.svg = std::str::from_utf8(&buffer).unwrap().to_string();
-            self.svg = self.svg.replace("xmlns='' ", "");
+            self.content = std::str::from_utf8(&buffer).unwrap().to_string();
+            self.content = self.content.replace("xmlns='' ", "");
         });
     }
 
@@ -212,7 +248,6 @@ impl SVGEditor {
                 }
             });
 
-            // let a = current_path.unwrap().to;
             if let Some(node) = current_path.as_mut() {
                 self.path_builder.line_to(pos.x, pos.y);
                 let path = self.path_builder.clone().finish().unwrap();
@@ -235,6 +270,8 @@ impl SVGEditor {
                 let child = Element::builder("path", "")
                     .attr("stroke-width", self.toolbar.active_stroke_width.to_string())
                     .attr("fill", "none")
+                    .attr("stroke-linejoin", "round")
+                    .attr("stroke-linecap", "round")
                     .attr("id", id)
                     .attr("d", data)
                     .build();
@@ -245,18 +282,31 @@ impl SVGEditor {
             let mut buffer = Vec::new();
 
             self.root.write_to(&mut buffer).unwrap();
-            self.svg = std::str::from_utf8(&buffer).unwrap().to_string();
-            self.svg = self.svg.replace("xmlns='' ", "");
-
-            // println!("{}", self.svg);
+            self.content = std::str::from_utf8(&buffer).unwrap().to_string();
+            self.content = self.content.replace("xmlns='' ", "");
         }
     }
 
     fn setup_draw_events(&mut self, ui: &mut egui::Ui) {
-        if let Some(cursor_pos) = ui.ctx().pointer_hover_pos() {
+        if let Some(mut cursor_pos) = ui.ctx().pointer_hover_pos() {
             if !self.inner_rect.contains(cursor_pos) || !ui.is_enabled() {
                 return;
             }
+
+            if ui.input_mut(|i| i.consume_key(egui::Modifiers::CTRL, egui::Key::PlusEquals)) {
+                self.zoom_factor += ZOOM_STOP;
+            }
+
+            if ui.input_mut(|i| i.consume_key(egui::Modifiers::CTRL, egui::Key::Minus)) {
+                self.zoom_factor -= ZOOM_STOP;
+            }
+
+            println!("{:#?}", self.sao_offset);
+            println!("{:#?}", cursor_pos);
+
+            cursor_pos.x = (cursor_pos.x + self.sao_offset.x) / self.zoom_factor;
+            cursor_pos.y = (cursor_pos.y + self.sao_offset.y) / self.zoom_factor;
+
             if ui.input(|i| i.pointer.primary_down()) {
                 self.draw_tx.send((cursor_pos, self.id_counter)).unwrap();
             }
@@ -300,6 +350,7 @@ struct SimpleButton {
     icon: Icon,
     callback: fn(),
     margin: egui::Margin,
+    coming_soon_text: Option<String>,
 }
 #[derive(Clone)]
 struct ColorSwatch {
@@ -350,8 +401,14 @@ impl Toolbar {
                         egui::Frame::default()
                             .inner_margin(btn.margin)
                             .show(ui, |ui| {
-                                if Button::default().icon(&btn.icon).show(ui).clicked() {
+                                let btn_res = Button::default().icon(&btn.icon).show(ui);
+
+                                if btn_res.clicked() {
                                     (btn.callback)();
+                                }
+
+                                if let Some(tooltip_text) = &btn.coming_soon_text {
+                                    btn_res.on_hover_text(tooltip_text);
                                 }
                             });
                     }

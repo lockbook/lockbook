@@ -31,6 +31,7 @@ impl Icon {
     pub const DRAW: Self = ic("\u{e746}"); // Draw
     pub const EDIT: Self = ic("\u{e254}"); // Mode Edit
     pub const EMPTY_INBOX: Self = ic("\u{f07e}"); // Upcoming
+    pub const ERASER: Self = ic("\u{e16c}"); // Upcoming
     pub const DELETE: Self = ic("\u{e872}"); // Delete
     pub const FOLDER: Self = ic("\u{e2c7}"); // Folder
     pub const FOLDER_OPEN: Self = ic("\u{e2c8}"); // Folder Open

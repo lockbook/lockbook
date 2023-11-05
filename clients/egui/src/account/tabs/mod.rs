@@ -11,6 +11,7 @@ pub use markdown::Markdown;
 pub use pdf_viewer::PdfViewer;
 pub use plain_text::PlainText;
 pub use svg_editor::SVGEditor;
+pub use svg_editor::INITIAL_SVG_CONTENT;
 
 use std::time::Instant;
 
@@ -46,6 +47,7 @@ impl Tab {
                     Some(SaveRequestContent::Text(md.editor.buffer.current.text.clone()))
                 }
                 TabContent::PlainText(txt) => Some(SaveRequestContent::Text(txt.content.clone())),
+                TabContent::Svg(svg) => Some(SaveRequestContent::Text(svg.get_minimal_content())),
                 _ => None,
             };
             maybe_save_content.map(|content| SaveRequest { id: self.id, content })

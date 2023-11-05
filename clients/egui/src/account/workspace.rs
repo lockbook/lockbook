@@ -263,7 +263,7 @@ impl super::AccountScreen {
                 .show(ui)
                 .clicked()
             {
-                self.create_file();
+                self.create_file(false);
             }
             ui.visuals_mut().widgets.inactive.fg_stroke =
                 egui::Stroke { color: ui.visuals().widgets.active.bg_fill, ..Default::default() };
@@ -392,7 +392,10 @@ impl super::AccountScreen {
                             TabContent::PlainText(txt) => txt.show(ui),
                             TabContent::Image(img) => img.show(ui),
                             TabContent::Pdf(pdf) => pdf.show(ui),
-                            TabContent::Svg(svg) => svg.show(ui),
+                            TabContent::Svg(svg) => {
+                                svg.show(ui);
+                                tab.last_changed = Instant::now();
+                            },
                         };
                     } else {
                         ui.spinner();
@@ -411,6 +414,7 @@ impl super::AccountScreen {
     pub fn save_tab(&self, ctx: &egui::Context, i: usize) {
         if let Some(tab) = self.workspace.tabs.get(i) {
             if tab.is_dirty() {
+                println!("saving");
                 if let Some(save_req) = tab.make_save_request() {
                     let core = self.core.clone();
                     let update_tx = self.update_tx.clone();

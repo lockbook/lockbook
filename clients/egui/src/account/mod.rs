@@ -33,6 +33,7 @@ use self::tabs::{
 };
 use self::tree::{FileTree, TreeNode};
 use self::workspace::Workspace;
+use crate::account::tabs::INITIAL_SVG_CONTENT;
 
 pub struct AccountScreen {
     ctx: egui::Context,
@@ -387,7 +388,7 @@ impl AccountScreen {
         }
         // Ctrl-N pressed while new file modal is not open.
         if ctx.input_mut(|i| i.consume_key(CTRL, egui::Key::N)) {
-            self.create_file();
+            self.create_file(false);
         }
 
         // Ctrl-S to save current tab.
@@ -483,7 +484,11 @@ impl AccountScreen {
             .inner;
 
         if resp.new_file.is_some() {
-            self.create_file();
+            self.create_file(false);
+        }
+
+        if resp.new_drawing.is_some() {
+            self.create_file(true);
         }
 
         if let Some(file) = resp.new_folder_modal {
@@ -715,7 +720,7 @@ impl AccountScreen {
         });
     }
 
-    fn create_file(&mut self) {
+    fn create_file(&mut self, is_drawing: bool) {
         let mut focused_parent = self.tree.root.file.id;
         for id in self.tree.state.selected.drain() {
             focused_parent = id;
@@ -731,13 +736,13 @@ impl AccountScreen {
                 focused_parent.id
             };
 
-            let new_file = NameComponents::from("untitled.md")
+            let file_format = if is_drawing { "svg" } else { "md" };
+            let new_file = NameComponents::from(&format!("untitled.{}", file_format))
                 .next_in_children(core.get_children(focused_parent).unwrap());
 
             let result = core
                 .create_file(new_file.to_name().as_str(), focused_parent, lb::FileType::Document)
                 .map_err(|err| format!("{:?}", err));
-
             update_tx.send(AccountUpdate::FileCreated(result)).unwrap();
         });
     }
