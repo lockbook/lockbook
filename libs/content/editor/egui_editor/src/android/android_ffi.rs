@@ -163,9 +163,7 @@ pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_sendKeyEvent(
 
     obj.raw_input.modifiers = modifiers;
 
-    let Some(key) = AndroidKeys::from(key_code) else {
-        return
-    };
+    let Some(key) = AndroidKeys::from(key_code) else { return };
 
     if pressed == 1 && (modifiers.shift_only() || modifiers.is_none()) && key.valid_text() {
         let text: String = match env.get_string(&content) {
