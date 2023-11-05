@@ -51,7 +51,6 @@ impl SVGEditor {
         let components = vec![
             Component::Button(SimpleButton {
                 icon: Icon::UNDO,
-                callback: || {},
                 margin: egui::Margin::symmetric(4.0, 7.0),
                 coming_soon_text: Some(
                     "Undo/Redo will be added in the next version. Stay Tuned!".to_string(),
@@ -59,7 +58,6 @@ impl SVGEditor {
             }),
             Component::Button(SimpleButton {
                 icon: Icon::REDO,
-                callback: || {},
                 margin: egui::Margin::symmetric(4.0, 7.0),
                 coming_soon_text: Some(
                     "Undo/Redo will be added in the next version. Stay Tuned!".to_string(),
@@ -68,13 +66,11 @@ impl SVGEditor {
             Component::Separator(egui::Margin::symmetric(10.0, 0.0)),
             Component::Button(SimpleButton {
                 icon: Icon::BRUSH,
-                callback: || {},
                 coming_soon_text: None,
                 margin: egui::Margin::symmetric(4.0, 7.0),
             }),
             Component::Button(SimpleButton {
                 icon: Icon::ERASER,
-                callback: || {},
                 coming_soon_text: Some(
                     "Eraser will be added in the next version. Stay Tuned!".to_string(),
                 ),
@@ -348,7 +344,6 @@ enum Component {
 #[derive(Clone)]
 struct SimpleButton {
     icon: Icon,
-    callback: fn(),
     margin: egui::Margin,
     coming_soon_text: Option<String>,
 }
@@ -402,10 +397,6 @@ impl Toolbar {
                             .inner_margin(btn.margin)
                             .show(ui, |ui| {
                                 let btn_res = Button::default().icon(&btn.icon).show(ui);
-
-                                if btn_res.clicked() {
-                                    (btn.callback)();
-                                }
 
                                 if let Some(tooltip_text) = &btn.coming_soon_text {
                                     btn_res.on_hover_text(tooltip_text);

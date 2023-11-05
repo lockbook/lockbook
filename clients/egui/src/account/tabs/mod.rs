@@ -11,7 +11,6 @@ pub use markdown::Markdown;
 pub use pdf_viewer::PdfViewer;
 pub use plain_text::PlainText;
 pub use svg_editor::SVGEditor;
-pub use svg_editor::INITIAL_SVG_CONTENT;
 
 use std::time::Instant;
 
