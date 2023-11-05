@@ -90,7 +90,8 @@ impl SVGEditor {
                 id
             })
             .max_by(|x, y| x.cmp(&y))
-            .unwrap_or_default() + 1;
+            .unwrap_or_default()
+            + 1;
 
         Box::new(Self {
             content,
