@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
-    xmlns:tools="http://schemas.android.com/tools"
     android:id="@+id/text_editor_layout"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
@@ -21,109 +20,161 @@
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:fillViewport="true"
-        app:layout_constraintBottom_toTopOf="@+id/markdown_toolbar"
+        app:layout_constraintBottom_toTopOf="@+id/markdown_toolbar_scrollview"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/text_editor_toolbar">
 
-        <com.google.android.material.textfield.TextInputEditText
-            android:id="@+id/text_editor_text_field"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_gravity="center_horizontal"
-            android:minWidth="900sp"
-            android:maxWidth="900sp"
-            android:gravity="top|start"
-            android:hint="@string/text_editor_hint"
-            android:importantForAutofill="no"
-            android:inputType="textMultiLine|textCapSentences"
-            android:textAppearance="@style/TextAppearance.Material3.BodyMedium"
-            style="@style/Widget.Material3.TextInputEditText.OutlinedBox.Dense"
-            android:freezesText="true" />
-
     </ScrollView>
+
+    <HorizontalScrollView
+        android:id="@+id/markdown_toolbar_scrollview"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent">
 
         <LinearLayout
             android:id="@+id/markdown_toolbar"
-            android:layout_width="match_parent"
+            android:layout_width="0dp"
             android:layout_height="40dp"
-            android:orientation="horizontal"
-            android:gravity="center"
-            android:visibility="gone"
-            app:layout_constraintBottom_toBottomOf="parent"
-            android:layout_marginBottom="5dp">
+            android:layout_marginVertical="5dp"
+            android:orientation="horizontal">
 
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/menu_markdown_title"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    style="@style/Widget.Material3.Button.IconButton"
-                    android:contentDescription="@string/menu_markdown_title"
-                    app:icon="@drawable/ic_baseline_title_24" />
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/menu_markdown_title"
+                style="@style/Widget.Material3.Button.IconButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:contentDescription="@string/menu_markdown_title"
+                app:icon="@drawable/ic_baseline_title_24" />
 
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/menu_markdown_bold"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    style="@style/Widget.Material3.Button.IconButton"
-                    android:contentDescription="@string/menu_markdown_bold"
-                    app:icon="@drawable/ic_baseline_format_bold_24" />
+            <View
+                android:layout_width="2dp"
+                android:layout_height="match_parent"
+                android:layout_marginVertical="10dp"
+                android:background="?android:attr/listDivider"
+                android:layout_marginHorizontal="10dp"/>
 
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/menu_markdown_italics"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    style="@style/Widget.Material3.Button.IconButton"
-                    android:contentDescription="@string/menu_markdown_italics"
-                    app:icon="@drawable/ic_baseline_format_italic_24" />
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/menu_markdown_bold"
+                style="@style/Widget.Material3.Button.IconButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:contentDescription="@string/menu_markdown_bold"
+                app:icon="@drawable/ic_baseline_format_bold_24" />
 
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/menu_markdown_image"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    style="@style/Widget.Material3.Button.IconButton"
-                    android:contentDescription="@string/menu_markdown_image"
-                    app:icon="@drawable/ic_outline_image_24" />
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/menu_markdown_italic"
+                style="@style/Widget.Material3.Button.IconButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:contentDescription="@string/menu_markdown_italic"
+                app:icon="@drawable/ic_baseline_format_italic_24" />
 
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/menu_markdown_link"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    style="@style/Widget.Material3.Button.IconButton"
-                    android:contentDescription="@string/menu_markdown_link"
-                    app:icon="@drawable/ic_baseline_link_24" />
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/menu_markdown_code"
+                style="@style/Widget.Material3.Button.IconButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:contentDescription="@string/menu_markdown_code"
+                app:icon="@drawable/ic_baseline_code_24" />
 
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/menu_markdown_code"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    style="@style/Widget.Material3.Button.IconButton"
-                    android:contentDescription="@string/menu_markdown_code"
-                    app:icon="@drawable/ic_baseline_code_24" />
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/menu_markdown_strikethrough"
+                style="@style/Widget.Material3.Button.IconButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:contentDescription="@string/menu_markdown_strikethrough"
+                app:icon="@drawable/baseline_strikethrough_s_24" />
+
+            <View
+                android:layout_width="2dp"
+                android:layout_height="match_parent"
+                android:layout_marginVertical="10dp"
+                android:background="?android:attr/listDivider"
+                android:layout_marginHorizontal="10dp" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/menu_markdown_number_list"
+                style="@style/Widget.Material3.Button.IconButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:contentDescription="@string/menu_markdown_number_list"
+                app:icon="@drawable/baseline_format_list_numbered_24" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/menu_markdown_bullet_list"
+                style="@style/Widget.Material3.Button.IconButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:contentDescription="@string/menu_markdown_bullet_list"
+                app:icon="@drawable/baseline_format_list_bulleted_24" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/menu_markdown_todo_list"
+                style="@style/Widget.Material3.Button.IconButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:contentDescription="@string/menu_markdown_todo_list"
+                app:icon="@drawable/baseline_checklist_24" />
+
+            <View
+                android:layout_width="2dp"
+                android:layout_height="match_parent"
+                android:layout_marginVertical="10dp"
+                android:background="?android:attr/listDivider"
+                android:layout_marginHorizontal="10dp" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/menu_markdown_indent"
+                style="@style/Widget.Material3.Button.IconButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:contentDescription="@string/menu_markdown_indent"
+                app:icon="@drawable/baseline_format_indent_increase_24" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/menu_markdown_deindent"
+                style="@style/Widget.Material3.Button.IconButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:contentDescription="@string/menu_markdown_deindent"
+                app:icon="@drawable/baseline_format_indent_decrease_24" />
+
+            <View
+                android:layout_width="2dp"
+                android:layout_height="match_parent"
+                android:layout_marginVertical="10dp"
+                android:background="?android:attr/listDivider"
+                android:layout_marginHorizontal="10dp" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/menu_markdown_cut"
+                style="@style/Widget.Material3.Button.IconButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:contentDescription="@string/editor_cut"
+                app:icon="@drawable/baseline_content_cut_24" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/menu_markdown_copy"
+                style="@style/Widget.Material3.Button.IconButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:contentDescription="@string/editor_copy"
+                app:icon="@drawable/baseline_content_copy_24" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/menu_markdown_paste"
+                style="@style/Widget.Material3.Button.IconButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:contentDescription="@string/editor_paste"
+                app:icon="@drawable/baseline_content_paste_24" />
 
         </LinearLayout>
-
-    <ScrollView
-        android:id="@+id/markdown_viewer_scroller"
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_margin="15dp"
-        android:visibility="gone"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/text_editor_toolbar">
-
-        <com.google.android.material.textview.MaterialTextView
-            android:id="@+id/markdown_viewer"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_gravity="center_horizontal"
-            android:minWidth="900sp"
-            android:maxWidth="900sp"
-            android:textIsSelectable="true"
-            android:gravity="top|start" />
-
-    </ScrollView>
+    </HorizontalScrollView>
 
 </androidx.constraintlayout.widget.ConstraintLayout>

@@ -26,7 +26,6 @@
     <string name="biometric_recommended">Protect key export with biometrics (recommended)</string>
     <string name="biometric_strict">Use biometrics every time you open the app (strict mode)</string>
 
-    <string name="menu_text_editor_view_md">View Markdown</string>
     <string name="menu_text_editor_redo">Redo</string>
     <string name="menu_text_editor_undo">Undo</string>
 
@@ -65,12 +64,19 @@
     <string name="dialog_rename_file_title">Rename File</string>
     <string name="popup_info_title">File Info</string>
     <string name="move_file_title">Move File</string>
-    <string name="menu_markdown_link">Insert link</string>
+
     <string name="menu_markdown_code">Insert code</string>
-    <string name="menu_markdown_italics">Format italics</string>
+    <string name="menu_markdown_strikethrough">Insert strikethrough</string>
+    <string name="menu_markdown_italic">Format italic</string>
     <string name="menu_markdown_bold">Insert bold text</string>
     <string name="menu_markdown_title">Insert title</string>
-    <string name="menu_markdown_image">Insert image</string>
+    <string name="menu_markdown_number_list">Insert number list</string>
+    <string name="menu_markdown_bullet_list">Insert bullet list</string>
+    <string name="menu_markdown_todo_list">Insert todo List</string>
+
+    <string name="menu_markdown_indent">Indent</string>
+    <string name="menu_markdown_deindent">Deindent</string>
+
     <string name="cancel">Cancel</string>
     <string name="confirm">Confirm</string>
     <string name="move_file_move">Move</string>
@@ -82,7 +88,6 @@
     <string name="delete_shared_1_message">Are you sure you want to reject \"%1$s\"?</string>
     <string name="delete_shared_message">Are you sure you want to reject %d files?</string>
 
-    <string name="text_editor_hint">Type here</string>
     <string name="rename_file_rename">Rename</string>
     <string name="create">Create</string>
     <string name="dialog_file_extension">Ext.</string>
@@ -302,6 +307,13 @@
     <string name="no_access_mode">Please choose an access mode.</string>
     <string name="reject_pending_share">Reject pending share</string>
     <string name="accept_pending_share">Accept pending share</string>
+    <string name="heading_1">Heading 1</string>
+    <string name="heading_2">Heading 2</string>
+    <string name="heading_3">Heading 3</string>
+    <string name="heading_4">Heading 4</string>
+    <string name="editor_cut">Cut</string>
+    <string name="editor_copy">Copy</string>
+    <string name="editor_paste">Paste</string>
 
     <array name="share_mode">
         <item>@string/share_mode_read</item>

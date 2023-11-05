@@ -1,6 +1,7 @@
 package app.lockbook.core
 
 external fun init(config: String): String
+external fun getCorePtr(): Long
 
 // account
 external fun createAccount(username: String, apiUrl: String): String

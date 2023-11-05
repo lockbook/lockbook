@@ -1,3 +1,5 @@
+#[cfg(not(any(target_os = "ios", target_os = "macos")))]
+use serde::Serialize;
 #[cfg(any(target_os = "ios", target_os = "macos"))]
 use std::ffi::{c_char, CString};
 #[cfg(any(target_os = "ios", target_os = "macos"))]
@@ -51,7 +53,7 @@ pub struct EditorResponse {
 // two structs are used instead of conditional compilation (`cfg`) for `potential_title` because the header
 // files generated for Swift will include both types of `potential_title`. this causes compilation issues in Swift.
 #[cfg(not(any(target_os = "ios", target_os = "macos")))]
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct EditorResponse {
     pub text_updated: bool,
     pub potential_title: Option<String>,
@@ -70,6 +72,9 @@ pub struct EditorResponse {
     pub cursor_in_italic: bool,
     pub cursor_in_inline_code: bool,
     pub cursor_in_strikethrough: bool,
+
+    #[cfg(target_os = "android")]
+    pub opened_url: Option<String>,
 }
 
 impl Default for EditorResponse {
@@ -98,6 +103,9 @@ impl Default for EditorResponse {
 
             #[cfg(any(target_os = "ios", target_os = "macos"))]
             opened_url: ptr::null(),
+
+            #[cfg(target_os = "android")]
+            opened_url: None,
         }
     }
 }
@@ -436,6 +444,10 @@ impl Editor {
                     .expect("Could not Rust String -> C String")
                     .into_raw() as *const c_char,
             };
+        }
+        #[cfg(target_os = "android")]
+        {
+            result.opened_url = self.maybe_opened_url.clone();
         }
 
         // determine styles at cursor location

@@ -5,61 +5,66 @@ import android.os.Handler
 import android.os.Looper
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
+import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.viewModelScope
+import app.lockbook.egui_editor.EditorResponse
 import app.lockbook.util.*
 import com.github.michaelbull.result.Err
 import kotlinx.coroutines.*
 
-class TextEditorViewModel(application: Application, val fileMetadata: File, private val text: String, textSize: Float) :
+class TextEditorViewModel(application: Application, val fileMetadata: File, private val text: String) :
     AndroidViewModel(application) {
 
     private val handler = Handler(Looper.myLooper()!!)
     var lastEdit = 0L
-    val editHistory = EditTextModel.EditHistory()
+    var isDirty = false
+    var currentContent = text
 
-    private val _content = SingleMutableLiveData<String>()
+    var savedCursorStart = -1
+    var savedCursorEnd = -1
+
+    private val _updateContent = MutableLiveData<Unit>()
     private val _notifyError = SingleMutableLiveData<LbError>()
+    val _editorUpdate = MutableLiveData<EditorResponse>()
 
     val notifyError: LiveData<LbError>
         get() = _notifyError
 
-    val content: LiveData<String>
-        get() = _content
+    val updateContent: LiveData<Unit>
+        get() = _updateContent
 
-    val markdownModel = if (fileMetadata.name.endsWith(".md")) {
-        MarkdownModel(getApplication(), textSize)
-    } else {
-        null
-    }
+    val editorUpdate: LiveData<EditorResponse>
+        get() = _editorUpdate
 
     init {
         setUpTextView()
     }
 
     private fun setUpTextView() {
-        _content.postValue(text)
+        _updateContent.postValue(Unit)
     }
 
     fun waitAndSaveContents(content: String) {
-        editHistory.isDirty = true
+        currentContent = content
+        isDirty = true
         lastEdit = System.currentTimeMillis()
         val currentEdit = lastEdit
 
         handler.postDelayed(
             {
                 viewModelScope.launch(Dispatchers.IO) {
-                    if (currentEdit == lastEdit && editHistory.isDirty) {
+                    if (currentEdit == lastEdit && isDirty) {
                         val writeToDocumentResult =
                             CoreModel.writeToDocument(fileMetadata.id, content)
                         if (writeToDocumentResult is Err) {
                             _notifyError.postValue(writeToDocumentResult.error.toLbError(getRes()))
                         } else {
-                            editHistory.isDirty = false
+                            isDirty = false
                         }
                     }
                 }
             },
-            5000
+            500
         )
     }
 }

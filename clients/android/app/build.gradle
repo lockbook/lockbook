@@ -83,6 +83,8 @@ task printVersionCode {
 dependencies {
     implementation fileTree(dir: 'libs', include: ['*.jar'])
 
+    implementation "org.jetbrains.kotlin:kotlin-stdlib:$core_ktx_version"
+
     // Ui Libraries
     implementation "com.google.android.material:material:$material_ui_version"
     implementation "androidx.preference:preference-ktx:$preference_version"
@@ -101,7 +103,6 @@ dependencies {
     // Serialization
     implementation "org.jetbrains.kotlinx:kotlinx-serialization-json:$json_parser_version"
     implementation "org.jetbrains.kotlin:kotlin-reflect:$kotlin_reflect"
-
 
     // Android KTX
     implementation "androidx.core:core-ktx:$core_ktx_version"
@@ -140,4 +141,5 @@ dependencies {
     implementation "com.android.billingclient:billing-ktx:$billing_version"
 
     implementation project(':lb-rs')
+    implementation project(':egui-editor')
 }

@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <item
+        android:id="@+id/menu_title_1"
+        android:title="@string/heading_1"
+        android:orderInCategory="1" />
+
+    <item
+        android:id="@+id/menu_title_2"
+        android:title="@string/heading_2"
+        android:orderInCategory="2" />
+
+    <item
+        android:id="@+id/menu_title_3"
+        android:title="@string/heading_3"
+        android:orderInCategory="3"/>
+
+    <item
+        android:id="@+id/menu_title_4"
+        android:title="@string/heading_4"
+        android:orderInCategory="4"/>
+</menu>

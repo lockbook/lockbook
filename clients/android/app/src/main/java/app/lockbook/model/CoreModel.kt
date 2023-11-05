@@ -53,6 +53,8 @@ object CoreModel {
     fun init(config: Config): Result<Unit, CoreError<InitError>> =
         setUpInitLoggerParser.tryParse(app.lockbook.core.init(setUpInitLoggerParser.encodeToString(config)))
 
+    fun getPtr(): Long = app.lockbook.core.getCorePtr()
+
     private val createAccountParser = Json {
         serializersModule = SerializersModule {
             createPolyRelation(Account.serializer(), CreateAccountError.serializer())
