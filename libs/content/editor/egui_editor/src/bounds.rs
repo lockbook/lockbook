@@ -317,6 +317,10 @@ impl Bounds {
             .find(|(_, &range)| char_offset < range.end())
             .map(|(idx, _)| idx)
     }
+
+    pub fn ast_ranges(&self) -> Vec<(DocCharOffset, DocCharOffset)> {
+        self.ast.iter().map(|text_range| text_range.range).collect()
+    }
 }
 
 pub enum BoundCase {
@@ -784,6 +788,31 @@ impl<'r, const N: usize> Iterator for RangeJoinIter<'r, N> {
             None
         }
     }
+}
+
+/// splits a range into pieces, each of which is contained in one of the ranges in `into_ranges`
+pub fn split<const N: usize>(
+    range_to_split: (DocCharOffset, DocCharOffset),
+    into_ranges: [&[(DocCharOffset, DocCharOffset)]; N],
+) -> Vec<(DocCharOffset, DocCharOffset)> {
+    let mut result = Vec::new();
+    for (indexes, into_range) in join(into_ranges) {
+        if indexes.iter().any(|&idx| idx.is_none()) {
+            // must be in a range for each splitting range
+            continue;
+        }
+
+        // must have a nonzero intersection
+        let intersection = (
+            into_range.start().max(range_to_split.start()),
+            into_range.end().min(range_to_split.end()),
+        );
+        if intersection.0 < intersection.1 {
+            // return the intersection
+            result.push(intersection);
+        }
+    }
+    result
 }
 
 impl Editor {

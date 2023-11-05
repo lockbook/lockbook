@@ -36,7 +36,7 @@ impl MarkdownNodeType {
             Self::Block(BlockNodeType::Heading(HeadingLevel::H6)) => "###### ",
             Self::Block(BlockNodeType::Quote) => "> ",
             Self::Block(BlockNodeType::Code) => "```\n",
-            Self::Block(BlockNodeType::ListItem(item_type)) => item_type.head(), // todo: support indentation
+            Self::Block(BlockNodeType::ListItem(item_type)) => item_type.head(),
             Self::Block(BlockNodeType::Rule) => "***",
         }
     }
@@ -152,7 +152,19 @@ impl InlineNode {
 
 impl PartialEq for InlineNode {
     fn eq(&self, other: &Self) -> bool {
-        self.node_type() == other.node_type()
+        match (self, other) {
+            (Self::Code, Self::Code) => true,
+            (Self::Bold, Self::Bold) => true,
+            (Self::Italic, Self::Italic) => true,
+            (Self::Strikethrough, Self::Strikethrough) => true,
+            (Self::Link(_, url, title), Self::Link(_, other_url, other_title)) => {
+                url == other_url && title == other_title
+            }
+            (Self::Image(_, url, title), Self::Image(_, other_url, other_title)) => {
+                url == other_url && title == other_title
+            }
+            _ => false,
+        }
     }
 }
 
@@ -160,7 +172,22 @@ impl Eq for InlineNode {}
 
 impl Hash for InlineNode {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.node_type().hash(state);
+        match self {
+            Self::Code => InlineNodeType::Code.hash(state),
+            Self::Bold => InlineNodeType::Bold.hash(state),
+            Self::Italic => InlineNodeType::Italic.hash(state),
+            Self::Strikethrough => InlineNodeType::Strikethrough.hash(state),
+            Self::Link(_, url, title) => {
+                InlineNodeType::Link.hash(state);
+                url.hash(state);
+                title.hash(state);
+            }
+            Self::Image(_, url, title) => {
+                InlineNodeType::Image.hash(state);
+                url.hash(state);
+                title.hash(state);
+            }
+        }
     }
 }
 
@@ -187,7 +214,17 @@ impl BlockNode {
 
 impl PartialEq for BlockNode {
     fn eq(&self, other: &Self) -> bool {
-        self.node_type() == other.node_type()
+        match (self, other) {
+            (Self::Heading(level), Self::Heading(other_level)) => level == other_level,
+            (Self::Quote, Self::Quote) => true,
+            (Self::Code, Self::Code) => true,
+            (
+                Self::ListItem(item, indent_level),
+                Self::ListItem(other_item, other_indent_level),
+            ) => item == other_item && indent_level == other_indent_level,
+            (Self::Rule, Self::Rule) => true,
+            _ => false,
+        }
     }
 }
 
@@ -195,7 +232,24 @@ impl Eq for BlockNode {}
 
 impl Hash for BlockNode {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.node_type().hash(state);
+        match self {
+            Self::Heading(level) => {
+                BlockNodeType::Heading(*level).hash(state);
+            }
+            Self::Quote => {
+                BlockNodeType::Quote.hash(state);
+            }
+            Self::Code => {
+                BlockNodeType::Code.hash(state);
+            }
+            Self::ListItem(item, indent_level) => {
+                BlockNodeType::ListItem(item.item_type()).hash(state);
+                indent_level.hash(state);
+            }
+            Self::Rule => {
+                BlockNodeType::Rule.hash(state);
+            }
+        }
     }
 }
 
@@ -218,7 +272,12 @@ impl ListItem {
 
 impl PartialEq for ListItem {
     fn eq(&self, other: &Self) -> bool {
-        self.item_type() == other.item_type()
+        match (self, other) {
+            (Self::Bulleted, Self::Bulleted) => true,
+            (Self::Numbered(num), Self::Numbered(other_num)) => num == other_num,
+            (Self::Todo(checked), Self::Todo(other_checked)) => checked == other_checked,
+            _ => false,
+        }
     }
 }
 
@@ -226,7 +285,19 @@ impl Eq for ListItem {}
 
 impl Hash for ListItem {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.item_type().hash(state);
+        match self {
+            Self::Bulleted => {
+                ListItemType::Bulleted.hash(state);
+            }
+            Self::Numbered(num) => {
+                ListItemType::Numbered.hash(state);
+                num.hash(state);
+            }
+            Self::Todo(checked) => {
+                ListItemType::Todo.hash(state);
+                checked.hash(state);
+            }
+        }
     }
 }
 
@@ -303,6 +374,16 @@ impl MarkdownNode {
             Self::Paragraph => MarkdownNodeType::Paragraph,
             Self::Inline(inline_node) => MarkdownNodeType::Inline(inline_node.node_type()),
             Self::Block(block_node) => MarkdownNodeType::Block(block_node.node_type()),
+        }
+    }
+
+    pub fn head(&self) -> String {
+        let type_head = self.node_type().head();
+        if let MarkdownNode::Block(BlockNode::ListItem(_, indent)) = self {
+            // todo: more intelligent indentation character selection
+            "\t".repeat(*indent as usize) + type_head
+        } else {
+            type_head.to_string()
         }
     }
 }

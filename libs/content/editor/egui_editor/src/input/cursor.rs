@@ -1,6 +1,7 @@
+use crate::appearance::Appearance;
 use crate::bounds::{Bounds, Text};
 use crate::buffer::SubBuffer;
-use crate::galleys::Galleys;
+use crate::galleys::{self, Galleys};
 use crate::input::canonical::Offset;
 use crate::offset_types::*;
 use crate::unicode_segs::UnicodeSegs;
@@ -112,22 +113,30 @@ impl Cursor {
         );
     }
 
-    pub fn start_line(&self, galleys: &Galleys, text: &Text) -> [Pos2; 2] {
-        self.line(galleys, self.selection.0, text)
+    pub fn start_line(&self, galleys: &Galleys, text: &Text, appearance: &Appearance) -> [Pos2; 2] {
+        self.line(galleys, self.selection.0, text, appearance)
     }
 
-    pub fn end_line(&self, galleys: &Galleys, text: &Text) -> [Pos2; 2] {
-        self.line(galleys, self.selection.1, text)
+    pub fn end_line(&self, galleys: &Galleys, text: &Text, appearance: &Appearance) -> [Pos2; 2] {
+        self.line(galleys, self.selection.1, text, appearance)
     }
 
-    fn line(&self, galleys: &Galleys, offset: DocCharOffset, text: &Text) -> [Pos2; 2] {
+    fn line(
+        &self, galleys: &Galleys, offset: DocCharOffset, text: &Text, appearance: &Appearance,
+    ) -> [Pos2; 2] {
         let (galley_idx, cursor) = galleys.galley_and_cursor_by_char_offset(offset, text);
         let galley = &galleys[galley_idx];
 
         let max = DocCharOffset::cursor_to_pos_abs(galley, cursor);
         let min = max - Vec2 { x: 0.0, y: galley.cursor_height() };
 
-        [min, max]
+        if offset < galley.text_range().start() {
+            // draw cursor before offset if that's where it is
+            let annotation_offset = galleys::annotation_offset(&galley.annotation, appearance);
+            [min - annotation_offset, max - annotation_offset]
+        } else {
+            [min, max]
+        }
     }
 
     fn empty(&self) -> bool {

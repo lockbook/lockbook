@@ -152,8 +152,10 @@ impl Editor {
     pub fn draw_cursor(&mut self, ui: &mut Ui, touch_mode: bool) {
         // determine cursor style
         let cursor = self.buffer.current.cursor;
-        let selection_start_line = cursor.start_line(&self.galleys, &self.bounds.text);
-        let selection_end_line = cursor.end_line(&self.galleys, &self.bounds.text);
+        let selection_start_line =
+            cursor.start_line(&self.galleys, &self.bounds.text, &self.appearance);
+        let selection_end_line =
+            cursor.end_line(&self.galleys, &self.bounds.text, &self.appearance);
 
         let color = if touch_mode { self.appearance.cursor() } else { self.appearance.text() };
         let stroke = Stroke { width: 1.0, color };
