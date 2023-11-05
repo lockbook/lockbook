@@ -33,7 +33,6 @@ use self::tabs::{
 };
 use self::tree::{FileTree, TreeNode};
 use self::workspace::Workspace;
-use crate::account::tabs::INITIAL_SVG_CONTENT;
 
 pub struct AccountScreen {
     ctx: egui::Context,
