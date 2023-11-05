@@ -102,118 +102,10 @@ pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_resizeEditor(
 }
 
 #[no_mangle]
-pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_addText(
-    mut env: JNIEnv, _: JClass, obj: jlong, content: JString,
-) {
-    let obj = unsafe { &mut *(obj as *mut WgpuEditor) };
-
-    let content: String = match env.get_string(&content) {
-        Ok(cont) => cont.into(),
-        Err(err) => format!("# The error is: {:?}", err),
-    };
-
-    obj.raw_input.events.push(Event::Text(content));
-}
-
-#[no_mangle]
 pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_dropWgpuCanvas(
     mut _env: JNIEnv, _: JClass, obj: jlong,
 ) {
     let _obj: Box<WgpuEditor> = unsafe { Box::from_raw(obj as *mut _) };
-}
-
-#[no_mangle]
-pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_getTextBeforeCursor(
-    env: JNIEnv, _: JClass, obj: jlong, n: jint,
-) -> jstring {
-    let obj = unsafe { &mut *(obj as *mut WgpuEditor) };
-
-    let cursor: Cursor = (
-        obj.editor.buffer.current.cursor.selection.start() - (n as usize),
-        obj.editor.buffer.current.cursor.selection.end(),
-    )
-        .into();
-
-    let buffer = &obj.editor.buffer.current;
-    let text = cursor.selection_text(buffer);
-
-    env.new_string(text)
-        .expect("Couldn't create JString from rust string!")
-        .into_raw()
-}
-
-#[no_mangle]
-pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_getTextAfterCursor(
-    env: JNIEnv, _: JClass, obj: jlong, n: jint,
-) -> jstring {
-    let obj = unsafe { &mut *(obj as *mut WgpuEditor) };
-
-    let buffer = &obj.editor.buffer.current;
-
-    let cursor: Cursor = (
-        obj.editor.buffer.current.cursor.selection.start(),
-        DocCharOffset(min(
-            obj.editor
-                .buffer
-                .current
-                .cursor
-                .selection
-                .end()
-                .0
-                .saturating_add(n as usize),
-            buffer.segs.last_cursor_position().0,
-        )),
-    )
-        .into();
-
-    let text = cursor.selection_text(buffer);
-
-    env.new_string(text)
-        .expect("Couldn't create JString from rust string!")
-        .into_raw()
-}
-
-#[no_mangle]
-pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_getSelectedText(
-    env: JNIEnv, _: JClass, obj: jlong,
-) -> jstring {
-    let obj = unsafe { &mut *(obj as *mut WgpuEditor) };
-
-    let cursor = &obj.editor.buffer.current.cursor;
-    let selected_text = String::from(cursor.selection_text(&obj.editor.buffer.current));
-
-    env.new_string(selected_text)
-        .expect("Couldn't create JString from rust string!")
-        .into_raw()
-}
-
-#[no_mangle]
-pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_deleteSurroundingText(
-    _env: JNIEnv, _: JClass, obj: jlong, before_length: jint, after_length: jint,
-) {
-    let obj = unsafe { &mut *(obj as *mut WgpuEditor) };
-
-    let current_cursor = &obj.editor.buffer.current.cursor;
-
-    obj.editor.custom_events.push(Modification::Replace {
-        region: Region::BetweenLocations {
-            start: Location::DocCharOffset(
-                current_cursor.selection.start() + (before_length as usize),
-            ),
-            end: Location::DocCharOffset(current_cursor.selection.start()),
-        },
-        text: "".to_string(),
-    });
-
-    obj.editor.custom_events.push(Modification::Replace {
-        region: Region::BetweenLocations {
-            start: Location::DocCharOffset(
-                current_cursor.selection.end() + (after_length as usize),
-            ),
-            end: Location::DocCharOffset(current_cursor.selection.end()),
-        },
-        text: "".to_string(),
-    });
 }
 
 #[no_mangle]
@@ -476,31 +368,6 @@ pub struct AndroidRect {
     min_y: f32,
     max_x: f32,
     max_y: f32,
-}
-
-#[no_mangle]
-pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_getCharacterRect(
-    env: JNIEnv, _: JClass, obj: jlong, pos: jint,
-) -> jstring {
-    let obj = unsafe { &mut *(obj as *mut WgpuEditor) };
-
-    let galleys = &obj.editor.galleys;
-    let text = &obj.editor.bounds.text;
-
-    let cursor: Cursor = Cursor::from(pos as usize);
-    let line = cursor.start_line(galleys, text);
-
-    let json = serde_json::to_string(&AndroidRect {
-        min_x: line[0].x,
-        min_y: line[0].y,
-        max_x: line[1].x,
-        max_y: line[1].y,
-    })
-    .unwrap();
-
-    env.new_string(json)
-        .expect("Couldn't create JString from rust string!")
-        .into_raw()
 }
 
 // context menu

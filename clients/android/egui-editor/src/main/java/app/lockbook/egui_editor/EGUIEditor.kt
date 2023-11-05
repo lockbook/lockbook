@@ -74,12 +74,12 @@ class EGUIEditor {
     external fun createWgpuCanvas(surface: Surface, core: Long, content: String, scaleFactor: Float, darkMode: Boolean): Long
     external fun enterFrame(rustObj: Long): String
     external fun resizeEditor(rustObj: Long, surface: Surface, scaleFactor: Float)
+    external fun dropWgpuCanvas(rustObj: Long)
 
     external fun touchesBegin(rustObj: Long, id: Int, x: Float, y: Float, pressure: Float)
     external fun touchesMoved(rustObj: Long, id: Int, x: Float, y: Float, pressure: Float)
     external fun touchesEnded(rustObj: Long, id: Int, x: Float, y: Float, pressure: Float)
 
-    external fun dropWgpuCanvas(rustObj: Long)
     external fun getAllText(rustObj: Long): String
     external fun setSelection(rustObj: Long, start: Int, end: Int)
     external fun getSelection(rustObj: Long): String
