@@ -66,7 +66,7 @@ data class AndroidRect(
     val maxY: Float,
 )
 
-public class EGUIEditor {
+class EGUIEditor {
     init {
         System.loadLibrary("egui_editor")
     }
@@ -74,19 +74,13 @@ public class EGUIEditor {
     external fun createWgpuCanvas(surface: Surface, core: Long, content: String, scaleFactor: Float, darkMode: Boolean): Long
     external fun enterFrame(rustObj: Long): String
     external fun resizeEditor(rustObj: Long, surface: Surface, scaleFactor: Float)
-    external fun changeSurface(rustObj: Long, surface: Surface, scaleFactor: Float)
 
     external fun touchesBegin(rustObj: Long, id: Int, x: Float, y: Float, pressure: Float)
     external fun touchesMoved(rustObj: Long, id: Int, x: Float, y: Float, pressure: Float)
     external fun touchesEnded(rustObj: Long, id: Int, x: Float, y: Float, pressure: Float)
 
-    external fun addText(rustObj: Long, content: String)
     external fun dropWgpuCanvas(rustObj: Long)
-    external fun getTextBeforeCursor(rustObj: Long, n: Int): String
-    external fun getTextAfterCursor(rustObj: Long, n: Int): String
     external fun getAllText(rustObj: Long): String
-    external fun getSelectedText(rustObj: Long): String
-    external fun deleteSurroundingText(rustObj: Long, beforeLength: Int, afterlength: Int)
     external fun setSelection(rustObj: Long, start: Int, end: Int)
     external fun getSelection(rustObj: Long): String
     external fun sendKeyEvent(rustObj: Long, keyCode: Int, content: String, pressed: Boolean, alt: Boolean, ctrl: Boolean, shift: Boolean): Int
@@ -98,7 +92,6 @@ public class EGUIEditor {
     external fun insert(rustObj: Long, index: Int, text: String)
     external fun append(rustObj: Long, text: String)
     external fun getTextInRange(rustObj: Long, start: Int, end: Int): String
-    external fun getCharacterRect(rustObj: Long, pos: Int): String
 
     // context menu
     external fun selectAll(rustObj: Long)
