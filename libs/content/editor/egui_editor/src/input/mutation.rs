@@ -654,10 +654,9 @@ fn conflicting_styles(
                 }
             }
 
-            if node.node_type().conflicts_with(&style.node_type()) {
-                if dedup_set.insert(node.clone()) {
-                    result.push(node.clone());
-                }
+            if node.node_type().conflicts_with(&style.node_type()) && dedup_set.insert(node.clone())
+            {
+                result.push(node.clone());
             }
         }
     }
