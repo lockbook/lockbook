@@ -161,7 +161,7 @@ class MarkdownEditor : SurfaceView, SurfaceHolder.Callback2 {
             wgpuObj = eguiEditor.createWgpuCanvas(h.surface, CoreModel.getPtr(), textSaver!!.currentContent, context.resources.displayMetrics.scaledDensity, (context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES)
             inputManager = BaseEGUIInputConnect(this, eguiEditor, wgpuObj)
 
-            if(textSaver!!.savedCursorEnd != -1 && textSaver!!.savedCursorStart != -1) {
+            if (textSaver!!.savedCursorEnd != -1 && textSaver!!.savedCursorStart != -1) {
                 eguiEditor.setSelection(wgpuObj, textSaver!!.savedCursorStart, textSaver!!.savedCursorEnd)
             }
 
@@ -291,10 +291,8 @@ class MarkdownEditor : SurfaceView, SurfaceHolder.Callback2 {
     fun getCursorStart(): Int =
         inputManager?.eguiEditorEditable?.getSelection()?.first ?: -1
 
-
     fun getCursorEnd(): Int =
         inputManager?.eguiEditorEditable?.getSelection()?.second ?: -1
-
 }
 
 sealed class InsertMarkdownAction {
