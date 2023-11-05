@@ -175,12 +175,6 @@ class TextEditorFragment : Fragment() {
         return binding.root
     }
 
-    override fun onDestroy() {
-        super.onDestroy()
-        model.savedCursorStart = textEditor.getCursorStart()
-        model.savedCursorEnd = textEditor.getCursorEnd()
-    }
-
     fun saveOnExit() {
         if (model.isDirty) {
             model.lastEdit = System.currentTimeMillis()

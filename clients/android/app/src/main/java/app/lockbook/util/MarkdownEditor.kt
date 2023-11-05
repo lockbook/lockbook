@@ -87,8 +87,6 @@ class MarkdownEditor : SurfaceView, SurfaceHolder.Callback2 {
 
     @SuppressLint("ClickableViewAccessibility")
     override fun onTouchEvent(event: MotionEvent?): Boolean {
-        Timber.e("TOUCH EVENT!")
-
         if (wgpuObj == Long.MAX_VALUE) {
             return true
         }
@@ -162,6 +160,7 @@ class MarkdownEditor : SurfaceView, SurfaceHolder.Callback2 {
             inputManager = BaseEGUIInputConnect(this, eguiEditor, wgpuObj)
 
             if (textSaver!!.savedCursorEnd != -1 && textSaver!!.savedCursorStart != -1) {
+                Timber.e("setting the saved cursor: ${textSaver!!.savedCursorEnd} ${textSaver!!.savedCursorStart}")
                 eguiEditor.setSelection(wgpuObj, textSaver!!.savedCursorStart, textSaver!!.savedCursorEnd)
             }
 
@@ -174,15 +173,19 @@ class MarkdownEditor : SurfaceView, SurfaceHolder.Callback2 {
     }
 
     override fun surfaceDestroyed(holder: SurfaceHolder) {
-        Timber.e("Destroying surface")
         if (wgpuObj != Long.MAX_VALUE) {
+            inputManager?.eguiEditorEditable?.getSelection()?.let { selection ->
+                Timber.e("saving cursors: ${selection.first} ${selection.second}")
+                textSaver!!.savedCursorStart = selection.first
+                textSaver!!.savedCursorEnd = selection.second
+            }
+
             eguiEditor.dropWgpuCanvas(wgpuObj)
             wgpuObj = Long.MAX_VALUE
         }
     }
 
     override fun surfaceRedrawNeeded(holder: SurfaceHolder) {
-        Timber.e("Need to redraw surface")
         invalidate()
     }
 
@@ -216,8 +219,6 @@ class MarkdownEditor : SurfaceView, SurfaceHolder.Callback2 {
         }
 
         handler.removeCallbacks(redrawTask)
-
-        Timber.e("redraw in... ${response.redrawIn} to ${response.redrawIn.toLong()}")
 
         val redrawIn = response.redrawIn.toLong()
         if (redrawIn != -1L) {
@@ -287,12 +288,6 @@ class MarkdownEditor : SurfaceView, SurfaceHolder.Callback2 {
             }
         }
     }
-
-    fun getCursorStart(): Int =
-        inputManager?.eguiEditorEditable?.getSelection()?.first ?: -1
-
-    fun getCursorEnd(): Int =
-        inputManager?.eguiEditorEditable?.getSelection()?.second ?: -1
 }
 
 sealed class InsertMarkdownAction {
@@ -392,6 +387,7 @@ class EGUIEditorEditable(val view: View, val eguiEditor: EGUIEditor, val wgpuObj
 
     fun getSelection(): Pair<Int, Int> {
         val selStr = eguiEditor.getSelection(wgpuObj)
+        Timber.e("sel str: $selStr")
         val selections = selStr.split(" ").map { it.toIntOrNull() ?: 0 }
 
         return Pair(selections.getOrNull(0) ?: 0, selections.getOrNull(1) ?: 0)

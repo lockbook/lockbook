@@ -124,11 +124,8 @@ pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_getSelection(
 ) -> jstring {
     let obj = unsafe { &mut *(obj as *mut WgpuEditor) };
 
-    let mut selection_text = "".to_string();
-
-    if let Some(selection) = obj.editor.buffer.current.cursor.selection() {
-        selection_text = format!("{} {}", selection.start.0, selection.end.0);
-    }
+    let (start, end) = obj.editor.buffer.current.cursor.selection;
+    let selection_text = format!("{} {}", start.0, end.0);
 
     env.new_string(selection_text)
         .expect("Couldn't create JString from rust string!")
