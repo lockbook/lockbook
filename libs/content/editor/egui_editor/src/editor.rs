@@ -400,11 +400,11 @@ impl Editor {
                 .unwrap() // there's always a document
         };
         if selection_updated && self.buffer.current.cursor.selection != all_selection {
-            let cursor_end_line = self
-                .buffer
-                .current
-                .cursor
-                .end_line(&self.galleys, &self.bounds.text);
+            let cursor_end_line = self.buffer.current.cursor.end_line(
+                &self.galleys,
+                &self.bounds.text,
+                &self.appearance,
+            );
             let rect = Rect { min: cursor_end_line[0], max: cursor_end_line[1] };
             ui.scroll_to_rect(rect, None);
         }
@@ -605,10 +605,11 @@ impl Editor {
             if touched_cursor || touched_selection || double_touched_for_selection {
                 // set menu location
                 self.maybe_menu_location = Some(
-                    self.buffer
-                        .current
-                        .cursor
-                        .end_line(&self.galleys, &self.bounds.text)[0],
+                    self.buffer.current.cursor.end_line(
+                        &self.galleys,
+                        &self.bounds.text,
+                        &self.appearance,
+                    )[0],
                 );
             } else {
                 self.maybe_menu_location = None;

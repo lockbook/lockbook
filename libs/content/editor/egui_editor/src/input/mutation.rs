@@ -6,7 +6,9 @@ use crate::input::canonical::{Location, Modification, Offset, Region};
 use crate::input::cursor::Cursor;
 use crate::layouts::Annotation;
 use crate::offset_types::{DocCharOffset, RangeExt, RangeIterExt};
-use crate::style::{BlockNode, InlineNodeType, ListItem, MarkdownNode, MarkdownNodeType};
+use crate::style::{
+    BlockNode, BlockNodeType, InlineNodeType, ListItem, MarkdownNode, MarkdownNodeType,
+};
 use crate::unicode_segs::UnicodeSegs;
 use egui::Pos2;
 use std::cmp::Ordering;
@@ -56,15 +58,59 @@ pub fn calc(
             mutation.push(SubMutation::Insert { text, advance_cursor: true });
             mutation.push(SubMutation::Cursor { cursor: current_cursor });
         }
-        Modification::ToggleStyle { region, style } => {
+        Modification::ToggleStyle { region, mut style } => {
             let cursor = region_to_cursor(region, current_cursor, buffer, galleys, bounds);
-            let unapply = region_completely_styled(cursor, &style, ast, &bounds.ast);
+            let unapply = should_unapply(cursor, &style, ast, &bounds.ast);
+
+            // unapply conflicting styles; if replacing a list item with a list item, preserve indentation level and
+            // don't remove outer items in nested lists
+            let mut removed_conflicting_list_item = false;
+            let mut list_item_indent_level = 0;
             if !unapply {
-                for conflict in conflicting_styles(cursor, &style, ast, &bounds.ast) {
-                    apply_style(cursor, conflict, true, buffer, ast, &bounds.ast, &mut mutation)
+                for conflict in conflicting_styles(cursor.selection, &style, ast, &bounds.ast) {
+                    if let MarkdownNode::Block(BlockNode::ListItem(_, indent_level)) = conflict {
+                        if !removed_conflicting_list_item {
+                            list_item_indent_level = indent_level;
+                            removed_conflicting_list_item = true;
+                            apply_style(
+                                cursor.selection,
+                                conflict,
+                                true,
+                                buffer,
+                                ast,
+                                &bounds.ast,
+                                &mut mutation,
+                            );
+                        }
+                    } else {
+                        apply_style(
+                            cursor.selection,
+                            conflict,
+                            true,
+                            buffer,
+                            ast,
+                            &bounds.ast,
+                            &mut mutation,
+                        );
+                    }
                 }
             }
-            apply_style(cursor, style.clone(), unapply, buffer, ast, &bounds.ast, &mut mutation);
+            if let MarkdownNode::Block(BlockNode::ListItem(item_type, _)) = style {
+                style = MarkdownNode::Block(BlockNode::ListItem(item_type, list_item_indent_level));
+            };
+
+            // apply style
+            apply_style(
+                cursor.selection,
+                style.clone(),
+                unapply,
+                buffer,
+                ast,
+                &bounds.ast,
+                &mut mutation,
+            );
+
+            // modify cursor
             if current_cursor.selection.is_empty() {
                 // toggling style at end of styled range moves cursor to outside of styled range
                 if let Some(text_range) = bounds
@@ -96,6 +142,7 @@ pub fn calc(
                 .find_containing(current_cursor.selection.1, true, true)
                 .iter()
                 .last();
+            let after_galley_head = current_cursor.selection.1 >= galley.text_range().start();
 
             'modification: {
                 if let Some(ast_text_range) = ast_text_range {
@@ -114,7 +161,7 @@ pub fn calc(
                 }
 
                 // insert new list item, remove current list item, or insert newline before current list item
-                if matches!(galley.annotation, Some(Annotation::Item(..))) {
+                if matches!(galley.annotation, Some(Annotation::Item(..))) && after_galley_head {
                     // cursor at end of list item
                     if galley.size() - galley.head_size - galley.tail_size == 0 {
                         // empty list item -> delete current annotation
@@ -533,7 +580,7 @@ pub fn calc(
 }
 
 /// Returns true if all text in `cursor` has style `style`
-fn region_completely_styled(
+fn should_unapply(
     cursor: Cursor, style: &MarkdownNode, ast: &Ast, ast_ranges: &AstTextRanges,
 ) -> bool {
     if cursor.selection.is_empty() {
@@ -550,48 +597,66 @@ fn region_completely_styled(
         }
 
         // look for at least one ancestor that applies the style
-        let mut styled = false;
-        for &ancestor in &text_range.ancestors {
-            if &ast.nodes[ancestor].node_type == style {
-                styled = true;
-                break;
+        let mut found_list_item = false;
+        for &ancestor in text_range.ancestors.iter().rev() {
+            // only consider the innermost list item
+            if matches!(style.node_type(), MarkdownNodeType::Block(BlockNodeType::ListItem(..))) {
+                if found_list_item {
+                    continue;
+                } else {
+                    found_list_item = true;
+                }
             }
-        }
 
-        if !styled {
-            return false;
+            // node type must match
+            if ast.nodes[ancestor].node_type.node_type() != style.node_type() {
+                continue;
+            }
+
+            return true;
         }
     }
 
-    true
+    false
 }
 
-/// Returns true if text in `cursor` has any style which should be removed before applying `style`
+/// Returns list of nodes whose styles should be removed before applying `style`
 fn conflicting_styles(
-    cursor: Cursor, style: &MarkdownNode, ast: &Ast, ast_ranges: &AstTextRanges,
-) -> HashSet<MarkdownNode> {
-    let mut result = HashSet::new();
-    if cursor.selection.is_empty() {
+    selection: (DocCharOffset, DocCharOffset), style: &MarkdownNode, ast: &Ast,
+    ast_ranges: &AstTextRanges,
+) -> Vec<MarkdownNode> {
+    let mut result = Vec::new();
+    let mut dedup_set = HashSet::new();
+    if selection.is_empty() {
         return result;
     }
 
     for text_range in ast_ranges {
         // skip ranges before or after the cursor
-        if text_range.range.end() <= cursor.selection.start() {
+        if text_range.range.end() <= selection.start() {
             continue;
         }
-        if cursor.selection.end() <= text_range.range.start() {
+        if selection.end() <= text_range.range.start() {
             break;
         }
 
-        // look for at least one ancestor that applies a conflicting style
-        for &ancestor in &text_range.ancestors {
-            if ast.nodes[ancestor]
-                .node_type
-                .node_type()
-                .conflicts_with(&style.node_type())
+        // look for ancestors that apply a conflicting style
+        let mut found_list_item = false;
+        for &ancestor in text_range.ancestors.iter().rev() {
+            let node = &ast.nodes[ancestor].node_type;
+
+            // only remove the innermost conflicting list item
+            if matches!(node.node_type(), MarkdownNodeType::Block(BlockNodeType::ListItem(..))) {
+                if found_list_item {
+                    continue;
+                } else {
+                    found_list_item = true;
+                }
+            }
+
+            if node.node_type().conflicts_with(&style.node_type()) && dedup_set.insert(node.clone())
             {
-                result.insert(ast.nodes[ancestor].node_type.clone());
+                result.push(node.clone());
             }
         }
     }
@@ -601,12 +666,12 @@ fn conflicting_styles(
 
 /// Applies or unapplies `style` to `cursor`, splitting or joining surrounding styles as necessary.
 fn apply_style(
-    cursor: Cursor, style: MarkdownNode, unapply: bool, buffer: &SubBuffer, ast: &Ast,
-    ast_ranges: &AstTextRanges, mutation: &mut Vec<SubMutation>,
+    selection: (DocCharOffset, DocCharOffset), style: MarkdownNode, unapply: bool,
+    buffer: &SubBuffer, ast: &Ast, ast_ranges: &AstTextRanges, mutation: &mut Vec<SubMutation>,
 ) {
     if buffer.is_empty() {
-        insert_head(cursor.selection.start(), style.clone(), mutation);
-        insert_tail(cursor.selection.start(), style, mutation);
+        insert_head(selection.start(), style.clone(), mutation);
+        insert_tail(selection.start(), style, mutation);
         return;
     }
 
@@ -615,15 +680,12 @@ fn apply_style(
     let mut end_range = None;
     for text_range in ast_ranges {
         // when at bound, start prefers next
-        if text_range
-            .range
-            .contains_inclusive(cursor.selection.start())
-        {
+        if text_range.range.contains_inclusive(selection.start()) {
             start_range = Some(text_range.clone());
         }
         // when at bound, end prefers previous unless selection is empty
-        if (cursor.selection.is_empty() || end_range.is_none())
-            && text_range.range.contains_inclusive(cursor.selection.end())
+        if (selection.is_empty() || end_range.is_none())
+            && text_range.range.contains_inclusive(selection.end())
         {
             end_range = Some(text_range);
         }
@@ -634,26 +696,35 @@ fn apply_style(
     let start_range = start_range.unwrap();
     let end_range = end_range.unwrap();
 
-    // modify head/tail for nodes containing cursor start and cursor end
+    // find nodes applying given style containing cursor start and cursor end
+    // consider only innermost list items
+    let mut found_list_item = false;
     let mut last_start_ancestor: Option<usize> = None;
-    for &ancestor in &start_range.ancestors {
-        // dehead and detail all but the last ancestor applying the style
-        if let Some(prev_ancestor) = last_start_ancestor {
-            dehead_ast_node(prev_ancestor, ast, mutation);
-            detail_ast_node(prev_ancestor, ast, mutation);
+    for &ancestor in start_range.ancestors.iter().rev() {
+        if matches!(style.node_type(), MarkdownNodeType::Block(BlockNodeType::ListItem(..))) {
+            if found_list_item {
+                continue;
+            } else {
+                found_list_item = true;
+            }
         }
-        if ast.nodes[ancestor].node_type == style {
+
+        if ast.nodes[ancestor].node_type.node_type() == style.node_type() {
             last_start_ancestor = Some(ancestor);
         }
     }
+    found_list_item = false;
     let mut last_end_ancestor: Option<usize> = None;
-    for &ancestor in &end_range.ancestors {
-        // dehead and detail all but the last ancestor applying the style
-        if let Some(prev_ancestor) = last_end_ancestor {
-            dehead_ast_node(prev_ancestor, ast, mutation);
-            detail_ast_node(prev_ancestor, ast, mutation);
+    for &ancestor in end_range.ancestors.iter().rev() {
+        if matches!(style.node_type(), MarkdownNodeType::Block(BlockNodeType::ListItem(..))) {
+            if found_list_item {
+                continue;
+            } else {
+                found_list_item = true;
+            }
         }
-        if ast.nodes[ancestor].node_type == style {
+
+        if ast.nodes[ancestor].node_type.node_type() == style.node_type() {
             last_end_ancestor = Some(ancestor);
         }
     }
@@ -669,13 +740,9 @@ fn apply_style(
     if unapply {
         // if unapplying, tail or dehead node containing start to crop styled region to selection
         if let Some(last_start_ancestor) = last_start_ancestor {
-            if ast.nodes[last_start_ancestor].text_range.start() < cursor.selection.start() {
-                let offset = adjust_for_whitespace(
-                    buffer,
-                    cursor.selection.start(),
-                    style.node_type(),
-                    true,
-                );
+            if ast.nodes[last_start_ancestor].text_range.start() < selection.start() {
+                let offset =
+                    adjust_for_whitespace(buffer, selection.start(), style.node_type(), true);
                 insert_tail(offset, style.clone(), mutation);
             } else {
                 dehead_ast_node(last_start_ancestor, ast, mutation);
@@ -683,9 +750,9 @@ fn apply_style(
         }
         // if unapplying, head or detail node containing end to crop styled region to selection
         if let Some(last_end_ancestor) = last_end_ancestor {
-            if ast.nodes[last_end_ancestor].text_range.end() > cursor.selection.end() {
+            if ast.nodes[last_end_ancestor].text_range.end() > selection.end() {
                 let offset =
-                    adjust_for_whitespace(buffer, cursor.selection.end(), style.node_type(), false);
+                    adjust_for_whitespace(buffer, selection.end(), style.node_type(), false);
                 insert_head(offset, style.clone(), mutation);
             } else {
                 detail_ast_node(last_end_ancestor, ast, mutation);
@@ -694,15 +761,13 @@ fn apply_style(
     } else {
         // if applying, head start and/or tail end to extend styled region to selection
         if last_start_ancestor.is_none() {
-            let offset =
-                adjust_for_whitespace(buffer, cursor.selection.start(), style.node_type(), false)
-                    .min(cursor.selection.end());
+            let offset = adjust_for_whitespace(buffer, selection.start(), style.node_type(), false)
+                .min(selection.end());
             insert_head(offset, style.clone(), mutation)
         }
         if last_end_ancestor.is_none() {
-            let offset =
-                adjust_for_whitespace(buffer, cursor.selection.end(), style.node_type(), true)
-                    .max(cursor.selection.start());
+            let offset = adjust_for_whitespace(buffer, selection.end(), style.node_type(), true)
+                .max(selection.start());
             insert_tail(offset, style.clone(), mutation)
         }
     }
@@ -782,7 +847,7 @@ fn adjust_for_whitespace(
 }
 
 fn insert_head(offset: DocCharOffset, style: MarkdownNode, mutation: &mut Vec<SubMutation>) {
-    let text = style.node_type().head().to_string();
+    let text = style.head();
     mutation.push(SubMutation::Cursor { cursor: offset.into() });
     mutation.push(SubMutation::Insert { text, advance_cursor: true });
 }
