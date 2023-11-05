@@ -846,7 +846,13 @@ impl AccountScreen {
         ctx.request_repaint();
     }
 
-    fn rename_file(&self, req: (lb::Uuid, String), ctx: &egui::Context) {
+    fn rename_file(&mut self, req: (lb::Uuid, String), ctx: &egui::Context) {
+        if let Some(tab) = self.workspace.tabs.iter_mut().find(|t| t.id.eq(&req.0)) {
+            if let Some(TabContent::Markdown(md)) = &mut tab.content {
+                md.needs_name = false;
+            }
+        }
+
         let core = self.core.clone();
         let update_tx = self.update_tx.clone();
         let ctx = ctx.clone();

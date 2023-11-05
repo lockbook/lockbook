@@ -81,7 +81,7 @@ impl NameComponents {
             .iter()
             .filter_map(|f| {
                 let nc = NameComponents::from(&f.name);
-                if nc.name == next.name {
+                if nc.name == next.name && nc.extension == next.extension {
                     Some(nc)
                 } else {
                     None
