@@ -69,6 +69,10 @@ impl FileTree {
                 r.inner.new_file = Some(true);
                 ui.close_menu();
             }
+            if ui.button("New Drawing").clicked() {
+                r.inner.new_drawing = Some(true);
+                ui.close_menu();
+            }
             if ui.button("New Folder").clicked() {
                 r.inner.new_folder_modal = Some(self.root.file.clone());
                 ui.close_menu();

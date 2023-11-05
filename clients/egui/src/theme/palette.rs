@@ -34,6 +34,21 @@ impl ThemePalette {
         cyan: Color32::from_rgb(85, 190, 240),
         white: Color32::from_rgb(255, 255, 255),
     };
+
+    // todo: passing the is_dark_mode aram doesn't feel like good data modeling
+    pub fn as_array(is_dark_mode: bool) -> Vec<(String, Color32)> {
+        let palette = if is_dark_mode { ThemePalette::DARK } else { ThemePalette::LIGHT };
+
+        vec![
+            ("magenta".to_string(), palette.magenta),
+            ("blue".to_string(), palette.blue),
+            ("cyan".to_string(), palette.cyan),
+            ("green".to_string(), palette.green),
+            ("yellow".to_string(), palette.yellow),
+            ("red".to_string(), palette.red),
+            ("fg".to_string(), if is_dark_mode { palette.white } else { palette.black }),
+        ]
+    }
 }
 
 impl std::ops::Index<lb::ColorAlias> for ThemePalette {
