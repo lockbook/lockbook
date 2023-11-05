@@ -3,7 +3,7 @@ use crate::android::window;
 use crate::android::window::NativeWindow;
 use crate::input::canonical::{Location, Modification, Region};
 use crate::input::cursor::Cursor;
-use crate::offset_types::{DocCharOffset, RangeExt};
+use crate::offset_types::DocCharOffset;
 use crate::style::{BlockNode, InlineNode, ListItem, MarkdownNode};
 use crate::{wgpu, CompositeAlphaMode, Editor, Pos2, WgpuEditor};
 use egui::{Context, Event, PointerButton, TouchDeviceId, TouchId, TouchPhase, Visuals};
@@ -12,7 +12,6 @@ use jni::objects::{JClass, JString};
 use jni::sys::{jboolean, jfloat, jint, jlong, jobject, jstring};
 use jni::JNIEnv;
 use serde::Serialize;
-use std::cmp::min;
 use std::time::Instant;
 
 #[no_mangle]

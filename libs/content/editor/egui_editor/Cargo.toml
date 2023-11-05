@@ -31,6 +31,10 @@ lb-fonts = "0.1.1"
 [target.'cfg(target_vendor = "apple")'.dependencies]
 pollster = "0.2"
 
+[target.'cfg(not(target_vendor = "apple"))'.dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0.44"
+
 [target.'cfg(not(target_os = "android"))'.dependencies]
 lb = { package = "lb-rs", path = "../../../lb/lb-rs", default-features = false, features=["native-tls"] }
 reqwest = { version = "0.11", features = ["blocking"] }
@@ -42,6 +46,4 @@ ndk-sys = "0.4"
 raw-window-handle = "0.5"
 jni = "0.21.0"
 pollster = "0.2"
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0.44"
 

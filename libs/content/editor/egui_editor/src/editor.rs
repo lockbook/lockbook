@@ -73,6 +73,7 @@ pub struct EditorResponse {
     pub cursor_in_inline_code: bool,
     pub cursor_in_strikethrough: bool,
 
+    #[cfg(target_os = "android")]
     pub opened_url: Option<String>,
 }
 
@@ -102,7 +103,8 @@ impl Default for EditorResponse {
 
             #[cfg(any(target_os = "ios", target_os = "macos"))]
             opened_url: ptr::null(),
-            #[cfg(not(any(target_os = "ios", target_os = "macos")))]
+
+            #[cfg(target_os = "android")]
             opened_url: None,
         }
     }
@@ -442,7 +444,7 @@ impl Editor {
                     .into_raw() as *const c_char,
             };
         }
-        #[cfg(not(any(target_os = "ios", target_os = "macos")))]
+        #[cfg(target_os = "android")]
         {
             result.opened_url = self.maybe_opened_url.clone();
         }
