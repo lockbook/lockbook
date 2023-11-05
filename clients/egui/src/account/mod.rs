@@ -30,7 +30,7 @@ use self::modals::*;
 use self::suggested_docs::SuggestedDocs;
 use self::syncing::{SyncPanel, SyncUpdate};
 use self::tabs::{
-    Drawing, ImageViewer, Markdown, PdfViewer, PlainText, Tab, TabContent, TabFailure,
+    Drawing, ImageViewer, Markdown, PdfViewer, PlainText, SVGEditor, Tab, TabContent, TabFailure,
 };
 use self::tree::{FileTree, TreeNode};
 use self::workspace::Workspace;
@@ -389,7 +389,7 @@ impl AccountScreen {
         }
         // Ctrl-N pressed while new file modal is not open.
         if ctx.input_mut(|i| i.consume_key(CTRL, egui::Key::N)) {
-            self.create_file();
+            self.create_file(false);
         }
 
         // Ctrl-S to save current tab.
@@ -486,7 +486,11 @@ impl AccountScreen {
             .inner;
 
         if resp.new_file.is_some() {
-            self.create_file();
+            self.create_file(false);
+        }
+
+        if resp.new_drawing.is_some() {
+            self.create_file(true);
         }
 
         if let Some(file) = resp.new_folder_modal {
@@ -718,7 +722,7 @@ impl AccountScreen {
         });
     }
 
-    fn create_file(&mut self) {
+    fn create_file(&mut self, is_drawing: bool) {
         let mut focused_parent = self.tree.root.file.id;
         for id in self.tree.state.selected.drain() {
             focused_parent = id;
@@ -734,13 +738,13 @@ impl AccountScreen {
                 focused_parent.id
             };
 
-            let new_file = NameComponents::from("untitled.md")
+            let file_format = if is_drawing { "svg" } else { "md" };
+            let new_file = NameComponents::from(&format!("untitled.{}", file_format))
                 .next_in_children(core.get_children(focused_parent).unwrap());
 
             let result = core
                 .create_file(new_file.to_name().as_str(), focused_parent, lb::FileType::Document)
                 .map_err(|err| format!("{:?}", err));
-
             update_tx.send(AccountUpdate::FileCreated(result)).unwrap();
         });
     }
@@ -803,6 +807,8 @@ impl AccountScreen {
                             TabContent::Image(ImageViewer::boxed(id.to_string(), &bytes))
                         } else if ext == "pdf" {
                             TabContent::Pdf(PdfViewer::boxed(&bytes, &ctx))
+                        } else if ext == "svg" {
+                            TabContent::Svg(SVGEditor::boxed(&bytes, &ctx))
                         } else {
                             TabContent::PlainText(PlainText::boxed(&bytes))
                         }

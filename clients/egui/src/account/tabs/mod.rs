@@ -3,12 +3,14 @@ mod image_viewer;
 mod markdown;
 mod pdf_viewer;
 mod plain_text;
+mod svg_editor;
 
 pub use drawing::Drawing;
 pub use image_viewer::ImageViewer;
 pub use markdown::Markdown;
 pub use pdf_viewer::PdfViewer;
 pub use plain_text::PlainText;
+pub use svg_editor::SVGEditor;
 
 use std::time::Instant;
 
@@ -44,6 +46,7 @@ impl Tab {
                     Some(SaveRequestContent::Text(md.editor.buffer.current.text.clone()))
                 }
                 TabContent::PlainText(txt) => Some(SaveRequestContent::Text(txt.content.clone())),
+                TabContent::Svg(svg) => Some(SaveRequestContent::Text(svg.get_minimal_content())),
                 _ => None,
             };
             maybe_save_content.map(|content| SaveRequest { id: self.id, content })
@@ -63,6 +66,7 @@ pub enum TabContent {
     Markdown(Box<Markdown>),
     PlainText(Box<PlainText>),
     Pdf(Box<PdfViewer>),
+    Svg(Box<SVGEditor>),
 }
 
 pub enum TabFailure {
