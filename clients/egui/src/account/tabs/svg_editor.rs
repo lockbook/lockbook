@@ -45,7 +45,6 @@ impl SVGEditor {
         if content.is_empty() {
             content = INITIAL_SVG_CONTENT.to_string();
         }
-        println!("{}", content);
         let root: Element = content.parse().unwrap();
 
         let components = vec![
@@ -84,12 +83,21 @@ impl SVGEditor {
         ];
 
         let toolbar = Toolbar { components, active_color: None, active_stroke_width: 3 };
+        let max_id = root
+            .children()
+            .map(|el| {
+                let id: i32 = el.attr("id").unwrap_or("0").parse().unwrap_or_default();
+                id
+            })
+            .max_by(|x, y| x.cmp(y))
+            .unwrap_or_default()
+            + 1;
 
         Box::new(Self {
             content,
             draw_rx,
             draw_tx,
-            id_counter: 0,
+            id_counter: max_id as usize,
             root,
             toolbar,
             sao_offset: egui::vec2(0.0, 0.0),
@@ -296,9 +304,6 @@ impl SVGEditor {
             if ui.input_mut(|i| i.consume_key(egui::Modifiers::CTRL, egui::Key::Minus)) {
                 self.zoom_factor -= ZOOM_STOP;
             }
-
-            println!("{:#?}", self.sao_offset);
-            println!("{:#?}", cursor_pos);
 
             cursor_pos.x = (cursor_pos.x + self.sao_offset.x) / self.zoom_factor;
             cursor_pos.y = (cursor_pos.y + self.sao_offset.y) / self.zoom_factor;
