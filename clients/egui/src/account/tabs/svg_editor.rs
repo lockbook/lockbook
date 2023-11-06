@@ -89,7 +89,7 @@ impl SVGEditor {
                 let id: i32 = el.attr("id").unwrap_or("0").parse().unwrap_or_default();
                 id
             })
-            .max_by(|x, y| x.cmp(&y))
+            .max_by(|x, y| x.cmp(y))
             .unwrap_or_default()
             + 1;
 
