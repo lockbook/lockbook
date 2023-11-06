@@ -417,7 +417,6 @@ impl super::AccountScreen {
     pub fn save_tab(&self, ctx: &egui::Context, i: usize) {
         if let Some(tab) = self.workspace.tabs.get(i) {
             if tab.is_dirty() {
-                println!("saving");
                 if let Some(save_req) = tab.make_save_request() {
                     let core = self.core.clone();
                     let update_tx = self.update_tx.clone();
