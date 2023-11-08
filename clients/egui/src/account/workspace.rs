@@ -138,6 +138,12 @@ fn tab_label(ui: &mut egui::Ui, t: &mut Tab, is_active: bool) -> Option<TabLabel
                 lbl_resp = Some(TabLabelResponse::Renamed(str.to_owned()))
             }
         } else {
+            if resp.hovered() {
+                ui.output_mut(|o: &mut egui::PlatformOutput| {
+                    o.cursor_icon = egui::CursorIcon::PointingHand
+                });
+            }
+
             let bg = if resp.hovered() && !close_hovered {
                 ui.visuals().widgets.hovered.bg_fill
             } else {
