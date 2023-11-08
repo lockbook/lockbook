@@ -163,7 +163,6 @@ class FileService: ObservableObject {
             #if os(macOS)
             idsAndFiles[id]?.name = name
             #endif
-            refresh()
             return nil
         case .failure(let error):
             switch error.kind {
