@@ -502,8 +502,6 @@ impl Editor {
                 ui.output_mut(|o| o.cursor_icon = egui::CursorIcon::PointingHand);
             } else if hovering_text {
                 ui.output_mut(|o| o.cursor_icon = egui::CursorIcon::Text);
-            } else {
-                ui.output_mut(|o| o.cursor_icon = egui::CursorIcon::Default);
             }
         }
 
