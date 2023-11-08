@@ -1,5 +1,5 @@
 use crate::secrets::{AppStore, Github};
-use crate::utils::{core_version, lb_repo, CommandRunner};
+use crate::utils::{lb_repo, lb_version, CommandRunner};
 use gh_release::ReleaseClient;
 use std::fs::File;
 use std::process::Command;
@@ -101,7 +101,7 @@ fn upload_gh() {
     let gh = Github::env();
     let client = ReleaseClient::new(gh.0).unwrap();
     let release = client
-        .get_release_by_tag_name(&lb_repo(), &core_version())
+        .get_release_by_tag_name(&lb_repo(), &lb_version())
         .unwrap();
     let file = File::open("clients/apple/build/lockbook-macos.app.zip").unwrap();
     client

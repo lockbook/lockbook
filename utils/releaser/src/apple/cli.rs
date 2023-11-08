@@ -1,5 +1,5 @@
 use crate::secrets::Github;
-use crate::utils::{core_version, lb_repo, sha_file, CommandRunner};
+use crate::utils::{lb_repo, lb_version, sha_file, CommandRunner};
 use gh_release::ReleaseClient;
 use std::fs;
 use std::fs::{File, OpenOptions};
@@ -57,7 +57,7 @@ fn upload() {
     let gh = Github::env();
     let client = ReleaseClient::new(gh.0).unwrap();
     let release = client
-        .get_release_by_tag_name(&lb_repo(), &core_version())
+        .get_release_by_tag_name(&lb_repo(), &lb_version())
         .unwrap();
     let file = File::open(tarred_binary()).unwrap();
     client
@@ -78,7 +78,7 @@ fn update_brew() {
 }
 
 fn overwrite_lockbook_rb() {
-    let version = core_version();
+    let version = lb_version();
     let sha = sha_file(&tarred_binary());
 
     let new_content = format!(

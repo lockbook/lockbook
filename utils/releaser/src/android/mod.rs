@@ -1,5 +1,5 @@
 use crate::secrets::*;
-use crate::utils::{android_version_code, core_version, lb_repo, CommandRunner};
+use crate::utils::{android_version_code, lb_repo, lb_version, CommandRunner};
 use cli_rs::cli_error::CliResult;
 use gh_release::ReleaseClient;
 use google_androidpublisher3::api::{AppEdit, LocalizedText, Track, TrackRelease};
@@ -45,7 +45,7 @@ fn release_gh() {
     let gh = Github::env();
     let client = ReleaseClient::new(gh.0).unwrap();
     let release = client
-        .get_release_by_tag_name(&lb_repo(), &core_version())
+        .get_release_by_tag_name(&lb_repo(), &lb_version())
         .unwrap();
     let file = File::open(format!("{OUTPUTS}/apk/{RELEASE}.apk")).unwrap();
 
@@ -114,7 +114,7 @@ fn release_play_store() {
                         name: None,
                         release_notes: Some(vec![LocalizedText {
                             language: Some(DEFAULT_LOC.to_string()),
-                            text: Some(format!("Release notes on {}/{}", RELEASES, core_version())),
+                            text: Some(format!("Release notes on {}/{}", RELEASES, lb_version())),
                         }]),
                         status: Some(STATUS.to_string()),
                         user_fraction: None,
