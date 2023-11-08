@@ -1,5 +1,5 @@
 [package]
-version = "0.8.2"
+version = "0.8.3"
 name = "lockbook-cli"
 edition = "2021"
 
