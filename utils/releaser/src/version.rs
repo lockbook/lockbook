@@ -1,4 +1,4 @@
-use crate::utils::{core_version, CommandRunner};
+use crate::utils::{lb_version, CommandRunner};
 use cli_rs::cli_error::CliResult;
 use regex::{Captures, Regex};
 use std::fmt::{Display, Formatter};
@@ -57,12 +57,12 @@ fn handle_cargo_tomls(version: &str) {
         "clients/cli",
         "clients/egui",
         "server/server",
-        "libs/core",
-        "libs/core/libs/shared",
-        "libs/core/libs/test_utils",
-        "libs/editor/egui_editor",
-        "libs/c_interface_v2",
-        "libs/core_external_interface",
+        "libs/lb/lb-rs",
+        "libs/lb/lb-rs/libs/shared",
+        "libs/lb/lb-rs/libs/test_utils",
+        "libs/content/editor/egui_editor",
+        "libs/lb/c_interface_v2",
+        "libs/lb/lb_external_interface",
         "utils/dev-tool",
         "utils/releaser",
         "utils/winstaller",
@@ -124,7 +124,7 @@ fn handle_android(version: &str) {
 }
 
 fn determine_new_version(bump_type: BumpType) -> String {
-    let mut current_version: Vec<i32> = core_version()
+    let mut current_version: Vec<i32> = lb_version()
         .split('.')
         .map(|f| f.parse().unwrap())
         .collect();

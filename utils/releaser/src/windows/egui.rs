@@ -6,7 +6,7 @@ use gh_release::ReleaseClient;
 
 use crate::{
     secrets::Github,
-    utils::{core_version, lb_repo, CommandRunner},
+    utils::{lb_repo, lb_version, CommandRunner},
 };
 
 pub fn release_installers() {
@@ -35,7 +35,7 @@ fn upload<P: AsRef<Path>>(gh: &Github, name: &str, fpath: P) {
     let client = ReleaseClient::new(gh.0.clone()).unwrap();
 
     let release = client
-        .get_release_by_tag_name(&lb_repo(), &core_version())
+        .get_release_by_tag_name(&lb_repo(), &lb_version())
         .unwrap();
 
     let file = File::open(fpath).unwrap();

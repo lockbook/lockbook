@@ -1,5 +1,5 @@
 use crate::secrets::Github;
-use crate::utils::{core_version, lb_repo, CommandRunner};
+use crate::utils::{lb_repo, lb_version, CommandRunner};
 use cli_rs::cli_error::CliResult;
 use gh_release::ReleaseClient;
 use std::fs::File;
@@ -63,7 +63,7 @@ fn upload() {
     let gh = Github::env();
     let client = ReleaseClient::new(gh.0).unwrap();
     let release = client
-        .get_release_by_tag_name(&lb_repo(), &core_version())
+        .get_release_by_tag_name(&lb_repo(), &lb_version())
         .unwrap();
 
     let file = File::open("target/release/lockbook-server").unwrap();
