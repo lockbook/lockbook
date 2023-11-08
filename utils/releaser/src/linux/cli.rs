@@ -1,5 +1,5 @@
 use crate::secrets::Github;
-use crate::utils::{core_version, lb_repo, CommandRunner};
+use crate::utils::{lb_repo, lb_version, CommandRunner};
 use cli_rs::cli_error::CliResult;
 use gh_release::ReleaseClient;
 use std::fs;
@@ -22,7 +22,7 @@ pub fn build_x86() {
 }
 
 pub fn update_snap() -> CliResult<()> {
-    let version = core_version();
+    let version = lb_version();
     let snap_name = format!("lockbook_{version}_amd64.snap");
 
     let new_content = format!(
@@ -76,14 +76,14 @@ apps:
 }
 
 pub fn upload_deb() -> CliResult<()> {
-    let core_version = &core_version();
+    let lb_version = &lb_version();
     let gh = Github::env();
 
     let deb_scripts_location = "utils/releaser/debian-build-scripts/ppa-lockbook/";
     Command::new("dch")
         .args([
             "--newversion",
-            core_version,
+            lb_version,
             "see changelog at https://github.com/lockbook/lockbook/releases/latest",
         ])
         .current_dir(deb_scripts_location)
@@ -96,7 +96,7 @@ Source: lockbook
 Section: utils
 Priority: extra
 Maintainer: Parth Mehrotra <parth@mehrotra.me>
-Standards-Version: {core_version}
+Standards-Version: {lb_version}
 Build-Depends: debhelper (>=10), git, ca-certificates
 
 Package: lockbook
@@ -120,10 +120,10 @@ Description: The private, polished note-taking platform.
 
     let client = ReleaseClient::new(gh.0).unwrap();
     let release = client
-        .get_release_by_tag_name(&lb_repo(), core_version)
+        .get_release_by_tag_name(&lb_repo(), lb_version)
         .unwrap();
 
-    let deb_file = format!("lockbook_{core_version}_amd64.deb");
+    let deb_file = format!("lockbook_{lb_version}_amd64.deb");
 
     let output = File::open(format!("utils/releaser/debian-build-scripts/{deb_file}")).unwrap();
 
@@ -146,7 +146,7 @@ pub fn bin_gh() -> CliResult<()> {
 
     let client = ReleaseClient::new(gh.0).unwrap();
     let release = client
-        .get_release_by_tag_name(&lb_repo(), &core_version())
+        .get_release_by_tag_name(&lb_repo(), &lb_version())
         .unwrap();
     let file = File::open("target/x86_64-unknown-linux-gnu/release/lockbook").unwrap();
     client
@@ -169,7 +169,7 @@ pub fn update_aur() -> CliResult<()> {
 }
 
 pub fn overwrite_lockbook_pkg() {
-    let version = core_version();
+    let version = lb_version();
     let new_makepkg_content = format!(
         r#"
 pkgname='lockbook'

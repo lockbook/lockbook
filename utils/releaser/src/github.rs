@@ -1,6 +1,6 @@
 use crate::secrets::Github;
 use crate::utils;
-use crate::utils::{core_version, lb_repo};
+use crate::utils::{lb_repo, lb_version};
 use cli_rs::cli_error::CliResult;
 use gh_release::release::{CreateReleaseInfo, TagInfo};
 use gh_release::ReleaseClient;
@@ -11,7 +11,7 @@ pub fn create_release() -> CliResult<()> {
     let client = ReleaseClient::new(gh.0).unwrap();
 
     let tag_info = TagInfo {
-        tag: core_version(),
+        tag: lb_version(),
         message: "".to_string(),
         object: utils::commit_hash(),
         type_tagged: "commit".to_string(),
@@ -20,9 +20,9 @@ pub fn create_release() -> CliResult<()> {
     client.create_a_tag(&lb_repo(), &tag_info).unwrap();
 
     let release_info = CreateReleaseInfo {
-        tag_name: core_version(),
+        tag_name: lb_version(),
         target_commitish: None,
-        name: Some(core_version()),
+        name: Some(lb_version()),
         body: None,
         draft: None,
         prerelease: None,

@@ -17,10 +17,10 @@ const SHORT_I686: &str = "x86";
 const SHORT_X86_64: &str = "x86_64";
 
 pub fn build_libs() {
-    build_core_for_android_arch(ARCH64);
-    build_core_for_android_arch(ARMV7);
-    build_core_for_android_arch(I686);
-    build_core_for_android_arch(X86_64);
+    build_lb_for_android_arch(ARCH64);
+    build_lb_for_android_arch(ARMV7);
+    build_lb_for_android_arch(I686);
+    build_lb_for_android_arch(X86_64);
 
     let android_arch64 = format!("{JNI_LIB}/{SHORT_ARCH64}");
     let android_armv7 = format!("{JNI_LIB}/{SHORT_ARMV7}");
@@ -54,7 +54,7 @@ pub fn build_libs() {
     .unwrap();
 }
 
-fn build_core_for_android_arch(platform: &str) {
+fn build_lb_for_android_arch(platform: &str) {
     Command::new("cargo")
         .args([
             "ndk",
@@ -66,6 +66,6 @@ fn build_core_for_android_arch(platform: &str) {
             "build",
             "--release",
         ])
-        .current_dir("libs/core_external_interface")
+        .current_dir("libs/lb_external_interface")
         .assert_success();
 }
