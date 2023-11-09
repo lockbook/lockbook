@@ -1,13 +1,12 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use clipboard_win::{formats, set_clipboard};
 use egui::{Context, Visuals};
 use egui_wgpu_backend::wgpu::CompositeAlphaMode;
 use egui_wgpu_backend::{wgpu, ScreenDescriptor};
 use input::message::{Message, MessageAppDep, MessageNoDeps, MessageWindowDep};
-use lbeguiapp::WgpuLockbook;
+use lbeguiapp::{IntegrationOutput, UpdateOutput, WgpuLockbook};
+use std::thread;
 use std::time::{Duration, Instant};
-use std::{mem, thread};
 use windows::{
     core::*, Win32::Foundation::*, Win32::Graphics::Direct3D12::*, Win32::Graphics::Dxgi::*,
     Win32::System::LibraryLoader::*, Win32::UI::HiDpi::*, Win32::UI::Input::KeyboardAndMouse::*,
@@ -15,6 +14,7 @@ use windows::{
 };
 
 mod input;
+mod output;
 mod window;
 
 #[cfg(not(windows))]
@@ -64,7 +64,7 @@ fn main() -> Result<()> {
         CreateWindowExA(
             WINDOW_EX_STYLE::default(),
             s!("Lockbook"),
-            PCSTR(s!("Lockbook\0").as_ptr()),
+            PCSTR(s!("Lockbook").as_ptr()),
             WS_OVERLAPPEDWINDOW,
             CW_USEDEFAULT,
             CW_USEDEFAULT,
@@ -245,16 +245,16 @@ fn handled_messages_impl(
                             input::mouse::handle_wheel(app, message, delta)
                         }
                         MessageAppDep::Paint => {
-                            app.frame();
+                            let IntegrationOutput {
+                                redraw_in: _, // todo: handle? how's this different from checking egui context?
+                                update_output: UpdateOutput { close, set_window_title },
+                            } = app.frame();
 
-                            // todo: factor output
-                            if let Some(copied_text) = mem::take(&mut app.from_egui) {
-                                set_clipboard(formats::Unicode, copied_text)
-                                    .expect("set clipboard");
-                                true
-                            } else {
-                                false
-                            }
+                            output::clipboard::handle(app);
+                            output::close::handle(close);
+                            output::window_title::handle(window_handle, set_window_title);
+
+                            true
                         }
                     }
                 } else {
