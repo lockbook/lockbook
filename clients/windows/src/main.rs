@@ -1,3 +1,5 @@
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
 use clipboard_win::{formats, get_clipboard, set_clipboard};
 use egui::{Context, Visuals};
 use egui_wgpu_backend::wgpu::CompositeAlphaMode;
@@ -16,6 +18,10 @@ use windows::{
 mod keyboard;
 mod window;
 
+#[cfg(not(windows))]
+fn main() {}
+
+#[cfg(windows)]
 fn main() -> Result<()> {
     env_logger::init();
 
