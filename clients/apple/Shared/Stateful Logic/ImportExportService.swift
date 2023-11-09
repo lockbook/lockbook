@@ -24,6 +24,8 @@ class ImportExportService: ObservableObject {
         case .success(_):
             DI.files.successfulAction = .importFiles
             DI.files.refresh()
+            DI.status.checkForLocalWork()
+            
             return true
         case .failure(let error):
             DI.errors.handleError(error)
@@ -35,7 +37,6 @@ class ImportExportService: ObservableObject {
         guard var destination = createTempTempDir() else {
             return nil
         }
-        
         
         if meta.fileType == .Document && meta.name.hasSuffix(".draw") {
             destination = destination.appendingPathComponent(meta.name + ".jpeg")

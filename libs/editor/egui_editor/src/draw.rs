@@ -1,4 +1,5 @@
-use crate::appearance::YELLOW;
+use crate::appearance::{GRAY, YELLOW};
+use crate::images::ImageState;
 use crate::input::canonical::{Location, Modification, Region};
 use crate::layouts::Annotation;
 use crate::offset_types::RangeExt;
@@ -91,9 +92,27 @@ impl Editor {
 
             // draw images
             if let Some(image) = &galley.image {
-                let uv = Rect { min: Pos2 { x: 0.0, y: 0.0 }, max: Pos2 { x: 1.0, y: 1.0 } };
-                ui.painter()
-                    .image(image.texture, image.location, uv, Color32::WHITE);
+                match &image.image_state {
+                    ImageState::Loading => {
+                        let photo = "\u{e410}";
+                        self.draw_image_placeholder(ui, image.location, photo, "Loading image...");
+                    }
+                    ImageState::Loaded(texture_id) => {
+                        let uv =
+                            Rect { min: Pos2 { x: 0.0, y: 0.0 }, max: Pos2 { x: 1.0, y: 1.0 } };
+                        ui.painter()
+                            .image(*texture_id, image.location, uv, Color32::WHITE);
+                    }
+                    ImageState::Failed(_) => {
+                        let image_not_supported = "\u{f116}";
+                        self.draw_image_placeholder(
+                            ui,
+                            image.location,
+                            image_not_supported,
+                            "Failed to load image.",
+                        );
+                    }
+                }
             }
 
             // draw text
@@ -110,6 +129,25 @@ impl Editor {
         ui.allocate_exact_size(ui_size, Sense::hover());
     }
 
+    pub fn draw_image_placeholder(
+        &self, ui: &mut Ui, location: Rect, icon: &'static str, caption: &'static str,
+    ) {
+        ui.painter().text(
+            location.center(),
+            Align2::CENTER_CENTER,
+            icon,
+            FontId { size: 48.0, family: egui::FontFamily::Monospace },
+            GRAY.get(self.appearance.current_theme),
+        );
+        ui.painter().text(
+            location.center_bottom() + Vec2 { x: 0.0, y: -50.0 },
+            Align2::CENTER_BOTTOM,
+            caption,
+            FontId::default(),
+            GRAY.get(self.appearance.current_theme),
+        );
+    }
+
     pub fn draw_cursor(&mut self, ui: &mut Ui, touch_mode: bool) {
         // determine cursor style
         let cursor = self.buffer.current.cursor;
@@ -123,7 +161,10 @@ impl Editor {
             let mut selection_end_line = selection_end_line;
             let mut stroke = stroke;
 
-            for style in self.ast.styles_at_offset(cursor.selection.1) {
+            for style in self
+                .ast
+                .styles_at_offset(cursor.selection.1, &self.bounds.ast)
+            {
                 match style {
                     MarkdownNode::Inline(InlineNode::Bold)
                     | MarkdownNode::Block(BlockNode::Heading(HeadingLevel::H1)) => {

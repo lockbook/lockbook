@@ -1,10 +1,10 @@
 use crate::input::click_checker::ClickChecker;
 use crate::input::cursor::{ClickType, PointerState};
 use crate::offset_types::{DocCharOffset, RelCharOffset};
-use crate::style::{InlineNode, MarkdownNode};
-use crate::{CTextPosition, CTextRange};
+use crate::style::{BlockNode, InlineNode, ListItem, MarkdownNode};
+use crate::{appearance, CTextPosition, CTextRange};
 use egui::{Event, Key, Modifiers, PointerButton, Pos2};
-use pulldown_cmark::LinkType;
+use pulldown_cmark::{HeadingLevel, LinkType};
 use std::time::Instant;
 
 /// text location
@@ -77,7 +77,7 @@ pub enum Region {
 
 /// Standardized edits to any editor state e.g. buffer, clipboard, debug state.
 /// May depend on render state e.g. galley positions, line wrap.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Modification {
     Select { region: Region },
     StageMarked { highlighted: (RelCharOffset, RelCharOffset), text: String },
@@ -93,10 +93,7 @@ pub enum Modification {
     ToggleDebug,
     ToggleCheckbox(usize),
     OpenUrl(String),
-    Heading(u32),
-    BulletListItem,
-    NumberListItem,
-    TodoListItem,
+    SetBaseFontSize(f32),
 }
 
 impl From<&Modifiers> for Offset {
@@ -120,7 +117,7 @@ impl From<&Modifiers> for Offset {
 
 pub fn calc(
     event: &Event, click_checker: impl ClickChecker, pointer_state: &mut PointerState,
-    now: Instant, touch_mode: bool,
+    now: Instant, touch_mode: bool, is_ios: bool, appearance: &appearance::Appearance,
 ) -> Option<Modification> {
     match event {
         Event::Key { key, pressed: true, modifiers, .. }
@@ -210,10 +207,14 @@ pub fn calc(
         Event::Key { key: Key::C, pressed: true, modifiers, .. }
             if modifiers.command && modifiers.shift =>
         {
-            Some(Modification::ToggleStyle {
-                region: Region::Selection,
-                style: MarkdownNode::Inline(InlineNode::Code),
-            })
+            if !modifiers.alt {
+                Some(Modification::ToggleStyle {
+                    region: Region::Selection,
+                    style: MarkdownNode::Inline(InlineNode::Code),
+                })
+            } else {
+                Some(Modification::toggle_block_style(BlockNode::Code))
+            }
         }
         Event::Key { key: Key::X, pressed: true, modifiers, .. }
             if modifiers.command && modifiers.shift =>
@@ -236,22 +237,62 @@ pub fn calc(
         Event::Key { key: Key::Num7, pressed: true, modifiers, .. }
             if modifiers.command && modifiers.shift =>
         {
-            Some(Modification::NumberListItem)
+            Some(Modification::toggle_block_style(BlockNode::ListItem(ListItem::Numbered(1), 0)))
         }
         Event::Key { key: Key::Num8, pressed: true, modifiers, .. }
             if modifiers.command && modifiers.shift =>
         {
-            Some(Modification::BulletListItem)
+            Some(Modification::toggle_block_style(BlockNode::ListItem(ListItem::Bulleted, 0)))
         }
         Event::Key { key: Key::Num9, pressed: true, modifiers, .. }
             if modifiers.command && modifiers.shift =>
         {
-            Some(Modification::TodoListItem)
+            Some(Modification::toggle_block_style(BlockNode::ListItem(ListItem::Todo(false), 0)))
+        }
+        Event::Key { key: Key::Num1, pressed: true, modifiers, .. }
+            if modifiers.command && modifiers.alt =>
+        {
+            Some(Modification::toggle_block_style(BlockNode::Heading(HeadingLevel::H1)))
+        }
+        Event::Key { key: Key::Num2, pressed: true, modifiers, .. }
+            if modifiers.command && modifiers.alt =>
+        {
+            Some(Modification::toggle_block_style(BlockNode::Heading(HeadingLevel::H2)))
+        }
+        Event::Key { key: Key::Num3, pressed: true, modifiers, .. }
+            if modifiers.command && modifiers.alt =>
+        {
+            Some(Modification::toggle_block_style(BlockNode::Heading(HeadingLevel::H3)))
+        }
+        Event::Key { key: Key::Num4, pressed: true, modifiers, .. }
+            if modifiers.command && modifiers.alt =>
+        {
+            Some(Modification::toggle_block_style(BlockNode::Heading(HeadingLevel::H4)))
+        }
+        Event::Key { key: Key::Num5, pressed: true, modifiers, .. }
+            if modifiers.command && modifiers.alt =>
+        {
+            Some(Modification::toggle_block_style(BlockNode::Heading(HeadingLevel::H5)))
+        }
+        Event::Key { key: Key::Num6, pressed: true, modifiers, .. }
+            if modifiers.command && modifiers.alt =>
+        {
+            Some(Modification::toggle_block_style(BlockNode::Heading(HeadingLevel::H6)))
+        }
+        Event::Key { key: Key::Q, pressed: true, modifiers, .. }
+            if modifiers.command && modifiers.alt =>
+        {
+            Some(Modification::toggle_block_style(BlockNode::Quote))
+        }
+        Event::Key { key: Key::R, pressed: true, modifiers, .. }
+            if modifiers.command && modifiers.alt =>
+        {
+            Some(Modification::toggle_block_style(BlockNode::Rule))
         }
         Event::PointerButton { pos, button: PointerButton::Primary, pressed: true, modifiers }
             if click_checker.ui(*pos) =>
         {
-            pointer_state.press(now, *pos, *modifiers);
+            pointer_state.press(now, *pos, click_checker.pos_to_char_offset(*pos), *modifiers);
             None
         }
         Event::PointerMoved(pos) if click_checker.ui(*pos) => {
@@ -259,10 +300,10 @@ pub fn calc(
             if pointer_state.click_dragged.unwrap_or_default() && !touch_mode {
                 if pointer_state.click_mods.unwrap_or_default().shift {
                     Some(Modification::Select { region: Region::ToLocation(Location::Pos(*pos)) })
-                } else if let Some(click_pos) = pointer_state.click_pos {
+                } else if let Some(click_offset) = pointer_state.click_offset {
                     Some(Modification::Select {
                         region: Region::BetweenLocations {
-                            start: Location::Pos(click_pos),
+                            start: Location::DocCharOffset(click_offset),
                             end: Location::Pos(*pos),
                         },
                     })
@@ -275,7 +316,7 @@ pub fn calc(
         }
         Event::PointerButton { pos, button: PointerButton::Primary, pressed: false, .. } => {
             let click_type = pointer_state.click_type.unwrap_or_default();
-            let click_pos = pointer_state.click_pos.unwrap_or_default();
+            let click_offset = pointer_state.click_offset.unwrap_or_default();
             let click_mods = pointer_state.click_mods.unwrap_or_default();
             let click_dragged = pointer_state.click_dragged.unwrap_or_default();
             pointer_state.release();
@@ -293,7 +334,7 @@ pub fn calc(
                 None
             }
             .or_else(|| {
-                if click_checker.ui(*pos) {
+                if click_checker.ui(*pos) && !is_ios {
                     Some(Modification::Select {
                         region: if click_mods.shift {
                             Region::ToLocation(location)
@@ -308,7 +349,7 @@ pub fn calc(
                                         }
                                     } else {
                                         Region::BetweenLocations {
-                                            start: Location::Pos(click_pos),
+                                            start: Location::DocCharOffset(click_offset),
                                             end: location,
                                         }
                                     }
@@ -335,7 +376,28 @@ pub fn calc(
             })
         }
         Event::Key { key: Key::F2, pressed: true, .. } => Some(Modification::ToggleDebug),
+        Event::Key { key: Key::PlusEquals, pressed: true, modifiers, .. } if modifiers.command => {
+            Some(Modification::SetBaseFontSize(appearance.font_size() + 1.0))
+        }
+        Event::Key { key: Key::Minus, pressed: true, modifiers, .. } if modifiers.command => {
+            Some(Modification::SetBaseFontSize(appearance.font_size() - 1.0))
+        }
         _ => None,
+    }
+}
+
+impl Modification {
+    pub fn toggle_block_style(block: BlockNode) -> Self {
+        Modification::ToggleStyle {
+            region: Region::Bound { bound: Bound::Paragraph, backwards: false },
+            style: MarkdownNode::Block(block),
+        }
+    }
+
+    pub fn toggle_heading_style(level: usize) -> Self {
+        Self::toggle_block_style(BlockNode::Heading(
+            HeadingLevel::try_from(level).unwrap_or(HeadingLevel::H1),
+        ))
     }
 }
 
@@ -368,6 +430,7 @@ mod test {
     use super::calc;
     use crate::input::canonical::{Bound, Increment, Modification, Offset, Region};
     use crate::input::click_checker::ClickChecker;
+    use crate::offset_types::DocCharOffset;
     use egui::{Event, Key, Modifiers, Pos2};
     use std::time::Instant;
 
@@ -377,6 +440,7 @@ mod test {
         text: Option<usize>,
         checkbox: Option<usize>,
         link: Option<String>,
+        offset: DocCharOffset,
     }
 
     impl ClickChecker for TestClickChecker {
@@ -395,6 +459,10 @@ mod test {
         fn link(&self, _pos: Pos2) -> Option<String> {
             self.link.clone()
         }
+
+        fn pos_to_char_offset(&self, _pos: Pos2) -> DocCharOffset {
+            self.offset
+        }
     }
 
     #[test]
@@ -410,7 +478,8 @@ mod test {
                 TestClickChecker::default(),
                 &mut Default::default(),
                 Instant::now(),
-                false
+                false,
+                &Default::default()
             ),
             Some(Modification::Select {
                 region: Region::ToOffset {
@@ -435,7 +504,8 @@ mod test {
                 TestClickChecker::default(),
                 &mut Default::default(),
                 Instant::now(),
-                false
+                false,
+                &Default::default()
             ),
             Some(Modification::Select {
                 region: Region::ToOffset {
@@ -460,7 +530,8 @@ mod test {
                 TestClickChecker::default(),
                 &mut Default::default(),
                 Instant::now(),
-                false
+                false,
+                &Default::default()
             ),
             Some(Modification::Select {
                 region: Region::ToOffset {
@@ -485,7 +556,8 @@ mod test {
                 TestClickChecker::default(),
                 &mut Default::default(),
                 Instant::now(),
-                false
+                false,
+                &Default::default()
             ),
             Some(Modification::Select {
                 region: Region::ToOffset {
@@ -510,7 +582,8 @@ mod test {
                 TestClickChecker::default(),
                 &mut Default::default(),
                 Instant::now(),
-                false
+                false,
+                &Default::default()
             ),
             Some(Modification::Select {
                 region: Region::ToOffset {
@@ -535,7 +608,8 @@ mod test {
                 TestClickChecker::default(),
                 &mut Default::default(),
                 Instant::now(),
-                false
+                false,
+                &Default::default()
             ),
             Some(Modification::Select {
                 region: Region::ToOffset {
@@ -560,7 +634,8 @@ mod test {
                 TestClickChecker::default(),
                 &mut Default::default(),
                 Instant::now(),
-                false
+                false,
+                &Default::default()
             ),
             Some(Modification::Select {
                 region: Region::ToOffset {
@@ -585,7 +660,8 @@ mod test {
                 TestClickChecker::default(),
                 &mut Default::default(),
                 Instant::now(),
-                false
+                false,
+                &Default::default()
             ),
             Some(Modification::Select {
                 region: Region::ToOffset {
@@ -610,7 +686,8 @@ mod test {
                 TestClickChecker::default(),
                 &mut Default::default(),
                 Instant::now(),
-                false
+                false,
+                &Default::default()
             ),
             Some(Modification::Select {
                 region: Region::ToOffset {
@@ -636,7 +713,8 @@ mod test {
                 TestClickChecker::default(),
                 &mut Default::default(),
                 Instant::now(),
-                false
+                false,
+                &Default::default()
             ),
             Some(Modification::Select {
                 region: Region::ToOffset {
@@ -661,7 +739,8 @@ mod test {
                 TestClickChecker::default(),
                 &mut Default::default(),
                 Instant::now(),
-                false
+                false,
+                &Default::default()
             ),
             Some(Modification::Select {
                 region: Region::ToOffset {
@@ -686,7 +765,8 @@ mod test {
                 TestClickChecker::default(),
                 &mut Default::default(),
                 Instant::now(),
-                false
+                false,
+                &Default::default()
             ),
             Some(Modification::Select {
                 region: Region::ToOffset {
@@ -712,7 +792,8 @@ mod test {
                 TestClickChecker::default(),
                 &mut Default::default(),
                 Instant::now(),
-                false
+                false,
+                &Default::default()
             ),
             Some(Modification::Select {
                 region: Region::ToOffset {
@@ -737,7 +818,8 @@ mod test {
                 TestClickChecker::default(),
                 &mut Default::default(),
                 Instant::now(),
-                false
+                false,
+                &Default::default()
             ),
             Some(Modification::Select {
                 region: Region::ToOffset {
@@ -762,7 +844,8 @@ mod test {
                 TestClickChecker::default(),
                 &mut Default::default(),
                 Instant::now(),
-                false
+                false,
+                &Default::default()
             ),
             Some(Modification::Select {
                 region: Region::ToOffset {
@@ -787,7 +870,8 @@ mod test {
                 TestClickChecker::default(),
                 &mut Default::default(),
                 Instant::now(),
-                false
+                false,
+                &Default::default()
             ),
             Some(Modification::Select {
                 region: Region::ToOffset {
@@ -812,7 +896,8 @@ mod test {
                 TestClickChecker::default(),
                 &mut Default::default(),
                 Instant::now(),
-                false
+                false,
+                &Default::default()
             ),
             Some(Modification::Select {
                 region: Region::ToOffset {
@@ -838,7 +923,8 @@ mod test {
                 TestClickChecker::default(),
                 &mut Default::default(),
                 Instant::now(),
-                false
+                false,
+                &Default::default()
             ),
             Some(Modification::Select {
                 region: Region::ToOffset {
@@ -863,7 +949,8 @@ mod test {
                 TestClickChecker::default(),
                 &mut Default::default(),
                 Instant::now(),
-                false
+                false,
+                &Default::default()
             ),
             Some(Modification::Select {
                 region: Region::ToOffset {
@@ -888,7 +975,8 @@ mod test {
                 TestClickChecker::default(),
                 &mut Default::default(),
                 Instant::now(),
-                false
+                false,
+                &Default::default()
             ),
             Some(Modification::Select {
                 region: Region::ToOffset {
@@ -914,7 +1002,8 @@ mod test {
                 TestClickChecker::default(),
                 &mut Default::default(),
                 Instant::now(),
-                false
+                false,
+                &Default::default()
             ),
             Some(Modification::Select {
                 region: Region::ToOffset {
@@ -939,7 +1028,8 @@ mod test {
                 TestClickChecker::default(),
                 &mut Default::default(),
                 Instant::now(),
-                false
+                false,
+                &Default::default()
             ),
             Some(Modification::Select {
                 region: Region::ToOffset {
@@ -964,7 +1054,8 @@ mod test {
                 TestClickChecker::default(),
                 &mut Default::default(),
                 Instant::now(),
-                false
+                false,
+                &Default::default()
             ),
             Some(Modification::Select {
                 region: Region::ToOffset {
@@ -989,7 +1080,8 @@ mod test {
                 TestClickChecker::default(),
                 &mut Default::default(),
                 Instant::now(),
-                false
+                false,
+                &Default::default()
             ),
             Some(Modification::Select {
                 region: Region::ToOffset {

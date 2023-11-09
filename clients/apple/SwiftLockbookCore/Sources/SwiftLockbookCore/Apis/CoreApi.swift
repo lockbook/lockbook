@@ -164,6 +164,10 @@ public struct CoreApi: LockbookApi {
         fromPrimitiveResult(result: get_file_by_id(id.uuidString))
     }
     
+    public func getFileByPath(path: String) -> FfiResult<File, GetFileByPathError> {
+        fromPrimitiveResult(result: get_by_path(path))
+    }
+    
     public func startSearch(context: UnsafeRawPointer?, updateStatus: @escaping @convention(c) (UnsafePointer<Int8>?, Int32, UnsafePointer<Int8>?) -> Void) -> FfiResult<Empty, GeneralSearchError> {
         fromPrimitiveResult(result: start_search(context, updateStatus))
     }

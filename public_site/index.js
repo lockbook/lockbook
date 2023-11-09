@@ -1,17 +1,99 @@
-let OSName = "Unknown";
-let OSDownloadMap = {
-	Windows:
-		"https://github.com/lockbook/lockbook/releases/download/0.5.7/lockbook-windows-setup-x86_64.exe",
-	"Mac/iOS": "https://apps.apple.com/us/app/lockbook/id1526775001",
-	Linux: "https://github.com/lockbook/lockbook/blob/master/docs/guides/install/linux.md",
-	Android: "https://play.google.com/store/apps/details?id=app.lockbook",
-};
-if (window.navigator.userAgent.includes("Windows NT")) OSName = "Windows";
-if (window.navigator.userAgent.includes("Mac")) OSName = "Mac/iOS";
-if (window.navigator.userAgent.includes("Android")) OSName = "Android";
-if (window.navigator.userAgent.includes("Linux")) OSName = "Linux";
+/** Detect the user's platform and estimate his secondary platform for his laptop/phone
+ * then recommend content accordingly
+ * **/
 
-document.querySelectorAll(".get-lockbook").forEach((el) => {
-	el.textContent = `Get for ${OSName}`;
-	el.href = OSDownloadMap[OSName];
+let platforms = {
+	Windows: {
+		hrefGUI:
+			"https://github.com/lockbook/lockbook/releases/latest/download/lockbook-windows-setup-x86_64.exe",
+		hrefCLI:
+			"https://github.com/lockbook/lockbook/releases/latest/download/lockbook-windows-cli.zip",
+		header: "Secure e2e note-taking for Windows",
+		subHeader:
+			"Embrace our native app that blends with your Windows ecosystem. Enjoy polished, privacy-focused notes",
+	},
+	"macOS/iOS": {
+		hrefGUI: "https://apps.apple.com/us/app/lockbook/id1526775001",
+		hrefCLI:
+			"https://github.com/lockbook/lockbook/releases/latest/download/lockbook-cli-macos.tar.gz",
+		header: "Beautiful, native note-taking for your apple ecosystem",
+		subHeader:
+			"Embrace a secure, end to end encrypted notes with an luxurious native feel; built in Swift for Macs, iPhones, and iPads ",
+	},
+	Linux: {
+		hrefGUI:
+			"https://github.com/lockbook/lockbook/releases/latest/download/lockbook-egui",
+		hrefCLI:
+			"https://github.com/lockbook/lockbook/releases/latest/download/lockbook-cli",
+		header: "Open source Linux client, written in Rust",
+		subHeader:
+			"Enjoy a lightweight and secure note-taking experience on our Egui app . No electron, no bloated webviews to clog up you system!",
+	},
+	Android: {
+		hrefGUI: "https://play.google.com/store/apps/details?id=app.lockbook",
+		header: "Take notes on the fly",
+		subHeader:
+			"Get Lockbook's android client and enjoy simple, and secure note-taking.",
+	},
+};
+function getUserPlatform() {
+	let result = [];
+	if (window.navigator.userAgent.includes("Windows"))
+		result = ["Windows", "Android", "Windows"];
+	if (window.navigator.userAgent.includes("Mac"))
+		result = ["macOS/iOS", "macOS/iOS", "macOS/iOS"];
+	if (window.navigator.userAgent.includes("Android"))
+		result = ["Android", "Windows", "Windows"];
+	if (window.navigator.userAgent.includes("Linux"))
+		result = ["Linux", "Android", "Linux"];
+
+	return result;
+}
+
+let [userPrimaryPlatform, userSecondaryPlatform, userCLIPlatform] =
+	getUserPlatform();
+
+document.querySelectorAll(".get-lockbook-gui").forEach((downloadBtn) => {
+	downloadBtn.textContent = `Get for ${userPrimaryPlatform}`;
+	downloadBtn.href = platforms[userPrimaryPlatform].hrefGUI;
+
+	let hasOtherPlatformDownloads = downloadBtn.nextElementSibling !== null;
+	if (!hasOtherPlatformDownloads) return; // the navbar btn falls under this case
+
+	let nonPrimaryPlatforms = { ...platforms };
+	delete nonPrimaryPlatforms[userPrimaryPlatform];
+	nonPrimaryPlatforms = Object.entries(nonPrimaryPlatforms);
+
+	downloadBtn.nextElementSibling
+		.querySelectorAll("a")
+		.forEach((nonPrimaryLink, i) => {
+			nonPrimaryLink.href = nonPrimaryPlatforms[i][1].hrefGUI;
+			nonPrimaryLink.textContent = nonPrimaryPlatforms[i][0];
+		});
+});
+
+document.querySelectorAll(".get-lockbook-cli").forEach((downloadBtn) => {
+	downloadBtn.textContent = `Get for ${
+		userCLIPlatform === "macOS/iOS" ? "macOS" : userCLIPlatform
+	}`;
+	downloadBtn.href = platforms[userCLIPlatform].hrefCLI;
+
+	let hasOtherPlatformDownloads = downloadBtn.nextElementSibling !== null;
+	if (!hasOtherPlatformDownloads) return;
+
+	let nonPrimaryPlatforms = { ...platforms };
+	delete nonPrimaryPlatforms[userPrimaryPlatform];
+	nonPrimaryPlatforms = Object.entries(nonPrimaryPlatforms).filter(
+		(entery) => entery[1].hrefCLI !== undefined
+	);
+
+	downloadBtn.nextElementSibling
+		.querySelectorAll("a")
+		.forEach((nonPrimaryLink, i) => {
+			nonPrimaryLink.href = nonPrimaryPlatforms[i][1].hrefCLI;
+			nonPrimaryLink.textContent =
+				nonPrimaryPlatforms[i][0] === "macOS/iOS"
+					? "macOS"
+					: nonPrimaryPlatforms[i][0];
+		});
 });

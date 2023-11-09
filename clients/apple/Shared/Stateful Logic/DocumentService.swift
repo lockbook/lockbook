@@ -11,8 +11,12 @@ class DocumentService: ObservableObject {
     var openDocumentsKeyArr: [UUID] {
         get {
             Array(openDocuments.keys).sorted(by: { lhid, rhid in
-                openDocuments[lhid]!.timeCreated < openDocuments[rhid]!.timeCreated
+                guard let lhTimeCreated = openDocuments[lhid], let rhTimeCreated = openDocuments[rhid] else {
+                    return false
+                }
                 
+                
+                return lhTimeCreated.timeCreated < rhTimeCreated.timeCreated
             })
         }
     }
@@ -26,8 +30,9 @@ class DocumentService: ObservableObject {
     var justOpenedLink: File? = nil
 
     func openDoc(id: UUID, isiPhone: Bool = false) {
-        if openDocuments[id] == nil {
-            openDocuments[id] = DocumentLoadingInfo(DI.files.idsAndFiles[id]!, isiPhone)
+        if let meta = DI.files.idsAndFiles[id],
+           openDocuments[id] == nil {
+            openDocuments[id] = DocumentLoadingInfo(meta, isiPhone)
         }
     }
     
@@ -157,6 +162,12 @@ class DocumentService: ObservableObject {
             }
         }
     }
+    
+    func undoRedoSelectedDoc(redo: Bool) {
+        if let id = selectedDoc {
+            openDocuments[id]?.textDocumentToolbar?.undoRedo(redo)
+        }
+    }
 }
 
 public enum TextFormatting {
@@ -233,8 +244,11 @@ class DocumentLoadingInfo: ObservableObject {
                     switch operation {
                     case .success(let txt):
                         if let editor = self.textDocument {
-                            if editor.text != txt {
-                                editor.reload = true
+                            if self.textDocument?.pasted == true {
+                                editor.reloadView = true
+                                self.textDocument?.pasted = false
+                            } else if editor.text != txt {
+                                editor.reloadText = true
                                 editor.text = txt
                             }
                         }
@@ -254,7 +268,6 @@ class DocumentLoadingInfo: ObservableObject {
         case .Unknown:
             print("cannot reload unknown content type")
         }
-
     }
 
     private func drawingAutosaver() {
@@ -276,7 +289,20 @@ class DocumentLoadingInfo: ObservableObject {
             DispatchQueue.main.async {
                 switch operation {
                 case .success(let txt):
-                    self.textDocument = EditorState(text: txt, isiPhone: self.isiPhone)
+                    self.textDocument = EditorState(text: txt, isiPhone: self.isiPhone) { url in
+                        let isSuccess = DI.importExport.importFilesSync(sources:[url.path(percentEncoded: false)], destination: self.meta.parent)
+                        
+                        if let parentPath = DI.files.getPathByIdOrParent(maybeId: self.meta.parent),
+                           isSuccess {
+                            if let file = DI.files.getFileByPath(path: parentPath + url.lastPathComponent) {
+                                let isImage = url.pathExtension == "png" || url.pathExtension == "jpeg" || url.pathExtension == "tiff"
+                        
+                                return "\(isImage ? "!" : "")[\((url.lastPathComponent as NSString).deletingPathExtension)](lb://\(file.id.uuidString.lowercased()))"
+                            }
+                        }
+                        
+                        return nil
+                    }
                     self.textDocumentToolbar = ToolbarState()
                     self
                         .textDocument!

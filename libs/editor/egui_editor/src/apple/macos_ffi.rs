@@ -1,7 +1,7 @@
 use crate::apple::keyboard::NSKeys;
 use crate::WgpuEditor;
 use egui::PointerButton::{Primary, Secondary};
-use egui::{Event, Pos2, Vec2};
+use egui::{Event, Pos2};
 use std::ffi::{c_char, c_void, CStr};
 
 /// (macos only)
@@ -17,9 +17,7 @@ pub unsafe extern "C" fn key_event(
 
     obj.raw_input.modifiers = modifiers;
 
-    let Some(key) = NSKeys::from(key_code) else {
-        return
-    };
+    let Some(key) = NSKeys::from(key_code) else { return };
 
     let mut clip_event = false;
     if pressed && key == NSKeys::V && modifiers.command {
@@ -41,16 +39,6 @@ pub unsafe extern "C" fn key_event(
             .events
             .push(Event::Key { key, pressed, repeat: false, modifiers });
     }
-}
-
-/// (macos only)
-/// # Safety
-#[no_mangle]
-pub unsafe extern "C" fn scroll_wheel(obj: *mut c_void, scroll_wheel: f32) {
-    let obj = &mut *(obj as *mut WgpuEditor);
-    obj.raw_input
-        .events
-        .push(Event::Scroll(Vec2::new(0.0, scroll_wheel)))
 }
 
 /// (macos only)

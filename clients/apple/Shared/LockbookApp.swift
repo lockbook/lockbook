@@ -15,6 +15,8 @@ import AppKit
     #else
     @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     #endif
+    
+    @StateObject var search = DI.search
         
     var body: some Scene {
         WindowGroup {
@@ -123,42 +125,60 @@ import AppKit
                 Menu("Go to Tab") {
                     Button("Open Tab 1", action: {
                         DI.currentDoc.selectOpenDocByIndex(index: 0)
-                    }).keyboardShortcut("1", modifiers: .command)
+                    })
+                    .keyboardShortcut("1", modifiers: .command)
+                    .disabled(search.pathSearchState != .NotSearching)
                     
                     Button("Open Tab 2", action: {
                         DI.currentDoc.selectOpenDocByIndex(index: 1)
-                    }).keyboardShortcut("2", modifiers: .command)
+                    })
+                    .keyboardShortcut("2", modifiers: .command)
+                    .disabled(search.pathSearchState != .NotSearching)
                     
                     Button("Open Tab 3", action: {
                         DI.currentDoc.selectOpenDocByIndex(index: 2)
-                    }).keyboardShortcut("3", modifiers: .command)
+                    })
+                    .keyboardShortcut("3", modifiers: .command)
+                    .disabled(search.pathSearchState != .NotSearching)
                     
                     Button("Open Tab 4", action: {
                         DI.currentDoc.selectOpenDocByIndex(index: 3)
-                    }).keyboardShortcut("4", modifiers: .command)
+                    })
+                    .keyboardShortcut("4", modifiers: .command)
+                    .disabled(search.pathSearchState != .NotSearching)
                     
                     Button("Open Tab 5", action: {
                         DI.currentDoc.selectOpenDocByIndex(index: 4)
-                    }).keyboardShortcut("5", modifiers: .command)
+                    })
+                    .keyboardShortcut("5", modifiers: .command)
+                    .disabled(search.pathSearchState != .NotSearching)
                     
                     Button("Open Tab 6", action: {
                         DI.currentDoc.selectOpenDocByIndex(index: 5)
-                    }).keyboardShortcut("6", modifiers: .command)
+                    })
+                    .keyboardShortcut("6", modifiers: .command)
+                    .disabled(search.pathSearchState != .NotSearching)
                     
                     Button("Open Tab 7", action: {
                         DI.currentDoc.selectOpenDocByIndex(index: 6)
-                    }).keyboardShortcut("7", modifiers: .command)
+                    })
+                    .keyboardShortcut("7", modifiers: .command)
+                    .disabled(search.pathSearchState != .NotSearching)
                     
                     Button("Open Tab 8", action: {
                         DI.currentDoc.selectOpenDocByIndex(index: 7)
-                    }).keyboardShortcut("8", modifiers: .command)
+                    })
+                    .keyboardShortcut("8", modifiers: .command)
+                    .disabled(search.pathSearchState != .NotSearching)
                     
                     Button("Open Last Tab", action: {
                         DI.currentDoc.selectOpenDocByIndex(index: 8)
-                    }).keyboardShortcut("9", modifiers: .command)
+                    })
+                    .keyboardShortcut("9", modifiers: .command)
+                    .disabled(search.pathSearchState != .NotSearching)
                 }
             }
-            
+                        
             CommandMenu("Lockbook") {
                 Button("Sync", action: { DI.sync.sync() }).keyboardShortcut("S", modifiers: .command)
                 Button("Search Paths", action: { DI.search.startPathSearch() }).keyboardShortcut("O", modifiers: .command)

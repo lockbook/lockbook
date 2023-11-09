@@ -2,6 +2,7 @@
 use std::ffi::{c_char, CString};
 #[cfg(any(target_os = "ios", target_os = "macos"))]
 use std::ptr;
+use std::time::Duration;
 use std::{cmp, mem};
 
 use egui::os::OperatingSystem;
@@ -20,7 +21,6 @@ use crate::input::cursor::{Cursor, PointerState};
 use crate::input::events;
 use crate::offset_types::{DocCharOffset, RangeExt};
 use crate::style::{BlockNode, InlineNode, ListItem, MarkdownNode};
-use crate::test_input::TEST_MARKDOWN;
 use crate::{ast, bounds, galleys, images, register_fonts};
 
 #[cfg(any(target_os = "ios", target_os = "macos"))]
@@ -35,6 +35,8 @@ pub struct EditorResponse {
     pub selection_updated: bool,
     pub edit_menu_x: f32,
     pub edit_menu_y: f32,
+
+    pub scroll_updated: bool,
 
     pub cursor_in_heading: bool,
     pub cursor_in_bullet_list: bool,
@@ -62,6 +64,8 @@ pub struct EditorResponse {
     pub edit_menu_x: f32,
     pub edit_menu_y: f32,
 
+    pub scroll_updated: bool,
+
     pub cursor_in_heading: bool,
     pub cursor_in_bullet_list: bool,
     pub cursor_in_number_list: bool,
@@ -87,6 +91,8 @@ impl Default for EditorResponse {
             edit_menu_x: 0.0,
             edit_menu_y: 0.0,
 
+            scroll_updated: false,
+
             cursor_in_heading: false,
             cursor_in_bullet_list: false,
             cursor_in_number_list: false,
@@ -106,9 +112,12 @@ pub struct Editor {
     pub id: egui::Id,
     pub initialized: bool,
 
+    // dependencies
+    pub core: lb::Core,
+    pub client: reqwest::blocking::Client,
+
     // config
     pub appearance: Appearance,
-    pub client: reqwest::blocking::Client, // todo: don't download images on the UI thread
 
     // state
     pub buffer: Buffer,
@@ -125,12 +134,13 @@ pub struct Editor {
     // computed state from last frame
     pub ui_rect: Rect,
 
-    // state computed from processing events but not yet incorporated into drawn frame
+    // state computed from processing events as client feedback
     pub maybe_to_clipboard: Option<String>,
     pub maybe_opened_url: Option<String>,
     pub text_updated: bool,
     pub selection_updated: bool,
     pub maybe_menu_location: Option<Pos2>,
+    pub pointer_over_text: bool,
 
     // events not supported by egui; integrations push to this vec and editor processes and clears it
     pub custom_events: Vec<Modification>,
@@ -140,16 +150,18 @@ pub struct Editor {
     pub scroll_area_offset: Vec2,
 }
 
-impl Default for Editor {
-    fn default() -> Self {
+impl Editor {
+    pub fn new(core: lb::Core) -> Self {
         Self {
             id: egui::Id::null(),
             initialized: Default::default(),
 
-            appearance: Default::default(),
+            core,
             client: Default::default(),
 
-            buffer: TEST_MARKDOWN.into(),
+            appearance: Default::default(),
+
+            buffer: "".into(),
             pointer_state: Default::default(),
             debug: Default::default(),
             images: Default::default(),
@@ -166,6 +178,7 @@ impl Default for Editor {
             text_updated: Default::default(),
             selection_updated: Default::default(),
             maybe_menu_location: Default::default(),
+            pointer_over_text: Default::default(),
 
             custom_events: Default::default(),
 
@@ -173,9 +186,7 @@ impl Default for Editor {
             scroll_area_offset: Default::default(),
         }
     }
-}
 
-impl Editor {
     pub fn draw(&mut self, ctx: &Context) -> EditorResponse {
         let fill = if ctx.style().visuals.dark_mode { Color32::BLACK } else { Color32::WHITE };
         egui::CentralPanel::default()
@@ -186,6 +197,7 @@ impl Editor {
 
     pub fn scroll_ui(&mut self, ui: &mut Ui) -> EditorResponse {
         let touch_mode = matches!(ui.ctx().os(), OperatingSystem::Android | OperatingSystem::IOS);
+        let is_ios = matches!(ui.ctx().os(), OperatingSystem::IOS);
 
         let events = ui.ctx().input(|i| i.events.clone());
         // create id (even though we don't use interact response)
@@ -236,7 +248,7 @@ impl Editor {
                 Frame::default()
                     .fill(fill)
                     .inner_margin(egui::Margin::symmetric(7.0, 15.0))
-                    .show(ui, |ui| ui.vertical_centered(|ui| self.ui(ui, id, touch_mode, &events)))
+                    .show(ui, |ui| ui.vertical_centered(|ui| self.ui(ui, id, touch_mode, is_ios, &events)))
             });
         self.ui_rect = sao.inner_rect;
 
@@ -256,7 +268,7 @@ impl Editor {
     }
 
     fn ui(
-        &mut self, ui: &mut Ui, id: egui::Id, touch_mode: bool, events: &[Event],
+        &mut self, ui: &mut Ui, id: egui::Id, touch_mode: bool, is_ios: bool, events: &[Event],
     ) -> EditorResponse {
         self.debug.frame_start();
 
@@ -273,7 +285,7 @@ impl Editor {
         let (text_updated, selection_updated) = if self.initialized {
             if ui.memory(|m| m.has_focus(id)) {
                 let custom_events = mem::take(&mut self.custom_events);
-                self.process_events(events, &custom_events, touch_mode);
+                self.process_events(events, &custom_events, touch_mode, is_ios);
                 if let Some(to_clipboard) = &self.maybe_to_clipboard {
                     ui.output_mut(|o| o.copied_text = to_clipboard.clone());
                 }
@@ -304,20 +316,28 @@ impl Editor {
         // recalculate dependent state
         if text_updated {
             self.ast = ast::calc(&self.buffer.current);
-            self.bounds.words =
-                bounds::calc_words(&self.buffer.current, &self.ast, &self.appearance);
-            self.bounds.paragraphs = bounds::calc_paragraphs(&self.buffer.current, &self.ast);
+            self.bounds.ast = bounds::calc_ast(&self.ast);
+            self.bounds.words = bounds::calc_words(
+                &self.buffer.current,
+                &self.ast,
+                &self.bounds.ast,
+                &self.appearance,
+            );
+            self.bounds.paragraphs =
+                bounds::calc_paragraphs(&self.buffer.current, &self.bounds.ast);
         }
         if text_updated || selection_updated {
             self.bounds.text = bounds::calc_text(
                 &self.ast,
+                &self.bounds.ast,
                 &self.appearance,
                 &self.buffer.current.segs,
                 self.buffer.current.cursor,
             );
+            self.bounds.links = bounds::calc_links(&self.buffer.current, &self.bounds.text);
         }
         if text_updated || selection_updated || theme_updated {
-            self.images = images::calc(&self.ast, &self.images, &self.client, ui);
+            self.images = images::calc(&self.ast, &self.images, &self.client, &self.core, ui);
         }
         self.galleys = galleys::calc(
             &self.ast,
@@ -326,15 +346,20 @@ impl Editor {
             &self.images,
             &self.appearance,
             ui,
+            is_ios
         );
-        self.bounds.lines = bounds::calc_lines(&self.galleys, &self.ast, &self.bounds.text);
+        self.bounds.lines = bounds::calc_lines(&self.galleys, &self.bounds.ast, &self.bounds.text);
         self.initialized = true;
+
+        if self.images.any_loading() {
+            ui.ctx().request_repaint_after(Duration::from_millis(50));
+        }
 
         // draw
         self.draw_text(self.ui_rect.size(), ui, touch_mode);
-        if ui.memory(|m| m.has_focus(id)) {
-            self.draw_cursor(ui, touch_mode);
-        }
+        // if ui.memory(|m| m.has_focus(id)) && !is_ios {
+        //     self.draw_cursor(ui, touch_mode);
+        // }
         if self.debug.draw_enabled {
             self.draw_debug(ui);
         }
@@ -369,6 +394,9 @@ impl Editor {
             show_edit_menu: self.maybe_menu_location.is_some(),
             has_selection: self.buffer.current.cursor.selection().is_some(),
             selection_updated,
+
+            scroll_updated: self.pointer_state.click_dragged.unwrap_or(false),
+
             edit_menu_x: self.maybe_menu_location.map(|p| p.x).unwrap_or_default(),
             edit_menu_y: self.maybe_menu_location.map(|p| p.y).unwrap_or_default(),
             ..Default::default()
@@ -389,7 +417,7 @@ impl Editor {
         if self.buffer.current.cursor.selection.is_empty() {
             for style in self
                 .ast
-                .styles_at_offset(self.buffer.current.cursor.selection.start())
+                .styles_at_offset(self.buffer.current.cursor.selection.start(), &self.bounds.ast)
             {
                 match style {
                     MarkdownNode::Inline(InlineNode::Bold) => result.cursor_in_bold = true,
@@ -413,11 +441,18 @@ impl Editor {
             }
         }
 
+        // set cursor style
+        if self.pointer_over_text {
+            ui.output_mut(|o| o.cursor_icon = egui::CursorIcon::Text);
+        } else {
+            ui.output_mut(|o| o.cursor_icon = egui::CursorIcon::Default);
+        }
+
         result
     }
 
     pub fn process_events(
-        &mut self, events: &[Event], custom_events: &[Modification], touch_mode: bool,
+        &mut self, events: &[Event], custom_events: &[Modification], touch_mode: bool, is_ios: bool,
     ) {
         // if the cursor is in an invalid location, move it to the next valid location
         if let BoundCase::BetweenRanges { range_after, .. } = self
@@ -455,6 +490,8 @@ impl Editor {
             custom_events,
             &click_checker,
             touch_mode,
+            is_ios,
+            &self.appearance,
             &mut self.pointer_state,
         );
         let (text_updated, maybe_to_clipboard, maybe_opened_url) = events::process(
@@ -464,6 +501,7 @@ impl Editor {
             &self.ast,
             &mut self.buffer,
             &mut self.debug,
+            &mut self.appearance,
         );
 
         // in touch mode, check if we should open the menu
@@ -475,6 +513,11 @@ impl Editor {
             appearance: &self.appearance,
             bounds: &self.bounds,
         };
+        let pointer_over_text = self
+            .pointer_state
+            .pointer_pos
+            .map(|pos| (&click_checker).text(pos).is_some())
+            .unwrap_or_default();
         if touch_mode {
             let current_cursor = self.buffer.current.cursor;
             let current_selection = current_cursor.selection;
@@ -495,7 +538,7 @@ impl Editor {
                     .any(|e| matches!(e, Modification::Select { region: Region::Location(..) }));
 
             let touched_selection = current_selection.is_empty()
-                && prior_selection.contains(current_selection.1)
+                && prior_selection.contains_inclusive(current_selection.1)
                 && touched_a_galley
                 && combined_events
                     .iter()
@@ -536,11 +579,12 @@ impl Editor {
             }
         });
 
-        // put cut or copied text in clipboard
+        // update editor output
         self.maybe_to_clipboard = maybe_to_clipboard;
         self.maybe_opened_url = maybe_opened_url;
         self.text_updated = text_updated;
         self.selection_updated = self.buffer.current.cursor.selection != prior_selection;
+        self.pointer_over_text = pointer_over_text;
     }
 
     pub fn set_text(&mut self, text: String) {

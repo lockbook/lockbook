@@ -51,7 +51,7 @@ struct FileTreeView: View {
                         Button(action: {
                             exportFileAndShowShareSheet(meta: meta)
                                }, label: {
-                            Label("Share externally to...", systemImage: "person.wave.2.fill")
+                            Label("Share externally to...", systemImage: "square.and.arrow.up.fill")
                         })
                         .foregroundColor(.blue)
                         .padding(.trailing, 10)
@@ -59,7 +59,7 @@ struct FileTreeView: View {
                         Button(action: {
                             DI.sheets.sharingFileInfo = meta
                                }, label: {
-                            Label("Share", systemImage: "square.and.arrow.up.fill")
+                            Label("Share", systemImage: "person.wave.2.fill")
                         })
                         .foregroundColor(.blue)
                         .padding(.trailing, 5)

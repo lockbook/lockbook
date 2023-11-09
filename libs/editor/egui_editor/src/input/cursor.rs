@@ -141,8 +141,10 @@ pub struct PointerState {
     /// Type, position, modifiers, and drag status of current click, recorded on press and processed on release
     pub click_type: Option<ClickType>,
     pub click_pos: Option<Pos2>,
+    pub click_offset: Option<DocCharOffset>,
     pub click_mods: Option<Modifiers>,
     pub click_dragged: Option<bool>,
+    pub pointer_pos: Option<Pos2>,
 
     /// Time of release of last few presses, used for double & triple click detection
     pub last_click_times: (Option<Instant>, Option<Instant>, Option<Instant>, Option<Instant>),
@@ -160,7 +162,7 @@ pub enum ClickType {
 }
 
 impl PointerState {
-    pub fn press(&mut self, t: Instant, pos: Pos2, modifiers: Modifiers) {
+    pub fn press(&mut self, t: Instant, pos: Pos2, offset: DocCharOffset, modifiers: Modifiers) {
         self.last_click_times.3 = self.last_click_times.2;
         self.last_click_times.2 = self.last_click_times.1;
         self.last_click_times.1 = self.last_click_times.0;
@@ -180,8 +182,10 @@ impl PointerState {
             _ => ClickType::Quadruple,
         });
         self.click_pos = Some(pos);
+        self.click_offset = Some(offset);
         self.click_mods = Some(modifiers);
         self.click_dragged = Some(false);
+        self.pointer_pos = Some(pos)
     }
 
     pub fn drag(&mut self, t: Instant, pos: Pos2) {
@@ -195,11 +199,13 @@ impl PointerState {
                 }
             }
         }
+        self.pointer_pos = Some(pos)
     }
 
     pub fn release(&mut self) {
         self.click_type = None;
         self.click_pos = None;
+        self.click_offset = None;
         self.click_mods = None;
         self.click_dragged = None;
     }

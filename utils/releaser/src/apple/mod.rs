@@ -4,18 +4,19 @@ mod editor;
 mod ios;
 mod mac;
 
-use crate::secrets::AppStore;
-use crate::Github;
+use cli_rs::cli_error::CliResult;
+
 use std::fs;
 use std::path::Path;
 
-pub fn release_apple(gh: &Github, asc: &AppStore) {
-    cli::release(gh);
+pub fn release() -> CliResult<()> {
+    cli::release();
     core::build();
     editor::build();
     clean_build_dir();
-    ios::release(asc);
-    mac::release(asc, gh);
+    ios::release();
+    mac::release();
+    Ok(())
 }
 
 fn clean_build_dir() {
