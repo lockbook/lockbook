@@ -4,7 +4,7 @@ use windows::{
     Win32::Foundation::*, Win32::UI::Input::KeyboardAndMouse::*, Win32::UI::WindowsAndMessaging::*,
 };
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct Point<T> {
     pub x: T,
     pub y: T,
@@ -18,13 +18,29 @@ impl From<LPARAM> for Point<u16> {
 
 /// Windows message parsed to properly interpret or ignore wparam and lparam (but not to redefine any structs defined
 /// in winapi) for clarity and exhaustive matching.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub enum Message<'a> {
     Unknown { msg: u32 },
     Unhandled { const_name: &'static str },
+    NoDeps(MessageNoDeps<'a>),
+    WindowDep(MessageWindowDep),
+    AppDep(MessageAppDep),
+}
+
+#[derive(Clone, Copy, Debug)]
+pub enum MessageNoDeps<'a> {
     Create { create_struct: &'a CREATESTRUCTA },
     Destroy,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub enum MessageWindowDep {
     DpiChanged { dpi: u16, suggested_rect: RECT },
+    Size { width: u16, height: u16 },
+}
+
+#[derive(Clone, Copy, Debug)]
+pub enum MessageAppDep {
     KeyDown { key: VIRTUAL_KEY },
     KeyUp { key: VIRTUAL_KEY },
     LButtonDown { pos: Point<u16> },
@@ -38,7 +54,6 @@ pub enum Message<'a> {
     PointerUpdate { pointer_id: u16 },
     RButtonDown { pos: Point<u16> },
     RButtonUp { pos: Point<u16> },
-    Size { width: u16, height: u16 },
 }
 
 impl<'a> Message<'a> {
@@ -74,7 +89,9 @@ impl<'a> Message<'a> {
             WM_CONTEXTMENU => Message::Unhandled { const_name: "WM_CONTEXTMENU" },
             WM_COPY => Message::Unhandled { const_name: "WM_COPY" },
             WM_COPYDATA => Message::Unhandled { const_name: "WM_COPYDATA" },
-            WM_CREATE => Message::Create { create_struct: unsafe { mem::transmute(lparam) } },
+            WM_CREATE => Message::NoDeps(MessageNoDeps::Create {
+                create_struct: unsafe { mem::transmute(lparam) },
+            }),
             WM_CTLCOLORBTN => Message::Unhandled { const_name: "WM_CTLCOLORBTN" },
             WM_CTLCOLORDLG => Message::Unhandled { const_name: "WM_CTLCOLORDLG" },
             WM_CTLCOLOREDIT => Message::Unhandled { const_name: "WM_CTLCOLOREDIT" },
@@ -85,15 +102,15 @@ impl<'a> Message<'a> {
             WM_CUT => Message::Unhandled { const_name: "WM_CUT" },
             WM_DEADCHAR => Message::Unhandled { const_name: "WM_DEADCHAR" },
             WM_DELETEITEM => Message::Unhandled { const_name: "WM_DELETEITEM" },
-            WM_DESTROY => Message::Destroy,
+            WM_DESTROY => Message::NoDeps(MessageNoDeps::Destroy),
             WM_DESTROYCLIPBOARD => Message::Unhandled { const_name: "WM_DESTROYCLIPBOARD" },
             WM_DEVICECHANGE => Message::Unhandled { const_name: "WM_DEVICECHANGE" },
             WM_DEVMODECHANGE => Message::Unhandled { const_name: "WM_DEVMODECHANGE" },
             WM_DISPLAYCHANGE => Message::Unhandled { const_name: "WM_DISPLAYCHANGE" },
-            WM_DPICHANGED => Message::DpiChanged {
+            WM_DPICHANGED => Message::WindowDep(MessageWindowDep::DpiChanged {
                 dpi: wparam_loword,
                 suggested_rect: unsafe { *(lparam.0 as *const RECT) },
-            },
+            }),
             WM_DPICHANGED_AFTERPARENT => {
                 Message::Unhandled { const_name: "WM_DPICHANGED_AFTERPARENT" }
             }
@@ -170,12 +187,14 @@ impl<'a> Message<'a> {
                 Message::Unhandled { const_name: "WM_INPUTLANGCHANGEREQUEST" }
             }
             WM_INPUT_DEVICE_CHANGE => Message::Unhandled { const_name: "WM_INPUT_DEVICE_CHANGE" },
-            WM_KEYDOWN => Message::KeyDown { key: VIRTUAL_KEY(wparam_loword) },
-            WM_KEYUP => Message::KeyUp { key: VIRTUAL_KEY(wparam_loword) },
+            WM_KEYDOWN => {
+                Message::AppDep(MessageAppDep::KeyDown { key: VIRTUAL_KEY(wparam_loword) })
+            }
+            WM_KEYUP => Message::AppDep(MessageAppDep::KeyUp { key: VIRTUAL_KEY(wparam_loword) }),
             WM_KILLFOCUS => Message::Unhandled { const_name: "WM_KILLFOCUS" },
             WM_LBUTTONDBLCLK => Message::Unhandled { const_name: "WM_LBUTTONDBLCLK" },
-            WM_LBUTTONDOWN => Message::LButtonDown { pos: lparam.into() },
-            WM_LBUTTONUP => Message::LButtonUp { pos: lparam.into() },
+            WM_LBUTTONDOWN => Message::AppDep(MessageAppDep::LButtonDown { pos: lparam.into() }),
+            WM_LBUTTONUP => Message::AppDep(MessageAppDep::LButtonUp { pos: lparam.into() }),
             WM_MBUTTONDBLCLK => Message::Unhandled { const_name: "WM_MBUTTONDBLCLK" },
             WM_MBUTTONDOWN => Message::Unhandled { const_name: "WM_MBUTTONDOWN" },
             WM_MBUTTONUP => Message::Unhandled { const_name: "WM_MBUTTONUP" },
@@ -199,9 +218,9 @@ impl<'a> Message<'a> {
             WM_MENURBUTTONUP => Message::Unhandled { const_name: "WM_MENURBUTTONUP" },
             WM_MENUSELECT => Message::Unhandled { const_name: "WM_MENUSELECT" },
             WM_MOUSEACTIVATE => Message::Unhandled { const_name: "WM_MOUSEACTIVATE" },
-            WM_MOUSEHWHEEL => Message::MouseHWheel { delta: wparam_hiword },
-            WM_MOUSEMOVE => Message::MouseMove { pos: lparam.into() },
-            WM_MOUSEWHEEL => Message::MouseWheel { delta: wparam_hiword },
+            WM_MOUSEHWHEEL => Message::AppDep(MessageAppDep::MouseHWheel { delta: wparam_hiword }),
+            WM_MOUSEMOVE => Message::AppDep(MessageAppDep::MouseMove { pos: lparam.into() }),
+            WM_MOUSEWHEEL => Message::AppDep(MessageAppDep::MouseWheel { delta: wparam_hiword }),
             WM_MOVE => Message::Unhandled { const_name: "WM_MOVE" },
             WM_MOVING => Message::Unhandled { const_name: "WM_MOVING" },
             WM_NCACTIVATE => Message::Unhandled { const_name: "WM_NCACTIVATE" },
@@ -233,7 +252,7 @@ impl<'a> Message<'a> {
             WM_NOTIFY => Message::Unhandled { const_name: "WM_NOTIFY" },
             WM_NOTIFYFORMAT => Message::Unhandled { const_name: "WM_NOTIFYFORMAT" },
             WM_NULL => Message::Unhandled { const_name: "WM_NULL" },
-            WM_PAINT => Message::Paint,
+            WM_PAINT => Message::AppDep(MessageAppDep::Paint),
             WM_PAINTCLIPBOARD => Message::Unhandled { const_name: "WM_PAINTCLIPBOARD" },
             WM_PAINTICON => Message::Unhandled { const_name: "WM_PAINTICON" },
             WM_PALETTECHANGED => Message::Unhandled { const_name: "WM_PALETTECHANGED" },
@@ -251,7 +270,9 @@ impl<'a> Message<'a> {
             WM_POINTERDEVICEOUTOFRANGE => {
                 Message::Unhandled { const_name: "WM_POINTERDEVICEOUTOFRANGE" }
             }
-            WM_POINTERDOWN => Message::PointerDown { pointer_id: wparam_loword },
+            WM_POINTERDOWN => {
+                Message::AppDep(MessageAppDep::PointerDown { pointer_id: wparam_loword })
+            }
             WM_POINTERENTER => Message::Unhandled { const_name: "WM_POINTERENTER" },
             WM_POINTERHWHEEL => Message::Unhandled { const_name: "WM_POINTERHWHEEL" },
             WM_POINTERLEAVE => Message::Unhandled { const_name: "WM_POINTERLEAVE" },
@@ -260,8 +281,10 @@ impl<'a> Message<'a> {
                 Message::Unhandled { const_name: "WM_POINTERROUTEDRELEASED" }
             }
             WM_POINTERROUTEDTO => Message::Unhandled { const_name: "WM_POINTERROUTEDTO" },
-            WM_POINTERUP => Message::PointerUp { pointer_id: wparam_loword },
-            WM_POINTERUPDATE => Message::PointerUpdate { pointer_id: wparam_loword },
+            WM_POINTERUP => Message::AppDep(MessageAppDep::PointerUp { pointer_id: wparam_loword }),
+            WM_POINTERUPDATE => {
+                Message::AppDep(MessageAppDep::PointerUpdate { pointer_id: wparam_loword })
+            }
             WM_POINTERWHEEL => Message::Unhandled { const_name: "WM_POINTERWHEEL" },
             WM_POWER => Message::Unhandled { const_name: "WM_POWER" },
             WM_POWERBROADCAST => Message::Unhandled { const_name: "WM_POWERBROADCAST" },
@@ -275,8 +298,8 @@ impl<'a> Message<'a> {
             WM_QUEUESYNC => Message::Unhandled { const_name: "WM_QUEUESYNC" },
             WM_QUIT => Message::Unhandled { const_name: "WM_QUIT" },
             WM_RBUTTONDBLCLK => Message::Unhandled { const_name: "WM_RBUTTONDBLCLK" },
-            WM_RBUTTONDOWN => Message::RButtonDown { pos: lparam.into() },
-            WM_RBUTTONUP => Message::RButtonUp { pos: lparam.into() },
+            WM_RBUTTONDOWN => Message::AppDep(MessageAppDep::RButtonDown { pos: lparam.into() }),
+            WM_RBUTTONUP => Message::AppDep(MessageAppDep::RButtonUp { pos: lparam.into() }),
             WM_RENDERALLFORMATS => Message::Unhandled { const_name: "WM_RENDERALLFORMATS" },
             WM_RENDERFORMAT => Message::Unhandled { const_name: "WM_RENDERFORMAT" },
             WM_SETCURSOR => Message::Unhandled { const_name: "WM_SETCURSOR" },
@@ -288,7 +311,10 @@ impl<'a> Message<'a> {
             WM_SETTEXT => Message::Unhandled { const_name: "WM_SETTEXT" },
             WM_SETTINGCHANGE => Message::Unhandled { const_name: "WM_SETTINGCHANGE" },
             WM_SHOWWINDOW => Message::Unhandled { const_name: "WM_SHOWWINDOW" },
-            WM_SIZE => Message::Size { width: lparam_loword, height: lparam_hiword },
+            WM_SIZE => Message::WindowDep(MessageWindowDep::Size {
+                width: lparam_loword,
+                height: lparam_hiword,
+            }),
             WM_SIZECLIPBOARD => Message::Unhandled { const_name: "WM_SIZECLIPBOARD" },
             WM_SIZING => Message::Unhandled { const_name: "WM_SIZING" },
             WM_SPOOLERSTATUS => Message::Unhandled { const_name: "WM_SPOOLERSTATUS" },

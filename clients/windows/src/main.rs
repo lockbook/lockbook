@@ -1,14 +1,13 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use clipboard_win::{formats, get_clipboard, set_clipboard};
+use clipboard_win::{formats, set_clipboard};
 use egui::{Context, Visuals};
 use egui_wgpu_backend::wgpu::CompositeAlphaMode;
 use egui_wgpu_backend::{wgpu, ScreenDescriptor};
-use input::key;
+use input::message::{Message, MessageAppDep, MessageNoDeps, MessageWindowDep};
 use lbeguiapp::WgpuLockbook;
-use message::Message;
-use std::mem;
 use std::time::{Duration, Instant};
+use std::{mem, thread};
 use windows::{
     core::*, Win32::Foundation::*, Win32::Graphics::Direct3D12::*, Win32::Graphics::Dxgi::*,
     Win32::System::LibraryLoader::*, Win32::UI::HiDpi::*, Win32::UI::Input::KeyboardAndMouse::*,
@@ -16,7 +15,6 @@ use windows::{
 };
 
 mod input;
-mod message;
 mod window;
 
 #[cfg(not(windows))]
@@ -82,8 +80,17 @@ fn main() -> Result<()> {
     unsafe { dxgi_factory.MakeWindowAssociation(hwnd, DXGI_MWA_NO_ALT_ENTER) }?;
 
     let app = init(&crate::window::Window::new(hwnd), false);
-
-    window.resources = Some(Resources { app });
+    app.context.set_request_repaint_callback(move |rri| {
+        thread::spawn(move || {
+            // todo: verify thread safety or add a mutex
+            thread::sleep(rri.after);
+            unsafe {
+                PostMessageA(hwnd, WM_PAINT, WPARAM(0), LPARAM(0))
+                    .expect("post paint message to self")
+            };
+        });
+    });
+    window.maybe_app = Some(app);
     window.dpi_scale = dpi_to_scale_factor(unsafe { GetDpiForWindow(hwnd) } as _);
 
     // "If the window was previously visible, the return value is nonzero."
@@ -137,70 +144,17 @@ extern "system" fn handle_messages(
 fn handled_messages_impl(
     window_handle: HWND, message: u32, wparam: WPARAM, lparam: LPARAM,
 ) -> bool {
-    let message = Message::new(message, wparam, lparam);
-    let mut handled = false;
-
-    // events always processed
-    handled |= match message {
-        // Events processed even if we haven't initialized yet
-        Message::Create { create_struct } => unsafe {
-            SetWindowLongPtrA(window_handle, GWLP_USERDATA, create_struct.lpCreateParams as _);
-            true
-        },
-        Message::Destroy => {
-            unsafe { PostQuitMessage(0) };
-            true
-        }
-        _ => false,
-    };
-
     // get window
-    let window = {
+    let mut maybe_window = {
         // retrieve the pointer to our Window struct from the window's "user data"
         let user_data = unsafe { GetWindowLongPtrA(window_handle, GWLP_USERDATA) };
         let window = std::ptr::NonNull::<Window>::new(user_data as _);
         if let Some(mut window) = window {
-            unsafe { window.as_mut() }
+            Some(unsafe { window.as_mut() })
         } else {
-            return handled;
+            None
         }
     };
-
-    // events processed only after window is created
-    handled |= match message {
-        Message::Size { width, height } => {
-            window.width = width;
-            window.height = height;
-            true
-        }
-        Message::DpiChanged { dpi, suggested_rect } => {
-            // assign a scale factor based on the new DPI
-            let new_scale_factor = dpi_to_scale_factor(dpi);
-            window.dpi_scale = new_scale_factor;
-
-            // resize the window based on Windows' suggestion
-            window.width = (suggested_rect.right - suggested_rect.left) as _;
-            window.height = (suggested_rect.bottom - suggested_rect.top) as _;
-
-            true
-        }
-        _ => false,
-    };
-
-    // get app
-    let app = {
-        if let Some(resources) = &mut window.resources {
-            &mut resources.app
-        } else {
-            return handled;
-        }
-    };
-
-    // tell app about events it might have missed
-    app.raw_input.pixels_per_point = Some(window.dpi_scale);
-    app.screen.scale_factor = window.dpi_scale;
-    app.screen.physical_width = window.width as _;
-    app.screen.physical_height = window.height as _;
 
     // window doesn't receive key up messages when out of focus so we use GetKeyState instead
     // https://stackoverflow.com/questions/43858986/win32-keyboard-managing-when-key-released-while-not-focused
@@ -211,131 +165,124 @@ fn handled_messages_impl(
         mac_cmd: false,
         command: unsafe { GetKeyState(VK_CONTROL.0 as i32) } & 0x8000u16 as i16 != 0,
     };
-    app.raw_input.modifiers = modifiers;
 
-    // events processed only after app is initialized
-    handled |= match message {
-        Message::KeyDown { key } | Message::KeyUp { key } => {
-            let pressed = matches!(message, Message::KeyDown { .. });
-            key_event(key, pressed, modifiers, app)
+    let message = Message::new(message, wparam, lparam);
+    match message {
+        // events processed even if we haven't initialized yet
+        Message::NoDeps(message) => {
+            match message {
+                MessageNoDeps::Create { create_struct } => unsafe {
+                    SetWindowLongPtrA(
+                        window_handle,
+                        GWLP_USERDATA,
+                        create_struct.lpCreateParams as _,
+                    );
+                },
+                MessageNoDeps::Destroy => {
+                    unsafe { PostQuitMessage(0) };
+                }
+            }
+            true
         }
-        Message::LButtonDown { pos }
-        | Message::LButtonUp { pos }
-        | Message::RButtonDown { pos }
-        | Message::RButtonUp { pos }
-        | Message::MouseMove { pos } => {
-            let pos = egui::Pos2 {
-                x: pos.x as f32 / window.dpi_scale,
-                y: pos.y as f32 / window.dpi_scale,
-            };
 
-            if matches!(message, Message::MouseMove { .. }) {
-                app.raw_input.events.push(egui::Event::PointerMoved(pos));
+        // events processed only after window is created
+        Message::WindowDep(message) => {
+            if let Some(ref mut window) = maybe_window {
+                match message {
+                    MessageWindowDep::Size { width, height } => {
+                        window.width = width;
+                        window.height = height;
+                    }
+                    MessageWindowDep::DpiChanged { dpi, suggested_rect } => {
+                        // assign a scale factor based on the new DPI
+                        let new_scale_factor = dpi_to_scale_factor(dpi);
+                        window.dpi_scale = new_scale_factor;
+
+                        // resize the window based on Windows' suggestion
+                        window.width = (suggested_rect.right - suggested_rect.left) as _;
+                        window.height = (suggested_rect.bottom - suggested_rect.top) as _;
+                    }
+                }
+                true
             } else {
-                let button =
-                    if matches!(message, Message::LButtonDown { .. } | Message::LButtonUp { .. }) {
-                        egui::PointerButton::Primary
-                    } else {
-                        egui::PointerButton::Secondary
-                    };
-                let pressed =
-                    matches!(message, Message::LButtonDown { .. } | Message::RButtonDown { .. });
-                pointer_button_event(pos, button, pressed, modifiers, app);
+                false
             }
-
-            true
         }
-        Message::PointerDown { pointer_id }
-        | Message::PointerUpdate { pointer_id }
-        | Message::PointerUp { pointer_id } => {
-            input::pointer::handle(app, window_handle, modifiers, window.dpi_scale, pointer_id)
-        }
-        Message::MouseWheel { delta } => {
-            let y = delta as f32 / WHEEL_DELTA as f32;
-            let y = y * 20.0; // arbitrary multiplier to make scrolling feel better
-            app.raw_input
-                .events
-                .push(egui::Event::Scroll(egui::Vec2 { x: 0.0, y }));
 
-            true
-        }
-        Message::MouseHWheel { delta } => {
-            let x = -delta as f32 / WHEEL_DELTA as f32;
-            let x = x * 20.0; // arbitrary multiplier to make scrolling feel better
-            app.raw_input
-                .events
-                .push(egui::Event::Scroll(egui::Vec2 { x, y: 0.0 }));
+        // events processed only after app is initialized
+        Message::AppDep(message) => {
+            if let Some(ref mut window) = maybe_window {
+                if let Some(ref mut app) = window.maybe_app {
+                    // events sent to app every frame
+                    app.raw_input.pixels_per_point = Some(window.dpi_scale);
+                    app.screen.scale_factor = window.dpi_scale;
+                    app.screen.physical_width = window.width as _;
+                    app.screen.physical_height = window.height as _;
+                    app.raw_input.modifiers = modifiers;
 
-            true
-        }
-        Message::Paint => {
-            app.frame();
+                    match message {
+                        MessageAppDep::KeyDown { key } | MessageAppDep::KeyUp { key } => {
+                            input::key::handle(app, message, key, modifiers)
+                        }
+                        MessageAppDep::LButtonDown { pos }
+                        | MessageAppDep::LButtonUp { pos }
+                        | MessageAppDep::RButtonDown { pos }
+                        | MessageAppDep::RButtonUp { pos }
+                        | MessageAppDep::MouseMove { pos } => {
+                            input::mouse::handle(app, message, pos, modifiers, window.dpi_scale)
+                        }
+                        MessageAppDep::PointerDown { pointer_id }
+                        | MessageAppDep::PointerUpdate { pointer_id }
+                        | MessageAppDep::PointerUp { pointer_id } => input::pointer::handle(
+                            app,
+                            window_handle,
+                            modifiers,
+                            window.dpi_scale,
+                            pointer_id,
+                        ),
+                        MessageAppDep::MouseWheel { delta }
+                        | MessageAppDep::MouseHWheel { delta } => {
+                            input::mouse::handle_wheel(app, message, delta)
+                        }
+                        MessageAppDep::Paint => {
+                            app.frame();
 
-            if let Some(copied_text) = mem::take(&mut app.from_egui) {
-                set_clipboard(formats::Unicode, copied_text).expect("set clipboard");
+                            // todo: factor output
+                            if let Some(copied_text) = mem::take(&mut app.from_egui) {
+                                set_clipboard(formats::Unicode, copied_text)
+                                    .expect("set clipboard");
+                                true
+                            } else {
+                                false
+                            }
+                        }
+                    }
+                } else {
+                    false
+                }
+            } else {
+                false
             }
-
-            true
         }
-        _ => false,
-    };
 
-    handled
-}
-
-fn key_event(
-    key: VIRTUAL_KEY, pressed: bool, modifiers: egui::Modifiers, app: &mut WgpuLockbook,
-) -> bool {
-    // text
-    if pressed && (modifiers.shift_only() || modifiers.is_none()) {
-        if let Some(text) = key::key_text(key, modifiers.shift) {
-            app.raw_input
-                .events
-                .push(egui::Event::Text(text.to_owned()));
-            return true;
+        // remaining events
+        Message::Unknown { msg } => {
+            println!("Unknown message: {}", msg);
+            false
+        }
+        Message::Unhandled { const_name } => {
+            println!("Unhandled message: {}", const_name);
+            false
         }
     }
-
-    // todo: something feels weird about this
-    if let Some(key) = key::egui_key(key) {
-        // ctrl + v
-        if pressed && key == egui::Key::V && modifiers.command {
-            // somewhat weird that app.from_host isn't involved here
-            let clipboard: String = get_clipboard(formats::Unicode).expect("get clipboard");
-            app.raw_input.events.push(egui::Event::Paste(clipboard));
-            return true;
-        }
-
-        // other egui keys
-        app.raw_input
-            .events
-            .push(egui::Event::Key { key, pressed, repeat: false, modifiers });
-        return true;
-    }
-
-    false
-}
-
-fn pointer_button_event(
-    pos: egui::Pos2, button: egui::PointerButton, pressed: bool, modifiers: egui::Modifiers,
-    app: &mut WgpuLockbook,
-) {
-    app.raw_input
-        .events
-        .push(egui::Event::PointerButton { pos, button, pressed, modifiers });
 }
 
 #[derive(Default)]
 pub struct Window {
-    resources: Option<Resources>,
+    maybe_app: Option<WgpuLockbook>, // must be populated after the window is created
     width: u16,
     height: u16,
     dpi_scale: f32,
-}
-
-// resources must be populated after the window is created
-struct Resources {
-    app: WgpuLockbook,
 }
 
 // Taken from other lockbook code

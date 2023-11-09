@@ -5,6 +5,8 @@ use windows::Win32::{
     Foundation::*, Graphics::Gdi::*, UI::Input::Pointer::*, UI::WindowsAndMessaging::*,
 };
 
+use super::mouse::pointer_button_event;
+
 // hugely inspired by winit: https://github.com/rust-windowing/winit/blob/master/src/platform_impl/windows/event_loop.rs#L1829
 // interestingly, the message type doesn't matter; we just need to call GetPointerFrameInfoHistory for relevant information
 pub fn handle(
@@ -154,13 +156,4 @@ where
     T: Copy + PartialEq + BitAnd<T, Output = T>,
 {
     bitset & flag == flag
-}
-
-fn pointer_button_event(
-    pos: egui::Pos2, button: egui::PointerButton, pressed: bool, modifiers: egui::Modifiers,
-    app: &mut WgpuLockbook,
-) {
-    app.raw_input
-        .events
-        .push(egui::Event::PointerButton { pos, button, pressed, modifiers });
 }
