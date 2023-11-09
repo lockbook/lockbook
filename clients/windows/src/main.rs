@@ -5,7 +5,8 @@ use egui::{Context, Visuals};
 use egui_wgpu_backend::wgpu::CompositeAlphaMode;
 use egui_wgpu_backend::{wgpu, ScreenDescriptor};
 use lbeguiapp::WgpuLockbook;
-use std::mem::{self, transmute};
+use message::Message;
+use std::mem;
 use std::ops::BitAnd;
 use std::time::{Duration, Instant};
 use windows::{
@@ -16,6 +17,7 @@ use windows::{
 };
 
 mod keyboard;
+mod message;
 mod window;
 
 #[cfg(not(windows))]
@@ -91,8 +93,8 @@ fn main() -> Result<()> {
 
     let mut message = MSG::default();
     let mut last_frame = Instant::now();
-    loop {
-        if unsafe { PeekMessageA(&mut message, None, 0, 0, PM_REMOVE) }.into() {
+    'event_loop: loop {
+        while unsafe { PeekMessageA(&mut message, None, 0, 0, PM_REMOVE) }.into() {
             unsafe {
                 // "If the message is translated [...], the return value is nonzero."
                 // https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-translatemessage
@@ -104,7 +106,7 @@ fn main() -> Result<()> {
             }
 
             if message.message == WM_QUIT {
-                break;
+                break 'event_loop;
             }
         }
 
@@ -136,17 +138,17 @@ extern "system" fn handle_messages(
 fn handled_messages_impl(
     window_handle: HWND, message: u32, wparam: WPARAM, lparam: LPARAM,
 ) -> bool {
+    let message = Message::new(message, wparam, lparam);
     let mut handled = false;
 
     // events always processed
     handled |= match message {
         // Events processed even if we haven't initialized yet
-        WM_CREATE => unsafe {
-            let create_struct: &CREATESTRUCTA = transmute(lparam);
+        Message::Create { create_struct } => unsafe {
             SetWindowLongPtrA(window_handle, GWLP_USERDATA, create_struct.lpCreateParams as _);
             true
         },
-        WM_DESTROY => {
+        Message::Destroy => {
             unsafe { PostQuitMessage(0) };
             true
         }
@@ -165,27 +167,21 @@ fn handled_messages_impl(
         }
     };
 
-    // parse params
-    let lparam_loword = loword_l(lparam);
-    let lparam_hiword = hiword_l(lparam);
-    let wparam_loword = loword_w(wparam);
-
     // events processed only after window is created
     handled |= match message {
-        WM_SIZE => {
-            window.width = lparam_loword;
-            window.height = lparam_hiword;
+        Message::Size { width, height } => {
+            window.width = width;
+            window.height = height;
             true
         }
-        WM_DPICHANGED => {
+        Message::DpiChanged { dpi, suggested_rect } => {
             // assign a scale factor based on the new DPI
-            let new_scale_factor = dpi_to_scale_factor(wparam_loword as _);
+            let new_scale_factor = dpi_to_scale_factor(dpi);
             window.dpi_scale = new_scale_factor;
 
             // resize the window based on Windows' suggestion
-            let suggested_rect = unsafe { *(lparam.0 as *const RECT) };
-            window.width = (suggested_rect.right - suggested_rect.left) as u32;
-            window.height = (suggested_rect.bottom - suggested_rect.top) as u32;
+            window.width = (suggested_rect.right - suggested_rect.left) as _;
+            window.height = (suggested_rect.bottom - suggested_rect.top) as _;
 
             true
         }
@@ -201,17 +197,11 @@ fn handled_messages_impl(
         }
     };
 
-    // parse position
-    let pos = egui::Pos2 {
-        x: lparam_loword as f32 / window.dpi_scale,
-        y: lparam_hiword as f32 / window.dpi_scale,
-    };
-
     // tell app about events it might have missed
     app.raw_input.pixels_per_point = Some(window.dpi_scale);
     app.screen.scale_factor = window.dpi_scale;
-    app.screen.physical_width = window.width;
-    app.screen.physical_height = window.height;
+    app.screen.physical_width = window.width as _;
+    app.screen.physical_height = window.height as _;
 
     // window doesn't receive key up messages when out of focus so we use GetKeyState instead
     // https://stackoverflow.com/questions/43858986/win32-keyboard-managing-when-key-released-while-not-focused
@@ -226,32 +216,42 @@ fn handled_messages_impl(
 
     // events processed only after app is initialized
     handled |= match message {
-        WM_KEYDOWN => key_event(wparam, true, modifiers, app),
-        WM_KEYUP => key_event(wparam, false, modifiers, app),
-        WM_LBUTTONDOWN => {
-            pointer_button_event(pos, egui::PointerButton::Primary, true, modifiers, app);
-            true
+        Message::KeyDown { key } | Message::KeyUp { key } => {
+            let pressed = matches!(message, Message::KeyDown { .. });
+            key_event(key, pressed, modifiers, app)
         }
-        WM_LBUTTONUP => {
-            pointer_button_event(pos, egui::PointerButton::Primary, false, modifiers, app);
-            true
-        }
-        WM_RBUTTONDOWN => {
-            pointer_button_event(pos, egui::PointerButton::Secondary, true, modifiers, app);
-            true
-        }
-        WM_RBUTTONUP => {
-            pointer_button_event(pos, egui::PointerButton::Secondary, false, modifiers, app);
-            true
-        }
-        WM_MOUSEMOVE => {
-            app.raw_input.events.push(egui::Event::PointerMoved(pos));
+        Message::LButtonDown { pos }
+        | Message::LButtonUp { pos }
+        | Message::RButtonDown { pos }
+        | Message::RButtonUp { pos }
+        | Message::MouseMove { pos } => {
+            let pos = egui::Pos2 {
+                x: pos.x as f32 / window.dpi_scale,
+                y: pos.y as f32 / window.dpi_scale,
+            };
+
+            if matches!(message, Message::MouseMove { .. }) {
+                app.raw_input.events.push(egui::Event::PointerMoved(pos));
+            } else {
+                let button =
+                    if matches!(message, Message::LButtonDown { .. } | Message::LButtonUp { .. }) {
+                        egui::PointerButton::Primary
+                    } else {
+                        egui::PointerButton::Secondary
+                    };
+                let pressed =
+                    matches!(message, Message::LButtonDown { .. } | Message::RButtonDown { .. });
+                pointer_button_event(pos, button, pressed, modifiers, app);
+            }
+
             true
         }
         // hugely inspired by winit: https://github.com/rust-windowing/winit/blob/master/src/platform_impl/windows/event_loop.rs#L1829
-        WM_POINTERDOWN | WM_POINTERUPDATE | WM_POINTERUP => {
-            let (pointer_id, pointer_infos) = {
-                let pointer_id = loword_w(wparam);
+        Message::PointerDown { pointer_id }
+        | Message::PointerUpdate { pointer_id }
+        | Message::PointerUp { pointer_id } => {
+            let pointer_id = pointer_id as _;
+            let pointer_infos = {
                 let mut entries_count = 0u32;
                 let mut pointers_count = 0u32;
 
@@ -284,7 +284,7 @@ fn handled_messages_impl(
                 }
                 unsafe { pointer_infos.set_len(pointer_info_count) };
 
-                (pointer_id, pointer_infos)
+                pointer_infos
             };
 
             // https://docs.microsoft.com/en-us/windows/desktop/api/winuser/nf-winuser-getpointerframeinfohistory
@@ -395,9 +395,8 @@ fn handled_messages_impl(
 
             true
         }
-        WM_MOUSEWHEEL => {
-            let y = (wparam.0 >> 16) as i16;
-            let y = y as f32 / WHEEL_DELTA as f32;
+        Message::MouseWheel { delta } => {
+            let y = delta as f32 / WHEEL_DELTA as f32;
             let y = y * 20.0; // arbitrary multiplier to make scrolling feel better
             app.raw_input
                 .events
@@ -405,9 +404,8 @@ fn handled_messages_impl(
 
             true
         }
-        WM_MOUSEHWHEEL => {
-            let x = (wparam.0 >> 16) as i16;
-            let x = -x as f32 / WHEEL_DELTA as f32;
+        Message::MouseHWheel { delta } => {
+            let x = -delta as f32 / WHEEL_DELTA as f32;
             let x = x * 20.0; // arbitrary multiplier to make scrolling feel better
             app.raw_input
                 .events
@@ -415,7 +413,7 @@ fn handled_messages_impl(
 
             true
         }
-        WM_PAINT => {
+        Message::Paint => {
             app.frame();
 
             if let Some(copied_text) = mem::take(&mut app.from_egui) {
@@ -431,11 +429,11 @@ fn handled_messages_impl(
 }
 
 fn key_event(
-    wparam: WPARAM, pressed: bool, modifiers: egui::Modifiers, app: &mut WgpuLockbook,
+    key: VIRTUAL_KEY, pressed: bool, modifiers: egui::Modifiers, app: &mut WgpuLockbook,
 ) -> bool {
     // text
     if pressed && (modifiers.shift_only() || modifiers.is_none()) {
-        if let Some(text) = keyboard::key_text(wparam, modifiers.shift) {
+        if let Some(text) = keyboard::key_text(key, modifiers.shift) {
             app.raw_input
                 .events
                 .push(egui::Event::Text(text.to_owned()));
@@ -444,7 +442,7 @@ fn key_event(
     }
 
     // todo: something feels weird about this
-    if let Some(key) = keyboard::egui_key(wparam) {
+    if let Some(key) = keyboard::egui_key(key) {
         // ctrl + v
         if pressed && key == egui::Key::V && modifiers.command {
             // somewhat weird that app.from_host isn't involved here
@@ -475,8 +473,8 @@ fn pointer_button_event(
 #[derive(Default)]
 pub struct Window {
     resources: Option<Resources>,
-    width: u32,
-    height: u32,
+    width: u16,
+    height: u16,
     dpi_scale: f32,
 }
 
@@ -563,22 +561,6 @@ async fn request_device(
         }
         Ok((device, queue)) => (adapter, device, queue),
     }
-}
-
-// https://github.com/rust-windowing/winit/blob/789a4979801cffc20c9dfbc34e72c15ebf3c737c/src/platform_impl/windows/mod.rs#L144C1-L152C2
-#[inline(always)]
-const fn loword_l(lparam: LPARAM) -> u32 {
-    (lparam.0 & 0xFFFF) as _
-}
-
-#[inline(always)]
-const fn hiword_l(lparam: LPARAM) -> u32 {
-    ((lparam.0 >> 16) & 0xFFFF) as _
-}
-
-#[inline(always)]
-const fn loword_w(wparam: WPARAM) -> u32 {
-    (wparam.0 & 0xFFFF) as _
 }
 
 // https://github.com/rust-windowing/winit/blob/789a4979801cffc20c9dfbc34e72c15ebf3c737c/src/platform_impl/windows/dpi.rs#L75C1-L78C2

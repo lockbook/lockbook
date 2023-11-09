@@ -1,4 +1,4 @@
-use windows::Win32::{Foundation::*, UI::Input::KeyboardAndMouse::*};
+use windows::Win32::UI::Input::KeyboardAndMouse::*;
 
 struct Key {
     vk: VIRTUAL_KEY,
@@ -84,16 +84,14 @@ const KEYS: [Key; 74] = [
     Key { vk: VK_INSERT, egui: Some(egui::Key::Insert), text: None, shift_text: None },
 ];
 
-pub fn egui_key(wparam: WPARAM) -> Option<egui::Key> {
-    let vk = VIRTUAL_KEY(wparam.0 as u16);
+pub fn egui_key(vk: VIRTUAL_KEY) -> Option<egui::Key> {
     KEYS.iter()
         .find(|key| key.vk == vk)
         .map(|key| key.egui)
         .flatten()
 }
 
-pub fn key_text(wparam: WPARAM, shift: bool) -> Option<&'static str> {
-    let vk = VIRTUAL_KEY(wparam.0 as u16);
+pub fn key_text(vk: VIRTUAL_KEY, shift: bool) -> Option<&'static str> {
     KEYS.iter()
         .find(|key| key.vk == vk)
         .map(|key| if shift { key.shift_text } else { key.text })
