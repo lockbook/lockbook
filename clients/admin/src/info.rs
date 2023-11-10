@@ -34,8 +34,8 @@ pub fn file(core: &Core, id: Uuid) -> Res<()> {
     }
     println!();
     let mut tree = iter::once(info.file)
-        .chain(info.ancestors.into_iter())
-        .chain(info.descendants.into_iter())
+        .chain(info.ancestors)
+        .chain(info.descendants)
         .collect::<Vec<_>>()
         .to_lazy();
     pretty_print(&mut tree);
