@@ -44,6 +44,17 @@ pub unsafe extern "C" fn key_event(
 /// (macos only)
 /// # Safety
 #[no_mangle]
+pub unsafe extern "C" fn modifier_event(
+    obj: *mut c_void, shift: bool, ctrl: bool, option: bool, command: bool,
+) {
+    let obj = &mut *(obj as *mut WgpuEditor);
+    let modifiers = egui::Modifiers { alt: option, ctrl, shift, mac_cmd: command, command };
+    obj.raw_input.modifiers = modifiers;
+}
+
+/// (macos only)
+/// # Safety
+#[no_mangle]
 pub unsafe extern "C" fn mouse_moved(obj: *mut c_void, x: f32, y: f32) {
     let obj = &mut *(obj as *mut WgpuEditor);
     obj.raw_input

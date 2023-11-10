@@ -21,6 +21,14 @@ public class MacMTK: MTKView, MTKViewDelegate {
         self.isPaused = true
         self.enableSetNeedsDisplay = true
         self.preferredFramesPerSecond = 120
+        
+        NSEvent.addLocalMonitorForEvents(matching: .flagsChanged, handler: modifiersChanged(event:))
+    }
+    
+    func modifiersChanged(event: NSEvent) -> NSEvent {
+        modifier_event(editorHandle, event.modifierFlags.contains(.shift), event.modifierFlags.contains(.control), event.modifierFlags.contains(.option), event.modifierFlags.contains(.command))
+        setNeedsDisplay(self.frame)
+        return event
     }
     
     public override func resetCursorRects() {
