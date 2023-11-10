@@ -10,7 +10,7 @@ use std::fs;
 use std::path::Path;
 
 pub fn release() -> CliResult<()> {
-    // cli::release();
+    cli::release();
     core::build();
     editor::build();
     clean_build_dir();
