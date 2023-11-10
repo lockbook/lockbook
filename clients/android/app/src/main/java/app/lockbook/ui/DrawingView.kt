@@ -66,8 +66,8 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
         GestureDetectorCompat(
             context,
             object : GestureDetector.SimpleOnGestureListener() {
-                override fun onDown(e: MotionEvent?): Boolean {
-                    if (drawing.model.isFingerDrawing && e != null) {
+                override fun onDown(e: MotionEvent): Boolean {
+                    if (drawing.model.isFingerDrawing) {
                         handleStylusEvent(e)
                     }
 

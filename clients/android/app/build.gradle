@@ -6,12 +6,12 @@ apply plugin: 'kotlinx-serialization'
 apply plugin: 'kotlin-parcelize'
 
 android {
-    compileSdkVersion 32
+    compileSdk 33
 
     defaultConfig {
         applicationId "app.lockbook"
         minSdkVersion 22
-        targetSdkVersion 32
+        targetSdkVersion 33
         versionCode 35
         versionName "0.8.3"
 
