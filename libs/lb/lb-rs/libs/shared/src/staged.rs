@@ -87,7 +87,7 @@ where
         self.base()
             .ids()
             .into_iter()
-            .chain(self.staged().ids().into_iter())
+            .chain(self.staged().ids())
             .filter(|id| !self.removed.contains(id))
             .collect()
     }
