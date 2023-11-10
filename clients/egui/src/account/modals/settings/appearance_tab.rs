@@ -14,7 +14,7 @@ impl super::SettingsModal {
         ui.horizontal(|ui| {
             let s = &mut self.settings.write().unwrap();
 
-            for (mode, name) in vec![
+            for (mode, name) in [
                 (ThemeMode::System, "System"),
                 (ThemeMode::Dark, "Dark"),
                 (ThemeMode::Light, "Light"),
