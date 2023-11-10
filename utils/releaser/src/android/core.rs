@@ -66,6 +66,6 @@ fn build_lb_for_android_arch(platform: &str) {
             "build",
             "--release",
         ])
-        .current_dir("libs/lb_external_interface")
+        .current_dir("libs/lb/lb_external_interface")
         .assert_success();
 }
