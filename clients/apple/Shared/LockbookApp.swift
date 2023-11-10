@@ -4,7 +4,7 @@ import SwiftLockbookCore
 import BackgroundTasks
 
 #if os(macOS)
-import AppKit
+import AppKit 
 #endif
 
 @main struct LockbookApp: App {
