@@ -20,7 +20,7 @@ Possible categories include the following:
 - dev_utils
 - graphics
 - website
-- core
+- lb-rs
 - server
 - cli
 - linux

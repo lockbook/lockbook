@@ -53,6 +53,8 @@ object CoreModel {
     fun init(config: Config): Result<Unit, CoreError<InitError>> =
         setUpInitLoggerParser.tryParse(app.lockbook.core.init(setUpInitLoggerParser.encodeToString(config)))
 
+    fun getPtr(): Long = app.lockbook.core.getCorePtr()
+
     private val createAccountParser = Json {
         serializersModule = SerializersModule {
             createPolyRelation(Account.serializer(), CreateAccountError.serializer())
@@ -312,11 +314,11 @@ object CoreModel {
 
     private val calculateWorkParser = Json {
         serializersModule = SerializersModule {
-            createPolyRelation(WorkCalculated.serializer(), CalculateWorkError.serializer())
+            createPolyRelation(app.lockbook.util.SyncStatus.serializer(), CalculateWorkError.serializer())
         }
     }
 
-    fun calculateWork(): Result<WorkCalculated, CoreError<CalculateWorkError>> =
+    fun calculateWork(): Result<app.lockbook.util.SyncStatus, CoreError<CalculateWorkError>> =
         calculateWorkParser.tryParse(
             app.lockbook.core.calculateWork()
         )

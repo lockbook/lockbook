@@ -4,6 +4,7 @@ use eframe::egui;
 use egui_extras::RetainedImage;
 
 use crate::widgets::separator;
+use crate::UpdateOutput;
 use crate::{theme::Icon, widgets::Button};
 
 use super::modals::ErrorModal;
@@ -137,6 +138,12 @@ fn tab_label(ui: &mut egui::Ui, t: &mut Tab, is_active: bool) -> Option<TabLabel
                 lbl_resp = Some(TabLabelResponse::Renamed(str.to_owned()))
             }
         } else {
+            if resp.hovered() {
+                ui.output_mut(|o: &mut egui::PlatformOutput| {
+                    o.cursor_icon = egui::CursorIcon::PointingHand
+                });
+            }
+
             let bg = if resp.hovered() && !close_hovered {
                 ui.visuals().widgets.hovered.bg_fill
             } else {
@@ -203,13 +210,13 @@ fn tab_label(ui: &mut egui::Ui, t: &mut Tab, is_active: bool) -> Option<TabLabel
 }
 
 impl super::AccountScreen {
-    pub fn show_workspace(&mut self, frame: &mut eframe::Frame, ui: &mut egui::Ui) {
+    pub fn show_workspace(&mut self, output: &mut UpdateOutput, ui: &mut egui::Ui) {
         ui.set_enabled(!self.is_any_modal_open());
 
         if self.workspace.is_empty() {
             self.show_empty_workspace(ui);
         } else {
-            ui.centered_and_justified(|ui| self.show_tabs(frame, ui));
+            ui.centered_and_justified(|ui| self.show_tabs(output, ui));
         }
 
         if self.settings.read().unwrap().zen_mode {
@@ -263,7 +270,7 @@ impl super::AccountScreen {
                 .show(ui)
                 .clicked()
             {
-                self.create_file();
+                self.create_file(false);
             }
             ui.visuals_mut().widgets.inactive.fg_stroke =
                 egui::Stroke { color: ui.visuals().widgets.active.bg_fill, ..Default::default() };
@@ -278,7 +285,7 @@ impl super::AccountScreen {
         });
     }
 
-    fn show_tabs(&mut self, frame: &mut eframe::Frame, ui: &mut egui::Ui) {
+    fn show_tabs(&mut self, output: &mut UpdateOutput, ui: &mut egui::Ui) {
         ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
 
         ui.vertical(|ui| {
@@ -323,17 +330,19 @@ impl super::AccountScreen {
                                     } else {
                                         self.workspace.tabs[i].rename = None;
                                         self.workspace.active_tab = i;
-                                        frame.set_window_title(&self.workspace.tabs[i].name);
+                                        output.set_window_title =
+                                            Some(self.workspace.tabs[i].name.clone());
                                         self.tree
                                             .reveal_file(self.workspace.tabs[i].id, &self.core);
                                     }
                                 }
                                 TabLabelResponse::Closed => {
                                     self.close_tab(ui.ctx(), i);
-                                    frame.set_window_title(match self.workspace.current_tab() {
-                                        Some(tab) => &tab.name,
-                                        None => "Lockbook",
-                                    });
+                                    output.set_window_title =
+                                        Some(match self.workspace.current_tab() {
+                                            Some(tab) => tab.name.clone(),
+                                            None => "Lockbook".to_owned(),
+                                        });
                                 }
                                 TabLabelResponse::Renamed(name) => {
                                     self.workspace.tabs[i].rename = None;
@@ -392,6 +401,10 @@ impl super::AccountScreen {
                             TabContent::PlainText(txt) => txt.show(ui),
                             TabContent::Image(img) => img.show(ui),
                             TabContent::Pdf(pdf) => pdf.show(ui),
+                            TabContent::Svg(svg) => {
+                                svg.show(ui);
+                                tab.last_changed = Instant::now();
+                            }
                         };
                     } else {
                         ui.spinner();

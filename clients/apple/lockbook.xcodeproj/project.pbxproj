@@ -3,7 +3,7 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 52;
+	objectVersion = 60;
 	objects = {
 
 /* Begin PBXBuildFile section */
@@ -44,6 +44,8 @@
 		47DBF1F22A61A51000F86B3F /* ImportExportService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47DBF1F02A61A51000F86B3F /* ImportExportService.swift */; };
 		47FAA4C829EC830600DB606E /* BranchState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47FAA4C729EC830600DB606E /* BranchState.swift */; };
 		47FAA4C929EC830600DB606E /* BranchState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47FAA4C729EC830600DB606E /* BranchState.swift */; };
+		47FB55ED2AF19AD400B74C09 /* RenameFolderSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47FB55EC2AF19AD400B74C09 /* RenameFolderSheet.swift */; };
+		47FB55EE2AF19AD400B74C09 /* RenameFolderSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47FB55EC2AF19AD400B74C09 /* RenameFolderSheet.swift */; };
 		5036A0B7393E8C43AAF095A2 /* LBDrawingPKDrawingConversions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5036ACCA149F0864585B7D44 /* LBDrawingPKDrawingConversions.swift */; };
 		5036A72711D09E92A5EE75B1 /* DrawingToolbar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5036AA70E675020A378AE98E /* DrawingToolbar.swift */; };
 		6581A7EF74307EAE69426206 /* SheetState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6581AB54147C2201F8F95500 /* SheetState.swift */; };
@@ -82,6 +84,7 @@
 		87F78F782709352C0001E159 /* LogoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87F78F762709352C0001E159 /* LogoView.swift */; };
 		87F78F7A27094A040001E159 /* BeforeYouStart.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87F78F7927094A040001E159 /* BeforeYouStart.swift */; };
 		87F78F7B27094A040001E159 /* BeforeYouStart.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87F78F7927094A040001E159 /* BeforeYouStart.swift */; };
+		B21063812AD5EAE800E3D85D /* SwiftEditor in Frameworks */ = {isa = PBXBuildFile; productRef = B21063802AD5EAE800E3D85D /* SwiftEditor */; };
 		B217A97629661F3A002339E0 /* SwiftEditor in Frameworks */ = {isa = PBXBuildFile; productRef = B217A97529661F3A002339E0 /* SwiftEditor */; };
 		B2459BED28DBB43100756D71 /* ColorProgressBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2459BEC28DBB43100756D71 /* ColorProgressBar.swift */; };
 		B2459BEE28DBB43100756D71 /* ColorProgressBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2459BEC28DBB43100756D71 /* ColorProgressBar.swift */; };
@@ -102,7 +105,6 @@
 		B2B7E2E325C6411800B9EFAD /* OnboardingState.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2B7E2E125C6411800B9EFAD /* OnboardingState.swift */; };
 		B2ED84972835508100577A1B /* DocumentService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2ED84962835508100577A1B /* DocumentService.swift */; };
 		B2ED84982835508100577A1B /* DocumentService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2ED84962835508100577A1B /* DocumentService.swift */; };
-		B2FB627429AD672900F576A2 /* SwiftEditor in Frameworks */ = {isa = PBXBuildFile; productRef = B2FB627329AD672900F576A2 /* SwiftEditor */; };
 		EA380B262561FAEF0021C4FA /* FileListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA380B242561FAEF0021C4FA /* FileListView.swift */; };
 		EA4559BE25169F7D003AD80A /* CodeScannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA4559BD25169F7D003AD80A /* CodeScannerView.swift */; };
 		EA5C7D7B2516606100F7F358 /* LockbookApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA5C7D682516605F00F7F358 /* LockbookApp.swift */; };
@@ -176,6 +178,7 @@
 		47DBF1F32A61CA5000F86B3F /* UIKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = UIKit.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS16.4.sdk/System/Library/Frameworks/UIKit.framework; sourceTree = DEVELOPER_DIR; };
 		47DBF2212A61D45600F86B3F /* AuthenticationServices.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AuthenticationServices.framework; path = System/Library/Frameworks/AuthenticationServices.framework; sourceTree = SDKROOT; };
 		47FAA4C729EC830600DB606E /* BranchState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BranchState.swift; sourceTree = "<group>"; };
+		47FB55EC2AF19AD400B74C09 /* RenameFolderSheet.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = RenameFolderSheet.swift; sourceTree = "<group>"; };
 		5036AA70E675020A378AE98E /* DrawingToolbar.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DrawingToolbar.swift; sourceTree = "<group>"; };
 		5036ACCA149F0864585B7D44 /* LBDrawingPKDrawingConversions.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = LBDrawingPKDrawingConversions.swift; sourceTree = "<group>"; };
 		6581A11CE95C74B01ED30AEB /* MenuItems.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MenuItems.swift; sourceTree = "<group>"; };
@@ -206,7 +209,8 @@
 		87F78F7927094A040001E159 /* BeforeYouStart.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BeforeYouStart.swift; sourceTree = "<group>"; };
 		B2063A4C27D01BF900A0783C /* EditorTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = EditorTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		B2063A5627D01CAA00A0783C /* Lockbook (macOS)Development.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "Lockbook (macOS)Development.entitlements"; sourceTree = "<group>"; };
-		B217A97429661F21002339E0 /* SwiftEditor */ = {isa = PBXFileReference; lastKnownFileType = wrapper; name = SwiftEditor; path = ../../libs/editor/SwiftEditor; sourceTree = "<group>"; };
+		B210637C2AD5EA3800E3D85D /* Package.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = Package.swift; path = ../../libs/content/editor/SwiftEditor/Package.swift; sourceTree = "<group>"; };
+		B217A97429661F21002339E0 /* SwiftEditor */ = {isa = PBXFileReference; lastKnownFileType = wrapper; name = SwiftEditor; path = ../../libs/content/editor/SwiftEditor; sourceTree = "<group>"; };
 		B2459BEC28DBB43100756D71 /* ColorProgressBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ColorProgressBar.swift; sourceTree = "<group>"; };
 		B249B9E4282AC03A004F5300 /* MoveSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MoveSheet.swift; sourceTree = "<group>"; };
 		B249B9E6282AF4F4004F5300 /* FileTreeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileTreeView.swift; sourceTree = "<group>"; };
@@ -251,7 +255,7 @@
 				EA82B20C262652F700EE82B9 /* Introspect in Frameworks */,
 				47B041F32905BFB100A02DA7 /* AlertToast in Frameworks */,
 				EA9EEFD225FC058100E8C790 /* SwiftLockbookCore in Frameworks */,
-				B2FB627429AD672900F576A2 /* SwiftEditor in Frameworks */,
+				B21063812AD5EAE800E3D85D /* SwiftEditor in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -348,6 +352,7 @@
 		EA14E8172516643400B9158C /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
+				B210637C2AD5EA3800E3D85D /* Package.swift */,
 				47DBF1F32A61CA5000F86B3F /* UIKit.framework */,
 				EAD401DB25E32CD50083A236 /* Notepad */,
 				47DBF2212A61D45600F86B3F /* AuthenticationServices.framework */,
@@ -427,6 +432,7 @@
 		EADE1A5725352E5D00710996 /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				47FB55EC2AF19AD400B74C09 /* RenameFolderSheet.swift */,
 				87F78F7927094A040001E159 /* BeforeYouStart.swift */,
 				EAEDCD0A2516FC1C00EBE313 /* BookView.swift */,
 				EA831A542534E3C80048CE26 /* AppView.swift */,
@@ -499,7 +505,7 @@
 				EA8C627B25EF091900330E27 /* SwiftLockbookCore */,
 				EA82B20B262652F700EE82B9 /* Introspect */,
 				47B041F22905BFB100A02DA7 /* AlertToast */,
-				B2FB627329AD672900F576A2 /* SwiftEditor */,
+				B21063802AD5EAE800E3D85D /* SwiftEditor */,
 			);
 			productName = "Lockbook (iOS)";
 			productReference = EA5C7D6F2516606000F7F358 /* Lockbook.app */;
@@ -565,6 +571,7 @@
 				8794F43627D9525200B1B7EB /* XCRemoteSwiftPackageReference "Down" */,
 				47B041F12905BFB100A02DA7 /* XCRemoteSwiftPackageReference "AlertToast" */,
 				47159F4429CFA05B00969DDF /* XCRemoteSwiftPackageReference "DSFQuickActionBar" */,
+				B210637D2AD5EAE800E3D85D /* XCLocalSwiftPackageReference "../../libs/content/editor/SwiftEditor" */,
 			);
 			productRefGroup = EA5C7D702516606000F7F358 /* Products */;
 			projectDirPath = "";
@@ -632,6 +639,7 @@
 				87BD383826C020B00030D2B1 /* SettingsService.swift in Sources */,
 				B249B9ED282AF6BF004F5300 /* OutlineContextMenu.swift in Sources */,
 				8715F92827161CC60051689E /* OnboardingView.swift in Sources */,
+				47FB55ED2AF19AD400B74C09 /* RenameFolderSheet.swift in Sources */,
 				47FAA4C829EC830600DB606E /* BranchState.swift in Sources */,
 				4756C4DB2A57CE86002C64B1 /* NewFolderSheet.swift in Sources */,
 				877FB56026D2C7D60008AB3F /* StatusService.swift in Sources */,
@@ -713,6 +721,7 @@
 				870DC0A226BF378F002E9A92 /* AccountSettingsView.swift in Sources */,
 				EAAA10D925B3FD58005140EE /* BottomBar.swift in Sources */,
 				B249B9F5282FE566004F5300 /* DataSource.swift in Sources */,
+				47FB55EE2AF19AD400B74C09 /* RenameFolderSheet.swift in Sources */,
 				870DC0A426BF37C0002E9A92 /* UsageSettingsView.swift in Sources */,
 				B2459BEE28DBB43100756D71 /* ColorProgressBar.swift in Sources */,
 				EAF96D0D252E8ED000AA1A14 /* ConfigHelper.swift in Sources */,
@@ -1223,6 +1232,13 @@
 		};
 /* End XCConfigurationList section */
 
+/* Begin XCLocalSwiftPackageReference section */
+		B210637D2AD5EAE800E3D85D /* XCLocalSwiftPackageReference "../../libs/content/editor/SwiftEditor" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ../../libs/content/editor/SwiftEditor;
+		};
+/* End XCLocalSwiftPackageReference section */
+
 /* Begin XCRemoteSwiftPackageReference section */
 		47159F4429CFA05B00969DDF /* XCRemoteSwiftPackageReference "DSFQuickActionBar" */ = {
 			isa = XCRemoteSwiftPackageReference;
@@ -1274,6 +1290,10 @@
 			package = 47B041F12905BFB100A02DA7 /* XCRemoteSwiftPackageReference "AlertToast" */;
 			productName = AlertToast;
 		};
+		B21063802AD5EAE800E3D85D /* SwiftEditor */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = SwiftEditor;
+		};
 		B217A97529661F3A002339E0 /* SwiftEditor */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = SwiftEditor;
@@ -1282,10 +1302,6 @@
 			isa = XCSwiftPackageProductDependency;
 			package = EA82B20A262652F600EE82B9 /* XCRemoteSwiftPackageReference "SwiftUI-Introspect" */;
 			productName = Introspect;
-		};
-		B2FB627329AD672900F576A2 /* SwiftEditor */ = {
-			isa = XCSwiftPackageProductDependency;
-			productName = SwiftEditor;
 		};
 		EA14E81E2516655B00B9158C /* SwiftLockbookCore */ = {
 			isa = XCSwiftPackageProductDependency;

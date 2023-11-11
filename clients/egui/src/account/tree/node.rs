@@ -271,6 +271,12 @@ impl TreeNode {
             node_resp.new_file = Some(true);
             ui.close_menu();
         }
+
+        if ui.button("New Drawing").clicked() {
+            node_resp.new_drawing = Some(true);
+            ui.close_menu();
+        }
+
         if ui.button("New Folder").clicked() {
             node_resp.new_folder_modal = Some(self.file.clone());
             ui.close_menu();

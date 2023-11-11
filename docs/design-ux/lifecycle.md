@@ -29,7 +29,7 @@ This could be a user switching apps, locking their screen, or on desktop it coul
 
 ## Auto-save
 
-When core saves, it compresses, encrypts, and writes the result to a file. Given the unbounded length of files, this can
+When lb-rs saves, it compresses, encrypts, and writes the result to a file. Given the unbounded length of files, this can
 be expensive. It's also a fundamentally important operation. So we'd like to do it as often as possible, without draining
 a user's battery or introducing latency in their typing experience.
 
@@ -51,5 +51,5 @@ Syncing could change the open file (or even delete it), so care should be taken 
 
 # On-mutate
 
-Let's define a mutation to be anything that causes a unit of work to be generated within core. During such an event, clients
+Let's define a mutation to be anything that causes a unit of work to be generated within lb-rs. During such an event, clients
 should (depending on their implementation) refresh their file tree, and perform a local-only-calculate-work.

@@ -79,10 +79,23 @@ impl Default for Editor {
 
         env::var("LOCKBOOK_EDITOR")
             .map(|s| s.parse().unwrap())
+            .or(Self::from_sys_env_var())
             .unwrap_or_else(|_| {
-                eprintln!("LOCKBOOK_EDITOR not set, assuming {:?}", default);
+                eprintln!("LOCKBOOK_EDITOR, VISUAL or EDITOR not set, assuming {:?}", default);
                 default
             })
+    }
+}
+
+impl Editor {
+    fn from_sys_env_var() -> CliResult<Self> {
+        let editor = env::var("VISUAL")
+            .or(env::var("EDITOR"))
+            .map_err(|_| "no EDITOR or VISUAL")?;
+
+        let editor = editor.split('/').last().unwrap();
+
+        Ok(editor.parse().map_err(|_| "no EDITOR or VISUAL")?)
     }
 }
 

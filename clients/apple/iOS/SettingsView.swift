@@ -47,7 +47,9 @@ struct SettingsView: View, Equatable {
                     }
                 }
                 Section(header:  Text("USAGE")) {
-                    if let usage = settingsState.usages {
+                    if settingsState.offline {
+                        Text("You are offline.")
+                    } else if let usage = settingsState.usages {
                         VStack (alignment: .leading) {
                             HStack {
                                 Text("Server Utilization:")

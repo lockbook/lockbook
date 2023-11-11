@@ -17,7 +17,7 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     - name: Set Rust Version
-      run: rustup default 1.71
+      run: rustup default 1.72
     - name: Install Nightly
       run: rustup toolchain install nightly
     - name: Install udeps
@@ -32,14 +32,14 @@ jobs:
       run: cargo run -p lockbook-dev -- run-server
     - name: Run Rust Tests
       run: cargo run -p lockbook-dev -- run-rust-tests
+    - name: Run Swift Tests
+      run: cargo run -p lockbook-dev -- run-swift-tests
     - name: Run Android Fmt
       run: cargo run -p lockbook-dev -- check-android-fmt
     - name: Run Android Lint
       run: cargo run -p lockbook-dev -- check-android-lint
     - name: Run Kotlin Tests
       run: cargo run -p lockbook-dev -- run-kotlin-tests
-    - name: Run Swift Tests
-      run: cargo run -p lockbook-dev -- run-swift-tests
     - name: Server Logs
       if: always()
       run: cargo run -p lockbook-dev -- print-server-logs

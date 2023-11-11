@@ -24,17 +24,11 @@ struct OnboardingView: View {
                 }
                 .padding(.horizontal)
                 
-                if let isPushing = syncState.isPushing {
-                    if let fileName = syncState.pushPullFileName {
-                        Text("\(isPushing ? "Pushing" : "Pulling") file: \(fileName)")
-                            .font(.headline)
-                    } else {
-                        Text("\(isPushing ? "Pushing" : "Pulling") files...")
-                            .font(.headline)
+                HStack {
+                    if let syncMsg = syncState.syncMsg {
+                        Text(syncMsg)
+                            .foregroundColor(.secondary)
                     }
-                } else {
-                    Text("Starting sync...")
-                        .font(.headline)
                 }
                 
                 Spacer()

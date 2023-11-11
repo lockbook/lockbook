@@ -15,6 +15,7 @@ import app.lockbook.screen.MainScreenActivity
 import app.lockbook.util.ColorAlias
 import app.lockbook.util.Drawing
 import app.lockbook.util.Stroke
+import timber.log.Timber
 import java.lang.ref.WeakReference
 import java.util.*
 import kotlin.math.pow
@@ -65,8 +66,8 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
         GestureDetectorCompat(
             context,
             object : GestureDetector.SimpleOnGestureListener() {
-                override fun onDown(e: MotionEvent?): Boolean {
-                    if (drawing.model.isFingerDrawing && e != null) {
+                override fun onDown(e: MotionEvent): Boolean {
+                    if (drawing.model.isFingerDrawing) {
                         handleStylusEvent(e)
                     }
 
@@ -392,6 +393,7 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
 
     @SuppressLint("ClickableViewAccessibility")
     override fun onTouchEvent(event: MotionEvent?): Boolean {
+        Timber.e("touching drawing...")
         if (event != null) {
             val toolType = event.getToolType(0)
 

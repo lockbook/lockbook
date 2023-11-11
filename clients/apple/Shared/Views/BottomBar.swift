@@ -129,7 +129,7 @@ struct BottomBar: View {
                         Button(action: {
                             showUpgradeToPremium()
                         }, label: {
-                            Image(systemName: "plus.circle.fill")
+                            Image(systemName: "dollarsign.circle")
                                 .foregroundColor(.gray)
                         })
                         
@@ -179,19 +179,8 @@ struct BottomBar: View {
                 .foregroundColor(.secondary)
         } else if sync.syncing {
             HStack {
-                if let isPushing = sync.isPushing {
-                    if let fileName = sync.pushPullFileName {
-                        Text("\(isPushing ? "Pushing" : "Pulling") file: \(fileName)")
-                            .foregroundColor(.secondary)
-                    } else {
-                        Text("\(isPushing ? "Pushing" : "Pulling") files...")
-                            .foregroundColor(.secondary)
-                    }
-                } else {
-                    Text("Syncing...")
-                        .foregroundColor(.secondary)
-                }
-                
+                Text(sync.syncMsg ?? " ")
+                    .foregroundColor(.secondary)
             #if os(iOS)
                 Spacer()
             #endif

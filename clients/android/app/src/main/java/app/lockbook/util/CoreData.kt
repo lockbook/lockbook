@@ -56,23 +56,20 @@ class Account(
 )
 
 @Serializable
-data class WorkCalculated(
+data class SyncStatus(
     @SerialName("work_units")
     val workUnits: List<WorkUnit>,
-    @SerialName("most_recent_update_from_server")
-    val mostRecentUpdateFromServer: Long,
+    @SerialName("latest_server_ts")
+    val latestServerTS: Long,
 )
 
 @Serializable
-data class WorkUnit(val content: WorkUnitMetadata, val tag: WorkUnitTag)
+data class WorkUnit(val content: String, val tag: WorkUnitTag)
 
 enum class WorkUnitTag {
     LocalChange,
     ServerChange
 }
-
-@Serializable
-data class WorkUnitMetadata(val metadata: File)
 
 @Serializable
 data class Config(

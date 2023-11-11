@@ -1,14 +1,15 @@
 [package]
 name = "lockbook-egui"
-version = "0.8.0"
+version = "0.8.3"
 edition = "2021"
 
 [dependencies]
-lb = { package = "lockbook-core", path = "../../libs/core", default-features = false, features=["native-tls"] }
-lbeditor = { package = "egui_editor", path = "../../libs/editor/egui_editor" }
+lb = { package = "lb-rs", path = "../../libs/lb/lb-rs", default-features = false, features=["native-tls"] }
+lbeditor = { package = "egui_editor", path = "../../libs/content/editor/egui_editor" }
 eframe = "0.22.0"
 egui-notify= "0.7.0"
 egui-winit = "0.22.0"
+egui_wgpu_backend = "0.24.0"
 egui_extras = { version = "0.22.0", features = ["image"] }
 image = { version = "0.24", default-features = false, features = ["png", "jpeg", "gif", "webp", "bmp", "ico"] }
 dark-light = "1.0.0"
@@ -18,6 +19,8 @@ rfd = "0.11.4"
 lb-fonts = "0.1.1"
 lb-pdf = "0.1.1"
 pdfium-render = "0.8.5"
+resvg = "0.36.0"
+minidom = "*"
 
 [target.'cfg(windows)'.build-dependencies]
 winres = "0.1"

@@ -32,9 +32,9 @@ pub fn lb_repo() -> RepoInfo<'static> {
     RepoInfo { owner: "lockbook", repo_name: "lockbook" }
 }
 
-pub fn core_version() -> String {
-    let core = fs::read_to_string("libs/core/Cargo.toml").unwrap();
-    core.parse::<Value>().unwrap()["package"]["version"]
+pub fn lb_version() -> String {
+    let lb = fs::read_to_string("libs/lb/lb-rs/Cargo.toml").unwrap();
+    lb.parse::<Value>().unwrap()["package"]["version"]
         .as_str()
         .unwrap()
         .to_string()

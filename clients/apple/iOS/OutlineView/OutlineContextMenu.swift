@@ -36,9 +36,23 @@ struct OutlineContextMenu: View {
                 }) {
                     Label("Create a folder", systemImage: "folder.fill")
                 }
+            } else {
+                Button(action: {
+                    DI.files.copyFileLink(id: meta.id)
+                }) {
+                    Label("Copy file link", systemImage: "link")
+                }
             }
             
             if !meta.isRoot {
+                if meta.fileType == .Folder {
+                    Button(action: {
+                        DI.sheets.renamingFolderInfo = RenamingFolderInfo(id: meta.id, name: meta.name, parentPath: DI.files.getPathByIdOrParent(maybeId: meta.parent) ?? "ERROR")
+                    }) {
+                        Label("Rename", systemImage: "questionmark.folder")
+                    }
+                }
+
                 Button(action: { DI.files.deleteFile(id: meta.id) }) {
                     Label("Delete", systemImage: "trash.fill")
                 }
@@ -53,14 +67,6 @@ struct OutlineContextMenu: View {
 
                 Button(action: { exportFileAndShowShareSheet(meta: meta) }) {
                     Label("Share externally to...", systemImage: "square.and.arrow.up.fill")
-                }
-            }
-
-            if meta.fileType == .Document {
-                Button(action: {
-                    DI.files.copyFileLink(id: meta.id)
-                }) {
-                    Label("Copy file link", systemImage: "link")
                 }
             }
         }

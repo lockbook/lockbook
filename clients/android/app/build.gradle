@@ -6,14 +6,14 @@ apply plugin: 'kotlinx-serialization'
 apply plugin: 'kotlin-parcelize'
 
 android {
-    compileSdkVersion 32
+    compileSdk 33
 
     defaultConfig {
         applicationId "app.lockbook"
         minSdkVersion 22
-        targetSdkVersion 32
-        versionCode 32
-        versionName "0.8.0"
+        targetSdkVersion 33
+        versionCode 36
+        versionName "0.8.3"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -67,7 +67,7 @@ android {
 
     testOptions {
         unitTests.all {
-            jvmArgs '-Djava.library.path=../core/src/main/jniLibs/desktop'
+            jvmArgs '-Djava.library.path=../lb-rs/src/main/jniLibs/desktop'
         }
     }
 
@@ -82,6 +82,8 @@ task printVersionCode {
 
 dependencies {
     implementation fileTree(dir: 'libs', include: ['*.jar'])
+
+    implementation "org.jetbrains.kotlin:kotlin-stdlib:$core_ktx_version"
 
     // Ui Libraries
     implementation "com.google.android.material:material:$material_ui_version"
@@ -101,7 +103,6 @@ dependencies {
     // Serialization
     implementation "org.jetbrains.kotlinx:kotlinx-serialization-json:$json_parser_version"
     implementation "org.jetbrains.kotlin:kotlin-reflect:$kotlin_reflect"
-
 
     // Android KTX
     implementation "androidx.core:core-ktx:$core_ktx_version"
@@ -139,5 +140,6 @@ dependencies {
     implementation "androidx.work:work-runtime-ktx:$work_version"
     implementation "com.android.billingclient:billing-ktx:$billing_version"
 
-    implementation project(':core')
+    implementation project(':lb-rs')
+    implementation project(':egui-editor')
 }
