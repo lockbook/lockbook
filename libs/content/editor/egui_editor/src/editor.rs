@@ -376,7 +376,7 @@ impl Editor {
                 bounds::calc_links(&self.buffer.current, &self.bounds.text, &self.ast);
         }
         if text_updated || selection_updated || theme_updated {
-            self.images = images::calc(&self.ast, &self.images, &self.client, ui);
+            self.images = images::calc(&self.ast, &self.images, &self.client, &self.core, ui);
         }
         self.galleys = galleys::calc(
             &self.ast,
@@ -388,7 +388,7 @@ impl Editor {
             ui,
             is_ios
         );
-        self.bounds.lines = bounds::calc_lines(&self.galleys, &self.ast, &self.bounds.text);
+        self.bounds.lines = bounds::calc_lines(&self.galleys, &self.bounds.ast, &self.bounds.text);
         self.initialized = true;
 
         if self.images.any_loading()

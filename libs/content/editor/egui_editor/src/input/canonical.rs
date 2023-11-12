@@ -117,8 +117,7 @@ impl From<&Modifiers> for Offset {
 
 pub fn calc(
     event: &Event, click_checker: impl ClickChecker, pointer_state: &mut PointerState,
-    now: Instant, touch_mode: bool, is_ios: bool, appearance: &appearance::Appearance,
-    appearance: &appearance::Appearance
+    now: Instant, touch_mode: bool, is_ios: bool, appearance: &appearance::Appearance
 ) -> Option<Modification> {
     match event {
         Event::Key { key, pressed: true, modifiers, .. }

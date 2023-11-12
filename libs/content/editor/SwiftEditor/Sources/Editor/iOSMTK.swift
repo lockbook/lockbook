@@ -426,6 +426,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     }
     
     public func position(from position: UITextPosition, offset: Int) -> UITextPosition? {
+        print("pos 1")
         guard let start = (position as? LBTextPos)?.c else {
             return nil
         }
@@ -437,6 +438,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     }
     
     public func position(from position: UITextPosition, in direction: UITextLayoutDirection, offset: Int) -> UITextPosition? {
+        print("pos 2")
         let start = (position as! LBTextPos).c
         let direction = CTextLayoutDirection(rawValue: UInt32(direction.rawValue));
         let new = position_offset_in_direction(editorHandle, start, direction, Int32(offset))
@@ -476,6 +478,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     public lazy var tokenizer: UITextInputTokenizer = LBTokenizer(editorHandle: self.editorHandle)
     
     public func position(within range: UITextRange, farthestIn direction: UITextLayoutDirection) -> UITextPosition? {
+        print("pos 3")
         unimplemented()
         return nil
     }
@@ -556,6 +559,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
         let point = Unmanaged.passUnretained(touches.first!).toOpaque()
         let value = UInt64(UInt(bitPattern: point))
         let location = touches.first!.location(in: self)
+        inputDelegate?.selectionWillChange(self)
         touches_began(editorHandle, value, Float(location.x), Float(location.y), Float(touches.first?.force ?? 0))
 
         self.setNeedsDisplay(self.frame)
@@ -835,5 +839,45 @@ public enum SupportedImportFormat {
     case image(UIImage)
     case text(String)
 }
+
+class LBTextSelectionRect: UITextSelectionRect {
+    let loc: Int
+    let size: Int
+    let cRect: CRect
+
+    init(cRect: CRect, loc: Int, size: Int) {
+        self.cRect = cRect
+        self.loc = loc
+        self.size = size
+    }
+
+    override var writingDirection: NSWritingDirection {
+        get {
+            return .leftToRight
+        }
+    }
+    override var containsStart: Bool {
+        get {
+            return loc == 0
+        }
+    }
+    override var containsEnd: Bool {
+        get {
+            return loc == (size - 1)
+        }
+    }
+    override var isVertical: Bool {
+        get {
+            return false
+        }
+    }
+
+    override var rect: CGRect {
+        get {
+            return CGRect(x: cRect.min_x, y: cRect.min_y, width: cRect.max_x - cRect.min_x, height: cRect.max_y - cRect.min_y)
+        }
+    }
+}
+
 
 #endif

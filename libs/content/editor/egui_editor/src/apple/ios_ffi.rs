@@ -586,7 +586,7 @@ pub unsafe extern "C" fn cursor_rect_at_position(obj: *mut c_void, pos: CTextPos
     let appearance = &obj.editor.appearance;
 
     let cursor: Cursor = pos.pos.into();
-    let line = cursor.start_line(galleys, text);
+    let line = cursor.start_line(galleys, text, appearance);
 
     CRect {
         min_x: line[0].x as f64,
@@ -619,8 +619,8 @@ pub unsafe extern "C" fn selection_rects(obj: *mut c_void, range: CTextRange) ->
 
         let cursor_representing_rect: Cursor = (cont_start.clone(), end_of_rect.clone()).into();
 
-        let start_line = cursor_representing_rect.start_line(galleys, text);
-        let end_line = cursor_representing_rect.end_line(galleys, text);
+        let start_line = cursor_representing_rect.start_line(galleys, text, &obj.editor.appearance);
+        let end_line = cursor_representing_rect.end_line(galleys, text, &obj.editor.appearance);
 
         selection_rects.push(CRect {
             min_x: (start_line[1].x) as f64,

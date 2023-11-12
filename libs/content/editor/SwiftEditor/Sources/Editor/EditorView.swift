@@ -19,6 +19,10 @@ public struct EditorView: UIViewRepresentable {
         mtkView.nameState = nameState
         
         mtkView.setInitialContent(coreHandle, editorState.text)
+        
+        let interaction = UITextInteraction(for: .editable)
+        interaction.textInput = mtkView
+        mtkView.addInteraction(interaction)
     }
 
     public func makeUIView(context: Context) -> iOSMTK {
