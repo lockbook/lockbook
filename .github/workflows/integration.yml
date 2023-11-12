@@ -16,8 +16,6 @@ jobs:
       CARGO_TARGET_DIR: /home/lockbook-ci/.lockbook-dev/target
     steps:
     - uses: actions/checkout@v2
-    - name: Set Rust Version
-      run: rustup default 1.72
     - name: Install Nightly
       run: rustup toolchain install nightly
     - name: Install udeps

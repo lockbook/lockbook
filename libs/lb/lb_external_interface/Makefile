@@ -1,9 +1,6 @@
 .PHONY: android
 android:
-	cargo ndk --target aarch64-linux-android --platform $(MIN_VER) -- build --release
-	cargo ndk --target armv7-linux-androideabi --platform $(MIN_VER) -- build --release
-	cargo ndk --target i686-linux-android --platform $(MIN_VER) -- build --release
-	cargo ndk --target x86_64-linux-android --platform $(MIN_VER) -- build --release
+	cargo ndk --target aarch64-linux-android --target armv7-linux-androideabi --target i686-linux-android --target x86_64-linux-android --platform $(MIN_VER) -- build --release
 
 	@echo "Cleaning up old .so's if they exist"
 	@rm -rf $(jniLibs)/*
@@ -58,34 +55,26 @@ linux_jni:
 
 	@cp ../../../target/release/$(libName) $(jniLibs)/desktop/$(libName)
 
-.PHONY: lib_c_for_swift_ios
-lib_c_for_swift_ios:
-	@{ command -v cargo || { echo "Y'ain't got cargo"; exit 1; } }
-	@echo "Creating header"
+.PHONY: swift_libs
+swift_libs:
 	@rm ${swift_inc}lb_rs.h || true
-	cbindgen src/c_interface.rs -l c > lb_rs.h
+	@rm -rf ${swift_lib} ${swift_lib_ios} ${swift_lib_ios_sim}
+	rm -rf ../../../target/xcode-lipo-universal
+
 	@mkdir -p ${swift_inc}
-	cp lb_rs.h ${swift_inc}
-	@echo "Building fat library"
-	@rm ${swift_lib_ios}liblb_external_interface.a || true
-	cargo build --release --target=aarch64-apple-ios
+	@mkdir -p ${swift_lib}
 	@mkdir -p ${swift_lib_ios}
+	@mkdir -p ${swift_lib_ios_sim}
+	@mkdir -p ../../../target/xcode-lipo-universal
+
+	cbindgen src/c_interface.rs -l c > lb_rs.h
+	cargo build --release --target=aarch64-apple-ios-sim --target=aarch64-apple-ios --target=x86_64-apple-ios --target=x86_64-apple-darwin --target=aarch64-apple-darwin
+
+	cp lb_rs.h ${swift_inc}
 	cp ../../../target/aarch64-apple-ios/release/liblb_external_interface.a ${swift_lib_ios}
 
-.PHONY: lib_c_for_swift_ios_sim
-lib_c_for_swift_ios_sim:
-	@{ command -v cargo || { echo "Y'ain't got cargo"; exit 1; } }
-	@echo "Creating header"
-	@rm ${swift_inc}lb_rs.h || true
-	cbindgen src/c_interface.rs -l c > lb_rs.h
-	@mkdir -p ${swift_inc}
-	cp lb_rs.h ${swift_inc}
-	@echo "Building fat library"
-	@rm ${swift_lib_ios_sim}liblb_external_interface.a || true
-	cargo build --release --target=aarch64-apple-ios-sim
-	cargo build --release --target=x86_64-apple-ios
-	@mkdir -p ${swift_lib_ios_sim}
 	lipo -create -output ${swift_lib_ios_sim}liblb_external_interface.a ../../../target/aarch64-apple-ios-sim/release/liblb_external_interface.a ../../../target/x86_64-apple-ios/release/liblb_external_interface.a
+	lipo -create -output ${swift_lib}liblb_external_interface.a ../../../target/x86_64-apple-darwin/release/liblb_external_interface.a ../../../target/aarch64-apple-darwin/release/liblb_external_interface.a
 
 # for non lipo builds (linux)
 .PHONY: lib_c_for_swift_native
@@ -97,31 +86,9 @@ lib_c_for_swift_native:
 	@mkdir -p ${swift_inc}
 	cp lb_rs.h ${swift_inc}
 	@echo "Building fat library"
-	@rm ${swift_lib}liblb_external_interface.a || echo "no prior .a"
 	cargo build --release
 	@mkdir -p ${swift_lib}
 	cp ../../../target/release/liblb_external_interface.a ${swift_lib}
-
-.PHONY: lib_c_for_swift_universal
-lib_c_for_swift_universal:
-	@{ command -v cargo || { echo "Y'ain't got cargo"; exit 1; } }
-	@echo "Creating header"
-	@rm ${swift_inc}lb_rs.h || echo "no prior .h"
-	cbindgen src/c_interface.rs -l c > lb_rs.h
-	@mkdir -p ${swift_inc}
-	cp lb_rs.h ${swift_inc}
-	@echo "Building fat library"
-	@rm ${swift_lib}liblb_external_interface.a || echo "no prior .a"
-	cargo build --release --target=x86_64-apple-darwin
-	cargo build --release --target=aarch64-apple-darwin
-	rm -rf ../../../target/xcode-lipo-universal
-	mkdir ../../../target/xcode-lipo-universal
-	lipo -create -output ../../../target/xcode-lipo-universal/liblb_external_interface.a ../../../target/x86_64-apple-darwin/release/liblb_external_interface.a ../../../target/aarch64-apple-darwin/release/liblb_external_interface.a
-	@mkdir -p ${swift_lib}
-	cp ../../../target/xcode-lipo-universal/liblb_external_interface.a ${swift_lib}
-
-.PHONY: swift_libs
-swift_libs: lib_c_for_swift_universal lib_c_for_swift_ios lib_c_for_swift_ios_sim
 
 .PHONY: lib_c_for_windows
 lib_c_for_windows:
