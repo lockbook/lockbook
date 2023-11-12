@@ -91,7 +91,6 @@ pub fn calc_words(
 
 pub fn calc_lines(galleys: &Galleys, ast: &AstTextRanges, text: &Text) -> Lines {
     let mut result = vec![];
-    let galleys = galleys;
     let mut text_range_iter = ast.iter();
     for (galley_idx, galley) in galleys.galleys.iter().enumerate() {
         for (row_idx, _) in galley.galley.rows.iter().enumerate() {

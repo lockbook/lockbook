@@ -953,5 +953,5 @@ where
 }
 
 fn insert<K: Hash + Eq, V: Hash + Eq>(map: &mut HashMap<K, HashSet<V>>, k: K, v: V) {
-    map.entry(k).or_insert_with(Default::default).insert(v);
+    map.entry(k).or_default().insert(v);
 }

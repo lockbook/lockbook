@@ -9,7 +9,7 @@ use lockbook_shared::api::{
     PaymentMethod, StripeAccountState, StripeAccountTier, UpgradeAccountStripeError,
 };
 use lockbook_shared::file_metadata::Owner;
-use std::ops::Deref;
+
 use stripe::{Invoice, WebhookEvent};
 use tracing::*;
 use uuid::Uuid;
@@ -155,16 +155,11 @@ where
     pub fn get_public_key_from_invoice(
         &self, invoice: &Invoice,
     ) -> Result<PublicKey, ServerError<StripeWebhookError>> {
-        let customer_id = match invoice
-            .customer
-            .as_ref()
-            .ok_or_else(|| {
-                ClientError(StripeWebhookError::InvalidBody(
-                    "Cannot retrieve the customer_id".to_string(),
-                ))
-            })?
-            .deref()
-        {
+        let customer_id = match invoice.customer.as_ref().ok_or_else(|| {
+            ClientError(StripeWebhookError::InvalidBody(
+                "Cannot retrieve the customer_id".to_string(),
+            ))
+        })? {
             stripe::Expandable::Id(id) => id.to_string(),
             stripe::Expandable::Object(customer) => customer.id.to_string(),
         };
