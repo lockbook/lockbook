@@ -9,7 +9,7 @@ use lockbook_shared::api::{
     PaymentMethod, StripeAccountState, StripeAccountTier, UpgradeAccountStripeError,
 };
 use lockbook_shared::file_metadata::Owner;
-use std::ops::Deref;
+
 use stripe::{Invoice, WebhookEvent};
 use tracing::*;
 use uuid::Uuid;
@@ -163,7 +163,6 @@ where
                     "Cannot retrieve the customer_id".to_string(),
                 ))
             })?
-            .deref()
         {
             stripe::Expandable::Id(id) => id.to_string(),
             stripe::Expandable::Object(customer) => customer.id.to_string(),
