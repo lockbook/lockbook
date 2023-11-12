@@ -259,17 +259,9 @@ pub fn get_drawing_bounds(strokes: &[Stroke]) -> (u32, u32) {
             .unwrap_or(0)
     };
 
-    let max_x_and_girth = strokes
-        .iter()
-        .map(stroke_to_max_x)
-        .max()
-        .unwrap_or(0);
+    let max_x_and_girth = strokes.iter().map(stroke_to_max_x).max().unwrap_or(0);
 
-    let max_y_and_girth = strokes
-        .iter()
-        .map(stroke_to_max_y)
-        .max()
-        .unwrap_or(0);
+    let max_y_and_girth = strokes.iter().map(stroke_to_max_y).max().unwrap_or(0);
 
     (max_x_and_girth + 20, max_y_and_girth + 20)
 }
