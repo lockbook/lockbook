@@ -22,7 +22,7 @@ pub enum Component {
     Separator(egui::Margin),
 }
 #[derive(Clone)]
-struct SimpleButton {
+pub struct SimpleButton {
     icon: Icon,
     margin: egui::Margin,
     coming_soon_text: Option<String>,

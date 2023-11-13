@@ -1,15 +1,16 @@
 use std::borrow::BorrowMut;
-use std::fmt::Write;
+use std::collections::VecDeque;
 use std::sync::mpsc;
+use std::time::{Duration, Instant};
 
 use eframe::egui;
 use minidom::Element;
-use resvg::tiny_skia::{Path, PathBuilder, PathSegment, Pixmap};
+use resvg::tiny_skia::Pixmap;
 use resvg::usvg::{self, Size, TreeWriting};
 
 use crate::theme::ThemePalette;
 
-use super::toolbar::{ColorSwatch, Toolbar, Component};
+use super::toolbar::{ColorSwatch, Component, Toolbar};
 
 const INITIAL_SVG_CONTENT: &str = "<svg xmlns=\"http://www.w3.org/2000/svg\" ></svg>";
 const ZOOM_STOP: f32 = 0.1;
@@ -19,12 +20,85 @@ pub struct SVGEditor {
     root: Element,
     draw_rx: mpsc::Receiver<(egui::Pos2, usize)>,
     draw_tx: mpsc::Sender<(egui::Pos2, usize)>,
-    path_builder: PathBuilder,
+    path_builder: CubicBezBuilder,
     zoom_factor: f32,
     id_counter: usize,
     pub toolbar: Toolbar,
     inner_rect: egui::Rect,
     sao_offset: egui::Vec2,
+    last_executed: Instant, // todo: add https://en.wikipedia.org/wiki/Ramer%E2%80%93Douglas%E2%80%93Peucker_algorithm
+}
+
+/// build a cubic bézier path   
+struct CubicBezBuilder {
+    /// store the 4 past points (control and knots)
+    prev_points_window: VecDeque<egui::Pos2>,
+    temp: String,
+    data: String,
+}
+
+impl CubicBezBuilder {
+    fn new() -> Self {
+        CubicBezBuilder {
+            prev_points_window: VecDeque::from(vec![]),
+            data: String::new(),
+            temp: String::new(),
+        }
+    }
+
+    fn cubic_to(&mut self, dest: egui::Pos2) {
+        // calculate cat-mull points
+
+        if !self.temp.is_empty() {
+            self.data.push_str(self.temp.as_str());
+        }
+        self.prev_points_window.push_back(dest);
+        if self.prev_points_window.len() < 3 {
+            if self.data.is_empty() {
+                self.data = format!("M {} {}", dest.x, dest.y);
+            }
+            return;
+        }
+        let k = 1.0; //tension
+
+        let p0 = self.prev_points_window[0];
+        let p1 = self.prev_points_window[0];
+        let p2 = self.prev_points_window[1];
+        let p3 = self.prev_points_window[2];
+
+        let cp1x = p1.x + (p2.x - p0.x) / 6.0 * k;
+        let cp1y = p1.y + (p2.y - p0.y) / 6.0 * k;
+
+        let cp2x = p2.x - (p3.x - p1.x) / 6.0 * k;
+        let cp2y = p2.y - (p3.y - p1.y) / 6.0 * k;
+
+        // convert to cubic bezier curve
+        self.data
+            .push_str(format!("C {cp1x},{cp1y},{cp2x},{cp2y},{},{}", p2.x, p2.y).as_str());
+
+        let p0 = self.prev_points_window[0];
+        let p1 = self.prev_points_window[1];
+        let p2 = self.prev_points_window[2];
+        let p3 = self.prev_points_window[2];
+
+        let cp1x = p1.x + (p2.x - p0.x) / 6.0 * k;
+        let cp1y = p1.y + (p2.y - p0.y) / 6.0 * k;
+
+        let cp2x = p2.x - (p3.x - p1.x) / 6.0 * k;
+        let cp2y = p2.y - (p3.y - p1.y) / 6.0 * k;
+
+        // convert to cubic bezier curve
+        self.temp = format!("C {cp1x},{cp1y}, {cp2x},{cp2y},{},{}", p2.x, p2.y);
+
+        // shift the window
+        self.prev_points_window.pop_front();
+    }
+
+    fn _finish(&self) {}
+
+    fn clear(&mut self) {
+        self.data = String::default();
+    }
 }
 
 impl SVGEditor {
@@ -56,16 +130,16 @@ impl SVGEditor {
             root,
             toolbar: Toolbar::new(),
             sao_offset: egui::vec2(0.0, 0.0),
-            path_builder: PathBuilder::new(),
+            path_builder: CubicBezBuilder::new(),
             inner_rect: egui::Rect::NOTHING,
             zoom_factor: 1.0,
+            last_executed: Instant::now(),
         })
     }
 
     pub fn show(&mut self, ui: &mut egui::Ui) {
         self.setup_draw_events(ui);
         self.draw_event_handler();
-
         self.define_dynamic_colors(ui);
 
         ui.vertical(|ui| {
@@ -91,6 +165,7 @@ impl SVGEditor {
                 .unwrap();
         utree.to_string(&usvg::XmlOptions::default())
     }
+
     fn render_svg(&mut self, ui: &mut egui::Ui) {
         let mut utree: usvg::Tree =
             usvg::TreeParsing::from_data(self.content.as_bytes(), &usvg::Options::default())
@@ -199,6 +274,13 @@ impl SVGEditor {
 
     fn draw_event_handler(&mut self) {
         while let Ok((pos, id)) = self.draw_rx.try_recv() {
+            let elapsed_time = Instant::now().duration_since(self.last_executed);
+            let throttle_interval = Duration::from_millis(100); // todo: take into PointerState velocity when throttling
+            if elapsed_time < throttle_interval {
+                continue;
+            }
+
+            self.last_executed = Instant::now();
             let mut current_path = self.root.children_mut().find(|e| {
                 if let Some(id) = e.attr("id") {
                     id == self.id_counter.to_string()
@@ -208,11 +290,8 @@ impl SVGEditor {
             });
 
             if let Some(node) = current_path.as_mut() {
-                self.path_builder.line_to(pos.x, pos.y);
-                let path = self.path_builder.clone().finish().unwrap();
-                let data = get_path_data(path);
-
-                node.set_attr("d", data);
+                self.path_builder.cubic_to(pos);
+                node.set_attr("d", &self.path_builder.data);
 
                 if let Some(color) = &self.toolbar.active_color {
                     node.set_attr("stroke", format!("url(#{})", color.id));
@@ -221,18 +300,15 @@ impl SVGEditor {
                 }
             } else {
                 self.path_builder.clear();
+                self.path_builder.cubic_to(pos);
 
-                self.path_builder.move_to(pos.x, pos.y);
-                self.path_builder.line_to(pos.x, pos.y);
-                let path = self.path_builder.clone().finish().unwrap();
-                let data = get_path_data(path);
                 let child = Element::builder("path", "")
                     .attr("stroke-width", self.toolbar.active_stroke_width.to_string())
                     .attr("fill", "none")
                     .attr("stroke-linejoin", "round")
                     .attr("stroke-linecap", "round")
                     .attr("id", id)
-                    .attr("d", data)
+                    .attr("d", &self.path_builder.data)
                     .build();
 
                 self.root.append_child(child);
@@ -243,6 +319,7 @@ impl SVGEditor {
             self.root.write_to(&mut buffer).unwrap();
             self.content = std::str::from_utf8(&buffer).unwrap().to_string();
             self.content = self.content.replace("xmlns='' ", "");
+            println!("{:#?}", self.content);
         }
     }
 
@@ -271,25 +348,4 @@ impl SVGEditor {
             }
         }
     }
-}
-
-fn get_path_data(path: Path) -> String {
-    let mut s = String::new();
-    for segment in path.segments() {
-        match segment {
-            PathSegment::MoveTo(p) => s.write_str(format!("M {} {} ", p.x, p.y).as_str()),
-            PathSegment::LineTo(p) => s.write_str(format!("L {} {} ", p.x, p.y).as_str()),
-            PathSegment::QuadTo(p0, p1) => {
-                s.write_str(format!("Q {} {} {} {} ", p0.x, p0.y, p1.x, p1.y).as_str())
-            }
-            PathSegment::CubicTo(p0, p1, p2) => s.write_str(
-                format!("C {} {} {} {} {} {} ", p0.x, p0.y, p1.x, p1.y, p2.x, p2.y).as_str(),
-            ),
-            PathSegment::Close => s.write_str("Z "),
-        }
-        .unwrap();
-    }
-
-    s.pop(); // ' '
-    s
 }
