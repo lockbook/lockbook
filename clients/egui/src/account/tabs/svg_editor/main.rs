@@ -18,8 +18,8 @@ const ZOOM_STOP: f32 = 0.1;
 pub struct SVGEditor {
     pub content: String,
     root: Element,
-    draw_rx: mpsc::Receiver<(egui::Pos2, usize)>,
-    draw_tx: mpsc::Sender<(egui::Pos2, usize)>,
+    draw_rx: mpsc::Receiver<StrokeEvent>,
+    draw_tx: mpsc::Sender<StrokeEvent>,
     path_builder: CubicBezBuilder,
     zoom_factor: f32,
     id_counter: usize,
@@ -29,12 +29,17 @@ pub struct SVGEditor {
     last_executed: Instant, // todo: add https://en.wikipedia.org/wiki/Ramer%E2%80%93Douglas%E2%80%93Peucker_algorithm
 }
 
+enum StrokeEvent {
+    Draw(egui::Pos2, usize),
+    End(egui::Pos2, usize),
+}
 /// build a cubic bézier path   
 struct CubicBezBuilder {
     /// store the 4 past points (control and knots)
     prev_points_window: VecDeque<egui::Pos2>,
     temp: String,
     data: String,
+    needs_move: bool,
 }
 
 impl CubicBezBuilder {
@@ -43,28 +48,30 @@ impl CubicBezBuilder {
             prev_points_window: VecDeque::from(vec![]),
             data: String::new(),
             temp: String::new(),
+            needs_move: true,
         }
     }
 
     fn cubic_to(&mut self, dest: egui::Pos2) {
         // calculate cat-mull points
 
-        if !self.temp.is_empty() {
-            self.data.push_str(self.temp.as_str());
+        if self.needs_move {
+            self.data = format!("M {} {}", dest.x, dest.y);
+            self.needs_move = false;
         }
+
         self.prev_points_window.push_back(dest);
-        if self.prev_points_window.len() < 3 {
-            if self.data.is_empty() {
-                self.data = format!("M {} {}", dest.x, dest.y);
-            }
+        if self.prev_points_window.len() < 4 {
             return;
         }
+        println!("{:#?}", self.prev_points_window);
+
         let k = 1.0; //tension
 
         let p0 = self.prev_points_window[0];
-        let p1 = self.prev_points_window[0];
-        let p2 = self.prev_points_window[1];
-        let p3 = self.prev_points_window[2];
+        let p1 = self.prev_points_window[1];
+        let p2 = self.prev_points_window[2];
+        let p3 = self.prev_points_window[3];
 
         let cp1x = p1.x + (p2.x - p0.x) / 6.0 * k;
         let cp1y = p1.y + (p2.y - p0.y) / 6.0 * k;
@@ -92,12 +99,17 @@ impl CubicBezBuilder {
 
         // shift the window
         self.prev_points_window.pop_front();
+
     }
 
-    fn _finish(&self) {}
-
+    fn finish(&mut self) {
+        // self.data.push_str(self.temp.as_str());
+    }
     fn clear(&mut self) {
+        self.prev_points_window = VecDeque::default();
         self.data = String::default();
+        self.temp = String::default();
+        self.needs_move = true;
     }
 }
 
@@ -273,53 +285,84 @@ impl SVGEditor {
     }
 
     fn draw_event_handler(&mut self) {
-        while let Ok((pos, id)) = self.draw_rx.try_recv() {
-            let elapsed_time = Instant::now().duration_since(self.last_executed);
-            let throttle_interval = Duration::from_millis(100); // todo: take into PointerState velocity when throttling
-            if elapsed_time < throttle_interval {
-                continue;
-            }
+        while let Ok(event) = self.draw_rx.try_recv() {
+            match event {
+                StrokeEvent::Draw(pos, id) => {
+                    let elapsed_time = Instant::now().duration_since(self.last_executed);
+                    let throttle_interval = Duration::from_millis(50); // todo: take into PointerState velocity when throttling
+                    if elapsed_time < throttle_interval {
+                        continue;
+                    }
+                    println!("{:#?}", pos);
+                    self.last_executed = Instant::now();
+                    let mut current_path = self.root.children_mut().find(|e| {
+                        if let Some(id) = e.attr("id") {
+                            id == self.id_counter.to_string()
+                        } else {
+                            false
+                        }
+                    });
+                    let debug_circle = Element::builder("circle", "")
+                        .attr("cx", pos.x.to_string())
+                        .attr("cy", pos.y.to_string())
+                        .attr("r", "5")
+                        .attr("fill", "red")
+                        .build();
 
-            self.last_executed = Instant::now();
-            let mut current_path = self.root.children_mut().find(|e| {
-                if let Some(id) = e.attr("id") {
-                    id == self.id_counter.to_string()
-                } else {
-                    false
+                    if let Some(node) = current_path.as_mut() {
+                        self.path_builder.cubic_to(pos);
+                        node.set_attr("d", &self.path_builder.data);
+
+                        if let Some(color) = &self.toolbar.active_color {
+                            node.set_attr("stroke", format!("url(#{})", color.id));
+                        } else {
+                            node.set_attr("stroke", "url(#fg)");
+                        }
+                    } else {
+                        self.path_builder.clear();
+                        self.path_builder.cubic_to(pos);
+
+                        let child = Element::builder("path", "")
+                            .attr("stroke-width", self.toolbar.active_stroke_width.to_string())
+                            .attr("fill", "none")
+                            .attr("stroke-linejoin", "round")
+                            .attr("stroke-linecap", "round")
+                            .attr("id", id)
+                            .attr("d", &self.path_builder.data)
+                            .build();
+
+                        self.root.append_child(child);
+                    }
+                    // self.root.append_child(debug_circle);
                 }
-            });
+                StrokeEvent::End(pos, id) => {
+                    let debug_circle = Element::builder("circle", "")
+                        .attr("cx", pos.x.to_string())
+                        .attr("cy", pos.y.to_string())
+                        .attr("r", "5")
+                        .attr("fill", "red")
+                        .build();
+                    // self.root.append_child(debug_circle);
 
-            if let Some(node) = current_path.as_mut() {
-                self.path_builder.cubic_to(pos);
-                node.set_attr("d", &self.path_builder.data);
-
-                if let Some(color) = &self.toolbar.active_color {
-                    node.set_attr("stroke", format!("url(#{})", color.id));
-                } else {
-                    node.set_attr("stroke", "url(#fg)");
+                    let mut current_path = self.root.children_mut().find(|e| {
+                        if let Some(id) = e.attr("id") {
+                            id == id.to_string()
+                        } else {
+                            false
+                        }
+                    });
+                    if let Some(node) = current_path.as_mut() {
+                        self.path_builder.finish();
+                        node.set_attr("d", &self.path_builder.data);
+                    }
                 }
-            } else {
-                self.path_builder.clear();
-                self.path_builder.cubic_to(pos);
-
-                let child = Element::builder("path", "")
-                    .attr("stroke-width", self.toolbar.active_stroke_width.to_string())
-                    .attr("fill", "none")
-                    .attr("stroke-linejoin", "round")
-                    .attr("stroke-linecap", "round")
-                    .attr("id", id)
-                    .attr("d", &self.path_builder.data)
-                    .build();
-
-                self.root.append_child(child);
             }
 
             let mut buffer = Vec::new();
-
             self.root.write_to(&mut buffer).unwrap();
             self.content = std::str::from_utf8(&buffer).unwrap().to_string();
             self.content = self.content.replace("xmlns='' ", "");
-            println!("{:#?}", self.content);
+            // println!("{}", self.content);
         }
     }
 
@@ -341,9 +384,14 @@ impl SVGEditor {
             cursor_pos.y = (cursor_pos.y + self.sao_offset.y) / self.zoom_factor;
 
             if ui.input(|i| i.pointer.primary_down()) {
-                self.draw_tx.send((cursor_pos, self.id_counter)).unwrap();
+                self.draw_tx
+                    .send(StrokeEvent::Draw(cursor_pos, self.id_counter))
+                    .unwrap();
             }
             if ui.input(|i| i.pointer.primary_released()) {
+                self.draw_tx
+                    .send(StrokeEvent::End(cursor_pos, self.id_counter))
+                    .unwrap();
                 self.id_counter += 1;
             }
         }
