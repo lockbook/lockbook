@@ -166,6 +166,8 @@ pub struct Editor {
     // state for detecting clicks and converting global to local coordinates
     pub scroll_area_rect: Rect,
     pub scroll_area_offset: Vec2,
+
+    pub old_scroll_area_offset: Vec2
 }
 
 impl Editor {
@@ -207,6 +209,7 @@ impl Editor {
 
             scroll_area_rect: Rect { min: Default::default(), max: Default::default() },
             scroll_area_offset: Default::default(),
+            old_scroll_area_offset: Default::default(),
         }
     }
 
@@ -285,6 +288,7 @@ impl Editor {
 
         // remember scroll area rect for focus next frame
         self.scroll_area_rect = sao.inner_rect;
+        self.old_scroll_area_offset = self.scroll_area_offset;
         self.scroll_area_offset = sao.state.offset;
 
         sao.inner.inner.inner
@@ -402,7 +406,7 @@ impl Editor {
 
         // draw
         self.draw_text(self.ui_rect.size(), ui, touch_mode);
-        if ui.memory(|m| m.has_focus(id)) {
+        if ui.memory(|m| m.has_focus(id)) && !is_ios {
             self.draw_cursor(ui, touch_mode);
         }
         if self.debug.draw_enabled {
@@ -441,6 +445,9 @@ impl Editor {
             selection_updated,
             edit_menu_x: self.maybe_menu_location.map(|p| p.x).unwrap_or_default(),
             edit_menu_y: self.maybe_menu_location.map(|p| p.y).unwrap_or_default(),
+
+            scroll_updated: self.scroll_area_offset == self.old_scroll_area_offset,
+            
             ..Default::default()
         };
 

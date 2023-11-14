@@ -17,6 +17,8 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     var textUndoManager = iOSUndoManager()
 
     var redrawTask: DispatchWorkItem? = nil
+    var cursorRect: CRect? = nil
+    var selectionRect: [UITextSelectionRect]? = nil
 
     public override var undoManager: UndoManager? {
         return textUndoManager
@@ -281,6 +283,9 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
             inputDelegate?.selectionDidChange(self)
         }
 
+        cursorRect = nil
+        selectionRect = nil
+        
         if let openedURLSeq = output.editor_response.opened_url {
             let openedURL = String(cString: openedURLSeq)
             free_text(UnsafeMutablePointer(mutating: openedURLSeq))
@@ -355,6 +360,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     public var selectedTextRange: UITextRange? {
         set {
             let range = (newValue as! LBTextRange).c
+            print("setting selection")
             inputDelegate?.selectionWillChange(self)
             set_selected(editorHandle, range)
             self.setNeedsDisplay()
@@ -506,21 +512,49 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     }
     
     public func caretRect(for position: UITextPosition) -> CGRect {
-        let position = (position as! LBTextPos).c
-        let result = cursor_rect_at_position(editorHandle, position)
-        print("caret rect \(position.pos)")
-        return CGRect(x: result.min_x, y: result.min_y, width: 1, height: result.max_y-result.min_y)
+        if cursorRect == nil {
+            let position = (position as! LBTextPos).c
+            print("caret rect \(position.pos)")
+
+            cursorRect = cursor_rect_at_position(editorHandle, position)
+        }
+        
+        let width: Double;
+        if (cursorRect!.min_x < 0 || cursorRect!.max_x > frame.width || cursorRect!.min_y < 0 || cursorRect!.max_y > frame.height) {
+            return CGRect(x: 0, y: 0, width: 0, height: 0)
+        } else {
+            width = 1
+        }
+                
+        return CGRect(x: min(max(cursorRect!.min_x, 0), frame.width), y: min(max(cursorRect!.min_y, 0), frame.height), width: width, height: cursorRect!.max_y-cursorRect!.min_y)
     }
     
     public func selectionRects(for range: UITextRange) -> [UITextSelectionRect] {
-        print("selection rect")
-        let range = (range as! LBTextRange).c
-        let result = selection_rects(editorHandle, range)
-        let buffer = Array(UnsafeBufferPointer(start: result.rects, count: Int(result.size)))
+        if selectionRect == nil {
+            print("selection rect")
+            let range = (range as! LBTextRange).c
+            let result = selection_rects(editorHandle, range)
+            let buffer = Array(UnsafeBufferPointer(start: result.rects, count: Int(result.size)))
 
-        return buffer.enumerated().map { (index, rect) in
-            return LBTextSelectionRect(cRect: rect, loc: index, size: buffer.count)
+            selectionRect = buffer
+                .enumerated()
+                .filter { rect in
+                    !(rect.element.min_x < 0 || rect.element.max_x > frame.width || rect.element.min_y < 0 || rect.element.max_y > frame.height)
+                }
+                .map { (index, rect) in
+                    let newRect: CRect;
+                    
+                    if (rect.min_x < 0 || rect.max_x > frame.width || rect.min_y < 0 || rect.max_y > frame.height) {
+                        newRect = CRect(min_x: 0, min_y: 0, max_x: 0, max_y: 0)
+                    } else {
+                        newRect = CRect(min_x: max(rect.min_x, 0), min_y: max(rect.min_y, 0), max_x: min(rect.max_x, frame.width), max_y: min(rect.max_y, frame.height))
+                    }
+                    
+                    return LBTextSelectionRect(cRect: newRect, loc: index, size: buffer.count)
+                }
         }
+        
+        return selectionRect!
     }
     
     public func closestPosition(to point: CGPoint) -> UITextPosition? {
@@ -569,9 +603,6 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
         let point = Unmanaged.passUnretained(touches.first!).toOpaque()
         let value = UInt64(UInt(bitPattern: point))
         let location = touches.first!.location(in: self)
-
-        inputDelegate?.selectionWillChange(self)
-
         touches_moved(editorHandle, value, Float(location.x), Float(location.y), Float(touches.first?.force ?? 0))
         self.setNeedsDisplay(self.frame)
     }
@@ -843,7 +874,7 @@ public enum SupportedImportFormat {
 class LBTextSelectionRect: UITextSelectionRect {
     let loc: Int
     let size: Int
-    let cRect: CRect
+    public let cRect: CRect
 
     init(cRect: CRect, loc: Int, size: Int) {
         self.cRect = cRect
