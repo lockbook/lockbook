@@ -268,7 +268,9 @@ fn handled_messages_impl(
 
         // remaining events
         Message::Unknown { .. } => false,
-        Message::Unhandled { .. } => false,
+        Message::Unhandled { const_name } => {
+            println!("unhandled message: {}", const_name);
+        }
     }
 }
 
