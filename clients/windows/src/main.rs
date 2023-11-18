@@ -5,11 +5,11 @@ use egui_wgpu_backend::wgpu::CompositeAlphaMode;
 use egui_wgpu_backend::{wgpu, ScreenDescriptor};
 use input::message::{Message, MessageAppDep, MessageNoDeps, MessageWindowDep};
 use lbeguiapp::{IntegrationOutput, UpdateOutput, WgpuLockbook};
-use std::thread;
 use std::time::{Duration, Instant};
 use windows::{
     core::*, Win32::Foundation::*, Win32::Graphics::Direct3D12::*, Win32::Graphics::Dxgi::*,
-    Win32::System::LibraryLoader::*, Win32::UI::HiDpi::*, Win32::UI::Input::KeyboardAndMouse::*,
+    Win32::System::LibraryLoader::*, Win32::System::SystemServices::*, Win32::UI::HiDpi::*,
+    Win32::UI::Input::KeyboardAndMouse::*, Win32::UI::Input::Touch::*,
     Win32::UI::WindowsAndMessaging::*,
 };
 
@@ -78,6 +78,16 @@ fn main() -> Result<()> {
     };
 
     unsafe { dxgi_factory.MakeWindowAssociation(hwnd, DXGI_MWA_NO_ALT_ENTER) }?;
+
+    // enable gestures
+    unsafe {
+        SetGestureConfig(
+            hwnd,
+            0,
+            &[GESTURECONFIG { dwID: GESTURECONFIG_ID(0), dwWant: GC_ALLGESTURES.0, dwBlock: 0 }],
+            std::mem::size_of::<GESTURECONFIG>() as _,
+        )
+    }?;
 
     let app = init(&crate::window::Window::new(hwnd), false);
     app.context.set_request_repaint_callback(move |_rri| {
