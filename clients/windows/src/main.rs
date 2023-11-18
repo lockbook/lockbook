@@ -80,15 +80,16 @@ fn main() -> Result<()> {
     unsafe { dxgi_factory.MakeWindowAssociation(hwnd, DXGI_MWA_NO_ALT_ENTER) }?;
 
     let app = init(&crate::window::Window::new(hwnd), false);
-    app.context.set_request_repaint_callback(move |rri| {
-        thread::spawn(move || {
-            // todo: verify thread safety or add a mutex
-            thread::sleep(rri.after);
-            unsafe {
-                PostMessageA(hwnd, WM_PAINT, WPARAM(0), LPARAM(0))
-                    .expect("post paint message to self")
-            };
-        });
+    app.context.set_request_repaint_callback(move |_rri| {
+        // todo: fix this; makes the app laggy (unclear if why)
+        // thread::spawn(move || {
+        //     // todo: verify thread safety or add a mutex
+        //     thread::sleep(rri.after);
+        //     unsafe {
+        //         PostMessageA(hwnd, WM_PAINT, WPARAM(0), LPARAM(0))
+        //             .expect("post paint message to self")
+        //     };
+        // });
     });
     window.maybe_app = Some(app);
     window.dpi_scale = dpi_to_scale_factor(unsafe { GetDpiForWindow(hwnd) } as _);
@@ -266,14 +267,8 @@ fn handled_messages_impl(
         }
 
         // remaining events
-        Message::Unknown { msg } => {
-            println!("Unknown message: {}", msg);
-            false
-        }
-        Message::Unhandled { const_name } => {
-            println!("Unhandled message: {}", const_name);
-            false
-        }
+        Message::Unknown { .. } => false,
+        Message::Unhandled { .. } => false,
     }
 }
 
