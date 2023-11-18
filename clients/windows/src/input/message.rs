@@ -147,7 +147,10 @@ impl<'a> Message<'a> {
             WM_EXITMENULOOP => Message::Unhandled { const_name: "WM_EXITMENULOOP" },
             WM_EXITSIZEMOVE => Message::Unhandled { const_name: "WM_EXITSIZEMOVE" },
             WM_FONTCHANGE => Message::Unhandled { const_name: "WM_FONTCHANGE" },
-            WM_GESTURE => Message::Unhandled { const_name: "WM_GESTURE" },
+            WM_GESTURE => {
+                println!("gesture!");
+                Message::Unhandled { const_name: "WM_GESTURE" }
+            }
             WM_GESTURENOTIFY => Message::Unhandled { const_name: "WM_GESTURENOTIFY" },
             WM_GETDLGCODE => Message::Unhandled { const_name: "WM_GETDLGCODE" },
             WM_GETDPISCALEDSIZE => Message::Unhandled { const_name: "WM_GETDPISCALEDSIZE" },
