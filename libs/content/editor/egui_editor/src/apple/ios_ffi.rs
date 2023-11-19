@@ -608,14 +608,15 @@ pub unsafe extern "C" fn selection_rects(obj: *mut c_void, range: CTextRange) ->
 
     let range: (DocCharOffset, DocCharOffset) = range.into();
     let mut cont_start = range.start();
-    let selection_end = obj.editor.buffer.current.cursor.selection.end();
+    let mut selection_end: Cursor = range.clone().into();
+    selection_end.advance(Offset::To(Bound::Line), false, buffer, galleys, &obj.editor.bounds);
 
     let mut selection_rects = ManuallyDrop::new(vec![]);
 
-    while cont_start < selection_end {
+    while cont_start < selection_end.selection.end() {
         let mut new_end: Cursor = cont_start.clone().into();
         new_end.advance(Offset::To(Bound::Line), false, buffer, galleys, &obj.editor.bounds);
-        let end_of_rect = cmp::min(new_end.selection.end(), selection_end);
+        let end_of_rect = cmp::min(new_end.selection.end(), selection_end.selection.end());
 
         let cursor_representing_rect: Cursor = (cont_start.clone(), end_of_rect.clone()).into();
 

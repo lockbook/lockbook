@@ -6,7 +6,7 @@ import SwiftUI
 import MobileCoreServices
 import UniformTypeIdentifiers
 
-public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractionDelegate, UIDropInteractionDelegate, UIScrollViewDelegate {
+public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractionDelegate, UIDropInteractionDelegate {
     
     var editorHandle: UnsafeMutableRawPointer?
     var editorState: EditorState?
@@ -19,6 +19,8 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     var redrawTask: DispatchWorkItem? = nil
     var cursorRect: CRect? = nil
     var selectionRect: [UITextSelectionRect]? = nil
+    
+    let textInteraction = UITextInteraction(for: .editable)
 
     public override var undoManager: UndoManager? {
         return textUndoManager
@@ -46,19 +48,14 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
         pan.maximumNumberOfTouches  = 0
         self.addGestureRecognizer(pan)
         
-        let interaction = UITextInteraction(for: .editable)
-        interaction.textInput = self
-        self.addInteraction(interaction)
+        textInteraction.textInput = self
+        self.addInteraction(textInteraction)
 
         // drop support
         let dropInteraction = UIDropInteraction(delegate: self)
         self.addInteraction(dropInteraction)
     }
     
-    public func scrollViewDidScroll(_ scrollView: UIScrollView) {
-        print("scrollViewDidScroll!")
-    }
-
     @objc func handleTap(_ sender: UITapGestureRecognizer) {
         if sender.state == .ended {
             becomeFirstResponder()
@@ -281,16 +278,22 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
         }
         
         if output.editor_response.selection_updated {
+            print("selection updated")
+            cursorRect = nil
+            selectionRect = nil
             inputDelegate?.selectionDidChange(self)
         }
 
         if output.editor_response.text_updated {
+            cursorRect = nil
+            selectionRect = nil
             inputDelegate?.textDidChange(self)
         }
 
         if output.editor_response.scroll_updated {
             cursorRect = nil
             selectionRect = nil
+            
             inputDelegate?.selectionDidChange(self)
         }
                 
@@ -367,8 +370,15 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     
     public var selectedTextRange: UITextRange? {
         set {
+            
             let range = (newValue as! LBTextRange).c
-            print("setting selection")
+//            let oldStart = (selectedTextRange?.start as? LBTextPos)?.c.pos
+//            let oldEnd = (selectedTextRange?.end as? LBTextPos)?.c.pos
+//            
+//            if(range.start.pos == oldStart && range.end.pos == oldEnd) {
+//                return
+//            }
+
             inputDelegate?.selectionWillChange(self)
             set_selected(editorHandle, range)
             self.setNeedsDisplay()
@@ -520,34 +530,46 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     }
     
     public func caretRect(for position: UITextPosition) -> CGRect {
-        if cursorRect == nil {
-            let position = (position as! LBTextPos).c
-            cursorRect = cursor_rect_at_position(editorHandle, position)
-        }
+//        if cursorRect == nil {
+//            let position = (position as! LBTextPos).c
+//            cursorRect = cursor_rect_at_position(editorHandle, position)
+//        }
         
-        print("caret rect \((position as! LBTextPos).c)")
+        let position = (position as! LBTextPos).c
+        cursorRect = cursor_rect_at_position(editorHandle, position)
+        print("caret rect: \(position.pos)")
         return CGRect(x: cursorRect!.min_x, y: cursorRect!.min_y, width: 1, height: cursorRect!.max_y-cursorRect!.min_y)
     }
     
     public func selectionRects(for range: UITextRange) -> [UITextSelectionRect] {
-        print("selection rect")
-        if selectionRect == nil {
-            let range = (range as! LBTextRange).c
-            let result = selection_rects(editorHandle, range)
-            let buffer = Array(UnsafeBufferPointer(start: result.rects, count: Int(result.size)))
-                
-            selectionRect = buffer.enumerated().map { (index, rect) in
-                return LBTextSelectionRect(cRect: rect, loc: index, size: buffer.count)
-            }
+//        if selectionRect == nil {
+//            let range = (range as! LBTextRange).c
+//            let result = selection_rects(editorHandle, range)
+//            let buffer = Array(UnsafeBufferPointer(start: result.rects, count: Int(result.size)))
+//                
+//            selectionRect = buffer.enumerated().map { (index, rect) in
+//                return LBTextSelectionRect(cRect: rect, loc: index, size: buffer.count)
+//            }
+//        }
+        
+        let range = (range as! LBTextRange).c
+        print("selection rect: \(range.start.pos) to \(range.end.pos)")
+
+        let result = selection_rects(editorHandle, range)
+        let buffer = Array(UnsafeBufferPointer(start: result.rects, count: Int(result.size)))
+            
+        selectionRect = buffer.enumerated().map { (index, rect) in
+            return LBTextSelectionRect(cRect: rect, loc: index, size: buffer.count)
         }
 
+        print("selection rect pt 2: \(selectionRect?.count)")
         return selectionRect ?? []
     }
     
     public func closestPosition(to point: CGPoint) -> UITextPosition? {
         let point = CPoint(x: point.x, y: point.y)
         let result = position_at_point(editorHandle, point)
-        print("closest pos \(LBTextPos(c: result).c.pos)")
+        print("closest pos from (\(point.x), \(point.y)) is \(LBTextPos(c: result).c.pos)")
         return LBTextPos(c: result)
     }
     

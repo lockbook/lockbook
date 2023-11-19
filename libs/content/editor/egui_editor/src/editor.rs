@@ -446,7 +446,7 @@ impl Editor {
             edit_menu_x: self.maybe_menu_location.map(|p| p.x).unwrap_or_default(),
             edit_menu_y: self.maybe_menu_location.map(|p| p.y).unwrap_or_default(),
 
-            scroll_updated: self.scroll_area_offset == self.old_scroll_area_offset,
+            scroll_updated: self.scroll_area_offset != self.old_scroll_area_offset,
             
             ..Default::default()
         };
