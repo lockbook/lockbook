@@ -340,7 +340,7 @@ pub fn calc(
                 None
             }
             .or_else(|| {
-                if click_checker.ui(*pos) {
+                if click_checker.ui(*pos) && !is_ios {
                     Some(Modification::Select {
                         region: if click_mods.shift {
                             Region::ToLocation(location)
@@ -353,30 +353,25 @@ pub fn calc(
                                         } else {
                                             return None;
                                         }
-                                    } else if !is_ios {
+                                    } else {
                                         Region::BetweenLocations {
                                             start: Location::DocCharOffset(click_offset),
                                             end: location,
                                         }
-                                    } else {
-                                        return None
                                     }
                                 }
-                                ClickType::Double if !is_ios => Region::BoundAt {
+                                ClickType::Double => Region::BoundAt {
                                     bound: Bound::Word,
                                     location,
                                     backwards: true,
                                 },
-                                ClickType::Triple if !is_ios => Region::BoundAt {
+                                ClickType::Triple => Region::BoundAt {
                                     bound: Bound::Paragraph,
                                     location,
                                     backwards: true,
                                 },
-                                ClickType::Quadruple if !is_ios => {
+                                ClickType::Quadruple => {
                                     Region::BoundAt { bound: Bound::Doc, location, backwards: true }
-                                }
-                                _ => {
-                                    return None
                                 }
                             }
                         },

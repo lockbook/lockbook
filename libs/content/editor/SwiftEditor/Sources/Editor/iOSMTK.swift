@@ -6,7 +6,7 @@ import SwiftUI
 import MobileCoreServices
 import UniformTypeIdentifiers
 
-public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractionDelegate, UIDropInteractionDelegate {
+public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractionDelegate, UIDropInteractionDelegate, UIScrollViewDelegate {
     
     var editorHandle: UnsafeMutableRawPointer?
     var editorState: EditorState?
@@ -35,15 +35,19 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
         self.preferredFramesPerSecond = 120
 
         // regain focus on tap
-        let tap = UITapGestureRecognizer(target: self, action: #selector(self.handleTap(_:)))
-        tap.cancelsTouchesInView = false
-        self.addGestureRecognizer(tap)
+//        let tap = UITapGestureRecognizer(target: self, action: #selector(self.handleTap(_:)))
+//        tap.cancelsTouchesInView = false
+//        self.addGestureRecognizer(tap)
 
         // ipad trackpad support
         let pan = UIPanGestureRecognizer(target: self, action: #selector(self.handleTrackpadScroll(_:)))
         pan.allowedScrollTypesMask = .all
         pan.maximumNumberOfTouches  = 0
         self.addGestureRecognizer(pan)
+        
+        let interaction = UITextInteraction(for: .editable)
+        interaction.textInput = self
+        self.addInteraction(interaction)
 
         // drop support
         let dropInteraction = UIDropInteraction(delegate: self)
@@ -279,13 +283,12 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
             inputDelegate?.textDidChange(self)
         }
 
-        if output.editor_response.scroll_updated {
-            inputDelegate?.selectionDidChange(self)
-        }
-
-        cursorRect = nil
-        selectionRect = nil
-        
+//        if output.editor_response.scroll_updated {
+//            cursorRect = nil
+//            selectionRect = nil
+//            inputDelegate?.selectionDidChange(self)
+//        }
+                
         if let openedURLSeq = output.editor_response.opened_url {
             let openedURL = String(cString: openedURLSeq)
             free_text(UnsafeMutablePointer(mutating: openedURLSeq))
@@ -517,6 +520,8 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
             print("caret rect \(position.pos)")
 
             cursorRect = cursor_rect_at_position(editorHandle, position)
+        } else {
+            print("not recalculating caret rect")
         }
         
         let width: Double;
@@ -552,6 +557,8 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
                     
                     return LBTextSelectionRect(cRect: newRect, loc: index, size: buffer.count)
                 }
+        } else {
+            print("not recalculating sel rect")
         }
         
         return selectionRect!
@@ -582,9 +589,6 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     public func deleteBackward() {
         inputDelegate?.textWillChange(self)
         backspace(editorHandle)
-
-        print("deleting backward")
-
         textChanged()
         self.setNeedsDisplay(self.frame)
     }
@@ -593,7 +597,6 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
         let point = Unmanaged.passUnretained(touches.first!).toOpaque()
         let value = UInt64(UInt(bitPattern: point))
         let location = touches.first!.location(in: self)
-        inputDelegate?.selectionWillChange(self)
         touches_began(editorHandle, value, Float(location.x), Float(location.y), Float(touches.first?.force ?? 0))
 
         self.setNeedsDisplay(self.frame)
