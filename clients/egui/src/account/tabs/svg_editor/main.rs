@@ -1,5 +1,4 @@
 use std::borrow::BorrowMut;
-use std::collections::VecDeque;
 use std::sync::mpsc;
 use std::time::{Duration, Instant};
 
@@ -11,6 +10,7 @@ use resvg::usvg::{self, Size, TreeWriting};
 use crate::theme::ThemePalette;
 
 use super::toolbar::{ColorSwatch, Component, Toolbar};
+use super::CubicBezBuilder;
 
 const INITIAL_SVG_CONTENT: &str = "<svg xmlns=\"http://www.w3.org/2000/svg\" ></svg>";
 const ZOOM_STOP: f32 = 0.1;
@@ -32,85 +32,6 @@ pub struct SVGEditor {
 enum StrokeEvent {
     Draw(egui::Pos2, usize),
     End(egui::Pos2, usize),
-}
-/// build a cubic bézier path   
-struct CubicBezBuilder {
-    /// store the 4 past points (control and knots)
-    prev_points_window: VecDeque<egui::Pos2>,
-    temp: String,
-    data: String,
-    needs_move: bool,
-}
-
-impl CubicBezBuilder {
-    fn new() -> Self {
-        CubicBezBuilder {
-            prev_points_window: VecDeque::from(vec![]),
-            data: String::new(),
-            temp: String::new(),
-            needs_move: true,
-        }
-    }
-
-    fn cubic_to(&mut self, dest: egui::Pos2) {
-        // calculate cat-mull points
-
-        if self.needs_move {
-            self.data = format!("M {} {}", dest.x, dest.y);
-            self.needs_move = false;
-        }
-
-        self.prev_points_window.push_back(dest);
-        if self.prev_points_window.len() < 4 {
-            return;
-        }
-        println!("{:#?}", self.prev_points_window);
-
-        let k = 1.0; //tension
-
-        let p0 = self.prev_points_window[0];
-        let p1 = self.prev_points_window[1];
-        let p2 = self.prev_points_window[2];
-        let p3 = self.prev_points_window[3];
-
-        let cp1x = p1.x + (p2.x - p0.x) / 6.0 * k;
-        let cp1y = p1.y + (p2.y - p0.y) / 6.0 * k;
-
-        let cp2x = p2.x - (p3.x - p1.x) / 6.0 * k;
-        let cp2y = p2.y - (p3.y - p1.y) / 6.0 * k;
-
-        // convert to cubic bezier curve
-        self.data
-            .push_str(format!("C {cp1x},{cp1y},{cp2x},{cp2y},{},{}", p2.x, p2.y).as_str());
-
-        let p0 = self.prev_points_window[0];
-        let p1 = self.prev_points_window[1];
-        let p2 = self.prev_points_window[2];
-        let p3 = self.prev_points_window[2];
-
-        let cp1x = p1.x + (p2.x - p0.x) / 6.0 * k;
-        let cp1y = p1.y + (p2.y - p0.y) / 6.0 * k;
-
-        let cp2x = p2.x - (p3.x - p1.x) / 6.0 * k;
-        let cp2y = p2.y - (p3.y - p1.y) / 6.0 * k;
-
-        // convert to cubic bezier curve
-        self.temp = format!("C {cp1x},{cp1y}, {cp2x},{cp2y},{},{}", p2.x, p2.y);
-
-        // shift the window
-        self.prev_points_window.pop_front();
-
-    }
-
-    fn finish(&mut self) {
-        // self.data.push_str(self.temp.as_str());
-    }
-    fn clear(&mut self) {
-        self.prev_points_window = VecDeque::default();
-        self.data = String::default();
-        self.temp = String::default();
-        self.needs_move = true;
-    }
 }
 
 impl SVGEditor {
@@ -289,25 +210,19 @@ impl SVGEditor {
             match event {
                 StrokeEvent::Draw(pos, id) => {
                     let elapsed_time = Instant::now().duration_since(self.last_executed);
-                    let throttle_interval = Duration::from_millis(50); // todo: take into PointerState velocity when throttling
+                    let throttle_interval = Duration::from_millis(0); // todo: 50take into PointerState velocity when throttling
                     if elapsed_time < throttle_interval {
                         continue;
                     }
-                    println!("{:#?}", pos);
                     self.last_executed = Instant::now();
+
                     let mut current_path = self.root.children_mut().find(|e| {
-                        if let Some(id) = e.attr("id") {
-                            id == self.id_counter.to_string()
+                        if let Some(id_attr) = e.attr("id") {
+                            id_attr == id.to_string()
                         } else {
                             false
                         }
                     });
-                    let debug_circle = Element::builder("circle", "")
-                        .attr("cx", pos.x.to_string())
-                        .attr("cy", pos.y.to_string())
-                        .attr("r", "5")
-                        .attr("fill", "red")
-                        .build();
 
                     if let Some(node) = current_path.as_mut() {
                         self.path_builder.cubic_to(pos);
@@ -333,26 +248,19 @@ impl SVGEditor {
 
                         self.root.append_child(child);
                     }
-                    // self.root.append_child(debug_circle);
                 }
                 StrokeEvent::End(pos, id) => {
-                    let debug_circle = Element::builder("circle", "")
-                        .attr("cx", pos.x.to_string())
-                        .attr("cy", pos.y.to_string())
-                        .attr("r", "5")
-                        .attr("fill", "red")
-                        .build();
-                    // self.root.append_child(debug_circle);
-
                     let mut current_path = self.root.children_mut().find(|e| {
-                        if let Some(id) = e.attr("id") {
-                            id == id.to_string()
+                        if let Some(id_attr) = e.attr("id") {
+                            id_attr == id.to_string()
                         } else {
                             false
                         }
                     });
                     if let Some(node) = current_path.as_mut() {
+                        println!("old: {}", self.path_builder.data.len());
                         self.path_builder.finish();
+                        println!("new: \n\n {}", self.path_builder.data);
                         node.set_attr("d", &self.path_builder.data);
                     }
                 }
