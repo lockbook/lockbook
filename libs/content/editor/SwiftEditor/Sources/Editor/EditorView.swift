@@ -8,7 +8,6 @@ public struct EditorView: UIViewRepresentable {
     
     @ObservedObject public var editorState: EditorState
     let mtkView: iOSMTK = iOSMTK()
-    let scrollView = UIScrollView()
     
     @Environment(\.horizontalSizeClass) var horizontal
     @Environment(\.verticalSizeClass) var vertical
@@ -20,14 +19,13 @@ public struct EditorView: UIViewRepresentable {
         mtkView.nameState = nameState
         
         mtkView.setInitialContent(coreHandle, editorState.text)
-        scrollView.addSubview(mtkView)
     }
 
-    public func makeUIView(context: Context) -> UIScrollView {
-        return scrollView
+    public func makeUIView(context: Context) -> iOSMTK {
+        return mtkView
     }
     
-    public func updateUIView(_ uiView: UIScrollView, context: Context) {
+    public func updateUIView(_ uiView: iOSMTK, context: Context) {
         if editorState.reloadText {
             mtkView.updateText(editorState.text)
             editorState.reloadText = false

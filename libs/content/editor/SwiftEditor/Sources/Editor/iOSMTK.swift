@@ -33,6 +33,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
         self.enableSetNeedsDisplay = true
         self.delegate = self
         self.preferredFramesPerSecond = 120
+        self.clipsToBounds = true
 
         // regain focus on tap
 //        let tap = UITapGestureRecognizer(target: self, action: #selector(self.handleTap(_:)))
@@ -52,6 +53,10 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
         // drop support
         let dropInteraction = UIDropInteraction(delegate: self)
         self.addInteraction(dropInteraction)
+    }
+    
+    public func scrollViewDidScroll(_ scrollView: UIScrollView) {
+        print("scrollViewDidScroll!")
     }
 
     @objc func handleTap(_ sender: UITapGestureRecognizer) {
@@ -283,11 +288,11 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
             inputDelegate?.textDidChange(self)
         }
 
-//        if output.editor_response.scroll_updated {
-//            cursorRect = nil
-//            selectionRect = nil
-//            inputDelegate?.selectionDidChange(self)
-//        }
+        if output.editor_response.scroll_updated {
+            cursorRect = nil
+            selectionRect = nil
+            inputDelegate?.selectionDidChange(self)
+        }
                 
         if let openedURLSeq = output.editor_response.opened_url {
             let openedURL = String(cString: openedURLSeq)
@@ -517,51 +522,26 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     public func caretRect(for position: UITextPosition) -> CGRect {
         if cursorRect == nil {
             let position = (position as! LBTextPos).c
-            print("caret rect \(position.pos)")
-
             cursorRect = cursor_rect_at_position(editorHandle, position)
-        } else {
-            print("not recalculating caret rect")
         }
         
-        let width: Double;
-        if (cursorRect!.min_x < 0 || cursorRect!.max_x > frame.width || cursorRect!.min_y < 0 || cursorRect!.max_y > frame.height) {
-            return CGRect(x: 0, y: 0, width: 0, height: 0)
-        } else {
-            width = 1
-        }
-                
-        return CGRect(x: min(max(cursorRect!.min_x, 0), frame.width), y: min(max(cursorRect!.min_y, 0), frame.height), width: width, height: cursorRect!.max_y-cursorRect!.min_y)
+        print("caret rect \((position as! LBTextPos).c)")
+        return CGRect(x: cursorRect!.min_x, y: cursorRect!.min_y, width: 1, height: cursorRect!.max_y-cursorRect!.min_y)
     }
     
     public func selectionRects(for range: UITextRange) -> [UITextSelectionRect] {
+        print("selection rect")
         if selectionRect == nil {
-            print("selection rect")
             let range = (range as! LBTextRange).c
             let result = selection_rects(editorHandle, range)
             let buffer = Array(UnsafeBufferPointer(start: result.rects, count: Int(result.size)))
-
-            selectionRect = buffer
-                .enumerated()
-                .filter { rect in
-                    !(rect.element.min_x < 0 || rect.element.max_x > frame.width || rect.element.min_y < 0 || rect.element.max_y > frame.height)
-                }
-                .map { (index, rect) in
-                    let newRect: CRect;
-                    
-                    if (rect.min_x < 0 || rect.max_x > frame.width || rect.min_y < 0 || rect.max_y > frame.height) {
-                        newRect = CRect(min_x: 0, min_y: 0, max_x: 0, max_y: 0)
-                    } else {
-                        newRect = CRect(min_x: max(rect.min_x, 0), min_y: max(rect.min_y, 0), max_x: min(rect.max_x, frame.width), max_y: min(rect.max_y, frame.height))
-                    }
-                    
-                    return LBTextSelectionRect(cRect: newRect, loc: index, size: buffer.count)
-                }
-        } else {
-            print("not recalculating sel rect")
+                
+            selectionRect = buffer.enumerated().map { (index, rect) in
+                return LBTextSelectionRect(cRect: rect, loc: index, size: buffer.count)
+            }
         }
-        
-        return selectionRect!
+
+        return selectionRect ?? []
     }
     
     public func closestPosition(to point: CGPoint) -> UITextPosition? {
