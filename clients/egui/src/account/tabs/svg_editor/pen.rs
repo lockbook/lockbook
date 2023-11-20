@@ -1,7 +1,6 @@
 use eframe::egui;
 use std::collections::VecDeque;
 
-
 pub enum PenEvent {
     Draw(egui::Pos2, usize),
     End(egui::Pos2, usize),
