@@ -35,17 +35,13 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
         self.preferredFramesPerSecond = 120
         self.clipsToBounds = true
 
-        // regain focus on tap
-//        let tap = UITapGestureRecognizer(target: self, action: #selector(self.handleTap(_:)))
-//        tap.cancelsTouchesInView = false
-//        self.addGestureRecognizer(tap)
-
         // ipad trackpad support
         let pan = UIPanGestureRecognizer(target: self, action: #selector(self.handleTrackpadScroll(_:)))
         pan.allowedScrollTypesMask = .all
         pan.maximumNumberOfTouches  = 0
         self.addGestureRecognizer(pan)
         
+        // selection support
         textInteraction.textInput = self
         self.addInteraction(textInteraction)
 
@@ -54,15 +50,9 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
         self.addInteraction(dropInteraction)
     }
     
-    @objc func handleTap(_ sender: UITapGestureRecognizer) {
-        if sender.state == .ended {
-            becomeFirstResponder()
-        }
-    }
-
     public func dropInteraction(_ interaction: UIDropInteraction, canHandle session: UIDropSession) -> Bool {
         guard session.items.count == 1 else { return false }
-
+        
         return session.hasItemsConforming(toTypeIdentifiers: [UTType.image.identifier, UTType.fileURL.identifier, UTType.text.identifier])
     }
 
@@ -186,7 +176,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
         indent_at_cursor(editorHandle, deindent)
         self.setNeedsDisplay(self.frame)
     }
-
+    
     // used for shortcut
     @objc public func deindent() {
         tab(deindent: true)
@@ -198,7 +188,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
             if let markdownURL = editorState!.importFile(url) {
                 paste_text(editorHandle, markdownURL)
                 editorState?.pasted = true
-
+                
                 return true
             }
         case .image(let image):
@@ -225,7 +215,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
 
             return true
         }
-
+        
         return false
     }
 
@@ -258,7 +248,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
         dark_mode(editorHandle, isDarkMode())
         set_scale(editorHandle, Float(self.contentScaleFactor))
         let output = draw_editor(editorHandle)
-                
+        
         toolbarState?.isHeadingSelected = output.editor_response.cursor_in_heading;
         toolbarState?.isTodoListSelected = output.editor_response.cursor_in_todo_list;
         toolbarState?.isBulletListSelected = output.editor_response.cursor_in_bullet_list;
@@ -306,7 +296,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
         self.isPaused = output.redraw_in > 100
         if self.isPaused {
             let redrawIn = Int(truncatingIfNeeded: output.redraw_in)
-
+            
             if redrawIn != -1 {
                 let newRedrawTask = DispatchWorkItem {
                     self.setNeedsDisplay(self.frame)
@@ -632,7 +622,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     
     @objc func clipboardPaste() {
         self.setClipboard()
-
+        
         if let image = UIPasteboard.general.image {
             if importContent(.image(image)) {
                 return
@@ -648,13 +638,13 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
         select_all(self.editorHandle)
         self.setNeedsDisplay()
     }
-
+        
     func undoRedo(redo: Bool) {
         inputDelegate?.textWillChange(self)
         undo_redo(self.editorHandle, redo)
         self.setNeedsDisplay(self.frame)
     }
-
+    
     func updateText(_ s: String) {
         inputDelegate?.textWillChange(self)
         set_text(editorHandle, s)
@@ -688,7 +678,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     override public var keyCommands: [UIKeyCommand]? {
         let deindent = UIKeyCommand(input: "\t", modifierFlags: .shift, action: #selector(deindent))
         let deleteWord = UIKeyCommand(input: UIKeyCommand.inputDelete, modifierFlags: [.alternate], action: #selector(deleteWord))
-
+        
         deleteWord.wantsPriorityOverSystemBehavior = true
         deindent.wantsPriorityOverSystemBehavior = true
 
@@ -710,7 +700,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
         delete_word(editorHandle)
         setNeedsDisplay(self.frame)
     }
-
+    
     required init(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
@@ -793,27 +783,27 @@ class LBTokenizer: NSObject, UITextInputTokenizer {
 }
 
 class iOSUndoManager: UndoManager {
-
+    
     public var editorHandle: UnsafeMutableRawPointer? = nil
     var onUndoRedo: (() -> Void)? = nil
-
+    
     override var canUndo: Bool {
         get {
             can_undo(editorHandle)
         }
     }
-
+    
     override var canRedo: Bool {
         get {
             can_redo(editorHandle)
         }
     }
-
+    
     override func undo() {
         undo_redo(editorHandle, false)
         onUndoRedo?()
     }
-
+    
     override func redo() {
         undo_redo(editorHandle, true)
         onUndoRedo?()
