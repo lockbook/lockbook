@@ -1,13 +1,18 @@
 use eframe::egui;
 use std::collections::VecDeque;
 
-/// Build a cubic bézier path with Catmull-Rom smoothing    
+
+pub enum PenEvent {
+    Draw(egui::Pos2, usize),
+    End(egui::Pos2, usize),
+}
+
+/// Build a cubic bézier path with Catmull-Rom smoothing and Ramer–Douglas–Peucker compression
 pub struct CubicBezBuilder {
-    /// store the 4 past points (control and knots)
+    /// store the 4 past points
     prev_points_window: VecDeque<egui::Pos2>,
     points: Vec<egui::Pos2>,
     pub data: String,
-    needs_move: bool, // todo: remove this because you can infer based on the len of vec points windows
 }
 
 impl CubicBezBuilder {
@@ -16,35 +21,30 @@ impl CubicBezBuilder {
             prev_points_window: VecDeque::from(vec![]),
             points: vec![],
             data: String::new(),
-            needs_move: true,
         }
     }
 
     fn catmull_to(&mut self, dest: egui::Pos2, is_last_point: bool) {
-        if self.prev_points_window.is_empty() {
-            // repeat the first pos twice to later avoid index arithmetic
+        let is_first_point = self.prev_points_window.is_empty();
+
+        if is_first_point {
+            self.data = format!("M {} {}", dest.x, dest.y);
+
+            // repeat the first pos twice to avoid later index arithmetic
             self.prev_points_window.push_back(dest);
         };
-
-        if self.needs_move {
-            self.data = format!("M {} {}", dest.x, dest.y);
-            self.needs_move = false;
-        }
 
         if is_last_point {
             if let Some(last) = self.prev_points_window.back() {
                 self.prev_points_window.push_back(*last);
-                println!("last");
             }
         }
+
         self.prev_points_window.push_back(dest);
-        println!("{:#?}", self.prev_points_window);
 
         if self.prev_points_window.len() < 4 {
             return;
         }
-
-        let k = 1.0; //tension
 
         let (p0, p1, p2, p3) = (
             self.prev_points_window[0],
@@ -53,35 +53,32 @@ impl CubicBezBuilder {
             self.prev_points_window[3],
         );
 
-        let cp1x = p1.x + (p2.x - p0.x) / 6.0 * k;
-        let cp1y = p1.y + (p2.y - p0.y) / 6.0 * k;
+        let cp1x = p1.x + (p2.x - p0.x) / 6.0; // * k, k is tension which is set to 1, 0 <= k <= 1
+        let cp1y = p1.y + (p2.y - p0.y) / 6.0;
 
-        let cp2x = p2.x - (p3.x - p1.x) / 6.0 * k;
-        let cp2y = p2.y - (p3.y - p1.y) / 6.0 * k;
+        let cp2x = p2.x - (p3.x - p1.x) / 6.0;
+        let cp2y = p2.y - (p3.y - p1.y) / 6.0;
 
-        // convert to cubic bezier curve
         self.data
             .push_str(format!("C {cp1x},{cp1y},{cp2x},{cp2y},{},{}", p2.x, p2.y).as_str());
 
-        // shift the window
+        // shift the window foreword
         self.prev_points_window.pop_front();
     }
 
     pub fn cubic_to(&mut self, dest: egui::Pos2) {
-        // calculate cat-mull points
         self.points.push(dest);
         self.catmull_to(dest, false);
     }
 
     pub fn finish(&mut self, pos: egui::Pos2) {
         self.points.push(pos);
-        self.catmull_to(pos, false);
+        self.catmull_to(pos, false); // todo: get rid of the double call if possible
         self.catmull_to(pos, true);
 
         self.simplify(2.5);
 
         self.data = String::default();
-        self.needs_move = true;
         self.prev_points_window = VecDeque::default();
 
         self.points.clone().iter().enumerate().for_each(|(i, p)| {
@@ -90,14 +87,11 @@ impl CubicBezBuilder {
                 self.catmull_to(*p, true);
             };
         });
-
-        // delete what we have and redraw using rdp
     }
 
     pub fn clear(&mut self) {
         self.prev_points_window = VecDeque::default();
         self.data = String::default();
-        self.needs_move = true;
         self.points = vec![];
     }
 
@@ -121,7 +115,6 @@ impl CubicBezBuilder {
     }
 
     fn simplify_points(&self, points: &[egui::Pos2], tolerance: f32, buffer: &mut Vec<egui::Pos2>) {
-        // TODO: replace this with `if let [first, rest @ .., last]` in rust 1.42
         if points.len() < 2 {
             return;
         }
@@ -204,9 +197,4 @@ impl Line {
             area.abs() * 2.0 / base_length
         }
     }
-}
-
-#[test]
-fn my_test_name() {
-    println!("hello there");
 }

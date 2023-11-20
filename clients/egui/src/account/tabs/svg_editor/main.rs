@@ -1,6 +1,5 @@
 use std::borrow::BorrowMut;
 use std::sync::mpsc;
-use std::time::{Duration, Instant};
 
 use eframe::egui;
 use minidom::Element;
@@ -10,7 +9,7 @@ use resvg::usvg::{self, Size, TreeWriting};
 use crate::theme::ThemePalette;
 
 use super::toolbar::{ColorSwatch, Component, Toolbar};
-use super::CubicBezBuilder;
+use super::{CubicBezBuilder, PenEvent};
 
 const INITIAL_SVG_CONTENT: &str = "<svg xmlns=\"http://www.w3.org/2000/svg\" ></svg>";
 const ZOOM_STOP: f32 = 0.1;
@@ -18,24 +17,18 @@ const ZOOM_STOP: f32 = 0.1;
 pub struct SVGEditor {
     pub content: String,
     root: Element,
-    draw_rx: mpsc::Receiver<StrokeEvent>,
-    draw_tx: mpsc::Sender<StrokeEvent>,
+    draw_rx: mpsc::Receiver<PenEvent>,
+    draw_tx: mpsc::Sender<PenEvent>,
     path_builder: CubicBezBuilder,
     zoom_factor: f32,
     id_counter: usize,
     pub toolbar: Toolbar,
     inner_rect: egui::Rect,
     sao_offset: egui::Vec2,
-    last_executed: Instant, // todo: add https://en.wikipedia.org/wiki/Ramer%E2%80%93Douglas%E2%80%93Peucker_algorithm
-}
-
-enum StrokeEvent {
-    Draw(egui::Pos2, usize),
-    End(egui::Pos2, usize),
 }
 
 impl SVGEditor {
-    pub fn boxed(bytes: &[u8], _ctx: &egui::Context) -> Box<Self> {
+    pub fn boxed(bytes: &[u8]) -> Box<Self> {
         let (draw_tx, draw_rx) = mpsc::channel();
 
         // todo: handle invalid utf8
@@ -66,13 +59,15 @@ impl SVGEditor {
             path_builder: CubicBezBuilder::new(),
             inner_rect: egui::Rect::NOTHING,
             zoom_factor: 1.0,
-            last_executed: Instant::now(),
         })
     }
 
     pub fn show(&mut self, ui: &mut egui::Ui) {
-        self.setup_draw_events(ui);
-        self.draw_event_handler();
+        self.setup_pen_events(ui);
+        while let Ok(event) = self.draw_rx.try_recv() {
+            self.handle_pen_events(event);
+        }
+
         self.define_dynamic_colors(ui);
 
         ui.vertical(|ui| {
@@ -205,88 +200,59 @@ impl SVGEditor {
         });
     }
 
-    fn draw_event_handler(&mut self) {
-        // todo: push this while loop to the caller
-        while let Ok(event) = self.draw_rx.try_recv() {
-            match event {
-                StrokeEvent::Draw(pos, id) => {
-                    let elapsed_time = Instant::now().duration_since(self.last_executed);
-                    let throttle_interval = Duration::from_millis(0); // todo: take into PointerState velocity when throttling
-                    if elapsed_time < throttle_interval {
-                        continue;
-                    }
-                    self.last_executed = Instant::now();
-
-                    let mut current_path = self.root.children_mut().find(|e| {
-                        if let Some(id_attr) = e.attr("id") {
-                            id_attr == id.to_string()
-                        } else {
-                            false
-                        }
-                    });
-
-                    if let Some(node) = current_path.as_mut() {
-                        self.path_builder.cubic_to(pos);
-                        node.set_attr("d", &self.path_builder.data);
-
-                        if let Some(color) = &self.toolbar.active_color {
-                            node.set_attr("stroke", format!("url(#{})", color.id));
-                        } else {
-                            node.set_attr("stroke", "url(#fg)");
-                        }
-                    } else {
-                        self.path_builder.clear();
-                        self.path_builder.cubic_to(pos);
-
-                        let child = Element::builder("path", "")
-                            .attr("stroke-width", self.toolbar.active_stroke_width.to_string())
-                            .attr("fill", "none")
-                            .attr("stroke-linejoin", "round")
-                            .attr("stroke-linecap", "round")
-                            .attr("id", id)
-                            .attr("d", &self.path_builder.data)
-                            .build();
-
-                        self.root.append_child(child);
-                    }
+    fn handle_pen_events(&mut self, event: PenEvent) {
+        let mut current_path = match event {
+            PenEvent::Draw(_, id) | PenEvent::End(_, id) => self.root.children_mut().find(|e| {
+                if let Some(id_attr) = e.attr("id") {
+                    id_attr == id.to_string()
+                } else {
+                    false
                 }
-                StrokeEvent::End(pos, id) => {
-                    let mut current_path = self.root.children_mut().find(|e| {
-                        if let Some(id_attr) = e.attr("id") {
-                            id_attr == id.to_string()
-                        } else {
-                            false
-                        }
-                    });
-                    if let Some(node) = current_path.as_mut() {
-                        self.path_builder.finish(pos);
-                        node.set_attr("d", &self.path_builder.data);
+            }),
+        };
+
+        match event {
+            PenEvent::Draw(pos, id) => {
+                if let Some(node) = current_path.as_mut() {
+                    self.path_builder.cubic_to(pos);
+                    node.set_attr("d", &self.path_builder.data);
+
+                    if let Some(color) = &self.toolbar.active_color {
+                        node.set_attr("stroke", format!("url(#{})", color.id));
+                    } else {
+                        node.set_attr("stroke", "url(#fg)");
                     }
+                } else {
+                    self.path_builder.clear();
+                    self.path_builder.cubic_to(pos);
+
+                    let child = Element::builder("path", "")
+                        .attr("stroke-width", self.toolbar.active_stroke_width.to_string())
+                        .attr("fill", "none")
+                        .attr("stroke-linejoin", "round")
+                        .attr("stroke-linecap", "round")
+                        .attr("id", id)
+                        .attr("d", &self.path_builder.data)
+                        .build();
+
+                    self.root.append_child(child);
                 }
             }
-
-            let pos = match event {
-                StrokeEvent::Draw(pos, _) => pos,
-                StrokeEvent::End(pos, _) => pos,
-            };
-
-            let debug_circle = Element::builder("circle", "")
-                .attr("cx", pos.x.to_string())
-                .attr("cy", pos.y.to_string())
-                .attr("r", "5")
-                .attr("fill", "red")
-                .build();
-            // self.root.append_child(debug_circle);
-
-            let mut buffer = Vec::new();
-            self.root.write_to(&mut buffer).unwrap();
-            self.content = std::str::from_utf8(&buffer).unwrap().to_string();
-            self.content = self.content.replace("xmlns='' ", "");
-            // println!("{}", self.content);
+            PenEvent::End(pos, _) => {
+                if let Some(node) = current_path.as_mut() {
+                    self.path_builder.finish(pos);
+                    node.set_attr("d", &self.path_builder.data);
+                }
+            }
         }
+
+        let mut buffer = Vec::new();
+        self.root.write_to(&mut buffer).unwrap();
+        self.content = std::str::from_utf8(&buffer).unwrap().to_string();
+        self.content = self.content.replace("xmlns='' ", "");
     }
 
-    fn setup_draw_events(&mut self, ui: &mut egui::Ui) {
+    fn setup_pen_events(&mut self, ui: &mut egui::Ui) {
         if let Some(mut cursor_pos) = ui.ctx().pointer_hover_pos() {
             if !self.inner_rect.contains(cursor_pos) || !ui.is_enabled() {
                 return;
@@ -305,12 +271,12 @@ impl SVGEditor {
 
             if ui.input(|i| i.pointer.primary_down()) {
                 self.draw_tx
-                    .send(StrokeEvent::Draw(cursor_pos, self.id_counter))
+                    .send(PenEvent::Draw(cursor_pos, self.id_counter))
                     .unwrap();
             }
             if ui.input(|i| i.pointer.primary_released()) {
                 self.draw_tx
-                    .send(StrokeEvent::End(cursor_pos, self.id_counter))
+                    .send(PenEvent::End(cursor_pos, self.id_counter))
                     .unwrap();
                 self.id_counter += 1;
             }
