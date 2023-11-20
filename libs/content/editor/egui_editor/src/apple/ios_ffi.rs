@@ -341,13 +341,9 @@ pub unsafe extern "C" fn position_offset(
     let obj = &mut *(obj as *mut WgpuEditor);
     let buffer = &obj.editor.buffer.current;
 
-    if offset < 0 && -offset > start.pos as i32 {
-        CTextPosition {
-            pos: obj.editor.buffer.current.segs.last_cursor_position().0,
-            ..Default::default()
-        }
-    } else if offset > 0
-        && (start.pos).saturating_add(offset as usize) > buffer.segs.last_cursor_position().0
+    if (offset < 0 && -offset > start.pos as i32)
+        || (offset > 0
+            && (start.pos).saturating_add(offset as usize) > buffer.segs.last_cursor_position().0)
     {
         CTextPosition {
             pos: obj.editor.buffer.current.segs.last_cursor_position().0,
@@ -616,11 +612,11 @@ pub unsafe extern "C" fn selection_rects(
     let mut selection_rects = ManuallyDrop::new(vec![]);
 
     while cont_start < range.end() {
-        let mut new_end: Cursor = cont_start.clone().into();
+        let mut new_end: Cursor = cont_start.into();
         new_end.advance(Offset::To(Bound::Line), false, buffer, galleys, &obj.editor.bounds);
         let end_of_rect = cmp::min(new_end.selection.end(), range.end());
 
-        let cursor_representing_rect: Cursor = (cont_start.clone(), end_of_rect.clone()).into();
+        let cursor_representing_rect: Cursor = (cont_start, end_of_rect).into();
 
         let start_line = cursor_representing_rect.start_line(galleys, text, &obj.editor.appearance);
         let end_line = cursor_representing_rect.end_line(galleys, text, &obj.editor.appearance);
@@ -636,10 +632,7 @@ pub unsafe extern "C" fn selection_rects(
         cont_start = new_end.selection.end();
     }
 
-    return UITextSelectionRects {
-        size: selection_rects.len() as i32,
-        rects: selection_rects.as_ptr(),
-    };
+    UITextSelectionRects { size: selection_rects.len() as i32, rects: selection_rects.as_ptr() }
 }
 
 /// # Safety
