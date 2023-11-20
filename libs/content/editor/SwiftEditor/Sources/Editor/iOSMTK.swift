@@ -17,8 +17,6 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     var textUndoManager = iOSUndoManager()
 
     var redrawTask: DispatchWorkItem? = nil
-    var cursorRect: CRect? = nil
-    var selectionRect: [UITextSelectionRect]? = nil
     
     let textInteraction = UITextInteraction(for: .editable)
 
@@ -260,7 +258,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
         dark_mode(editorHandle, isDarkMode())
         set_scale(editorHandle, Float(self.contentScaleFactor))
         let output = draw_editor(editorHandle)
-        
+                
         toolbarState?.isHeadingSelected = output.editor_response.cursor_in_heading;
         toolbarState?.isTodoListSelected = output.editor_response.cursor_in_todo_list;
         toolbarState?.isBulletListSelected = output.editor_response.cursor_in_bullet_list;
@@ -277,24 +275,12 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
             nameState?.potentialTitle = nil
         }
         
-        if output.editor_response.selection_updated {
-            print("selection updated")
-            cursorRect = nil
-            selectionRect = nil
+        if output.editor_response.selection_updated || output.editor_response.scroll_updated {
             inputDelegate?.selectionDidChange(self)
         }
 
         if output.editor_response.text_updated {
-            cursorRect = nil
-            selectionRect = nil
             inputDelegate?.textDidChange(self)
-        }
-
-        if output.editor_response.scroll_updated {
-            cursorRect = nil
-            selectionRect = nil
-            
-            inputDelegate?.selectionDidChange(self)
         }
                 
         if let openedURLSeq = output.editor_response.opened_url {
@@ -372,13 +358,6 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
         set {
             
             let range = (newValue as! LBTextRange).c
-//            let oldStart = (selectedTextRange?.start as? LBTextPos)?.c.pos
-//            let oldEnd = (selectedTextRange?.end as? LBTextPos)?.c.pos
-//            
-//            if(range.start.pos == oldStart && range.end.pos == oldEnd) {
-//                return
-//            }
-
             inputDelegate?.selectionWillChange(self)
             set_selected(editorHandle, range)
             self.setNeedsDisplay()
@@ -450,7 +429,6 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     }
     
     public func position(from position: UITextPosition, offset: Int) -> UITextPosition? {
-        print("pos 1")
         guard let start = (position as? LBTextPos)?.c else {
             return nil
         }
@@ -462,7 +440,6 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     }
     
     public func position(from position: UITextPosition, in direction: UITextLayoutDirection, offset: Int) -> UITextPosition? {
-        print("pos 2")
         let start = (position as! LBTextPos).c
         let direction = CTextLayoutDirection(rawValue: UInt32(direction.rawValue));
         let new = position_offset_in_direction(editorHandle, start, direction, Int32(offset))
@@ -492,8 +469,6 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
             return 0
         }
 
-        print("getting offset from \(right) - \(left) getting \(Int(right) - Int(left))")
-
         return Int(right) - Int(left)
     }
     
@@ -502,7 +477,6 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     public lazy var tokenizer: UITextInputTokenizer = LBTokenizer(editorHandle: self.editorHandle)
     
     public func position(within range: UITextRange, farthestIn direction: UITextLayoutDirection) -> UITextPosition? {
-        print("pos 3")
         unimplemented()
         return nil
     }
@@ -523,53 +497,29 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     }
     
     public func firstRect(for range: UITextRange) -> CGRect {
-        print("first rect")
         let range = (range as! LBTextRange).c
         let result = first_rect(editorHandle, range)
         return CGRect(x: result.min_x, y: result.min_y, width: result.max_x-result.min_x, height: result.max_y-result.min_y)
     }
     
     public func caretRect(for position: UITextPosition) -> CGRect {
-//        if cursorRect == nil {
-//            let position = (position as! LBTextPos).c
-//            cursorRect = cursor_rect_at_position(editorHandle, position)
-//        }
-        
         let position = (position as! LBTextPos).c
-        cursorRect = cursor_rect_at_position(editorHandle, position)
-        print("caret rect: \(position.pos)")
-        return CGRect(x: cursorRect!.min_x, y: cursorRect!.min_y, width: 1, height: cursorRect!.max_y-cursorRect!.min_y)
+        let result = cursor_rect_at_position(editorHandle, position)
+        return CGRect(x: result.min_x, y: result.min_y, width: 1, height:result.max_y - result.min_y)
     }
     
     public func selectionRects(for range: UITextRange) -> [UITextSelectionRect] {
-//        if selectionRect == nil {
-//            let range = (range as! LBTextRange).c
-//            let result = selection_rects(editorHandle, range)
-//            let buffer = Array(UnsafeBufferPointer(start: result.rects, count: Int(result.size)))
-//                
-//            selectionRect = buffer.enumerated().map { (index, rect) in
-//                return LBTextSelectionRect(cRect: rect, loc: index, size: buffer.count)
-//            }
-//        }
-        
         let range = (range as! LBTextRange).c
-        print("selection rect: \(range.start.pos) to \(range.end.pos)")
-
         let result = selection_rects(editorHandle, range)
         let buffer = Array(UnsafeBufferPointer(start: result.rects, count: Int(result.size)))
-            
-        selectionRect = buffer.enumerated().map { (index, rect) in
+        return buffer.enumerated().map { (index, rect) in
             return LBTextSelectionRect(cRect: rect, loc: index, size: buffer.count)
         }
-
-        print("selection rect pt 2: \(selectionRect?.count)")
-        return selectionRect ?? []
     }
     
     public func closestPosition(to point: CGPoint) -> UITextPosition? {
         let point = CPoint(x: point.x, y: point.y)
         let result = position_at_point(editorHandle, point)
-        print("closest pos from (\(point.x), \(point.y)) is \(LBTextPos(c: result).c.pos)")
         return LBTextPos(c: result)
     }
     
@@ -675,7 +625,6 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     }
     
     @objc func clipboardCut() {
-        // maybe selection will change?
         inputDelegate?.textWillChange(self)
         clipboard_cut(self.editorHandle)
         self.setNeedsDisplay(self.frame)
@@ -701,6 +650,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     }
 
     func undoRedo(redo: Bool) {
+        inputDelegate?.textWillChange(self)
         undo_redo(self.editorHandle, redo)
         self.setNeedsDisplay(self.frame)
     }
