@@ -206,11 +206,12 @@ impl SVGEditor {
     }
 
     fn draw_event_handler(&mut self) {
+        // todo: push this while loop to the caller
         while let Ok(event) = self.draw_rx.try_recv() {
             match event {
                 StrokeEvent::Draw(pos, id) => {
                     let elapsed_time = Instant::now().duration_since(self.last_executed);
-                    let throttle_interval = Duration::from_millis(0); // todo: 50take into PointerState velocity when throttling
+                    let throttle_interval = Duration::from_millis(0); // todo: take into PointerState velocity when throttling
                     if elapsed_time < throttle_interval {
                         continue;
                     }
@@ -258,13 +259,24 @@ impl SVGEditor {
                         }
                     });
                     if let Some(node) = current_path.as_mut() {
-                        println!("old: {}", self.path_builder.data.len());
-                        self.path_builder.finish();
-                        println!("new: \n\n {}", self.path_builder.data);
+                        self.path_builder.finish(pos);
                         node.set_attr("d", &self.path_builder.data);
                     }
                 }
             }
+
+            let pos = match event {
+                StrokeEvent::Draw(pos, _) => pos,
+                StrokeEvent::End(pos, _) => pos,
+            };
+
+            let debug_circle = Element::builder("circle", "")
+                .attr("cx", pos.x.to_string())
+                .attr("cy", pos.y.to_string())
+                .attr("r", "5")
+                .attr("fill", "red")
+                .build();
+            // self.root.append_child(debug_circle);
 
             let mut buffer = Vec::new();
             self.root.write_to(&mut buffer).unwrap();

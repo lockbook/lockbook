@@ -1,13 +1,13 @@
 use eframe::egui;
 use std::collections::VecDeque;
 
-/// Build a cubic bézier path with Cat-mull smoothing    
+/// Build a cubic bézier path with Catmull-Rom smoothing    
 pub struct CubicBezBuilder {
     /// store the 4 past points (control and knots)
     prev_points_window: VecDeque<egui::Pos2>,
     points: Vec<egui::Pos2>,
     pub data: String,
-    needs_move: bool,
+    needs_move: bool, // todo: remove this because you can infer based on the len of vec points windows
 }
 
 impl CubicBezBuilder {
@@ -20,23 +20,38 @@ impl CubicBezBuilder {
         }
     }
 
-    fn cat_mull_to(&mut self, dest: egui::Pos2) {
+    fn catmull_to(&mut self, dest: egui::Pos2, is_last_point: bool) {
+        if self.prev_points_window.is_empty() {
+            // repeat the first pos twice to later avoid index arithmetic
+            self.prev_points_window.push_back(dest);
+        };
+
         if self.needs_move {
             self.data = format!("M {} {}", dest.x, dest.y);
             self.needs_move = false;
         }
 
+        if is_last_point {
+            if let Some(last) = self.prev_points_window.back() {
+                self.prev_points_window.push_back(*last);
+                println!("last");
+            }
+        }
         self.prev_points_window.push_back(dest);
+        println!("{:#?}", self.prev_points_window);
+
         if self.prev_points_window.len() < 4 {
             return;
         }
 
         let k = 1.0; //tension
 
-        let p0 = self.prev_points_window[0];
-        let p1 = self.prev_points_window[1];
-        let p2 = self.prev_points_window[2];
-        let p3 = self.prev_points_window[3];
+        let (p0, p1, p2, p3) = (
+            self.prev_points_window[0],
+            self.prev_points_window[1],
+            self.prev_points_window[2],
+            self.prev_points_window[3],
+        );
 
         let cp1x = p1.x + (p2.x - p0.x) / 6.0 * k;
         let cp1y = p1.y + (p2.y - p0.y) / 6.0 * k;
@@ -55,20 +70,25 @@ impl CubicBezBuilder {
     pub fn cubic_to(&mut self, dest: egui::Pos2) {
         // calculate cat-mull points
         self.points.push(dest);
-        self.cat_mull_to(dest);
+        self.catmull_to(dest, false);
     }
 
-    pub fn finish(&mut self) {
-        // https://en.wikipedia.org/wiki/Ramer%E2%80%93Douglas%E2%80%93Peucker_algorithm#/media/File:RDP,_varying_epsilon.gif
-        let epsilon = 1.5;
-        self.simplify(epsilon);
+    pub fn finish(&mut self, pos: egui::Pos2) {
+        self.points.push(pos);
+        self.catmull_to(pos, false);
+        self.catmull_to(pos, true);
+
+        self.simplify(2.5);
 
         self.data = String::default();
         self.needs_move = true;
         self.prev_points_window = VecDeque::default();
 
-        self.points.clone().iter().for_each(|p| {
-            self.cat_mull_to(*p);
+        self.points.clone().iter().enumerate().for_each(|(i, p)| {
+            self.catmull_to(*p, false);
+            if i == self.points.len() - 1 {
+                self.catmull_to(*p, true);
+            };
         });
 
         // delete what we have and redraw using rdp
@@ -184,4 +204,9 @@ impl Line {
             area.abs() * 2.0 / base_length
         }
     }
+}
+
+#[test]
+fn my_test_name() {
+    println!("hello there");
 }
