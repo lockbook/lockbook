@@ -30,7 +30,7 @@ public struct EditorView: UIViewRepresentable {
             mtkView.updateText(editorState.text)
             editorState.reloadText = false
         }
-
+        
         if editorState.reloadView {
             mtkView.setNeedsDisplay(mtkView.frame)
             editorState.reloadView = false
@@ -97,7 +97,7 @@ public struct NSEditorView: NSViewRepresentable {
             mtkView.updateText(editorState.text)
             editorState.reloadText = false
         }
-
+        
         if editorState.reloadView {
             mtkView.setNeedsDisplay(mtkView.frame)
             editorState.reloadView = false

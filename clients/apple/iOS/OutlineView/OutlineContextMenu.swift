@@ -52,7 +52,7 @@ struct OutlineContextMenu: View {
                         Label("Rename", systemImage: "questionmark.folder")
                     }
                 }
-
+                
                 Button(action: { DI.files.deleteFile(id: meta.id) }) {
                     Label("Delete", systemImage: "trash.fill")
                 }

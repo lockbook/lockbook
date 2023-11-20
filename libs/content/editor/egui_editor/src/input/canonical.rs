@@ -1097,6 +1097,33 @@ mod test {
     }
 
     #[test]
+    fn calc_cmd_home() {
+        assert!(matches!(
+            calc(
+                &Event::Key {
+                    key: Key::Home,
+                    pressed: true,
+                    repeat: false,
+                    modifiers: Modifiers { command: true, ..Default::default() },
+                },
+                TestClickChecker::default(),
+                &mut Default::default(),
+                Instant::now(),
+                false,
+                false,
+                &Default::default()
+            ),
+            Some(Modification::Select {
+                region: Region::ToOffset {
+                    offset: Offset::To(Bound::Doc),
+                    backwards: true,
+                    extend_selection: false,
+                },
+            })
+        ));
+    }
+
+    #[test]
     fn calc_shift_home() {
         assert!(matches!(
             calc(
