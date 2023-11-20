@@ -167,7 +167,7 @@ pub struct Editor {
     pub scroll_area_rect: Rect,
     pub scroll_area_offset: Vec2,
 
-    pub old_scroll_area_offset: Vec2
+    pub old_scroll_area_offset: Vec2,
 }
 
 impl Editor {
@@ -274,7 +274,9 @@ impl Editor {
                 Frame::default()
                     .fill(fill)
                     .inner_margin(egui::Margin::symmetric(7.0, 15.0))
-                    .show(ui, |ui| ui.vertical_centered(|ui| self.ui(ui, id, touch_mode, is_ios, &events)))
+                    .show(ui, |ui| {
+                        ui.vertical_centered(|ui| self.ui(ui, id, touch_mode, is_ios, &events))
+                    })
             });
         self.ui_rect = sao.inner_rect;
 
@@ -390,7 +392,7 @@ impl Editor {
             &self.appearance,
             self.hover_syntax_reveal_debounce_state,
             ui,
-            is_ios
+            is_ios,
         );
         self.bounds.lines = bounds::calc_lines(&self.galleys, &self.bounds.ast, &self.bounds.text);
         self.initialized = true;
@@ -447,7 +449,7 @@ impl Editor {
             edit_menu_y: self.maybe_menu_location.map(|p| p.y).unwrap_or_default(),
 
             scroll_updated: self.scroll_area_offset != self.old_scroll_area_offset,
-            
+
             ..Default::default()
         };
 

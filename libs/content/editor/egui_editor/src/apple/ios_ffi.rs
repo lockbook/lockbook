@@ -3,7 +3,8 @@ use crate::input::cursor::Cursor;
 use crate::input::mutation;
 use crate::offset_types::{DocCharOffset, RangeExt};
 use crate::{
-    UITextSelectionRects, CPoint, CRect, CTextGranularity, CTextLayoutDirection, CTextPosition, CTextRange, WgpuEditor,
+    CPoint, CRect, CTextGranularity, CTextLayoutDirection, CTextPosition, CTextRange,
+    UITextSelectionRects, WgpuEditor,
 };
 use egui::{Event, Key, Modifiers, PointerButton, Pos2, TouchDeviceId, TouchId, TouchPhase};
 use std::cmp;
@@ -345,7 +346,9 @@ pub unsafe extern "C" fn position_offset(
             pos: obj.editor.buffer.current.segs.last_cursor_position().0,
             ..Default::default()
         }
-    } else if offset > 0 && (start.pos).saturating_add(offset as usize) > buffer.segs.last_cursor_position().0 {
+    } else if offset > 0
+        && (start.pos).saturating_add(offset as usize) > buffer.segs.last_cursor_position().0
+    {
         CTextPosition {
             pos: obj.editor.buffer.current.segs.last_cursor_position().0,
             ..Default::default()
@@ -596,11 +599,12 @@ pub unsafe extern "C" fn cursor_rect_at_position(obj: *mut c_void, pos: CTextPos
     }
 }
 
-
 /// # Safety
 /// obj must be a valid pointer to WgpuEditor
 #[no_mangle]
-pub unsafe extern "C" fn selection_rects(obj: *mut c_void, range: CTextRange) -> UITextSelectionRects {
+pub unsafe extern "C" fn selection_rects(
+    obj: *mut c_void, range: CTextRange,
+) -> UITextSelectionRects {
     let obj = &mut *(obj as *mut WgpuEditor);
     let buffer = &obj.editor.buffer.current;
     let galleys = &obj.editor.galleys;
@@ -634,7 +638,7 @@ pub unsafe extern "C" fn selection_rects(obj: *mut c_void, range: CTextRange) ->
 
     return UITextSelectionRects {
         size: selection_rects.len() as i32,
-        rects: selection_rects.as_ptr()
+        rects: selection_rects.as_ptr(),
     };
 }
 

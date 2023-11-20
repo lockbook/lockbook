@@ -89,7 +89,7 @@ pub struct CRect {
 #[derive(Debug)]
 pub struct UITextSelectionRects {
     pub size: i32,
-    pub rects: *const CRect
+    pub rects: *const CRect,
 }
 
 #[repr(C)]
