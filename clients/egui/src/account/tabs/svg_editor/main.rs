@@ -1,5 +1,4 @@
 use std::borrow::BorrowMut;
-use std::sync::mpsc;
 
 use eframe::egui;
 use minidom::Element;
@@ -8,29 +7,26 @@ use resvg::usvg::{self, Size, TreeWriting};
 
 use crate::theme::ThemePalette;
 
-use super::toolbar::{ColorSwatch, Component, Toolbar};
-use super::{CubicBezBuilder, PenEvent};
+use super::toolbar::{ColorSwatch, Component, Tool, Toolbar};
+use super::Pen;
 
 const INITIAL_SVG_CONTENT: &str = "<svg xmlns=\"http://www.w3.org/2000/svg\" ></svg>";
-const ZOOM_STOP: f32 = 0.1;
+
+// todo: move to zoom.rs
+// const ZOOM_STOP: f32 = 0.1;
 
 pub struct SVGEditor {
     pub content: String,
     root: Element,
-    draw_rx: mpsc::Receiver<PenEvent>,
-    draw_tx: mpsc::Sender<PenEvent>,
-    path_builder: CubicBezBuilder,
     zoom_factor: f32,
-    id_counter: usize,
     pub toolbar: Toolbar,
     inner_rect: egui::Rect,
     sao_offset: egui::Vec2,
+    pub pen: Pen, //eraser: Eraser
 }
 
 impl SVGEditor {
     pub fn boxed(bytes: &[u8]) -> Box<Self> {
-        let (draw_tx, draw_rx) = mpsc::channel();
-
         // todo: handle invalid utf8
         let mut content = std::str::from_utf8(bytes).unwrap().to_string();
         if content.is_empty() {
@@ -41,7 +37,7 @@ impl SVGEditor {
         let max_id = root
             .children()
             .map(|el| {
-                let id: i32 = el.attr("id").unwrap_or("0").parse().unwrap_or_default();
+                let id: usize = el.attr("id").unwrap_or("0").parse().unwrap_or_default();
                 id
             })
             .max_by(|x, y| x.cmp(y))
@@ -50,22 +46,26 @@ impl SVGEditor {
 
         Box::new(Self {
             content,
-            draw_rx,
-            draw_tx,
-            id_counter: max_id as usize,
             root,
             toolbar: Toolbar::new(),
             sao_offset: egui::vec2(0.0, 0.0),
-            path_builder: CubicBezBuilder::new(),
             inner_rect: egui::Rect::NOTHING,
             zoom_factor: 1.0,
+            pen: Pen::new(max_id),
         })
     }
 
     pub fn show(&mut self, ui: &mut egui::Ui) {
-        self.setup_pen_events(ui);
-        while let Ok(event) = self.draw_rx.try_recv() {
-            self.handle_pen_events(event);
+        match self.toolbar.active_tool {
+            Tool::Pen => {
+                self.pen.setup_events(ui, self.inner_rect);
+                while let Ok(event) = self.pen.rx.try_recv() {
+                    self.content = self.pen.handle_events(event, &mut self.root);
+                }
+            }
+            Tool::Eraser => {
+                println!("eraser/gomme/mem7at")
+            }
         }
 
         self.define_dynamic_colors(ui);
@@ -78,7 +78,20 @@ impl SVGEditor {
                     ui.visuals().faint_bg_color
                 })
                 .show(ui, |ui| {
-                    self.toolbar.show(ui);
+                    let res = self.toolbar.show(
+                        ui,
+                        self.pen.active_color.clone(),
+                        self.pen.active_stroke_width,
+                    );
+
+                    if let Some(toolbar_res) = res {
+                        if let Some(color) = toolbar_res.color {
+                            self.pen.active_color = Some(color);
+                        }
+                        if let Some(thickness) = toolbar_res.thickness {
+                            self.pen.active_stroke_width = thickness;
+                        }
+                    }
                     ui.set_width(ui.available_width());
                 });
 
@@ -161,8 +174,8 @@ impl SVGEditor {
 
     fn build_color_defs(&mut self, ui: &mut egui::Ui) {
         let theme_colors = ThemePalette::as_array(ui.visuals().dark_mode);
-        if self.toolbar.active_color.is_none() {
-            self.toolbar.active_color = Some(ColorSwatch {
+        if self.pen.active_color.is_none() {
+            self.pen.active_color = Some(ColorSwatch {
                 id: "fg".to_string(),
                 color: theme_colors.iter().find(|p| p.0.eq("fg")).unwrap().1,
             });
@@ -198,88 +211,5 @@ impl SVGEditor {
             self.content = std::str::from_utf8(&buffer).unwrap().to_string();
             self.content = self.content.replace("xmlns='' ", "");
         });
-    }
-
-    fn handle_pen_events(&mut self, event: PenEvent) {
-        let mut current_path = match event {
-            PenEvent::Draw(_, id) | PenEvent::End(_, id) => self.root.children_mut().find(|e| {
-                if let Some(id_attr) = e.attr("id") {
-                    id_attr == id.to_string()
-                } else {
-                    false
-                }
-            }),
-        };
-
-        match event {
-            PenEvent::Draw(pos, id) => {
-                if let Some(node) = current_path.as_mut() {
-                    self.path_builder.cubic_to(pos);
-                    node.set_attr("d", &self.path_builder.data);
-
-                    if let Some(color) = &self.toolbar.active_color {
-                        node.set_attr("stroke", format!("url(#{})", color.id));
-                    } else {
-                        node.set_attr("stroke", "url(#fg)");
-                    }
-                } else {
-                    self.path_builder.clear();
-                    self.path_builder.cubic_to(pos);
-
-                    let child = Element::builder("path", "")
-                        .attr("stroke-width", self.toolbar.active_stroke_width.to_string())
-                        .attr("fill", "none")
-                        .attr("stroke-linejoin", "round")
-                        .attr("stroke-linecap", "round")
-                        .attr("id", id)
-                        .attr("d", &self.path_builder.data)
-                        .build();
-
-                    self.root.append_child(child);
-                }
-            }
-            PenEvent::End(pos, _) => {
-                if let Some(node) = current_path.as_mut() {
-                    self.path_builder.finish(pos);
-                    node.set_attr("d", &self.path_builder.data);
-                }
-            }
-        }
-
-        let mut buffer = Vec::new();
-        self.root.write_to(&mut buffer).unwrap();
-        self.content = std::str::from_utf8(&buffer).unwrap().to_string();
-        self.content = self.content.replace("xmlns='' ", "");
-    }
-
-    fn setup_pen_events(&mut self, ui: &mut egui::Ui) {
-        if let Some(mut cursor_pos) = ui.ctx().pointer_hover_pos() {
-            if !self.inner_rect.contains(cursor_pos) || !ui.is_enabled() {
-                return;
-            }
-
-            if ui.input_mut(|i| i.consume_key(egui::Modifiers::CTRL, egui::Key::PlusEquals)) {
-                self.zoom_factor += ZOOM_STOP;
-            }
-
-            if ui.input_mut(|i| i.consume_key(egui::Modifiers::CTRL, egui::Key::Minus)) {
-                self.zoom_factor -= ZOOM_STOP;
-            }
-
-            cursor_pos.x = (cursor_pos.x + self.sao_offset.x) / self.zoom_factor;
-            cursor_pos.y = (cursor_pos.y + self.sao_offset.y) / self.zoom_factor;
-
-            if ui.input(|i| i.pointer.primary_down()) {
-                self.draw_tx
-                    .send(PenEvent::Draw(cursor_pos, self.id_counter))
-                    .unwrap();
-            }
-            if ui.input(|i| i.pointer.primary_released()) {
-                self.draw_tx
-                    .send(PenEvent::End(cursor_pos, self.id_counter))
-                    .unwrap();
-                self.id_counter += 1;
-            }
-        }
     }
 }
