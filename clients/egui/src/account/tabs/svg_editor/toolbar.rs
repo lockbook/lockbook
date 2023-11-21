@@ -1,7 +1,11 @@
 use eframe::egui;
+use minidom::Element;
+use resvg::usvg::{Node, Tree};
 use std::f32::consts::PI;
 
 use crate::{theme::Icon, widgets::Button};
+
+use super::{Eraser, Pen};
 
 const ICON_SIZE: f32 = 30.0;
 const COLOR_SWATCH_BTN_RADIUS: f32 = 9.0;
@@ -12,10 +16,8 @@ const THICKNESS_BTN_WIDTH: f32 = 30.0;
 pub struct Toolbar {
     pub components: Vec<Component>,
     pub active_tool: Tool,
-}
-pub struct ToolbarResponse {
-    pub color: Option<ColorSwatch>,
-    pub thickness: Option<u32>,
+    pub pen: Pen,
+    pub eraser: Eraser,
 }
 
 pub enum Tool {
@@ -77,7 +79,7 @@ impl Toolbar {
         egui::Rect { min: min_pos, max: max_pos }
     }
 
-    pub fn new() -> Self {
+    pub fn new(max_id: usize) -> Self {
         let default_stroke_width = 3;
         let components = vec![
             Component::Button(SimpleButton {
@@ -118,19 +120,16 @@ impl Toolbar {
             Component::Separator(egui::Margin::symmetric(10.0, 0.0)),
         ];
 
-        Toolbar { components, active_tool: Tool::Pen }
+        Toolbar { components, active_tool: Tool::Pen, pen: Pen::new(max_id), eraser: Eraser::new() }
     }
 
-    pub fn show(
-        &mut self, ui: &mut egui::Ui, active_color: Option<ColorSwatch>, active_stroke_width: u32,
-    ) -> Option<ToolbarResponse> {
+    pub fn show(&mut self, ui: &mut egui::Ui) {
         let rect = self.calculate_rect(ui);
 
-        let res = ui.allocate_ui_at_rect(rect, |ui| {
+        ui.allocate_ui_at_rect(rect, |ui| {
             ui.horizontal(|ui| {
-                let mut res: Option<ToolbarResponse> = None;
                 for c in self.components.iter() {
-                    let inner_res = match c {
+                    match c {
                         Component::Button(btn) => {
                             egui::Frame::default()
                                 .inner_margin(btn.margin)
@@ -153,13 +152,11 @@ impl Toolbar {
                                         btn_res.on_hover_text(tooltip_text);
                                     }
                                 });
-                            None
                         }
                         Component::Separator(margin) => {
                             ui.add_space(margin.right);
                             ui.add(egui::Separator::default().shrink(ui.available_height() * 0.3));
                             ui.add_space(margin.left);
-                            None
                         }
                         Component::ColorSwatch(btn) => {
                             let (response, painter) = ui.allocate_painter(
@@ -167,15 +164,10 @@ impl Toolbar {
                                 egui::Sense::click(),
                             );
                             if response.clicked() {
-                                return Some(ToolbarResponse {
-                                    color: Some(ColorSwatch {
-                                        id: btn.id.clone(),
-                                        color: btn.color,
-                                    }),
-                                    thickness: None,
-                                });
+                                self.pen.active_color =
+                                    Some(ColorSwatch { id: btn.id.clone(), color: btn.color });
                             }
-                            if let Some(active_color) = &active_color {
+                            if let Some(active_color) = &self.pen.active_color {
                                 let opacity = if active_color.id.eq(&btn.id) {
                                     1.0
                                 } else if response.hovered() {
@@ -200,7 +192,6 @@ impl Toolbar {
                                     btn.color.gamma_multiply(opacity),
                                 );
                             }
-                            None
                         }
                         Component::StrokeWidth(thickness) => {
                             ui.add_space(THICKNESS_BTN_X_MARGIN);
@@ -220,7 +211,7 @@ impl Toolbar {
                                 },
                             };
 
-                            if thickness.eq(&active_stroke_width) {
+                            if thickness.eq(&self.pen.active_stroke_width) {
                                 painter.rect_filled(
                                     response.rect.shrink2(egui::vec2(0.0, 5.0)),
                                     egui::Rounding::same(8.0),
@@ -228,10 +219,7 @@ impl Toolbar {
                                 )
                             }
                             if response.clicked() {
-                                return Some(ToolbarResponse {
-                                    color: None,
-                                    thickness: Some(*thickness),
-                                });
+                                self.pen.active_stroke_width = *thickness;
                             }
                             if response.hovered() {
                                 ui.output_mut(|w| w.cursor_icon = egui::CursorIcon::PointingHand);
@@ -243,15 +231,9 @@ impl Toolbar {
                                 ui.visuals().text_color().gamma_multiply(0.8),
                             );
                             ui.add_space(THICKNESS_BTN_X_MARGIN);
-                            None
                         }
                     };
-                    if inner_res.is_some() {
-                        res = inner_res;
-                    }
                 }
-
-                res
             })
         });
 
@@ -263,7 +245,5 @@ impl Toolbar {
             .color
             .gamma_multiply(0.4);
         ui.separator();
-
-        res.inner.inner
     }
 }

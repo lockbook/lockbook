@@ -3,12 +3,11 @@ use std::borrow::BorrowMut;
 use eframe::egui;
 use minidom::Element;
 use resvg::tiny_skia::Pixmap;
-use resvg::usvg::{self, Size, TreeWriting};
+use resvg::usvg::{self, Node, Size, TreeWriting};
 
 use crate::theme::ThemePalette;
 
 use super::toolbar::{ColorSwatch, Component, Tool, Toolbar};
-use super::Pen;
 
 const INITIAL_SVG_CONTENT: &str = "<svg xmlns=\"http://www.w3.org/2000/svg\" ></svg>";
 
@@ -22,7 +21,6 @@ pub struct SVGEditor {
     pub toolbar: Toolbar,
     inner_rect: egui::Rect,
     sao_offset: egui::Vec2,
-    pub pen: Pen, //eraser: Eraser
 }
 
 impl SVGEditor {
@@ -47,24 +45,26 @@ impl SVGEditor {
         Box::new(Self {
             content,
             root,
-            toolbar: Toolbar::new(),
+            toolbar: Toolbar::new(max_id),
             sao_offset: egui::vec2(0.0, 0.0),
             inner_rect: egui::Rect::NOTHING,
             zoom_factor: 1.0,
-            pen: Pen::new(max_id),
         })
     }
 
     pub fn show(&mut self, ui: &mut egui::Ui) {
         match self.toolbar.active_tool {
             Tool::Pen => {
-                self.pen.setup_events(ui, self.inner_rect);
-                while let Ok(event) = self.pen.rx.try_recv() {
-                    self.content = self.pen.handle_events(event, &mut self.root);
+                self.toolbar.pen.setup_events(ui, self.inner_rect);
+                while let Ok(event) = self.toolbar.pen.rx.try_recv() {
+                    self.content = self.toolbar.pen.handle_events(event, &mut self.root);
                 }
             }
             Tool::Eraser => {
-                println!("eraser/gomme/mem7at")
+                self.toolbar.eraser.setup_events(ui, self.inner_rect);
+                while let Ok(event) = self.toolbar.eraser.rx.try_recv() {
+                    self.content = self.toolbar.eraser.handle_events(event, &mut self.root, ui);
+                }
             }
         }
 
@@ -78,20 +78,8 @@ impl SVGEditor {
                     ui.visuals().faint_bg_color
                 })
                 .show(ui, |ui| {
-                    let res = self.toolbar.show(
-                        ui,
-                        self.pen.active_color.clone(),
-                        self.pen.active_stroke_width,
-                    );
+                    self.toolbar.show(ui);
 
-                    if let Some(toolbar_res) = res {
-                        if let Some(color) = toolbar_res.color {
-                            self.pen.active_color = Some(color);
-                        }
-                        if let Some(thickness) = toolbar_res.thickness {
-                            self.pen.active_stroke_width = thickness;
-                        }
-                    }
                     ui.set_width(ui.available_width());
                 });
 
@@ -109,8 +97,12 @@ impl SVGEditor {
 
     fn render_svg(&mut self, ui: &mut egui::Ui) {
         let mut utree: usvg::Tree =
-            usvg::TreeParsing::from_data(self.content.as_bytes(), &usvg::Options::default())
-                .unwrap();
+        usvg::TreeParsing::from_data(self.content.as_bytes(), &usvg::Options::default())
+        .unwrap();
+    
+        // todo: only index when history changes
+        self.toolbar.eraser.index_rects(&utree.root);
+
         let available_rect = ui.available_rect_before_wrap();
         utree.size = Size::from_wh(available_rect.width(), available_rect.height()).unwrap();
 
@@ -174,8 +166,8 @@ impl SVGEditor {
 
     fn build_color_defs(&mut self, ui: &mut egui::Ui) {
         let theme_colors = ThemePalette::as_array(ui.visuals().dark_mode);
-        if self.pen.active_color.is_none() {
-            self.pen.active_color = Some(ColorSwatch {
+        if self.toolbar.pen.active_color.is_none() {
+            self.toolbar.pen.active_color = Some(ColorSwatch {
                 id: "fg".to_string(),
                 color: theme_colors.iter().find(|p| p.0.eq("fg")).unwrap().1,
             });

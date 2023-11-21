@@ -9,8 +9,8 @@ pub struct Pen {
     pub active_stroke_width: u32,
     path_builder: CubicBezBuilder,
     current_id: usize,
-    pub rx: mpsc::Receiver<PenEvent>,
-    pub tx: mpsc::Sender<PenEvent>,
+    pub rx: mpsc::Receiver<PathEvent>,
+    pub tx: mpsc::Sender<PathEvent>,
 }
 
 impl Pen {
@@ -29,9 +29,9 @@ impl Pen {
     }
 
     // todo: come up with a better name
-    pub fn handle_events(&mut self, event: PenEvent, root: &mut Element) -> String {
+    pub fn handle_events(&mut self, event: PathEvent, root: &mut Element) -> String {
         let mut current_path = match event {
-            PenEvent::Draw(_, id) | PenEvent::End(_, id) => root.children_mut().find(|e| {
+            PathEvent::Draw(_, id) | PathEvent::End(_, id) => root.children_mut().find(|e| {
                 if let Some(id_attr) = e.attr("id") {
                     id_attr == id.to_string()
                 } else {
@@ -41,7 +41,7 @@ impl Pen {
         };
 
         match event {
-            PenEvent::Draw(pos, id) => {
+            PathEvent::Draw(pos, id) => {
                 if let Some(node) = current_path.as_mut() {
                     self.path_builder.cubic_to(pos);
                     node.set_attr("d", &self.path_builder.data);
@@ -67,7 +67,7 @@ impl Pen {
                     root.append_child(child);
                 }
             }
-            PenEvent::End(pos, _) => {
+            PathEvent::End(pos, _) => {
                 if let Some(node) = current_path.as_mut() {
                     self.path_builder.finish(pos);
                     node.set_attr("d", &self.path_builder.data);
@@ -100,15 +100,16 @@ impl Pen {
 
             // cursor_pos.x = (cursor_pos.x + self.sao_offset.x) / self.zoom_factor;
             // cursor_pos.y = (cursor_pos.y + self.sao_offset.y) / self.zoom_factor;
+            ui.output_mut(|w| w.cursor_icon = egui::CursorIcon::Crosshair);
 
             if ui.input(|i| i.pointer.primary_down()) {
                 self.tx
-                    .send(PenEvent::Draw(cursor_pos, self.current_id))
+                    .send(PathEvent::Draw(cursor_pos, self.current_id))
                     .unwrap();
             }
             if ui.input(|i| i.pointer.primary_released()) {
                 self.tx
-                    .send(PenEvent::End(cursor_pos, self.current_id))
+                    .send(PathEvent::End(cursor_pos, self.current_id))
                     .unwrap();
                 self.current_id += 1;
             }
@@ -116,7 +117,7 @@ impl Pen {
     }
 }
 
-pub enum PenEvent {
+pub enum PathEvent {
     Draw(egui::Pos2, usize),
     End(egui::Pos2, usize),
 }
