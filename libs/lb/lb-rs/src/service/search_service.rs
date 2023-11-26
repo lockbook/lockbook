@@ -7,8 +7,8 @@ use lockbook_shared::tree_like::TreeLike;
 use serde::Serialize;
 use std::cmp::Ordering;
 use std::sync::atomic::{self, AtomicBool};
-use std::sync::Arc;
-use std::thread::{self, JoinHandle};
+use std::sync::{Arc, Mutex};
+use std::thread::{self, JoinHandle, available_parallelism};
 use std::time::Duration;
 use sublime_fuzzy::{FuzzySearch, Scoring};
 use uuid::Uuid;
@@ -55,7 +55,49 @@ impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {
             .to_lazy();
 
         let account = self.db.account.get().ok_or(CoreError::AccountNonexistent)?;
-        let mut results = Vec::new();
+        let mut results = Arc::new(Mutex::new(Vec::new()));
+
+        let (search_tx, search_rx) = channel::unbounded::<PathSearchRequest>();
+
+        let num_threads = available_parallelism().unwrap().get();
+        let mut handles = vec![];
+    
+        for _ in 0..num_threads {
+            let receiver = search_rx.clone();
+            let results = results.clone();
+    
+            let handle = thread::spawn(move || {
+                loop {
+                    match receiver.recv() {
+                        Ok(search) => {
+                            match search {
+                                PathSearchRequest::Search { input, path, id } => {
+                                    if let Some(m) = FuzzySearch::new(&input, &path)
+                                        .case_insensitive()
+                                        .best_match()
+                                    {
+                                        results.lock().unwrap().push(
+                                            SearchResultItem {
+                                                id,
+                                                path,
+                                                score: m.score(),
+                                                matched_indices: m.matched_indices().cloned().collect(),
+                                            }
+                                        );
+                                    }
+                                }
+                                PathSearchRequest::EndSearch => {
+                                    break;
+                                }
+                            }
+                        }
+                        Err(_) => break,
+                    }
+                }
+            });
+    
+            handles.push(handle);
+        }
 
         for id in tree.owned_ids() {
             if !tree.calculate_deleted(&id)? && !tree.in_pending_share(&id)? {
@@ -63,23 +105,21 @@ impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {
 
                 if file.is_document() {
                     let path = tree.id_to_path(&id, account)?;
-
-                    if let Some(m) = FuzzySearch::new(input, &path)
-                        .case_insensitive()
-                        .best_match()
-                    {
-                        results.push(SearchResultItem {
-                            id,
-                            path,
-                            score: m.score(),
-                            matched_indices: m.matched_indices().cloned().collect(),
-                        });
-                    }
+                    search_tx.send(PathSearchRequest::Search { input: input.to_string(), path, id });
                 }
             }
         }
 
-        results.sort();
+        for _ in 0..handles.len() {
+            search_tx.send(PathSearchRequest::EndSearch);
+        }
+
+        for handle in handles {
+            handle.join();
+        }
+
+        results.lock().unwrap().sort();
+        let results: Vec<SearchResultItem> = std::mem::take(&mut results.lock().unwrap());
 
         Ok(results)
     }
@@ -424,6 +464,11 @@ struct SearchableFileInfo {
     id: Uuid,
     path: String,
     content: Option<String>,
+}
+
+pub enum PathSearchRequest {
+    Search { input: String, path: String, id: Uuid},
+    EndSearch
 }
 
 #[derive(Clone)]
