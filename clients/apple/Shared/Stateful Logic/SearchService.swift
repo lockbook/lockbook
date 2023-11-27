@@ -135,7 +135,7 @@ class SearchService: ObservableObject {
             }
         }
         
-        DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(500), execute: newPathSearchTask)
+        DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(200), execute: newPathSearchTask)
         
         pathSearchTask = newPathSearchTask
     }

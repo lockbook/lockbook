@@ -1,4 +1,5 @@
-use crate::{CoreError, CoreState, LbResult, Requester, UnexpectedError};
+use crate::model::errors::core_err_unexpected;
+use crate::{CoreError, CoreState, LbResult, Requester, UnexpectedError, LbError};
 use crossbeam::channel::{self, Receiver, RecvTimeoutError, Sender};
 use lockbook_shared::document_repo::DocumentService;
 use lockbook_shared::file_like::FileLike;
@@ -50,16 +51,16 @@ impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {
             return Ok(Vec::new());
         }
 
-        let mut tree = (&self.db.base_metadata)
+        let mut tree: lockbook_shared::lazy::LazyTree<lockbook_shared::staged::StagedTree<&db_rs::LookupTable<Uuid, lockbook_shared::crypto::ECSigned<lockbook_shared::file_metadata::FileMetadata>>, &db_rs::LookupTable<Uuid, lockbook_shared::crypto::ECSigned<lockbook_shared::file_metadata::FileMetadata>>>> = (&self.db.base_metadata)
             .to_staged(&self.db.local_metadata)
             .to_lazy();
 
         let account = self.db.account.get().ok_or(CoreError::AccountNonexistent)?;
-        let mut results = Arc::new(Mutex::new(Vec::new()));
+        let results = Arc::new(Mutex::new(Vec::new()));
 
         let (search_tx, search_rx) = channel::unbounded::<PathSearchRequest>();
 
-        let num_threads = available_parallelism().unwrap().get();
+        let num_threads = available_parallelism().map_err(LbError::from)?.get();
         let mut handles = vec![];
     
         for _ in 0..num_threads {
@@ -105,20 +106,20 @@ impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {
 
                 if file.is_document() {
                     let path = tree.id_to_path(&id, account)?;
-                    search_tx.send(PathSearchRequest::Search { input: input.to_string(), path, id });
+                    search_tx.send(PathSearchRequest::Search { input: input.to_string(), path, id }).map_err(core_err_unexpected)?;
                 }
             }
         }
 
         for _ in 0..handles.len() {
-            search_tx.send(PathSearchRequest::EndSearch);
+            search_tx.send(PathSearchRequest::EndSearch).map_err(core_err_unexpected)?;
         }
 
         for handle in handles {
-            handle.join();
+            handle.join().map_err(core_err_unexpected)?;
         }
 
-        results.lock().unwrap().sort();
+        results.lock().map_err(core_err_unexpected)?.sort();
         let results: Vec<SearchResultItem> = std::mem::take(&mut results.lock().unwrap());
 
         Ok(results)
