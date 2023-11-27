@@ -117,25 +117,22 @@ class SearchService: ObservableObject {
         let currentSearchTimestamp = lastSearchTimestamp
         
         let newPathSearchTask = DispatchWorkItem {
-            DispatchQueue.global(qos: .userInteractive).async {
-                
-                let result = self.core.searchFilePaths(input: input)
-                
-                DispatchQueue.main.async {
-                    switch result {
-                    case .success(let paths):
-                        if currentSearchTimestamp == self.lastSearchTimestamp && self.pathSearchState != .NotSearching {
-                            self.pathSearchState = .SearchSuccessful(paths)
-                        }
-                    case .failure(let err):
-                        self.pathSearchState = .Idle
-                        DI.errors.handleError(err)
+            let result = self.core.searchFilePaths(input: input)
+            
+            DispatchQueue.main.async {
+                switch result {
+                case .success(let paths):
+                    if currentSearchTimestamp == self.lastSearchTimestamp && self.pathSearchState != .NotSearching {
+                        self.pathSearchState = .SearchSuccessful(paths)
                     }
+                case .failure(let err):
+                    self.pathSearchState = .Idle
+                    DI.errors.handleError(err)
                 }
             }
         }
         
-        DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(500), execute: newPathSearchTask)
+        DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + .milliseconds(500), execute: newPathSearchTask)
         
         pathSearchTask = newPathSearchTask
     }
