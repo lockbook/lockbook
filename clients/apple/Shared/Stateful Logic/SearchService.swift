@@ -132,7 +132,7 @@ class SearchService: ObservableObject {
             }
         }
         
-        DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + .milliseconds(500), execute: newPathSearchTask)
+        DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + .milliseconds(550), execute: newPathSearchTask)
         
         pathSearchTask = newPathSearchTask
     }
