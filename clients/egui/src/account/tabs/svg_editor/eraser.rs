@@ -31,11 +31,19 @@ impl Eraser {
             EraseEvent::Start(pos) => {
                 self.path_bounds.iter().for_each(|(id, path)| {
                     if let Some(bb) = path.bounding_box() {
-                        let rect = egui::Rect::from_min_max(
+                        let mut rect = egui::Rect::from_min_max(
                             egui::pos2(bb[0].x as f32, bb[0].y as f32),
                             egui::pos2(bb[1].x as f32, bb[1].y as f32),
                         );
-
+                        
+                        if rect.width() < 10. {
+                            rect = rect.expand2(egui::vec2(10.0, 0.0));
+                        }
+                        if rect.height() < 10. {
+                            rect = rect.expand2(egui::vec2(0.0, 10.0));
+                        }
+                        // ui.painter().rect_stroke(rect, egui::Rounding::none(), egui::Stroke{ width: 1.0, color: egui::Color32::DEBUG_COLOR });
+                        println!("w: {}, h: {}", rect.width(), rect.height());
                         if !rect.contains(pos) {
                             return;
                         }
@@ -44,6 +52,7 @@ impl Eraser {
                         let mut pb = PathBuilder::new();
                         pb.push_circle(pos.x, pos.y, 5.0);
                         let delete_brush = convert_path_to_bezier(pb.finish().unwrap().points());
+                        
 
                         if !path
                             .subpath_intersections(&delete_brush, None, None)
