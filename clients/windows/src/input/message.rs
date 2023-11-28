@@ -4,6 +4,8 @@ use windows::{
     Win32::Foundation::*, Win32::UI::Input::KeyboardAndMouse::*, Win32::UI::WindowsAndMessaging::*,
 };
 
+use super::file_drop;
+
 #[derive(Clone, Copy, Debug)]
 pub struct Point<T> {
     pub x: T,
@@ -18,13 +20,14 @@ impl From<LPARAM> for Point<u16> {
 
 /// Windows message parsed to properly interpret or ignore wparam and lparam (but not to redefine any structs defined
 /// in winapi) for clarity and exhaustive matching.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub enum Message<'a> {
     Unknown { msg: u32 },
     Unhandled { const_name: &'static str },
     NoDeps(MessageNoDeps<'a>),
     WindowDep(MessageWindowDep),
     AppDep(MessageAppDep),
+    FileDrop(file_drop::Message),
 }
 
 #[derive(Clone, Copy, Debug)]

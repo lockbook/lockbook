@@ -1,5 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+use crate::input::file_drop::FileDropHandler;
 use egui::{Context, Visuals};
 use egui_wgpu_backend::wgpu::CompositeAlphaMode;
 use egui_wgpu_backend::{wgpu, ScreenDescriptor};
@@ -8,9 +9,8 @@ use lbeguiapp::{IntegrationOutput, UpdateOutput, WgpuLockbook};
 use std::time::{Duration, Instant};
 use windows::{
     core::*, Win32::Foundation::*, Win32::Graphics::Direct3D12::*, Win32::Graphics::Dxgi::*,
-    Win32::System::LibraryLoader::*, Win32::System::SystemServices::*, Win32::UI::HiDpi::*,
-    Win32::UI::Input::KeyboardAndMouse::*, Win32::UI::Input::Touch::*,
-    Win32::UI::WindowsAndMessaging::*,
+    Win32::System::LibraryLoader::*, Win32::System::Ole::*, Win32::UI::HiDpi::*,
+    Win32::UI::Input::KeyboardAndMouse::*, Win32::UI::WindowsAndMessaging::*,
 };
 
 mod input;
@@ -79,19 +79,9 @@ fn main() -> Result<()> {
 
     unsafe { dxgi_factory.MakeWindowAssociation(hwnd, DXGI_MWA_NO_ALT_ENTER) }?;
 
-    // enable gestures
-    unsafe {
-        SetGestureConfig(
-            hwnd,
-            0,
-            &[GESTURECONFIG { dwID: GESTURECONFIG_ID(0), dwWant: GC_ALLGESTURES.0, dwBlock: 0 }],
-            std::mem::size_of::<GESTURECONFIG>() as _,
-        )
-    }?;
-
     let app = init(&crate::window::Window::new(hwnd), false);
     app.context.set_request_repaint_callback(move |_rri| {
-        // todo: fix this; makes the app laggy (unclear if why)
+        // todo: fix this; makes the app laggy (unclear why)
         // thread::spawn(move || {
         //     // todo: verify thread safety or add a mutex
         //     thread::sleep(rri.after);
@@ -103,6 +93,20 @@ fn main() -> Result<()> {
     });
     window.maybe_app = Some(app);
     window.dpi_scale = dpi_to_scale_factor(unsafe { GetDpiForWindow(hwnd) } as _);
+
+    // register file drop handler
+    {
+        unsafe { OleInitialize(None) }?;
+        let file_drop_handler: IDropTarget = FileDropHandler {
+            handler: Box::new(move |event| {
+                handle_message(hwnd, Message::FileDrop(event));
+            }),
+        }
+        .into();
+
+        unsafe { RegisterDragDrop(hwnd, &file_drop_handler) }?;
+        file_drop_handler
+    };
 
     // "If the window was previously visible, the return value is nonzero."
     // https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-showwindow
@@ -144,7 +148,7 @@ fn main() -> Result<()> {
 extern "system" fn handle_messages(
     window_handle: HWND, message: u32, wparam: WPARAM, lparam: LPARAM,
 ) -> LRESULT {
-    if handled_messages_impl(window_handle, message, wparam, lparam) {
+    if handle_message_raw(window_handle, message, wparam, lparam) {
         LRESULT::default()
     } else {
         // use the default handling for unhandled messages
@@ -152,13 +156,16 @@ extern "system" fn handle_messages(
     }
 }
 
-fn handled_messages_impl(
-    window_handle: HWND, message: u32, wparam: WPARAM, lparam: LPARAM,
-) -> bool {
+fn handle_message_raw(hwnd: HWND, message: u32, wparam: WPARAM, lparam: LPARAM) -> bool {
+    let message = Message::new(message, wparam, lparam);
+    handle_message(hwnd, message)
+}
+
+fn handle_message(hwnd: HWND, message: Message) -> bool {
     // get window
     let mut maybe_window = {
         // retrieve the pointer to our Window struct from the window's "user data"
-        let user_data = unsafe { GetWindowLongPtrA(window_handle, GWLP_USERDATA) };
+        let user_data = unsafe { GetWindowLongPtrA(hwnd, GWLP_USERDATA) };
         let window = std::ptr::NonNull::<Window>::new(user_data as _);
         if let Some(mut window) = window {
             Some(unsafe { window.as_mut() })
@@ -177,17 +184,12 @@ fn handled_messages_impl(
         command: unsafe { GetKeyState(VK_CONTROL.0 as i32) } & 0x8000u16 as i16 != 0,
     };
 
-    let message = Message::new(message, wparam, lparam);
     match message {
         // events processed even if we haven't initialized yet
         Message::NoDeps(message) => {
             match message {
                 MessageNoDeps::Create { create_struct } => unsafe {
-                    SetWindowLongPtrA(
-                        window_handle,
-                        GWLP_USERDATA,
-                        create_struct.lpCreateParams as _,
-                    );
+                    SetWindowLongPtrA(hwnd, GWLP_USERDATA, create_struct.lpCreateParams as _);
                 },
                 MessageNoDeps::Destroy => {
                     unsafe { PostQuitMessage(0) };
@@ -246,7 +248,7 @@ fn handled_messages_impl(
                         | MessageAppDep::PointerUpdate { pointer_id }
                         | MessageAppDep::PointerUp { pointer_id } => input::pointer::handle(
                             app,
-                            window_handle,
+                            hwnd,
                             modifiers,
                             window.dpi_scale,
                             pointer_id,
@@ -263,7 +265,7 @@ fn handled_messages_impl(
 
                             output::clipboard::handle(app);
                             output::close::handle(close);
-                            output::window_title::handle(window_handle, set_window_title);
+                            output::window_title::handle(hwnd, set_window_title);
 
                             true
                         }
@@ -274,6 +276,10 @@ fn handled_messages_impl(
             } else {
                 false
             }
+        }
+        Message::FileDrop(e) => {
+            println!("file drop: {:?}", e);
+            false
         }
 
         // remaining events
