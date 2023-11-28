@@ -3554,6 +3554,7 @@ dependencies = [
  "egui_editor",
  "egui_extras",
  "egui_wgpu_backend",
+ "glam",
  "image",
  "lb-fonts",
  "lb-pdf",

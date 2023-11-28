@@ -1,6 +1,4 @@
 use eframe::egui;
-use minidom::Element;
-use resvg::usvg::{Node, Tree};
 use std::f32::consts::PI;
 
 use crate::{theme::Icon, widgets::Button};
@@ -108,9 +106,7 @@ impl Toolbar {
             Component::Button(SimpleButton {
                 id: "eraser".to_string(),
                 icon: Icon::ERASER,
-                coming_soon_text: Some(
-                    "Eraser will be added in the next version. Stay Tuned!".to_string(),
-                ),
+                coming_soon_text: None,
                 margin: egui::Margin::symmetric(4.0, 7.0),
             }),
             Component::Separator(egui::Margin::symmetric(10.0, 0.0)),

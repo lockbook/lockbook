@@ -3,7 +3,7 @@ use std::borrow::BorrowMut;
 use eframe::egui;
 use minidom::Element;
 use resvg::tiny_skia::Pixmap;
-use resvg::usvg::{self, Node, Size, TreeWriting};
+use resvg::usvg::{self, Size, TreeWriting};
 
 use crate::theme::ThemePalette;
 
@@ -63,7 +63,7 @@ impl SVGEditor {
             Tool::Eraser => {
                 self.toolbar.eraser.setup_events(ui, self.inner_rect);
                 while let Ok(event) = self.toolbar.eraser.rx.try_recv() {
-                    self.content = self.toolbar.eraser.handle_events(event, &mut self.root, ui);
+                    self.content = self.toolbar.eraser.handle_events(event, &mut self.root);
                 }
             }
         }
@@ -97,9 +97,9 @@ impl SVGEditor {
 
     fn render_svg(&mut self, ui: &mut egui::Ui) {
         let mut utree: usvg::Tree =
-        usvg::TreeParsing::from_data(self.content.as_bytes(), &usvg::Options::default())
-        .unwrap();
-    
+            usvg::TreeParsing::from_data(self.content.as_bytes(), &usvg::Options::default())
+                .unwrap();
+
         // todo: only index when history changes
         self.toolbar.eraser.index_rects(&utree.root);
 
