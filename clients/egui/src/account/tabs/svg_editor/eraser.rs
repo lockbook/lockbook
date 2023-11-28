@@ -69,7 +69,7 @@ impl Eraser {
                             self.paths_to_delete.push(id.clone());
                             if let Some(node) = root.children_mut().find(|e| {
                                 if let Some(id_attr) = e.attr("id") {
-                                    id_attr == id.to_string()
+                                    id_attr == id
                                 } else {
                                     false
                                 }
@@ -84,7 +84,7 @@ impl Eraser {
                 self.paths_to_delete.iter().for_each(|id| {
                     if let Some(node) = root.children_mut().find(|e| {
                         if let Some(id_attr) = e.attr("id") {
-                            id_attr == id.to_string()
+                            id_attr == id
                         } else {
                             false
                         }
