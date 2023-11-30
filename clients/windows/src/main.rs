@@ -9,8 +9,9 @@ use lbeguiapp::{IntegrationOutput, UpdateOutput, WgpuLockbook};
 use std::time::{Duration, Instant};
 use windows::{
     core::*, Win32::Foundation::*, Win32::Graphics::Direct3D12::*, Win32::Graphics::Dxgi::*,
-    Win32::System::LibraryLoader::*, Win32::System::Ole::*, Win32::UI::HiDpi::*,
-    Win32::UI::Input::KeyboardAndMouse::*, Win32::UI::WindowsAndMessaging::*,
+    Win32::System::Com::*, Win32::System::LibraryLoader::*, Win32::System::Memory::*,
+    Win32::System::Ole::*, Win32::UI::HiDpi::*, Win32::UI::Input::KeyboardAndMouse::*,
+    Win32::UI::Shell::*, Win32::UI::WindowsAndMessaging::*,
 };
 
 mod input;
@@ -277,17 +278,64 @@ fn handle_message(hwnd: HWND, message: Message) -> bool {
                 false
             }
         }
-        Message::FileDrop(e) => {
-            println!("file drop: {:?}", e);
-            false
-        }
+
+        // events raised by drop handler
+        // todo: set cursor to indicate drop is possible
+        Message::FileDrop(message) => match message {
+            input::file_drop::Message::DragEnter { object, state, point } => true,
+            input::file_drop::Message::DragOver { state, point } => true,
+            input::file_drop::Message::DragLeave => true,
+            input::file_drop::Message::Drop { object, state, point } => {
+                if let Some(object) = object {
+                    let format_enumerator = unsafe {
+                        object
+                            .EnumFormatEtc(DATADIR_GET.0 as _)
+                            .expect("enumerate drop formats")
+                    };
+                    let mut rgelt = [FORMATETC::default(); 1];
+                    loop {
+                        let result = unsafe { format_enumerator.Next(&mut rgelt, None) };
+                        if result.is_err() {
+                            println!("format_enumerator.Next() error: {:?}", result);
+                            break;
+                        }
+
+                        let stgm = unsafe { object.GetData(&rgelt[0]) }.expect("get drop data");
+                        match TYMED(stgm.tymed as _) {
+                            TYMED_HGLOBAL => {
+                                let hglobal = unsafe { stgm.u.hGlobal };
+                                let hdrop = HDROP(unsafe { std::mem::transmute(hglobal) });
+
+                                let file_count = unsafe { DragQueryFileW(hdrop, 0xFFFFFFFF, None) };
+                                for i in 0..file_count {
+                                    let mut file_name_bytes = [0u8; MAX_PATH as _];
+                                    unsafe { DragQueryFileA(hdrop, i, Some(&mut file_name_bytes)) };
+                                    println!(
+                                        "TYMED_HGLOBAL file name: {}",
+                                        String::from_utf8_lossy(&file_name_bytes)
+                                    );
+                                }
+
+                                let _ = unsafe { GlobalUnlock(hglobal) }; // this threw an error "Operation completed successfully." on me
+                            }
+                            // TYMED_FILE => "TYMED_FILE",
+                            // TYMED_ISTREAM => "TYMED_ISTREAM",
+                            // TYMED_ISTORAGE => "TYMED_ISTORAGE",
+                            // TYMED_GDI => "TYMED_GDI",
+                            // TYMED_MFPICT => "TYMED_MFPICT",
+                            // TYMED_ENHMF => "TYMED_ENHMF",
+                            // TYMED_NULL => "TYMED_NULL",
+                            _ => {}
+                        }
+                    }
+                }
+                true
+            }
+        },
 
         // remaining events
         Message::Unknown { .. } => false,
-        Message::Unhandled { const_name } => {
-            println!("unhandled message: {}", const_name);
-            false
-        }
+        Message::Unhandled { .. } => false,
     }
 }
 
@@ -382,4 +430,13 @@ async fn request_device(
 // https://github.com/rust-windowing/winit/blob/789a4979801cffc20c9dfbc34e72c15ebf3c737c/src/platform_impl/windows/dpi.rs#L75C1-L78C2
 pub fn dpi_to_scale_factor(dpi: u16) -> f32 {
     dpi as f32 / USER_DEFAULT_SCREEN_DPI as f32
+}
+
+pub fn string_from_utf16_bytes(slice: &[u8]) -> String {
+    let size = slice.len() / 2;
+    let iter = (0..size).map(|i| u16::from_be_bytes([slice[2 * i], slice[2 * i + 1]]));
+
+    std::char::decode_utf16(iter)
+        .collect::<std::result::Result<String, _>>()
+        .expect("utf-16 string")
 }

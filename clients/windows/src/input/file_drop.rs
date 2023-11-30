@@ -9,10 +9,10 @@ use windows::{
 // todo: put some actual data here
 #[derive(Clone, Debug)]
 pub enum Message {
-    DragEnter,
-    DragOver,
+    DragEnter { object: Option<IDataObject>, state: MODIFIERKEYS_FLAGS, point: POINTL },
+    DragOver { state: MODIFIERKEYS_FLAGS, point: POINTL },
     DragLeave,
-    Drop,
+    Drop { object: Option<IDataObject>, state: MODIFIERKEYS_FLAGS, point: POINTL },
 }
 
 #[implement(IDropTarget)]
@@ -25,12 +25,19 @@ impl IDropTarget_Impl for FileDropHandler {
         &self, object: Option<&IDataObject>, state: MODIFIERKEYS_FLAGS, point: &POINTL,
         effect: *mut DROPEFFECT,
     ) -> Result<()> {
-        (self.handler)(Message::DragEnter);
+        // indicates to the drop source that they don't need to delete the source data (unlike DROPEFFECT_MOVE)
+        // "If DoDragDrop returns DROPEFFECT_MOVE, delete the source data from the source document immediately. No other return value from DoDragDrop has any effect on a drop source."
+        // https://learn.microsoft.com/en-us/cpp/mfc/drag-and-drop-ole?view=msvc-170
+        unsafe { *effect = DROPEFFECT_COPY };
+
+        (self.handler)(Message::DragEnter { object: object.cloned(), state, point: *point });
         Ok(())
     }
 
-    fn DragOver(&self, _: MODIFIERKEYS_FLAGS, _: &POINTL, _: *mut DROPEFFECT) -> Result<()> {
-        (self.handler)(Message::DragOver);
+    fn DragOver(
+        &self, state: MODIFIERKEYS_FLAGS, point: &POINTL, _: *mut DROPEFFECT,
+    ) -> Result<()> {
+        (self.handler)(Message::DragOver { state, point: *point });
         Ok(())
     }
 
@@ -40,9 +47,10 @@ impl IDropTarget_Impl for FileDropHandler {
     }
 
     fn Drop(
-        &self, _: Option<&IDataObject>, _: MODIFIERKEYS_FLAGS, _: &POINTL, _: *mut DROPEFFECT,
+        &self, object: Option<&IDataObject>, state: MODIFIERKEYS_FLAGS, point: &POINTL,
+        _: *mut DROPEFFECT,
     ) -> Result<()> {
-        (self.handler)(Message::Drop);
+        (self.handler)(Message::Drop { object: object.cloned(), state, point: *point });
         Ok(())
     }
 }
