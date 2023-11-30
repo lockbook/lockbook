@@ -311,7 +311,7 @@ fn handle_message(hwnd: HWND, message: Message) -> bool {
                                     let mut file_name_bytes = [0u8; MAX_PATH as _];
                                     unsafe { DragQueryFileA(hdrop, i, Some(&mut file_name_bytes)) };
                                     println!(
-                                        "TYMED_HGLOBAL file name: {}",
+                                        "path of dropped file: {}",
                                         String::from_utf8_lossy(&file_name_bytes)
                                     );
                                 }
