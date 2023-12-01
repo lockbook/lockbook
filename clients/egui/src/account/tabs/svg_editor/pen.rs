@@ -2,7 +2,7 @@ use eframe::egui;
 use minidom::Element;
 use std::{collections::VecDeque, sync::mpsc};
 
-use super::toolbar::ColorSwatch;
+use super::{toolbar::ColorSwatch, util};
 
 pub struct Pen {
     pub active_color: Option<ColorSwatch>,
@@ -31,13 +31,9 @@ impl Pen {
     // todo: come up with a better name
     pub fn handle_events(&mut self, event: PathEvent, root: &mut Element) -> String {
         let mut current_path = match event {
-            PathEvent::Draw(_, id) | PathEvent::End(_, id) => root.children_mut().find(|e| {
-                if let Some(id_attr) = e.attr("id") {
-                    id_attr == id.to_string()
-                } else {
-                    false
-                }
-            }),
+            PathEvent::Draw(_, id) | PathEvent::End(_, id) => {
+                util::node_by_id(root, id.to_string())
+            }
         };
 
         match event {

@@ -26,3 +26,4 @@ glam = "0.22.0"
 
 [target.'cfg(windows)'.build-dependencies]
 winres = "0.1"
+
