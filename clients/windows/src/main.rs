@@ -9,9 +9,9 @@ use lbeguiapp::{IntegrationOutput, UpdateOutput, WgpuLockbook};
 use std::time::{Duration, Instant};
 use windows::{
     core::*, Win32::Foundation::*, Win32::Graphics::Direct3D12::*, Win32::Graphics::Dxgi::*,
-    Win32::System::Com::*, Win32::System::LibraryLoader::*, Win32::System::Memory::*,
-    Win32::System::Ole::*, Win32::UI::HiDpi::*, Win32::UI::Input::KeyboardAndMouse::*,
-    Win32::UI::Shell::*, Win32::UI::WindowsAndMessaging::*,
+    Win32::System::Com::*, Win32::System::DataExchange::*, Win32::System::LibraryLoader::*,
+    Win32::System::Memory::*, Win32::System::Ole::*, Win32::UI::HiDpi::*,
+    Win32::UI::Input::KeyboardAndMouse::*, Win32::UI::Shell::*, Win32::UI::WindowsAndMessaging::*,
 };
 
 mod input;
@@ -282,49 +282,119 @@ fn handle_message(hwnd: HWND, message: Message) -> bool {
         // events raised by drop handler
         // todo: set cursor to indicate drop is possible
         Message::FileDrop(message) => match message {
-            input::file_drop::Message::DragEnter { object, state, point } => true,
-            input::file_drop::Message::DragOver { state, point } => true,
+            input::file_drop::Message::DragEnter { .. } => true,
+            input::file_drop::Message::DragOver { .. } => true,
             input::file_drop::Message::DragLeave => true,
-            input::file_drop::Message::Drop { object, state, point } => {
+            input::file_drop::Message::Drop { object, .. } => {
+                println!("--------------------------------------------------------------------------------");
                 if let Some(object) = object {
-                    let format_enumerator = unsafe {
+                    let format_enumerator: IEnumFORMATETC = unsafe {
                         object
                             .EnumFormatEtc(DATADIR_GET.0 as _)
                             .expect("enumerate drop formats")
                     };
                     let mut rgelt = [FORMATETC::default(); 1];
                     loop {
-                        let result = unsafe { format_enumerator.Next(&mut rgelt, None) };
-                        if result.is_err() {
-                            println!("format_enumerator.Next() error: {:?}", result);
+                        let mut fetched: u32 = 0;
+                        if unsafe { format_enumerator.Next(&mut rgelt, Some(&mut fetched as _)) }
+                            .is_err()
+                        {
+                            println!("formats enumeration error");
+                            break;
+                        }
+                        if fetched == 0 {
+                            println!("no more formats");
                             break;
                         }
 
+                        let format = CLIPBOARD_FORMAT(rgelt[0].cfFormat);
+                        let mut format_name = [0u16; 1000];
+                        let is_predefined_format = format_str(format).is_some();
+                        let is_registered_format = unsafe {
+                            GetClipboardFormatNameW(format.0 as _, &mut format_name) != 0
+                        };
+                        if !is_predefined_format && !is_registered_format {
+                            println!("skipping unknown format: {:?}", format);
+                            continue;
+                        }
+                        let format_name = String::from_utf16_lossy(&format_name);
+                        println!(
+                            "format: {} ({:?})",
+                            format_name,
+                            format_str(format).unwrap_or_default()
+                        );
+
                         let stgm = unsafe { object.GetData(&rgelt[0]) }.expect("get drop data");
-                        match TYMED(stgm.tymed as _) {
+
+                        let tymed = TYMED(stgm.tymed as _);
+                        if tymed_str(tymed).is_none() {
+                            println!("skipping unknown tymed: {:?}", tymed);
+                            continue;
+                        }
+                        println!("tymed: {:?}", tymed_str(tymed));
+
+                        match tymed {
                             TYMED_HGLOBAL => {
                                 let hglobal = unsafe { stgm.u.hGlobal };
+
+                                // for unknown reasons, if I don't cast the HGLOBAL to an HDROP and query the file count, the next call to object.GetData fails
+                                // (this applies even if the format isn't CF_HDROP)
                                 let hdrop = HDROP(unsafe { std::mem::transmute(hglobal) });
 
-                                let file_count = unsafe { DragQueryFileW(hdrop, 0xFFFFFFFF, None) };
-                                for i in 0..file_count {
-                                    let mut file_name_bytes = [0u8; MAX_PATH as _];
-                                    unsafe { DragQueryFileA(hdrop, i, Some(&mut file_name_bytes)) };
+                                if format == CF_HDROP {
+                                    let file_count =
+                                        unsafe { DragQueryFileW(hdrop, 0xFFFFFFFF, None) };
+                                    println!("d");
+                                    for i in 0..file_count {
+                                        let mut file_name_bytes = [0u16; MAX_PATH as _];
+                                        unsafe {
+                                            DragQueryFileW(hdrop, i, Some(&mut file_name_bytes))
+                                        };
+                                        println!(
+                                            "hdrop file path: {}",
+                                            String::from_utf16_lossy(&file_name_bytes)
+                                        );
+                                    }
+                                } else {
+                                    let size = unsafe { GlobalSize(hglobal) };
+                                    let mut bytes = vec![0u8; size as _];
+                                    unsafe {
+                                        std::ptr::copy_nonoverlapping(
+                                            GlobalLock(hglobal),
+                                            bytes.as_mut_ptr() as _,
+                                            size as _,
+                                        );
+                                        let _ = GlobalUnlock(hglobal);
+                                    }
+                                    println!("global bytes: {}", String::from_utf8_lossy(&bytes));
+                                }
+                            }
+                            TYMED_ISTREAM => {
+                                if let Some(istream) = unsafe { stgm.u.pstm.as_ref() } {
+                                    let mut bytes = [0u8; 1000];
+                                    let mut read = 0;
+                                    loop {
+                                        let result = unsafe {
+                                            istream.Read(
+                                                &mut bytes[read..] as *mut _ as _,
+                                                (bytes.len() - read) as _,
+                                                Some(&mut read as *mut _ as _),
+                                            )
+                                        };
+                                        if result.is_err() {
+                                            println!("TyMed IStream read error: {:?}", result);
+                                            break;
+                                        }
+                                        if read == 0 {
+                                            break;
+                                        }
+                                    }
                                     println!(
-                                        "path of dropped file: {}",
-                                        String::from_utf8_lossy(&file_name_bytes)
+                                        "stream bytes: {}",
+                                        String::from_utf8_lossy(&bytes).len()
                                     );
                                 }
-
-                                let _ = unsafe { GlobalUnlock(hglobal) }; // this threw an error "Operation completed successfully." on me
                             }
-                            // TYMED_FILE => "TYMED_FILE",
-                            // TYMED_ISTREAM => "TYMED_ISTREAM",
-                            // TYMED_ISTORAGE => "TYMED_ISTORAGE",
-                            // TYMED_GDI => "TYMED_GDI",
-                            // TYMED_MFPICT => "TYMED_MFPICT",
-                            // TYMED_ENHMF => "TYMED_ENHMF",
-                            // TYMED_NULL => "TYMED_NULL",
                             _ => {}
                         }
                     }
@@ -336,6 +406,48 @@ fn handle_message(hwnd: HWND, message: Message) -> bool {
         // remaining events
         Message::Unknown { .. } => false,
         Message::Unhandled { .. } => false,
+    }
+}
+
+fn tymed_str(tymed: TYMED) -> Option<&'static str> {
+    match tymed {
+        TYMED_HGLOBAL => Some("TYMED_HGLOBAL"),
+        TYMED_FILE => Some("TYMED_FILE"),
+        TYMED_ISTREAM => Some("TYMED_ISTREAM"),
+        TYMED_ISTORAGE => Some("TYMED_ISTORAGE"),
+        TYMED_GDI => Some("TYMED_GDI"),
+        TYMED_MFPICT => Some("TYMED_MFPICT"),
+        TYMED_ENHMF => Some("TYMED_ENHMF"),
+        TYMED_NULL => Some("TYMED_NULL"),
+        _ => None,
+    }
+}
+
+fn format_str(format: CLIPBOARD_FORMAT) -> Option<&'static str> {
+    match format {
+        CF_TEXT => Some("CF_TEXT"),
+        CF_BITMAP => Some("CF_BITMAP"),
+        CF_METAFILEPICT => Some("CF_METAFILEPICT"),
+        CF_SYLK => Some("CF_SYLK"),
+        CF_DIF => Some("CF_DIF"),
+        CF_TIFF => Some("CF_TIFF"),
+        CF_OEMTEXT => Some("CF_OEMTEXT"),
+        CF_DIB => Some("CF_DIB"),
+        CF_PALETTE => Some("CF_PALETTE"),
+        CF_PENDATA => Some("CF_PENDATA"),
+        CF_RIFF => Some("CF_RIFF"),
+        CF_WAVE => Some("CF_WAVE"),
+        CF_UNICODETEXT => Some("CF_UNICODETEXT"),
+        CF_ENHMETAFILE => Some("CF_ENHMETAFILE"),
+        CF_HDROP => Some("CF_HDROP"),
+        CF_LOCALE => Some("CF_LOCALE"),
+        CF_DIBV5 => Some("CF_DIBV5"),
+        CF_OWNERDISPLAY => Some("CF_OWNERDISPLAY"),
+        CF_DSPTEXT => Some("CF_DSPTEXT"),
+        CF_DSPBITMAP => Some("CF_DSPBITMAP"),
+        CF_DSPMETAFILEPICT => Some("CF_DSPMETAFILEPICT"),
+        CF_DSPENHMETAFILE => Some("CF_DSPENHMETAFILE"),
+        _ => None,
     }
 }
 
