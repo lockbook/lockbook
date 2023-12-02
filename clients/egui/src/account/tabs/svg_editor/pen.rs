@@ -1,7 +1,119 @@
 use eframe::egui;
-use std::collections::VecDeque;
+use minidom::Element;
+use std::{collections::VecDeque, sync::mpsc};
 
-pub enum PenEvent {
+use super::{toolbar::ColorSwatch, util};
+
+pub struct Pen {
+    pub active_color: Option<ColorSwatch>,
+    pub active_stroke_width: u32,
+    path_builder: CubicBezBuilder,
+    current_id: usize,
+    pub rx: mpsc::Receiver<PathEvent>,
+    pub tx: mpsc::Sender<PathEvent>,
+}
+
+impl Pen {
+    pub fn new(max_id: usize) -> Self {
+        let default_stroke_width = 3;
+        let (tx, rx) = mpsc::channel();
+
+        Pen {
+            active_color: None,
+            active_stroke_width: default_stroke_width,
+            current_id: max_id,
+            rx,
+            tx,
+            path_builder: CubicBezBuilder::new(),
+        }
+    }
+
+    // todo: come up with a better name
+    pub fn handle_events(&mut self, event: PathEvent, root: &mut Element) -> String {
+        let mut current_path = match event {
+            PathEvent::Draw(_, id) | PathEvent::End(_, id) => {
+                util::node_by_id(root, id.to_string())
+            }
+        };
+
+        match event {
+            PathEvent::Draw(pos, id) => {
+                if let Some(node) = current_path.as_mut() {
+                    self.path_builder.cubic_to(pos);
+                    node.set_attr("d", &self.path_builder.data);
+
+                    if let Some(color) = &self.active_color {
+                        node.set_attr("stroke", format!("url(#{})", color.id));
+                    } else {
+                        node.set_attr("stroke", "url(#fg)");
+                    }
+                } else {
+                    self.path_builder.clear();
+                    self.path_builder.cubic_to(pos);
+
+                    let child = Element::builder("path", "")
+                        .attr("stroke-width", self.active_stroke_width.to_string())
+                        .attr("fill", "none")
+                        .attr("stroke-linejoin", "round")
+                        .attr("stroke-linecap", "round")
+                        .attr("id", id)
+                        .attr("d", &self.path_builder.data)
+                        .build();
+
+                    root.append_child(child);
+                }
+            }
+            PathEvent::End(pos, _) => {
+                if let Some(node) = current_path.as_mut() {
+                    self.path_builder.finish(pos);
+                    node.set_attr("d", &self.path_builder.data);
+                }
+            }
+        }
+
+        let mut buffer = Vec::new();
+        root.write_to(&mut buffer).unwrap();
+        // todo: handle unwrap
+        std::str::from_utf8(&buffer)
+            .unwrap()
+            .replace("xmlns='' ", "")
+    }
+
+    pub fn setup_events(&mut self, ui: &mut egui::Ui, inner_rect: egui::Rect) {
+        if let Some(cursor_pos) = ui.ctx().pointer_hover_pos() {
+            if !inner_rect.contains(cursor_pos) || !ui.is_enabled() {
+                return;
+            }
+
+            // todo: move this to zoom.rs
+            // if ui.input_mut(|i| i.consume_key(egui::Modifiers::CTRL, egui::Key::PlusEquals)) {
+            //     self.zoom_factor += ZOOM_STOP;
+            // }
+
+            // if ui.input_mut(|i| i.consume_key(egui::Modifiers::CTRL, egui::Key::Minus)) {
+            //     self.zoom_factor -= ZOOM_STOP;
+            // }
+
+            // cursor_pos.x = (cursor_pos.x + self.sao_offset.x) / self.zoom_factor;
+            // cursor_pos.y = (cursor_pos.y + self.sao_offset.y) / self.zoom_factor;
+            ui.output_mut(|w| w.cursor_icon = egui::CursorIcon::Crosshair);
+
+            if ui.input(|i| i.pointer.primary_down()) {
+                self.tx
+                    .send(PathEvent::Draw(cursor_pos, self.current_id))
+                    .unwrap();
+            }
+            if ui.input(|i| i.pointer.primary_released()) {
+                self.tx
+                    .send(PathEvent::End(cursor_pos, self.current_id))
+                    .unwrap();
+                self.current_id += 1;
+            }
+        }
+    }
+}
+
+pub enum PathEvent {
     Draw(egui::Pos2, usize),
     End(egui::Pos2, usize),
 }
