@@ -223,7 +223,6 @@ impl Editor {
 
     pub fn scroll_ui(&mut self, ui: &mut Ui) -> EditorResponse {
         let touch_mode = matches!(ui.ctx().os(), OperatingSystem::Android | OperatingSystem::IOS);
-        let is_ios = matches!(ui.ctx().os(), OperatingSystem::IOS);
 
         let events = ui.ctx().input(|i| i.events.clone());
         // create id (even though we don't use interact response)
@@ -274,9 +273,7 @@ impl Editor {
                 Frame::default()
                     .fill(fill)
                     .inner_margin(egui::Margin::symmetric(7.0, 15.0))
-                    .show(ui, |ui| {
-                        ui.vertical_centered(|ui| self.ui(ui, id, touch_mode, is_ios, &events))
-                    })
+                    .show(ui, |ui| ui.vertical_centered(|ui| self.ui(ui, id, touch_mode, &events)))
             });
         self.ui_rect = sao.inner_rect;
 
@@ -297,7 +294,7 @@ impl Editor {
     }
 
     fn ui(
-        &mut self, ui: &mut Ui, id: egui::Id, touch_mode: bool, is_ios: bool, events: &[Event],
+        &mut self, ui: &mut Ui, id: egui::Id, touch_mode: bool, events: &[Event],
     ) -> EditorResponse {
         self.debug.frame_start();
 
@@ -314,7 +311,7 @@ impl Editor {
         let (text_updated, selection_updated, pointer_offset_updated) = if self.initialized {
             if ui.memory(|m| m.has_focus(id)) {
                 let custom_events = mem::take(&mut self.custom_events);
-                self.process_events(events, &custom_events, touch_mode, is_ios);
+                self.process_events(events, &custom_events, touch_mode);
                 if let Some(to_clipboard) = &self.maybe_to_clipboard {
                     ui.output_mut(|o| o.copied_text = to_clipboard.clone());
                 }
@@ -392,7 +389,6 @@ impl Editor {
             &self.appearance,
             self.hover_syntax_reveal_debounce_state,
             ui,
-            is_ios,
         );
         self.bounds.lines = bounds::calc_lines(&self.galleys, &self.bounds.ast, &self.bounds.text);
         self.initialized = true;
@@ -408,7 +404,7 @@ impl Editor {
 
         // draw
         self.draw_text(self.ui_rect.size(), ui, touch_mode);
-        if ui.memory(|m| m.has_focus(id)) && !is_ios {
+        if ui.memory(|m| m.has_focus(id)) && !cfg!(target_os = "ios") {
             self.draw_cursor(ui, touch_mode);
         }
         if self.debug.draw_enabled {
@@ -526,7 +522,7 @@ impl Editor {
     }
 
     pub fn process_events(
-        &mut self, events: &[Event], custom_events: &[Modification], touch_mode: bool, is_ios: bool,
+        &mut self, events: &[Event], custom_events: &[Modification], touch_mode: bool,
     ) {
         // if the cursor is in an invalid location, move it to the next valid location
         if let BoundCase::BetweenRanges { range_after, .. } = self
@@ -565,7 +561,6 @@ impl Editor {
             custom_events,
             &click_checker,
             touch_mode,
-            is_ios,
             &self.appearance,
             &mut self.pointer_state,
         );

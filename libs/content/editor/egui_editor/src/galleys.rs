@@ -45,7 +45,7 @@ pub struct ImageInfo {
 
 pub fn calc(
     ast: &Ast, buffer: &SubBuffer, bounds: &Bounds, images: &ImageCache, appearance: &Appearance,
-    hover_syntax_reveal_debounce_state: HoverSyntaxRevealDebounceState, ui: &mut Ui, is_ios: bool,
+    hover_syntax_reveal_debounce_state: HoverSyntaxRevealDebounceState, ui: &mut Ui,
 ) -> Galleys {
     let cursor_paragraphs = bounds
         .paragraphs
@@ -104,7 +104,7 @@ pub fn calc(
                 RenderStyle::Markdown(ast.nodes[node_idx].node_type.clone())
                     .apply_style(&mut text_format, appearance);
             }
-            if in_selection && !is_ios {
+            if in_selection && !cfg!(target_os = "ios") {
                 RenderStyle::Selection.apply_style(&mut text_format, appearance);
             }
             if maybe_link_range.is_some() {

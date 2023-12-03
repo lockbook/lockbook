@@ -117,7 +117,7 @@ impl From<&Modifiers> for Offset {
 
 pub fn calc(
     event: &Event, click_checker: impl ClickChecker, pointer_state: &mut PointerState,
-    now: Instant, touch_mode: bool, is_ios: bool, appearance: &appearance::Appearance,
+    now: Instant, touch_mode: bool, appearance: &appearance::Appearance,
 ) -> Option<Modification> {
     match event {
         Event::Key { key, pressed: true, modifiers, .. }
@@ -340,7 +340,7 @@ pub fn calc(
                 None
             }
             .or_else(|| {
-                if click_checker.ui(*pos) && !is_ios {
+                if click_checker.ui(*pos) && !cfg!(target_os = "ios") {
                     Some(Modification::Select {
                         region: if click_mods.shift {
                             Region::ToLocation(location)
@@ -485,7 +485,6 @@ mod test {
                 &mut Default::default(),
                 Instant::now(),
                 false,
-                false,
                 &Default::default()
             ),
             Some(Modification::Select {
@@ -511,7 +510,6 @@ mod test {
                 TestClickChecker::default(),
                 &mut Default::default(),
                 Instant::now(),
-                false,
                 false,
                 &Default::default()
             ),
@@ -539,7 +537,6 @@ mod test {
                 &mut Default::default(),
                 Instant::now(),
                 false,
-                false,
                 &Default::default()
             ),
             Some(Modification::Select {
@@ -565,7 +562,6 @@ mod test {
                 TestClickChecker::default(),
                 &mut Default::default(),
                 Instant::now(),
-                false,
                 false,
                 &Default::default()
             ),
@@ -593,7 +589,6 @@ mod test {
                 &mut Default::default(),
                 Instant::now(),
                 false,
-                false,
                 &Default::default()
             ),
             Some(Modification::Select {
@@ -619,7 +614,6 @@ mod test {
                 TestClickChecker::default(),
                 &mut Default::default(),
                 Instant::now(),
-                false,
                 false,
                 &Default::default()
             ),
@@ -647,7 +641,6 @@ mod test {
                 &mut Default::default(),
                 Instant::now(),
                 false,
-                false,
                 &Default::default()
             ),
             Some(Modification::Select {
@@ -674,7 +667,6 @@ mod test {
                 &mut Default::default(),
                 Instant::now(),
                 false,
-                false,
                 &Default::default()
             ),
             Some(Modification::Select {
@@ -700,7 +692,6 @@ mod test {
                 TestClickChecker::default(),
                 &mut Default::default(),
                 Instant::now(),
-                false,
                 false,
                 &Default::default()
             ),
@@ -729,7 +720,6 @@ mod test {
                 &mut Default::default(),
                 Instant::now(),
                 false,
-                false,
                 &Default::default()
             ),
             Some(Modification::Select {
@@ -756,7 +746,6 @@ mod test {
                 &mut Default::default(),
                 Instant::now(),
                 false,
-                false,
                 &Default::default()
             ),
             Some(Modification::Select {
@@ -782,7 +771,6 @@ mod test {
                 TestClickChecker::default(),
                 &mut Default::default(),
                 Instant::now(),
-                false,
                 false,
                 &Default::default()
             ),
@@ -811,7 +799,6 @@ mod test {
                 &mut Default::default(),
                 Instant::now(),
                 false,
-                false,
                 &Default::default()
             ),
             Some(Modification::Select {
@@ -837,7 +824,6 @@ mod test {
                 TestClickChecker::default(),
                 &mut Default::default(),
                 Instant::now(),
-                false,
                 false,
                 &Default::default()
             ),
@@ -865,7 +851,6 @@ mod test {
                 &mut Default::default(),
                 Instant::now(),
                 false,
-                false,
                 &Default::default()
             ),
             Some(Modification::Select {
@@ -892,7 +877,6 @@ mod test {
                 &mut Default::default(),
                 Instant::now(),
                 false,
-                false,
                 &Default::default()
             ),
             Some(Modification::Select {
@@ -918,7 +902,6 @@ mod test {
                 TestClickChecker::default(),
                 &mut Default::default(),
                 Instant::now(),
-                false,
                 false,
                 &Default::default()
             ),
@@ -947,7 +930,6 @@ mod test {
                 &mut Default::default(),
                 Instant::now(),
                 false,
-                false,
                 &Default::default()
             ),
             Some(Modification::Select {
@@ -974,7 +956,6 @@ mod test {
                 &mut Default::default(),
                 Instant::now(),
                 false,
-                false,
                 &Default::default()
             ),
             Some(Modification::Select {
@@ -1000,7 +981,6 @@ mod test {
                 TestClickChecker::default(),
                 &mut Default::default(),
                 Instant::now(),
-                false,
                 false,
                 &Default::default()
             ),
@@ -1029,7 +1009,6 @@ mod test {
                 &mut Default::default(),
                 Instant::now(),
                 false,
-                false,
                 &Default::default()
             ),
             Some(Modification::Select {
@@ -1055,7 +1034,6 @@ mod test {
                 TestClickChecker::default(),
                 &mut Default::default(),
                 Instant::now(),
-                false,
                 false,
                 &Default::default()
             ),
@@ -1083,7 +1061,6 @@ mod test {
                 &mut Default::default(),
                 Instant::now(),
                 false,
-                false,
                 &Default::default()
             ),
             Some(Modification::Select {
@@ -1109,7 +1086,6 @@ mod test {
                 TestClickChecker::default(),
                 &mut Default::default(),
                 Instant::now(),
-                false,
                 false,
                 &Default::default()
             ),
@@ -1162,7 +1138,6 @@ mod test {
                 TestClickChecker::default(),
                 &mut Default::default(),
                 Instant::now(),
-                false,
                 false,
                 &Default::default()
             ),

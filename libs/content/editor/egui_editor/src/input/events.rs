@@ -14,7 +14,7 @@ use std::time::Instant;
 /// combines `events` and `custom_events` into a single set of events
 pub fn combine(
     events: &[Event], custom_events: &[Modification], click_checker: impl ClickChecker + Copy,
-    touch_mode: bool, is_ios: bool, appearance: &Appearance, pointer_state: &mut PointerState,
+    touch_mode: bool, appearance: &Appearance, pointer_state: &mut PointerState,
 ) -> Vec<Modification> {
     let canonical_egui_events = events.iter().filter_map(|e| {
         input::canonical::calc(
@@ -23,7 +23,6 @@ pub fn combine(
             pointer_state,
             Instant::now(),
             touch_mode,
-            is_ios,
             appearance,
         )
     });
