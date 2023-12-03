@@ -262,10 +262,11 @@
     <string name="update_payment_method">Update Payment Method</string>
     <string name="payment_platform">Payment Platform:</string>
     <string name="next_renewal_day">Next Renewal Date:</string>
-    <string name="expiration_day">Expiration Day:</string>
+    <string name="expiration_day">Expiration Date:</string>
     <string name="grace_period">End of Grace Period:</string>
     <string name="google_play">Google Play</string>
     <string name="stripe">Stripe</string>
+    <string name="app_store">App Store</string>
 
     <string name="sync_finished">Sync finished</string>
     <string name="backup_my_secret">Backup my secret</string>
