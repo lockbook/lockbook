@@ -1,12 +1,12 @@
 use bezier_rs::{Bezier, Identifier, Subpath};
 use eframe::egui;
-use minidom::Element;
 use resvg::tiny_skia::Point;
 use resvg::usvg::{Node, NodeKind};
 use std::collections::HashMap;
 use std::sync::mpsc;
 
 use super::util::node_by_id;
+use super::Buffer;
 
 const ERASER_THICKNESS: f32 = 10.0;
 pub struct Eraser {
@@ -28,7 +28,7 @@ impl Eraser {
         Eraser { rx, tx, paths_to_delete: vec![], path_bounds: HashMap::default(), last_pos: None }
     }
 
-    pub fn handle_events(&mut self, event: EraseEvent, root: &mut Element) -> String {
+    pub fn handle_events(&mut self, event: EraseEvent, buffer: &mut Buffer) {
         match event {
             EraseEvent::Start(pos) => {
                 self.path_bounds.iter().for_each(|(id, path)| {
@@ -60,40 +60,42 @@ impl Eraser {
                     )
                     .outline(ERASER_THICKNESS as f64, bezier_rs::Cap::Round);
 
-                    if path.is_point() {
-                        let point = path.manipulator_groups().get(0).unwrap().anchor;
-                        if delete_brush.contains_point(point) {
-                            self.paths_to_delete.push(id.clone());
-                        }
-                    } else if !path
+                    let is_inside_delete_brush = path.is_point()
+                        && delete_brush
+                            .contains_point(path.manipulator_groups().get(0).unwrap().anchor);
+                    let intersects_delete_brush = !path
                         .subpath_intersections(&delete_brush, None, None)
-                        .is_empty()
-                    {
+                        .is_empty();
+
+                    if intersects_delete_brush || is_inside_delete_brush {
                         self.paths_to_delete.push(id.clone());
+                        if let Some(node) = node_by_id(&mut buffer.current, id.to_string()) {
+                            node.set_attr("opacity", "0.5");
+                        }
                     }
                 });
 
-                self.paths_to_delete.iter().for_each(|id| {
-                    if let Some(node) = node_by_id(root, id.to_string()) {
-                        node.set_attr("opacity", "0.5");
-                    }
-                });
                 self.last_pos = Some(pos);
             }
             EraseEvent::End => {
                 self.paths_to_delete.iter().for_each(|id| {
-                    if let Some(node) = node_by_id(root, id.to_string()) {
-                        node.set_attr("d", "");
+                    let path = buffer.current.children().find(|e| {
+                        if let Some(id_attr) = e.attr("id") {
+                            id_attr == id.to_string()
+                        } else {
+                            false
+                        }
+                    });
+                    if let Some(node) = path {
+                        buffer.apply(super::Event::DeleteElement(super::DeleteElement {
+                            id: node.attr("id").unwrap().to_string(),
+                            element: node.clone(),
+                        }))
                     }
                 });
                 self.paths_to_delete = vec![];
             }
         }
-        let mut buffer = Vec::new();
-        root.write_to(&mut buffer).unwrap();
-        std::str::from_utf8(&buffer)
-            .unwrap()
-            .replace("xmlns='' ", "")
     }
 
     pub fn setup_events(&mut self, ui: &mut egui::Ui, inner_rect: egui::Rect) {
