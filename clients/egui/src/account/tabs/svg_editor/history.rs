@@ -1,4 +1,4 @@
-use std::collections::VecDeque;
+use std::{collections::VecDeque, fmt::Debug};
 
 use minidom::Element;
 
@@ -12,14 +12,14 @@ pub struct Buffer {
     redo: Vec<Event>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum Event {
     UpdateOpacity(UpdateOpacity),
     InsertElement(InsertElement),
     DeleteElement(DeleteElement),
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 
 struct UpdateOpacity {
     id: String,
@@ -27,14 +27,14 @@ struct UpdateOpacity {
     prev_opacity: String,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 
 pub struct DeleteElement {
     pub id: String,
     pub element: Element,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 
 pub struct InsertElement {
     pub id: String,
@@ -46,11 +46,10 @@ impl Buffer {
         Buffer { current: root, undo: VecDeque::default(), redo: vec![] }
     }
 
-    pub fn apply(&mut self, event: Event) {
+    pub fn save(&mut self, event: Event) {
         if !self.redo.is_empty() {
             self.redo = vec![];
         }
-        self.apply_event(&event);
 
         self.undo.push_back(event);
         if self.undo.len() > MAX_UNDOS {
@@ -67,7 +66,9 @@ impl Buffer {
             }
             Event::InsertElement(payload) => {
                 if let Some(node) = util::node_by_id(&mut self.current, payload.id.to_string()) {
-                    node.set_attr("d", payload.element.attr("d").unwrap());
+                    // todo: figure out a less hacky way, to detach a node (not just paths) from the tree
+                    node.set_attr("d", payload.element.attr("d"));
+                    node.set_attr("opacity", "1"); // this is  bad  but works
                 } else {
                     self.current.append_child(payload.element.clone());
                 }
@@ -155,11 +156,20 @@ impl ToString for Buffer {
     }
 }
 
+impl Debug for Buffer {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Buffer")
+            .field("undo", &self.undo)
+            .field("redo", &self.redo)
+            .finish()
+    }
+}
+
 #[cfg(test)]
 mod test {
     use minidom::Element;
 
-    use crate::account::tabs::svg_editor::{history::InsertElement, util};
+    use crate::account::tabs::svg_editor::{history::InsertElement, util, DeleteElement};
 
     use super::{Buffer, UpdateOpacity};
 
@@ -174,7 +184,7 @@ mod test {
 
         let mut bf = Buffer::new(root);
 
-        bf.apply(super::Event::UpdateOpacity(UpdateOpacity {
+        bf.save(super::Event::UpdateOpacity(UpdateOpacity {
             id: "1".to_string(),
             opacity: "0.5".to_string(),
             prev_opacity: "1".to_string(),
@@ -210,7 +220,6 @@ mod test {
     #[test]
     fn insert_element() {
         let test_svg = r#"<svg xmlns="http://www.w3.org/2000/svg" >
-            <path id="1" d="M 10 80 Q 95 10 180 80" stroke="black" fill="transparent"/>
         </svg>
         "#;
 
@@ -223,31 +232,19 @@ mod test {
             .attr("d", "M mars.x mars.y")
             .build();
 
-        bf.apply(super::Event::InsertElement(InsertElement {
+        bf.current.append_child(child.clone());
+        bf.save(super::Event::InsertElement(InsertElement {
             id: "2".to_string(),
-            element: child,
+            element: child.clone(),
         }));
 
+        bf.save(super::Event::DeleteElement(DeleteElement { id: "2".to_string(), element: child }));
+
+        if let Some(n) = util::node_by_id(&mut bf.current, "2".to_string()) {
+            n.set_attr("opacity", "0.3");
+            n.set_attr("d", "");
+        }
+
         bf.undo();
-
-        // let mut buffer = Vec::new();
-        // bf.current.write_to(&mut buffer).unwrap();
-        // println!(
-        //     "{}",
-        //     std::str::from_utf8(&buffer)
-        //         .unwrap()
-        //         .replace("xmlns='' ", "")
-        // );
-
-        bf.redo();
-
-        let mut buffer = Vec::new();
-        bf.current.write_to(&mut buffer).unwrap();
-        println!(
-            "{}",
-            std::str::from_utf8(&buffer)
-                .unwrap()
-                .replace("xmlns='' ", "")
-        );
     }
 }

@@ -126,7 +126,17 @@ impl Toolbar {
                             egui::Frame::default()
                                 .inner_margin(btn.margin)
                                 .show(ui, |ui| {
-                                    let btn_res = Button::default().icon(&btn.icon).show(ui);
+                                    let enabled = match btn.id.as_str() {
+                                        "undo" => buffer.has_undo(),
+                                        "redo" => buffer.has_redo(),
+                                        _ => true,
+                                    };
+
+                                    let btn_res = ui
+                                        .add_enabled_ui(enabled, |ui| {
+                                            Button::default().icon(&btn.icon).show(ui)
+                                        })
+                                        .inner;
 
                                     if btn_res.clicked() {
                                         match btn.id.as_str() {
@@ -141,7 +151,6 @@ impl Toolbar {
                                             _ => {}
                                         }
                                     }
-
                                     if let Some(tooltip_text) = &btn.coming_soon_text {
                                         btn_res.on_hover_text(tooltip_text);
                                     }

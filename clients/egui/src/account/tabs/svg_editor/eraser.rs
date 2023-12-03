@@ -5,7 +5,7 @@ use resvg::usvg::{Node, NodeKind};
 use std::collections::HashMap;
 use std::sync::mpsc;
 
-use super::util::node_by_id;
+use super::util::{self, node_by_id};
 use super::Buffer;
 
 const ERASER_THICKNESS: f32 = 10.0;
@@ -69,8 +69,20 @@ impl Eraser {
 
                     if intersects_delete_brush || is_inside_delete_brush {
                         self.paths_to_delete.push(id.clone());
-                        if let Some(node) = node_by_id(&mut buffer.current, id.to_string()) {
-                            node.set_attr("opacity", "0.5");
+                        let node = buffer
+                            .current
+                            .children()
+                            .find(|e| e.attr("id").unwrap_or_default().eq(&id.to_string()))
+                            .unwrap()
+                            .to_owned();
+
+                        buffer.save(super::Event::DeleteElement(super::DeleteElement {
+                            id: node.attr("id").unwrap().to_string(),
+                            element: node.clone(),
+                        }));
+
+                        if let Some(n) = util::node_by_id(&mut buffer.current, id.to_string()) {
+                            n.set_attr("opacity", "0.3");
                         }
                     }
                 });
@@ -79,18 +91,8 @@ impl Eraser {
             }
             EraseEvent::End => {
                 self.paths_to_delete.iter().for_each(|id| {
-                    let path = buffer.current.children().find(|e| {
-                        if let Some(id_attr) = e.attr("id") {
-                            id_attr == id.to_string()
-                        } else {
-                            false
-                        }
-                    });
-                    if let Some(node) = path {
-                        buffer.apply(super::Event::DeleteElement(super::DeleteElement {
-                            id: node.attr("id").unwrap().to_string(),
-                            element: node.clone(),
-                        }))
+                    if let Some(node) = util::node_by_id(&mut buffer.current, id.to_string()) {
+                        node.set_attr("d", "");
                     }
                 });
                 self.paths_to_delete = vec![];

@@ -59,21 +59,14 @@ impl Pen {
             }
             PathEvent::End(pos, id) => {
                 self.path_builder.finish(pos);
-                // if let Some(node) = util::node_by_id(&mut buffer.current, id.to_string()) {
-                //     node.set_attr("d", &self.path_builder.data);
-
-                //     buffer.apply(super::Event::InsertElement(super::InsertElement {
-                //         id: id.to_string(),
-                //         element: node.clone(),
-                //     }));
-                // }
-                let mut node = util::node_by_id(&mut buffer.current, id.to_string())
-                    .unwrap()
-                    .clone();
+                let node = util::node_by_id(&mut buffer.current, id.to_string()).unwrap();
                 node.set_attr("d", &self.path_builder.data);
-                buffer.apply(super::Event::InsertElement(super::InsertElement {
+
+                let node = node.clone();
+
+                buffer.save(super::Event::InsertElement(super::InsertElement {
                     id: id.to_string(),
-                    element: node.clone(),
+                    element: node,
                 }));
             }
         }
@@ -176,7 +169,7 @@ impl CubicBezBuilder {
         self.catmull_to(pos, false); // todo: get rid of the double call if possible
         self.catmull_to(pos, true);
 
-        self.simplify(2.5);
+        self.simplify(2.);
 
         self.data = String::default();
         self.prev_points_window = VecDeque::default();
