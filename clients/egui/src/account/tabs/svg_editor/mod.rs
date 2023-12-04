@@ -7,9 +7,9 @@ mod util;
 
 pub use eraser::Eraser;
 pub use history::Buffer;
-pub use history::DeleteElement;
+pub use history::DeleteElements;
 pub use history::Event;
-pub use history::InsertElement;
+pub use history::InsertElements;
 pub use main::SVGEditor;
 pub use pen::CubicBezBuilder;
 pub use pen::Pen;

@@ -1,6 +1,7 @@
 use std::{collections::VecDeque, fmt::Debug};
 
 use minidom::Element;
+use std::collections::HashMap;
 
 use super::util;
 
@@ -15,8 +16,8 @@ pub struct Buffer {
 #[derive(Clone, Debug)]
 pub enum Event {
     UpdateOpacity(UpdateOpacity),
-    InsertElement(InsertElement),
-    DeleteElement(DeleteElement),
+    InsertElements(InsertElements),
+    DeleteElements(DeleteElements),
 }
 
 #[derive(Clone, Debug)]
@@ -29,16 +30,14 @@ struct UpdateOpacity {
 
 #[derive(Clone, Debug)]
 
-pub struct DeleteElement {
-    pub id: String,
-    pub element: Element,
+pub struct DeleteElements {
+    pub elements: HashMap<String, Element>,
 }
 
 #[derive(Clone, Debug)]
 
-pub struct InsertElement {
-    pub id: String,
-    pub element: Element,
+pub struct InsertElements {
+    pub elements: HashMap<String, Element>,
 }
 
 impl Buffer {
@@ -64,20 +63,25 @@ impl Buffer {
                     node.set_attr("opacity", payload.opacity.to_string());
                 }
             }
-            Event::InsertElement(payload) => {
-                if let Some(node) = util::node_by_id(&mut self.current, payload.id.to_string()) {
-                    // todo: figure out a less hacky way, to detach a node (not just paths) from the tree
-                    node.set_attr("d", payload.element.attr("d"));
-                    node.set_attr("opacity", "1"); // this is  bad  but works
-                } else {
-                    self.current.append_child(payload.element.clone());
-                }
+            Event::InsertElements(payload) => {
+                payload.elements.iter().for_each(|(id, element)| {
+                    if let Some(node) = util::node_by_id(&mut self.current, id.to_string()) {
+                        // todo: figure out a less hacky way, to detach a node (not just paths) from the tree
+                        node.set_attr("d", element.attr("d"));
+                        node.set_attr("opacity", "1"); // this is  bad  but works
+                    } else {
+                        self.current.append_child(element.clone());
+                    }
+                });
             }
-            Event::DeleteElement(payload) => {
-                if let Some(node) = util::node_by_id(&mut self.current, payload.id.to_string()) {
-                    // todo: figure out a less hacky way, to detach a node (not just paths) from the tree
-                    node.set_attr("d", "");
-                }
+
+            Event::DeleteElements(payload) => {
+                payload.elements.iter().for_each(|(id, _)| {
+                    if let Some(node) = util::node_by_id(&mut self.current, id.to_string()) {
+                        // todo: figure out a less hacky way, to detach a node (not just paths) from the tree
+                        node.set_attr("d", "");
+                    }
+                });
             }
         };
     }
@@ -87,26 +91,9 @@ impl Buffer {
             return;
         }
 
-        if let Some(mut undo_event) = self.undo.pop_back().to_owned() {
-            match undo_event {
-                Event::UpdateOpacity(ref mut payload) => {
-                    std::mem::swap(&mut payload.opacity, &mut payload.prev_opacity);
-                }
-                Event::InsertElement(payload) => {
-                    undo_event = Event::DeleteElement(DeleteElement {
-                        id: payload.id,
-                        element: payload.element,
-                    });
-                }
-                Event::DeleteElement(payload) => {
-                    undo_event = Event::InsertElement(InsertElement {
-                        id: payload.id,
-                        element: payload.element,
-                    });
-                }
-            }
+        if let Some(undo_event) = self.undo.pop_back().to_owned() {
+            let undo_event = self.swap_event(undo_event);
             self.apply_event(&undo_event);
-
             self.redo.push(undo_event);
         }
     }
@@ -120,27 +107,26 @@ impl Buffer {
             return;
         }
 
-        if let Some(mut redo_event) = self.redo.pop().to_owned() {
-            match redo_event {
-                Event::UpdateOpacity(ref mut payload) => {
-                    std::mem::swap(&mut payload.opacity, &mut payload.prev_opacity);
-                }
-                Event::InsertElement(payload) => {
-                    redo_event = Event::DeleteElement(DeleteElement {
-                        id: payload.id,
-                        element: payload.element,
-                    });
-                }
-                Event::DeleteElement(payload) => {
-                    redo_event = Event::InsertElement(InsertElement {
-                        id: payload.id,
-                        element: payload.element,
-                    });
-                }
-            }
+        if let Some(redo_event) = self.redo.pop().to_owned() {
+            let redo_event = self.swap_event(redo_event);
             self.apply_event(&redo_event);
             self.undo.push_back(redo_event);
         }
+    }
+
+    fn swap_event(&self, mut source: Event) -> Event {
+        match source {
+            Event::UpdateOpacity(ref mut payload) => {
+                std::mem::swap(&mut payload.opacity, &mut payload.prev_opacity);
+            }
+            Event::InsertElements(payload) => {
+                source = Event::DeleteElements(DeleteElements { elements: payload.elements });
+            }
+            Event::DeleteElements(payload) => {
+                source = Event::InsertElements(InsertElements { elements: payload.elements });
+            }
+        }
+        source
     }
 
     pub fn has_redo(&self) -> bool {
@@ -167,9 +153,11 @@ impl Debug for Buffer {
 
 #[cfg(test)]
 mod test {
+    use std::collections::HashMap;
+
     use minidom::Element;
 
-    use crate::account::tabs::svg_editor::{history::InsertElement, util, DeleteElement};
+    use crate::account::tabs::svg_editor::{history::DeleteElements, util};
 
     use super::{Buffer, UpdateOpacity};
 
@@ -220,31 +208,42 @@ mod test {
     #[test]
     fn insert_element() {
         let test_svg = r#"<svg xmlns="http://www.w3.org/2000/svg" >
+        <path d="moon" id ="1" />
+        <path d="mars" id ="2" />
         </svg>
         "#;
 
         let root: Element = test_svg.parse().unwrap();
 
         let mut bf = Buffer::new(root);
-        let child = Element::builder("path", "")
-            .attr("fill", "none")
-            .attr("id", "2")
-            .attr("d", "M mars.x mars.y")
-            .build();
 
-        bf.current.append_child(child.clone());
-        bf.save(super::Event::InsertElement(InsertElement {
-            id: "2".to_string(),
-            element: child.clone(),
+        let el1 = bf
+            .current
+            .children()
+            .find(|e| e.attr("id").unwrap().eq(&"1".to_string()))
+            .unwrap()
+            .to_owned();
+
+        let el2 = bf
+            .current
+            .children()
+            .find(|e| e.attr("id").unwrap().eq(&"2".to_string()))
+            .unwrap()
+            .to_owned();
+
+        bf.save(super::Event::DeleteElements(DeleteElements {
+            elements: HashMap::from_iter([("1".to_string(), el1), ("2".to_string(), el2)]),
         }));
 
-        bf.save(super::Event::DeleteElement(DeleteElement { id: "2".to_string(), element: child }));
-
-        if let Some(n) = util::node_by_id(&mut bf.current, "2".to_string()) {
-            n.set_attr("opacity", "0.3");
+        if let Some(n) = util::node_by_id(&mut bf.current, "1".to_string()) {
             n.set_attr("d", "");
         }
 
+        if let Some(n) = util::node_by_id(&mut bf.current, "2".to_string()) {
+            n.set_attr("d", "");
+        }
+        println!("{}", bf.to_string());
         bf.undo();
+        println!("{}", bf.to_string());
     }
 }
