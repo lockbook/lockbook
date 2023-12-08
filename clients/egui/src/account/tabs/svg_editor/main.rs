@@ -101,7 +101,7 @@ impl SVGEditor {
             available_rect.bottom(),
         )
         .unwrap();
-    
+
         if self.buffer.needs_path_map_update {
             self.buffer.recalc_paths(&utree.root);
         }
