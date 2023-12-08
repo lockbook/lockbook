@@ -3,7 +3,7 @@ use std::f32::consts::PI;
 
 use crate::{theme::Icon, widgets::Button};
 
-use super::{Eraser, Pen};
+use super::{Buffer, Eraser, Pen};
 
 const ICON_SIZE: f32 = 30.0;
 const COLOR_SWATCH_BTN_RADIUS: f32 = 9.0;
@@ -84,17 +84,13 @@ impl Toolbar {
                 id: "undo".to_string(),
                 icon: Icon::UNDO,
                 margin: egui::Margin::symmetric(4.0, 7.0),
-                coming_soon_text: Some(
-                    "Undo/Redo will be added in the next version. Stay Tuned!".to_string(),
-                ),
+                coming_soon_text: None,
             }),
             Component::Button(SimpleButton {
                 id: "redo".to_string(),
                 icon: Icon::REDO,
                 margin: egui::Margin::symmetric(4.0, 7.0),
-                coming_soon_text: Some(
-                    "Undo/Redo will be added in the next version. Stay Tuned!".to_string(),
-                ),
+                coming_soon_text: None,
             }),
             Component::Separator(egui::Margin::symmetric(10.0, 0.0)),
             Component::Button(SimpleButton {
@@ -119,7 +115,7 @@ impl Toolbar {
         Toolbar { components, active_tool: Tool::Pen, pen: Pen::new(max_id), eraser: Eraser::new() }
     }
 
-    pub fn show(&mut self, ui: &mut egui::Ui) {
+    pub fn show(&mut self, ui: &mut egui::Ui, buffer: &mut Buffer) {
         let rect = self.calculate_rect(ui);
 
         ui.allocate_ui_at_rect(rect, |ui| {
@@ -130,7 +126,17 @@ impl Toolbar {
                             egui::Frame::default()
                                 .inner_margin(btn.margin)
                                 .show(ui, |ui| {
-                                    let btn_res = Button::default().icon(&btn.icon).show(ui);
+                                    let enabled = match btn.id.as_str() {
+                                        "undo" => buffer.has_undo(),
+                                        "redo" => buffer.has_redo(),
+                                        _ => true,
+                                    };
+
+                                    let btn_res = ui
+                                        .add_enabled_ui(enabled, |ui| {
+                                            Button::default().icon(&btn.icon).show(ui)
+                                        })
+                                        .inner;
 
                                     if btn_res.clicked() {
                                         match btn.id.as_str() {
@@ -140,10 +146,11 @@ impl Toolbar {
                                             "eraser" => {
                                                 self.active_tool = Tool::Eraser;
                                             }
+                                            "undo" => buffer.undo(),
+                                            "redo" => buffer.redo(),
                                             _ => {}
                                         }
                                     }
-
                                     if let Some(tooltip_text) = &btn.coming_soon_text {
                                         btn_res.on_hover_text(tooltip_text);
                                     }

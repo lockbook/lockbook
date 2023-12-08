@@ -1,19 +1,16 @@
-use bezier_rs::{Bezier, Identifier, Subpath};
+use bezier_rs::Bezier;
 use eframe::egui;
 use minidom::Element;
-use resvg::tiny_skia::Point;
-use resvg::usvg::{Node, NodeKind};
 use std::collections::HashMap;
 use std::sync::mpsc;
 
-use super::util::node_by_id;
+use super::{util, Buffer};
 
 const ERASER_THICKNESS: f32 = 10.0;
 pub struct Eraser {
     pub rx: mpsc::Receiver<EraseEvent>,
     pub tx: mpsc::Sender<EraseEvent>,
-    path_bounds: HashMap<String, Subpath<ManipulatorGroupId>>,
-    paths_to_delete: Vec<String>,
+    paths_to_delete: HashMap<String, Element>,
     last_pos: Option<egui::Pos2>,
 }
 
@@ -25,14 +22,14 @@ impl Eraser {
     pub fn new() -> Self {
         let (tx, rx) = mpsc::channel();
 
-        Eraser { rx, tx, paths_to_delete: vec![], path_bounds: HashMap::default(), last_pos: None }
+        Eraser { rx, tx, paths_to_delete: HashMap::default(), last_pos: None }
     }
 
-    pub fn handle_events(&mut self, event: EraseEvent, root: &mut Element) -> String {
+    pub fn handle_events(&mut self, event: EraseEvent, buffer: &mut Buffer) {
         match event {
             EraseEvent::Start(pos) => {
-                self.path_bounds.iter().for_each(|(id, path)| {
-                    if self.paths_to_delete.contains(id) {
+                buffer.paths.iter().for_each(|(id, path)| {
+                    if self.paths_to_delete.contains_key(id) {
                         return;
                     }
 
@@ -60,40 +57,50 @@ impl Eraser {
                     )
                     .outline(ERASER_THICKNESS as f64, bezier_rs::Cap::Round);
 
-                    if path.is_point() {
-                        let point = path.manipulator_groups().get(0).unwrap().anchor;
-                        if delete_brush.contains_point(point) {
-                            self.paths_to_delete.push(id.clone());
-                        }
-                    } else if !path
+                    let is_inside_delete_brush = path.is_point()
+                        && delete_brush
+                            .contains_point(path.manipulator_groups().get(0).unwrap().anchor);
+                    let intersects_delete_brush = !path
                         .subpath_intersections(&delete_brush, None, None)
-                        .is_empty()
-                    {
-                        self.paths_to_delete.push(id.clone());
+                        .is_empty();
+
+                    if intersects_delete_brush || is_inside_delete_brush {
+                        if let Some(n) = buffer
+                            .current
+                            .children()
+                            .find(|e| e.attr("id").unwrap_or_default().eq(&id.to_string()))
+                        {
+                            self.paths_to_delete.insert(id.clone(), n.clone());
+                        }
+
+                        if let Some(n) = util::node_by_id(&mut buffer.current, id.to_string()) {
+                            n.set_attr("opacity", "0.3");
+                        }
                     }
                 });
 
-                self.paths_to_delete.iter().for_each(|id| {
-                    if let Some(node) = node_by_id(root, id.to_string()) {
-                        node.set_attr("opacity", "0.5");
-                    }
-                });
                 self.last_pos = Some(pos);
             }
             EraseEvent::End => {
-                self.paths_to_delete.iter().for_each(|id| {
-                    if let Some(node) = node_by_id(root, id.to_string()) {
+                self.paths_to_delete.iter().for_each(|(id, _)| {
+                    if let Some(n) = util::node_by_id(&mut buffer.current, id.to_string()) {
+                        n.set_attr("opacity", "1");
+                    }
+                });
+
+                buffer.save(super::Event::DeleteElements(super::DeleteElements {
+                    elements: self.paths_to_delete.clone(),
+                }));
+
+                self.paths_to_delete.iter().for_each(|(id, _)| {
+                    if let Some(node) = util::node_by_id(&mut buffer.current, id.to_string()) {
                         node.set_attr("d", "");
                     }
                 });
-                self.paths_to_delete = vec![];
+
+                self.paths_to_delete.clear();
             }
         }
-        let mut buffer = Vec::new();
-        root.write_to(&mut buffer).unwrap();
-        std::str::from_utf8(&buffer)
-            .unwrap()
-            .replace("xmlns='' ", "")
     }
 
     pub fn setup_events(&mut self, ui: &mut egui::Ui, inner_rect: egui::Rect) {
@@ -115,46 +122,5 @@ impl Eraser {
                 self.tx.send(EraseEvent::End).unwrap();
             }
         }
-    }
-
-    pub fn index_rects(&mut self, utree: &Node) {
-        for el in utree.children() {
-            if let NodeKind::Path(ref p) = *el.borrow() {
-                // todo: this optimization relies on history, index only when paths are modified
-                // if self.path_bounds.contains_key(&p.id) {
-                //     continue;
-                // }
-                self.path_bounds
-                    .insert(p.id.clone(), convert_path_to_bezier(p.data.points()));
-            }
-        }
-    }
-}
-
-fn convert_path_to_bezier(data: &[Point]) -> Subpath<ManipulatorGroupId> {
-    let mut bez = vec![];
-    let mut i = 1;
-    while i < data.len() - 2 {
-        bez.push(Bezier::from_cubic_coordinates(
-            data[i - 1].x as f64,
-            data[i - 1].y as f64,
-            data[i].x as f64,
-            data[i].y as f64,
-            data[i + 1].x as f64,
-            data[i + 1].y as f64,
-            data[i + 2].x as f64,
-            data[i + 2].y as f64,
-        ));
-        i += 1;
-    }
-    Subpath::from_beziers(&bez, false)
-}
-
-#[derive(Clone, PartialEq, Eq, Hash, Debug)]
-struct ManipulatorGroupId;
-
-impl Identifier for ManipulatorGroupId {
-    fn new() -> Self {
-        ManipulatorGroupId
     }
 }
