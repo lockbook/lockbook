@@ -19,7 +19,7 @@ pub struct SVGEditor {
 
 impl SVGEditor {
     pub fn boxed(bytes: &[u8]) -> Box<Self> {
-        // todo: handle irecalc_pathsnvalid utf8
+        // todo: handle invalid utf8
         let mut content = std::str::from_utf8(bytes).unwrap().to_string();
         if content.is_empty() {
             content = INITIAL_SVG_CONTENT.to_string();

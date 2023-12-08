@@ -76,7 +76,8 @@ impl Buffer {
                     if let Some(node) = util::node_by_id(&mut self.current, id.to_string()) {
                         // todo: figure out a less hacky way, to detach a node (not just paths) from the tree
                         node.set_attr("d", element.attr("d"));
-                        node.set_attr("opacity", "1"); // this is  bad  but works
+                        // todo: remove this when allowing the user to update the opacity of a path
+                        node.set_attr("opacity", "1");
                     } else {
                         self.current.append_child(element.clone());
                     }
@@ -144,7 +145,7 @@ impl Buffer {
         for el in utree.children() {
             if let NodeKind::Path(ref p) = *el.borrow() {
                 self.paths
-                    .insert(p.id.clone(), convert_path_to_bezier(p.data.points()));
+                    .insert(p.id.clone(), get_subpath_from_points(p.data.points()));
             }
         }
     }
@@ -167,7 +168,7 @@ impl Debug for Buffer {
     }
 }
 
-fn convert_path_to_bezier(data: &[Point]) -> Subpath<ManipulatorGroupId> {
+fn get_subpath_from_points(data: &[Point]) -> Subpath<ManipulatorGroupId> {
     let mut bez = vec![];
     let mut i = 1;
     while i < data.len() - 2 {
