@@ -1,8 +1,6 @@
-use bezier_rs::{Bezier, Identifier, Subpath};
+use bezier_rs::Bezier;
 use eframe::egui;
 use minidom::Element;
-use resvg::tiny_skia::Point;
-use resvg::usvg::{Node, NodeKind};
 use std::collections::HashMap;
 use std::sync::mpsc;
 
@@ -12,7 +10,6 @@ const ERASER_THICKNESS: f32 = 10.0;
 pub struct Eraser {
     pub rx: mpsc::Receiver<EraseEvent>,
     pub tx: mpsc::Sender<EraseEvent>,
-    path_bounds: HashMap<String, Subpath<ManipulatorGroupId>>,
     paths_to_delete: HashMap<String, Element>,
     last_pos: Option<egui::Pos2>,
 }
@@ -25,19 +22,13 @@ impl Eraser {
     pub fn new() -> Self {
         let (tx, rx) = mpsc::channel();
 
-        Eraser {
-            rx,
-            tx,
-            paths_to_delete: HashMap::default(),
-            path_bounds: HashMap::default(),
-            last_pos: None,
-        }
+        Eraser { rx, tx, paths_to_delete: HashMap::default(), last_pos: None }
     }
 
     pub fn handle_events(&mut self, event: EraseEvent, buffer: &mut Buffer) {
         match event {
             EraseEvent::Start(pos) => {
-                self.path_bounds.iter().for_each(|(id, path)| {
+                buffer.paths.iter().for_each(|(id, path)| {
                     if self.paths_to_delete.contains_key(id) {
                         return;
                     }
@@ -132,45 +123,23 @@ impl Eraser {
             }
         }
     }
-
-    pub fn index_rects(&mut self, utree: &Node) {
-        for el in utree.children() {
-            if let NodeKind::Path(ref p) = *el.borrow() {
-                // todo: this optimization relies on history, index only when paths are modified
-                // if self.path_bounds.contains_key(&p.id) {
-                //     continue;
-                // }
-                self.path_bounds
-                    .insert(p.id.clone(), convert_path_to_bezier(p.data.points()));
-            }
-        }
-    }
 }
 
-fn convert_path_to_bezier(data: &[Point]) -> Subpath<ManipulatorGroupId> {
-    let mut bez = vec![];
-    let mut i = 1;
-    while i < data.len() - 2 {
-        bez.push(Bezier::from_cubic_coordinates(
-            data[i - 1].x as f64,
-            data[i - 1].y as f64,
-            data[i].x as f64,
-            data[i].y as f64,
-            data[i + 1].x as f64,
-            data[i + 1].y as f64,
-            data[i + 2].x as f64,
-            data[i + 2].y as f64,
-        ));
-        i += 1;
-    }
-    Subpath::from_beziers(&bez, false)
-}
-
-#[derive(Clone, PartialEq, Eq, Hash, Debug)]
-struct ManipulatorGroupId;
-
-impl Identifier for ManipulatorGroupId {
-    fn new() -> Self {
-        ManipulatorGroupId
-    }
-}
+// fn convert_path_to_bezier(data: &[Point]) -> Subpath<ManipulatorGroupId> {
+//     let mut bez = vec![];
+//     let mut i = 1;
+//     while i < data.len() - 2 {
+//         bez.push(Bezier::from_cubic_coordinates(
+//             data[i - 1].x as f64,
+//             data[i - 1].y as f64,
+//             data[i].x as f64,
+//             data[i].y as f64,
+//             data[i + 1].x as f64,
+//             data[i + 1].y as f64,
+//             data[i + 2].x as f64,
+//             data[i + 2].y as f64,
+//         ));
+//         i += 1;
+//     }
+//     Subpath::from_beziers(&bez, false)
+// }

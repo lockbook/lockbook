@@ -1,6 +1,11 @@
 use std::{collections::VecDeque, fmt::Debug};
 
+use bezier_rs::{Bezier, Identifier, Subpath};
 use minidom::Element;
+use resvg::{
+    tiny_skia::Point,
+    usvg::{Node, NodeKind},
+};
 use std::collections::HashMap;
 
 use super::util;
@@ -9,23 +14,25 @@ const MAX_UNDOS: usize = 100;
 
 pub struct Buffer {
     pub current: Element,
+    pub paths: HashMap<String, Subpath<ManipulatorGroupId>>,
     undo: VecDeque<Event>,
     redo: Vec<Event>,
+    pub needs_path_map_update: bool,
+}
+
+#[derive(Clone, PartialEq, Eq, Hash, Debug)]
+pub struct ManipulatorGroupId;
+
+impl Identifier for ManipulatorGroupId {
+    fn new() -> Self {
+        ManipulatorGroupId
+    }
 }
 
 #[derive(Clone, Debug)]
 pub enum Event {
-    UpdateOpacity(UpdateOpacity),
     InsertElements(InsertElements),
     DeleteElements(DeleteElements),
-}
-
-#[derive(Clone, Debug)]
-
-struct UpdateOpacity {
-    id: String,
-    opacity: String,
-    prev_opacity: String,
 }
 
 #[derive(Clone, Debug)]
@@ -42,7 +49,13 @@ pub struct InsertElements {
 
 impl Buffer {
     pub fn new(root: Element) -> Self {
-        Buffer { current: root, undo: VecDeque::default(), redo: vec![] }
+        Buffer {
+            current: root,
+            undo: VecDeque::default(),
+            redo: vec![],
+            paths: HashMap::default(),
+            needs_path_map_update: true,
+        }
     }
 
     pub fn save(&mut self, event: Event) {
@@ -58,11 +71,6 @@ impl Buffer {
 
     fn apply_event(&mut self, event: &Event) {
         match event {
-            Event::UpdateOpacity(payload) => {
-                if let Some(node) = util::node_by_id(&mut self.current, payload.id.to_string()) {
-                    node.set_attr("opacity", payload.opacity.to_string());
-                }
-            }
             Event::InsertElements(payload) => {
                 payload.elements.iter().for_each(|(id, element)| {
                     if let Some(node) = util::node_by_id(&mut self.current, id.to_string()) {
@@ -73,6 +81,7 @@ impl Buffer {
                         self.current.append_child(element.clone());
                     }
                 });
+                self.needs_path_map_update = true;
             }
 
             Event::DeleteElements(payload) => {
@@ -82,6 +91,7 @@ impl Buffer {
                         node.set_attr("d", "");
                     }
                 });
+                self.needs_path_map_update = true;
             }
         };
     }
@@ -116,9 +126,6 @@ impl Buffer {
 
     fn swap_event(&self, mut source: Event) -> Event {
         match source {
-            Event::UpdateOpacity(ref mut payload) => {
-                std::mem::swap(&mut payload.opacity, &mut payload.prev_opacity);
-            }
             Event::InsertElements(payload) => {
                 source = Event::DeleteElements(DeleteElements { elements: payload.elements });
             }
@@ -131,6 +138,15 @@ impl Buffer {
 
     pub fn has_redo(&self) -> bool {
         !self.redo.is_empty()
+    }
+
+    pub fn recalc_paths(&mut self, utree: &Node) {
+        for el in utree.children() {
+            if let NodeKind::Path(ref p) = *el.borrow() {
+                self.paths
+                    .insert(p.id.clone(), convert_path_to_bezier(p.data.points()));
+            }
+        }
     }
 }
 
@@ -151,99 +167,21 @@ impl Debug for Buffer {
     }
 }
 
-#[cfg(test)]
-mod test {
-    use std::collections::HashMap;
-
-    use minidom::Element;
-
-    use crate::account::tabs::svg_editor::{history::DeleteElements, util};
-
-    use super::{Buffer, UpdateOpacity};
-
-    #[test]
-    fn opacity_change() {
-        let test_svg = r#"<svg xmlns="http://www.w3.org/2000/svg" >
-            <path id="1" d="M 10 80 Q 95 10 180 80" stroke="black" fill="transparent"/>
-        </svg>
-        "#;
-
-        let root: Element = test_svg.parse().unwrap();
-
-        let mut bf = Buffer::new(root);
-
-        bf.save(super::Event::UpdateOpacity(UpdateOpacity {
-            id: "1".to_string(),
-            opacity: "0.5".to_string(),
-            prev_opacity: "1".to_string(),
-        }));
-
-        assert!(
-            "0.5"
-                == util::node_by_id(&mut bf.current, "1".to_string())
-                    .unwrap()
-                    .attr("opacity")
-                    .unwrap()
-        );
-
-        bf.undo();
-
-        assert!(
-            "1" == util::node_by_id(&mut bf.current, "1".to_string())
-                .unwrap()
-                .attr("opacity")
-                .unwrap()
-        );
-
-        bf.redo();
-
-        assert!(
-            "0.5"
-                == util::node_by_id(&mut bf.current, "1".to_string())
-                    .unwrap()
-                    .attr("opacity")
-                    .unwrap()
-        );
+fn convert_path_to_bezier(data: &[Point]) -> Subpath<ManipulatorGroupId> {
+    let mut bez = vec![];
+    let mut i = 1;
+    while i < data.len() - 2 {
+        bez.push(Bezier::from_cubic_coordinates(
+            data[i - 1].x as f64,
+            data[i - 1].y as f64,
+            data[i].x as f64,
+            data[i].y as f64,
+            data[i + 1].x as f64,
+            data[i + 1].y as f64,
+            data[i + 2].x as f64,
+            data[i + 2].y as f64,
+        ));
+        i += 1;
     }
-    #[test]
-    fn insert_element() {
-        let test_svg = r#"<svg xmlns="http://www.w3.org/2000/svg" >
-        <path d="moon" id ="1" />
-        <path d="mars" id ="2" />
-        </svg>
-        "#;
-
-        let root: Element = test_svg.parse().unwrap();
-
-        let mut bf = Buffer::new(root);
-
-        let el1 = bf
-            .current
-            .children()
-            .find(|e| e.attr("id").unwrap().eq(&"1".to_string()))
-            .unwrap()
-            .to_owned();
-
-        let el2 = bf
-            .current
-            .children()
-            .find(|e| e.attr("id").unwrap().eq(&"2".to_string()))
-            .unwrap()
-            .to_owned();
-
-        bf.save(super::Event::DeleteElements(DeleteElements {
-            elements: HashMap::from_iter([("1".to_string(), el1), ("2".to_string(), el2)]),
-        }));
-
-        if let Some(n) = util::node_by_id(&mut bf.current, "1".to_string()) {
-            n.set_attr("d", "");
-        }
-
-        if let Some(n) = util::node_by_id(&mut bf.current, "2".to_string()) {
-            n.set_attr("d", "");
-        }
-        println!("{}", bf.to_string());
-        bf.undo();
-        println!("{}", bf.to_string());
-    }
+    Subpath::from_beziers(&bez, false)
 }

@@ -19,7 +19,7 @@ pub struct SVGEditor {
 
 impl SVGEditor {
     pub fn boxed(bytes: &[u8]) -> Box<Self> {
-        // todo: handle invalid utf8
+        // todo: handle irecalc_pathsnvalid utf8
         let mut content = std::str::from_utf8(bytes).unwrap().to_string();
         if content.is_empty() {
             content = INITIAL_SVG_CONTENT.to_string();
@@ -91,10 +91,6 @@ impl SVGEditor {
         let mut utree: usvg::Tree =
             usvg::TreeParsing::from_str(&self.buffer.to_string(), &usvg::Options::default())
                 .unwrap();
-
-        // todo: only index when history changes
-        self.toolbar.eraser.index_rects(&utree.root);
-
         let available_rect = ui.available_rect_before_wrap();
         utree.size = Size::from_wh(available_rect.width(), available_rect.height()).unwrap();
 
@@ -105,6 +101,10 @@ impl SVGEditor {
             available_rect.bottom(),
         )
         .unwrap();
+    
+        if self.buffer.needs_path_map_update {
+            self.buffer.recalc_paths(&utree.root);
+        }
 
         let tree = resvg::Tree::from_usvg(&utree);
 
