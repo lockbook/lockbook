@@ -1,5 +1,3 @@
-use std::borrow::BorrowMut;
-
 use eframe::egui;
 use minidom::Element;
 use resvg::tiny_skia::Pixmap;
@@ -7,17 +5,13 @@ use resvg::usvg::{self, Size, TreeWriting};
 
 use crate::theme::ThemePalette;
 
+use super::history::Buffer;
 use super::toolbar::{ColorSwatch, Component, Tool, Toolbar};
 
 const INITIAL_SVG_CONTENT: &str = "<svg xmlns=\"http://www.w3.org/2000/svg\" ></svg>";
 
-// todo: move to zoom.rs
-// const ZOOM_STOP: f32 = 0.1;
-
 pub struct SVGEditor {
-    pub content: String,
-    root: Element,
-    zoom_factor: f32,
+    buffer: Buffer,
     pub toolbar: Toolbar,
     inner_rect: egui::Rect,
     sao_offset: egui::Vec2,
@@ -43,12 +37,10 @@ impl SVGEditor {
             + 1;
 
         Box::new(Self {
-            content,
-            root,
+            buffer: Buffer::new(root),
             toolbar: Toolbar::new(max_id),
             sao_offset: egui::vec2(0.0, 0.0),
             inner_rect: egui::Rect::NOTHING,
-            zoom_factor: 1.0,
         })
     }
 
@@ -57,13 +49,13 @@ impl SVGEditor {
             Tool::Pen => {
                 self.toolbar.pen.setup_events(ui, self.inner_rect);
                 while let Ok(event) = self.toolbar.pen.rx.try_recv() {
-                    self.content = self.toolbar.pen.handle_events(event, &mut self.root);
+                    self.toolbar.pen.handle_events(event, &mut self.buffer);
                 }
             }
             Tool::Eraser => {
                 self.toolbar.eraser.setup_events(ui, self.inner_rect);
                 while let Ok(event) = self.toolbar.eraser.rx.try_recv() {
-                    self.content = self.toolbar.eraser.handle_events(event, &mut self.root);
+                    self.toolbar.eraser.handle_events(event, &mut self.buffer);
                 }
             }
         }
@@ -78,7 +70,7 @@ impl SVGEditor {
                     ui.visuals().faint_bg_color
                 })
                 .show(ui, |ui| {
-                    self.toolbar.show(ui);
+                    self.toolbar.show(ui, &mut self.buffer);
 
                     ui.set_width(ui.available_width());
                 });
@@ -90,19 +82,15 @@ impl SVGEditor {
 
     pub fn get_minimal_content(&self) -> String {
         let utree: usvg::Tree =
-            usvg::TreeParsing::from_data(self.content.as_bytes(), &usvg::Options::default())
+            usvg::TreeParsing::from_str(&self.buffer.to_string(), &usvg::Options::default())
                 .unwrap();
         utree.to_string(&usvg::XmlOptions::default())
     }
 
     fn render_svg(&mut self, ui: &mut egui::Ui) {
         let mut utree: usvg::Tree =
-            usvg::TreeParsing::from_data(self.content.as_bytes(), &usvg::Options::default())
+            usvg::TreeParsing::from_str(&self.buffer.to_string(), &usvg::Options::default())
                 .unwrap();
-
-        // todo: only index when history changes
-        self.toolbar.eraser.index_rects(&utree.root);
-
         let available_rect = ui.available_rect_before_wrap();
         utree.size = Size::from_wh(available_rect.width(), available_rect.height()).unwrap();
 
@@ -113,6 +101,10 @@ impl SVGEditor {
             available_rect.bottom(),
         )
         .unwrap();
+
+        if self.buffer.needs_path_map_update {
+            self.buffer.recalc_paths(&utree.root);
+        }
 
         let tree = resvg::Tree::from_usvg(&utree);
 
@@ -134,10 +126,7 @@ impl SVGEditor {
                 ui.add(
                     egui::Image::new(
                         &texture,
-                        egui::vec2(
-                            texture.size()[0] as f32 * self.zoom_factor,
-                            texture.size()[1] as f32 * self.zoom_factor,
-                        ),
+                        egui::vec2(texture.size()[0] as f32, texture.size()[1] as f32),
                     )
                     .sense(egui::Sense::click()),
                 );
@@ -147,18 +136,20 @@ impl SVGEditor {
     }
 
     fn define_dynamic_colors(&mut self, ui: &mut egui::Ui) {
-        if self.root.attr("data-dark-mode").is_none() {
-            self.root
+        if self.buffer.current.attr("data-dark-mode").is_none() {
+            self.buffer
+                .current
                 .set_attr("data-dark-mode", format!("{}", ui.visuals().dark_mode));
             self.build_color_defs(ui);
         }
 
-        if let Some(svg_flag) = self.root.attr("data-dark-mode") {
+        if let Some(svg_flag) = self.buffer.current.attr("data-dark-mode") {
             let svg_flag: bool = svg_flag.parse().unwrap_or(false);
 
             if svg_flag != ui.visuals().dark_mode {
                 self.build_color_defs(ui);
-                self.root
+                self.buffer
+                    .current
                     .set_attr("data-dark-mode", format!("{}", ui.visuals().dark_mode));
             }
         }
@@ -196,12 +187,8 @@ impl SVGEditor {
                         .build(),
                 )
                 .build();
-            self.root.borrow_mut().append_child(gradient);
 
-            let mut buffer = Vec::new();
-            self.root.write_to(&mut buffer).unwrap();
-            self.content = std::str::from_utf8(&buffer).unwrap().to_string();
-            self.content = self.content.replace("xmlns='' ", "");
+            self.buffer.current.append_child(gradient);
         });
     }
 }
