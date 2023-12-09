@@ -14,7 +14,7 @@ use std::path::PathBuf;
 use serde_json::{json, value::Value};
 use strum::IntoEnumIterator;
 
-use lb_rs::*;
+use lb_rs::{*, service::search_service::SearchType};
 
 use self::errors::*;
 
@@ -262,8 +262,8 @@ impl FfiCore {
         self.core.search_file_paths(input)
     }
 
-    pub fn start_search(&self) -> Result<StartSearchInfo, UnexpectedError> {
-        self.core.start_search()
+    pub fn start_search(&self, search_type: SearchType) -> Result<StartSearchInfo, UnexpectedError> {
+        self.core.start_search(search_type)
     }
 
     pub fn upgrade_account_stripe(

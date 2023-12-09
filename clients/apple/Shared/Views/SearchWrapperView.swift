@@ -17,7 +17,7 @@ struct SearchWrapperView<Content: View>: View {
     
     var body: some View {
         VStack {
-            switch search.searchPathAndContentState {
+            switch search.pathAndContentSearchState {
             case .NotSearching:
                 mainView
             case .Idle:
@@ -84,12 +84,12 @@ struct SearchWrapperView<Content: View>: View {
             if !newInput.isEmpty {
                 search.search(query: newInput)
             } else if isSearching {
-                search.searchPathAndContentState = .Idle
+                search.pathAndContentSearchState = .Idle
             }
         }
         .onChange(of: isSearching, perform: { newInput in
             if newInput {
-                search.startSearchThread()
+                search.startSearchThread(isPathAndContentSearch: true)
             } else {
                 search.endSearch()
             }

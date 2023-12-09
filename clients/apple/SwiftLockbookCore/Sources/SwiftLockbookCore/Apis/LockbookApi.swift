@@ -54,8 +54,8 @@ public protocol LockbookApi {
     func cancelSub() -> FfiResult<Empty, CancelSubscriptionError>
     
     // Search
-    func searchFilePaths(input: String) ->FfiResult<[SearchResultItem], SearchFilePathsError>
     func startSearch(
+        isPathAndContentSearch: Bool,
         context: UnsafeRawPointer?,
         // updateStatus(context, searchResultType, searchResultJson)
         updateStatus: @escaping @convention(c) (UnsafePointer<Int8>?, Int32, UnsafePointer<Int8>?) -> Void

@@ -10,7 +10,7 @@ use serde::Serialize;
 use serde_json::json;
 use time::Duration;
 
-use lb_rs::service::search_service::{SearchRequest, SearchResult};
+use lb_rs::service::search_service::{SearchRequest, SearchResult, SearchType};
 use lb_rs::{
     clock, Config, FileType, ImportStatus, ShareMode, SupportedImageFormats, SyncProgress,
     UnexpectedError, Uuid,
@@ -618,12 +618,14 @@ pub type UpdateSearchStatus = extern "C" fn(*const c_char, i32, *const c_char);
 /// Be sure to call `release_pointer` on the result of this function to free the data.
 #[no_mangle]
 pub unsafe extern "C" fn start_search(
-    context: *const c_char, update_status: UpdateSearchStatus,
+    is_path_content_search: bool, context: *const c_char, update_status: UpdateSearchStatus,
 ) -> *const c_char {
     let results_rx = match MAYBE_SEARCH_TX.lock() {
         Ok(mut lock) => {
+            let search_type = if is_path_content_search { SearchType::PathAndContentSearch } else { SearchType::PathSearch };
+
             let (results_rx, search_tx) =
-                match static_state::get().and_then(|core| core.start_search()) {
+                match static_state::get().and_then(|core| core.start_search(search_type)) {
                     Ok(search_info) => (search_info.results_rx, search_info.search_tx),
                     Err(e) => return c_string(translate(Err::<(), _>(e))),
                 };

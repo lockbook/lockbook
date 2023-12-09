@@ -11,7 +11,7 @@ use serde::Serialize;
 use std::sync::{Arc, Mutex};
 use time::Duration;
 
-use lb_rs::service::search_service::{SearchRequest, SearchResult};
+use lb_rs::service::search_service::{SearchRequest, SearchResult, SearchType};
 use lb_rs::{
     clock, unexpected_only, Config, Drawing, FileType, RankingWeights, ShareMode,
     SupportedImageFormats, SyncProgress, UnexpectedError, Uuid,
@@ -643,17 +643,22 @@ fn send_search_request(env: JNIEnv, request: SearchRequest) -> jstring {
 pub extern "system" fn Java_app_lockbook_core_CoreKt_startSearch(
     env: JNIEnv, _: JClass, jsearchFilesViewModel: JObject<'static>,
 ) -> jstring {
-    let (results_rx, search_tx) = match static_state::get().and_then(|core| core.start_search()) {
-        Ok(search_info) => (search_info.results_rx, search_info.search_tx),
-        Err(e) => return string_to_jstring(&env, translate(Err::<(), _>(e))),
-    };
 
-    match MAYBE_SEARCH_TX.lock() {
-        Ok(mut lock) => *lock = Some(search_tx),
+    let results_rx = match MAYBE_SEARCH_TX.lock() {
+        Ok(mut lock) => {
+            match static_state::get().and_then(|core| core.start_search(SearchType::PathAndContentSearch)) {
+                Ok(search_info) => {
+                    *lock = Some(search_info.search_tx.clone());
+                    
+                    search_info.results_rx
+                }
+                Err(e) => return string_to_jstring(&env, translate(Err::<(), _>(e))),
+            }
+        },
         Err(_) => {
             return string_to_jstring(&env, translate(Err::<(), _>("Cannot get search lock.")))
         }
-    }
+    };
 
     while let Ok(results) = results_rx.recv() {
         match results {

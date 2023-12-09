@@ -91,7 +91,7 @@ struct BookView: View {
             ZStack {
                 iPad
                 
-                if search.pathSearchState != .NotSearching {
+                if search.pathSearchState.isSearching() {
                     PathSearchActionBar()
                 }
             }
@@ -102,7 +102,7 @@ struct BookView: View {
         ZStack {
             macOS
             
-            if search.pathSearchState != .NotSearching {
+            if search.pathSearchState.isSearching() {
                 PathSearchActionBar()
             }
         }

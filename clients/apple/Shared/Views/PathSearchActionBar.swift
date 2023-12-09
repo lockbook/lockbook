@@ -17,7 +17,7 @@ struct PathSearchActionBar: View {
         Group {
             Rectangle()
                 .onTapGesture {
-                    search.pathSearchState = .NotSearching
+                    search.endSearch()
                 }
                 .foregroundColor(.gray.opacity(0.01))
             
@@ -39,35 +39,34 @@ struct PathSearchActionBar: View {
                             #endif
                         }
                         
-                        if case .SearchSuccessful(let paths) = search.pathSearchState {
+                        if case .SearchSuccessful(let results)  = search.pathSearchState {
                             Divider()
                                 .padding(.top)
                             
-                            if paths.count != 0 {
-                                ScrollViewReader { scrollHelper in
-                                    ScrollView {
-                                        ForEach(Array(zip(paths.indices, paths)), id: \.0) { index, path in
-                                            SearchResultCellView(name: path.getNameAndPath().name, path: path.getNameAndPath().path, matchedIndices: path.matchedIndices, index: index, selected: search.pathSearchSelected)
+                            ScrollViewReader { scrollHelper in
+                                ScrollView {
+                                    ForEach(Array(zip(results.indices, results)), id: \.0) { index, result in
+                                        if case .PathMatch(_, _, let name, let path, let matchedIndices, _) = result {
+                                            SearchResultCellView(name: name, path: path, matchedIndices: matchedIndices, index: index, selected: search.pathSearchSelected)
                                         }
-                                        .scrollIndicators(.visible)
-                                        .padding(.horizontal)
                                     }
-                                    .onChange(of: search.pathSearchSelected) { newValue in
-                                        withAnimation {
-                                            scrollHelper.scrollTo(newValue, anchor: .center)
-                                        }
+                                    .scrollIndicators(.visible)
+                                    .padding(.horizontal)
+                                }
+                                .onChange(of: search.pathSearchSelected) { newValue in
+                                    withAnimation {
+                                        scrollHelper.scrollTo(newValue, anchor: .center)
                                     }
                                 }
-                                .frame(maxHeight: 500)
-                            } else {
-                                Text("No results.")
-                                    .font(.headline)
-                                    .foregroundColor(.gray)
-                                    .fontWeight(.bold)
-                                    .padding()
                             }
-                        } else if search.pathSearchState == .Searching {
-                            
+                            .frame(maxHeight: 500)
+                        } else if case .NoMatch = search.pathSearchState {
+                            Text("No results.")
+                                .font(.headline)
+                                .foregroundColor(.gray)
+                                .fontWeight(.bold)
+                                .padding()
+                        } else if case .Searching = search.pathSearchState {
                             Divider()
                                 .padding(.top)
                             
@@ -77,7 +76,6 @@ struct PathSearchActionBar: View {
                     }
                     .padding()
                     .background(
-                        
                         RoundedRectangle(cornerSize: CGSize(width: 20, height: 20))
                             .foregroundColor({
                                 #if os(iOS)
@@ -90,9 +88,7 @@ struct PathSearchActionBar: View {
                     )
                     .frame(width: 500)
                     .onChange(of: text, perform: { newValue in
-                        DispatchQueue.main.async {
-                            search.asyncSearchFilePath(input: newValue)
-                        }
+                        search.search(query: newValue)
                     })
                 }
                 .padding(.top, geometry.size.height / 4.5)
@@ -220,9 +216,9 @@ public struct PathSearchTextFieldWrapper: UIViewRepresentable {
         uiView.text = text
         
         DispatchQueue.main.async {
-            if DI.search.pathSearchState != .NotSearching {
+            if DI.search.pathSearchState.isSearching() {
                 if !text.isEmpty {
-                    DI.search.asyncSearchFilePath(input: text)
+                    DI.search.search(query: text)
                 } else {
                     DI.search.pathSearchState = .Idle
                 }
@@ -339,9 +335,9 @@ public struct PathSearchTextFieldWrapper: NSViewRepresentable {
         public func controlTextDidChange(_ obj: Notification) {
             if let textField = obj.object as? NSTextField {
                 DispatchQueue.main.async {
-                    if DI.search.pathSearchState != .NotSearching {
+                    if DI.search.pathSearchState.isSearching() {
                         if !textField.stringValue.isEmpty {
-                            DI.search.asyncSearchFilePath(input: textField.stringValue)
+                            DI.search.search(query: textField.stringValue)
                         } else {
                             DI.search.pathSearchState = .Idle
                         }
