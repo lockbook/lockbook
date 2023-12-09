@@ -14,7 +14,6 @@ pub struct SVGEditor {
     buffer: Buffer,
     pub toolbar: Toolbar,
     inner_rect: egui::Rect,
-    sao_offset: egui::Vec2,
 }
 
 impl SVGEditor {
@@ -39,12 +38,26 @@ impl SVGEditor {
         Box::new(Self {
             buffer: Buffer::new(root),
             toolbar: Toolbar::new(max_id),
-            sao_offset: egui::vec2(0.0, 0.0),
             inner_rect: egui::Rect::NOTHING,
         })
     }
 
     pub fn show(&mut self, ui: &mut egui::Ui) {
+        ui.vertical(|ui| {
+            egui::Frame::default()
+                .fill(if ui.visuals().dark_mode {
+                    egui::Color32::GRAY.gamma_multiply(0.03)
+                } else {
+                    ui.visuals().faint_bg_color
+                })
+                .show(ui, |ui| {
+                    self.toolbar.show(ui, &mut self.buffer);
+                });
+
+            self.inner_rect = ui.available_rect_before_wrap();
+            self.render_svg(ui);
+        });
+        
         match self.toolbar.active_tool {
             Tool::Pen => {
                 self.toolbar.pen.setup_events(ui, self.inner_rect);
@@ -58,26 +71,15 @@ impl SVGEditor {
                     self.toolbar.eraser.handle_events(event, &mut self.buffer);
                 }
             }
+            Tool::Selection => {
+                self.toolbar
+                    .selection
+                    .handle_input(ui, self.inner_rect, &mut self.buffer);
+                // self.toolbar.selection
+            }
         }
 
         self.define_dynamic_colors(ui);
-
-        ui.vertical(|ui| {
-            egui::Frame::default()
-                .fill(if ui.visuals().dark_mode {
-                    egui::Color32::GRAY.gamma_multiply(0.03)
-                } else {
-                    ui.visuals().faint_bg_color
-                })
-                .show(ui, |ui| {
-                    self.toolbar.show(ui, &mut self.buffer);
-
-                    ui.set_width(ui.available_width());
-                });
-
-            self.inner_rect = ui.available_rect_before_wrap();
-            self.render_svg(ui);
-        });
     }
 
     pub fn get_minimal_content(&self) -> String {
@@ -121,18 +123,13 @@ impl SVGEditor {
             .ctx()
             .load_texture("svg_image", image, egui::TextureOptions::LINEAR);
 
-        self.sao_offset = egui::ScrollArea::both()
-            .show(ui, |ui| {
-                ui.add(
-                    egui::Image::new(
-                        &texture,
-                        egui::vec2(texture.size()[0] as f32, texture.size()[1] as f32),
-                    )
-                    .sense(egui::Sense::click()),
-                );
-            })
-            .state
-            .offset;
+        ui.add(
+            egui::Image::new(
+                &texture,
+                egui::vec2(texture.size()[0] as f32, texture.size()[1] as f32),
+            )
+            .sense(egui::Sense::click()),
+        );
     }
 
     fn define_dynamic_colors(&mut self, ui: &mut egui::Ui) {

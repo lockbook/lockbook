@@ -40,6 +40,7 @@ impl Icon {
     pub const HIGHLIGHT_OFF: Self = ic("\u{e888}"); // Highlight Off
     pub const HEADER_1: Self = ic("\u{e262}"); // Header 11
     pub const HIDE_SIDEBAR: Self = ic("\u{e317}"); // Keyboard tab
+    pub const HAND: Self = ic("\u{e9ec}"); // Selection tool
     pub const SHOW_SIDEBAR: Self = ic("\u{e31c}");
     pub const IMAGE: Self = ic("\u{e3f4}"); // Image
     pub const INFO: Self = ic("\u{e88e}");
@@ -64,9 +65,9 @@ impl Icon {
     pub const VISIBILITY_OFF: Self = ic("\u{e8f5}"); // Visibility Off
     pub const REDO: Self = ic("\u{e15A}");
     pub const UNDO: Self = ic("\u{e166}");
-    pub const WARNING: Self = ic("\u{e001}"); // Visibility Off
-    pub const ZOOM_IN: Self = ic("\u{e145}"); // Visibility Off
-    pub const ZOOM_OUT: Self = ic("\u{e15b}"); // Visibility Off
+    pub const WARNING: Self = ic("\u{e001}"); 
+    pub const ZOOM_IN: Self = ic("\u{e145}"); 
+    pub const ZOOM_OUT: Self = ic("\u{e15b}"); 
 
     //pub const ARTICLE: Self = ic("\u{ef42}");
     //pub const COMMAND_KEY: Self = Self('\u{eae7}');
@@ -79,6 +80,7 @@ impl Icon {
                                                 //pub const PALETTE: Self = ic("\u{e40a}"); // Palette
                                                 //pub const QR_CODE: Self = ic("\u{e00a}"); // Qr Code 2
 
+                                                
     pub fn color(self, color: egui::Color32) -> Self {
         let mut this = self;
         this.color = Some(color);

@@ -4,7 +4,7 @@ use minidom::Element;
 use std::collections::HashMap;
 use std::sync::mpsc;
 
-use super::{util, Buffer};
+use super::{pointer_interests_path, util, Buffer};
 
 const ERASER_THICKNESS: f32 = 10.0;
 pub struct Eraser {
@@ -33,38 +33,7 @@ impl Eraser {
                         return;
                     }
 
-                    // first pass: check if the path bounding box contain the cursor.
-                    // padding to account for low sampling rate scenarios and flat
-                    // lines with empty bounding boxes
-                    let padding = 50.0;
-                    let bb = match path.bounding_box() {
-                        Some(bb) => egui::Rect {
-                            min: egui::pos2(bb[0].x as f32, bb[0].y as f32),
-                            max: egui::pos2(bb[1].x as f32, bb[1].y as f32),
-                        }
-                        .expand(padding),
-                        None => return,
-                    };
-                    let last_pos = self.last_pos.unwrap_or(pos.round());
-                    if !(bb.contains(pos) || bb.contains(last_pos)) {
-                        return;
-                    }
-
-                    // second more rigorous pass
-                    let delete_brush = Bezier::from_linear_dvec2(
-                        glam::dvec2(last_pos.x as f64, last_pos.y as f64),
-                        glam::dvec2(pos.x as f64, pos.y as f64),
-                    )
-                    .outline(ERASER_THICKNESS as f64, bezier_rs::Cap::Round);
-
-                    let is_inside_delete_brush = path.is_point()
-                        && delete_brush
-                            .contains_point(path.manipulator_groups().get(0).unwrap().anchor);
-                    let intersects_delete_brush = !path
-                        .subpath_intersections(&delete_brush, None, None)
-                        .is_empty();
-
-                    if intersects_delete_brush || is_inside_delete_brush {
+                    if pointer_interests_path(path, pos, self.last_pos, ERASER_THICKNESS as f64) {
                         if let Some(n) = buffer
                             .current
                             .children()
