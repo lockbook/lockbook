@@ -176,7 +176,6 @@ impl WgpuLockbook {
                 // This error occurs when the app is minimized on Windows.
                 // Silently return here to prevent spamming the console with:
                 // "The underlying surface has changed, and therefore the swap chain must be updated"
-                eprintln!("wgpu::SurfaceError::Outdated");
                 return out;
             }
             Err(e) => {
@@ -262,6 +261,8 @@ impl WgpuLockbook {
             alpha_mode: CompositeAlphaMode::Auto,
             view_formats: vec![],
         };
-        self.surface.configure(&self.device, &surface_config);
+        if surface_config.width * surface_config.height != 0 {
+            self.surface.configure(&self.device, &surface_config);
+        }
     }
 }
