@@ -57,6 +57,7 @@ pub enum MessageAppDep {
     PointerUpdate { pointer_id: u16 },
     RButtonDown { pos: Point<u16> },
     RButtonUp { pos: Point<u16> },
+    SetCursor,
 }
 
 impl<'a> Message<'a> {
@@ -305,7 +306,7 @@ impl<'a> Message<'a> {
             WM_RBUTTONUP => Message::AppDep(MessageAppDep::RButtonUp { pos: lparam.into() }),
             WM_RENDERALLFORMATS => Message::Unhandled { const_name: "WM_RENDERALLFORMATS" },
             WM_RENDERFORMAT => Message::Unhandled { const_name: "WM_RENDERFORMAT" },
-            WM_SETCURSOR => Message::Unhandled { const_name: "WM_SETCURSOR" },
+            WM_SETCURSOR => Message::AppDep(MessageAppDep::SetCursor),
             WM_SETFOCUS => Message::Unhandled { const_name: "WM_SETFOCUS" },
             WM_SETFONT => Message::Unhandled { const_name: "WM_SETFONT" },
             WM_SETHOTKEY => Message::Unhandled { const_name: "WM_SETHOTKEY" },

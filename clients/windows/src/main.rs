@@ -1,7 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use crate::input::file_drop::FileDropHandler;
-use egui::{Context, Visuals};
+use egui::{Context, PlatformOutput, Visuals};
 use egui_wgpu_backend::wgpu::CompositeAlphaMode;
 use egui_wgpu_backend::{wgpu, ScreenDescriptor};
 use input::message::{Message, MessageAppDep, MessageNoDeps, MessageWindowDep};
@@ -257,15 +257,18 @@ fn handle_message(hwnd: HWND, message: Message) -> bool {
                         | MessageAppDep::MouseHWheel { delta } => {
                             input::mouse::handle_wheel(app, message, delta)
                         }
+                        MessageAppDep::SetCursor => true, // cursor set in paint
                         MessageAppDep::Paint => {
                             let IntegrationOutput {
                                 redraw_in: _, // todo: handle? how's this different from checking egui context?
+                                egui: PlatformOutput { cursor_icon, .. },
                                 update_output: UpdateOutput { close, set_window_title },
                             } = app.frame();
 
                             output::clipboard::handle(app);
                             output::close::handle(close);
                             output::window_title::handle(hwnd, set_window_title);
+                            output::cursor::handle(cursor_icon);
 
                             true
                         }
