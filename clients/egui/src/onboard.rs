@@ -29,7 +29,7 @@ enum State {
 
 pub struct OnboardScreen {
     settings: Arc<RwLock<Settings>>,
-    core: lb::Core,
+    pub core: lb::Core,
 
     update_tx: mpsc::Sender<Update>,
     update_rx: mpsc::Receiver<Update>,

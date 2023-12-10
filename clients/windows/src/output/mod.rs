@@ -1,4 +1,4 @@
-pub mod clipboard;
+pub mod clipboard_copy;
 pub mod close;
 pub mod cursor;
 pub mod open_url;

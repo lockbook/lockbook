@@ -1,7 +1,7 @@
 use lbeguiapp::WgpuLockbook;
 use windows::Win32::UI::Input::KeyboardAndMouse::*;
 
-use super::message::MessageAppDep;
+use super::{clipboard_paste, message::MessageAppDep};
 
 struct Key {
     vk: VIRTUAL_KEY,
@@ -106,10 +106,7 @@ pub fn handle(
     if let Some(key) = egui_key(key) {
         // ctrl + v
         if pressed && key == egui::Key::V && modifiers.command {
-            // somewhat weird that app.from_host isn't involved here
-            let clipboard: String = clipboard_win::get_clipboard(clipboard_win::formats::Unicode)
-                .expect("get clipboard");
-            app.raw_input.events.push(egui::Event::Paste(clipboard));
+            clipboard_paste::handle(app);
             return true;
         }
 

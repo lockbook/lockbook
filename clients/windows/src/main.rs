@@ -265,7 +265,7 @@ fn handle_message(hwnd: HWND, message: Message) -> bool {
                                 update_output: UpdateOutput { close, set_window_title },
                             } = app.frame();
 
-                            output::clipboard::handle(copied_text);
+                            output::clipboard_copy::handle(copied_text);
                             output::close::handle(close);
                             output::window_title::handle(hwnd, set_window_title);
                             output::cursor::handle(cursor_icon);
