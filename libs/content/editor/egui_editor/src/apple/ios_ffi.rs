@@ -3,11 +3,13 @@ use crate::input::cursor::Cursor;
 use crate::input::mutation;
 use crate::offset_types::{DocCharOffset, RangeExt};
 use crate::{
-    CPoint, CRect, CTextGranularity, CTextLayoutDirection, CTextPosition, CTextRange, WgpuEditor,
+    CPoint, CRect, CTextGranularity, CTextLayoutDirection, CTextPosition, CTextRange,
+    UITextSelectionRects, WgpuEditor,
 };
 use egui::{Event, Key, Modifiers, PointerButton, Pos2, TouchDeviceId, TouchId, TouchPhase};
 use std::cmp;
 use std::ffi::{c_char, c_void, CStr, CString};
+use std::mem::ManuallyDrop;
 
 /// # Safety
 /// obj must be a valid pointer to WgpuEditor
@@ -321,7 +323,11 @@ pub unsafe extern "C" fn touches_cancelled(obj: *mut c_void, id: u64, x: f32, y:
 /// https://developer.apple.com/documentation/uikit/uiresponder/1621142-touchesbegan
 #[no_mangle]
 pub extern "C" fn text_range(start: CTextPosition, end: CTextPosition) -> CTextRange {
-    CTextRange { none: false, start, end }
+    if start.pos < end.pos {
+        CTextRange { none: false, start, end }
+    } else {
+        CTextRange { none: false, start: end, end: start }
+    }
 }
 
 /// # Safety
@@ -339,7 +345,10 @@ pub unsafe extern "C" fn position_offset(
         || (offset > 0
             && (start.pos).saturating_add(offset as usize) > buffer.segs.last_cursor_position().0)
     {
-        CTextPosition { none: true, ..Default::default() }
+        CTextPosition {
+            pos: obj.editor.buffer.current.segs.last_cursor_position().0,
+            ..Default::default()
+        }
     } else {
         start.pos += offset as usize;
         start
@@ -557,9 +566,8 @@ pub unsafe extern "C" fn position_at_point(obj: *mut c_void, point: CPoint) -> C
     let galleys = &obj.editor.galleys;
     let text = &obj.editor.bounds.text;
 
-    let scroll = obj.editor.scroll_area_offset;
     let offset = mutation::pos_to_char_offset(
-        Pos2 { x: point.x as f32 + scroll.x, y: point.y as f32 + scroll.y },
+        Pos2 { x: point.x as f32, y: point.y as f32 },
         galleys,
         segs,
         text,
@@ -578,13 +586,53 @@ pub unsafe extern "C" fn cursor_rect_at_position(obj: *mut c_void, pos: CTextPos
 
     let cursor: Cursor = pos.pos.into();
     let line = cursor.start_line(galleys, text, appearance);
-    let scroll = obj.editor.scroll_area_offset;
+
     CRect {
-        min_x: (line[0].x - scroll.x) as f64,
-        min_y: (line[0].y - scroll.y) as f64,
-        max_x: (line[1].x - scroll.x) as f64,
-        max_y: (line[1].y - scroll.y) as f64,
+        min_x: line[0].x as f64,
+        min_y: line[0].y as f64,
+        max_x: line[1].x as f64,
+        max_y: line[1].y as f64,
     }
+}
+
+/// # Safety
+/// obj must be a valid pointer to WgpuEditor
+#[no_mangle]
+pub unsafe extern "C" fn selection_rects(
+    obj: *mut c_void, range: CTextRange,
+) -> UITextSelectionRects {
+    let obj = &mut *(obj as *mut WgpuEditor);
+    let buffer = &obj.editor.buffer.current;
+    let galleys = &obj.editor.galleys;
+    let text = &obj.editor.bounds.text;
+
+    let range: (DocCharOffset, DocCharOffset) = range.into();
+    let mut cont_start = range.start();
+
+    let mut selection_rects = ManuallyDrop::new(vec![]);
+
+    while cont_start < range.end() {
+        let mut new_end: Cursor = cont_start.into();
+        new_end.advance(Offset::To(Bound::Line), false, buffer, galleys, &obj.editor.bounds);
+        let end_of_rect = cmp::min(new_end.selection.end(), range.end());
+
+        let cursor_representing_rect: Cursor = (cont_start, end_of_rect).into();
+
+        let start_line = cursor_representing_rect.start_line(galleys, text, &obj.editor.appearance);
+        let end_line = cursor_representing_rect.end_line(galleys, text, &obj.editor.appearance);
+
+        selection_rects.push(CRect {
+            min_x: (start_line[1].x) as f64,
+            min_y: start_line[0].y as f64,
+            max_x: end_line[1].x as f64,
+            max_y: end_line[1].y as f64,
+        });
+
+        new_end.advance(Offset::Next(Bound::Char), false, buffer, galleys, &obj.editor.bounds);
+        cont_start = new_end.selection.end();
+    }
+
+    UITextSelectionRects { size: selection_rects.len() as i32, rects: selection_rects.as_ptr() }
 }
 
 /// # Safety

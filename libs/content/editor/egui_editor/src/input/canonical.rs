@@ -340,7 +340,7 @@ pub fn calc(
                 None
             }
             .or_else(|| {
-                if click_checker.ui(*pos) {
+                if click_checker.ui(*pos) && !cfg!(target_os = "ios") {
                     Some(Modification::Select {
                         region: if click_mods.shift {
                             Region::ToLocation(location)
