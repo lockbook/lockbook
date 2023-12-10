@@ -261,11 +261,11 @@ fn handle_message(hwnd: HWND, message: Message) -> bool {
                         MessageAppDep::Paint => {
                             let IntegrationOutput {
                                 redraw_in: _, // todo: handle? how's this different from checking egui context?
-                                egui: PlatformOutput { cursor_icon, open_url, .. },
+                                egui: PlatformOutput { cursor_icon, open_url, copied_text, .. },
                                 update_output: UpdateOutput { close, set_window_title },
                             } = app.frame();
 
-                            output::clipboard::handle(app);
+                            output::clipboard::handle(copied_text);
                             output::close::handle(close);
                             output::window_title::handle(hwnd, set_window_title);
                             output::cursor::handle(cursor_icon);
