@@ -6,6 +6,7 @@ use egui_wgpu_backend::wgpu::CompositeAlphaMode;
 use egui_wgpu_backend::{wgpu, ScreenDescriptor};
 use input::message::{Message, MessageAppDep, MessageNoDeps, MessageWindowDep};
 use lbeguiapp::{IntegrationOutput, UpdateOutput, WgpuLockbook};
+use std::path::PathBuf;
 use std::time::{Duration, Instant};
 use windows::{
     core::*, Win32::Foundation::*, Win32::Graphics::Direct3D12::*, Win32::Graphics::Dxgi::*,
@@ -281,127 +282,111 @@ fn handle_message(hwnd: HWND, message: Message) -> bool {
 
         // events raised by drop handler
         // todo: set cursor to indicate drop is possible
-        Message::FileDrop(message) => match message {
-            input::file_drop::Message::DragEnter { .. } => true,
-            input::file_drop::Message::DragOver { .. } => true,
-            input::file_drop::Message::DragLeave => true,
-            input::file_drop::Message::Drop { object, .. } => {
-                println!("--------------------------------------------------------------------------------");
-                if let Some(object) = object {
-                    let format_enumerator: IEnumFORMATETC = unsafe {
-                        object
-                            .EnumFormatEtc(DATADIR_GET.0 as _)
-                            .expect("enumerate drop formats")
-                    };
-                    let mut rgelt = [FORMATETC::default(); 1];
-                    loop {
-                        let mut fetched: u32 = 0;
-                        if unsafe { format_enumerator.Next(&mut rgelt, Some(&mut fetched as _)) }
-                            .is_err()
-                        {
-                            println!("formats enumeration error");
-                            break;
-                        }
-                        if fetched == 0 {
-                            println!("no more formats");
-                            break;
-                        }
-
-                        let format = CLIPBOARD_FORMAT(rgelt[0].cfFormat);
-                        let mut format_name = [0u16; 1000];
-                        let is_predefined_format = format_str(format).is_some();
-                        let is_registered_format = unsafe {
-                            GetClipboardFormatNameW(format.0 as _, &mut format_name) != 0
-                        };
-                        if !is_predefined_format && !is_registered_format {
-                            println!("skipping unknown format: {:?}", format);
-                            continue;
-                        }
-                        let format_name = String::from_utf16_lossy(&format_name);
-                        println!(
-                            "format: {} ({:?})",
-                            format_name,
-                            format_str(format).unwrap_or_default()
-                        );
-
-                        let stgm = unsafe { object.GetData(&rgelt[0]) }.expect("get drop data");
-
-                        let tymed = TYMED(stgm.tymed as _);
-                        if tymed_str(tymed).is_none() {
-                            println!("skipping unknown tymed: {:?}", tymed);
-                            continue;
-                        }
-                        println!("tymed: {:?}", tymed_str(tymed));
-
-                        match tymed {
-                            TYMED_HGLOBAL => {
-                                let hglobal = unsafe { stgm.u.hGlobal };
-
-                                // for unknown reasons, if I don't cast the HGLOBAL to an HDROP and query the file count, the next call to object.GetData fails
-                                // (this applies even if the format isn't CF_HDROP)
-                                let hdrop = HDROP(unsafe { std::mem::transmute(hglobal) });
-
-                                if format == CF_HDROP {
-                                    let file_count =
-                                        unsafe { DragQueryFileW(hdrop, 0xFFFFFFFF, None) };
-                                    println!("d");
-                                    for i in 0..file_count {
-                                        let mut file_name_bytes = [0u16; MAX_PATH as _];
-                                        unsafe {
-                                            DragQueryFileW(hdrop, i, Some(&mut file_name_bytes))
-                                        };
-                                        println!(
-                                            "hdrop file path: {}",
-                                            String::from_utf16_lossy(&file_name_bytes)
-                                        );
+        Message::FileDrop(message) => {
+            if let Some(ref mut window) = maybe_window {
+                if let Some(ref mut app) = window.maybe_app {
+                    match message {
+                        input::file_drop::Message::DragEnter { .. } => true,
+                        input::file_drop::Message::DragOver { .. } => true,
+                        input::file_drop::Message::DragLeave => true,
+                        input::file_drop::Message::Drop { object, .. } => {
+                            if let Some(object) = object {
+                                let format_enumerator: IEnumFORMATETC = unsafe {
+                                    object
+                                        .EnumFormatEtc(DATADIR_GET.0 as _)
+                                        .expect("enumerate drop formats")
+                                };
+                                let mut rgelt = [FORMATETC::default(); 1];
+                                loop {
+                                    let mut fetched: u32 = 0;
+                                    if unsafe {
+                                        format_enumerator.Next(&mut rgelt, Some(&mut fetched as _))
                                     }
-                                } else {
-                                    let size = unsafe { GlobalSize(hglobal) };
-                                    let mut bytes = vec![0u8; size as _];
-                                    unsafe {
-                                        std::ptr::copy_nonoverlapping(
-                                            GlobalLock(hglobal),
-                                            bytes.as_mut_ptr() as _,
-                                            size as _,
-                                        );
-                                        let _ = GlobalUnlock(hglobal);
+                                    .is_err()
+                                    {
+                                        break;
                                     }
-                                    println!("global bytes: {}", String::from_utf8_lossy(&bytes));
+                                    if fetched == 0 {
+                                        break;
+                                    }
+
+                                    let format = CLIPBOARD_FORMAT(rgelt[0].cfFormat);
+                                    let mut format_name = [0u16; 1000];
+                                    let is_predefined_format = format_str(format).is_some();
+                                    let is_registered_format = unsafe {
+                                        GetClipboardFormatNameW(format.0 as _, &mut format_name)
+                                            != 0
+                                    };
+                                    if !is_predefined_format && !is_registered_format {
+                                        continue;
+                                    }
+
+                                    let stgm = unsafe { object.GetData(&rgelt[0]) }
+                                        .expect("get drop data");
+
+                                    let tymed = TYMED(stgm.tymed as _);
+                                    if tymed_str(tymed).is_none() {
+                                        continue;
+                                    }
+
+                                    match tymed {
+                                        TYMED_HGLOBAL => {
+                                            let hglobal = unsafe { stgm.u.hGlobal };
+
+                                            // for unknown reasons, if I don't cast the HGLOBAL to an HDROP and query the file count, the next call to object.GetData fails
+                                            // (this applies even if the format isn't CF_HDROP)
+                                            let hdrop =
+                                                HDROP(unsafe { std::mem::transmute(hglobal) });
+                                            let file_count =
+                                                unsafe { DragQueryFileW(hdrop, 0xFFFFFFFF, None) };
+
+                                            if format == CF_HDROP {
+                                                for i in 0..file_count {
+                                                    let mut file_path_bytes = [0u16; MAX_PATH as _];
+                                                    unsafe {
+                                                        DragQueryFileW(
+                                                            hdrop,
+                                                            i,
+                                                            Some(&mut file_path_bytes),
+                                                        )
+                                                    };
+                                                    let file_path: PathBuf =
+                                                        String::from_utf16_lossy(&file_path_bytes)
+                                                            .trim_matches(char::from(0))
+                                                            .into();
+                                                    input::file_drop::handle(app, file_path);
+                                                }
+                                            } else {
+                                                let size = unsafe { GlobalSize(hglobal) };
+                                                let mut bytes = vec![0u8; size as _];
+                                                unsafe {
+                                                    std::ptr::copy_nonoverlapping(
+                                                        GlobalLock(hglobal),
+                                                        bytes.as_mut_ptr() as _,
+                                                        size as _,
+                                                    );
+                                                    let _ = GlobalUnlock(hglobal);
+                                                }
+                                                let _global_bytes =
+                                                    String::from_utf8_lossy(&bytes).len();
+
+                                                // todo: do something with dropped bytes (e.g. support dropped text blocks)
+                                            }
+                                        }
+                                        _ => {}
+                                    }
                                 }
                             }
-                            TYMED_ISTREAM => {
-                                if let Some(istream) = unsafe { stgm.u.pstm.as_ref() } {
-                                    let mut bytes = [0u8; 1000];
-                                    let mut read = 0;
-                                    loop {
-                                        let result = unsafe {
-                                            istream.Read(
-                                                &mut bytes[read..] as *mut _ as _,
-                                                (bytes.len() - read) as _,
-                                                Some(&mut read as *mut _ as _),
-                                            )
-                                        };
-                                        if result.is_err() {
-                                            println!("TyMed IStream read error: {:?}", result);
-                                            break;
-                                        }
-                                        if read == 0 {
-                                            break;
-                                        }
-                                    }
-                                    println!(
-                                        "stream bytes: {}",
-                                        String::from_utf8_lossy(&bytes).len()
-                                    );
-                                }
-                            }
-                            _ => {}
+                            true
                         }
                     }
+                } else {
+                    false
                 }
-                true
+            } else {
+                false
             }
-        },
+        }
 
         // remaining events
         Message::Unknown { .. } => false,

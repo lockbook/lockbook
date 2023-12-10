@@ -1,3 +1,7 @@
+use std::path::PathBuf;
+
+use egui::DroppedFile;
+use lbeguiapp::WgpuLockbook;
 use windows::{
     core::*,
     Win32::{
@@ -6,7 +10,6 @@ use windows::{
     },
 };
 
-// todo: put some actual data here
 #[derive(Clone, Debug)]
 pub enum Message {
     DragEnter { object: Option<IDataObject>, state: MODIFIERKEYS_FLAGS, point: POINTL },
@@ -53,4 +56,11 @@ impl IDropTarget_Impl for FileDropHandler {
         (self.handler)(Message::Drop { object: object.cloned(), state, point: *point });
         Ok(())
     }
+}
+
+pub fn handle(app: &mut WgpuLockbook, path: PathBuf) {
+    let path = Some(path);
+    app.raw_input
+        .dropped_files
+        .push(DroppedFile { path, ..Default::default() });
 }
