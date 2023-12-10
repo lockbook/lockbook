@@ -1,6 +1,6 @@
-use crate::widgets::switch;
 use eframe::egui;
 use lb::{Share, ShareMode, Uuid};
+use workspace::widgets::switch;
 
 pub struct CreateShareParams {
     pub id: Uuid,

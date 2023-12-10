@@ -1,8 +1,8 @@
 use std::fs;
 use std::io;
+use workspace::widgets::ToolBarVisibility;
 
 use crate::util::data_dir;
-use crate::widgets::ToolBarVisibility;
 
 #[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(default)]
@@ -15,7 +15,7 @@ pub struct Settings {
     pub auto_save: bool,
     pub auto_sync: bool,
     pub sidebar_usage: bool,
-    pub zen_mode: bool, // hide side panel and maximize the content pane
+    pub zen_mode: bool, // hide side panel and maximize the content workspace
     #[serde(skip_serializing, skip_deserializing)]
     path: String,
 }

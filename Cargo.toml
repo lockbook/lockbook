@@ -9,6 +9,8 @@ members = [
 	"libs/lb/c_interface_v2",
 	"libs/lb/lb_external_interface",
 	"libs/content/editor/egui_editor",
+	"libs/content/workspace",
+	"libs/content/workspace-ffi",
 	"server/server",
 	"clients/cli",
 	"clients/egui",

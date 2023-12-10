@@ -1,0 +1,20 @@
+[package]
+name = "workspace"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+lb = { package = "lb-rs", path = "../../lb/lb-rs", default-features = false, features=["native-tls"] }
+lbeditor = { package = "egui_editor", path = "../editor/egui_editor" }
+egui = "0.22.0"
+egui_extras = { version = "0.22.0", features = ["image"] }
+epaint = "0.22.0"
+lb-pdf = { path = "../../../../lb-pdf" }
+pdfium-render = "0.8.5"
+resvg = "0.36.0"
+minidom = "*"
+serde = "1.0.171"
+bezier-rs = "0.2.0"
+glam = "0.22.0"

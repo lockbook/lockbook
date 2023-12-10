@@ -7,7 +7,6 @@ mod settings;
 mod splash;
 mod theme;
 mod util;
-mod widgets;
 
 pub use crate::settings::Settings;
 
@@ -47,7 +46,7 @@ impl Lockbook {
         let settings = Arc::new(RwLock::new(settings));
 
         let mut fonts = egui::FontDefinitions::default();
-        lbeditor::register_fonts(&mut fonts);
+        workspace::register_fonts(&mut fonts);
         theme::register_fonts(&mut fonts);
         ctx.set_fonts(fonts);
 

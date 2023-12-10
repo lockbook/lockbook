@@ -105,7 +105,6 @@ lockbook-server
 
 !docs/guides/build
 
-libs/content/editor/SwiftEditor/Libs/
-libs/content/editor/egui_editor/include
-
+libs/content/workspace-ffi/SwiftWorkspace/Libs/
+libs/content/workspace-ffi/include/
 clients/apple/lockbook.xcworkspace/xcshareddata/swiftpm/Package.resolved

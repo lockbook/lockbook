@@ -3,10 +3,10 @@ use std::thread;
 
 use eframe::egui;
 use egui_extras::RetainedImage;
+use workspace::widgets::ButtonGroup;
 
-use crate::model::{AccountScreenInitData, SyncError};
+use crate::model::AccountScreenInitData;
 use crate::settings::Settings;
-use crate::widgets::ButtonGroup;
 
 pub struct OnboardHandOff {
     pub settings: Arc<RwLock<Settings>>,
@@ -94,14 +94,15 @@ impl OnboardScreen {
                     self.import_status = Some(sp.to_string());
                 }
                 Update::ImportSyncDone(maybe_err) => {
-                    if let Some(err) = maybe_err {
-                        match err {
-                            SyncError::Major(msg) => self.import_err = Some(msg),
-                            SyncError::Minor(msg) => self.import_err = Some(msg),
-                        }
-                    } else {
-                        self.import_status = Some("Loading account data...".to_string());
-                    }
+                    // if let Some(err) = maybe_err {
+                    // todo rethink
+                    // match err {
+                    //     SyncError::Major(msg) => self.import_err = Some(msg),
+                    //     SyncError::Minor(msg) => self.import_err = Some(msg),
+                    // }
+                    // } else {
+                    //     self.import_status = Some("Loading account data...".to_string());
+                    // }
                 }
                 Update::AccountDataLoaded(result) => match result {
                     Ok(acct_data) => {
@@ -265,7 +266,7 @@ impl OnboardScreen {
                 }
             };
 
-            match core.sync(Some(Box::new(closure))).map_err(SyncError::from) {
+            match core.sync(None).map_err(SyncError::from) {
                 Ok(_acct) => {
                     tx.send(Update::ImportSyncDone(None)).unwrap();
                     tx.send(Update::AccountDataLoaded(load_account_data(&core)))
@@ -313,4 +314,18 @@ enum Route {
     Import,
 }
 
-const LOGO: &[u8] = include_bytes!("../lockbook-backdrop.png");
+const LOGO: &[u8] = include_bytes!("../../../libs/content/workspace/lockbook-backdrop.png");
+
+pub enum SyncError {
+    Major(String),
+    Minor(String),
+}
+
+impl From<lb::LbError> for SyncError {
+    fn from(err: lb::LbError) -> Self {
+        match err.kind {
+            lb::CoreError::Unexpected(msg) => Self::Major(msg),
+            _ => Self::Minor(format!("{:?}", err)),
+        }
+    }
+}

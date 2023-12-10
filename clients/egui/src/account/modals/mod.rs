@@ -21,10 +21,10 @@ pub use new_file::{NewFileParams, NewFolderModal};
 pub use search::SearchModal;
 pub use settings::{SettingsModal, SettingsResponse};
 
-use crate::widgets::ToolBarVisibility;
-
 use super::OpenModal;
 use eframe::egui;
+use workspace::tab::TabContent;
+use workspace::widgets::ToolBarVisibility;
 
 #[derive(Default)]
 pub struct Modals {
@@ -95,7 +95,7 @@ impl super::AccountScreen {
 
         if let Some(response) = show(ctx, x_offset, &mut self.modals.search) {
             if let Some(submission) = response.inner {
-                self.open_file(submission.id, ctx, false);
+                self.workspace.open_file(submission.id, ctx, false);
                 if submission.close {
                     self.modals.search = None;
                 }
@@ -140,7 +140,7 @@ impl super::AccountScreen {
 
     fn refresh_toolbar_visibilities(&mut self, visibility: ToolBarVisibility) {
         self.workspace.tabs.iter_mut().for_each(|t| {
-            if let Some(crate::account::tabs::TabContent::Markdown(ref mut md)) = &mut t.content {
+            if let Some(TabContent::Markdown(ref mut md)) = &mut t.content {
                 md.toolbar.visibility = visibility;
             }
         });

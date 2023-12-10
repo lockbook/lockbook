@@ -1,8 +1,8 @@
 use eframe::egui;
+use workspace::widgets::ToolBarVisibility;
 
 use crate::settings::ThemeMode;
 use crate::theme;
-use crate::widgets::ToolBarVisibility;
 
 use super::SettingsResponse;
 

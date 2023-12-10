@@ -2,8 +2,10 @@ use std::path;
 
 use eframe::egui;
 use lb::File;
+use workspace::theme::icons::Icon;
+use workspace::widgets::Button;
 
-use crate::{model::DocType, theme::Icon, widgets::Button};
+use crate::model::DocType;
 
 pub struct FilePicker {
     core: lb::Core,

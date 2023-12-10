@@ -2,10 +2,10 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 
 use eframe::egui;
+use workspace::theme::icons::Icon;
+use workspace::widgets::{Button, ProgressBar};
 
-use crate::model::{SyncError, Usage};
-use crate::theme::Icon;
-use crate::widgets::{Button, ProgressBar};
+use crate::model::Usage;
 
 use super::AccountUpdate;
 
@@ -27,52 +27,46 @@ enum SyncPhase {
     IdleError,
 }
 
-pub enum SyncUpdate {
-    Started,
-    Progress(lb::SyncProgress),
-    Done(Result<lb::SyncStatus, SyncError>),
-    SetStatus(Result<String, lb::UnexpectedError>),
-    SetUsage(Usage),
-}
-
 impl super::AccountScreen {
-    pub fn process_sync_update(&mut self, ctx: &egui::Context, update: SyncUpdate) {
-        match update {
-            SyncUpdate::Started => self.sync.phase = SyncPhase::Syncing,
-            SyncUpdate::Progress(progress) => {
-                self.sync.status = Ok(progress.to_string());
-            }
-            SyncUpdate::Done(result) => match result {
-                Ok(_) => {
-                    self.sync.status = Ok("just now".to_owned());
-                    self.sync.phase = SyncPhase::IdleGood;
-                    if let Ok(work) = result {
-                        self.refresh_tree_and_workspace(ctx, work);
-                        self.suggested.recalc_and_redraw(ctx, &self.core);
-                    }
-                    self.refresh_sync_status(ctx);
+    pub fn process_sync_update(&mut self, ctx: &egui::Context) {
+        // todo: this will probably need to become the thing that calculates the label fields
 
-                    let core = self.core.clone();
-                    let update_tx = self.update_tx.clone();
-                    thread::spawn(move || {
-                        update_tx
-                            .send(AccountUpdate::FoundPendingShares(
-                                !core.get_pending_shares().unwrap().is_empty(),
-                            ))
-                            .unwrap();
-                    });
-                }
-                Err(err) => {
-                    self.sync.phase = SyncPhase::IdleError;
-                    match err {
-                        SyncError::Minor(msg) => self.sync.status = Err(msg),
-                        SyncError::Major(msg) => println!("major sync error: {}", msg), // TODO
-                    }
-                }
-            },
-            SyncUpdate::SetStatus(status_result) => self.set_sync_status(status_result),
-            SyncUpdate::SetUsage(usage) => self.usage = Ok(usage),
-        }
+        // match update {
+        //     SyncUpdate::Started => self.sync.phase = SyncPhase::Syncing,
+        //     SyncUpdate::Progress(progress) => {
+        //         self.sync.status = Ok(progress.to_string());
+        //     }
+        //     SyncUpdate::Done(result) => match result {
+        //         Ok(_) => {
+        //             self.sync.status = Ok("just now".to_owned());
+        //             self.sync.phase = SyncPhase::IdleGood;
+        //             if let Ok(work) = result {
+        //                 self.refresh_tree_and_workspace(ctx, work);
+        //                 self.suggested.recalc_and_redraw(ctx, &self.core);
+        //             }
+        //             self.refresh_sync_status(ctx);
+        //
+        //             let core = self.core.clone();
+        //             let update_tx = self.update_tx.clone();
+        //             thread::spawn(move || {
+        //                 update_tx
+        //                     .send(AccountUpdate::FoundPendingShares(
+        //                         !core.get_pending_shares().unwrap().is_empty(),
+        //                     ))
+        //                     .unwrap();
+        //             });
+        //         }
+        //         Err(err) => {
+        //             self.sync.phase = SyncPhase::IdleError;
+        //             match err {
+        //                 SyncError::Minor(msg) => self.sync.status = Err(msg),
+        //                 SyncError::Major(msg) => println!("major sync error: {}", msg), // TODO
+        //             }
+        //         }
+        //     },
+        //     SyncUpdate::SetStatus(status_result) => self.set_sync_status(status_result),
+        //     // SyncUpdate::SetUsage(usage) => self.usage = Ok(usage), // todo return this
+        // }
     }
 
     pub fn show_sync_panel(&mut self, ui: &mut egui::Ui) {
@@ -138,7 +132,7 @@ impl super::AccountScreen {
                     .show(ui)
                     .clicked()
                 {
-                    self.perform_sync(ui.ctx());
+                    self.workspace.perform_sync();
                 }
 
                 match &self.sync.phase {
@@ -174,53 +168,20 @@ impl super::AccountScreen {
     }
 
     pub fn refresh_sync_status(&self, ctx: &egui::Context) {
-        let core = self.core.clone();
-        let update_tx = self.update_tx.clone();
-        let ctx = ctx.clone();
-
-        std::thread::spawn(move || {
-            let status_result = core.get_last_synced_human_string();
-            update_tx
-                .send(SyncUpdate::SetStatus(status_result).into())
-                .unwrap();
-            update_tx
-                .send(SyncUpdate::SetUsage(core.get_usage().unwrap().into()).into()) // TODO
-                .unwrap();
-            ctx.request_repaint();
-        });
-    }
-
-    pub fn perform_sync(&self, ctx: &egui::Context) {
-        if self.sync.lock.try_lock().is_err() {
-            return;
-        }
-
-        self.save_all_tabs(ctx);
-
-        let sync_lock = self.sync.lock.clone();
-        let core = self.core.clone();
-        let update_tx = self.update_tx.clone();
-        let ctx = ctx.clone();
-
-        std::thread::spawn(move || {
-            let _lock = sync_lock.lock().unwrap();
-            update_tx.send(SyncUpdate::Started.into()).unwrap();
-            ctx.request_repaint();
-
-            let closure = {
-                let update_tx = update_tx.clone();
-                let ctx = ctx.clone();
-
-                move |p: lb::SyncProgress| {
-                    update_tx.send(SyncUpdate::Progress(p).into()).unwrap();
-                    ctx.request_repaint();
-                }
-            };
-
-            let result = core.sync(Some(Box::new(closure))).map_err(SyncError::from);
-            update_tx.send(SyncUpdate::Done(result).into()).unwrap();
-            ctx.request_repaint();
-        });
+        // let core = self.core.clone();
+        // let update_tx = self.update_tx.clone();
+        // let ctx = ctx.clone();
+        //
+        // std::thread::spawn(move || {
+        //     let status_result = core.get_last_synced_human_string();
+        //     update_tx
+        //         .send(SyncUpdate::SetStatus(status_result).into())
+        //         .unwrap();
+        //     update_tx
+        //         .send(SyncUpdate::SetUsage(core.get_usage().unwrap().into()).into()) // TODO
+        //         .unwrap();
+        //     ctx.request_repaint();
+        // });
     }
 
     pub fn perform_final_sync(&self, ctx: &egui::Context) {

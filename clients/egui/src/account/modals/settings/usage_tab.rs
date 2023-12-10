@@ -2,9 +2,9 @@ use std::sync::mpsc;
 
 use eframe::egui;
 use egui_extras::{Size, StripBuilder};
-
-use crate::theme::{Icon, ThemePalette};
-use crate::widgets::{separator, subscription};
+use workspace::theme::icons::Icon;
+use workspace::theme::palette::ThemePalette;
+use workspace::widgets::{separator, subscription};
 
 use super::SettingsResponse;
 

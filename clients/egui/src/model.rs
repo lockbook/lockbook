@@ -1,4 +1,4 @@
-use crate::theme::Icon;
+use workspace::theme::icons::Icon;
 
 pub struct AccountScreenInitData {
     pub sync_status: Result<String, String>,
@@ -56,20 +56,6 @@ impl DocType {
             DocType::Image(_) => Icon::IMAGE,
             DocType::Code(_) => Icon::CODE,
             _ => Icon::DOC_UNKNOWN,
-        }
-    }
-}
-
-pub enum SyncError {
-    Major(String),
-    Minor(String),
-}
-
-impl From<lb::LbError> for SyncError {
-    fn from(err: lb::LbError) -> Self {
-        match err.kind {
-            lb::CoreError::Unexpected(msg) => Self::Major(msg),
-            _ => Self::Minor(format!("{:?}", err)),
         }
     }
 }

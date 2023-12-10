@@ -1793,23 +1793,15 @@ dependencies = [
 name = "egui_editor"
 version = "0.8.4"
 dependencies = [
- "eframe",
  "egui",
- "egui_wgpu_backend",
  "image",
- "jni 0.21.1",
  "lb-fonts",
  "lb-rs",
- "libc",
  "linkify",
- "ndk-sys",
- "pollster",
  "pulldown-cmark",
  "rand 0.8.5",
- "raw-window-handle",
  "reqwest",
  "serde",
- "serde_json",
  "unicode-segmentation",
 ]
 
@@ -3333,6 +3325,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "lb-pdf"
+version = "0.2.1"
+dependencies = [
+ "pdfium-render",
+]
+
+[[package]]
 name = "lb-rs"
 version = "0.8.4"
 dependencies = [
@@ -3546,7 +3545,6 @@ dependencies = [
 name = "lockbook-egui"
 version = "0.8.4"
 dependencies = [
- "bezier-rs",
  "dark-light",
  "eframe",
  "egui-notify",
@@ -3554,10 +3552,9 @@ dependencies = [
  "egui_editor",
  "egui_extras",
  "egui_wgpu_backend",
- "glam",
  "image",
  "lb-fonts",
- "lb-pdf",
+ "lb-pdf 0.1.1",
  "lb-rs",
  "minidom",
  "pdfium-render",
@@ -3566,6 +3563,7 @@ dependencies = [
  "serde",
  "serde_json",
  "winres",
+ "workspace",
 ]
 
 [[package]]
@@ -7265,6 +7263,43 @@ dependencies = [
  "egui_extras",
  "image",
  "mslnk",
+]
+
+[[package]]
+name = "workspace"
+version = "0.1.0"
+dependencies = [
+ "bezier-rs",
+ "egui",
+ "egui_editor",
+ "egui_extras",
+ "epaint",
+ "glam",
+ "lb-pdf 0.2.1",
+ "lb-rs",
+ "minidom",
+ "pdfium-render",
+ "resvg",
+ "serde",
+]
+
+[[package]]
+name = "workspace-ffi"
+version = "0.1.0"
+dependencies = [
+ "eframe",
+ "egui",
+ "egui_editor",
+ "egui_wgpu_backend",
+ "jni 0.21.1",
+ "lb-rs",
+ "libc",
+ "ndk-sys",
+ "pollster",
+ "raw-window-handle",
+ "reqwest",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

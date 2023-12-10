@@ -1,6 +1,6 @@
 use eframe::egui;
-
-use crate::{theme::Icon, widgets::Button};
+use workspace::theme::icons::Icon;
+use workspace::widgets::Button;
 
 pub struct AccountBackup;
 

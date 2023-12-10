@@ -1,6 +1,5 @@
 use eframe::egui;
-
-use crate::widgets::switch;
+use workspace::widgets::switch;
 
 impl super::SettingsModal {
     pub fn show_general_tab(&mut self, ui: &mut egui::Ui) {
