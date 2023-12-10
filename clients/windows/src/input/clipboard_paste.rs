@@ -17,8 +17,6 @@ pub fn handle(app: &mut WgpuLockbook) {
             .write_image(&bitmap.as_bytes(), bitmap.width(), bitmap.height(), bitmap.color())
             .expect("png encode pasted image");
 
-        println!("png bytes: {}", png_bytes.len());
-
         // todo: this certainly doesn't belong here
         // but also, what is this data modeling?
         let core = match &app.app {
