@@ -95,7 +95,7 @@ class SearchService: ObservableObject {
                 return
             }
             
-            searchResults = searchResults.sorted { $0.score > $1.score }
+            searchResults = Array(searchResults.sorted { $0.score > $1.score }.prefix(20))
             if case .Searching = searchService.pathSearchState {
                 searchService.pathSearchState = .SearchSuccessful(searchResults)
             } else if case .SearchSuccessful(_) = searchService.pathSearchState {
@@ -141,17 +141,19 @@ class SearchService: ObservableObject {
     }
     
     func search(query: String) {
-        if pathAndContentSearchState.isSearching() {
-            pathAndContentSearchState = .Searching
-        } else if pathSearchState.isSearching() {
-            pathSearchState = .Searching
-        } else {
-            print("not in a searchable state!")
-            return
-        }
-        
-        if case .failure(let err) = self.core.searchQuery(query: query) {
-            DI.errors.handleError(err)
+        DispatchQueue.global(qos: .userInitiated).async {
+            if self.pathAndContentSearchState.isSearching() {
+                self.pathAndContentSearchState = .Searching
+            } else if self.pathSearchState.isSearching() {
+                self.pathSearchState = .Searching
+            } else {
+                print("not in a searchable state!")
+                return
+            }
+            
+            if case .failure(let err) = self.core.searchQuery(query: query) {
+                DI.errors.handleError(err)
+            }
         }
     }
     

@@ -45,9 +45,9 @@ struct PathSearchActionBar: View {
                             
                             ScrollViewReader { scrollHelper in
                                 ScrollView {
-                                    ForEach(Array(zip(results.indices, results)), id: \.0) { index, result in
+                                    ForEach(results) { result in
                                         if case .PathMatch(_, _, let name, let path, let matchedIndices, _) = result {
-                                            SearchResultCellView(name: name, path: path, matchedIndices: matchedIndices, index: index, selected: search.pathSearchSelected)
+                                            SearchResultCellView(name: name, path: path, matchedIndices: matchedIndices, index: 0, selected: 1)
                                         }
                                     }
                                     .scrollIndicators(.visible)
