@@ -48,7 +48,10 @@ class SearchService: ObservableObject {
                 for contentMatch in contentMatches.contentMatches {
                     searchResults.append(.ContentMatch(meta: DI.files.idsAndFiles[contentMatches.id]!, name: pathComp.name, path: pathComp.path, paragraph: contentMatch.paragraph, matchedIndices: contentMatch.matchedIndices, score: contentMatch.score))
                 }
-            case 3: // no match
+            case 3: // end current search
+                searchService.pathAndContentSearchState = .Searching
+                return
+            case 4: // no match
                 searchService.pathAndContentSearchState = .NoMatch
                 return
             default:
@@ -87,7 +90,10 @@ class SearchService: ObservableObject {
                 let pathComp = nameMatch.getNameAndPath()
                 
                 searchResults.append(.PathMatch(meta: DI.files.idsAndFiles[nameMatch.id]!, name: pathComp.name, path: pathComp.path, matchedIndices: nameMatch.matchedIndices, score: nameMatch.score))
-            case 3: // no match
+            case 3: // end current search
+                searchService.pathSearchState = .Searching
+                return
+            case 4: // no match
                 searchService.pathSearchState = .NoMatch
                 return
             default:
@@ -230,6 +236,7 @@ public enum SearchState {
     case NotSearching
     case Idle
     case Searching
+    case SearchingAwaitingTerminator
     case NoMatch
     case SearchSuccessful([SearchResult])
     

@@ -596,9 +596,6 @@ pub unsafe extern "C" fn search_file_paths(input: *const c_char) -> *const c_cha
 lazy_static! {
     static ref MAYBE_SEARCH_TX: Arc<Mutex<Option<Sender<SearchRequest>>>> =
         Arc::new(Mutex::new(None));
-
-    static ref MAYBE_SEARCH_TIMESTAMP: Arc<Mutex<i64>> =
-        Arc::new(Mutex::new(0));
 }
 
 fn send_search_request(request: SearchRequest) -> *const c_char {
@@ -610,11 +607,7 @@ fn send_search_request(request: SearchRequest) -> *const c_char {
                 .clone()
                 .ok_or_else(|| UnexpectedError::new("No search lock.".to_string()))
         })
-        .and_then(|search_tx| {
-            *MAYBE_SEARCH_TIMESTAMP.lock().map_err(UnexpectedError::from)? = get_time().0;
-
-            search_tx.send(request).map_err(UnexpectedError::from)
-        });
+        .and_then(|search_tx| search_tx.send(request).map_err(UnexpectedError::from));
 
     c_string(translate(result))
 }
@@ -649,10 +642,9 @@ pub unsafe extern "C" fn start_search(
             SearchResult::Error(e) => return c_string(translate(Err::<(), _>(e))),
             SearchResult::FileNameMatch { .. } => 1,
             SearchResult::FileContentMatches { .. } => 2,
-            SearchResult::NoMatch => 3,
+            SearchResult::EndOfCurrentSearch => 3,
+            SearchResult::NoMatch => 4,
         };
-
-        if MAYBE_SEARCH_TIMESTAMP.lock().map_err(UnexpectedError::from)? == result.
         
         update_status(context, result_repr, c_string(serde_json::to_string(&result).unwrap()));
     }
@@ -670,7 +662,7 @@ pub unsafe extern "C" fn start_search(
 /// Be sure to call `release_pointer` on the result of this function to free the data.
 #[no_mangle]
 pub unsafe extern "C" fn search(query: *const c_char) -> *const c_char {
-    send_search_request(SearchRequest::Search { input: str_from_ptr(query), timestamp: get_time().0 })
+    send_search_request(SearchRequest::Search { input: str_from_ptr(query) })
 }
 
 /// # Safety
