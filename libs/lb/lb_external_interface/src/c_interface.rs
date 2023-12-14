@@ -631,7 +631,7 @@ pub unsafe extern "C" fn start_search(
                     Err(e) => return c_string(translate(Err::<(), _>(e))),
                 };
 
-            *lock = Some((get_time().0, search_tx));
+            *lock = Some(search_tx);
             results_rx
         }
         Err(_) => return c_string(translate(Err::<(), _>("Cannot get search lock."))),
@@ -642,8 +642,8 @@ pub unsafe extern "C" fn start_search(
             SearchResult::Error(e) => return c_string(translate(Err::<(), _>(e))),
             SearchResult::FileNameMatch { .. } => 1,
             SearchResult::FileContentMatches { .. } => 2,
-            SearchResult::EndOfCurrentSearch => 3,
-            SearchResult::NoMatch => 4,
+            SearchResult::NoMatch => 3,
+            SearchResult::NewSearch => 4,
         };
         
         update_status(context, result_repr, c_string(serde_json::to_string(&result).unwrap()));

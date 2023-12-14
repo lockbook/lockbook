@@ -10,11 +10,14 @@ class SearchService: ObservableObject {
     }
         
     var pathSearchTask: DispatchWorkItem? = nil
+    
     @Published var pathSearchState: SearchState = .NotSearching
+    @Published var pathAndContentSearchState: SearchState = .NotSearching
+
     @Published var pathSearchSelected = 0
     var lastSearchTimestamp = 0
-    
-    @Published var pathAndContentSearchState: SearchState = .NotSearching
+        
+    var lastSearchWasComplete = false
     
     let decoder = JSONDecoder()
     
@@ -48,11 +51,11 @@ class SearchService: ObservableObject {
                 for contentMatch in contentMatches.contentMatches {
                     searchResults.append(.ContentMatch(meta: DI.files.idsAndFiles[contentMatches.id]!, name: pathComp.name, path: pathComp.path, paragraph: contentMatch.paragraph, matchedIndices: contentMatch.matchedIndices, score: contentMatch.score))
                 }
-            case 3: // end current search
-                searchService.pathAndContentSearchState = .Searching
-                return
-            case 4: // no match
+            case 3: // no match
                 searchService.pathAndContentSearchState = .NoMatch
+                return
+            case 4: // new search
+                searchService.pathAndContentSearchState = .Searching
                 return
             default:
                 print("UNRECOGNIZED SEARCH RETURN")
@@ -90,11 +93,11 @@ class SearchService: ObservableObject {
                 let pathComp = nameMatch.getNameAndPath()
                 
                 searchResults.append(.PathMatch(meta: DI.files.idsAndFiles[nameMatch.id]!, name: pathComp.name, path: pathComp.path, matchedIndices: nameMatch.matchedIndices, score: nameMatch.score))
-            case 3: // end current search
-                searchService.pathSearchState = .Searching
-                return
-            case 4: // no match
+            case 3: // no match
                 searchService.pathSearchState = .NoMatch
+                return
+            case 4: // new search
+                searchService.pathSearchState = .Searching
                 return
             default:
                 print("UNRECOGNIZED SEARCH RETURN")
@@ -148,14 +151,14 @@ class SearchService: ObservableObject {
     
     func search(query: String) {
         DispatchQueue.global(qos: .userInitiated).async {
-            if self.pathAndContentSearchState.isSearching() {
-                self.pathAndContentSearchState = .Searching
-            } else if self.pathSearchState.isSearching() {
-                self.pathSearchState = .Searching
-            } else {
-                print("not in a searchable state!")
-                return
-            }
+//            if self.pathAndContentSearchState.isSearching() {
+//                self.pathAndContentSearchState = .Searching
+//            } else if self.pathSearchState.isSearching() {
+//                self.pathSearchState = .Searching
+//            } else {
+//                print("not in a searchable state!")
+//                return
+//            }
             
             if case .failure(let err) = self.core.searchQuery(query: query) {
                 DI.errors.handleError(err)
@@ -236,7 +239,6 @@ public enum SearchState {
     case NotSearching
     case Idle
     case Searching
-    case SearchingAwaitingTerminator
     case NoMatch
     case SearchSuccessful([SearchResult])
     

@@ -710,6 +710,9 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_startSearch(
                 env.call_method(jsearchFilesViewModel, "noMatch", "()V", &[])
                     .unwrap();
             }
+            SearchResult::NewSearch => {
+                // TODO: add complete
+            }
         }
     }
 
@@ -733,13 +736,6 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_search(
     };
 
     send_search_request(env, SearchRequest::Search { input: query })
-}
-
-#[no_mangle]
-pub extern "system" fn Java_app_lockbook_core_CoreKt_stopCurrentSearch(
-    env: JNIEnv, _: JClass,
-) -> jstring {
-    send_search_request(env, SearchRequest::StopCurrentSearch)
 }
 
 #[no_mangle]

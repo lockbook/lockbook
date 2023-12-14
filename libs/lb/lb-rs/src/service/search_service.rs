@@ -160,122 +160,47 @@ impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {
     ) -> Result<(), UnexpectedError> {
         let files_info = Arc::new(files_info);
         let thread_count = available_parallelism().ok().map(|thread_count| thread_count.get()).unwrap_or(2) - 1;
-        let mut handles = vec![];
 
-        let (worker_thread_tx, worker_thread_rx) = channel::unbounded::<(Arc<String>, usize)>();
-        
-        for _ in 0..thread_count {
-            let worker_thread_rx = worker_thread_rx.clone();
-            let search_result_tx = results_tx.clone();
-            let searchables = files_info.clone();
-
-            let handle: JoinHandle<Option<()>> = thread::spawn(move || {
-                loop {
-                    match worker_thread_rx.recv() {
-                        Ok((search, searchable_index)) => {                            
-                            if current_search_ts != *search_ts.lock().ok()? {
-                                continue;
-                            }
-
-                            if let Some(fuzzy_match) = FuzzySearch::new(&search, &searchables[searchable_index].path)
-                                .case_insensitive()
-                                .score_with(&Scoring::emphasize_distance())
-                                .best_match()
-                            {
-                                if fuzzy_match.score().is_positive() {
-                                    if current_search_ts != *search_ts.lock().ok()? {
-                                        continue;
-                                    }
-
-                                    search_result_tx
-                                        .send(SearchResult::FileNameMatch {
-                                            id: searchables[searchable_index].id,
-                                            path: searchables[searchable_index].path.clone(),
-                                            matched_indices: fuzzy_match.matched_indices().cloned().collect(),
-                                            score: fuzzy_match.score() as i64,
-                                        }).ok()?;
-                                }
-                            }
-
-                            if current_search_ts != *search_ts.lock().ok()? {
-                                continue;
-                            }
-
-                            if let Some(content) = &searchables[searchable_index].content {
-                                let mut content_matches: Vec<ContentMatch> = Vec::new();
-                
-                                for paragraph in content.split("\n\n") {
-                                    if current_search_ts != *search_ts.lock().ok()? {
-                                        break;
-                                    }
-
-                                    if let Some(fuzzy_match) = FuzzySearch::new(&search, paragraph)
-                                        .case_insensitive()
-                                        .score_with(&Scoring::emphasize_distance())
-                                        .best_match()
-                                    {
-                                        let score = fuzzy_match.score() as i64;
-                
-                                        if score >= LOWEST_CONTENT_SCORE_THRESHOLD {
-                                            let (paragraph, matched_indices) = match Self::optimize_searched_text(
-                                                paragraph,
-                                                fuzzy_match.matched_indices().cloned().collect(),
-                                            ) {
-                                                Ok((paragraph, matched_indices)) => (paragraph, matched_indices),
-                                                Err(_) => continue
-                                            };
-                
-                                            content_matches.push(ContentMatch {
-                                                paragraph,
-                                                matched_indices,
-                                                score,
-                                            });
-                                        }
-                                    }
-                                }
-
-
-                                if current_search_ts != *search_ts.lock().ok()? {
-                                    continue;
-                                }
-                
-                                search_result_tx
-                                    .send(SearchResult::FileContentMatches {
-                                        id: searchables[searchable_index].id,
-                                        path: searchables[searchable_index].path.clone(),
-                                        content_matches,
-                                    })
-                                    .ok()?;
-                            }
-                        }
-                        Err(_) => break,
-                    }
-                }
-
-                None
-            });
-
-            handles.push(handle);
-        }
-
-        let mut maybe_new_search: Option<SearchRequest> = None;
+        let mut maybe_new_search = None;
 
         loop {
-            let search = search_rx.recv().map_err(UnexpectedError::from)?;
+            let search = match maybe_new_search {
+                Some(new_seach) => {
+                    maybe_new_search = None;
+                    new_seach
+                }
+                None => search_rx.recv().map_err(UnexpectedError::from)?,
+            };
 
             match search {
                 SearchRequest::Search { input } => {
-                    let cancel = AtomicBool::new(false);
+                    results_tx.send(SearchResult::NewSearch).map_err(UnexpectedError::from)?;
 
-                    let this_search = thread::spawn(|| {
+                    let cancel = Arc::new(AtomicBool::new(false));
+                    let files_info = files_info.clone();
+                    let thread_count = thread_count.clone();
+                    let search_result_tx = results_tx.clone();
+
+                    let this_search = thread::spawn(move || {
                         let mut workers = vec![];
+                        let cancel = Arc::new(AtomicBool::new(false));
+                        let offset = files_info.len() / thread_count;
+                        let search_result_tx = search_result_tx.clone();
+                        let input = input.clone();
+                        let files_info = files_info.clone();
 
-                        for i in 0..8 { // split up work equally between threads
-                            let handle = thread::spawn(|| {
-                                for searchable_index in 0..files_info.len() {
-                                    if searchable_index % i == 0 {
-                                        Self::search_unit(&input, &files_info[searchable_index]);
-                                    }
+                        for i in 0..thread_count { // split up work equally between threads
+                            let cancel = cancel.clone();
+                            let input = input.clone();
+                            let files_info = files_info.clone();
+                            let search_result_tx = search_result_tx.clone();
+
+                            let handle = thread::spawn(move || {
+                                let start = offset * i;
+                                let end = offset * (i + 1);
+
+                                for searchable_index in start..end {
+                                    Self::search_unit(&input, &files_info[searchable_index], &search_result_tx, &cancel).unwrap();
 
                                     if cancel.load(std::sync::atomic::Ordering::Relaxed) {
                                         return;
@@ -289,11 +214,7 @@ impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {
                         while let Some(thread) = workers.pop() {
                             thread.join().unwrap(); // no unwraps plz
                         }
-
-                        results_tx.send(SearchResult::SearchComplete).unwrap(); // dont unwrap
                     });
-
-
                     
                     if let Ok(new_search) = search_rx.recv() {
                         maybe_new_search = Some(new_search);
@@ -307,25 +228,27 @@ impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {
                 }
             }
         }
-
-        Ok(())
     }
 
-    fn search_unit(query: &str, searchable: &SearchableFileInfo) { // add cancel as parameter
+    fn search_unit(query: &str, searchable: &SearchableFileInfo, search_result_tx: &Sender<SearchResult>, cancel: &Arc<AtomicBool>) -> Result<(), UnexpectedError> {
         if let Some(fuzzy_match) = FuzzySearch::new(query, &searchable.path)
             .case_insensitive()
             .score_with(&Scoring::emphasize_distance())
             .best_match()
         {
             if fuzzy_match.score().is_positive() {
+                if cancel.load(std::sync::atomic::Ordering::Relaxed) {
+                    return Ok(());
+                }
 
-                // search_result_tx
-                //     .send(SearchResult::FileNameMatch {
-                //         id: searchables[searchable_index].id,
-                //         path: searchables[searchable_index].path.clone(),
-                //         matched_indices: fuzzy_match.matched_indices().cloned().collect(),
-                //         score: fuzzy_match.score() as i64,
-                //     }).ok()?;
+                search_result_tx
+                    .send(SearchResult::FileNameMatch {
+                        id: searchable.id,
+                        path: searchable.path.clone(),
+                        matched_indices: fuzzy_match.matched_indices().cloned().collect(),
+                        score: fuzzy_match.score() as i64,
+                    })
+                    .map_err(UnexpectedError::from)?;
             }
         }
 
@@ -333,12 +256,20 @@ impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {
             let mut content_matches: Vec<ContentMatch> = Vec::new();
 
             for paragraph in content.split("\n\n") {
+                if cancel.load(std::sync::atomic::Ordering::Relaxed) {
+                    return Ok(());
+                }
+
                 if let Some(fuzzy_match) = FuzzySearch::new(query, paragraph)
                     .case_insensitive()
                     .score_with(&Scoring::emphasize_distance())
                     .best_match()
-                {
+                {   
                     let score = fuzzy_match.score() as i64;
+
+                    if cancel.load(std::sync::atomic::Ordering::Relaxed) {
+                        return Ok(());
+                    }
 
                     if score >= LOWEST_CONTENT_SCORE_THRESHOLD {
                         let (paragraph, matched_indices) = match Self::optimize_searched_text(
@@ -358,14 +289,16 @@ impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {
                 }
             }
 
-            // search_result_tx
-            //     .send(SearchResult::FileContentMatches {
-            //         id: searchables[searchable_index].id,
-            //         path: searchables[searchable_index].path.clone(),
-            //         content_matches,
-            //     })
-            //     .ok()?;
+            search_result_tx
+                .send(SearchResult::FileContentMatches {
+                    id: searchable.id,
+                    path: searchable.path.clone(),
+                    content_matches,
+                })
+                .map_err(UnexpectedError::from)?;
         }
+
+        Ok(())
     }
 
     fn optimize_searched_text(
@@ -502,8 +435,8 @@ pub enum SearchResult {
         path: String, 
         content_matches: Vec<ContentMatch>,
     },
-    SearchComplete,
     NoMatch,
+    NewSearch,
 }
 
 #[derive(Debug, Serialize)]
