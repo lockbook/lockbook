@@ -3,7 +3,7 @@ name = "lockbook-windows"
 version = "0.1.0"
 edition = "2021"
 
-[dependencies]
+[target.'cfg(windows)'.dependencies]
 array-init = "2.0.0"
 clipboard-win = "4.5.0"
 egui = "0.22.0"
@@ -16,7 +16,7 @@ lbeguiapp = { package = "lockbook-egui", path = "../egui" }
 pollster = "0.2"
 raw-window-handle = "0.5"
 
-[dependencies.windows]
+[target.'cfg(windows)'.dependencies.windows]
 version = "0.51.1"
 features = [   
     "implement",
