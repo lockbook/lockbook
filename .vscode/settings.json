@@ -1,5 +1,0 @@
-{
-    "rust-analyzer.linkedProjects": [
-        "./libs/content/editor/egui_editor/Cargo.toml"
-    ]
-}

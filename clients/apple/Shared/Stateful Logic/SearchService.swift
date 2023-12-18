@@ -13,6 +13,8 @@ class SearchService: ObservableObject {
     
     @Published var pathSearchState: SearchState = .NotSearching
     @Published var pathAndContentSearchState: SearchState = .NotSearching
+    
+    // have bool for search (and have spinner be on top right corner)
 
     @Published var pathSearchSelected = 0
     var lastSearchTimestamp = 0
@@ -23,7 +25,7 @@ class SearchService: ObservableObject {
     
     
     let updatePathAndContentSearchStatus: @convention(c) (UnsafePointer<Int8>?, Int32, UnsafePointer<Int8>?) -> Void = { context, searchResultType, searchResult in
-        DispatchQueue.main.sync {
+        DispatchQueue.main.async {
             guard let searchService = UnsafeRawPointer(context)?.load(as: SearchService.self) else {
                 return
             }
@@ -72,7 +74,7 @@ class SearchService: ObservableObject {
     }
     
     let updatePathSearchStatus: @convention(c) (UnsafePointer<Int8>?, Int32, UnsafePointer<Int8>?) -> Void = { context, searchResultType, searchResult in
-        DispatchQueue.main.sync {
+        DispatchQueue.main.async {
             guard let searchService = UnsafeRawPointer(context)?.load(as: SearchService.self) else {
                 return
             }
@@ -150,19 +152,8 @@ class SearchService: ObservableObject {
     }
     
     func search(query: String) {
-        DispatchQueue.global(qos: .userInitiated).async {
-//            if self.pathAndContentSearchState.isSearching() {
-//                self.pathAndContentSearchState = .Searching
-//            } else if self.pathSearchState.isSearching() {
-//                self.pathSearchState = .Searching
-//            } else {
-//                print("not in a searchable state!")
-//                return
-//            }
-            
-            if case .failure(let err) = self.core.searchQuery(query: query) {
-                DI.errors.handleError(err)
-            }
+        if case .failure(let err) = self.core.searchQuery(query: query) {
+            DI.errors.handleError(err)
         }
     }
     

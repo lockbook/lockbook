@@ -293,6 +293,8 @@ pub enum CoreError {
     ServerUnreachable,
     ShareAlreadyExists,
     ShareNonexistent,
+    SearchAlreadyActive,
+    SearchNotActive,
     TryAgain,
     UsernameInvalid,
     UsernameNotFound,
