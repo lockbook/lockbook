@@ -5,13 +5,18 @@ use super::{node_by_id, pointer_interests_path, Buffer};
 
 pub struct Selection {
     last_pos: Option<egui::Pos2>,
-    selected_element: Option<String>,
-    dragging_pos: Option<(egui::Pos2, egui::Pos2)>,
+    dragged_element: Option<DraggedElement>,
+}
+
+struct DraggedElement {
+    id: String,
+    original_pos: egui::Pos2,
+    original_matrix: Option<[f64; 6]>,
 }
 
 impl Selection {
     pub fn new() -> Self {
-        Selection { last_pos: None, dragging_pos: None, selected_element: None }
+        Selection { last_pos: None, dragged_element: None }
     }
 
     pub fn handle_input(
@@ -27,57 +32,63 @@ impl Selection {
             None => return,
         };
 
-        // todo: skip this if the cursor is inside the bb of the selected el
-        let mut hovered_element = None;
-        for (id, path) in buffer.paths.iter() {
-            if pointer_interests_path(path, pos, self.last_pos, 10.0) {
-                ui.output_mut(|r| r.cursor_icon = egui::CursorIcon::Grab);
-                hovered_element = Some(id);
-                break;
-            }
-        }
+        if let Some(de) = &mut self.dragged_element {
+            ui.output_mut(|r| r.cursor_icon = egui::CursorIcon::Grab);
 
-        ui.input_mut(|w| {
-            if let Some(event) = w.events.last() {
-                // println!("{:#?}", event);
-                match event {
-                    egui::Event::PointerButton { pos: _, button, pressed, modifiers: _ } => {
-                        if !pressed {
-                            self.dragging_pos = None;
-                        } else {
-                            self.dragging_pos = Some((pos, egui::Pos2::ZERO));
-                        }
-
-                        if *pressed && matches!(button, egui::PointerButton::Primary) {
-                            if let Some(path) = hovered_element {
-                                self.selected_element = Some(path.to_string());
+            if ui.input(|r| r.pointer.primary_released()) {
+                self.dragged_element = None;
+            } else if ui.input(|r| r.pointer.primary_down()) {
+                let delta_x = pos.x - de.original_pos.x;
+                let delta_y = pos.y - de.original_pos.y;
+                if let Some(node) = node_by_id(&mut buffer.current, de.id.clone()) {
+                    if let Some(transform) = node.attr("transform") {
+                        if de.original_matrix.is_none() {
+                            let transform = transform.to_owned();
+                            // let a = "";
+                            for segment in svgtypes::TransformListParser::from(transform.as_str()) {
+                                let segment = match segment {
+                                    Ok(v) => v,
+                                    Err(_) => break,
+                                };
+                                match segment {
+                                    svgtypes::TransformListToken::Matrix { a, b, c, d, e, f } => {
+                                        de.original_matrix = Some([a, b, c, d, e, f]);
+                                    }
+                                    _ => {}
+                                }
                             }
                         }
-                    }
-                    egui::Event::PointerGone => {
-                        self.dragging_pos = None;
-                    }
-                    egui::Event::PointerMoved(new_pos) => {
-                        if let Some(dp) = &mut self.dragging_pos {
-                            dp.1 = *new_pos;
-                        }
-                    }
-                    _ => {}
+                    } 
+                        println!("{:#?}", de.original_matrix);
+                        node.set_attr(
+                            "transform",
+                            format!(
+                                "matrix(1,0,0,1,{},{} )",
+                                delta_x as f64 + de.original_matrix.unwrap_or_default()[4],
+                                delta_y as f64 + de.original_matrix.unwrap_or_default()[5]
+                            ),
+                        );
+                        // node.set_attr("transform", format!("matrix(1,0,0,1,{delta_x},{delta_y} )"));
+                    
+                    buffer.needs_path_map_update = true;
                 }
             }
-        });
-
-        if let Some(path_id) = &self.selected_element {
-            let path = buffer.paths.get(path_id).unwrap();
-
-            if let Some(dp) = self.dragging_pos {
-                let delta_x = dp.1.x - dp.0.x;
-                let delta_y = dp.1.y - dp.0.y;
-                if let Some(node) = node_by_id(&mut buffer.current, path_id.to_string()) {
-                    node.set_attr("transform", format!("matrix(1,0,0,1,{delta_x},{delta_y} )"))
+        } else {
+            for (id, path) in buffer.paths.iter() {
+                if pointer_interests_path(path, pos, self.last_pos, 10.0) {
+                    ui.output_mut(|r| r.cursor_icon = egui::CursorIcon::Grab);
+                    if ui.input(|r| r.pointer.primary_clicked()) {
+                        self.dragged_element = Some(DraggedElement {
+                            id: id.clone(),
+                            original_pos: pos,
+                            original_matrix: None,
+                        });
+                    }
+                    break;
                 }
             }
         }
+
         self.last_pos = Some(pos);
     }
 }

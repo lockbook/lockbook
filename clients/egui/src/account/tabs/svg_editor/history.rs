@@ -1,10 +1,11 @@
 use std::{collections::VecDeque, fmt::Debug};
 
-use bezier_rs::{Bezier, Identifier, Subpath};
+use bezier_rs::{Bezier, Identifier, ManipulatorGroup, Subpath};
+use glam::{DAffine2, DMat2, DVec2};
 use minidom::Element;
 use resvg::{
     tiny_skia::Point,
-    usvg::{Node, NodeKind},
+    usvg::{self, Node, NodeKind, TreeWriting},
 };
 use std::collections::HashMap;
 
@@ -62,6 +63,7 @@ impl Buffer {
         if !self.redo.is_empty() {
             self.redo = vec![];
         }
+        self.needs_path_map_update = true;
 
         self.undo.push_back(event);
         if self.undo.len() > MAX_UNDOS {
@@ -82,7 +84,6 @@ impl Buffer {
                         self.current.append_child(element.clone());
                     }
                 });
-                self.needs_path_map_update = true;
             }
 
             Event::DeleteElements(payload) => {
@@ -92,7 +93,6 @@ impl Buffer {
                         node.set_attr("d", "");
                     }
                 });
-                self.needs_path_map_update = true;
             }
         };
     }
@@ -141,13 +141,76 @@ impl Buffer {
         !self.redo.is_empty()
     }
 
-    pub fn recalc_paths(&mut self, utree: &Node) {
-        for el in utree.children() {
-            if let NodeKind::Path(ref p) = *el.borrow() {
-                self.paths
-                    .insert(p.id.clone(), get_subpath_from_points(p.data.points()));
+    // todo: just accept the dom tree, and escalete the tree to the render tree by parsing those elements one by one
+    /**
+     * <g transform="matrix(...)">
+     *  <path transform d>
+     *  <path transform d>
+     *  <path transform d>
+     *  
+     * </g>
+     */
+    pub fn recalc_paths(&mut self) {
+        for el in self.current.children() {
+            if el.name().eq("path") {
+                let data = match el.attr("d") {
+                    Some(d) => d,
+                    None => continue,
+                };
+                let mut start = (0.0, 0.0);
+                let mut subpath: Subpath<ManipulatorGroupId> = Subpath::new(vec![], false);
+                // todo: remove when path deletion is fixed 
+                if data.eq(""){
+                    continue
+                }
+
+                for segment in svgtypes::SimplifyingPathParser::from(data) {
+                    let segment = match segment {
+                        Ok(v) => v,
+                        Err(_) => break,
+                    };
+
+                    match segment {
+                        svgtypes::SimplePathSegment::MoveTo { x, y } => {
+                            start = (x, y);
+                        }
+                        svgtypes::SimplePathSegment::CurveTo { x1, y1, x2, y2, x, y } => {
+                            let bez = Bezier::from_cubic_coordinates(
+                                start.0, start.1, x1, y1, x2, y2, x, y,
+                            );
+                            subpath.append_bezier(&bez, bezier_rs::AppendType::IgnoreStart);
+                            start = (x, y)
+                        }
+                        _ => { /*handle error */ }
+                    }
+                }
+
+                if let Some(transform) = el.attr("transform") {
+                    for segment in svgtypes::TransformListParser::from(transform) {
+                        let segment = match segment {
+                            Ok(v) => v,
+                            Err(_) => break,
+                        };
+                        match segment {
+                            svgtypes::TransformListToken::Matrix { a, b, c, d, e, f } => {
+                                subpath.apply_transform(DAffine2 {
+                                    matrix2: DMat2 {
+                                        x_axis: DVec2 { x: a, y: b },
+                                        y_axis: DVec2 { x: c as f64, y: d },
+                                    },
+                                    translation: DVec2 { x: e, y: f },
+                                });
+                            }
+                            _ => { /* todo: maybe convert to matrix? */ }
+                        }
+                    }
+                }
+                if let Some(id) = el.attr("id") {
+                    self.paths.insert(id.to_string(), subpath);
+                }
             }
         }
+        self.needs_path_map_update = false;
     }
 }
 

@@ -3565,6 +3565,7 @@ dependencies = [
  "rfd",
  "serde",
  "serde_json",
+ "svgtypes 0.13.0",
  "winres",
 ]
 
@@ -4944,7 +4945,7 @@ dependencies = [
  "pico-args",
  "png",
  "rgb",
- "svgtypes",
+ "svgtypes 0.12.0",
  "tiny-skia 0.11.2",
  "usvg",
 ]
@@ -5731,6 +5732,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "svgtypes"
+version = "0.13.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6e44e288cd960318917cbd540340968b90becc8bc81f171345d706e7a89d9d70"
+dependencies = [
+ "kurbo",
+ "siphasher",
+]
+
+[[package]]
 name = "sw-composite"
 version = "0.7.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6443,7 +6454,7 @@ dependencies = [
  "roxmltree",
  "simplecss",
  "siphasher",
- "svgtypes",
+ "svgtypes 0.12.0",
  "usvg-tree",
 ]
 
@@ -6471,7 +6482,7 @@ checksum = "6cacb0c5edeaf3e80e5afcf5b0d4004cc1d36318befc9a7c6606507e5d0f4062"
 dependencies = [
  "rctree",
  "strict-num",
- "svgtypes",
+ "svgtypes 0.12.0",
  "tiny-skia-path 0.11.2",
 ]
 
