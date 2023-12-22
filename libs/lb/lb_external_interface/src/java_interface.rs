@@ -643,18 +643,19 @@ fn send_search_request(env: JNIEnv, request: SearchRequest) -> jstring {
 pub extern "system" fn Java_app_lockbook_core_CoreKt_startSearch(
     env: JNIEnv, _: JClass, jsearchFilesViewModel: JObject<'static>,
 ) -> jstring {
-
     let results_rx = match MAYBE_SEARCH_TX.lock() {
         Ok(mut lock) => {
-            match static_state::get().and_then(|core| core.start_search(SearchType::PathAndContentSearch)) {
+            match static_state::get()
+                .and_then(|core| core.start_search(SearchType::PathAndContentSearch))
+            {
                 Ok(search_info) => {
                     *lock = Some(search_info.search_tx.clone());
-                    
+
                     search_info.results_rx
                 }
                 Err(e) => return string_to_jstring(&env, translate(Err::<(), _>(e))),
             }
-        },
+        }
         Err(_) => {
             return string_to_jstring(&env, translate(Err::<(), _>("Cannot get search lock.")))
         }
@@ -662,6 +663,11 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_startSearch(
 
     while let Ok(results) = results_rx.recv() {
         match results {
+            SearchResult::NewSearch => {
+                env
+                    .call_method(jsearchFilesViewModel, "startOfSearchQuery", "()V", &[])
+                    .unwrap();
+            }
             SearchResult::Error(e) => return string_to_jstring(&env, translate(Err::<(), _>(e))),
             SearchResult::FileNameMatch { id, path, matched_indices, score } => {
                 let matched_indices_json = match serde_json::to_string(&matched_indices) {
@@ -706,12 +712,10 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_startSearch(
                 )
                 .unwrap();
             }
-            SearchResult::NoMatch => {
-                env.call_method(jsearchFilesViewModel, "noMatch", "()V", &[])
+            SearchResult::EndOfSearch => {
+                env
+                    .call_method(jsearchFilesViewModel, "endOfSearchQuery", "()V", &[])
                     .unwrap();
-            }
-            SearchResult::NewSearch => {
-                // TODO: add complete
             }
         }
     }

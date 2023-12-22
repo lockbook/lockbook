@@ -1,6 +1,5 @@
-use crate::{CoreError, CoreState, LbResult, Requester, UnexpectedError, LbError};
-use crossbeam::channel::{self, Receiver, RecvTimeoutError, Sender};
-use lockbook_shared::clock::get_time;
+use crate::{CoreError, CoreState, LbResult, Requester, UnexpectedError};
+use crossbeam::channel::{self, Receiver, Sender};
 use lockbook_shared::document_repo::DocumentService;
 use lockbook_shared::file_like::FileLike;
 use lockbook_shared::filename::DocumentType;
@@ -8,23 +7,16 @@ use lockbook_shared::tree_like::TreeLike;
 use serde::Serialize;
 use std::cmp::Ordering;
 use std::sync::atomic::AtomicBool;
-use std::sync::{Arc, RwLock, Mutex};
-use std::thread::{self, JoinHandle, available_parallelism};
-use std::time::Duration;
+use std::sync::Arc;
+use std::thread::{self, available_parallelism, JoinHandle};
 use sublime_fuzzy::{FuzzySearch, Scoring};
 use uuid::Uuid;
 
-const DEBOUNCE_MILLIS: u64 = 0;
 const LOWEST_CONTENT_SCORE_THRESHOLD: i64 = 170;
 
 const MAX_CONTENT_MATCH_LENGTH: usize = 400;
 const IDEAL_CONTENT_MATCH_LENGTH: usize = 150;
 const CONTENT_MATCH_PADDING: usize = 8;
-
-pub struct SearchState {
-    pub maybe_path_search_tx: Option<Sender<SearchRequest>>,
-    pub maybe_content_and_path_search_tx: Option<Sender<SearchRequest>>
-}
 
 #[derive(Serialize, Debug, Eq, PartialEq)]
 pub struct SearchResultItem {
@@ -136,44 +128,36 @@ impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {
         let (search_tx, search_rx) = channel::unbounded::<SearchRequest>();
         let (results_tx, results_rx) = channel::unbounded::<SearchResult>();
 
+        println!("collected all docs");
+
         let join_handle = thread::spawn(move || {
             if let Err(search_err) = Self::search_loop(&results_tx, search_rx, files_info) {
-                results_tx.send(SearchResult::Error(search_err));
+                let _ = results_tx.send(SearchResult::Error(search_err));
             }
         });
 
         Ok(StartSearchInfo { search_tx, results_rx, join_handle })
     }
 
-    fn recv_with_debounce(
-        search_rx: &Receiver<SearchRequest>, debounce_duration: Duration,
-    ) -> Result<SearchRequest, UnexpectedError> {
-        let mut result = search_rx.recv()?;
-
-        loop {
-            match search_rx.recv_timeout(debounce_duration) {
-                Ok(new_result) => result = new_result,
-                Err(RecvTimeoutError::Timeout) => return Ok(result),
-                Err(err) => return Err(UnexpectedError::from(err)),
-            }
-        }
-    }
-
     fn search_loop(
         results_tx: &Sender<SearchResult>, search_rx: Receiver<SearchRequest>,
-        files_info: Vec<SearchableFileInfo>, 
+        files_info: Vec<SearchableFileInfo>,
     ) -> Result<(), UnexpectedError> {
+        println!("search thread launched");
+
         let files_info = Arc::new(files_info);
-        let thread_count = available_parallelism().ok().map(|thread_count| thread_count.get()).unwrap_or(2) - 1;
+        let thread_count = available_parallelism()
+            .ok()
+            .map(|thread_count| thread_count.get())
+            .unwrap_or(2)
+            - 1;
 
         let mut maybe_new_search = None;
-
-        let mut ts = get_time().0;
 
         loop {
             while let Ok(request) = search_rx.try_recv() {
                 maybe_new_search = Some(request);
-            };
+            }
 
             let search = match maybe_new_search {
                 Some(new_seach) => {
@@ -183,46 +167,58 @@ impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {
                 None => search_rx.recv().map_err(UnexpectedError::from)?,
             };
 
-            println!("new search time {}", get_time().0 - ts);
-
             match search {
                 SearchRequest::Search { input } => {
+                    println!("search recieved");
 
-                    results_tx.send(SearchResult::NewSearch).map_err(UnexpectedError::from)?;
+                    results_tx
+                        .send(SearchResult::NewSearch)
+                        .map_err(UnexpectedError::from)?;
+
+                    if input.is_empty() {
+                        results_tx
+                            .send(SearchResult::EndOfSearch)
+                            .map_err(UnexpectedError::from)?;
+                        continue;
+                    }
 
                     let cancel = Arc::new(AtomicBool::new(false));
                     let files_info = files_info.clone();
                     let thread_count = thread_count.clone();
                     let search_result_tx = results_tx.clone();
 
-                    // eliminate no search result and just include 
+                    // eliminate no search result and just include
 
                     let this_search = thread::spawn(move || {
-
                         let mut workers = vec![];
-                        
+
                         let cancel = Arc::new(AtomicBool::new(false));
                         let offset = files_info.len() / thread_count;
                         let search_result_tx = search_result_tx.clone();
                         let input = input.clone();
                         let files_info = files_info.clone();
 
-                        for i in 0..thread_count { // split up work equally between threads
-                            let ts = get_time().0;
+                        for i in 0..thread_count {
+                            // split up work equally between threads
 
                             let cancel = cancel.clone();
                             let input = input.clone();
                             let files_info = files_info.clone();
                             let search_result_tx = search_result_tx.clone();
-                            
-                            let handle = thread::spawn(move || {
-                                println!("overhead for launching thread {}: {}", i, get_time().0 - ts);
 
+                            let handle = thread::spawn(move || {
                                 let start = offset * i;
                                 let end = offset * (i + 1);
 
                                 for searchable_index in start..end {
-                                    Self::search_unit(&input, &files_info[searchable_index], &search_result_tx, &cancel).unwrap();
+                                    if let Err(err) = Self::search_unit(
+                                        &input,
+                                        &files_info[searchable_index],
+                                        &search_result_tx,
+                                        &cancel,
+                                    ) {
+                                        let _ = search_result_tx.send(SearchResult::Error(err));
+                                    }
 
                                     if cancel.load(std::sync::atomic::Ordering::Relaxed) {
                                         return;
@@ -234,22 +230,20 @@ impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {
                         }
 
                         while let Some(thread) = workers.pop() {
-                            thread.join().unwrap(); // no unwraps plz
+                            if let Err(_) = thread.join() {
+                                let _ = search_result_tx.send(SearchResult::Error(UnexpectedError::new("cannot join search worker thread")));
+                            }
                         }
 
-                        println!("finished search {}", get_time().0 - ts);
+                        let _ = search_result_tx.send(SearchResult::EndOfSearch);
                     });
 
                     if let Ok(new_search) = search_rx.recv() {
-                        ts = get_time().0;
-
                         maybe_new_search = Some(new_search);
 
                         cancel.store(true, std::sync::atomic::Ordering::Relaxed);
-                        this_search.join().unwrap();
+                        this_search.join().map_err(|_| UnexpectedError::new("cannot join managing search thread"))?;
                     }
-
-                    
                 }
                 SearchRequest::EndSearch => {
                     return Ok(());
@@ -258,11 +252,14 @@ impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {
         }
     }
 
-    fn search_unit(query: &str, searchable: &SearchableFileInfo, search_result_tx: &Sender<SearchResult>, cancel: &Arc<AtomicBool>) -> Result<(), UnexpectedError> {
+    fn search_unit(
+        query: &str, searchable: &SearchableFileInfo, search_result_tx: &Sender<SearchResult>,
+        cancel: &Arc<AtomicBool>,
+    ) -> Result<(), UnexpectedError> {
         if cancel.load(std::sync::atomic::Ordering::Relaxed) {
             return Ok(());
         }
-        
+
         if let Some(fuzzy_match) = FuzzySearch::new(query, &searchable.path)
             .case_insensitive()
             .score_with(&Scoring::emphasize_distance())
@@ -296,7 +293,7 @@ impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {
                     .case_insensitive()
                     .score_with(&Scoring::emphasize_distance())
                     .best_match()
-                {   
+                {
                     let score = fuzzy_match.score() as i64;
 
                     if cancel.load(std::sync::atomic::Ordering::Relaxed) {
@@ -309,14 +306,10 @@ impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {
                             fuzzy_match.matched_indices().cloned().collect(),
                         ) {
                             Ok((paragraph, matched_indices)) => (paragraph, matched_indices),
-                            Err(_) => continue
+                            Err(_) => continue,
                         };
 
-                        content_matches.push(ContentMatch {
-                            paragraph,
-                            matched_indices,
-                            score,
-                        });
+                        content_matches.push(ContentMatch { paragraph, matched_indices, score });
                     }
                 }
             }
@@ -431,7 +424,7 @@ impl SearchResult {
 
 pub enum SearchType {
     PathAndContentSearch,
-    PathSearch
+    PathSearch,
 }
 
 pub struct StartSearchInfo {
@@ -449,26 +442,17 @@ struct SearchableFileInfo {
 #[derive(Clone)]
 pub enum SearchRequest {
     Search { input: String },
-    EndSearch
+    EndSearch,
 }
 
 #[derive(Debug, Serialize)]
 #[serde(untagged)]
 pub enum SearchResult {
     Error(UnexpectedError),
-    FileNameMatch { 
-        id: Uuid, 
-        path: String, 
-        matched_indices: Vec<usize>, 
-        score: i64,
-    },
-    FileContentMatches { 
-        id: Uuid, 
-        path: String, 
-        content_matches: Vec<ContentMatch>,
-    },
-    NoMatch,
     NewSearch,
+    FileNameMatch { id: Uuid, path: String, matched_indices: Vec<usize>, score: i64 },
+    FileContentMatches { id: Uuid, path: String, content_matches: Vec<ContentMatch> },
+    EndOfSearch,
 }
 
 #[derive(Debug, Serialize)]

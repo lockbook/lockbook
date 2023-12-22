@@ -17,7 +17,7 @@ struct PathSearchActionBar: View {
         Group {
             Rectangle()
                 .onTapGesture {
-                    search.endSearch()
+                    search.endSearch(isPathAndContentSearch: false)
                 }
                 .foregroundColor(.gray.opacity(0.01))
             
@@ -37,17 +37,30 @@ struct PathSearchActionBar: View {
                                     focused = true
                                 }
                             #endif
+                            
+                            if search.isPathSearchInProgress {
+                                #if os(iOS)
+                                ProgressView()
+                                    .frame(width: 20, height: 20)
+                                #else
+                                ProgressView()
+                                    .scaleEffect(0.5)
+                                    .frame(width: 20, height: 20)
+                                #endif
+                            }
                         }
                         
-                        if case .SearchSuccessful(let results)  = search.pathSearchState {
-                            Divider()
-                                .padding(.top)
+                        if !search.pathSearchResults.isEmpty {
+                                Divider()
+                            .padding(.top)
                             
                             ScrollViewReader { scrollHelper in
                                 ScrollView {
-                                    ForEach(results) { result in
+                                    ForEach(search.pathSearchResults) { result in
                                         if case .PathMatch(_, _, let name, let path, let matchedIndices, _) = result {
-                                            SearchResultCellView(name: name, path: path, matchedIndices: matchedIndices, index: 0, selected: 1)
+                                            let index = search.pathSearchResults.firstIndex(where: { $0.id == result.id }) ?? 0
+                
+                                            SearchResultCellView(name: name, path: path, matchedIndices: matchedIndices, index: index, selected: search.pathSearchSelected)
                                         }
                                     }
                                     .scrollIndicators(.visible)
@@ -55,23 +68,13 @@ struct PathSearchActionBar: View {
                                 }
                                 .onChange(of: search.pathSearchSelected) { newValue in
                                     withAnimation {
-                                        scrollHelper.scrollTo(newValue, anchor: .center)
+                                        let item = search.pathSearchResults[newValue]
+                                        
+                                        scrollHelper.scrollTo(item.id, anchor: .center)
                                     }
                                 }
                             }
                             .frame(maxHeight: 500)
-                        } else if case .NoMatch = search.pathSearchState {
-                            Text("No results.")
-                                .font(.headline)
-                                .foregroundColor(.gray)
-                                .fontWeight(.bold)
-                                .padding()
-                        } else if case .Searching = search.pathSearchState {
-                            Divider()
-                                .padding(.top)
-                            
-                            ProgressView()
-                                .controlSize(.regular)
                         }
                     }
                     .padding()
@@ -88,7 +91,7 @@ struct PathSearchActionBar: View {
                     )
                     .frame(width: 500)
                     .onChange(of: text, perform: { newValue in
-                        search.search(query: newValue)
+                        search.search(query: newValue, isPathAndContentSearch: false)
                     })
                 }
                 .padding(.top, geometry.size.height / 4.5)
@@ -159,7 +162,7 @@ class PathSearchTextField: UITextField {
     }
     
     @objc func exitPathSearch() {
-        DI.search.pathSearchState = .NotSearching
+        DI.search.endSearch(isPathAndContentSearch: true)
     }
     
     @objc func openSelected1() {
@@ -216,12 +219,8 @@ public struct PathSearchTextFieldWrapper: UIViewRepresentable {
         uiView.text = text
         
         DispatchQueue.main.async {
-            if DI.search.pathSearchState.isSearching() {
-                if !text.isEmpty {
-                    DI.search.search(query: text)
-                } else {
-                    DI.search.pathSearchState = .Idle
-                }
+            if DI.search.isPathSearching {
+                DI.search.search(query: text, isPathAndContentSearch: false)
             }
         }
         
@@ -268,7 +267,7 @@ public class PathSearchTextField: NSTextField {
             
             return true
         case 53: // escape
-            DI.search.pathSearchState = .NotSearching
+            DI.search.endSearch(isPathAndContentSearch: false)
             
             return true
         default:
@@ -335,12 +334,8 @@ public struct PathSearchTextFieldWrapper: NSViewRepresentable {
         public func controlTextDidChange(_ obj: Notification) {
             if let textField = obj.object as? NSTextField {
                 DispatchQueue.main.async {
-                    if DI.search.pathSearchState.isSearching() {
-                        if !textField.stringValue.isEmpty {
-                            DI.search.search(query: textField.stringValue)
-                        } else {
-                            DI.search.pathSearchState = .Idle
-                        }
+                    if DI.search.isPathSearching {
+                        DI.search.search(query: textField.stringValue, isPathAndContentSearch: false)
                     }
                 }
             }
@@ -364,7 +359,6 @@ struct SearchResultCellView: View {
     var body: some View {
         Button(action: {
             DI.search.pathSearchSelected = index
-            
             DI.search.openPathAtIndex(index: index)
         }, label: {
             HStack {

@@ -10,7 +10,7 @@ pub use base64;
 pub use basic_human_duration::ChronoHumanDuration;
 pub use libsecp256k1::PublicKey;
 pub use lockbook_shared::document_repo::{DocumentService, OnDiskDocuments};
-use service::search_service::{SearchType, SearchState};
+use service::search_service::SearchType;
 pub use time::Duration;
 pub use uuid::Uuid;
 
@@ -74,7 +74,6 @@ pub struct CoreState<Client: Requester, Docs: DocumentService> {
     pub docs: Docs,
     pub client: Client,
     pub syncing: bool,
-    pub search: SearchState
 }
 
 impl Core {
@@ -503,9 +502,6 @@ impl<Client: Requester, Docs: DocumentService> CoreLib<Client, Docs> {
     #[instrument(level = "debug", skip(self, search_type), err(Debug))]
     pub fn start_search(&self, search_type: SearchType) -> Result<StartSearchInfo, LbError> {
         self.in_tx(|s| s.start_search(search_type))
-            .expected_errs(&[
-                CoreError::SearchAlreadyActive
-            ])
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]

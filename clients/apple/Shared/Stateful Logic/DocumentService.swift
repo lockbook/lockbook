@@ -29,9 +29,10 @@ class DocumentService: ObservableObject {
     var justCreatedDoc: File? = nil
     var justOpenedLink: File? = nil
 
-    func openDoc(id: UUID, isiPhone: Bool = false) {
+    func openDoc(id: UUID, isiPhone: Bool = false) {        
         if let meta = DI.files.idsAndFiles[id],
            openDocuments[id] == nil {
+            
             openDocuments[id] = DocumentLoadingInfo(meta, isiPhone)
         }
     }

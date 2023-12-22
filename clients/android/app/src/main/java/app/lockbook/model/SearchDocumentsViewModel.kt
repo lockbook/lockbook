@@ -50,23 +50,18 @@ class SearchDocumentsViewModel(application: Application) : AndroidViewModel(appl
 
         hideNoSearchResultsIfVisible()
 
-        if (query == null || query.isEmpty()) {
-            hideProgressSpinnerIfVisible()
-            val stopCurrentSearchResult = CoreModel.stopCurrentSearch()
-
-            if (stopCurrentSearchResult is Err) {
-                _updateSearchUI.value = UpdateSearchUI.Error(stopCurrentSearchResult.error.toLbError(getRes()))
-            }
-
+        if (query == null) {
             return
         }
 
         showProgressSpinnerIfGone()
 
-        val searchResult = CoreModel.search(query)
+        viewModelScope.launch(Dispatchers.IO) {
+            val searchResult = CoreModel.search(query)
 
-        if (searchResult is Err) {
-            _updateSearchUI.value = UpdateSearchUI.Error(searchResult.error.toLbError(getRes()))
+            if (searchResult is Err) {
+                _updateSearchUI.value = UpdateSearchUI.Error(searchResult.error.toLbError(getRes()))
+            }
         }
     }
 
@@ -75,6 +70,14 @@ class SearchDocumentsViewModel(application: Application) : AndroidViewModel(appl
 
         if (endSearchResult is Err) {
             _updateSearchUI.value = UpdateSearchUI.Error(endSearchResult.error.toLbError(getRes()))
+        }
+    }
+
+    // used by core over ffi
+    fun startOfSearchQuery() {
+        viewModelScope.launch(Dispatchers.Main) {
+            showProgressSpinnerIfGone()
+            hideNoSearchResultsIfVisible()
         }
     }
 
@@ -111,10 +114,12 @@ class SearchDocumentsViewModel(application: Application) : AndroidViewModel(appl
     }
 
     // used by core over ffi
-    fun noMatch() {
+    fun endOfSearchQuery() {
         viewModelScope.launch(Dispatchers.Main) {
             hideProgressSpinnerIfVisible()
-            showNoSearchResultsIfGone()
+            if(fileResults.isEmpty()) {
+                showNoSearchResultsIfGone()
+            }
         }
     }
 

@@ -168,12 +168,12 @@ public struct CoreApi: LockbookApi {
         fromPrimitiveResult(result: start_search(isPathAndContentSearch, context, updateStatus))
     }
     
-    public func endSearch() -> FfiResult<Empty, GeneralSearchError> {
-        fromPrimitiveResult(result: end_search())
+    public func endSearch(isPathAndContentSearch: Bool) -> FfiResult<Empty, GeneralSearchError> {
+        fromPrimitiveResult(result: end_search(isPathAndContentSearch))
     }
     
-    public func searchQuery(query: String) -> FfiResult<Empty, GeneralSearchError> {
-        fromPrimitiveResult(result: search(query))
+    public func searchQuery(query: String, isPathAndContentSearch: Bool) -> FfiResult<Empty, GeneralSearchError> {
+        fromPrimitiveResult(result: search(query, isPathAndContentSearch))
     }
     
     public func suggestedDocs() -> FfiResult<[UUID], SuggestedDocsError> {

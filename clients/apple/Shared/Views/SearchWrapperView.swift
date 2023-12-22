@@ -17,26 +17,13 @@ struct SearchWrapperView<Content: View>: View {
     
     var body: some View {
         VStack {
-            switch search.pathAndContentSearchState {
-            case .NotSearching:
-                mainView
-            case .Idle:
-                #if os(iOS)
-                Spacer()
-                #else
-                mainView
-                #endif
-            case .NoMatch:
-                Spacer()
-                Text("No search results")
-                Spacer()
-            case .Searching:
-                Spacer()
-                ProgressView()
-                Spacer()
-            case .SearchSuccessful(let results):
+            if search.isPathAndContentSearching {
+                if search.isPathAndContentSearchInProgress {
+                    ProgressView()
+                }
+                
                 if !isiOS {
-                    List(results) { result in
+                    List(search.pathAndContentSearchResults) { result in
                         switch result {
                         case .PathMatch(_, let meta, let name, let path, let matchedIndices, _):
                             Button(action: {
@@ -63,7 +50,7 @@ struct SearchWrapperView<Content: View>: View {
                     .setiPadOrMacOSSearchListStyle()
                 } else {
 #if os(iOS)
-                    List(results) { result in
+                    List(search.pathAndContentSearchResults) { result in
                         switch result {
                         case .PathMatch(_, let meta, let name, let path, let matchedIndices, _):
                             NavigationLink(destination: iOSDocumentViewWrapper(id: meta.id)) {
@@ -78,20 +65,18 @@ struct SearchWrapperView<Content: View>: View {
                     .listStyle(.insetGrouped)
 #endif
                 }
+            } else {
+                mainView
             }
         }
         .onChange(of: searchInput) { newInput in
-            if !newInput.isEmpty {
-                search.search(query: newInput)
-            } else if isSearching {
-                search.pathAndContentSearchState = .Idle
-            }
+            search.search(query: newInput, isPathAndContentSearch: true)
         }
         .onChange(of: isSearching, perform: { newInput in
             if newInput {
                 search.startSearchThread(isPathAndContentSearch: true)
             } else {
-                search.endSearch()
+                search.endSearch(isPathAndContentSearch: true)
             }
         })
     }

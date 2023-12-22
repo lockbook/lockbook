@@ -60,8 +60,8 @@ public protocol LockbookApi {
         // updateStatus(context, searchResultType, searchResultJson)
         updateStatus: @escaping @convention(c) (UnsafePointer<Int8>?, Int32, UnsafePointer<Int8>?) -> Void
     ) -> FfiResult<Empty, GeneralSearchError>
-    func endSearch() -> FfiResult<Empty, GeneralSearchError>
-    func searchQuery(query: String) -> FfiResult<Empty, GeneralSearchError>
+    func endSearch(isPathAndContentSearch: Bool) -> FfiResult<Empty, GeneralSearchError>
+    func searchQuery(query: String, isPathAndContentSearch: Bool) -> FfiResult<Empty, GeneralSearchError>
     
     func freeText(s: UnsafePointer<Int8>)
 }
