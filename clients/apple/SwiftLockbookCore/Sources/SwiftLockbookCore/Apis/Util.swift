@@ -42,7 +42,7 @@ func deserializeResult<T: Decodable, E: UiError>(jsonResultStr: String) -> FfiRe
 
 func fromPrimitiveResult<T: Decodable, E: UiError>(result: UnsafePointer<Int8>) -> FfiResult<T, E> {
     let resultString = String(cString: result)
-    release_pointer(UnsafeMutablePointer(mutating: result))
+//    release_pointer(UnsafeMutablePointer(mutating: result))
     
     return deserializeResult(jsonResultStr: resultString)
 }

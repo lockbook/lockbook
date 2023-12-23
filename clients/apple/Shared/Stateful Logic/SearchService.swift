@@ -143,10 +143,10 @@ class SearchService: ObservableObject {
     func openPathAtIndex(index: Int) {
         if case .SearchSuccessful(let paths) = pathSearchState,
            index < paths.count {
-            DI.currentDoc.cleanupOldDocs()
-
-            DI.currentDoc.openDoc(id: paths[index].id)
-            DI.currentDoc.setSelectedOpenDocById(maybeId: paths[index].id)
+//            DI.currentDoc.cleanupOldDocs()
+//
+//            DI.currentDoc.openDoc(id: paths[index].id)
+//            DI.currentDoc.setSelectedOpenDocById(maybeId: paths[index].id)
             
             pathSearchState = .NotSearching
             pathSearchSelected = 0
@@ -168,9 +168,9 @@ class SearchService: ObservableObject {
     }
     
     func submitSearch(id: UUID) {
-        DI.currentDoc.cleanupOldDocs()
-        DI.currentDoc.openDoc(id: id)
-        DI.currentDoc.setSelectedOpenDocById(maybeId: id)
+//        DI.currentDoc.cleanupOldDocs()
+//        DI.currentDoc.openDoc(id: id)
+//        DI.currentDoc.setSelectedOpenDocById(maybeId: id)
     }
 }
 

@@ -46,12 +46,10 @@ impl PdfViewer {
             .rotate_if_landscape(PdfPageRenderRotation::Degrees90, true);
 
         let pdfium_binary_path = format!("{}/egui", data_dir);
+        println!("{pdfium_binary_path}");
 
         PdfiumWrapper::init(&pdfium_binary_path);
-        let bindings = Pdfium::bind_to_library(Pdfium::pdfium_platform_library_name_at_path(
-            &pdfium_binary_path,
-        ))
-        .unwrap();
+        let bindings = Pdfium::bind_to_system_library().unwrap();
 
         let pdfium = Pdfium::new(bindings);
         let docs = pdfium.load_pdf_from_byte_slice(bytes, None).unwrap();

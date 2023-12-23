@@ -40,17 +40,17 @@ struct SearchWrapperView<Content: View>: View {
                         switch result {
                         case .PathMatch(_, let meta, let name, let path, let matchedIndices, _):
                             Button(action: {
-                                DI.currentDoc.cleanupOldDocs()
-                                DI.currentDoc.openDoc(id: meta.id)
-                                DI.currentDoc.setSelectedOpenDocById(maybeId: meta.id)
+//                                DI.currentDoc.cleanupOldDocs()
+//                                DI.currentDoc.openDoc(id: meta.id)
+//                                DI.currentDoc.setSelectedOpenDocById(maybeId: meta.id)
                             }) {
                                 SearchFilePathCell(name: name, path: path, matchedIndices: matchedIndices)
                             }
                         case .ContentMatch(_, let meta, let name, let path, let paragraph, let matchedIndices, _):
                             Button(action: {
-                                DI.currentDoc.cleanupOldDocs()
-                                DI.currentDoc.openDoc(id: meta.id)
-                                DI.currentDoc.setSelectedOpenDocById(maybeId: meta.id)
+//                                DI.currentDoc.cleanupOldDocs()
+//                                DI.currentDoc.openDoc(id: meta.id)
+//                                DI.currentDoc.setSelectedOpenDocById(maybeId: meta.id)
                             }) {
                                 SearchFileContentCell(name: name, path: path, paragraph: paragraph, matchedIndices: matchedIndices)
                             }

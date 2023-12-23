@@ -699,8 +699,30 @@ pub unsafe extern "C" fn time_ago(time_stamp: i64) -> *const c_char {
 /// Be sure to call `release_pointer` on the result of this function to free the data.
 #[no_mangle]
 pub unsafe extern "C" fn get_core_ptr() -> *mut c_void {
-    let obj = static_state::get().expect("Could not get core");
+    let obj = static_state::get().expect("Could not get core").core;
     Box::into_raw(Box::new(obj)) as *mut c_void
+}
+
+struct CameraHandle(*mut c_void);
+
+unsafe impl Send for CameraHandle {}
+unsafe impl Sync for CameraHandle {}
+
+/// # Safety
+///
+/// Be sure to call `release_pointer` on the result of this function to free the data.
+#[no_mangle]
+pub unsafe extern "C" fn get_core_ptr2(obj: *mut c_void) -> *mut c_void {
+    let obj2 = CameraHandle(obj);
+    // std::thread::spawn(move || {
+    //     let core_ptr = unsafe { &mut *(obj2.0 as *mut lb_rs::Core) };
+    //     core_ptr.sync(None).unwrap();
+    //     println!("{:p}", core_ptr);
+    // })
+    // .join()
+    // .unwrap();
+
+    obj
 }
 
 // FOR INTEGRATION TESTS ONLY

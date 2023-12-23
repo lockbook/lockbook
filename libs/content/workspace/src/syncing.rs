@@ -1,5 +1,5 @@
 use crate::workspace::{Workspace, WsMsg, WsOutput};
-use lb::{CoreError, LbError, SyncProgress, SyncStatus};
+use lb_rs::{CoreError, LbError, SyncProgress, SyncStatus};
 use std::sync::atomic::Ordering;
 use std::thread;
 
@@ -30,7 +30,7 @@ impl Workspace {
                 }
             };
 
-            let result = core.sync(Some(Box::new(closure)));
+            let result = core.sync(None); // todo
             syncing.store(false, Ordering::SeqCst);
             update_tx.send(WsMsg::SyncDone(result)).unwrap();
             ctx.request_repaint();

@@ -51,11 +51,11 @@ impl ThemePalette {
     }
 }
 
-impl std::ops::Index<lb::ColorAlias> for ThemePalette {
+impl std::ops::Index<lb_rs::ColorAlias> for ThemePalette {
     type Output = Color32;
 
-    fn index(&self, alias: lb::ColorAlias) -> &Self::Output {
-        use lb::ColorAlias::*;
+    fn index(&self, alias: lb_rs::ColorAlias) -> &Self::Output {
+        use lb_rs::ColorAlias::*;
         match alias {
             Black => &self.black,
             Red => &self.red,

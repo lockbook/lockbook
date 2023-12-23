@@ -4,14 +4,16 @@ import Bridge
 
 public class MacMTK: MTKView, MTKViewDelegate {
     
-    var editorHandle: UnsafeMutableRawPointer?
+    var wsHandle: UnsafeMutableRawPointer?
     var coreHandle: UnsafeMutableRawPointer?
     var trackingArea : NSTrackingArea?
     var pasteBoardEventId: Int = 0
         
-    var editorState: EditorState?
-    var toolbarState: ToolbarState?
-    var nameState: NameState?
+    var workspaceState: WorkspaceState?
+    
+    // todo this will probably just become us hanging on to the last output
+    var currentOpenDoc: UUID? = nil
+    var currentSelectedFolder: UUID? = nil
     
     var redrawTask: DispatchWorkItem? = nil
     
@@ -21,12 +23,16 @@ public class MacMTK: MTKView, MTKViewDelegate {
         self.isPaused = true
         self.enableSetNeedsDisplay = true
         self.preferredFramesPerSecond = 120
-        
-        NSEvent.addLocalMonitorForEvents(matching: .flagsChanged, handler: modifiersChanged(event:))
+    }
+    
+    func openFile(id: UUID) {
+        let uuid = CUuid(_0: id.uuid)
+        open_file(wsHandle, uuid, false)
+        setNeedsDisplay(self.frame)
     }
     
     func modifiersChanged(event: NSEvent) -> NSEvent {
-        modifier_event(editorHandle, event.modifierFlags.contains(.shift), event.modifierFlags.contains(.control), event.modifierFlags.contains(.option), event.modifierFlags.contains(.command))
+        modifier_event(self.wsHandle, event.modifierFlags.contains(.shift), event.modifierFlags.contains(.control), event.modifierFlags.contains(.option), event.modifierFlags.contains(.command))
         setNeedsDisplay(self.frame)
         return event
     }
@@ -49,70 +55,17 @@ public class MacMTK: MTKView, MTKViewDelegate {
     required init(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
-    
-    public func header(headingSize: UInt32) {
-        apply_style_to_selection_header(editorHandle, headingSize)
-        setNeedsDisplay(self.frame)
-    }
-
-    public func bulletedList() {
-        apply_style_to_selection_bulleted_list(editorHandle)
-        setNeedsDisplay(self.frame)
-    }
-
-    public func numberedList() {
-        apply_style_to_selection_numbered_list(editorHandle)
-        setNeedsDisplay(self.frame)
-    }
-
-    public func todoList() {
-        apply_style_to_selection_todo_list(editorHandle)
-        setNeedsDisplay(self.frame)
-    }
-
-    public func bold() {
-        apply_style_to_selection_bold(editorHandle)
-        setNeedsDisplay(self.frame)
-    }
-
-    public func italic() {
-        apply_style_to_selection_italic(editorHandle)
-        setNeedsDisplay(self.frame)
-    }
-
-    public func inlineCode() {
-        apply_style_to_selection_inline_code(editorHandle)
-        self.setNeedsDisplay(self.frame)
-    }
-    
-    public func strikethrough() {
-        apply_style_to_selection_strikethrough(editorHandle)
-        self.setNeedsDisplay(self.frame)
-    }
-    
-    func undoRedo(redo: Bool) {
-        undo_redo(self.editorHandle, redo)
-        self.setNeedsDisplay(self.frame)
-    }
 
     public override var acceptsFirstResponder: Bool {
         return true
     }
     
-    public func setInitialContent(_ coreHandle: UnsafeMutableRawPointer?, _ s: String) {
+    public func setInitialContent(_ coreHandle: UnsafeMutableRawPointer?) {
+        print("initial content called")
         let metalLayer = UnsafeMutableRawPointer(Unmanaged.passUnretained(self.layer!).toOpaque())
-        self.editorHandle = init_editor(coreHandle, metalLayer, s, isDarkMode())
+        self.wsHandle = init_ws(coreHandle, metalLayer, isDarkMode())
         
-        self.toolbarState!.toggleBold = bold
-        self.toolbarState!.toggleItalic = italic
-        self.toolbarState!.toggleTodoList = todoList
-        self.toolbarState!.toggleBulletList = bulletedList
-        self.toolbarState!.toggleInlineCode = inlineCode
-        self.toolbarState!.toggleStrikethrough = strikethrough
-        self.toolbarState!.toggleNumberList = numberedList
-        self.toolbarState!.toggleHeading = header
-        self.toolbarState!.undoRedo = undoRedo
-        
+        NSEvent.addLocalMonitorForEvents(matching: .flagsChanged, handler: modifiersChanged(event:))
         registerForDraggedTypes([.png, .tiff, .fileURL, .string])
         becomeFirstResponder()
     }
@@ -131,7 +84,7 @@ public class MacMTK: MTKView, MTKViewDelegate {
         }
 
         let local = viewCoordinates(event)
-        mouse_moved(editorHandle, Float(local.x), Float(local.y))
+        mouse_moved(wsHandle, Float(local.x), Float(local.y))
         setNeedsDisplay(self.frame)
     }
     
@@ -141,37 +94,36 @@ public class MacMTK: MTKView, MTKViewDelegate {
         }
 
         let local = viewCoordinates(event)
-        mouse_moved(editorHandle, Float(local.x), Float(local.y))
+        mouse_moved(wsHandle, Float(local.x), Float(local.y))
         setNeedsDisplay(self.frame)
     }
     
     public override func mouseDown(with event: NSEvent) {
         let local = viewCoordinates(event)
-        mouse_button(editorHandle, Float(local.x), Float(local.y), true, true, event.modifierFlags.contains(.shift), event.modifierFlags.contains(.control), event.modifierFlags.contains(.option), event.modifierFlags.contains(.command))
+        mouse_button(wsHandle, Float(local.x), Float(local.y), true, true, event.modifierFlags.contains(.shift), event.modifierFlags.contains(.control), event.modifierFlags.contains(.option), event.modifierFlags.contains(.command))
         setNeedsDisplay(self.frame)
     }
     
     public override func mouseUp(with event: NSEvent) {
         let local = viewCoordinates(event)
-        mouse_button(editorHandle, Float(local.x), Float(local.y), false, true, event.modifierFlags.contains(.shift), event.modifierFlags.contains(.control), event.modifierFlags.contains(.option), event.modifierFlags.contains(.command))
-        self.textChanged()
+        mouse_button(wsHandle, Float(local.x), Float(local.y), false, true, event.modifierFlags.contains(.shift), event.modifierFlags.contains(.control), event.modifierFlags.contains(.option), event.modifierFlags.contains(.command))
         setNeedsDisplay(self.frame)
     }
     
     public override func rightMouseDown(with event: NSEvent) {
         let local = viewCoordinates(event)
-        mouse_button(editorHandle, Float(local.x), Float(local.y), true, false, event.modifierFlags.contains(.shift), event.modifierFlags.contains(.control), event.modifierFlags.contains(.option), event.modifierFlags.contains(.command))
+        mouse_button(wsHandle, Float(local.x), Float(local.y), true, false, event.modifierFlags.contains(.shift), event.modifierFlags.contains(.control), event.modifierFlags.contains(.option), event.modifierFlags.contains(.command))
         setNeedsDisplay(self.frame)
     }
     
     public override func rightMouseUp(with event: NSEvent) {
         let local = viewCoordinates(event)
-        mouse_button(editorHandle, Float(local.x), Float(local.y), false, false, event.modifierFlags.contains(.shift), event.modifierFlags.contains(.control), event.modifierFlags.contains(.option), event.modifierFlags.contains(.command))
+        mouse_button(wsHandle, Float(local.x), Float(local.y), false, false, event.modifierFlags.contains(.shift), event.modifierFlags.contains(.control), event.modifierFlags.contains(.option), event.modifierFlags.contains(.command))
         setNeedsDisplay(self.frame)
     }
     
     public override func scrollWheel(with event: NSEvent) {
-        scroll_wheel(editorHandle, Float(event.scrollingDeltaY))
+        scroll_wheel(wsHandle, Float(event.scrollingDeltaY))
         setNeedsDisplay(self.frame)
     }
     
@@ -181,12 +133,12 @@ public class MacMTK: MTKView, MTKViewDelegate {
             return
         }
         
-        key_event(editorHandle, event.keyCode, event.modifierFlags.contains(.shift), event.modifierFlags.contains(.control), event.modifierFlags.contains(.option), event.modifierFlags.contains(.command), true, event.characters)
+        key_event(wsHandle, event.keyCode, event.modifierFlags.contains(.shift), event.modifierFlags.contains(.control), event.modifierFlags.contains(.option), event.modifierFlags.contains(.command), true, event.characters)
         setNeedsDisplay(self.frame)
     }
     
     public override func viewDidChangeEffectiveAppearance() {
-        dark_mode(editorHandle, isDarkMode())
+        dark_mode(wsHandle, isDarkMode())
         setNeedsDisplay(self.frame)
     }
     
@@ -196,15 +148,14 @@ public class MacMTK: MTKView, MTKViewDelegate {
     }
     
     public override func keyUp(with event: NSEvent) {
-        key_event(editorHandle, event.keyCode, event.modifierFlags.contains(.shift), event.modifierFlags.contains(.control), event.modifierFlags.contains(.option), event.modifierFlags.contains(.command), false, event.characters)
-        self.textChanged()
+        key_event(wsHandle, event.keyCode, event.modifierFlags.contains(.shift), event.modifierFlags.contains(.control), event.modifierFlags.contains(.option), event.modifierFlags.contains(.command), false, event.characters)
         setNeedsDisplay(self.frame)
     }
     
     func setClipboard(){
         let pasteboardString: String? = NSPasteboard.general.string(forType: .string)
         if let theString = pasteboardString {
-            system_clipboard_changed(editorHandle, theString)
+            system_clipboard_changed(wsHandle, theString)
         }
         self.pasteBoardEventId = NSPasteboard.general.changeCount
     }
@@ -220,25 +171,25 @@ public class MacMTK: MTKView, MTKViewDelegate {
                 return false
             }
             
-            if let lbImageURL = editorState!.importFile(imageUrl) {
-                paste_text(editorHandle, lbImageURL)
-                editorState?.pasted = true
-                
-                return true
-            }
+//            if let lbImageURL = workspaceState!.importFile(imageUrl) {
+//                paste_text(wsHandle, lbImageURL)
+//                workspaceState?.pasted = true
+//                
+//                return true
+//            }
         } else if isDropOperation {
             if let data = pasteBoard.data(forType: .fileURL) {
                 if let url = URL(dataRepresentation: data, relativeTo: nil) {
-                    if let markdownURL = editorState!.importFile(url) {
-                        paste_text(editorHandle, markdownURL)
-                        editorState?.pasted = true
-                        
-                        return true
-                    }
+//                    if let markdownURL = workspaceState!.importFile(url) {
+//                        paste_text(wsHandle, markdownURL)
+//                        workspaceState?.pasted = true
+//                        
+//                        return true
+//                    }
                 }
             } else if let data = pasteBoard.data(forType: .string) {
-                paste_text(editorHandle, String(data: data, encoding: .utf8))
-                editorState?.pasted = true
+                paste_text(wsHandle, String(data: data, encoding: .utf8))
+                workspaceState?.pasted = true
                 
                 return true
             }
@@ -257,7 +208,7 @@ public class MacMTK: MTKView, MTKViewDelegate {
     }
     
     func getCoppiedText() -> String {
-        let result = get_copied_text(editorHandle)
+        let result = get_copied_text(wsHandle)
         let str = String(cString: result!)
         free_text(UnsafeMutablePointer(mutating: result))
         return str
@@ -274,7 +225,7 @@ public class MacMTK: MTKView, MTKViewDelegate {
         // we probably want a setNeedsDisplay here
         let scale = self.window?.backingScaleFactor ?? 1.0
         print(Float(size.width), Float(size.height), Float(scale))
-        resize_editor(editorHandle, Float(size.width), Float(size.height), Float(scale))
+        resize_editor(wsHandle, Float(size.width), Float(size.height), Float(scale))
     }
     
     public func draw(in view: MTKView) {
@@ -283,34 +234,18 @@ public class MacMTK: MTKView, MTKViewDelegate {
         }
         
         let scale = Float(self.window?.backingScaleFactor ?? 1.0)
-        dark_mode(editorHandle, isDarkMode())
-        set_scale(editorHandle, scale)
-        let output = draw_editor(editorHandle)
-
-        toolbarState?.isHeadingSelected = output.editor_response.cursor_in_heading;
-        toolbarState?.isTodoListSelected = output.editor_response.cursor_in_todo_list;
-        toolbarState?.isBulletListSelected = output.editor_response.cursor_in_bullet_list;
-        toolbarState?.isNumberListSelected = output.editor_response.cursor_in_number_list;
-        toolbarState?.isInlineCodeSelected = output.editor_response.cursor_in_inline_code;
-        toolbarState?.isBoldSelected = output.editor_response.cursor_in_bold;
-        toolbarState?.isItalicSelected = output.editor_response.cursor_in_italic;
-        toolbarState?.isStrikethroughSelected = output.editor_response.cursor_in_strikethrough;
+        dark_mode(wsHandle, isDarkMode())
+        set_scale(wsHandle, scale)
+        let output = draw_editor(wsHandle)
         
-        if let potentialTitle = output.editor_response.potential_title {
-            nameState?.potentialTitle = String(cString: potentialTitle)
-            free_text(UnsafeMutablePointer(mutating: potentialTitle))
-        } else {
-            nameState?.potentialTitle = nil
-        }
-        
-        if let openedURLSeq = output.editor_response.opened_url {
-            let openedURL = String(cString: openedURLSeq)
-            free_text(UnsafeMutablePointer(mutating: openedURLSeq))
-            
-            if let url = URL(string: openedURL) {
-                NSWorkspace.shared.open(url)
-            }
-        }
+//        if let openedURLSeq = output.editor_response.opened_url {
+//            let openedURL = String(cString: openedURLSeq)
+//            free_text(UnsafeMutablePointer(mutating: openedURLSeq))
+//            
+//            if let url = URL(string: openedURL) {
+//                NSWorkspace.shared.open(url)
+//            }
+//        }
 
         redrawTask?.cancel()
         self.isPaused = output.redraw_in > 100
@@ -326,30 +261,10 @@ public class MacMTK: MTKView, MTKViewDelegate {
             }
         }
 
-        if has_copied_text(editorHandle) {
+        if has_copied_text(wsHandle) {
             NSPasteboard.general.clearContents()
             NSPasteboard.general.setString(getCoppiedText(), forType: .string)
         }
-    }
-    
-    func updateText(_ s: String) {
-        set_text(editorHandle, s)
-        setNeedsDisplay(self.frame)
-    }
-    
-    func textChanged() {
-        self.editorState?.text = getText()
-    }
-    
-    func getText() -> String {
-        let result = get_text(editorHandle)
-        let str = String(cString: result!)
-        free_text(UnsafeMutablePointer(mutating: result))
-        return str
-    }
-    
-    deinit {
-         deinit_editor(editorHandle)
     }
 }
 #endif

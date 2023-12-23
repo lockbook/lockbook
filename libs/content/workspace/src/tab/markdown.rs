@@ -11,7 +11,7 @@ pub struct Markdown {
 impl Markdown {
     // todo: you eleminated the idea of an auto rename signal here, evaluate what to do with it
     pub fn new(
-        core: lb::Core, bytes: &[u8], toolbar_visibility: &ToolBarVisibility, needs_name: bool,
+        core: lb_rs::Core, bytes: &[u8], toolbar_visibility: &ToolBarVisibility, needs_name: bool,
     ) -> Self {
         let content = String::from_utf8_lossy(bytes).to_string();
         let mut editor = Editor::new(core);

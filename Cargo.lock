@@ -7292,14 +7292,14 @@ dependencies = [
  "egui_editor",
  "egui_wgpu_backend",
  "jni 0.21.1",
- "lb-rs",
+ "lb_external_interface",
  "libc",
  "ndk-sys",
  "pollster",
  "raw-window-handle",
- "reqwest",
  "serde",
  "serde_json",
+ "workspace",
 ]
 
 [[package]]

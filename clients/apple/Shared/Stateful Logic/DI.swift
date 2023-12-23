@@ -16,7 +16,6 @@ class DI {
     static let share = ShareService(core)
     static let onboarding = OnboardingService(core)
     static let sheets: SheetState = SheetState()
-    static let currentDoc: DocumentService = DocumentService()
     static let search = SearchService(core)
     #if os(iOS)
     static let toolbarModel = ToolbarModel()
@@ -29,7 +28,6 @@ class DI {
         DI.files.idsAndFiles = [:]
         DI.onboarding.theyChoseToBackup = false
         DI.onboarding.username = ""
-        DI.currentDoc.openDocuments.removeAll()
     }
 }
 
@@ -49,7 +47,6 @@ class Mock {
     static let share = ShareService(core)
     static let onboarding = OnboardingService(core)
     static let sheets: SheetState = SheetState()
-    static let currentDoc: DocumentService = DocumentService()
     static let search = SearchService(core)
     #if os(iOS)
     static let toolbarModel = ToolbarModel()
@@ -78,7 +75,6 @@ extension View {
             .environmentObject(DI.sync)
             .environmentObject(DI.onboarding)
             .environmentObject(DI.sheets)
-            .environmentObject(DI.currentDoc)
             .environmentObject(DI.billing)
             .environmentObject(DI.share)
             .environmentObject(DI.search)
@@ -106,7 +102,6 @@ extension View {
             .environmentObject(Mock.sync)
             .environmentObject(Mock.onboarding)
             .environmentObject(Mock.sheets)
-            .environmentObject(Mock.currentDoc)
             .environmentObject(Mock.billing)
             .environmentObject(Mock.share)
     }

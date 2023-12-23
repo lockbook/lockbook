@@ -4,11 +4,15 @@ use egui_editor::offset_types::{DocCharOffset, RelCharOffset};
 use egui_editor::{Editor, EditorResponse};
 use egui_wgpu_backend::wgpu;
 use egui_wgpu_backend::wgpu::CompositeAlphaMode;
-use std::iter;
+use lb_external_interface::lb_rs::Uuid;
+use std::ffi::{c_char, CString};
 use std::time::Instant;
+use std::{iter, ptr};
 
 #[cfg(not(any(target_os = "ios", target_os = "macos")))]
 use serde::Serialize;
+use workspace::workspace::{Workspace, WsOutput};
+
 #[cfg(target_vendor = "apple")]
 pub mod apple;
 
@@ -77,7 +81,7 @@ pub struct CRect {
 }
 
 #[repr(C)]
-pub struct WgpuEditor {
+pub struct WgpuWorkspace {
     pub start_time: Instant,
 
     pub device: wgpu::Device,
@@ -94,7 +98,23 @@ pub struct WgpuEditor {
     pub from_host: Option<String>,
     pub from_egui: Option<String>,
 
-    pub editor: Editor,
+    pub workspace: Workspace,
+}
+
+#[derive(Debug)]
+#[repr(C)]
+pub struct FfiWorkspaceResp {}
+
+impl Default for FfiWorkspaceResp {
+    fn default() -> Self {
+        Self {}
+    }
+}
+
+impl From<WsOutput> for FfiWorkspaceResp {
+    fn from(value: WsOutput) -> Self {
+        Self {}
+    }
 }
 
 #[cfg(any(target_os = "ios", target_os = "macos"))]
@@ -102,7 +122,7 @@ pub struct WgpuEditor {
 #[derive(Debug, Default)]
 pub struct IntegrationOutput {
     pub redraw_in: u64,
-    pub editor_response: EditorResponse,
+    pub editor_response: FfiWorkspaceResp,
 }
 
 #[cfg(not(any(target_os = "ios", target_os = "macos")))]
@@ -136,7 +156,7 @@ impl Into<Location> for CTextPosition {
     }
 }
 
-impl WgpuEditor {
+impl WgpuWorkspace {
     pub fn frame(&mut self) -> IntegrationOutput {
         let mut out = IntegrationOutput::default();
         self.configure_surface();
@@ -162,7 +182,7 @@ impl WgpuEditor {
         self.set_egui_screen();
         self.raw_input.time = Some(self.start_time.elapsed().as_secs_f64());
         self.context.begin_frame(self.raw_input.take());
-        out.editor_response = self.editor.draw(&self.context);
+        out.editor_response = self.workspace.draw(&self.context).into();
         let full_output = self.context.end_frame();
         if !full_output.platform_output.copied_text.is_empty() {
             // todo: can this go in output?
@@ -232,5 +252,13 @@ impl WgpuEditor {
             view_formats: vec![],
         };
         self.surface.configure(&self.device, &surface_config);
+    }
+}
+#[repr(C)]
+pub struct CUuid([u8; 16]);
+
+impl From<CUuid> for Uuid {
+    fn from(value: CUuid) -> Self {
+        Uuid::from_bytes(value.0)
     }
 }

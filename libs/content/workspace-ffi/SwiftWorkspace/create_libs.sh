@@ -12,8 +12,8 @@ cargo build --lib --release \
   --target=aarch64-apple-ios-sim
 
 cd ../../../
-mkdir -p libs/content/workspace-ffi/SwiftEditor/Libs
-lipo -create target/x86_64-apple-darwin/release/libworkspace.a target/aarch64-apple-darwin/release/libworkspace.a -output libs/content/editor/SwiftEditor/Libs/libworkspace.a
+mkdir -p libs/content/workspace-ffi/SwiftWorkspace/Libs
+lipo -create target/x86_64-apple-darwin/release/libworkspace.a target/aarch64-apple-darwin/release/libworkspace.a -output libs/content/workspace-ffi/SwiftWorkspace/Libs/libworkspace.a
 cd libs/content/workspace-ffi/SwiftWorkspace/Libs
 xcodebuild -create-xcframework \
   -library libworkspace.a -headers ../../include \

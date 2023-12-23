@@ -8,8 +8,8 @@ import UniformTypeIdentifiers
 
 public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractionDelegate, UIDropInteractionDelegate {
     
-    var editorHandle: UnsafeMutableRawPointer?
-    var editorState: EditorState?
+    var wsHandle: UnsafeMutableRawPointer?
+    var workspaceState: WorkspaceState?
     var toolbarState: ToolbarState?
     var nameState: NameState?
     var hasSelection: Bool = false
@@ -115,7 +115,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
             if lastKnownTapLocation == nil {
                 lastKnownTapLocation = y
             }
-            scroll_wheel(editorHandle, y - lastKnownTapLocation!)
+            scroll_wheel(wsHandle, y - lastKnownTapLocation!)
             
             lastKnownTapLocation = y
             self.setNeedsDisplay()
@@ -125,55 +125,55 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
 
     public func header(headingSize: UInt32) {
         inputDelegate?.textWillChange(self)
-        apply_style_to_selection_header(editorHandle, headingSize)
+        apply_style_to_selection_header(wsHandle, headingSize)
         self.setNeedsDisplay(self.frame)
     }
     
     public func bulletedList() {
         inputDelegate?.textWillChange(self)
-        apply_style_to_selection_bulleted_list(editorHandle)
+        apply_style_to_selection_bulleted_list(wsHandle)
         self.setNeedsDisplay(self.frame)
     }
     
     public func numberedList() {
         inputDelegate?.textWillChange(self)
-        apply_style_to_selection_numbered_list(editorHandle)
+        apply_style_to_selection_numbered_list(wsHandle)
         self.setNeedsDisplay(self.frame)
     }
     
     public func todoList() {
         inputDelegate?.textWillChange(self)
-        apply_style_to_selection_todo_list(editorHandle)
+        apply_style_to_selection_todo_list(wsHandle)
         self.setNeedsDisplay(self.frame)
     }
     
     public func bold() {
         inputDelegate?.textWillChange(self)
-        apply_style_to_selection_bold(editorHandle)
+        apply_style_to_selection_bold(wsHandle)
         self.setNeedsDisplay(self.frame)
     }
     
     public func italic() {
         inputDelegate?.textWillChange(self)
-        apply_style_to_selection_italic(editorHandle)
+        apply_style_to_selection_italic(wsHandle)
         self.setNeedsDisplay(self.frame)
     }
     
     public func inlineCode() {
         inputDelegate?.textWillChange(self)
-        apply_style_to_selection_inline_code(editorHandle)
+        apply_style_to_selection_inline_code(wsHandle)
         self.setNeedsDisplay(self.frame)
     }
     
     public func strikethrough() {
         inputDelegate?.textWillChange(self)
-        apply_style_to_selection_strikethrough(editorHandle)
+        apply_style_to_selection_strikethrough(wsHandle)
         self.setNeedsDisplay(self.frame)
     }
     
     public func tab(deindent: Bool) {
         inputDelegate?.textWillChange(self)
-        indent_at_cursor(editorHandle, deindent)
+        indent_at_cursor(wsHandle, deindent)
         self.setNeedsDisplay(self.frame)
     }
     
@@ -185,9 +185,9 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     func importContent(_ importFormat: SupportedImportFormat) -> Bool {
         switch importFormat {
         case .url(let url):
-            if let markdownURL = editorState!.importFile(url) {
-                paste_text(editorHandle, markdownURL)
-                editorState?.pasted = true
+            if let markdownURL = workspaceState!.importFile(url) {
+                paste_text(wsHandle, markdownURL)
+                workspaceState?.pasted = true
                 
                 return true
             }
@@ -202,16 +202,16 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
                     return false
                 }
 
-                if let lbImageURL = editorState!.importFile(imageUrl) {
-                    paste_text(editorHandle, lbImageURL)
-                    editorState?.pasted = true
+                if let lbImageURL = workspaceState!.importFile(imageUrl) {
+                    paste_text(wsHandle, lbImageURL)
+                    workspaceState?.pasted = true
 
                     return true
                 }
             }
         case .text(let text):
-            paste_text(editorHandle, text)
-            editorState?.pasted = true
+            paste_text(wsHandle, text)
+            workspaceState?.pasted = true
 
             return true
         }
@@ -221,8 +221,8 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
 
     public func setInitialContent(_ coreHandle: UnsafeMutableRawPointer?, _ s: String) {
         let metalLayer = UnsafeMutableRawPointer(Unmanaged.passUnretained(self.layer).toOpaque())
-        self.editorHandle = init_editor(coreHandle, metalLayer, s, isDarkMode())
-        self.textUndoManager.editorHandle = self.editorHandle
+        self.wsHandle = init_editor(coreHandle, metalLayer, s, isDarkMode())
+        self.textUndoManager.wsHandle = self.wsHandle
         self.textUndoManager.onUndoRedo = {
             self.setNeedsDisplay(self.frame)
         }
@@ -240,14 +240,14 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     }
     
     public func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {
-        resize_editor(editorHandle, Float(size.width), Float(size.height), Float(self.contentScaleFactor))
+        resize_editor(wsHandle, Float(size.width), Float(size.height), Float(self.contentScaleFactor))
         self.setNeedsDisplay()
     }
     
     public func draw(in view: MTKView) {
-        dark_mode(editorHandle, isDarkMode())
-        set_scale(editorHandle, Float(self.contentScaleFactor))
-        let output = draw_editor(editorHandle)
+        dark_mode(wsHandle, isDarkMode())
+        set_scale(wsHandle, Float(self.contentScaleFactor))
+        let output = draw_editor(wsHandle)
         
         toolbarState?.isHeadingSelected = output.editor_response.cursor_in_heading;
         toolbarState?.isTodoListSelected = output.editor_response.cursor_in_todo_list;
@@ -288,7 +288,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
             self.textChanged()
         }
         
-        if has_copied_text(editorHandle) {
+        if has_copied_text(wsHandle) {
             UIPasteboard.general.string = getCoppiedText()
         }
 
@@ -308,7 +308,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     }
     
     func getCoppiedText() -> String {
-        let result = get_copied_text(editorHandle)
+        let result = get_copied_text(wsHandle)
         let str = String(cString: result!)
         free_text(UnsafeMutablePointer(mutating: result))
         return str
@@ -317,20 +317,20 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     func setClipboard(){
         let pasteboardString: String? = UIPasteboard.general.string
         if let theString = pasteboardString {
-            system_clipboard_changed(editorHandle, theString)
+            system_clipboard_changed(wsHandle, theString)
         }
         self.pasteBoardEventId = UIPasteboard.general.changeCount
     }
     
     public func insertText(_ text: String) {
         inputDelegate?.textWillChange(self)
-        insert_text(editorHandle, text)
+        insert_text(wsHandle, text)
         self.setNeedsDisplay(self.frame)
     }
     
     public func text(in range: UITextRange) -> String? {
         let range = (range as! LBTextRange).c
-        let result = text_in_range(editorHandle, range)
+        let result = text_in_range(wsHandle, range)
         let str = String(cString: result!)
         free_text(UnsafeMutablePointer(mutating: result))
         return str
@@ -340,7 +340,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     public func replace(_ range: UITextRange, withText text: String) {
         let range = range as! LBTextRange
         inputDelegate?.textWillChange(self)
-        replace_text(editorHandle, range.c, text)
+        replace_text(wsHandle, range.c, text)
         self.setNeedsDisplay(self.frame)
     }
     
@@ -349,12 +349,12 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
             
             let range = (newValue as! LBTextRange).c
             inputDelegate?.selectionWillChange(self)
-            set_selected(editorHandle, range)
+            set_selected(wsHandle, range)
             self.setNeedsDisplay()
         }
         
         get {
-            let range = get_selected(editorHandle)
+            let range = get_selected(wsHandle)
             if range.none {
                 return nil
             }
@@ -364,7 +364,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     
     public var markedTextRange: UITextRange? {
         get {
-            let range = get_marked(editorHandle)
+            let range = get_marked(wsHandle)
             if range.none {
                 return nil
             }
@@ -385,23 +385,23 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     
     public func setMarkedText(_ markedText: String?, selectedRange: NSRange) {
         inputDelegate?.textWillChange(self)
-        set_marked(editorHandle, CTextRange(none: false, start: CTextPosition(none: false, pos: UInt(selectedRange.lowerBound)), end: CTextPosition(none: false, pos: UInt(selectedRange.upperBound))), markedText)
+        set_marked(wsHandle, CTextRange(none: false, start: CTextPosition(none: false, pos: UInt(selectedRange.lowerBound)), end: CTextPosition(none: false, pos: UInt(selectedRange.upperBound))), markedText)
         self.setNeedsDisplay()
     }
     
     public func unmarkText() {
         inputDelegate?.textWillChange(self)
-        unmark_text(editorHandle)
+        unmark_text(wsHandle)
         self.setNeedsDisplay()
     }
     
     public var beginningOfDocument: UITextPosition {
-        let res = beginning_of_document(editorHandle)
+        let res = beginning_of_document(wsHandle)
         return LBTextPos(c: res)
     }
     
     public var endOfDocument: UITextPosition {
-        let res = end_of_document(editorHandle)
+        let res = end_of_document(wsHandle)
         return LBTextPos(c: res)
     }
     
@@ -422,7 +422,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
         guard let start = (position as? LBTextPos)?.c else {
             return nil
         }
-        let new = position_offset(editorHandle, start, Int32(offset))
+        let new = position_offset(wsHandle, start, Int32(offset))
         if new.none {
             return nil
         }
@@ -432,7 +432,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     public func position(from position: UITextPosition, in direction: UITextLayoutDirection, offset: Int) -> UITextPosition? {
         let start = (position as! LBTextPos).c
         let direction = CTextLayoutDirection(rawValue: UInt32(direction.rawValue));
-        let new = position_offset_in_direction(editorHandle, start, direction, Int32(offset))
+        let new = position_offset_in_direction(wsHandle, start, direction, Int32(offset))
         if new.none {
             return nil
         }
@@ -464,7 +464,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     
     public var inputDelegate: UITextInputDelegate?
     
-    public lazy var tokenizer: UITextInputTokenizer = LBTokenizer(editorHandle: self.editorHandle)
+    public lazy var tokenizer: UITextInputTokenizer = LBTokenizer(wsHandle: self.wsHandle)
     
     public func position(within range: UITextRange, farthestIn direction: UITextLayoutDirection) -> UITextPosition? {
         unimplemented()
@@ -488,19 +488,19 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     
     public func firstRect(for range: UITextRange) -> CGRect {
         let range = (range as! LBTextRange).c
-        let result = first_rect(editorHandle, range)
+        let result = first_rect(wsHandle, range)
         return CGRect(x: result.min_x, y: result.min_y, width: result.max_x-result.min_x, height: result.max_y-result.min_y)
     }
     
     public func caretRect(for position: UITextPosition) -> CGRect {
         let position = (position as! LBTextPos).c
-        let result = cursor_rect_at_position(editorHandle, position)
+        let result = cursor_rect_at_position(wsHandle, position)
         return CGRect(x: result.min_x, y: result.min_y, width: 1, height:result.max_y - result.min_y)
     }
     
     public func selectionRects(for range: UITextRange) -> [UITextSelectionRect] {
         let range = (range as! LBTextRange).c
-        let result = selection_rects(editorHandle, range)
+        let result = selection_rects(wsHandle, range)
         let buffer = Array(UnsafeBufferPointer(start: result.rects, count: Int(result.size)))
         return buffer.enumerated().map { (index, rect) in
             return LBTextSelectionRect(cRect: rect, loc: index, size: buffer.count)
@@ -509,7 +509,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     
     public func closestPosition(to point: CGPoint) -> UITextPosition? {
         let point = CPoint(x: point.x, y: point.y)
-        let result = position_at_point(editorHandle, point)
+        let result = position_at_point(wsHandle, point)
         return LBTextPos(c: result)
     }
     
@@ -524,13 +524,13 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     }
     
     public var hasText: Bool {
-        let res = has_text(editorHandle)
+        let res = has_text(wsHandle)
         return res
     }
     
     public func deleteBackward() {
         inputDelegate?.textWillChange(self)
-        backspace(editorHandle)
+        backspace(wsHandle)
         textChanged()
         self.setNeedsDisplay(self.frame)
     }
@@ -539,7 +539,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
         let point = Unmanaged.passUnretained(touches.first!).toOpaque()
         let value = UInt64(UInt(bitPattern: point))
         let location = touches.first!.location(in: self)
-        touches_began(editorHandle, value, Float(location.x), Float(location.y), Float(touches.first?.force ?? 0))
+        touches_began(wsHandle, value, Float(location.x), Float(location.y), Float(touches.first?.force ?? 0))
 
         self.setNeedsDisplay(self.frame)
     }
@@ -548,7 +548,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
         let point = Unmanaged.passUnretained(touches.first!).toOpaque()
         let value = UInt64(UInt(bitPattern: point))
         let location = touches.first!.location(in: self)
-        touches_moved(editorHandle, value, Float(location.x), Float(location.y), Float(touches.first?.force ?? 0))
+        touches_moved(wsHandle, value, Float(location.x), Float(location.y), Float(touches.first?.force ?? 0))
         self.setNeedsDisplay(self.frame)
     }
     
@@ -556,7 +556,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
         let point = Unmanaged.passUnretained(touches.first!).toOpaque()
         let value = UInt64(UInt(bitPattern: point))
         let location = touches.first!.location(in: self)
-        touches_ended(editorHandle, value, Float(location.x), Float(location.y), Float(touches.first?.force ?? 0))
+        touches_ended(wsHandle, value, Float(location.x), Float(location.y), Float(touches.first?.force ?? 0))
         self.setNeedsDisplay(self.frame)
     }
     
@@ -565,7 +565,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
         let point = Unmanaged.passUnretained(touches.first!).toOpaque()
         let value = UInt64(UInt(bitPattern: point))
         let location = touches.first!.location(in: self)
-        touches_cancelled(editorHandle, value, Float(location.x), Float(location.y), Float(touches.first?.force ?? 0))
+        touches_cancelled(wsHandle, value, Float(location.x), Float(location.y), Float(touches.first?.force ?? 0))
         self.setNeedsDisplay(self.frame)
     }
     
@@ -584,18 +584,18 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
             },
             UIAction(title: "Select All") { _ in
                 self.inputDelegate?.selectionWillChange(self)
-                select_all(self.editorHandle)
+                select_all(self.wsHandle)
                 self.setNeedsDisplay(self.frame)
             },
         ]) : UIMenu(title: "", options: .displayInline, children: [
             UIAction(title: "Select") { _ in
                 self.inputDelegate?.selectionWillChange(self)
-                select_current_word(self.editorHandle)
+                select_current_word(self.wsHandle)
                 self.setNeedsDisplay(self.frame)
             },
             UIAction(title: "Select All") { _ in
                 self.inputDelegate?.selectionWillChange(self)
-                select_all(self.editorHandle)
+                select_all(self.wsHandle)
                 self.setNeedsDisplay(self.frame)
             },
             UIAction(title: "Paste") { _ in
@@ -610,13 +610,13 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     }
     
     @objc func clipboardCopy() {
-        clipboard_copy(self.editorHandle)
+        clipboard_copy(self.wsHandle)
         self.setNeedsDisplay(self.frame)
     }
     
     @objc func clipboardCut() {
         inputDelegate?.textWillChange(self)
-        clipboard_cut(self.editorHandle)
+        clipboard_cut(self.wsHandle)
         self.setNeedsDisplay(self.frame)
     }
     
@@ -629,34 +629,34 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
             }
         }
 
-        clipboard_paste(self.editorHandle)
+        clipboard_paste(self.wsHandle)
         self.setNeedsDisplay()
     }
     
     @objc func keyboardSelectAll() {
         inputDelegate?.selectionWillChange(self)
-        select_all(self.editorHandle)
+        select_all(self.wsHandle)
         self.setNeedsDisplay()
     }
         
     func undoRedo(redo: Bool) {
         inputDelegate?.textWillChange(self)
-        undo_redo(self.editorHandle, redo)
+        undo_redo(self.wsHandle, redo)
         self.setNeedsDisplay(self.frame)
     }
     
     func updateText(_ s: String) {
         inputDelegate?.textWillChange(self)
-        set_text(editorHandle, s)
+        set_text(wsHandle, s)
         setNeedsDisplay(self.frame)
     }
     
     func textChanged() {
-        self.editorState?.text = getText()
+        self.workspaceState?.text = getText()
     }
     
     func getText() -> String {
-        let result = get_text(editorHandle)
+        let result = get_text(wsHandle)
         let str = String(cString: result!)
         free_text(UnsafeMutablePointer(mutating: result))
         return str
@@ -667,7 +667,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     }
     
     override public func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
-        dark_mode(editorHandle, isDarkMode())
+        dark_mode(wsHandle, isDarkMode())
         setNeedsDisplay(self.frame)
     }
     
@@ -693,11 +693,11 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     }
     
     deinit {
-        deinit_editor(editorHandle)
+        deinit_editor(wsHandle)
     }
     
     @objc func deleteWord() {
-        delete_word(editorHandle)
+        delete_word(wsHandle)
         setNeedsDisplay(self.frame)
     }
     
@@ -745,31 +745,31 @@ class LBTextPos: UITextPosition {
 }
 
 class LBTokenizer: NSObject, UITextInputTokenizer {
-    let editorHandle: UnsafeMutableRawPointer?
+    let wsHandle: UnsafeMutableRawPointer?
     
-    init(editorHandle: UnsafeMutableRawPointer?) {
-        self.editorHandle = editorHandle
+    init(wsHandle: UnsafeMutableRawPointer?) {
+        self.wsHandle = wsHandle
     }
     
     func isPosition(_ position: UITextPosition, atBoundary granularity: UITextGranularity, inDirection direction: UITextDirection) -> Bool {
         let position = (position as! LBTextPos).c
         let granularity = CTextGranularity(rawValue: UInt32(granularity.rawValue))
         let backwards = direction.rawValue == 1
-        return is_position_at_bound(editorHandle, position, granularity, backwards)
+        return is_position_at_bound(wsHandle, position, granularity, backwards)
     }
     
     func isPosition(_ position: UITextPosition, withinTextUnit granularity: UITextGranularity, inDirection direction: UITextDirection) -> Bool {
         let position = (position as! LBTextPos).c
         let granularity = CTextGranularity(rawValue: UInt32(granularity.rawValue))
         let backwards = direction.rawValue == 1
-        return is_position_within_bound(editorHandle, position, granularity, backwards)
+        return is_position_within_bound(wsHandle, position, granularity, backwards)
     }
     
     func position(from position: UITextPosition, toBoundary granularity: UITextGranularity, inDirection direction: UITextDirection) -> UITextPosition? {
         let position = (position as! LBTextPos).c
         let granularity = CTextGranularity(rawValue: UInt32(granularity.rawValue))
         let backwards = direction.rawValue == 1
-        let result = bound_from_position(editorHandle, position, granularity, backwards)
+        let result = bound_from_position(wsHandle, position, granularity, backwards)
         return LBTextPos(c: result)
     }
     
@@ -777,35 +777,35 @@ class LBTokenizer: NSObject, UITextInputTokenizer {
         let position = (position as! LBTextPos).c
         let granularity = CTextGranularity(rawValue: UInt32(granularity.rawValue))
         let backwards = direction.rawValue == 1
-        let result = bound_at_position(editorHandle, position, granularity, backwards)
+        let result = bound_at_position(wsHandle, position, granularity, backwards)
         return LBTextRange(c: result)
     }
 }
 
 class iOSUndoManager: UndoManager {
     
-    public var editorHandle: UnsafeMutableRawPointer? = nil
+    public var wsHandle: UnsafeMutableRawPointer? = nil
     var onUndoRedo: (() -> Void)? = nil
     
     override var canUndo: Bool {
         get {
-            can_undo(editorHandle)
+            can_undo(wsHandle)
         }
     }
     
     override var canRedo: Bool {
         get {
-            can_redo(editorHandle)
+            can_redo(wsHandle)
         }
     }
     
     override func undo() {
-        undo_redo(editorHandle, false)
+        undo_redo(wsHandle, false)
         onUndoRedo?()
     }
     
     override func redo() {
-        undo_redo(editorHandle, true)
+        undo_redo(wsHandle, true)
         onUndoRedo?()
     }
 }

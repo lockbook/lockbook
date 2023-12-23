@@ -152,13 +152,13 @@ impl AccountScreen {
                     ui.vertical(|ui| {
                         ui.add_space(15.0);
                         if let Some(&file) = self.full_search_doc.show(ui, &self.core) {
-                            self.workspace.open_file(file, ctx, false);
+                            self.workspace.open_file(file, false);
                         }
                         ui.add_space(15.0);
 
                         if self.full_search_doc.results.is_empty() {
                             if let Some(file) = self.suggested.show(ui) {
-                                self.workspace.open_file(file, ctx, false);
+                                self.workspace.open_file(file, false);
                             }
                             ui.add_space(15.0);
                             self.show_tree(ui);
@@ -244,7 +244,7 @@ impl AccountScreen {
                         self.tree.root.insert(f);
                         self.tree.reveal_file(id, &self.core);
                         if is_doc {
-                            self.workspace.open_file(id, ctx, true);
+                            self.workspace.open_file(id, true);
                         }
                         // Close whichever new file modal was open.
                         self.modals.new_folder = None;
@@ -452,7 +452,7 @@ impl AccountScreen {
         }
 
         for id in resp.open_requests {
-            self.workspace.open_file(id, ui.ctx(), false);
+            self.workspace.open_file(id, false);
         }
 
         if resp.delete_request {

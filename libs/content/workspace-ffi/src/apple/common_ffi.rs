@@ -1,20 +1,27 @@
-use crate::{IntegrationOutput, WgpuEditor};
+use crate::{CUuid, IntegrationOutput, WgpuWorkspace};
 use egui::os::OperatingSystem;
-use egui::{Context, Event, Pos2, Vec2, Visuals};
+use egui::{Context, Event, FontDefinitions, Pos2, Vec2, Visuals};
 use egui_editor::input::canonical::{Modification, Region};
 use egui_editor::style::{BlockNode, InlineNode, ListItem, MarkdownNode};
 use egui_editor::Editor;
 use egui_wgpu_backend::wgpu::CompositeAlphaMode;
 use egui_wgpu_backend::{wgpu, ScreenDescriptor};
+// use reqwest::blocking;
+use lb_external_interface::Core;
 use std::ffi::{c_char, c_void, CStr, CString};
+use std::sync::atomic::AtomicBool;
+use std::sync::Arc;
 use std::time::Instant;
+use workspace::register_fonts;
+use workspace::workspace::{Workspace, WsConfig};
 
 /// # Safety
 #[no_mangle]
-pub unsafe extern "C" fn init_editor(
-    core: *mut c_void, metal_layer: *mut c_void, content: *const c_char, dark_mode: bool,
+pub unsafe extern "C" fn init_ws(
+    core: *mut c_void, metal_layer: *mut c_void, dark_mode: bool,
 ) -> *mut c_void {
-    let core = unsafe { &mut *(core as *mut lb::Core) };
+    let core = unsafe { &mut *(core as *mut Core) };
+    let writable_dir = core.get_config().unwrap().writeable_path;
 
     let backends = wgpu::util::backend_bits_from_env().unwrap_or_else(wgpu::Backends::all);
     let instance_desc = wgpu::InstanceDescriptor { backends, ..Default::default() };
@@ -39,12 +46,15 @@ pub unsafe extern "C" fn init_editor(
 
     let context = Context::default();
     context.set_visuals(if dark_mode { Visuals::dark() } else { Visuals::light() });
-    let mut editor = Editor::new(core.clone());
-    editor.set_font(&context);
-    editor.buffer = CStr::from_ptr(content).to_str().unwrap().into();
+    let mut ws_cfg = WsConfig::default();
+    ws_cfg.data_dir = writable_dir;
+    let workspace = Workspace::new(ws_cfg, &core, &context);
+    let mut fonts = FontDefinitions::default();
+    register_fonts(&mut fonts);
+    context.set_fonts(fonts);
 
     let start_time = Instant::now();
-    let mut obj = WgpuEditor {
+    let mut obj = WgpuWorkspace {
         start_time,
         device,
         queue,
@@ -56,7 +66,7 @@ pub unsafe extern "C" fn init_editor(
         raw_input: Default::default(),
         from_egui: None,
         from_host: None,
-        editor,
+        workspace,
     };
 
     obj.frame();
@@ -64,23 +74,32 @@ pub unsafe extern "C" fn init_editor(
     Box::into_raw(Box::new(obj)) as *mut c_void
 }
 
-/// # Safety
 #[no_mangle]
-pub unsafe extern "C" fn set_text(obj: *mut c_void, content: *const c_char) {
-    let obj = unsafe { &mut *(obj as *mut WgpuEditor) };
-    obj.editor
-        .set_text(CStr::from_ptr(content).to_str().unwrap().into());
+pub extern "C" fn open_file(obj: *mut c_void, id: CUuid, new_file: bool) {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    let id = id.into();
+
+    println!("in rust: {id}");
+    obj.workspace.open_file(id, new_file)
 }
+
+// /// # Safety
+// #[no_mangle]
+// pub unsafe extern "C" fn set_text(obj: *mut c_void, content: *const c_char) {
+//     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+//     obj.workspace
+//         .set_text(CStr::from_ptr(content).to_str().unwrap().into());
+// }
 
 #[no_mangle]
 pub extern "C" fn draw_editor(obj: *mut c_void) -> IntegrationOutput {
-    let obj = unsafe { &mut *(obj as *mut WgpuEditor) };
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
     obj.frame()
 }
 
 #[no_mangle]
 pub extern "C" fn resize_editor(obj: *mut c_void, width: f32, height: f32, scale: f32) {
-    let obj = unsafe { &mut *(obj as *mut WgpuEditor) };
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
     obj.screen.physical_width = width as u32;
     obj.screen.physical_height = height as u32;
     obj.screen.scale_factor = scale;
@@ -88,41 +107,41 @@ pub extern "C" fn resize_editor(obj: *mut c_void, width: f32, height: f32, scale
 
 #[no_mangle]
 pub extern "C" fn set_scale(obj: *mut c_void, scale: f32) {
-    let obj = unsafe { &mut *(obj as *mut WgpuEditor) };
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
     obj.screen.scale_factor = scale;
 }
 
 /// # Safety
 #[no_mangle]
 pub unsafe extern "C" fn dark_mode(obj: *mut c_void, dark: bool) {
-    let obj = &mut *(obj as *mut WgpuEditor);
+    let obj = &mut *(obj as *mut WgpuWorkspace);
     obj.context
         .set_visuals(if dark { Visuals::dark() } else { Visuals::light() });
 }
 
-/// # Safety
-#[no_mangle]
-pub unsafe extern "C" fn get_text(obj: *mut c_void) -> *const c_char {
-    let obj = &mut *(obj as *mut WgpuEditor);
-
-    let value = obj.editor.buffer.current.text.as_str();
-
-    CString::new(value)
-        .expect("Could not Rust String -> C String")
-        .into_raw()
-}
+// /// # Safety
+// #[no_mangle]
+// pub unsafe extern "C" fn get_text(obj: *mut c_void) -> *const c_char {
+//     let obj = &mut *(obj as *mut WgpuWorkspace);
+//
+//     let value = obj.workspace.buffer.current.text.as_str();
+//
+//     CString::new(value)
+//         .expect("Could not Rust String -> C String")
+//         .into_raw()
+// }
 
 /// # Safety
 #[no_mangle]
 pub unsafe extern "C" fn has_copied_text(obj: *mut c_void) -> bool {
-    let obj = &mut *(obj as *mut WgpuEditor);
+    let obj = &mut *(obj as *mut WgpuWorkspace);
     obj.from_egui.is_some()
 }
 
 /// # Safety
 #[no_mangle]
 pub unsafe extern "C" fn get_copied_text(obj: *mut c_void) -> *const c_char {
-    let obj = &mut *(obj as *mut WgpuEditor);
+    let obj = &mut *(obj as *mut WgpuWorkspace);
 
     let copied_text = obj.from_egui.take().unwrap_or_default();
 
@@ -134,7 +153,7 @@ pub unsafe extern "C" fn get_copied_text(obj: *mut c_void) -> *const c_char {
 /// # Safety
 #[no_mangle]
 pub unsafe extern "C" fn system_clipboard_changed(obj: *mut c_void, content: *const c_char) {
-    let obj = &mut *(obj as *mut WgpuEditor);
+    let obj = &mut *(obj as *mut WgpuWorkspace);
     let content = CStr::from_ptr(content).to_str().unwrap().into();
     obj.from_host = Some(content)
 }
@@ -142,6 +161,7 @@ pub unsafe extern "C" fn system_clipboard_changed(obj: *mut c_void, content: *co
 /// # Safety
 #[no_mangle]
 pub unsafe extern "C" fn free_text(s: *mut c_void) {
+    println!("freed text in ffi");
     if s.is_null() {
         return;
     }
@@ -154,7 +174,7 @@ pub unsafe extern "C" fn free_text(s: *mut c_void) {
 /// used solely for image pasting
 #[no_mangle]
 pub unsafe extern "C" fn paste_text(obj: *mut c_void, content: *const c_char) {
-    let obj = &mut *(obj as *mut WgpuEditor);
+    let obj = &mut *(obj as *mut WgpuWorkspace);
     let content = CStr::from_ptr(content).to_str().unwrap().into();
 
     obj.raw_input.events.push(Event::Paste(content));
@@ -163,7 +183,8 @@ pub unsafe extern "C" fn paste_text(obj: *mut c_void, content: *const c_char) {
 /// # Safety
 #[no_mangle]
 pub unsafe extern "C" fn deinit_editor(obj: *mut c_void) {
-    let _ = Box::from_raw(obj as *mut WgpuEditor);
+    println!("EDITOR DENININTEED");
+    let _ = Box::from_raw(obj as *mut WgpuWorkspace);
 }
 
 async fn request_device(
@@ -197,7 +218,7 @@ async fn request_device(
 /// # Safety
 #[no_mangle]
 pub unsafe extern "C" fn scroll_wheel(obj: *mut c_void, scroll_wheel: f32) {
-    let obj = &mut *(obj as *mut WgpuEditor);
+    let obj = &mut *(obj as *mut WgpuWorkspace);
 
     if matches!(obj.context.os(), OperatingSystem::IOS) {
         obj.raw_input
@@ -212,97 +233,4 @@ pub unsafe extern "C" fn scroll_wheel(obj: *mut c_void, scroll_wheel: f32) {
     if matches!(obj.context.os(), OperatingSystem::IOS) {
         obj.raw_input.events.push(Event::PointerGone);
     }
-}
-
-/// # Safety
-/// obj must be a valid pointer to WgpuEditor
-#[no_mangle]
-pub unsafe extern "C" fn apply_style_to_selection_header(obj: *mut c_void, heading_size: u32) {
-    let obj = &mut *(obj as *mut WgpuEditor);
-
-    obj.editor
-        .custom_events
-        .push(Modification::toggle_heading_style(heading_size as usize));
-    obj.raw_input.events.push(Event::Copy);
-}
-
-/// # Safety
-/// obj must be a valid pointer to WgpuEditor
-#[no_mangle]
-pub unsafe extern "C" fn apply_style_to_selection_bulleted_list(obj: *mut c_void) {
-    let obj = &mut *(obj as *mut WgpuEditor);
-
-    obj.editor
-        .custom_events
-        .push(Modification::toggle_block_style(BlockNode::ListItem(ListItem::Bulleted, 0)));
-}
-
-/// # Safety
-/// obj must be a valid pointer to WgpuEditor
-#[no_mangle]
-pub unsafe extern "C" fn apply_style_to_selection_numbered_list(obj: *mut c_void) {
-    let obj = &mut *(obj as *mut WgpuEditor);
-
-    obj.editor
-        .custom_events
-        .push(Modification::toggle_block_style(BlockNode::ListItem(ListItem::Numbered(1), 0)));
-}
-
-/// # Safety
-/// obj must be a valid pointer to WgpuEditor
-#[no_mangle]
-pub unsafe extern "C" fn apply_style_to_selection_todo_list(obj: *mut c_void) {
-    let obj = &mut *(obj as *mut WgpuEditor);
-
-    obj.editor
-        .custom_events
-        .push(Modification::toggle_block_style(BlockNode::ListItem(ListItem::Todo(false), 0)));
-}
-
-/// # Safety
-/// obj must be a valid pointer to WgpuEditor
-#[no_mangle]
-pub unsafe extern "C" fn apply_style_to_selection_bold(obj: *mut c_void) {
-    let obj = &mut *(obj as *mut WgpuEditor);
-
-    obj.editor.custom_events.push(Modification::ToggleStyle {
-        region: Region::Selection,
-        style: MarkdownNode::Inline(InlineNode::Bold),
-    });
-}
-
-/// # Safety
-/// obj must be a valid pointer to WgpuEditor
-#[no_mangle]
-pub unsafe extern "C" fn apply_style_to_selection_italic(obj: *mut c_void) {
-    let obj = &mut *(obj as *mut WgpuEditor);
-
-    obj.editor.custom_events.push(Modification::ToggleStyle {
-        region: Region::Selection,
-        style: MarkdownNode::Inline(InlineNode::Italic),
-    });
-}
-
-/// # Safety
-/// obj must be a valid pointer to WgpuEditor
-#[no_mangle]
-pub unsafe extern "C" fn apply_style_to_selection_inline_code(obj: *mut c_void) {
-    let obj = &mut *(obj as *mut WgpuEditor);
-
-    obj.editor.custom_events.push(Modification::ToggleStyle {
-        region: Region::Selection,
-        style: MarkdownNode::Inline(InlineNode::Code),
-    });
-}
-
-/// # Safety
-/// obj must be a valid pointer to WgpuEditor
-#[no_mangle]
-pub unsafe extern "C" fn apply_style_to_selection_strikethrough(obj: *mut c_void) {
-    let obj = &mut *(obj as *mut WgpuEditor);
-
-    obj.editor.custom_events.push(Modification::ToggleStyle {
-        region: Region::Selection,
-        style: MarkdownNode::Inline(InlineNode::Strikethrough),
-    });
 }

@@ -2,36 +2,36 @@
 import PackageDescription
 
 let package = Package(
-    name: "SwiftEditor",
+    name: "SwiftWorkspace",
     platforms: [
         .macOS(.v12), .iOS(.v16)
     ],
     products: [
         // Products define the executables and libraries a package produces, and make them visible to other packages.
         .library(
-            name: "SwiftEditor",
-            targets: ["SwiftEditor"]),
+            name: "SwiftWorkspace",
+            targets: ["SwiftWorkspace"]),
         .library(
             name: "Bridge",
             targets: ["Bridge"]),
         .library(
-            name: "egui_editor",
-            targets: ["egui_editor"])
+            name: "workspace",
+            targets: ["workspace"])
     ],
     targets: [
         .target(
-            name: "SwiftEditor",
+            name: "SwiftWorkspace",
             dependencies: ["Bridge"],
             path: "Sources/Editor"
         ),
         .target(
             name: "Bridge",
-            dependencies: ["egui_editor"],
+            dependencies: ["workspace"],
             path: "Sources/Bridge"
         ),
         .binaryTarget(
-            name: "egui_editor",
-            path: "Libs/egui_editor.xcframework"
+            name: "workspace",
+            path: "Libs/workspace.xcframework"
         ),
     ]
 )

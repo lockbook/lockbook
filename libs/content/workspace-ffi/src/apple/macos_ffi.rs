@@ -1,5 +1,5 @@
 use crate::apple::keyboard::NSKeys;
-use crate::WgpuEditor;
+use crate::WgpuWorkspace;
 use egui::PointerButton::{Primary, Secondary};
 use egui::{Event, Pos2};
 use std::ffi::{c_char, c_void, CStr};
@@ -11,7 +11,7 @@ pub unsafe extern "C" fn key_event(
     obj: *mut c_void, key_code: u16, shift: bool, ctrl: bool, option: bool, command: bool,
     pressed: bool, characters: *const c_char,
 ) {
-    let obj = &mut *(obj as *mut WgpuEditor);
+    let obj = &mut *(obj as *mut WgpuWorkspace);
 
     let modifiers = egui::Modifiers { alt: option, ctrl, shift, mac_cmd: command, command };
 
@@ -47,7 +47,7 @@ pub unsafe extern "C" fn key_event(
 pub unsafe extern "C" fn modifier_event(
     obj: *mut c_void, shift: bool, ctrl: bool, option: bool, command: bool,
 ) {
-    let obj = &mut *(obj as *mut WgpuEditor);
+    let obj = &mut *(obj as *mut WgpuWorkspace);
     let modifiers = egui::Modifiers { alt: option, ctrl, shift, mac_cmd: command, command };
     obj.raw_input.modifiers = modifiers;
 }
@@ -56,7 +56,7 @@ pub unsafe extern "C" fn modifier_event(
 /// # Safety
 #[no_mangle]
 pub unsafe extern "C" fn mouse_moved(obj: *mut c_void, x: f32, y: f32) {
-    let obj = &mut *(obj as *mut WgpuEditor);
+    let obj = &mut *(obj as *mut WgpuWorkspace);
     obj.raw_input
         .events
         .push(Event::PointerMoved(Pos2 { x, y }))
@@ -71,7 +71,7 @@ pub unsafe extern "C" fn mouse_button(
 ) {
     let modifiers = egui::Modifiers { alt: option, ctrl, shift, mac_cmd: command, command };
 
-    let obj = &mut *(obj as *mut WgpuEditor);
+    let obj = &mut *(obj as *mut WgpuWorkspace);
     obj.raw_input.events.push(Event::PointerButton {
         pos: Pos2 { x, y },
         button: if primary { Primary } else { Secondary },

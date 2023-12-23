@@ -62,10 +62,12 @@ use crate::service::sync_service::SyncContext;
 pub type Core = CoreLib<Network, OnDiskDocuments>;
 
 #[derive(Clone)]
+#[repr(C)]
 pub struct CoreLib<Client: Requester, Docs: DocumentService> {
-    inner: Arc<Mutex<CoreState<Client, Docs>>>,
+    pub inner: Arc<Mutex<CoreState<Client, Docs>>>,
 }
 
+#[repr(C)]
 pub struct CoreState<Client: Requester, Docs: DocumentService> {
     pub config: Config,
     pub public_key: Option<PublicKey>,
@@ -380,7 +382,7 @@ impl<Client: Requester, Docs: DocumentService> CoreLib<Client, Docs> {
     #[instrument(level = "debug", skip_all, err(Debug))]
     pub fn sync(&self, f: Option<Box<dyn Fn(SyncProgress)>>) -> Result<SyncStatus, LbError> {
         SyncContext::sync(self, f).expected_errs(&[
-            CoreError::ServerUnreachable,
+            CoreError::ServerUnreachable, // todo already syncing?
             CoreError::ClientUpdateRequired,
             CoreError::UsageIsOverDataCap,
         ])

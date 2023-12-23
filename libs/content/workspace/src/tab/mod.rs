@@ -12,7 +12,7 @@ pub mod plain_text;
 pub mod svg_editor;
 
 pub struct Tab {
-    pub id: lb::Uuid,
+    pub id: lb_rs::Uuid,
     pub name: String,
     pub rename: Option<String>,
     pub path: String,
@@ -25,7 +25,7 @@ pub struct Tab {
 }
 
 pub struct SaveRequest {
-    pub id: lb::Uuid,
+    pub id: lb_rs::Uuid,
     pub content: String,
 }
 
@@ -63,10 +63,10 @@ pub enum TabFailure {
     Unexpected(String),
 }
 
-impl From<lb::LbError> for TabFailure {
-    fn from(err: lb::LbError) -> Self {
+impl From<lb_rs::LbError> for TabFailure {
+    fn from(err: lb_rs::LbError) -> Self {
         match err.kind {
-            lb::CoreError::Unexpected(msg) => Self::Unexpected(msg),
+            lb_rs::CoreError::Unexpected(msg) => Self::Unexpected(msg),
             _ => Self::SimpleMisc(format!("{:?}", err)),
         }
     }

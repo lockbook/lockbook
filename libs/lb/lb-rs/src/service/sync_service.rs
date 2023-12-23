@@ -47,6 +47,7 @@ impl<Client: Requester, Docs: DocumentService> SyncContext<Client, Docs> {
     pub fn sync(
         c: &CoreLib<Client, Docs>, f: Option<Box<dyn Fn(SyncProgress)>>,
     ) -> LbResult<SyncStatus> {
+    println!("sync start");
         let mut context = SyncContext::setup(c, f)?;
 
         let sync_result = context
@@ -65,6 +66,7 @@ impl<Client: Requester, Docs: DocumentService> SyncContext<Client, Docs> {
         sync_result?;
         cleanup?;
 
+println!("sync end");
         Ok(context.summarize())
     }
 

@@ -1,3 +1,4 @@
+use egui::{Color32, Context};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::Arc;
@@ -14,7 +15,7 @@ use crate::tab::{Tab, TabContent, TabFailure};
 use crate::theme::icons::Icon;
 use crate::widgets::{separator, Button, ToolBarVisibility};
 use egui_extras::RetainedImage;
-use lb::{LbError, SyncProgress, SyncStatus, Uuid};
+use lb_rs::{LbError, SyncProgress, SyncStatus, Uuid};
 
 pub struct Workspace {
     pub cfg: WsConfig,
@@ -24,7 +25,7 @@ pub struct Workspace {
     pub backdrop: RetainedImage,
 
     pub ctx: egui::Context,
-    pub core: lb::Core,
+    pub core: lb_rs::Core,
 
     pub syncing: Arc<AtomicBool>,
 
@@ -66,13 +67,24 @@ pub struct WsOutput {
     pub message: Option<String>,
 }
 
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct WsConfig {
     pub data_dir: String,
 
     pub auto_save: Arc<AtomicBool>,
     pub auto_sync: Arc<AtomicBool>,
     pub zen_mode: Arc<AtomicBool>,
+}
+
+impl Default for WsConfig {
+    fn default() -> Self {
+        Self {
+            data_dir: "".to_string(), // todo: potentially a bad idea
+            auto_save: Arc::new(AtomicBool::new(true)),
+            auto_sync: Arc::new(AtomicBool::new(true)),
+            zen_mode: Arc::new(AtomicBool::new(false)),
+        }
+    }
 }
 
 impl WsConfig {
@@ -90,7 +102,7 @@ impl WsConfig {
 }
 
 impl Workspace {
-    pub fn new(cfg: WsConfig, core: &lb::Core, ctx: &egui::Context) -> Self {
+    pub fn new(cfg: WsConfig, core: &lb_rs::Core, ctx: &Context) -> Self {
         let (updates_tx, updates_rx) = channel();
         let background = BackgroundWorker::new(ctx, &updates_tx);
         let background_tx = background.spawn_worker();
@@ -110,7 +122,7 @@ impl Workspace {
         }
     }
 
-    pub fn open_tab(&mut self, id: lb::Uuid, name: &str, path: &str, is_new_file: bool) {
+    pub fn open_tab(&mut self, id: lb_rs::Uuid, name: &str, path: &str, is_new_file: bool) {
         let now = Instant::now();
         self.tabs.push(Tab {
             id,
@@ -126,7 +138,7 @@ impl Workspace {
         self.active_tab = self.tabs.len() - 1;
     }
 
-    pub fn get_mut_tab_by_id(&mut self, id: lb::Uuid) -> Option<&mut Tab> {
+    pub fn get_mut_tab_by_id(&mut self, id: lb_rs::Uuid) -> Option<&mut Tab> {
         self.tabs.iter_mut().find(|tab| tab.id == id)
     }
 
@@ -138,7 +150,7 @@ impl Workspace {
         self.tabs.get(self.active_tab)
     }
 
-    pub fn goto_tab_id(&mut self, id: lb::Uuid) -> bool {
+    pub fn goto_tab_id(&mut self, id: lb_rs::Uuid) -> bool {
         for (i, tab) in self.tabs.iter().enumerate() {
             if tab.id == id {
                 self.active_tab = i;
@@ -154,6 +166,15 @@ impl Workspace {
         }
         let n_tabs = self.tabs.len();
         self.active_tab = if i == 9 || i >= n_tabs { n_tabs - 1 } else { i - 1 };
+    }
+
+    /// called by custom integrations
+    pub fn draw(&mut self, ctx: &Context) -> WsOutput {
+        let fill = if ctx.style().visuals.dark_mode { Color32::BLACK } else { Color32::WHITE };
+        egui::CentralPanel::default()
+            .frame(egui::Frame::default().fill(fill))
+            .show(ctx, |ui| self.show_workspace(ui))
+            .inner
     }
 
     pub fn show_workspace(&mut self, ui: &mut egui::Ui) -> WsOutput {
@@ -388,9 +409,9 @@ impl Workspace {
         }
     }
 
-    pub fn open_file(&mut self, id: lb::Uuid, ctx: &egui::Context, is_new_file: bool) {
+    pub fn open_file(&mut self, id: Uuid, is_new_file: bool) {
         if self.goto_tab_id(id) {
-            ctx.request_repaint();
+            self.ctx.request_repaint();
             return;
         }
 
@@ -405,7 +426,7 @@ impl Workspace {
         self.open_tab(id, &fname, &fpath, is_new_file);
 
         let core = self.core.clone();
-        let ctx = ctx.clone();
+        let ctx = self.ctx.clone();
 
         // todo
         // let settings = &self.settings.read().unwrap();
@@ -438,7 +459,9 @@ impl Workspace {
                         TabContent::PlainText(PlainText::new(&bytes))
                     }
                 });
+            println!("file loaded message sent: {id}, success: {}", content.is_ok());
             update_tx.send(WsMsg::FileLoaded(id, content)).unwrap();
+            println!("sent successfully");
             ctx.request_repaint();
         });
     }
@@ -498,6 +521,7 @@ impl Workspace {
                 }
                 WsMsg::SyncMsg(prog) => self.sync_message(prog, out),
                 WsMsg::FileRenamed { id, new_name } => {
+                    println! {"8"};
                     out.file_renamed = Some((id, new_name.clone()));
                     if let Some(tab) = self.get_mut_tab_by_id(id) {
                         tab.name = new_name.clone();
@@ -512,6 +536,7 @@ impl Workspace {
                 WsMsg::SyncDone(sync_outcome) => self.sync_done(sync_outcome, out),
             }
         }
+        // while let Ok(update) = self.updates_rx.try_recv() {}
     }
 
     pub fn rename_file(&self, req: (Uuid, String)) {

@@ -1,6 +1,7 @@
 import Foundation
 import SwiftUI
 import SwiftLockbookCore
+import SwiftWorkspace
 
 class FileService: ObservableObject {
     let core: LockbookApi
@@ -14,6 +15,9 @@ class FileService: ObservableObject {
         }
     }
     @Published var successfulAction: FileAction? = nil
+    
+    @Published var workspace = WorkspaceState()
+    @Published var pendingSharesOpen: Bool = false
     
     var hasRootLoaded = false
 
@@ -273,23 +277,11 @@ class FileService: ObservableObject {
     }
 
     private func openFileChecks() {
-        for docInfo in DI.currentDoc.openDocuments.values {
-            let maybeMeta = idsAndFiles[docInfo.meta.id]
-            
-            if let meta = maybeMeta {
-                if (meta.lastModified != docInfo.meta.lastModified) || (meta != docInfo.meta) {
-                    docInfo.updatesFromCoreAvailable(meta)
-                }
-            } else {
-                docInfo.deleted = true
-            }
-        }
-        
-        if let selectedFolder = DI.currentDoc.selectedFolder {
-            let maybeMeta = idsAndFiles[selectedFolder.id]
+        if let selectedFolder = self.workspace.selectedFolder {
+            let maybeMeta = idsAndFiles[selectedFolder]
             
             if maybeMeta == nil {
-                DI.currentDoc.selectedFolder = nil
+                self.workspace.selectedFolder = nil
             }
         }
     }
@@ -300,7 +292,7 @@ class FileService: ObservableObject {
 #if os(iOS)
                 self.parent?.id ?? self.root!.id
 #else
-                DI.currentDoc.selectedFolder?.id ?? self.root!.id
+                self.workspace.selectedFolder ?? self.root!.id
 #endif
             }()
             
@@ -316,13 +308,12 @@ class FileService: ObservableObject {
                 case .success(let meta):
                     self.refreshSync()
                     
-                    DispatchQueue.main.async {
-                        DI.currentDoc.cleanupOldDocs()
-                        DI.currentDoc.justCreatedDoc = self.idsAndFiles[meta.id]
-                        DI.currentDoc.openDoc(id: meta.id)
-                        DI.currentDoc.setSelectedOpenDocById(maybeId: meta.id)
-                    }
-                    
+//                    DispatchQueue.main.async {
+//                        DI.currentDoc.justCreatedDoc = self.idsAndFiles[meta.id]
+//                        DI.currentDoc.openDoc(id: meta.id)
+//                        DI.currentDoc.setSelectedOpenDocById(maybeId: meta.id)
+//                    }
+//                    
                     return
                 case .failure(let err):
                     switch err.kind {
@@ -343,7 +334,7 @@ class FileService: ObservableObject {
             #if os(iOS)
             parent?.id ?? root!.id
             #else
-            DI.currentDoc.selectedFolder?.id ?? root!.id
+            self.workspace.selectedFolder ?? root!.id
             #endif
         }()
         
@@ -372,7 +363,7 @@ class FileService: ObservableObject {
             #if os(iOS)
             parent?.id ?? root!.id
             #else
-            DI.currentDoc.selectedFolder?.id ?? root!.id
+            self.workspace.selectedFolder ?? root!.id
             #endif
         }()
         

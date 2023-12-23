@@ -14,32 +14,9 @@ class SyncService: ObservableObject {
     @Published var upgrade: Bool = false
     
     @Published var outOfSpace: Bool = false
-    
-    private var syncTimer: Timer? = nil
-    
+        
     init(_ core: LockbookApi) {
         self.core = core
-        
-        startOrRestartSyncTimer()
-    }
-    
-    func startOrRestartSyncTimer() {
-        syncTimer?.invalidate()
-        syncTimer = Timer.scheduledTimer(timeInterval: 30*60, target: self, selector: #selector(syncTimerTick), userInfo: nil, repeats: true)
-    }
-    
-    @objc func syncTimerTick() {
-        sync()
-    }
-    
-    func documentChangeHappened() {
-        startOrRestartSyncTimer()
-        DI.status.checkForLocalWork()
-    }
-    
-    func foregroundSync() {
-        DI.files.refreshSuggestedDocs()
-        sync()
     }
     
     func postSyncSteps() {
@@ -113,7 +90,7 @@ class SyncService: ObservableObject {
     }
     
     func sync() {
-        if syncing {
+        if true {
             return
         }
         

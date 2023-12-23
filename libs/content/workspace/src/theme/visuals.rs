@@ -1,7 +1,7 @@
-use egui::Color32;
 use crate::theme::palette::ThemePalette;
+use egui::Color32;
 
-pub fn dark(primary: lb::ColorAlias) -> egui::Visuals {
+pub fn dark(primary: lb_rs::ColorAlias) -> egui::Visuals {
     let mut v = egui::Visuals::dark();
     v.faint_bg_color = Color32::from_rgb(35, 35, 37);
     v.widgets.noninteractive.bg_fill = Color32::from_rgb(25, 25, 27);
@@ -12,7 +12,7 @@ pub fn dark(primary: lb::ColorAlias) -> egui::Visuals {
     v
 }
 
-pub fn light(primary: lb::ColorAlias) -> egui::Visuals {
+pub fn light(primary: lb_rs::ColorAlias) -> egui::Visuals {
     let mut v = egui::Visuals::light();
     v.widgets.hovered.bg_fill = v.widgets.active.bg_fill;
     v.widgets.active.bg_fill = ThemePalette::LIGHT[primary];

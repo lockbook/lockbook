@@ -42,6 +42,7 @@ pub trait Requester: Clone {
 }
 
 #[derive(Debug, Clone)]
+#[repr(C)]
 pub struct Network {
     pub client: RequestClient,
     pub get_code_version: fn() -> &'static str,
@@ -68,7 +69,7 @@ impl Requester for Network {
             client_version: client_version.clone(),
         })
         .map_err(|err| ApiError::Serialize(err.to_string()))?;
-        let serialized_response = self
+        let a = self
             .client
             .request(T::METHOD, format!("{}{}", account.api_url, T::ROUTE).as_str())
             .body(serialized_request)
@@ -77,7 +78,9 @@ impl Requester for Network {
             .map_err(|err| {
                 warn!("Send failed: {:#?}", err);
                 ApiError::SendFailed(err.to_string())
-            })?
+            })?;
+        println!("a done");
+        let serialized_response = a
             .bytes()
             .map_err(|err| ApiError::ReceiveFailed(err.to_string()))?;
         let response: Result<T::Response, ErrorWrapper<T::Error>> =
