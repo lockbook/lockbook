@@ -185,8 +185,8 @@ import AppKit
                 #if os(macOS)
                 Button("Search Paths And Content") {
                     if let toolbar = NSApp.keyWindow?.toolbar, let search = toolbar.items.first(where: { $0.itemIdentifier.rawValue == "com.apple.SwiftUI.search" }) as? NSSearchToolbarItem {
-                            search.beginSearchInteraction()
-                        }
+                        search.beginSearchInteraction()
+                    }
                 }.keyboardShortcut("f", modifiers: [.command, .shift])
                 #endif
                 
