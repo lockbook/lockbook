@@ -1,6 +1,6 @@
 use eframe::egui;
 
-use super::{node_by_id, pointer_interests_path, Buffer};
+use super::{node_by_id, pointer_interests_path, Buffer, DeleteElement, TransformElement};
 
 pub struct Selection {
     last_pos: Option<egui::Pos2>,
@@ -11,14 +11,14 @@ pub struct Selection {
 struct SelectedElement {
     id: String,
     original_pos: egui::Pos2,
-    original_matrix: Option<[f64; 6]>,
+    original_matrix: Option<(String, [f64; 6])>,
 }
 
 /**
  * Todo:
-\ * - i need to save transports as a history event
- * - i need to be able to delete by id
- * - reach: allow users to delete selected elements
+ * - i need to save transports as a history event
+ * - reach: allow copy paste selection
+ * - reach lasso tool
  */
 
 impl Selection {
@@ -30,7 +30,13 @@ impl Selection {
         &mut self, ui: &mut egui::Ui, working_rect: egui::Rect, buffer: &mut Buffer,
     ) {
         let pos = match ui.ctx().pointer_hover_pos() {
-            Some(cp) => cp,
+            Some(cp) => {
+                if ui.is_enabled() {
+                    cp
+                } else {
+                    return;
+                }
+            }
             None => egui::Pos2::ZERO,
         };
 
@@ -61,8 +67,7 @@ impl Selection {
                     if ui.input(|r| r.modifiers.shift) {
                         self.selected_elements.push(new_selected_el);
                         self.selected_elements.iter_mut().for_each(|el| {
-                            el.original_pos = pos;
-                            el.original_matrix = None
+                            end_drag(buffer, el, pos);
                         })
                     } else {
                         self.selected_elements = vec![new_selected_el]
@@ -86,9 +91,11 @@ impl Selection {
             }
 
             show_bb_rect(ui, bb, working_rect);
-
-            if ui.input(|r| r.pointer.primary_clicked()) {
-                el.original_matrix = None;
+            if ui.input(|r| r.pointer.primary_released()) {
+                end_drag(buffer, el, pos);
+                println!("end");
+            } else if ui.input(|r| r.pointer.primary_clicked()) {
+                println!("start");
                 el.original_pos = pos;
             } else if ui.input(|r| r.pointer.primary_down()) {
                 let delta = egui::pos2(pos.x - el.original_pos.x, pos.y - el.original_pos.y);
@@ -109,7 +116,7 @@ impl Selection {
             };
 
             if let Some(d) = delta {
-                
+                end_drag(buffer, el, pos);
                 drag(d, el, buffer);
             }
         }
@@ -119,18 +126,17 @@ impl Selection {
                 .selected_elements
                 .iter()
                 .map(|el| {
-                    (
-                        el.id.clone(),
-                        buffer
-                            .current
-                            .children()
-                            .find(|node| node.attr("id").map_or(false, |id| id.eq(&el.id)))
-                            .unwrap()
-                            .clone(),
-                    )
+                    let element = buffer
+                        .current
+                        .children()
+                        .find(|node| node.attr("id").map_or(false, |id| id.eq(&el.id)))
+                        .unwrap()
+                        .clone();
+                    DeleteElement { id: el.id.clone(), element }
                 })
                 .collect();
-            let delete_event = super::Event::DeleteElements(super::DeleteElements { elements });
+
+            let delete_event = super::Event::DeleteElements(elements);
             buffer.apply_event(&delete_event);
             buffer.save(delete_event);
             self.selected_elements.clear();
@@ -153,6 +159,37 @@ impl Selection {
             }
         }
         None
+    }
+}
+
+fn end_drag(buffer: &mut Buffer, el: &mut SelectedElement, pos: egui::Pos2) {
+    el.original_pos = pos;
+    if let Some(node) = buffer
+        .current
+        .children()
+        .find(|node| node.attr("id").map_or(false, |id| id.eq(&el.id)))
+    {
+        if let Some(transform) = node.attr("transform") {
+            let transform = transform.to_owned();
+            buffer.save(super::Event::TransformElements(vec![TransformElement {
+                id: el.id.to_owned(),
+                old_transform: el.original_matrix.clone().unwrap_or_default().0,
+                new_transform: transform.clone(),
+            }]));
+
+            for segment in svgtypes::TransformListParser::from(transform.as_str()) {
+                let segment = match segment {
+                    Ok(v) => v,
+                    Err(_) => break,
+                };
+                match segment {
+                    svgtypes::TransformListToken::Matrix { a, b, c, d, e, f } => {
+                        el.original_matrix = Some((transform.clone(), [a, b, c, d, e, f]));
+                    }
+                    _ => {}
+                }
+            }
+        }
     }
 }
 
@@ -186,33 +223,14 @@ fn show_bb_rect(ui: &mut egui::Ui, mut bb: [glam::DVec2; 2], working_rect: egui:
 
 fn drag(delta: egui::Pos2, de: &mut SelectedElement, buffer: &mut Buffer) {
     if let Some(node) = node_by_id(&mut buffer.current, de.id.clone()) {
-        if let Some(transform) = node.attr("transform") {
-            if de.original_matrix.is_none() {
-                let transform = transform.to_owned();
-                for segment in svgtypes::TransformListParser::from(transform.as_str()) {
-                    let segment = match segment {
-                        Ok(v) => v,
-                        Err(_) => break,
-                    };
-                    match segment {
-                        svgtypes::TransformListToken::Matrix { a, b, c, d, e, f } => {
-                            de.original_matrix = Some([a, b, c, d, e, f]);
-                        }
-                        _ => {}
-                    }
-                }
-            }
-        }
         node.set_attr(
             "transform",
             format!(
                 "matrix(1,0,0,1,{},{} )",
-                delta.x as f64 + de.original_matrix.unwrap_or_default()[4],
-                delta.y as f64 + de.original_matrix.unwrap_or_default()[5]
+                delta.x as f64 + de.original_matrix.clone().unwrap_or_default().1[4],
+                delta.y as f64 + de.original_matrix.clone().unwrap_or_default().1[5]
             ),
         );
-
-        // node.set_attr("transform", format!("matrix(1,0,0,1,{delta_x},{delta_y} )"));
         buffer.needs_path_map_update = true;
     }
 }

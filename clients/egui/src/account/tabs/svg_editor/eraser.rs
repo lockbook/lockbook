@@ -1,10 +1,9 @@
-use bezier_rs::Bezier;
 use eframe::egui;
 use minidom::Element;
 use std::collections::HashMap;
 use std::sync::mpsc;
 
-use super::{pointer_interests_path, util, Buffer};
+use super::{pointer_interests_path, util, Buffer, DeleteElement};
 
 const ERASER_THICKNESS: f32 = 10.0;
 pub struct Eraser {
@@ -57,9 +56,15 @@ impl Eraser {
                     }
                 });
 
-                buffer.save(super::Event::DeleteElements(super::DeleteElements {
-                    elements: self.paths_to_delete.clone(),
-                }));
+                buffer.save(super::Event::DeleteElements(
+                    self.paths_to_delete
+                        .iter()
+                        .map(|(id, path_el)| DeleteElement {
+                            id: id.to_owned(),
+                            element: path_el.clone(),
+                        })
+                        .collect(),
+                ));
 
                 self.paths_to_delete.iter().for_each(|(id, _)| {
                     buffer.current.remove_child(id);

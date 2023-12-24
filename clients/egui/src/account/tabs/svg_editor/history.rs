@@ -1,12 +1,9 @@
 use std::{collections::VecDeque, fmt::Debug, mem};
 
-use bezier_rs::{Bezier, Identifier, ManipulatorGroup, Subpath};
+use bezier_rs::{Bezier, Identifier, Subpath};
 use glam::{DAffine2, DMat2, DVec2};
 use minidom::Element;
-use resvg::{
-    tiny_skia::Point,
-    usvg::{self, Node, NodeKind, TreeWriting},
-};
+use resvg::tiny_skia::Point;
 use std::collections::HashMap;
 
 use super::util;
@@ -32,25 +29,29 @@ impl Identifier for ManipulatorGroupId {
 
 #[derive(Clone, Debug)]
 pub enum Event {
-    InsertElements(InsertElements),
-    DeleteElements(DeleteElements),
-    TransformElements(TransformElements),
+    InsertElements(Vec<InsertElement>),
+    DeleteElements(Vec<DeleteElement>),
+    TransformElements(Vec<TransformElement>),
 }
 
 #[derive(Clone, Debug)]
-pub struct DeleteElements {
-    pub elements: HashMap<String, Element>,
+pub struct DeleteElement {
+    pub id: String,
+    pub element: Element,
 }
 
 #[derive(Clone, Debug)]
-pub struct InsertElements {
-    pub elements: HashMap<String, Element>,
+pub struct InsertElement {
+    pub id: String,
+    pub element: Element,
 }
 
 #[derive(Clone, Debug)]
-pub struct TransformElements {
+pub struct TransformElement {
     /// (old transform, new transform)
-    pub elements: HashMap<String, (String, String)>,
+    pub id: String,
+    pub old_transform: String,
+    pub new_transform: String,
 }
 
 impl Buffer {
@@ -79,30 +80,34 @@ impl Buffer {
     pub fn apply_event(&mut self, event: &Event) {
         match event {
             Event::InsertElements(payload) => {
-                payload.elements.iter().for_each(|(id, element)| {
-                    if let Some(node) = util::node_by_id(&mut self.current, id.to_string()) {
+                payload.iter().for_each(|insert_payload| {
+                    if let Some(node) =
+                        util::node_by_id(&mut self.current, insert_payload.id.to_string())
+                    {
                         // todo: figure out a less hacky way, to detach a node (not just paths) from the tree
-                        node.set_attr("d", element.attr("d"));
+                        node.set_attr("d", insert_payload.element.attr("d"));
                     } else {
-                        self.current.append_child(element.clone());
+                        self.current.append_child(insert_payload.element.clone());
                     }
                 });
             }
 
             Event::DeleteElements(payload) => {
-                payload.elements.iter().for_each(|(id, _)| {
-                    self.current.remove_child(id);
+                payload.iter().for_each(|delete_payload| {
+                    self.current.remove_child(&delete_payload.id);
                 });
             }
             Event::TransformElements(payload) => {
-                payload.elements.iter().for_each(|(id, transform)| {
-                    if let Some(node) = util::node_by_id(&mut self.current, id.to_string()) {
-                        // todo: figure out a less hacky way, to detach a node (not just paths) from the tree
-                        node.set_attr("transform", transform.1.clone());
+                payload.iter().for_each(|transform_payload| {
+                    if let Some(node) =
+                        util::node_by_id(&mut self.current, transform_payload.id.to_string())
+                    {
+                        node.set_attr("transform", transform_payload.new_transform.clone());
                     }
                 });
             }
         };
+        self.needs_path_map_update = true;
     }
 
     pub fn undo(&mut self) {
@@ -136,17 +141,40 @@ impl Buffer {
     fn swap_event(&self, mut source: Event) -> Event {
         match source {
             Event::InsertElements(payload) => {
-                source = Event::DeleteElements(DeleteElements { elements: payload.elements });
+                source = Event::DeleteElements(
+                    payload
+                        .iter()
+                        .map(|insert_payload| DeleteElement {
+                            id: insert_payload.id.clone(),
+                            element: insert_payload.element.clone(),
+                        })
+                        .collect(),
+                );
             }
             Event::DeleteElements(payload) => {
-                source = Event::InsertElements(InsertElements { elements: payload.elements });
+                source = Event::InsertElements(
+                    payload
+                        .iter()
+                        .map(|delete_payload| InsertElement {
+                            id: delete_payload.id.clone(),
+                            element: delete_payload.element.clone(),
+                        })
+                        .collect(),
+                );
             }
             Event::TransformElements(mut payload) => {
-                payload
-                    .elements
-                    .iter_mut()
-                    .for_each(|(_, transform)| mem::swap(&mut transform.0, &mut transform.1));
-                source = Event::TransformElements(TransformElements { elements: payload.elements })
+                source = Event::TransformElements(
+                    payload
+                        .iter_mut()
+                        .map(|transform_payload| {
+                            mem::swap(
+                                &mut transform_payload.new_transform,
+                                &mut transform_payload.old_transform,
+                            );
+                            transform_payload.clone()
+                        })
+                        .collect(),
+                )
             }
         }
         source
@@ -166,6 +194,7 @@ impl Buffer {
      * </g>
      */
     pub fn recalc_paths(&mut self) {
+        self.paths.clear();
         for el in self.current.children() {
             if el.name().eq("path") {
                 let data = match el.attr("d") {
