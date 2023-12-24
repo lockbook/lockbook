@@ -663,9 +663,8 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_startSearch(
 
     while let Ok(results) = results_rx.recv() {
         match results {
-            SearchResult::NewSearch => {
-                env
-                    .call_method(jsearchFilesViewModel, "startOfSearchQuery", "()V", &[])
+            SearchResult::StartOfSearch => {
+                env.call_method(jsearchFilesViewModel, "startOfSearchQuery", "()V", &[])
                     .unwrap();
             }
             SearchResult::Error(e) => return string_to_jstring(&env, translate(Err::<(), _>(e))),
@@ -713,8 +712,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_startSearch(
                 .unwrap();
             }
             SearchResult::EndOfSearch => {
-                env
-                    .call_method(jsearchFilesViewModel, "endOfSearchQuery", "()V", &[])
+                env.call_method(jsearchFilesViewModel, "endOfSearchQuery", "()V", &[])
                     .unwrap();
             }
         }

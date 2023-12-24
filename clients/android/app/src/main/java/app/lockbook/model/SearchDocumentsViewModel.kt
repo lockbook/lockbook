@@ -32,6 +32,8 @@ class SearchDocumentsViewModel(application: Application) : AndroidViewModel(appl
     var isProgressSpinnerShown = false
     var isNoSearchResultsShown = false
 
+    var lastQuery = ""
+
     private val highlightColor = ResourcesCompat.getColor(getContext().resources, R.color.md_theme_inversePrimary, null)
 
     init {
@@ -45,14 +47,13 @@ class SearchDocumentsViewModel(application: Application) : AndroidViewModel(appl
     }
 
     fun newSearch(query: String?) {
-        filesResultsSource.clear()
-        fileResults.clear()
-
         hideNoSearchResultsIfVisible()
 
         if (query == null) {
             return
         }
+
+        lastQuery = query
 
         showProgressSpinnerIfGone()
 
@@ -76,6 +77,9 @@ class SearchDocumentsViewModel(application: Application) : AndroidViewModel(appl
     // used by core over ffi
     fun startOfSearchQuery() {
         viewModelScope.launch(Dispatchers.Main) {
+            filesResultsSource.clear()
+            fileResults.clear()
+
             showProgressSpinnerIfGone()
             hideNoSearchResultsIfVisible()
         }
@@ -89,8 +93,6 @@ class SearchDocumentsViewModel(application: Application) : AndroidViewModel(appl
         filesResultsSource.sortByDescending { it.score }
 
         viewModelScope.launch(Dispatchers.Main) {
-            hideProgressSpinnerIfVisible()
-            hideNoSearchResultsIfVisible()
             fileResults.set(filesResultsSource, { left, right -> left.id == right.id })
         }
     }
@@ -107,8 +109,6 @@ class SearchDocumentsViewModel(application: Application) : AndroidViewModel(appl
         filesResultsSource.sortByDescending { it.score }
 
         viewModelScope.launch(Dispatchers.Main) {
-            hideProgressSpinnerIfVisible()
-            hideNoSearchResultsIfVisible()
             fileResults.set(filesResultsSource, { left, right -> left.id == right.id })
         }
     }
@@ -117,7 +117,9 @@ class SearchDocumentsViewModel(application: Application) : AndroidViewModel(appl
     fun endOfSearchQuery() {
         viewModelScope.launch(Dispatchers.Main) {
             hideProgressSpinnerIfVisible()
-            if(fileResults.isEmpty()) {
+            hideProgressSpinnerIfVisible()
+
+            if(fileResults.isEmpty() && lastQuery.isNotEmpty()) {
                 showNoSearchResultsIfGone()
             }
         }

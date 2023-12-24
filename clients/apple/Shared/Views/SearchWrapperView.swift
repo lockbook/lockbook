@@ -19,51 +19,72 @@ struct SearchWrapperView<Content: View>: View {
         VStack {
             if search.isPathAndContentSearching {
                 if search.isPathAndContentSearchInProgress {
+                    #if os(iOS)
                     ProgressView()
+                        .frame(width: 20, height: 20)
+                        .padding(.top)
+                    #else
+                    ProgressView()
+                        .scaleEffect(0.5)
+                        .frame(width: 20, height: 20)
+                    #endif
                 }
                 
-                if !isiOS {
-                    List(search.pathAndContentSearchResults) { result in
-                        switch result {
-                        case .PathMatch(_, let meta, let name, let path, let matchedIndices, _):
-                            Button(action: {
-                                DI.currentDoc.cleanupOldDocs()
-                                DI.currentDoc.openDoc(id: meta.id)
-                                DI.currentDoc.setSelectedOpenDocById(maybeId: meta.id)
-                            }) {
-                                SearchFilePathCell(name: name, path: path, matchedIndices: matchedIndices)
+                
+                if !search.pathAndContentSearchResults.isEmpty {
+                    if !isiOS {
+                        List(search.pathAndContentSearchResults) { result in
+                            switch result {
+                            case .PathMatch(_, let meta, let name, let path, let matchedIndices, _):
+                                Button(action: {
+                                    DI.currentDoc.cleanupOldDocs()
+                                    DI.currentDoc.openDoc(id: meta.id)
+                                    DI.currentDoc.setSelectedOpenDocById(maybeId: meta.id)
+                                }) {
+                                    SearchFilePathCell(name: name, path: path, matchedIndices: matchedIndices)
+                                }
+                            case .ContentMatch(_, let meta, let name, let path, let paragraph, let matchedIndices, _):
+                                Button(action: {
+                                    DI.currentDoc.cleanupOldDocs()
+                                    DI.currentDoc.openDoc(id: meta.id)
+                                    DI.currentDoc.setSelectedOpenDocById(maybeId: meta.id)
+                                }) {
+                                    SearchFileContentCell(name: name, path: path, paragraph: paragraph, matchedIndices: matchedIndices)
+                                }
                             }
-                        case .ContentMatch(_, let meta, let name, let path, let paragraph, let matchedIndices, _):
-                            Button(action: {
-                                DI.currentDoc.cleanupOldDocs()
-                                DI.currentDoc.openDoc(id: meta.id)
-                                DI.currentDoc.setSelectedOpenDocById(maybeId: meta.id)
-                            }) {
-                                SearchFileContentCell(name: name, path: path, paragraph: paragraph, matchedIndices: matchedIndices)
-                            }
-                        }
-                        
+                            
 #if os(macOS)
-                        Divider()
+                            Divider()
 #endif
-                    }
-                    .setiPadOrMacOSSearchListStyle()
-                } else {
+                        }
+                        .setiPadOrMacOSSearchListStyle()
+                    } else {
 #if os(iOS)
-                    List(search.pathAndContentSearchResults) { result in
-                        switch result {
-                        case .PathMatch(_, let meta, let name, let path, let matchedIndices, _):
-                            NavigationLink(destination: iOSDocumentViewWrapper(id: meta.id)) {
-                                SearchFilePathCell(name: name, path: path, matchedIndices: matchedIndices)
-                            }
-                        case .ContentMatch(_, let meta, let name, let path, let paragraph, let matchedIndices, _):
-                            NavigationLink(destination: iOSDocumentViewWrapper(id: meta.id)) {
-                                SearchFileContentCell(name: name, path: path, paragraph: paragraph, matchedIndices: matchedIndices)
+                        List(search.pathAndContentSearchResults) { result in
+                            switch result {
+                            case .PathMatch(_, let meta, let name, let path, let matchedIndices, _):
+                                NavigationLink(destination: iOSDocumentViewWrapper(id: meta.id)) {
+                                    SearchFilePathCell(name: name, path: path, matchedIndices: matchedIndices)
+                                }
+                            case .ContentMatch(_, let meta, let name, let path, let paragraph, let matchedIndices, _):
+                                NavigationLink(destination: iOSDocumentViewWrapper(id: meta.id)) {
+                                    SearchFileContentCell(name: name, path: path, paragraph: paragraph, matchedIndices: matchedIndices)
+                                }
                             }
                         }
-                    }
-                    .listStyle(.insetGrouped)
+                        .listStyle(.insetGrouped)
 #endif
+                    }
+                } else if !search.isPathAndContentSearchInProgress && !search.pathAndContentSearchQuery.isEmpty {
+                    Text("No results.")
+                       .font(.headline)
+                       .foregroundColor(.gray)
+                       .fontWeight(.bold)
+                       .padding()
+                    
+                    Spacer()
+                } else {
+                    Spacer()
                 }
             } else {
                 mainView

@@ -649,7 +649,7 @@ pub unsafe extern "C" fn start_search(
     while let Ok(result) = results_rx.recv() {
         let (result_repr, content) = match result {
             SearchResult::Error(e) => return c_string(translate(Err::<(), _>(e))),
-            SearchResult::NewSearch => (0, null()),
+            SearchResult::StartOfSearch => (0, null()),
             SearchResult::FileNameMatch { .. } => {
                 (1, c_string(serde_json::to_string(&result).unwrap()))
             }

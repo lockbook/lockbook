@@ -51,8 +51,8 @@ struct PathSearchActionBar: View {
                         }
                         
                         if !search.pathSearchResults.isEmpty {
-                                Divider()
-                            .padding(.top)
+                            Divider()
+                                .padding(.top)
                             
                             ScrollViewReader { scrollHelper in
                                 ScrollView {
@@ -68,13 +68,21 @@ struct PathSearchActionBar: View {
                                 }
                                 .onChange(of: search.pathSearchSelected) { newValue in
                                     withAnimation {
-                                        let item = search.pathSearchResults[newValue]
-                                        
-                                        scrollHelper.scrollTo(item.id, anchor: .center)
+                                        if newValue < search.pathSearchResults.count {
+                                            let item = search.pathSearchResults[newValue]
+                                            
+                                            scrollHelper.scrollTo(item.id, anchor: .center)
+                                        }
                                     }
                                 }
                             }
                             .frame(maxHeight: 500)
+                        } else if !search.isPathSearchInProgress && !search.pathSearchQuery.isEmpty {
+                            Text("No results.")
+                               .font(.headline)
+                               .foregroundColor(.gray)
+                               .fontWeight(.bold)
+                               .padding()
                         }
                     }
                     .padding()
@@ -162,7 +170,7 @@ class PathSearchTextField: UITextField {
     }
     
     @objc func exitPathSearch() {
-        DI.search.endSearch(isPathAndContentSearch: true)
+        DI.search.endSearch(isPathAndContentSearch: false)
     }
     
     @objc func openSelected1() {

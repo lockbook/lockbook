@@ -172,7 +172,7 @@ impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {
                     println!("search recieved");
 
                     results_tx
-                        .send(SearchResult::NewSearch)
+                        .send(SearchResult::StartOfSearch)
                         .map_err(UnexpectedError::from)?;
 
                     if input.is_empty() {
@@ -184,7 +184,6 @@ impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {
 
                     let cancel = Arc::new(AtomicBool::new(false));
                     let files_info = files_info.clone();
-                    let thread_count = thread_count.clone();
                     let search_result_tx = results_tx.clone();
 
                     // eliminate no search result and just include
@@ -230,7 +229,7 @@ impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {
                         }
 
                         while let Some(thread) = workers.pop() {
-                            if let Err(_) = thread.join() {
+                            if thread.join().is_err() {
                                 let _ = search_result_tx.send(SearchResult::Error(UnexpectedError::new("cannot join search worker thread")));
                             }
                         }
@@ -449,7 +448,7 @@ pub enum SearchRequest {
 #[serde(untagged)]
 pub enum SearchResult {
     Error(UnexpectedError),
-    NewSearch,
+    StartOfSearch,
     FileNameMatch { id: Uuid, path: String, matched_indices: Vec<usize>, score: i64 },
     FileContentMatches { id: Uuid, path: String, content_matches: Vec<ContentMatch> },
     EndOfSearch,
