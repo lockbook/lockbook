@@ -3768,9 +3768,8 @@ dependencies = [
 
 [[package]]
 name = "minidom"
-version = "0.15.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f45614075738ce1b77a1768912a60c0227525971b03e09122a05b8a34a2a6278"
+version = "0.15.3"
+source = "git+https://github.com/lockbook/minidom#101e20650f435f9601ecff7ee70fcdf8c95e6892"
 dependencies = [
  "rxml",
 ]

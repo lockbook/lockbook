@@ -1,4 +1,4 @@
-use std::{collections::VecDeque, fmt::Debug};
+use std::{collections::VecDeque, fmt::Debug, mem};
 
 use bezier_rs::{Bezier, Identifier, ManipulatorGroup, Subpath};
 use glam::{DAffine2, DMat2, DVec2};
@@ -34,18 +34,23 @@ impl Identifier for ManipulatorGroupId {
 pub enum Event {
     InsertElements(InsertElements),
     DeleteElements(DeleteElements),
+    TransformElements(TransformElements),
 }
 
 #[derive(Clone, Debug)]
-
 pub struct DeleteElements {
     pub elements: HashMap<String, Element>,
 }
 
 #[derive(Clone, Debug)]
-
 pub struct InsertElements {
     pub elements: HashMap<String, Element>,
+}
+
+#[derive(Clone, Debug)]
+pub struct TransformElements {
+    /// (old transform, new transform)
+    pub elements: HashMap<String, (String, String)>,
 }
 
 impl Buffer {
@@ -71,15 +76,13 @@ impl Buffer {
         }
     }
 
-    fn apply_event(&mut self, event: &Event) {
+    pub fn apply_event(&mut self, event: &Event) {
         match event {
             Event::InsertElements(payload) => {
                 payload.elements.iter().for_each(|(id, element)| {
                     if let Some(node) = util::node_by_id(&mut self.current, id.to_string()) {
                         // todo: figure out a less hacky way, to detach a node (not just paths) from the tree
                         node.set_attr("d", element.attr("d"));
-                        // todo: remove this when allowing the user to update the opacity of a path
-                        node.set_attr("opacity", "1");
                     } else {
                         self.current.append_child(element.clone());
                     }
@@ -88,9 +91,14 @@ impl Buffer {
 
             Event::DeleteElements(payload) => {
                 payload.elements.iter().for_each(|(id, _)| {
+                    self.current.remove_child(id);
+                });
+            }
+            Event::TransformElements(payload) => {
+                payload.elements.iter().for_each(|(id, transform)| {
                     if let Some(node) = util::node_by_id(&mut self.current, id.to_string()) {
                         // todo: figure out a less hacky way, to detach a node (not just paths) from the tree
-                        node.set_attr("d", "");
+                        node.set_attr("transform", transform.1.clone());
                     }
                 });
             }
@@ -133,6 +141,13 @@ impl Buffer {
             Event::DeleteElements(payload) => {
                 source = Event::InsertElements(InsertElements { elements: payload.elements });
             }
+            Event::TransformElements(mut payload) => {
+                payload
+                    .elements
+                    .iter_mut()
+                    .for_each(|(_, transform)| mem::swap(&mut transform.0, &mut transform.1));
+                source = Event::TransformElements(TransformElements { elements: payload.elements })
+            }
         }
         source
     }
@@ -159,9 +174,9 @@ impl Buffer {
                 };
                 let mut start = (0.0, 0.0);
                 let mut subpath: Subpath<ManipulatorGroupId> = Subpath::new(vec![], false);
-                // todo: remove when path deletion is fixed 
-                if data.eq(""){
-                    continue
+                // todo: remove when path deletion is fixed
+                if data.eq("") {
+                    continue;
                 }
 
                 for segment in svgtypes::SimplifyingPathParser::from(data) {

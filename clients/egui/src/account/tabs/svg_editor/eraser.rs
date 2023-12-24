@@ -62,9 +62,7 @@ impl Eraser {
                 }));
 
                 self.paths_to_delete.iter().for_each(|(id, _)| {
-                    if let Some(node) = util::node_by_id(&mut buffer.current, id.to_string()) {
-                        node.set_attr("d", "");
-                    }
+                    buffer.current.remove_child(id);
                 });
 
                 self.paths_to_delete.clear();

@@ -1,7 +1,7 @@
 use eframe::egui;
 use minidom::Element;
 use resvg::tiny_skia::Pixmap;
-use resvg::usvg::{self, Size, TreeWriting};
+use resvg::usvg::{self, Size};
 
 use crate::theme::ThemePalette;
 
@@ -44,17 +44,6 @@ impl SVGEditor {
     }
 
     pub fn show(&mut self, ui: &mut egui::Ui) {
-        self.buffer.paths.iter().for_each(|(_, path)| {
-            let bb = path.bounding_box().unwrap();
-            ui.painter().rect_stroke(
-                egui::Rect {
-                    min: egui::pos2(bb[0].x as f32, bb[0].y as f32),
-                    max: egui::pos2(bb[1].x as f32, bb[1].y as f32),
-                },
-                egui::Rounding::none(),
-                egui::Stroke { width: 1.0, color: egui::Color32::DEBUG_COLOR },
-            );
-        });
         ui.vertical(|ui| {
             egui::Frame::default()
                 .fill(if ui.visuals().dark_mode {
@@ -91,7 +80,12 @@ impl SVGEditor {
             }
         }
 
-        Self::define_dynamic_colors(&mut self.buffer, &mut self.toolbar, ui.visuals().dark_mode, false);
+        Self::define_dynamic_colors(
+            &mut self.buffer,
+            &mut self.toolbar,
+            ui.visuals().dark_mode,
+            false,
+        );
     }
 
     pub fn get_minimal_content(&self) -> String {
@@ -123,7 +117,7 @@ impl SVGEditor {
         }
 
         let tree = resvg::Tree::from_usvg(&utree);
-        
+
         let pixmap_size = tree.size.to_int_size();
         let mut pixmap = Pixmap::new(pixmap_size.width(), pixmap_size.height()).unwrap();
 
@@ -147,7 +141,9 @@ impl SVGEditor {
     }
 
     // if the data-dark mode is different from the ui dark mode, or if this is the first time running the editor
-    fn define_dynamic_colors(buffer: &mut Buffer, toolbar: &mut Toolbar, is_dark_mode: bool, force_update: bool) {
+    fn define_dynamic_colors(
+        buffer: &mut Buffer, toolbar: &mut Toolbar, is_dark_mode: bool, force_update: bool,
+    ) {
         let needs_update;
         if let Some(svg_flag) = buffer.current.attr("data-dark-mode") {
             let svg_flag: bool = svg_flag.parse().unwrap_or(false);
@@ -160,9 +156,11 @@ impl SVGEditor {
         if !needs_update && !force_update {
             return;
         }
-        
+
         // todo: remove the prev linear gradient node  def
-        
+        let gradient_group_id = "lb:gg";
+        buffer.current.remove_child(gradient_group_id);
+
         let theme_colors = ThemePalette::as_array(is_dark_mode);
         if toolbar.pen.active_color.is_none() {
             toolbar.pen.active_color = Some(ColorSwatch {
@@ -182,6 +180,9 @@ impl SVGEditor {
             .chain(btns)
             .collect();
 
+        let mut gradient_group = Element::builder("g", "")
+            .attr("id", gradient_group_id)
+            .build();
 
         theme_colors.iter().for_each(|theme_color| {
             let rgb_color =
@@ -194,10 +195,10 @@ impl SVGEditor {
                         .build(),
                 )
                 .build();
-
-            buffer.current.append_child(gradient);
+            gradient_group.append_child(gradient);
         });
 
+        buffer.current.append_child(gradient_group);
         buffer
             .current
             .set_attr("data-dark-mode", format!("{}", is_dark_mode));

@@ -16,7 +16,7 @@ lb = { package = "lb-rs", path = "../../libs/lb/lb-rs", default-features = false
 lb-fonts = "0.1.1"
 lb-pdf = "0.1.1"
 lbeditor = { package = "egui_editor", path = "../../libs/content/editor/egui_editor" }
-minidom = "*"
+minidom = {git ="https://github.com/lockbook/minidom"}
 pdfium-render = "0.8.5"
 resvg = {version = "0.36.0", features = ["raster-images"]}
 rfd = "0.11.4"
