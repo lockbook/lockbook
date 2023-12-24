@@ -61,7 +61,7 @@ class SubscriptionInfoPreference(context: Context, attributeSet: AttributeSet?) 
                     context.resources.getString(R.string.next_renewal_day)
                 }
                 is PaymentPlatform.AppStore -> {
-                    when(maybeSubscriptionInfo.paymentPlatform.accountState) {
+                    when (maybeSubscriptionInfo.paymentPlatform.accountState) {
                         AppStoreAccountState.Ok -> context.resources.getString(R.string.next_renewal_day)
                         AppStoreAccountState.GracePeriod -> context.resources.getString(R.string.grace_period)
                         AppStoreAccountState.FailedToRenew, AppStoreAccountState.Expired -> context.resources.getString(R.string.expiration_day)
