@@ -234,3 +234,5 @@ pub unsafe extern "C" fn scroll_wheel(obj: *mut c_void, scroll_wheel: f32) {
         obj.raw_input.events.push(Event::PointerGone);
     }
 }
+
+pub unsafe extern 

@@ -26,16 +26,6 @@ public struct WorkspaceView: UIViewRepresentable {
     }
     
     public func updateUIView(_ uiView: iOSMTK, context: Context) {
-        if workspaceState.reloadText {
-            mtkView.updateText(workspaceState.text)
-            workspaceState.reloadText = false
-        }
-        
-        if workspaceState.reloadView {
-            mtkView.setNeedsDisplay(mtkView.frame)
-            workspaceState.reloadView = false
-        }
-        
         if workspaceState.shouldFocus {
             mtkView.becomeFirstResponder()
             workspaceState.shouldFocus = false
@@ -92,11 +82,6 @@ public struct NSWorkspace: NSViewRepresentable {
     }
     
     public func updateNSView(_ nsView: MTKView, context: NSViewRepresentableContext<NSWorkspace>) {
-        if workspaceState.reloadView { // todo who is asking for this?
-            mtkView.setNeedsDisplay(mtkView.frame)
-            workspaceState.reloadView = false
-        }
-        
         if let id = workspaceState.openDoc {
             print(id)
             mtkView.openFile(id: id)

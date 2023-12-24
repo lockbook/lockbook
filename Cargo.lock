@@ -3325,13 +3325,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "lb-pdf"
-version = "0.2.1"
-dependencies = [
- "pdfium-render",
-]
-
-[[package]]
 name = "lb-rs"
 version = "0.8.4"
 dependencies = [
@@ -3554,7 +3547,7 @@ dependencies = [
  "egui_wgpu_backend",
  "image",
  "lb-fonts",
- "lb-pdf 0.1.1",
+ "lb-pdf",
  "lb-rs",
  "minidom",
  "pdfium-render",
@@ -7275,7 +7268,6 @@ dependencies = [
  "egui_extras",
  "epaint",
  "glam",
- "lb-pdf 0.2.1",
  "lb-rs",
  "minidom",
  "pdfium-render",

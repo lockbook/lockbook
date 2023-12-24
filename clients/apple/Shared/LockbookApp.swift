@@ -45,10 +45,6 @@ import AppKit
                 Button("New Folder", action: {
                     DI.sheets.creatingFolderInfo = CreatingFolderInfo(parentPath: DI.files.getPathByIdOrParent() ?? "Error", maybeParent: nil)
                 }).keyboardShortcut("N", modifiers: [.command, .shift])
-                
-                Button("Close Tab", action: {
-//                    DI.currentDoc.closeDoc(DI.currentDoc.selectedDoc)
-                }).keyboardShortcut("W", modifiers: .command)
             }
                         
             CommandMenu("Lockbook") {
@@ -90,29 +86,11 @@ import AppKit
                         }
                         
                         if DI.files.root != nil {
-                            if let meta = DI.files.idsAndFiles[id] {
-                                Thread.sleep(until: .now + 0.1)
-//                                DispatchQueue.main.sync {
-//                                    var laterOpenForIphone = false
-//                                    if let docInfo = DI.currentDoc.openDocuments.values.first,
-//                                       docInfo.isiPhone {
-//                                        docInfo.dismissForLink = meta
-//                                        laterOpenForIphone.toggle()
-//                                    }
-//                                    
-//                                    DI.currentDoc.cleanupOldDocs()
-//                                    if !laterOpenForIphone {
-//                                        DI.currentDoc.justOpenedLink = meta
-//                                    }
-//                                    
-//                                    DI.currentDoc.openDoc(id: id)
-//                                    DI.currentDoc.setSelectedOpenDocById(maybeId: id)
-//                                }
+                            if DI.files.idsAndFiles[id] != nil {
+                                DI.files.workspace.openDoc = id
                             } else {
                                 DI.errors.errorWithTitle("File not found", "That file does not exist in your lockbook")
                             }
-                            
-                            return
                         }
                     }
                 } else {

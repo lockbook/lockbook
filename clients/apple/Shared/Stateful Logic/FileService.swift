@@ -308,12 +308,8 @@ class FileService: ObservableObject {
                 case .success(let meta):
                     self.refreshSync()
                     
-//                    DispatchQueue.main.async {
-//                        DI.currentDoc.justCreatedDoc = self.idsAndFiles[meta.id]
-//                        DI.currentDoc.openDoc(id: meta.id)
-//                        DI.currentDoc.setSelectedOpenDocById(maybeId: meta.id)
-//                    }
-//                    
+                    DI.files.workspace.openDoc = meta.id
+                    
                     return
                 case .failure(let err):
                     switch err.kind {

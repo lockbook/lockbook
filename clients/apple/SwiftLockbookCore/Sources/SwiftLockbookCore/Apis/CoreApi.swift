@@ -64,8 +64,7 @@ public struct CoreApi: LockbookApi {
         fromPrimitiveResult(result: list_metadatas())
     }
     
-    // TODO this needs to be renamed
-    public func getFile(id: UUID) -> FfiResult<String, ReadDocumentError> {
+    public func readDocument(id: UUID) -> FfiResult<String, ReadDocumentError> {
         fromPrimitiveResult(result: read_document(id.uuidString))
     }
     
@@ -96,8 +95,7 @@ public struct CoreApi: LockbookApi {
         fromPrimitiveResult(result: create_link(name, dirId.uuidString, target.uuidString))
     }
     
-    // TODO this needs to be renamed and brought in line with core
-    public func updateFile(id: UUID, content: String) -> FfiResult<Empty, WriteToDocumentError> {
+    public func writeDocument(id: UUID, content: String) -> FfiResult<Empty, WriteToDocumentError> {
         fromPrimitiveResult(result: write_document(id.uuidString, content))
     }
     

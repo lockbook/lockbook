@@ -4,7 +4,6 @@ import Combine
 // todo can this go away enirely?
 public class WorkspaceState: ObservableObject {
 
-    @Published public var reloadView: Bool = false
     @Published public var pasted: Bool = false
     @Published public var shouldFocus: Bool
     

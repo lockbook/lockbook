@@ -12,7 +12,7 @@ lbeditor = { package = "egui_editor", path = "../editor/egui_editor" }
 egui = "0.22.0"
 egui_extras = { version = "0.22.0", features = ["image"] }
 epaint = "0.22.0"
-lb-pdf = { path = "../../../../lb-pdf" }
+#lb-pdf = { path = "../../../../lb-pdf" }
 pdfium-render = { version =  "0.8.5" }
 resvg = "0.36.0"
 minidom = "*"
