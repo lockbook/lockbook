@@ -11,7 +11,7 @@ pub struct Selection {
 struct SelectedElement {
     id: String,
     original_pos: egui::Pos2,
-    original_matrix: Option<(String, [f64; 6])>,
+    original_matrix: (String, [f64; 6]),
 }
 
 /**
@@ -91,6 +91,7 @@ impl Selection {
             }
 
             show_bb_rect(ui, bb, working_rect);
+
             if ui.input(|r| r.pointer.primary_released()) {
                 end_drag(buffer, el, pos);
                 println!("end");
@@ -151,10 +152,17 @@ impl Selection {
         for (id, path) in buffer.paths.iter() {
             if pointer_interests_path(path, pos, self.last_pos, 10.0) {
                 ui.output_mut(|r| r.cursor_icon = egui::CursorIcon::Grab);
+                let transform = buffer
+                    .current
+                    .children()
+                    .find(|el| el.attr("id").unwrap_or_default().eq(id))
+                    .unwrap()
+                    .attr("transform")
+                    .unwrap_or_default();
                 return Some(SelectedElement {
                     id: id.clone(),
                     original_pos: pos,
-                    original_matrix: None,
+                    original_matrix: parse_transform(transform.to_string()),
                 });
             }
         }
@@ -173,24 +181,30 @@ fn end_drag(buffer: &mut Buffer, el: &mut SelectedElement, pos: egui::Pos2) {
             let transform = transform.to_owned();
             buffer.save(super::Event::TransformElements(vec![TransformElement {
                 id: el.id.to_owned(),
-                old_transform: el.original_matrix.clone().unwrap_or_default().0,
+                old_transform: el.original_matrix.clone().0,
                 new_transform: transform.clone(),
             }]));
 
-            for segment in svgtypes::TransformListParser::from(transform.as_str()) {
-                let segment = match segment {
-                    Ok(v) => v,
-                    Err(_) => break,
-                };
-                match segment {
-                    svgtypes::TransformListToken::Matrix { a, b, c, d, e, f } => {
-                        el.original_matrix = Some((transform.clone(), [a, b, c, d, e, f]));
-                    }
-                    _ => {}
-                }
-            }
+            parse_transform(transform);
         }
     }
+}
+
+fn parse_transform(transform: String) -> (String, [f64; 6]) {
+    for segment in svgtypes::TransformListParser::from(transform.as_str()) {
+        let segment = match segment {
+            Ok(v) => v,
+            Err(_) => break,
+        };
+        match segment {
+            svgtypes::TransformListToken::Matrix { a, b, c, d, e, f } => {
+                return (transform.clone(), [a, b, c, d, e, f]);
+            }
+            _ => {}
+        }
+    }
+    let identity_matrix = [0, 1, 1, 0, 0, 0].map(|f| f as f64);
+    ("".to_string(), identity_matrix)
 }
 
 fn show_bb_rect(ui: &mut egui::Ui, mut bb: [glam::DVec2; 2], working_rect: egui::Rect) {
@@ -222,13 +236,16 @@ fn show_bb_rect(ui: &mut egui::Ui, mut bb: [glam::DVec2; 2], working_rect: egui:
 }
 
 fn drag(delta: egui::Pos2, de: &mut SelectedElement, buffer: &mut Buffer) {
+    println!("delta: {:#?}", delta);
+    println!("original: {}, {}", de.original_matrix.clone().1[4], de.original_matrix.clone().1[5]);
+
     if let Some(node) = node_by_id(&mut buffer.current, de.id.clone()) {
         node.set_attr(
             "transform",
             format!(
                 "matrix(1,0,0,1,{},{} )",
-                delta.x as f64 + de.original_matrix.clone().unwrap_or_default().1[4],
-                delta.y as f64 + de.original_matrix.clone().unwrap_or_default().1[5]
+                delta.x as f64 + de.original_matrix.clone().1[4],
+                delta.y as f64 + de.original_matrix.clone().1[5]
             ),
         );
         buffer.needs_path_map_update = true;
