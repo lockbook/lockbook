@@ -1,9 +1,6 @@
 use eframe::egui;
 use minidom::Element;
-use std::{
-    collections::{HashMap, VecDeque},
-    sync::mpsc,
-};
+use std::{collections::VecDeque, sync::mpsc};
 
 use super::{toolbar::ColorSwatch, util, Buffer, InsertElement};
 

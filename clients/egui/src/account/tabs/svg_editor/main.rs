@@ -76,8 +76,13 @@ impl SVGEditor {
                 self.toolbar
                     .selection
                     .handle_input(ui, self.inner_rect, &mut self.buffer);
-                // self.toolbar.selection
             }
+        }
+
+        if ui.input(|r| r.key_down(egui::Key::Z) && r.modifiers.ctrl) {
+            self.buffer.undo();
+        } else if ui.input(|r| r.key_down(egui::Key::R) && r.modifiers.ctrl) {
+            self.buffer.redo();
         }
 
         Self::define_dynamic_colors(

@@ -274,22 +274,3 @@ impl Debug for Buffer {
             .finish()
     }
 }
-
-fn get_subpath_from_points(data: &[Point]) -> Subpath<ManipulatorGroupId> {
-    let mut bez = vec![];
-    let mut i = 1;
-    while i < data.len() - 2 {
-        bez.push(Bezier::from_cubic_coordinates(
-            data[i - 1].x as f64,
-            data[i - 1].y as f64,
-            data[i].x as f64,
-            data[i].y as f64,
-            data[i + 1].x as f64,
-            data[i + 1].y as f64,
-            data[i + 2].x as f64,
-            data[i + 2].y as f64,
-        ));
-        i += 1;
-    }
-    Subpath::from_beziers(&bez, false)
-}

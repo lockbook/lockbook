@@ -5,6 +5,8 @@ use super::{node_by_id, pointer_interests_path, Buffer, DeleteElement, Transform
 pub struct Selection {
     last_pos: Option<egui::Pos2>,
     selected_elements: Vec<SelectedElement>,
+    laso_original_pos: Option<egui::Pos2>,
+    laso_rect: Option<egui::Rect>,
 }
 
 // i need to keep track of selected, but not dragging | selected and dragging |
@@ -14,16 +16,14 @@ struct SelectedElement {
     original_matrix: (String, [f64; 6]),
 }
 
-/**
- * Todo:
- * - i need to save transports as a history event
- * - reach: allow copy paste selection
- * - reach lasso tool
- */
-
 impl Selection {
     pub fn new() -> Self {
-        Selection { last_pos: None, selected_elements: vec![] }
+        Selection {
+            last_pos: None,
+            selected_elements: vec![],
+            laso_original_pos: None,
+            laso_rect: None,
+        }
     }
 
     pub fn handle_input(
@@ -66,17 +66,72 @@ impl Selection {
                 if let Some(new_selected_el) = maybe_selected_el {
                     if ui.input(|r| r.modifiers.shift) {
                         self.selected_elements.push(new_selected_el);
-                        self.selected_elements.iter_mut().for_each(|el| {
-                            end_drag(buffer, el, pos);
-                        })
+                        // end_drag(buffer, &mut self.selected_elements, pos);
                     } else {
                         self.selected_elements = vec![new_selected_el]
                     }
                 } else {
                     self.selected_elements.clear();
+                    self.laso_original_pos = Some(pos);
                 }
             }
         }
+
+        if self.selected_elements.is_empty() && self.laso_original_pos.is_some() {
+            if ui.input(|r| r.pointer.primary_down()) {
+                let mut corners = [self.laso_original_pos.unwrap(), pos];
+                corners.sort_by(|a, b| (a.x.total_cmp(&b.x)));
+                let mut rect = egui::Rect { min: corners[0], max: corners[1] };
+                if rect.height() < 0. {
+                    std::mem::swap(&mut rect.min.y, &mut rect.max.y)
+                }
+                if rect.width() < 0. {
+                    std::mem::swap(&mut rect.min.x, &mut rect.max.x)
+                }
+
+                rect.min.x = rect.min.x.max(working_rect.left());
+                rect.min.y = rect.min.y.max(working_rect.top());
+
+                rect.max.x = rect.max.x.min(working_rect.right());
+                rect.max.y = rect.max.y.min(working_rect.bottom());
+
+                self.laso_rect = Some(rect);
+                ui.painter().rect_filled(
+                    rect,
+                    egui::Rounding::none(),
+                    ui.visuals().hyperlink_color.gamma_multiply(0.1),
+                )
+            } else if ui.input(|r| r.pointer.primary_released()) {
+                // if the path bounding box intersects with the laso rect then it's a match
+                buffer.paths.iter().for_each(|(id, path)| {
+                    let bb = path.bounding_box().unwrap();
+                    let path_rect = egui::Rect {
+                        min: egui::pos2(bb[0].x as f32, bb[0].y as f32),
+                        max: egui::pos2(bb[1].x as f32, bb[1].y as f32),
+                    };
+
+                    if self.laso_rect.unwrap().intersects(path_rect) {
+                        let transform = buffer
+                            .current
+                            .children()
+                            .find(|el| el.attr("id").unwrap_or_default().eq(id))
+                            .unwrap()
+                            .attr("transform")
+                            .unwrap_or_default();
+
+                        self.selected_elements.push(SelectedElement {
+                            id: id.to_owned(),
+                            original_pos: pos,
+                            original_matrix: parse_transform(transform.to_string()),
+                        });
+                    }
+                });
+                self.laso_original_pos = None;
+            }
+        }
+
+        let mut transform_origin_dirty = false;
+        let mut history_dirty = false;
 
         for el in self.selected_elements.iter_mut() {
             let path = buffer.paths.get(&el.id).unwrap();
@@ -93,14 +148,24 @@ impl Selection {
             show_bb_rect(ui, bb, working_rect);
 
             if ui.input(|r| r.pointer.primary_released()) {
-                end_drag(buffer, el, pos);
-                println!("end");
+                transform_origin_dirty = true;
+                history_dirty = true;
+                break;
             } else if ui.input(|r| r.pointer.primary_clicked()) {
-                println!("start");
-                el.original_pos = pos;
+                transform_origin_dirty = true;
+                break;
             } else if ui.input(|r| r.pointer.primary_down()) {
                 let delta = egui::pos2(pos.x - el.original_pos.x, pos.y - el.original_pos.y);
                 drag(delta, el, buffer);
+            }
+
+            if ui.input(|r| r.key_pressed(egui::Key::ArrowDown))
+                || ui.input(|r| r.key_pressed(egui::Key::ArrowUp))
+                || ui.input(|r| r.key_pressed(egui::Key::ArrowLeft))
+                || ui.input(|r| r.key_pressed(egui::Key::ArrowRight))
+            {
+                transform_origin_dirty = true;
+                break;
             }
 
             let step_size = if ui.input(|r| r.modifiers.shift) { 7.0 } else { 2.0 };
@@ -117,9 +182,14 @@ impl Selection {
             };
 
             if let Some(d) = delta {
-                end_drag(buffer, el, pos);
+                transform_origin_dirty = true;
+                history_dirty = true;
                 drag(d, el, buffer);
             }
+        }
+
+        if transform_origin_dirty {
+            end_drag(buffer, &mut self.selected_elements, pos, history_dirty);
         }
 
         if ui.input(|r| r.key_pressed(egui::Key::Delete)) && !self.selected_elements.is_empty() {
@@ -170,23 +240,49 @@ impl Selection {
     }
 }
 
-fn end_drag(buffer: &mut Buffer, el: &mut SelectedElement, pos: egui::Pos2) {
-    el.original_pos = pos;
-    if let Some(node) = buffer
-        .current
-        .children()
-        .find(|node| node.attr("id").map_or(false, |id| id.eq(&el.id)))
-    {
-        if let Some(transform) = node.attr("transform") {
-            let transform = transform.to_owned();
-            buffer.save(super::Event::TransformElements(vec![TransformElement {
-                id: el.id.to_owned(),
-                old_transform: el.original_matrix.clone().0,
-                new_transform: transform.clone(),
-            }]));
+fn end_drag(
+    buffer: &mut Buffer, els: &mut Vec<SelectedElement>, pos: egui::Pos2, save_event: bool,
+) {
+    let events: Vec<TransformElement> = els
+        .iter_mut()
+        .filter_map(|el| {
+            el.original_pos = pos;
+            if let Some(node) = buffer
+                .current
+                .children()
+                .find(|node| node.attr("id").map_or(false, |id| id.eq(&el.id)))
+            {
+                if let Some(new_transform) = node.attr("transform") {
+                    let new_transform = parse_transform(new_transform.to_owned());
+                    let old_transform = el.original_matrix.clone();
+                    let delta = egui::pos2(
+                        (new_transform.1[4] - old_transform.1[4]).abs() as f32,
+                        (new_transform.1[5] - old_transform.1[5]).abs() as f32,
+                    );
 
-            parse_transform(transform);
-        }
+                    el.original_matrix = new_transform.clone();
+
+                    let history_threshold = 1.0;
+                    if save_event && (delta.y > history_threshold || delta.x > history_threshold) {
+                        println!("pushing to history");
+                        Some(TransformElement {
+                            id: el.id.to_owned(),
+                            old_transform: old_transform.0,
+                            new_transform: new_transform.0,
+                        })
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        })
+        .collect();
+    if !events.is_empty() {
+        buffer.save(super::Event::TransformElements(events));
     }
 }
 

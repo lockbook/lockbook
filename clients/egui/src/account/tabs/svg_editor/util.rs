@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 
 use bezier_rs::{Bezier, Subpath};
 use eframe::egui;
