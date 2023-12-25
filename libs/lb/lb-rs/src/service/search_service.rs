@@ -230,7 +230,9 @@ impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {
 
                         while let Some(thread) = workers.pop() {
                             if thread.join().is_err() {
-                                let _ = search_result_tx.send(SearchResult::Error(UnexpectedError::new("cannot join search worker thread")));
+                                let _ = search_result_tx.send(SearchResult::Error(
+                                    UnexpectedError::new("cannot join search worker thread"),
+                                ));
                             }
                         }
 
@@ -241,7 +243,9 @@ impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {
                         maybe_new_search = Some(new_search);
 
                         cancel.store(true, std::sync::atomic::Ordering::Relaxed);
-                        this_search.join().map_err(|_| UnexpectedError::new("cannot join managing search thread"))?;
+                        this_search.join().map_err(|_| {
+                            UnexpectedError::new("cannot join managing search thread")
+                        })?;
                     }
                 }
                 SearchRequest::EndSearch => {
