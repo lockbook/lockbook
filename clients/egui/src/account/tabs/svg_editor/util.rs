@@ -1,4 +1,3 @@
-
 use bezier_rs::{Bezier, Subpath};
 use eframe::egui;
 use minidom::Element;
