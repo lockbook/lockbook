@@ -64,7 +64,7 @@ impl Pen {
 
                 let node = node.clone();
 
-                buffer.save(super::Event::InsertElements(vec![InsertElement {
+                buffer.save(super::Event::Insert(vec![InsertElement {
                     id: id.to_string(),
                     element: node,
                 }]));

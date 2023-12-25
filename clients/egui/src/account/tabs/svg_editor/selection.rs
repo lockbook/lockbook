@@ -9,7 +9,6 @@ pub struct Selection {
     laso_rect: Option<egui::Rect>,
 }
 
-// i need to keep track of selected, but not dragging | selected and dragging |
 struct SelectedElement {
     id: String,
     original_pos: egui::Pos2,
@@ -48,18 +47,14 @@ impl Selection {
         // build up selected elements
         if ui.input(|r| r.pointer.primary_clicked()) {
             // is cursor inside of a selected element?
-            let pos_over_selected_el = self
-                .selected_elements
-                .iter()
-                .find(|el| {
-                    let bb = buffer.paths.get(&el.id).unwrap().bounding_box().unwrap();
-                    let rect = egui::Rect {
-                        min: egui::pos2(bb[0].x as f32, bb[0].y as f32),
-                        max: egui::pos2(bb[1].x as f32, bb[1].y as f32),
-                    };
-                    rect.contains(pos)
-                })
-                .is_some();
+            let pos_over_selected_el = self.selected_elements.iter().any(|el| {
+                let bb = buffer.paths.get(&el.id).unwrap().bounding_box().unwrap();
+                let rect = egui::Rect {
+                    min: egui::pos2(bb[0].x as f32, bb[0].y as f32),
+                    max: egui::pos2(bb[1].x as f32, bb[1].y as f32),
+                };
+                rect.contains(pos)
+            });
 
             // cursor is outside of a selected element, add elements
             if !pos_over_selected_el {
@@ -207,7 +202,7 @@ impl Selection {
                 })
                 .collect();
 
-            let delete_event = super::Event::DeleteElements(elements);
+            let delete_event = super::Event::Delete(elements);
             buffer.apply_event(&delete_event);
             buffer.save(delete_event);
             self.selected_elements.clear();
@@ -240,9 +235,7 @@ impl Selection {
     }
 }
 
-fn end_drag(
-    buffer: &mut Buffer, els: &mut Vec<SelectedElement>, pos: egui::Pos2, save_event: bool,
-) {
+fn end_drag(buffer: &mut Buffer, els: &mut [SelectedElement], pos: egui::Pos2, save_event: bool) {
     let events: Vec<TransformElement> = els
         .iter_mut()
         .filter_map(|el| {
@@ -282,7 +275,7 @@ fn end_drag(
         })
         .collect();
     if !events.is_empty() {
-        buffer.save(super::Event::TransformElements(events));
+        buffer.save(super::Event::Transform(events));
     }
 }
 
@@ -292,11 +285,8 @@ fn parse_transform(transform: String) -> (String, [f64; 6]) {
             Ok(v) => v,
             Err(_) => break,
         };
-        match segment {
-            svgtypes::TransformListToken::Matrix { a, b, c, d, e, f } => {
-                return (transform.clone(), [a, b, c, d, e, f]);
-            }
-            _ => {}
+        if let svgtypes::TransformListToken::Matrix { a, b, c, d, e, f } = segment {
+            return (transform.clone(), [a, b, c, d, e, f]);
         }
     }
     let identity_matrix = [0, 1, 1, 0, 0, 0].map(|f| f as f64);

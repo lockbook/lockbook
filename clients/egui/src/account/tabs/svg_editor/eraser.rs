@@ -56,7 +56,7 @@ impl Eraser {
                     }
                 });
 
-                buffer.save(super::Event::DeleteElements(
+                buffer.save(super::Event::Delete(
                     self.paths_to_delete
                         .iter()
                         .map(|(id, path_el)| DeleteElement {

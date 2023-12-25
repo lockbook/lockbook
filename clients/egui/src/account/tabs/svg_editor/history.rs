@@ -3,7 +3,7 @@ use std::{collections::VecDeque, fmt::Debug, mem};
 use bezier_rs::{Bezier, Identifier, Subpath};
 use glam::{DAffine2, DMat2, DVec2};
 use minidom::Element;
-use resvg::tiny_skia::Point;
+
 use std::collections::HashMap;
 
 use super::util;
@@ -29,9 +29,9 @@ impl Identifier for ManipulatorGroupId {
 
 #[derive(Clone, Debug)]
 pub enum Event {
-    InsertElements(Vec<InsertElement>),
-    DeleteElements(Vec<DeleteElement>),
-    TransformElements(Vec<TransformElement>),
+    Insert(Vec<InsertElement>),
+    Delete(Vec<DeleteElement>),
+    Transform(Vec<TransformElement>),
 }
 
 #[derive(Clone, Debug)]
@@ -79,7 +79,7 @@ impl Buffer {
 
     pub fn apply_event(&mut self, event: &Event) {
         match event {
-            Event::InsertElements(payload) => {
+            Event::Insert(payload) => {
                 payload.iter().for_each(|insert_payload| {
                     if let Some(node) =
                         util::node_by_id(&mut self.current, insert_payload.id.to_string())
@@ -92,12 +92,12 @@ impl Buffer {
                 });
             }
 
-            Event::DeleteElements(payload) => {
+            Event::Delete(payload) => {
                 payload.iter().for_each(|delete_payload| {
                     self.current.remove_child(&delete_payload.id);
                 });
             }
-            Event::TransformElements(payload) => {
+            Event::Transform(payload) => {
                 payload.iter().for_each(|transform_payload| {
                     if let Some(node) =
                         util::node_by_id(&mut self.current, transform_payload.id.to_string())
@@ -140,8 +140,8 @@ impl Buffer {
 
     fn swap_event(&self, mut source: Event) -> Event {
         match source {
-            Event::InsertElements(payload) => {
-                source = Event::DeleteElements(
+            Event::Insert(payload) => {
+                source = Event::Delete(
                     payload
                         .iter()
                         .map(|insert_payload| DeleteElement {
@@ -151,8 +151,8 @@ impl Buffer {
                         .collect(),
                 );
             }
-            Event::DeleteElements(payload) => {
-                source = Event::InsertElements(
+            Event::Delete(payload) => {
+                source = Event::Insert(
                     payload
                         .iter()
                         .map(|delete_payload| InsertElement {
@@ -162,8 +162,8 @@ impl Buffer {
                         .collect(),
                 );
             }
-            Event::TransformElements(mut payload) => {
-                source = Event::TransformElements(
+            Event::Transform(mut payload) => {
+                source = Event::Transform(
                     payload
                         .iter_mut()
                         .map(|transform_payload| {
@@ -184,15 +184,6 @@ impl Buffer {
         !self.redo.is_empty()
     }
 
-    // todo: just accept the dom tree, and escalete the tree to the render tree by parsing those elements one by one
-    /**
-     * <g transform="matrix(...)">
-     *  <path transform d>
-     *  <path transform d>
-     *  <path transform d>
-     *  
-     * </g>
-     */
     pub fn recalc_paths(&mut self) {
         self.paths.clear();
         for el in self.current.children() {
@@ -235,17 +226,14 @@ impl Buffer {
                             Ok(v) => v,
                             Err(_) => break,
                         };
-                        match segment {
-                            svgtypes::TransformListToken::Matrix { a, b, c, d, e, f } => {
-                                subpath.apply_transform(DAffine2 {
-                                    matrix2: DMat2 {
-                                        x_axis: DVec2 { x: a, y: b },
-                                        y_axis: DVec2 { x: c as f64, y: d },
-                                    },
-                                    translation: DVec2 { x: e, y: f },
-                                });
-                            }
-                            _ => { /* todo: maybe convert to matrix? */ }
+                        if let svgtypes::TransformListToken::Matrix { a, b, c, d, e, f } = segment {
+                            subpath.apply_transform(DAffine2 {
+                                matrix2: DMat2 {
+                                    x_axis: DVec2 { x: a, y: b },
+                                    y_axis: DVec2 { x: c, y: d },
+                                },
+                                translation: DVec2 { x: e, y: f },
+                            });
                         }
                     }
                 }

@@ -79,9 +79,9 @@ impl SVGEditor {
             }
         }
 
-        if ui.input(|r| r.key_down(egui::Key::Z) && r.modifiers.ctrl) {
+        if ui.input(|r| r.key_pressed(egui::Key::Z) && r.modifiers.ctrl) {
             self.buffer.undo();
-        } else if ui.input(|r| r.key_down(egui::Key::R) && r.modifiers.ctrl) {
+        } else if ui.input(|r| r.key_pressed(egui::Key::R) && r.modifiers.ctrl) {
             self.buffer.redo();
         }
 
@@ -94,12 +94,7 @@ impl SVGEditor {
     }
 
     pub fn get_minimal_content(&self) -> String {
-        // todo: remove the gradient
         self.buffer.to_string()
-        // let utree: usvg::Tree =
-        //     usvg::TreeParsing::from_str(&self.buffer.to_string(), &usvg::Options::default())
-        //         .unwrap();
-        // utree.to_string(&usvg::XmlOptions::default())
     }
 
     fn render_svg(&mut self, ui: &mut egui::Ui) {
@@ -162,7 +157,6 @@ impl SVGEditor {
             return;
         }
 
-        // todo: remove the prev linear gradient node  def
         let gradient_group_id = "lb:gg";
         buffer.current.remove_child(gradient_group_id);
 
