@@ -1,4 +1,4 @@
-use crate::{CoreError, CoreState, LbResult, Requester, UnexpectedError};
+use crate::{CoreError, CoreState, LbResult, RankingWeights, Requester, UnexpectedError};
 use crossbeam::channel::{self, Receiver, RecvTimeoutError, Sender};
 use lockbook_shared::document_repo::DocumentService;
 use lockbook_shared::file_like::FileLike;
@@ -6,6 +6,7 @@ use lockbook_shared::filename::DocumentType;
 use lockbook_shared::tree_like::TreeLike;
 use serde::Serialize;
 use std::cmp::Ordering;
+use std::collections::HashMap;
 use std::sync::atomic::{self, AtomicBool};
 use std::sync::Arc;
 use std::thread::{self, JoinHandle};
@@ -13,12 +14,18 @@ use std::time::Duration;
 use sublime_fuzzy::{FuzzySearch, Scoring};
 use uuid::Uuid;
 
+use super::activity_service::Stats;
+
 const DEBOUNCE_MILLIS: u64 = 500;
-const LOWEST_CONTENT_SCORE_THRESHOLD: i64 = 170;
+const CONTENT_SCORE_THRESHOLD: i64 = 170;
+const PATH_SCORE_THRESHOLD: i64 = 100;
 
 const MAX_CONTENT_MATCH_LENGTH: usize = 400;
 const IDEAL_CONTENT_MATCH_LENGTH: usize = 150;
 const CONTENT_MATCH_PADDING: usize = 8;
+
+const ACTIVITY_WEIGHT: f32 = 0.2;
+const FUZZY_WEIGHT: f32 = 0.8;
 
 #[derive(Serialize, Debug, Eq, PartialEq)]
 pub struct SearchResultItem {
@@ -50,6 +57,15 @@ impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {
             return Ok(Vec::new());
         }
 
+        let mut activity_metrics = self.db.doc_events.get().iter().get_activity_metrics();
+        let activity_weights = RankingWeights::default();
+        self.normalize(&mut activity_metrics);
+
+        let file_scores: HashMap<Uuid, i64> = activity_metrics
+            .into_iter()
+            .map(|metric| (metric.id, metric.score(activity_weights)))
+            .collect();
+
         let mut tree = (&self.db.base_metadata)
             .to_staged(&self.db.local_metadata)
             .to_lazy();
@@ -64,16 +80,22 @@ impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {
                 if file.is_document() {
                     let path = tree.id_to_path(&id, account)?;
 
-                    if let Some(m) = FuzzySearch::new(input, &path)
+                    if let Some(fuzzy_match) = FuzzySearch::new(input, &path)
                         .case_insensitive()
                         .best_match()
                     {
-                        results.push(SearchResultItem {
-                            id,
-                            path,
-                            score: m.score(),
-                            matched_indices: m.matched_indices().cloned().collect(),
-                        });
+                        let score = ((fuzzy_match.score().min(600) as f32 * FUZZY_WEIGHT)
+                            + (file_scores.get(&id).cloned().unwrap_or_default() as f32
+                                * ACTIVITY_WEIGHT)) as i64;
+
+                        if score > PATH_SCORE_THRESHOLD {
+                            results.push(SearchResultItem {
+                                id,
+                                path,
+                                score: score as isize,
+                                matched_indices: fuzzy_match.matched_indices().cloned().collect(),
+                            });
+                        }
                     }
                 }
             }
@@ -85,11 +107,20 @@ impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {
     }
 
     pub(crate) fn start_search(&mut self) -> LbResult<StartSearchInfo> {
+        let mut activity_metrics = self.db.doc_events.get().iter().get_activity_metrics();
+        let activity_weights = RankingWeights::default();
+        self.normalize(&mut activity_metrics);
+
         let mut tree = (&self.db.base_metadata)
             .to_staged(&self.db.local_metadata)
             .to_lazy();
         let account = self.db.account.get().ok_or(CoreError::AccountNonexistent)?;
         let mut files_info = Vec::new();
+
+        let file_scores: HashMap<Uuid, i64> = activity_metrics
+            .into_iter()
+            .map(|metric| (metric.id, metric.score(activity_weights).min(600)))
+            .collect();
 
         for id in tree.owned_ids() {
             if !tree.calculate_deleted(&id)? && !tree.in_pending_share(&id)? {
@@ -116,6 +147,7 @@ impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {
                         id,
                         path: tree.id_to_path(&id, account)?,
                         content,
+                        activity_score: file_scores.get(&id).cloned().unwrap_or_default(),
                     })
                 }
             }
@@ -230,7 +262,11 @@ impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {
                 .score_with(&Scoring::emphasize_distance())
                 .best_match()
             {
-                if fuzzy_match.score().is_positive() {
+                let score = ((fuzzy_match.score().min(600) as f32 * FUZZY_WEIGHT)
+                    + (info.activity_score as f32 * ACTIVITY_WEIGHT))
+                    as i64;
+
+                if score > PATH_SCORE_THRESHOLD {
                     if *no_matches {
                         *no_matches = false;
                     }
@@ -244,7 +280,7 @@ impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {
                             id: info.id,
                             path: info.path.clone(),
                             matched_indices: fuzzy_match.matched_indices().cloned().collect(),
-                            score: fuzzy_match.score() as i64,
+                            score,
                         })
                         .is_err()
                     {
@@ -275,9 +311,11 @@ impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {
                         .score_with(&Scoring::emphasize_distance())
                         .best_match()
                     {
-                        let score = fuzzy_match.score() as i64;
+                        let score = ((fuzzy_match.score().min(600) as f32 * FUZZY_WEIGHT)
+                            + (info.activity_score as f32 * ACTIVITY_WEIGHT))
+                            as i64;
 
-                        if score >= LOWEST_CONTENT_SCORE_THRESHOLD {
+                        if score > CONTENT_SCORE_THRESHOLD {
                             let (paragraph, matched_indices) = Self::optimize_searched_text(
                                 paragraph,
                                 fuzzy_match.matched_indices().cloned().collect(),
@@ -424,6 +462,7 @@ struct SearchableFileInfo {
     id: Uuid,
     path: String,
     content: Option<String>,
+    activity_score: i64,
 }
 
 #[derive(Clone)]
