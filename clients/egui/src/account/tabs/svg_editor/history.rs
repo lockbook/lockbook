@@ -48,7 +48,6 @@ pub struct InsertElement {
 
 #[derive(Clone, Debug)]
 pub struct TransformElement {
-    /// (old transform, new transform)
     pub id: String,
     pub old_transform: String,
     pub new_transform: String,
@@ -194,10 +193,6 @@ impl Buffer {
                 };
                 let mut start = (0.0, 0.0);
                 let mut subpath: Subpath<ManipulatorGroupId> = Subpath::new(vec![], false);
-                // todo: remove when path deletion is fixed
-                if data.eq("") {
-                    continue;
-                }
 
                 for segment in svgtypes::SimplifyingPathParser::from(data) {
                     let segment = match segment {
@@ -216,7 +211,7 @@ impl Buffer {
                             subpath.append_bezier(&bez, bezier_rs::AppendType::IgnoreStart);
                             start = (x, y)
                         }
-                        _ => { /*handle error */ }
+                        _ => {}
                     }
                 }
 
