@@ -73,6 +73,12 @@ pub fn main() -> Result<()> {
 
     let instance = unsafe { GetModuleHandleA(None)? };
 
+    let icon_bytes = include_bytes!("../lockbook.png");
+    let icon = unsafe {
+        CreateIconFromResourceEx(icon_bytes, true, 0x00030000, 128, 128, LR_DEFAULTCOLOR)
+    }
+    .expect("create icon");
+
     let wc = WNDCLASSEXA {
         cbSize: std::mem::size_of::<WNDCLASSEXA>() as u32,
         style: CS_HREDRAW | CS_VREDRAW,
@@ -80,6 +86,7 @@ pub fn main() -> Result<()> {
         hInstance: instance.into(),
         hCursor: unsafe { LoadCursorW(None, IDC_ARROW) }?,
         lpszClassName: s!("Lockbook"),
+        hIcon: icon,
         ..Default::default()
     };
     if unsafe { RegisterClassExA(&wc) } == 0 {
