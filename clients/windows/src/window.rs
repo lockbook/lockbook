@@ -82,7 +82,9 @@ pub fn main() -> Result<()> {
         lpszClassName: s!("Lockbook"),
         ..Default::default()
     };
-    debug_assert_ne!(unsafe { RegisterClassExA(&wc) }, 0);
+    if unsafe { RegisterClassExA(&wc) } == 0 {
+        println!("RegisterClassExA failed");
+    }
 
     let dxgi_factory: IDXGIFactory4 = {
         if cfg!(debug_assertions) {
@@ -123,6 +125,9 @@ pub fn main() -> Result<()> {
             Some(&mut window as *mut _ as _), // pass a pointer to our Window struct as the window's "user data"
         )
     };
+    if let Err(error) = unsafe { GetLastError() } {
+        print!("error: {}", error);
+    }
 
     unsafe { dxgi_factory.MakeWindowAssociation(hwnd, DXGI_MWA_NO_ALT_ENTER) }?;
 
@@ -367,8 +372,7 @@ pub fn init<W: raw_window_handle::HasRawWindowHandle + raw_window_handle::HasRaw
     let (adapter, device, queue) =
         pollster::block_on(request_device(&instance, backends, &surface));
     let format = surface.get_capabilities(&adapter).formats[0];
-    let screen =
-        ScreenDescriptor { physical_width: 1000, physical_height: 1000, scale_factor: 1.0 }; // initial value overridden by resize
+    let screen = ScreenDescriptor { physical_width: 1300, physical_height: 800, scale_factor: 1.0 }; // initial value overridden by resize
     let surface_config = wgpu::SurfaceConfiguration {
         usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
         format,
