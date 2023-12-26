@@ -64,7 +64,6 @@ pub unsafe extern "C" fn init_ws(
         screen,
         context,
         raw_input: Default::default(),
-        from_egui: None,
         from_host: None,
         workspace,
     };
@@ -82,14 +81,6 @@ pub extern "C" fn open_file(obj: *mut c_void, id: CUuid, new_file: bool) {
     println!("in rust: {id}");
     obj.workspace.open_file(id, new_file)
 }
-
-// /// # Safety
-// #[no_mangle]
-// pub unsafe extern "C" fn set_text(obj: *mut c_void, content: *const c_char) {
-//     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
-//     obj.workspace
-//         .set_text(CStr::from_ptr(content).to_str().unwrap().into());
-// }
 
 #[no_mangle]
 pub extern "C" fn draw_editor(obj: *mut c_void) -> IntegrationOutput {
@@ -119,37 +110,6 @@ pub unsafe extern "C" fn dark_mode(obj: *mut c_void, dark: bool) {
         .set_visuals(if dark { Visuals::dark() } else { Visuals::light() });
 }
 
-// /// # Safety
-// #[no_mangle]
-// pub unsafe extern "C" fn get_text(obj: *mut c_void) -> *const c_char {
-//     let obj = &mut *(obj as *mut WgpuWorkspace);
-//
-//     let value = obj.workspace.buffer.current.text.as_str();
-//
-//     CString::new(value)
-//         .expect("Could not Rust String -> C String")
-//         .into_raw()
-// }
-
-/// # Safety
-#[no_mangle]
-pub unsafe extern "C" fn has_copied_text(obj: *mut c_void) -> bool {
-    let obj = &mut *(obj as *mut WgpuWorkspace);
-    obj.from_egui.is_some()
-}
-
-/// # Safety
-#[no_mangle]
-pub unsafe extern "C" fn get_copied_text(obj: *mut c_void) -> *const c_char {
-    let obj = &mut *(obj as *mut WgpuWorkspace);
-
-    let copied_text = obj.from_egui.take().unwrap_or_default();
-
-    CString::new(copied_text.as_str())
-        .expect("Could not Rust String -> C String")
-        .into_raw()
-}
-
 /// # Safety
 #[no_mangle]
 pub unsafe extern "C" fn system_clipboard_changed(obj: *mut c_void, content: *const c_char) {
@@ -161,11 +121,10 @@ pub unsafe extern "C" fn system_clipboard_changed(obj: *mut c_void, content: *co
 /// # Safety
 #[no_mangle]
 pub unsafe extern "C" fn free_text(s: *mut c_void) {
-    println!("freed text in ffi");
     if s.is_null() {
         return;
     }
-    let _ = CString::from_raw(s as *mut c_char);
+    drop(CString::from_raw(s as *mut c_char));
 }
 
 /// # Safety

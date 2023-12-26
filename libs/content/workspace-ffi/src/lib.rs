@@ -96,33 +96,47 @@ pub struct WgpuWorkspace {
     pub raw_input: egui::RawInput,
 
     pub from_host: Option<String>,
-    pub from_egui: Option<String>,
 
     pub workspace: Workspace,
 }
 
 #[derive(Debug)]
 #[repr(C)]
-pub struct FfiWorkspaceResp {}
+pub struct FfiWorkspaceResp {
+    selected_file: CUuid,
+}
 
 impl Default for FfiWorkspaceResp {
     fn default() -> Self {
-        Self {}
+        Self { selected_file: Uuid::nil().into() }
     }
 }
 
 impl From<WsOutput> for FfiWorkspaceResp {
     fn from(value: WsOutput) -> Self {
-        Self {}
+        Self { selected_file: value.selected_file.unwrap_or_default().into() }
     }
 }
 
 #[cfg(any(target_os = "ios", target_os = "macos"))]
 #[repr(C)]
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct IntegrationOutput {
+    pub workspace_resp: FfiWorkspaceResp,
     pub redraw_in: u64,
-    pub editor_response: FfiWorkspaceResp,
+    pub copied_text: *mut c_char,
+    pub url_opened: *mut c_char,
+}
+
+impl Default for IntegrationOutput {
+    fn default() -> Self {
+        Self {
+            redraw_in: Default::default(),
+            workspace_resp: Default::default(),
+            copied_text: ptr::null_mut(),
+            url_opened: ptr::null_mut(),
+        }
+    }
 }
 
 #[cfg(not(any(target_os = "ios", target_os = "macos")))]
@@ -182,12 +196,19 @@ impl WgpuWorkspace {
         self.set_egui_screen();
         self.raw_input.time = Some(self.start_time.elapsed().as_secs_f64());
         self.context.begin_frame(self.raw_input.take());
-        out.editor_response = self.workspace.draw(&self.context).into();
+        out.workspace_resp = self.workspace.draw(&self.context).into();
         let full_output = self.context.end_frame();
         if !full_output.platform_output.copied_text.is_empty() {
             // todo: can this go in output?
-            self.from_egui = Some(full_output.platform_output.copied_text);
+            out.copied_text = CString::new(full_output.platform_output.copied_text)
+                .unwrap()
+                .into_raw();
         }
+
+        if let Some(url) = full_output.platform_output.open_url {
+            out.url_opened = CString::new(url.url).unwrap().into_raw();
+        }
+
         let paint_jobs = self.context.tessellate(full_output.shapes);
         let mut encoder = self
             .device
@@ -255,7 +276,14 @@ impl WgpuWorkspace {
     }
 }
 #[repr(C)]
+#[derive(Debug)]
 pub struct CUuid([u8; 16]);
+
+impl From<Uuid> for CUuid {
+    fn from(value: Uuid) -> Self {
+        Self { 0: value.into_bytes() }
+    }
+}
 
 impl From<CUuid> for Uuid {
     fn from(value: CUuid) -> Self {

@@ -37,11 +37,11 @@ public struct WorkspaceView: View, Equatable {
     @FocusState var focused: Bool
     @ObservedObject var workspaceState: WorkspaceState
     
-    let nsEditorView: NSWorkspace
+    let nsEditorView: NSWS
     
     public init(_ workspaceState: WorkspaceState, _ coreHandle: UnsafeMutableRawPointer?) {
         self.workspaceState = workspaceState
-        nsEditorView = NSWorkspace(workspaceState, coreHandle)
+        nsEditorView = NSWS(workspaceState, coreHandle)
     }
     
     public var body: some View {
@@ -63,7 +63,7 @@ public struct WorkspaceView: View, Equatable {
     }
 }
 
-public struct NSWorkspace: NSViewRepresentable {
+public struct NSWS: NSViewRepresentable {
     
     @ObservedObject public var workspaceState: WorkspaceState
     let coreHandle: UnsafeMutableRawPointer?
@@ -76,12 +76,12 @@ public struct NSWorkspace: NSViewRepresentable {
         
     }
     
-    public func makeNSView(context: NSViewRepresentableContext<NSWorkspace>) -> MTKView {
+    public func makeNSView(context: NSViewRepresentableContext<NSWS>) -> MTKView {
         mtkView.setInitialContent(coreHandle)
         return mtkView
     }
     
-    public func updateNSView(_ nsView: MTKView, context: NSViewRepresentableContext<NSWorkspace>) {
+    public func updateNSView(_ nsView: MTKView, context: NSViewRepresentableContext<NSWS>) {
         if let id = workspaceState.openDoc {
             print(id)
             mtkView.openFile(id: id)

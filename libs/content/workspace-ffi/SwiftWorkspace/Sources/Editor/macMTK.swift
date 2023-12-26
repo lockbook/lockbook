@@ -206,11 +206,10 @@ public class MacMTK: MTKView, MTKViewDelegate {
         
         return false
     }
-    
-    func getCoppiedText() -> String {
-        let result = get_copied_text(wsHandle)
-        let str = String(cString: result!)
-        free_text(UnsafeMutablePointer(mutating: result))
+
+    func textFromPtr(s: UnsafeMutablePointer<CChar>) -> String {
+        let str = String(cString: s)
+        free_text(s)
         return str
     }
     
@@ -238,15 +237,22 @@ public class MacMTK: MTKView, MTKViewDelegate {
         set_scale(wsHandle, scale)
         let output = draw_editor(wsHandle)
         
-//        if let openedURLSeq = output.editor_response.opened_url {
-//            let openedURL = String(cString: openedURLSeq)
-//            free_text(UnsafeMutablePointer(mutating: openedURLSeq))
-//            
-//            if let url = URL(string: openedURL) {
-//                NSWorkspace.shared.open(url)
-//            }
-//        }
+        let selectedFile = UUID(uuid: output.workspace_resp.selected_file._0)
+        if !selectedFile.isNil() {
+            if selectedFile != self.workspaceState?.openDoc {
+                self.workspaceState?.openDoc = selectedFile
+            }
+        }
+        
+        if let openedUrl = output.url_opened {
+            let url = textFromPtr(s: openedUrl)
+            
+            if let url = URL(string: url) {
+                NSWorkspace.shared.open(url)
+            }
 
+        }
+        
         redrawTask?.cancel()
         self.isPaused = output.redraw_in > 100
         if self.isPaused {
@@ -260,11 +266,33 @@ public class MacMTK: MTKView, MTKViewDelegate {
                 redrawTask = newRedrawTask
             }
         }
-
-        if has_copied_text(wsHandle) {
+        
+        if let text = output.copied_text {
+            let text = textFromPtr(s: text)
             NSPasteboard.general.clearContents()
-            NSPasteboard.general.setString(getCoppiedText(), forType: .string)
+            NSPasteboard.general.setString(text, forType: .string)
         }
     }
 }
 #endif
+
+extension UUID {
+    func isNil() -> Bool {
+        self.uuid.0 == 0 &&
+        self.uuid.1 == 0 &&
+        self.uuid.2 == 0 &&
+        self.uuid.3 == 0 &&
+        self.uuid.4 == 0 &&
+        self.uuid.5 == 0 &&
+        self.uuid.6 == 0 &&
+        self.uuid.7 == 0 &&
+        self.uuid.8 == 0 &&
+        self.uuid.9 == 0 &&
+        self.uuid.10 == 0 &&
+        self.uuid.11 == 0 &&
+        self.uuid.12 == 0 &&
+        self.uuid.13 == 0 &&
+        self.uuid.14 == 0 &&
+        self.uuid.15 == 0
+    }
+}
