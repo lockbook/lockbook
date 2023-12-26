@@ -316,7 +316,7 @@ fn handle_message(hwnd: HWND, message: Message) -> bool {
                         | MessageAppDep::MouseHWheel { delta } => {
                             input::mouse::handle_wheel(app, message, delta)
                         }
-                        MessageAppDep::SetCursor => true, // cursor set in paint
+                        MessageAppDep::SetCursor => output::cursor::handle(),
                         MessageAppDep::Paint => {
                             let IntegrationOutput {
                                 redraw_in: _, // todo: handle? how's this different from checking egui context?
@@ -327,7 +327,7 @@ fn handle_message(hwnd: HWND, message: Message) -> bool {
                             output::clipboard_copy::handle(copied_text);
                             output::close::handle(close);
                             output::window_title::handle(hwnd, set_window_title);
-                            output::cursor::handle(cursor_icon);
+                            output::cursor::update(cursor_icon); // output saved and handled by 'SetCursor' message
                             output::open_url::handle(open_url);
 
                             true

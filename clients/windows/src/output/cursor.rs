@@ -1,12 +1,25 @@
 use egui::CursorIcon;
 use windows::{core::*, Win32::Foundation::*, Win32::UI::WindowsAndMessaging::*};
 
-pub fn handle(cursor_icon: CursorIcon) -> bool {
-    let windows_cursor = to_windows_cursor(cursor_icon);
-    let cursor = unsafe { LoadCursorW(HINSTANCE(0), windows_cursor) }.expect("load cursor icon");
-    unsafe { SetCursor(cursor) };
+static mut CURSOR_ICON: CursorIcon = CursorIcon::Default;
 
-    true
+pub fn update(cursor_icon: CursorIcon) {
+    unsafe { CURSOR_ICON = cursor_icon };
+}
+
+pub fn handle() -> bool {
+    let cursor_icon = unsafe { CURSOR_ICON };
+    if cursor_icon == CursorIcon::Default {
+        // if the application set a default cursor icon, defer to Windows e.g. to apply window resize cursor icons
+        false
+    } else {
+        let windows_cursor = to_windows_cursor(unsafe { CURSOR_ICON });
+        let cursor =
+            unsafe { LoadCursorW(HINSTANCE(0), windows_cursor) }.expect("load cursor icon");
+        unsafe { SetCursor(cursor) };
+        unsafe { CURSOR_ICON = CursorIcon::Default };
+        true
+    }
 }
 
 // https://github.com/rust-windowing/winit/blob/3eea5054405295d79a9b127a879e7accffa4db53/src/platform_impl/windows/util.rs#L167C1-L192C2
