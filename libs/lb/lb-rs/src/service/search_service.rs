@@ -18,7 +18,7 @@ use super::activity_service::Stats;
 
 const DEBOUNCE_MILLIS: u64 = 500;
 const CONTENT_SCORE_THRESHOLD: i64 = 170;
-const PATH_SCORE_THRESHOLD: i64 = 100;
+const PATH_SCORE_THRESHOLD: i64 = 10;
 
 const MAX_CONTENT_MATCH_LENGTH: usize = 400;
 const IDEAL_CONTENT_MATCH_LENGTH: usize = 150;
