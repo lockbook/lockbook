@@ -3319,9 +3319,9 @@ checksum = "830d08ce1d1d941e6b30645f1a0eb5643013d835ce3779a5fc208261dbe10f55"
 
 [[package]]
 name = "lb-fonts"
-version = "0.1.1"
+version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bf6be762972ae53199c1d626bd9bf428f7f53bb855c4b59996cad7586225001e"
+checksum = "615e43ce60261fb305818a26fbe1eaf50f1dc15ac846c5b8adaf2defbf4e2ab2"
 
 [[package]]
 name = "lb-pdf"
@@ -3565,6 +3565,7 @@ dependencies = [
  "rfd",
  "serde",
  "serde_json",
+ "svgtypes 0.13.0",
  "winres",
 ]
 
@@ -3767,9 +3768,8 @@ dependencies = [
 
 [[package]]
 name = "minidom"
-version = "0.15.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f45614075738ce1b77a1768912a60c0227525971b03e09122a05b8a34a2a6278"
+version = "0.15.3"
+source = "git+https://github.com/lockbook/minidom#101e20650f435f9601ecff7ee70fcdf8c95e6892"
 dependencies = [
  "rxml",
 ]
@@ -4944,7 +4944,7 @@ dependencies = [
  "pico-args",
  "png",
  "rgb",
- "svgtypes",
+ "svgtypes 0.12.0",
  "tiny-skia 0.11.2",
  "usvg",
 ]
@@ -5731,6 +5731,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "svgtypes"
+version = "0.13.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6e44e288cd960318917cbd540340968b90becc8bc81f171345d706e7a89d9d70"
+dependencies = [
+ "kurbo",
+ "siphasher",
+]
+
+[[package]]
 name = "sw-composite"
 version = "0.7.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6443,7 +6453,7 @@ dependencies = [
  "roxmltree",
  "simplecss",
  "siphasher",
- "svgtypes",
+ "svgtypes 0.12.0",
  "usvg-tree",
 ]
 
@@ -6471,7 +6481,7 @@ checksum = "6cacb0c5edeaf3e80e5afcf5b0d4004cc1d36318befc9a7c6606507e5d0f4062"
 dependencies = [
  "rctree",
  "strict-num",
- "svgtypes",
+ "svgtypes 0.12.0",
  "tiny-skia-path 0.11.2",
 ]
 

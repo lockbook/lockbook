@@ -3,7 +3,7 @@ use std::f32::consts::PI;
 
 use crate::{theme::Icon, widgets::Button};
 
-use super::{Buffer, Eraser, Pen};
+use super::{Buffer, Eraser, Pen, Selection};
 
 const ICON_SIZE: f32 = 30.0;
 const COLOR_SWATCH_BTN_RADIUS: f32 = 9.0;
@@ -16,11 +16,13 @@ pub struct Toolbar {
     pub active_tool: Tool,
     pub pen: Pen,
     pub eraser: Eraser,
+    pub selection: Selection,
 }
 
 pub enum Tool {
     Pen,
     Eraser,
+    Selection,
 }
 
 #[derive(Clone)]
@@ -94,6 +96,12 @@ impl Toolbar {
             }),
             Component::Separator(egui::Margin::symmetric(10.0, 0.0)),
             Component::Button(SimpleButton {
+                id: "selection".to_string(),
+                icon: Icon::HAND,
+                coming_soon_text: None,
+                margin: egui::Margin::symmetric(4.0, 7.0),
+            }),
+            Component::Button(SimpleButton {
                 id: "pen".to_string(),
                 icon: Icon::BRUSH,
                 coming_soon_text: None,
@@ -112,7 +120,13 @@ impl Toolbar {
             Component::Separator(egui::Margin::symmetric(10.0, 0.0)),
         ];
 
-        Toolbar { components, active_tool: Tool::Pen, pen: Pen::new(max_id), eraser: Eraser::new() }
+        Toolbar {
+            components,
+            active_tool: Tool::Pen,
+            pen: Pen::new(max_id),
+            eraser: Eraser::new(),
+            selection: Selection::new(),
+        }
     }
 
     pub fn show(&mut self, ui: &mut egui::Ui, buffer: &mut Buffer) {
@@ -145,6 +159,9 @@ impl Toolbar {
                                             }
                                             "eraser" => {
                                                 self.active_tool = Tool::Eraser;
+                                            }
+                                            "selection" => {
+                                                self.active_tool = Tool::Selection;
                                             }
                                             "undo" => buffer.undo(),
                                             "redo" => buffer.redo(),
