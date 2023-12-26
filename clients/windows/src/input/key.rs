@@ -123,13 +123,11 @@ pub fn handle(
 pub fn key_text(vk: VIRTUAL_KEY, shift: bool) -> Option<&'static str> {
     KEYS.iter()
         .find(|key| key.vk == vk)
-        .map(|key| if shift { key.shift_text } else { key.text })
-        .flatten()
+        .and_then(|key| if shift { key.shift_text } else { key.text })
 }
 
 pub fn egui_key(vk: VIRTUAL_KEY) -> Option<egui::Key> {
     KEYS.iter()
         .find(|key| key.vk == vk)
-        .map(|key| key.egui)
-        .flatten()
+        .and_then(|key| key.egui)
 }

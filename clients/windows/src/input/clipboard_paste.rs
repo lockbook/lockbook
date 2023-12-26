@@ -14,7 +14,7 @@ pub fn handle(app: &mut WgpuLockbook) {
             image::load_from_memory(&bitmap).expect("load image from memory");
         let mut png_bytes = Vec::new();
         image::codecs::png::PngEncoder::new(Cursor::new(&mut png_bytes))
-            .write_image(&bitmap.as_bytes(), bitmap.width(), bitmap.height(), bitmap.color())
+            .write_image(bitmap.as_bytes(), bitmap.width(), bitmap.height(), bitmap.color())
             .expect("png encode pasted image");
 
         // todo: this certainly doesn't belong here

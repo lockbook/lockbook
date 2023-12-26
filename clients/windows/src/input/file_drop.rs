@@ -87,45 +87,42 @@ pub fn handle_drop(app: &mut WgpuLockbook, object: Option<IDataObject>) -> bool 
                 continue;
             }
 
-            match tymed {
-                TYMED_HGLOBAL => {
-                    let hglobal = unsafe { stgm.u.hGlobal };
+            if tymed == TYMED_HGLOBAL {
+                let hglobal = unsafe { stgm.u.hGlobal };
 
-                    // for unknown reasons, if I don't cast the HGLOBAL to an HDROP and query the file count, the next call to object.GetData fails
-                    // (this applies even if the format isn't CF_HDROP)
-                    let hdrop = HDROP(unsafe { std::mem::transmute(hglobal) });
-                    let file_count = unsafe { DragQueryFileW(hdrop, 0xFFFFFFFF, None) };
+                // for unknown reasons, if I don't cast the HGLOBAL to an HDROP and query the file count, the next call to object.GetData fails
+                // (this applies even if the format isn't CF_HDROP)
+                let hdrop = HDROP(unsafe { std::mem::transmute(hglobal) });
+                let file_count = unsafe { DragQueryFileW(hdrop, 0xFFFFFFFF, None) };
 
-                    if format == CF_HDROP {
-                        for i in 0..file_count {
-                            let mut file_path_bytes = [0u16; MAX_PATH as _];
-                            unsafe { DragQueryFileW(hdrop, i, Some(&mut file_path_bytes)) };
-                            let path = Some(
-                                String::from_utf16_lossy(&file_path_bytes)
-                                    .trim_matches(char::from(0))
-                                    .into(),
-                            );
-                            app.raw_input
-                                .dropped_files
-                                .push(DroppedFile { path, ..Default::default() });
-                        }
-                    } else {
-                        let size = unsafe { GlobalSize(hglobal) };
-                        let mut bytes = vec![0u8; size as _];
-                        unsafe {
-                            std::ptr::copy_nonoverlapping(
-                                GlobalLock(hglobal),
-                                bytes.as_mut_ptr() as _,
-                                size as _,
-                            );
-                            let _ = GlobalUnlock(hglobal);
-                        }
-                        let _global_bytes = String::from_utf8_lossy(&bytes).len();
-
-                        // todo: do something with dropped bytes (e.g. support dropped text blocks)
+                if format == CF_HDROP {
+                    for i in 0..file_count {
+                        let mut file_path_bytes = [0u16; MAX_PATH as _];
+                        unsafe { DragQueryFileW(hdrop, i, Some(&mut file_path_bytes)) };
+                        let path = Some(
+                            String::from_utf16_lossy(&file_path_bytes)
+                                .trim_matches(char::from(0))
+                                .into(),
+                        );
+                        app.raw_input
+                            .dropped_files
+                            .push(DroppedFile { path, ..Default::default() });
                     }
+                } else {
+                    let size = unsafe { GlobalSize(hglobal) };
+                    let mut bytes = vec![0u8; size as _];
+                    unsafe {
+                        std::ptr::copy_nonoverlapping(
+                            GlobalLock(hglobal),
+                            bytes.as_mut_ptr() as _,
+                            size as _,
+                        );
+                        let _ = GlobalUnlock(hglobal);
+                    }
+                    let _global_bytes = String::from_utf8_lossy(&bytes).len();
+
+                    // todo: do something with dropped bytes (e.g. support dropped text blocks)
                 }
-                _ => {}
             }
         }
     }
