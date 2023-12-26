@@ -321,7 +321,6 @@ fn show_bb_rect(ui: &mut egui::Ui, mut bb: [glam::DVec2; 2], working_rect: egui:
 }
 
 fn drag(delta: egui::Pos2, de: &mut SelectedElement, buffer: &mut Buffer) {
-
     if let Some(node) = node_by_id(&mut buffer.current, de.id.clone()) {
         node.set_attr(
             "transform",
