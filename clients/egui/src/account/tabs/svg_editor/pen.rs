@@ -1,11 +1,8 @@
 use eframe::egui;
 use minidom::Element;
-use std::{
-    collections::{HashMap, VecDeque},
-    sync::mpsc,
-};
+use std::{collections::VecDeque, sync::mpsc};
 
-use super::{toolbar::ColorSwatch, util, Buffer};
+use super::{toolbar::ColorSwatch, util, Buffer, InsertElement};
 
 pub struct Pen {
     pub active_color: Option<ColorSwatch>,
@@ -67,9 +64,10 @@ impl Pen {
 
                 let node = node.clone();
 
-                buffer.save(super::Event::InsertElements(super::InsertElements {
-                    elements: HashMap::from_iter([(id.to_string(), node)]),
-                }));
+                buffer.save(super::Event::Insert(vec![InsertElement {
+                    id: id.to_string(),
+                    element: node,
+                }]));
             }
         }
     }
