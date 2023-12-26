@@ -159,7 +159,8 @@ fn main() {
             ..Default::default()
         },
         Box::new(|_cc: &eframe::CreationContext| Box::new(Winstaller::new())),
-    );
+    )
+    .unwrap()
 }
 
 #[cfg(not(windows))]
