@@ -257,7 +257,6 @@ fn end_drag(buffer: &mut Buffer, els: &mut [SelectedElement], pos: egui::Pos2, s
 
                     let history_threshold = 1.0;
                     if save_event && (delta.y > history_threshold || delta.x > history_threshold) {
-                        println!("pushing to history");
                         Some(TransformElement {
                             id: el.id.to_owned(),
                             old_transform: old_transform.0,
@@ -322,8 +321,6 @@ fn show_bb_rect(ui: &mut egui::Ui, mut bb: [glam::DVec2; 2], working_rect: egui:
 }
 
 fn drag(delta: egui::Pos2, de: &mut SelectedElement, buffer: &mut Buffer) {
-    println!("delta: {:#?}", delta);
-    println!("original: {}, {}", de.original_matrix.clone().1[4], de.original_matrix.clone().1[5]);
 
     if let Some(node) = node_by_id(&mut buffer.current, de.id.clone()) {
         node.set_attr(

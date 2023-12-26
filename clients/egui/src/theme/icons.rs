@@ -31,7 +31,7 @@ impl Icon {
     pub const DRAW: Self = ic("\u{e746}"); // Draw
     pub const EDIT: Self = ic("\u{e254}"); // Mode Edit
     pub const EMPTY_INBOX: Self = ic("\u{f07e}"); // Upcoming
-    pub const ERASER: Self = ic("\u{e16c}"); // Upcoming
+    pub const ERASER: Self = ic("\u{e6d0}"); // Upcoming
     pub const DELETE: Self = ic("\u{e872}"); // Delete
     pub const FOLDER: Self = ic("\u{e2c7}"); // Folder
     pub const FOLDER_OPEN: Self = ic("\u{e2c8}"); // Folder Open
@@ -40,7 +40,7 @@ impl Icon {
     pub const HIGHLIGHT_OFF: Self = ic("\u{e888}"); // Highlight Off
     pub const HEADER_1: Self = ic("\u{e262}"); // Header 11
     pub const HIDE_SIDEBAR: Self = ic("\u{e317}"); // Keyboard tab
-    pub const HAND: Self = ic("\u{e9ec}"); // Selection tool
+    pub const HAND: Self = ic("\u{eb03}"); // Selection tool
     pub const SHOW_SIDEBAR: Self = ic("\u{e31c}");
     pub const IMAGE: Self = ic("\u{e3f4}"); // Image
     pub const INFO: Self = ic("\u{e88e}");

@@ -13,7 +13,7 @@ egui_extras = { version = "0.22.0", features = ["image"] }
 egui_wgpu_backend = "0.24.0"
 image = { version = "0.24", default-features = false, features = ["png", "jpeg", "gif", "webp", "bmp", "ico"] }
 lb = { package = "lb-rs", path = "../../libs/lb/lb-rs", default-features = false, features=["native-tls"] }
-lb-fonts = "0.1.1"
+lb-fonts = "0.1.2"
 lb-pdf = "0.1.1"
 lbeditor = { package = "egui_editor", path = "../../libs/content/editor/egui_editor" }
 minidom = {git ="https://github.com/lockbook/minidom"}
