@@ -1,5 +1,5 @@
-mod cli;
-mod egui;
+pub mod cli;
+pub mod desktop;
 
 use std::fs;
 use std::path::Path;
@@ -11,8 +11,8 @@ pub fn release() -> CliResult<()> {
     if !build_dir.exists() {
         fs::create_dir("windows-build").unwrap();
     }
-    cli::release();
-    egui::release_installers();
+    cli::release()?;
+    desktop::release()?;
 
     fs::remove_dir_all("windows-build").unwrap();
     Ok(())
