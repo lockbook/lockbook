@@ -118,7 +118,7 @@ class SearchDocumentsViewModel(application: Application) : AndroidViewModel(appl
         viewModelScope.launch(Dispatchers.Main) {
             hideProgressSpinnerIfVisible()
 
-            if(fileResults.isEmpty() && lastQuery.isNotEmpty()) {
+            if (fileResults.isEmpty() && lastQuery.isNotEmpty()) {
                 showNoSearchResultsIfGone()
             }
         }
