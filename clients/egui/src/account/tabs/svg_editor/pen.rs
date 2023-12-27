@@ -2,7 +2,7 @@ use eframe::egui;
 use minidom::Element;
 use std::{collections::VecDeque, sync::mpsc};
 
-use super::{toolbar::ColorSwatch, util};
+use super::{toolbar::ColorSwatch, util, Buffer, InsertElement};
 
 pub struct Pen {
     pub active_color: Option<ColorSwatch>,
@@ -29,16 +29,10 @@ impl Pen {
     }
 
     // todo: come up with a better name
-    pub fn handle_events(&mut self, event: PathEvent, root: &mut Element) -> String {
-        let mut current_path = match event {
-            PathEvent::Draw(_, id) | PathEvent::End(_, id) => {
-                util::node_by_id(root, id.to_string())
-            }
-        };
-
+    pub fn handle_events(&mut self, event: PathEvent, buffer: &mut Buffer) {
         match event {
             PathEvent::Draw(pos, id) => {
-                if let Some(node) = current_path.as_mut() {
+                if let Some(node) = util::node_by_id(&mut buffer.current, id.to_string()) {
                     self.path_builder.cubic_to(pos);
                     node.set_attr("d", &self.path_builder.data);
 
@@ -60,23 +54,22 @@ impl Pen {
                         .attr("d", &self.path_builder.data)
                         .build();
 
-                    root.append_child(child);
+                    buffer.current.append_child(child);
                 }
             }
-            PathEvent::End(pos, _) => {
-                if let Some(node) = current_path.as_mut() {
-                    self.path_builder.finish(pos);
-                    node.set_attr("d", &self.path_builder.data);
-                }
+            PathEvent::End(pos, id) => {
+                self.path_builder.finish(pos);
+                let node = util::node_by_id(&mut buffer.current, id.to_string()).unwrap();
+                node.set_attr("d", &self.path_builder.data);
+
+                let node = node.clone();
+
+                buffer.save(super::Event::Insert(vec![InsertElement {
+                    id: id.to_string(),
+                    element: node,
+                }]));
             }
         }
-
-        let mut buffer = Vec::new();
-        root.write_to(&mut buffer).unwrap();
-        // todo: handle unwrap
-        std::str::from_utf8(&buffer)
-            .unwrap()
-            .replace("xmlns='' ", "")
     }
 
     pub fn setup_events(&mut self, ui: &mut egui::Ui, inner_rect: egui::Rect) {
@@ -85,17 +78,6 @@ impl Pen {
                 return;
             }
 
-            // todo: move this to zoom.rs
-            // if ui.input_mut(|i| i.consume_key(egui::Modifiers::CTRL, egui::Key::PlusEquals)) {
-            //     self.zoom_factor += ZOOM_STOP;
-            // }
-
-            // if ui.input_mut(|i| i.consume_key(egui::Modifiers::CTRL, egui::Key::Minus)) {
-            //     self.zoom_factor -= ZOOM_STOP;
-            // }
-
-            // cursor_pos.x = (cursor_pos.x + self.sao_offset.x) / self.zoom_factor;
-            // cursor_pos.y = (cursor_pos.y + self.sao_offset.y) / self.zoom_factor;
             ui.output_mut(|w| w.cursor_icon = egui::CursorIcon::Crosshair);
 
             if ui.input(|i| i.pointer.primary_down()) {
@@ -187,7 +169,7 @@ impl CubicBezBuilder {
         self.catmull_to(pos, false); // todo: get rid of the double call if possible
         self.catmull_to(pos, true);
 
-        self.simplify(2.5);
+        self.simplify(2.);
 
         self.data = String::default();
         self.prev_points_window = VecDeque::default();

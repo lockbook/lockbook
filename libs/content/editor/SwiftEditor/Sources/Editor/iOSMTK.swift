@@ -12,17 +12,18 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     var editorState: EditorState?
     var toolbarState: ToolbarState?
     var nameState: NameState?
-    var editMenuInteraction: UIEditMenuInteraction?
     var hasSelection: Bool = false
     
     var textUndoManager = iOSUndoManager()
 
     var redrawTask: DispatchWorkItem? = nil
+    
+    let textInteraction = UITextInteraction(for: .editable)
 
     public override var undoManager: UndoManager? {
         return textUndoManager
     }
-    
+
     var pasteBoardEventId: Int = 0
     var lastKnownTapLocation: Float? = nil
     override init(frame frameRect: CGRect, device: MTLDevice?) {
@@ -31,32 +32,24 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
         self.isPaused = true
         self.enableSetNeedsDisplay = true
         self.delegate = self
-        self.editMenuInteraction = UIEditMenuInteraction(delegate: self)
-        self.addInteraction(self.editMenuInteraction!)
         self.preferredFramesPerSecond = 120
-
-        // regain focus on tap
-        let tap = UITapGestureRecognizer(target: self, action: #selector(self.handleTap(_:)))
-        tap.cancelsTouchesInView = false
-        self.addGestureRecognizer(tap)
+        self.clipsToBounds = true
 
         // ipad trackpad support
         let pan = UIPanGestureRecognizer(target: self, action: #selector(self.handleTrackpadScroll(_:)))
         pan.allowedScrollTypesMask = .all
         pan.maximumNumberOfTouches  = 0
         self.addGestureRecognizer(pan)
+        
+        // selection support
+        textInteraction.textInput = self
+        self.addInteraction(textInteraction)
 
         // drop support
         let dropInteraction = UIDropInteraction(delegate: self)
         self.addInteraction(dropInteraction)
     }
-
-    @objc func handleTap(_ sender: UITapGestureRecognizer) {
-        if sender.state == .ended {
-            becomeFirstResponder()
-        }
-    }
-
+    
     public func dropInteraction(_ interaction: UIDropInteraction, canHandle session: UIDropSession) -> Bool {
         guard session.items.count == 1 else { return false }
         
@@ -131,46 +124,55 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     }
 
     public func header(headingSize: UInt32) {
+        inputDelegate?.textWillChange(self)
         apply_style_to_selection_header(editorHandle, headingSize)
         self.setNeedsDisplay(self.frame)
     }
     
     public func bulletedList() {
+        inputDelegate?.textWillChange(self)
         apply_style_to_selection_bulleted_list(editorHandle)
         self.setNeedsDisplay(self.frame)
     }
     
     public func numberedList() {
+        inputDelegate?.textWillChange(self)
         apply_style_to_selection_numbered_list(editorHandle)
         self.setNeedsDisplay(self.frame)
     }
     
     public func todoList() {
+        inputDelegate?.textWillChange(self)
         apply_style_to_selection_todo_list(editorHandle)
         self.setNeedsDisplay(self.frame)
     }
     
     public func bold() {
+        inputDelegate?.textWillChange(self)
         apply_style_to_selection_bold(editorHandle)
         self.setNeedsDisplay(self.frame)
     }
     
     public func italic() {
+        inputDelegate?.textWillChange(self)
         apply_style_to_selection_italic(editorHandle)
         self.setNeedsDisplay(self.frame)
     }
     
     public func inlineCode() {
+        inputDelegate?.textWillChange(self)
         apply_style_to_selection_inline_code(editorHandle)
         self.setNeedsDisplay(self.frame)
     }
     
     public func strikethrough() {
+        inputDelegate?.textWillChange(self)
         apply_style_to_selection_strikethrough(editorHandle)
         self.setNeedsDisplay(self.frame)
     }
     
     public func tab(deindent: Bool) {
+        inputDelegate?.textWillChange(self)
         indent_at_cursor(editorHandle, deindent)
         self.setNeedsDisplay(self.frame)
     }
@@ -263,6 +265,14 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
             nameState?.potentialTitle = nil
         }
         
+        if output.editor_response.selection_updated || output.editor_response.scroll_updated {
+            inputDelegate?.selectionDidChange(self)
+        }
+
+        if output.editor_response.text_updated {
+            inputDelegate?.textDidChange(self)
+        }
+                
         if let openedURLSeq = output.editor_response.opened_url {
             let openedURL = String(cString: openedURLSeq)
             free_text(UnsafeMutablePointer(mutating: openedURLSeq))
@@ -274,19 +284,6 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
             }
         }
 
-        if output.editor_response.show_edit_menu {
-            self.hasSelection = output.editor_response.has_selection
-            let location = CGPoint(
-                x: Double(output.editor_response.edit_menu_x),
-                y: Double(output.editor_response.edit_menu_y)
-            )
-            
-            let configuration = UIEditMenuConfiguration(identifier: nil, sourcePoint: location)
-            if let interaction = editMenuInteraction {
-                interaction.presentEditMenu(with: configuration)
-            }
-        }
-        
         if output.editor_response.text_updated {
             self.textChanged()
         }
@@ -326,6 +323,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     }
     
     public func insertText(_ text: String) {
+        inputDelegate?.textWillChange(self)
         insert_text(editorHandle, text)
         self.setNeedsDisplay(self.frame)
     }
@@ -341,13 +339,16 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     
     public func replace(_ range: UITextRange, withText text: String) {
         let range = range as! LBTextRange
+        inputDelegate?.textWillChange(self)
         replace_text(editorHandle, range.c, text)
         self.setNeedsDisplay(self.frame)
     }
     
     public var selectedTextRange: UITextRange? {
         set {
+            
             let range = (newValue as! LBTextRange).c
+            inputDelegate?.selectionWillChange(self)
             set_selected(editorHandle, range)
             self.setNeedsDisplay()
         }
@@ -383,11 +384,13 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     }
     
     public func setMarkedText(_ markedText: String?, selectedRange: NSRange) {
+        inputDelegate?.textWillChange(self)
         set_marked(editorHandle, CTextRange(none: false, start: CTextPosition(none: false, pos: UInt(selectedRange.lowerBound)), end: CTextPosition(none: false, pos: UInt(selectedRange.upperBound))), markedText)
         self.setNeedsDisplay()
     }
     
     public func unmarkText() {
+        inputDelegate?.textWillChange(self)
         unmark_text(editorHandle)
         self.setNeedsDisplay()
     }
@@ -403,7 +406,9 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     }
     
     public func textRange(from fromPosition: UITextPosition, to toPosition: UITextPosition) -> UITextRange? {
-        let start = (fromPosition as! LBTextPos).c
+        guard let start = (fromPosition as? LBTextPos)?.c else {
+            return nil
+        }
         let end = (toPosition as! LBTextPos).c
         let range = text_range(start, end)
         if range.none {
@@ -414,7 +419,9 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     }
     
     public func position(from position: UITextPosition, offset: Int) -> UITextPosition? {
-        let start = (position as! LBTextPos).c
+        guard let start = (position as? LBTextPos)?.c else {
+            return nil
+        }
         let new = position_offset(editorHandle, start, Int32(offset))
         if new.none {
             return nil
@@ -448,10 +455,11 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     }
     
     public func offset(from: UITextPosition, to toPosition: UITextPosition) -> Int {
-        let left = Int((from as! LBTextPos).c.pos)
-        let right = Int((toPosition as! LBTextPos).c.pos)
-        let res = abs(right - left)
-        return res
+        guard let left = (from as? LBTextPos)?.c.pos, let right = (toPosition as? LBTextPos)?.c.pos else {
+            return 0
+        }
+
+        return Int(right) - Int(left)
     }
     
     public var inputDelegate: UITextInputDelegate?
@@ -487,12 +495,16 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     public func caretRect(for position: UITextPosition) -> CGRect {
         let position = (position as! LBTextPos).c
         let result = cursor_rect_at_position(editorHandle, position)
-        return CGRect(x: result.min_x, y: result.min_y, width: result.max_x-result.min_x, height: result.max_y-result.min_y)
+        return CGRect(x: result.min_x, y: result.min_y, width: 1, height:result.max_y - result.min_y)
     }
     
     public func selectionRects(for range: UITextRange) -> [UITextSelectionRect] {
-        unimplemented()
-        return []
+        let range = (range as! LBTextRange).c
+        let result = selection_rects(editorHandle, range)
+        let buffer = Array(UnsafeBufferPointer(start: result.rects, count: Int(result.size)))
+        return buffer.enumerated().map { (index, rect) in
+            return LBTextSelectionRect(cRect: rect, loc: index, size: buffer.count)
+        }
     }
     
     public func closestPosition(to point: CGPoint) -> UITextPosition? {
@@ -517,6 +529,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     }
     
     public func deleteBackward() {
+        inputDelegate?.textWillChange(self)
         backspace(editorHandle)
         textChanged()
         self.setNeedsDisplay(self.frame)
@@ -556,41 +569,44 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
         self.setNeedsDisplay(self.frame)
     }
     
-    public func editMenuInteraction(_ interaction: UIEditMenuInteraction, menuFor configuration: UIEditMenuConfiguration, suggestedActions: [UIMenuElement]) -> UIMenu? {
-        
-        var actions = suggestedActions
-        
-        let customMenu = self.hasSelection ? UIMenu(title: "", options: .displayInline, children: [
+    public func editMenu(for textRange: UITextRange, suggestedActions: [UIMenuElement]) -> UIMenu? {
+        let customMenu = self.selectedTextRange?.isEmpty == false ? UIMenu(title: "", options: .displayInline, children: [
             UIAction(title: "Cut") { _ in
+                self.inputDelegate?.selectionWillChange(self)
                 self.clipboardCut()
             },
             UIAction(title: "Copy") { _ in
                 self.clipboardCopy()
             },
             UIAction(title: "Paste") { _ in
+                self.inputDelegate?.textWillChange(self)
                 self.clipboardPaste()
             },
             UIAction(title: "Select All") { _ in
+                self.inputDelegate?.selectionWillChange(self)
                 select_all(self.editorHandle)
                 self.setNeedsDisplay(self.frame)
             },
         ]) : UIMenu(title: "", options: .displayInline, children: [
             UIAction(title: "Select") { _ in
+                self.inputDelegate?.selectionWillChange(self)
                 select_current_word(self.editorHandle)
                 self.setNeedsDisplay(self.frame)
             },
             UIAction(title: "Select All") { _ in
+                self.inputDelegate?.selectionWillChange(self)
                 select_all(self.editorHandle)
                 self.setNeedsDisplay(self.frame)
             },
             UIAction(title: "Paste") { _ in
+                self.inputDelegate?.textWillChange(self)
                 self.clipboardPaste()
             },
         ])
         
+        var actions = suggestedActions
         actions.append(customMenu)
-        
-        return UIMenu(children: customMenu.children)
+        return UIMenu(children: actions)
     }
     
     @objc func clipboardCopy() {
@@ -599,6 +615,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     }
     
     @objc func clipboardCut() {
+        inputDelegate?.textWillChange(self)
         clipboard_cut(self.editorHandle)
         self.setNeedsDisplay(self.frame)
     }
@@ -617,16 +634,19 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     }
     
     @objc func keyboardSelectAll() {
+        inputDelegate?.selectionWillChange(self)
         select_all(self.editorHandle)
         self.setNeedsDisplay()
     }
         
     func undoRedo(redo: Bool) {
+        inputDelegate?.textWillChange(self)
         undo_redo(self.editorHandle, redo)
         self.setNeedsDisplay(self.frame)
     }
     
     func updateText(_ s: String) {
+        inputDelegate?.textWillChange(self)
         set_text(editorHandle, s)
         setNeedsDisplay(self.frame)
     }
@@ -661,7 +681,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
         
         deleteWord.wantsPriorityOverSystemBehavior = true
         deindent.wantsPriorityOverSystemBehavior = true
-        
+
         return [
             UIKeyCommand(input: "c", modifierFlags: .command, action: #selector(clipboardCopy)),
             UIKeyCommand(input: "x", modifierFlags: .command, action: #selector(clipboardCut)),
@@ -795,5 +815,45 @@ public enum SupportedImportFormat {
     case image(UIImage)
     case text(String)
 }
+
+class LBTextSelectionRect: UITextSelectionRect {
+    let loc: Int
+    let size: Int
+    public let cRect: CRect
+
+    init(cRect: CRect, loc: Int, size: Int) {
+        self.cRect = cRect
+        self.loc = loc
+        self.size = size
+    }
+
+    override var writingDirection: NSWritingDirection {
+        get {
+            return .leftToRight
+        }
+    }
+    override var containsStart: Bool {
+        get {
+            return loc == 0
+        }
+    }
+    override var containsEnd: Bool {
+        get {
+            return loc == (size - 1)
+        }
+    }
+    override var isVertical: Bool {
+        get {
+            return false
+        }
+    }
+
+    override var rect: CGRect {
+        get {
+            return CGRect(x: cRect.min_x, y: cRect.min_y, width: cRect.max_x - cRect.min_x, height: cRect.max_y - cRect.min_y)
+        }
+    }
+}
+
 
 #endif

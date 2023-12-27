@@ -104,7 +104,7 @@ pub fn calc(
                 RenderStyle::Markdown(ast.nodes[node_idx].node_type.clone())
                     .apply_style(&mut text_format, appearance);
             }
-            if in_selection {
+            if in_selection && !cfg!(target_os = "ios") {
                 RenderStyle::Selection.apply_style(&mut text_format, appearance);
             }
             if maybe_link_range.is_some() {

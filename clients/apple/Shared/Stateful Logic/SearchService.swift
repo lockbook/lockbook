@@ -140,31 +140,23 @@ class SearchService: ObservableObject {
                 if case .failure(let err) = self.core.startSearch(isPathAndContentSearch: isPathAndContentSearch, context: searchServicePtr, updateStatus: isPathAndContentSearch ? self.updatePathAndContentSearchStatus : self.updatePathSearchStatus) {
                     DI.errors.handleError(err)
                 }
-                
-                DispatchQueue.main.sync {
-                    if isPathAndContentSearch {
-                        self.isPathAndContentSearchInProgress = false
-                    } else {
-                        self.isPathSearchInProgress = false
-                    }
-                }
             }
         }
     }
     
     func search(query: String, isPathAndContentSearch: Bool) {
-        if isPathAndContentSearch {
+        if isPathAndContentSearch && isPathAndContentSearching {
             self.isPathAndContentSearchInProgress = true
             self.pathAndContentSearchQuery = query
-        } else {
+        } else if !isPathAndContentSearch && isPathSearching {
             self.isPathSearchInProgress = true
             self.pathSearchQuery = query
+        } else {
+            return
         }
         
         DispatchQueue.global(qos: .userInitiated).async {
-            if case .failure(let err) = self.core.searchQuery(query: query, isPathAndContentSearch: isPathAndContentSearch) {
-                DI.errors.handleError(err)
-            }
+            let _ = self.core.searchQuery(query: query, isPathAndContentSearch: isPathAndContentSearch)
         }
     }
       

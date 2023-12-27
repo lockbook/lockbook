@@ -645,6 +645,7 @@ pub unsafe extern "C" fn start_search(
                 };
 
             *lock = Some(search_tx);
+
             results_rx
         }
         Err(_) => return c_string(translate(Err::<(), _>("Cannot get search lock."))),
@@ -664,15 +665,6 @@ pub unsafe extern "C" fn start_search(
         };
 
         update_status(context, result_repr, content);
-    }
-
-    match if is_path_content_search {
-        MAYBE_PATH_AND_CONTENT_SEARCH_TX.lock()
-    } else {
-        MAYBE_PATH_SEARCH_TX.lock()
-    } {
-        Ok(mut lock) => *lock = None,
-        Err(_) => return c_string(translate(Err::<(), _>("Cannot get search lock."))),
     }
 
     c_string(translate(Ok::<_, ()>(())))
@@ -696,7 +688,18 @@ pub unsafe extern "C" fn search(
 /// Be sure to call `release_pointer` on the result of this function to free the data.
 #[no_mangle]
 pub unsafe extern "C" fn end_search(is_path_content_search: bool) -> *const c_char {
-    send_search_request(SearchRequest::EndSearch, is_path_content_search)
+    let result = send_search_request(SearchRequest::EndSearch, is_path_content_search);
+
+    match if is_path_content_search {
+        MAYBE_PATH_AND_CONTENT_SEARCH_TX.lock()
+    } else {
+        MAYBE_PATH_SEARCH_TX.lock()
+    } {
+        Ok(mut lock) => *lock = None,
+        Err(_) => return c_string(translate(Err::<(), _>("Cannot get search lock."))),
+    }
+
+    result
 }
 
 /// # Safety

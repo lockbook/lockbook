@@ -1,23 +1,29 @@
-use crate::model::errors::core_err_unexpected;
-use crate::{CoreError, CoreState, LbResult, Requester, UnexpectedError};
 use crossbeam::channel::{Receiver, Sender};
+use crate::{CoreError, CoreState, LbResult, RankingWeights, Requester, UnexpectedError};
 use lockbook_shared::document_repo::DocumentService;
 use lockbook_shared::file_like::FileLike;
 use lockbook_shared::filename::DocumentType;
 use lockbook_shared::tree_like::TreeLike;
 use serde::Serialize;
 use std::cmp::Ordering;
-use std::sync::atomic::AtomicBool;
+use std::collections::HashMap;
 use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
 use std::thread::{self, available_parallelism};
 use sublime_fuzzy::{FuzzySearch, Scoring};
 use uuid::Uuid;
 
-const LOWEST_CONTENT_SCORE_THRESHOLD: i64 = 170;
+use super::activity_service::Stats;
+
+const CONTENT_SCORE_THRESHOLD: i64 = 170;
+const PATH_SCORE_THRESHOLD: i64 = 10;
 
 const MAX_CONTENT_MATCH_LENGTH: usize = 400;
 const IDEAL_CONTENT_MATCH_LENGTH: usize = 150;
 const CONTENT_MATCH_PADDING: usize = 8;
+
+const ACTIVITY_WEIGHT: f32 = 0.2;
+const FUZZY_WEIGHT: f32 = 0.8;
 
 #[derive(Serialize, Debug, Eq, PartialEq)]
 pub struct SearchResultItem {
@@ -49,6 +55,15 @@ impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {
             return Ok(Vec::new());
         }
 
+        let mut activity_metrics = self.db.doc_events.get().iter().get_activity_metrics();
+        let activity_weights = RankingWeights::default();
+        self.normalize(&mut activity_metrics);
+
+        let file_scores: HashMap<Uuid, i64> = activity_metrics
+            .into_iter()
+            .map(|metric| (metric.id, metric.score(activity_weights)))
+            .collect();
+
         let mut tree = (&self.db.base_metadata)
             .to_staged(&self.db.local_metadata)
             .to_lazy();
@@ -63,16 +78,22 @@ impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {
                 if file.is_document() {
                     let path = tree.id_to_path(&id, account)?;
 
-                    if let Some(m) = FuzzySearch::new(input, &path)
+                    if let Some(fuzzy_match) = FuzzySearch::new(input, &path)
                         .case_insensitive()
                         .best_match()
                     {
-                        results.push(SearchResultItem {
-                            id,
-                            path,
-                            score: m.score(),
-                            matched_indices: m.matched_indices().cloned().collect(),
-                        });
+                        let score = ((fuzzy_match.score().min(600) as f32 * FUZZY_WEIGHT)
+                            + (file_scores.get(&id).cloned().unwrap_or_default() as f32
+                                * ACTIVITY_WEIGHT)) as i64;
+
+                        if score > PATH_SCORE_THRESHOLD {
+                            results.push(SearchResultItem {
+                                id,
+                                path,
+                                score: score as isize,
+                                matched_indices: fuzzy_match.matched_indices().cloned().collect(),
+                            });
+                        }
                     }
                 }
             }
@@ -87,12 +108,21 @@ impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {
         &mut self, search_type: SearchType, results_tx: Sender<SearchResult>,
         search_rx: Receiver<SearchRequest>,
     ) -> LbResult<()> {
+        let mut activity_metrics = self.db.doc_events.get().iter().get_activity_metrics();
+        let activity_weights = RankingWeights::default();
+        self.normalize(&mut activity_metrics);
+        
         let mut tree = (&self.db.base_metadata)
             .to_staged(&self.db.local_metadata)
             .to_lazy();
 
         let account = self.db.account.get().ok_or(CoreError::AccountNonexistent)?;
         let mut files_info = Vec::new();
+
+        let file_scores: HashMap<Uuid, i64> = activity_metrics
+            .into_iter()
+            .map(|metric| (metric.id, metric.score(activity_weights).min(600)))
+            .collect();
 
         for id in tree.owned_ids() {
             if !tree.calculate_deleted(&id)? && !tree.in_pending_share(&id)? {
@@ -124,20 +154,26 @@ impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {
                         id,
                         path: tree.id_to_path(&id, account)?,
                         content,
+                        activity_score: file_scores.get(&id).cloned().unwrap_or_default(),
                     })
                 }
             }
         }
 
-        Ok(Self::search_loop(results_tx, search_rx, files_info).map_err(core_err_unexpected)?)
+
+        thread::spawn(move || {
+            if let Err(err) = Self::search_loop(&results_tx, search_rx, files_info) {
+                let _ = results_tx.send(SearchResult::Error(err));
+            }
+        });
+
+        Ok(())
     }
 
     fn search_loop(
-        results_tx: Sender<SearchResult>, search_rx: Receiver<SearchRequest>,
+        results_tx: &Sender<SearchResult>, search_rx: Receiver<SearchRequest>,
         files_info: Vec<SearchableFileInfo>,
     ) -> Result<(), UnexpectedError> {
-        println!("search thread launched");
-
         let files_info = Arc::new(files_info);
         let thread_count = available_parallelism()
             .ok()
@@ -158,13 +194,14 @@ impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {
                     maybe_new_search = None;
                     new_seach
                 }
-                None => search_rx.recv().map_err(UnexpectedError::from)?,
+                None => match search_rx.recv() {
+                    Ok(new_search) => new_search,
+                    Err(_) => return Ok(()),
+                },
             };
 
             match search {
                 SearchRequest::Search { input } => {
-                    println!("search recieved");
-
                     results_tx
                         .send(SearchResult::StartOfSearch)
                         .map_err(UnexpectedError::from)?;
@@ -261,13 +298,17 @@ impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {
             .score_with(&Scoring::emphasize_distance())
             .best_match()
         {
-            if fuzzy_match.score().is_positive() {
+            let score = ((fuzzy_match.score().min(600) as f32 * FUZZY_WEIGHT)
+                            + (searchable.activity_score as f32 * ACTIVITY_WEIGHT))
+                            as i64;
+
+            if score > PATH_SCORE_THRESHOLD {
                 search_result_tx
                     .send(SearchResult::FileNameMatch {
                         id: searchable.id,
                         path: searchable.path.clone(),
                         matched_indices: fuzzy_match.matched_indices().cloned().collect(),
-                        score: fuzzy_match.score() as i64,
+                        score,
                     })
                     .map_err(UnexpectedError::from)?;
             }
@@ -290,13 +331,15 @@ impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {
                     .score_with(&Scoring::emphasize_distance())
                     .best_match()
                 {
-                    let score = fuzzy_match.score() as i64;
+                    let score = ((fuzzy_match.score().min(600) as f32 * FUZZY_WEIGHT)
+                            + (searchable.activity_score as f32 * ACTIVITY_WEIGHT))
+                            as i64;
 
                     if cancel.load(std::sync::atomic::Ordering::Relaxed) {
                         return Ok(());
                     }
 
-                    if score >= LOWEST_CONTENT_SCORE_THRESHOLD {
+                    if score > CONTENT_SCORE_THRESHOLD {
                         let (paragraph, matched_indices) = match Self::optimize_searched_text(
                             paragraph,
                             fuzzy_match.matched_indices().cloned().collect(),
@@ -432,6 +475,7 @@ struct SearchableFileInfo {
     id: Uuid,
     path: String,
     content: Option<String>,
+    activity_score: i64,
 }
 
 #[derive(Clone)]

@@ -1,26 +1,19 @@
-use std::borrow::BorrowMut;
-
 use eframe::egui;
 use minidom::Element;
 use resvg::tiny_skia::Pixmap;
-use resvg::usvg::{self, Size, TreeWriting};
+use resvg::usvg::{self, Size};
 
 use crate::theme::ThemePalette;
 
+use super::history::Buffer;
 use super::toolbar::{ColorSwatch, Component, Tool, Toolbar};
 
 const INITIAL_SVG_CONTENT: &str = "<svg xmlns=\"http://www.w3.org/2000/svg\" ></svg>";
 
-// todo: move to zoom.rs
-// const ZOOM_STOP: f32 = 0.1;
-
 pub struct SVGEditor {
-    pub content: String,
-    root: Element,
-    zoom_factor: f32,
+    buffer: Buffer,
     pub toolbar: Toolbar,
     inner_rect: egui::Rect,
-    sao_offset: egui::Vec2,
 }
 
 impl SVGEditor {
@@ -42,34 +35,15 @@ impl SVGEditor {
             .unwrap_or_default()
             + 1;
 
-        Box::new(Self {
-            content,
-            root,
-            toolbar: Toolbar::new(max_id),
-            sao_offset: egui::vec2(0.0, 0.0),
-            inner_rect: egui::Rect::NOTHING,
-            zoom_factor: 1.0,
-        })
+        let mut buffer = Buffer::new(root);
+        let mut toolbar = Toolbar::new(max_id);
+
+        Self::define_dynamic_colors(&mut buffer, &mut toolbar, false, true);
+
+        Box::new(Self { buffer, toolbar, inner_rect: egui::Rect::NOTHING })
     }
 
     pub fn show(&mut self, ui: &mut egui::Ui) {
-        match self.toolbar.active_tool {
-            Tool::Pen => {
-                self.toolbar.pen.setup_events(ui, self.inner_rect);
-                while let Ok(event) = self.toolbar.pen.rx.try_recv() {
-                    self.content = self.toolbar.pen.handle_events(event, &mut self.root);
-                }
-            }
-            Tool::Eraser => {
-                self.toolbar.eraser.setup_events(ui, self.inner_rect);
-                while let Ok(event) = self.toolbar.eraser.rx.try_recv() {
-                    self.content = self.toolbar.eraser.handle_events(event, &mut self.root);
-                }
-            }
-        }
-
-        self.define_dynamic_colors(ui);
-
         ui.vertical(|ui| {
             egui::Frame::default()
                 .fill(if ui.visuals().dark_mode {
@@ -78,31 +52,55 @@ impl SVGEditor {
                     ui.visuals().faint_bg_color
                 })
                 .show(ui, |ui| {
-                    self.toolbar.show(ui);
-
-                    ui.set_width(ui.available_width());
+                    self.toolbar.show(ui, &mut self.buffer);
                 });
 
             self.inner_rect = ui.available_rect_before_wrap();
             self.render_svg(ui);
         });
+
+        match self.toolbar.active_tool {
+            Tool::Pen => {
+                self.toolbar.pen.setup_events(ui, self.inner_rect);
+                while let Ok(event) = self.toolbar.pen.rx.try_recv() {
+                    self.toolbar.pen.handle_events(event, &mut self.buffer);
+                }
+            }
+            Tool::Eraser => {
+                self.toolbar.eraser.setup_events(ui, self.inner_rect);
+                while let Ok(event) = self.toolbar.eraser.rx.try_recv() {
+                    self.toolbar.eraser.handle_events(event, &mut self.buffer);
+                }
+            }
+            Tool::Selection => {
+                self.toolbar
+                    .selection
+                    .handle_input(ui, self.inner_rect, &mut self.buffer);
+            }
+        }
+
+        if ui.input(|r| r.key_pressed(egui::Key::Z) && r.modifiers.ctrl) {
+            self.buffer.undo();
+        } else if ui.input(|r| r.key_pressed(egui::Key::R) && r.modifiers.ctrl) {
+            self.buffer.redo();
+        }
+
+        Self::define_dynamic_colors(
+            &mut self.buffer,
+            &mut self.toolbar,
+            ui.visuals().dark_mode,
+            false,
+        );
     }
 
     pub fn get_minimal_content(&self) -> String {
-        let utree: usvg::Tree =
-            usvg::TreeParsing::from_data(self.content.as_bytes(), &usvg::Options::default())
-                .unwrap();
-        utree.to_string(&usvg::XmlOptions::default())
+        self.buffer.to_string()
     }
 
     fn render_svg(&mut self, ui: &mut egui::Ui) {
         let mut utree: usvg::Tree =
-            usvg::TreeParsing::from_data(self.content.as_bytes(), &usvg::Options::default())
+            usvg::TreeParsing::from_str(&self.buffer.to_string(), &usvg::Options::default())
                 .unwrap();
-
-        // todo: only index when history changes
-        self.toolbar.eraser.index_rects(&utree.root);
-
         let available_rect = ui.available_rect_before_wrap();
         utree.size = Size::from_wh(available_rect.width(), available_rect.height()).unwrap();
 
@@ -113,6 +111,10 @@ impl SVGEditor {
             available_rect.bottom(),
         )
         .unwrap();
+
+        if self.buffer.needs_path_map_update {
+            self.buffer.recalc_paths();
+        }
 
         let tree = resvg::Tree::from_usvg(&utree);
 
@@ -129,45 +131,38 @@ impl SVGEditor {
             .ctx()
             .load_texture("svg_image", image, egui::TextureOptions::LINEAR);
 
-        self.sao_offset = egui::ScrollArea::both()
-            .show(ui, |ui| {
-                ui.add(
-                    egui::Image::new(
-                        &texture,
-                        egui::vec2(
-                            texture.size()[0] as f32 * self.zoom_factor,
-                            texture.size()[1] as f32 * self.zoom_factor,
-                        ),
-                    )
-                    .sense(egui::Sense::click()),
-                );
-            })
-            .state
-            .offset;
+        ui.add(
+            egui::Image::new(
+                &texture,
+                egui::vec2(texture.size()[0] as f32, texture.size()[1] as f32),
+            )
+            .sense(egui::Sense::click()),
+        );
     }
 
-    fn define_dynamic_colors(&mut self, ui: &mut egui::Ui) {
-        if self.root.attr("data-dark-mode").is_none() {
-            self.root
-                .set_attr("data-dark-mode", format!("{}", ui.visuals().dark_mode));
-            self.build_color_defs(ui);
-        }
-
-        if let Some(svg_flag) = self.root.attr("data-dark-mode") {
+    // if the data-dark mode is different from the ui dark mode, or if this is the first time running the editor
+    fn define_dynamic_colors(
+        buffer: &mut Buffer, toolbar: &mut Toolbar, is_dark_mode: bool, force_update: bool,
+    ) {
+        let needs_update;
+        if let Some(svg_flag) = buffer.current.attr("data-dark-mode") {
             let svg_flag: bool = svg_flag.parse().unwrap_or(false);
 
-            if svg_flag != ui.visuals().dark_mode {
-                self.build_color_defs(ui);
-                self.root
-                    .set_attr("data-dark-mode", format!("{}", ui.visuals().dark_mode));
-            }
+            needs_update = svg_flag != is_dark_mode;
+        } else {
+            needs_update = true;
         }
-    }
 
-    fn build_color_defs(&mut self, ui: &mut egui::Ui) {
-        let theme_colors = ThemePalette::as_array(ui.visuals().dark_mode);
-        if self.toolbar.pen.active_color.is_none() {
-            self.toolbar.pen.active_color = Some(ColorSwatch {
+        if !needs_update && !force_update {
+            return;
+        }
+
+        let gradient_group_id = "lb:gg";
+        buffer.current.remove_child(gradient_group_id);
+
+        let theme_colors = ThemePalette::as_array(is_dark_mode);
+        if toolbar.pen.active_color.is_none() {
+            toolbar.pen.active_color = Some(ColorSwatch {
                 id: "fg".to_string(),
                 color: theme_colors.iter().find(|p| p.0.eq("fg")).unwrap().1,
             });
@@ -176,14 +171,17 @@ impl SVGEditor {
         let btns = theme_colors.iter().map(|theme_color| {
             Component::ColorSwatch(ColorSwatch { id: theme_color.0.clone(), color: theme_color.1 })
         });
-        self.toolbar.components = self
-            .toolbar
+        toolbar.components = toolbar
             .components
             .clone()
             .into_iter()
             .filter(|c| !matches!(c, Component::ColorSwatch(_)))
             .chain(btns)
             .collect();
+
+        let mut gradient_group = Element::builder("g", "")
+            .attr("id", gradient_group_id)
+            .build();
 
         theme_colors.iter().for_each(|theme_color| {
             let rgb_color =
@@ -196,12 +194,12 @@ impl SVGEditor {
                         .build(),
                 )
                 .build();
-            self.root.borrow_mut().append_child(gradient);
-
-            let mut buffer = Vec::new();
-            self.root.write_to(&mut buffer).unwrap();
-            self.content = std::str::from_utf8(&buffer).unwrap().to_string();
-            self.content = self.content.replace("xmlns='' ", "");
+            gradient_group.append_child(gradient);
         });
+
+        buffer.current.append_child(gradient_group);
+        buffer
+            .current
+            .set_attr("data-dark-mode", format!("{}", is_dark_mode));
     }
 }
