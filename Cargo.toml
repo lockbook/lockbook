@@ -12,6 +12,7 @@ members = [
 	"server/server",
 	"clients/cli",
 	"clients/egui",
+	"clients/linux",
 	"clients/windows",
 	"clients/admin",
 	"utils/dev-tool",

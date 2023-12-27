@@ -3,7 +3,7 @@ Section: utils
 Priority: extra
 Maintainer: Smail Barkouch <smailbarkouch1@gmail.com>
 Standards-Version: 4.1.4
-Build-Depends: debhelper (>=10), git, libgtksourceview-3.0-1, libgtk-3-0, libpango-1.0-0, libglib2.0-0, libgdk-pixbuf2.0-0, libatk1.0-0, gobject-introspection, libepoxy0, libgspell-1-dev
+Build-Depends: debhelper (>=10), git, libgtksourceview-3.0-1, libgtk-3-0, libpango-1.0-0, libglib2.0-0, libgdk-pixbuf2.0-0, libatk1.0-0, gobject-introspection, libepoxy0, libgspell-1-dev, libgtk-4-dev
 
 Package: lockbook-desktop
 Architecture: any
