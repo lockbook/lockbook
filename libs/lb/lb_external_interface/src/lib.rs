@@ -262,9 +262,7 @@ impl FfiCore {
         self.core.search_file_paths(input)
     }
 
-    pub fn start_search(
-        &self, search_type: SearchType,
-    ) -> StartSearchInfo {
+    pub fn start_search(&self, search_type: SearchType) -> StartSearchInfo {
         self.core.start_search(search_type)
     }
 

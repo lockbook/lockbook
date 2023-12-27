@@ -634,15 +634,14 @@ pub unsafe extern "C" fn start_search(
 
     let results_rx = match lock {
         Ok(mut lock) => {
-            let (results_rx, search_tx) =
-                match static_state::get() {
-                    Ok(core) => {
-                        let search_info = core.start_search(search_type);
-                        
-                        (search_info.results_rx, search_info.search_tx)
-                    },
-                    Err(e) => return c_string(translate(Err::<(), _>(e))),
-                };
+            let (results_rx, search_tx) = match static_state::get() {
+                Ok(core) => {
+                    let search_info = core.start_search(search_type);
+
+                    (search_info.results_rx, search_info.search_tx)
+                }
+                Err(e) => return c_string(translate(Err::<(), _>(e))),
+            };
 
             *lock = Some(search_tx);
 

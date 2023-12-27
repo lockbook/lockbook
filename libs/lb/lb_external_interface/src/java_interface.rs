@@ -644,18 +644,16 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_startSearch(
     env: JNIEnv, _: JClass, jsearchFilesViewModel: JObject<'static>,
 ) -> jstring {
     let results_rx = match MAYBE_SEARCH_TX.lock() {
-        Ok(mut lock) => {
-            match static_state::get() {
-                Ok(core) => {
-                    let search_info = core.start_search(SearchType::PathAndContentSearch);
-                    
-                    *lock = Some(search_info.search_tx.clone());
+        Ok(mut lock) => match static_state::get() {
+            Ok(core) => {
+                let search_info = core.start_search(SearchType::PathAndContentSearch);
 
-                    search_info.results_rx
-                }
-                Err(e) => return string_to_jstring(&env, translate(Err::<(), _>(e))),
+                *lock = Some(search_info.search_tx.clone());
+
+                search_info.results_rx
             }
-        }
+            Err(e) => return string_to_jstring(&env, translate(Err::<(), _>(e))),
+        },
         Err(_) => {
             return string_to_jstring(&env, translate(Err::<(), _>("Cannot get search lock.")))
         }
