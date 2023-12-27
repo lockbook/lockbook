@@ -645,10 +645,10 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_startSearch(
 ) -> jstring {
     let results_rx = match MAYBE_SEARCH_TX.lock() {
         Ok(mut lock) => {
-            match static_state::get()
-                .and_then(|core| core.start_search(SearchType::PathAndContentSearch))
-            {
-                Ok(search_info) => {
+            match static_state::get() {
+                Ok(core) => {
+                    let search_info = core.start_search(SearchType::PathAndContentSearch);
+                    
                     *lock = Some(search_info.search_tx.clone());
 
                     search_info.results_rx

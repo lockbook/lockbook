@@ -1,5 +1,6 @@
+use crate::model::errors::core_err_unexpected;
 use crate::{CoreError, CoreState, LbResult, Requester, UnexpectedError};
-use crossbeam::channel::{self, Receiver, Sender};
+use crossbeam::channel::{Receiver, Sender};
 use lockbook_shared::document_repo::DocumentService;
 use lockbook_shared::file_like::FileLike;
 use lockbook_shared::filename::DocumentType;
@@ -8,7 +9,7 @@ use serde::Serialize;
 use std::cmp::Ordering;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
-use std::thread::{self, available_parallelism, JoinHandle};
+use std::thread::{self, available_parallelism};
 use sublime_fuzzy::{FuzzySearch, Scoring};
 use uuid::Uuid;
 
@@ -82,7 +83,10 @@ impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {
         Ok(results)
     }
 
-    pub(crate) fn start_search(&mut self, search_type: SearchType) -> LbResult<StartSearchInfo> {
+    pub(crate) fn start_search(
+        &mut self, search_type: SearchType, results_tx: Sender<SearchResult>,
+        search_rx: Receiver<SearchRequest>,
+    ) -> LbResult<()> {
         let mut tree = (&self.db.base_metadata)
             .to_staged(&self.db.local_metadata)
             .to_lazy();
@@ -125,22 +129,11 @@ impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {
             }
         }
 
-        let (search_tx, search_rx) = channel::unbounded::<SearchRequest>();
-        let (results_tx, results_rx) = channel::unbounded::<SearchResult>();
-
-        println!("collected all docs");
-
-        let join_handle = thread::spawn(move || {
-            if let Err(search_err) = Self::search_loop(&results_tx, search_rx, files_info) {
-                let _ = results_tx.send(SearchResult::Error(search_err));
-            }
-        });
-
-        Ok(StartSearchInfo { search_tx, results_rx, join_handle })
+        Ok(Self::search_loop(results_tx, search_rx, files_info).map_err(core_err_unexpected)?)
     }
 
     fn search_loop(
-        results_tx: &Sender<SearchResult>, search_rx: Receiver<SearchRequest>,
+        results_tx: Sender<SearchResult>, search_rx: Receiver<SearchRequest>,
         files_info: Vec<SearchableFileInfo>,
     ) -> Result<(), UnexpectedError> {
         println!("search thread launched");
@@ -150,6 +143,7 @@ impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {
             .ok()
             .map(|thread_count| thread_count.get())
             .unwrap_or(2)
+            .max(2)
             - 1;
 
         let mut maybe_new_search = None;
@@ -179,14 +173,13 @@ impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {
                         results_tx
                             .send(SearchResult::EndOfSearch)
                             .map_err(UnexpectedError::from)?;
+
                         continue;
                     }
 
                     let cancel = Arc::new(AtomicBool::new(false));
                     let files_info = files_info.clone();
                     let search_result_tx = results_tx.clone();
-
-                    // eliminate no search result and just include
 
                     let this_search = thread::spawn(move || {
                         let mut workers = vec![];
@@ -433,7 +426,6 @@ pub enum SearchType {
 pub struct StartSearchInfo {
     pub search_tx: Sender<SearchRequest>,
     pub results_rx: Receiver<SearchResult>,
-    pub join_handle: JoinHandle<()>,
 }
 
 struct SearchableFileInfo {

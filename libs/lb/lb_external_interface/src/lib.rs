@@ -264,8 +264,8 @@ impl FfiCore {
 
     pub fn start_search(
         &self, search_type: SearchType,
-    ) -> Result<StartSearchInfo, UnexpectedError> {
-        Ok(self.core.start_search(search_type)?)
+    ) -> StartSearchInfo {
+        self.core.start_search(search_type)
     }
 
     pub fn upgrade_account_stripe(

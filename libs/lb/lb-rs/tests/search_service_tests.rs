@@ -1,5 +1,5 @@
 use crossbeam::channel::{Receiver, Sender};
-use lb_rs::service::search_service::{SearchRequest, SearchResult, SearchResultItem};
+use lb_rs::service::search_service::{SearchRequest, SearchResult, SearchResultItem, SearchType};
 use lockbook_shared::file::ShareMode;
 use lockbook_shared::file_metadata::FileType;
 use std::collections::HashSet;
@@ -86,16 +86,22 @@ fn test_async_name_matches() {
         core.create_at_path(item).unwrap();
     });
 
-    let start_search = core.start_search().unwrap();
+    let start_search = core.start_search(SearchType::PathAndContentSearch);
 
     start_search
         .search_tx
         .send(SearchRequest::Search { input: "".to_string() })
         .unwrap();
-    let result = start_search.results_rx.recv().unwrap();
-    match result {
-        SearchResult::NoMatch => {}
-        _ => panic!("There should be no matched search results, search_result: {:?}", result),
+    let (result1, result2) =
+        (start_search.results_rx.recv().unwrap(), start_search.results_rx.recv().unwrap());
+    match result1 {
+        SearchResult::StartOfSearch => {}
+        _ => panic!("There should be no matched search results, search_result: {:?}", result1),
+    }
+
+    match result2 {
+        SearchResult::EndOfSearch => {}
+        _ => panic!("There should be no matched search results, search_result: {:?}", result2),
     }
 
     start_search
@@ -150,7 +156,7 @@ fn test_async_content_matches() {
     let file = core.create_at_path("/aaaaaaaaaa.md").unwrap();
     core.write_document(file.id, CONTENT.as_bytes()).unwrap();
 
-    let start_search = core.start_search().unwrap();
+    let start_search = core.start_search(SearchType::PathAndContentSearch);
 
     assert_async_content_match(
         &start_search.search_tx,
@@ -197,7 +203,7 @@ fn test_pending_share_search() {
         .create_file(&file1.name, core2.get_root().unwrap().id, FileType::Link { target: file1.id })
         .unwrap();
 
-    let start_search = core2.start_search().unwrap();
+    let start_search = core2.start_search(SearchType::PathAndContentSearch);
 
     start_search
         .search_tx

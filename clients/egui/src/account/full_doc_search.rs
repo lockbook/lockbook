@@ -147,7 +147,7 @@ impl FullDocSearch {
 
     fn send_search_results(&mut self, core: &lb::Core) {
         if let None = self.search_channel {
-            self.search_channel = Some(core.start_search(SearchType::PathAndContentSearch).unwrap());
+            self.search_channel = Some(core.start_search(SearchType::PathAndContentSearch));
         }
 
         let search_tx = self.search_channel.as_ref().unwrap().search_tx.clone();
