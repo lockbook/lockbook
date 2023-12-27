@@ -9,9 +9,10 @@ struct SearchWrapperView<Content: View>: View {
     @EnvironmentObject var fileService: FileService
     
     @Environment(\.isSearching) var isSearching
-    
+    @Environment(\.dismissSearch) private var dismissSearch
+
     @Binding var searchInput: String
-    
+        
     var mainView: Content
     var isiOS: Bool
     
@@ -35,45 +36,32 @@ struct SearchWrapperView<Content: View>: View {
                 ProgressView()
                 Spacer()
             case .SearchSuccessful(let results):
-                if !isiOS {
-                    List(results) { result in
-                        switch result {
-                        case .PathMatch(_, let meta, let name, let path, let matchedIndices, _):
-                            Button(action: {
-                                DI.files.workspace.openDoc = meta.id
-                            }) {
-                                SearchFilePathCell(name: name, path: path, matchedIndices: matchedIndices)
-                            }
-                        case .ContentMatch(_, let meta, let name, let path, let paragraph, let matchedIndices, _):
-                            Button(action: {
-                                DI.files.workspace.openDoc = meta.id
-                            }) {
-                                SearchFileContentCell(name: name, path: path, paragraph: paragraph, matchedIndices: matchedIndices)
-                            }
+                List(results) { result in
+                    switch result {
+                    case .PathMatch(_, let meta, let name, let path, let matchedIndices, _):
+                        Button(action: {
+                            DI.files.workspace.openDoc = meta.id
+                            
+                            dismissSearch()
+                        }) {
+                            SearchFilePathCell(name: name, path: path, matchedIndices: matchedIndices)
                         }
+                    case .ContentMatch(_, let meta, let name, let path, let paragraph, let matchedIndices, _):
+                        Button(action: {
+                            DI.files.workspace.openDoc = meta.id
+                            
+                            dismissSearch()
+                        }) {
+                            SearchFileContentCell(name: name, path: path, paragraph: paragraph, matchedIndices: matchedIndices)
+                        }
+                    }
                         
-#if os(macOS)
-                        Divider()
-#endif
+                    #if os(macOS)
+                    Divider()
+                    #endif
                     }
-                    .setiPadOrMacOSSearchListStyle()
-                } else {
-#if os(iOS)
-                    List(results) { result in
-                        switch result {
-                        case .PathMatch(_, let meta, let name, let path, let matchedIndices, _):
-                            NavigationLink(destination: iOSDocumentViewWrapper(id: meta.id)) {
-                                SearchFilePathCell(name: name, path: path, matchedIndices: matchedIndices)
-                            }
-                        case .ContentMatch(_, let meta, let name, let path, let paragraph, let matchedIndices, _):
-                            NavigationLink(destination: iOSDocumentViewWrapper(id: meta.id)) {
-                                SearchFileContentCell(name: name, path: path, paragraph: paragraph, matchedIndices: matchedIndices)
-                            }
-                        }
-                    }
-                    .listStyle(.insetGrouped)
-#endif
-                }
+                    .setSearchListStyle(isiOS: isiOS)
+                
             }
         }
         .onChange(of: searchInput) { newInput in
@@ -91,13 +79,17 @@ struct SearchWrapperView<Content: View>: View {
             }
         })
     }
-
 }
 
 extension List {
-    func setiPadOrMacOSSearchListStyle() -> some View {
+    @ViewBuilder
+    func setSearchListStyle(isiOS: Bool) -> some View {
         #if os(iOS)
-        self.listStyle(.inset)
+        if(isiOS) {
+            self.listStyle(.insetGrouped)
+        } else {
+            self.listStyle(.inset)
+        }
         #else
         self
             .listStyle(.automatic)
@@ -136,8 +128,12 @@ struct SearchFilePathCell: View {
         
     var body: some View {
         VStack(alignment: .leading, spacing: 5) {
-            nameModified
-                .font(.title3)
+            HStack {
+                nameModified
+                    .font(.title3)
+                
+                Spacer()
+            }
             
             HStack {
                 Image(systemName: "doc")
@@ -147,6 +143,8 @@ struct SearchFilePathCell: View {
                 pathModified
                     .foregroundColor(.blue)
                     .font(.caption)
+                
+                Spacer()
             }
         }
             .setiOSOrMacOSSearchPadding()
@@ -229,12 +227,18 @@ struct SearchFileContentCell: View {
                 formattedPath
                     .foregroundColor(.accentColor)
                     .font(.caption2)
+                
+                Spacer()
             }
             .padding(.bottom, 7)
             
-            formattedParagraph
-                .font(.caption)
-                .lineLimit(nil)
+            HStack {
+                formattedParagraph
+                    .font(.caption)
+                    .lineLimit(nil)
+                    
+                Spacer()
+            }
         }
         .setiOSOrMacOSSearchPadding()
         .contentShape(Rectangle()) /// https://stackoverflow.com/questions/57258371/swiftui-increase-tap-drag-area-for-user-interaction

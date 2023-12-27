@@ -126,9 +126,17 @@ sealed class PaymentPlatform {
         val cardLast4Digits: String
     ) : PaymentPlatform()
 
+    @Serializable
+    @SerialName("AppStore")
+    data class AppStore(
+        @SerialName("account_state")
+        val accountState: AppStoreAccountState
+    ) : PaymentPlatform()
+
     fun toReadableString(resources: Resources): String = when (this) {
         is GooglePlay -> resources.getString(R.string.google_play)
         is Stripe -> resources.getString(R.string.stripe)
+        is AppStore -> resources.getString(R.string.app_store)
     }
 }
 
@@ -137,6 +145,13 @@ enum class GooglePlayAccountState {
     Canceled,
     GracePeriod,
     OnHold
+}
+
+enum class AppStoreAccountState {
+    Ok,
+    GracePeriod,
+    FailedToRenew,
+    Expired,
 }
 
 @Serializable
