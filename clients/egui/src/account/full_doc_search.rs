@@ -4,7 +4,7 @@ use std::{
 };
 
 use eframe::egui;
-use lb::service::search_service::{SearchRequest, SearchResult};
+use lb::service::search_service::{SearchRequest, SearchResult, SearchType};
 use lb::{
     service::search_service::{ContentMatch, SearchResult::*},
     StartSearchInfo,
@@ -16,23 +16,22 @@ pub struct FullDocSearch {
     results_rx: mpsc::Receiver<SearchResult>,
     results_tx: mpsc::Sender<SearchResult>,
     is_searching: Arc<AtomicBool>,
-    pub search_channel: StartSearchInfo,
+    pub search_channel: Option<StartSearchInfo>,
     x_margin: f32,
     pub query: String,
     pub results: Vec<SearchResult>,
 }
 
 impl FullDocSearch {
-    pub fn new(core: &lb::Core) -> Self {
+    pub fn new() -> Self {
         let (results_tx, results_rx) = mpsc::channel();
-        let search_channel = core.start_search().unwrap();
         let is_searching = Arc::new(AtomicBool::new(false));
 
         Self {
             results_rx,
             results_tx,
             is_searching,
-            search_channel,
+            search_channel: None,
             x_margin: 15.0,
             query: String::new(),
             results: Vec::new(),
@@ -41,17 +40,29 @@ impl FullDocSearch {
 
     pub fn show(&mut self, ui: &mut egui::Ui, core: &lb::Core) -> Option<&lb::Uuid> {
         while let Ok(res) = self.results_rx.try_recv() {
-            if let SearchResult::FileContentMatches { id, path, content_matches } = res {
-                content_matches.into_iter().for_each(|cm| {
-                    let expanded_res = SearchResult::FileContentMatches {
-                        id,
-                        path: path.clone(),
-                        content_matches: vec![cm],
-                    };
-                    self.results.push(expanded_res);
-                })
-            } else {
-                self.results.push(res);
+            match res {
+                SearchResult::StartOfSearch => {
+                    self.results.clear();
+                    self.is_searching
+                        .store(true, std::sync::atomic::Ordering::Relaxed);
+                }
+                SearchResult::FileContentMatches { id, path, content_matches } => {
+                    content_matches.into_iter().for_each(|cm| {
+                        let expanded_res = SearchResult::FileContentMatches {
+                            id,
+                            path: path.clone(),
+                            content_matches: vec![cm],
+                        };
+                        self.results.push(expanded_res);
+                    })
+                }
+                SearchResult::EndOfSearch => {
+                    self.is_searching
+                        .store(false, std::sync::atomic::Ordering::Relaxed);
+                }
+                SearchResult::FileNameMatch { .. } | SearchResult::Error(_) => {
+                    self.results.push(res);
+                }
             }
 
             self.results.sort_by(|a, b| {
@@ -84,9 +95,13 @@ impl FullDocSearch {
                             ui.spacing_mut().button_padding = egui::vec2(0.0, 0.0);
                             if Button::default().icon(&Icon::CLOSE).show(ui).clicked() {
                                 self.search_channel
+                                    .as_ref()
+                                    .unwrap()
                                     .search_tx
-                                    .send(SearchRequest::StopCurrentSearch)
+                                    .send(SearchRequest::EndSearch)
                                     .unwrap();
+                                self.search_channel = None;
+
                                 self.query = "".to_string();
                                 self.results = vec![];
                             }
@@ -97,10 +112,7 @@ impl FullDocSearch {
 
             if output.response.changed() && !self.query.is_empty() {
                 self.results = vec![];
-
-                self.is_searching
-                    .store(true, std::sync::atomic::Ordering::Relaxed);
-                self.send_search_results();
+                self.send_search_results(core);
             }
 
             if self.is_searching.load(std::sync::atomic::Ordering::Relaxed) {
@@ -110,9 +122,18 @@ impl FullDocSearch {
 
             if self.query.is_empty() {
                 self.results = vec![];
+                if self.search_channel.is_some() {
+                    self.search_channel
+                        .as_ref()
+                        .unwrap()
+                        .search_tx
+                        .send(SearchRequest::EndSearch)
+                        .unwrap();
+                    self.search_channel = None;
+                }
             }
 
-            if !self.results.is_empty() {
+            if self.search_channel.is_some() {
                 return egui::ScrollArea::vertical()
                     .show(ui, |ui| self.show_results(ui, core))
                     .inner;
@@ -123,12 +144,17 @@ impl FullDocSearch {
         .inner
     }
 
-    fn send_search_results(&self) {
-        let search_tx = self.search_channel.search_tx.clone();
+    fn send_search_results(&mut self, core: &lb::Core) {
+        if self.search_channel.is_none() {
+            self.search_channel = Some(core.start_search(SearchType::PathAndContentSearch));
+        }
+
+        let search_tx = self.search_channel.as_ref().unwrap().search_tx.clone();
         let results_tx = self.results_tx.clone();
-        let results_rx = self.search_channel.results_rx.clone();
+        let results_rx = self.search_channel.as_ref().unwrap().results_rx.clone();
         let query = self.query.clone();
         let is_searching = self.is_searching.clone();
+        is_searching.store(true, std::sync::atomic::Ordering::Relaxed);
 
         thread::spawn(move || {
             search_tx
@@ -150,61 +176,66 @@ impl FullDocSearch {
     pub fn show_results(&mut self, ui: &mut egui::Ui, core: &lb::Core) -> Option<&lb::Uuid> {
         ui.add_space(20.0);
 
-        for (_, sr) in self.results.iter().enumerate() {
-            let sr_res = ui.vertical(|ui| {
-                match sr {
-                    Error(err) => {
-                        ui.horizontal(|ui| {
-                            ui.add_space(self.x_margin);
-                            ui.label(
-                                egui::RichText::new(err.msg.to_owned())
-                                    .color(ui.visuals().extreme_bg_color),
-                            );
-                        });
-                    }
-                    FileNameMatch { id, path, matched_indices: _, score: _ } => {
-                        let file = &core.get_file_by_id(*id).unwrap();
-                        Self::show_file(ui, file, path, self.x_margin);
-                    }
-
-                    FileContentMatches { id, path, content_matches } => {
-                        let file = &core.get_file_by_id(*id).unwrap();
-                        Self::show_file(ui, file, path, self.x_margin);
-                        ui.horizontal(|ui| {
-                            ui.add_space(15.0);
-                            ui.horizontal_wrapped(|ui| {
-                                let font_size = 15.0;
-                                self.show_content_match(ui, &content_matches[0], font_size);
-                            });
-                        });
-                    }
-
-                    NoMatch => {
-                        ui.vertical_centered(|ui| {
-                            ui.label(egui::RichText::new("No results").color(egui::Color32::GRAY));
-                        });
-                    }
-                };
-                ui.add_space(10.0);
+        if self.results.is_empty() && !self.is_searching.load(std::sync::atomic::Ordering::Relaxed)
+        {
+            ui.vertical_centered(|ui| {
+                ui.label(egui::RichText::new("No results").color(egui::Color32::GRAY));
             });
-            ui.add(egui::Separator::default().shrink(ui.available_width() / 1.5));
-            ui.add_space(10.0);
+        } else {
+            for (_, sr) in self.results.iter().enumerate() {
+                let sr_res = ui.vertical(|ui| {
+                    match sr {
+                        Error(err) => {
+                            ui.horizontal(|ui| {
+                                ui.add_space(self.x_margin);
+                                ui.label(
+                                    egui::RichText::new(err.msg.to_owned())
+                                        .color(ui.visuals().extreme_bg_color),
+                                );
+                            });
+                        }
 
-            let sr_res = ui.interact(sr_res.response.rect, ui.next_auto_id(), egui::Sense::click());
-            if sr_res.hovered() {
-                ui.output_mut(|o| o.cursor_icon = egui::CursorIcon::PointingHand)
-            }
+                        FileNameMatch { id, path, matched_indices: _, score: _ } => {
+                            let file = &core.get_file_by_id(*id).unwrap();
+                            Self::show_file(ui, file, path, self.x_margin);
+                        }
 
-            if sr_res.clicked() {
-                let id = match sr {
-                    FileNameMatch { id, .. } => Some(id),
-                    FileContentMatches { id, .. } => Some(id),
-                    _ => None,
-                };
-                if id.is_some() {
-                    return id;
+                        FileContentMatches { id, path, content_matches } => {
+                            let file = &core.get_file_by_id(*id).unwrap();
+                            Self::show_file(ui, file, path, self.x_margin);
+                            ui.horizontal(|ui| {
+                                ui.add_space(15.0);
+                                ui.horizontal_wrapped(|ui| {
+                                    let font_size = 15.0;
+                                    self.show_content_match(ui, &content_matches[0], font_size);
+                                });
+                            });
+                        }
+
+                        _ => {}
+                    };
+                    ui.add_space(10.0);
+                });
+                ui.add(egui::Separator::default().shrink(ui.available_width() / 1.5));
+                ui.add_space(10.0);
+
+                let sr_res =
+                    ui.interact(sr_res.response.rect, ui.next_auto_id(), egui::Sense::click());
+                if sr_res.hovered() {
+                    ui.output_mut(|o| o.cursor_icon = egui::CursorIcon::PointingHand)
                 }
-            };
+
+                if sr_res.clicked() {
+                    let id = match sr {
+                        FileNameMatch { id, .. } => Some(id),
+                        FileContentMatches { id, .. } => Some(id),
+                        _ => None,
+                    };
+                    if id.is_some() {
+                        return id;
+                    }
+                };
+            }
         }
 
         None

@@ -32,6 +32,8 @@ class SearchDocumentsViewModel(application: Application) : AndroidViewModel(appl
     var isProgressSpinnerShown = false
     var isNoSearchResultsShown = false
 
+    var lastQuery = ""
+
     private val highlightColor = ResourcesCompat.getColor(getContext().resources, R.color.md_theme_inversePrimary, null)
 
     init {
@@ -45,28 +47,22 @@ class SearchDocumentsViewModel(application: Application) : AndroidViewModel(appl
     }
 
     fun newSearch(query: String?) {
-        filesResultsSource.clear()
-        fileResults.clear()
-
         hideNoSearchResultsIfVisible()
 
-        if (query == null || query.isEmpty()) {
-            hideProgressSpinnerIfVisible()
-            val stopCurrentSearchResult = CoreModel.stopCurrentSearch()
-
-            if (stopCurrentSearchResult is Err) {
-                _updateSearchUI.value = UpdateSearchUI.Error(stopCurrentSearchResult.error.toLbError(getRes()))
-            }
-
+        if (query == null) {
             return
         }
 
+        lastQuery = query
+
         showProgressSpinnerIfGone()
 
-        val searchResult = CoreModel.search(query)
+        viewModelScope.launch(Dispatchers.IO) {
+            val searchResult = CoreModel.search(query)
 
-        if (searchResult is Err) {
-            _updateSearchUI.value = UpdateSearchUI.Error(searchResult.error.toLbError(getRes()))
+            if (searchResult is Err) {
+                _updateSearchUI.value = UpdateSearchUI.Error(searchResult.error.toLbError(getRes()))
+            }
         }
     }
 
@@ -79,6 +75,17 @@ class SearchDocumentsViewModel(application: Application) : AndroidViewModel(appl
     }
 
     // used by core over ffi
+    fun startOfSearchQuery() {
+        viewModelScope.launch(Dispatchers.Main) {
+            filesResultsSource.clear()
+            fileResults.clear()
+
+            showProgressSpinnerIfGone()
+            hideNoSearchResultsIfVisible()
+        }
+    }
+
+    // used by core over ffi
     fun addFileNameSearchResult(id: String, path: String, score: Int, matchedIndicesJson: String) {
         val (parentPathSpan, fileNameSpan) = highlightMatchedPathParts(path, matchedIndicesJson)
 
@@ -86,8 +93,6 @@ class SearchDocumentsViewModel(application: Application) : AndroidViewModel(appl
         filesResultsSource.sortByDescending { it.score }
 
         viewModelScope.launch(Dispatchers.Main) {
-            hideProgressSpinnerIfVisible()
-            hideNoSearchResultsIfVisible()
             fileResults.set(filesResultsSource, { left, right -> left.id == right.id })
         }
     }
@@ -104,17 +109,18 @@ class SearchDocumentsViewModel(application: Application) : AndroidViewModel(appl
         filesResultsSource.sortByDescending { it.score }
 
         viewModelScope.launch(Dispatchers.Main) {
-            hideProgressSpinnerIfVisible()
-            hideNoSearchResultsIfVisible()
             fileResults.set(filesResultsSource, { left, right -> left.id == right.id })
         }
     }
 
     // used by core over ffi
-    fun noMatch() {
+    fun endOfSearchQuery() {
         viewModelScope.launch(Dispatchers.Main) {
             hideProgressSpinnerIfVisible()
-            showNoSearchResultsIfGone()
+
+            if (fileResults.isEmpty() && lastQuery.isNotEmpty()) {
+                showNoSearchResultsIfGone()
+            }
         }
     }
 

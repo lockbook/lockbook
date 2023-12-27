@@ -10,6 +10,7 @@ pub use base64;
 pub use basic_human_duration::ChronoHumanDuration;
 pub use libsecp256k1::PublicKey;
 pub use lockbook_shared::document_repo::{DocumentService, OnDiskDocuments};
+use service::search_service::{SearchRequest, SearchResult, SearchType};
 pub use time::Duration;
 pub use uuid::Uuid;
 
@@ -47,7 +48,9 @@ pub use crate::service::usage_service::{UsageItemMetric, UsageMetrics};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
+use std::thread;
 
+use crossbeam::channel::{self};
 use db_rs::Db;
 use lockbook_shared::account::Username;
 use lockbook_shared::api::{
@@ -498,9 +501,22 @@ impl<Client: Requester, Docs: DocumentService> CoreLib<Client, Docs> {
         Ok(self.in_tx(|s| s.search_file_paths(input))?)
     }
 
-    #[instrument(level = "debug", skip(self), err(Debug))]
-    pub fn start_search(&self) -> Result<StartSearchInfo, UnexpectedError> {
-        Ok(self.in_tx(|s| s.start_search())?)
+    #[instrument(level = "debug", skip(self, search_type))]
+    pub fn start_search(&self, search_type: SearchType) -> StartSearchInfo {
+        let (search_tx, search_rx) = channel::unbounded::<SearchRequest>();
+        let (results_tx, results_rx) = channel::unbounded::<SearchResult>();
+
+        let core = self.clone();
+
+        let results_tx_c = results_tx.clone();
+
+        thread::spawn(move || {
+            if let Err(err) = core.in_tx(|s| s.start_search(search_type, results_tx, search_rx)) {
+                let _ = results_tx_c.send(SearchResult::Error(err.into()));
+            }
+        });
+
+        StartSearchInfo { search_tx, results_rx }
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]

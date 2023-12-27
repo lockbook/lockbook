@@ -1,5 +1,5 @@
 use crossbeam::channel::{Receiver, Sender};
-use lb_rs::service::search_service::{SearchRequest, SearchResult, SearchResultItem};
+use lb_rs::service::search_service::{SearchRequest, SearchResult, SearchResultItem, SearchType};
 use lockbook_shared::file::ShareMode;
 use lockbook_shared::file_metadata::FileType;
 use std::collections::HashSet;
@@ -86,22 +86,31 @@ fn test_async_name_matches() {
         core.create_at_path(item).unwrap();
     });
 
-    let start_search = core.start_search().unwrap();
+    let start_search = core.start_search(SearchType::PathAndContentSearch);
 
     start_search
         .search_tx
         .send(SearchRequest::Search { input: "".to_string() })
         .unwrap();
-    let result = start_search.results_rx.recv().unwrap();
-    match result {
-        SearchResult::NoMatch => {}
-        _ => panic!("There should be no matched search results, search_result: {:?}", result),
+
+    let (result1, result2) =
+        (start_search.results_rx.recv().unwrap(), start_search.results_rx.recv().unwrap());
+    match (result1, result2) {
+        (SearchResult::StartOfSearch, SearchResult::EndOfSearch) => {}
+        _ => panic!("Results should just be start of search and end of search"),
     }
 
     start_search
         .search_tx
         .send(SearchRequest::Search { input: "a".to_string() })
         .unwrap();
+
+    let result = start_search.results_rx.recv().unwrap();
+    match result {
+        SearchResult::StartOfSearch => {}
+        _ => panic!("There should be a start of search, search_result: {:?}", result),
+    }
+
     let results = vec![
         start_search.results_rx.recv().unwrap(),
         start_search.results_rx.recv().unwrap(),
@@ -109,16 +118,35 @@ fn test_async_name_matches() {
     ];
     assert_async_results_path(results, vec!["/abc.md", "/abcd.md", "/abcde.md"]);
 
+    let result = start_search.results_rx.recv().unwrap();
+    match result {
+        SearchResult::EndOfSearch => {}
+        _ => panic!("There should be an end of search, search_result: {:?}", result),
+    }
+
     start_search
         .search_tx
         .send(SearchRequest::Search { input: "dir".to_string() })
         .unwrap();
+
+    let result = start_search.results_rx.recv().unwrap();
+    match result {
+        SearchResult::StartOfSearch => {}
+        _ => panic!("There should be a start of search, search_result: {:?}", result),
+    }
+
     let results = vec![
         start_search.results_rx.recv().unwrap(),
         start_search.results_rx.recv().unwrap(),
         start_search.results_rx.recv().unwrap(),
     ];
     assert_async_results_path(results, vec!["/dir/doc1", "/dir/doc2", "/dir/doc3"]);
+
+    let result = start_search.results_rx.recv().unwrap();
+    match result {
+        SearchResult::EndOfSearch => {}
+        _ => panic!("There should be an end of search, search_result: {:?}", result),
+    }
 
     start_search
         .search_tx
@@ -133,13 +161,25 @@ fn assert_async_content_match(
     search_tx
         .send(SearchRequest::Search { input: input.to_string() })
         .unwrap();
-    let result = results_rx.recv().unwrap();
 
+    let result = results_rx.recv().unwrap();
+    match result {
+        SearchResult::StartOfSearch => {}
+        _ => panic!("There should be a start of search, search_result: {:?}", result),
+    }
+
+    let result = results_rx.recv().unwrap();
     match result {
         SearchResult::FileContentMatches { content_matches, .. } => {
             assert_eq!(content_matches[0].paragraph, matched_text)
         }
         _ => panic!("There should be a content match, search_result: {:?}", result),
+    }
+
+    let result = results_rx.recv().unwrap();
+    match result {
+        SearchResult::EndOfSearch => {}
+        _ => panic!("There should be an end of search, search_result: {:?}", result),
     }
 }
 
@@ -150,7 +190,7 @@ fn test_async_content_matches() {
     let file = core.create_at_path("/aaaaaaaaaa.md").unwrap();
     core.write_document(file.id, CONTENT.as_bytes()).unwrap();
 
-    let start_search = core.start_search().unwrap();
+    let start_search = core.start_search(SearchType::PathAndContentSearch);
 
     assert_async_content_match(
         &start_search.search_tx,
@@ -197,14 +237,27 @@ fn test_pending_share_search() {
         .create_file(&file1.name, core2.get_root().unwrap().id, FileType::Link { target: file1.id })
         .unwrap();
 
-    let start_search = core2.start_search().unwrap();
+    let start_search = core2.start_search(SearchType::PathAndContentSearch);
 
     start_search
         .search_tx
         .send(SearchRequest::Search { input: "bbbb".to_string() })
         .unwrap();
+
+    let result = start_search.results_rx.recv().unwrap();
+    match result {
+        SearchResult::StartOfSearch => {}
+        _ => panic!("There should be a start of search, search_result: {:?}", result),
+    }
+
     let results = vec![start_search.results_rx.recv().unwrap()];
     assert_async_results_path(results, vec!["/bbbbbbb.md"]);
+
+    let result = start_search.results_rx.recv().unwrap();
+    match result {
+        SearchResult::EndOfSearch => {}
+        _ => panic!("There should be an end of search, search_result: {:?}", result),
+    }
 
     start_search
         .search_tx

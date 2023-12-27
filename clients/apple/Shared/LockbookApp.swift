@@ -127,61 +127,61 @@ import AppKit
                         DI.currentDoc.selectOpenDocByIndex(index: 0)
                     })
                     .keyboardShortcut("1", modifiers: .command)
-                    .disabled(search.pathSearchState != .NotSearching)
+                    .disabled(!search.isPathSearching)
                     
                     Button("Open Tab 2", action: {
                         DI.currentDoc.selectOpenDocByIndex(index: 1)
                     })
                     .keyboardShortcut("2", modifiers: .command)
-                    .disabled(search.pathSearchState != .NotSearching)
+                    .disabled(!search.isPathSearching)
                     
                     Button("Open Tab 3", action: {
                         DI.currentDoc.selectOpenDocByIndex(index: 2)
                     })
                     .keyboardShortcut("3", modifiers: .command)
-                    .disabled(search.pathSearchState != .NotSearching)
+                    .disabled(!search.isPathSearching)
                     
                     Button("Open Tab 4", action: {
                         DI.currentDoc.selectOpenDocByIndex(index: 3)
                     })
                     .keyboardShortcut("4", modifiers: .command)
-                    .disabled(search.pathSearchState != .NotSearching)
+                    .disabled(!search.isPathSearching)
                     
                     Button("Open Tab 5", action: {
                         DI.currentDoc.selectOpenDocByIndex(index: 4)
                     })
                     .keyboardShortcut("5", modifiers: .command)
-                    .disabled(search.pathSearchState != .NotSearching)
+                    .disabled(!search.isPathSearching)
                     
                     Button("Open Tab 6", action: {
                         DI.currentDoc.selectOpenDocByIndex(index: 5)
                     })
                     .keyboardShortcut("6", modifiers: .command)
-                    .disabled(search.pathSearchState != .NotSearching)
+                    .disabled(!search.isPathSearching)
                     
                     Button("Open Tab 7", action: {
                         DI.currentDoc.selectOpenDocByIndex(index: 6)
                     })
                     .keyboardShortcut("7", modifiers: .command)
-                    .disabled(search.pathSearchState != .NotSearching)
+                    .disabled(!search.isPathSearching)
                     
                     Button("Open Tab 8", action: {
                         DI.currentDoc.selectOpenDocByIndex(index: 7)
                     })
                     .keyboardShortcut("8", modifiers: .command)
-                    .disabled(search.pathSearchState != .NotSearching)
+                    .disabled(!search.isPathSearching)
                     
                     Button("Open Last Tab", action: {
                         DI.currentDoc.selectOpenDocByIndex(index: 8)
                     })
                     .keyboardShortcut("9", modifiers: .command)
-                    .disabled(search.pathSearchState != .NotSearching)
+                    .disabled(!search.isPathSearching)
                 }
             }
                         
             CommandMenu("Lockbook") {
                 Button("Sync", action: { DI.sync.sync() }).keyboardShortcut("S", modifiers: .command)
-                Button("Search Paths", action: { DI.search.startPathSearch() }).keyboardShortcut("O", modifiers: .command)
+                Button("Search Paths", action: { DI.search.startSearchThread(isPathAndContentSearch: false) }).keyboardShortcut("O", modifiers: .command)
                 #if os(macOS)
                 Button("Search Paths And Content") {
                     if let toolbar = NSApp.keyWindow?.toolbar, let search = toolbar.items.first(where: { $0.itemIdentifier.rawValue == "com.apple.SwiftUI.search" }) as? NSSearchToolbarItem {
