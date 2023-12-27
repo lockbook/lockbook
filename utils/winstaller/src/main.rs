@@ -95,7 +95,7 @@ fn main() {
                 let exe_bytes = include_bytes!(concat!(
                     "../../../target/",
                     env!("LB_TARGET"),
-                    "/release/lockbook-egui.exe"
+                    "/release/lockbook-windows.exe"
                 ));
                 if let Err(err) = fs::write(&exe_file, exe_bytes) {
                     update_tx.send(Err(format!("{:?}", err))).unwrap();
@@ -159,7 +159,8 @@ fn main() {
             ..Default::default()
         },
         Box::new(|_cc: &eframe::CreationContext| Box::new(Winstaller::new())),
-    );
+    )
+    .unwrap()
 }
 
 #[cfg(not(windows))]

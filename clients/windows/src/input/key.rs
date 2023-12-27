@@ -1,4 +1,7 @@
-use windows::Win32::{Foundation::*, UI::Input::KeyboardAndMouse::*};
+use lbeguiapp::WgpuLockbook;
+use windows::Win32::UI::Input::KeyboardAndMouse::*;
+
+use super::{clipboard_paste, message::MessageAppDep};
 
 struct Key {
     vk: VIRTUAL_KEY,
@@ -84,18 +87,47 @@ const KEYS: [Key; 74] = [
     Key { vk: VK_INSERT, egui: Some(egui::Key::Insert), text: None, shift_text: None },
 ];
 
-pub fn egui_key(wparam: WPARAM) -> Option<egui::Key> {
-    let vk = VIRTUAL_KEY(wparam.0 as u16);
-    KEYS.iter()
-        .find(|key| key.vk == vk)
-        .map(|key| key.egui)
-        .flatten()
+pub fn handle(
+    app: &mut WgpuLockbook, message: MessageAppDep, key: VIRTUAL_KEY, modifiers: egui::Modifiers,
+) -> bool {
+    let pressed = matches!(message, MessageAppDep::KeyDown { .. });
+
+    // text
+    if pressed && (modifiers.shift_only() || modifiers.is_none()) {
+        if let Some(text) = key_text(key, modifiers.shift) {
+            app.raw_input
+                .events
+                .push(egui::Event::Text(text.to_owned()));
+            return true;
+        }
+    }
+
+    // todo: something feels weird about this
+    if let Some(key) = egui_key(key) {
+        // ctrl + v
+        if pressed && key == egui::Key::V && modifiers.command {
+            clipboard_paste::handle(app);
+            return true;
+        }
+
+        // other egui keys
+        app.raw_input
+            .events
+            .push(egui::Event::Key { key, pressed, repeat: false, modifiers });
+        return true;
+    }
+
+    false
 }
 
-pub fn key_text(wparam: WPARAM, shift: bool) -> Option<&'static str> {
-    let vk = VIRTUAL_KEY(wparam.0 as u16);
+pub fn key_text(vk: VIRTUAL_KEY, shift: bool) -> Option<&'static str> {
     KEYS.iter()
         .find(|key| key.vk == vk)
-        .map(|key| if shift { key.shift_text } else { key.text })
-        .flatten()
+        .and_then(|key| if shift { key.shift_text } else { key.text })
+}
+
+pub fn egui_key(vk: VIRTUAL_KEY) -> Option<egui::Key> {
+    KEYS.iter()
+        .find(|key| key.vk == vk)
+        .and_then(|key| key.egui)
 }

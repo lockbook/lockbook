@@ -38,7 +38,7 @@ use self::workspace::Workspace;
 pub struct AccountScreen {
     ctx: egui::Context,
     settings: Arc<RwLock<Settings>>,
-    core: lb::Core,
+    pub core: lb::Core,
     toasts: egui_notify::Toasts,
 
     update_tx: mpsc::Sender<AccountUpdate>,

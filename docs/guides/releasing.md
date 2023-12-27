@@ -20,7 +20,7 @@ The following environment variables must be present on your system:
 
 The dependencies needed to release are the same needed to build, please refer to the "Prerequisites" step of the [apple build guide](build/apple.md). `git` must also be installed.
 
-To only release to apple's platforms: run `cargo run -p releaser -- release-apple`.
+To only release to apple's platforms: run `cargo run -p releaser -- apple`.
 
 ## Release Android
 
@@ -34,7 +34,7 @@ The following environment variables must be present on your system:
 
 The dependencies needed to release are the same needed to build, please refer to the "Prerequisites" step of the [android build guide](build/android.md). `git` must also be installed.
 
-To only release to android's platforms: run `cargo run -p releaser -- release-android`.
+To only release to android's platforms: run `cargo run -p releaser -- android`.
 
 ## Release Windows
 
@@ -45,14 +45,14 @@ The following environment variables must be present on your system:
 
 The dependencies needed to release are the same needed to build, please refer to the "Prerequisites" step of the [windows build guide](build/windows.md). `git` must also be installed.
 
-To release only to windows: run `cargo run -p releaser -- release-windows`.
+To release only to windows: run `cargo run -p releaser -- windows`.
 
 ## Release Public Site
 
 The following environment variables must be present on your system:
 - `GITHUB_TOKEN`: a token from github that is authorized to edit your github pages
 
-To only release the public site: run `cargo run -p releaser -- release-public-site`.
+To only release the public site: run `cargo run -p releaser -- public-site`.
 
 ## Releasing Linux
 
@@ -73,4 +73,4 @@ In addition, you must clone the [lockbook aur repository](https://github.com/loc
 
 For debian releases you need the `devscripts` and `debhelper` packages.
 
-To release only to linux: run `cargo run -p releaser -- release-linux`.
+To release only to linux: run `cargo run -p releaser -- linux`.

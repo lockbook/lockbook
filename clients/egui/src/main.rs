@@ -21,17 +21,23 @@ fn main() {
         Err(err) => (Settings::default(), Some(err.to_string())),
     };
 
+    let icon_bytes = {
+        // experimentally-determined image correction
+        let mut this = include_bytes!("../lockbook.ico").to_vec();
+        this.chunks_exact_mut(4).for_each(|chunk| {
+            (chunk[0], chunk[1], chunk[2], chunk[3]) = (chunk[3], chunk[0], chunk[1], chunk[2]);
+        });
+        this.reverse();
+        this
+    };
+
     eframe::run_native(
         "Lockbook",
         eframe::NativeOptions {
             drag_and_drop_support: true,
             maximized: settings.window_maximize,
             initial_window_size: Some(egui::vec2(1300.0, 800.0)),
-            icon_data: Some(eframe::IconData {
-                rgba: include_bytes!("../lockbook.ico").to_vec(),
-                width: 32,
-                height: 32,
-            }),
+            icon_data: Some(eframe::IconData { rgba: icon_bytes, width: 128, height: 128 }),
             ..Default::default()
         },
         Box::new(|cc: &eframe::CreationContext| {
