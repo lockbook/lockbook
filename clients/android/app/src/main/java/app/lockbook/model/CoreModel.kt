@@ -430,11 +430,6 @@ object CoreModel {
         }
     }
 
-    fun stopCurrentSearch(): Result<Unit, CoreError<Empty>> =
-        stopCurrentSearchParser.tryParse(
-            app.lockbook.core.stopCurrentSearch()
-        )
-
     private val shareFileParser = Json {
         serializersModule = SerializersModule {
             createPolyRelation(Unit.serializer(), ShareFileError.serializer())

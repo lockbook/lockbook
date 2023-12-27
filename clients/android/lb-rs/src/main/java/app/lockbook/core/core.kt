@@ -51,7 +51,6 @@ external fun getSubscriptionInfo(): String
 external fun startSearch(searchFilesViewModel: Any): String
 external fun search(query: String): String
 external fun endSearch(): String
-external fun stopCurrentSearch(): String
 
 // share
 external fun shareFile(id: String, username: String, mode: String): String

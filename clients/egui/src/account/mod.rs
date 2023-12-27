@@ -86,7 +86,7 @@ impl AccountScreen {
             is_new_user,
             tree: FileTree::new(files, &core_clone),
             suggested: SuggestedDocs::new(&core_clone),
-            full_search_doc: FullDocSearch::new(&core_clone),
+            full_search_doc: FullDocSearch::new(),
             sync: SyncPanel::new(sync_status),
             usage,
             workspace: Workspace::new(),
@@ -99,11 +99,6 @@ impl AccountScreen {
     pub fn begin_shutdown(&mut self) {
         self.shutdown = Some(AccountShutdownProgress::default());
         self.save_all_tabs(&self.ctx);
-        self.full_search_doc
-            .search_channel
-            .search_tx
-            .send(lb::service::search_service::SearchRequest::EndSearch)
-            .unwrap();
         self.background_tx.send(BackgroundEvent::Shutdown).unwrap();
     }
 
