@@ -221,12 +221,14 @@ impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {
                         let mut workers = vec![];
 
                         let cancel = Arc::new(AtomicBool::new(false));
-                        let offset = files_info.len() / thread_count;
+                        let offset = (files_info.len() / thread_count).max(1);
                         let search_result_tx = search_result_tx.clone();
                         let input = input.clone();
                         let files_info = files_info.clone();
 
-                        for i in 0..thread_count {
+                        let threads_used = thread_count.min(files_info.len());
+
+                        for i in 0..threads_used {
                             // split up work equally between threads
 
                             let cancel = cancel.clone();
@@ -352,13 +354,15 @@ impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {
                 }
             }
 
-            search_result_tx
-                .send(SearchResult::FileContentMatches {
-                    id: searchable.id,
-                    path: searchable.path.clone(),
-                    content_matches,
-                })
-                .map_err(UnexpectedError::from)?;
+            if !content_matches.is_empty() {
+                search_result_tx
+                    .send(SearchResult::FileContentMatches {
+                        id: searchable.id,
+                        path: searchable.path.clone(),
+                        content_matches,
+                    })
+                    .map_err(UnexpectedError::from)?;
+            }
         }
 
         Ok(())
