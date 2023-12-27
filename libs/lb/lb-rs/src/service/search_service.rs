@@ -1,5 +1,5 @@
-use crossbeam::channel::{Receiver, Sender};
 use crate::{CoreError, CoreState, LbResult, RankingWeights, Requester, UnexpectedError};
+use crossbeam::channel::{Receiver, Sender};
 use lockbook_shared::document_repo::DocumentService;
 use lockbook_shared::file_like::FileLike;
 use lockbook_shared::filename::DocumentType;
@@ -7,8 +7,8 @@ use lockbook_shared::tree_like::TreeLike;
 use serde::Serialize;
 use std::cmp::Ordering;
 use std::collections::HashMap;
-use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
+use std::sync::Arc;
 use std::thread::{self, available_parallelism};
 use sublime_fuzzy::{FuzzySearch, Scoring};
 use uuid::Uuid;
@@ -111,7 +111,7 @@ impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {
         let mut activity_metrics = self.db.doc_events.get().iter().get_activity_metrics();
         let activity_weights = RankingWeights::default();
         self.normalize(&mut activity_metrics);
-        
+
         let mut tree = (&self.db.base_metadata)
             .to_staged(&self.db.local_metadata)
             .to_lazy();
@@ -159,7 +159,6 @@ impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {
                 }
             }
         }
-
 
         thread::spawn(move || {
             if let Err(err) = Self::search_loop(&results_tx, search_rx, files_info) {
@@ -299,8 +298,8 @@ impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {
             .best_match()
         {
             let score = ((fuzzy_match.score().min(600) as f32 * FUZZY_WEIGHT)
-                            + (searchable.activity_score as f32 * ACTIVITY_WEIGHT))
-                            as i64;
+                + (searchable.activity_score as f32 * ACTIVITY_WEIGHT))
+                as i64;
 
             if score > PATH_SCORE_THRESHOLD {
                 search_result_tx
@@ -332,8 +331,8 @@ impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {
                     .best_match()
                 {
                     let score = ((fuzzy_match.score().min(600) as f32 * FUZZY_WEIGHT)
-                            + (searchable.activity_score as f32 * ACTIVITY_WEIGHT))
-                            as i64;
+                        + (searchable.activity_score as f32 * ACTIVITY_WEIGHT))
+                        as i64;
 
                     if cancel.load(std::sync::atomic::Ordering::Relaxed) {
                         return Ok(());

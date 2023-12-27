@@ -60,8 +60,7 @@ impl FullDocSearch {
                     self.is_searching
                         .store(false, std::sync::atomic::Ordering::Relaxed);
                 }
-                SearchResult::FileNameMatch { .. }
-                | SearchResult::Error(_) => {
+                SearchResult::FileNameMatch { .. } | SearchResult::Error(_) => {
                     self.results.push(res);
                 }
             }
@@ -177,12 +176,13 @@ impl FullDocSearch {
     pub fn show_results(&mut self, ui: &mut egui::Ui, core: &lb::Core) -> Option<&lb::Uuid> {
         ui.add_space(20.0);
 
-        if self.results.is_empty() && !self.is_searching.load(std::sync::atomic::Ordering::Relaxed) {
+        if self.results.is_empty() && !self.is_searching.load(std::sync::atomic::Ordering::Relaxed)
+        {
             ui.vertical_centered(|ui| {
                 ui.label(egui::RichText::new("No results").color(egui::Color32::GRAY));
             });
         } else {
-            for (_, sr) in self.results.iter().enumerate() {    
+            for (_, sr) in self.results.iter().enumerate() {
                 let sr_res = ui.vertical(|ui| {
                     match sr {
                         Error(err) => {
@@ -194,12 +194,12 @@ impl FullDocSearch {
                                 );
                             });
                         }
-    
-                        FileNameMatch { id, path, matched_indices: _, score: _ } => {    
+
+                        FileNameMatch { id, path, matched_indices: _, score: _ } => {
                             let file = &core.get_file_by_id(*id).unwrap();
                             Self::show_file(ui, file, path, self.x_margin);
                         }
-    
+
                         FileContentMatches { id, path, content_matches } => {
                             let file = &core.get_file_by_id(*id).unwrap();
                             Self::show_file(ui, file, path, self.x_margin);
@@ -211,19 +211,20 @@ impl FullDocSearch {
                                 });
                             });
                         }
-    
+
                         _ => {}
                     };
                     ui.add_space(10.0);
                 });
                 ui.add(egui::Separator::default().shrink(ui.available_width() / 1.5));
                 ui.add_space(10.0);
-    
-                let sr_res = ui.interact(sr_res.response.rect, ui.next_auto_id(), egui::Sense::click());
+
+                let sr_res =
+                    ui.interact(sr_res.response.rect, ui.next_auto_id(), egui::Sense::click());
                 if sr_res.hovered() {
                     ui.output_mut(|o| o.cursor_icon = egui::CursorIcon::PointingHand)
                 }
-    
+
                 if sr_res.clicked() {
                     let id = match sr {
                         FileNameMatch { id, .. } => Some(id),
