@@ -122,7 +122,6 @@ pub fn handle(
 
         // also send pointer events when we receive touch events, similar to ios ffi
         // todo: account for other pointer flags e.g. to distinguish draw from erase
-        // todo: support resting palm on surface while drawing
         let phase = if has_flag(pointer_info.pointerFlags, POINTER_FLAG_DOWN) {
             pointer_button_event(pos, egui::PointerButton::Primary, true, modifiers, app);
             egui::TouchPhase::Start
