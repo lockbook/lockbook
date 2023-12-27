@@ -2,24 +2,27 @@ use std::fs::{self, File};
 use std::io::Write;
 use std::process::Command;
 
+use cli_rs::cli_error::CliResult;
 use gh_release::ReleaseClient;
 
 use crate::secrets::Github;
 use crate::utils::{lb_repo, lb_version, CommandRunner};
 
-pub fn release() {
-    build();
-    zip_binary();
-    upload();
+pub fn release() -> CliResult<()> {
+    build()?;
+    zip_binary()?;
+    upload()?;
+    Ok(())
 }
 
-fn build() {
+fn build() -> CliResult<()> {
     Command::new("cargo")
         .args(["build", "-p", "lockbook-cli", "--release"])
         .assert_success();
+    Ok(())
 }
 
-fn zip_binary() {
+fn zip_binary() -> CliResult<()> {
     let exe_bytes = fs::read("target/release/lockbook.exe").unwrap();
 
     let zip_file = File::create("windows-build/lockbook-cli.zip").unwrap();
@@ -28,9 +31,10 @@ fn zip_binary() {
     zip.start_file("lockbook.exe", Default::default()).unwrap();
     zip.write_all(&exe_bytes).unwrap();
     zip.finish().unwrap();
+    Ok(())
 }
 
-fn upload() {
+fn upload() -> CliResult<()> {
     let gh = Github::env();
     let client = ReleaseClient::new(gh.0).unwrap();
     let release = client
@@ -47,4 +51,5 @@ fn upload() {
             None,
         )
         .unwrap();
+    Ok(())
 }
