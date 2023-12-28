@@ -1,4 +1,4 @@
-use egui::{FontDefinitions, FontFamily, Pos2, Rect};
+use egui::{CursorIcon, FontDefinitions, FontFamily, Pos2, Rect};
 use egui_editor::input::canonical::{Location, Region};
 use egui_editor::offset_types::{DocCharOffset, RelCharOffset};
 use egui_editor::{Editor, EditorResponse};
@@ -9,6 +9,9 @@ use std::ffi::{c_char, CString};
 use std::time::Instant;
 use std::{iter, ptr};
 
+mod cursor_icon;
+
+use crate::cursor_icon::CCursorIcon;
 #[cfg(not(any(target_os = "ios", target_os = "macos")))]
 use serde::Serialize;
 use workspace::workspace::{Workspace, WsOutput};
@@ -126,6 +129,7 @@ pub struct IntegrationOutput {
     pub redraw_in: u64,
     pub copied_text: *mut c_char,
     pub url_opened: *mut c_char,
+    pub cursor: CCursorIcon,
 }
 
 impl Default for IntegrationOutput {
@@ -135,6 +139,7 @@ impl Default for IntegrationOutput {
             workspace_resp: Default::default(),
             copied_text: ptr::null_mut(),
             url_opened: ptr::null_mut(),
+            cursor: Default::default(),
         }
     }
 }
@@ -208,6 +213,8 @@ impl WgpuWorkspace {
         if let Some(url) = full_output.platform_output.open_url {
             out.url_opened = CString::new(url.url).unwrap().into_raw();
         }
+
+        out.cursor = full_output.platform_output.cursor_icon.into();
 
         let paint_jobs = self.context.tessellate(full_output.shapes);
         let mut encoder = self

@@ -17,6 +17,8 @@ public class MacMTK: MTKView, MTKViewDelegate {
     
     var redrawTask: DispatchWorkItem? = nil
     
+    var lastCursor: NSCursor = NSCursor.arrow
+    
     override init(frame frameRect: CGRect, device: MTLDevice?) {
         super.init(frame: frameRect, device: device)
         self.delegate = self
@@ -38,7 +40,7 @@ public class MacMTK: MTKView, MTKViewDelegate {
     }
     
     public override func resetCursorRects() {
-        addCursorRect(self.frame, cursor: NSCursor.iBeam)
+        addCursorRect(self.frame, cursor: lastCursor)
     }
     
     public override func updateTrackingAreas() {
@@ -271,6 +273,13 @@ public class MacMTK: MTKView, MTKViewDelegate {
             let text = textFromPtr(s: text)
             NSPasteboard.general.clearContents()
             NSPasteboard.general.setString(text, forType: .string)
+        }
+        
+        let cursor = NSCursor.fromCCursor(c: output.cursor)
+        print(cursor)
+        if cursor != lastCursor {
+            self.lastCursor = cursor
+            self.resetCursorRects()
         }
     }
 }
