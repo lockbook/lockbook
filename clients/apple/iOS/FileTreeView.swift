@@ -7,7 +7,6 @@ struct FileTreeView: View {
     @EnvironmentObject var coreService: CoreService
     @EnvironmentObject var files: FileService
     @EnvironmentObject var onboarding: OnboardingService
-    @EnvironmentObject var search: SearchService
     @EnvironmentObject var sync: SyncService
     @EnvironmentObject var share: ShareService
     
