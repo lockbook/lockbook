@@ -2,7 +2,7 @@ use bezier_rs::{Bezier, Subpath};
 use eframe::egui;
 use minidom::Element;
 
-use super::history::ManipulatorGroupId;
+use super::{history::ManipulatorGroupId, Buffer};
 
 pub fn node_by_id(root: &mut Element, id: String) -> Option<&mut Element> {
     root.children_mut().find(
@@ -53,7 +53,7 @@ pub fn pointer_interests_path(
     intersects_delete_brush || is_inside_delete_brush
 }
 
-pub fn parse_transform(transform: &str) -> [f64; 6] {
+pub fn deserialize_transform(transform: &str) -> [f64; 6] {
     for segment in svgtypes::TransformListParser::from(transform) {
         let segment = match segment {
             Ok(v) => v,
@@ -63,6 +63,24 @@ pub fn parse_transform(transform: &str) -> [f64; 6] {
             return [a, b, c, d, e, f];
         }
     }
-    let identity_matrix = [0, 1, 1, 0, 0, 0].map(|f| f as f64);
+    let identity_matrix = [1, 0, 0, 1, 0, 0].map(|f| f as f64);
     identity_matrix
+}
+
+pub fn serialize_transform(matrix: &[f64]) -> String {
+    format!(
+        "matrix({},{},{},{},{},{} )",
+        matrix[0], matrix[1], matrix[2], matrix[3], matrix[4], matrix[5]
+    )
+}
+
+pub fn apply_transform_to_pos(pos: &mut egui::Pos2, buffer: &Buffer) {
+    if let Some(transform) = buffer.current.attr("transform") {
+        let transform = deserialize_transform(transform);
+        pos.x -= transform[4] as f32;
+        pos.y -= transform[5] as f32;
+
+        pos.x /= transform[0] as f32;
+        pos.y /= transform[3] as f32;
+    }
 }

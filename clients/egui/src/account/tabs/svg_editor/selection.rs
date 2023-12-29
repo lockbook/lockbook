@@ -1,7 +1,7 @@
 use eframe::egui;
 
 use super::{
-    node_by_id, pointer_interests_path, util::parse_transform, Buffer, DeleteElement,
+    node_by_id, pointer_interests_path, util::deserialize_transform, Buffer, DeleteElement,
     TransformElement,
 };
 
@@ -120,7 +120,10 @@ impl Selection {
                         self.selected_elements.push(SelectedElement {
                             id: id.to_owned(),
                             original_pos: pos,
-                            original_matrix: (transform.to_string(), parse_transform(transform)),
+                            original_matrix: (
+                                transform.to_string(),
+                                deserialize_transform(transform),
+                            ),
                         });
                     }
                 });
@@ -154,6 +157,7 @@ impl Selection {
                 break;
             } else if ui.input(|r| r.pointer.primary_down()) {
                 let delta = egui::pos2(pos.x - el.original_pos.x, pos.y - el.original_pos.y);
+                // todo: take into consideration the zoom transform 
                 drag(delta, el, buffer);
             }
 
@@ -230,7 +234,7 @@ impl Selection {
                 return Some(SelectedElement {
                     id: id.clone(),
                     original_pos: pos,
-                    original_matrix: (transform.to_string(), parse_transform(transform)),
+                    original_matrix: (transform.to_string(), deserialize_transform(transform)),
                 });
             }
         }
@@ -249,7 +253,8 @@ fn end_drag(buffer: &mut Buffer, els: &mut [SelectedElement], pos: egui::Pos2, s
                 .find(|node| node.attr("id").map_or(false, |id| id.eq(&el.id)))
             {
                 if let Some(new_transform) = node.attr("transform") {
-                    let new_transform = (new_transform.to_string(), parse_transform(new_transform));
+                    let new_transform =
+                        (new_transform.to_string(), deserialize_transform(new_transform));
 
                     let old_transform = el.original_matrix.clone();
                     let delta = egui::pos2(

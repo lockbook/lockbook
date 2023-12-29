@@ -3,7 +3,10 @@ use std::collections::HashSet;
 use eframe::egui;
 use minidom::Element;
 
-use super::{util::parse_transform, Buffer};
+use super::{
+    util::{deserialize_transform, serialize_transform},
+    Buffer,
+};
 
 pub struct Zoom {}
 
@@ -20,7 +23,7 @@ impl Zoom {
     ) {
         let pos = match ui.ctx().pointer_hover_pos() {
             Some(cp) => {
-                if ui.is_enabled() {
+                if ui.is_enabled() && working_rect.contains(cp) {
                     cp
                 } else {
                     return;
@@ -31,37 +34,28 @@ impl Zoom {
 
         let dx = ui.input(|r| r.scroll_delta.x) as f64;
         let dy = ui.input(|r| r.scroll_delta.y) as f64;
+        let zoom_delta = ui.input(|r| r.zoom_delta());
 
-        if dx.abs() > 0.0 || dy.abs() > 0.0 {
-            let original_matrix =
-                parse_transform(buffer.current.attr("transform").unwrap_or_default());
+        let is_panning = dx.abs() > 0.0 || dy.abs() > 0.0;
+        let is_zooming = zoom_delta != 0.0;
 
-            let new_transform =
-                format!("matrix(1,0,0,1,{},{} )", dx + original_matrix[4], dy + original_matrix[5]);
+        if is_panning || is_zooming {
+            let mut original_matrix =
+                deserialize_transform(buffer.current.attr("transform").unwrap_or_default());
 
-            buffer.current.set_attr("transform", new_transform);
-            buffer.needs_path_map_update = true;
-        }
-
-        if ui.input(|r| r.zoom_delta() != 1.0) {
-            let original_matrix =
-                parse_transform(buffer.current.attr("transform").unwrap_or_default());
-
-            let multiplier = ui.input(|r| r.zoom_delta());
-            let original_matrix: Vec<f32> = original_matrix
-                .iter()
-                .map(|x| multiplier * *x as f32)
-                .collect();
-
-            let new_transform = format!(
-                "matrix({},{},{},{},{},{} )",
-                original_matrix[0],
-                original_matrix[1],
-                original_matrix[2],
-                original_matrix[3],
-                original_matrix[4],
-                original_matrix[5]
-            );
+            let new_transform = if is_panning {
+                original_matrix[4] += dx;
+                original_matrix[5] += dy;
+                serialize_transform(&original_matrix)
+            } else {
+                let mut original_matrix: Vec<f64> = original_matrix
+                    .iter()
+                    .map(|x| zoom_delta as f64 * x)
+                    .collect();
+                original_matrix[4] += ((1.0 - zoom_delta) * pos.x) as f64;
+                original_matrix[5] += ((1.0 - zoom_delta) * pos.y) as f64;
+                serialize_transform(original_matrix.as_slice())
+            };
 
             buffer.current.set_attr("transform", new_transform);
             buffer.needs_path_map_update = true;
@@ -85,3 +79,4 @@ pub fn verify_zoom_g(buffer: &mut Buffer) {
         buffer.current = g;
     }
 }
+

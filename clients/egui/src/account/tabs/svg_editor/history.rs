@@ -7,7 +7,7 @@ use minidom::Element;
 use std::collections::HashMap;
 
 use super::{
-    util::{self, parse_transform},
+    util::{self, deserialize_transform},
     zoom::verify_zoom_g,
     G_CONTAINER_ID,
 };
@@ -235,7 +235,7 @@ impl Buffer {
                 }
 
                 if let Some(transform) = el.attr("transform") {
-                    let [a, b, c, d, e, f] = parse_transform(transform);
+                    let [a, b, c, d, e, f] = deserialize_transform(transform);
                     subpath.apply_transform(DAffine2 {
                         matrix2: DMat2 {
                             x_axis: DVec2 { x: a, y: b },
@@ -245,7 +245,7 @@ impl Buffer {
                     });
                 }
                 if let Some(transform) = self.current.attr("transform") {
-                    let [a, b, c, d, e, f] = parse_transform(transform);
+                    let [a, b, c, d, e, f] = deserialize_transform(transform);
                     subpath.apply_transform(DAffine2 {
                         matrix2: DMat2 {
                             x_axis: DVec2 { x: a, y: b },
