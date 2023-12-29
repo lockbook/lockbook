@@ -172,32 +172,18 @@ pub fn main() -> Result<()> {
     unsafe { ShowWindow(hwnd, SW_SHOW) };
 
     let mut message = MSG::default();
-    let mut last_frame = Instant::now();
-    'event_loop: loop {
-        while unsafe { PeekMessageA(&mut message, None, 0, 0, PM_REMOVE) }.into() {
-            unsafe {
-                // "If the message is translated [...], the return value is nonzero."
-                // https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-translatemessage
-                TranslateMessage(&message);
+    // "If the function retrieves the WM_QUIT message, the return value is zero."
+    // https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-getmessagea
+    while unsafe { GetMessageA(&mut message, None, 0, 0) }.into() {
+        unsafe {
+            // "If the message is translated [...], the return value is nonzero."
+            // https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-translatemessage
+            TranslateMessage(&message);
 
-                // "...the return value generally is ignored."
-                // https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-dispatchmessage
-                DispatchMessageA(&message);
-            }
-
-            if message.message == WM_QUIT {
-                break 'event_loop;
-            }
+            // "...the return value generally is ignored."
+            // https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-dispatchmessage
+            DispatchMessageA(&message);
         }
-
-        // // target framerate
-        // let frame_period = Duration::from_micros(8333);
-        // let now = Instant::now();
-        // let elapsed = now - last_frame;
-        // if elapsed < frame_period {
-        //     std::thread::sleep(frame_period - elapsed);
-        // }
-        // last_frame = now;
     }
 
     Ok(())
