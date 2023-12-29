@@ -8,8 +8,6 @@ use crate::theme::ThemePalette;
 use super::history::Buffer;
 use super::toolbar::{ColorSwatch, Component, Tool, Toolbar};
 
-const INITIAL_SVG_CONTENT: &str = "<svg xmlns=\"http://www.w3.org/2000/svg\" ></svg>";
-
 pub struct SVGEditor {
     buffer: Buffer,
     pub toolbar: Toolbar,
@@ -21,21 +19,22 @@ impl SVGEditor {
         // todo: handle invalid utf8
         let mut content = std::str::from_utf8(bytes).unwrap().to_string();
         if content.is_empty() {
-            content = INITIAL_SVG_CONTENT.to_string();
+            content = "<svg xmlns=\"http://www.w3.org/2000/svg\" ></svg>".to_string();
         }
+
         let root: Element = content.parse().unwrap();
-
-        let max_id = root
-            .children()
-            .map(|el| {
-                let id: usize = el.attr("id").unwrap_or("0").parse().unwrap_or_default();
-                id
-            })
-            .max_by(|x, y| x.cmp(y))
-            .unwrap_or_default()
-            + 1;
-
         let mut buffer = Buffer::new(root);
+
+        let max_id = buffer.current
+        .children()
+        .map(|el| {
+            let id: usize = el.attr("id").unwrap_or("0").parse().unwrap_or_default();
+            id
+        })
+        .max_by(|x, y| x.cmp(y))
+        .unwrap_or_default()
+        + 1;
+
         let mut toolbar = Toolbar::new(max_id);
 
         Self::define_dynamic_colors(&mut buffer, &mut toolbar, false, true);
@@ -75,6 +74,11 @@ impl SVGEditor {
             Tool::Selection => {
                 self.toolbar
                     .selection
+                    .handle_input(ui, self.inner_rect, &mut self.buffer);
+            }
+            Tool::Zoom => {
+                self.toolbar
+                    .zoom
                     .handle_input(ui, self.inner_rect, &mut self.buffer);
             }
         }

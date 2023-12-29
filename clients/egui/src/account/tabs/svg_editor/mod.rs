@@ -5,6 +5,7 @@ mod pen;
 mod selection;
 mod toolbar;
 mod util;
+mod zoom;
 
 pub use eraser::Eraser;
 pub use history::Buffer;
@@ -18,3 +19,4 @@ pub use pen::Pen;
 pub use selection::Selection;
 pub use util::node_by_id;
 pub use util::pointer_interests_path;
+pub use zoom::{Zoom, G_CONTAINER_ID};
