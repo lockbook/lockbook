@@ -36,25 +36,32 @@ impl Zoom {
             let original_matrix =
                 parse_transform(buffer.current.attr("transform").unwrap_or_default());
 
-            let new_transform = if ui.input(|r| r.modifiers.ctrl) {
-                let multiplier = if dy > 0.0 { 1.25 } else { 0.75 };
-                let original_matrix: Vec<f32> = original_matrix
-                    .iter()
-                    .map(|x| (multiplier * x) as f32)
-                    .collect();
+            let new_transform =
+                format!("matrix(1,0,0,1,{},{} )", dx + original_matrix[4], dy + original_matrix[5]);
 
-                format!(
-                    "matrix({},{},{},{},{},{} )",
-                    original_matrix[0],
-                    original_matrix[1],
-                    original_matrix[2],
-                    original_matrix[3],
-                    original_matrix[4],
-                    original_matrix[5]
-                )
-            } else {
-                format!("matrix(1,0,0,1,{},{} )", dx + original_matrix[4], dy + original_matrix[5])
-            };
+            buffer.current.set_attr("transform", new_transform);
+            buffer.needs_path_map_update = true;
+        }
+
+        if ui.input(|r| r.zoom_delta() != 1.0) {
+            let original_matrix =
+                parse_transform(buffer.current.attr("transform").unwrap_or_default());
+
+            let multiplier = ui.input(|r| r.zoom_delta());
+            let original_matrix: Vec<f32> = original_matrix
+                .iter()
+                .map(|x| multiplier * *x as f32)
+                .collect();
+
+            let new_transform = format!(
+                "matrix({},{},{},{},{},{} )",
+                original_matrix[0],
+                original_matrix[1],
+                original_matrix[2],
+                original_matrix[3],
+                original_matrix[4],
+                original_matrix[5]
+            );
 
             buffer.current.set_attr("transform", new_transform);
             buffer.needs_path_map_update = true;
