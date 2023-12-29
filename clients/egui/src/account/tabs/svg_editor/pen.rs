@@ -2,7 +2,11 @@ use eframe::egui;
 use minidom::Element;
 use std::{collections::VecDeque, sync::mpsc};
 
-use super::{toolbar::ColorSwatch, util, Buffer, InsertElement};
+use super::{
+    toolbar::ColorSwatch,
+    util::{self, parse_transform},
+    Buffer, InsertElement,
+};
 
 pub struct Pen {
     pub active_color: Option<ColorSwatch>,
@@ -30,8 +34,23 @@ impl Pen {
 
     // todo: come up with a better name
     pub fn handle_events(&mut self, event: PathEvent, buffer: &mut Buffer) {
+        let pos = match event {
+            PathEvent::Draw(mut pos, _) | PathEvent::End(mut pos, _) => {
+                if let Some(transform) = buffer.current.attr("transform") {
+                    let transform = parse_transform(transform);
+                    pos.x -= transform[4] as f32;
+                    pos.y -= transform[5] as f32;
+                    //todo: handle scale
+                    pos
+                } else {
+                    pos
+                }
+            }
+        };
         match event {
-            PathEvent::Draw(pos, id) => {
+            PathEvent::Draw(_, id) => {
+                println!("{:#?}", pos);
+
                 if let Some(node) = util::node_by_id(&mut buffer.current, id.to_string()) {
                     self.path_builder.cubic_to(pos);
                     node.set_attr("d", &self.path_builder.data);
@@ -57,7 +76,7 @@ impl Pen {
                     buffer.current.append_child(child);
                 }
             }
-            PathEvent::End(pos, id) => {
+            PathEvent::End(_, id) => {
                 self.path_builder.finish(pos);
                 let node = util::node_by_id(&mut buffer.current, id.to_string()).unwrap();
                 node.set_attr("d", &self.path_builder.data);

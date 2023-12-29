@@ -52,3 +52,17 @@ pub fn pointer_interests_path(
 
     intersects_delete_brush || is_inside_delete_brush
 }
+
+pub fn parse_transform(transform: &str) -> [f64; 6] {
+    for segment in svgtypes::TransformListParser::from(transform) {
+        let segment = match segment {
+            Ok(v) => v,
+            Err(_) => break,
+        };
+        if let svgtypes::TransformListToken::Matrix { a, b, c, d, e, f } = segment {
+            return [a, b, c, d, e, f];
+        }
+    }
+    let identity_matrix = [0, 1, 1, 0, 0, 0].map(|f| f as f64);
+    identity_matrix
+}
