@@ -190,14 +190,14 @@ pub fn main() -> Result<()> {
             }
         }
 
-        // target framerate
-        let frame_period = Duration::from_micros(8333);
-        let now = Instant::now();
-        let elapsed = now - last_frame;
-        if elapsed < frame_period {
-            std::thread::sleep(frame_period - elapsed);
-        }
-        last_frame = now;
+        // // target framerate
+        // let frame_period = Duration::from_micros(8333);
+        // let now = Instant::now();
+        // let elapsed = now - last_frame;
+        // if elapsed < frame_period {
+        //     std::thread::sleep(frame_period - elapsed);
+        // }
+        // last_frame = now;
     }
 
     Ok(())
