@@ -156,8 +156,12 @@ impl Selection {
                 transform_origin_dirty = true;
                 break;
             } else if ui.input(|r| r.pointer.primary_down()) {
-                let delta = egui::pos2(pos.x - el.original_pos.x, pos.y - el.original_pos.y);
-                // todo: take into consideration the zoom transform 
+                let mut delta = egui::pos2(pos.x - el.original_pos.x, pos.y - el.original_pos.y);
+                if let Some(transform) = buffer.current.attr("transform") {
+                    let transform = deserialize_transform(transform);
+                    delta.x /= transform[0] as f32;
+                    delta.y /= transform[3] as f32;
+                }
                 drag(delta, el, buffer);
             }
 
