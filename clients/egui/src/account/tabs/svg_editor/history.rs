@@ -8,8 +8,7 @@ use std::collections::HashMap;
 
 use super::{
     util::{self, deserialize_transform},
-    zoom::verify_zoom_g,
-    G_CONTAINER_ID,
+    zoom::{verify_zoom_g, G_CONTAINER_ID},
 };
 
 const MAX_UNDOS: usize = 100;

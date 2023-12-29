@@ -4,7 +4,7 @@ use std::{collections::VecDeque, sync::mpsc};
 
 use super::{
     toolbar::ColorSwatch,
-    util::{self, apply_transform_to_pos, deserialize_transform},
+    util::{self, apply_transform_to_pos},
     Buffer, InsertElement,
 };
 

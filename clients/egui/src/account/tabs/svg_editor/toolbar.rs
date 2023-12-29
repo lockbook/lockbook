@@ -3,7 +3,7 @@ use std::f32::consts::PI;
 
 use crate::{theme::Icon, widgets::Button};
 
-use super::{Buffer, Eraser, Pen, Selection, Zoom};
+use super::{Buffer, Eraser, Pen, Selection};
 
 const ICON_SIZE: f32 = 30.0;
 const COLOR_SWATCH_BTN_RADIUS: f32 = 9.0;
@@ -17,14 +17,12 @@ pub struct Toolbar {
     pub pen: Pen,
     pub eraser: Eraser,
     pub selection: Selection,
-    pub zoom: Zoom,
 }
 
 pub enum Tool {
     Pen,
     Eraser,
     Selection,
-    Zoom,
 }
 
 #[derive(Clone)]
@@ -98,12 +96,6 @@ impl Toolbar {
             }),
             Component::Separator(egui::Margin::symmetric(10.0, 0.0)),
             Component::Button(SimpleButton {
-                id: "zoom".to_string(),
-                icon: Icon::ZOOM_IN,
-                coming_soon_text: None,
-                margin: egui::Margin::symmetric(4.0, 7.0),
-            }),
-            Component::Button(SimpleButton {
                 id: "selection".to_string(),
                 icon: Icon::HAND,
                 coming_soon_text: None,
@@ -134,7 +126,6 @@ impl Toolbar {
             pen: Pen::new(max_id),
             eraser: Eraser::new(),
             selection: Selection::new(),
-            zoom: Zoom::new(),
         }
     }
 
@@ -171,9 +162,6 @@ impl Toolbar {
                                             }
                                             "selection" => {
                                                 self.active_tool = Tool::Selection;
-                                            }
-                                            "zoom" => {
-                                                self.active_tool = Tool::Zoom;
                                             }
                                             "undo" => buffer.undo(),
                                             "redo" => buffer.redo(),

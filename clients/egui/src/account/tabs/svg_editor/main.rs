@@ -7,6 +7,7 @@ use crate::theme::ThemePalette;
 
 use super::history::Buffer;
 use super::toolbar::{ColorSwatch, Component, Tool, Toolbar};
+use super::zoom::handle_zoom_input;
 
 pub struct SVGEditor {
     buffer: Buffer,
@@ -25,15 +26,16 @@ impl SVGEditor {
         let root: Element = content.parse().unwrap();
         let mut buffer = Buffer::new(root);
 
-        let max_id = buffer.current
-        .children()
-        .map(|el| {
-            let id: usize = el.attr("id").unwrap_or("0").parse().unwrap_or_default();
-            id
-        })
-        .max_by(|x, y| x.cmp(y))
-        .unwrap_or_default()
-        + 1;
+        let max_id = buffer
+            .current
+            .children()
+            .map(|el| {
+                let id: usize = el.attr("id").unwrap_or("0").parse().unwrap_or_default();
+                id
+            })
+            .max_by(|x, y| x.cmp(y))
+            .unwrap_or_default()
+            + 1;
 
         let mut toolbar = Toolbar::new(max_id);
 
@@ -76,19 +78,17 @@ impl SVGEditor {
                     .selection
                     .handle_input(ui, self.inner_rect, &mut self.buffer);
             }
-            Tool::Zoom => {
-                self.toolbar
-                    .zoom
-                    .handle_input(ui, self.inner_rect, &mut self.buffer);
-            }
         }
 
+        // handle history input
         if ui.input(|r| r.key_pressed(egui::Key::Z) && r.modifiers.ctrl) {
             self.buffer.undo();
         } else if ui.input(|r| r.key_pressed(egui::Key::R) && r.modifiers.ctrl) {
             self.buffer.redo();
         }
+        handle_zoom_input(ui, self.inner_rect, &mut self.buffer);
 
+        
         Self::define_dynamic_colors(
             &mut self.buffer,
             &mut self.toolbar,

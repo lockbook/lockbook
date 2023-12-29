@@ -19,4 +19,3 @@ pub use pen::Pen;
 pub use selection::Selection;
 pub use util::node_by_id;
 pub use util::pointer_interests_path;
-pub use zoom::{Zoom, G_CONTAINER_ID};
