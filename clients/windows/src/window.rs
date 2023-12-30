@@ -14,12 +14,16 @@ use raw_window_handle::{
     HasRawDisplayHandle, HasRawWindowHandle, RawDisplayHandle, RawWindowHandle, Win32WindowHandle,
     WindowsDisplayHandle,
 };
-use std::time::{Duration, Instant};
+use std::time::Instant;
 use windows::{
     core::*, Win32::Foundation::*, Win32::Graphics::Direct3D12::*, Win32::Graphics::Dxgi::*,
-    Win32::System::LibraryLoader::*, Win32::System::Ole::*, Win32::UI::HiDpi::*,
-    Win32::UI::Input::KeyboardAndMouse::*, Win32::UI::WindowsAndMessaging::*,
+    Win32::Graphics::Gdi::*, Win32::System::LibraryLoader::*, Win32::System::Ole::*,
+    Win32::UI::HiDpi::*, Win32::UI::Input::KeyboardAndMouse::*, Win32::UI::WindowsAndMessaging::*,
 };
+
+// todo: improve
+// instead of redrawing at a particulr time in the future, we redraw it constantly until that time
+static mut REDRAW_UNTIL: Option<Instant> = None;
 
 pub struct WindowHandle {
     handle: Win32WindowHandle,
@@ -139,16 +143,9 @@ pub fn main() -> Result<()> {
     unsafe { dxgi_factory.MakeWindowAssociation(hwnd, DXGI_MWA_NO_ALT_ENTER) }?;
 
     let app = init(&WindowHandle::new(hwnd), false);
-    app.context.set_request_repaint_callback(move |_rri| {
-        // todo: fix this; makes the app laggy (unclear why)
-        // thread::spawn(move || {
-        //     // todo: verify thread safety or add a mutex
-        //     thread::sleep(rri.after);
-        //     unsafe {
-        //         PostMessageA(hwnd, WM_PAINT, WPARAM(0), LPARAM(0))
-        //             .expect("post paint message to self")
-        //     };
-        // });
+    app.context.set_request_repaint_callback(move |rri| {
+        unsafe { InvalidateRect(hwnd, None, false) };
+        unsafe { REDRAW_UNTIL = Some(Instant::now() + rri.after) };
     });
     window.maybe_app = Some(app);
     window.dpi_scale = dpi_to_scale_factor(unsafe { GetDpiForWindow(hwnd) } as _);
@@ -172,32 +169,18 @@ pub fn main() -> Result<()> {
     unsafe { ShowWindow(hwnd, SW_SHOW) };
 
     let mut message = MSG::default();
-    let mut last_frame = Instant::now();
-    'event_loop: loop {
-        while unsafe { PeekMessageA(&mut message, None, 0, 0, PM_REMOVE) }.into() {
-            unsafe {
-                // "If the message is translated [...], the return value is nonzero."
-                // https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-translatemessage
-                TranslateMessage(&message);
+    // "If the function retrieves the WM_QUIT message, the return value is zero."
+    // https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-getmessagea
+    while unsafe { GetMessageA(&mut message, None, 0, 0) }.into() {
+        unsafe {
+            // "If the message is translated [...], the return value is nonzero."
+            // https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-translatemessage
+            TranslateMessage(&message);
 
-                // "...the return value generally is ignored."
-                // https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-dispatchmessage
-                DispatchMessageA(&message);
-            }
-
-            if message.message == WM_QUIT {
-                break 'event_loop;
-            }
+            // "...the return value generally is ignored."
+            // https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-dispatchmessage
+            DispatchMessageA(&message);
         }
-
-        // target framerate
-        let frame_period = Duration::from_micros(8333);
-        let now = Instant::now();
-        let elapsed = now - last_frame;
-        if elapsed < frame_period {
-            std::thread::sleep(frame_period - elapsed);
-        }
-        last_frame = now;
     }
 
     Ok(())
@@ -294,6 +277,7 @@ fn handle_message(hwnd: HWND, message: Message) -> bool {
 
                     match message {
                         MessageAppDep::KeyDown { key } | MessageAppDep::KeyUp { key } => {
+                            unsafe { InvalidateRect(hwnd, None, false) };
                             input::key::handle(app, message, key, modifiers)
                         }
                         MessageAppDep::LButtonDown { pos }
@@ -301,23 +285,35 @@ fn handle_message(hwnd: HWND, message: Message) -> bool {
                         | MessageAppDep::RButtonDown { pos }
                         | MessageAppDep::RButtonUp { pos }
                         | MessageAppDep::MouseMove { pos } => {
+                            unsafe { InvalidateRect(hwnd, None, false) };
                             input::mouse::handle(app, message, pos, modifiers, window.dpi_scale)
                         }
                         MessageAppDep::PointerDown { pointer_id }
                         | MessageAppDep::PointerUpdate { pointer_id }
-                        | MessageAppDep::PointerUp { pointer_id } => input::pointer::handle(
-                            app,
-                            hwnd,
-                            modifiers,
-                            window.dpi_scale,
-                            pointer_id,
-                        ),
+                        | MessageAppDep::PointerUp { pointer_id } => {
+                            unsafe { InvalidateRect(hwnd, None, false) };
+                            input::pointer::handle(
+                                app,
+                                hwnd,
+                                modifiers,
+                                window.dpi_scale,
+                                pointer_id,
+                            )
+                        }
                         MessageAppDep::MouseWheel { delta }
                         | MessageAppDep::MouseHWheel { delta } => {
+                            unsafe { InvalidateRect(hwnd, None, false) };
                             input::mouse::handle_wheel(app, message, delta)
                         }
                         MessageAppDep::SetCursor => output::cursor::handle(),
                         MessageAppDep::Paint => {
+                            // "you'll find that your UI thread starts to burn 100% cpu core and your WM_PAINT handler
+                            // getting called over and over again... WM_PAINT is generated as long as the window has a
+                            // dirty rectangle, created by an InvalidateRect() call by either the window manager or
+                            // your program explicitly calling it. BeginPaint() clears it."
+                            // https://stackoverflow.com/questions/5841299/difference-between-getdc-and-beginpaint
+                            unsafe { BeginPaint(hwnd, std::ptr::null_mut()) };
+
                             let IntegrationOutput {
                                 redraw_in: _, // todo: handle? how's this different from checking egui context?
                                 egui: PlatformOutput { cursor_icon, open_url, copied_text, .. },
@@ -330,14 +326,25 @@ fn handle_message(hwnd: HWND, message: Message) -> bool {
                             output::cursor::update(cursor_icon); // output saved and handled by 'SetCursor' message
                             output::open_url::handle(open_url);
 
+                            unsafe { EndPaint(hwnd, std::ptr::null_mut()) };
+
+                            if let Some(redraw_until) = unsafe { REDRAW_UNTIL } {
+                                if redraw_until < Instant::now() {
+                                    unsafe { REDRAW_UNTIL = None };
+                                } else {
+                                    // if a redraw is pending, invalidate the window so that we get another paint message
+                                    unsafe { InvalidateRect(hwnd, None, false) };
+                                }
+                            }
+
                             true
                         }
                     }
                 } else {
-                    false
+                    true
                 }
             } else {
-                false
+                true
             }
         }
 
@@ -351,7 +358,8 @@ fn handle_message(hwnd: HWND, message: Message) -> bool {
                         input::file_drop::Message::DragOver { .. } => true,
                         input::file_drop::Message::DragLeave => true,
                         input::file_drop::Message::Drop { object, .. } => {
-                            input::file_drop::handle_drop(app, object)
+                            unsafe { InvalidateRect(hwnd, None, false) };
+                            input::file_drop::handle(app, object)
                         }
                     }
                 } else {
