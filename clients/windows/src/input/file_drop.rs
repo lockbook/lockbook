@@ -54,7 +54,7 @@ impl IDropTarget_Impl for FileDropHandler {
     }
 }
 
-pub fn handle_drop(app: &mut WgpuLockbook, object: Option<IDataObject>) -> bool {
+pub fn handle(app: &mut WgpuLockbook, object: Option<IDataObject>) -> bool {
     if let Some(object) = object {
         let format_enumerator: IEnumFORMATETC = unsafe {
             object
