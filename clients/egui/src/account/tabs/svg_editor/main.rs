@@ -80,12 +80,6 @@ impl SVGEditor {
             }
         }
 
-        // handle history input
-        if ui.input(|r| r.key_pressed(egui::Key::Z) && r.modifiers.ctrl) {
-            self.buffer.undo();
-        } else if ui.input(|r| r.key_pressed(egui::Key::R) && r.modifiers.ctrl) {
-            self.buffer.redo();
-        }
         handle_zoom_input(ui, self.inner_rect, &mut self.buffer);
 
         Self::define_dynamic_colors(
