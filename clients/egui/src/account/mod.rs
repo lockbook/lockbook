@@ -387,6 +387,15 @@ impl AccountScreen {
             self.create_file(false);
         }
 
+        // Ctrl-E toggle zen mode
+        if ctx.input_mut(|i| i.consume_key(CTRL, egui::Key::E)) {
+            let mut zen_mode = false;
+            if let Ok(settings) = &self.settings.read() {
+                zen_mode = !settings.zen_mode;
+            }
+            self.settings.write().unwrap().zen_mode = zen_mode;
+        }
+
         // Ctrl-S to save current tab.
         if ctx.input_mut(|i| i.consume_key(CTRL, egui::Key::S)) {
             self.save_tab(ctx, self.workspace.active_tab);
