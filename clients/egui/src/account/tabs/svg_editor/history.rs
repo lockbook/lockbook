@@ -6,7 +6,10 @@ use minidom::Element;
 
 use std::collections::HashMap;
 
-use super::util;
+use super::{
+    util::{self, deserialize_transform},
+    zoom::{verify_zoom_g, G_CONTAINER_ID},
+};
 
 const MAX_UNDOS: usize = 100;
 
@@ -55,13 +58,27 @@ pub struct TransformElement {
 
 impl Buffer {
     pub fn new(root: Element) -> Self {
-        Buffer {
+        let mut buff = Buffer {
             current: root,
             undo: VecDeque::default(),
             redo: vec![],
             paths: HashMap::default(),
             needs_path_map_update: true,
+        };
+        if let Some(first_child) = buff.current.children().next() {
+            if first_child
+                .attr("id")
+                .unwrap_or_default()
+                .eq(G_CONTAINER_ID)
+            {
+                buff.current = first_child.clone();
+            } else {
+                verify_zoom_g(&mut buff);
+            }
+        } else {
+            verify_zoom_g(&mut buff);
         }
+        buff
     }
 
     pub fn save(&mut self, event: Event) {
@@ -185,6 +202,7 @@ impl Buffer {
 
     pub fn recalc_paths(&mut self) {
         self.paths.clear();
+
         for el in self.current.children() {
             if el.name().eq("path") {
                 let data = match el.attr("d") {
@@ -216,21 +234,24 @@ impl Buffer {
                 }
 
                 if let Some(transform) = el.attr("transform") {
-                    for segment in svgtypes::TransformListParser::from(transform) {
-                        let segment = match segment {
-                            Ok(v) => v,
-                            Err(_) => break,
-                        };
-                        if let svgtypes::TransformListToken::Matrix { a, b, c, d, e, f } = segment {
-                            subpath.apply_transform(DAffine2 {
-                                matrix2: DMat2 {
-                                    x_axis: DVec2 { x: a, y: b },
-                                    y_axis: DVec2 { x: c, y: d },
-                                },
-                                translation: DVec2 { x: e, y: f },
-                            });
-                        }
-                    }
+                    let [a, b, c, d, e, f] = deserialize_transform(transform);
+                    subpath.apply_transform(DAffine2 {
+                        matrix2: DMat2 {
+                            x_axis: DVec2 { x: a, y: b },
+                            y_axis: DVec2 { x: c, y: d },
+                        },
+                        translation: DVec2 { x: e, y: f },
+                    });
+                }
+                if let Some(transform) = self.current.attr("transform") {
+                    let [a, b, c, d, e, f] = deserialize_transform(transform);
+                    subpath.apply_transform(DAffine2 {
+                        matrix2: DMat2 {
+                            x_axis: DVec2 { x: a, y: b },
+                            y_axis: DVec2 { x: c, y: d },
+                        },
+                        translation: DVec2 { x: e, y: f },
+                    });
                 }
                 if let Some(id) = el.attr("id") {
                     self.paths.insert(id.to_string(), subpath);
@@ -245,7 +266,9 @@ impl ToString for Buffer {
     fn to_string(&self) -> String {
         let mut out = Vec::new();
         self.current.write_to(&mut out).unwrap();
-        std::str::from_utf8(&out).unwrap().replace("xmlns='' ", "")
+        let out = std::str::from_utf8(&out).unwrap().replace("xmlns='' ", "");
+        let out = format!("<svg xmlns=\"http://www.w3.org/2000/svg\" >{}</svg>", out);
+        out
     }
 }
 

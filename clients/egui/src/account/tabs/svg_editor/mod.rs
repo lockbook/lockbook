@@ -5,6 +5,7 @@ mod pen;
 mod selection;
 mod toolbar;
 mod util;
+mod zoom;
 
 pub use eraser::Eraser;
 pub use history::Buffer;

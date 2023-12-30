@@ -50,6 +50,10 @@ impl Eraser {
                 self.last_pos = Some(pos);
             }
             EraseEvent::End => {
+                if self.paths_to_delete.is_empty() {
+                    return;
+                }
+
                 self.paths_to_delete.iter().for_each(|(id, _)| {
                     if let Some(n) = util::node_by_id(&mut buffer.current, id.to_string()) {
                         n.set_attr("opacity", "1");

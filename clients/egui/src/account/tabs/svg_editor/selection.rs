@@ -1,6 +1,9 @@
 use eframe::egui;
 
-use super::{node_by_id, pointer_interests_path, Buffer, DeleteElement, TransformElement};
+use super::{
+    node_by_id, pointer_interests_path, util::deserialize_transform, Buffer, DeleteElement,
+    TransformElement,
+};
 
 pub struct Selection {
     last_pos: Option<egui::Pos2>,
@@ -117,7 +120,10 @@ impl Selection {
                         self.selected_elements.push(SelectedElement {
                             id: id.to_owned(),
                             original_pos: pos,
-                            original_matrix: parse_transform(transform.to_string()),
+                            original_matrix: (
+                                transform.to_string(),
+                                deserialize_transform(transform),
+                            ),
                         });
                     }
                 });
@@ -150,7 +156,12 @@ impl Selection {
                 transform_origin_dirty = true;
                 break;
             } else if ui.input(|r| r.pointer.primary_down()) {
-                let delta = egui::pos2(pos.x - el.original_pos.x, pos.y - el.original_pos.y);
+                let mut delta = egui::pos2(pos.x - el.original_pos.x, pos.y - el.original_pos.y);
+                if let Some(transform) = buffer.current.attr("transform") {
+                    let transform = deserialize_transform(transform);
+                    delta.x /= transform[0] as f32;
+                    delta.y /= transform[3] as f32;
+                }
                 drag(delta, el, buffer);
             }
 
@@ -227,7 +238,7 @@ impl Selection {
                 return Some(SelectedElement {
                     id: id.clone(),
                     original_pos: pos,
-                    original_matrix: parse_transform(transform.to_string()),
+                    original_matrix: (transform.to_string(), deserialize_transform(transform)),
                 });
             }
         }
@@ -246,7 +257,9 @@ fn end_drag(buffer: &mut Buffer, els: &mut [SelectedElement], pos: egui::Pos2, s
                 .find(|node| node.attr("id").map_or(false, |id| id.eq(&el.id)))
             {
                 if let Some(new_transform) = node.attr("transform") {
-                    let new_transform = parse_transform(new_transform.to_owned());
+                    let new_transform =
+                        (new_transform.to_string(), deserialize_transform(new_transform));
+
                     let old_transform = el.original_matrix.clone();
                     let delta = egui::pos2(
                         (new_transform.1[4] - old_transform.1[4]).abs() as f32,
@@ -276,20 +289,6 @@ fn end_drag(buffer: &mut Buffer, els: &mut [SelectedElement], pos: egui::Pos2, s
     if !events.is_empty() {
         buffer.save(super::Event::Transform(events));
     }
-}
-
-fn parse_transform(transform: String) -> (String, [f64; 6]) {
-    for segment in svgtypes::TransformListParser::from(transform.as_str()) {
-        let segment = match segment {
-            Ok(v) => v,
-            Err(_) => break,
-        };
-        if let svgtypes::TransformListToken::Matrix { a, b, c, d, e, f } = segment {
-            return (transform.clone(), [a, b, c, d, e, f]);
-        }
-    }
-    let identity_matrix = [0, 1, 1, 0, 0, 0].map(|f| f as f64);
-    ("".to_string(), identity_matrix)
 }
 
 fn show_bb_rect(ui: &mut egui::Ui, mut bb: [glam::DVec2; 2], working_rect: egui::Rect) {
