@@ -88,7 +88,6 @@ impl SVGEditor {
         }
         handle_zoom_input(ui, self.inner_rect, &mut self.buffer);
 
-        
         Self::define_dynamic_colors(
             &mut self.buffer,
             &mut self.toolbar,
