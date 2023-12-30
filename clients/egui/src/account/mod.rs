@@ -34,7 +34,7 @@ use self::tree::{FileTree, TreeNode};
 
 pub struct AccountScreen {
     settings: Arc<RwLock<Settings>>,
-    core: lb::Core,
+    pub core: lb::Core,
     toasts: egui_notify::Toasts,
 
     update_tx: mpsc::Sender<AccountUpdate>,
@@ -84,7 +84,7 @@ impl AccountScreen {
             is_new_user,
             tree: FileTree::new(files, &core_clone),
             suggested: SuggestedDocs::new(&core_clone),
-            full_search_doc: FullDocSearch::new(&core_clone),
+            full_search_doc: FullDocSearch::new(),
             sync: SyncPanel::new(sync_status),
             usage,
             workspace: Workspace::new(ws_cfg, &core_clone, &ctx.clone()),
@@ -96,11 +96,6 @@ impl AccountScreen {
     pub fn begin_shutdown(&mut self) {
         self.shutdown = Some(AccountShutdownProgress::default());
         self.workspace.save_all_tabs();
-        self.full_search_doc
-            .search_channel
-            .search_tx
-            .send(lb::service::search_service::SearchRequest::EndSearch)
-            .unwrap();
         self.workspace
             .background_tx
             .send(BwIncomingMsg::Shutdown)
@@ -325,6 +320,15 @@ impl AccountScreen {
         // Ctrl-N pressed while new file modal is not open.
         if ctx.input_mut(|i| i.consume_key(CTRL, egui::Key::N)) {
             self.create_file(false);
+        }
+
+        // Ctrl-E toggle zen mode
+        if ctx.input_mut(|i| i.consume_key(CTRL, egui::Key::E)) {
+            let mut zen_mode = false;
+            if let Ok(settings) = &self.settings.read() {
+                zen_mode = !settings.zen_mode;
+            }
+            self.settings.write().unwrap().zen_mode = zen_mode;
         }
 
         // Ctrl-S to save current tab.

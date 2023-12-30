@@ -18,64 +18,72 @@ struct SearchWrapperView<Content: View>: View {
     
     var body: some View {
         VStack {
-            switch search.searchPathAndContentState {
-            case .NotSearching:
-                mainView
-            case .Idle:
-                #if os(iOS)
-                Spacer()
-                #else
-                mainView
-                #endif
-            case .NoMatch:
-                Spacer()
-                Text("No search results")
-                Spacer()
-            case .Searching:
-                Spacer()
-                ProgressView()
-                Spacer()
-            case .SearchSuccessful(let results):
-                List(results) { result in
-                    switch result {
-                    case .PathMatch(_, let meta, let name, let path, let matchedIndices, _):
-                        Button(action: {
-                            DI.workspace.openDoc = meta.id
-                            
-                            dismissSearch()
-                        }) {
-                            SearchFilePathCell(name: name, path: path, matchedIndices: matchedIndices)
-                        }
-                    case .ContentMatch(_, let meta, let name, let path, let paragraph, let matchedIndices, _):
-                        Button(action: {
-                            DI.workspace.openDoc = meta.id
-                            
-                            dismissSearch()
-                        }) {
-                            SearchFileContentCell(name: name, path: path, paragraph: paragraph, matchedIndices: matchedIndices)
-                        }
-                    }
-                        
-                    #if os(macOS)
-                    Divider()
+            if search.isPathAndContentSearching {
+                if search.isPathAndContentSearchInProgress {
+                    #if os(iOS)
+                    ProgressView()
+                        .frame(width: 20, height: 20)
+                        .padding(.top)
+                    #else
+                    ProgressView()
+                        .scaleEffect(0.5)
+                        .frame(width: 20, height: 20)
                     #endif
+                }
+                
+                if !search.pathAndContentSearchResults.isEmpty {
+                    List(search.pathAndContentSearchResults) { result in
+                        switch result {
+                        case .PathMatch(_, let meta, let name, let path, let matchedIndices, _):
+                            Button(action: {
+                                DI.workspace.openDoc = meta.id
+
+                                if isiOS {
+                                    dismissSearch()
+                                }
+                            }) {
+                                SearchFilePathCell(name: name, path: path, matchedIndices: matchedIndices)
+                            }
+                        case .ContentMatch(_, let meta, let name, let path, let paragraph, let matchedIndices, _):
+                            Button(action: {
+                                DI.workspace.openDoc = meta.id
+
+                                if isiOS {
+                                    dismissSearch()
+                                }
+                            }) {
+                                SearchFileContentCell(name: name, path: path, paragraph: paragraph, matchedIndices: matchedIndices)
+                            }
+                        }
+                            
+                        #if os(macOS)
+                        Divider()
+                        #endif
                     }
                     .setSearchListStyle(isiOS: isiOS)
-                
+                } else if !search.isPathAndContentSearchInProgress && !search.pathAndContentSearchQuery.isEmpty {
+                    Text("No results.")
+                       .font(.headline)
+                       .foregroundColor(.gray)
+                       .fontWeight(.bold)
+                       .padding()
+                    
+                    Spacer()
+                } else {
+                    Spacer()
+                }
+            } else {
+                mainView
             }
         }
         .onChange(of: searchInput) { newInput in
-            if !newInput.isEmpty {
-                search.search(query: newInput)
-            } else if isSearching {
-                search.searchPathAndContentState = .Idle
-            }
+            search.search(query: newInput, isPathAndContentSearch: true)
         }
         .onChange(of: isSearching, perform: { newInput in
             if newInput {
-                search.startSearchThread()
+                search.startSearchThread(isPathAndContentSearch: true)
             } else {
-                search.endSearch()
+                search.endSearch(isPathAndContentSearch: true)
             }
         })
     }

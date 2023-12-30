@@ -9,9 +9,9 @@ fn main() {
     // following issues:
     //  1. window decorations are non-native.
     //  2. dragging & dropping from the system doesn't work.
-    if std::env::var_os("WINIT_UNIX_BACKEND").is_none() {
-        std::env::set_var("WINIT_UNIX_BACKEND", "x11");
-    }
+    // if std::env::var_os("WINIT_UNIX_BACKEND").is_none() {
+    //     std::env::set_var("WINIT_UNIX_BACKEND", "x11");
+    // }
 
     // We load the settings this early because some of them adjust certain launch behaviors such
     // as maximizing the window on startup or theming. For example, a user's splash screen should
@@ -21,17 +21,23 @@ fn main() {
         Err(err) => (Settings::default(), Some(err.to_string())),
     };
 
+    let icon_bytes = {
+        // experimentally-determined image correction
+        let mut this = include_bytes!("../lockbook.ico").to_vec();
+        this.chunks_exact_mut(4).for_each(|chunk| {
+            (chunk[0], chunk[1], chunk[2], chunk[3]) = (chunk[3], chunk[0], chunk[1], chunk[2]);
+        });
+        this.reverse();
+        this
+    };
+
     eframe::run_native(
         "Lockbook",
         eframe::NativeOptions {
             drag_and_drop_support: true,
             maximized: settings.window_maximize,
             initial_window_size: Some(egui::vec2(1300.0, 800.0)),
-            icon_data: Some(eframe::IconData {
-                rgba: include_bytes!("../lockbook.ico").to_vec(),
-                width: 32,
-                height: 32,
-            }),
+            icon_data: Some(eframe::IconData { rgba: icon_bytes, width: 128, height: 128 }),
             ..Default::default()
         },
         Box::new(|cc: &eframe::CreationContext| {

@@ -4,13 +4,14 @@ use lazy_static::lazy_static;
 use std::ffi::{CStr, CString};
 use std::os::raw::{c_char, c_void};
 use std::path::PathBuf;
+use std::ptr::null;
 use std::sync::{Arc, Mutex};
 
 use serde::Serialize;
 use serde_json::json;
 use time::Duration;
 
-use lb_rs::service::search_service::{SearchRequest, SearchResult};
+use lb_rs::service::search_service::{SearchRequest, SearchResult, SearchType};
 use lb_rs::{
     clock, Config, FileType, ImportStatus, ShareMode, SupportedImageFormats, SyncProgress,
     UnexpectedError, Uuid,
@@ -593,20 +594,25 @@ pub unsafe extern "C" fn search_file_paths(input: *const c_char) -> *const c_cha
 }
 
 lazy_static! {
-    static ref MAYBE_SEARCH_TX: Arc<Mutex<Option<Sender<SearchRequest>>>> =
+    static ref MAYBE_PATH_AND_CONTENT_SEARCH_TX: Arc<Mutex<Option<Sender<SearchRequest>>>> =
+        Arc::new(Mutex::new(None));
+    static ref MAYBE_PATH_SEARCH_TX: Arc<Mutex<Option<Sender<SearchRequest>>>> =
         Arc::new(Mutex::new(None));
 }
 
-fn send_search_request(request: SearchRequest) -> *const c_char {
-    let result = MAYBE_SEARCH_TX
-        .lock()
-        .map_err(|_| UnexpectedError::new("Could not get lock".to_string()))
-        .and_then(|maybe_lock| {
-            maybe_lock
-                .clone()
-                .ok_or_else(|| UnexpectedError::new("No search lock.".to_string()))
-        })
-        .and_then(|search_tx| search_tx.send(request).map_err(UnexpectedError::from));
+fn send_search_request(request: SearchRequest, is_path_content_search: bool) -> *const c_char {
+    let result = if is_path_content_search {
+        MAYBE_PATH_AND_CONTENT_SEARCH_TX.lock()
+    } else {
+        MAYBE_PATH_SEARCH_TX.lock()
+    }
+    .map_err(|_| UnexpectedError::new("Could not get lock".to_string()))
+    .and_then(|maybe_lock| {
+        maybe_lock
+            .clone()
+            .ok_or_else(|| UnexpectedError::new("No search lock.".to_string()))
+    })
+    .and_then(|search_tx| search_tx.send(request).map_err(UnexpectedError::from));
 
     c_string(translate(result))
 }
@@ -618,36 +624,46 @@ pub type UpdateSearchStatus = extern "C" fn(*const c_char, i32, *const c_char);
 /// Be sure to call `release_pointer` on the result of this function to free the data.
 #[no_mangle]
 pub unsafe extern "C" fn start_search(
-    context: *const c_char, update_status: UpdateSearchStatus,
+    is_path_content_search: bool, context: *const c_char, update_status: UpdateSearchStatus,
 ) -> *const c_char {
-    let results_rx = match MAYBE_SEARCH_TX.lock() {
+    let (search_type, lock) = if is_path_content_search {
+        (SearchType::PathAndContentSearch, MAYBE_PATH_AND_CONTENT_SEARCH_TX.lock())
+    } else {
+        (SearchType::PathSearch, MAYBE_PATH_SEARCH_TX.lock())
+    };
+
+    let results_rx = match lock {
         Ok(mut lock) => {
-            let (results_rx, search_tx) =
-                match static_state::get().and_then(|core| core.start_search()) {
-                    Ok(search_info) => (search_info.results_rx, search_info.search_tx),
-                    Err(e) => return c_string(translate(Err::<(), _>(e))),
-                };
+            let (results_rx, search_tx) = match static_state::get() {
+                Ok(core) => {
+                    let search_info = core.start_search(search_type);
+
+                    (search_info.results_rx, search_info.search_tx)
+                }
+                Err(e) => return c_string(translate(Err::<(), _>(e))),
+            };
 
             *lock = Some(search_tx);
+
             results_rx
         }
         Err(_) => return c_string(translate(Err::<(), _>("Cannot get search lock."))),
     };
 
-    while let Ok(results) = results_rx.recv() {
-        let result_repr = match results {
+    while let Ok(result) = results_rx.recv() {
+        let (result_repr, content) = match result {
             SearchResult::Error(e) => return c_string(translate(Err::<(), _>(e))),
-            SearchResult::FileNameMatch { .. } => 1,
-            SearchResult::FileContentMatches { .. } => 2,
-            SearchResult::NoMatch => 3,
+            SearchResult::StartOfSearch => (0, null()),
+            SearchResult::FileNameMatch { .. } => {
+                (1, c_string(serde_json::to_string(&result).unwrap()))
+            }
+            SearchResult::FileContentMatches { .. } => {
+                (2, c_string(serde_json::to_string(&result).unwrap()))
+            }
+            SearchResult::EndOfSearch => (3, null()),
         };
 
-        update_status(context, result_repr, c_string(serde_json::to_string(&results).unwrap()));
-    }
-
-    match MAYBE_SEARCH_TX.lock() {
-        Ok(mut lock) => *lock = None,
-        Err(_) => return c_string(translate(Err::<(), _>("Cannot get search lock."))),
+        update_status(context, result_repr, content);
     }
 
     c_string(translate(Ok::<_, ()>(())))
@@ -657,16 +673,32 @@ pub unsafe extern "C" fn start_search(
 ///
 /// Be sure to call `release_pointer` on the result of this function to free the data.
 #[no_mangle]
-pub unsafe extern "C" fn search(query: *const c_char) -> *const c_char {
-    send_search_request(SearchRequest::Search { input: str_from_ptr(query) })
+pub unsafe extern "C" fn search(
+    query: *const c_char, is_path_content_search: bool,
+) -> *const c_char {
+    send_search_request(
+        SearchRequest::Search { input: str_from_ptr(query) },
+        is_path_content_search,
+    )
 }
 
 /// # Safety
 ///
 /// Be sure to call `release_pointer` on the result of this function to free the data.
 #[no_mangle]
-pub unsafe extern "C" fn end_search() -> *const c_char {
-    send_search_request(SearchRequest::EndSearch)
+pub unsafe extern "C" fn end_search(is_path_content_search: bool) -> *const c_char {
+    let result = send_search_request(SearchRequest::EndSearch, is_path_content_search);
+
+    match if is_path_content_search {
+        MAYBE_PATH_AND_CONTENT_SEARCH_TX.lock()
+    } else {
+        MAYBE_PATH_SEARCH_TX.lock()
+    } {
+        Ok(mut lock) => *lock = None,
+        Err(_) => return c_string(translate(Err::<(), _>("Cannot get search lock."))),
+    }
+
+    result
 }
 
 /// # Safety

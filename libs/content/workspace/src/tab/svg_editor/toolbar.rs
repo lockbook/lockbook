@@ -1,7 +1,9 @@
-use super::{Buffer, Eraser, Pen};
-use crate::theme::icons::Icon;
-use crate::widgets::Button;
 use std::f32::consts::PI;
+
+use crate::{theme::icons::Icon, widgets::Button};
+
+use super::{Pen, Eraser, Buffer, selection::Selection};
+
 
 const ICON_SIZE: f32 = 30.0;
 const COLOR_SWATCH_BTN_RADIUS: f32 = 9.0;
@@ -14,11 +16,13 @@ pub struct Toolbar {
     pub active_tool: Tool,
     pub pen: Pen,
     pub eraser: Eraser,
+    pub selection: Selection,
 }
 
 pub enum Tool {
     Pen,
     Eraser,
+    Selection,
 }
 
 #[derive(Clone)]
@@ -33,7 +37,7 @@ pub struct SimpleButton {
     id: String,
     icon: Icon,
     margin: egui::Margin,
-    coming_soon_text: Option<String>,
+    key_shortcut: Option<(egui::Modifiers, egui::Key)>,
 }
 #[derive(Clone)]
 pub struct ColorSwatch {
@@ -79,28 +83,34 @@ impl Toolbar {
         let default_stroke_width = 3;
         let components = vec![
             Component::Button(SimpleButton {
-                id: "undo".to_string(),
+                id: "Undo".to_string(),
                 icon: Icon::UNDO,
                 margin: egui::Margin::symmetric(4.0, 7.0),
-                coming_soon_text: None,
+                key_shortcut: Some((egui::Modifiers::CTRL, egui::Key::Z)),
             }),
             Component::Button(SimpleButton {
-                id: "redo".to_string(),
+                id: "Redo".to_string(),
                 icon: Icon::REDO,
                 margin: egui::Margin::symmetric(4.0, 7.0),
-                coming_soon_text: None,
+                key_shortcut: Some((egui::Modifiers::CTRL, egui::Key::R)),
             }),
             Component::Separator(egui::Margin::symmetric(10.0, 0.0)),
             Component::Button(SimpleButton {
-                id: "pen".to_string(),
-                icon: Icon::BRUSH,
-                coming_soon_text: None,
+                id: "Selection".to_string(),
+                icon: Icon::HAND,
+                key_shortcut: Some((egui::Modifiers::NONE, egui::Key::S)),
                 margin: egui::Margin::symmetric(4.0, 7.0),
             }),
             Component::Button(SimpleButton {
-                id: "eraser".to_string(),
+                id: "Pen".to_string(),
+                icon: Icon::BRUSH,
+                key_shortcut: Some((egui::Modifiers::NONE, egui::Key::B)),
+                margin: egui::Margin::symmetric(4.0, 7.0),
+            }),
+            Component::Button(SimpleButton {
+                id: "Eraser".to_string(),
                 icon: Icon::ERASER,
-                coming_soon_text: None,
+                key_shortcut: Some((egui::Modifiers::NONE, egui::Key::E)),
                 margin: egui::Margin::symmetric(4.0, 7.0),
             }),
             Component::Separator(egui::Margin::symmetric(10.0, 0.0)),
@@ -110,11 +120,51 @@ impl Toolbar {
             Component::Separator(egui::Margin::symmetric(10.0, 0.0)),
         ];
 
-        Toolbar { components, active_tool: Tool::Pen, pen: Pen::new(max_id), eraser: Eraser::new() }
+        Toolbar {
+            components,
+            active_tool: Tool::Pen,
+            pen: Pen::new(max_id),
+            eraser: Eraser::new(),
+            selection: Selection::new(),
+        }
     }
 
     pub fn show(&mut self, ui: &mut egui::Ui, buffer: &mut Buffer) {
         let rect = self.calculate_rect(ui);
+        if ui.is_enabled() {
+            self.components
+                .iter()
+                .filter_map(|component| {
+                    if let Component::Button(btn) = component {
+                        if btn.key_shortcut.is_some() {
+                            Some(btn)
+                        } else {
+                            None
+                        }
+                    } else {
+                        None
+                    }
+                })
+                .for_each(|btn| {
+                    let shortcut = btn.key_shortcut.unwrap();
+                    if ui.input_mut(|r| r.consume_key(shortcut.0, shortcut.1)) {
+                        match btn.id.as_str() {
+                            "Pen" => {
+                                self.active_tool = Tool::Pen;
+                            }
+                            "Eraser" => {
+                                self.active_tool = Tool::Eraser;
+                            }
+                            "Selection" => {
+                                self.active_tool = Tool::Selection;
+                            }
+                            "Undo" => buffer.undo(),
+                            "Redo" => buffer.redo(),
+                            _ => {}
+                        }
+                    }
+                });
+        }
 
         ui.allocate_ui_at_rect(rect, |ui| {
             ui.horizontal(|ui| {
@@ -125,8 +175,8 @@ impl Toolbar {
                                 .inner_margin(btn.margin)
                                 .show(ui, |ui| {
                                     let enabled = match btn.id.as_str() {
-                                        "undo" => buffer.has_undo(),
-                                        "redo" => buffer.has_redo(),
+                                        "Undo" => buffer.has_undo(),
+                                        "Redo" => buffer.has_redo(),
                                         _ => true,
                                     };
 
@@ -138,19 +188,54 @@ impl Toolbar {
 
                                     if btn_res.clicked() {
                                         match btn.id.as_str() {
-                                            "pen" => {
+                                            "Pen" => {
                                                 self.active_tool = Tool::Pen;
                                             }
-                                            "eraser" => {
+                                            "Eraser" => {
                                                 self.active_tool = Tool::Eraser;
                                             }
-                                            "undo" => buffer.undo(),
-                                            "redo" => buffer.redo(),
+                                            "Selection" => {
+                                                self.active_tool = Tool::Selection;
+                                            }
+                                            "Undo" => buffer.undo(),
+                                            "Redo" => buffer.redo(),
                                             _ => {}
                                         }
                                     }
-                                    if let Some(tooltip_text) = &btn.coming_soon_text {
-                                        btn_res.on_hover_text(tooltip_text);
+                                    let is_active = match self.active_tool {
+                                        Tool::Pen => btn.id.eq("Pen"),
+                                        Tool::Eraser => btn.id.eq("Eraser"),
+                                        Tool::Selection => btn.id.eq("Selection"),
+                                    };
+                                    if is_active {
+                                        ui.painter().rect_filled(
+                                            btn_res.rect.expand2(egui::vec2(2.0, 2.0)),
+                                            egui::Rounding::same(8.0),
+                                            egui::Color32::GRAY.gamma_multiply(0.1),
+                                        )
+                                    }
+                                    if let Some(shortcut) = &btn.key_shortcut {
+                                        let mut is_mac = false;
+                                        if cfg!(target_os = "macos") {
+                                            is_mac = true;
+                                        }
+
+                                        if shortcut.0.is_none() {
+                                            btn_res.on_hover_text(format!(
+                                                "{} ({})",
+                                                btn.id,
+                                                shortcut.1.name()
+                                            ));
+                                        } else {
+                                            let modifier = egui::ModifierNames::NAMES
+                                                .format(&shortcut.0, is_mac);
+                                            btn_res.on_hover_text(format!(
+                                                "{} ({} + {})",
+                                                btn.id,
+                                                modifier,
+                                                shortcut.1.name()
+                                            ));
+                                        }
                                     }
                                 });
                         }

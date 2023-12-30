@@ -1,10 +1,11 @@
 use minidom::Element;
-use std::{
-    collections::{HashMap, VecDeque},
-    sync::mpsc,
-};
+use std::{collections::VecDeque, sync::mpsc};
 
-use super::{toolbar::ColorSwatch, util, Buffer};
+use super::{
+    toolbar::ColorSwatch,
+    util::{self, apply_transform_to_pos},
+    Buffer, InsertElement,
+};
 
 pub struct Pen {
     pub active_color: Option<ColorSwatch>,
@@ -33,7 +34,8 @@ impl Pen {
     // todo: come up with a better name
     pub fn handle_events(&mut self, event: PathEvent, buffer: &mut Buffer) {
         match event {
-            PathEvent::Draw(pos, id) => {
+            PathEvent::Draw(mut pos, id) => {
+                apply_transform_to_pos(&mut pos, buffer);
                 if let Some(node) = util::node_by_id(&mut buffer.current, id.to_string()) {
                     self.path_builder.cubic_to(pos);
                     node.set_attr("d", &self.path_builder.data);
@@ -59,16 +61,19 @@ impl Pen {
                     buffer.current.append_child(child);
                 }
             }
-            PathEvent::End(pos, id) => {
+            PathEvent::End(mut pos, id) => {
+                apply_transform_to_pos(&mut pos, buffer);
+
                 self.path_builder.finish(pos);
                 let node = util::node_by_id(&mut buffer.current, id.to_string()).unwrap();
                 node.set_attr("d", &self.path_builder.data);
 
                 let node = node.clone();
 
-                buffer.save(super::Event::InsertElements(super::InsertElements {
-                    elements: HashMap::from_iter([(id.to_string(), node)]),
-                }));
+                buffer.save(super::Event::Insert(vec![InsertElement {
+                    id: id.to_string(),
+                    element: node,
+                }]));
             }
         }
     }

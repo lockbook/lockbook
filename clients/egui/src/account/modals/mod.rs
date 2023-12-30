@@ -83,7 +83,7 @@ impl super::AccountScreen {
             } else if let Some(inner) = response.inner {
                 use SettingsResponse::*;
                 match inner {
-                    SuccessfullyUpgraded => self.refresh_sync_status(ctx),
+                    SuccessfullyUpgraded => self.workspace.refresh_sync_status(),
                     ToggleToolbarVisibility(new_change) => {
                         self.modals.settings = None;
                         self.refresh_toolbar_visibilities(new_change);

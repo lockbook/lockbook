@@ -1,14 +1,15 @@
-use std::{collections::VecDeque, fmt::Debug};
+use std::{collections::VecDeque, fmt::Debug, mem};
 
 use bezier_rs::{Bezier, Identifier, Subpath};
+use glam::{DAffine2, DMat2, DVec2};
 use minidom::Element;
-use resvg::{
-    tiny_skia::Point,
-    usvg::{Node, NodeKind},
-};
+
 use std::collections::HashMap;
 
-use super::util;
+use super::{
+    util::{self, deserialize_transform},
+    zoom::{verify_zoom_g, G_CONTAINER_ID},
+};
 
 const MAX_UNDOS: usize = 100;
 
@@ -31,37 +32,60 @@ impl Identifier for ManipulatorGroupId {
 
 #[derive(Clone, Debug)]
 pub enum Event {
-    InsertElements(InsertElements),
-    DeleteElements(DeleteElements),
+    Insert(Vec<InsertElement>),
+    Delete(Vec<DeleteElement>),
+    Transform(Vec<TransformElement>),
 }
 
 #[derive(Clone, Debug)]
-
-pub struct DeleteElements {
-    pub elements: HashMap<String, Element>,
+pub struct DeleteElement {
+    pub id: String,
+    pub element: Element,
 }
 
 #[derive(Clone, Debug)]
+pub struct InsertElement {
+    pub id: String,
+    pub element: Element,
+}
 
-pub struct InsertElements {
-    pub elements: HashMap<String, Element>,
+#[derive(Clone, Debug)]
+pub struct TransformElement {
+    pub id: String,
+    pub old_transform: String,
+    pub new_transform: String,
 }
 
 impl Buffer {
     pub fn new(root: Element) -> Self {
-        Buffer {
+        let mut buff = Buffer {
             current: root,
             undo: VecDeque::default(),
             redo: vec![],
             paths: HashMap::default(),
             needs_path_map_update: true,
+        };
+        if let Some(first_child) = buff.current.children().next() {
+            if first_child
+                .attr("id")
+                .unwrap_or_default()
+                .eq(G_CONTAINER_ID)
+            {
+                buff.current = first_child.clone();
+            } else {
+                verify_zoom_g(&mut buff);
+            }
+        } else {
+            verify_zoom_g(&mut buff);
         }
+        buff
     }
 
     pub fn save(&mut self, event: Event) {
         if !self.redo.is_empty() {
             self.redo = vec![];
         }
+        self.needs_path_map_update = true;
 
         self.undo.push_back(event);
         if self.undo.len() > MAX_UNDOS {
@@ -69,32 +93,37 @@ impl Buffer {
         }
     }
 
-    fn apply_event(&mut self, event: &Event) {
+    pub fn apply_event(&mut self, event: &Event) {
         match event {
-            Event::InsertElements(payload) => {
-                payload.elements.iter().for_each(|(id, element)| {
-                    if let Some(node) = util::node_by_id(&mut self.current, id.to_string()) {
+            Event::Insert(payload) => {
+                payload.iter().for_each(|insert_payload| {
+                    if let Some(node) =
+                        util::node_by_id(&mut self.current, insert_payload.id.to_string())
+                    {
                         // todo: figure out a less hacky way, to detach a node (not just paths) from the tree
-                        node.set_attr("d", element.attr("d"));
-                        // todo: remove this when allowing the user to update the opacity of a path
-                        node.set_attr("opacity", "1");
+                        node.set_attr("d", insert_payload.element.attr("d"));
                     } else {
-                        self.current.append_child(element.clone());
+                        self.current.append_child(insert_payload.element.clone());
                     }
                 });
-                self.needs_path_map_update = true;
             }
 
-            Event::DeleteElements(payload) => {
-                payload.elements.iter().for_each(|(id, _)| {
-                    if let Some(node) = util::node_by_id(&mut self.current, id.to_string()) {
-                        // todo: figure out a less hacky way, to detach a node (not just paths) from the tree
-                        node.set_attr("d", "");
+            Event::Delete(payload) => {
+                payload.iter().for_each(|delete_payload| {
+                    self.current.remove_child(&delete_payload.id);
+                });
+            }
+            Event::Transform(payload) => {
+                payload.iter().for_each(|transform_payload| {
+                    if let Some(node) =
+                        util::node_by_id(&mut self.current, transform_payload.id.to_string())
+                    {
+                        node.set_attr("transform", transform_payload.new_transform.clone());
                     }
                 });
-                self.needs_path_map_update = true;
             }
         };
+        self.needs_path_map_update = true;
     }
 
     pub fn undo(&mut self) {
@@ -127,11 +156,41 @@ impl Buffer {
 
     fn swap_event(&self, mut source: Event) -> Event {
         match source {
-            Event::InsertElements(payload) => {
-                source = Event::DeleteElements(DeleteElements { elements: payload.elements });
+            Event::Insert(payload) => {
+                source = Event::Delete(
+                    payload
+                        .iter()
+                        .map(|insert_payload| DeleteElement {
+                            id: insert_payload.id.clone(),
+                            element: insert_payload.element.clone(),
+                        })
+                        .collect(),
+                );
             }
-            Event::DeleteElements(payload) => {
-                source = Event::InsertElements(InsertElements { elements: payload.elements });
+            Event::Delete(payload) => {
+                source = Event::Insert(
+                    payload
+                        .iter()
+                        .map(|delete_payload| InsertElement {
+                            id: delete_payload.id.clone(),
+                            element: delete_payload.element.clone(),
+                        })
+                        .collect(),
+                );
+            }
+            Event::Transform(mut payload) => {
+                source = Event::Transform(
+                    payload
+                        .iter_mut()
+                        .map(|transform_payload| {
+                            mem::swap(
+                                &mut transform_payload.new_transform,
+                                &mut transform_payload.old_transform,
+                            );
+                            transform_payload.clone()
+                        })
+                        .collect(),
+                )
             }
         }
         source
@@ -141,13 +200,65 @@ impl Buffer {
         !self.redo.is_empty()
     }
 
-    pub fn recalc_paths(&mut self, utree: &Node) {
-        for el in utree.children() {
-            if let NodeKind::Path(ref p) = *el.borrow() {
-                self.paths
-                    .insert(p.id.clone(), get_subpath_from_points(p.data.points()));
+    pub fn recalc_paths(&mut self) {
+        self.paths.clear();
+
+        for el in self.current.children() {
+            if el.name().eq("path") {
+                let data = match el.attr("d") {
+                    Some(d) => d,
+                    None => continue,
+                };
+                let mut start = (0.0, 0.0);
+                let mut subpath: Subpath<ManipulatorGroupId> = Subpath::new(vec![], false);
+
+                for segment in svgtypes::SimplifyingPathParser::from(data) {
+                    let segment = match segment {
+                        Ok(v) => v,
+                        Err(_) => break,
+                    };
+
+                    match segment {
+                        svgtypes::SimplePathSegment::MoveTo { x, y } => {
+                            start = (x, y);
+                        }
+                        svgtypes::SimplePathSegment::CurveTo { x1, y1, x2, y2, x, y } => {
+                            let bez = Bezier::from_cubic_coordinates(
+                                start.0, start.1, x1, y1, x2, y2, x, y,
+                            );
+                            subpath.append_bezier(&bez, bezier_rs::AppendType::IgnoreStart);
+                            start = (x, y)
+                        }
+                        _ => {}
+                    }
+                }
+
+                if let Some(transform) = el.attr("transform") {
+                    let [a, b, c, d, e, f] = deserialize_transform(transform);
+                    subpath.apply_transform(DAffine2 {
+                        matrix2: DMat2 {
+                            x_axis: DVec2 { x: a, y: b },
+                            y_axis: DVec2 { x: c, y: d },
+                        },
+                        translation: DVec2 { x: e, y: f },
+                    });
+                }
+                if let Some(transform) = self.current.attr("transform") {
+                    let [a, b, c, d, e, f] = deserialize_transform(transform);
+                    subpath.apply_transform(DAffine2 {
+                        matrix2: DMat2 {
+                            x_axis: DVec2 { x: a, y: b },
+                            y_axis: DVec2 { x: c, y: d },
+                        },
+                        translation: DVec2 { x: e, y: f },
+                    });
+                }
+                if let Some(id) = el.attr("id") {
+                    self.paths.insert(id.to_string(), subpath);
+                }
             }
         }
+        self.needs_path_map_update = false;
     }
 }
 
@@ -155,7 +266,9 @@ impl ToString for Buffer {
     fn to_string(&self) -> String {
         let mut out = Vec::new();
         self.current.write_to(&mut out).unwrap();
-        std::str::from_utf8(&out).unwrap().replace("xmlns='' ", "")
+        let out = std::str::from_utf8(&out).unwrap().replace("xmlns='' ", "");
+        let out = format!("<svg xmlns=\"http://www.w3.org/2000/svg\" >{}</svg>", out);
+        out
     }
 }
 
@@ -166,23 +279,4 @@ impl Debug for Buffer {
             .field("redo", &self.redo)
             .finish()
     }
-}
-
-fn get_subpath_from_points(data: &[Point]) -> Subpath<ManipulatorGroupId> {
-    let mut bez = vec![];
-    let mut i = 1;
-    while i < data.len() - 2 {
-        bez.push(Bezier::from_cubic_coordinates(
-            data[i - 1].x as f64,
-            data[i - 1].y as f64,
-            data[i].x as f64,
-            data[i].y as f64,
-            data[i + 1].x as f64,
-            data[i + 1].y as f64,
-            data[i + 2].x as f64,
-            data[i + 2].y as f64,
-        ));
-        i += 1;
-    }
-    Subpath::from_beziers(&bez, false)
 }

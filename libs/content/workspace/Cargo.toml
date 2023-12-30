@@ -15,7 +15,8 @@ epaint = "0.22.0"
 #lb-pdf = { path = "../../../../lb-pdf" }
 pdfium-render = { version =  "0.8.5" }
 resvg = "0.36.0"
-minidom = "*"
+svgtypes = "0.13.0"
+minidom = {git ="https://github.com/lockbook/minidom"}
 serde = "1.0.171"
 bezier-rs = "0.2.0"
 glam = "0.22.0"

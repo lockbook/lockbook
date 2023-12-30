@@ -49,7 +49,12 @@ fn main() {
         .subcommand(Command::name("server").handler(server::deploy))
         .subcommand(Command::name("apple").handler(apple::release))
         .subcommand(Command::name("android").handler(android::release))
-        .subcommand(Command::name("windows").handler(windows::release))
+        .subcommand(
+            Command::name("windows")
+                .subcommand(Command::name("all").handler(windows::release))
+                .subcommand(Command::name("cli").handler(windows::cli::release))
+                .subcommand(Command::name("desktop").handler(windows::desktop::release)),
+        )
         .subcommand(Command::name("public-site").handler(public_site::release))
         .subcommand(
             Command::name("linux")

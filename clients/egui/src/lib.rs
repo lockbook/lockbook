@@ -15,7 +15,7 @@ use crate::onboard::{OnboardHandOff, OnboardScreen};
 use crate::splash::{SplashHandOff, SplashScreen};
 use eframe::egui;
 use egui_wgpu_backend::wgpu::{self, CompositeAlphaMode};
-use egui_winit::egui::{Pos2, Rect};
+use egui_winit::egui::{PlatformOutput, Pos2, Rect};
 use std::iter;
 use std::sync::{Arc, RwLock};
 use std::time::Instant;
@@ -158,10 +158,10 @@ pub struct WgpuLockbook {
     pub app: Lockbook,
 }
 
-#[repr(C)]
-#[derive(Debug, Default)]
+#[derive(Default)]
 pub struct IntegrationOutput {
     pub redraw_in: u64,
+    pub egui: PlatformOutput,
     pub update_output: UpdateOutput,
 }
 
@@ -175,7 +175,6 @@ impl WgpuLockbook {
                 // This error occurs when the app is minimized on Windows.
                 // Silently return here to prevent spamming the console with:
                 // "The underlying surface has changed, and therefore the swap chain must be updated"
-                eprintln!("wgpu::SurfaceError::Outdated");
                 return out;
             }
             Err(e) => {
@@ -195,7 +194,7 @@ impl WgpuLockbook {
         let full_output = self.context.end_frame();
         if !full_output.platform_output.copied_text.is_empty() {
             // todo: can this go in output?
-            self.from_egui = Some(full_output.platform_output.copied_text);
+            self.from_egui = Some(full_output.platform_output.copied_text.clone());
         }
         let paint_jobs = self.context.tessellate(full_output.shapes);
         let mut encoder = self
@@ -230,6 +229,7 @@ impl WgpuLockbook {
             .expect("remove texture ok");
 
         out.redraw_in = full_output.repaint_after.as_millis() as u64;
+        out.egui = full_output.platform_output;
         out
     }
 
@@ -260,6 +260,8 @@ impl WgpuLockbook {
             alpha_mode: CompositeAlphaMode::Auto,
             view_formats: vec![],
         };
-        self.surface.configure(&self.device, &surface_config);
+        if surface_config.width * surface_config.height != 0 {
+            self.surface.configure(&self.device, &surface_config);
+        }
     }
 }

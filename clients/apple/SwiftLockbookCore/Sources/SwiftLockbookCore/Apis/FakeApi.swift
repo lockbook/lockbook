@@ -156,19 +156,15 @@ Vestibulum ante ipsum primis in vel.
         .failure(.init(unexpected: "LAZY"))
     }
     
-    public func searchFilePaths(input: String) ->FfiResult<[SearchResultItem], SearchFilePathsError> {
+    public func startSearch(isPathAndContentSearch: Bool, context: UnsafeRawPointer?, updateStatus: @escaping @convention(c) (UnsafePointer<Int8>?, Int32, UnsafePointer<Int8>?) -> Void) -> FfiResult<Empty, GeneralSearchError> {
         .failure(.init(unexpected: "LAZY"))
     }
     
-    public func startSearch(context: UnsafeRawPointer?, updateStatus: @escaping @convention(c) (UnsafePointer<Int8>?, Int32, UnsafePointer<Int8>?) -> Void) -> FfiResult<Empty, GeneralSearchError> {
+    public func endSearch(isPathAndContentSearch: Bool) -> FfiResult<Empty, GeneralSearchError> {
         .failure(.init(unexpected: "LAZY"))
     }
     
-    public func endSearch() -> FfiResult<Empty, GeneralSearchError> {
-        .failure(.init(unexpected: "LAZY"))
-    }
-    
-    public func searchQuery(query: String) -> FfiResult<Empty, GeneralSearchError> {
+    public func searchQuery(query: String, isPathAndContentSearch: Bool) -> FfiResult<Empty, GeneralSearchError> {
         .failure(.init(unexpected: "LAZY"))
     }
     

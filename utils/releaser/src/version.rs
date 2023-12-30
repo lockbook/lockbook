@@ -56,6 +56,7 @@ fn handle_cargo_tomls(version: &str) {
         "clients/admin",
         "clients/cli",
         "clients/egui",
+        "clients/windows",
         "server/server",
         "libs/lb/lb-rs",
         "libs/lb/lb-rs/libs/shared",

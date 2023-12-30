@@ -74,7 +74,7 @@ pub fn egui_visuals(m: dark_light::Mode, primary: lb::ColorAlias) -> egui::Visua
 }
 
 pub fn register_fonts(fonts: &mut egui::FontDefinitions) {
-    let mut font = egui::FontData::from_static(lb_fonts::MATERIAL_ICONS_OUTLINED_REGULAR);
+    let mut font = egui::FontData::from_static(lb_fonts::MATERIAL_SYMBOLS_OUTLINED);
     font.tweak.y_offset_factor = -0.1;
 
     fonts.font_data.insert("material_icons".to_owned(), font);
