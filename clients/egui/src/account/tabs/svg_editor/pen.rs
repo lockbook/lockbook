@@ -36,7 +36,7 @@ impl Pen {
     pub fn handle_events(&mut self, event: PathEvent, buffer: &mut Buffer) {
         match event {
             PathEvent::Draw(mut pos, id) => {
-                apply_transform_to_pos(&mut pos, &buffer);
+                apply_transform_to_pos(&mut pos, buffer);
                 if let Some(node) = util::node_by_id(&mut buffer.current, id.to_string()) {
                     self.path_builder.cubic_to(pos);
                     node.set_attr("d", &self.path_builder.data);
@@ -63,7 +63,7 @@ impl Pen {
                 }
             }
             PathEvent::End(mut pos, id) => {
-                apply_transform_to_pos(&mut pos, &buffer);
+                apply_transform_to_pos(&mut pos, buffer);
 
                 self.path_builder.finish(pos);
                 let node = util::node_by_id(&mut buffer.current, id.to_string()).unwrap();

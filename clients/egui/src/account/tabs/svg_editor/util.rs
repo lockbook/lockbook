@@ -63,8 +63,7 @@ pub fn deserialize_transform(transform: &str) -> [f64; 6] {
             return [a, b, c, d, e, f];
         }
     }
-    let identity_matrix = [1, 0, 0, 1, 0, 0].map(|f| f as f64);
-    identity_matrix
+    [1, 0, 0, 1, 0, 0].map(|f| f as f64)
 }
 
 pub fn serialize_transform(matrix: &[f64]) -> String {
