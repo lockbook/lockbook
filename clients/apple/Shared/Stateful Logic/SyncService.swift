@@ -1,6 +1,8 @@
 import Foundation
 import SwiftLockbookCore
 
+
+// todo this should go away
 class SyncService: ObservableObject {
     let core: LockbookApi
     

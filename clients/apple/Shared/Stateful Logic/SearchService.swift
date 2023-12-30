@@ -143,7 +143,7 @@ class SearchService: ObservableObject {
     func openPathAtIndex(index: Int) {
         if case .SearchSuccessful(let paths) = pathSearchState,
            index < paths.count {
-            DI.files.workspace.openDoc = paths[index].id
+            DI.workspace.openDoc = paths[index].id
             
             pathSearchState = .NotSearching
             pathSearchSelected = 0

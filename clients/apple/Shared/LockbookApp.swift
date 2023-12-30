@@ -59,7 +59,7 @@ import AppKit
                 #endif
                 
                 Button("Copy file link", action: {
-                    if let id = DI.files.workspace.openDoc {
+                    if let id = DI.workspace.openDoc {
                         DI.files.copyFileLink(id: id)
                     }
                 }).keyboardShortcut("L", modifiers: [.command, .shift])
@@ -87,7 +87,7 @@ import AppKit
                         
                         if DI.files.root != nil {
                             if DI.files.idsAndFiles[id] != nil {
-                                DI.files.workspace.openDoc = id
+                                DI.workspace.openDoc = id
                             } else {
                                 DI.errors.errorWithTitle("File not found", "That file does not exist in your lockbook")
                             }

@@ -16,7 +16,6 @@ class FileService: ObservableObject {
     }
     @Published var successfulAction: FileAction? = nil
     
-    @Published var workspace = WorkspaceState()
     @Published var pendingSharesOpen: Bool = false
     
     var hasRootLoaded = false
@@ -277,11 +276,11 @@ class FileService: ObservableObject {
     }
 
     private func openFileChecks() {
-        if let selectedFolder = self.workspace.selectedFolder {
+        if let selectedFolder = DI.workspace.selectedFolder {
             let maybeMeta = idsAndFiles[selectedFolder]
             
             if maybeMeta == nil {
-                self.workspace.selectedFolder = nil
+                DI.workspace.selectedFolder = nil
             }
         }
     }
@@ -292,7 +291,7 @@ class FileService: ObservableObject {
 #if os(iOS)
                 self.parent?.id ?? self.root!.id
 #else
-                self.workspace.selectedFolder ?? self.root!.id
+                DI.workspace.selectedFolder ?? self.root!.id
 #endif
             }()
             
@@ -308,7 +307,7 @@ class FileService: ObservableObject {
                 case .success(let meta):
                     self.refreshSync()
                     
-                    DI.files.workspace.openDoc = meta.id
+                    DI.workspace.openDoc = meta.id
                     
                     return
                 case .failure(let err):
@@ -330,7 +329,7 @@ class FileService: ObservableObject {
             #if os(iOS)
             parent?.id ?? root!.id
             #else
-            self.workspace.selectedFolder ?? root!.id
+            DI.workspace.selectedFolder ?? root!.id
             #endif
         }()
         
@@ -359,7 +358,7 @@ class FileService: ObservableObject {
             #if os(iOS)
             parent?.id ?? root!.id
             #else
-            self.workspace.selectedFolder ?? root!.id
+            DI.workspace.selectedFolder ?? root!.id
             #endif
         }()
         

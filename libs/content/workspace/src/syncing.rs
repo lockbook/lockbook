@@ -1,4 +1,5 @@
-use crate::workspace::{Workspace, WsMsg, WsOutput};
+use crate::output::{DirtynessMsg, WsOutput};
+use crate::workspace::{Workspace, WsMsg};
 use lb_rs::{CoreError, LbError, SyncProgress, SyncStatus};
 use std::sync::atomic::Ordering;
 use std::thread;
@@ -30,16 +31,17 @@ impl Workspace {
                 }
             };
 
-            let result = core.sync(None); // todo
+            let result = core.sync(Some(Box::new(closure)));
             syncing.store(false, Ordering::SeqCst);
             update_tx.send(WsMsg::SyncDone(result)).unwrap();
+
             ctx.request_repaint();
         });
     }
 
     pub fn sync_message(&self, prog: SyncProgress, out: &mut WsOutput) {
         out.sync_progress = prog.progress as f32 / prog.total as f32;
-        out.message = Some(prog.msg);
+        out.sync_message = Some(prog.msg);
     }
 
     pub fn sync_done(&self, outcome: Result<SyncStatus, LbError>, out: &mut WsOutput) {
@@ -53,5 +55,25 @@ impl Workspace {
                 _ => {}
             },
         }
+    }
+
+    pub fn refresh_sync_status(&self) {
+        let core = self.core.clone();
+        let update_tx = self.updates_tx.clone();
+        let ctx = self.ctx.clone();
+
+        thread::spawn(move || {
+            let last_synced = core.get_last_synced_human_string().unwrap();
+            let dirty_files = core.get_local_changes().unwrap();
+
+            let dirty = DirtynessMsg { last_synced, dirty_files };
+
+            update_tx.send(WsMsg::Dirtyness(dirty)).unwrap();
+            ctx.request_repaint();
+        });
+    }
+
+    pub fn dirty_msg(&self, dirt: DirtynessMsg, out: &mut WsOutput) {
+        out.dirtyness = dirt;
     }
 }

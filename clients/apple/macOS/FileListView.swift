@@ -82,7 +82,7 @@ struct DetailView: View {
             if files.pendingSharesOpen {
                 PendingSharesView()
             } else {
-                WorkspaceView(DI.files.workspace, get_core_ptr()).equatable()
+                WorkspaceView(DI.workspace, get_core_ptr()).equatable()
             }
             
         }

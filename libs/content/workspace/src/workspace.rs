@@ -6,6 +6,7 @@ use std::thread;
 use std::time::Instant;
 
 use crate::background::{BackgroundWorker, BwIncomingMsg, Signal};
+use crate::output::{DirtynessMsg, WsOutput};
 use crate::tab::image_viewer::{is_supported_image_fmt, ImageViewer};
 use crate::tab::markdown::Markdown;
 use crate::tab::pdf_viewer::PdfViewer;
@@ -24,7 +25,7 @@ pub struct Workspace {
     pub active_tab: usize,
     pub backdrop: RetainedImage,
 
-    pub ctx: egui::Context,
+    pub ctx: Context,
     pub core: lb_rs::Core,
 
     pub syncing: Arc<AtomicBool>,
@@ -32,6 +33,8 @@ pub struct Workspace {
     pub updates_tx: Sender<WsMsg>,
     pub updates_rx: Receiver<WsMsg>,
     pub background_tx: Sender<BwIncomingMsg>,
+
+    pub last_output: WsOutput,
 }
 
 pub enum WsMsg {
@@ -42,29 +45,7 @@ pub enum WsMsg {
     BgSignal(Signal),
     SyncMsg(SyncProgress),
     SyncDone(Result<SyncStatus, LbError>),
-}
-
-#[derive(Default)]
-pub struct WsOutput {
-    /// What file the workspace is currently showing
-    pub selected_file: Option<Uuid>,
-
-    /// What the window title should be (based on filename generally)
-    pub window_title: Option<String>,
-
-    pub file_renamed: Option<(Uuid, String)>,
-
-    pub error: Option<String>,
-
-    pub settings_updated: bool,
-
-    pub offline: bool,
-    pub update_req: bool,
-    pub out_of_space: bool,
-    pub usage: f64,
-    pub syncing: bool,
-    pub sync_progress: f32,
-    pub message: Option<String>,
+    Dirtyness(DirtynessMsg),
 }
 
 #[derive(Clone)]
@@ -107,6 +88,7 @@ impl Workspace {
         let background = BackgroundWorker::new(ctx, &updates_tx);
         let background_tx = background.spawn_worker();
         let syncing = Default::default();
+        let last_output = Default::default();
 
         Self {
             cfg,
@@ -119,6 +101,7 @@ impl Workspace {
             updates_tx,
             background_tx,
             syncing,
+            last_output,
         }
     }
 
@@ -178,8 +161,9 @@ impl Workspace {
     }
 
     pub fn show_workspace(&mut self, ui: &mut egui::Ui) -> WsOutput {
-        let mut output = WsOutput::default();
+        let mut output = self.last_output.clone();
         self.process_updates(&mut output);
+        output.populate_message();
 
         if self.is_empty() {
             self.show_empty_workspace(ui, &mut output);
@@ -206,6 +190,7 @@ impl Workspace {
             });
         }
 
+        self.last_output = output.clone();
         output
     }
 
@@ -517,7 +502,7 @@ impl Workspace {
                     }
                 }
                 WsMsg::BgSignal(Signal::UpdateStatus) => {
-                    // todo
+                    self.refresh_sync_status();
                 }
                 WsMsg::SyncMsg(prog) => self.sync_message(prog, out),
                 WsMsg::FileRenamed { id, new_name } => {
@@ -534,9 +519,9 @@ impl Workspace {
                     }
                 }
                 WsMsg::SyncDone(sync_outcome) => self.sync_done(sync_outcome, out),
+                WsMsg::Dirtyness(dirty_msg) => self.dirty_msg(dirty_msg, out),
             }
         }
-        // while let Ok(update) = self.updates_rx.try_recv() {}
     }
 
     pub fn rename_file(&self, req: (Uuid, String)) {

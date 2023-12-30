@@ -88,7 +88,13 @@ public struct NSWS: NSViewRepresentable {
         }
         
         if workspaceState.shouldFocus {
+            // todo?
             workspaceState.shouldFocus = false
+        }
+        
+        if workspaceState.syncRequested {
+            workspaceState.syncRequested = false
+            mtkView.requestSync()
         }
     }
 }

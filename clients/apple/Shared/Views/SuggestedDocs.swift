@@ -136,7 +136,7 @@ struct SuggestedDocs: View {
                                     ForEach(suggestedDocs) { meta in
                                         if let parentMeta = fileService.idsAndFiles[meta.parent] {
                                             Button(action: {
-                                                DI.files.workspace.openDoc = meta.id
+                                                DI.workspace.openDoc = meta.id
                                             }) {
                                                 SuggestedDocCell(name: meta.name, parentName: "\(parentMeta.name)/", duration: meta.lastModified)
                                             }

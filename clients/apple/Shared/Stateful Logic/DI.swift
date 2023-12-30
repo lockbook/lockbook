@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftWorkspace
 import SwiftLockbookCore
 
 class DI {
@@ -17,6 +18,7 @@ class DI {
     static let onboarding = OnboardingService(core)
     static let sheets: SheetState = SheetState()
     static let search = SearchService(core)
+    static let workspace = WorkspaceState()
     #if os(iOS)
     static let toolbarModel = ToolbarModel()
     #endif
@@ -48,6 +50,7 @@ class Mock {
     static let onboarding = OnboardingService(core)
     static let sheets: SheetState = SheetState()
     static let search = SearchService(core)
+    static let workspace = WorkspaceState()
     #if os(iOS)
     static let toolbarModel = ToolbarModel()
     #endif
@@ -78,6 +81,7 @@ extension View {
             .environmentObject(DI.billing)
             .environmentObject(DI.share)
             .environmentObject(DI.search)
+            .environmentObject(DI.workspace)
     }
     
     public func mockiOSDI() -> some View {
@@ -104,5 +108,6 @@ extension View {
             .environmentObject(Mock.sheets)
             .environmentObject(Mock.billing)
             .environmentObject(Mock.share)
+            .environmentObject(Mock.workspace)
     }
 }

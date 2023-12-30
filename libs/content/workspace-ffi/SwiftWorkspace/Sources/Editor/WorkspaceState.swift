@@ -10,6 +10,15 @@ public class WorkspaceState: ObservableObject {
     @Published public var openDoc: UUID? = nil
     @Published public var selectedFolder: UUID? = nil
     
+    @Published public var syncing: Bool = false
+    @Published public var clientUpgrade: Bool = false
+    @Published public var outOfSpace: Bool = false
+    @Published public var offline: Bool = false
+    @Published public var syncProgress: Float? = nil
+    @Published public var statusMsg: String = ""
+    
+    @Published public var syncRequested: Bool = false
+    
     public var isiPhone: Bool
     
 //    public var importFile: (URL) -> String?
@@ -19,6 +28,10 @@ public class WorkspaceState: ObservableObject {
 //        self.importFile = importFile
         
         self.shouldFocus = !isiPhone
+    }
+    
+    public func requestSync() {
+        self.syncRequested = true
     }
 }
 

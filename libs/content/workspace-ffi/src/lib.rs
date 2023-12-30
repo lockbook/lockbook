@@ -14,7 +14,8 @@ mod cursor_icon;
 use crate::cursor_icon::CCursorIcon;
 #[cfg(not(any(target_os = "ios", target_os = "macos")))]
 use serde::Serialize;
-use workspace::workspace::{Workspace, WsOutput};
+use workspace::output::WsOutput;
+use workspace::workspace::Workspace;
 
 #[cfg(target_vendor = "apple")]
 pub mod apple;
@@ -107,17 +108,24 @@ pub struct WgpuWorkspace {
 #[repr(C)]
 pub struct FfiWorkspaceResp {
     selected_file: CUuid,
+
+    msg: *mut c_char,
+    syncing: bool,
 }
 
 impl Default for FfiWorkspaceResp {
     fn default() -> Self {
-        Self { selected_file: Uuid::nil().into() }
+        Self { selected_file: Default::default(), msg: ptr::null_mut(), syncing: false }
     }
 }
 
 impl From<WsOutput> for FfiWorkspaceResp {
     fn from(value: WsOutput) -> Self {
-        Self { selected_file: value.selected_file.unwrap_or_default().into() }
+        Self {
+            selected_file: value.selected_file.unwrap_or_default().into(),
+            msg: CString::new(value.message).unwrap().into_raw(),
+            syncing: value.syncing,
+        }
     }
 }
 
@@ -283,7 +291,7 @@ impl WgpuWorkspace {
     }
 }
 #[repr(C)]
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct CUuid([u8; 16]);
 
 impl From<Uuid> for CUuid {

@@ -9,7 +9,6 @@ import UniformTypeIdentifiers
 struct OutlineBranch: View {
     @EnvironmentObject var current: DocumentService
     @EnvironmentObject var files: FileService
-    @EnvironmentObject var status: StatusService
     @EnvironmentObject var errors: UnexpectedErrorService
     @EnvironmentObject var sheets: SheetState
 

@@ -4,7 +4,6 @@ mod suggested_docs;
 mod syncing;
 mod tree;
 
-use std::collections::HashMap;
 use std::ffi::OsStr;
 use std::sync::{mpsc, Arc, RwLock};
 use std::time::{Duration, Instant};
@@ -260,9 +259,6 @@ impl AccountScreen {
                     self.tree.remove(&f);
                     self.suggested.recalc_and_redraw(ctx, &self.core);
                 }
-                AccountUpdate::SyncUpdate(update) => {
-                    self.process_sync_update(ctx);
-                }
                 AccountUpdate::DoneDeleting => self.modals.confirm_delete = None,
                 AccountUpdate::ReloadTree(root) => self.tree.root = root,
                 AccountUpdate::ReloadTab(id, res) => {
@@ -307,7 +303,6 @@ impl AccountScreen {
                         }
                     }
                 },
-                AccountUpdate::SyncStatusSignal => self.refresh_sync_status(ctx),
                 AccountUpdate::FoundPendingShares(has_pending_shares) => {
                     self.has_pending_shares = has_pending_shares
                 }
@@ -810,9 +805,6 @@ pub enum AccountUpdate {
 
     /// if a file has been imported successfully refresh the tree, otherwise show what went wrong
     FileImported(Result<TreeNode, String>),
-
-    SyncUpdate(()), // todo: rethink this
-    SyncStatusSignal,
 
     ShareAccepted(Result<lb::File, String>),
     FoundPendingShares(bool),

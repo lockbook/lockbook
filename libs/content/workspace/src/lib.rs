@@ -1,4 +1,5 @@
 pub mod background;
+pub mod output;
 pub mod syncing;
 pub mod tab;
 pub mod theme;

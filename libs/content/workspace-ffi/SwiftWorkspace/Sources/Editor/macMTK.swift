@@ -33,6 +33,11 @@ public class MacMTK: MTKView, MTKViewDelegate {
         setNeedsDisplay(self.frame)
     }
     
+    func requestSync() {
+        request_sync(wsHandle)
+        setNeedsDisplay(self.frame)
+    }
+    
     func modifiersChanged(event: NSEvent) -> NSEvent {
         modifier_event(self.wsHandle, event.modifierFlags.contains(.shift), event.modifierFlags.contains(.control), event.modifierFlags.contains(.option), event.modifierFlags.contains(.command))
         setNeedsDisplay(self.frame)
@@ -209,7 +214,10 @@ public class MacMTK: MTKView, MTKViewDelegate {
         return false
     }
 
-    func textFromPtr(s: UnsafeMutablePointer<CChar>) -> String {
+    func textFromPtr(s: UnsafeMutablePointer<CChar>!) -> String {
+        if s == nil {
+            return ""
+        }
         let str = String(cString: s)
         free_text(s)
         return str
@@ -276,11 +284,13 @@ public class MacMTK: MTKView, MTKViewDelegate {
         }
         
         let cursor = NSCursor.fromCCursor(c: output.cursor)
-        print(cursor)
         if cursor != lastCursor {
             self.lastCursor = cursor
             self.resetCursorRects()
         }
+        
+        workspaceState?.statusMsg = textFromPtr(s: output.workspace_resp.msg)
+        workspaceState?.syncing = output.workspace_resp.syncing
     }
 }
 #endif
