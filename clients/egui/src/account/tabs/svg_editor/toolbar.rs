@@ -132,30 +132,38 @@ impl Toolbar {
     pub fn show(&mut self, ui: &mut egui::Ui, buffer: &mut Buffer) {
         let rect = self.calculate_rect(ui);
         if ui.is_enabled() {
-            self.components.iter().for_each(|component| {
-                if let Component::Button(SimpleButton { id, icon: _, margin: _, key_shortcut }) =
-                    component
-                {
-                    if let Some(shortcut) = key_shortcut {
-                        if ui.input_mut(|r| r.consume_key(shortcut.0, shortcut.1)) {
-                            match id.as_str() {
-                                "Pen" => {
-                                    self.active_tool = Tool::Pen;
-                                }
-                                "Eraser" => {
-                                    self.active_tool = Tool::Eraser;
-                                }
-                                "Selection" => {
-                                    self.active_tool = Tool::Selection;
-                                }
-                                "Undo" => buffer.undo(),
-                                "Redo" => buffer.redo(),
-                                _ => {}
+            self.components
+                .iter()
+                .filter_map(|component| {
+                    if let Component::Button(btn) = component {
+                        if btn.key_shortcut.is_some() {
+                            Some(btn)
+                        } else {
+                            None
+                        }
+                    } else {
+                        None
+                    }
+                })
+                .for_each(|btn| {
+                    let shortcut = btn.key_shortcut.unwrap();
+                    if ui.input_mut(|r| r.consume_key(shortcut.0, shortcut.1)) {
+                        match btn.id.as_str() {
+                            "Pen" => {
+                                self.active_tool = Tool::Pen;
                             }
+                            "Eraser" => {
+                                self.active_tool = Tool::Eraser;
+                            }
+                            "Selection" => {
+                                self.active_tool = Tool::Selection;
+                            }
+                            "Undo" => buffer.undo(),
+                            "Redo" => buffer.redo(),
+                            _ => {}
                         }
                     }
-                }
-            });
+                });
         }
 
         ui.allocate_ui_at_rect(rect, |ui| {
