@@ -52,7 +52,7 @@ nav {
 	width: 100%;
 	align-items: center;
 	background: linear-gradient(var(--background) -50%, transparent);
-	z-index: 2;
+	z-index: 3;
 	top: 0;
 }
 .lockbook-link {
@@ -84,7 +84,7 @@ nav {
 	right: 0;
 	bottom: 0;
 	width: 52%;
-	content: url(device-mockup-collage-jpg);
+	content: url(device-mockup-collage-light.jpg);
 }
 
 #gui-download-center .indented-content p,
@@ -99,10 +99,10 @@ nav {
 
 #cli-download-center .get-lockbook-cli {
 	font-size: 18px;
-    border-radius: 0 !important;
+	border-radius: 0 !important;
 }
-#cli-download-center #available-platforms{
-    opacity: 0.7;
+#cli-download-center #available-platforms {
+	opacity: 0.7;
 }
 #cli-download-center .left .centered > div {
 	flex: 1;
@@ -187,7 +187,7 @@ p.code {
 	}
 }
 
-@media (max-aspect-ratio: 1/1) and (max-width: 800px) {
+@media (max-aspect-ratio: 1/1) and (max-width: 800px)  {
 	.container {
 		padding: 30px 10%;
 	}
@@ -371,6 +371,14 @@ h1 {
 	}
 	#mockup-img {
 		content: url(mockup-dark.png);
+	}
+	#device-mockup-collage {
+		content: url(device-mockup-collage-dark.jpg);
+	}
+	
+	#cli-download-center {
+		color: var(--foreground);
+		background-color: var(--background-900);
 	}
 }
 
