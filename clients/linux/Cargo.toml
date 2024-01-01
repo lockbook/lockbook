@@ -14,4 +14,4 @@ lbeditor = { package = "egui_editor", path = "../../libs/content/editor/egui_edi
 lbeguiapp = { package = "lockbook-egui", path = "../egui" }
 pollster = "0.2"
 raw-window-handle = "0.5"
-x11rb = { version = "0.13.0", features = ["allow-unsafe-code"] }
+x11rb = { version = "0.13.0", features = ["all-extensions", "allow-unsafe-code"] }

@@ -1,6 +1,3 @@
-
-use std::{time::{Instant, Duration}, ffi::c_void};
-
 use egui::{Context, Visuals};
 use egui_wgpu_backend::{
     wgpu::{self, CompositeAlphaMode},
@@ -8,21 +5,54 @@ use egui_wgpu_backend::{
 };
 use lbeguiapp::WgpuLockbook;
 use raw_window_handle::{
-    HasRawDisplayHandle, HasRawWindowHandle, RawDisplayHandle, RawWindowHandle, XcbWindowHandle, XcbDisplayHandle,
+    HasRawDisplayHandle, HasRawWindowHandle, RawDisplayHandle, RawWindowHandle, XcbDisplayHandle,
+    XcbWindowHandle,
 };
+use std::{ffi::c_void, time::Instant};
 
-use x11rb::{protocol::xproto::*, connection::Connection};
-use x11rb::COPY_DEPTH_FROM_PARENT;
+use x11rb::{connection::Connection, protocol::xproto::*};
+use x11rb::{protocol::Event, COPY_DEPTH_FROM_PARENT};
+
+use crate::input;
 
 pub fn main() -> Result<(), Box<dyn std::error::Error>> {
     env_logger::init();
 
+    let events = [
+        EventMask::KEY_PRESS,
+        EventMask::KEY_RELEASE,
+        EventMask::BUTTON_PRESS,
+        EventMask::BUTTON_RELEASE,
+        EventMask::ENTER_WINDOW,
+        EventMask::LEAVE_WINDOW,
+        EventMask::POINTER_MOTION,
+        // EventMask::POINTER_MOTION_HINT,
+        // EventMask::BUTTON1_MOTION,
+        // EventMask::BUTTON2_MOTION,
+        // EventMask::BUTTON3_MOTION,
+        // EventMask::BUTTON4_MOTION,
+        // EventMask::BUTTON5_MOTION,
+        // EventMask::BUTTON_MOTION,
+        EventMask::KEYMAP_STATE,
+        EventMask::EXPOSURE,
+        EventMask::VISIBILITY_CHANGE,
+        EventMask::STRUCTURE_NOTIFY,
+        EventMask::RESIZE_REDIRECT,
+        EventMask::SUBSTRUCTURE_NOTIFY,
+        EventMask::SUBSTRUCTURE_REDIRECT,
+        EventMask::FOCUS_CHANGE,
+        EventMask::PROPERTY_CHANGE,
+        EventMask::COLOR_MAP_CHANGE,
+        EventMask::OWNER_GRAB_BUTTON,
+    ];
+    let event_mask = events.iter().fold(EventMask::NO_EVENT, |acc, &x| acc | x);
+
     let (conn, screen_num) = x11rb::xcb_ffi::XCBConnection::connect(None).unwrap();
     let screen = &conn.setup().roots[screen_num];
-    let win_id = conn.generate_id()?;
+    let window_id = conn.generate_id()?;
     conn.create_window(
         COPY_DEPTH_FROM_PARENT,
-        win_id,
+        window_id,
         screen.root,
         0,
         0,
@@ -31,37 +61,79 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
         0,
         WindowClass::INPUT_OUTPUT,
         0,
-        &CreateWindowAux::new().background_pixel(screen.white_pixel),
+        &CreateWindowAux::new()
+            .background_pixel(screen.white_pixel)
+            .event_mask(event_mask),
     )?;
-    conn.map_window(win_id)?;
+    conn.map_window(window_id)?;
     conn.flush()?;
 
     let window = WindowHandle {
-        window: win_id,
+        window_id,
         connection: conn.get_raw_xcb_connection(),
         screen: screen_num as _,
     };
     let mut lb = init(&window, false);
 
     loop {
+        while let Some(event) = conn.poll_for_event()? {
+            handle(&mut lb, event);
+        }
+        println!("frame");
         lb.frame();
-        std::thread::sleep(Duration::from_millis(16));
+    }
+}
+
+fn handle(lb: &mut WgpuLockbook, event: Event) {
+    match event {
+        // pointer
+        Event::ButtonPress(event) => input::pointer::handle_press(lb, event),
+        Event::ButtonRelease(event) => input::pointer::handle_release(lb, event),
+        Event::MotionNotify(event) => input::pointer::handle_motion(lb, event),
+
+        // keyboard
+        Event::KeyPress(_) => {
+            println!("KeyPress")
+        }
+        Event::KeyRelease(_) => {
+            println!("KeyRelease")
+        }
+
+        // window resize
+        Event::ResizeRequest(_) => {
+            println!("ResizeRequest")
+        }
+
+        // focus
+        Event::FocusIn(_) => {
+            println!("FocusIn")
+        }
+        Event::FocusOut(_) => {
+            println!("FocusOut")
+        }
+
+        // ?
+        Event::ConfigureNotify(_) => {
+            println!("ConfigureNotify")
+        }
+        Event::PropertyNotify(_) => {
+            println!("PropertyNotify")
+        }
+
+        _ => {}
     }
 }
 
 pub struct WindowHandle {
-    window: u32,
+    window_id: u32,
     connection: *mut c_void,
     screen: i32,
 }
 
-// Smails implementations adapted for windows with reference to winit's linux implementation:
-// https://github.com/lockbook/lockbook/pull/1835/files#diff-0f28854a868a55fcd30ff5f0fda476aed540b2e1fc3762415ac6e0588ed76fb6
-// https://github.com/rust-windowing/winit/blob/ee0db52ac49d64b46c500ef31d7f5f5107ce871a/src/platform_impl/windows/window.rs#L334-L346
 unsafe impl HasRawWindowHandle for WindowHandle {
     fn raw_window_handle(&self) -> RawWindowHandle {
         let mut result = XcbWindowHandle::empty();
-        result.window = self.window;
+        result.window = self.window_id;
         RawWindowHandle::Xcb(result)
     }
 }
@@ -73,15 +145,6 @@ unsafe impl HasRawDisplayHandle for WindowHandle {
         result.screen = self.screen;
         RawDisplayHandle::Xcb(result)
     }
-}
-
-// The rest of the code in this file would go in main except for this code to build on linux it needs to all be under a cfg(windows)
-#[derive(Default)]
-pub struct Window {
-    maybe_app: Option<WgpuLockbook>, // must be populated after the window is created
-    width: u16,
-    height: u16,
-    dpi_scale: f32,
 }
 
 // Taken from other lockbook code
@@ -161,9 +224,4 @@ async fn request_device(
         }
         Ok((device, queue)) => (adapter, device, queue),
     }
-}
-
-// https://github.com/rust-windowing/winit/blob/789a4979801cffc20c9dfbc34e72c15ebf3c737c/src/platform_impl/windows/dpi.rs#L75C1-L78C2
-pub fn dpi_to_scale_factor(dpi: u16) -> f32 {
-    todo!()
 }
