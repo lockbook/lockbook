@@ -92,9 +92,7 @@ fn handle(lb: &mut WgpuLockbook, event: Event) {
 
         // keyboard
         Event::KeyPress(event) => input::key::handle_press(lb, event),
-        Event::KeyRelease(_) => {
-            println!("KeyRelease")
-        }
+        Event::KeyRelease(event) => input::key::handle_release(lb, event),
 
         // window resize
         Event::ResizeRequest(_) => {

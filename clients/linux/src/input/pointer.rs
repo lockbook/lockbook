@@ -1,6 +1,8 @@
 use lbeguiapp::WgpuLockbook;
 use x11rb::protocol::xproto::{ButtonPressEvent, KeyButMask, MotionNotifyEvent};
 
+use super::modifiers;
+
 pub fn handle_press(app: &mut WgpuLockbook, event: ButtonPressEvent) {
     handle(app, event.event_x, event.event_y, event.detail, event.state, true)
 }
@@ -15,13 +17,7 @@ fn handle(
     app: &mut WgpuLockbook, event_x: i16, event_y: i16, detail: u8, state: KeyButMask,
     pressed: bool,
 ) {
-    let modifiers = egui::Modifiers {
-        alt: state.contains(KeyButMask::MOD1),
-        ctrl: state.contains(KeyButMask::CONTROL),
-        command: state.contains(KeyButMask::CONTROL),
-        shift: state.contains(KeyButMask::SHIFT),
-        mac_cmd: false,
-    };
+    let modifiers = modifiers(state);
 
     if 4 <= detail && detail <= 7 {
         // scroll event
