@@ -9,9 +9,15 @@ egui = "0.22.0"
 egui_wgpu_backend = "0.24.0"
 env_logger = "0.10"
 image = "0.24.7"
-lb = { package = "lb-rs", path = "../../libs/lb/lb-rs", default-features = false, features = ["native-tls"] }
+lb = { package = "lb-rs", path = "../../libs/lb/lb-rs", default-features = false, features = [
+    "native-tls",
+] }
 lbeditor = { package = "egui_editor", path = "../../libs/content/editor/egui_editor" }
 lbeguiapp = { package = "lockbook-egui", path = "../egui" }
 pollster = "0.2"
 raw-window-handle = "0.5"
-x11rb = { version = "0.13.0", features = ["all-extensions", "allow-unsafe-code"] }
+x11rb = { version = "0.13.0", features = [
+    "all-extensions",
+    "allow-unsafe-code",
+    "cursor",
+] }

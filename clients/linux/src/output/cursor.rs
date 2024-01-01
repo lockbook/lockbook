@@ -1,63 +1,41 @@
 use egui::CursorIcon;
-use windows::{core::*, Win32::Foundation::*, Win32::UI::WindowsAndMessaging::*};
+use x11rb::{
+    connection::Connection as _,
+    protocol::xproto::{ChangeWindowAttributesAux, ConnectionExt, CreateGCAux, Screen},
+    xcb_ffi::{ReplyOrIdError, XCBConnection},
+};
 
-static mut CURSOR_ICON: CursorIcon = CursorIcon::Default;
-
-pub fn update(cursor_icon: CursorIcon) {
-    unsafe { CURSOR_ICON = cursor_icon };
-}
-
-pub fn handle() -> bool {
-    let cursor_icon = unsafe { CURSOR_ICON };
-    if cursor_icon == CursorIcon::Default {
-        // if the application set a default cursor icon, defer to Windows e.g. to apply window resize cursor icons
-        false
-    } else {
-        let windows_cursor = to_windows_cursor(unsafe { CURSOR_ICON });
-        let cursor =
-            unsafe { LoadCursorW(HINSTANCE(0), windows_cursor) }.expect("load cursor icon");
-        unsafe { SetCursor(cursor) };
-        unsafe { CURSOR_ICON = CursorIcon::Default };
-        true
+pub fn handle(conn: &XCBConnection, screen: &Screen, window: u32, cursor_icon: CursorIcon) {
+    match handle_impl(conn, screen, window, cursor_icon) {
+        Ok(_) => {}
+        Err(e) => {
+            println!("Failed to set cursor: {:?}", e);
+        }
     }
 }
 
-// https://github.com/rust-windowing/winit/blob/3eea5054405295d79a9b127a879e7accffa4db53/src/platform_impl/windows/util.rs#L167C1-L192C2
-fn to_windows_cursor(cursor_icon: CursorIcon) -> PCWSTR {
-    match cursor_icon {
-        CursorIcon::Default => IDC_ARROW,
-        CursorIcon::Help => IDC_HELP,
-        CursorIcon::PointingHand => IDC_HAND,
-        CursorIcon::Progress => IDC_APPSTARTING,
-        CursorIcon::Wait => IDC_WAIT,
-        CursorIcon::Crosshair => IDC_CROSS,
-        CursorIcon::Text | CursorIcon::VerticalText => IDC_IBEAM,
-        CursorIcon::NotAllowed | CursorIcon::NoDrop => IDC_NO,
-        CursorIcon::Grab | CursorIcon::Grabbing | CursorIcon::Move | CursorIcon::AllScroll => {
-            IDC_SIZEALL
-        }
-        CursorIcon::ResizeEast
-        | CursorIcon::ResizeWest
-        | CursorIcon::ResizeHorizontal
-        | CursorIcon::ResizeColumn => IDC_SIZEWE,
-        CursorIcon::ResizeNorth
-        | CursorIcon::ResizeSouth
-        | CursorIcon::ResizeVertical
-        | CursorIcon::ResizeRow => IDC_SIZENS,
-        CursorIcon::ResizeNorthEast | CursorIcon::ResizeSouthWest | CursorIcon::ResizeNeSw => {
-            IDC_SIZENESW
-        }
-        CursorIcon::ResizeNorthWest | CursorIcon::ResizeSouthEast | CursorIcon::ResizeNwSe => {
-            IDC_SIZENWSE
-        }
+fn handle_impl(
+    conn: &XCBConnection, screen: &Screen, window: u32, cursor_icon: CursorIcon,
+) -> Result<(), ReplyOrIdError> {
+    let font = conn.generate_id()?;
+    conn.open_font(font, b"cursor")?;
 
-        // use arrow for the missing cases
-        CursorIcon::None
-        | CursorIcon::ContextMenu
-        | CursorIcon::Cell
-        | CursorIcon::Alias
-        | CursorIcon::Copy
-        | CursorIcon::ZoomIn
-        | CursorIcon::ZoomOut => IDC_ARROW,
-    }
+    let cursor = conn.generate_id()?;
+    let cursor_id = cursor_icon as u16;
+    conn.create_glyph_cursor(cursor, font, font, cursor_id, cursor_id + 1, 0, 0, 0, 0, 0, 0)?;
+
+    let gc = conn.generate_id()?;
+    let values = CreateGCAux::default()
+        .foreground(screen.black_pixel)
+        .background(screen.black_pixel)
+        .font(font);
+    conn.create_gc(gc, window, &values)?;
+
+    let values = ChangeWindowAttributesAux::default().cursor(cursor);
+    conn.change_window_attributes(window, &values)?;
+
+    conn.free_cursor(cursor)?;
+    conn.close_font(font)?;
+
+    Ok(())
 }

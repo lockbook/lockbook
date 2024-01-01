@@ -1,9 +1,9 @@
-use egui::{Context, Visuals};
+use egui::{Context, PlatformOutput, Visuals};
 use egui_wgpu_backend::{
     wgpu::{self, CompositeAlphaMode},
     ScreenDescriptor,
 };
-use lbeguiapp::WgpuLockbook;
+use lbeguiapp::{IntegrationOutput, UpdateOutput, WgpuLockbook};
 use raw_window_handle::{
     HasRawDisplayHandle, HasRawWindowHandle, RawDisplayHandle, RawWindowHandle, XcbDisplayHandle,
     XcbWindowHandle,
@@ -13,7 +13,7 @@ use std::{ffi::c_void, time::Instant};
 use x11rb::{connection::Connection, protocol::xproto::*};
 use x11rb::{protocol::Event, COPY_DEPTH_FROM_PARENT};
 
-use crate::input;
+use crate::{input, output};
 
 pub fn main() -> Result<(), Box<dyn std::error::Error>> {
     env_logger::init();
@@ -79,7 +79,18 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
         while let Some(event) = conn.poll_for_event()? {
             handle(&mut lb, event);
         }
-        lb.frame();
+        let IntegrationOutput {
+            redraw_in: _, // todo: handle? how's this different from checking egui context?
+            egui: PlatformOutput { cursor_icon, open_url, copied_text, .. },
+            update_output: UpdateOutput { close, set_window_title },
+        } = lb.frame();
+
+        // output::clipboard_copy::handle(copied_text);
+        // output::close::handle(close);
+        // output::window_title::handle(hwnd, set_window_title);
+        output::cursor::handle(&conn, &screen, window_id, cursor_icon);
+        // output::open_url::handle(open_url);
+        conn.flush()?;
     }
 }
 

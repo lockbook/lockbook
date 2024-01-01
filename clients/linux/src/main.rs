@@ -1,7 +1,7 @@
 #[cfg(target_os = "linux")]
 mod input;
-// #[cfg(target_os = "linux")]
-// mod output;
+#[cfg(target_os = "linux")]
+mod output;
 #[cfg(target_os = "linux")]
 mod window;
 
