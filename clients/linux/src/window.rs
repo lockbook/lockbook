@@ -79,7 +79,6 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
         while let Some(event) = conn.poll_for_event()? {
             handle(&mut lb, event);
         }
-        println!("frame");
         lb.frame();
     }
 }
@@ -92,9 +91,7 @@ fn handle(lb: &mut WgpuLockbook, event: Event) {
         Event::MotionNotify(event) => input::pointer::handle_motion(lb, event),
 
         // keyboard
-        Event::KeyPress(_) => {
-            println!("KeyPress")
-        }
+        Event::KeyPress(event) => input::key::handle_press(lb, event),
         Event::KeyRelease(_) => {
             println!("KeyRelease")
         }
