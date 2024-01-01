@@ -44,6 +44,14 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
         // selection support
         textInteraction.textInput = self
         self.addInteraction(textInteraction)
+        
+        for gestureRecognizer in textInteraction.gesturesForFailureRequirements {
+            let gestureName = gestureRecognizer.name?.lowercased()
+            
+            if(gestureName?.contains("tap") ?? false) {
+                gestureRecognizer.cancelsTouchesInView = false
+            }
+        }
 
         // drop support
         let dropInteraction = UIDropInteraction(delegate: self)
