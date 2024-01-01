@@ -8,7 +8,7 @@ public class MacMTK: MTKView, MTKViewDelegate {
     var coreHandle: UnsafeMutableRawPointer?
     var trackingArea : NSTrackingArea?
     var pasteBoardEventId: Int = 0
-        
+    
     var workspaceState: WorkspaceState?
     
     // todo this will probably just become us hanging on to the last output
@@ -21,10 +21,10 @@ public class MacMTK: MTKView, MTKViewDelegate {
     
     override init(frame frameRect: CGRect, device: MTLDevice?) {
         super.init(frame: frameRect, device: device)
+        self.preferredFramesPerSecond = 120
         self.delegate = self
         self.isPaused = true
         self.enableSetNeedsDisplay = true
-        self.preferredFramesPerSecond = 120
     }
     
     func openFile(id: UUID) {
@@ -58,11 +58,11 @@ public class MacMTK: MTKView, MTKViewDelegate {
                                       owner: self, userInfo: nil)
         self.addTrackingArea(trackingArea!)
     }
-
+    
     required init(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
-
+    
     public override var acceptsFirstResponder: Bool {
         return true
     }
@@ -89,7 +89,7 @@ public class MacMTK: MTKView, MTKViewDelegate {
         if window?.firstResponder != self {
             return
         }
-
+        
         let local = viewCoordinates(event)
         mouse_moved(wsHandle, Float(local.x), Float(local.y))
         setNeedsDisplay(self.frame)
@@ -99,7 +99,7 @@ public class MacMTK: MTKView, MTKViewDelegate {
         if window?.firstResponder != self {
             return
         }
-
+        
         let local = viewCoordinates(event)
         mouse_moved(wsHandle, Float(local.x), Float(local.y))
         setNeedsDisplay(self.frame)
@@ -178,21 +178,21 @@ public class MacMTK: MTKView, MTKViewDelegate {
                 return false
             }
             
-//            if let lbImageURL = workspaceState!.importFile(imageUrl) {
-//                paste_text(wsHandle, lbImageURL)
-//                workspaceState?.pasted = true
-//                
-//                return true
-//            }
+            //            if let lbImageURL = workspaceState!.importFile(imageUrl) {
+            //                paste_text(wsHandle, lbImageURL)
+            //                workspaceState?.pasted = true
+            //
+            //                return true
+            //            }
         } else if isDropOperation {
             if let data = pasteBoard.data(forType: .fileURL) {
                 if let url = URL(dataRepresentation: data, relativeTo: nil) {
-//                    if let markdownURL = workspaceState!.importFile(url) {
-//                        paste_text(wsHandle, markdownURL)
-//                        workspaceState?.pasted = true
-//                        
-//                        return true
-//                    }
+                    //                    if let markdownURL = workspaceState!.importFile(url) {
+                    //                        paste_text(wsHandle, markdownURL)
+                    //                        workspaceState?.pasted = true
+                    //
+                    //                        return true
+                    //                    }
                 }
             } else if let data = pasteBoard.data(forType: .string) {
                 paste_text(wsHandle, String(data: data, encoding: .utf8))
@@ -213,7 +213,7 @@ public class MacMTK: MTKView, MTKViewDelegate {
         
         return false
     }
-
+    
     func textFromPtr(s: UnsafeMutablePointer<CChar>!) -> String {
         if s == nil {
             return ""
@@ -248,7 +248,13 @@ public class MacMTK: MTKView, MTKViewDelegate {
         let output = draw_editor(wsHandle)
         
         let selectedFile = UUID(uuid: output.workspace_resp.selected_file._0)
-        if !selectedFile.isNil() {
+        if selectedFile.isNil() {
+            currentOpenDoc = nil
+            if self.workspaceState?.openDoc != nil {
+                self.workspaceState?.openDoc = nil
+            }
+        } else {
+            currentOpenDoc = selectedFile
             if selectedFile != self.workspaceState?.openDoc {
                 self.workspaceState?.openDoc = selectedFile
             }
@@ -260,21 +266,26 @@ public class MacMTK: MTKView, MTKViewDelegate {
             if let url = URL(string: url) {
                 NSWorkspace.shared.open(url)
             }
-
+            
         }
         
         redrawTask?.cancel()
         self.isPaused = output.redraw_in > 100
         if self.isPaused {
-            let redrawIn = Int(truncatingIfNeeded: output.redraw_in)
-            
-            if redrawIn != -1 {
-                let newRedrawTask = DispatchWorkItem {
-                    self.setNeedsDisplay(self.frame)
-                }
-                DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(redrawIn), execute: newRedrawTask)
-                redrawTask = newRedrawTask
+            var redrawIn = Int(truncatingIfNeeded: output.redraw_in)
+            if redrawIn == -1 {
+                // todo: this means that at a mimumum we're going to trigger 1 frame per second
+                // so that long running background tasks within egui eventually have their status
+                // shown. Ideally this would get replaced by some form of trigger within egui
+                // (what happens if requestRepaint is called while no frame is being drawn)
+                redrawIn = 1000
             }
+            
+            let newRedrawTask = DispatchWorkItem {
+                self.setNeedsDisplay(self.frame)
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(redrawIn), execute: newRedrawTask)
+            redrawTask = newRedrawTask
         }
         
         if let text = output.copied_text {

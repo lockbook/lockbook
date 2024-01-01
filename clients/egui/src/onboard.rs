@@ -94,15 +94,14 @@ impl OnboardScreen {
                     self.import_status = Some(sp.to_string());
                 }
                 Update::ImportSyncDone(maybe_err) => {
-                    // if let Some(err) = maybe_err {
-                    // todo rethink
-                    // match err {
-                    //     SyncError::Major(msg) => self.import_err = Some(msg),
-                    //     SyncError::Minor(msg) => self.import_err = Some(msg),
-                    // }
-                    // } else {
-                    //     self.import_status = Some("Loading account data...".to_string());
-                    // }
+                    if let Some(err) = maybe_err {
+                        match err {
+                            SyncError::Major(msg) => self.import_err = Some(msg),
+                            SyncError::Minor(msg) => self.import_err = Some(msg),
+                        }
+                    } else {
+                        self.import_status = Some("Loading account data...".to_string());
+                    }
                 }
                 Update::AccountDataLoaded(result) => match result {
                     Ok(acct_data) => {
@@ -266,7 +265,7 @@ impl OnboardScreen {
                 }
             };
 
-            match core.sync(None).map_err(SyncError::from) {
+            match core.sync(Some(Box::new(closure))).map_err(SyncError::from) {
                 Ok(_acct) => {
                     tx.send(Update::ImportSyncDone(None)).unwrap();
                     tx.send(Update::AccountDataLoaded(load_account_data(&core)))

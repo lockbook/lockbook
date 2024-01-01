@@ -83,8 +83,9 @@ public struct NSWS: NSViewRepresentable {
     
     public func updateNSView(_ nsView: MTKView, context: NSViewRepresentableContext<NSWS>) {
         if let id = workspaceState.openDoc {
-            print(id)
-            mtkView.openFile(id: id)
+            if mtkView.currentOpenDoc != id {
+                mtkView.openFile(id: id)
+            }
         }
         
         if workspaceState.shouldFocus {

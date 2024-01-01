@@ -1,3 +1,4 @@
+use dark_light::Mode::Dark;
 use eframe::egui;
 use std::sync::{Arc, RwLock};
 use std::thread;
@@ -17,20 +18,7 @@ pub fn init(s: &Arc<RwLock<Settings>>, ctx: &egui::Context) {
 
     ctx.set_visuals(egui_visuals(initial_mode, primary));
 
-    let mut style = (*ctx.style()).clone();
-    style.spacing.button_padding = egui::vec2(7.0, 7.0);
-    style.spacing.menu_margin = egui::Margin::same(10.0);
-
-    style
-        .text_styles
-        .insert(egui::TextStyle::Body, egui::FontId::new(17.0, egui::FontFamily::Proportional));
-    style
-        .text_styles
-        .insert(egui::TextStyle::Monospace, egui::FontId::new(17.0, egui::FontFamily::Monospace));
-    style
-        .text_styles
-        .insert(egui::TextStyle::Button, egui::FontId::new(17.0, egui::FontFamily::Proportional));
-    ctx.set_style(style);
+    visuals::init(ctx, initial_mode == Dark);
 
     poll_system_theme(s, ctx, initial_mode);
 }

@@ -48,7 +48,7 @@ import AppKit
             }
                         
             CommandMenu("Lockbook") {
-                Button("Sync", action: { DI.sync.sync() }).keyboardShortcut("S", modifiers: .command)
+                Button("Sync", action: { DI.workspace.requestSync() }).keyboardShortcut("S", modifiers: .command)
                 Button("Search Paths", action: { DI.search.startSearchThread(isPathAndContentSearch: false) }).keyboardShortcut("O", modifiers: .command)
                 #if os(macOS)
                 Button("Search Paths And Content") {

@@ -1,5 +1,26 @@
 use crate::theme::palette::ThemePalette;
 use egui::Color32;
+use lb_rs::ColorAlias;
+
+pub fn init(ctx: &egui::Context, dark_mode: bool) {
+    let visuals = if dark_mode { dark(ColorAlias::Blue) } else { light(ColorAlias::Blue) };
+    ctx.set_visuals(visuals);
+
+    let mut style = (*ctx.style()).clone();
+    style.spacing.button_padding = egui::vec2(7.0, 7.0);
+    style.spacing.menu_margin = egui::Margin::same(10.0);
+
+    style
+        .text_styles
+        .insert(egui::TextStyle::Body, egui::FontId::new(17.0, egui::FontFamily::Proportional));
+    style
+        .text_styles
+        .insert(egui::TextStyle::Monospace, egui::FontId::new(17.0, egui::FontFamily::Monospace));
+    style
+        .text_styles
+        .insert(egui::TextStyle::Button, egui::FontId::new(17.0, egui::FontFamily::Proportional));
+    ctx.set_style(style);
+}
 
 pub fn dark(primary: lb_rs::ColorAlias) -> egui::Visuals {
     let mut v = egui::Visuals::dark();

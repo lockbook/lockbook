@@ -7,12 +7,14 @@ use egui_editor::Editor;
 use egui_wgpu_backend::wgpu::CompositeAlphaMode;
 use egui_wgpu_backend::{wgpu, ScreenDescriptor};
 // use reqwest::blocking;
+use lb_external_interface::lb_rs::ColorAlias;
 use lb_external_interface::Core;
 use std::ffi::{c_char, c_void, CStr, CString};
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use std::time::Instant;
 use workspace::register_fonts;
+use workspace::theme::visuals;
 use workspace::workspace::{Workspace, WsConfig};
 
 /// # Safety
@@ -45,7 +47,7 @@ pub unsafe extern "C" fn init_ws(
     let rpass = egui_wgpu_backend::RenderPass::new(&device, format, 1);
 
     let context = Context::default();
-    context.set_visuals(if dark_mode { Visuals::dark() } else { Visuals::light() });
+    visuals::init(&context, dark_mode);
     let mut ws_cfg = WsConfig::default();
     ws_cfg.data_dir = writable_dir;
     let workspace = Workspace::new(ws_cfg, &core, &context);
@@ -112,8 +114,7 @@ pub extern "C" fn set_scale(obj: *mut c_void, scale: f32) {
 #[no_mangle]
 pub unsafe extern "C" fn dark_mode(obj: *mut c_void, dark: bool) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-    obj.context
-        .set_visuals(if dark { Visuals::dark() } else { Visuals::light() });
+    visuals::init(&obj.context, dark);
 }
 
 /// # Safety

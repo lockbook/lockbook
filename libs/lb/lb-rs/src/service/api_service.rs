@@ -79,7 +79,6 @@ impl Requester for Network {
                 warn!("Send failed: {:#?}", err);
                 ApiError::SendFailed(err.to_string())
             })?;
-        println!("a done");
         let serialized_response = a
             .bytes()
             .map_err(|err| ApiError::ReceiveFailed(err.to_string()))?;
