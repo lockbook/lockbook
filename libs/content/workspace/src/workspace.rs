@@ -221,18 +221,15 @@ impl Workspace {
                 .show(ui)
                 .clicked()
             {
-                // self.create_file(false); todo!
+                out.new_document_clicked = true;
             }
             ui.visuals_mut().widgets.inactive.fg_stroke =
                 egui::Stroke { color: ui.visuals().widgets.active.bg_fill, ..Default::default() };
             ui.visuals_mut().widgets.hovered.fg_stroke =
                 egui::Stroke { color: ui.visuals().widgets.active.bg_fill, ..Default::default() };
-            // if Button::default().text("New folder").show(ui).clicked() {
-            //     self.update_tx
-            //         .send(OpenModal::NewFolder(None).into())
-            //         .unwrap();
-            //     ui.ctx().request_repaint();
-            // } todo:
+            if Button::default().text("New folder").show(ui).clicked() {
+                out.new_folder_clicked = true;
+            }
         });
     }
 

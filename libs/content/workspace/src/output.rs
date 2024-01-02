@@ -11,6 +11,9 @@ pub struct WsOutput {
 
     pub file_renamed: Option<(Uuid, String)>,
 
+    pub new_folder_clicked: bool,
+    pub new_document_clicked: bool,
+
     pub error: Option<String>,
 
     pub settings_updated: bool,
