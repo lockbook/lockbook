@@ -16,7 +16,7 @@ rand = "0.8.5"
 linkify = "0.10.0"
 egui = "0.22.0"
 
-lb-fonts = "0.1.1"
+lb-fonts = "0.1.2"
 serde = { version = "1.0.171", features = ["derive"] }
 
 # todo: maybe move this switch into lb itself
