@@ -7,7 +7,14 @@ public class WorkspaceState: ObservableObject {
     @Published public var pasted: Bool = false
     @Published public var shouldFocus: Bool
     
-    @Published public var openDoc: UUID? = nil
+    @Published public var openDoc: UUID? = nil {
+        didSet {
+            pendingSharesOpen = false
+        }
+    }
+    
+    @Published public var pendingSharesOpen: Bool = false
+    
     @Published public var selectedFolder: UUID? = nil
     
     @Published public var syncing: Bool = false
@@ -20,15 +27,11 @@ public class WorkspaceState: ObservableObject {
     @Published public var reloadFiles: Bool = false
     @Published public var syncRequested: Bool = false
     
-    public var isiPhone: Bool
+    public var importFile: (URL) -> String?
     
-//    public var importFile: (URL) -> String?
-    
-    public init() {
-        self.isiPhone = false // todo smail
-//        self.importFile = importFile
-        
-        self.shouldFocus = !isiPhone
+    public init(importFile: @escaping (URL) -> String?) {
+        self.importFile = importFile
+        self.shouldFocus = true
     }
     
     public func requestSync() {

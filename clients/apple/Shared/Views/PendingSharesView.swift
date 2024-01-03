@@ -8,17 +8,26 @@ struct PendingSharesView: View {
     @EnvironmentObject var share: ShareService
     
     var body: some View {
-        if share.pendingShares.isEmpty {
-            noPendingShares
-        } else {
-            pendingShares
+        VStack {
+            if let shares = share.pendingShares {
+                if shares.isEmpty {
+                    noPendingShares
+                } else {
+                    pendingShares
+                }
+            } else {
+                ProgressView()
+            }
+        }
+        .onAppear {
+            share.calculatePendingShares()
         }
     }
     
     @ViewBuilder
     var pendingShares: some View {
-        VStack {
-            List(share.pendingShares.sorted { meta1, meta2 in
+        Group {
+            List(share.pendingShares!.sorted { meta1, meta2 in
                 meta1 > meta2
             }) { meta in
                 SharedFileCell(meta: meta)
@@ -26,14 +35,13 @@ struct PendingSharesView: View {
             
             Spacer()
         }
-        .background(.clear)
         .navigationTitle("Pending Shares")
         .sheet(isPresented: $sheets.acceptingShare, content: AcceptShareSheet.init)
     }
     
     @ViewBuilder
     var noPendingShares: some View {
-        VStack {
+        Group {
             Spacer()
             Image(systemName: "person.2.slash")
                 .padding(.vertical, 5)

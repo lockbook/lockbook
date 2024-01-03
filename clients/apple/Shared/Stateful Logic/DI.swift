@@ -18,7 +18,7 @@ class DI {
     static let onboarding = OnboardingService(core)
     static let sheets: SheetState = SheetState()
     static let search = SearchService(core)
-    static let workspace = WorkspaceState()
+    static let workspace = WorkspaceState(importFile: importExport.importFileURL)
     #if os(iOS)
     static let toolbarModel = ToolbarModel()
     #endif
@@ -50,7 +50,7 @@ class Mock {
     static let onboarding = OnboardingService(core)
     static let sheets: SheetState = SheetState()
     static let search = SearchService(core)
-    static let workspace = WorkspaceState()
+    static let workspace = WorkspaceState(importFile: importExport.importFileURL)
     #if os(iOS)
     static let toolbarModel = ToolbarModel()
     #endif
