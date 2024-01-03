@@ -54,7 +54,7 @@ use crossbeam::channel::{self};
 use db_rs::Db;
 use lockbook_shared::account::Username;
 use lockbook_shared::api::{
-    AccountInfo, AdminFileInfoResponse, AdminValidateAccount, AdminValidateServer,
+    AccountInfo, AdminFileInfoResponse, AdminValidateAccount, AdminValidateServer, GetUsageRequest,
 };
 
 use crate::repo::CoreDb;
@@ -416,7 +416,12 @@ impl<Client: Requester, Docs: DocumentService> CoreLib<Client, Docs> {
 
     #[instrument(level = "debug", skip(self), err(Debug))]
     pub fn get_usage(&self) -> Result<UsageMetrics, LbError> {
-        self.in_tx(|s| s.get_usage())
+        let acc = self.get_account()?;
+        let s = self.inner.lock().unwrap();
+        let client = s.client.clone();
+        drop(s);
+        let usage = client.request(&acc, GetUsageRequest {})?;
+        self.in_tx(|s| s.get_usage(usage))
             .expected_errs(&[CoreError::ServerUnreachable, CoreError::ClientUpdateRequired])
     }
 
