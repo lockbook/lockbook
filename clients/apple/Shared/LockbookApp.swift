@@ -31,6 +31,8 @@ import AppKit
                 }
                 .handlesExternalEvents(preferring: ["lb"], allowing: ["lb"])
         }.commands {
+            CommandGroup(replacing: .saveItem) {}
+            
             CommandGroup(replacing: CommandGroupPlacement.newItem) {
                 Button("New Doc", action: {
                     DI.files.createDoc(isDrawing: false)
