@@ -1,4 +1,4 @@
-use lb_rs::Uuid;
+use lb_rs::{File, Uuid};
 
 // todo: dirty docs
 #[derive(Default, Clone)]
@@ -12,12 +12,17 @@ pub struct WsOutput {
     pub file_renamed: Option<(Uuid, String)>,
 
     pub new_folder_clicked: bool,
-    pub new_document_clicked: bool,
+    pub file_created: Option<Result<File, String>>,
 
     pub error: Option<String>,
 
     pub settings_updated: bool,
 
+    pub status: PersistentWsStatus,
+}
+
+#[derive(Default, Clone)]
+pub struct PersistentWsStatus {
     pub syncing: bool,
     pub offline: bool,
     pub update_req: bool,
@@ -31,8 +36,7 @@ pub struct WsOutput {
     pub message: String,
 }
 
-impl WsOutput {
-    // todo incorporate local dirtyness & last synced
+impl PersistentWsStatus {
     pub fn populate_message(&mut self) {
         if self.offline {
             self.message = "Offline".to_string();

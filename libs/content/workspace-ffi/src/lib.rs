@@ -123,8 +123,8 @@ impl From<WsOutput> for FfiWorkspaceResp {
     fn from(value: WsOutput) -> Self {
         Self {
             selected_file: value.selected_file.unwrap_or_default().into(),
-            msg: CString::new(value.message).unwrap().into_raw(),
-            syncing: value.syncing,
+            msg: CString::new(value.status.message).unwrap().into_raw(),
+            syncing: value.status.syncing,
         }
     }
 }

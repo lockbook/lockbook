@@ -40,17 +40,17 @@ impl Workspace {
     }
 
     pub fn sync_message(&self, prog: SyncProgress, out: &mut WsOutput) {
-        out.sync_progress = prog.progress as f32 / prog.total as f32;
-        out.sync_message = Some(prog.msg);
+        out.status.sync_progress = prog.progress as f32 / prog.total as f32;
+        out.status.sync_message = Some(prog.msg);
     }
 
     pub fn sync_done(&self, outcome: Result<SyncStatus, LbError>, out: &mut WsOutput) {
         match outcome {
             Ok(_) => {}
             Err(err) => match err.kind {
-                CoreError::ServerUnreachable => out.offline = true,
-                CoreError::ClientUpdateRequired => out.update_req = true,
-                CoreError::UsageIsOverDataCap => out.out_of_space = true,
+                CoreError::ServerUnreachable => out.status.offline = true,
+                CoreError::ClientUpdateRequired => out.status.update_req = true,
+                CoreError::UsageIsOverDataCap => out.status.out_of_space = true,
                 CoreError::Unexpected(msg) => out.error = Some(msg),
                 _ => {}
             },
@@ -74,6 +74,6 @@ impl Workspace {
     }
 
     pub fn dirty_msg(&self, dirt: DirtynessMsg, out: &mut WsOutput) {
-        out.dirtyness = dirt;
+        out.status.dirtyness = dirt;
     }
 }
