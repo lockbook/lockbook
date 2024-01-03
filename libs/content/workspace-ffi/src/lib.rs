@@ -1,10 +1,9 @@
-use egui::{CursorIcon, FontDefinitions, FontFamily, Pos2, Rect};
+use egui::{Pos2, Rect};
 use egui_editor::input::canonical::{Location, Region};
 use egui_editor::offset_types::{DocCharOffset, RelCharOffset};
-use egui_editor::{Editor, EditorResponse};
 use egui_wgpu_backend::wgpu;
 use egui_wgpu_backend::wgpu::CompositeAlphaMode;
-use lb_external_interface::lb_rs::{File, Uuid};
+use lb_external_interface::lb_rs::Uuid;
 use std::ffi::{c_char, CString};
 use std::time::Instant;
 use std::{iter, ptr};

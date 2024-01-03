@@ -1,5 +1,5 @@
 pub use crate::editor::{Editor, EditorResponse};
-use egui::{FontData, FontDefinitions, FontFamily, Pos2, Rect};
+use egui::{FontData, FontDefinitions, FontFamily};
 
 use std::sync::Arc;
 

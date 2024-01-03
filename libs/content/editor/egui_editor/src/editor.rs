@@ -1,9 +1,5 @@
 #[cfg(not(any(target_os = "ios", target_os = "macos")))]
 use serde::Serialize;
-#[cfg(any(target_os = "ios", target_os = "macos"))]
-use std::ffi::{c_char, CString};
-#[cfg(any(target_os = "ios", target_os = "macos"))]
-use std::ptr;
 use std::time::{Duration, Instant};
 use std::{cmp, mem};
 

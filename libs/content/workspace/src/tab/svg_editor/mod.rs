@@ -1,11 +1,10 @@
 mod eraser;
 mod history;
-mod main;
 mod pen;
+mod selection;
 mod toolbar;
 mod util;
 mod zoom;
-mod selection;
 
 use crate::tab::svg_editor::toolbar::{ColorSwatch, Component, Tool, Toolbar};
 use crate::theme::palette::ThemePalette;
@@ -22,8 +21,6 @@ use resvg::usvg::{self, Size};
 pub use util::node_by_id;
 
 use self::zoom::handle_zoom_input;
-
-const INITIAL_SVG_CONTENT: &str = "<svg xmlns=\"http://www.w3.org/2000/svg\" ></svg>";
 
 pub struct SVGEditor {
     buffer: Buffer,
@@ -58,7 +55,6 @@ impl SVGEditor {
         Self::define_dynamic_colors(&mut buffer, &mut toolbar, false, true);
 
         Self { buffer, toolbar, inner_rect: egui::Rect::NOTHING }
-        
     }
 
     pub fn show(&mut self, ui: &mut egui::Ui) {

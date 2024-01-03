@@ -1,17 +1,10 @@
 use crate::{CUuid, IntegrationOutput, WgpuWorkspace};
 use egui::os::OperatingSystem;
-use egui::{Context, Event, FontDefinitions, Pos2, Vec2, Visuals};
-use egui_editor::input::canonical::{Modification, Region};
-use egui_editor::style::{BlockNode, InlineNode, ListItem, MarkdownNode};
-use egui_editor::Editor;
+use egui::{Context, Event, FontDefinitions, Pos2, Vec2};
 use egui_wgpu_backend::wgpu::CompositeAlphaMode;
 use egui_wgpu_backend::{wgpu, ScreenDescriptor};
-// use reqwest::blocking;
-use lb_external_interface::lb_rs::ColorAlias;
 use lb_external_interface::Core;
 use std::ffi::{c_char, c_void, CStr, CString};
-use std::sync::atomic::AtomicBool;
-use std::sync::Arc;
 use std::time::Instant;
 use workspace::register_fonts;
 use workspace::theme::visuals;
@@ -48,9 +41,8 @@ pub unsafe extern "C" fn init_ws(
 
     let context = Context::default();
     visuals::init(&context, dark_mode);
-    let mut ws_cfg = WsConfig::default();
-    ws_cfg.data_dir = writable_dir;
-    let workspace = Workspace::new(ws_cfg, &core, &context);
+    let ws_cfg = WsConfig { data_dir: writable_dir, ..Default::default() };
+    let workspace = Workspace::new(ws_cfg, core, &context);
     let mut fonts = FontDefinitions::default();
     register_fonts(&mut fonts);
     context.set_fonts(fonts);
