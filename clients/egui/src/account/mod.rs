@@ -18,7 +18,7 @@ use workspace::tab::plain_text::PlainText;
 use workspace::tab::{Tab, TabContent, TabFailure};
 use workspace::theme::icons::Icon;
 use workspace::widgets::{separator, Button};
-use workspace::workspace::{Workspace, WsConfig};
+use workspace::workspace::{Workspace, WsConfig, NUM_KEYS};
 
 use crate::model::{AccountScreenInitData, Usage};
 use crate::settings::Settings;
@@ -186,6 +186,10 @@ impl AccountScreen {
                 if let Some(result) = wso.file_created {
                     self.file_created(ctx, result);
                 }
+
+                if let Some(file) = wso.selected_file {
+                    self.tree.reveal_file(file, &self.core);
+                }
             });
 
         if self.is_new_user {
@@ -294,6 +298,7 @@ impl AccountScreen {
         }
     }
 
+    /// See also workspace::process_keys
     fn process_keys(&mut self, ctx: &egui::Context, output: &mut UpdateOutput) {
         const ALT: egui::Modifiers = egui::Modifiers::ALT;
         const CTRL: egui::Modifiers = egui::Modifiers::MAC_CMD;
@@ -306,10 +311,6 @@ impl AccountScreen {
         {
             ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape));
         }
-        // Ctrl-N pressed while new file modal is not open.
-        if ctx.input_mut(|i| i.consume_key(CTRL, egui::Key::N)) {
-            self.workspace.create_file(false);
-        }
 
         // Ctrl-E toggle zen mode
         if ctx.input_mut(|i| i.consume_key(CTRL, egui::Key::E)) {
@@ -318,26 +319,6 @@ impl AccountScreen {
                 zen_mode = !settings.zen_mode;
             }
             self.settings.write().unwrap().zen_mode = zen_mode;
-        }
-
-        // Ctrl-S to save current tab.
-        if ctx.input_mut(|i| i.consume_key(CTRL, egui::Key::S)) {
-            self.workspace.save_tab(self.workspace.active_tab);
-        }
-
-        // Ctrl-W to close current tab.
-        if ctx.input_mut(|i| i.consume_key(CTRL, egui::Key::W)) && !self.workspace.is_empty() {
-            self.workspace.close_tab(self.workspace.active_tab);
-            output.set_window_title = Some(
-                self.workspace
-                    .current_tab()
-                    .map(|tab| tab.name.as_str())
-                    .unwrap_or("Lockbook")
-                    .to_owned(),
-            );
-            if let Some(active_t) = self.workspace.tabs.get(self.workspace.active_tab) {
-                self.tree.reveal_file(active_t.id, &self.core)
-            }
         }
 
         // Ctrl-Space or Ctrl-L pressed while search modal is not open.

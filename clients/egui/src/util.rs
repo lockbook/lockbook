@@ -10,15 +10,3 @@ pub fn data_dir() -> Result<String, String> {
         _ => Err("Unable to determine a Lockbook data directory. Please consider setting the LOCKBOOK_PATH environment variable.".to_string()),
     }
 }
-
-pub const NUM_KEYS: [egui::Key; 9] = [
-    egui::Key::Num1,
-    egui::Key::Num2,
-    egui::Key::Num3,
-    egui::Key::Num4,
-    egui::Key::Num5,
-    egui::Key::Num6,
-    egui::Key::Num7,
-    egui::Key::Num8,
-    egui::Key::Num9,
-];

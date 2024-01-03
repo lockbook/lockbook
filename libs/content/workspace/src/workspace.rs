@@ -167,10 +167,11 @@ impl Workspace {
 
     pub fn show_workspace(&mut self, ui: &mut egui::Ui) -> WsOutput {
         let mut output = WsOutput::default();
-        output.selected_file = self.tabs.get(self.active_tab).map(|t| t.id);
         output.status = self.pers_status.clone();
         self.process_updates(&mut output);
+        self.process_keys(&mut output);
         output.status.populate_message();
+        output.selected_file = self.tabs.get(self.active_tab).map(|t| t.id);
 
         if self.is_empty() {
             self.show_empty_workspace(ui, &mut output);
@@ -490,6 +491,52 @@ impl Workspace {
         }
     }
 
+    fn process_keys(&mut self, output: &mut WsOutput) {
+        const CTRL: egui::Modifiers = egui::Modifiers::MAC_CMD;
+        // Ctrl-N pressed while new file modal is not open.
+        if self.ctx.input_mut(|i| i.consume_key(CTRL, egui::Key::N)) {
+            self.create_file(false);
+        }
+
+        // Ctrl-S to save current tab.
+        if self.ctx.input_mut(|i| i.consume_key(CTRL, egui::Key::S)) {
+            self.save_tab(self.active_tab);
+        }
+
+        // Ctrl-W to close current tab.
+        if self.ctx.input_mut(|i| i.consume_key(CTRL, egui::Key::W)) && !self.is_empty() {
+            self.close_tab(self.active_tab);
+            output.window_title = Some(
+                self.current_tab()
+                    .map(|tab| tab.name.as_str())
+                    .unwrap_or("Lockbook")
+                    .to_owned(),
+            );
+        }
+
+        // Alt-{1-9} to easily navigate tabs (9 will always go to the last tab).
+        // self.ctx.input_mut(|input| {
+        //     for i in 1..10 {
+        //         if input.consume_key(CTRL, NUM_KEYS[i - 1]) {
+        //             self.goto_tab(i);
+        //             // Remove any text event that's also present this frame so that it doesn't show up
+        //             // in the editor.
+        //             if let Some(index) = input
+        //                 .events
+        //                 .iter()
+        //                 .position(|evt| *evt == egui::Event::Text(i.to_string()))
+        //             {
+        //                 input.events.remove(index);
+        //             }
+        //             if let Some(tab) = self.current_tab() {
+        //                 output.window_title = Some(tab.name.clone());
+        //             }
+        //             break;
+        //         }
+        //     }
+        // });
+    }
+
     pub fn process_updates(&mut self, out: &mut WsOutput) {
         while let Ok(update) = self.updates_rx.try_recv() {
             match update {
@@ -707,3 +754,15 @@ fn tab_label(ui: &mut egui::Ui, t: &mut Tab, is_active: bool) -> Option<TabLabel
 }
 
 const LOGO_BACKDROP: &[u8] = include_bytes!("../lockbook-backdrop.png");
+
+pub const NUM_KEYS: [egui::Key; 9] = [
+    egui::Key::Num1,
+    egui::Key::Num2,
+    egui::Key::Num3,
+    egui::Key::Num4,
+    egui::Key::Num5,
+    egui::Key::Num6,
+    egui::Key::Num7,
+    egui::Key::Num8,
+    egui::Key::Num9,
+];
