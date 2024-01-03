@@ -10,7 +10,7 @@ use std::time::{Duration, Instant};
 use std::{path, thread};
 
 use eframe::egui;
-use lb::{FileType, NameComponents};
+use lb::{FileType, NameComponents, Uuid};
 use workspace::background::BwIncomingMsg;
 use workspace::tab::image_viewer::{is_supported_image_fmt, ImageViewer};
 use workspace::tab::markdown::Markdown;
@@ -171,6 +171,8 @@ impl AccountScreen {
                     settings.auto_sync,
                     settings.zen_mode,
                 );
+                drop(settings);
+                self.workspace.focused_parent = Some(self.focused_parent());
                 let wso = self.workspace.show_workspace(ui);
                 output.set_window_title = wso.window_title;
                 if let Some((id, new_name)) = wso.file_renamed {
@@ -179,6 +181,10 @@ impl AccountScreen {
                     }
                     self.suggested.recalc_and_redraw(ctx, &self.core);
                     ctx.request_repaint();
+                }
+
+                if let Some(result) = wso.file_created {
+                    self.file_created(ctx, result);
                 }
             });
 
@@ -232,24 +238,7 @@ impl AccountScreen {
                     }
                     Err(msg) => self.modals.error = Some(ErrorModal::new(msg)),
                 },
-                AccountUpdate::FileCreated(result) => match result {
-                    Ok(f) => {
-                        let (id, is_doc) = (f.id, f.is_document());
-                        self.tree.root.insert(f);
-                        self.tree.reveal_file(id, &self.core);
-                        if is_doc {
-                            self.workspace.open_file(id, true);
-                        }
-                        // Close whichever new file modal was open.
-                        self.modals.new_folder = None;
-                        ctx.request_repaint();
-                    }
-                    Err(msg) => {
-                        if let Some(m) = &mut self.modals.new_folder {
-                            m.err_msg = Some(msg)
-                        }
-                    }
-                },
+                AccountUpdate::FileCreated(result) => self.file_created(ctx, result),
                 AccountUpdate::FileDeleted(f) => {
                     self.tree.remove(&f);
                     self.suggested.recalc_and_redraw(ctx, &self.core);
@@ -319,7 +308,7 @@ impl AccountScreen {
         }
         // Ctrl-N pressed while new file modal is not open.
         if ctx.input_mut(|i| i.consume_key(CTRL, egui::Key::N)) {
-            self.create_file(false);
+            self.workspace.create_file(false);
         }
 
         // Ctrl-E toggle zen mode
@@ -425,11 +414,11 @@ impl AccountScreen {
             .inner;
 
         if resp.new_file.is_some() {
-            self.create_file(false);
+            self.workspace.create_file(false);
         }
 
         if resp.new_drawing.is_some() {
-            self.create_file(true);
+            self.workspace.create_file(true);
         }
 
         if let Some(file) = resp.new_folder_modal {
@@ -656,31 +645,13 @@ impl AccountScreen {
         });
     }
 
-    fn create_file(&mut self, is_drawing: bool) {
+    fn focused_parent(&mut self) -> Uuid {
         let mut focused_parent = self.tree.root.file.id;
         for id in self.tree.state.selected.drain() {
             focused_parent = id;
         }
-        let core = self.core.clone();
-        let update_tx = self.update_tx.clone();
 
-        thread::spawn(move || {
-            let focused_parent = core.get_file_by_id(focused_parent).unwrap();
-            let focused_parent = if focused_parent.file_type == FileType::Document {
-                focused_parent.parent
-            } else {
-                focused_parent.id
-            };
-
-            let file_format = if is_drawing { "svg" } else { "md" };
-            let new_file = NameComponents::from(&format!("untitled.{}", file_format))
-                .next_in_children(core.get_children(focused_parent).unwrap());
-
-            let result = core
-                .create_file(new_file.to_name().as_str(), focused_parent, FileType::Document)
-                .map_err(|err| format!("{:?}", err));
-            update_tx.send(AccountUpdate::FileCreated(result)).unwrap();
-        });
+        focused_parent
     }
 
     fn create_share(&mut self, params: CreateShareParams) {
@@ -794,6 +765,27 @@ impl AccountScreen {
             update_tx.send(AccountUpdate::DoneDeleting).unwrap();
             ctx.request_repaint();
         });
+    }
+
+    fn file_created(&mut self, ctx: &egui::Context, result: Result<lb::File, String>) {
+        match result {
+            Ok(f) => {
+                let (id, is_doc) = (f.id, f.is_document());
+                self.tree.root.insert(f);
+                self.tree.reveal_file(id, &self.core);
+                if is_doc {
+                    self.workspace.open_file(id, true);
+                }
+                // Close whichever new file modal was open.
+                self.modals.new_folder = None;
+                ctx.request_repaint();
+            }
+            Err(msg) => {
+                if let Some(m) = &mut self.modals.new_folder {
+                    m.err_msg = Some(msg)
+                }
+            }
+        }
     }
 }
 

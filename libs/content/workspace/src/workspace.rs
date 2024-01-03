@@ -6,7 +6,7 @@ use std::thread;
 use std::time::Instant;
 
 use crate::background::{BackgroundWorker, BwIncomingMsg, Signal};
-use crate::output::{DirtynessMsg, WsOutput};
+use crate::output::{DirtynessMsg, PersistentWsStatus, WsOutput};
 use crate::tab::image_viewer::{is_supported_image_fmt, ImageViewer};
 use crate::tab::markdown::Markdown;
 use crate::tab::pdf_viewer::PdfViewer;
@@ -16,7 +16,7 @@ use crate::tab::{Tab, TabContent, TabFailure};
 use crate::theme::icons::Icon;
 use crate::widgets::{separator, Button, ToolBarVisibility};
 use egui_extras::RetainedImage;
-use lb_rs::{LbError, SyncProgress, SyncStatus, Uuid};
+use lb_rs::{File, FileType, LbError, NameComponents, SyncProgress, SyncStatus, Uuid};
 
 pub struct Workspace {
     pub cfg: WsConfig,
@@ -34,10 +34,14 @@ pub struct Workspace {
     pub updates_rx: Receiver<WsMsg>,
     pub background_tx: Sender<BwIncomingMsg>,
 
-    pub last_output: WsOutput,
+    // todo set this in swift as well
+    pub focused_parent: Option<Uuid>,
+
+    pub pers_status: PersistentWsStatus,
 }
 
 pub enum WsMsg {
+    FileCreated(Result<File, String>),
     FileLoaded(Uuid, Result<TabContent, TabFailure>),
     SaveResult(Uuid, Result<Instant, LbError>),
     FileRenamed { id: Uuid, new_name: String },
@@ -88,7 +92,7 @@ impl Workspace {
         let background = BackgroundWorker::new(ctx, &updates_tx);
         let background_tx = background.spawn_worker();
         let syncing = Default::default();
-        let last_output = Default::default();
+        let pers_status = Default::default();
 
         Self {
             cfg,
@@ -101,7 +105,8 @@ impl Workspace {
             updates_tx,
             background_tx,
             syncing,
-            last_output,
+            pers_status,
+            focused_parent: None,
         }
     }
 
@@ -161,9 +166,10 @@ impl Workspace {
     }
 
     pub fn show_workspace(&mut self, ui: &mut egui::Ui) -> WsOutput {
-        let mut output = self.last_output.clone();
+        let mut output = WsOutput::default();
+        output.status = self.pers_status.clone();
         self.process_updates(&mut output);
-        output.populate_message();
+        output.status.populate_message();
 
         if self.is_empty() {
             self.show_empty_workspace(ui, &mut output);
@@ -190,7 +196,7 @@ impl Workspace {
             });
         }
 
-        self.last_output = output.clone();
+        self.pers_status = output.status.clone();
         output
     }
 
@@ -221,18 +227,15 @@ impl Workspace {
                 .show(ui)
                 .clicked()
             {
-                // self.create_file(false); todo!
+                self.create_file(false);
             }
             ui.visuals_mut().widgets.inactive.fg_stroke =
                 egui::Stroke { color: ui.visuals().widgets.active.bg_fill, ..Default::default() };
             ui.visuals_mut().widgets.hovered.fg_stroke =
                 egui::Stroke { color: ui.visuals().widgets.active.bg_fill, ..Default::default() };
-            // if Button::default().text("New folder").show(ui).clicked() {
-            //     self.update_tx
-            //         .send(OpenModal::NewFolder(None).into())
-            //         .unwrap();
-            //     ui.ctx().request_repaint();
-            // } todo:
+            if Button::default().text("New folder").show(ui).clicked() {
+                out.new_folder_clicked = true;
+            }
         });
     }
 
@@ -394,6 +397,32 @@ impl Workspace {
         }
     }
 
+    pub fn create_file(&mut self, is_drawing: bool) {
+        let core = self.core.clone();
+        let update_tx = self.updates_tx.clone();
+        let focused_parent = self
+            .focused_parent
+            .unwrap_or_else(|| core.get_root().unwrap().id);
+
+        thread::spawn(move || {
+            let focused_parent = core.get_file_by_id(focused_parent).unwrap();
+            let focused_parent = if focused_parent.file_type == FileType::Document {
+                focused_parent.parent
+            } else {
+                focused_parent.id
+            };
+
+            let file_format = if is_drawing { "svg" } else { "md" };
+            let new_file = NameComponents::from(&format!("untitled.{}", file_format))
+                .next_in_children(core.get_children(focused_parent).unwrap());
+
+            let result = core
+                .create_file(new_file.to_name().as_str(), focused_parent, FileType::Document)
+                .map_err(|err| format!("{:?}", err));
+            update_tx.send(WsMsg::FileCreated(result)).unwrap();
+        });
+    }
+
     pub fn open_file(&mut self, id: Uuid, is_new_file: bool) {
         if self.goto_tab_id(id) {
             self.ctx.request_repaint();
@@ -520,6 +549,7 @@ impl Workspace {
                 }
                 WsMsg::SyncDone(sync_outcome) => self.sync_done(sync_outcome, out),
                 WsMsg::Dirtyness(dirty_msg) => self.dirty_msg(dirty_msg, out),
+                WsMsg::FileCreated(result) => out.file_created = Some(result),
             }
         }
     }

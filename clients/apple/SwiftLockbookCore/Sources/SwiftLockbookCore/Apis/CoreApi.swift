@@ -186,13 +186,12 @@ public struct CoreApi: LockbookApi {
         let msgPointer = time_ago(timeStamp)
         
         let msg = String(cString: msgPointer!)
-//        release_pointer(UnsafeMutablePointer(mutating: msgPointer))
+        release_pointer(UnsafeMutablePointer(mutating: msgPointer))
         
         return msg
     }
     
     public func freeText(s: UnsafePointer<Int8>) {
-        print("freed text")
-//        release_pointer(UnsafeMutablePointer(mutating: s))
+        release_pointer(UnsafeMutablePointer(mutating: s))
     }
 }
