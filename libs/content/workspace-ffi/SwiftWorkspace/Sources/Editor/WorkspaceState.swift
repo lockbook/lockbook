@@ -17,6 +17,7 @@ public class WorkspaceState: ObservableObject {
     @Published public var syncProgress: Float? = nil
     @Published public var statusMsg: String = ""
     
+    @Published public var reloadFiles: Bool = false
     @Published public var syncRequested: Bool = false
     
     public var isiPhone: Bool

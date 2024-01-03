@@ -45,6 +45,7 @@ impl Workspace {
     }
 
     pub fn sync_done(&self, outcome: Result<SyncStatus, LbError>, out: &mut WsOutput) {
+        out.sync_done = true;
         match outcome {
             Ok(_) => {}
             Err(err) => match err.kind {

@@ -2,6 +2,7 @@ import Foundation
 import SwiftUI
 import SwiftLockbookCore
 import SwiftWorkspace
+import Combine
 
 class FileService: ObservableObject {
     let core: LockbookApi
@@ -73,6 +74,8 @@ class FileService: ObservableObject {
         let root = root!
         return childrenOf(root)
     }
+    
+    private var cancellables: Set<AnyCancellable> = []
 
     init(_ core: LockbookApi) {
         self.core = core
@@ -80,6 +83,15 @@ class FileService: ObservableObject {
         if DI.accounts.account != nil {
             refresh()
         }
+        
+        DI.workspace.$reloadFiles.sink { reload in
+            if reload {
+                print("reload triggered")
+                DI.workspace.reloadFiles = false
+                self.refresh()
+            }
+        }
+        .store(in: &cancellables)
     }
     
     func moveFile(id: UUID, newParent: UUID) {

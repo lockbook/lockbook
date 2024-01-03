@@ -76,11 +76,24 @@ pub unsafe extern "C" fn init_ws(
 }
 
 #[no_mangle]
+pub extern "C" fn folder_selected(obj: *mut c_void, id: CUuid) {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    let id = id.into();
+
+    obj.workspace.focused_parent = Some(id);
+}
+
+#[no_mangle]
+pub extern "C" fn no_folder_selected(obj: *mut c_void) {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    obj.workspace.focused_parent = None;
+}
+
+#[no_mangle]
 pub extern "C" fn open_file(obj: *mut c_void, id: CUuid, new_file: bool) {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
     let id = id.into();
 
-    println!("in rust: {id}");
     obj.workspace.open_file(id, new_file)
 }
 

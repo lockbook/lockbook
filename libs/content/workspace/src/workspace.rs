@@ -167,6 +167,7 @@ impl Workspace {
 
     pub fn show_workspace(&mut self, ui: &mut egui::Ui) -> WsOutput {
         let mut output = WsOutput::default();
+        output.selected_file = self.tabs.get(self.active_tab).map(|t| t.id);
         output.status = self.pers_status.clone();
         self.process_updates(&mut output);
         output.status.populate_message();

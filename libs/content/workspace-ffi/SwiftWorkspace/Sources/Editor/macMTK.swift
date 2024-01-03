@@ -28,9 +28,12 @@ public class MacMTK: MTKView, MTKViewDelegate {
     }
     
     func openFile(id: UUID) {
-        let uuid = CUuid(_0: id.uuid)
-        open_file(wsHandle, uuid, false)
-        setNeedsDisplay(self.frame)
+        if currentOpenDoc != id {
+            let uuid = CUuid(_0: id.uuid)
+            open_file(wsHandle, uuid, false)
+            setNeedsDisplay(self.frame)
+        }
+
     }
     
     func requestSync() {
@@ -242,10 +245,21 @@ public class MacMTK: MTKView, MTKViewDelegate {
             setClipboard()
         }
         
+        switch self.workspaceState?.selectedFolder{
+        case .none:
+            no_folder_selected(wsHandle)
+        case .some(let f):
+            folder_selected(wsHandle, CUuid(_0: f.uuid))
+        }
+        
         let scale = Float(self.window?.backingScaleFactor ?? 1.0)
         dark_mode(wsHandle, isDarkMode())
         set_scale(wsHandle, scale)
         let output = draw_editor(wsHandle)
+        
+        workspaceState?.statusMsg = textFromPtr(s: output.workspace_resp.msg)
+        workspaceState?.syncing = output.workspace_resp.syncing
+        workspaceState?.reloadFiles = output.workspace_resp.refresh_files
         
         let selectedFile = UUID(uuid: output.workspace_resp.selected_file._0)
         if selectedFile.isNil() {
@@ -258,6 +272,11 @@ public class MacMTK: MTKView, MTKViewDelegate {
             if selectedFile != self.workspaceState?.openDoc {
                 self.workspaceState?.openDoc = selectedFile
             }
+        }
+        
+        let newFile = UUID(uuid: output.workspace_resp.doc_created._0)
+        if !newFile.isNil() {
+            self.workspaceState?.openDoc = newFile
         }
         
         if let openedUrl = output.url_opened {
@@ -299,9 +318,6 @@ public class MacMTK: MTKView, MTKViewDelegate {
             self.lastCursor = cursor
             self.resetCursorRects()
         }
-        
-        workspaceState?.statusMsg = textFromPtr(s: output.workspace_resp.msg)
-        workspaceState?.syncing = output.workspace_resp.syncing
     }
 }
 #endif

@@ -4,7 +4,7 @@ use egui_editor::offset_types::{DocCharOffset, RelCharOffset};
 use egui_editor::{Editor, EditorResponse};
 use egui_wgpu_backend::wgpu;
 use egui_wgpu_backend::wgpu::CompositeAlphaMode;
-use lb_external_interface::lb_rs::Uuid;
+use lb_external_interface::lb_rs::{File, Uuid};
 use std::ffi::{c_char, CString};
 use std::time::Instant;
 use std::{iter, ptr};
@@ -108,14 +108,22 @@ pub struct WgpuWorkspace {
 #[repr(C)]
 pub struct FfiWorkspaceResp {
     selected_file: CUuid,
+    doc_created: CUuid,
 
     msg: *mut c_char,
     syncing: bool,
+    refresh_files: bool,
 }
 
 impl Default for FfiWorkspaceResp {
     fn default() -> Self {
-        Self { selected_file: Default::default(), msg: ptr::null_mut(), syncing: false }
+        Self {
+            selected_file: Default::default(),
+            doc_created: Default::default(),
+            msg: ptr::null_mut(),
+            syncing: Default::default(),
+            refresh_files: Default::default(),
+        }
     }
 }
 
@@ -125,6 +133,19 @@ impl From<WsOutput> for FfiWorkspaceResp {
             selected_file: value.selected_file.unwrap_or_default().into(),
             msg: CString::new(value.status.message).unwrap().into_raw(),
             syncing: value.status.syncing,
+            refresh_files: value.sync_done
+                || value.file_renamed.is_some()
+                || value.file_created.is_some(),
+            doc_created: match value.file_created {
+                Some(Ok(f)) => {
+                    if f.is_document() {
+                        f.id.into()
+                    } else {
+                        Uuid::nil().into()
+                    }
+                }
+                _ => Uuid::nil().into(),
+            },
         }
     }
 }

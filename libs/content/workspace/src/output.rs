@@ -18,6 +18,7 @@ pub struct WsOutput {
 
     pub settings_updated: bool,
 
+    pub sync_done: bool,
     pub status: PersistentWsStatus,
 }
 
