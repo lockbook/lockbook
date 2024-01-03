@@ -162,7 +162,7 @@ class SearchService: ObservableObject {
       
     func openPathAtIndex(index: Int) {
         if isPathSearching && index < pathSearchResults.count {
-            DI.workspace.openDoc = pathSearchResults[index].id
+            DI.workspace.openDoc = pathSearchResults[index].lbId
             
             endSearch(isPathAndContentSearch: false)
         }

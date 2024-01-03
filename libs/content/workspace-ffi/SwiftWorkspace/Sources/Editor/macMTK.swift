@@ -167,38 +167,51 @@ public class MacMTK: MTKView, MTKViewDelegate {
         self.pasteBoardEventId = NSPasteboard.general.changeCount
     }
     
-    func importFromPasteboard(_ pasteBoard: NSPasteboard, isDropOperation: Bool) -> Bool {
-        if let data = pasteBoard.data(forType: .png) ?? pasteBoard.data(forType: .tiff),
-           let url = createTempDir() {
-            let imageUrl = url.appendingPathComponent(String(UUID().uuidString.prefix(10).lowercased()), conformingTo: .png)
+    func importImageData(data: Data, isPNG: Bool) -> Bool {
+        guard let url = createTempDir() else {
+            return false
+        }
+        
+        let imageUrl = url.appendingPathComponent(String(UUID().uuidString.prefix(10).lowercased()), conformingTo: isPNG ? .png : .tiff)
+         
+        do {
+            try data.write(to: imageUrl)
             
-            do {
-                try data.write(to: imageUrl)
-            } catch {
-                return false
+            if let lbImageURL = workspaceState!.importFile(imageUrl) {
+                pasteText(text: lbImageURL)
+                
+                return true
             }
-            
-            //            if let lbImageURL = workspaceState!.importFile(imageUrl) {
-            //                paste_text(wsHandle, lbImageURL)
-            //                workspaceState?.pasted = true
-            //
-            //                return true
-            //            }
+        } catch {}
+        
+        return false
+    }
+    
+    func pasteText(text: String) {
+        paste_text(wsHandle, text)
+        workspaceState?.pasted = true
+    }
+    
+    func importFromPasteboard(_ pasteBoard: NSPasteboard, isDropOperation: Bool) -> Bool {
+        if let data = pasteBoard.data(forType: .png) {
+            return importImageData(data: data, isPNG: true)
+        } else if let data = pasteBoard.data(forType: .tiff) {
+            return importImageData(data: data, isPNG: false)
         } else if isDropOperation {
             if let data = pasteBoard.data(forType: .fileURL) {
                 if let url = URL(dataRepresentation: data, relativeTo: nil) {
-                    //                    if let markdownURL = workspaceState!.importFile(url) {
-                    //                        paste_text(wsHandle, markdownURL)
-                    //                        workspaceState?.pasted = true
-                    //
-                    //                        return true
-                    //                    }
+                    if let markdownURL = workspaceState!.importFile(url) {
+                        pasteText(text: markdownURL)
+
+                        return true
+                    }
                 }
             } else if let data = pasteBoard.data(forType: .string) {
-                paste_text(wsHandle, String(data: data, encoding: .utf8))
-                workspaceState?.pasted = true
-                
-                return true
+                if let text = String(data: data, encoding: .utf8) {
+                    pasteText(text: text)
+                    
+                    return true
+                }
             }
         }
         

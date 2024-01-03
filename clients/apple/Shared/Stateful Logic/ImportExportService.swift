@@ -61,6 +61,30 @@ class ImportExportService: ObservableObject {
             }
         }
     }
+    
+    func importFileURL(url: URL) -> String? {
+        guard let id = DI.workspace.openDoc else {
+            return nil
+        }
+        
+        guard let meta = DI.files.idsAndFiles[id] else {
+            return nil
+        }
+        
+        let isSuccess = DI.importExport.importFilesSync(sources:[url.path(percentEncoded: false)], destination: meta.parent)
+        
+        if let parentPath = DI.files.getPathByIdOrParent(maybeId: meta.parent),
+           isSuccess {
+            if let file = DI.files.getFileByPath(path: parentPath + url.lastPathComponent) {
+                let pathExt = url.pathExtension.lowercased()
+                let isImage = pathExt == "png" || pathExt == "jpeg" || pathExt == "jpg" || pathExt == "tiff" || pathExt == "heic"
+        
+                return "\(isImage ? "!" : "")[\((url.lastPathComponent as NSString).deletingPathExtension)](lb://\(file.id.uuidString.lowercased()))"
+            }
+        }
+        
+        return nil
+    }
 
     func createTempTempDir() -> URL? {
         let fileManager = FileManager.default

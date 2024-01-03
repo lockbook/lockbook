@@ -75,56 +75,57 @@ struct FileListView: View {
 struct DetailView: View {
     @EnvironmentObject var search: SearchService
     @EnvironmentObject var share: ShareService
-    @EnvironmentObject var files: FileService    // todo: is it a problem if this reloads? 
+    @EnvironmentObject var workspace: WorkspaceState
         
     var body: some View {
         ZStack {
-            if files.pendingSharesOpen {
-                PendingSharesView()
-            } else {
-                WorkspaceView(DI.workspace, get_core_ptr()).equatable()
-            }
+            WorkspaceView(DI.workspace, get_core_ptr())
+                .equatable()
+                .opacity(workspace.pendingSharesOpen ? 0.0 : 1.0)
             
+            if workspace.pendingSharesOpen {
+                PendingSharesView()
+            }
         }
-//        .toolbar {
-//            ToolbarItemGroup {
-//                if let id = files.workspace.openDoc,
-//                   let meta = files.idsAndFiles[id],
-//                   !files.pendingSharesOpen {
-//                    
-//                    let view = MacOSShareSpaceHolder()
-//                    
-//                    ZStack {
-//                        view.id(UUID())
-//                        
-//                        Button(action: {
-//                            view.view.exportFileAndShowShareSheet(meta: meta)
-//                        }, label: {
-//                            Label("Share externally to...", systemImage: "square.and.arrow.up.fill")
-//                                .imageScale(.large)
-//                        })
-//                        .foregroundColor(.blue)
-//                        .padding(.trailing, 10)
-//                    }
-//                    
-//                    Button(action: {
-//                        DI.sheets.sharingFileInfo = meta
-//                    }, label: {
-//                        Label("Share", systemImage: "person.wave.2.fill")
-//                            .imageScale(.large)
-//                    })
-//                    .foregroundColor(.blue)
-//                    .padding(.trailing, 5)
-//                }
-//                
-//                Button(action: {
-//                    files.pendingSharesOpen.toggle()
-//                }) {
-//                    pendingShareToolbarIcon(isPendingSharesEmpty: share.pendingShares.isEmpty)
-//                        .imageScale(.large)
-//                }
-//            }
-//        }
+        .toolbar {
+            ToolbarItemGroup {
+                if let id = workspace.openDoc,
+                   let meta = DI.files.idsAndFiles[id],
+                   !workspace.pendingSharesOpen {
+                    
+                    let view = MacOSShareSpaceHolder()
+                    
+                    ZStack {
+                        view.id(UUID())
+                        
+                        Button(action: {
+                            view.view.exportFileAndShowShareSheet(meta: meta)
+                        }, label: {
+                            Label("Share externally to...", systemImage: "square.and.arrow.up.fill")
+                                .imageScale(.large)
+                        })
+                        .foregroundColor(.blue)
+                        .padding(.trailing, 10)
+                    }
+                    
+                    Button(action: {
+                        DI.sheets.sharingFileInfo = meta
+                    }, label: {
+                        Label("Share", systemImage: "person.wave.2.fill")
+                            .imageScale(.large)
+                    })
+                    .foregroundColor(.blue)
+                    .padding(.trailing, 5)
+                }
+                
+                Button(action: {
+                    DI.workspace.pendingSharesOpen.toggle()
+                }) {
+                    pendingShareToolbarIcon(isPendingSharesEmpty: share.pendingShares?.isEmpty ?? true)
+                        .imageScale(.large)
+                }
+            }
+        }
     }
 }
 
