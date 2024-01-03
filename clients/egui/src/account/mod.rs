@@ -22,7 +22,7 @@ use workspace::workspace::{Workspace, WsConfig, NUM_KEYS};
 
 use crate::model::{AccountScreenInitData, Usage};
 use crate::settings::Settings;
-use crate::util::{data_dir, NUM_KEYS};
+use crate::util::data_dir;
 use crate::UpdateOutput;
 
 use self::full_doc_search::FullDocSearch;
@@ -346,30 +346,6 @@ impl AccountScreen {
                 None => Some(HelpModal),
             };
         }
-
-        // Alt-{1-9} to easily navigate tabs (9 will always go to the last tab).
-        ctx.input_mut(|input| {
-            for i in 1..10 {
-                if input.consume_key(ALT, NUM_KEYS[i - 1]) {
-                    self.workspace.goto_tab(i);
-                    self.tree
-                        .reveal_file(self.workspace.tabs[i - 1].id, &self.core);
-                    // Remove any text event that's also present this frame so that it doesn't show up
-                    // in the editor.
-                    if let Some(index) = input
-                        .events
-                        .iter()
-                        .position(|evt| *evt == egui::Event::Text(i.to_string()))
-                    {
-                        input.events.remove(index);
-                    }
-                    if let Some(tab) = self.workspace.current_tab() {
-                        output.set_window_title = Some(tab.name.clone());
-                    }
-                    break;
-                }
-            }
-        });
     }
 
     fn process_dropped_files(&mut self, ctx: &egui::Context) {

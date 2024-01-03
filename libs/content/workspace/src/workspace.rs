@@ -515,26 +515,26 @@ impl Workspace {
         }
 
         // Alt-{1-9} to easily navigate tabs (9 will always go to the last tab).
-        // self.ctx.input_mut(|input| {
-        //     for i in 1..10 {
-        //         if input.consume_key(CTRL, NUM_KEYS[i - 1]) {
-        //             self.goto_tab(i);
-        //             // Remove any text event that's also present this frame so that it doesn't show up
-        //             // in the editor.
-        //             if let Some(index) = input
-        //                 .events
-        //                 .iter()
-        //                 .position(|evt| *evt == egui::Event::Text(i.to_string()))
-        //             {
-        //                 input.events.remove(index);
-        //             }
-        //             if let Some(tab) = self.current_tab() {
-        //                 output.window_title = Some(tab.name.clone());
-        //             }
-        //             break;
-        //         }
-        //     }
-        // });
+        self.ctx.clone().input_mut(|input| {
+            for i in 1..10 {
+                if input.consume_key(CTRL, NUM_KEYS[i - 1]) {
+                    self.goto_tab(i);
+                    // Remove any text event that's also present this frame so that it doesn't show up
+                    // in the editor.
+                    if let Some(index) = input
+                        .events
+                        .iter()
+                        .position(|evt| *evt == egui::Event::Text(i.to_string()))
+                    {
+                        input.events.remove(index);
+                    }
+                    if let Some(tab) = self.current_tab() {
+                        output.window_title = Some(tab.name.clone());
+                    }
+                    break;
+                }
+            }
+        });
     }
 
     pub fn process_updates(&mut self, out: &mut WsOutput) {
