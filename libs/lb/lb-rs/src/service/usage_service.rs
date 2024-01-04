@@ -29,9 +29,9 @@ impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {
         Ok(self.client.request(acc, GetUsageRequest {})?)
     }
 
-    pub(crate) fn get_usage(&self) -> LbResult<UsageMetrics> {
-        let server_usage_and_cap = self.server_usage()?;
-
+    pub(crate) fn get_usage(
+        &self, server_usage_and_cap: GetUsageResponse,
+    ) -> LbResult<UsageMetrics> {
         let server_usage = server_usage_and_cap.sum_server_usage();
         let cap = server_usage_and_cap.cap;
 
