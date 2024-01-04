@@ -21,6 +21,11 @@ class ShareService: ObservableObject {
     }
     
     func calculatePendingShares() {
+        if DI.accounts.account == nil {
+            print("No account yet, but tried to update last synced, ignoring")
+            return
+        }
+        
         DispatchQueue.global(qos: .userInitiated).async {
             switch self.core.getPendingShares() {
             case .success(let shares):
