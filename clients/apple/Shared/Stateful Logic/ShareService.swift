@@ -16,6 +16,8 @@ class ShareService: ObservableObject {
     
     init(_ core: LockbookApi) {
         self.core = core
+        
+        calculatePendingShares()
     }
     
     func calculatePendingShares() {

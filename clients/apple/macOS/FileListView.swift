@@ -92,14 +92,9 @@ struct DetailView: View {
                 if let id = workspace.openDoc,
                    let meta = DI.files.idsAndFiles[id],
                    !workspace.pendingSharesOpen {
-                    
-                    let view = MacOSShareSpaceHolder()
-                    
                     ZStack {
-                        view.id(UUID())
-                        
                         Button(action: {
-                            view.view.exportFileAndShowShareSheet(meta: meta)
+                            NSApp.keyWindow?.toolbar?.items.first?.view?.exportFileAndShowShareSheet(meta: meta)
                         }, label: {
                             Label("Share externally to...", systemImage: "square.and.arrow.up.fill")
                                 .imageScale(.large)
@@ -127,14 +122,4 @@ struct DetailView: View {
             }
         }
     }
-}
-
-struct MacOSShareSpaceHolder: NSViewRepresentable {
-    let view = NSView()
-        
-    func makeNSView(context: Context) -> NSView {
-        view
-    }
-
-    func updateNSView(_ nsView: NSView, context: Context) {}
 }

@@ -112,6 +112,8 @@ pub struct FfiWorkspaceResp {
     msg: *mut c_char,
     syncing: bool,
     refresh_files: bool,
+
+    new_folder_btn_pressed: bool
 }
 
 impl Default for FfiWorkspaceResp {
@@ -122,6 +124,7 @@ impl Default for FfiWorkspaceResp {
             msg: ptr::null_mut(),
             syncing: Default::default(),
             refresh_files: Default::default(),
+            new_folder_btn_pressed: Default::default()
         }
     }
 }
@@ -145,6 +148,7 @@ impl From<WsOutput> for FfiWorkspaceResp {
                 }
                 _ => Uuid::nil().into(),
             },
+            new_folder_btn_pressed: value.new_folder_clicked
         }
     }
 }

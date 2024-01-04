@@ -28,6 +28,8 @@ public class WorkspaceState: ObservableObject {
     @Published public var reloadFiles: Bool = false
     @Published public var syncRequested: Bool = false
     
+    @Published public var newFolderButtonPressed: Bool = false
+    
     public var importFile: (URL) -> String?
     
     public init(importFile: @escaping (URL) -> String?) {

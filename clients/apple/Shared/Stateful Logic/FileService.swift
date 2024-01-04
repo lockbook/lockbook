@@ -86,7 +86,9 @@ class FileService: ObservableObject {
             if reload {
                 print("reload triggered")
                 DI.workspace.reloadFiles = false
+                
                 self.refresh()
+                DI.share.calculatePendingShares()
             }
         }
         .store(in: &cancellables)

@@ -84,4 +84,16 @@ class SheetState: ObservableObject {
             sharingFile = sharingFileInfo != nil
         }
     }
+    
+    private var cancellables: Set<AnyCancellable> = []
+    
+    init() {
+        DI.workspace.$newFolderButtonPressed.sink { pressed in
+            if pressed {
+                DI.workspace.newFolderButtonPressed = false
+                self.creatingFolderInfo = CreatingFolderInfo(parentPath: DI.files.getPathByIdOrParent() ?? "Error", maybeParent: nil)
+            }
+        }
+        .store(in: &cancellables)
+    }
 }

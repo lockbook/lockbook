@@ -298,7 +298,10 @@ public class MacMTK: MTKView, MTKViewDelegate {
             if let url = URL(string: url) {
                 NSWorkspace.shared.open(url)
             }
-            
+        }
+        
+        if output.workspace_resp.new_folder_btn_pressed {
+            workspaceState?.newFolderButtonPressed = true
         }
         
         redrawTask?.cancel()
