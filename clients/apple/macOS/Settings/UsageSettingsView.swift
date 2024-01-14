@@ -15,7 +15,7 @@ struct UsageSettingsView: View {
                     Text("Server Utilization:")
                         .frame(maxWidth: 175, alignment: .trailing)
                     if let usage = settingsState.usages {
-                        VStack {
+                        VStackw {
                             ColorProgressBar(value: settingsState.usageProgress)
                             Text("\(usage.serverUsages.serverUsage.readable) / \(usage.serverUsages.dataCap.readable)")
                         }

@@ -5,6 +5,7 @@ use egui_wgpu_backend::wgpu;
 use egui_wgpu_backend::wgpu::CompositeAlphaMode;
 use lb_external_interface::lb_rs::Uuid;
 use std::ffi::{c_char, CString};
+use std::ptr::null;
 use std::time::Instant;
 use std::{iter, ptr};
 
@@ -27,6 +28,12 @@ pub mod android;
 pub struct UITextSelectionRects {
     pub size: i32,
     pub rects: *const CRect,
+}
+
+impl Default for UITextSelectionRects {
+    fn default() -> Self {
+        UITextSelectionRects { size: 0, rects: null() }
+    }
 }
 
 /// https://developer.apple.com/documentation/uikit/uitextrange
@@ -75,7 +82,7 @@ pub enum CTextGranularity {
 }
 
 #[repr(C)]
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct CRect {
     pub min_x: f64,
     pub min_y: f64,
@@ -113,7 +120,13 @@ pub struct FfiWorkspaceResp {
     syncing: bool,
     refresh_files: bool,
 
-    new_folder_btn_pressed: bool
+    new_folder_btn_pressed: bool,
+
+    #[cfg(target_os = "ios")]
+    text_updated: bool,
+
+    #[cfg(target_os = "ios")]
+    selection_updated: bool,
 }
 
 impl Default for FfiWorkspaceResp {
@@ -124,7 +137,11 @@ impl Default for FfiWorkspaceResp {
             msg: ptr::null_mut(),
             syncing: Default::default(),
             refresh_files: Default::default(),
-            new_folder_btn_pressed: Default::default()
+            new_folder_btn_pressed: Default::default(),
+            #[cfg(target_os = "ios")]
+            text_updated: Default::default(),
+            #[cfg(target_os = "ios")]
+            selection_updated: Default::default()
         }
     }
 }
@@ -148,7 +165,11 @@ impl From<WsOutput> for FfiWorkspaceResp {
                 }
                 _ => Uuid::nil().into(),
             },
-            new_folder_btn_pressed: value.new_folder_clicked
+            new_folder_btn_pressed: value.new_folder_clicked,
+            #[cfg(target_os = "ios")]
+            text_updated: false,
+            #[cfg(target_os = "ios")]
+            selection_updated: false,
         }
     }
 }

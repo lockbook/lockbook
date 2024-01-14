@@ -4,31 +4,61 @@ import MetalKit
 import Combine
 
 #if os(iOS)
-public struct WorkspaceView: UIViewRepresentable {
+public struct WorkspaceView: View, Equatable {
+    
+    let workspaceState: WorkspaceState
+    let coreHandle: UnsafeMutableRawPointer?
+    
+    public init(_ workspaceState: WorkspaceState, _ coreHandle: UnsafeMutableRawPointer?) {
+        self.workspaceState = workspaceState
+        self.coreHandle = coreHandle
+    }
+    
+    public var body: some View {
+        UIWS(workspaceState, coreHandle)
+    }
+    
+    public static func == (lhs: WorkspaceView, rhs: WorkspaceView) -> Bool {
+        return true
+    }
+}
+
+public struct UIWS: UIViewRepresentable {
     
     @ObservedObject public var workspaceState: WorkspaceState
-    let mtkView: iOSMTK = iOSMTK()
+    let coreHandle: UnsafeMutableRawPointer?
     
     @Environment(\.horizontalSizeClass) var horizontal
     @Environment(\.verticalSizeClass) var vertical
     
-    public init(_ workspaceState: WorkspaceState, _ coreHandle: UnsafeMutableRawPointer?, _ toolbarState: ToolbarState, _ nameState: NameState) {
+    public init(_ workspaceState: WorkspaceState, _ coreHandle: UnsafeMutableRawPointer?) {
         self.workspaceState = workspaceState
-        mtkView.workspaceState = workspaceState
-        mtkView.toolbarState = toolbarState
-        mtkView.nameState = nameState
-        
-        mtkView.setInitialContent(coreHandle, workspaceState.text)
+        self.coreHandle = coreHandle
     }
 
     public func makeUIView(context: Context) -> iOSMTK {
+        let mtkView = iOSMTK()
+        mtkView.workspaceState = workspaceState
+        mtkView.setInitialContent(coreHandle)
+
         return mtkView
     }
     
     public func updateUIView(_ uiView: iOSMTK, context: Context) {
+        if let id = workspaceState.openDoc {
+            if uiView.currentOpenDoc != id {
+                uiView.openFile(id: id)
+            }
+        }
+        
         if workspaceState.shouldFocus {
-            mtkView.becomeFirstResponder()
+            uiView.becomeFirstResponder()
             workspaceState.shouldFocus = false
+        }
+        
+        if workspaceState.syncRequested {
+            workspaceState.syncRequested = false
+            uiView.requestSync()
         }
     }
 }

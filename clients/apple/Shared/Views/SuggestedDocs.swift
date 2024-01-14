@@ -70,16 +70,14 @@ struct SuggestedDocs: View {
                     ForEach(suggestedDocs) { meta in
                         if let parentMeta = fileService.idsAndFiles[meta.parent] {
                             if isiOS {
-                                NavigationLink(destination: iOSDocumentViewWrapper(id: meta.id)) {
-                                    SuggestedDocCell(name: meta.name, parentName: "\(parentMeta.name)/", duration: meta.lastModified, isiOS: isiOS)
-                                        .padding(.trailing, 5)
-                                }
+//                                NavigationLink(destination: iOSDocumentViewWrapper(id: meta.id)) {
+//                                    SuggestedDocCell(name: meta.name, parentName: "\(parentMeta.name)/", duration: meta.lastModified, isiOS: isiOS)
+//                                        .padding(.trailing, 5)
+//                                }
                             } else {
                                 HStack {
                                     Button(action: {
-                                        DI.currentDoc.cleanupOldDocs()
-                                        DI.currentDoc.openDoc(id: meta.id)
-                                        DI.currentDoc.setSelectedOpenDocById(maybeId: meta.id)
+                                        DI.workspace.openDoc = meta.id
                                     }) {
                                         SuggestedDocCell(name: meta.name, parentName: "\(parentMeta.name)/", duration: meta.lastModified, isiOS: isiOS)
                                     }

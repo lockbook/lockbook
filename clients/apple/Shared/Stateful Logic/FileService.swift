@@ -16,7 +16,6 @@ class FileService: ObservableObject {
         }
     }
     @Published var successfulAction: FileAction? = nil
-    
     var hasRootLoaded = false
 
     // File Service keeps track of the parent being displayed on iOS. Since this functionality is not used for macOS, it is conditionally compiled.

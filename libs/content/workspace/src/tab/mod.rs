@@ -15,6 +15,7 @@ pub struct Tab {
     pub id: lb_rs::Uuid,
     pub name: String,
     pub rename: Option<String>,
+    pub selection_range: Option<(usize, usize)>,
     pub path: String,
     pub failure: Option<TabFailure>,
     pub content: Option<TabContent>,

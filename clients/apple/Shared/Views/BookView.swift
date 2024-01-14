@@ -56,7 +56,7 @@ struct BookView: View {
                     ToolbarItemGroup {
                         NavigationLink(
                             destination: PendingSharesView()) {
-                                pendingShareToolbarIcon(isPendingSharesEmpty: share.pendingShares.isEmpty)
+                                pendingShareToolbarIcon(isPendingSharesEmpty: share.pendingShares?.isEmpty ?? false)
                             }
                         
                         NavigationLink(

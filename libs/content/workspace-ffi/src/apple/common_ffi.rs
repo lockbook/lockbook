@@ -194,7 +194,7 @@ pub unsafe extern "C" fn scroll_wheel(obj: *mut c_void, scroll_wheel: f32) {
     if matches!(obj.context.os(), OperatingSystem::IOS) {
         obj.raw_input
             .events
-            .push(Event::PointerMoved(Pos2 { x: 1.0, y: 1.0 }));
+            .push(Event::PointerMoved(Pos2 { x: 1.0, y: 200.0 }));
     }
 
     obj.raw_input

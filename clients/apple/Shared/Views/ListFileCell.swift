@@ -55,16 +55,14 @@ struct FileCell: View {
 
     @ViewBuilder
     var cell: some View {
-        if meta.fileType == .Folder {
-            Button(action: {
+        Button(action: {
+            if meta.fileType == .Folder {
                 enterFolderAnim()
-            }) {
-                RealFileCell(meta: meta)
+            } else {
+                DI.workspace.openDoc = meta.id
             }
-        } else {
-            NavigationLink(destination: iOSDocumentViewWrapper(id: meta.id)) {
-                RealFileCell(meta: meta)
-            }
+        }) {
+            RealFileCell(meta: meta)
         }
     }
 }

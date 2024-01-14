@@ -1,9 +1,11 @@
 import SwiftUI
+import SwiftWorkspace
 import SwiftLockbookCore
+import CLockbookCore
 
 struct FileTreeView: View {
     @EnvironmentObject var sheets: SheetState
-    @EnvironmentObject var currentDoc: DocumentService
+//    @EnvironmentObject var currentDoc: DocumentService
     @EnvironmentObject var coreService: CoreService
     @EnvironmentObject var files: FileService
     @EnvironmentObject var onboarding: OnboardingService
@@ -40,65 +42,67 @@ struct FileTreeView: View {
             }
         }
         
-        VStack {
-            DocumentTabView(isiOS: true)
-        }
-        .toolbar {
-            ToolbarItemGroup(placement: .navigationBarTrailing) {
-                if let id = currentDoc.selectedDoc {
-                    if let meta = DI.files.idsAndFiles[id] {
-                        Button(action: {
-                            exportFileAndShowShareSheet(meta: meta)
-                               }, label: {
-                            Label("Share externally to...", systemImage: "square.and.arrow.up.fill")
-                        })
-                        .foregroundColor(.blue)
-                        .padding(.trailing, 10)
-                        
-                        Button(action: {
-                            DI.sheets.sharingFileInfo = meta
-                               }, label: {
-                            Label("Share", systemImage: "person.wave.2.fill")
-                        })
-                        .foregroundColor(.blue)
-                        .padding(.trailing, 5)
-                    }
-                }
-                
-                NavigationLink(
-                    destination: PendingSharesView()) {
-                        pendingShareToolbarIcon(isPendingSharesEmpty: share.pendingShares.isEmpty)
-                            
-                    }
-                
-                NavigationLink(
-                    destination: SettingsView().equatable(), isActive: $onboarding.theyChoseToBackup) {
-                        Image(systemName: "gearshape.fill")
-                            .foregroundColor(.blue)
-                            .padding(.trailing, 10)
-
-                    }
-            }
-        }
-        .alert(isPresented: Binding(get: { sync.outOfSpace && !hideOutOfSpaceAlert }, set: {_ in sync.outOfSpace = false })) {
-            Alert(
-                title: Text("Out of Space"),
-                message: Text("You have run out of space!"),
-                primaryButton: .default(Text("Upgrade now"), action: {
-                    navigateToManageSub = true
-                }),
-                secondaryButton: .default(Text("Don't show me this again"), action: {
-                    hideOutOfSpaceAlert = true
-                    UserDefaults.standard.set(hideOutOfSpaceAlert, forKey: "hideOutOfSpaceAlert")
-                })
-            )
-        }
-        .background(
-            NavigationLink(destination: ManageSubscription(), isActive: $navigateToManageSub, label: {
-                EmptyView()
-            })
-            .hidden()
-        )
+        WorkspaceView(DI.workspace, get_core_ptr())
+            .equatable()
+        
+//        VStack {
+//            
+//        }
+//        .toolbar {
+//            ToolbarItemGroup(placement: .navigationBarTrailing) {
+//                if let id = workspace.openDoc {
+//                    if let meta = DI.files.idsAndFiles[id] {
+//                        Button(action: {
+//                            exportFileAndShowShareSheet(meta: meta)
+//                               }, label: {
+//                            Label("Share externally to...", systemImage: "square.and.arrow.up.fill")
+//                        })
+//                        .foregroundColor(.blue)
+//                        .padding(.trailing, 10)
+//                        
+//                        Button(action: {
+//                            DI.sheets.sharingFileInfo = meta
+//                               }, label: {
+//                            Label("Share", systemImage: "person.wave.2.fill")
+//                        })
+//                        .foregroundColor(.blue)
+//                        .padding(.trailing, 5)
+//                    }
+//                }
+//                
+//                NavigationLink(
+//                    destination: PendingSharesView()) {
+//                        pendingShareToolbarIcon(isPendingSharesEmpty: share.pendingShares?.isEmpty ?? false)
+//                    }
+//                
+//                NavigationLink(
+//                    destination: SettingsView().equatable(), isActive: $onboarding.theyChoseToBackup) {
+//                        Image(systemName: "gearshape.fill")
+//                            .foregroundColor(.blue)
+//                            .padding(.trailing, 10)
+//
+//                    }
+//            }
+//        }
+//        .alert(isPresented: Binding(get: { sync.outOfSpace && !hideOutOfSpaceAlert }, set: {_ in sync.outOfSpace = false })) {
+//            Alert(
+//                title: Text("Out of Space"),
+//                message: Text("You have run out of space!"),
+//                primaryButton: .default(Text("Upgrade now"), action: {
+//                    navigateToManageSub = true
+//                }),
+//                secondaryButton: .default(Text("Don't show me this again"), action: {
+//                    hideOutOfSpaceAlert = true
+//                    UserDefaults.standard.set(hideOutOfSpaceAlert, forKey: "hideOutOfSpaceAlert")
+//                })
+//            )
+//        }
+//        .background(
+//            NavigationLink(destination: ManageSubscription(), isActive: $navigateToManageSub, label: {
+//                EmptyView()
+//            })
+//            .hidden()
+//        )
     }
     
     var mainView: some View {

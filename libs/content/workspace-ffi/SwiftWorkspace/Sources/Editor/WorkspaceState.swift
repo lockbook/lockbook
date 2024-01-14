@@ -34,7 +34,7 @@ public class WorkspaceState: ObservableObject {
     
     public init(importFile: @escaping (URL) -> String?) {
         self.importFile = importFile
-        self.shouldFocus = true
+        self.shouldFocus = false
     }
     
     public func requestSync() {

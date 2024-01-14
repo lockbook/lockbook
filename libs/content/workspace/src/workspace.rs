@@ -115,6 +115,7 @@ impl Workspace {
         self.tabs.push(Tab {
             id,
             rename: None,
+            selection_range: None,
             name: name.to_owned(),
             path: path.to_owned(),
             failure: None,
@@ -136,6 +137,10 @@ impl Workspace {
 
     pub fn current_tab(&self) -> Option<&Tab> {
         self.tabs.get(self.active_tab)
+    }
+
+    pub fn current_tab_mut(&mut self) -> Option<&mut Tab> {
+        self.tabs.get_mut(self.active_tab)
     }
 
     pub fn goto_tab_id(&mut self, id: lb_rs::Uuid) -> bool {
@@ -264,6 +269,9 @@ impl Workspace {
 
                                         let active_name = self.tabs[i].name.clone();
 
+                                        // if self.tabs[i].rename.is_none() {
+                                        //     self.tabs[i].selection_range = Some((0, active_name.len()));
+                                        // }
                                         let mut rename_edit_state =
                                             egui::text_edit::TextEditState::default();
                                         rename_edit_state.set_ccursor_range(Some(
@@ -546,9 +554,17 @@ impl Workspace {
                         out.selected_file = Some(id);
 
                         match content {
-                            Ok(content) => tab.content = Some(content),
-                            Err(fail) => tab.failure = Some(fail),
+                            Ok(content) => {
+                                tab.content = Some(content);
+                                println!("successfully loaded file");
+                            }
+                            Err(fail) => {
+                                tab.failure = Some(fail);
+                                println!("failed loaded file 1");
+                            },
                         }
+                    } else {
+                        println!("failed to load file 2");
                     }
                 }
                 WsMsg::BgSignal(Signal::SaveAll) => {

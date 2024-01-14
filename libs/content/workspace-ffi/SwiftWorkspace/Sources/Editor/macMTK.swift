@@ -230,15 +230,6 @@ public class MacMTK: MTKView, MTKViewDelegate {
         return false
     }
     
-    func textFromPtr(s: UnsafeMutablePointer<CChar>!) -> String {
-        if s == nil {
-            return ""
-        }
-        let str = String(cString: s)
-        free_text(s)
-        return str
-    }
-    
     func viewCoordinates(_ event: NSEvent) -> NSPoint {
         var local = self.convert(event.locationInWindow, from: nil)
         local.y = self.frame.size.height - local.y
@@ -336,25 +327,5 @@ public class MacMTK: MTKView, MTKViewDelegate {
         }
     }
 }
-#endif
 
-extension UUID {
-    func isNil() -> Bool {
-        self.uuid.0 == 0 &&
-        self.uuid.1 == 0 &&
-        self.uuid.2 == 0 &&
-        self.uuid.3 == 0 &&
-        self.uuid.4 == 0 &&
-        self.uuid.5 == 0 &&
-        self.uuid.6 == 0 &&
-        self.uuid.7 == 0 &&
-        self.uuid.8 == 0 &&
-        self.uuid.9 == 0 &&
-        self.uuid.10 == 0 &&
-        self.uuid.11 == 0 &&
-        self.uuid.12 == 0 &&
-        self.uuid.13 == 0 &&
-        self.uuid.14 == 0 &&
-        self.uuid.15 == 0
-    }
-}
+#endif
