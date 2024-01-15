@@ -21,6 +21,15 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     let textInteraction = UITextInteraction(for: .editable)
     
     var inTextTab = false
+    
+    var caretRectComputed = false
+    var firstRectComputed = false
+    var selectionRectsComputed = false
+    
+    // small improvement maybe make these `let`s
+    var oldCaretRect = CGRect()
+    var oldFirstRect = CGRect()
+    var oldSelectionRects: [UITextSelectionRect] = []
 
     public override var undoManager: UndoManager? {
         return textUndoManager
@@ -209,14 +218,22 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
         dark_mode(wsHandle, isDarkMode())
         set_scale(wsHandle, Float(self.contentScaleFactor))
         let output = draw_editor(wsHandle)
-//
-//        if output.editor_response.selection_updated || output.editor_response.scroll_updated {
-//            inputDelegate?.selectionDidChange(self)
-//        }
-//
-//        if output.editor_response.text_updated {
-//            inputDelegate?.textDidChange(self)
-//        }
+
+        if output.workspace_resp.selection_updated {
+            caretRectComputed = false;
+            firstRectComputed = false;
+            selectionRectsComputed = false;
+            
+            inputDelegate?.selectionDidChange(self)
+        }
+        
+        if output.workspace_resp.text_updated {
+            caretRectComputed = false;
+            firstRectComputed = false;
+            selectionRectsComputed = false;
+            
+            inputDelegate?.textDidChange(self)
+        }
         
         workspaceState?.statusMsg = textFromPtr(s: output.workspace_resp.msg)
         workspaceState?.syncing = output.workspace_resp.syncing
@@ -232,6 +249,9 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
             }
         } else {
             if currentOpenDoc != selectedFile {
+                inputDelegate?.selectionDidChange(self)
+                inputDelegate?.textDidChange(self)
+                
                 let newInTextTab = in_text_tab(wsHandle)
                 if newInTextTab && !self.inTextTab {
                     self.addInteraction(textInteraction)
@@ -519,9 +539,20 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
             return CGRect(x: 0, y: 0, width: 0, height: 0)
         }
         
-        let range = (range as! LBTextRange).c
-        let result = first_rect(wsHandle, range)
-        return CGRect(x: result.min_x, y: result.min_y, width: result.max_x-result.min_x, height: result.max_y-result.min_y)
+        if !firstRectComputed {
+            let range = (range as! LBTextRange).c
+            let result = first_rect(wsHandle, range)
+            
+            let newY = max(result.min_y, 50)
+            let newHeight = max(result.max_y - newY, 0)
+            let newWidth = newHeight == 0 ? 0 : (result.max_x-result.min_x)
+            let newX = newHeight == 0 ? 0.0 : result.min_x
+            
+            oldFirstRect = CGRect(x: newX, y: newY, width: newWidth, height: newHeight)
+            firstRectComputed = true
+        }
+
+        return oldFirstRect
     }
     
     public func caretRect(for position: UITextPosition) -> CGRect {
@@ -529,9 +560,20 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
             return CGRect(x: 0, y: 0, width: 0, height: 0)
         }
         
-        let position = (position as! LBTextPos).c
-        let result = cursor_rect_at_position(wsHandle, position)
-        return CGRect(x: result.min_x, y: result.min_y, width: 1, height:result.max_y - result.min_y)
+        if !caretRectComputed {
+            let position = (position as! LBTextPos).c
+            let result = cursor_rect_at_position(wsHandle, position)
+            
+            let newY = max(result.min_y, 50)
+            let newHeight = max(result.max_y - newY, 0)
+            let newWidth = newHeight == 0 ? 0.0 : 1.0
+            let newX = newHeight == 0 ? 0.0 : result.min_x
+            
+            oldCaretRect = CGRect(x: newX, y: newY, width: newWidth, height: newHeight)
+            caretRectComputed = true
+        }
+        
+        return oldCaretRect
     }
     
     public func selectionRects(for range: UITextRange) -> [UITextSelectionRect] {
@@ -539,12 +581,21 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
             return []
         }
         
-        let range = (range as! LBTextRange).c
-        let result = selection_rects(wsHandle, range)
-        let buffer = Array(UnsafeBufferPointer(start: result.rects, count: Int(result.size)))
-        return buffer.enumerated().map { (index, rect) in
-            return LBTextSelectionRect(cRect: rect, loc: index, size: buffer.count)
+        if !selectionRectsComputed {
+            let range = (range as! LBTextRange).c
+            let result = selection_rects(wsHandle, range)
+            let buffer = Array(UnsafeBufferPointer(start: result.rects, count: Int(result.size)))
+            oldSelectionRects = buffer.enumerated().map { (index, rect) in
+                let newMinY = max(rect.min_y, 50)
+                let newMaxY = max(newMinY, rect.max_y)
+                
+                let new_rect = CRect(min_x: rect.min_x, min_y: newMinY, max_x: rect.max_x, max_y: newMaxY)
+                
+                return LBTextSelectionRect(cRect: new_rect, loc: index, size: buffer.count)
+            }
         }
+        
+        return oldSelectionRects
     }
     
     public func closestPosition(to point: CGPoint) -> UITextPosition? {
@@ -583,6 +634,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     }
     
     public override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+        print("touchesBegan")
         let point = Unmanaged.passUnretained(touches.first!).toOpaque()
         let value = UInt64(UInt(bitPattern: point))
         let location = touches.first!.location(in: self)
@@ -592,6 +644,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     }
     
     public override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
+        print("touchesMoved")
         let point = Unmanaged.passUnretained(touches.first!).toOpaque()
         let value = UInt64(UInt(bitPattern: point))
         let location = touches.first!.location(in: self)
@@ -600,6 +653,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     }
     
     public override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
+        print("touchesEnded")
         let point = Unmanaged.passUnretained(touches.first!).toOpaque()
         let value = UInt64(UInt(bitPattern: point))
         let location = touches.first!.location(in: self)

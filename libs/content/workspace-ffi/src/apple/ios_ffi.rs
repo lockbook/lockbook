@@ -16,29 +16,6 @@ use std::ffi::{c_char, c_void, CStr, CString};
 use std::mem::ManuallyDrop;
 use std::ptr::null;
 
-fn maybe_get_editor(obj: &mut WgpuWorkspace) -> Option<&mut Markdown> {
-    obj
-        .workspace
-        .current_tab_mut()
-        .and_then(|tab| tab.content.as_mut())
-        .and_then(|tab| {
-            match tab.borrow_mut() {
-                TabContent::Markdown(markdown) => Some(markdown),
-                _ => None,
-            }
-        })
-}
-
-fn maybe_get_focused_rename(obj: &mut WgpuWorkspace) -> Option<&mut Tab> {
-    obj.workspace.current_tab_mut().and_then(|tab| {
-        if tab.rename.is_some() {
-            Some(tab)
-        } else {
-            None
-        }
-    })
-}
-
 /// # Safety
 /// obj must be a valid pointer to WgpuEditor
 ///
@@ -48,16 +25,7 @@ pub unsafe extern "C" fn insert_text(obj: *mut c_void, content: *const c_char) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
     let content = CStr::from_ptr(content).to_str().unwrap().into();
 
-    // if let Some(tab) = maybe_get_focused_rename(obj) {
-    //     let selection = tab.selection_range.unwrap();
-    //     if selection.0 == selection.1 {
-    //         tab.rename.unwrap().insert_str(selection.0, content)
-    //     } else {
-    //         tab.rename.unwrap().replace_range(selection.0..selection.1, content);
-    //     }
-    // }
-
-    let markdown = match maybe_get_editor(obj) {
+    let markdown = match obj.workspace.current_tab_markdown_mut() {
         Some(markdown) => markdown,
         None => return,
     };
@@ -98,7 +66,7 @@ pub unsafe extern "C" fn backspace(obj: *mut c_void) {
 #[no_mangle]
 pub unsafe extern "C" fn has_text(obj: *mut c_void) -> bool {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-    let markdown = match maybe_get_editor(obj) {
+    let markdown = match obj.workspace.current_tab_markdown_mut() {
         Some(markdown) => markdown,
         None => return false,
     };
@@ -114,7 +82,7 @@ pub unsafe extern "C" fn has_text(obj: *mut c_void) -> bool {
 pub unsafe extern "C" fn replace_text(obj: *mut c_void, range: CTextRange, text: *const c_char) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
     let text = CStr::from_ptr(text).to_str().unwrap().into();
-    let markdown = match maybe_get_editor(obj) {
+    let markdown = match obj.workspace.current_tab_markdown_mut() {
         Some(markdown) => markdown,
         None => return,
     };
@@ -131,7 +99,7 @@ pub unsafe extern "C" fn replace_text(obj: *mut c_void, range: CTextRange, text:
 #[no_mangle]
 pub unsafe extern "C" fn copy_selection(obj: *mut c_void) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-    let markdown = match maybe_get_editor(obj) {
+    let markdown = match obj.workspace.current_tab_markdown_mut() {
         Some(markdown) => markdown,
         None => return,
     };
@@ -144,7 +112,7 @@ pub unsafe extern "C" fn copy_selection(obj: *mut c_void) {
 #[no_mangle]
 pub unsafe extern "C" fn cut_selection(obj: *mut c_void) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-    let markdown = match maybe_get_editor(obj) {
+    let markdown = match obj.workspace.current_tab_markdown_mut() {
         Some(markdown) => markdown,
         None => return,
     };
@@ -159,7 +127,7 @@ pub unsafe extern "C" fn cut_selection(obj: *mut c_void) {
 #[no_mangle]
 pub unsafe extern "C" fn text_in_range(obj: *mut c_void, range: CTextRange) -> *const c_char {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-    let markdown = match maybe_get_editor(obj) {
+    let markdown = match obj.workspace.current_tab_markdown_mut() {
         Some(markdown) => markdown,
         None => return null(),
     };
@@ -182,7 +150,7 @@ pub unsafe extern "C" fn text_in_range(obj: *mut c_void, range: CTextRange) -> *
 #[no_mangle]
 pub unsafe extern "C" fn get_selected(obj: *mut c_void) -> CTextRange {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-    let markdown = match maybe_get_editor(obj) {
+    let markdown = match obj.workspace.current_tab_markdown_mut() {
         Some(markdown) => markdown,
         None => return CTextRange::default(),
     };
@@ -203,7 +171,7 @@ pub unsafe extern "C" fn get_selected(obj: *mut c_void) -> CTextRange {
 #[no_mangle]
 pub unsafe extern "C" fn set_selected(obj: *mut c_void, range: CTextRange) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-    let markdown = match maybe_get_editor(obj) {
+    let markdown = match obj.workspace.current_tab_markdown_mut() {
         Some(markdown) => markdown,
         None => return,
     };
@@ -221,7 +189,7 @@ pub unsafe extern "C" fn set_selected(obj: *mut c_void, range: CTextRange) {
 #[no_mangle]
 pub unsafe extern "C" fn select_current_word(obj: *mut c_void) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-    let markdown = match maybe_get_editor(obj) {
+    let markdown = match obj.workspace.current_tab_markdown_mut() {
         Some(markdown) => markdown,
         None => return,
     };
@@ -237,18 +205,10 @@ pub unsafe extern "C" fn select_current_word(obj: *mut c_void) {
 pub unsafe extern "C" fn select_all(obj: *mut c_void) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
 
-    match maybe_get_focused_rename(obj) {
-        Some(cookie) => {}
-        None => {}
-    }
-
-    let markdown = match maybe_get_editor(obj) {
+    let markdown = match obj.workspace.current_tab_markdown_mut() {
         Some(markdown) => markdown,
         None => return,
     };
-
-
-
 
     markdown.editor.custom_events.push(Modification::Select {
         region: Region::Bound { bound: Bound::Doc, backwards: true },
@@ -262,7 +222,7 @@ pub unsafe extern "C" fn select_all(obj: *mut c_void) {
 #[no_mangle]
 pub unsafe extern "C" fn get_marked(obj: *mut c_void) -> CTextRange {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-    let markdown = match maybe_get_editor(obj) {
+    let markdown = match obj.workspace.current_tab_markdown_mut() {
         Some(markdown) => markdown,
         None => return CTextRange::default(),
     };
@@ -284,7 +244,7 @@ pub unsafe extern "C" fn get_marked(obj: *mut c_void) -> CTextRange {
 #[no_mangle]
 pub unsafe extern "C" fn set_marked(obj: *mut c_void, range: CTextRange, text: *const c_char) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-    let markdown = match maybe_get_editor(obj) {
+    let markdown = match obj.workspace.current_tab_markdown_mut() {
         Some(markdown) => markdown,
         None => return,
     };
@@ -305,7 +265,7 @@ pub unsafe extern "C" fn set_marked(obj: *mut c_void, range: CTextRange, text: *
 #[no_mangle]
 pub unsafe extern "C" fn unmark_text(obj: *mut c_void) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-    let markdown = match maybe_get_editor(obj) {
+    let markdown = match obj.workspace.current_tab_markdown_mut() {
         Some(markdown) => markdown,
         None => return,
     };
@@ -332,7 +292,7 @@ pub unsafe extern "C" fn beginning_of_document(_obj: *mut c_void) -> CTextPositi
 #[no_mangle]
 pub unsafe extern "C" fn end_of_document(obj: *mut c_void) -> CTextPosition {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-    let markdown = match maybe_get_editor(obj) {
+    let markdown = match obj.workspace.current_tab_markdown_mut() {
         Some(markdown) => markdown,
         None => return CTextPosition::default(),
     };
@@ -448,7 +408,7 @@ pub unsafe extern "C" fn position_offset(
     obj: *mut c_void, mut start: CTextPosition, offset: i32,
 ) -> CTextPosition {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-    let markdown = match maybe_get_editor(obj) {
+    let markdown = match obj.workspace.current_tab_markdown_mut() {
         Some(markdown) => markdown,
         None => return CTextPosition::default(),
     };
@@ -478,7 +438,7 @@ pub unsafe extern "C" fn position_offset_in_direction(
     obj: *mut c_void, start: CTextPosition, direction: CTextLayoutDirection, offset: i32,
 ) -> CTextPosition {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-    let markdown = match maybe_get_editor(obj) {
+    let markdown = match obj.workspace.current_tab_markdown_mut() {
         Some(markdown) => markdown,
         None => return CTextPosition::default(),
     };
@@ -510,7 +470,7 @@ pub unsafe extern "C" fn is_position_at_bound(
     obj: *mut c_void, pos: CTextPosition, granularity: CTextGranularity, backwards: bool,
 ) -> bool {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-    let markdown = match maybe_get_editor(obj) {
+    let markdown = match obj.workspace.current_tab_markdown_mut() {
         Some(markdown) => markdown,
         None => return false,
     };
@@ -542,7 +502,7 @@ pub unsafe extern "C" fn is_position_within_bound(
     obj: *mut c_void, pos: CTextPosition, granularity: CTextGranularity, backwards: bool,
 ) -> bool {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-    let markdown = match maybe_get_editor(obj) {
+    let markdown = match obj.workspace.current_tab_markdown_mut() {
         Some(markdown) => markdown,
         None => return false,
     };
@@ -575,7 +535,7 @@ pub unsafe extern "C" fn bound_from_position(
     obj: *mut c_void, pos: CTextPosition, granularity: CTextGranularity, backwards: bool,
 ) -> CTextPosition {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-    let markdown = match maybe_get_editor(obj) {
+    let markdown = match obj.workspace.current_tab_markdown_mut() {
         Some(markdown) => markdown,
         None => return CTextPosition::default(),
     };
@@ -606,7 +566,7 @@ pub unsafe extern "C" fn bound_at_position(
     obj: *mut c_void, pos: CTextPosition, granularity: CTextGranularity, backwards: bool,
 ) -> CTextRange {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-    let markdown = match maybe_get_editor(obj) {
+    let markdown = match obj.workspace.current_tab_markdown_mut() {
         Some(markdown) => markdown,
         None => return CTextRange::default(),
     };
@@ -644,7 +604,7 @@ pub unsafe extern "C" fn bound_at_position(
 #[no_mangle]
 pub unsafe extern "C" fn first_rect(obj: *mut c_void, range: CTextRange) -> CRect {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-    let markdown = match maybe_get_editor(obj) {
+    let markdown = match obj.workspace.current_tab_markdown_mut() {
         Some(markdown) => markdown,
         None => return CRect::default(),
     };
@@ -680,7 +640,7 @@ pub unsafe extern "C" fn first_rect(obj: *mut c_void, range: CTextRange) -> CRec
 #[no_mangle]
 pub unsafe extern "C" fn clipboard_cut(obj: *mut c_void) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-    let markdown = match maybe_get_editor(obj) {
+    let markdown = match obj.workspace.current_tab_markdown_mut() {
         Some(markdown) => markdown,
         None => return,
     };
@@ -693,7 +653,7 @@ pub unsafe extern "C" fn clipboard_cut(obj: *mut c_void) {
 #[no_mangle]
 pub unsafe extern "C" fn clipboard_copy(obj: *mut c_void) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-    let markdown = match maybe_get_editor(obj) {
+    let markdown = match obj.workspace.current_tab_markdown_mut() {
         Some(markdown) => markdown,
         None => return,
     };
@@ -715,7 +675,7 @@ pub unsafe extern "C" fn clipboard_paste(obj: *mut c_void) {
 #[no_mangle]
 pub unsafe extern "C" fn position_at_point(obj: *mut c_void, point: CPoint) -> CTextPosition {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-    let markdown = match maybe_get_editor(obj) {
+    let markdown = match obj.workspace.current_tab_markdown_mut() {
         Some(markdown) => markdown,
         None => return CTextPosition::default(),
     };
@@ -737,7 +697,7 @@ pub unsafe extern "C" fn position_at_point(obj: *mut c_void, point: CPoint) -> C
 #[no_mangle]
 pub unsafe extern "C" fn get_text(obj: *mut c_void) -> *const c_char {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-    let markdown = match maybe_get_editor(obj) {
+    let markdown = match obj.workspace.current_tab_markdown_mut() {
         Some(markdown) => markdown,
         None => return null(),
     };
@@ -754,7 +714,7 @@ pub unsafe extern "C" fn get_text(obj: *mut c_void) -> *const c_char {
 #[no_mangle]
 pub unsafe extern "C" fn cursor_rect_at_position(obj: *mut c_void, pos: CTextPosition) -> CRect {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-    let markdown = match maybe_get_editor(obj) {
+    let markdown = match obj.workspace.current_tab_markdown_mut() {
         Some(markdown) => markdown,
         None => return CRect::default(),
     };
@@ -781,7 +741,7 @@ pub unsafe extern "C" fn selection_rects(
     obj: *mut c_void, range: CTextRange,
 ) -> UITextSelectionRects {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-    let markdown = match maybe_get_editor(obj) {
+    let markdown = match obj.workspace.current_tab_markdown_mut() {
         Some(markdown) => markdown,
         None => return UITextSelectionRects::default(),
     };
@@ -825,7 +785,7 @@ pub unsafe extern "C" fn selection_rects(
 #[no_mangle]
 pub unsafe extern "C" fn indent_at_cursor(obj: *mut c_void, deindent: bool) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-    let markdown = match maybe_get_editor(obj) {
+    let markdown = match obj.workspace.current_tab_markdown_mut() {
         Some(markdown) => markdown,
         None => return,
     };
@@ -841,7 +801,7 @@ pub unsafe extern "C" fn indent_at_cursor(obj: *mut c_void, deindent: bool) {
 #[no_mangle]
 pub unsafe extern "C" fn undo_redo(obj: *mut c_void, redo: bool) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-    let markdown = match maybe_get_editor(obj) {
+    let markdown = match obj.workspace.current_tab_markdown_mut() {
         Some(markdown) => markdown,
         None => return,
     };
@@ -858,7 +818,7 @@ pub unsafe extern "C" fn undo_redo(obj: *mut c_void, redo: bool) {
 #[no_mangle]
 pub unsafe extern "C" fn can_undo(obj: *mut c_void) -> bool {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-    let markdown = match maybe_get_editor(obj) {
+    let markdown = match obj.workspace.current_tab_markdown_mut() {
         Some(markdown) => markdown,
         None => return false,
     };
@@ -871,7 +831,7 @@ pub unsafe extern "C" fn can_undo(obj: *mut c_void) -> bool {
 #[no_mangle]
 pub unsafe extern "C" fn can_redo(obj: *mut c_void) -> bool {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-    let markdown = match maybe_get_editor(obj) {
+    let markdown = match obj.workspace.current_tab_markdown_mut() {
         Some(markdown) => markdown,
         None => return false,
     };
@@ -901,5 +861,5 @@ pub unsafe extern "C" fn delete_word(obj: *mut c_void) {
 pub unsafe extern "C" fn in_text_tab(obj: *mut c_void) -> bool {
     let obj = &mut *(obj as *mut WgpuWorkspace);
     
-    maybe_get_editor(obj).is_some()
+    obj.workspace.current_tab_markdown().is_some()
 }

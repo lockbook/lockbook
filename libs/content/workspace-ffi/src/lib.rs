@@ -263,6 +263,19 @@ impl WgpuWorkspace {
                 .into_raw();
         }
 
+        #[cfg(target_os = "ios")]
+        {
+            let markdown = self.workspace.current_tab_markdown();
+
+            out.workspace_resp.text_updated = markdown.and_then(|markdown| Some(markdown.editor.text_updated)).unwrap_or(false);
+            out.workspace_resp.selection_updated = markdown.and_then(|markdown| {
+                let scroll_changed = markdown.editor.scroll_area_offset != markdown.editor.old_scroll_area_offset;
+                let selection_updated = markdown.editor.selection_updated;
+
+                Some(scroll_changed || selection_updated)
+            }).unwrap_or(false);
+        }
+
         if let Some(url) = full_output.platform_output.open_url {
             out.url_opened = CString::new(url.url).unwrap().into_raw();
         }

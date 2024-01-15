@@ -1,4 +1,5 @@
 use egui::{Color32, Context};
+use std::borrow::Borrow;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::Arc;
@@ -141,6 +142,26 @@ impl Workspace {
 
     pub fn current_tab_mut(&mut self) -> Option<&mut Tab> {
         self.tabs.get_mut(self.active_tab)
+    }
+
+    pub fn current_tab_markdown(&self) -> Option<&Markdown> {
+        let current_tab = self.current_tab()?;
+    
+        if let Some(TabContent::Markdown(markdown)) = &current_tab.content {
+            return Some(markdown);
+        }
+    
+        None
+    }
+
+    pub fn current_tab_markdown_mut(&mut self) -> Option<&mut Markdown> {
+        let current_tab = self.current_tab_mut()?;
+    
+        if let Some(TabContent::Markdown(markdown)) = &mut current_tab.content {
+            return Some(markdown);
+        }
+    
+        None
     }
 
     pub fn goto_tab_id(&mut self, id: lb_rs::Uuid) -> bool {
