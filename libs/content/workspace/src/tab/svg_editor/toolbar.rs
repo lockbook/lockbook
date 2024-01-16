@@ -4,7 +4,6 @@ use crate::{theme::icons::Icon, widgets::Button};
 
 use super::{Pen, Eraser, Buffer, selection::Selection};
 
-
 const ICON_SIZE: f32 = 30.0;
 const COLOR_SWATCH_BTN_RADIUS: f32 = 9.0;
 const THICKNESS_BTN_X_MARGIN: f32 = 5.0;
@@ -17,8 +16,11 @@ pub struct Toolbar {
     pub pen: Pen,
     pub eraser: Eraser,
     pub selection: Selection,
+
+    pub prev_non_eraser_tool: Option<Tool>,
 }
 
+#[derive(PartialEq, Eq, Copy, Clone)]
 pub enum Tool {
     Pen,
     Eraser,
@@ -60,6 +62,16 @@ impl SizableComponent for Component {
     }
 }
 
+macro_rules! set_tool {
+    ($obj:expr, $new_tool:expr) => {
+        if $obj.active_tool != Tool::Eraser {
+            $obj.prev_non_eraser_tool = Some($obj.active_tool);
+        }
+
+        $obj.active_tool = $new_tool;
+    };
+}
+
 impl Toolbar {
     fn width(&self) -> f32 {
         self.components.iter().map(|c| c.get_width()).sum()
@@ -77,6 +89,20 @@ impl Toolbar {
 
         let max_pos = egui::Pos2 { x: maximized_max_x, y: available_rect.top() };
         egui::Rect { min: min_pos, max: max_pos }
+    }
+
+    pub fn set_tool(&mut self, new_tool: Tool) {
+        set_tool!(self, new_tool);
+    }
+
+    pub fn toggle_tool(&mut self) {
+        let new_tool = if self.active_tool == Tool::Eraser {
+            self.prev_non_eraser_tool.unwrap_or(Tool::Pen)
+        } else {
+            Tool::Eraser
+        };
+
+        set_tool!(self, new_tool);
     }
 
     pub fn new(max_id: usize) -> Self {
@@ -123,6 +149,7 @@ impl Toolbar {
         Toolbar {
             components,
             active_tool: Tool::Pen,
+            prev_non_eraser_tool: None,
             pen: Pen::new(max_id),
             eraser: Eraser::new(),
             selection: Selection::new(),
@@ -150,13 +177,13 @@ impl Toolbar {
                     if ui.input_mut(|r| r.consume_key(shortcut.0, shortcut.1)) {
                         match btn.id.as_str() {
                             "Pen" => {
-                                self.active_tool = Tool::Pen;
+                                set_tool!(self, Tool::Pen);
                             }
                             "Eraser" => {
-                                self.active_tool = Tool::Eraser;
+                                set_tool!(self, Tool::Eraser);
                             }
                             "Selection" => {
-                                self.active_tool = Tool::Selection;
+                                set_tool!(self, Tool::Selection);
                             }
                             "Undo" => buffer.undo(),
                             "Redo" => buffer.redo(),
@@ -189,13 +216,13 @@ impl Toolbar {
                                     if btn_res.clicked() {
                                         match btn.id.as_str() {
                                             "Pen" => {
-                                                self.active_tool = Tool::Pen;
+                                                set_tool!(self, Tool::Pen);
                                             }
                                             "Eraser" => {
-                                                self.active_tool = Tool::Eraser;
+                                                set_tool!(self, Tool::Eraser);
                                             }
                                             "Selection" => {
-                                                self.active_tool = Tool::Selection;
+                                                set_tool!(self, Tool::Selection);
                                             }
                                             "Undo" => buffer.undo(),
                                             "Redo" => buffer.redo(),

@@ -164,6 +164,16 @@ impl Workspace {
         None
     }
 
+    pub fn current_tab_svg_mut(&mut self) -> Option<&mut SVGEditor> {
+        let current_tab = self.current_tab_mut()?;
+    
+        if let Some(TabContent::Svg(svg)) = &mut current_tab.content {
+            return Some(svg);
+        }
+    
+        None
+    }
+
     pub fn goto_tab_id(&mut self, id: lb_rs::Uuid) -> bool {
         for (i, tab) in self.tabs.iter().enumerate() {
             if tab.id == id {

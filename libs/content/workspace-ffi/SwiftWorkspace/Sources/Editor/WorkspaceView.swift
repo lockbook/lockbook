@@ -36,32 +36,104 @@ public struct UIWS: UIViewRepresentable {
         self.coreHandle = coreHandle
     }
 
-    public func makeUIView(context: Context) -> iOSMTK {
-        let mtkView = iOSMTK()
-        mtkView.workspaceState = workspaceState
-        mtkView.setInitialContent(coreHandle)
+    public func makeUIView(context: Context) -> iOSMTKTouchWrapper {
+        let mtkView = iOSMTKTouchWrapper(workspaceState, coreHandle)
+        
+        
 
         return mtkView
     }
     
-    public func updateUIView(_ uiView: iOSMTK, context: Context) {
+    public func updateUIView(_ uiView: iOSMTKTouchWrapper, context: Context) {
         if let id = workspaceState.openDoc {
-            if uiView.currentOpenDoc != id {
-                uiView.openFile(id: id)
+            if uiView.mtkView.currentOpenDoc != id {
+                uiView.mtkView.openFile(id: id)
             }
         }
         
         if workspaceState.shouldFocus {
-            uiView.becomeFirstResponder()
+            uiView.mtkView.becomeFirstResponder()
             workspaceState.shouldFocus = false
         }
         
         if workspaceState.syncRequested {
             workspaceState.syncRequested = false
-            uiView.requestSync()
+            uiView.mtkView.requestSync()
         }
     }
 }
+
+public class iOSMTKTouchWrapper: UIView {
+    public var mtkView: iOSMTK
+    
+    init(_ workspaceState: WorkspaceState, _ coreHandle: UnsafeMutableRawPointer?) {
+        mtkView = iOSMTK()
+        mtkView.workspaceState = workspaceState
+        mtkView.setInitialContent(coreHandle)
+        
+        super.init(frame: .infinite)
+        
+        addSubview(mtkView)
+
+        mtkView.translatesAutoresizingMaskIntoConstraints = false
+        NSLayoutConstraint.activate([
+            mtkView.topAnchor.constraint(equalTo: topAnchor),
+            mtkView.leftAnchor.constraint(equalTo: leftAnchor),
+            mtkView.rightAnchor.constraint(equalTo: rightAnchor),
+            mtkView.bottomAnchor.constraint(equalTo: bottomAnchor)
+        ])
+    }
+    
+    required init?(coder aDecoder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+    
+    public override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+        mtkView.forwardedTouchesBegan(touches, with: event)
+        
+        if touches.first?.type == UITouch.TouchType.pencil && mtkView.currentTab == .Svg {
+            print("not forwarding touches in began")
+            return
+        }
+        
+        super.touchesBegan(touches, with: event)
+    }
+    
+    public override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
+        mtkView.forwardedTouchesMoved(touches, with: event)
+        
+        if touches.first?.type == UITouch.TouchType.pencil && mtkView.currentTab == .Svg {
+            print("not forwarding touches in moved")
+            return
+        }
+        
+        super.touchesMoved(touches, with: event)
+    }
+    
+    public override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
+        mtkView.forwardedTouchesEnded(touches, with: event)
+        
+        if touches.first?.type == UITouch.TouchType.pencil && mtkView.currentTab == .Svg {
+            print("not forwarding touches in ended")
+            return
+        }
+        
+        super.touchesEnded(touches, with: event)
+    }
+    
+    public override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
+        mtkView.forwardedTouchesCancelled(touches, with: event)
+        
+        if touches.first?.type == UITouch.TouchType.pencil && mtkView.currentTab == .Svg {
+            print("not forwarding touches in canceled")
+            return
+        }
+        
+        super.touchesCancelled(touches, with: event)
+    }
+}
+
+
 #else
 public struct WorkspaceView: View, Equatable {
     @FocusState var focused: Bool

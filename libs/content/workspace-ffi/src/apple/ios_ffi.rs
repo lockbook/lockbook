@@ -8,6 +8,7 @@ use egui_editor::input::canonical::{Bound, Increment, Location, Modification, Of
 use egui_editor::input::cursor::Cursor;
 use egui_editor::input::mutation;
 use egui_editor::offset_types::{DocCharOffset, RangeExt};
+use workspace::tab::svg_editor::Tool;
 use workspace::tab::{TabContent, markdown, Tab};
 use workspace::tab::markdown::Markdown;
 use std::borrow::BorrowMut;
@@ -309,6 +310,9 @@ pub unsafe extern "C" fn end_of_document(obj: *mut c_void) -> CTextPosition {
 /// https://developer.apple.com/documentation/uikit/uiresponder/1621142-touchesbegan
 #[no_mangle]
 pub unsafe extern "C" fn touches_began(obj: *mut c_void, id: u64, x: f32, y: f32, force: f32) {
+
+    // obj.raw_input.events.push(Event::PointerGone);
+    
     let obj = &mut *(obj as *mut WgpuWorkspace);
     obj.raw_input.events.push(Event::Touch {
         device_id: TouchDeviceId(0),
@@ -352,6 +356,7 @@ pub unsafe extern "C" fn touches_moved(obj: *mut c_void, id: u64, x: f32, y: f32
 /// https://developer.apple.com/documentation/uikit/uiresponder/1621142-touchesbegan
 #[no_mangle]
 pub unsafe extern "C" fn touches_ended(obj: *mut c_void, id: u64, x: f32, y: f32, force: f32) {
+    
     let obj = &mut *(obj as *mut WgpuWorkspace);
     obj.raw_input.events.push(Event::Touch {
         device_id: TouchDeviceId(0),
@@ -368,7 +373,9 @@ pub unsafe extern "C" fn touches_ended(obj: *mut c_void, id: u64, x: f32, y: f32
         modifiers: Default::default(),
     });
 
-    obj.raw_input.events.push(Event::PointerGone);
+    if obj.workspace.current_tab_markdown().is_some() {
+        obj.raw_input.events.push(Event::PointerGone);
+    }
 }
 
 /// # Safety
@@ -386,7 +393,9 @@ pub unsafe extern "C" fn touches_cancelled(obj: *mut c_void, id: u64, x: f32, y:
         force,
     });
 
-    obj.raw_input.events.push(Event::PointerGone);
+    if obj.workspace.current_tab_markdown().is_some() {
+        obj.raw_input.events.push(Event::PointerGone);
+    }
 }
 
 /// https://developer.apple.com/documentation/uikit/uiresponder/1621142-touchesbegan
@@ -858,8 +867,42 @@ pub unsafe extern "C" fn delete_word(obj: *mut c_void) {
 /// # Safety
 /// obj must be a valid pointer to WgpuEditor
 #[no_mangle]
-pub unsafe extern "C" fn in_text_tab(obj: *mut c_void) -> bool {
+pub unsafe extern "C" fn current_tab(obj: *mut c_void) -> i64 {
     let obj = &mut *(obj as *mut WgpuWorkspace);
     
-    obj.workspace.current_tab_markdown().is_some()
+    match obj.workspace.current_tab() {
+        Some(tab) => match &tab.content {
+            Some(tab) => match tab {
+                TabContent::Image(_) => 2,
+                TabContent::Markdown(_) => 3,
+                TabContent::PlainText(_) => 4,
+                TabContent::Pdf(_) => 5,
+                TabContent::Svg(_) => 6,
+            }
+            None => 1,
+        }
+        None => 0,
+    }
+}
+
+/// # Safety
+/// obj must be a valid pointer to WgpuEditor
+#[no_mangle]
+pub unsafe extern "C" fn toggle_drawing_tool(obj: *mut c_void) {
+    let obj = &mut *(obj as *mut WgpuWorkspace);
+    
+    if let Some(svg) = obj.workspace.current_tab_svg_mut() {
+        svg.toolbar.toggle_tool();
+    }
+}
+
+/// # Safety
+/// obj must be a valid pointer to WgpuEditor
+#[no_mangle]
+pub unsafe extern "C" fn set_drawing_tool_eraser(obj: *mut c_void) {
+    let obj = &mut *(obj as *mut WgpuWorkspace);
+    
+    if let Some(svg) = obj.workspace.current_tab_svg_mut() {
+        svg.toolbar.set_tool(Tool::Eraser)
+    }
 }

@@ -307,7 +307,7 @@ class FileService: ObservableObject {
             }()
             
             var name = ""
-            let fileExt = isDrawing ? ".draw" : ".md"
+            let fileExt = isDrawing ? ".svg" : ".md"
             let namePart = "untitled-"
             var attempt = 0
             

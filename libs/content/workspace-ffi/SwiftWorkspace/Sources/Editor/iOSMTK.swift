@@ -6,7 +6,7 @@ import SwiftUI
 import MobileCoreServices
 import UniformTypeIdentifiers
 
-public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractionDelegate, UIDropInteractionDelegate {
+public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractionDelegate, UIDropInteractionDelegate, UIPencilInteractionDelegate {
     
     var wsHandle: UnsafeMutableRawPointer?
     var workspaceState: WorkspaceState?
@@ -19,17 +19,9 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     var redrawTask: DispatchWorkItem? = nil
     
     let textInteraction = UITextInteraction(for: .editable)
+    let pencilInteraction = UIPencilInteraction()
     
-    var inTextTab = false
-    
-    var caretRectComputed = false
-    var firstRectComputed = false
-    var selectionRectsComputed = false
-    
-    // small improvement maybe make these `let`s
-    var oldCaretRect = CGRect()
-    var oldFirstRect = CGRect()
-    var oldSelectionRects: [UITextSelectionRect] = []
+    public var currentTab: WorkspaceTab = .Welcome
 
     public override var undoManager: UndoManager? {
         return textUndoManager
@@ -55,17 +47,25 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
         // selection support
         textInteraction.textInput = self
         
-        for gestureRecognizer in textInteraction.gesturesForFailureRequirements {
-            let gestureName = gestureRecognizer.name?.lowercased()
-
-            if(gestureName?.contains("tap") ?? false) {
-                gestureRecognizer.cancelsTouchesInView = false
-            }
-        }
+        // pen support
+        pencilInteraction.delegate = self
+        addInteraction(pencilInteraction)
 
         // drop support
         let dropInteraction = UIDropInteraction(delegate: self)
         self.addInteraction(dropInteraction)
+    }
+    
+    func addTextInteraction() {
+        addInteraction(textInteraction)
+        
+//        for gestureRecognizer in textInteraction.gesturesForFailureRequirements {
+//            let gestureName = gestureRecognizer.name?.lowercased()
+//
+//            if(gestureName?.contains("tap") ?? false) {
+//                gestureRecognizer.cancelsTouchesInView = false
+//            }
+//        }
     }
     
     func openFile(id: UUID) {
@@ -83,7 +83,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     }
     
     public func dropInteraction(_ interaction: UIDropInteraction, canHandle session: UIDropSession) -> Bool {
-        if !inTextTab {
+        if !currentTab.isTextEdit() {
             return false
         }
         
@@ -91,12 +91,21 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
         
         return session.hasItemsConforming(toTypeIdentifiers: [UTType.image.identifier, UTType.fileURL.identifier, UTType.text.identifier])
     }
+    
+    public func pencilInteractionDidTap(_ interaction: UIPencilInteraction) {
+        if currentTab.isSvg() {
+            let tapAction = UIPencilInteraction.preferredTapAction
+            toggle_drawing_tool(wsHandle)
+            
+            self.setNeedsDisplay(self.frame)
+        }
+    }
 
     public func dropInteraction(_ interaction: UIDropInteraction, sessionDidUpdate session: UIDropSession) -> UIDropProposal {
         let dropLocation = session.location(in: self)
         let operation: UIDropOperation
 
-        if inTextTab && self.frame.contains(dropLocation) {
+        if currentTab.isTextEdit() && self.frame.contains(dropLocation) {
             operation = .copy
         } else {
             operation = .cancel
@@ -106,7 +115,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     }
 
     public func dropInteraction(_ interaction: UIDropInteraction, performDrop session: UIDropSession) {
-        if !inTextTab {
+        if !currentTab.isTextEdit() {
             return
         }
         
@@ -220,18 +229,10 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
         let output = draw_editor(wsHandle)
 
         if output.workspace_resp.selection_updated {
-            caretRectComputed = false;
-            firstRectComputed = false;
-            selectionRectsComputed = false;
-            
             inputDelegate?.selectionDidChange(self)
         }
         
         if output.workspace_resp.text_updated {
-            caretRectComputed = false;
-            firstRectComputed = false;
-            selectionRectsComputed = false;
-            
             inputDelegate?.textDidChange(self)
         }
         
@@ -244,24 +245,13 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
         if selectedFile.isNil() {
             currentOpenDoc = nil
             if self.workspaceState?.openDoc != nil {
-                inTextTab = false
+                currentTab = .Welcome
                 self.workspaceState?.openDoc = nil
             }
         } else {
             if currentOpenDoc != selectedFile {
                 inputDelegate?.selectionDidChange(self)
                 inputDelegate?.textDidChange(self)
-                
-                let newInTextTab = in_text_tab(wsHandle)
-                if newInTextTab && !self.inTextTab {
-                    self.addInteraction(textInteraction)
-                    self.inTextTab = true
-                } else if !newInTextTab && self.inTextTab {
-                    self.removeInteraction(textInteraction)
-                    self.inTextTab = false
-                }
-                
-                inTextTab = newInTextTab
             }
             
             currentOpenDoc = selectedFile
@@ -269,6 +259,23 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
                 self.workspaceState?.openDoc = selectedFile
             }
         }
+        
+        let newCurrentTab = WorkspaceTab(rawValue: Int(current_tab(wsHandle)))!
+        
+        if newCurrentTab != currentTab {
+            if newCurrentTab.isTextEdit() && !currentTab.isTextEdit() {
+                print("added interaction")
+                addTextInteraction()
+            } else if !newCurrentTab.isTextEdit() && currentTab.isTextEdit() {
+                print("removed interaction")
+                self.removeInteraction(textInteraction)
+            }
+            
+            currentTab = newCurrentTab
+        }
+        
+        
+        
                 
         let newFile = UUID(uuid: output.workspace_resp.doc_created._0)
         if !newFile.isNil() {
@@ -316,17 +323,17 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     }
     
     public func insertText(_ text: String) {
-        if !inTextTab {
+        if !currentTab.isTextEdit() {
             return
         }
-        
+                
         inputDelegate?.textWillChange(self)
         insert_text(wsHandle, text)
         self.setNeedsDisplay(self.frame)
     }
     
     public func text(in range: UITextRange) -> String? {
-        if !inTextTab {
+        if !currentTab.isTextEdit() {
             return nil
         }
         
@@ -341,7 +348,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     
     
     public func replace(_ range: UITextRange, withText text: String) {
-        if !inTextTab {
+        if !currentTab.isTextEdit() {
             return
         }
         
@@ -353,7 +360,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     
     public var selectedTextRange: UITextRange? {
         set {
-            if !inTextTab {
+            if !currentTab.isTextEdit() {
                 return
             }
             
@@ -366,7 +373,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
         }
         
         get {
-            if !inTextTab {
+            if !currentTab.isTextEdit() {
                 return nil
             }
             
@@ -380,7 +387,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     
     public var markedTextRange: UITextRange? {
         get {
-            if !inTextTab {
+            if !currentTab.isTextEdit() {
                 return nil
             }
             
@@ -404,7 +411,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     }
     
     public func setMarkedText(_ markedText: String?, selectedRange: NSRange) {
-        if !inTextTab {
+        if !currentTab.isTextEdit() {
             return
         }
         
@@ -414,7 +421,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     }
     
     public func unmarkText() {
-        if !inTextTab {
+        if !currentTab.isTextEdit() {
             return
         }
         
@@ -424,7 +431,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     }
     
     public var beginningOfDocument: UITextPosition {
-        if !inTextTab {
+        if !currentTab.isTextEdit() {
             return LBTextPos(c: CTextPosition(none: true, pos: 0))
         }
         
@@ -433,7 +440,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     }
     
     public var endOfDocument: UITextPosition {
-        if !inTextTab {
+        if !currentTab.isTextEdit() {
             return LBTextPos(c: CTextPosition(none: true, pos: 0))
         }
         
@@ -442,7 +449,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     }
     
     public func textRange(from fromPosition: UITextPosition, to toPosition: UITextPosition) -> UITextRange? {
-        if !inTextTab {
+        if !currentTab.isTextEdit() {
             return nil
         }
         
@@ -459,7 +466,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     }
     
     public func position(from position: UITextPosition, offset: Int) -> UITextPosition? {
-        if !inTextTab {
+        if !currentTab.isTextEdit() {
             return nil
         }
         
@@ -474,7 +481,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     }
     
     public func position(from position: UITextPosition, in direction: UITextLayoutDirection, offset: Int) -> UITextPosition? {
-        if !inTextTab {
+        if !currentTab.isTextEdit() {
             return nil
         }
         
@@ -488,8 +495,13 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     }
     
     public func compare(_ position: UITextPosition, to other: UITextPosition) -> ComparisonResult {
-        let left = (position as! LBTextPos).c.pos
-        let right = (other as! LBTextPos).c.pos
+        if !currentTab.isTextEdit() {
+            return ComparisonResult.orderedAscending
+        }
+        
+        guard let left = (position as? LBTextPos)?.c.pos, let right = (other as? LBTextPos)?.c.pos else {
+            return ComparisonResult.orderedAscending
+        }
         
         let res: ComparisonResult
         if left < right {
@@ -503,6 +515,10 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     }
     
     public func offset(from: UITextPosition, to toPosition: UITextPosition) -> Int {
+        if !currentTab.isTextEdit() {
+            return 0
+        }
+        
         guard let left = (from as? LBTextPos)?.c.pos, let right = (toPosition as? LBTextPos)?.c.pos else {
             return 0
         }
@@ -535,71 +551,57 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     }
     
     public func firstRect(for range: UITextRange) -> CGRect {
-        if !inTextTab {
+        if !currentTab.isTextEdit() {
             return CGRect(x: 0, y: 0, width: 0, height: 0)
         }
         
-        if !firstRectComputed {
-            let range = (range as! LBTextRange).c
-            let result = first_rect(wsHandle, range)
-            
-            let newY = max(result.min_y, 50)
-            let newHeight = max(result.max_y - newY, 0)
-            let newWidth = newHeight == 0 ? 0 : (result.max_x-result.min_x)
-            let newX = newHeight == 0 ? 0.0 : result.min_x
-            
-            oldFirstRect = CGRect(x: newX, y: newY, width: newWidth, height: newHeight)
-            firstRectComputed = true
-        }
+        let range = (range as! LBTextRange).c
+        let result = first_rect(wsHandle, range)
+        
+        let newY = max(result.min_y, 50)
+        let newHeight = max(result.max_y - newY, 0)
+        let newWidth = newHeight == 0 ? 0 : (result.max_x-result.min_x)
+        let newX = newHeight == 0 ? 0.0 : result.min_x
 
-        return oldFirstRect
+        return CGRect(x: newX, y: newY, width: newWidth, height: newHeight)
     }
     
     public func caretRect(for position: UITextPosition) -> CGRect {
-        if !inTextTab {
+        if !currentTab.isTextEdit() {
             return CGRect(x: 0, y: 0, width: 0, height: 0)
         }
         
-        if !caretRectComputed {
-            let position = (position as! LBTextPos).c
-            let result = cursor_rect_at_position(wsHandle, position)
-            
-            let newY = max(result.min_y, 50)
-            let newHeight = max(result.max_y - newY, 0)
-            let newWidth = newHeight == 0 ? 0.0 : 1.0
-            let newX = newHeight == 0 ? 0.0 : result.min_x
-            
-            oldCaretRect = CGRect(x: newX, y: newY, width: newWidth, height: newHeight)
-            caretRectComputed = true
-        }
+        let position = (position as! LBTextPos).c
+        let result = cursor_rect_at_position(wsHandle, position)
         
-        return oldCaretRect
+        let newY = max(result.min_y, 50)
+        let newHeight = max(result.max_y - newY, 0)
+        let newWidth = newHeight == 0 ? 0.0 : 1.0
+        let newX = newHeight == 0 ? 0.0 : result.min_x
+        
+        return CGRect(x: newX, y: newY, width: newWidth, height: newHeight)
     }
     
     public func selectionRects(for range: UITextRange) -> [UITextSelectionRect] {
-        if !inTextTab {
+        if !currentTab.isTextEdit() {
             return []
         }
         
-        if !selectionRectsComputed {
-            let range = (range as! LBTextRange).c
-            let result = selection_rects(wsHandle, range)
-            let buffer = Array(UnsafeBufferPointer(start: result.rects, count: Int(result.size)))
-            oldSelectionRects = buffer.enumerated().map { (index, rect) in
-                let newMinY = max(rect.min_y, 50)
-                let newMaxY = max(newMinY, rect.max_y)
-                
-                let new_rect = CRect(min_x: rect.min_x, min_y: newMinY, max_x: rect.max_x, max_y: newMaxY)
-                
-                return LBTextSelectionRect(cRect: new_rect, loc: index, size: buffer.count)
-            }
+        let range = (range as! LBTextRange).c
+        let result = selection_rects(wsHandle, range)
+        let buffer = Array(UnsafeBufferPointer(start: result.rects, count: Int(result.size)))
+        return buffer.enumerated().map { (index, rect) in
+            let newMinY = max(rect.min_y, 50)
+            let newMaxY = max(newMinY, rect.max_y)
+            
+            let new_rect = CRect(min_x: rect.min_x, min_y: newMinY, max_x: rect.max_x, max_y: newMaxY)
+            
+            return LBTextSelectionRect(cRect: new_rect, loc: index, size: buffer.count)
         }
-        
-        return oldSelectionRects
     }
     
     public func closestPosition(to point: CGPoint) -> UITextPosition? {
-        if !inTextTab || point.y < 50 {
+        if !currentTab.isTextEdit() || point.y < 50 {
             return nil
         }
         
@@ -624,7 +626,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     }
     
     public func deleteBackward() {
-        if !inTextTab {
+        if !currentTab.isTextEdit() {
             return
         }
         
@@ -633,8 +635,9 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
         self.setNeedsDisplay(self.frame)
     }
     
-    public override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
-        print("touchesBegan")
+    public func forwardedTouchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+        print("touches began")
+        
         let point = Unmanaged.passUnretained(touches.first!).toOpaque()
         let value = UInt64(UInt(bitPattern: point))
         let location = touches.first!.location(in: self)
@@ -643,8 +646,9 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
         self.setNeedsDisplay(self.frame)
     }
     
-    public override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
-        print("touchesMoved")
+    public func forwardedTouchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
+        print("touches moved")
+        
         let point = Unmanaged.passUnretained(touches.first!).toOpaque()
         let value = UInt64(UInt(bitPattern: point))
         let location = touches.first!.location(in: self)
@@ -652,8 +656,9 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
         self.setNeedsDisplay(self.frame)
     }
     
-    public override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
-        print("touchesEnded")
+    public func forwardedTouchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
+        print("touches ended")
+        
         let point = Unmanaged.passUnretained(touches.first!).toOpaque()
         let value = UInt64(UInt(bitPattern: point))
         let location = touches.first!.location(in: self)
@@ -662,7 +667,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     }
     
     
-    public override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
+    public func forwardedTouchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
         let point = Unmanaged.passUnretained(touches.first!).toOpaque()
         let value = UInt64(UInt(bitPattern: point))
         let location = touches.first!.location(in: self)
@@ -671,6 +676,10 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     }
     
     public func editMenu(for textRange: UITextRange, suggestedActions: [UIMenuElement]) -> UIMenu? {
+        if !currentTab.isTextEdit() {
+            return nil
+        }
+        
         let customMenu = self.selectedTextRange?.isEmpty == false ? UIMenu(title: "", options: .displayInline, children: [
             UIAction(title: "Cut") { _ in
                 self.inputDelegate?.selectionWillChange(self)
@@ -747,7 +756,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     }
     
     func getText() -> String {
-        if !inTextTab {
+        if !currentTab.isTextEdit() {
             return ""
         }
         
@@ -784,7 +793,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     }
     
     @objc func deleteWord() {
-        if !inTextTab {
+        if !currentTab.isTextEdit() {
             return
         }
         
@@ -954,4 +963,25 @@ class LBTextSelectionRect: UITextSelectionRect {
     }
 }
 
+public enum WorkspaceTab: Int {
+    case Welcome = 0
+    case Loading = 1
+    
+    case Image = 2
+    case Markdown = 3
+    case PlainText = 4
+    case Pdf = 5
+    case Svg = 6
+    
+    func isTextEdit() -> Bool {
+        self == .Markdown || self == .PlainText
+    }
+    
+    func isSvg() -> Bool {
+        self == .Svg
+    }
+}
+
 #endif
+
+

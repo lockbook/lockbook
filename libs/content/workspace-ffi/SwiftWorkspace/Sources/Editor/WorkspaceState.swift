@@ -9,7 +9,7 @@ public class WorkspaceState: ObservableObject {
     
     @Published public var openDoc: UUID? = nil {
         didSet {
-            shouldFocus = true
+//            shouldFocus = true
             pendingSharesOpen = false
         }
     }
