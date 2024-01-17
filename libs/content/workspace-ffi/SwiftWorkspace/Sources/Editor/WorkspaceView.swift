@@ -38,8 +38,6 @@ public struct UIWS: UIViewRepresentable {
 
     public func makeUIView(context: Context) -> iOSMTKTouchWrapper {
         let mtkView = iOSMTKTouchWrapper(workspaceState, coreHandle)
-        
-        
 
         return mtkView
     }
@@ -89,6 +87,8 @@ public class iOSMTKTouchWrapper: UIView {
     }
     
     public override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+        print("touches in wrapper view")
+        
         mtkView.forwardedTouchesBegan(touches, with: event)
         
         if touches.first?.type == UITouch.TouchType.pencil && mtkView.currentTab == .Svg {
