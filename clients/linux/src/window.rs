@@ -88,7 +88,7 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
         // output::clipboard_copy::handle(copied_text);
         // output::close::handle(close);
         // output::window_title::handle(hwnd, set_window_title);
-        output::cursor::handle(&conn, &screen, window_id, cursor_icon);
+        output::cursor::handle(&conn, screen_num, window_id, cursor_icon);
         // output::open_url::handle(open_url);
         conn.flush()?;
     }
