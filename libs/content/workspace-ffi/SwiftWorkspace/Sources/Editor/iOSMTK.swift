@@ -487,7 +487,6 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
         
         let point = CPoint(x: point.x, y: point.y)
         let result = position_at_point(wsHandle, point)
-        print("closest \(result.pos)")
         return LBTextPos(c: result)
     }
     
@@ -608,9 +607,10 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
     }
     
     public override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
-        print("began touches")
         let point = Unmanaged.passUnretained(touches.first!).toOpaque()
         let value = UInt64(UInt(bitPattern: point))
+        print("touches began: \(value)")
+        
         let location = touches.first!.location(in: self)
         touches_began(wsHandle, value, Float(location.x), Float(location.y), Float(touches.first?.force ?? 0))
 
@@ -619,7 +619,6 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
     }
     
     public override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
-        print("moved touches")
         let point = Unmanaged.passUnretained(touches.first!).toOpaque()
         let value = UInt64(UInt(bitPattern: point))
         let location = touches.first!.location(in: self)
@@ -630,9 +629,10 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
     }
     
     public override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
-        print("touches ended")
         let point = Unmanaged.passUnretained(touches.first!).toOpaque()
         let value = UInt64(UInt(bitPattern: point))
+        print("touches ended: \(value)")
+        
         let location = touches.first!.location(in: self)
         touches_ended(wsHandle, value, Float(location.x), Float(location.y), Float(touches.first?.force ?? 0))
         
@@ -641,10 +641,11 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
     }
 
     public override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
-        print("touches cancelled")
-        
         let point = Unmanaged.passUnretained(touches.first!).toOpaque()
         let value = UInt64(UInt(bitPattern: point))
+        
+        print("touches began: \(value)")
+        
         let location = touches.first!.location(in: self)
         touches_cancelled(wsHandle, value, Float(location.x), Float(location.y), Float(touches.first?.force ?? 0))
     
