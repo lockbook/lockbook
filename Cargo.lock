@@ -1814,6 +1814,7 @@ dependencies = [
  "rand 0.8.5",
  "raw-window-handle",
  "reqwest",
+ "resvg",
  "serde",
  "serde_json",
  "unicode-segmentation",
