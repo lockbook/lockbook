@@ -30,6 +30,8 @@ public class WorkspaceState: ObservableObject {
     
     @Published public var newFolderButtonPressed: Bool = false
     
+    @Published public var currentTab: WorkspaceTab = .Welcome
+    
     public var importFile: (URL) -> String?
     
     public init(importFile: @escaping (URL) -> String?) {

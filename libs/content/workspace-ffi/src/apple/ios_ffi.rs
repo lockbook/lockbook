@@ -306,13 +306,8 @@ pub unsafe extern "C" fn end_of_document(obj: *mut c_void) -> CTextPosition {
 
 /// # Safety
 /// obj must be a valid pointer to WgpuEditor
-///
-/// https://developer.apple.com/documentation/uikit/uiresponder/1621142-touchesbegan
 #[no_mangle]
 pub unsafe extern "C" fn touches_began(obj: *mut c_void, id: u64, x: f32, y: f32, force: f32) {
-
-    // obj.raw_input.events.push(Event::PointerGone);
-    
     let obj = &mut *(obj as *mut WgpuWorkspace);
     obj.raw_input.events.push(Event::Touch {
         device_id: TouchDeviceId(0),
@@ -332,8 +327,6 @@ pub unsafe extern "C" fn touches_began(obj: *mut c_void, id: u64, x: f32, y: f32
 
 /// # Safety
 /// obj must be a valid pointer to WgpuEditor
-///
-/// https://developer.apple.com/documentation/uikit/uiresponder/1621142-touchesbegan
 #[no_mangle]
 pub unsafe extern "C" fn touches_moved(obj: *mut c_void, id: u64, x: f32, y: f32, force: f32) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
@@ -356,7 +349,6 @@ pub unsafe extern "C" fn touches_moved(obj: *mut c_void, id: u64, x: f32, y: f32
 /// https://developer.apple.com/documentation/uikit/uiresponder/1621142-touchesbegan
 #[no_mangle]
 pub unsafe extern "C" fn touches_ended(obj: *mut c_void, id: u64, x: f32, y: f32, force: f32) {
-    
     let obj = &mut *(obj as *mut WgpuWorkspace);
     obj.raw_input.events.push(Event::Touch {
         device_id: TouchDeviceId(0),
@@ -373,9 +365,7 @@ pub unsafe extern "C" fn touches_ended(obj: *mut c_void, id: u64, x: f32, y: f32
         modifiers: Default::default(),
     });
 
-    if obj.workspace.current_tab_markdown().is_some() {
-        obj.raw_input.events.push(Event::PointerGone);
-    }
+    obj.raw_input.events.push(Event::PointerGone);
 }
 
 /// # Safety
@@ -393,9 +383,7 @@ pub unsafe extern "C" fn touches_cancelled(obj: *mut c_void, id: u64, x: f32, y:
         force,
     });
 
-    if obj.workspace.current_tab_markdown().is_some() {
-        obj.raw_input.events.push(Event::PointerGone);
-    }
+    obj.raw_input.events.push(Event::PointerGone);
 }
 
 /// https://developer.apple.com/documentation/uikit/uiresponder/1621142-touchesbegan

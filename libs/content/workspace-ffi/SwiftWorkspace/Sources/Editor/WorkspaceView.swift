@@ -36,13 +36,13 @@ public struct UIWS: UIViewRepresentable {
         self.coreHandle = coreHandle
     }
 
-    public func makeUIView(context: Context) -> iOSMTKTouchWrapper {
-        let mtkView = iOSMTKTouchWrapper(workspaceState, coreHandle)
+    public func makeUIView(context: Context) -> iOSMTKInputManager {
+        let mtkView = iOSMTKInputManager(workspaceState, coreHandle)
 
         return mtkView
     }
     
-    public func updateUIView(_ uiView: iOSMTKTouchWrapper, context: Context) {
+    public func updateUIView(_ uiView: iOSMTKInputManager, context: Context) {
         if let id = workspaceState.openDoc {
             if uiView.mtkView.currentOpenDoc != id {
                 uiView.mtkView.openFile(id: id)
@@ -50,28 +50,37 @@ public struct UIWS: UIViewRepresentable {
         }
         
         if workspaceState.shouldFocus {
-            uiView.mtkView.becomeFirstResponder()
             workspaceState.shouldFocus = false
+            uiView.currentWrapper.becomeFirstResponder()
         }
         
         if workspaceState.syncRequested {
             workspaceState.syncRequested = false
             uiView.mtkView.requestSync()
         }
+        
+        if workspaceState.currentTab.viewWrapperIdentifier() != uiView.currentTab.viewWrapperIdentifier() {
+            uiView.updateCurrentTab(newCurrentTab: workspaceState.currentTab)
+        }
     }
 }
 
-public class iOSMTKTouchWrapper: UIView {
+public class iOSMTKInputManager: UIView {
     public var mtkView: iOSMTK
+    
+    var currentWrapper: UIView = UIView()
+    var currentTab: WorkspaceTab = .Welcome
     
     init(_ workspaceState: WorkspaceState, _ coreHandle: UnsafeMutableRawPointer?) {
         mtkView = iOSMTK()
         mtkView.workspaceState = workspaceState
         mtkView.setInitialContent(coreHandle)
         
+        currentWrapper.addSubview(mtkView)
+        
         super.init(frame: .infinite)
         
-        addSubview(mtkView)
+        addSubview(currentWrapper)
 
         mtkView.translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([
@@ -86,53 +95,51 @@ public class iOSMTKTouchWrapper: UIView {
         fatalError("init(coder:) has not been implemented")
     }
     
-    public override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
-        print("touches in wrapper view")
+    public func updateCurrentTab(newCurrentTab: WorkspaceTab) {
+        print("scheduled switch")
         
-        mtkView.forwardedTouchesBegan(touches, with: event)
-        
-        if touches.first?.type == UITouch.TouchType.pencil && mtkView.currentTab == .Svg {
-            print("not forwarding touches in began")
-            return
+        mtkView.tabSwitchTask = {
+            self.mtkView.removeConstraints(self.mtkView.constraints)
+            
+            self.mtkView.removeFromSuperview()
+            self.currentWrapper.removeFromSuperview()
+            self.mtkView.onSelectionChanged = nil
+            self.mtkView.onTextChanged = nil
+            
+            self.currentTab = newCurrentTab
+            
+            switch self.currentTab {
+            case .Welcome, .Pdf, .Loading, .Image:
+                self.currentWrapper = UIView()
+                self.currentWrapper.addSubview(self.mtkView)
+            case .Svg:
+                self.currentWrapper = iOSMTKDrawingWrapper(mtkView: self.mtkView)
+            case .PlainText, .Markdown:
+                self.currentWrapper = iOSMTKTextInputWrapper(mtkView: self.mtkView)
+            }
+            
+            self.addSubview(self.currentWrapper)
+
+            self.currentWrapper.translatesAutoresizingMaskIntoConstraints = false
+            NSLayoutConstraint.activate([
+                self.currentWrapper.topAnchor.constraint(equalTo: self.topAnchor),
+                self.currentWrapper.leftAnchor.constraint(equalTo: self.leftAnchor),
+                self.currentWrapper.rightAnchor.constraint(equalTo: self.rightAnchor),
+                self.currentWrapper.bottomAnchor.constraint(equalTo: self.bottomAnchor)
+            ])
+                        
+            self.mtkView.translatesAutoresizingMaskIntoConstraints = false
+            NSLayoutConstraint.activate([
+                self.mtkView.topAnchor.constraint(equalTo: self.topAnchor),
+                self.mtkView.leftAnchor.constraint(equalTo: self.leftAnchor),
+                self.mtkView.rightAnchor.constraint(equalTo: self.rightAnchor),
+                self.mtkView.bottomAnchor.constraint(equalTo: self.bottomAnchor)
+            ])
+            
+            self.currentWrapper.becomeFirstResponder()
         }
-        
-        super.touchesBegan(touches, with: event)
-    }
-    
-    public override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
-        mtkView.forwardedTouchesMoved(touches, with: event)
-        
-        if touches.first?.type == UITouch.TouchType.pencil && mtkView.currentTab == .Svg {
-            print("not forwarding touches in moved")
-            return
-        }
-        
-        super.touchesMoved(touches, with: event)
-    }
-    
-    public override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
-        mtkView.forwardedTouchesEnded(touches, with: event)
-        
-        if touches.first?.type == UITouch.TouchType.pencil && mtkView.currentTab == .Svg {
-            print("not forwarding touches in ended")
-            return
-        }
-        
-        super.touchesEnded(touches, with: event)
-    }
-    
-    public override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
-        mtkView.forwardedTouchesCancelled(touches, with: event)
-        
-        if touches.first?.type == UITouch.TouchType.pencil && mtkView.currentTab == .Svg {
-            print("not forwarding touches in canceled")
-            return
-        }
-        
-        super.touchesCancelled(touches, with: event)
     }
 }
-
 
 #else
 public struct WorkspaceView: View, Equatable {

@@ -6,22 +6,18 @@ import SwiftUI
 import MobileCoreServices
 import UniformTypeIdentifiers
 
-public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractionDelegate, UIDropInteractionDelegate, UIPencilInteractionDelegate {
-    
-    var wsHandle: UnsafeMutableRawPointer?
-    var workspaceState: WorkspaceState?
-    var hasSelection: Bool = false
-    var currentOpenDoc: UUID? = nil
-    var currentSelectedFolder: UUID? = nil
+// i removed UIEditMenuInteractionDelegate
+
+public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDelegate {
+        
+    let mtkView: iOSMTK
     
     var textUndoManager = iOSUndoManager()
-
-    var redrawTask: DispatchWorkItem? = nil
-    
     let textInteraction = UITextInteraction(for: .editable)
-    let pencilInteraction = UIPencilInteraction()
     
-    public var currentTab: WorkspaceTab = .Welcome
+    var isUnderlyingTextEdit: Bool { get { workspaceState!.currentTab.isTextEdit() } }
+    var wsHandle: UnsafeMutableRawPointer? { get { mtkView.wsHandle } }
+    var workspaceState: WorkspaceState? { get { mtkView.workspaceState } }
 
     public override var undoManager: UndoManager? {
         return textUndoManager
@@ -29,14 +25,23 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
 
     var pasteBoardEventId: Int = 0
     var lastKnownTapLocation: Float? = nil
-    override init(frame frameRect: CGRect, device: MTLDevice?) {
-        super.init(frame: frameRect, device: device)
+    
+    init(mtkView: iOSMTK) {
+        self.mtkView = mtkView
         
-        self.isPaused = true
-        self.enableSetNeedsDisplay = true
-        self.delegate = self
-        self.preferredFramesPerSecond = 120
+        super.init(frame: .infinite)
+        
+        mtkView.onSelectionChanged = {
+            self.inputDelegate?.selectionDidChange(self)
+        }
+        mtkView.onTextChanged = {
+            self.inputDelegate?.textDidChange(self)
+        }
+
+        addSubview(mtkView)
+
         self.clipsToBounds = true
+        self.isUserInteractionEnabled = true
 
         // ipad trackpad support
         let pan = UIPanGestureRecognizer(target: self, action: #selector(self.handleTrackpadScroll(_:)))
@@ -46,44 +51,29 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
         
         // selection support
         textInteraction.textInput = self
+        self.addInteraction(textInteraction)
         
-        // pen support
-        pencilInteraction.delegate = self
-        addInteraction(pencilInteraction)
-
+        for gestureRecognizer in textInteraction.gesturesForFailureRequirements {
+            let gestureName = gestureRecognizer.name?.lowercased()
+        }
+        
         // drop support
         let dropInteraction = UIDropInteraction(delegate: self)
         self.addInteraction(dropInteraction)
-    }
-    
-    func addTextInteraction() {
-        addInteraction(textInteraction)
         
-//        for gestureRecognizer in textInteraction.gesturesForFailureRequirements {
-//            let gestureName = gestureRecognizer.name?.lowercased()
-//
-//            if(gestureName?.contains("tap") ?? false) {
-//                gestureRecognizer.cancelsTouchesInView = false
-//            }
-//        }
-    }
-    
-    func openFile(id: UUID) {
-        if currentOpenDoc != id {
-            let uuid = CUuid(_0: id.uuid)
-            open_file(wsHandle, uuid, false)
-            setNeedsDisplay(self.frame)
+        // undo redo
+        self.textUndoManager.wsHandle = self.wsHandle
+        self.textUndoManager.onUndoRedo = {
+            self.mtkView.setNeedsDisplay(self.frame)
         }
-
     }
     
-    func requestSync() {
-        request_sync(wsHandle)
-        setNeedsDisplay(self.frame)
+    required init(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
     }
     
     public func dropInteraction(_ interaction: UIDropInteraction, canHandle session: UIDropSession) -> Bool {
-        if !currentTab.isTextEdit() {
+        if !isUnderlyingTextEdit {
             return false
         }
         
@@ -92,20 +82,11 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
         return session.hasItemsConforming(toTypeIdentifiers: [UTType.image.identifier, UTType.fileURL.identifier, UTType.text.identifier])
     }
     
-    public func pencilInteractionDidTap(_ interaction: UIPencilInteraction) {
-        if currentTab.isSvg() {
-            let tapAction = UIPencilInteraction.preferredTapAction
-            toggle_drawing_tool(wsHandle)
-            
-            self.setNeedsDisplay(self.frame)
-        }
-    }
-
     public func dropInteraction(_ interaction: UIDropInteraction, sessionDidUpdate session: UIDropSession) -> UIDropProposal {
         let dropLocation = session.location(in: self)
         let operation: UIDropOperation
 
-        if currentTab.isTextEdit() && self.frame.contains(dropLocation) {
+        if isUnderlyingTextEdit && self.frame.contains(dropLocation) {
             operation = .copy
         } else {
             operation = .cancel
@@ -115,7 +96,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
     }
 
     public func dropInteraction(_ interaction: UIDropInteraction, performDrop session: UIDropSession) {
-        if !currentTab.isTextEdit() {
+        if !isUnderlyingTextEdit {
             return
         }
         
@@ -167,9 +148,8 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
             scroll_wheel(wsHandle, y - lastKnownTapLocation!)
             
             lastKnownTapLocation = y
-            self.setNeedsDisplay()
+            self.mtkView.setNeedsDisplay()
         }
-        
     }
 
     func importContent(_ importFormat: SupportedImportFormat) -> Bool {
@@ -208,14 +188,567 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
         
         return false
     }
+    
+    public func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {
+        resize_editor(wsHandle, Float(size.width), Float(size.height), Float(self.contentScaleFactor))
+        self.mtkView.setNeedsDisplay()
+    }
+    
+    func setClipboard() {
+        let pasteboardString: String? = UIPasteboard.general.string
+        if let theString = pasteboardString {
+            system_clipboard_changed(wsHandle, theString)
+        }
+        self.pasteBoardEventId = UIPasteboard.general.changeCount
+    }
+    
+    public func insertText(_ text: String) {
+        if !isUnderlyingTextEdit {
+            return
+        }
+                
+        inputDelegate?.textWillChange(self)
+        insert_text(wsHandle, text)
+        self.mtkView.setNeedsDisplay(self.frame)
+    }
+    
+    public func text(in range: UITextRange) -> String? {
+        if !isUnderlyingTextEdit {
+            return nil
+        }
+        
+        let range = (range as! LBTextRange).c
+        guard let result = text_in_range(wsHandle, range) else {
+            return nil
+        }
+        let str = String(cString: result)
+        free_text(UnsafeMutablePointer(mutating: result))
+        return str
+    }
+    
+    
+    public func replace(_ range: UITextRange, withText text: String) {
+        if !isUnderlyingTextEdit {
+            return
+        }
+        
+        let range = range as! LBTextRange
+        inputDelegate?.textWillChange(self)
+        replace_text(wsHandle, range.c, text)
+        self.mtkView.setNeedsDisplay(self.frame)
+    }
+    
+    public var selectedTextRange: UITextRange? {
+        set {
+            if !isUnderlyingTextEdit {
+                return
+            }
+            
+            guard let range = (newValue as? LBTextRange)?.c else {
+                return
+            }
+            inputDelegate?.selectionWillChange(self)
+            set_selected(wsHandle, range)
+            self.mtkView.setNeedsDisplay()
+        }
+        
+        get {
+            if !isUnderlyingTextEdit {
+                return nil
+            }
+            
+            let range = get_selected(wsHandle)
+            if range.none {
+                return nil
+            }
+            return LBTextRange(c: range)
+        }
+    }
+    
+    public var markedTextRange: UITextRange? {
+        get {
+            if !isUnderlyingTextEdit {
+                return nil
+            }
+            
+            let range = get_marked(wsHandle)
+            if range.none {
+                return nil
+            }
+            return LBTextRange(c: range)
+        }
+    }
+    
+    public var markedTextStyle: [NSAttributedString.Key : Any]? {
+        set {
+            unimplemented()
+        }
+        
+        get {
+            unimplemented()
+            return nil
+        }
+    }
+    
+    public func setMarkedText(_ markedText: String?, selectedRange: NSRange) {
+        if !isUnderlyingTextEdit {
+            return
+        }
+        
+        inputDelegate?.textWillChange(self)
+        set_marked(wsHandle, CTextRange(none: false, start: CTextPosition(none: false, pos: UInt(selectedRange.lowerBound)), end: CTextPosition(none: false, pos: UInt(selectedRange.upperBound))), markedText)
+        self.mtkView.setNeedsDisplay()
+    }
+    
+    public func unmarkText() {
+        if !isUnderlyingTextEdit {
+            return
+        }
+        
+        inputDelegate?.textWillChange(self)
+        unmark_text(wsHandle)
+        self.mtkView.setNeedsDisplay()
+    }
+    
+    public var beginningOfDocument: UITextPosition {
+        if !isUnderlyingTextEdit {
+            return LBTextPos(c: CTextPosition(none: true, pos: 0))
+        }
+        
+        let res = beginning_of_document(wsHandle)
+        return LBTextPos(c: res)
+    }
+    
+    public var endOfDocument: UITextPosition {
+        if !isUnderlyingTextEdit {
+            return LBTextPos(c: CTextPosition(none: true, pos: 0))
+        }
+        
+        let res = end_of_document(wsHandle)
+        return LBTextPos(c: res)
+    }
+    
+    public func textRange(from fromPosition: UITextPosition, to toPosition: UITextPosition) -> UITextRange? {
+        if !isUnderlyingTextEdit {
+            return nil
+        }
+        
+        guard let start = (fromPosition as? LBTextPos)?.c else {
+            return nil
+        }
+        let end = (toPosition as! LBTextPos).c
+        let range = text_range(start, end)
+        if range.none {
+            return nil
+        } else {
+            return LBTextRange(c: range)
+        }
+    }
+    
+    public func position(from position: UITextPosition, offset: Int) -> UITextPosition? {
+        if !isUnderlyingTextEdit {
+            return nil
+        }
+        
+        guard let start = (position as? LBTextPos)?.c else {
+            return nil
+        }
+        let new = position_offset(wsHandle, start, Int32(offset))
+        if new.none {
+            return nil
+        }
+        return LBTextPos(c: new)
+    }
+    
+    public func position(from position: UITextPosition, in direction: UITextLayoutDirection, offset: Int) -> UITextPosition? {
+        if !isUnderlyingTextEdit {
+            return nil
+        }
+        
+        let start = (position as! LBTextPos).c
+        let direction = CTextLayoutDirection(rawValue: UInt32(direction.rawValue));
+        let new = position_offset_in_direction(wsHandle, start, direction, Int32(offset))
+        if new.none {
+            return nil
+        }
+        return LBTextPos(c: new)
+    }
+    
+    public func compare(_ position: UITextPosition, to other: UITextPosition) -> ComparisonResult {
+        if !isUnderlyingTextEdit {
+            return ComparisonResult.orderedAscending
+        }
+        
+        guard let left = (position as? LBTextPos)?.c.pos, let right = (other as? LBTextPos)?.c.pos else {
+            return ComparisonResult.orderedAscending
+        }
+        
+        let res: ComparisonResult
+        if left < right {
+            res = ComparisonResult.orderedAscending
+        } else if left == right {
+            res = ComparisonResult.orderedSame
+        } else {
+            res = ComparisonResult.orderedDescending
+        }
+        return res
+    }
+    
+    public func offset(from: UITextPosition, to toPosition: UITextPosition) -> Int {
+        if !isUnderlyingTextEdit {
+            return 0
+        }
+        
+        guard let left = (from as? LBTextPos)?.c.pos, let right = (toPosition as? LBTextPos)?.c.pos else {
+            return 0
+        }
+
+        return Int(right) - Int(left)
+    }
+    
+    public var inputDelegate: UITextInputDelegate?
+    
+    public lazy var tokenizer: UITextInputTokenizer = LBTokenizer(wsHandle: self.wsHandle)
+    
+    public func position(within range: UITextRange, farthestIn direction: UITextLayoutDirection) -> UITextPosition? {
+        unimplemented()
+        return nil
+    }
+    
+    public func characterRange(byExtending position: UITextPosition, in direction: UITextLayoutDirection) -> UITextRange? {
+        unimplemented()
+        return nil
+    }
+    
+    public func baseWritingDirection(for position: UITextPosition, in direction: UITextStorageDirection) -> NSWritingDirection {
+        return NSWritingDirection.leftToRight
+    }
+    
+    public func setBaseWritingDirection(_ writingDirection: NSWritingDirection, for range: UITextRange) {
+        if writingDirection != .leftToRight {
+            unimplemented()
+        }
+    }
+    
+    public func firstRect(for range: UITextRange) -> CGRect {
+        if !isUnderlyingTextEdit {
+            return CGRect(x: 0, y: 0, width: 0, height: 0)
+        }
+        
+        let range = (range as! LBTextRange).c
+        let result = first_rect(wsHandle, range)
+        
+        let newY = max(result.min_y, 50)
+        let newHeight = max(result.max_y - newY, 0)
+        let newWidth = newHeight == 0 ? 0 : (result.max_x-result.min_x)
+        let newX = newHeight == 0 ? 0.0 : result.min_x
+
+        return CGRect(x: newX, y: newY, width: newWidth, height: newHeight)
+    }
+    
+    public func caretRect(for position: UITextPosition) -> CGRect {
+        if !isUnderlyingTextEdit {
+            return CGRect(x: 0, y: 0, width: 0, height: 0)
+        }
+        
+        let position = (position as! LBTextPos).c
+        let result = cursor_rect_at_position(wsHandle, position)
+        
+        let newY = max(result.min_y, 50)
+        let newHeight = max(result.max_y - newY, 0)
+        let newWidth = newHeight == 0 ? 0.0 : 1.0
+        let newX = newHeight == 0 ? 0.0 : result.min_x
+        
+        return CGRect(x: newX, y: newY, width: newWidth, height: newHeight)
+    }
+    
+    public func selectionRects(for range: UITextRange) -> [UITextSelectionRect] {
+        if !isUnderlyingTextEdit {
+            return []
+        }
+        
+        let range = (range as! LBTextRange).c
+        let result = selection_rects(wsHandle, range)
+        let buffer = Array(UnsafeBufferPointer(start: result.rects, count: Int(result.size)))
+        return buffer.enumerated().map { (index, rect) in
+            let newMinY = max(rect.min_y, 50)
+            let newMaxY = max(newMinY, rect.max_y)
+            
+            let new_rect = CRect(min_x: rect.min_x, min_y: newMinY, max_x: rect.max_x, max_y: newMaxY)
+            
+            return LBTextSelectionRect(cRect: new_rect, loc: index, size: buffer.count)
+        }
+    }
+    
+    public func closestPosition(to point: CGPoint) -> UITextPosition? {
+        if !isUnderlyingTextEdit || point.y < 50 {
+            return nil
+        }
+        
+        let point = CPoint(x: point.x, y: point.y)
+        let result = position_at_point(wsHandle, point)
+        print("closest \(result.pos)")
+        return LBTextPos(c: result)
+    }
+    
+    public func closestPosition(to point: CGPoint, within range: UITextRange) -> UITextPosition? {
+        unimplemented()
+        return nil
+    }
+    
+    public func characterRange(at point: CGPoint) -> UITextRange? {
+        unimplemented()
+        return nil
+    }
+    
+    public var hasText: Bool {
+        let res = has_text(wsHandle)
+        return res
+    }
+    
+    public func deleteBackward() {
+        if !isUnderlyingTextEdit {
+            return
+        }
+        
+        inputDelegate?.textWillChange(self)
+        backspace(wsHandle)
+        self.mtkView.setNeedsDisplay(self.frame)
+    }
+    
+    public func editMenu(for textRange: UITextRange, suggestedActions: [UIMenuElement]) -> UIMenu? {
+        if !isUnderlyingTextEdit {
+            return nil
+        }
+        
+        let customMenu = self.selectedTextRange?.isEmpty == false ? UIMenu(title: "", options: .displayInline, children: [
+            UIAction(title: "Cut") { _ in
+                self.inputDelegate?.selectionWillChange(self)
+                self.clipboardCut()
+            },
+            UIAction(title: "Copy") { _ in
+                self.clipboardCopy()
+            },
+            UIAction(title: "Paste") { _ in
+                self.inputDelegate?.textWillChange(self)
+                self.clipboardPaste()
+            },
+            UIAction(title: "Select All") { _ in
+                self.inputDelegate?.selectionWillChange(self)
+                select_all(self.wsHandle)
+                self.mtkView.setNeedsDisplay(self.frame)
+            },
+        ]) : UIMenu(title: "", options: .displayInline, children: [
+            UIAction(title: "Select") { _ in
+                self.inputDelegate?.selectionWillChange(self)
+                select_current_word(self.wsHandle)
+                self.mtkView.setNeedsDisplay(self.frame)
+            },
+            UIAction(title: "Select All") { _ in
+                self.inputDelegate?.selectionWillChange(self)
+                select_all(self.wsHandle)
+                self.mtkView.setNeedsDisplay(self.frame)
+            },
+            UIAction(title: "Paste") { _ in
+                self.inputDelegate?.textWillChange(self)
+                self.clipboardPaste()
+            },
+        ])
+        
+        var actions = suggestedActions
+        actions.append(customMenu)
+        return UIMenu(children: actions)
+    }
+    
+    @objc func clipboardCopy() {
+        clipboard_copy(self.wsHandle)
+        self.mtkView.setNeedsDisplay(self.frame)
+    }
+    
+    @objc func clipboardCut() {
+        inputDelegate?.textWillChange(self)
+        clipboard_cut(self.wsHandle)
+        self.mtkView.setNeedsDisplay(self.frame)
+    }
+    
+    @objc func clipboardPaste() {
+        self.setClipboard()
+        
+        if let image = UIPasteboard.general.image {
+            if importContent(.image(image)) {
+                return
+            }
+        }
+
+        clipboard_paste(self.wsHandle)
+        self.mtkView.setNeedsDisplay()
+    }
+    
+    @objc func keyboardSelectAll() {
+        inputDelegate?.selectionWillChange(self)
+        select_all(self.wsHandle)
+        self.mtkView.setNeedsDisplay()
+    }
+        
+    func undoRedo(redo: Bool) {
+        inputDelegate?.textWillChange(self)
+        undo_redo(self.wsHandle, redo)
+        self.mtkView.setNeedsDisplay(self.frame)
+    }
+    
+    func getText() -> String {
+        if !isUnderlyingTextEdit {
+            return ""
+        }
+        
+        let result = get_text(wsHandle)
+        let str = String(cString: result!)
+        free_text(UnsafeMutablePointer(mutating: result))
+        return str
+    }
+    
+    public override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+        print("began touches")
+        let point = Unmanaged.passUnretained(touches.first!).toOpaque()
+        let value = UInt64(UInt(bitPattern: point))
+        let location = touches.first!.location(in: self)
+        touches_began(wsHandle, value, Float(location.x), Float(location.y), Float(touches.first?.force ?? 0))
+
+        self.setNeedsDisplay(self.frame)
+        super.touchesBegan(touches, with: event)
+    }
+    
+    public override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
+        print("moved touches")
+        let point = Unmanaged.passUnretained(touches.first!).toOpaque()
+        let value = UInt64(UInt(bitPattern: point))
+        let location = touches.first!.location(in: self)
+        touches_moved(wsHandle, value, Float(location.x), Float(location.y), Float(touches.first?.force ?? 0))
+        
+        self.setNeedsDisplay(self.frame)
+        super.touchesMoved(touches, with: event)
+    }
+    
+    public override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
+        print("touches ended")
+        let point = Unmanaged.passUnretained(touches.first!).toOpaque()
+        let value = UInt64(UInt(bitPattern: point))
+        let location = touches.first!.location(in: self)
+        touches_ended(wsHandle, value, Float(location.x), Float(location.y), Float(touches.first?.force ?? 0))
+        
+        self.setNeedsDisplay(self.frame)
+        super.touchesEnded(touches, with: event)
+    }
+
+    public override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
+        print("touches cancelled")
+        
+        let point = Unmanaged.passUnretained(touches.first!).toOpaque()
+        let value = UInt64(UInt(bitPattern: point))
+        let location = touches.first!.location(in: self)
+        touches_cancelled(wsHandle, value, Float(location.x), Float(location.y), Float(touches.first?.force ?? 0))
+    
+        self.setNeedsDisplay(self.frame)
+        super.touchesCancelled(touches, with: event)
+    }
+    
+    
+    public override var canBecomeFirstResponder: Bool {
+        return true
+    }
+    
+    override public var keyCommands: [UIKeyCommand]? {
+        return [
+            UIKeyCommand(input: "c", modifierFlags: .command, action: #selector(clipboardCopy)),
+            UIKeyCommand(input: "x", modifierFlags: .command, action: #selector(clipboardCut)),
+            UIKeyCommand(input: "v", modifierFlags: .command, action: #selector(clipboardPaste)),
+            UIKeyCommand(input: "a", modifierFlags: .command, action: #selector(keyboardSelectAll)),
+        ]
+    }
+    
+    @objc func deleteWord() {
+        if !isUnderlyingTextEdit {
+            return
+        }
+        
+        delete_word(wsHandle)
+        mtkView.setNeedsDisplay(self.frame)
+    }
+    
+    func unimplemented() {
+        print("unimplemented!")
+        Thread.callStackSymbols.forEach{print($0)}
+    }
+}
+
+public class iOSMTKDrawingWrapper: UIView, UIPencilInteractionDelegate {
+    let pencilInteraction = UIPencilInteraction()
+    
+    let mtkView: iOSMTK
+    
+    var isUnderlyingTextEdit: Bool { get { !workspaceState!.currentTab.isTextEdit() } }
+    var wsHandle: UnsafeMutableRawPointer? { get { mtkView.wsHandle } }
+    var workspaceState: WorkspaceState? { get { mtkView.workspaceState } }
+
+    init(mtkView: iOSMTK) {
+        self.mtkView = mtkView
+        super.init(frame: .infinite)
+        
+        addSubview(mtkView)
+        
+        pencilInteraction.delegate = self
+        addInteraction(pencilInteraction)
+    }
+
+    required init(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+}
+
+public class iOSMTK: MTKView, MTKViewDelegate {
+    
+    public var wsHandle: UnsafeMutableRawPointer?
+    var workspaceState: WorkspaceState?
+    var currentOpenDoc: UUID? = nil
+    var currentSelectedFolder: UUID? = nil
+    
+    var redrawTask: DispatchWorkItem? = nil
+    
+    var tabSwitchTask: (() -> Void)? = nil
+    var onSelectionChanged: (() -> Void)? = nil
+    var onTextChanged: (() -> Void)? = nil
+    
+    override init(frame frameRect: CGRect, device: MTLDevice?) {
+        super.init(frame: frameRect, device: device)
+        
+        self.isPaused = true
+        self.enableSetNeedsDisplay = true
+        self.delegate = self
+        self.preferredFramesPerSecond = 120
+        self.isUserInteractionEnabled = false
+    }
+    
+    required init(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+    
+    func openFile(id: UUID) {
+        if currentOpenDoc != id {
+            let uuid = CUuid(_0: id.uuid)
+            open_file(wsHandle, uuid, false)
+            setNeedsDisplay(self.frame)
+        }
+
+    }
+    
+    func requestSync() {
+        request_sync(wsHandle)
+        setNeedsDisplay(self.frame)
+    }
 
     public func setInitialContent(_ coreHandle: UnsafeMutableRawPointer?) {
         let metalLayer = UnsafeMutableRawPointer(Unmanaged.passUnretained(self.layer).toOpaque())
         self.wsHandle = init_ws(coreHandle, metalLayer, isDarkMode())
-        self.textUndoManager.wsHandle = self.wsHandle
-        self.textUndoManager.onUndoRedo = {
-            self.setNeedsDisplay(self.frame)
-        }
     }
     
     public func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {
@@ -223,17 +756,23 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
         self.setNeedsDisplay()
     }
     
-    public func draw(in view: MTKView) {
+    public func draw(in view: MTKView) {        
+        if tabSwitchTask != nil {
+            tabSwitchTask!()
+            tabSwitchTask = nil
+            workspaceState?.shouldFocus = true
+        }
+        
         dark_mode(wsHandle, isDarkMode())
         set_scale(wsHandle, Float(self.contentScaleFactor))
         let output = draw_editor(wsHandle)
 
         if output.workspace_resp.selection_updated {
-            inputDelegate?.selectionDidChange(self)
+            onSelectionChanged?()
         }
         
         if output.workspace_resp.text_updated {
-            inputDelegate?.textDidChange(self)
+            onTextChanged?()
         }
         
         workspaceState?.statusMsg = textFromPtr(s: output.workspace_resp.msg)
@@ -245,37 +784,23 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
         if selectedFile.isNil() {
             currentOpenDoc = nil
             if self.workspaceState?.openDoc != nil {
-                currentTab = .Welcome
+                workspaceState!.currentTab = .Welcome
                 self.workspaceState?.openDoc = nil
             }
         } else {
             if currentOpenDoc != selectedFile {
-                inputDelegate?.selectionDidChange(self)
-                inputDelegate?.textDidChange(self)
+                onSelectionChanged?()
+                onTextChanged?()
             }
             
             currentOpenDoc = selectedFile
+            
             if selectedFile != self.workspaceState?.openDoc {
                 self.workspaceState?.openDoc = selectedFile
             }
         }
         
-        let newCurrentTab = WorkspaceTab(rawValue: Int(current_tab(wsHandle)))!
-        
-        if newCurrentTab != currentTab {
-            if newCurrentTab.isTextEdit() && !currentTab.isTextEdit() {
-                print("added interaction")
-                addTextInteraction()
-            } else if !newCurrentTab.isTextEdit() && currentTab.isTextEdit() {
-                print("removed interaction")
-                self.removeInteraction(textInteraction)
-            }
-            
-            currentTab = newCurrentTab
-        }
-        
-        
-        
+        workspaceState!.currentTab = WorkspaceTab(rawValue: Int(current_tab(wsHandle)))!
                 
         let newFile = UUID(uuid: output.workspace_resp.doc_created._0)
         if !newFile.isNil() {
@@ -314,462 +839,6 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
         }
     }
     
-    func setClipboard() {
-        let pasteboardString: String? = UIPasteboard.general.string
-        if let theString = pasteboardString {
-            system_clipboard_changed(wsHandle, theString)
-        }
-        self.pasteBoardEventId = UIPasteboard.general.changeCount
-    }
-    
-    public func insertText(_ text: String) {
-        if !currentTab.isTextEdit() {
-            return
-        }
-                
-        inputDelegate?.textWillChange(self)
-        insert_text(wsHandle, text)
-        self.setNeedsDisplay(self.frame)
-    }
-    
-    public func text(in range: UITextRange) -> String? {
-        if !currentTab.isTextEdit() {
-            return nil
-        }
-        
-        let range = (range as! LBTextRange).c
-        guard let result = text_in_range(wsHandle, range) else {
-            return nil
-        }
-        let str = String(cString: result)
-        free_text(UnsafeMutablePointer(mutating: result))
-        return str
-    }
-    
-    
-    public func replace(_ range: UITextRange, withText text: String) {
-        if !currentTab.isTextEdit() {
-            return
-        }
-        
-        let range = range as! LBTextRange
-        inputDelegate?.textWillChange(self)
-        replace_text(wsHandle, range.c, text)
-        self.setNeedsDisplay(self.frame)
-    }
-    
-    public var selectedTextRange: UITextRange? {
-        set {
-            if !currentTab.isTextEdit() {
-                return
-            }
-            
-            guard let range = (newValue as? LBTextRange)?.c else {
-                return
-            }
-            inputDelegate?.selectionWillChange(self)
-            set_selected(wsHandle, range)
-            self.setNeedsDisplay()
-        }
-        
-        get {
-            if !currentTab.isTextEdit() {
-                return nil
-            }
-            
-            let range = get_selected(wsHandle)
-            if range.none {
-                return nil
-            }
-            return LBTextRange(c: range)
-        }
-    }
-    
-    public var markedTextRange: UITextRange? {
-        get {
-            if !currentTab.isTextEdit() {
-                return nil
-            }
-            
-            let range = get_marked(wsHandle)
-            if range.none {
-                return nil
-            }
-            return LBTextRange(c: range)
-        }
-    }
-    
-    public var markedTextStyle: [NSAttributedString.Key : Any]? {
-        set {
-            unimplemented()
-        }
-        
-        get {
-            unimplemented()
-            return nil
-        }
-    }
-    
-    public func setMarkedText(_ markedText: String?, selectedRange: NSRange) {
-        if !currentTab.isTextEdit() {
-            return
-        }
-        
-        inputDelegate?.textWillChange(self)
-        set_marked(wsHandle, CTextRange(none: false, start: CTextPosition(none: false, pos: UInt(selectedRange.lowerBound)), end: CTextPosition(none: false, pos: UInt(selectedRange.upperBound))), markedText)
-        self.setNeedsDisplay()
-    }
-    
-    public func unmarkText() {
-        if !currentTab.isTextEdit() {
-            return
-        }
-        
-        inputDelegate?.textWillChange(self)
-        unmark_text(wsHandle)
-        self.setNeedsDisplay()
-    }
-    
-    public var beginningOfDocument: UITextPosition {
-        if !currentTab.isTextEdit() {
-            return LBTextPos(c: CTextPosition(none: true, pos: 0))
-        }
-        
-        let res = beginning_of_document(wsHandle)
-        return LBTextPos(c: res)
-    }
-    
-    public var endOfDocument: UITextPosition {
-        if !currentTab.isTextEdit() {
-            return LBTextPos(c: CTextPosition(none: true, pos: 0))
-        }
-        
-        let res = end_of_document(wsHandle)
-        return LBTextPos(c: res)
-    }
-    
-    public func textRange(from fromPosition: UITextPosition, to toPosition: UITextPosition) -> UITextRange? {
-        if !currentTab.isTextEdit() {
-            return nil
-        }
-        
-        guard let start = (fromPosition as? LBTextPos)?.c else {
-            return nil
-        }
-        let end = (toPosition as! LBTextPos).c
-        let range = text_range(start, end)
-        if range.none {
-            return nil
-        } else {
-            return LBTextRange(c: range)
-        }
-    }
-    
-    public func position(from position: UITextPosition, offset: Int) -> UITextPosition? {
-        if !currentTab.isTextEdit() {
-            return nil
-        }
-        
-        guard let start = (position as? LBTextPos)?.c else {
-            return nil
-        }
-        let new = position_offset(wsHandle, start, Int32(offset))
-        if new.none {
-            return nil
-        }
-        return LBTextPos(c: new)
-    }
-    
-    public func position(from position: UITextPosition, in direction: UITextLayoutDirection, offset: Int) -> UITextPosition? {
-        if !currentTab.isTextEdit() {
-            return nil
-        }
-        
-        let start = (position as! LBTextPos).c
-        let direction = CTextLayoutDirection(rawValue: UInt32(direction.rawValue));
-        let new = position_offset_in_direction(wsHandle, start, direction, Int32(offset))
-        if new.none {
-            return nil
-        }
-        return LBTextPos(c: new)
-    }
-    
-    public func compare(_ position: UITextPosition, to other: UITextPosition) -> ComparisonResult {
-        if !currentTab.isTextEdit() {
-            return ComparisonResult.orderedAscending
-        }
-        
-        guard let left = (position as? LBTextPos)?.c.pos, let right = (other as? LBTextPos)?.c.pos else {
-            return ComparisonResult.orderedAscending
-        }
-        
-        let res: ComparisonResult
-        if left < right {
-            res = ComparisonResult.orderedAscending
-        } else if left == right {
-            res = ComparisonResult.orderedSame
-        } else {
-            res = ComparisonResult.orderedDescending
-        }
-        return res
-    }
-    
-    public func offset(from: UITextPosition, to toPosition: UITextPosition) -> Int {
-        if !currentTab.isTextEdit() {
-            return 0
-        }
-        
-        guard let left = (from as? LBTextPos)?.c.pos, let right = (toPosition as? LBTextPos)?.c.pos else {
-            return 0
-        }
-
-        return Int(right) - Int(left)
-    }
-    
-    public var inputDelegate: UITextInputDelegate?
-    
-    public lazy var tokenizer: UITextInputTokenizer = LBTokenizer(wsHandle: self.wsHandle)
-    
-    public func position(within range: UITextRange, farthestIn direction: UITextLayoutDirection) -> UITextPosition? {
-        unimplemented()
-        return nil
-    }
-    
-    public func characterRange(byExtending position: UITextPosition, in direction: UITextLayoutDirection) -> UITextRange? {
-        unimplemented()
-        return nil
-    }
-    
-    public func baseWritingDirection(for position: UITextPosition, in direction: UITextStorageDirection) -> NSWritingDirection {
-        return NSWritingDirection.leftToRight
-    }
-    
-    public func setBaseWritingDirection(_ writingDirection: NSWritingDirection, for range: UITextRange) {
-        if writingDirection != .leftToRight {
-            unimplemented()
-        }
-    }
-    
-    public func firstRect(for range: UITextRange) -> CGRect {
-        if !currentTab.isTextEdit() {
-            return CGRect(x: 0, y: 0, width: 0, height: 0)
-        }
-        
-        let range = (range as! LBTextRange).c
-        let result = first_rect(wsHandle, range)
-        
-        let newY = max(result.min_y, 50)
-        let newHeight = max(result.max_y - newY, 0)
-        let newWidth = newHeight == 0 ? 0 : (result.max_x-result.min_x)
-        let newX = newHeight == 0 ? 0.0 : result.min_x
-
-        return CGRect(x: newX, y: newY, width: newWidth, height: newHeight)
-    }
-    
-    public func caretRect(for position: UITextPosition) -> CGRect {
-        if !currentTab.isTextEdit() {
-            return CGRect(x: 0, y: 0, width: 0, height: 0)
-        }
-        
-        let position = (position as! LBTextPos).c
-        let result = cursor_rect_at_position(wsHandle, position)
-        
-        let newY = max(result.min_y, 50)
-        let newHeight = max(result.max_y - newY, 0)
-        let newWidth = newHeight == 0 ? 0.0 : 1.0
-        let newX = newHeight == 0 ? 0.0 : result.min_x
-        
-        return CGRect(x: newX, y: newY, width: newWidth, height: newHeight)
-    }
-    
-    public func selectionRects(for range: UITextRange) -> [UITextSelectionRect] {
-        if !currentTab.isTextEdit() {
-            return []
-        }
-        
-        let range = (range as! LBTextRange).c
-        let result = selection_rects(wsHandle, range)
-        let buffer = Array(UnsafeBufferPointer(start: result.rects, count: Int(result.size)))
-        return buffer.enumerated().map { (index, rect) in
-            let newMinY = max(rect.min_y, 50)
-            let newMaxY = max(newMinY, rect.max_y)
-            
-            let new_rect = CRect(min_x: rect.min_x, min_y: newMinY, max_x: rect.max_x, max_y: newMaxY)
-            
-            return LBTextSelectionRect(cRect: new_rect, loc: index, size: buffer.count)
-        }
-    }
-    
-    public func closestPosition(to point: CGPoint) -> UITextPosition? {
-        if !currentTab.isTextEdit() || point.y < 50 {
-            return nil
-        }
-        
-        let point = CPoint(x: point.x, y: point.y)
-        let result = position_at_point(wsHandle, point)
-        return LBTextPos(c: result)
-    }
-    
-    public func closestPosition(to point: CGPoint, within range: UITextRange) -> UITextPosition? {
-        unimplemented()
-        return nil
-    }
-    
-    public func characterRange(at point: CGPoint) -> UITextRange? {
-        unimplemented()
-        return nil
-    }
-    
-    public var hasText: Bool {
-        let res = has_text(wsHandle)
-        return res
-    }
-    
-    public func deleteBackward() {
-        if !currentTab.isTextEdit() {
-            return
-        }
-        
-        inputDelegate?.textWillChange(self)
-        backspace(wsHandle)
-        self.setNeedsDisplay(self.frame)
-    }
-    
-    public func forwardedTouchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
-        print("touches began")
-        
-        let point = Unmanaged.passUnretained(touches.first!).toOpaque()
-        let value = UInt64(UInt(bitPattern: point))
-        let location = touches.first!.location(in: self)
-        touches_began(wsHandle, value, Float(location.x), Float(location.y), Float(touches.first?.force ?? 0))
-
-        self.setNeedsDisplay(self.frame)
-    }
-    
-    public func forwardedTouchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
-        print("touches moved")
-        
-        let point = Unmanaged.passUnretained(touches.first!).toOpaque()
-        let value = UInt64(UInt(bitPattern: point))
-        let location = touches.first!.location(in: self)
-        touches_moved(wsHandle, value, Float(location.x), Float(location.y), Float(touches.first?.force ?? 0))
-        self.setNeedsDisplay(self.frame)
-    }
-    
-    public func forwardedTouchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
-        print("touches ended")
-        
-        let point = Unmanaged.passUnretained(touches.first!).toOpaque()
-        let value = UInt64(UInt(bitPattern: point))
-        let location = touches.first!.location(in: self)
-        touches_ended(wsHandle, value, Float(location.x), Float(location.y), Float(touches.first?.force ?? 0))
-        self.setNeedsDisplay(self.frame)
-    }
-    
-    
-    public func forwardedTouchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
-        let point = Unmanaged.passUnretained(touches.first!).toOpaque()
-        let value = UInt64(UInt(bitPattern: point))
-        let location = touches.first!.location(in: self)
-        touches_cancelled(wsHandle, value, Float(location.x), Float(location.y), Float(touches.first?.force ?? 0))
-        self.setNeedsDisplay(self.frame)
-    }
-    
-    public func editMenu(for textRange: UITextRange, suggestedActions: [UIMenuElement]) -> UIMenu? {
-        if !currentTab.isTextEdit() {
-            return nil
-        }
-        
-        let customMenu = self.selectedTextRange?.isEmpty == false ? UIMenu(title: "", options: .displayInline, children: [
-            UIAction(title: "Cut") { _ in
-                self.inputDelegate?.selectionWillChange(self)
-                self.clipboardCut()
-            },
-            UIAction(title: "Copy") { _ in
-                self.clipboardCopy()
-            },
-            UIAction(title: "Paste") { _ in
-                self.inputDelegate?.textWillChange(self)
-                self.clipboardPaste()
-            },
-            UIAction(title: "Select All") { _ in
-                self.inputDelegate?.selectionWillChange(self)
-                select_all(self.wsHandle)
-                self.setNeedsDisplay(self.frame)
-            },
-        ]) : UIMenu(title: "", options: .displayInline, children: [
-            UIAction(title: "Select") { _ in
-                self.inputDelegate?.selectionWillChange(self)
-                select_current_word(self.wsHandle)
-                self.setNeedsDisplay(self.frame)
-            },
-            UIAction(title: "Select All") { _ in
-                self.inputDelegate?.selectionWillChange(self)
-                select_all(self.wsHandle)
-                self.setNeedsDisplay(self.frame)
-            },
-            UIAction(title: "Paste") { _ in
-                self.inputDelegate?.textWillChange(self)
-                self.clipboardPaste()
-            },
-        ])
-        
-        var actions = suggestedActions
-        actions.append(customMenu)
-        return UIMenu(children: actions)
-    }
-    
-    @objc func clipboardCopy() {
-        clipboard_copy(self.wsHandle)
-        self.setNeedsDisplay(self.frame)
-    }
-    
-    @objc func clipboardCut() {
-        inputDelegate?.textWillChange(self)
-        clipboard_cut(self.wsHandle)
-        self.setNeedsDisplay(self.frame)
-    }
-    
-    @objc func clipboardPaste() {
-        self.setClipboard()
-        
-        if let image = UIPasteboard.general.image {
-            if importContent(.image(image)) {
-                return
-            }
-        }
-
-        clipboard_paste(self.wsHandle)
-        self.setNeedsDisplay()
-    }
-    
-    @objc func keyboardSelectAll() {
-        inputDelegate?.selectionWillChange(self)
-        select_all(self.wsHandle)
-        self.setNeedsDisplay()
-    }
-        
-    func undoRedo(redo: Bool) {
-        inputDelegate?.textWillChange(self)
-        undo_redo(self.wsHandle, redo)
-        self.setNeedsDisplay(self.frame)
-    }
-    
-    func getText() -> String {
-        if !currentTab.isTextEdit() {
-            return ""
-        }
-        
-        let result = get_text(wsHandle)
-        let str = String(cString: result!)
-        free_text(UnsafeMutablePointer(mutating: result))
-        return str
-    }
-    
-    public override var canBecomeFirstResponder: Bool {
-        return true
-    }
-    
     override public func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
         dark_mode(wsHandle, isDarkMode())
         setNeedsDisplay(self.frame)
@@ -779,30 +848,8 @@ public class iOSMTK: MTKView, MTKViewDelegate, UITextInput, UIEditMenuInteractio
         traitCollection.userInterfaceStyle != .light
     }
     
-    override public var keyCommands: [UIKeyCommand]? {
-        return [
-            UIKeyCommand(input: "c", modifierFlags: .command, action: #selector(clipboardCopy)),
-            UIKeyCommand(input: "x", modifierFlags: .command, action: #selector(clipboardCut)),
-            UIKeyCommand(input: "v", modifierFlags: .command, action: #selector(clipboardPaste)),
-            UIKeyCommand(input: "a", modifierFlags: .command, action: #selector(keyboardSelectAll)),
-        ]
-    }
-    
     deinit {
         deinit_editor(wsHandle)
-    }
-    
-    @objc func deleteWord() {
-        if !currentTab.isTextEdit() {
-            return
-        }
-        
-        delete_word(wsHandle)
-        setNeedsDisplay(self.frame)
-    }
-    
-    required init(coder: NSCoder) {
-        fatalError("init(coder:) has not been implemented")
     }
     
     func unimplemented() {
@@ -972,6 +1019,17 @@ public enum WorkspaceTab: Int {
     case PlainText = 4
     case Pdf = 5
     case Svg = 6
+    
+    func viewWrapperIdentifier() -> Int {
+        switch self {
+        case .Welcome, .Pdf, .Loading, .Image:
+            1
+        case .Svg:
+            2
+        case .PlainText, .Markdown:
+            3
+        }
+    }
     
     func isTextEdit() -> Bool {
         self == .Markdown || self == .PlainText
