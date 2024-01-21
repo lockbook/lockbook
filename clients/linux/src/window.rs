@@ -9,9 +9,10 @@ use raw_window_handle::{
     XcbWindowHandle,
 };
 use std::{ffi::c_void, time::Instant};
-use x11rb::{atom_manager, connection::RequestConnection, xcb_ffi::XCBConnection};
-use x11rb::{connection::Connection, protocol::xproto::*, wrapper::ConnectionExt as _};
-use x11rb::{protocol::Event, COPY_DEPTH_FROM_PARENT};
+use x11rb::{
+    atom_manager, connection::Connection, protocol::xproto::*, protocol::Event,
+    wrapper::ConnectionExt as _, COPY_DEPTH_FROM_PARENT,
+};
 
 // A collection of the atoms we will need.
 atom_manager! {
