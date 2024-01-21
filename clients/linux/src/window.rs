@@ -151,7 +151,7 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         output::window_title::handle(&conn, window_id, &atoms, set_window_title)?;
         output::cursor::handle(&conn, &db, screen_num, window_id, cursor_icon);
-        // output::open_url::handle(open_url);
+        output::open_url::handle(open_url);
         conn.flush()?;
     }
 }
