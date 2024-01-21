@@ -9,9 +9,19 @@ use raw_window_handle::{
     XcbWindowHandle,
 };
 use std::{ffi::c_void, time::Instant};
-
-use x11rb::{connection::Connection, protocol::xproto::*};
+use x11rb::atom_manager;
+use x11rb::{connection::Connection, protocol::xproto::*, wrapper::ConnectionExt as _};
 use x11rb::{protocol::Event, COPY_DEPTH_FROM_PARENT};
+
+// A collection of the atoms we will need.
+atom_manager! {
+    pub AtomCollection: AtomCollectionCookie {
+        WM_PROTOCOLS,
+        WM_DELETE_WINDOW,
+        _NET_WM_NAME,
+        UTF8_STRING,
+    }
+}
 
 use crate::{input, output};
 
@@ -48,6 +58,7 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
     let event_mask = events.iter().fold(EventMask::NO_EVENT, |acc, &x| acc | x);
 
     let (conn, screen_num) = x11rb::xcb_ffi::XCBConnection::connect(None).unwrap();
+    let atoms = AtomCollection::new(&conn)?.reply()?;
     let screen = &conn.setup().roots[screen_num];
     let window_id = conn.generate_id()?;
     conn.create_window(
@@ -65,6 +76,27 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
             .background_pixel(screen.white_pixel)
             .event_mask(event_mask),
     )?;
+
+    output::window_title::handle(&conn, window_id, &atoms, Some("Lockbook".to_string()))?;
+
+    // register for a 'delete window' event
+    conn.change_property32(
+        PropMode::REPLACE,
+        window_id,
+        atoms.WM_PROTOCOLS,
+        AtomEnum::ATOM,
+        &[atoms.WM_DELETE_WINDOW],
+    )?;
+
+    // sets window class (appears as title in alt tab) and makes app respond to window manager, but also freezes the app
+    // conn.change_property8(
+    //     PropMode::REPLACE,
+    //     window_id,
+    //     AtomEnum::WM_CLASS,
+    //     AtomEnum::STRING,
+    //     title.as_bytes(),
+    // )?;
+
     conn.map_window(window_id)?;
     conn.flush()?;
 
@@ -77,7 +109,7 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     loop {
         while let Some(event) = conn.poll_for_event()? {
-            handle(&mut lb, event);
+            handle(&mut lb, window_id, &atoms, event);
         }
         let IntegrationOutput {
             redraw_in: _, // todo: handle? how's this different from checking egui context?
@@ -86,15 +118,17 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
         } = lb.frame();
 
         // output::clipboard_copy::handle(copied_text);
-        // output::close::handle(close);
-        // output::window_title::handle(hwnd, set_window_title);
+        if close {
+            output::close();
+        }
+        output::window_title::handle(&conn, window_id, &atoms, set_window_title)?;
         output::cursor::handle(&conn, screen_num, window_id, cursor_icon);
         // output::open_url::handle(open_url);
         conn.flush()?;
     }
 }
 
-fn handle(lb: &mut WgpuLockbook, event: Event) {
+fn handle(lb: &mut WgpuLockbook, window_id: u32, atoms: &AtomCollection, event: Event) {
     match event {
         // pointer
         Event::ButtonPress(event) => input::pointer::handle_press(lb, event),
@@ -124,6 +158,15 @@ fn handle(lb: &mut WgpuLockbook, event: Event) {
         }
         Event::PropertyNotify(_) => {
             println!("PropertyNotify")
+        }
+
+        // window close
+        Event::ClientMessage(event) => {
+            let data = event.data.as_data32();
+            if event.format == 32 && event.window == window_id && data[0] == atoms.WM_DELETE_WINDOW
+            {
+                output::close();
+            }
         }
 
         _ => {}
