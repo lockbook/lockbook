@@ -55,7 +55,7 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
         // EventMask::RESIZE_REDIRECT,
         // EventMask::SUBSTRUCTURE_NOTIFY,
         // EventMask::SUBSTRUCTURE_REDIRECT,
-        EventMask::FOCUS_CHANGE,
+        // EventMask::FOCUS_CHANGE,
         EventMask::PROPERTY_CHANGE,
         // EventMask::COLOR_MAP_CHANGE,
         // EventMask::OWNER_GRAB_BUTTON,
@@ -174,14 +174,6 @@ fn handle(
         // keyboard
         Event::KeyPress(event) => input::key::handle_press(lb, event),
         Event::KeyRelease(event) => input::key::handle_release(lb, event),
-
-        // focus
-        Event::FocusIn(_) => {
-            println!("FocusIn")
-        }
-        Event::FocusOut(_) => {
-            println!("FocusOut")
-        }
 
         // resize
         Event::ConfigureNotify(event) => {
