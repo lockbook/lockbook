@@ -46,6 +46,24 @@ impl AsyncCore {
             .unwrap()
     }
 
+    pub async fn get_by_id(&self, id: fileid3) -> File {
+        let core = self.c();
+        let id = *self.f3_uid.get(&id).unwrap();
+
+        spawn_blocking(move || core.get_file_by_id(id).unwrap())
+            .await
+            .unwrap()
+    }
+
+    pub async fn get_children(&self, id: fileid3) -> Vec<File> {
+        let core = self.c();
+        let id = *self.f3_uid.get(&id).unwrap();
+
+        spawn_blocking(move || core.get_children(id).unwrap())
+            .await
+            .unwrap()
+    }
+
     pub async fn import_account(&self, account_string: &str) {
         let core = self.c();
         let account_string = account_string.to_string();

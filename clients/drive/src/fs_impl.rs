@@ -61,7 +61,31 @@ impl NFSFileSystem for Drive {
 
     async fn lookup(&self, dirid: fileid3, filename: &filename3) -> Result<fileid3, nfsstat3> {
         println!("LOOKUP, {}, {}", dirid, String::from_utf8(filename.0.clone()).unwrap());
-        todo!()
+        let file = self.ac.get_file_by_id(dirid).await;
+
+        if file.is_document() {
+            return Err(nfsstat3::NFS3ERR_NOTDIR);
+        }
+        // if looking for dir/. its the current directory
+        if filename[..] == [b'.'] {
+            return Ok(dirid);
+        }
+
+        // if looking for dir/.. its the parent directory
+        if filename[..] == [b'.', b'.'] {
+            return Ok(file.parent.as_u64_pair().0);
+        }
+
+        let children = self.ac.get_children(dirid).await;
+        let file_name = String::from_utf8(filename.0.clone()).unwrap();
+
+        for child in children {
+            if file_name == child.name {
+                return Ok(child.id.as_u64_pair().0);
+            }
+        }
+
+        Err(nfsstat3::NFS3ERR_NOENT)
     }
     async fn getattr(&self, id: fileid3) -> Result<fattr3, nfsstat3> {
         let file = self.ac.get_file_by_id(id).await;
