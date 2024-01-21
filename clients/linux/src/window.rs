@@ -15,6 +15,7 @@ use x11rb::{
     protocol::xproto::{ConnectionExt as _, *},
     protocol::Event,
     wrapper::ConnectionExt as _,
+    xcb_ffi::XCBConnection,
     COPY_DEPTH_FROM_PARENT,
 };
 
@@ -25,6 +26,26 @@ atom_manager! {
         WM_DELETE_WINDOW,
         _NET_WM_NAME,
         UTF8_STRING,
+
+        // xdnd: drag 'n' drop x protocol extension
+        XdndAware,
+        XdndEnter,
+        XdndPosition,
+        XdndStatus,
+        XdndLeave,
+        XdndDrop,
+        XdndFinished,
+        XdndTypeList,
+        XdndSelection,
+        XdndActionCopy,
+        XdndActionMove,
+        XdndActionLink,
+        XdndActionNone,
+        XdndTargets,
+        XdndVersion,
+
+        // content types
+        TextUriList: b"text/uri-list",
     }
 }
 
@@ -53,8 +74,8 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
         // EventMask::VISIBILITY_CHANGE,
         EventMask::STRUCTURE_NOTIFY,
         // EventMask::RESIZE_REDIRECT,
-        // EventMask::SUBSTRUCTURE_NOTIFY,
-        // EventMask::SUBSTRUCTURE_REDIRECT,
+        EventMask::SUBSTRUCTURE_NOTIFY,
+        EventMask::SUBSTRUCTURE_REDIRECT,
         // EventMask::FOCUS_CHANGE,
         EventMask::PROPERTY_CHANGE,
         // EventMask::COLOR_MAP_CHANGE,
@@ -94,6 +115,9 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
         &[atoms.WM_DELETE_WINDOW],
     )?;
 
+    // we are aware of drag 'n' drop (xdnd version 5)
+    conn.change_property32(PropMode::REPLACE, window_id, atoms.XdndAware, AtomEnum::ATOM, &[5])?;
+
     // sets window class & instance (one of these appears as title in alt tab) and makes app respond to window manager
     conn.change_property8(
         PropMode::REPLACE,
@@ -119,7 +143,7 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     loop {
         while let Some(event) = conn.poll_for_event()? {
-            handle(event, &window_handle, &atoms, &mut lb)?;
+            handle(event, &conn, &atoms, &mut lb)?;
         }
         let IntegrationOutput {
             redraw_in: _, // todo: handle? how's this different from checking egui context?
@@ -157,7 +181,7 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 fn handle(
-    event: Event, window_handle: &WindowHandle, atoms: &AtomCollection, lb: &mut WgpuLockbook,
+    event: Event, conn: &XCBConnection, atoms: &AtomCollection, lb: &mut WgpuLockbook,
 ) -> Result<(), Box<dyn std::error::Error>> {
     match event {
         // pointer
@@ -181,18 +205,29 @@ fn handle(
             lb.screen.physical_height = event.height as _;
         }
         // ?
-        Event::PropertyNotify(_) => {
-            println!("PropertyNotify")
-        }
+        Event::PropertyNotify(_event) => {}
 
-        // window close
+        // close, drag 'n' drop
         Event::ClientMessage(event) => {
-            let data = event.data.as_data32();
-            if event.format == 32
-                && event.window == window_handle.window_id
-                && data[0] == atoms.WM_DELETE_WINDOW
+            if event.type_ == atoms.WM_PROTOCOLS
+                && event.data.as_data32()[0] == atoms.WM_DELETE_WINDOW
             {
                 output::close();
+            } else if event.type_ == atoms.XdndEnter {
+                input::file_drop::handle_enter(conn, atoms, &event)?;
+            } else if event.type_ == atoms.XdndPosition {
+                input::file_drop::handle_position(conn, atoms, &event)?;
+            } else if event.type_ == atoms.XdndStatus {
+                input::file_drop::handle_status(conn, atoms, &event)?;
+            } else if event.type_ == atoms.XdndLeave {
+                input::file_drop::handle_leave(conn, atoms, &event)?;
+            } else if event.type_ == atoms.XdndDrop {
+                input::file_drop::handle_drop(conn, atoms, &event)?;
+            }
+        }
+        Event::SelectionNotify(event) => {
+            if event.property == atoms.XdndSelection {
+                input::file_drop::handle_selection_notify(conn, atoms, &event)?;
             }
         }
 

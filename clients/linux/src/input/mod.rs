@@ -1,10 +1,8 @@
 use x11rb::protocol::xproto::KeyButMask;
 
 // pub mod clipboard_paste;
-// pub mod file_drop;
+pub mod file_drop;
 pub mod key;
-// pub mod message;
-// pub mod mouse;
 pub mod pointer;
 
 pub fn modifiers(mask: KeyButMask) -> egui::Modifiers {

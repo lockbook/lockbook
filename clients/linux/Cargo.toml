@@ -22,3 +22,4 @@ x11rb = { version = "0.13.0", features = [
     "cursor",
 ] }
 open = "5.0.1"
+percent-encoding = "2.3.1"

@@ -1752,7 +1752,7 @@ dependencies = [
  "js-sys",
  "log 0.4.19",
  "objc",
- "percent-encoding 2.3.0",
+ "percent-encoding 2.3.1",
  "raw-window-handle",
  "thiserror",
  "wasm-bindgen",
@@ -2139,7 +2139,7 @@ version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a62bc1cf6f830c2ec14a513a9fb124d0a213a629668a4186f329db21fe045652"
 dependencies = [
- "percent-encoding 2.3.0",
+ "percent-encoding 2.3.1",
 ]
 
 [[package]]
@@ -3643,6 +3643,7 @@ dependencies = [
  "lb-rs",
  "lockbook-egui",
  "open",
+ "percent-encoding 2.3.1",
  "pollster",
  "raw-window-handle",
  "x11rb 0.13.0",
@@ -4551,9 +4552,9 @@ checksum = "31010dd2e1ac33d5b46a5b413495239882813e0369f8ed8a5e266f173602f831"
 
 [[package]]
 name = "percent-encoding"
-version = "2.3.0"
+version = "2.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9b2a4787296e9989611394c33f193f676704af1686e70b8f8033ab5ba9a35a94"
+checksum = "e3148f5046208a5d56bcfc03053e3ca6334e51da8dfb19b6cdc8b306fae3283e"
 
 [[package]]
 name = "pico-args"
@@ -5027,7 +5028,7 @@ dependencies = [
  "mime 0.3.17",
  "native-tls",
  "once_cell",
- "percent-encoding 2.3.0",
+ "percent-encoding 2.3.1",
  "pin-project-lite",
  "rustls 0.21.5",
  "rustls-pemfile 1.0.3",
@@ -5461,7 +5462,7 @@ version = "0.8.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c7715380eec75f029a4ef7de39a9200e0a63823176b759d055b613f5a87df6a6"
 dependencies = [
- "percent-encoding 2.3.0",
+ "percent-encoding 2.3.1",
  "serde",
  "thiserror",
 ]
@@ -5472,7 +5473,7 @@ version = "0.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8cac3f1e2ca2fe333923a1ae72caca910b98ed0630bb35ef6f8c8517d6e81afa"
 dependencies = [
- "percent-encoding 2.3.0",
+ "percent-encoding 2.3.1",
  "serde",
  "thiserror",
 ]
@@ -6534,7 +6535,7 @@ checksum = "50bff7831e19200a85b17131d085c25d7811bc4e186efdaf54bbd132994a88cb"
 dependencies = [
  "form_urlencoded",
  "idna 0.4.0",
- "percent-encoding 2.3.0",
+ "percent-encoding 2.3.1",
  "serde",
 ]
 
@@ -6741,7 +6742,7 @@ dependencies = [
  "mime 0.3.17",
  "mime_guess",
  "multer",
- "percent-encoding 2.3.0",
+ "percent-encoding 2.3.1",
  "pin-project",
  "rustls-pemfile 1.0.3",
  "scoped-tls",
@@ -7382,7 +7383,7 @@ dependencies = [
  "objc2",
  "once_cell",
  "orbclient",
- "percent-encoding 2.3.0",
+ "percent-encoding 2.3.1",
  "raw-window-handle",
  "redox_syscall 0.3.5",
  "sctk-adwaita",
@@ -7553,7 +7554,7 @@ dependencies = [
  "hyper-rustls 0.23.2",
  "itertools",
  "log 0.4.19",
- "percent-encoding 2.3.0",
+ "percent-encoding 2.3.1",
  "rustls 0.20.8",
  "rustls-pemfile 0.3.0",
  "seahash",
@@ -7579,7 +7580,7 @@ dependencies = [
  "hyper-rustls 0.23.2",
  "itertools",
  "log 0.4.19",
- "percent-encoding 2.3.0",
+ "percent-encoding 2.3.1",
  "rustls 0.20.8",
  "rustls-pemfile 1.0.3",
  "seahash",

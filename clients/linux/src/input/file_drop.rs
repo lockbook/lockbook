@@ -1,172 +1,200 @@
-use egui::DroppedFile;
-use lbeguiapp::WgpuLockbook;
-use windows::{
-    core::*, Win32::Foundation::*, Win32::System::Com::*, Win32::System::DataExchange::*,
-    Win32::System::Memory::*, Win32::System::Ole::*, Win32::System::SystemServices::*,
-    Win32::UI::Shell::*,
+use crate::window::AtomCollection;
+use percent_encoding::percent_decode;
+use std::path::{Path, PathBuf};
+use x11rb::{
+    protocol::xproto::{self, Atom, ConnectionExt},
+    xcb_ffi::{ConnectionError, XCBConnection},
 };
 
-#[derive(Clone, Debug)]
-pub enum Message {
-    DragEnter { object: Option<IDataObject>, state: MODIFIERKEYS_FLAGS, point: POINTL },
-    DragOver { state: MODIFIERKEYS_FLAGS, point: POINTL },
-    DragLeave,
-    Drop { object: Option<IDataObject>, state: MODIFIERKEYS_FLAGS, point: POINTL },
-}
+/// we're a drop target: let the drag source know if we support the file type
+pub fn handle_enter(
+    conn: &XCBConnection, atoms: &AtomCollection, event: &xproto::ClientMessageEvent,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let data = event.data.as_data32();
+    let source_window = data[0];
+    let more_types = data[1] & 1 == 1;
 
-#[implement(IDropTarget)]
-pub struct FileDropHandler {
-    pub handler: Box<dyn Fn(Message)>,
-}
-
-impl IDropTarget_Impl for FileDropHandler {
-    fn DragEnter(
-        &self, object: Option<&IDataObject>, state: MODIFIERKEYS_FLAGS, point: &POINTL,
-        effect: *mut DROPEFFECT,
-    ) -> Result<()> {
-        // indicates to the drop source that they don't need to delete the source data (unlike DROPEFFECT_MOVE)
-        // "If DoDragDrop returns DROPEFFECT_MOVE, delete the source data from the source document immediately. No other return value from DoDragDrop has any effect on a drop source."
-        // https://learn.microsoft.com/en-us/cpp/mfc/drag-and-drop-ole?view=msvc-170
-        unsafe { *effect = DROPEFFECT_COPY };
-
-        (self.handler)(Message::DragEnter { object: object.cloned(), state, point: *point });
-        Ok(())
+    let mut types = Vec::new();
+    for &atom in &data[2..5] {
+        if atom == 0 {
+            continue;
+        }
+        types.push(atom);
     }
-
-    fn DragOver(
-        &self, state: MODIFIERKEYS_FLAGS, point: &POINTL, _: *mut DROPEFFECT,
-    ) -> Result<()> {
-        (self.handler)(Message::DragOver { state, point: *point });
-        Ok(())
-    }
-
-    fn DragLeave(&self) -> Result<()> {
-        (self.handler)(Message::DragLeave);
-        Ok(())
-    }
-
-    fn Drop(
-        &self, object: Option<&IDataObject>, state: MODIFIERKEYS_FLAGS, point: &POINTL,
-        _: *mut DROPEFFECT,
-    ) -> Result<()> {
-        (self.handler)(Message::Drop { object: object.cloned(), state, point: *point });
-        Ok(())
-    }
-}
-
-pub fn handle_drop(app: &mut WgpuLockbook, object: Option<IDataObject>) -> bool {
-    if let Some(object) = object {
-        let format_enumerator: IEnumFORMATETC = unsafe {
-            object
-                .EnumFormatEtc(DATADIR_GET.0 as _)
-                .expect("enumerate drop formats")
-        };
-        let mut rgelt = [FORMATETC::default(); 1];
-        loop {
-            let mut fetched: u32 = 0;
-            if unsafe { format_enumerator.Next(&mut rgelt, Some(&mut fetched as _)) }.is_err() {
-                break;
-            }
-            if fetched == 0 {
-                break;
-            }
-
-            let format = CLIPBOARD_FORMAT(rgelt[0].cfFormat);
-            let mut format_name = [0u16; 1000];
-            let is_predefined_format = format_str(format).is_some();
-            let is_registered_format =
-                unsafe { GetClipboardFormatNameW(format.0 as _, &mut format_name) != 0 };
-            if !is_predefined_format && !is_registered_format {
-                continue;
-            }
-
-            let stgm = unsafe { object.GetData(&rgelt[0]) }.expect("get drop data");
-
-            let tymed = TYMED(stgm.tymed as _);
-            if tymed_str(tymed).is_none() {
-                continue;
-            }
-
-            if tymed == TYMED_HGLOBAL {
-                let hglobal = unsafe { stgm.u.hGlobal };
-
-                // for unknown reasons, if I don't cast the HGLOBAL to an HDROP and query the file count, the next call to object.GetData fails
-                // (this applies even if the format isn't CF_HDROP)
-                let hdrop = HDROP(unsafe { std::mem::transmute(hglobal) });
-                let file_count = unsafe { DragQueryFileW(hdrop, 0xFFFFFFFF, None) };
-
-                if format == CF_HDROP {
-                    for i in 0..file_count {
-                        let mut file_path_bytes = [0u16; MAX_PATH as _];
-                        unsafe { DragQueryFileW(hdrop, i, Some(&mut file_path_bytes)) };
-                        let path = Some(
-                            String::from_utf16_lossy(&file_path_bytes)
-                                .trim_matches(char::from(0))
-                                .into(),
-                        );
-                        app.raw_input
-                            .dropped_files
-                            .push(DroppedFile { path, ..Default::default() });
-                    }
-                } else {
-                    let size = unsafe { GlobalSize(hglobal) };
-                    let mut bytes = vec![0u8; size as _];
-                    unsafe {
-                        std::ptr::copy_nonoverlapping(
-                            GlobalLock(hglobal),
-                            bytes.as_mut_ptr() as _,
-                            size as _,
-                        );
-                        let _ = GlobalUnlock(hglobal);
-                    }
-                    let _global_bytes = String::from_utf8_lossy(&bytes).len();
-
-                    // todo: do something with dropped bytes (e.g. support dropped text blocks)
-                }
-            }
+    if more_types {
+        for atom in get_more_types(conn, atoms, source_window)? {
+            types.push(atom);
         }
     }
-    true
+
+    // todo: verify that we support one of the types (i.e. text/uri-list)
+    convert_selection(conn, atoms, event.window, x11rb::CURRENT_TIME);
+    send_status(conn, atoms, event.window, source_window, true)?;
+
+    Ok(())
 }
 
-fn tymed_str(tymed: TYMED) -> Option<&'static str> {
-    match tymed {
-        TYMED_HGLOBAL => Some("TYMED_HGLOBAL"),
-        TYMED_FILE => Some("TYMED_FILE"),
-        TYMED_ISTREAM => Some("TYMED_ISTREAM"),
-        TYMED_ISTORAGE => Some("TYMED_ISTORAGE"),
-        TYMED_GDI => Some("TYMED_GDI"),
-        TYMED_MFPICT => Some("TYMED_MFPICT"),
-        TYMED_ENHMF => Some("TYMED_ENHMF"),
-        TYMED_NULL => Some("TYMED_NULL"),
-        _ => None,
+/// todo: differentiate drop positions (e.g. dropping into the file tree vs editor)
+pub fn handle_position(
+    _conn: &XCBConnection, _atoms: &AtomCollection, _event: &xproto::ClientMessageEvent,
+) -> Result<(), Box<dyn std::error::Error>> {
+    // todo: do something?
+    Ok(())
+}
+
+/// we're a drag source: does the drop target support the file type?
+pub fn handle_status(
+    _conn: &XCBConnection, _atoms: &AtomCollection, _event: &xproto::ClientMessageEvent,
+) -> Result<(), Box<dyn std::error::Error>> {
+    // todo: do something?
+    Ok(())
+}
+
+/// we're no longer a drop target
+pub fn handle_leave(
+    _conn: &XCBConnection, _atoms: &AtomCollection, _event: &xproto::ClientMessageEvent,
+) -> Result<(), Box<dyn std::error::Error>> {
+    // todo: do something?
+    Ok(())
+}
+
+/// indicate that a drop has completed and the source can do whatever it wants with the data now
+pub fn handle_drop(
+    conn: &XCBConnection, atoms: &AtomCollection, event: &xproto::ClientMessageEvent,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let data = event.data.as_data32();
+    let source_window = data[0];
+
+    send_finished(conn, atoms, event.window, source_window, true)?;
+
+    Ok(())
+}
+
+/// once the selection has been converted, read the data
+pub fn handle_selection_notify(
+    conn: &XCBConnection, atoms: &AtomCollection, event: &xproto::SelectionNotifyEvent,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let data = read_data(conn, atoms, event.requestor)?;
+    let paths = parse_paths(&data)?;
+    for path in paths {
+        println!("Dropped file: {}", path.to_string_lossy());
     }
+    Ok(())
 }
 
-fn format_str(format: CLIPBOARD_FORMAT) -> Option<&'static str> {
-    match format {
-        CF_TEXT => Some("CF_TEXT"),
-        CF_BITMAP => Some("CF_BITMAP"),
-        CF_METAFILEPICT => Some("CF_METAFILEPICT"),
-        CF_SYLK => Some("CF_SYLK"),
-        CF_DIF => Some("CF_DIF"),
-        CF_TIFF => Some("CF_TIFF"),
-        CF_OEMTEXT => Some("CF_OEMTEXT"),
-        CF_DIB => Some("CF_DIB"),
-        CF_PALETTE => Some("CF_PALETTE"),
-        CF_PENDATA => Some("CF_PENDATA"),
-        CF_RIFF => Some("CF_RIFF"),
-        CF_WAVE => Some("CF_WAVE"),
-        CF_UNICODETEXT => Some("CF_UNICODETEXT"),
-        CF_ENHMETAFILE => Some("CF_ENHMETAFILE"),
-        CF_HDROP => Some("CF_HDROP"),
-        CF_LOCALE => Some("CF_LOCALE"),
-        CF_DIBV5 => Some("CF_DIBV5"),
-        CF_OWNERDISPLAY => Some("CF_OWNERDISPLAY"),
-        CF_DSPTEXT => Some("CF_DSPTEXT"),
-        CF_DSPBITMAP => Some("CF_DSPBITMAP"),
-        CF_DSPMETAFILEPICT => Some("CF_DSPMETAFILEPICT"),
-        CF_DSPENHMETAFILE => Some("CF_DSPENHMETAFILE"),
-        _ => None,
+// https://freedesktop.org/wiki/Specifications/XDND/#clientmessages
+fn send_status(
+    conn: &XCBConnection, atoms: &AtomCollection, this_window: xproto::Window,
+    target_window: xproto::Window, accepted: bool,
+) -> Result<(), ConnectionError> {
+    let (accepted, action) =
+        if accepted { (1, atoms.XdndActionCopy) } else { (0, atoms.XdndActionNone) };
+    conn.send_event(
+        false,
+        target_window,
+        xproto::EventMask::NO_EVENT,
+        xproto::ClientMessageEvent::new(
+            32,
+            target_window,
+            atoms.XdndStatus,
+            xproto::ClientMessageData::from([this_window, accepted, 0, 0, action]),
+        ),
+    )?;
+    Ok(())
+}
+
+// https://freedesktop.org/wiki/Specifications/XDND/#clientmessages
+fn send_finished(
+    conn: &XCBConnection, atoms: &AtomCollection, this_window: xproto::Window,
+    target_window: xproto::Window, accepted: bool,
+) -> Result<(), ConnectionError> {
+    let (accepted, action) =
+        if accepted { (1, atoms.XdndActionCopy) } else { (0, atoms.XdndActionNone) };
+    conn.send_event(
+        false,
+        target_window,
+        xproto::EventMask::NO_EVENT,
+        xproto::ClientMessageEvent::new(
+            32,
+            target_window,
+            atoms.XdndFinished,
+            xproto::ClientMessageData::from([this_window, accepted, action, 0, 0]),
+        ),
+    )?;
+    Ok(())
+}
+
+fn get_more_types(
+    conn: &XCBConnection, atoms: &AtomCollection, source_window: xproto::Window,
+) -> Result<Vec<Atom>, Box<dyn std::error::Error>> {
+    let type_list = conn
+        .get_property(
+            false,
+            source_window,
+            atoms.XdndTypeList,
+            xproto::Atom::from(xproto::AtomEnum::ATOM),
+            0,
+            std::u32::MAX,
+        )?
+        .reply()?
+        .value;
+
+    let mut types = Vec::new();
+    for atom in type_list.chunks_exact(4) {
+        let atom = xproto::Atom::from_ne_bytes([atom[0], atom[1], atom[2], atom[3]]);
+        types.push(atom);
+    }
+    Ok(types)
+}
+
+fn convert_selection(
+    conn: &XCBConnection, atoms: &AtomCollection, window: xproto::Window, time: xproto::Timestamp,
+) {
+    conn.convert_selection(
+        window,
+        atoms.XdndSelection,
+        atoms.TextUriList,
+        atoms.XdndSelection,
+        time,
+    )
+    .expect("Failed to convert selection");
+}
+
+fn read_data(
+    conn: &XCBConnection, atoms: &AtomCollection, window: xproto::Window,
+) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+    let data = conn
+        .get_property(false, window, atoms.XdndSelection, atoms.TextUriList, 0, std::u32::MAX)?
+        .reply()?
+        .value;
+
+    Ok(data)
+}
+
+fn parse_paths(data: &[u8]) -> Result<Vec<PathBuf>, Box<dyn std::error::Error>> {
+    if !data.is_empty() {
+        let mut path_list = Vec::new();
+        let decoded = percent_decode(data).decode_utf8()?.into_owned();
+        for uri in decoded.split("\r\n").filter(|u| !u.is_empty()) {
+            // The format is specified as protocol://host/path
+            // However, it's typically simply protocol:///path
+            let path_str = if uri.starts_with("file://") {
+                let path_str = uri.replace("file://", "");
+                if !path_str.starts_with('/') {
+                    // todo: support files with hostnames (e.g. file:://hostname/path)
+                    return Err("dropped file URI has hostname".into());
+                }
+                path_str
+            } else {
+                // todo: support other protocols (e.g. sftp://path)
+                return Err("dropped file has non-file protocol".into());
+            };
+
+            let path = Path::new(&path_str).canonicalize()?;
+            path_list.push(path);
+        }
+        Ok(path_list)
+    } else {
+        return Err("dropped file has empty path".into());
     }
 }
