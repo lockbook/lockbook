@@ -9,4 +9,5 @@ edition = "2021"
 async-trait = "0.1.77"
 nfsserve = "0.10.1"
 tokio = "1.35.1"
-lb-rs = {path = "../../libs/lb/lb-rs" }
+cli-rs = "0.1.12"
+lb-rs = { path = "../../libs/lb/lb-rs" }
