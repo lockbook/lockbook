@@ -122,6 +122,9 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
             update_output: UpdateOutput { close, set_window_title },
         } = lb.frame();
 
+        let pointer_state = conn.query_pointer(window_id)?.reply()?;
+        lb.raw_input.modifiers = input::modifiers(pointer_state.mask);
+
         // output::clipboard_copy::handle(copied_text);
         if close {
             output::close();
