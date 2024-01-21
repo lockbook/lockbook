@@ -10,8 +10,12 @@ use raw_window_handle::{
 };
 use std::{ffi::c_void, time::Instant};
 use x11rb::{
-    atom_manager, connection::Connection, protocol::xproto::*, protocol::Event,
-    wrapper::ConnectionExt as _, COPY_DEPTH_FROM_PARENT,
+    atom_manager,
+    connection::Connection,
+    protocol::xproto::{ConnectionExt as _, *},
+    protocol::Event,
+    wrapper::ConnectionExt as _,
+    COPY_DEPTH_FROM_PARENT,
 };
 
 // A collection of the atoms we will need.
@@ -61,6 +65,7 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
     let (conn, screen_num) = x11rb::xcb_ffi::XCBConnection::connect(None).unwrap();
     let atoms = AtomCollection::new(&conn)?.reply()?;
     let screen = &conn.setup().roots[screen_num];
+    let db: x11rb::resource_manager::Database = x11rb::resource_manager::new_from_default(&conn)?;
     let window_id = conn.generate_id()?;
     conn.create_window(
         COPY_DEPTH_FROM_PARENT,
@@ -122,15 +127,30 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
             update_output: UpdateOutput { close, set_window_title },
         } = lb.frame();
 
+        // set modifiers
         let pointer_state = conn.query_pointer(window_id)?.reply()?;
         lb.raw_input.modifiers = input::modifiers(pointer_state.mask);
+
+        // set scale factor
+        let scale_factor = match db.get_string("Xft.dpi", "") {
+            Some(dpi) => {
+                let dpi = dpi.parse::<f32>().unwrap_or(96.0);
+                dpi / 96.0
+            }
+            None => {
+                println!("Failed to get Xft.dpi");
+                1.0
+            }
+        };
+        lb.screen.scale_factor = scale_factor;
+        lb.raw_input.pixels_per_point = Some(scale_factor);
 
         // output::clipboard_copy::handle(copied_text);
         if close {
             output::close();
         }
         output::window_title::handle(&conn, window_id, &atoms, set_window_title)?;
-        output::cursor::handle(&conn, screen_num, window_id, cursor_icon);
+        output::cursor::handle(&conn, &db, screen_num, window_id, cursor_icon);
         // output::open_url::handle(open_url);
         conn.flush()?;
     }
@@ -141,9 +161,15 @@ fn handle(
 ) -> Result<(), Box<dyn std::error::Error>> {
     match event {
         // pointer
-        Event::ButtonPress(event) => input::pointer::handle_press(lb, event),
-        Event::ButtonRelease(event) => input::pointer::handle_release(lb, event),
-        Event::MotionNotify(event) => input::pointer::handle_motion(lb, event),
+        Event::ButtonPress(event) => {
+            input::pointer::handle_press(lb, event, lb.screen.scale_factor)
+        }
+        Event::ButtonRelease(event) => {
+            input::pointer::handle_release(lb, event, lb.screen.scale_factor)
+        }
+        Event::MotionNotify(event) => {
+            input::pointer::handle_motion(lb, event, lb.screen.scale_factor)
+        }
 
         // keyboard
         Event::KeyPress(event) => input::key::handle_press(lb, event),

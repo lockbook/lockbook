@@ -2,11 +2,14 @@ use egui::CursorIcon;
 use x11rb::{
     connection::Connection as _,
     protocol::xproto::{ChangeWindowAttributesAux, ConnectionExt},
+    resource_manager::Database,
     xcb_ffi::{ReplyOrIdError, XCBConnection},
 };
 
-pub fn handle(conn: &XCBConnection, screen_num: usize, window: u32, cursor_icon: CursorIcon) {
-    match handle_impl(conn, screen_num, window, cursor_icon) {
+pub fn handle(
+    conn: &XCBConnection, db: &Database, screen_num: usize, window: u32, cursor_icon: CursorIcon,
+) {
+    match handle_impl(conn, db, screen_num, window, cursor_icon) {
         Ok(_) => {}
         Err(e) => {
             println!("Failed to set cursor: {:?}", e);
@@ -15,9 +18,8 @@ pub fn handle(conn: &XCBConnection, screen_num: usize, window: u32, cursor_icon:
 }
 
 fn handle_impl(
-    conn: &XCBConnection, screen_num: usize, window: u32, cursor_icon: CursorIcon,
+    conn: &XCBConnection, db: &Database, screen_num: usize, window: u32, cursor_icon: CursorIcon,
 ) -> Result<(), ReplyOrIdError> {
-    let db = x11rb::resource_manager::new_from_default(conn)?;
     let cursor_handle = x11rb::cursor::Handle::new(conn, screen_num, &db)?.reply()?;
     let cursor = cursor_handle.load_cursor(conn, to_x11_cursor(cursor_icon))?;
 
