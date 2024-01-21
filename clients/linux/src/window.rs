@@ -9,7 +9,7 @@ use raw_window_handle::{
     XcbWindowHandle,
 };
 use std::{ffi::c_void, time::Instant};
-use x11rb::atom_manager;
+use x11rb::{atom_manager, connection::RequestConnection, xcb_ffi::XCBConnection};
 use x11rb::{connection::Connection, protocol::xproto::*, wrapper::ConnectionExt as _};
 use x11rb::{protocol::Event, COPY_DEPTH_FROM_PARENT};
 
@@ -43,17 +43,17 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
         // EventMask::BUTTON4_MOTION,
         // EventMask::BUTTON5_MOTION,
         // EventMask::BUTTON_MOTION,
-        EventMask::KEYMAP_STATE,
-        EventMask::EXPOSURE,
-        EventMask::VISIBILITY_CHANGE,
+        // EventMask::KEYMAP_STATE,
+        // EventMask::EXPOSURE,
+        // EventMask::VISIBILITY_CHANGE,
         EventMask::STRUCTURE_NOTIFY,
-        EventMask::RESIZE_REDIRECT,
-        EventMask::SUBSTRUCTURE_NOTIFY,
-        EventMask::SUBSTRUCTURE_REDIRECT,
+        // EventMask::RESIZE_REDIRECT,
+        // EventMask::SUBSTRUCTURE_NOTIFY,
+        // EventMask::SUBSTRUCTURE_REDIRECT,
         EventMask::FOCUS_CHANGE,
         EventMask::PROPERTY_CHANGE,
-        EventMask::COLOR_MAP_CHANGE,
-        EventMask::OWNER_GRAB_BUTTON,
+        // EventMask::COLOR_MAP_CHANGE,
+        // EventMask::OWNER_GRAB_BUTTON,
     ];
     let event_mask = events.iter().fold(EventMask::NO_EVENT, |acc, &x| acc | x);
 
@@ -88,28 +88,32 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
         &[atoms.WM_DELETE_WINDOW],
     )?;
 
-    // sets window class (appears as title in alt tab) and makes app respond to window manager, but also freezes the app
-    // conn.change_property8(
-    //     PropMode::REPLACE,
-    //     window_id,
-    //     AtomEnum::WM_CLASS,
-    //     AtomEnum::STRING,
-    //     title.as_bytes(),
-    // )?;
+    // sets window class & instance (one of these appears as title in alt tab) and makes app respond to window manager
+    conn.change_property8(
+        PropMode::REPLACE,
+        window_id,
+        AtomEnum::WM_CLASS,
+        AtomEnum::STRING,
+        "Lockbook\0Lockbook\0".as_bytes(),
+    )?;
 
     conn.map_window(window_id)?;
     conn.flush()?;
 
-    let window = WindowHandle {
+    let window_handle = WindowHandle {
         window_id,
         connection: conn.get_raw_xcb_connection(),
         screen: screen_num as _,
     };
-    let mut lb = init(&window, false);
+    let mut lb = init(
+        &window_handle,
+        ScreenDescriptor { physical_width: 1300, physical_height: 800, scale_factor: 1.0 },
+        false,
+    );
 
     loop {
         while let Some(event) = conn.poll_for_event()? {
-            handle(&mut lb, window_id, &atoms, event);
+            handle(event, &window_handle, &atoms, &mut lb)?;
         }
         let IntegrationOutput {
             redraw_in: _, // todo: handle? how's this different from checking egui context?
@@ -128,7 +132,9 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 }
 
-fn handle(lb: &mut WgpuLockbook, window_id: u32, atoms: &AtomCollection, event: Event) {
+fn handle(
+    event: Event, window_handle: &WindowHandle, atoms: &AtomCollection, lb: &mut WgpuLockbook,
+) -> Result<(), Box<dyn std::error::Error>> {
     match event {
         // pointer
         Event::ButtonPress(event) => input::pointer::handle_press(lb, event),
@@ -139,11 +145,6 @@ fn handle(lb: &mut WgpuLockbook, window_id: u32, atoms: &AtomCollection, event: 
         Event::KeyPress(event) => input::key::handle_press(lb, event),
         Event::KeyRelease(event) => input::key::handle_release(lb, event),
 
-        // window resize
-        Event::ResizeRequest(_) => {
-            println!("ResizeRequest")
-        }
-
         // focus
         Event::FocusIn(_) => {
             println!("FocusIn")
@@ -152,10 +153,12 @@ fn handle(lb: &mut WgpuLockbook, window_id: u32, atoms: &AtomCollection, event: 
             println!("FocusOut")
         }
 
-        // ?
-        Event::ConfigureNotify(_) => {
-            println!("ConfigureNotify")
+        // resize
+        Event::ConfigureNotify(event) => {
+            lb.screen.physical_width = event.width as _;
+            lb.screen.physical_height = event.height as _;
         }
+        // ?
         Event::PropertyNotify(_) => {
             println!("PropertyNotify")
         }
@@ -163,14 +166,18 @@ fn handle(lb: &mut WgpuLockbook, window_id: u32, atoms: &AtomCollection, event: 
         // window close
         Event::ClientMessage(event) => {
             let data = event.data.as_data32();
-            if event.format == 32 && event.window == window_id && data[0] == atoms.WM_DELETE_WINDOW
+            if event.format == 32
+                && event.window == window_handle.window_id
+                && data[0] == atoms.WM_DELETE_WINDOW
             {
                 output::close();
             }
         }
 
         _ => {}
-    }
+    };
+
+    Ok(())
 }
 
 pub struct WindowHandle {
@@ -198,7 +205,7 @@ unsafe impl HasRawDisplayHandle for WindowHandle {
 
 // Taken from other lockbook code
 pub fn init<W: raw_window_handle::HasRawWindowHandle + raw_window_handle::HasRawDisplayHandle>(
-    window: &W, dark_mode: bool,
+    window: &W, screen: ScreenDescriptor, dark_mode: bool,
 ) -> WgpuLockbook {
     let backends = wgpu::util::backend_bits_from_env().unwrap_or_else(wgpu::Backends::all);
     let instance_desc = wgpu::InstanceDescriptor { backends, ..Default::default() };
@@ -207,7 +214,6 @@ pub fn init<W: raw_window_handle::HasRawWindowHandle + raw_window_handle::HasRaw
     let (adapter, device, queue) =
         pollster::block_on(request_device(&instance, backends, &surface));
     let format = surface.get_capabilities(&adapter).formats[0];
-    let screen = ScreenDescriptor { physical_width: 1300, physical_height: 800, scale_factor: 1.0 }; // initial value overridden by resize
     let surface_config = wgpu::SurfaceConfiguration {
         usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
         format,
