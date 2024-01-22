@@ -1,28 +1,40 @@
 use async_trait::async_trait;
 use lb_rs::FileType;
 use nfsserve::{
-    nfs::{fattr3, fileid3, filename3, ftype3, nfspath3, nfsstat3, nfsstring, sattr3},
-    tcp::{NFSTcp, NFSTcpListener},
+    nfs::{fattr3, fileid3, filename3, nfspath3, nfsstat3, nfsstring, sattr3, set_size3},
     vfs::{DirEntry, NFSFileSystem, ReadDirResult, VFSCapabilities},
 };
 
-use crate::Drive;
+use crate::{
+    utils::{fmt, get_string},
+    Drive, VERBOSE,
+};
 
 #[async_trait]
 impl NFSFileSystem for Drive {
     fn root_dir(&self) -> fileid3 {
-        println!("ROOT_DIR");
+        if VERBOSE {
+            print!("root_dir() ->");
+        }
+
         let root = self.ac.get_root().id;
-        root.as_u64_pair().0
+        let half = root.as_u64_pair().0;
+
+        if VERBOSE {
+            println!("\t{root}");
+        }
+        half
     }
 
     fn capabilities(&self) -> VFSCapabilities {
-        println!("CAPABILITIES");
         VFSCapabilities::ReadWrite
     }
 
     // todo replace actual todos with Err(nfsstat3::NFS3ERR_NOTSUPP)
     async fn write(&self, id: fileid3, offset: u64, data: &[u8]) -> Result<fattr3, nfsstat3> {
+        if VERBOSE {
+            print!("write({}, {} |{}|) -> ", fmt(id), offset, data.len());
+        }
         let offset = offset as usize;
 
         let mut doc = self.ac.read_document(id).await;
@@ -39,6 +51,10 @@ impl NFSFileSystem for Drive {
         let file = self.ac.get_file_by_id(id).await;
         let file = self.ac.file_to_fattr(&file);
 
+        if VERBOSE {
+            println!("\t fattr.size = {}", file.size);
+        }
+
         Ok(file)
     }
 
@@ -49,31 +65,34 @@ impl NFSFileSystem for Drive {
     async fn create(
         &self, dirid: fileid3, filename: &filename3, _attr: sattr3,
     ) -> Result<(fileid3, fattr3), nfsstat3> {
-        println!(
-            "create(: {}, filename: {}",
-            dirid,
-            String::from_utf8(filename.0.clone()).unwrap()
-        );
+        let filename = get_string(filename);
+        if VERBOSE {
+            print!("create({}, {}, attr.size={:?}) -> ", fmt(dirid), filename, _attr.size);
+        }
         let file = self
             .ac
             .create_file(dirid, FileType::Document, filename)
             .await;
         let file = self.ac.file_to_fattr(&file);
+        if VERBOSE {
+            println!("({}, size={})", fmt(file.fileid), file.size);
+        }
         Ok((file.fileid, file))
     }
 
     async fn create_exclusive(
         &self, _dirid: fileid3, _filename: &filename3,
     ) -> Result<fileid3, nfsstat3> {
-        println!(
-            "create_exclusive(dirid: {}, filename: {}",
-            _dirid,
-            String::from_utf8(_filename.0.clone()).unwrap()
-        );
+        if VERBOSE {
+            println!("create_exclusive({}, {}) -> \t NOTSUPP", fmt(_dirid), get_string(_filename),);
+        }
         return Err(nfsstat3::NFS3ERR_NOTSUPP);
     }
 
     async fn lookup(&self, dirid: fileid3, filename: &filename3) -> Result<fileid3, nfsstat3> {
+        if VERBOSE {
+            println!("lookup({}, {}) -> ", fmt(dirid), get_string(filename),);
+        }
         println!("LOOKUP, {}, {}", dirid, String::from_utf8(filename.0.clone()).unwrap());
         let file = self.ac.get_file_by_id(dirid).await;
 
@@ -112,8 +131,19 @@ impl NFSFileSystem for Drive {
 
     // todo this may be how the os communicates truncation to us
     async fn setattr(&self, id: fileid3, setattr: sattr3) -> Result<fattr3, nfsstat3> {
-        println!("SETATTR UNSUPPORTED");
-        Err(nfsstat3::NFS3ERR_NOTSUPP)
+        match setattr.size {
+            set_size3::Void => {}
+            set_size3::size(new) => {
+                let new = new as usize;
+                let mut doc = self.ac.read_document(id).await;
+                if doc.len() != new {
+                    doc.resize(new, 0);
+                }
+                self.ac.write_document(id, doc).await;
+            }
+        }
+
+        return self.getattr(id).await;
     }
 
     async fn read(
@@ -210,41 +240,50 @@ impl NFSFileSystem for Drive {
     ) -> Result<(), nfsstat3> {
         let from_filename = String::from_utf8(from_filename.0.clone()).unwrap();
         let to_filename = String::from_utf8(to_filename.0.clone()).unwrap();
-        println!(
-            "RENAME UNSUPPORTED from {} {} to {} {}",
-            from_filename, from_dirid, to_filename, to_dirid
-        );
-
-        if from_dirid != to_dirid {
-            panic!("moves not yet supported");
-        }
-
-        let children = self.ac.get_children(from_dirid).await;
-
+        let src_children = self.ac.get_children(from_dirid).await;
         let mut from_id = None;
         let mut to_id = None;
-
-        for child in children {
+        for child in src_children {
             if child.name == from_filename {
                 from_id = Some(child.id);
             }
 
-            if child.name == to_filename {
-                to_id = Some(child.id);
+            if to_dirid == from_dirid {
+                if child.name == to_filename {
+                    to_id = Some(child.id);
+                }
+            }
+        }
+
+        if to_dirid != from_dirid {
+            let dst_children = self.ac.get_children(to_dirid).await;
+            for child in dst_children {
+                if child.name == to_filename {
+                    to_id = Some(child.id);
+                }
             }
         }
 
         let from_id = from_id.unwrap();
-        if to_id.is_none() {
-            self.ac.rename_file(from_id, to_filename).await;
-            return Ok(());
-        }
-        let to_id = to_id.unwrap();
 
-        let from_doc = self.ac.read_document(from_id.as_u64_pair().0).await;
-        self.ac
-            .write_document(to_id.as_u64_pair().0, from_doc)
-            .await;
+        match to_id {
+            // we are overwriting a file
+            Some(id) => {
+                let from_doc = self.ac.read_document(from_id.as_u64_pair().0).await;
+                self.ac.write_document(id.as_u64_pair().0, from_doc).await;
+            }
+
+            // we are doing a move and/or rename
+            None => {
+                if from_dirid != to_dirid {
+                    self.ac.move_file(from_id, to_dirid).await;
+                }
+
+                if from_filename != to_filename {
+                    self.ac.rename_file(from_id, to_filename).await;
+                }
+            }
+        }
 
         return Ok(());
     }
@@ -254,7 +293,10 @@ impl NFSFileSystem for Drive {
         &self, dirid: fileid3, dirname: &filename3,
     ) -> Result<(fileid3, fattr3), nfsstat3> {
         println!("mkdir(: {}, filename: {}", dirid, String::from_utf8(dirname.0.clone()).unwrap());
-        let file = self.ac.create_file(dirid, FileType::Folder, dirname).await;
+        let file = self
+            .ac
+            .create_file(dirid, FileType::Folder, get_string(dirname))
+            .await;
         let file = self.ac.file_to_fattr(&file);
         Ok((file.fileid, file))
     }

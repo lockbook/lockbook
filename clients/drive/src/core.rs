@@ -21,11 +21,13 @@ impl AsyncCore {
 
         let mut ac = Self { core, f3_uid: Default::default(), sizes: Default::default() };
 
-        println!("preparing cache (are you in a release build?)");
-        let files = ac.core.list_metadatas().unwrap();
-        let sizes = ac.core.get_uncompressed_usage_breakdown().unwrap();
-        ac.populate_caches(&files, sizes);
-        println!("cache prepared");
+        if ac.core.get_account().is_ok() {
+            println!("preparing cache (are you in a release build?)");
+            let files = ac.core.list_metadatas().unwrap();
+            let sizes = ac.core.get_uncompressed_usage_breakdown().unwrap();
+            ac.populate_caches(&files, sizes);
+            println!("cache prepared");
+        }
 
         ac
     }
@@ -109,14 +111,11 @@ impl AsyncCore {
             .unwrap()
     }
 
-    pub async fn create_file(
-        &self, parent: fileid3, file_type: FileType, name: &filename3,
-    ) -> File {
+    pub async fn create_file(&self, parent: fileid3, file_type: FileType, name: String) -> File {
         let core = self.c();
-        let filename = String::from_utf8(name.0.clone()).unwrap();
         let parent = *self.f3_uid.lock().unwrap().get(&parent).unwrap();
 
-        let file = spawn_blocking(move || core.create_file(&filename, parent, file_type).unwrap())
+        let file = spawn_blocking(move || core.create_file(&name, parent, file_type).unwrap())
             .await
             .unwrap();
 
@@ -136,6 +135,14 @@ impl AsyncCore {
         let core = self.c();
 
         spawn_blocking(move || core.rename_file(id, &name).unwrap())
+            .await
+            .unwrap();
+    }
+
+    pub async fn move_file(&self, id: Uuid, parent: fileid3) {
+        let parent = *self.f3_uid.lock().unwrap().get(&parent).unwrap();
+        let core = self.c();
+        spawn_blocking(move || core.move_file(id, parent).unwrap())
             .await
             .unwrap();
     }

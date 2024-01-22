@@ -1,5 +1,6 @@
 pub mod core;
 pub mod fs_impl;
+pub mod utils;
 
 use core::AsyncCore;
 use std::io::{self, IsTerminal};
@@ -11,6 +12,8 @@ use cli_rs::{
 };
 use nfsserve::tcp::{NFSTcp, NFSTcpListener};
 
+pub static VERBOSE: bool = true;
+
 // Test with
 // mount -t nfs -o nolocks,vers=3,tcp,port=8000,mountport=8000,soft 127.0.0.1:/ mnt/
 pub struct Drive {
@@ -18,6 +21,7 @@ pub struct Drive {
 }
 
 fn main() {
+    println!("test");
     Command::name("lbdrive")
         .subcommand(Command::name("import").handler(|| Drive::init().import()))
         .subcommand(Command::name("mount").handler(|| Drive::init().mount()))
