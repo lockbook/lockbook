@@ -195,7 +195,7 @@ impl Selection {
             end_drag(buffer, &mut self.selected_elements, pos, history_dirty);
         }
 
-        if ui.input(|r| r.key_pressed(egui::Key::Delete)) && !self.selected_elements.is_empty() {
+        if ui.input(|r| r.key_pressed(egui::Key::Backspace)) && !self.selected_elements.is_empty() {
             let elements = self
                 .selected_elements
                 .iter()
