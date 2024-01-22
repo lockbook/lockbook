@@ -20,7 +20,7 @@ pub fn handle(
 fn handle_impl(
     conn: &XCBConnection, db: &Database, screen_num: usize, window: u32, cursor_icon: CursorIcon,
 ) -> Result<(), ReplyOrIdError> {
-    let cursor_handle = x11rb::cursor::Handle::new(conn, screen_num, &db)?.reply()?;
+    let cursor_handle = x11rb::cursor::Handle::new(conn, screen_num, db)?.reply()?;
     let cursor = cursor_handle.load_cursor(conn, to_x11_cursor(cursor_icon))?;
 
     conn.change_window_attributes(window, &ChangeWindowAttributesAux::default().cursor(cursor))?

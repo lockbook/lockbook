@@ -195,6 +195,6 @@ fn parse_paths(data: &[u8]) -> Result<Vec<PathBuf>, Box<dyn std::error::Error>> 
         }
         Ok(path_list)
     } else {
-        return Err("dropped file has empty path".into());
+        Err("dropped file has empty path".into())
     }
 }

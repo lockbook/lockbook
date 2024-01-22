@@ -19,7 +19,7 @@ fn handle(
 ) {
     let modifiers = modifiers(state);
 
-    if 4 <= detail && detail <= 7 {
+    if (4..=7).contains(&detail) {
         // scroll event
         // todo: also send mouse wheel event
         let scroll_unit = 10.0;
