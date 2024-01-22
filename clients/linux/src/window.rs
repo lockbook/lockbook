@@ -26,6 +26,9 @@ atom_manager! {
         WM_DELETE_WINDOW,
         _NET_WM_NAME,
         UTF8_STRING,
+        CLIPBOARD,
+        NONE,
+        TARGETS,
 
         // xdnd: drag 'n' drop x protocol extension
         XdndAware,
@@ -141,9 +144,10 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
         false,
     );
 
+    let mut last_copied_text = String::new();
     loop {
         while let Some(event) = conn.poll_for_event()? {
-            handle(event, &conn, &atoms, &mut lb)?;
+            handle(event, &conn, &atoms, &mut lb, &last_copied_text)?;
         }
         let IntegrationOutput {
             redraw_in: _, // todo: handle? how's this different from checking egui context?
@@ -176,12 +180,20 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
         output::window_title::handle(&conn, window_id, &atoms, set_window_title)?;
         output::cursor::handle(&conn, &db, screen_num, window_id, cursor_icon);
         output::open_url::handle(open_url);
+        output::clipboard_copy::handle_copy(
+            &conn,
+            &atoms,
+            window_id,
+            copied_text,
+            &mut last_copied_text,
+        )?;
         conn.flush()?;
     }
 }
 
 fn handle(
     event: Event, conn: &XCBConnection, atoms: &AtomCollection, lb: &mut WgpuLockbook,
+    last_copied_text: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
     match event {
         // pointer
@@ -229,6 +241,16 @@ fn handle(
             if event.property == atoms.XdndSelection {
                 input::file_drop::handle_selection_notify(conn, atoms, &event)?;
             }
+        }
+
+        // another app is pasting content copied by us
+        Event::SelectionRequest(event) => {
+            output::clipboard_copy::handle_selection_request(
+                conn,
+                atoms,
+                &event,
+                last_copied_text,
+            )?;
         }
 
         _ => {}
