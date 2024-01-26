@@ -1,6 +1,6 @@
 use crate::{CUuid, IntegrationOutput, WgpuWorkspace};
 use egui::os::OperatingSystem;
-use egui::{Context, Event, FontDefinitions, Pos2, Vec2};
+use egui::{vec2, Context, Event, FontDefinitions, Pos2, Vec2};
 use egui_wgpu_backend::wgpu::CompositeAlphaMode;
 use egui_wgpu_backend::{wgpu, ScreenDescriptor};
 use lb_external_interface::Core;
@@ -188,7 +188,7 @@ async fn request_device(
 /// (macos only)
 /// # Safety
 #[no_mangle]
-pub unsafe extern "C" fn scroll_wheel(obj: *mut c_void, scroll_wheel: f32) {
+pub unsafe extern "C" fn scroll_wheel(obj: *mut c_void, scroll_x: f32, scroll_y: f32) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
 
     if matches!(obj.context.os(), OperatingSystem::IOS) {
@@ -198,13 +198,13 @@ pub unsafe extern "C" fn scroll_wheel(obj: *mut c_void, scroll_wheel: f32) {
     }
 
     if obj.raw_input.modifiers.command || obj.raw_input.modifiers.ctrl {
-        let factor = (scroll_wheel / 50.).exp();
+        let factor = (scroll_y / 50.).exp();
 
         obj.raw_input.events.push(Event::Zoom(factor))
     } else {
         obj.raw_input
             .events
-            .push(Event::Scroll(Vec2::new(0.0, scroll_wheel)));
+            .push(Event::Scroll(vec2(scroll_x, scroll_y)));
     }
 
     if matches!(obj.context.os(), OperatingSystem::IOS) {
