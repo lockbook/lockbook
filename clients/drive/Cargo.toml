@@ -11,3 +11,5 @@ nfsserve = "0.10.1"
 tokio = "1.35.1"
 cli-rs = "0.1.12"
 lb-rs = { path = "../../libs/lb/lb-rs" }
+tracing = "0.1"
+tracing-subscriber = "0.3"

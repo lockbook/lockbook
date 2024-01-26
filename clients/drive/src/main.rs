@@ -1,5 +1,6 @@
 pub mod core;
 pub mod fs_impl;
+pub mod logger;
 pub mod utils;
 
 use core::AsyncCore;
@@ -11,17 +12,17 @@ use cli_rs::{
     parser::Cmd,
 };
 use nfsserve::tcp::{NFSTcp, NFSTcpListener};
-
-pub static VERBOSE: bool = true;
+use tokio::sync::Mutex;
 
 // Test with
 // mount -t nfs -o nolocks,vers=3,tcp,port=8000,mountport=8000,soft 127.0.0.1:/ mnt/
 pub struct Drive {
     ac: AsyncCore,
+    write_lock: Mutex<()>,
 }
 
 fn main() {
-    println!("test");
+    logger::init();
     Command::name("lbdrive")
         .subcommand(Command::name("import").handler(|| Drive::init().import()))
         .subcommand(Command::name("mount").handler(|| Drive::init().mount()))
@@ -33,7 +34,7 @@ impl Drive {
     fn init() -> Self {
         let ac = AsyncCore::init();
 
-        Self { ac }
+        Self { ac, write_lock: Default::default() }
     }
 
     #[tokio::main]

@@ -1,7 +1,11 @@
-use std::{collections::HashMap, sync::Mutex};
+use std::{
+    collections::HashMap,
+    sync::Mutex,
+    time::{Duration, SystemTime, UNIX_EPOCH},
+};
 
 use lb_rs::{Core, File, FileType, Uuid};
-use nfsserve::nfs::{fattr3, fileid3, filename3, ftype3};
+use nfsserve::nfs::{fattr3, fileid3, filename3, ftype3, nfstime3};
 use tokio::task::spawn_blocking;
 
 // todo: this is not ideal, realistically core should just get the async await treatment
@@ -10,6 +14,9 @@ pub struct AsyncCore {
 
     f3_uid: Mutex<HashMap<fileid3, Uuid>>,
     sizes: Mutex<HashMap<Uuid, usize>>,
+    atimes: Mutex<HashMap<fileid3, u64>>,
+    mtimes: Mutex<HashMap<fileid3, u64>>,
+    ctimes: Mutex<HashMap<fileid3, u64>>,
 }
 
 impl AsyncCore {
@@ -17,9 +24,16 @@ impl AsyncCore {
         let writeable_path = format!("{}/.lockbook/drive", std::env::var("HOME").unwrap());
 
         let core =
-            Core::init(&lb_rs::Config { writeable_path, logs: true, colored_logs: true }).unwrap();
+            Core::init(&lb_rs::Config { writeable_path, logs: false, colored_logs: true }).unwrap();
 
-        let mut ac = Self { core, f3_uid: Default::default(), sizes: Default::default() };
+        let mut ac = Self {
+            core,
+            f3_uid: Default::default(),
+            sizes: Default::default(),
+            atimes: Default::default(),
+            mtimes: Default::default(),
+            ctimes: Default::default(),
+        };
 
         if ac.core.get_account().is_ok() {
             println!("preparing cache (are you in a release build?)");
@@ -147,6 +161,14 @@ impl AsyncCore {
             .unwrap();
     }
 
+    pub async fn remove(&self, id: Uuid) {
+        let core = self.c();
+
+        spawn_blocking(move || core.delete_file(id).unwrap())
+            .await
+            .unwrap();
+    }
+
     pub async fn sync(&self) {
         let core = self.c();
         // todo figure out logging more generally here and in the platform
@@ -157,6 +179,30 @@ impl AsyncCore {
         })
         .await
         .unwrap();
+    }
+
+    pub fn ts_from_u64(version: u64) -> nfstime3 {
+        let time = Duration::from_millis(version);
+        nfstime3 { seconds: time.as_secs() as u32, nseconds: time.subsec_nanos() }
+    }
+
+    // todo do these timestamp changes need to be recursive?
+    pub fn now() -> u64 {
+        let time = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
+        time.as_millis() as u64
+    }
+
+    pub fn metadata_changed(&self, id: fileid3, time: u64) {
+        self.ctimes.lock().unwrap().insert(id, time);
+    }
+
+    pub fn content_changed(&self, id: fileid3, time: u64) {
+        self.metadata_changed(id, time);
+        self.mtimes.lock().unwrap().insert(id, time);
+    }
+
+    pub fn set_atime(&self, id: fileid3, time: u64) {
+        self.atimes.lock().unwrap().insert(id, time);
     }
 
     pub fn file_to_fattr(&self, f: &File) -> fattr3 {
@@ -170,6 +216,35 @@ impl AsyncCore {
         let size =
             if f.is_folder() { 0 } else { *self.sizes.lock().unwrap().get(&f.id).unwrap() as u64 };
 
+        let atime = self
+            .atimes
+            .lock()
+            .unwrap()
+            .get(&fileid)
+            .copied()
+            .unwrap_or_default();
+        let atime = Self::ts_from_u64(atime);
+
+        let mtime = self
+            .mtimes
+            .lock()
+            .unwrap()
+            .get(&fileid)
+            .copied()
+            .unwrap_or_default()
+            .max(f.last_modified);
+        let mtime = Self::ts_from_u64(mtime);
+
+        let ctime = self
+            .ctimes
+            .lock()
+            .unwrap()
+            .get(&fileid)
+            .copied()
+            .unwrap_or_default()
+            .max(f.last_modified);
+        let ctime = Self::ts_from_u64(ctime);
+
         fattr3 {
             ftype,
             mode,
@@ -181,9 +256,9 @@ impl AsyncCore {
             rdev: Default::default(), // ?
             fsid: Default::default(), // file system id
             fileid,
-            atime: Default::default(), // access time
-            mtime: Default::default(), // todo modify time could populate with last_updated
-            ctime: Default::default(), // create time
+            atime,
+            mtime,
+            ctime,
         }
     }
 

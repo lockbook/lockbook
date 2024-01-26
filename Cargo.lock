@@ -1737,6 +1737,8 @@ dependencies = [
  "lb-rs",
  "nfsserve",
  "tokio",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]
