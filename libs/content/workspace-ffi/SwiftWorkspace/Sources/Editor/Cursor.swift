@@ -8,6 +8,8 @@ extension NSCursor {
             NSCursor.iBeam
         case PointingHand:
             NSCursor.pointingHand
+        case Grab:
+            NSCursor.openHand
         case Grabbing:
             NSCursor.closedHand
         case Crosshair:

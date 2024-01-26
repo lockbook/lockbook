@@ -1,5 +1,8 @@
 use super::{
-    node_by_id,  util::{deserialize_transform, pointer_interests_path}, Buffer, DeleteElement, history::TransformElement
+    history::TransformElement,
+    node_by_id,
+    util::{deserialize_transform, pointer_interests_path},
+    Buffer, DeleteElement,
 };
 
 pub struct Selection {
@@ -153,6 +156,7 @@ impl Selection {
                 transform_origin_dirty = true;
                 break;
             } else if ui.input(|r| r.pointer.primary_down()) {
+                ui.output_mut(|r| r.cursor_icon = egui::CursorIcon::Grabbing);
                 let mut delta = egui::pos2(pos.x - el.original_pos.x, pos.y - el.original_pos.y);
                 if let Some(transform) = buffer.current.attr("transform") {
                     let transform = deserialize_transform(transform);
