@@ -197,9 +197,15 @@ pub unsafe extern "C" fn scroll_wheel(obj: *mut c_void, scroll_wheel: f32) {
             .push(Event::PointerMoved(Pos2 { x: 1.0, y: 1.0 }));
     }
 
-    obj.raw_input
-        .events
-        .push(Event::Scroll(Vec2::new(0.0, scroll_wheel)));
+    if obj.raw_input.modifiers.command || obj.raw_input.modifiers.ctrl {
+        let factor = (scroll_wheel / 50.).exp();
+
+        obj.raw_input.events.push(Event::Zoom(factor))
+    } else {
+        obj.raw_input
+            .events
+            .push(Event::Scroll(Vec2::new(0.0, scroll_wheel)));
+    }
 
     if matches!(obj.context.os(), OperatingSystem::IOS) {
         obj.raw_input.events.push(Event::PointerGone);
