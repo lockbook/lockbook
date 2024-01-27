@@ -5,8 +5,9 @@ use std::{
 };
 
 use lb_rs::{Core, File, FileType, Uuid};
-use nfsserve::nfs::{fattr3, fileid3, filename3, ftype3, nfstime3};
+use nfsserve::nfs::{fattr3, fileid3, ftype3, nfstime3};
 use tokio::task::spawn_blocking;
+use tracing::info;
 
 // todo: this is not ideal, realistically core should just get the async await treatment
 pub struct AsyncCore {
@@ -36,11 +37,11 @@ impl AsyncCore {
         };
 
         if ac.core.get_account().is_ok() {
-            println!("preparing cache (are you in a release build?)");
+            info!("preparing cache (are you in a release build?)");
             let files = ac.core.list_metadatas().unwrap();
             let sizes = ac.core.get_uncompressed_usage_breakdown().unwrap();
             ac.populate_caches(&files, sizes);
-            println!("cache prepared");
+            info!("cache prepared");
         }
 
         ac

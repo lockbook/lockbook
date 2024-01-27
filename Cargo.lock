@@ -1729,19 +1729,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9ea835d29036a4087793836fa931b08837ad5e957da9e23886b29586fb9b6650"
 
 [[package]]
-name = "drive"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "cli-rs",
- "lb-rs",
- "nfsserve",
- "tokio",
- "tracing",
- "tracing-subscriber",
-]
-
-[[package]]
 name = "ecolor"
 version = "0.22.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3375,6 +3362,19 @@ name = "lb-fonts"
 version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "615e43ce60261fb305818a26fbe1eaf50f1dc15ac846c5b8adaf2defbf4e2ab2"
+
+[[package]]
+name = "lb-fs"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "cli-rs",
+ "lb-rs",
+ "nfsserve",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+]
 
 [[package]]
 name = "lb-pdf"

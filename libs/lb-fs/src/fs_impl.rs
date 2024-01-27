@@ -2,12 +2,12 @@ use async_trait::async_trait;
 use lb_rs::FileType;
 use nfsserve::{
     nfs::{
-        fattr3, fileid3, filename3, nfspath3, nfsstat3, nfsstring, sattr3, set_atime, set_gid3,
-        set_mode3, set_mtime, set_size3, set_uid3,
+        fattr3, fileid3, filename3, nfspath3, nfsstat3, nfsstring, sattr3, set_atime, set_mtime,
+        set_size3,
     },
     vfs::{DirEntry, NFSFileSystem, ReadDirResult, VFSCapabilities},
 };
-use std::{fmt::Write, time::Duration};
+use std::time::Duration;
 use tracing::{info, instrument, warn};
 
 use crate::{
@@ -43,7 +43,7 @@ impl NFSFileSystem for Drive {
             doc[offset..].copy_from_slice(data);
             expanded = true;
         } else {
-            for (idx, datum) in data.into_iter().enumerate() {
+            for (idx, datum) in data.iter().enumerate() {
                 doc[offset + idx] = *datum;
             }
         }
@@ -255,7 +255,7 @@ impl NFSFileSystem for Drive {
             ret.entries.push(DirEntry {
                 fileid: child.id.as_u64_pair().0,
                 name: nfsstring(child.name.clone().into_bytes()),
-                attr: self.ac.file_to_fattr(&child),
+                attr: self.ac.file_to_fattr(child),
             });
         }
 
@@ -305,10 +305,8 @@ impl NFSFileSystem for Drive {
                 from_id = Some(child.id);
             }
 
-            if to_dirid == from_dirid {
-                if child.name == to_filename {
-                    to_id = Some(child.id);
-                }
+            if to_dirid == from_dirid && child.name == to_filename {
+                to_id = Some(child.id);
             }
         }
 

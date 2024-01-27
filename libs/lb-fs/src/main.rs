@@ -1,21 +1,24 @@
 pub mod core;
 pub mod fs_impl;
 pub mod logger;
+pub mod mount;
 pub mod utils;
-
-use core::AsyncCore;
-use std::io::{self, IsTerminal};
 
 use cli_rs::{
     cli_error::{CliError, CliResult},
     command::Command,
     parser::Cmd,
 };
+use core::AsyncCore;
+use mount::{mount, umount};
 use nfsserve::tcp::{NFSTcp, NFSTcpListener};
+use std::{
+    io::{self, IsTerminal},
+    process::exit,
+};
 use tokio::sync::Mutex;
+use tracing::info;
 
-// Test with
-// mount -t nfs -o nolocks,vers=3,tcp,port=8000,mountport=8000,soft 127.0.0.1:/ mnt/
 pub struct Drive {
     ac: AsyncCore,
     write_lock: Mutex<()>,
@@ -23,9 +26,17 @@ pub struct Drive {
 
 fn main() {
     logger::init();
-    Command::name("lbdrive")
-        .subcommand(Command::name("import").handler(|| Drive::init().import()))
-        .subcommand(Command::name("mount").handler(|| Drive::init().mount()))
+    Command::name("lb-fs")
+        .subcommand(
+            Command::name("import")
+                .description("sign in and sync a lockbook account")
+                .handler(|| Drive::init().import()),
+        )
+        .subcommand(
+            Command::name("mount")
+                .description("start an NFS server and mount it to /tmp/lockbook")
+                .handler(|| Drive::init().mount()),
+        )
         .parse();
 }
 
@@ -40,7 +51,7 @@ impl Drive {
     #[tokio::main]
     async fn import(&self) -> CliResult<()> {
         if io::stdin().is_terminal() {
-            return Err(CliError::from("to import an existing lockbook account, pipe your account string into this command, e.g.:\npbpaste | lockbook account import".to_string()));
+            return Err(CliError::from("to import an existing lockbook account, pipe your account string into this command, e.g.:\npbpaste | lb-fs import".to_string()));
         }
 
         let mut account_string = String::new();
@@ -59,13 +70,24 @@ impl Drive {
 
     #[tokio::main]
     async fn mount(self) -> CliResult<()> {
+        info!("registering sig handler");
+        tokio::spawn(async move {
+            tokio::signal::ctrl_c().await.unwrap();
+            umount().await;
+            info!("cleaned up, goodbye!");
+            exit(0);
+        });
+
         // todo make this also handle the server mounting
         // todo pick a port that's unlikely to be used
         // todo have a better port selection strategy
-        let listener = NFSTcpListener::bind(&format!("127.0.0.1:11111"), self)
-            .await
-            .unwrap();
+        info!("creating server");
+        let listener = NFSTcpListener::bind("127.0.0.1:11111", self).await.unwrap();
 
+        info!("mounting");
+        mount();
+
+        info!("ready");
         listener.handle_forever().await.unwrap();
         Ok(())
     }
