@@ -3634,7 +3634,6 @@ dependencies = [
 name = "lockbook-linux"
 version = "0.1.0"
 dependencies = [
- "array-init",
  "egui",
  "egui_editor",
  "egui_wgpu_backend",
