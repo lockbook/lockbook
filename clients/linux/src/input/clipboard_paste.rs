@@ -10,7 +10,7 @@ use crate::window::AtomCollection;
 
 pub struct Context<'a> {
     ctx: Ctx<'a>,
-    state: State,
+    state: Awaiting,
 }
 
 #[derive(Clone)]
@@ -21,16 +21,16 @@ struct Ctx<'a> {
 }
 
 #[derive(PartialEq)]
-enum State {
-    AwaitingPaste,
-    AwaitingTargets,
-    AwaitingData { source_window: xproto::Window, format: Atom },
-    AwaitingIncrementalData { incremental_data: Vec<u8>, format: Atom },
+enum Awaiting {
+    Paste,
+    Targets,
+    Data { source_window: xproto::Window, format: Atom },
+    IncrementalData { incremental_data: Vec<u8>, format: Atom },
 }
 
 impl<'a> Context<'a> {
     pub fn new(window: xproto::Window, conn: &'a XCBConnection, atoms: &'a AtomCollection) -> Self {
-        Self { ctx: Ctx { window, conn, atoms }, state: State::AwaitingPaste }
+        Self { ctx: Ctx { window, conn, atoms }, state: Awaiting::Paste }
     }
 
     pub fn handle_paste(&mut self) -> Result<(), Box<dyn std::error::Error>> {
@@ -44,7 +44,7 @@ impl<'a> Context<'a> {
             atoms.CLIPBOARD,
             x11rb::CURRENT_TIME,
         )?;
-        self.state = State::AwaitingTargets;
+        self.state = Awaiting::Targets;
 
         Ok(())
     }
@@ -56,7 +56,7 @@ impl<'a> Context<'a> {
 
         // todo: support middle mouse button paste
         if event.property == atoms.CLIPBOARD {
-            if let State::AwaitingTargets = self.state {
+            if let Awaiting::Targets = self.state {
                 // get supported formats
                 if event.target != atoms.TARGETS {
                     println!("handle selection: awaiting targets but received non-targets");
@@ -76,7 +76,7 @@ impl<'a> Context<'a> {
                 } else {
                     // no supported formats available
                     println!("handle selection: no supported formats available");
-                    self.state = State::AwaitingPaste;
+                    self.state = Awaiting::Paste;
                     return Ok(());
                 };
 
@@ -88,8 +88,8 @@ impl<'a> Context<'a> {
                     atoms.CLIPBOARD,
                     event.time,
                 )?;
-                self.state = State::AwaitingData { source_window: event.requestor, format };
-            } else if let State::AwaitingData { source_window, format } = &self.state {
+                self.state = Awaiting::Data { source_window: event.requestor, format };
+            } else if let Awaiting::Data { source_window, format } = &self.state {
                 let format = *format;
 
                 if event.target != format {
@@ -112,12 +112,11 @@ impl<'a> Context<'a> {
                 // get clipboard data
                 if let Some(data) = self.ctx.read_clipboard_data(format)? {
                     self.ctx.app_paste(format, data, app)?;
-                    self.state = State::AwaitingPaste;
+                    self.state = Awaiting::Paste;
                 } else {
                     // data is being transferred incrementally; delete the property to initiate the transfer
                     conn.delete_property(event.requestor, atoms.CLIPBOARD)?;
-                    self.state =
-                        State::AwaitingIncrementalData { incremental_data: Vec::new(), format };
+                    self.state = Awaiting::IncrementalData { incremental_data: Vec::new(), format };
                 }
             }
         }
@@ -131,7 +130,7 @@ impl<'a> Context<'a> {
         let Ctx { conn, atoms, .. } = self.ctx;
 
         let mut done = false;
-        if let State::AwaitingIncrementalData { incremental_data, format } = &mut self.state {
+        if let Awaiting::IncrementalData { incremental_data, format } = &mut self.state {
             let format = *format;
 
             if let Some(data) = self.ctx.read_clipboard_data(format)? {
@@ -147,8 +146,8 @@ impl<'a> Context<'a> {
         }
 
         if done {
-            if let State::AwaitingIncrementalData { incremental_data, format } =
-                mem::replace(&mut self.state, State::AwaitingPaste)
+            if let Awaiting::IncrementalData { incremental_data, format } =
+                mem::replace(&mut self.state, Awaiting::Paste)
             {
                 if !incremental_data.is_empty() {
                     self.ctx.app_paste(format, incremental_data, app)?;

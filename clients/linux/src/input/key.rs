@@ -1,10 +1,6 @@
 use crate::input::{self, modifiers};
-use crate::window::AtomCollection;
 use lbeguiapp::WgpuLockbook;
-use x11rb::{
-    protocol::xproto::{self, KeyButMask},
-    xcb_ffi::XCBConnection,
-};
+use x11rb::protocol::xproto::KeyButMask;
 
 struct Key {
     sc: u8,
@@ -108,8 +104,7 @@ const KEYS: [Key; 89] = [
 ];
 
 pub fn handle(
-    conn: &XCBConnection, atoms: &AtomCollection, window_id: xproto::Window, detail: u8,
-    state: KeyButMask, pressed: bool, app: &mut WgpuLockbook,
+    detail: u8, state: KeyButMask, pressed: bool, app: &mut WgpuLockbook,
     paste_context: &mut input::clipboard_paste::Context,
 ) -> Result<(), Box<dyn std::error::Error>> {
     // "X11-style keycodes are offset by 8 from the keycodes the Linux kernel uses."

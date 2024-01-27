@@ -13,7 +13,7 @@ pub fn handle_copy(
     conn: &XCBConnection, atoms: &AtomCollection, window_id: xproto::Window, copied_text: String,
     last_copied_text: &mut String,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    if copied_text != "" {
+    if !copied_text.is_empty() {
         conn.set_selection_owner(window_id, atoms.CLIPBOARD, x11rb::CURRENT_TIME)?;
         *last_copied_text = copied_text;
     }

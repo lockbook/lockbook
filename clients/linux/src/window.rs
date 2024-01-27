@@ -155,7 +155,7 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut paste_context = clipboard_paste::Context::new(window_id, conn, &atoms);
     loop {
         while let Some(event) = conn.poll_for_event()? {
-            handle(conn, &atoms, window_id, &last_copied_text, event, &mut lb, &mut paste_context)?;
+            handle(conn, &atoms, &last_copied_text, event, &mut lb, &mut paste_context)?;
         }
         let IntegrationOutput {
             redraw_in: _, // todo: handle? how's this different from checking egui context?
@@ -200,9 +200,8 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 fn handle(
-    conn: &XCBConnection, atoms: &AtomCollection, window_id: xproto::Window,
-    last_copied_text: &str, event: Event, lb: &mut WgpuLockbook,
-    paste_context: &mut clipboard_paste::Context,
+    conn: &XCBConnection, atoms: &AtomCollection, last_copied_text: &str, event: Event,
+    lb: &mut WgpuLockbook, paste_context: &mut clipboard_paste::Context,
 ) -> Result<(), Box<dyn std::error::Error>> {
     match event {
         // pointer
@@ -217,26 +216,12 @@ fn handle(
         }
 
         // keyboard
-        Event::KeyPress(event) => input::key::handle(
-            conn,
-            atoms,
-            window_id,
-            event.detail,
-            event.state,
-            true,
-            lb,
-            paste_context,
-        )?,
-        Event::KeyRelease(event) => input::key::handle(
-            conn,
-            atoms,
-            window_id,
-            event.detail,
-            event.state,
-            false,
-            lb,
-            paste_context,
-        )?,
+        Event::KeyPress(event) => {
+            input::key::handle(event.detail, event.state, true, lb, paste_context)?
+        }
+        Event::KeyRelease(event) => {
+            input::key::handle(event.detail, event.state, false, lb, paste_context)?
+        }
 
         // resize
         Event::ConfigureNotify(event) => {
