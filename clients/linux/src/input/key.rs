@@ -1,12 +1,10 @@
+use crate::input::{self, modifiers};
+use crate::window::AtomCollection;
 use lbeguiapp::WgpuLockbook;
 use x11rb::{
     protocol::xproto::{self, KeyButMask},
     xcb_ffi::XCBConnection,
 };
-
-use crate::window::AtomCollection;
-
-use super::{clipboard_paste, modifiers};
 
 struct Key {
     sc: u8,
@@ -112,6 +110,7 @@ const KEYS: [Key; 89] = [
 pub fn handle(
     conn: &XCBConnection, atoms: &AtomCollection, window_id: xproto::Window, detail: u8,
     state: KeyButMask, pressed: bool, app: &mut WgpuLockbook,
+    paste_context: &mut input::clipboard_paste::Context,
 ) -> Result<(), Box<dyn std::error::Error>> {
     // "X11-style keycodes are offset by 8 from the keycodes the Linux kernel uses."
     // https://github.com/rust-windowing/winit/blob/master/src/platform_impl/linux/common/keymap.rs#L7
@@ -133,7 +132,7 @@ pub fn handle(
     if let Some(key) = egui_key(key) {
         // ctrl + v
         if pressed && key == egui::Key::V && modifiers.command {
-            clipboard_paste::handle_paste(conn, atoms, window_id)?;
+            paste_context.handle_paste()?;
         }
 
         // other egui keys
