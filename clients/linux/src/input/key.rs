@@ -1,7 +1,12 @@
 use lbeguiapp::WgpuLockbook;
-use x11rb::protocol::xproto::{KeyButMask, KeyPressEvent, KeyReleaseEvent};
+use x11rb::{
+    protocol::xproto::{self, KeyButMask},
+    xcb_ffi::XCBConnection,
+};
 
-use super::modifiers;
+use crate::window::AtomCollection;
+
+use super::{clipboard_paste, modifiers};
 
 struct Key {
     sc: u8,
@@ -104,15 +109,10 @@ const KEYS: [Key; 89] = [
     Key { sc: 111, egui: Some(egui::Key::Delete), text: None, s_text: None },
 ];
 
-pub fn handle_press(app: &mut WgpuLockbook, event: KeyPressEvent) {
-    handle(app, event.detail, event.state, true)
-}
-
-pub fn handle_release(app: &mut WgpuLockbook, event: KeyReleaseEvent) {
-    handle(app, event.detail, event.state, false)
-}
-
-pub fn handle(app: &mut WgpuLockbook, detail: u8, state: KeyButMask, pressed: bool) {
+pub fn handle(
+    conn: &XCBConnection, atoms: &AtomCollection, window_id: xproto::Window, detail: u8,
+    state: KeyButMask, pressed: bool, app: &mut WgpuLockbook,
+) -> Result<(), Box<dyn std::error::Error>> {
     // "X11-style keycodes are offset by 8 from the keycodes the Linux kernel uses."
     // https://github.com/rust-windowing/winit/blob/master/src/platform_impl/linux/common/keymap.rs#L7
     let key = detail.saturating_sub(8);
@@ -125,7 +125,7 @@ pub fn handle(app: &mut WgpuLockbook, detail: u8, state: KeyButMask, pressed: bo
             app.raw_input
                 .events
                 .push(egui::Event::Text(text.to_owned()));
-            return;
+            return Ok(());
         }
     }
 
@@ -133,8 +133,7 @@ pub fn handle(app: &mut WgpuLockbook, detail: u8, state: KeyButMask, pressed: bo
     if let Some(key) = egui_key(key) {
         // ctrl + v
         if pressed && key == egui::Key::V && modifiers.command {
-            todo!("paste");
-            // clipboard_paste::handle(app);
+            clipboard_paste::handle_paste(conn, atoms, window_id)?;
         }
 
         // other egui keys
@@ -142,15 +141,17 @@ pub fn handle(app: &mut WgpuLockbook, detail: u8, state: KeyButMask, pressed: bo
             .events
             .push(egui::Event::Key { key, pressed, repeat: false, modifiers });
     }
+
+    Ok(())
 }
 
-pub fn key_text(sc: u8, shift: bool) -> Option<&'static str> {
+fn key_text(sc: u8, shift: bool) -> Option<&'static str> {
     KEYS.iter()
         .find(|key| key.sc == sc)
         .and_then(|key| if shift { key.s_text } else { key.text })
 }
 
-pub fn egui_key(sc: u8) -> Option<egui::Key> {
+fn egui_key(sc: u8) -> Option<egui::Key> {
     KEYS.iter()
         .find(|key| key.sc == sc)
         .and_then(|key| key.egui)

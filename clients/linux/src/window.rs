@@ -13,7 +13,7 @@ use x11rb::{
     atom_manager,
     connection::Connection,
     protocol::xproto::{ConnectionExt as _, *},
-    protocol::Event,
+    protocol::{xproto, Event},
     wrapper::ConnectionExt as _,
     xcb_ffi::XCBConnection,
     COPY_DEPTH_FROM_PARENT,
@@ -27,8 +27,10 @@ atom_manager! {
         _NET_WM_NAME,
         UTF8_STRING,
         CLIPBOARD,
+        ANY,
         NONE,
         TARGETS,
+        INCR,
 
         // xdnd: drag 'n' drop x protocol extension
         XdndAware,
@@ -49,6 +51,7 @@ atom_manager! {
 
         // content types
         TextUriList: b"text/uri-list",
+        ImagePng: b"image/png",
     }
 }
 
@@ -145,9 +148,18 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
 
     let mut last_copied_text = String::new();
+    let mut clipboard_paste_incremental_transfer = Vec::<u8>::new();
     loop {
         while let Some(event) = conn.poll_for_event()? {
-            handle(event, &conn, &atoms, &mut lb, &last_copied_text)?;
+            handle(
+                &conn,
+                &atoms,
+                window_id,
+                &last_copied_text,
+                event,
+                &mut lb,
+                &mut clipboard_paste_incremental_transfer,
+            )?;
         }
         let IntegrationOutput {
             redraw_in: _, // todo: handle? how's this different from checking egui context?
@@ -192,8 +204,9 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 fn handle(
-    event: Event, conn: &XCBConnection, atoms: &AtomCollection, lb: &mut WgpuLockbook,
-    last_copied_text: &str,
+    conn: &XCBConnection, atoms: &AtomCollection, window_id: xproto::Window,
+    last_copied_text: &str, event: Event, lb: &mut WgpuLockbook,
+    clipboard_paste_incremental_transfer: &mut Vec<u8>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     match event {
         // pointer
@@ -208,18 +221,20 @@ fn handle(
         }
 
         // keyboard
-        Event::KeyPress(event) => input::key::handle_press(lb, event),
-        Event::KeyRelease(event) => input::key::handle_release(lb, event),
+        Event::KeyPress(event) => {
+            input::key::handle(conn, atoms, window_id, event.detail, event.state, true, lb)?
+        }
+        Event::KeyRelease(event) => {
+            input::key::handle(conn, atoms, window_id, event.detail, event.state, false, lb)?
+        }
 
         // resize
         Event::ConfigureNotify(event) => {
             lb.screen.physical_width = event.width as _;
             lb.screen.physical_height = event.height as _;
         }
-        // ?
-        Event::PropertyNotify(_event) => {}
 
-        // close, drag 'n' drop
+        // close, drag 'n' drop, copy 'n' paste
         Event::ClientMessage(event) => {
             if event.type_ == atoms.WM_PROTOCOLS
                 && event.data.as_data32()[0] == atoms.WM_DELETE_WINDOW
@@ -240,10 +255,22 @@ fn handle(
         Event::SelectionNotify(event) => {
             if event.property == atoms.XdndSelection {
                 input::file_drop::handle_selection_notify(conn, atoms, &event)?;
+            } else {
+                input::clipboard_paste::handle_selection_notify(conn, atoms, &event, lb)?;
             }
         }
-
-        // another app is pasting content copied by us
+        // ?
+        Event::PropertyNotify(event) => {
+            if event.atom == atoms.CLIPBOARD {
+                input::clipboard_paste::handle_property_notify(
+                    conn,
+                    atoms,
+                    &event,
+                    lb,
+                    clipboard_paste_incremental_transfer,
+                )?;
+            }
+        }
         Event::SelectionRequest(event) => {
             output::clipboard_copy::handle_selection_request(
                 conn,
