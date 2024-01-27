@@ -265,7 +265,7 @@ fn handle(
         }
         Event::SelectionNotify(event) => {
             if event.property == atoms.XdndSelection {
-                input::file_drop::handle_selection_notify(conn, atoms, &event)?;
+                input::file_drop::handle_selection_notify(conn, atoms, &event, lb)?;
             } else {
                 paste_context.handle_selection_notify(&event, lb)?;
             }

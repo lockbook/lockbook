@@ -1,4 +1,6 @@
 use crate::window::AtomCollection;
+use egui::DroppedFile;
+use lbeguiapp::WgpuLockbook;
 use percent_encoding::percent_decode;
 use std::path::{Path, PathBuf};
 use x11rb::{
@@ -73,11 +75,14 @@ pub fn handle_drop(
 /// once the selection has been converted, read the data
 pub fn handle_selection_notify(
     conn: &XCBConnection, atoms: &AtomCollection, event: &xproto::SelectionNotifyEvent,
+    app: &mut WgpuLockbook,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let data = read_data(conn, atoms, event.requestor)?;
     let paths = parse_paths(&data)?;
     for path in paths {
-        println!("Dropped file: {}", path.to_string_lossy());
+        app.raw_input
+            .dropped_files
+            .push(DroppedFile { path: Some(path), ..Default::default() });
     }
     Ok(())
 }
