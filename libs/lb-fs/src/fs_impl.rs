@@ -1,3 +1,8 @@
+use crate::{
+    cache::FileEntry,
+    core::AsyncCore,
+    utils::{fmt, get_string},
+};
 use async_trait::async_trait;
 use lb_rs::FileType;
 use nfsserve::{
@@ -11,12 +16,6 @@ use std::collections::HashMap;
 use tokio::sync::Mutex;
 use tracing::{info, instrument, warn};
 
-use crate::{
-    cache::FileEntry,
-    core::AsyncCore,
-    utils::{fmt, get_string},
-};
-
 pub struct Drive {
     pub ac: AsyncCore,
 
@@ -26,7 +25,8 @@ pub struct Drive {
     ///
     /// this is stored in memory as it's own entity and not stored in core for two reasons:
     /// 1. size computations are expensive in core
-    /// 2. nfs seems to ask us to update timestamps to specified values
+    /// 2. nfs needs to update timestamps to specified values
+    /// 3. nfs models properties we don't, like file permission bits
     pub data: Mutex<HashMap<fileid3, FileEntry>>,
 }
 
@@ -168,6 +168,7 @@ impl NFSFileSystem for Drive {
     #[instrument(skip(self), fields(id = fmt(id)))]
     async fn setattr(&self, id: fileid3, setattr: sattr3) -> Result<fattr3, nfsstat3> {
         let mut data = self.data.lock().await;
+        let now = FileEntry::now();
         let entry = data.get_mut(&id).unwrap();
 
         match setattr.size {
@@ -177,6 +178,8 @@ impl NFSFileSystem for Drive {
                     let mut doc = self.ac.read_document(entry.file.id).await;
                     doc.resize(new as usize, 0);
                     self.ac.write_document(entry.file.id, doc).await;
+                    entry.fattr.mtime = FileEntry::ts_from_u64(now);
+                    entry.fattr.ctime = FileEntry::ts_from_u64(now);
                 }
             }
         }
@@ -184,7 +187,7 @@ impl NFSFileSystem for Drive {
         match setattr.atime {
             set_atime::DONT_CHANGE => {}
             set_atime::SET_TO_SERVER_TIME => {
-                entry.fattr.atime = FileEntry::ts_from_u64(FileEntry::now());
+                entry.fattr.atime = FileEntry::ts_from_u64(now);
             }
             set_atime::SET_TO_CLIENT_TIME(ts) => {
                 entry.fattr.atime = ts;
@@ -194,7 +197,6 @@ impl NFSFileSystem for Drive {
         match setattr.mtime {
             set_mtime::DONT_CHANGE => {}
             set_mtime::SET_TO_SERVER_TIME => {
-                let now = FileEntry::now();
                 entry.fattr.mtime = FileEntry::ts_from_u64(now);
                 entry.fattr.ctime = FileEntry::ts_from_u64(now);
             }
@@ -208,6 +210,7 @@ impl NFSFileSystem for Drive {
             set_uid3::Void => {}
             set_uid3::uid(uid) => {
                 entry.fattr.uid = uid;
+                entry.fattr.ctime = FileEntry::ts_from_u64(now);
             }
         }
 
@@ -215,6 +218,7 @@ impl NFSFileSystem for Drive {
             set_gid3::Void => {}
             set_gid3::gid(gid) => {
                 entry.fattr.gid = gid;
+                entry.fattr.ctime = FileEntry::ts_from_u64(now);
             }
         }
 
@@ -222,6 +226,7 @@ impl NFSFileSystem for Drive {
             set_mode3::Void => {}
             set_mode3::mode(mode) => {
                 entry.fattr.mode = mode;
+                entry.fattr.ctime = FileEntry::ts_from_u64(now);
             }
         }
 
@@ -380,9 +385,6 @@ impl NFSFileSystem for Drive {
 
                 let mut entry = data.get_mut(&id.as_u64_pair().0).unwrap();
                 entry.fattr.size = doc_len;
-                let now = FileEntry::now();
-                entry.fattr.mtime = FileEntry::ts_from_u64(now);
-                entry.fattr.ctime = FileEntry::ts_from_u64(now);
 
                 data.remove(&from_id.as_u64_pair().0);
             }
@@ -403,10 +405,6 @@ impl NFSFileSystem for Drive {
 
                 let file = self.ac.get_file_by_id(from_id).await;
                 entry.file = file;
-
-                let now = FileEntry::now();
-                entry.fattr.mtime = FileEntry::ts_from_u64(now);
-                entry.fattr.ctime = FileEntry::ts_from_u64(now);
 
                 info!("ok");
             }

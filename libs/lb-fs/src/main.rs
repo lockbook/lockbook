@@ -68,6 +68,7 @@ impl Drive {
 
     #[tokio::main]
     async fn mount(self) -> CliResult<()> {
+        self.prepare_caches().await;
         info!("registering sig handler");
         tokio::spawn(async move {
             tokio::signal::ctrl_c().await.unwrap();

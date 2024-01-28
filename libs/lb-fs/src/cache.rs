@@ -62,7 +62,8 @@ impl Drive {
         let mut data = self.data.lock().await;
         for file in files {
             let id = file.id;
-            let entry = FileEntry::from_file(file, *sizes.get(&id).unwrap() as u64);
+            let entry =
+                FileEntry::from_file(file, sizes.get(&id).copied().unwrap_or_default() as u64);
             data.insert(entry.fattr.fileid, entry);
         }
     }
