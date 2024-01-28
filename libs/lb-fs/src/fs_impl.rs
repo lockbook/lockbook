@@ -12,10 +12,11 @@ use nfsserve::{
     },
     vfs::{DirEntry, NFSFileSystem, ReadDirResult, VFSCapabilities},
 };
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 use tokio::sync::Mutex;
 use tracing::{info, instrument, warn};
 
+#[derive(Clone)]
 pub struct Drive {
     pub ac: AsyncCore,
 
@@ -27,7 +28,7 @@ pub struct Drive {
     /// 1. size computations are expensive in core
     /// 2. nfs needs to update timestamps to specified values
     /// 3. nfs models properties we don't, like file permission bits
-    pub data: Mutex<HashMap<fileid3, FileEntry>>,
+    pub data: Arc<Mutex<HashMap<fileid3, FileEntry>>>,
 }
 
 #[async_trait]

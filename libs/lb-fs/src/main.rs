@@ -17,8 +17,9 @@ use nfsserve::tcp::{NFSTcp, NFSTcpListener};
 use std::{
     io::{self, IsTerminal},
     process::exit,
+    sync::Arc,
+    time::Duration,
 };
-use tokio::sync::Mutex;
 use tracing::info;
 
 fn main() {
@@ -41,7 +42,7 @@ impl Drive {
     /// executing this from within an async context will panic
     fn init() -> Self {
         let ac = AsyncCore::init();
-        let data = Mutex::default();
+        let data = Arc::default();
 
         Self { ac, data }
     }
@@ -70,6 +71,8 @@ impl Drive {
     async fn mount(self) -> CliResult<()> {
         self.prepare_caches().await;
         info!("registering sig handler");
+
+        // capture ctrl_c and try to cleanup
         tokio::spawn(async move {
             tokio::signal::ctrl_c().await.unwrap();
             umount().await;
@@ -77,8 +80,17 @@ impl Drive {
             exit(0);
         });
 
-        // todo make this also handle the server mounting
-        // todo pick a port that's unlikely to be used
+        // sync periodically in the background
+        let syncer = self.clone();
+        tokio::spawn(async move {
+            loop {
+                info!("will sync in 5 minutes");
+                tokio::time::sleep(Duration::from_secs(300)).await;
+                info!("syncing");
+                syncer.sync().await;
+            }
+        });
+
         // todo have a better port selection strategy
         info!("creating server");
         let listener = NFSTcpListener::bind("127.0.0.1:11111", self).await.unwrap();

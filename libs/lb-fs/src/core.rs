@@ -1,8 +1,9 @@
-use lb_rs::{Core, File, FileType, Uuid};
+use lb_rs::{Core, File, FileType, SyncStatus, Uuid};
 use std::collections::HashMap;
 use tokio::task::spawn_blocking;
 
 // todo: this is not ideal, realistically core should just get the async await treatment
+#[derive(Clone)]
 pub struct AsyncCore {
     core: Core,
 }
@@ -118,16 +119,15 @@ impl AsyncCore {
             .unwrap()
     }
 
-    pub async fn sync(&self) {
+    pub async fn sync(&self) -> SyncStatus {
         let core = self.c();
-        // todo figure out logging more generally here and in the platform
-        // todo also generally figure out error handling
+
         spawn_blocking(move || {
             core.sync(Some(Box::new(|msg| println!("{}", msg.msg))))
                 .unwrap()
         })
         .await
-        .unwrap();
+        .unwrap()
     }
 
     fn c(&self) -> Core {

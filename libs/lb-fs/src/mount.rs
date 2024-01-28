@@ -4,12 +4,40 @@ use tokio::process::Command;
 use tracing::info;
 
 // see https://github.com/xetdata/nfsserve for more mount examples
+#[cfg(target_os = "macos")]
 pub fn mount() {
     fs::create_dir_all("/tmp/lockbook").unwrap();
 
     Command::new("mount_nfs")
         .arg("-o")
         .arg("nolocks,vers=3,tcp,rsize=131072,actimeo=120,port=11111,mountport=11111")
+        .arg("localhost:/")
+        .arg("/tmp/lockbook")
+        .spawn()
+        .unwrap();
+}
+
+// see https://github.com/xetdata/nfsserve for more mount examples
+#[cfg(target_os = "linux")]
+pub fn mount() {
+    fs::create_dir_all("/tmp/lockbook").unwrap();
+
+    Command::new("mount_nfs")
+        .arg("-o")
+        .arg("nolocks,vers=3,tcp,rsize=131072,actimeo=120,port=11111,mountport=11111")
+        .arg("localhost:/")
+        .arg("/tmp/lockbook")
+        .spawn()
+        .unwrap();
+}
+
+#[cfg(target_os = "windows")]
+pub fn mount() {
+    fs::create_dir_all("/tmp/lockbook").unwrap();
+
+    Command::new("mount.exe")
+        .arg("-o")
+        .arg("anon,nolock,mtype=soft,fileaccess=6,casesensitive,lang=ansi,rsize=128,wsize=128,timeout=60,retry=2")
         .arg("localhost:/")
         .arg("/tmp/lockbook")
         .spawn()

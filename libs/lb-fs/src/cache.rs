@@ -1,7 +1,8 @@
 use crate::fs_impl::Drive;
-use lb_rs::File;
+use lb_rs::{File, WorkUnit};
 use nfsserve::nfs::{fattr3, ftype3, nfstime3};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use tracing::info;
 
 pub struct FileEntry {
     pub file: File,
@@ -56,6 +57,10 @@ impl FileEntry {
 impl Drive {
     // todo: probably need a variant of this that is more suitable post sync cache updates
     pub async fn prepare_caches(&self) {
+        info!("performing startup sync");
+        self.ac.sync().await;
+
+        info!("preparing cache, are you release build?");
         let sizes = self.ac.get_sizes().await;
         let files = self.ac.list_metadata().await;
 
@@ -65,6 +70,32 @@ impl Drive {
             let entry =
                 FileEntry::from_file(file, sizes.get(&id).copied().unwrap_or_default() as u64);
             data.insert(entry.fattr.fileid, entry);
+        }
+        info!("cache ready");
+    }
+
+    pub async fn sync(&self) {
+        let status = self.ac.sync().await;
+        let mut data = self.data.lock().await;
+
+        for unit in status.work_units {
+            if let WorkUnit::ServerChange(dirty_id) = unit {
+                let file = self.ac.get_file_by_id(dirty_id).await;
+                let size = if file.is_document() {
+                    self.ac.read_document(dirty_id).await.len()
+                } else {
+                    0
+                };
+
+                let mut entry = FileEntry::from_file(file, size as u64);
+
+                let now = FileEntry::ts_from_u64(FileEntry::now());
+
+                entry.fattr.mtime = now;
+                entry.fattr.ctime = now;
+
+                data.insert(entry.fattr.fileid, entry);
+            }
         }
     }
 }
