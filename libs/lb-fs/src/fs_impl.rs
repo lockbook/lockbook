@@ -2,19 +2,33 @@ use async_trait::async_trait;
 use lb_rs::FileType;
 use nfsserve::{
     nfs::{
-        fattr3, fileid3, filename3, nfspath3, nfsstat3, nfsstring, sattr3, set_atime, set_mtime,
-        set_size3,
+        fattr3, fileid3, filename3, nfspath3, nfsstat3, nfsstring, sattr3, set_atime, set_gid3,
+        set_mode3, set_mtime, set_size3, set_uid3,
     },
     vfs::{DirEntry, NFSFileSystem, ReadDirResult, VFSCapabilities},
 };
-use std::time::Duration;
+use std::collections::HashMap;
+use tokio::sync::Mutex;
 use tracing::{info, instrument, warn};
 
 use crate::{
+    cache::FileEntry,
     core::AsyncCore,
     utils::{fmt, get_string},
-    Drive,
 };
+
+pub struct Drive {
+    pub ac: AsyncCore,
+
+    /// probably this doesn't need to have a global lock, but interactions here are generally
+    /// speedy, and for now we'll go for robustness over performance. Hopefully this accomplishes
+    /// that and not deadlock. TBD.
+    ///
+    /// this is stored in memory as it's own entity and not stored in core for two reasons:
+    /// 1. size computations are expensive in core
+    /// 2. nfs seems to ask us to update timestamps to specified values
+    pub data: Mutex<HashMap<fileid3, FileEntry>>,
+}
 
 #[async_trait]
 impl NFSFileSystem for Drive {
@@ -31,48 +45,53 @@ impl NFSFileSystem for Drive {
         VFSCapabilities::ReadWrite
     }
 
-    #[instrument(skip(self), fields(id = fmt(id), data = data.len()))]
-    async fn write(&self, id: fileid3, offset: u64, data: &[u8]) -> Result<fattr3, nfsstat3> {
+    #[instrument(skip(self), fields(id = fmt(id), buffer = buffer.len()))]
+    async fn write(&self, id: fileid3, offset: u64, buffer: &[u8]) -> Result<fattr3, nfsstat3> {
         let offset = offset as usize;
 
-        let lock = self.write_lock.lock().await;
+        let mut data = self.data.lock().await;
+        let entry = data.get_mut(&id).unwrap();
+        let id = entry.file.id;
+
         let mut doc = self.ac.read_document(id).await;
         let mut expanded = false;
-        if offset + data.len() > doc.len() {
-            doc.resize(offset + data.len(), 0);
-            doc[offset..].copy_from_slice(data);
+        if offset + buffer.len() > doc.len() {
+            doc.resize(offset + buffer.len(), 0);
+            doc[offset..].copy_from_slice(buffer);
             expanded = true;
         } else {
-            for (idx, datum) in data.iter().enumerate() {
+            for (idx, datum) in buffer.iter().enumerate() {
                 doc[offset + idx] = *datum;
             }
         }
-
+        let doc_size = doc.len();
         self.ac.write_document(id, doc).await;
-        let file = self.ac.get_file_by_id(id).await;
-        let file = self.ac.file_to_fattr(&file);
 
-        info!("expanded={expanded}, fattr.size = {}", file.size);
+        entry.fattr.size = doc_size as u64;
 
-        drop(lock);
-        Ok(file)
+        info!("expanded={expanded}, fattr.size = {}", doc_size);
+
+        Ok(entry.fattr)
     }
 
-    // todo sattr would be what chmod +x requires, but we don't deal with that for now
-    // that's going to require us to hold on to fattr3s inmem and make modifications that
-    // core doesn't know or care about. Could be annoying for people trying to set executables
-    // those flags won't be sticky without adding fields to metadata
+    // todo this should create a file regardless of whether it exists
     #[instrument(skip(self), fields(dirid = fmt(dirid), filename = get_string(filename)))]
     async fn create(
         &self, dirid: fileid3, filename: &filename3, attr: sattr3,
     ) -> Result<(fileid3, fattr3), nfsstat3> {
         let filename = get_string(filename);
+        let parent = self.data.lock().await.get(&dirid).unwrap().file.id;
         let file = self
             .ac
-            .create_file(dirid, FileType::Document, filename)
+            .create_file(parent, FileType::Document, filename)
             .await;
-        let id = file.id.as_u64_pair().0;
+
+        let entry = FileEntry::from_file(file, 0);
+        let id = entry.fattr.fileid;
+        self.data.lock().await.insert(entry.fattr.fileid, entry);
+
         let file = self.setattr(id, attr).await.unwrap();
+
         info!("({}, size={})", fmt(file.fileid), file.size);
         Ok((id, file))
     }
@@ -82,6 +101,7 @@ impl NFSFileSystem for Drive {
         &self, dirid: fileid3, filename: &filename3,
     ) -> Result<fileid3, nfsstat3> {
         let filename = get_string(filename);
+        let dirid = self.data.lock().await.get(&dirid).unwrap().file.id;
         let children = self.ac.get_children(dirid).await;
         for child in children {
             if child.name == filename {
@@ -94,19 +114,24 @@ impl NFSFileSystem for Drive {
             .ac
             .create_file(dirid, FileType::Document, filename)
             .await;
-        let file = self.ac.file_to_fattr(&file);
-        info!("({}, size={})", fmt(file.fileid), file.size);
-        return Ok(file.fileid);
+
+        let entry = FileEntry::from_file(file, 0);
+        let id = entry.fattr.fileid;
+        info!("({}, size={})", fmt(id), entry.fattr.size);
+        self.data.lock().await.insert(entry.fattr.fileid, entry);
+
+        return Ok(id);
     }
 
     #[instrument(skip(self), fields(dirid = fmt(dirid), filename = get_string(filename)))]
     async fn lookup(&self, dirid: fileid3, filename: &filename3) -> Result<fileid3, nfsstat3> {
-        let file = self.ac.get_file_by_id(dirid).await;
+        let dir = self.data.lock().await.get(&dirid).unwrap().file.clone();
 
-        if file.is_document() {
+        if dir.is_document() {
             info!("NOTDIR");
             return Err(nfsstat3::NFS3ERR_NOTDIR);
         }
+
         // if looking for dir/. its the current directory
         if filename[..] == [b'.'] {
             info!(". == {}", fmt(dirid));
@@ -115,11 +140,11 @@ impl NFSFileSystem for Drive {
 
         // if looking for dir/.. its the parent directory
         if filename[..] == [b'.', b'.'] {
-            info!(".. == {}", file.parent);
-            return Ok(file.parent.as_u64_pair().0);
+            info!(".. == {}", dir.parent);
+            return Ok(dir.parent.as_u64_pair().0);
         }
 
-        let children = self.ac.get_children(dirid).await;
+        let children = self.ac.get_children(dir.id).await;
         let file_name = String::from_utf8(filename.0.clone()).unwrap();
 
         for child in children {
@@ -135,61 +160,74 @@ impl NFSFileSystem for Drive {
 
     #[instrument(skip(self), fields(id = fmt(id)))]
     async fn getattr(&self, id: fileid3) -> Result<fattr3, nfsstat3> {
-        let file = self.ac.get_file_by_id(id).await;
-        let file = self.ac.file_to_fattr(&file);
-        info!("fattr.size = {}", file.size);
+        let file = self.data.lock().await.get(&id).unwrap().fattr;
+        info!("fattr = {:?}", file);
         Ok(file)
     }
 
-    // todo this may be how the os communicates truncation to us
     #[instrument(skip(self), fields(id = fmt(id)))]
     async fn setattr(&self, id: fileid3, setattr: sattr3) -> Result<fattr3, nfsstat3> {
+        let mut data = self.data.lock().await;
+        let entry = data.get_mut(&id).unwrap();
+
         match setattr.size {
             set_size3::Void => {}
             set_size3::size(new) => {
-                let new = new as usize;
-                let mut doc = self.ac.read_document(id).await;
-                if doc.len() != new {
-                    doc.resize(new, 0);
+                if entry.fattr.size != new {
+                    let mut doc = self.ac.read_document(entry.file.id).await;
+                    doc.resize(new as usize, 0);
+                    self.ac.write_document(entry.file.id, doc).await;
                 }
-                self.ac.write_document(id, doc).await;
             }
         }
 
         match setattr.atime {
             set_atime::DONT_CHANGE => {}
             set_atime::SET_TO_SERVER_TIME => {
-                let time = AsyncCore::now();
-                self.ac.set_atime(id, time);
+                entry.fattr.atime = FileEntry::ts_from_u64(FileEntry::now());
             }
             set_atime::SET_TO_CLIENT_TIME(ts) => {
-                let d = Duration::from_secs(ts.seconds as u64)
-                    + Duration::from_nanos(ts.nseconds as u64);
-                let time = d.as_millis() as u64;
-                self.ac.set_atime(id, time);
+                entry.fattr.atime = ts;
             }
         }
 
         match setattr.mtime {
             set_mtime::DONT_CHANGE => {}
             set_mtime::SET_TO_SERVER_TIME => {
-                let time = AsyncCore::now();
-                self.ac.content_changed(id, time);
+                let now = FileEntry::now();
+                entry.fattr.mtime = FileEntry::ts_from_u64(now);
+                entry.fattr.ctime = FileEntry::ts_from_u64(now);
             }
             set_mtime::SET_TO_CLIENT_TIME(ts) => {
-                let d = Duration::from_secs(ts.seconds as u64)
-                    + Duration::from_nanos(ts.nseconds as u64);
-                let time = d.as_millis() as u64;
-                self.ac.content_changed(id, time);
+                entry.fattr.mtime = ts;
+                entry.fattr.ctime = ts;
             }
         }
 
-        let f = self.ac.get_file_by_id(id).await;
-        let f = self.ac.file_to_fattr(&f);
+        match setattr.uid {
+            set_uid3::Void => {}
+            set_uid3::uid(uid) => {
+                entry.fattr.uid = uid;
+            }
+        }
 
-        info!("fattr.size = {}", f.size);
+        match setattr.gid {
+            set_gid3::Void => {}
+            set_gid3::gid(gid) => {
+                entry.fattr.gid = gid;
+            }
+        }
 
-        return Ok(f);
+        match setattr.mode {
+            set_mode3::Void => {}
+            set_mode3::mode(mode) => {
+                entry.fattr.mode = mode;
+            }
+        }
+
+        info!("fattr = {:?}", entry.fattr);
+
+        return Ok(entry.fattr);
     }
 
     #[instrument(skip(self), fields(id = fmt(id), offset, count))]
@@ -198,6 +236,7 @@ impl NFSFileSystem for Drive {
     ) -> Result<(Vec<u8>, bool), nfsstat3> {
         let offset = offset as usize;
         let count = count as usize;
+        let id = self.data.lock().await.get(&id).unwrap().file.id;
 
         let doc = self.ac.read_document(id).await;
 
@@ -215,13 +254,13 @@ impl NFSFileSystem for Drive {
         return Ok((doc[offset..offset + count].to_vec(), false));
     }
 
-    // todo it's unclear to me whether they would be as bold to provide a start_after of 0 if
-    // they don't have a particular start_after in mind yet
-    // possibly fileid3 is just the wrong type and they mean a usize offset
+    /// they will provide a start_after of 0 for no id
     #[instrument(skip(self), fields(dirid = fmt(dirid), start_after, max_entries))]
     async fn readdir(
         &self, dirid: fileid3, start_after: fileid3, max_entries: usize,
     ) -> Result<ReadDirResult, nfsstat3> {
+        let data = self.data.lock().await;
+        let dirid = data.get(&dirid).unwrap().file.id;
         let mut children = self.ac.get_children(dirid).await;
 
         children.sort_by(|a, b| a.id.cmp(&b.id));
@@ -252,11 +291,11 @@ impl NFSFileSystem for Drive {
         };
 
         for child in &children[start_index..end_index] {
-            ret.entries.push(DirEntry {
-                fileid: child.id.as_u64_pair().0,
-                name: nfsstring(child.name.clone().into_bytes()),
-                attr: self.ac.file_to_fattr(child),
-            });
+            let fileid = child.id.as_u64_pair().0;
+            let name = nfsstring(child.name.clone().into_bytes());
+            let attr = data.get(&fileid).unwrap().fattr;
+
+            ret.entries.push(DirEntry { fileid, name, attr });
         }
 
         info!("|{}| done={}", ret.entries.len(), ret.end);
@@ -270,6 +309,9 @@ impl NFSFileSystem for Drive {
     #[instrument(skip(self), fields(dirid = fmt(dirid), filename = get_string(filename)))]
     #[allow(unused)]
     async fn remove(&self, dirid: fileid3, filename: &filename3) -> Result<(), nfsstat3> {
+        let mut data = self.data.lock().await;
+        let dirid = data.get(&dirid).unwrap().file.id;
+
         let children = self.ac.get_children(dirid).await;
         let file_name = String::from_utf8(filename.0.clone()).unwrap();
 
@@ -277,6 +319,7 @@ impl NFSFileSystem for Drive {
             if file_name == child.name {
                 info!("deleted");
                 self.ac.remove(child.id).await;
+                data.remove(&child.id.as_u64_pair().0);
                 return Ok(());
             }
         }
@@ -285,9 +328,6 @@ impl NFSFileSystem for Drive {
         return Err(nfsstat3::NFS3ERR_NOENT);
     }
 
-    /// Removes a file.
-    /// If not supported dur to readonly file system
-    /// this should return Err(nfsstat3::NFS3ERR_ROFS)
     /// either an overwrite rename or move
     #[instrument(skip(self), fields(from_dirid = fmt(from_dirid), from_filename = get_string(from_filename), to_dirid = fmt(to_dirid), to_filename = get_string(to_filename)))]
     #[allow(unused)]
@@ -295,9 +335,16 @@ impl NFSFileSystem for Drive {
         &self, from_dirid: fileid3, from_filename: &filename3, to_dirid: fileid3,
         to_filename: &filename3,
     ) -> Result<(), nfsstat3> {
+        let mut data = self.data.lock().await;
+
         let from_filename = String::from_utf8(from_filename.0.clone()).unwrap();
         let to_filename = String::from_utf8(to_filename.0.clone()).unwrap();
+
+        let from_dirid = data.get(&from_dirid).unwrap().file.id;
+        let to_dirid = data.get(&to_dirid).unwrap().file.id;
+
         let src_children = self.ac.get_children(from_dirid).await;
+
         let mut from_id = None;
         let mut to_id = None;
         for child in src_children {
@@ -325,9 +372,19 @@ impl NFSFileSystem for Drive {
             // we are overwriting a file
             Some(id) => {
                 info!("overwrite {from_id} -> {id}");
-                let from_doc = self.ac.read_document(from_id.as_u64_pair().0).await;
+                let from_doc = self.ac.read_document(from_id).await;
                 info!("|{}|", from_doc.len());
-                self.ac.write_document(id.as_u64_pair().0, from_doc).await;
+                let doc_len = from_doc.len() as u64;
+                self.ac.write_document(id, from_doc).await;
+                self.ac.remove(from_id).await;
+
+                let mut entry = data.get_mut(&id.as_u64_pair().0).unwrap();
+                entry.fattr.size = doc_len;
+                let now = FileEntry::now();
+                entry.fattr.mtime = FileEntry::ts_from_u64(now);
+                entry.fattr.ctime = FileEntry::ts_from_u64(now);
+
+                data.remove(&from_id.as_u64_pair().0);
             }
 
             // we are doing a move and/or rename
@@ -341,6 +398,16 @@ impl NFSFileSystem for Drive {
                     info!("rename {} -> {}\t", from_id, to_filename);
                     self.ac.rename_file(from_id, to_filename).await;
                 }
+
+                let mut entry = data.get_mut(&from_id.as_u64_pair().0).unwrap();
+
+                let file = self.ac.get_file_by_id(from_id).await;
+                entry.file = file;
+
+                let now = FileEntry::now();
+                entry.fattr.mtime = FileEntry::ts_from_u64(now);
+                entry.fattr.ctime = FileEntry::ts_from_u64(now);
+
                 info!("ok");
             }
         }
@@ -353,14 +420,20 @@ impl NFSFileSystem for Drive {
     async fn mkdir(
         &self, dirid: fileid3, dirname: &filename3,
     ) -> Result<(fileid3, fattr3), nfsstat3> {
+        let filename = get_string(dirname);
+        let parent = self.data.lock().await.get(&dirid).unwrap().file.id;
         let file = self
             .ac
-            .create_file(dirid, FileType::Folder, get_string(dirname))
+            .create_file(parent, FileType::Folder, filename)
             .await;
-        let file = self.ac.file_to_fattr(&file);
 
-        info!("{}", fmt(file.fileid));
-        Ok((file.fileid, file))
+        let entry = FileEntry::from_file(file, 0);
+        let id = entry.fattr.fileid;
+        let fattr = entry.fattr;
+        self.data.lock().await.insert(entry.fattr.fileid, entry);
+
+        info!("({}, fattr={:?})", fmt(id), fattr);
+        Ok((id, fattr))
     }
 
     async fn symlink(

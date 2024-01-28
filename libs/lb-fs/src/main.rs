@@ -1,3 +1,4 @@
+pub mod cache;
 pub mod core;
 pub mod fs_impl;
 pub mod logger;
@@ -10,6 +11,7 @@ use cli_rs::{
     parser::Cmd,
 };
 use core::AsyncCore;
+use fs_impl::Drive;
 use mount::{mount, umount};
 use nfsserve::tcp::{NFSTcp, NFSTcpListener};
 use std::{
@@ -18,11 +20,6 @@ use std::{
 };
 use tokio::sync::Mutex;
 use tracing::info;
-
-pub struct Drive {
-    ac: AsyncCore,
-    write_lock: Mutex<()>,
-}
 
 fn main() {
     logger::init();
@@ -44,8 +41,9 @@ impl Drive {
     /// executing this from within an async context will panic
     fn init() -> Self {
         let ac = AsyncCore::init();
+        let data = Mutex::default();
 
-        Self { ac, write_lock: Default::default() }
+        Self { ac, data }
     }
 
     #[tokio::main]
