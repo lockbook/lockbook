@@ -2,12 +2,15 @@ import Foundation
 import SwiftUI
 import MetalKit
 import Combine
+import Bridge
 
 #if os(iOS)
 public struct WorkspaceView: View, Equatable {
     
     let workspaceState: WorkspaceState
     let coreHandle: UnsafeMutableRawPointer?
+    
+    @State var activeTabName = ""
     
     public init(_ workspaceState: WorkspaceState, _ coreHandle: UnsafeMutableRawPointer?) {
         self.workspaceState = workspaceState
@@ -31,27 +34,39 @@ public struct UIWS: UIViewRepresentable {
     @Environment(\.horizontalSizeClass) var horizontal
     @Environment(\.verticalSizeClass) var vertical
     
+    var openDoc: UUID? = nil
+    
+    public static var mtkView: iOSMTKInputManager? = nil
+    
     public init(_ workspaceState: WorkspaceState, _ coreHandle: UnsafeMutableRawPointer?) {
         self.workspaceState = workspaceState
         self.coreHandle = coreHandle
     }
 
     public func makeUIView(context: Context) -> iOSMTKInputManager {
-        let mtkView = iOSMTKInputManager(workspaceState, coreHandle)
-
-        return mtkView
+        if Self.mtkView == nil {
+            Self.mtkView = iOSMTKInputManager(workspaceState, coreHandle)
+        }
+        
+        return Self.mtkView!
     }
     
     public func updateUIView(_ uiView: iOSMTKInputManager, context: Context) {
+        uiView.mtkView.showTabs = horizontal == .regular && vertical == .regular
+        
         if let id = workspaceState.openDoc {
             if uiView.mtkView.currentOpenDoc != id {
                 uiView.mtkView.openFile(id: id)
             }
         }
         
+        if workspaceState.currentTab.viewWrapperId() != uiView.currentTab.viewWrapperId() {
+            uiView.updateCurrentTab(newCurrentTab: workspaceState.currentTab)
+        }
+        
         if workspaceState.shouldFocus {
             workspaceState.shouldFocus = false
-            uiView.currentWrapper.becomeFirstResponder()
+            uiView.currentWrapper?.becomeFirstResponder()
         }
         
         if workspaceState.syncRequested {
@@ -59,8 +74,9 @@ public struct UIWS: UIViewRepresentable {
             uiView.mtkView.requestSync()
         }
         
-        if workspaceState.currentTab.viewWrapperIdentifier() != uiView.currentTab.viewWrapperIdentifier() {
-            uiView.updateCurrentTab(newCurrentTab: workspaceState.currentTab)
+        if workspaceState.renameCompleted != nil {
+            uiView.mtkView.openDocRenamed(newName: workspaceState.renameCompleted!)
+            workspaceState.renameCompleted = nil
         }
     }
 }
@@ -68,7 +84,7 @@ public struct UIWS: UIViewRepresentable {
 public class iOSMTKInputManager: UIView {
     public var mtkView: iOSMTK
     
-    var currentWrapper: UIView = UIView()
+    var currentWrapper: UIView? = nil
     var currentTab: WorkspaceTab = .Welcome
     
     init(_ workspaceState: WorkspaceState, _ coreHandle: UnsafeMutableRawPointer?) {
@@ -76,13 +92,10 @@ public class iOSMTKInputManager: UIView {
         mtkView.workspaceState = workspaceState
         mtkView.setInitialContent(coreHandle)
         
-        currentWrapper.addSubview(mtkView)
-        
         super.init(frame: .infinite)
-        
-        addSubview(currentWrapper)
-
+                
         mtkView.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(mtkView)
         NSLayoutConstraint.activate([
             mtkView.topAnchor.constraint(equalTo: topAnchor),
             mtkView.leftAnchor.constraint(equalTo: leftAnchor),
@@ -96,13 +109,9 @@ public class iOSMTKInputManager: UIView {
     }
     
     public func updateCurrentTab(newCurrentTab: WorkspaceTab) {
-        print("scheduled switch")
-        
         mtkView.tabSwitchTask = {
-            self.mtkView.removeConstraints(self.mtkView.constraints)
+            self.currentWrapper?.removeFromSuperview()
             
-            self.mtkView.removeFromSuperview()
-            self.currentWrapper.removeFromSuperview()
             self.mtkView.onSelectionChanged = nil
             self.mtkView.onTextChanged = nil
             
@@ -110,33 +119,32 @@ public class iOSMTKInputManager: UIView {
             
             switch self.currentTab {
             case .Welcome, .Pdf, .Loading, .Image:
-                self.currentWrapper = UIView()
-                self.currentWrapper.addSubview(self.mtkView)
+                print("wrapper not needed")
             case .Svg:
-                self.currentWrapper = iOSMTKDrawingWrapper(mtkView: self.mtkView)
+                let drawingWrapper = iOSMTKDrawingWrapper(mtkView: self.mtkView)
+                self.currentWrapper = drawingWrapper
+                                
+                drawingWrapper.translatesAutoresizingMaskIntoConstraints = false
+                self.addSubview(drawingWrapper)
+                NSLayoutConstraint.activate([
+                    drawingWrapper.topAnchor.constraint(equalTo: self.topAnchor, constant: iOSMTK.TAB_BAR_HEIGHT + iOSMTKDrawingWrapper.TOOL_BAR_HEIGHT),
+                    drawingWrapper.leftAnchor.constraint(equalTo: self.leftAnchor),
+                    drawingWrapper.rightAnchor.constraint(equalTo: self.rightAnchor),
+                    drawingWrapper.bottomAnchor.constraint(equalTo: self.bottomAnchor)
+                ])
             case .PlainText, .Markdown:
-                self.currentWrapper = iOSMTKTextInputWrapper(mtkView: self.mtkView)
+                let textWrapper = iOSMTKTextInputWrapper(mtkView: self.mtkView)
+                self.currentWrapper = textWrapper
+                
+                textWrapper.translatesAutoresizingMaskIntoConstraints = false
+                self.addSubview(textWrapper)
+                NSLayoutConstraint.activate([
+                    textWrapper.topAnchor.constraint(equalTo: self.topAnchor, constant: iOSMTK.TAB_BAR_HEIGHT),
+                    textWrapper.leftAnchor.constraint(equalTo: self.leftAnchor),
+                    textWrapper.rightAnchor.constraint(equalTo: self.rightAnchor),
+                    textWrapper.bottomAnchor.constraint(equalTo: self.bottomAnchor, constant: -iOSMTKTextInputWrapper.TOOL_BAR_HEIGHT)
+                ])
             }
-            
-            self.addSubview(self.currentWrapper)
-
-            self.currentWrapper.translatesAutoresizingMaskIntoConstraints = false
-            NSLayoutConstraint.activate([
-                self.currentWrapper.topAnchor.constraint(equalTo: self.topAnchor),
-                self.currentWrapper.leftAnchor.constraint(equalTo: self.leftAnchor),
-                self.currentWrapper.rightAnchor.constraint(equalTo: self.rightAnchor),
-                self.currentWrapper.bottomAnchor.constraint(equalTo: self.bottomAnchor)
-            ])
-                        
-            self.mtkView.translatesAutoresizingMaskIntoConstraints = false
-            NSLayoutConstraint.activate([
-                self.mtkView.topAnchor.constraint(equalTo: self.topAnchor),
-                self.mtkView.leftAnchor.constraint(equalTo: self.leftAnchor),
-                self.mtkView.rightAnchor.constraint(equalTo: self.rightAnchor),
-                self.mtkView.bottomAnchor.constraint(equalTo: self.bottomAnchor)
-            ])
-            
-            self.currentWrapper.becomeFirstResponder()
         }
     }
 }

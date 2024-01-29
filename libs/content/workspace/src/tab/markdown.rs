@@ -1,6 +1,6 @@
 use lbeditor::{Editor, EditorResponse};
 
-use crate::widgets::{ToolBar, ToolBarVisibility};
+use crate::widgets::{toolbar::IOS_TOOLBAR_SIZE, ToolBar, ToolBarVisibility};
 pub struct Markdown {
     pub editor: Editor,
     pub toolbar: ToolBar,
@@ -28,8 +28,14 @@ impl Markdown {
 
     pub fn show(&mut self, ui: &mut egui::Ui) -> EditorResponse {
         ui.vertical(|ui| {
-            let mut res = self.editor.scroll_ui(ui);
+            let mut res = ui
+                .allocate_ui(
+                    egui::vec2(ui.available_width(), ui.available_height() - IOS_TOOLBAR_SIZE),
+                    |ui| self.editor.scroll_ui(ui),
+                )
+                .inner;
             self.toolbar.show(ui, &mut self.editor);
+
             if self.needs_name {
                 if let Some(title) = &res.potential_title {
                     res.document_renamed = Some(title.clone());

@@ -2,18 +2,18 @@ import Foundation
 import SwiftUI
 import SwiftLockbookCore
 
-struct RenameFolderSheet: View {
+struct RenameFileSheet: View {
         
-    @State var newFolderName: String = DI.sheets.renamingFolderInfo?.name ?? ""
+    @State var newFileName: String = DI.sheets.renamingFileInfo?.name ?? ""
     @State var maybeError: String? = nil
     
     @Environment(\.presentationMode) var presentationMode
     
     var body: some View {
-        if let renamingFolderInfo = DI.sheets.renamingFolderInfo {
-            VStack (alignment: .leading, spacing: 15){
+        if let renamingFileInfo = DI.sheets.renamingFileInfo {
+            VStack (alignment: .leading, spacing: 15) {
                 HStack (alignment: .center) {
-                    Text("Rename folder")
+                    Text("Rename file")
                         .bold()
                         .font(.title)
                     Spacer()
@@ -26,12 +26,12 @@ struct RenameFolderSheet: View {
                 }
                 HStack {
                     Text("Inside:")
-                    Text(renamingFolderInfo.parentPath)
+                    Text(renamingFileInfo.parentPath)
                         .font(.system(.body, design: .monospaced))
                 }
                 
-                TextField("Choose a filename", text: $newFolderName, onCommit: {
-                    onCommit(renamingFolderInfo: renamingFolderInfo)
+                TextField("Choose a filename", text: $newFileName, onCommit: {
+                    onCommit(renamingFileInfo: renamingFileInfo)
                 })
                     .textFieldStyle(RoundedBorderTextFieldStyle())
                     .autocapitalization(.none)
@@ -42,15 +42,27 @@ struct RenameFolderSheet: View {
                         .bold()
                 }
                 
+                Button(action: {
+                    onCommit(renamingFileInfo: renamingFileInfo)
+                }, label: {
+                    Text("Rename")
+                })
+                .buttonStyle(.borderedProminent)
+                
                 Spacer()
+                
             }.renameFolderSheetFrameForMacOS()
         }
     }
     
-    func onCommit(renamingFolderInfo: RenamingFolderInfo) {
-        if let error = DI.files.renameFileSync(id: renamingFolderInfo.id, name: newFolderName) {
+    func onCommit(renamingFileInfo: RenamingFileInfo) {
+        if let error = DI.files.renameFileSync(id: renamingFileInfo.id, name: newFileName) {
             maybeError = error
         } else {
+            if DI.workspace.openDoc == renamingFileInfo.id {
+                DI.workspace.renameCompleted = newFileName
+            }
+            
             maybeError = nil
             presentationMode.wrappedValue.dismiss()
         }

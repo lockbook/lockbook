@@ -9,7 +9,8 @@ import UniformTypeIdentifiers
 // i removed UIEditMenuInteractionDelegate
 
 public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDelegate {
-        
+    public static let TOOL_BAR_HEIGHT: CGFloat = 40
+    
     let mtkView: iOSMTK
     
     var textUndoManager = iOSUndoManager()
@@ -30,19 +31,17 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
         self.mtkView = mtkView
         
         super.init(frame: .infinite)
-        
+                
         mtkView.onSelectionChanged = {
             self.inputDelegate?.selectionDidChange(self)
         }
         mtkView.onTextChanged = {
             self.inputDelegate?.textDidChange(self)
         }
-
-        addSubview(mtkView)
-
+        
         self.clipsToBounds = true
         self.isUserInteractionEnabled = true
-
+        
         // ipad trackpad support
         let pan = UIPanGestureRecognizer(target: self, action: #selector(self.handleTrackpadScroll(_:)))
         pan.allowedScrollTypesMask = .all
@@ -55,6 +54,10 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
         
         for gestureRecognizer in textInteraction.gesturesForFailureRequirements {
             let gestureName = gestureRecognizer.name?.lowercased()
+            
+            if gestureName?.contains("tap") ?? false {
+                gestureRecognizer.cancelsTouchesInView = false
+            }
         }
         
         // drop support
@@ -64,8 +67,24 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
         // undo redo
         self.textUndoManager.wsHandle = self.wsHandle
         self.textUndoManager.onUndoRedo = {
-            self.mtkView.setNeedsDisplay(self.frame)
+            self.mtkView.setNeedsDisplay(mtkView.frame)
         }
+    }
+    
+    public override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+        mtkView.touchesBegan(touches, with: event)
+    }
+    
+    public override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
+        mtkView.touchesMoved(touches, with: event)
+    }
+    
+    public override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
+        mtkView.touchesEnded(touches, with: event)
+    }
+    
+    public override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
+        mtkView.touchesCancelled(touches, with: event)
     }
     
     required init(coder: NSCoder) {
@@ -189,11 +208,6 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
         return false
     }
     
-    public func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {
-        resize_editor(wsHandle, Float(size.width), Float(size.height), Float(self.contentScaleFactor))
-        self.mtkView.setNeedsDisplay()
-    }
-    
     func setClipboard() {
         let pasteboardString: String? = UIPasteboard.general.string
         if let theString = pasteboardString {
@@ -206,10 +220,10 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
         if !isUnderlyingTextEdit {
             return
         }
-                
+                        
         inputDelegate?.textWillChange(self)
         insert_text(wsHandle, text)
-        self.mtkView.setNeedsDisplay(self.frame)
+        self.mtkView.setNeedsDisplay(mtkView.frame)
     }
     
     public func text(in range: UITextRange) -> String? {
@@ -235,7 +249,7 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
         let range = range as! LBTextRange
         inputDelegate?.textWillChange(self)
         replace_text(wsHandle, range.c, text)
-        self.mtkView.setNeedsDisplay(self.frame)
+        self.mtkView.setNeedsDisplay(mtkView.frame)
     }
     
     public var selectedTextRange: UITextRange? {
@@ -431,61 +445,34 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
     }
     
     public func firstRect(for range: UITextRange) -> CGRect {
-        if !isUnderlyingTextEdit {
-            return CGRect(x: 0, y: 0, width: 0, height: 0)
-        }
-        
         let range = (range as! LBTextRange).c
         let result = first_rect(wsHandle, range)
-        
-        let newY = max(result.min_y, 50)
-        let newHeight = max(result.max_y - newY, 0)
-        let newWidth = newHeight == 0 ? 0 : (result.max_x-result.min_x)
-        let newX = newHeight == 0 ? 0.0 : result.min_x
-
-        return CGRect(x: newX, y: newY, width: newWidth, height: newHeight)
+        return CGRect(x: result.min_x, y: result.min_y - iOSMTK.TAB_BAR_HEIGHT, width: result.max_x-result.min_x, height: result.max_y-result.min_y)
     }
     
     public func caretRect(for position: UITextPosition) -> CGRect {
-        if !isUnderlyingTextEdit {
-            return CGRect(x: 0, y: 0, width: 0, height: 0)
-        }
-        
         let position = (position as! LBTextPos).c
         let result = cursor_rect_at_position(wsHandle, position)
-        
-        let newY = max(result.min_y, 50)
-        let newHeight = max(result.max_y - newY, 0)
-        let newWidth = newHeight == 0 ? 0.0 : 1.0
-        let newX = newHeight == 0 ? 0.0 : result.min_x
-        
-        return CGRect(x: newX, y: newY, width: newWidth, height: newHeight)
+        return CGRect(x: result.min_x, y: result.min_y - iOSMTK.TAB_BAR_HEIGHT, width: 1, height:result.max_y - result.min_y)
     }
     
     public func selectionRects(for range: UITextRange) -> [UITextSelectionRect] {
-        if !isUnderlyingTextEdit {
-            return []
-        }
-        
         let range = (range as! LBTextRange).c
         let result = selection_rects(wsHandle, range)
         let buffer = Array(UnsafeBufferPointer(start: result.rects, count: Int(result.size)))
         return buffer.enumerated().map { (index, rect) in
-            let newMinY = max(rect.min_y, 50)
-            let newMaxY = max(newMinY, rect.max_y)
-            
-            let new_rect = CRect(min_x: rect.min_x, min_y: newMinY, max_x: rect.max_x, max_y: newMaxY)
+            let new_rect = CRect(min_x: rect.min_x, min_y: rect.min_y - iOSMTK.TAB_BAR_HEIGHT, max_x: rect.max_x, max_y: rect.max_y - iOSMTK.TAB_BAR_HEIGHT)
             
             return LBTextSelectionRect(cRect: new_rect, loc: index, size: buffer.count)
         }
     }
     
     public func closestPosition(to point: CGPoint) -> UITextPosition? {
-        if !isUnderlyingTextEdit || point.y < 50 {
+        if !isUnderlyingTextEdit {
             return nil
         }
         
-        let point = CPoint(x: point.x, y: point.y)
+        let point = CPoint(x: point.x, y: point.y + iOSMTK.TAB_BAR_HEIGHT)
         let result = position_at_point(wsHandle, point)
         return LBTextPos(c: result)
     }
@@ -512,7 +499,7 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
         
         inputDelegate?.textWillChange(self)
         backspace(wsHandle)
-        self.mtkView.setNeedsDisplay(self.frame)
+        self.mtkView.setNeedsDisplay(mtkView.frame)
     }
     
     public func editMenu(for textRange: UITextRange, suggestedActions: [UIMenuElement]) -> UIMenu? {
@@ -535,18 +522,18 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
             UIAction(title: "Select All") { _ in
                 self.inputDelegate?.selectionWillChange(self)
                 select_all(self.wsHandle)
-                self.mtkView.setNeedsDisplay(self.frame)
+                self.mtkView.setNeedsDisplay(self.mtkView.frame)
             },
         ]) : UIMenu(title: "", options: .displayInline, children: [
             UIAction(title: "Select") { _ in
                 self.inputDelegate?.selectionWillChange(self)
                 select_current_word(self.wsHandle)
-                self.mtkView.setNeedsDisplay(self.frame)
+                self.mtkView.setNeedsDisplay(self.mtkView.frame)
             },
             UIAction(title: "Select All") { _ in
                 self.inputDelegate?.selectionWillChange(self)
                 select_all(self.wsHandle)
-                self.mtkView.setNeedsDisplay(self.frame)
+                self.mtkView.setNeedsDisplay(self.mtkView.frame)
             },
             UIAction(title: "Paste") { _ in
                 self.inputDelegate?.textWillChange(self)
@@ -561,13 +548,13 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
     
     @objc func clipboardCopy() {
         clipboard_copy(self.wsHandle)
-        self.mtkView.setNeedsDisplay(self.frame)
+        self.mtkView.setNeedsDisplay(mtkView.frame)
     }
     
     @objc func clipboardCut() {
         inputDelegate?.textWillChange(self)
         clipboard_cut(self.wsHandle)
-        self.mtkView.setNeedsDisplay(self.frame)
+        self.mtkView.setNeedsDisplay(mtkView.frame)
     }
     
     @objc func clipboardPaste() {
@@ -592,7 +579,7 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
     func undoRedo(redo: Bool) {
         inputDelegate?.textWillChange(self)
         undo_redo(self.wsHandle, redo)
-        self.mtkView.setNeedsDisplay(self.frame)
+        self.mtkView.setNeedsDisplay(mtkView.frame)
     }
     
     func getText() -> String {
@@ -605,54 +592,6 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
         free_text(UnsafeMutablePointer(mutating: result))
         return str
     }
-    
-    public override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
-        let point = Unmanaged.passUnretained(touches.first!).toOpaque()
-        let value = UInt64(UInt(bitPattern: point))
-        print("touches began: \(value)")
-        
-        let location = touches.first!.location(in: self)
-        touches_began(wsHandle, value, Float(location.x), Float(location.y), Float(touches.first?.force ?? 0))
-
-        self.setNeedsDisplay(self.frame)
-        super.touchesBegan(touches, with: event)
-    }
-    
-    public override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
-        let point = Unmanaged.passUnretained(touches.first!).toOpaque()
-        let value = UInt64(UInt(bitPattern: point))
-        let location = touches.first!.location(in: self)
-        touches_moved(wsHandle, value, Float(location.x), Float(location.y), Float(touches.first?.force ?? 0))
-        
-        self.setNeedsDisplay(self.frame)
-        super.touchesMoved(touches, with: event)
-    }
-    
-    public override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
-        let point = Unmanaged.passUnretained(touches.first!).toOpaque()
-        let value = UInt64(UInt(bitPattern: point))
-        print("touches ended: \(value)")
-        
-        let location = touches.first!.location(in: self)
-        touches_ended(wsHandle, value, Float(location.x), Float(location.y), Float(touches.first?.force ?? 0))
-        
-        self.setNeedsDisplay(self.frame)
-        super.touchesEnded(touches, with: event)
-    }
-
-    public override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
-        let point = Unmanaged.passUnretained(touches.first!).toOpaque()
-        let value = UInt64(UInt(bitPattern: point))
-        
-        print("touches began: \(value)")
-        
-        let location = touches.first!.location(in: self)
-        touches_cancelled(wsHandle, value, Float(location.x), Float(location.y), Float(touches.first?.force ?? 0))
-    
-        self.setNeedsDisplay(self.frame)
-        super.touchesCancelled(touches, with: event)
-    }
-    
     
     public override var canBecomeFirstResponder: Bool {
         return true
@@ -673,7 +612,7 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
         }
         
         delete_word(wsHandle)
-        mtkView.setNeedsDisplay(self.frame)
+        mtkView.setNeedsDisplay(mtkView.frame)
     }
     
     func unimplemented() {
@@ -683,6 +622,9 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
 }
 
 public class iOSMTKDrawingWrapper: UIView, UIPencilInteractionDelegate {
+    
+    public static let TOOL_BAR_HEIGHT: CGFloat = 50
+    
     let pencilInteraction = UIPencilInteraction()
     
     let mtkView: iOSMTK
@@ -694,11 +636,57 @@ public class iOSMTKDrawingWrapper: UIView, UIPencilInteractionDelegate {
     init(mtkView: iOSMTK) {
         self.mtkView = mtkView
         super.init(frame: .infinite)
-        
-        addSubview(mtkView)
-        
+                        
         pencilInteraction.delegate = self
         addInteraction(pencilInteraction)
+    }
+    
+    public func pencilInteractionDidTap(_ interaction: UIPencilInteraction) {
+        print("pencil tap interaction")
+        switch UIPencilInteraction.preferredTapAction {
+        case .ignore, .showColorPalette, .showInkAttributes:
+            print("do nothing")
+        case .switchEraser:
+            toggle_drawing_tool_between_eraser(wsHandle)
+        case .switchPrevious:
+            toggle_drawing_tool(wsHandle)
+        default:
+            print("don't know, do nothing")
+        }
+        
+        mtkView.setNeedsDisplay(mtkView.frame)
+    }
+    
+    public override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+        guard let touch = touches.first else { return }
+
+        if touch.type == .stylus || !UIPencilInteraction.prefersPencilOnlyDrawing {
+            mtkView.touchesBegan(touches, with: event)
+        }
+    }
+    
+    public override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
+        guard let touch = touches.first else { return }
+
+        if touch.type == .stylus || !UIPencilInteraction.prefersPencilOnlyDrawing {
+            mtkView.touchesMoved(touches, with: event)
+        }
+    }
+    
+    public override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
+        guard let touch = touches.first else { return }
+
+        if touch.type == .stylus || !UIPencilInteraction.prefersPencilOnlyDrawing {
+            mtkView.touchesEnded(touches, with: event)
+        }
+    }
+    
+    public override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
+        guard let touch = touches.first else { return }
+
+        if touch.type == .stylus || !UIPencilInteraction.prefersPencilOnlyDrawing {
+            mtkView.touchesCancelled(touches, with: event)
+        }
     }
 
     required init(coder: NSCoder) {
@@ -707,6 +695,8 @@ public class iOSMTKDrawingWrapper: UIView, UIPencilInteractionDelegate {
 }
 
 public class iOSMTK: MTKView, MTKViewDelegate {
+    
+    public static let TAB_BAR_HEIGHT: CGFloat = 50
     
     public var wsHandle: UnsafeMutableRawPointer?
     var workspaceState: WorkspaceState?
@@ -718,6 +708,9 @@ public class iOSMTK: MTKView, MTKViewDelegate {
     var tabSwitchTask: (() -> Void)? = nil
     var onSelectionChanged: (() -> Void)? = nil
     var onTextChanged: (() -> Void)? = nil
+        
+    var docChanged = false
+    var showTabs = false
     
     override init(frame frameRect: CGRect, device: MTLDevice?) {
         super.init(frame: frameRect, device: device)
@@ -726,7 +719,7 @@ public class iOSMTK: MTKView, MTKViewDelegate {
         self.enableSetNeedsDisplay = true
         self.delegate = self
         self.preferredFramesPerSecond = 120
-        self.isUserInteractionEnabled = false
+        self.isUserInteractionEnabled = true
     }
     
     required init(coder: NSCoder) {
@@ -743,14 +736,20 @@ public class iOSMTK: MTKView, MTKViewDelegate {
     }
     
     func requestSync() {
+        print("sync requested")
         request_sync(wsHandle)
+        setNeedsDisplay(self.frame)
+    }
+    
+    func openDocRenamed(newName: String) {
+        active_tab_renamed(wsHandle, newName)
         setNeedsDisplay(self.frame)
     }
 
     public func setInitialContent(_ coreHandle: UnsafeMutableRawPointer?) {
         let metalLayer = UnsafeMutableRawPointer(Unmanaged.passUnretained(self.layer).toOpaque())
         self.wsHandle = init_ws(coreHandle, metalLayer, isDarkMode())
-    }
+    } 
     
     public func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {
         resize_editor(wsHandle, Float(size.width), Float(size.height), Float(self.contentScaleFactor))
@@ -767,6 +766,7 @@ public class iOSMTK: MTKView, MTKViewDelegate {
         dark_mode(wsHandle, isDarkMode())
         set_scale(wsHandle, Float(self.contentScaleFactor))
         let output = draw_editor(wsHandle)
+        print("editor drawn")
 
         if output.workspace_resp.selection_updated {
             onSelectionChanged?()
@@ -801,8 +801,16 @@ public class iOSMTK: MTKView, MTKViewDelegate {
             }
         }
         
-        workspaceState!.currentTab = WorkspaceTab(rawValue: Int(current_tab(wsHandle)))!
-                
+        DispatchQueue.main.async {
+            withAnimation {
+                self.workspaceState!.currentTab = WorkspaceTab(rawValue: Int(current_tab(self.wsHandle)))!
+            }
+        }
+        
+        if unfocus_if_renaming(wsHandle) {
+            workspaceState!.renameOpenDoc = true
+        }
+        
         let newFile = UUID(uuid: output.workspace_resp.doc_created._0)
         if !newFile.isNil() {
             self.workspaceState?.openDoc = newFile
@@ -844,6 +852,44 @@ public class iOSMTK: MTKView, MTKViewDelegate {
         dark_mode(wsHandle, isDarkMode())
         setNeedsDisplay(self.frame)
     }
+    
+    public override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+        let point = Unmanaged.passUnretained(touches.first!).toOpaque()
+        let value = UInt64(UInt(bitPattern: point))
+        let location = touches.first!.location(in: self)
+        
+        touches_began(wsHandle, value, Float(location.x), Float(location.y), Float(touches.first?.force ?? 0))
+        self.setNeedsDisplay(self.frame)
+    }
+    
+    public override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
+        let point = Unmanaged.passUnretained(touches.first!).toOpaque()
+        let value = UInt64(UInt(bitPattern: point))
+        let location = touches.first!.location(in: self)
+        
+        touches_moved(wsHandle, value, Float(location.x), Float(location.y), Float(touches.first?.force ?? 0))
+        self.setNeedsDisplay(self.frame)
+    }
+    
+    public override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
+        let point = Unmanaged.passUnretained(touches.first!).toOpaque()
+        let value = UInt64(UInt(bitPattern: point))
+        let location = touches.first!.location(in: self)
+        
+        touches_ended(wsHandle, value, Float(location.x), Float(location.y), Float(touches.first?.force ?? 0))
+        self.setNeedsDisplay(self.frame)
+    }
+
+    public override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
+        let point = Unmanaged.passUnretained(touches.first!).toOpaque()
+        let value = UInt64(UInt(bitPattern: point))
+        let location = touches.first!.location(in: self)
+        
+        touches_cancelled(wsHandle, value, Float(location.x), Float(location.y), Float(touches.first?.force ?? 0))
+    
+        self.setNeedsDisplay(self.frame)
+    }
+
     
     func isDarkMode() -> Bool {
         traitCollection.userInterfaceStyle != .light
@@ -1011,17 +1057,18 @@ class LBTextSelectionRect: UITextSelectionRect {
     }
 }
 
+#endif
+
 public enum WorkspaceTab: Int {
     case Welcome = 0
     case Loading = 1
-    
     case Image = 2
     case Markdown = 3
     case PlainText = 4
     case Pdf = 5
     case Svg = 6
     
-    func viewWrapperIdentifier() -> Int {
+    func viewWrapperId() -> Int {
         switch self {
         case .Welcome, .Pdf, .Loading, .Image:
             1
@@ -1040,7 +1087,4 @@ public enum WorkspaceTab: Int {
         self == .Svg
     }
 }
-
-#endif
-
 

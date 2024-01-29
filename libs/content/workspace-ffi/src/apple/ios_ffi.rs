@@ -8,14 +8,14 @@ use egui_editor::input::canonical::{Bound, Increment, Location, Modification, Of
 use egui_editor::input::cursor::Cursor;
 use egui_editor::input::mutation;
 use egui_editor::offset_types::{DocCharOffset, RangeExt};
-use workspace::tab::svg_editor::Tool;
-use workspace::tab::{TabContent, markdown, Tab};
-use workspace::tab::markdown::Markdown;
 use std::borrow::BorrowMut;
-use std::{cmp, ptr};
 use std::ffi::{c_char, c_void, CStr, CString};
 use std::mem::ManuallyDrop;
 use std::ptr::null;
+use std::{cmp, ptr};
+use workspace::tab::markdown::Markdown;
+use workspace::tab::svg_editor::Tool;
+use workspace::tab::{markdown, Tab, TabContent};
 
 /// # Safety
 /// obj must be a valid pointer to WgpuEditor
@@ -32,15 +32,17 @@ pub unsafe extern "C" fn insert_text(obj: *mut c_void, content: *const c_char) {
     };
 
     if content == "\n" {
-        markdown.editor
+        markdown
+            .editor
             .custom_events
             .push(Modification::Newline { advance_cursor: true });
     } else if content == "\t" {
-        markdown.editor
+        markdown
+            .editor
             .custom_events
             .push(Modification::Indent { deindent: false });
     } else {
-        obj.raw_input.events.push(Event::Text(content))
+        obj.raw_input.events.push(Event::Text(content));
     }
 }
 
@@ -89,7 +91,8 @@ pub unsafe extern "C" fn replace_text(obj: *mut c_void, range: CTextRange, text:
     };
 
     if !range.none {
-        markdown.editor
+        markdown
+            .editor
             .custom_events
             .push(Modification::Replace { region: range.into(), text });
     }
@@ -253,10 +256,13 @@ pub unsafe extern "C" fn set_marked(obj: *mut c_void, range: CTextRange, text: *
     let text =
         if text.is_null() { None } else { Some(CStr::from_ptr(text).to_str().unwrap().into()) };
 
-    markdown.editor.custom_events.push(Modification::StageMarked {
-        highlighted: range.into(),
-        text: text.unwrap_or_default(),
-    });
+    markdown
+        .editor
+        .custom_events
+        .push(Modification::StageMarked {
+            highlighted: range.into(),
+            text: text.unwrap_or_default(),
+        });
 }
 
 /// # Safety
@@ -271,7 +277,10 @@ pub unsafe extern "C" fn unmark_text(obj: *mut c_void) {
         None => return,
     };
 
-    markdown.editor.custom_events.push(Modification::CommitMarked);
+    markdown
+        .editor
+        .custom_events
+        .push(Modification::CommitMarked);
 }
 
 /// # Safety
@@ -761,7 +770,8 @@ pub unsafe extern "C" fn selection_rects(
 
         let start_line =
             cursor_representing_rect.start_line(galleys, text, &markdown.editor.appearance);
-        let end_line = cursor_representing_rect.end_line(galleys, text, &markdown.editor.appearance);
+        let end_line =
+            cursor_representing_rect.end_line(galleys, text, &markdown.editor.appearance);
 
         selection_rects.push(CRect {
             min_x: (start_line[1].x) as f64,
@@ -857,7 +867,7 @@ pub unsafe extern "C" fn delete_word(obj: *mut c_void) {
 #[no_mangle]
 pub unsafe extern "C" fn current_tab(obj: *mut c_void) -> i64 {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-    
+
     match obj.workspace.current_tab() {
         Some(tab) => match &tab.content {
             Some(tab) => match tab {
@@ -866,9 +876,9 @@ pub unsafe extern "C" fn current_tab(obj: *mut c_void) -> i64 {
                 TabContent::PlainText(_) => 4,
                 TabContent::Pdf(_) => 5,
                 TabContent::Svg(_) => 6,
-            }
+            },
             None => 1,
-        }
+        },
         None => 0,
     }
 }
@@ -878,7 +888,7 @@ pub unsafe extern "C" fn current_tab(obj: *mut c_void) -> i64 {
 #[no_mangle]
 pub unsafe extern "C" fn toggle_drawing_tool(obj: *mut c_void) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-    
+
     if let Some(svg) = obj.workspace.current_tab_svg_mut() {
         svg.toolbar.toggle_tool();
     }
@@ -887,10 +897,56 @@ pub unsafe extern "C" fn toggle_drawing_tool(obj: *mut c_void) {
 /// # Safety
 /// obj must be a valid pointer to WgpuEditor
 #[no_mangle]
-pub unsafe extern "C" fn set_drawing_tool_eraser(obj: *mut c_void) {
+pub unsafe extern "C" fn toggle_drawing_tool_between_eraser(obj: *mut c_void) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-    
+
     if let Some(svg) = obj.workspace.current_tab_svg_mut() {
-        svg.toolbar.set_tool(Tool::Eraser)
+        svg.toolbar.toggle_tool_between_eraser()
     }
+}
+
+/// # Safety
+/// obj must be a valid pointer to WgpuEditor
+#[no_mangle]
+pub unsafe extern "C" fn unfocus_if_renaming(obj: *mut c_void) -> bool {
+    let obj = &mut *(obj as *mut WgpuWorkspace);
+
+    match obj.workspace.current_tab_mut() {
+        Some(tab) => {
+            let is_renamed = tab.rename.is_some();
+            tab.rename = None;
+
+            is_renamed
+        }
+        None => false,
+    }
+}
+
+/// # Safety
+/// obj must be a valid pointer to WgpuEditor
+#[no_mangle]
+pub unsafe extern "C" fn active_tab_name(obj: *mut c_void) -> *const c_char {
+    let obj = &mut *(obj as *mut WgpuWorkspace);
+
+    match obj.workspace.current_tab() {
+        Some(tab) => CString::new(tab.name.clone())
+            .expect("Could not Rust String -> C String")
+            .into_raw(),
+        None => null(),
+    }
+}
+
+/// # Safety
+/// obj must be a valid pointer to WgpuEditor
+#[no_mangle]
+pub unsafe extern "C" fn active_tab_renamed(obj: *mut c_void, new_name: *const c_char) {
+    let obj = &mut *(obj as *mut WgpuWorkspace);
+    let new_name: String = CStr::from_ptr(new_name).to_str().unwrap().into();
+
+    obj.workspace
+        .updates_tx
+        .send(workspace::workspace::WsMsg::FileRenamed {
+            id: obj.workspace.tabs[obj.workspace.active_tab].id,
+            new_name,
+        });
 }

@@ -9,7 +9,7 @@ struct CreatingFolderInfo: Identifiable {
     let maybeParent: UUID?
 }
 
-struct RenamingFolderInfo: Identifiable {
+struct RenamingFileInfo: Identifiable {
     let id: UUID
     let name: String
     let parentPath: String
@@ -33,16 +33,16 @@ class SheetState: ObservableObject {
         }
     }
     
-    @Published var renamingFolder: Bool = false {
+    @Published var renamingFile: Bool = false {
         didSet {
-            if !renamingFolder && renamingFolderInfo != nil {
-                renamingFolderInfo = nil
+            if !renamingFile && renamingFileInfo != nil {
+                renamingFileInfo = nil
             }
         }
     }
-    @Published var renamingFolderInfo: RenamingFolderInfo? {
+    @Published var renamingFileInfo: RenamingFileInfo? {
         didSet {
-            renamingFolder = renamingFolderInfo != nil
+            renamingFile = renamingFileInfo != nil
         }
     }
     
@@ -95,5 +95,16 @@ class SheetState: ObservableObject {
             }
         }
         .store(in: &cancellables)
+        
+        DI.workspace.$renameOpenDoc.sink { isRenaming in
+            if isRenaming {
+                DI.workspace.renameOpenDoc = false
+                let file = DI.files.idsAndFiles[DI.workspace.openDoc!]!
+                
+                DI.sheets.renamingFileInfo = RenamingFileInfo(id: file.id, name: file.name, parentPath: DI.files.getPathByIdOrParent(maybeId: file.parent) ?? "Error")
+            }
+        }
+        .store(in: &cancellables)
+
     }
 }

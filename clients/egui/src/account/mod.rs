@@ -555,7 +555,6 @@ impl AccountScreen {
                             name,
                             path,
                             rename: None,
-                            selection_range: None,
                             content: content.ok(),
                             failure: None,
                             last_changed: now,

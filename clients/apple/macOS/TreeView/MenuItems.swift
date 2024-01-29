@@ -35,7 +35,7 @@ class CreateFolder: NSMenuItem {
     }
 }
 
-class RenameFolder: NSMenuItem {
+class RenameFile: NSMenuItem {
     let file: File
     init(file: File) {
         self.file = file
@@ -48,7 +48,7 @@ class RenameFolder: NSMenuItem {
     }
 
     @objc func create(_ sender: AnyObject) {
-        DI.sheets.renamingFolderInfo = RenamingFolderInfo(id: file.id, name: file.name, parentPath: DI.files.getPathByIdOrParent(maybeId: file.parent) ?? "ERROR")
+        DI.sheets.renamingFileInfo = RenamingFileInfo(id: file.id, name: file.name, parentPath: DI.files.getPathByIdOrParent(maybeId: file.parent) ?? "ERROR")
     }
 }
 

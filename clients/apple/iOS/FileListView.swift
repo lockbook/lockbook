@@ -27,10 +27,6 @@ struct FileListView: View {
                 mainView: mainView,
                 isiOS: true)
             .searchable(text: $searchInput, prompt: "Search")
-            
-            WorkspaceView(DI.workspace, get_core_ptr())
-                .equatable()
-                .opacity(workspace.openDoc == nil ? 0.0 : 1.0)
         }
         .gesture(
             DragGesture().onEnded({ (value) in

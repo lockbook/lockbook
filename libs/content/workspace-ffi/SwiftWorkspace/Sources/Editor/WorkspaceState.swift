@@ -1,5 +1,9 @@
 import SwiftUI
 import Combine
+#if os(iOS)
+import GameController
+#endif
+
 
 // todo can this go away enirely?
 public class WorkspaceState: ObservableObject {
@@ -9,7 +13,11 @@ public class WorkspaceState: ObservableObject {
     
     @Published public var openDoc: UUID? = nil {
         didSet {
-//            shouldFocus = true
+            #if os(iOS)
+            shouldFocus = GCKeyboard.coalesced != nil
+            #else
+            shouldFocus = true
+            #endif
             pendingSharesOpen = false
         }
     }
@@ -31,6 +39,9 @@ public class WorkspaceState: ObservableObject {
     @Published public var newFolderButtonPressed: Bool = false
     
     @Published public var currentTab: WorkspaceTab = .Welcome
+    
+    @Published public var renameOpenDoc: Bool = false
+    @Published public var renameCompleted: String? = nil // new file name
     
     public var importFile: (URL) -> String?
     

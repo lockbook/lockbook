@@ -2,7 +2,7 @@ use std::f32::consts::PI;
 
 use crate::{theme::icons::Icon, widgets::Button};
 
-use super::{Pen, Eraser, Buffer, selection::Selection};
+use super::{selection::Selection, Buffer, Eraser, Pen};
 
 const ICON_SIZE: f32 = 30.0;
 const COLOR_SWATCH_BTN_RADIUS: f32 = 9.0;
@@ -20,7 +20,7 @@ pub struct Toolbar {
     pub prev_non_eraser_tool: Option<Tool>,
 }
 
-#[derive(PartialEq, Eq, Copy, Clone)]
+#[derive(PartialEq, Eq, Copy, Clone, Debug)]
 pub enum Tool {
     Pen,
     Eraser,
@@ -68,6 +68,8 @@ macro_rules! set_tool {
             $obj.prev_non_eraser_tool = Some($obj.active_tool);
         }
 
+        println!("previous tool: {:?}, new tool: {:?}", $obj.prev_non_eraser_tool, $new_tool);
+
         $obj.active_tool = $new_tool;
     };
 }
@@ -91,11 +93,11 @@ impl Toolbar {
         egui::Rect { min: min_pos, max: max_pos }
     }
 
-    pub fn set_tool(&mut self, new_tool: Tool) {
-        set_tool!(self, new_tool);
+    pub fn toggle_tool(&mut self) {
+        set_tool!(self, self.prev_non_eraser_tool.unwrap_or(Tool::Pen));
     }
 
-    pub fn toggle_tool(&mut self) {
+    pub fn toggle_tool_between_eraser(&mut self) {
         let new_tool = if self.active_tool == Tool::Eraser {
             self.prev_non_eraser_tool.unwrap_or(Tool::Pen)
         } else {

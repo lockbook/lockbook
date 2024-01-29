@@ -43,8 +43,8 @@
 		47DBF1F22A61A51000F86B3F /* ImportExportService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47DBF1F02A61A51000F86B3F /* ImportExportService.swift */; };
 		47FAA4C829EC830600DB606E /* BranchState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47FAA4C729EC830600DB606E /* BranchState.swift */; };
 		47FAA4C929EC830600DB606E /* BranchState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47FAA4C729EC830600DB606E /* BranchState.swift */; };
-		47FB55ED2AF19AD400B74C09 /* RenameFolderSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47FB55EC2AF19AD400B74C09 /* RenameFolderSheet.swift */; };
-		47FB55EE2AF19AD400B74C09 /* RenameFolderSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47FB55EC2AF19AD400B74C09 /* RenameFolderSheet.swift */; };
+		47FB55ED2AF19AD400B74C09 /* RenameFileSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47FB55EC2AF19AD400B74C09 /* RenameFileSheet.swift */; };
+		47FB55EE2AF19AD400B74C09 /* RenameFileSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47FB55EC2AF19AD400B74C09 /* RenameFileSheet.swift */; };
 		6581A7EF74307EAE69426206 /* SheetState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6581AB54147C2201F8F95500 /* SheetState.swift */; };
 		6581ABD3CA16395327F765E8 /* SheetState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6581AB54147C2201F8F95500 /* SheetState.swift */; };
 		6581AC0512EDB9FBB7106020 /* MenuItems.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6581A11CE95C74B01ED30AEB /* MenuItems.swift */; };
@@ -161,7 +161,7 @@
 		47DBF1F32A61CA5000F86B3F /* UIKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = UIKit.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS16.4.sdk/System/Library/Frameworks/UIKit.framework; sourceTree = DEVELOPER_DIR; };
 		47DBF2212A61D45600F86B3F /* AuthenticationServices.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AuthenticationServices.framework; path = System/Library/Frameworks/AuthenticationServices.framework; sourceTree = SDKROOT; };
 		47FAA4C729EC830600DB606E /* BranchState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BranchState.swift; sourceTree = "<group>"; };
-		47FB55EC2AF19AD400B74C09 /* RenameFolderSheet.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = RenameFolderSheet.swift; sourceTree = "<group>"; };
+		47FB55EC2AF19AD400B74C09 /* RenameFileSheet.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = RenameFileSheet.swift; sourceTree = "<group>"; };
 		6581A11CE95C74B01ED30AEB /* MenuItems.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MenuItems.swift; sourceTree = "<group>"; };
 		6581AB54147C2201F8F95500 /* SheetState.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = SheetState.swift; path = iOS/OutlineView/SheetState.swift; sourceTree = SOURCE_ROOT; };
 		870DC09E26BDE6F4002E9A92 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
@@ -380,7 +380,7 @@
 		EADE1A5725352E5D00710996 /* Views */ = {
 			isa = PBXGroup;
 			children = (
-				47FB55EC2AF19AD400B74C09 /* RenameFolderSheet.swift */,
+				47FB55EC2AF19AD400B74C09 /* RenameFileSheet.swift */,
 				87F78F7927094A040001E159 /* BeforeYouStart.swift */,
 				EAEDCD0A2516FC1C00EBE313 /* BookView.swift */,
 				EA831A542534E3C80048CE26 /* AppView.swift */,
@@ -549,7 +549,7 @@
 				87BD383826C020B00030D2B1 /* SettingsService.swift in Sources */,
 				B249B9ED282AF6BF004F5300 /* OutlineContextMenu.swift in Sources */,
 				8715F92827161CC60051689E /* OnboardingView.swift in Sources */,
-				47FB55ED2AF19AD400B74C09 /* RenameFolderSheet.swift in Sources */,
+				47FB55ED2AF19AD400B74C09 /* RenameFileSheet.swift in Sources */,
 				47FAA4C829EC830600DB606E /* BranchState.swift in Sources */,
 				4756C4DB2A57CE86002C64B1 /* NewFolderSheet.swift in Sources */,
 				877FB56026D2C7D60008AB3F /* StatusService.swift in Sources */,
@@ -621,7 +621,7 @@
 				870DC0A226BF378F002E9A92 /* AccountSettingsView.swift in Sources */,
 				EAAA10D925B3FD58005140EE /* BottomBar.swift in Sources */,
 				B249B9F5282FE566004F5300 /* DataSource.swift in Sources */,
-				47FB55EE2AF19AD400B74C09 /* RenameFolderSheet.swift in Sources */,
+				47FB55EE2AF19AD400B74C09 /* RenameFileSheet.swift in Sources */,
 				870DC0A426BF37C0002E9A92 /* UsageSettingsView.swift in Sources */,
 				B2459BEE28DBB43100756D71 /* ColorProgressBar.swift in Sources */,
 				EAF96D0D252E8ED000AA1A14 /* ConfigHelper.swift in Sources */,

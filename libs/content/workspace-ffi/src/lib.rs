@@ -8,6 +8,7 @@ use std::ffi::{c_char, CString};
 use std::ptr::null;
 use std::time::Instant;
 use std::{iter, ptr};
+use workspace::tab::markdown;
 
 mod cursor_icon;
 
@@ -127,6 +128,9 @@ pub struct FfiWorkspaceResp {
 
     #[cfg(target_os = "ios")]
     selection_updated: bool,
+
+    #[cfg(target_os = "ios")]
+    selection_in_tab_title: bool,
 }
 
 impl Default for FfiWorkspaceResp {
@@ -141,7 +145,9 @@ impl Default for FfiWorkspaceResp {
             #[cfg(target_os = "ios")]
             text_updated: Default::default(),
             #[cfg(target_os = "ios")]
-            selection_updated: Default::default()
+            selection_updated: Default::default(),
+            #[cfg(target_os = "ios")]
+            selection_in_tab_title: false,
         }
     }
 }
@@ -170,6 +176,8 @@ impl From<WsOutput> for FfiWorkspaceResp {
             text_updated: false,
             #[cfg(target_os = "ios")]
             selection_updated: false,
+            #[cfg(target_os = "ios")]
+            selection_in_tab_title: true,
         }
     }
 }
@@ -229,7 +237,7 @@ impl Into<Location> for CTextPosition {
 }
 
 impl WgpuWorkspace {
-    pub fn frame(&mut self) -> IntegrationOutput {
+    pub fn frame(&mut self, show_tabs: bool) -> IntegrationOutput {
         let mut out = IntegrationOutput::default();
         self.configure_surface();
         let output_frame = match self.surface.get_current_texture() {
@@ -265,15 +273,17 @@ impl WgpuWorkspace {
 
         #[cfg(target_os = "ios")]
         {
-            let markdown = self.workspace.current_tab_markdown();
-
-            out.workspace_resp.text_updated = markdown.and_then(|markdown| Some(markdown.editor.text_updated)).unwrap_or(false);
-            out.workspace_resp.selection_updated = markdown.and_then(|markdown| {
-                let scroll_changed = markdown.editor.scroll_area_offset != markdown.editor.old_scroll_area_offset;
-                let selection_updated = markdown.editor.selection_updated;
-
-                Some(scroll_changed || selection_updated)
-            }).unwrap_or(false);
+            if let Some(markdown) = self.workspace.current_tab_markdown() {
+                out.workspace_resp.text_updated = markdown.editor.text_updated;
+                out.workspace_resp.selection_updated = (markdown.editor.scroll_area_offset
+                    != markdown.editor.old_scroll_area_offset)
+                    || markdown.editor.selection_updated;
+                out.workspace_resp.selection_in_tab_title = self
+                    .workspace
+                    .current_tab()
+                    .and_then(|tab| Some(tab.rename.is_some()))
+                    .unwrap_or(false)
+            }
         }
 
         if let Some(url) = full_output.platform_output.open_url {

@@ -8,6 +8,8 @@ use crate::theme::icons::Icon;
 
 use super::Button;
 
+pub const IOS_TOOLBAR_SIZE: f32 = 40.0;
+
 #[derive(Clone)]
 struct ToolbarButton {
     icon: Icon,
@@ -42,41 +44,52 @@ impl ToolBar {
             id: egui::Id::null(),
         }
     }
-
     pub fn show(&mut self, ui: &mut egui::Ui, editor: &mut Editor) {
-        // greedy focus toggle on the editor whenever the pointer is not in the toolbar
-        let pointer = ui.ctx().pointer_hover_pos().unwrap_or_default();
-        let toolbar_rect = self.calculate_rect(ui, editor);
-
-        if toolbar_rect.contains(pointer) {
-            if editor.has_focus {
-                editor.has_focus = false
-            }
+        if cfg!(target_os = "ios") {
+            ui.allocate_ui(egui::vec2(ui.available_width(), IOS_TOOLBAR_SIZE), |ui| {
+                egui::Frame::default()
+                    .inner_margin(egui::Margin::symmetric(20.0, 5.0))
+                    .show(ui, |ui| self.map_buttons(ui, editor));
+            });
         } else {
-            self.header_click_count = 1;
-            if !editor.has_focus {
-                editor.has_focus = true
+            // greedy focus toggle on the editor whenever the pointer is not in the toolbar
+            let pointer = ui.ctx().pointer_hover_pos().unwrap_or_default();
+            let toolbar_rect = self.calculate_rect(ui, editor);
+
+            if toolbar_rect.contains(pointer) {
+                if editor.has_focus {
+                    editor.has_focus = false
+                }
+            } else {
+                self.header_click_count = 1;
+                if !editor.has_focus {
+                    editor.has_focus = true
+                }
             }
+
+            self.id = ui.id();
+
+            ui.allocate_ui_at_rect(toolbar_rect, |ui| {
+                egui::Frame::default()
+                    .fill(ui.visuals().code_bg_color)
+                    .inner_margin(self.margin)
+                    .shadow(egui::epaint::Shadow {
+                        extrusion: ui.visuals().window_shadow.extrusion,
+                        color: ui.visuals().window_shadow.color.gamma_multiply(0.3),
+                    })
+                    .rounding(egui::Rounding::same(20.0))
+                    .show(ui, |ui| self.map_buttons(ui, editor))
+            });
         }
-
-        self.id = ui.id();
-
-        ui.allocate_ui_at_rect(toolbar_rect, |ui| {
-            egui::Frame::default()
-                .fill(ui.visuals().code_bg_color)
-                .inner_margin(self.margin)
-                .shadow(egui::epaint::Shadow {
-                    extrusion: ui.visuals().window_shadow.extrusion,
-                    color: ui.visuals().window_shadow.color.gamma_multiply(0.3),
-                })
-                .rounding(egui::Rounding::same(20.0))
-                .show(ui, |ui| self.map_buttons(ui, editor))
-        });
     }
 
     fn map_buttons(&mut self, ui: &mut egui::Ui, editor: &mut Editor) {
         ui.horizontal(|ui| {
-            ui.spacing_mut().button_padding = egui::vec2(10.0, 20.0);
+            ui.spacing_mut().button_padding = if cfg!(target_os = "ios") {
+                egui::vec2(10.0, 4.0)
+            } else {
+                egui::vec2(20.0, 10.0)
+            };
 
             self.buttons.clone().iter().for_each(|btn| {
                 let res = Button::default().icon(&btn.icon).show(ui);
@@ -220,6 +233,7 @@ fn get_buttons(visibility: &ToolBarVisibility) -> Vec<ToolbarButton> {
                         )))
                 },
             },
+            #[cfg(not(target_os = "ios"))]
             ToolbarButton {
                 icon: Icon::VISIBILITY_OFF,
                 id: "visibility_off".to_string(),

@@ -116,7 +116,6 @@ impl Workspace {
         self.tabs.push(Tab {
             id,
             rename: None,
-            selection_range: None,
             name: name.to_owned(),
             path: path.to_owned(),
             failure: None,
@@ -146,31 +145,31 @@ impl Workspace {
 
     pub fn current_tab_markdown(&self) -> Option<&Markdown> {
         let current_tab = self.current_tab()?;
-    
+
         if let Some(TabContent::Markdown(markdown)) = &current_tab.content {
             return Some(markdown);
         }
-    
+
         None
     }
 
     pub fn current_tab_markdown_mut(&mut self) -> Option<&mut Markdown> {
         let current_tab = self.current_tab_mut()?;
-    
+
         if let Some(TabContent::Markdown(markdown)) = &mut current_tab.content {
             return Some(markdown);
         }
-    
+
         None
     }
 
     pub fn current_tab_svg_mut(&mut self) -> Option<&mut SVGEditor> {
         let current_tab = self.current_tab_mut()?;
-    
+
         if let Some(TabContent::Svg(svg)) = &mut current_tab.content {
             return Some(svg);
         }
-    
+
         None
     }
 
@@ -300,9 +299,6 @@ impl Workspace {
 
                                         let active_name = self.tabs[i].name.clone();
 
-                                        // if self.tabs[i].rename.is_none() {
-                                        //     self.tabs[i].selection_range = Some((0, active_name.len()));
-                                        // }
                                         let mut rename_edit_state =
                                             egui::text_edit::TextEditState::default();
                                         rename_edit_state.set_ccursor_range(Some(
@@ -592,7 +588,7 @@ impl Workspace {
                             Err(fail) => {
                                 tab.failure = Some(fail);
                                 println!("failed loaded file 1");
-                            },
+                            }
                         }
                     } else {
                         println!("failed to load file 2");

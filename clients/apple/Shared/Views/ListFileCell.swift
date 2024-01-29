@@ -11,25 +11,24 @@ struct FileCell: View {
         cell
             .contextMenu(menuItems: {
                 // TODO: disast: https://stackoverflow.com/questions/70159437/context-menu-not-updating-in-swiftui
-                if meta.fileType == .Folder {
-                    Button(action: {
-                        DI.sheets.renamingFolderInfo = RenamingFolderInfo(id: meta.id, name: meta.name, parentPath: DI.files.getPathByIdOrParent(maybeId: meta.parent) ?? "ERROR")
-                    }) {
-                        Label("Rename", systemImage: "questionmark.folder")
-                    }
+
+                Button(action: {
+                    DI.sheets.renamingFileInfo = RenamingFileInfo(id: meta.id, name: meta.name, parentPath: DI.files.getPathByIdOrParent(maybeId: meta.parent) ?? "ERROR")
+                }) {
+                    Label("Rename", systemImage: "questionmark.folder")
                 }
+                                
+                Button(action: {
+                    DI.sheets.movingInfo = meta
+                }, label: {
+                    Label("Move", systemImage: "arrow.up.and.down.and.arrow.left.and.right")
+                })
                 
                 Button(action: {
                     DI.files.deleteFile(id: meta.id)
                 }) {
                     Label("Delete", systemImage: "trash.fill")
                 }
-                
-                Button(action: {
-                    DI.sheets.movingInfo = meta
-                }, label: {
-                    Label("Move", systemImage: "arrow.up.and.down.and.arrow.left.and.right")
-                })
                 
                 Button(action: {
                     DI.sheets.sharingFileInfo = meta
@@ -59,7 +58,9 @@ struct FileCell: View {
             if meta.fileType == .Folder {
                 enterFolderAnim()
             } else {
-                DI.workspace.openDoc = meta.id
+                withAnimation {
+                    DI.workspace.openDoc = meta.id
+                }
             }
         }) {
             RealFileCell(meta: meta)

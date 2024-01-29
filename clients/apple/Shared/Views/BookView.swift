@@ -1,5 +1,7 @@
 import SwiftUI
+import SwiftWorkspace
 import SwiftLockbookCore
+import CLockbookCore
 import AlertToast
 import Introspect
 
@@ -10,6 +12,7 @@ struct BookView: View {
     @EnvironmentObject var files: FileService
     @EnvironmentObject var share: ShareService
     @EnvironmentObject var search: SearchService
+    @EnvironmentObject var workspace: WorkspaceState
 
     let currentFolder: File
     let account: Account
@@ -25,7 +28,7 @@ struct BookView: View {
             .sheet(isPresented: $onboarding.anAccountWasCreatedThisSession, content: BeforeYouStart.init)
             .sheet(isPresented: $sheets.sharingFile, content: ShareFileSheet.init)
             .sheet(isPresented: $sheets.creatingFolder, content: NewFolderSheet.init)
-            .sheet(isPresented: $sheets.renamingFolder, content: RenameFolderSheet.init)
+            .sheet(isPresented: $sheets.renamingFile, content: RenameFileSheet.init)
             .toast(isPresenting: Binding(get: { files.successfulAction != nil }, set: { _ in files.successfulAction = nil }), duration: 2, tapToDismiss: true) {
                 postFileAction()
             }
@@ -50,24 +53,34 @@ struct BookView: View {
     
     #if os(iOS)
     var iOS: some View {
-        NavigationView {
-            FileListView()
-                .toolbar {
-                    ToolbarItemGroup {
-                        NavigationLink(
-                            destination: PendingSharesView()) {
-                                pendingShareToolbarIcon(isPendingSharesEmpty: share.pendingShares?.isEmpty ?? false)
-                            }
-                        
-                        NavigationLink(
-                            destination: SettingsView().equatable(), isActive: $onboarding.theyChoseToBackup) {
-                                Image(systemName: "gearshape.fill").foregroundColor(.blue)
-                                    .padding(.horizontal, 10)
-                            }
+        ZStack {
+            NavigationView {
+                FileListView()
+                    .toolbar {
+                        ToolbarItemGroup {
+                            NavigationLink(
+                                destination: PendingSharesView()) {
+                                    pendingShareToolbarIcon(isPendingSharesEmpty: share.pendingShares?.isEmpty ?? false)
+                                }
+                            
+                            NavigationLink(
+                                destination: SettingsView().equatable(), isActive: $onboarding.theyChoseToBackup) {
+                                    Image(systemName: "gearshape.fill").foregroundColor(.blue)
+                                        .padding(.horizontal, 10)
+                                }
+                        }
                     }
-                }
-        }
+            }
             .navigationViewStyle(.stack)
+            
+            GeometryReader { geometry in
+                NavigationView {
+                    WorkspaceView(DI.workspace, get_core_ptr())
+                        .equatable()
+                }
+                .offset(x: workspace.currentTab == .Welcome ? geometry.size.width : 1.0)
+            }
+        }
     }
 
     @ViewBuilder
