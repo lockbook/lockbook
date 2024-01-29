@@ -246,74 +246,10 @@ impl Workspace {
 
         ui.vertical(|ui| {
             if !self.tabs.is_empty() {
-                ui.horizontal(|ui| {
-                    for (i, maybe_resp) in self
-                        .tabs
-                        .iter_mut()
-                        .enumerate()
-                        .map(|(i, t)| (tab_label(ui, t, self.active_tab == i)))
-                        .collect::<Vec<Option<TabLabelResponse>>>()
-                        .iter()
-                        .enumerate()
-                    {
-                        if let Some(resp) = maybe_resp {
-                            match resp {
-                                TabLabelResponse::Clicked => {
-                                    if self.active_tab == i {
-                                        // we should rename the file.
-
-                                        let active_name = self.tabs[i].name.clone();
-
-                                        let mut rename_edit_state =
-                                            egui::text_edit::TextEditState::default();
-                                        rename_edit_state.set_ccursor_range(Some(
-                                            egui::text_edit::CCursorRange {
-                                                primary: egui::text::CCursor::new(
-                                                    active_name
-                                                        .rfind('.')
-                                                        .unwrap_or(active_name.len()),
-                                                ),
-                                                secondary: egui::text::CCursor::new(0),
-                                            },
-                                        ));
-                                        egui::TextEdit::store_state(
-                                            ui.ctx(),
-                                            egui::Id::new("rename_tab"),
-                                            rename_edit_state,
-                                        );
-                                        self.tabs[i].rename = Some(active_name);
-                                    } else {
-                                        self.tabs[i].rename = None;
-                                        self.active_tab = i;
-                                        output.window_title = Some(self.tabs[i].name.clone());
-                                        output.selected_file = Some(self.tabs[i].id);
-                                    }
-                                }
-                                TabLabelResponse::Closed => {
-                                    self.close_tab(i);
-                                    output.window_title = Some(match self.current_tab() {
-                                        Some(tab) => tab.name.clone(),
-                                        None => "Lockbook".to_owned(),
-                                    });
-                                }
-                                TabLabelResponse::Renamed(name) => {
-                                    self.tabs[i].rename = None;
-                                    let id = self.current_tab().unwrap().id;
-                                    if let Some(tab) = self.get_mut_tab_by_id(id) {
-                                        if let Some(TabContent::Markdown(md)) = &mut tab.content {
-                                            md.needs_name = false;
-                                        }
-                                    }
-                                    self.rename_file((id, name.clone()));
-                                }
-                            }
-                            ui.ctx().request_repaint();
-                        }
-                    }
-                });
-
-                separator(ui);
+                self.show_tab_strip(ui, output);
             }
+
+            separator(ui);
 
             ui.centered_and_justified(|ui| {
                 let mut rename_req = None;
@@ -365,6 +301,74 @@ impl Workspace {
                 }
                 if let Some(req) = rename_req {
                     self.rename_file(req);
+                }
+            });
+        });
+    }
+
+    fn show_tab_strip(&mut self, ui: &mut egui::Ui, output: &mut WsOutput) {
+        egui::ScrollArea::horizontal().show(ui, |ui| {
+            ui.horizontal(|ui| {
+                for (i, maybe_resp) in self
+                    .tabs
+                    .iter_mut()
+                    .enumerate()
+                    .map(|(i, t)| (tab_label(ui, t, self.active_tab == i)))
+                    .collect::<Vec<Option<TabLabelResponse>>>()
+                    .iter()
+                    .enumerate()
+                {
+                    if let Some(resp) = maybe_resp {
+                        match resp {
+                            TabLabelResponse::Clicked => {
+                                if self.active_tab == i {
+                                    // we should rename the file.
+
+                                    let active_name = self.tabs[i].name.clone();
+
+                                    let mut rename_edit_state =
+                                        egui::text_edit::TextEditState::default();
+                                    rename_edit_state.set_ccursor_range(Some(
+                                        egui::text_edit::CCursorRange {
+                                            primary: egui::text::CCursor::new(
+                                                active_name.rfind('.').unwrap_or(active_name.len()),
+                                            ),
+                                            secondary: egui::text::CCursor::new(0),
+                                        },
+                                    ));
+                                    egui::TextEdit::store_state(
+                                        ui.ctx(),
+                                        egui::Id::new("rename_tab"),
+                                        rename_edit_state,
+                                    );
+                                    self.tabs[i].rename = Some(active_name);
+                                } else {
+                                    self.tabs[i].rename = None;
+                                    self.active_tab = i;
+                                    output.window_title = Some(self.tabs[i].name.clone());
+                                    output.selected_file = Some(self.tabs[i].id);
+                                }
+                            }
+                            TabLabelResponse::Closed => {
+                                self.close_tab(i);
+                                output.window_title = Some(match self.current_tab() {
+                                    Some(tab) => tab.name.clone(),
+                                    None => "Lockbook".to_owned(),
+                                });
+                            }
+                            TabLabelResponse::Renamed(name) => {
+                                self.tabs[i].rename = None;
+                                let id = self.current_tab().unwrap().id;
+                                if let Some(tab) = self.get_mut_tab_by_id(id) {
+                                    if let Some(TabContent::Markdown(md)) = &mut tab.content {
+                                        md.needs_name = false;
+                                    }
+                                }
+                                self.rename_file((id, name.clone()));
+                            }
+                        }
+                        ui.ctx().request_repaint();
+                    }
                 }
             });
         });
