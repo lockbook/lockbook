@@ -710,7 +710,7 @@ public class iOSMTK: MTKView, MTKViewDelegate {
     var onTextChanged: (() -> Void)? = nil
         
     var docChanged = false
-    var showTabs = false
+    var showTabs = true
     
     override init(frame frameRect: CGRect, device: MTLDevice?) {
         super.init(frame: frameRect, device: device)
@@ -732,7 +732,18 @@ public class iOSMTK: MTKView, MTKViewDelegate {
             open_file(wsHandle, uuid, false)
             setNeedsDisplay(self.frame)
         }
-
+    }
+    
+    func showHideTabs(show: Bool) {
+        showTabs = show
+        
+        show_hide_tabs(wsHandle, show)
+        setNeedsDisplay(self.frame)
+    }
+    
+    func closeActiveTab() {
+        close_active_tab(wsHandle)
+        setNeedsDisplay(self.frame)
     }
     
     func requestSync() {
@@ -756,17 +767,16 @@ public class iOSMTK: MTKView, MTKViewDelegate {
         self.setNeedsDisplay()
     }
     
-    public func draw(in view: MTKView) {        
+    public func draw(in view: MTKView) {
         if tabSwitchTask != nil {
             tabSwitchTask!()
             tabSwitchTask = nil
-            workspaceState?.shouldFocus = true
+//            workspaceState?.shouldFocus = true
         }
         
         dark_mode(wsHandle, isDarkMode())
         set_scale(wsHandle, Float(self.contentScaleFactor))
         let output = draw_editor(wsHandle)
-        print("editor drawn")
 
         if output.workspace_resp.selection_updated {
             onSelectionChanged?()
@@ -785,7 +795,6 @@ public class iOSMTK: MTKView, MTKViewDelegate {
         if selectedFile.isNil() {
             currentOpenDoc = nil
             if self.workspaceState?.openDoc != nil {
-                workspaceState!.currentTab = .Welcome
                 self.workspaceState?.openDoc = nil
             }
         } else {
@@ -801,14 +810,22 @@ public class iOSMTK: MTKView, MTKViewDelegate {
             }
         }
         
-        DispatchQueue.main.async {
-            withAnimation {
-                self.workspaceState!.currentTab = WorkspaceTab(rawValue: Int(current_tab(self.wsHandle)))!
+        let currentTab = WorkspaceTab(rawValue: Int(current_tab(wsHandle)))!
+        
+        if currentTab != self.workspaceState!.currentTab {
+            DispatchQueue.main.async {
+                withAnimation {
+                    self.workspaceState!.currentTab = currentTab
+                }
             }
         }
         
-        if unfocus_if_renaming(wsHandle) {
+        if output.workspace_resp.tab_title_clicked {
             workspaceState!.renameOpenDoc = true
+            
+            if showTabs {
+                unfocus_title(wsHandle)
+            }
         }
         
         let newFile = UUID(uuid: output.workspace_resp.doc_created._0)

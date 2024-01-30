@@ -908,31 +908,11 @@ pub unsafe extern "C" fn toggle_drawing_tool_between_eraser(obj: *mut c_void) {
 /// # Safety
 /// obj must be a valid pointer to WgpuEditor
 #[no_mangle]
-pub unsafe extern "C" fn unfocus_if_renaming(obj: *mut c_void) -> bool {
+pub unsafe extern "C" fn unfocus_title(obj: *mut c_void) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
 
-    match obj.workspace.current_tab_mut() {
-        Some(tab) => {
-            let is_renamed = tab.rename.is_some();
-            tab.rename = None;
-
-            is_renamed
-        }
-        None => false,
-    }
-}
-
-/// # Safety
-/// obj must be a valid pointer to WgpuEditor
-#[no_mangle]
-pub unsafe extern "C" fn active_tab_name(obj: *mut c_void) -> *const c_char {
-    let obj = &mut *(obj as *mut WgpuWorkspace);
-
-    match obj.workspace.current_tab() {
-        Some(tab) => CString::new(tab.name.clone())
-            .expect("Could not Rust String -> C String")
-            .into_raw(),
-        None => null(),
+    if let Some(tab) = obj.workspace.current_tab_mut() {
+        tab.rename = None;
     }
 }
 
@@ -949,4 +929,22 @@ pub unsafe extern "C" fn active_tab_renamed(obj: *mut c_void, new_name: *const c
             id: obj.workspace.tabs[obj.workspace.active_tab].id,
             new_name,
         });
+}
+
+/// # Safety
+/// obj must be a valid pointer to WgpuEditor
+#[no_mangle]
+pub unsafe extern "C" fn show_hide_tabs(obj: *mut c_void, show: bool) {
+    let obj = &mut *(obj as *mut WgpuWorkspace);
+
+    obj.workspace.show_tabs = show;
+}
+
+/// # Safety
+/// obj must be a valid pointer to WgpuEditor
+#[no_mangle]
+pub unsafe extern "C" fn close_active_tab(obj: *mut c_void) {
+    let obj = &mut *(obj as *mut WgpuWorkspace);
+
+    obj.workspace.close_tab(obj.workspace.active_tab)
 }

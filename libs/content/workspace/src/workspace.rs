@@ -1,5 +1,6 @@
 use egui::{Color32, Context};
 use std::borrow::Borrow;
+use std::ops::Deref;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::Arc;
@@ -37,6 +38,7 @@ pub struct Workspace {
 
     // todo set this in swift as well
     pub focused_parent: Option<Uuid>,
+    pub show_tabs: bool,
 
     pub pers_status: PersistentWsStatus,
 }
@@ -107,6 +109,7 @@ impl Workspace {
             background_tx,
             syncing,
             pers_status,
+            show_tabs: true,
             focused_parent: None,
         }
     }
@@ -280,7 +283,7 @@ impl Workspace {
         ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
 
         ui.vertical(|ui| {
-            if !self.tabs.is_empty() {
+            if self.show_tabs && !self.tabs.is_empty() {
                 ui.horizontal(|ui| {
                     for (i, maybe_resp) in self
                         .tabs
@@ -297,6 +300,7 @@ impl Workspace {
                                     if self.active_tab == i {
                                         // we should rename the file.
 
+                                        output.tab_title_clicked = true;
                                         let active_name = self.tabs[i].name.clone();
 
                                         let mut rename_edit_state =
@@ -344,6 +348,31 @@ impl Workspace {
                             }
                             ui.ctx().request_repaint();
                         }
+                    }
+                });
+
+                separator(ui);
+            } else if !self.tabs.is_empty() {
+                // let mut layout = egui::Layout::top_down(egui::Align::Min);
+
+                // layout = layout.with_main_justify(true);
+                ui.horizontal(|ui| {
+                    ui.set_style(egui::Style {
+                        text_styles: vec![(
+                            egui::TextStyle::Button,
+                            egui::FontId::new(30.0, egui::FontFamily::Proportional),
+                        )]
+                        .into_iter()
+                        .collect(),
+                        ..ui.style().deref().clone()
+                    });
+
+                    let button = egui::widgets::Button::new(self.tabs[0].name.clone())
+                        .frame(false)
+                        .fill(egui::Color32::TRANSPARENT);
+
+                    if ui.add_sized(ui.available_size(), button).clicked() {
+                        output.tab_title_clicked = true;
                     }
                 });
 

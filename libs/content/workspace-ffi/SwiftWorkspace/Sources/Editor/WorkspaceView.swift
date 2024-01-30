@@ -52,7 +52,10 @@ public struct UIWS: UIViewRepresentable {
     }
     
     public func updateUIView(_ uiView: iOSMTKInputManager, context: Context) {
-        uiView.mtkView.showTabs = horizontal == .regular && vertical == .regular
+        let showTabs = horizontal == .regular && vertical == .regular
+        if uiView.mtkView.showTabs != showTabs {
+            Self.mtkView?.mtkView.showHideTabs(show: showTabs)
+        }
         
         if let id = workspaceState.openDoc {
             if uiView.mtkView.currentOpenDoc != id {
@@ -77,6 +80,12 @@ public struct UIWS: UIViewRepresentable {
         if workspaceState.renameCompleted != nil {
             uiView.mtkView.openDocRenamed(newName: workspaceState.renameCompleted!)
             workspaceState.renameCompleted = nil
+        }
+        
+        if workspaceState.closeActiveTab {
+            print("closing...")
+            workspaceState.closeActiveTab = false
+            uiView.mtkView.closeActiveTab()
         }
     }
 }

@@ -8,7 +8,7 @@ use crate::theme::icons::Icon;
 
 use super::Button;
 
-pub const IOS_TOOLBAR_SIZE: f32 = 40.0;
+pub const MOBILE_TOOL_BAR_SIZE: f32 = 40.0;
 
 #[derive(Clone)]
 struct ToolbarButton {
@@ -22,6 +22,7 @@ pub struct ToolBar {
     id: egui::Id,
     pub has_focus: bool,
     buttons: Vec<ToolbarButton>,
+    mobile_buttons: Vec<ToolbarButton>,
     header_click_count: usize,
     pub visibility: ToolBarVisibility,
 }
@@ -36,20 +37,25 @@ pub enum ToolBarVisibility {
 impl ToolBar {
     pub fn new(visibility: &ToolBarVisibility) -> Self {
         Self {
-            margin: egui::Margin::symmetric(15.0, 0.0),
+            margin: if cfg!(target_os = "ios") {
+                egui::Margin::symmetric(20.0, 5.0)
+            } else {
+                egui::Margin::symmetric(15.0, 0.0)
+            },
             buttons: get_buttons(visibility),
+            mobile_buttons: get_buttons(visibility)
             header_click_count: 1,
             has_focus: false,
             visibility: visibility.to_owned(),
             id: egui::Id::null(),
         }
     }
-    pub fn show(&mut self, ui: &mut egui::Ui, editor: &mut Editor) {
-        if cfg!(target_os = "ios") {
-            ui.allocate_ui(egui::vec2(ui.available_width(), IOS_TOOLBAR_SIZE), |ui| {
+    pub fn show(&mut self, ui: &mut egui::Ui, editor: &mut Editor, is_mobile: bool) {
+        if is_mobile {
+            ui.allocate_ui(egui::vec2(ui.available_width(), MOBILE_TOOL_BAR_SIZE), |ui| {
                 egui::Frame::default()
-                    .inner_margin(egui::Margin::symmetric(20.0, 5.0))
-                    .show(ui, |ui| self.map_buttons(ui, editor));
+                    .inner_margin(self.margin)
+                    .show(ui, |ui| self.map_buttons(ui, editor, true));
             });
         } else {
             // greedy focus toggle on the editor whenever the pointer is not in the toolbar
@@ -78,14 +84,15 @@ impl ToolBar {
                         color: ui.visuals().window_shadow.color.gamma_multiply(0.3),
                     })
                     .rounding(egui::Rounding::same(20.0))
-                    .show(ui, |ui| self.map_buttons(ui, editor))
+                    .show(ui, |ui| self.map_buttons(ui, editor, false))
             });
         }
     }
 
-    fn map_buttons(&mut self, ui: &mut egui::Ui, editor: &mut Editor) {
+    fn map_buttons(&mut self, ui: &mut egui::Ui, editor: &mut Editor, is_mobile: bool) {
+
         ui.horizontal(|ui| {
-            ui.spacing_mut().button_padding = if cfg!(target_os = "ios") {
+            ui.spacing_mut().button_padding = if condensed {
                 egui::vec2(10.0, 4.0)
             } else {
                 egui::vec2(20.0, 10.0)
@@ -153,6 +160,84 @@ impl ToolBar {
             ToolBarVisibility::Disabled => egui::Rect::NOTHING,
         }
     }
+}
+
+fn get_mobile_buttons() -> Vec<ToolbarButton> {
+    vec![
+        ToolbarButton {
+            icon: Icon::HEADER_1,
+            id: "header".to_string(),
+            callback: |e, t| {
+                e.custom_events
+                    .push(Modification::toggle_heading_style(t.header_click_count));
+                if t.header_click_count > 5 {
+                    t.header_click_count = 6;
+                } else {
+                    t.header_click_count += 1;
+                }
+            },
+        },
+        ToolbarButton {
+            icon: Icon::BOLD,
+            id: "bold".to_string(),
+            callback: |e, _| {
+                e.custom_events.push(Modification::ToggleStyle {
+                    region: Region::Selection,
+                    style: MarkdownNode::Inline(InlineNode::Bold),
+                })
+            },
+        },
+        ToolbarButton {
+            icon: Icon::ITALIC,
+            id: "italic".to_string(),
+            callback: |e, _| {
+                e.custom_events.push(Modification::ToggleStyle {
+                    region: Region::Selection,
+                    style: MarkdownNode::Inline(InlineNode::Italic),
+                })
+            },
+        },
+        ToolbarButton {
+            icon: Icon::CODE,
+            id: "in_line_code".to_string(),
+            callback: |e, _| {
+                e.custom_events.push(Modification::ToggleStyle {
+                    region: Region::Selection,
+                    style: MarkdownNode::Inline(InlineNode::Code),
+                });
+            },
+        },
+        ToolbarButton {
+            icon: Icon::NUMBER_LIST,
+            id: "number_list".to_string(),
+            callback: |e, _| {
+                e.custom_events
+                    .push(Modification::toggle_block_style(BlockNode::ListItem(
+                        ListItem::Numbered(1),
+                        0,
+                    )))
+            },
+        },
+        ToolbarButton {
+            icon: Icon::TODO_LIST,
+            id: "todo_list".to_string(),
+            callback: |e, _| {
+                e.custom_events
+                    .push(Modification::toggle_block_style(BlockNode::ListItem(
+                        ListItem::Todo(false),
+                        0,
+                    )))
+            },
+        },
+        ToolbarButton {
+            icon: Icon::VISIBILITY_OFF,
+            id: "visibility_off".to_string(),
+            callback: |_, t| {
+                t.visibility = ToolBarVisibility::Minimized;
+                t.buttons = get_buttons(&t.visibility);
+            },
+        },
+    ]
 }
 
 fn get_buttons(visibility: &ToolBarVisibility) -> Vec<ToolbarButton> {
@@ -233,7 +318,6 @@ fn get_buttons(visibility: &ToolBarVisibility) -> Vec<ToolbarButton> {
                         )))
                 },
             },
-            #[cfg(not(target_os = "ios"))]
             ToolbarButton {
                 icon: Icon::VISIBILITY_OFF,
                 id: "visibility_off".to_string(),

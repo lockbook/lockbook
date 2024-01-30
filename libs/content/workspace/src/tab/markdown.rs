@@ -1,6 +1,6 @@
 use lbeditor::{Editor, EditorResponse};
 
-use crate::widgets::{toolbar::IOS_TOOLBAR_SIZE, ToolBar, ToolBarVisibility};
+use crate::widgets::{toolbar::MOBILE_TOOL_BAR_SIZE, ToolBar, ToolBarVisibility};
 pub struct Markdown {
     pub editor: Editor,
     pub toolbar: ToolBar,

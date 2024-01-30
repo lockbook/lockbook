@@ -125,12 +125,10 @@ pub struct FfiWorkspaceResp {
 
     #[cfg(target_os = "ios")]
     text_updated: bool,
-
     #[cfg(target_os = "ios")]
     selection_updated: bool,
-
     #[cfg(target_os = "ios")]
-    selection_in_tab_title: bool,
+    tab_title_clicked: bool,
 }
 
 impl Default for FfiWorkspaceResp {
@@ -147,7 +145,7 @@ impl Default for FfiWorkspaceResp {
             #[cfg(target_os = "ios")]
             selection_updated: Default::default(),
             #[cfg(target_os = "ios")]
-            selection_in_tab_title: false,
+            tab_title_clicked: false,
         }
     }
 }
@@ -177,7 +175,7 @@ impl From<WsOutput> for FfiWorkspaceResp {
             #[cfg(target_os = "ios")]
             selection_updated: false,
             #[cfg(target_os = "ios")]
-            selection_in_tab_title: true,
+            tab_title_clicked: value.tab_title_clicked,
         }
     }
 }
@@ -237,7 +235,7 @@ impl Into<Location> for CTextPosition {
 }
 
 impl WgpuWorkspace {
-    pub fn frame(&mut self, show_tabs: bool) -> IntegrationOutput {
+    pub fn frame(&mut self) -> IntegrationOutput {
         let mut out = IntegrationOutput::default();
         self.configure_surface();
         let output_frame = match self.surface.get_current_texture() {
@@ -278,11 +276,6 @@ impl WgpuWorkspace {
                 out.workspace_resp.selection_updated = (markdown.editor.scroll_area_offset
                     != markdown.editor.old_scroll_area_offset)
                     || markdown.editor.selection_updated;
-                out.workspace_resp.selection_in_tab_title = self
-                    .workspace
-                    .current_tab()
-                    .and_then(|tab| Some(tab.rename.is_some()))
-                    .unwrap_or(false)
             }
         }
 

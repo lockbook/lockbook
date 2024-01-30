@@ -77,8 +77,25 @@ struct BookView: View {
                 NavigationView {
                     WorkspaceView(DI.workspace, get_core_ptr())
                         .equatable()
+                        .toolbar {
+                            ToolbarItem(placement: .navigationBarLeading) {
+                                Button(action: {
+                                    workspace.closeActiveTab = true
+                                }) {
+                                    HStack {
+                                        Image(systemName: "chevron.backward")
+                                            .foregroundStyle(.blue)
+                                            .bold()
+                                        
+                                        Text(DI.accounts.account!.username)
+                                            .foregroundStyle(.blue)
+                                    }
+                                }
+                            }
+                        }
                 }
-                .offset(x: workspace.currentTab == .Welcome ? geometry.size.width : 1.0)
+//                .opacity(workspace.showWorkspace ? 1.0 : 0.0)
+                .offset(x: workspace.currentTab != .Welcome ? 0.0 : geometry.size.width)
             }
         }
     }
