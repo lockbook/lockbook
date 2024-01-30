@@ -27,9 +27,9 @@ impl FileEntry {
         let fattr = fattr3 {
             ftype,
             mode,
-            nlink: Default::default(), // hard links to this file
-            uid: 501,                  // todo: evaluate owner field? not resolved by this lib
-            gid: 20,                   // group id
+            nlink: 1, // hard links to this file
+            uid: 501, // todo: evaluate owner field? not resolved by this lib
+            gid: 20,  // group id
             size,
             used: size,               // ?
             rdev: Default::default(), // ?
