@@ -207,6 +207,7 @@ impl<Client: Requester, Docs: DocumentService> CoreLib<Client, Docs> {
             ])
     }
 
+    // todo this should take ownership of it's vec what the hell
     #[instrument(level = "debug", skip(self, content), err(Debug))]
     pub fn write_document(&self, id: Uuid, content: &[u8]) -> Result<(), LbError> {
         self.in_tx(|s| s.write_document(id, content))
@@ -419,7 +420,15 @@ impl<Client: Requester, Docs: DocumentService> CoreLib<Client, Docs> {
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
+    pub fn get_uncompressed_usage_breakdown(
+        &self,
+    ) -> Result<HashMap<Uuid, usize>, UnexpectedError> {
+        Ok(self.in_tx(|s| s.get_uncompressed_usage_breakdown())?)
+    }
+
+    #[instrument(level = "debug", skip(self), err(Debug))]
     pub fn get_uncompressed_usage(&self) -> Result<UsageItemMetric, LbError> {
+        // todo the errors here are wrong this doesn't talk to the server
         self.in_tx(|s| s.get_uncompressed_usage())
             .expected_errs(&[CoreError::ServerUnreachable, CoreError::ClientUpdateRequired])
     }
