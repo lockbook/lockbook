@@ -156,6 +156,7 @@ impl Selection {
                 transform_origin_dirty = true;
                 break;
             } else if ui.input(|r| r.pointer.primary_down()) {
+                ui.output_mut(|r| r.cursor_icon = egui::CursorIcon::Grabbing);
                 let mut delta = egui::pos2(pos.x - el.original_pos.x, pos.y - el.original_pos.y);
                 if let Some(transform) = buffer.current.attr("transform") {
                     let transform = deserialize_transform(transform);
@@ -198,7 +199,7 @@ impl Selection {
             end_drag(buffer, &mut self.selected_elements, pos, history_dirty);
         }
 
-        if ui.input(|r| r.key_pressed(egui::Key::Delete)) && !self.selected_elements.is_empty() {
+        if ui.input(|r| r.key_pressed(egui::Key::Backspace)) && !self.selected_elements.is_empty() {
             let elements = self
                 .selected_elements
                 .iter()

@@ -282,101 +282,15 @@ impl Workspace {
         ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
 
         ui.vertical(|ui| {
-            if self.show_tabs && !self.tabs.is_empty() {
-                ui.horizontal(|ui| {
-                    for (i, maybe_resp) in self
-                        .tabs
-                        .iter_mut()
-                        .enumerate()
-                        .map(|(i, t)| (tab_label(ui, t, self.active_tab == i)))
-                        .collect::<Vec<Option<TabLabelResponse>>>()
-                        .iter()
-                        .enumerate()
-                    {
-                        if let Some(resp) = maybe_resp {
-                            match resp {
-                                TabLabelResponse::Clicked => {
-                                    if self.active_tab == i {
-                                        // we should rename the file.
-
-                                        output.tab_title_clicked = true;
-                                        let active_name = self.tabs[i].name.clone();
-
-                                        let mut rename_edit_state =
-                                            egui::text_edit::TextEditState::default();
-                                        rename_edit_state.set_ccursor_range(Some(
-                                            egui::text_edit::CCursorRange {
-                                                primary: egui::text::CCursor::new(
-                                                    active_name
-                                                        .rfind('.')
-                                                        .unwrap_or(active_name.len()),
-                                                ),
-                                                secondary: egui::text::CCursor::new(0),
-                                            },
-                                        ));
-                                        egui::TextEdit::store_state(
-                                            ui.ctx(),
-                                            egui::Id::new("rename_tab"),
-                                            rename_edit_state,
-                                        );
-                                        self.tabs[i].rename = Some(active_name);
-                                    } else {
-                                        self.tabs[i].rename = None;
-                                        self.active_tab = i;
-                                        output.window_title = Some(self.tabs[i].name.clone());
-                                        output.selected_file = Some(self.tabs[i].id);
-                                    }
-                                }
-                                TabLabelResponse::Closed => {
-                                    self.close_tab(i);
-                                    output.window_title = Some(match self.current_tab() {
-                                        Some(tab) => tab.name.clone(),
-                                        None => "Lockbook".to_owned(),
-                                    });
-                                }
-                                TabLabelResponse::Renamed(name) => {
-                                    self.tabs[i].rename = None;
-                                    let id = self.current_tab().unwrap().id;
-                                    if let Some(tab) = self.get_mut_tab_by_id(id) {
-                                        if let Some(TabContent::Markdown(md)) = &mut tab.content {
-                                            md.needs_name = false;
-                                        }
-                                    }
-                                    self.rename_file((id, name.clone()));
-                                }
-                            }
-                            ui.ctx().request_repaint();
-                        }
-                    }
-                });
-
-                separator(ui);
-            } else if !self.tabs.is_empty() {
-                // let mut layout = egui::Layout::top_down(egui::Align::Min);
-
-                // layout = layout.with_main_justify(true);
-                ui.horizontal(|ui| {
-                    ui.set_style(egui::Style {
-                        text_styles: vec![(
-                            egui::TextStyle::Button,
-                            egui::FontId::new(30.0, egui::FontFamily::Proportional),
-                        )]
-                        .into_iter()
-                        .collect(),
-                        ..ui.style().deref().clone()
-                    });
-
-                    let button = egui::widgets::Button::new(self.tabs[0].name.clone())
-                        .frame(false)
-                        .fill(egui::Color32::TRANSPARENT);
-
-                    if ui.add_sized(ui.available_size(), button).clicked() {
-                        output.tab_title_clicked = true;
-                    }
-                });
-
-                separator(ui);
+            if !self.tabs.is_empty() {
+                if self.show_tabs {
+                    self.show_tab_strip(ui, output);
+                } else {
+                    self.show_mobile_title(ui, output);
+                }
             }
+
+            separator(ui);
 
             ui.centered_and_justified(|ui| {
                 let mut rename_req = None;
@@ -428,6 +342,96 @@ impl Workspace {
                 }
                 if let Some(req) = rename_req {
                     self.rename_file(req);
+                }
+            });
+        });
+    }
+
+    fn show_mobile_title(&mut self, ui: &mut egui::Ui, output: &mut WsOutput) {
+        ui.horizontal(|ui| {
+            ui.set_style(egui::Style {
+                text_styles: vec![(
+                    egui::TextStyle::Button,
+                    egui::FontId::new(30.0, egui::FontFamily::Proportional),
+                )]
+                .into_iter()
+                .collect(),
+                ..ui.style().deref().clone()
+            });
+
+            let button = egui::widgets::Button::new(self.tabs[0].name.clone())
+                .frame(false)
+                .fill(egui::Color32::TRANSPARENT);
+
+            if ui.add_sized(ui.available_size(), button).clicked() {
+                output.tab_title_clicked = true;
+            }
+        });
+    }
+
+    fn show_tab_strip(&mut self, ui: &mut egui::Ui, output: &mut WsOutput) {
+        egui::ScrollArea::horizontal().show(ui, |ui| {
+            ui.horizontal(|ui| {
+                for (i, maybe_resp) in self
+                    .tabs
+                    .iter_mut()
+                    .enumerate()
+                    .map(|(i, t)| (tab_label(ui, t, self.active_tab == i)))
+                    .collect::<Vec<Option<TabLabelResponse>>>()
+                    .iter()
+                    .enumerate()
+                {
+                    if let Some(resp) = maybe_resp {
+                        match resp {
+                            TabLabelResponse::Clicked => {
+                                if self.active_tab == i {
+                                    // we should rename the file.
+
+                                    let active_name = self.tabs[i].name.clone();
+
+                                    let mut rename_edit_state =
+                                        egui::text_edit::TextEditState::default();
+                                    rename_edit_state.set_ccursor_range(Some(
+                                        egui::text_edit::CCursorRange {
+                                            primary: egui::text::CCursor::new(
+                                                active_name.rfind('.').unwrap_or(active_name.len()),
+                                            ),
+                                            secondary: egui::text::CCursor::new(0),
+                                        },
+                                    ));
+                                    egui::TextEdit::store_state(
+                                        ui.ctx(),
+                                        egui::Id::new("rename_tab"),
+                                        rename_edit_state,
+                                    );
+                                    self.tabs[i].rename = Some(active_name);
+                                } else {
+                                    self.tabs[i].rename = None;
+                                    self.active_tab = i;
+                                    output.window_title = Some(self.tabs[i].name.clone());
+                                    output.selected_file = Some(self.tabs[i].id);
+                                }
+                            }
+                            TabLabelResponse::Closed => {
+                                self.close_tab(i);
+                                output.window_title = Some(match self.current_tab() {
+                                    Some(tab) => tab.name.clone(),
+                                    None => "Lockbook".to_owned(),
+                                });
+                            }
+                            TabLabelResponse::Renamed(name) => {
+                                self.tabs[i].rename = None;
+                                let id = self.current_tab().unwrap().id;
+                                if let Some(tab) = self.get_mut_tab_by_id(id) {
+                                    if let Some(TabContent::Markdown(md)) = &mut tab.content {
+                                        md.needs_name = false;
+                                    }
+                                }
+                                self.rename_file((id, name.clone()));
+                            }
+                        }
+                        ui.ctx().request_repaint();
+                    }
                 }
             });
         });

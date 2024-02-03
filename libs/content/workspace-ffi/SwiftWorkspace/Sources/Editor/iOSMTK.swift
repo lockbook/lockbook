@@ -25,7 +25,7 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
     }
 
     var pasteBoardEventId: Int = 0
-    var lastKnownTapLocation: Float? = nil
+    var lastKnownTapLocation: (Float, Float)? = nil
     
     init(mtkView: iOSMTK) {
         self.mtkView = mtkView
@@ -160,13 +160,14 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
             let location = event.translation(in: self)
             
             let y = Float(location.y)
+            let x = Float(location.x)
             
             if lastKnownTapLocation == nil {
-                lastKnownTapLocation = y
+                lastKnownTapLocation = (x, y)
             }
-            scroll_wheel(wsHandle, y - lastKnownTapLocation!)
+            scroll_wheel(wsHandle, x - lastKnownTapLocation!.0, y - lastKnownTapLocation!.1)
             
-            lastKnownTapLocation = y
+            lastKnownTapLocation = (x, y)
             self.mtkView.setNeedsDisplay()
         }
     }

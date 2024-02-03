@@ -112,13 +112,13 @@ impl Toolbar {
                 id: "Undo".to_string(),
                 icon: Icon::UNDO,
                 margin: egui::Margin::symmetric(4.0, 7.0),
-                key_shortcut: Some((egui::Modifiers::CTRL, egui::Key::Z)),
+                key_shortcut: Some((egui::Modifiers::COMMAND, egui::Key::Z)),
             }),
             Component::Button(SimpleButton {
                 id: "Redo".to_string(),
                 icon: Icon::REDO,
                 margin: egui::Margin::symmetric(4.0, 7.0),
-                key_shortcut: Some((egui::Modifiers::CTRL, egui::Key::R)),
+                key_shortcut: Some((egui::Modifiers::COMMAND, egui::Key::R)),
             }),
             Component::Separator(egui::Margin::symmetric(10.0, 0.0)),
             Component::Button(SimpleButton {

@@ -30,7 +30,7 @@ pub fn register_fonts(fonts: &mut FontDefinitions) {
         .font_data
         .insert("pt_bold".to_string(), FontData::from_static(lb_fonts::PT_SANS_BOLD));
     fonts.font_data.insert("material_icons".to_owned(), {
-        let mut font = egui::FontData::from_static(lb_fonts::MATERIAL_ICONS_OUTLINED_REGULAR);
+        let mut font = egui::FontData::from_static(lb_fonts::MATERIAL_SYMBOLS_OUTLINED);
         font.tweak.y_offset_factor = -0.1;
         font
     });
