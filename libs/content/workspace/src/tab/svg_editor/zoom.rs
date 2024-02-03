@@ -1,5 +1,5 @@
-use std::collections::HashSet;
 use minidom::Element;
+use std::collections::HashSet;
 
 use super::{
     util::{deserialize_transform, serialize_transform},

@@ -26,15 +26,27 @@ impl Markdown {
         self.editor.debug.frame_count > 1
     }
 
-    pub fn show(&mut self, ui: &mut egui::Ui) -> EditorResponse {
+    pub fn show(&mut self, ui: &mut egui::Ui, is_mobile: bool) -> EditorResponse {
         ui.vertical(|ui| {
-            let mut res = ui
-                .allocate_ui(
-                    egui::vec2(ui.available_width(), ui.available_height() - IOS_TOOLBAR_SIZE),
-                    |ui| self.editor.scroll_ui(ui),
-                )
-                .inner;
-            self.toolbar.show(ui, &mut self.editor);
+            let mut res = if is_mobile {
+                let res = ui
+                    .allocate_ui(
+                        egui::vec2(
+                            ui.available_width(),
+                            ui.available_height() - MOBILE_TOOL_BAR_SIZE,
+                        ),
+                        |ui| self.editor.scroll_ui(ui),
+                    )
+                    .inner;
+                self.toolbar.show(ui, &mut self.editor);
+
+                res
+            } else {
+                let res = self.editor.scroll_ui(ui);
+                self.toolbar.show(ui, &mut self.editor);
+
+                res
+            };
 
             if self.needs_name {
                 if let Some(title) = &res.potential_title {

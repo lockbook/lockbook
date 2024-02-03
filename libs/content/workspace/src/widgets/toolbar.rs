@@ -22,7 +22,6 @@ pub struct ToolBar {
     id: egui::Id,
     pub has_focus: bool,
     buttons: Vec<ToolbarButton>,
-    mobile_buttons: Vec<ToolbarButton>,
     header_click_count: usize,
     pub visibility: ToolBarVisibility,
 }
@@ -43,15 +42,14 @@ impl ToolBar {
                 egui::Margin::symmetric(15.0, 0.0)
             },
             buttons: get_buttons(visibility),
-            mobile_buttons: get_buttons(visibility)
             header_click_count: 1,
             has_focus: false,
             visibility: visibility.to_owned(),
             id: egui::Id::null(),
         }
     }
-    pub fn show(&mut self, ui: &mut egui::Ui, editor: &mut Editor, is_mobile: bool) {
-        if is_mobile {
+    pub fn show(&mut self, ui: &mut egui::Ui, editor: &mut Editor) {
+        if cfg!(target_os = "ios") {
             ui.allocate_ui(egui::vec2(ui.available_width(), MOBILE_TOOL_BAR_SIZE), |ui| {
                 egui::Frame::default()
                     .inner_margin(self.margin)
@@ -90,13 +88,9 @@ impl ToolBar {
     }
 
     fn map_buttons(&mut self, ui: &mut egui::Ui, editor: &mut Editor, is_mobile: bool) {
-
         ui.horizontal(|ui| {
-            ui.spacing_mut().button_padding = if condensed {
-                egui::vec2(10.0, 4.0)
-            } else {
-                egui::vec2(20.0, 10.0)
-            };
+            ui.spacing_mut().button_padding =
+                if is_mobile { egui::vec2(10.0, 4.0) } else { egui::vec2(20.0, 10.0) };
 
             self.buttons.clone().iter().for_each(|btn| {
                 let res = Button::default().icon(&btn.icon).show(ui);
@@ -160,84 +154,6 @@ impl ToolBar {
             ToolBarVisibility::Disabled => egui::Rect::NOTHING,
         }
     }
-}
-
-fn get_mobile_buttons() -> Vec<ToolbarButton> {
-    vec![
-        ToolbarButton {
-            icon: Icon::HEADER_1,
-            id: "header".to_string(),
-            callback: |e, t| {
-                e.custom_events
-                    .push(Modification::toggle_heading_style(t.header_click_count));
-                if t.header_click_count > 5 {
-                    t.header_click_count = 6;
-                } else {
-                    t.header_click_count += 1;
-                }
-            },
-        },
-        ToolbarButton {
-            icon: Icon::BOLD,
-            id: "bold".to_string(),
-            callback: |e, _| {
-                e.custom_events.push(Modification::ToggleStyle {
-                    region: Region::Selection,
-                    style: MarkdownNode::Inline(InlineNode::Bold),
-                })
-            },
-        },
-        ToolbarButton {
-            icon: Icon::ITALIC,
-            id: "italic".to_string(),
-            callback: |e, _| {
-                e.custom_events.push(Modification::ToggleStyle {
-                    region: Region::Selection,
-                    style: MarkdownNode::Inline(InlineNode::Italic),
-                })
-            },
-        },
-        ToolbarButton {
-            icon: Icon::CODE,
-            id: "in_line_code".to_string(),
-            callback: |e, _| {
-                e.custom_events.push(Modification::ToggleStyle {
-                    region: Region::Selection,
-                    style: MarkdownNode::Inline(InlineNode::Code),
-                });
-            },
-        },
-        ToolbarButton {
-            icon: Icon::NUMBER_LIST,
-            id: "number_list".to_string(),
-            callback: |e, _| {
-                e.custom_events
-                    .push(Modification::toggle_block_style(BlockNode::ListItem(
-                        ListItem::Numbered(1),
-                        0,
-                    )))
-            },
-        },
-        ToolbarButton {
-            icon: Icon::TODO_LIST,
-            id: "todo_list".to_string(),
-            callback: |e, _| {
-                e.custom_events
-                    .push(Modification::toggle_block_style(BlockNode::ListItem(
-                        ListItem::Todo(false),
-                        0,
-                    )))
-            },
-        },
-        ToolbarButton {
-            icon: Icon::VISIBILITY_OFF,
-            id: "visibility_off".to_string(),
-            callback: |_, t| {
-                t.visibility = ToolBarVisibility::Minimized;
-                t.buttons = get_buttons(&t.visibility);
-            },
-        },
-    ]
 }
 
 fn get_buttons(visibility: &ToolBarVisibility) -> Vec<ToolbarButton> {

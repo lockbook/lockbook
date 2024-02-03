@@ -771,7 +771,6 @@ public class iOSMTK: MTKView, MTKViewDelegate {
         if tabSwitchTask != nil {
             tabSwitchTask!()
             tabSwitchTask = nil
-//            workspaceState?.shouldFocus = true
         }
         
         dark_mode(wsHandle, isDarkMode())

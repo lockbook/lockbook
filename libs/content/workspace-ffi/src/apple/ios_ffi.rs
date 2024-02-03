@@ -3,19 +3,16 @@ use crate::{
     UITextSelectionRects, WgpuWorkspace,
 };
 use egui::{Event, Key, Modifiers, PointerButton, Pos2, TouchDeviceId, TouchId, TouchPhase};
-use egui_editor::editor;
 use egui_editor::input::canonical::{Bound, Increment, Location, Modification, Offset, Region};
 use egui_editor::input::cursor::Cursor;
 use egui_editor::input::mutation;
 use egui_editor::offset_types::{DocCharOffset, RangeExt};
-use std::borrow::BorrowMut;
+use std::cmp;
 use std::ffi::{c_char, c_void, CStr, CString};
 use std::mem::ManuallyDrop;
 use std::ptr::null;
-use std::{cmp, ptr};
-use workspace::tab::markdown::Markdown;
 use workspace::tab::svg_editor::Tool;
-use workspace::tab::{markdown, Tab, TabContent};
+use workspace::tab::TabContent;
 
 /// # Safety
 /// obj must be a valid pointer to WgpuEditor
@@ -890,7 +887,8 @@ pub unsafe extern "C" fn toggle_drawing_tool(obj: *mut c_void) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
 
     if let Some(svg) = obj.workspace.current_tab_svg_mut() {
-        svg.toolbar.toggle_tool();
+        svg.toolbar
+            .set_tool(svg.toolbar.prev_non_eraser_tool.unwrap_or(Tool::Pen));
     }
 }
 
@@ -923,7 +921,8 @@ pub unsafe extern "C" fn active_tab_renamed(obj: *mut c_void, new_name: *const c
     let obj = &mut *(obj as *mut WgpuWorkspace);
     let new_name: String = CStr::from_ptr(new_name).to_str().unwrap().into();
 
-    obj.workspace
+    let _ = obj
+        .workspace
         .updates_tx
         .send(workspace::workspace::WsMsg::FileRenamed {
             id: obj.workspace.tabs[obj.workspace.active_tab].id,

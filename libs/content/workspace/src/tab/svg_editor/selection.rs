@@ -1,5 +1,8 @@
 use super::{
-    node_by_id,  util::{deserialize_transform, pointer_interests_path}, Buffer, DeleteElement, history::TransformElement
+    history::TransformElement,
+    node_by_id,
+    util::{deserialize_transform, pointer_interests_path},
+    Buffer, DeleteElement,
 };
 
 pub struct Selection {

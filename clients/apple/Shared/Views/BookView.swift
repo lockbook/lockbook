@@ -92,9 +92,30 @@ struct BookView: View {
                                     }
                                 }
                             }
+                            
+                            ToolbarItemGroup {
+                                if let id = workspace.openDoc {
+                                    if let meta = DI.files.idsAndFiles[id] {
+                                        Button(action: {
+                                            DI.sheets.sharingFileInfo = meta
+                                        }, label: {
+                                            Label("Share", systemImage: "person.wave.2.fill")
+                                        })
+                                        .foregroundColor(.blue)
+                                        .padding(.trailing, 10)
+                                        
+                                        Button(action: {
+                                            exportFileAndShowShareSheet(meta: meta)
+                                        }, label: {
+                                            Label("Share externally to...", systemImage: "square.and.arrow.up.fill")
+                                        })
+                                        .foregroundColor(.blue)
+                                        .padding(.trailing, 10)
+                                    }
+                                }
+                            }
                         }
                 }
-//                .opacity(workspace.showWorkspace ? 1.0 : 0.0)
                 .offset(x: workspace.currentTab != .Welcome ? 0.0 : geometry.size.width)
             }
         }

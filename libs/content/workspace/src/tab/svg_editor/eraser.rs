@@ -2,7 +2,7 @@ use minidom::Element;
 use std::collections::HashMap;
 use std::sync::mpsc;
 
-use super::{util::pointer_interests_path, util, Buffer, DeleteElement};
+use super::{util, util::pointer_interests_path, Buffer, DeleteElement};
 
 const ERASER_THICKNESS: f32 = 10.0;
 pub struct Eraser {

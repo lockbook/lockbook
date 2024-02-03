@@ -8,7 +8,6 @@ use std::ffi::{c_char, CString};
 use std::ptr::null;
 use std::time::Instant;
 use std::{iter, ptr};
-use workspace::tab::markdown;
 
 mod cursor_icon;
 

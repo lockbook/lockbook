@@ -68,8 +68,6 @@ macro_rules! set_tool {
             $obj.prev_non_eraser_tool = Some($obj.active_tool);
         }
 
-        println!("previous tool: {:?}, new tool: {:?}", $obj.prev_non_eraser_tool, $new_tool);
-
         $obj.active_tool = $new_tool;
     };
 }
@@ -93,8 +91,8 @@ impl Toolbar {
         egui::Rect { min: min_pos, max: max_pos }
     }
 
-    pub fn toggle_tool(&mut self) {
-        set_tool!(self, self.prev_non_eraser_tool.unwrap_or(Tool::Pen));
+    pub fn set_tool(&mut self, new_tool: Tool) {
+        set_tool!(self, new_tool);
     }
 
     pub fn toggle_tool_between_eraser(&mut self) {
@@ -104,7 +102,7 @@ impl Toolbar {
             Tool::Eraser
         };
 
-        set_tool!(self, new_tool);
+        self.set_tool(new_tool);
     }
 
     pub fn new(max_id: usize) -> Self {

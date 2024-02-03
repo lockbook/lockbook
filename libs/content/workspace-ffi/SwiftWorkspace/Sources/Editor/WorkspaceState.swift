@@ -1,9 +1,5 @@
 import SwiftUI
 import Combine
-#if os(iOS)
-import GameController
-#endif
-
 
 // todo can this go away enirely?
 public class WorkspaceState: ObservableObject {
@@ -13,9 +9,7 @@ public class WorkspaceState: ObservableObject {
     
     @Published public var openDoc: UUID? = nil {
         didSet {
-            #if os(iOS)
-            shouldFocus = GCKeyboard.coalesced != nil
-            #else
+            #if os(macOS)
             shouldFocus = true
             #endif
             pendingSharesOpen = false

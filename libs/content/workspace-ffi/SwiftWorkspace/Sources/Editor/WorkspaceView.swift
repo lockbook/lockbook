@@ -83,9 +83,9 @@ public struct UIWS: UIViewRepresentable {
         }
         
         if workspaceState.closeActiveTab {
-            print("closing...")
             workspaceState.closeActiveTab = false
             uiView.mtkView.closeActiveTab()
+            uiView.currentWrapper?.resignFirstResponder()
         }
     }
 }
