@@ -1,13 +1,15 @@
 import SwiftUI
+import SwiftWorkspace
 import SwiftLockbookCore
 import Foundation
+import CLockbookCore
 
 struct FileListView: View {
     @EnvironmentObject var sheets: SheetState
     @EnvironmentObject var fileService: FileService
     @EnvironmentObject var search: SearchService
     @EnvironmentObject var sync: SyncService
-    @EnvironmentObject var currentDoc: DocumentService
+    @EnvironmentObject var workspace: WorkspaceState
     
     @Environment(\.colorScheme) var colorScheme
 
@@ -15,18 +17,11 @@ struct FileListView: View {
     @State var navigateToManageSub: Bool = false
     @State private var mainViewOffset = CGSize.zero
     @State private var mainViewOpacity: Double = 1
-
+    
     @State private var hideOutOfSpaceAlert = UserDefaults.standard.bool(forKey: "hideOutOfSpaceAlert")
     
     var body: some View {
-        VStack {
-            if let doc = (currentDoc.justCreatedDoc ?? currentDoc.justOpenedLink), doc.fileType == .Document {
-                NavigationLink(destination: iOSDocumentViewWrapper(id: doc.id), isActive: Binding(get: { currentDoc.openDocuments[doc.id] != nil }, set: { _ in currentDoc.openDocuments[doc.id] = nil }) ) {
-                    EmptyView()
-                }
-                .hidden()
-            }
-
+        ZStack {
             SearchWrapperView(
                 searchInput: $searchInput,
                 mainView: mainView,
@@ -60,58 +55,60 @@ struct FileListView: View {
         )
     }
     
+    @ViewBuilder
     var mainView: some View {
-        Group {
-            List {
-                if fileService.parent?.isRoot == true && fileService.suggestedDocs?.isEmpty != true {
-                    Section(header: Text("Suggested")
+        if workspace.openDoc == nil {
+            Group {
+                List {
+                    if fileService.parent?.isRoot == true && fileService.suggestedDocs?.isEmpty != true {
+                        Section(header: Text("Suggested")
+                            .bold()
+                            .foregroundColor(.primary)
+                            .textCase(.none)
+                            .font(.headline)
+                            .padding(.bottom, 3)) {
+                                SuggestedDocs(isiOS: true)
+                            }
+                            .offset(mainViewOffset)
+                            .opacity(mainViewOpacity)
+                    }
+                    
+                    Section(header: Text("Files")
                         .bold()
                         .foregroundColor(.primary)
                         .textCase(.none)
                         .font(.headline)
                         .padding(.bottom, 3)) {
-                            SuggestedDocs(isiOS: true)
+                            files
                         }
                         .offset(mainViewOffset)
                         .opacity(mainViewOpacity)
                 }
-                
-                Section(header: Text("Files")
-                    .bold()
-                    .foregroundColor(.primary)
-                    .textCase(.none)
-                    .font(.headline)
-                    .padding(.bottom, 3)) {
-                        files
+                .navigationBarTitle(fileService.parent.map{($0.name)} ?? "")
+                .modifier(DragGestureViewModifier(onUpdate: { gesture in
+                    if fileService.parent?.isRoot == false && gesture.translation.width < 200 && gesture.translation.width > 0 {
+                        mainViewOffset.width = gesture.translation.width
                     }
-                    .offset(mainViewOffset)
-                    .opacity(mainViewOpacity)
+                }, onEnd: { gesture in
+                    if gesture.translation.width > 100 && fileService.parent?.isRoot == false {
+                        animateToParentFolder() {
+                            fileService.upADirectory()
+                        }
+                    } else {
+                        withAnimation {
+                            mainViewOffset.width = 0
+                        }
+                    }
+                }))
                 
-            }
-            .navigationBarTitle(fileService.parent.map{($0.name)} ?? "")
-            .modifier(DragGestureViewModifier(onUpdate: { gesture in
-                if fileService.parent?.isRoot == false && gesture.translation.width < 200 && gesture.translation.width > 0 {
-                    mainViewOffset.width = gesture.translation.width
-                }
-            }, onEnd: { gesture in
-                if gesture.translation.width > 100 && fileService.parent?.isRoot == false {
+                FilePathBreadcrumb() { file in
                     animateToParentFolder() {
-                        fileService.upADirectory()
-                    }
-                } else {
-                    withAnimation {
-                        mainViewOffset.width = 0
+                        fileService.pathBreadcrumbClicked(file)
                     }
                 }
-            }))
-         
-            FilePathBreadcrumb() { file in
-                animateToParentFolder() {
-                    fileService.pathBreadcrumbClicked(file)
-                }
+                
+                BottomBar(isiOS: true)
             }
-
-            BottomBar(isiOS: true)
         }
     }
 

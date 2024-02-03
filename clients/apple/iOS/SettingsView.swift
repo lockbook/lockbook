@@ -61,7 +61,7 @@ struct SettingsView: View, Equatable {
                         HStack {
                             Text("Uncompressed usage:")
                             Spacer()
-                            Text(usage.uncompressedUsage.readable)
+                            Text(usage.uncompressedUsage?.readable ?? "Loading...")
                         }
                         HStack {
                             Text("Compression ratio:")
@@ -105,7 +105,9 @@ struct SettingsView: View, Equatable {
                         Text("Calculating...")
                     }
                 }
-                .onAppear(perform: settingsState.calculateUsage)
+                .onAppear(perform: {
+                    settingsState.calculateUsage(calcUncompressed: true)
+                })
                 
                 Section(header: Text("PRIVACY")) {
                     Text("[Privacy Policy](https://lockbook.net/privacy-policy)")

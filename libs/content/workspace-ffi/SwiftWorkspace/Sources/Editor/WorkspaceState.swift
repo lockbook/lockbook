@@ -9,7 +9,9 @@ public class WorkspaceState: ObservableObject {
     
     @Published public var openDoc: UUID? = nil {
         didSet {
+            #if os(macOS)
             shouldFocus = true
+            #endif
             pendingSharesOpen = false
         }
     }
@@ -30,11 +32,17 @@ public class WorkspaceState: ObservableObject {
     
     @Published public var newFolderButtonPressed: Bool = false
     
+    @Published public var currentTab: WorkspaceTab = .Welcome
+    
+    @Published public var renameOpenDoc: Bool = false
+    @Published public var renameCompleted: String? = nil
+    @Published public var closeActiveTab: Bool = false
+        
     public var importFile: (URL) -> String?
     
     public init(importFile: @escaping (URL) -> String?) {
         self.importFile = importFile
-        self.shouldFocus = true
+        self.shouldFocus = false
     }
     
     public func requestSync() {

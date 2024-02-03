@@ -6,7 +6,7 @@ mod toolbar;
 mod util;
 mod zoom;
 
-use crate::tab::svg_editor::toolbar::{ColorSwatch, Component, Tool, Toolbar};
+use crate::tab::svg_editor::toolbar::{ColorSwatch, Component, Toolbar};
 use crate::theme::palette::ThemePalette;
 pub use eraser::Eraser;
 pub use history::Buffer;
@@ -18,6 +18,7 @@ pub use pen::CubicBezBuilder;
 pub use pen::Pen;
 use resvg::tiny_skia::Pixmap;
 use resvg::usvg::{self, Size};
+pub use toolbar::Tool;
 pub use util::node_by_id;
 
 use self::zoom::handle_zoom_input;

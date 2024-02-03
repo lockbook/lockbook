@@ -26,6 +26,7 @@ pub fn combine(
             appearance,
         )
     });
+
     custom_events
         .iter()
         .cloned()

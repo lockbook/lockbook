@@ -1,4 +1,5 @@
 use egui::{Color32, Context};
+use std::ops::Deref;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::Arc;
@@ -36,6 +37,7 @@ pub struct Workspace {
 
     // todo set this in swift as well
     pub focused_parent: Option<Uuid>,
+    pub show_tabs: bool,
 
     pub pers_status: PersistentWsStatus,
 }
@@ -106,6 +108,7 @@ impl Workspace {
             background_tx,
             syncing,
             pers_status,
+            show_tabs: true,
             focused_parent: None,
         }
     }
@@ -136,6 +139,40 @@ impl Workspace {
 
     pub fn current_tab(&self) -> Option<&Tab> {
         self.tabs.get(self.active_tab)
+    }
+
+    pub fn current_tab_mut(&mut self) -> Option<&mut Tab> {
+        self.tabs.get_mut(self.active_tab)
+    }
+
+    pub fn current_tab_markdown(&self) -> Option<&Markdown> {
+        let current_tab = self.current_tab()?;
+
+        if let Some(TabContent::Markdown(markdown)) = &current_tab.content {
+            return Some(markdown);
+        }
+
+        None
+    }
+
+    pub fn current_tab_markdown_mut(&mut self) -> Option<&mut Markdown> {
+        let current_tab = self.current_tab_mut()?;
+
+        if let Some(TabContent::Markdown(markdown)) = &mut current_tab.content {
+            return Some(markdown);
+        }
+
+        None
+    }
+
+    pub fn current_tab_svg_mut(&mut self) -> Option<&mut SVGEditor> {
+        let current_tab = self.current_tab_mut()?;
+
+        if let Some(TabContent::Svg(svg)) = &mut current_tab.content {
+            return Some(svg);
+        }
+
+        None
     }
 
     pub fn goto_tab_id(&mut self, id: lb_rs::Uuid) -> bool {
@@ -246,7 +283,11 @@ impl Workspace {
 
         ui.vertical(|ui| {
             if !self.tabs.is_empty() {
-                self.show_tab_strip(ui, output);
+                if self.show_tabs {
+                    self.show_tab_strip(ui, output);
+                } else {
+                    self.show_mobile_title(ui, output);
+                }
             }
 
             separator(ui);
@@ -275,7 +316,7 @@ impl Workspace {
                     } else if let Some(content) = &mut tab.content {
                         match content {
                             TabContent::Markdown(md) => {
-                                let resp = md.show(ui);
+                                let resp = md.show(ui, !self.show_tabs);
                                 // The editor signals a text change when the buffer is initially
                                 // loaded. Since we use that signal to trigger saves, we need to
                                 // check that this change was not from the initial frame.
@@ -303,6 +344,28 @@ impl Workspace {
                     self.rename_file(req);
                 }
             });
+        });
+    }
+
+    fn show_mobile_title(&mut self, ui: &mut egui::Ui, output: &mut WsOutput) {
+        ui.horizontal(|ui| {
+            ui.set_style(egui::Style {
+                text_styles: vec![(
+                    egui::TextStyle::Button,
+                    egui::FontId::new(30.0, egui::FontFamily::Proportional),
+                )]
+                .into_iter()
+                .collect(),
+                ..ui.style().deref().clone()
+            });
+
+            let button = egui::widgets::Button::new(self.tabs[0].name.clone())
+                .frame(false)
+                .fill(egui::Color32::TRANSPARENT);
+
+            if ui.add_sized(ui.available_size(), button).clicked() {
+                output.tab_title_clicked = true;
+            }
         });
     }
 
@@ -550,9 +613,17 @@ impl Workspace {
                         out.selected_file = Some(id);
 
                         match content {
-                            Ok(content) => tab.content = Some(content),
-                            Err(fail) => tab.failure = Some(fail),
+                            Ok(content) => {
+                                tab.content = Some(content);
+                                println!("successfully loaded file");
+                            }
+                            Err(fail) => {
+                                tab.failure = Some(fail);
+                                println!("failed loaded file 1");
+                            }
                         }
+                    } else {
+                        println!("failed to load file 2");
                     }
                 }
                 WsMsg::BgSignal(Signal::SaveAll) => {

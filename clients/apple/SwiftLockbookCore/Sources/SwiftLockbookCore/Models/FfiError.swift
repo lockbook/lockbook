@@ -62,9 +62,7 @@ extension FfiError: CustomStringConvertible {
     }
 }
 
-public protocol UiError: Decodable, Equatable, Error {
-    
-}
+public protocol UiError: Decodable, Equatable, Error {}
 
 public enum CreateAccountError: String, UiError {
     case AccountExistsAlready

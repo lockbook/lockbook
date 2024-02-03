@@ -19,9 +19,6 @@ class DI {
     static let sheets: SheetState = SheetState()
     static let search = SearchService(core)
     static let workspace = WorkspaceState(importFile: importExport.importFileURL)
-    #if os(iOS)
-    static let toolbarModel = ToolbarModel()
-    #endif
     
     public static func accountDeleted() {
         DI.accounts.account = nil
@@ -51,23 +48,11 @@ class Mock {
     static let sheets: SheetState = SheetState()
     static let search = SearchService(core)
     static let workspace = WorkspaceState(importFile: importExport.importFileURL)
-    #if os(iOS)
-    static let toolbarModel = ToolbarModel()
-    #endif
 }
 
 extension View {
-    public func iOSDI() -> some View {
-        #if os(iOS)
-            return
-                self
-                    .environmentObject(DI.toolbarModel)
-        #else
-        return self
-        #endif
-    }
     public func realDI() -> some View {
-        iOSDI()
+        self
             .environmentObject(DI.coreService)
             .environmentObject(DI.errors)
             .environmentObject(DI.accounts)
@@ -84,18 +69,8 @@ extension View {
             .environmentObject(DI.workspace)
     }
     
-    public func mockiOSDI() -> some View {
-        #if os(iOS)
-            return
-                self
-                    .environmentObject(Mock.toolbarModel)
-        #else
-        return self
-        #endif
-    }
-    
     public func mockDI() -> some View {
-        mockiOSDI()
+        self
             .environmentObject(Mock.coreService)
             .environmentObject(Mock.errors)
             .environmentObject(Mock.accounts)

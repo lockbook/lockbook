@@ -12,7 +12,7 @@ struct BottomBar: View {
 #if os(iOS)
     var menu: some View {
         HStack {
-            if isiOS && !sync.syncing {
+            if isiOS && !workspace.syncing {
                 Button(action: {
                     DI.files.createDoc(isDrawing: false)
                 }) {
@@ -46,14 +46,13 @@ struct BottomBar: View {
     
 #if os(iOS)
     @ViewBuilder var syncButton: some View {
-        if sync.syncing {
+        if workspace.syncing {
             ProgressView()
                 .frame(width: 40, height: 40, alignment: .center)
                 .padding(.trailing, 9)
         } else {
             Button(action: {
-                sync.sync()
-                status.work = 0
+                workspace.requestSync()
             }) {
                 Image(systemName: "arrow.triangle.2.circlepath.circle.fill")
                     .imageScale(.large)

@@ -23,7 +23,7 @@ import AppKit
             AppView()
                 .realDI()
                 .buttonStyle(PlainButtonStyle())
-                .ignoresSafeArea()
+//                .ignoresSafeArea()
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .registerBackgroundTasks(scenePhase: scenePhase, appDelegate: appDelegate)
                 .onOpenURL() { url in

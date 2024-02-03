@@ -16,6 +16,7 @@
 		4709DC3E2966260500426106 /* AcceptShareSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4709DC3D2966260500426106 /* AcceptShareSheet.swift */; };
 		4709DC3F2966260500426106 /* AcceptShareSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4709DC3D2966260500426106 /* AcceptShareSheet.swift */; };
 		47159F4629CFA05B00969DDF /* DSFQuickActionBar in Frameworks */ = {isa = PBXBuildFile; productRef = 47159F4529CFA05B00969DDF /* DSFQuickActionBar */; };
+		471C788D2B4910A80022B3B2 /* SwiftWorkspace in Frameworks */ = {isa = PBXBuildFile; productRef = 471C788C2B4910A80022B3B2 /* SwiftWorkspace */; };
 		471E363529FD5F5C00A1958A /* FileListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8741E8F925ACBCF9005B7B01 /* FileListView.swift */; };
 		473A3DCE29AC354B0017BC6A /* FilePathBreadcrumb.swift in Sources */ = {isa = PBXBuildFile; fileRef = 473A3DCD29AC354B0017BC6A /* FilePathBreadcrumb.swift */; };
 		4756C4DB2A57CE86002C64B1 /* NewFolderSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4756C4DA2A57CE86002C64B1 /* NewFolderSheet.swift */; };
@@ -42,9 +43,8 @@
 		47DBF1F22A61A51000F86B3F /* ImportExportService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47DBF1F02A61A51000F86B3F /* ImportExportService.swift */; };
 		47FAA4C829EC830600DB606E /* BranchState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47FAA4C729EC830600DB606E /* BranchState.swift */; };
 		47FAA4C929EC830600DB606E /* BranchState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47FAA4C729EC830600DB606E /* BranchState.swift */; };
-		47FB55ED2AF19AD400B74C09 /* RenameFolderSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47FB55EC2AF19AD400B74C09 /* RenameFolderSheet.swift */; };
-		47FB55EE2AF19AD400B74C09 /* RenameFolderSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47FB55EC2AF19AD400B74C09 /* RenameFolderSheet.swift */; };
-		5036A72711D09E92A5EE75B1 /* DrawingToolbar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5036AA70E675020A378AE98E /* DrawingToolbar.swift */; };
+		47FB55ED2AF19AD400B74C09 /* RenameFileSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47FB55EC2AF19AD400B74C09 /* RenameFileSheet.swift */; };
+		47FB55EE2AF19AD400B74C09 /* RenameFileSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47FB55EC2AF19AD400B74C09 /* RenameFileSheet.swift */; };
 		6581A7EF74307EAE69426206 /* SheetState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6581AB54147C2201F8F95500 /* SheetState.swift */; };
 		6581ABD3CA16395327F765E8 /* SheetState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6581AB54147C2201F8F95500 /* SheetState.swift */; };
 		6581AC0512EDB9FBB7106020 /* MenuItems.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6581A11CE95C74B01ED30AEB /* MenuItems.swift */; };
@@ -55,7 +55,6 @@
 		8715F92927161CC60051689E /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8715F92727161CC60051689E /* OnboardingView.swift */; };
 		8715F92C271641CF0051689E /* Scanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8715F92B271641CF0051689E /* Scanner.swift */; };
 		873559BE26C31210008B3C36 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 873559BD26C31210008B3C36 /* SettingsView.swift */; };
-		8737B2BE25D83EE600C93E09 /* DrawingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8737B2BD25D83EE600C93E09 /* DrawingView.swift */; };
 		8741E8E425AAA524005B7B01 /* BottomBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8741E8E325AAA524005B7B01 /* BottomBar.swift */; };
 		874A88F526D3E91900F010C8 /* DI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 874A88F426D3E91900F010C8 /* DI.swift */; };
 		874A88F626D3E91900F010C8 /* DI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 874A88F426D3E91900F010C8 /* DI.swift */; };
@@ -117,16 +116,6 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
-		4740D5A52A6879A0002A515A /* Embed Foundation Extensions */ = {
-			isa = PBXCopyFilesBuildPhase;
-			buildActionMask = 2147483647;
-			dstPath = "";
-			dstSubfolderSpec = 13;
-			files = (
-			);
-			name = "Embed Foundation Extensions";
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 		47DBF25B2A61D5D600F86B3F /* Embed Foundation Extensions */ = {
 			isa = PBXCopyFilesBuildPhase;
 			buildActionMask = 2147483647;
@@ -172,8 +161,7 @@
 		47DBF1F32A61CA5000F86B3F /* UIKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = UIKit.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS16.4.sdk/System/Library/Frameworks/UIKit.framework; sourceTree = DEVELOPER_DIR; };
 		47DBF2212A61D45600F86B3F /* AuthenticationServices.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AuthenticationServices.framework; path = System/Library/Frameworks/AuthenticationServices.framework; sourceTree = SDKROOT; };
 		47FAA4C729EC830600DB606E /* BranchState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BranchState.swift; sourceTree = "<group>"; };
-		47FB55EC2AF19AD400B74C09 /* RenameFolderSheet.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = RenameFolderSheet.swift; sourceTree = "<group>"; };
-		5036AA70E675020A378AE98E /* DrawingToolbar.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DrawingToolbar.swift; sourceTree = "<group>"; };
+		47FB55EC2AF19AD400B74C09 /* RenameFileSheet.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = RenameFileSheet.swift; sourceTree = "<group>"; };
 		6581A11CE95C74B01ED30AEB /* MenuItems.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MenuItems.swift; sourceTree = "<group>"; };
 		6581AB54147C2201F8F95500 /* SheetState.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = SheetState.swift; path = iOS/OutlineView/SheetState.swift; sourceTree = SOURCE_ROOT; };
 		870DC09E26BDE6F4002E9A92 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
@@ -182,7 +170,6 @@
 		8715F92727161CC60051689E /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
 		8715F92B271641CF0051689E /* Scanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Scanner.swift; sourceTree = "<group>"; };
 		873559BD26C31210008B3C36 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
-		8737B2BD25D83EE600C93E09 /* DrawingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DrawingView.swift; sourceTree = "<group>"; };
 		8741E8E325AAA524005B7B01 /* BottomBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BottomBar.swift; sourceTree = "<group>"; };
 		8741E8F925ACBCF9005B7B01 /* FileListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileListView.swift; sourceTree = "<group>"; };
 		8741E90E25AD1565005B7B01 /* OutlineBranch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OutlineBranch.swift; sourceTree = "<group>"; };
@@ -235,6 +222,7 @@
 			files = (
 				EA82B20C262652F700EE82B9 /* Introspect in Frameworks */,
 				47B041F32905BFB100A02DA7 /* AlertToast in Frameworks */,
+				471C788D2B4910A80022B3B2 /* SwiftWorkspace in Frameworks */,
 				EA9EEFD225FC058100E8C790 /* SwiftLockbookCore in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -266,15 +254,6 @@
 				47B67288295F977C00DB0D8E /* ManageSubscriptionView.swift */,
 			);
 			path = Settings;
-			sourceTree = "<group>";
-		};
-		8783B0EB25F6CD8700084006 /* Drawing */ = {
-			isa = PBXGroup;
-			children = (
-				8737B2BD25D83EE600C93E09 /* DrawingView.swift */,
-				5036AA70E675020A378AE98E /* DrawingToolbar.swift */,
-			);
-			path = Drawing;
 			sourceTree = "<group>";
 		};
 		87C118ED25C5F12600D28A04 /* Stateful Logic */ = {
@@ -371,7 +350,6 @@
 			isa = PBXGroup;
 			children = (
 				87F78F6D270783710001E159 /* OutlineView */,
-				8783B0EB25F6CD8700084006 /* Drawing */,
 				EA380B242561FAEF0021C4FA /* FileListView.swift */,
 				EA4559BD25169F7D003AD80A /* CodeScannerView.swift */,
 				EA5C7D722516606000F7F358 /* Info.plist */,
@@ -402,7 +380,7 @@
 		EADE1A5725352E5D00710996 /* Views */ = {
 			isa = PBXGroup;
 			children = (
-				47FB55EC2AF19AD400B74C09 /* RenameFolderSheet.swift */,
+				47FB55EC2AF19AD400B74C09 /* RenameFileSheet.swift */,
 				87F78F7927094A040001E159 /* BeforeYouStart.swift */,
 				EAEDCD0A2516FC1C00EBE313 /* BookView.swift */,
 				EA831A542534E3C80048CE26 /* AppView.swift */,
@@ -444,7 +422,6 @@
 				EA5C7D6B2516606000F7F358 /* Sources */,
 				EA5C7D6C2516606000F7F358 /* Frameworks */,
 				EA5C7D6D2516606000F7F358 /* Resources */,
-				4740D5A52A6879A0002A515A /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
@@ -455,6 +432,7 @@
 				EA8C627B25EF091900330E27 /* SwiftLockbookCore */,
 				EA82B20B262652F700EE82B9 /* Introspect */,
 				47B041F22905BFB100A02DA7 /* AlertToast */,
+				471C788C2B4910A80022B3B2 /* SwiftWorkspace */,
 			);
 			productName = "Lockbook (iOS)";
 			productReference = EA5C7D6F2516606000F7F358 /* Lockbook.app */;
@@ -571,14 +549,13 @@
 				87BD383826C020B00030D2B1 /* SettingsService.swift in Sources */,
 				B249B9ED282AF6BF004F5300 /* OutlineContextMenu.swift in Sources */,
 				8715F92827161CC60051689E /* OnboardingView.swift in Sources */,
-				47FB55ED2AF19AD400B74C09 /* RenameFolderSheet.swift in Sources */,
+				47FB55ED2AF19AD400B74C09 /* RenameFileSheet.swift in Sources */,
 				47FAA4C829EC830600DB606E /* BranchState.swift in Sources */,
 				4756C4DB2A57CE86002C64B1 /* NewFolderSheet.swift in Sources */,
 				877FB56026D2C7D60008AB3F /* StatusService.swift in Sources */,
 				EA9079C32569960A00E04F5D /* ListFileCell.swift in Sources */,
 				87F78F7A27094A040001E159 /* BeforeYouStart.swift in Sources */,
 				8741E8E425AAA524005B7B01 /* BottomBar.swift in Sources */,
-				8737B2BE25D83EE600C93E09 /* DrawingView.swift in Sources */,
 				B249B9E8282AF6B1004F5300 /* OutlineBranch.swift in Sources */,
 				473A3DCE29AC354B0017BC6A /* FilePathBreadcrumb.swift in Sources */,
 				EA4559BE25169F7D003AD80A /* CodeScannerView.swift in Sources */,
@@ -600,7 +577,6 @@
 				877FB55026D17FD00008AB3F /* UnexpectedErrorService.swift in Sources */,
 				476436CC29B7DE4E00FBDC59 /* SearchService.swift in Sources */,
 				877FB55626D18AA60008AB3F /* AccountService.swift in Sources */,
-				5036A72711D09E92A5EE75B1 /* DrawingToolbar.swift in Sources */,
 				4709DC3E2966260500426106 /* AcceptShareSheet.swift in Sources */,
 				6581ABD3CA16395327F765E8 /* SheetState.swift in Sources */,
 				477CC4902967A53C00714456 /* ShareFileSheet.swift in Sources */,
@@ -645,7 +621,7 @@
 				870DC0A226BF378F002E9A92 /* AccountSettingsView.swift in Sources */,
 				EAAA10D925B3FD58005140EE /* BottomBar.swift in Sources */,
 				B249B9F5282FE566004F5300 /* DataSource.swift in Sources */,
-				47FB55EE2AF19AD400B74C09 /* RenameFolderSheet.swift in Sources */,
+				47FB55EE2AF19AD400B74C09 /* RenameFileSheet.swift in Sources */,
 				870DC0A426BF37C0002E9A92 /* UsageSettingsView.swift in Sources */,
 				B2459BEE28DBB43100756D71 /* ColorProgressBar.swift in Sources */,
 				EAF96D0D252E8ED000AA1A14 /* ConfigHelper.swift in Sources */,
@@ -793,7 +769,10 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				LIBRARY_SEARCH_PATHS = "${PROJECT_DIR}/CLockbookCore/Sources/CLockbookCore/lib_ios";
+				LIBRARY_SEARCH_PATHS = (
+					"${PROJECT_DIR}/CLockbookCore/Sources/CLockbookCore/lib_ios",
+					"$(PROJECT_DIR)",
+				);
 				"LIBRARY_SEARCH_PATHS[sdk=iphonesimulator*]" = "${PROJECT_DIR}/CLockbookCore/Sources/CLockbookCore/lib_ios_sim";
 				MARKETING_VERSION = 0.5.10;
 				PRODUCT_BUNDLE_IDENTIFIER = app.lockbook;
@@ -822,7 +801,10 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				LIBRARY_SEARCH_PATHS = "${PROJECT_DIR}/CLockbookCore/Sources/CLockbookCore/lib_ios";
+				LIBRARY_SEARCH_PATHS = (
+					"${PROJECT_DIR}/CLockbookCore/Sources/CLockbookCore/lib_ios",
+					"$(PROJECT_DIR)",
+				);
 				MARKETING_VERSION = 0.5.10;
 				PRODUCT_BUNDLE_IDENTIFIER = app.lockbook;
 				PRODUCT_NAME = Lockbook;
@@ -988,7 +970,10 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				LIBRARY_SEARCH_PATHS = "${PROJECT_DIR}/CLockbookCore/Sources/CLockbookCore/lib_ios";
+				LIBRARY_SEARCH_PATHS = (
+					"${PROJECT_DIR}/CLockbookCore/Sources/CLockbookCore/lib_ios",
+					"$(PROJECT_DIR)",
+				);
 				"LIBRARY_SEARCH_PATHS[sdk=iphonesimulator*]" = "${PROJECT_DIR}/CLockbookCore/Sources/CLockbookCore/lib_ios_sim";
 				MARKETING_VERSION = 0.5.10;
 				PRODUCT_BUNDLE_IDENTIFIER = app.lockbook;
@@ -1117,6 +1102,10 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 47159F4429CFA05B00969DDF /* XCRemoteSwiftPackageReference "DSFQuickActionBar" */;
 			productName = DSFQuickActionBar;
+		};
+		471C788C2B4910A80022B3B2 /* SwiftWorkspace */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = SwiftWorkspace;
 		};
 		47B041F22905BFB100A02DA7 /* AlertToast */ = {
 			isa = XCSwiftPackageProductDependency;
