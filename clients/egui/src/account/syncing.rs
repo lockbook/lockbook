@@ -5,8 +5,6 @@ use eframe::egui;
 use workspace::theme::icons::Icon;
 use workspace::widgets::{Button, ProgressBar};
 
-use crate::model::Usage;
-
 use super::AccountUpdate;
 
 pub struct SyncPanel {

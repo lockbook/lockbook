@@ -14,7 +14,7 @@ pub fn release() -> CliResult<()> {
     core::build();
     ws::build();
     clean_build_dir();
-    // ios::release();
+    ios::release();
     mac::release();
     Ok(())
 }

@@ -1,7 +1,5 @@
 use std::env;
 
-use eframe::egui;
-
 pub fn data_dir() -> Result<String, String> {
     match (env::var("LOCKBOOK_PATH"), env::var("HOME"), env::var("HOMEPATH")) {
         (Ok(s), _, _) => Ok(s),

@@ -10,7 +10,7 @@ use std::time::{Duration, Instant};
 use std::{path, thread};
 
 use eframe::egui;
-use lb::{FileType, NameComponents, Uuid};
+use lb::{FileType, Uuid};
 use workspace::background::BwIncomingMsg;
 use workspace::tab::image_viewer::{is_supported_image_fmt, ImageViewer};
 use workspace::tab::markdown::Markdown;
@@ -18,7 +18,7 @@ use workspace::tab::plain_text::PlainText;
 use workspace::tab::{Tab, TabContent, TabFailure};
 use workspace::theme::icons::Icon;
 use workspace::widgets::{separator, Button};
-use workspace::workspace::{Workspace, WsConfig, NUM_KEYS};
+use workspace::workspace::{Workspace, WsConfig};
 
 use crate::model::{AccountScreenInitData, Usage};
 use crate::settings::Settings;
