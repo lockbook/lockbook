@@ -11,6 +11,7 @@ members = [
 	"libs/content/editor/egui_editor",
 	"libs/content/workspace",
 	"libs/content/workspace-ffi",
+	"libs/lb-fs",
 	"server/server",
 	"clients/cli",
 	"clients/egui",

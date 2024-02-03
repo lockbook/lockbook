@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use lockbook_shared::document_repo::DocumentService;
 use serde::Serialize;
 
@@ -5,6 +7,7 @@ use lockbook_shared::api::{FileUsage, GetUsageRequest, GetUsageResponse};
 use lockbook_shared::file_like::FileLike;
 use lockbook_shared::tree_like::TreeLike;
 use lockbook_shared::usage::bytes_to_human;
+use uuid::Uuid;
 
 use crate::{CoreError, Requester};
 use crate::{CoreState, LbResult};
@@ -43,6 +46,27 @@ impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {
             server_usage: UsageItemMetric { exact: server_usage, readable: readable_usage },
             data_cap: UsageItemMetric { exact: cap, readable: readable_cap },
         })
+    }
+
+    pub(crate) fn get_uncompressed_usage_breakdown(&mut self) -> LbResult<HashMap<Uuid, usize>> {
+        let mut tree = (&self.db.base_metadata)
+            .to_staged(&self.db.local_metadata)
+            .to_lazy();
+        let account = self.db.account.get().ok_or(CoreError::AccountNonexistent)?;
+        let mut breakdown = HashMap::default();
+
+        for id in tree.owned_ids() {
+            let is_file_deleted = tree.calculate_deleted(&id)?;
+            let file = tree.find(&id)?;
+
+            if !is_file_deleted && file.is_document() {
+                let doc = tree.read_document(&self.docs, &id, account)?;
+                let doc_size = doc.len();
+                breakdown.insert(id, doc_size);
+            }
+        }
+
+        Ok(breakdown)
     }
 
     pub(crate) fn get_uncompressed_usage(&mut self) -> LbResult<UsageItemMetric> {

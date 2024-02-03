@@ -2,6 +2,8 @@ use crate::ast::Ast;
 use crate::style::{InlineNode, MarkdownNode, Url};
 use egui::{ColorImage, TextureId, Ui};
 use lb::Uuid;
+use resvg::tiny_skia::Pixmap;
+use resvg::usvg::{self, Transform, TreeParsing as _};
 use std::collections::HashMap;
 use std::ops::Deref;
 use std::sync::{Arc, Mutex};
@@ -49,60 +51,78 @@ pub fn calc(
 
                 result.map.insert(url.clone(), image_state.clone());
 
-                // download image
+                // fetch image
                 thread::spawn(move || {
                     let texture_manager = ctx.tex_manager();
 
-                    // use core for lb:// urls
-                    // todo: also handle relative paths
-                    let image_bytes = if let Some(stripped) = url.strip_prefix("lb://") {
-                        match Uuid::parse_str(stripped) {
-                            Ok(id) => match core.read_document(id) {
-                                Ok(bytes) => bytes,
-                                Err(e) => {
-                                    *image_state.lock().unwrap() =
-                                        ImageState::Failed(e.to_string());
-                                    ctx.request_repaint();
-                                    return;
+                    match (|| -> Result<TextureId, String> {
+                        // use core for lb:// urls
+                        // todo: also handle relative paths
+                        let maybe_lb_id = match url.strip_prefix("lb://") {
+                            Some(id) => Some(Uuid::parse_str(id).map_err(|e| e.to_string())?),
+                            None => None,
+                        };
+
+                        let image_bytes = if let Some(id) = maybe_lb_id {
+                            core.read_document(id).map_err(|e| e.to_string())?
+                        } else {
+                            download_image(&client, &url).map_err(|e| e.to_string())?
+                        };
+
+                        // convert lockbook drawings to images
+                        let image_bytes = if let Some(id) = maybe_lb_id {
+                            let file = core.get_file_by_id(id).map_err(|e| e.to_string())?;
+                            if file.name.ends_with(".svg") {
+                                // todo: check errors
+                                let tree = usvg::Tree::from_data(&image_bytes, &Default::default())
+                                    .map_err(|e| e.to_string())?;
+                                let tree = resvg::Tree::from_usvg(&tree);
+                                if let Some(content_area) = tree.content_area {
+                                    // dimensions & transform chosen so that all svg content appears in the result
+                                    let mut pix_map = Pixmap::new(
+                                        content_area.width() as _,
+                                        content_area.height() as _,
+                                    )
+                                    .ok_or("failed to create pixmap")
+                                    .map_err(|e| e.to_string())?;
+                                    let transform = Transform::identity()
+                                        .post_translate(-content_area.left(), -content_area.top());
+                                    tree.render(transform, &mut pix_map.as_mut());
+                                    pix_map.encode_png().map_err(|e| e.to_string())?
+                                } else {
+                                    // empty svg
+                                    Pixmap::new(100, 100)
+                                        .unwrap()
+                                        .encode_png()
+                                        .map_err(|e| e.to_string())?
                                 }
-                            },
-                            Err(e) => {
-                                *image_state.lock().unwrap() = ImageState::Failed(e.to_string());
-                                ctx.request_repaint();
-                                return;
+                            } else {
+                                // leave non-drawings alone
+                                image_bytes
                             }
-                        }
-                    } else {
-                        match download_image(&client, &url) {
-                            Ok(image_bytes) => image_bytes,
-                            Err(e) => {
-                                *image_state.lock().unwrap() = ImageState::Failed(e.to_string());
-                                ctx.request_repaint();
-                                return;
-                            }
-                        }
-                    };
+                        } else {
+                            // leave non-lockbook images alone
+                            image_bytes
+                        };
 
-                    let image = match image::load_from_memory(&image_bytes) {
-                        Ok(image) => image,
-                        Err(e) => {
-                            *image_state.lock().unwrap() = ImageState::Failed(e.to_string());
-                            ctx.request_repaint();
-                            return;
-                        }
-                    };
-                    let size_pixels = [image.width() as usize, image.height() as usize];
+                        let image =
+                            image::load_from_memory(&image_bytes).map_err(|e| e.to_string())?;
+                        let size_pixels = [image.width() as usize, image.height() as usize];
 
-                    let egui_image = egui::ImageData::Color(ColorImage::from_rgba_unmultiplied(
-                        size_pixels,
-                        &image.to_rgba8(),
-                    ));
-                    let texture_id =
-                        texture_manager
+                        let egui_image = egui::ImageData::Color(
+                            ColorImage::from_rgba_unmultiplied(size_pixels, &image.to_rgba8()),
+                        );
+                        Ok(texture_manager
                             .write()
-                            .alloc(title, egui_image, Default::default());
-
-                    *image_state.lock().unwrap() = ImageState::Loaded(texture_id);
+                            .alloc(title, egui_image, Default::default()))
+                    })() {
+                        Ok(texture_id) => {
+                            *image_state.lock().unwrap() = ImageState::Loaded(texture_id);
+                        }
+                        Err(err) => {
+                            *image_state.lock().unwrap() = ImageState::Failed(err);
+                        }
+                    }
 
                     // request a frame when the image is done loading
                     ctx.request_repaint();
