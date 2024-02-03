@@ -203,8 +203,7 @@ impl Workspace {
     }
 
     pub fn show_workspace(&mut self, ui: &mut egui::Ui) -> WsOutput {
-        let mut output = WsOutput::default();
-        output.status = self.pers_status.clone();
+        let mut output = WsOutput { status: self.pers_status.clone(), ..Default::default() };
         self.process_updates(&mut output);
         self.process_keys(&mut output);
         output.status.populate_message();

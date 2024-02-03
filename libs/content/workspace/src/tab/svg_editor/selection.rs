@@ -18,6 +18,12 @@ struct SelectedElement {
     original_matrix: (String, [f64; 6]),
 }
 
+impl Default for Selection {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Selection {
     pub fn new() -> Self {
         Selection {

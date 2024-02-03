@@ -114,6 +114,12 @@ pub struct CubicBezBuilder {
     pub data: String,
 }
 
+impl Default for CubicBezBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl CubicBezBuilder {
     pub fn new() -> Self {
         CubicBezBuilder {

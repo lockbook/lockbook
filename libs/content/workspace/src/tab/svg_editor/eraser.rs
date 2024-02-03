@@ -16,6 +16,13 @@ pub enum EraseEvent {
     Start(egui::Pos2),
     End,
 }
+
+impl Default for Eraser {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Eraser {
     pub fn new() -> Self {
         let (tx, rx) = mpsc::channel();

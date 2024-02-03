@@ -1,6 +1,6 @@
 use crate::{CUuid, IntegrationOutput, WgpuWorkspace};
 use egui::os::OperatingSystem;
-use egui::{vec2, Context, Event, FontDefinitions, Pos2, Vec2};
+use egui::{vec2, Context, Event, FontDefinitions, Pos2};
 use egui_wgpu_backend::wgpu::CompositeAlphaMode;
 use egui_wgpu_backend::{wgpu, ScreenDescriptor};
 use lb_external_interface::Core;

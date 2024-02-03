@@ -209,27 +209,27 @@ pub struct IntegrationOutput {
     pub editor_response: EditorResponse,
 }
 
-impl Into<(DocCharOffset, DocCharOffset)> for CTextRange {
-    fn into(self) -> (DocCharOffset, DocCharOffset) {
-        (self.start.pos.into(), self.end.pos.into())
+impl From<CTextRange> for (DocCharOffset, DocCharOffset) {
+    fn from(value: CTextRange) -> Self {
+        (value.start.pos.into(), value.end.pos.into())
     }
 }
 
-impl Into<(RelCharOffset, RelCharOffset)> for CTextRange {
-    fn into(self) -> (RelCharOffset, RelCharOffset) {
-        (self.start.pos.into(), self.end.pos.into())
+impl From<CTextRange> for (RelCharOffset, RelCharOffset) {
+    fn from(value: CTextRange) -> Self {
+        (value.start.pos.into(), value.end.pos.into())
     }
 }
 
-impl Into<Region> for CTextRange {
-    fn into(self) -> Region {
-        Region::BetweenLocations { start: self.start.into(), end: self.end.into() }
+impl From<CTextRange> for Region {
+    fn from(value: CTextRange) -> Self {
+        Region::BetweenLocations { start: value.start.into(), end: value.end.into() }
     }
 }
 
-impl Into<Location> for CTextPosition {
-    fn into(self) -> Location {
-        Location::DocCharOffset(self.pos.into())
+impl From<CTextPosition> for Location {
+    fn from(value: CTextPosition) -> Self {
+        Location::DocCharOffset(value.pos.into())
     }
 }
 
@@ -356,7 +356,7 @@ pub struct CUuid([u8; 16]);
 
 impl From<Uuid> for CUuid {
     fn from(value: Uuid) -> Self {
-        Self { 0: value.into_bytes() }
+        Self(value.into_bytes())
     }
 }
 

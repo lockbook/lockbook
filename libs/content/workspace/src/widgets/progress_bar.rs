@@ -3,6 +3,12 @@ pub struct ProgressBar {
     percent: f32,
 }
 
+impl Default for ProgressBar {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ProgressBar {
     pub fn new() -> Self {
         Self { height: 5.0, percent: 0.0 }
