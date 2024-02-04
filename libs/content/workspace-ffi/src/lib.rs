@@ -5,15 +5,23 @@ use egui_wgpu_backend::wgpu;
 use egui_wgpu_backend::wgpu::CompositeAlphaMode;
 use lb_external_interface::lb_rs::Uuid;
 use std::ffi::{c_char, CString};
-use std::ptr::null;
+use std::ptr;
 use std::time::Instant;
-use std::{iter, ptr};
+
+#[cfg(target_vendor = "apple")]
+use std::iter;
 
 mod cursor_icon;
 
-use crate::cursor_icon::CCursorIcon;
-#[cfg(not(any(target_os = "ios", target_os = "macos")))]
+#[cfg(not(target_vendor = "apple"))]
 use serde::Serialize;
+
+#[cfg(not(target_vendor = "apple"))]
+use egui_editor::EditorResponse;
+
+#[cfg(target_vendor = "apple")]
+use crate::cursor_icon::CCursorIcon;
+
 use workspace::output::WsOutput;
 use workspace::workspace::Workspace;
 
@@ -23,6 +31,7 @@ pub mod apple;
 #[cfg(target_os = "android")]
 pub mod android;
 
+#[cfg(target_vendor = "apple")]
 #[repr(C)]
 #[derive(Debug)]
 pub struct UITextSelectionRects {
@@ -30,9 +39,10 @@ pub struct UITextSelectionRects {
     pub rects: *const CRect,
 }
 
+#[cfg(target_vendor = "apple")]
 impl Default for UITextSelectionRects {
     fn default() -> Self {
-        UITextSelectionRects { size: 0, rects: null() }
+        UITextSelectionRects { size: 0, rects: ptr::null() }
     }
 }
 
@@ -179,7 +189,7 @@ impl From<WsOutput> for FfiWorkspaceResp {
     }
 }
 
-#[cfg(any(target_os = "ios", target_os = "macos"))]
+#[cfg(target_vendor = "apple")]
 #[repr(C)]
 #[derive(Debug)]
 pub struct IntegrationOutput {
@@ -190,6 +200,7 @@ pub struct IntegrationOutput {
     pub cursor: CCursorIcon,
 }
 
+#[cfg(target_vendor = "apple")]
 impl Default for IntegrationOutput {
     fn default() -> Self {
         Self {
@@ -202,7 +213,7 @@ impl Default for IntegrationOutput {
     }
 }
 
-#[cfg(not(any(target_os = "ios", target_os = "macos")))]
+#[cfg(not(target_vendor = "apple"))]
 #[derive(Debug, Default, Serialize)]
 pub struct IntegrationOutput {
     pub redraw_in: u64,
@@ -234,6 +245,7 @@ impl From<CTextPosition> for Location {
 }
 
 impl WgpuWorkspace {
+    #[cfg(target_vendor = "apple")]
     pub fn frame(&mut self) -> IntegrationOutput {
         let mut out = IntegrationOutput::default();
         self.configure_surface();
@@ -259,14 +271,10 @@ impl WgpuWorkspace {
         self.set_egui_screen();
         self.raw_input.time = Some(self.start_time.elapsed().as_secs_f64());
         self.context.begin_frame(self.raw_input.take());
+
         out.workspace_resp = self.workspace.draw(&self.context).into();
+
         let full_output = self.context.end_frame();
-        if !full_output.platform_output.copied_text.is_empty() {
-            // todo: can this go in output?
-            out.copied_text = CString::new(full_output.platform_output.copied_text)
-                .unwrap()
-                .into_raw();
-        }
 
         #[cfg(target_os = "ios")]
         {
@@ -276,6 +284,13 @@ impl WgpuWorkspace {
                     != markdown.editor.old_scroll_area_offset)
                     || markdown.editor.selection_updated;
             }
+        }
+
+        if !full_output.platform_output.copied_text.is_empty() {
+            // todo: can this go in output?
+            out.copied_text = CString::new(full_output.platform_output.copied_text)
+                .unwrap()
+                .into_raw();
         }
 
         if let Some(url) = full_output.platform_output.open_url {
