@@ -358,13 +358,17 @@ impl Workspace {
                 ..ui.style().deref().clone()
             });
 
-            let button = egui::widgets::Button::new(self.tabs[0].name.clone())
+            let selectable_label = egui::widgets::Button::new(self.tabs[0].name.clone())
                 .frame(false)
                 .fill(egui::Color32::TRANSPARENT);
 
-            if ui.add_sized(ui.available_size(), button).clicked() {
-                output.tab_title_clicked = true;
-            }
+            ui.allocate_ui(ui.available_size(), |ui| {
+                ui.with_layout(egui::Layout::top_down_justified(egui::Align::LEFT), |ui| {
+                    if ui.add(selectable_label).clicked() {
+                        output.tab_title_clicked = true
+                    }
+                });
+            })
         });
     }
 
