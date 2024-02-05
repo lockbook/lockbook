@@ -386,6 +386,7 @@ impl Workspace {
                                 if self.active_tab == i {
                                     // we should rename the file.
 
+                                    output.tab_title_clicked = true;
                                     let active_name = self.tabs[i].name.clone();
 
                                     let mut rename_edit_state =
