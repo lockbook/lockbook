@@ -90,7 +90,7 @@ impl ToolBar {
     fn map_buttons(&mut self, ui: &mut egui::Ui, editor: &mut Editor, is_mobile: bool) {
         ui.horizontal(|ui| {
             ui.spacing_mut().button_padding =
-                if is_mobile { egui::vec2(10.0, 4.0) } else { egui::vec2(20.0, 10.0) };
+                if is_mobile { egui::vec2(10.0, 4.0) } else { egui::vec2(10.0, 20.0) };
 
             self.buttons.clone().iter().for_each(|btn| {
                 let res = Button::default().icon(&btn.icon).show(ui);
