@@ -164,7 +164,6 @@ struct FileListView: View {
             }
         }
     }
-
 }
 
 struct DragGestureViewModifier: ViewModifier {

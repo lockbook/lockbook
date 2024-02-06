@@ -78,29 +78,32 @@ import AppKit
     }
 
     func onUrlOpen(url: URL) {
-        DispatchQueue.global(qos: .userInitiated).async {
-            if url.scheme == "lb" {
-                if let uuidString = url.host,
-                   let id = UUID(uuidString: uuidString) {
-                    while true {
-                        if DI.accounts.account == nil && DI.accounts.calculated {
+        if url.scheme == "lb" {
+            if let uuidString = url.host,
+               let id = UUID(uuidString: uuidString) {
+                
+                DispatchQueue.global(qos: .userInitiated).async {
+                    while !DI.files.hasRootLoaded {
+                        if DI.accounts.calculated && DI.accounts.account == nil {
                             return
                         }
-                        
-                        if DI.files.root != nil {
-                            if DI.files.idsAndFiles[id] != nil {
-                                DI.workspace.openDoc = id
-                            } else {
-                                DI.errors.errorWithTitle("File not found", "That file does not exist in your lockbook")
-                            }
-                        }
                     }
-                } else {
-                    DI.errors.errorWithTitle("Malformed link", "Cannot open file")
+                    
+                    Thread.sleep(until: .now + 0.1)
+                    
+                    if DI.files.idsAndFiles[id] != nil {
+                        DispatchQueue.main.async {
+                            DI.workspace.openDoc = id
+                        }
+                    } else {
+                        DI.errors.errorWithTitle("File not found", "That file does not exist in your lockbook")
+                    }
                 }
             } else {
-                DI.errors.errorWithTitle("Error", "An unexpected error has occurred")
+                DI.errors.errorWithTitle("Malformed link", "Cannot open file")
             }
+        } else {
+            DI.errors.errorWithTitle("Error", "An unexpected error has occurred")
         }
     }
 }

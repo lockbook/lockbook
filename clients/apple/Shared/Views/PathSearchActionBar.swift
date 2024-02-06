@@ -264,19 +264,12 @@ public class PathSearchTextField: NSTextField {
         switch event.keyCode {
         case 126: // up arrow
             DI.search.selectPreviousPath()
-            
             return true
         case 125: // down arrow
             DI.search.selectNextPath()
-            
             return true
         case 36: // return
             DI.search.openPathAtIndex(index: DI.search.pathSearchSelected)
-            
-            return true
-        case 53: // escape
-            DI.search.endSearch(isPathAndContentSearch: false)
-            
             return true
         default:
             if event.modifierFlags.contains(.command) { // command + num (1-9)
@@ -308,6 +301,10 @@ public class PathSearchTextField: NSTextField {
             
             return super.performKeyEquivalent(with: event)
         }
+    }
+    
+    public override func cancelOperation(_ sender: Any?) {
+        DI.search.endSearch(isPathAndContentSearch: false)
     }
 }
 
