@@ -27,26 +27,6 @@ impl FileTree {
         Self { root, state, core: core.clone() }
     }
 
-    pub fn expand_to(&mut self, id: lb::Uuid) {
-        if let Some(node) = self.root.find(id) {
-            // Select only the target file.
-            self.state.selected.clear();
-            self.state.selected.insert(id);
-
-            // Expand all target file parents.
-            let mut id = node.file.parent;
-            while let Some(node) = self.root.find(id) {
-                self.state.expanded.insert(id);
-                if node.file.id == self.root.file.id {
-                    break;
-                }
-                id = node.file.parent;
-            }
-        } else {
-            eprintln!("couldn't find node with id {}", id);
-        }
-    }
-
     pub fn show(&mut self, ui: &mut egui::Ui) -> NodeResponse {
         ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
         let mut is_hovered = false;
@@ -184,6 +164,7 @@ impl FileTree {
 
     /// expand the parents of the file and select it
     // todo: remove this, duplicate of expand_to()
+    // todo: this doesn't request a repaint
     pub fn reveal_file(&mut self, id: lb::Uuid, core: &lb::Core) {
         let core = core.clone();
         let update_tx = self.state.update_tx.clone();

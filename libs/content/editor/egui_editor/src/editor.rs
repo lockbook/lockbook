@@ -1,14 +1,9 @@
-#[cfg(not(any(target_os = "ios", target_os = "macos")))]
-use serde::Serialize;
-#[cfg(any(target_os = "ios", target_os = "macos"))]
-use std::ffi::{c_char, CString};
-#[cfg(any(target_os = "ios", target_os = "macos"))]
-use std::ptr;
 use std::time::{Duration, Instant};
 use std::{cmp, mem};
 
 use egui::os::OperatingSystem;
 use egui::{Color32, Context, Event, FontDefinitions, Frame, Pos2, Rect, Sense, Ui, Vec2};
+use serde::Serialize;
 
 use crate::appearance::Appearance;
 use crate::ast::Ast;
@@ -25,48 +20,19 @@ use crate::offset_types::{DocCharOffset, RangeExt};
 use crate::style::{BlockNode, InlineNode, ListItem, MarkdownNode};
 use crate::{ast, bounds, galleys, images, register_fonts};
 
-#[cfg(any(target_os = "ios", target_os = "macos"))]
-#[repr(C)]
-#[derive(Debug)]
-pub struct EditorResponse {
-    pub text_updated: bool,
-    pub potential_title: *const c_char,
-
-    pub show_edit_menu: bool,
-    pub has_selection: bool,
-    pub selection_updated: bool,
-    pub edit_menu_x: f32,
-    pub edit_menu_y: f32,
-
-    pub scroll_updated: bool,
-
-    pub cursor_in_heading: bool,
-    pub cursor_in_bullet_list: bool,
-    pub cursor_in_number_list: bool,
-    pub cursor_in_todo_list: bool,
-    pub cursor_in_bold: bool,
-    pub cursor_in_italic: bool,
-    pub cursor_in_inline_code: bool,
-    pub cursor_in_strikethrough: bool,
-
-    pub opened_url: *const c_char,
-}
-
-// two structs are used instead of conditional compilation (`cfg`) for `potential_title` because the header
-// files generated for Swift will include both types of `potential_title`. this causes compilation issues in Swift.
-#[cfg(not(any(target_os = "ios", target_os = "macos")))]
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Default)]
 pub struct EditorResponse {
     pub text_updated: bool,
     pub potential_title: Option<String>,
+    pub document_renamed: Option<String>,
+
+    pub scroll_updated: bool,
 
     pub show_edit_menu: bool,
     pub has_selection: bool,
     pub selection_updated: bool,
     pub edit_menu_x: f32,
     pub edit_menu_y: f32,
-
-    pub scroll_updated: bool,
 
     pub cursor_in_heading: bool,
     pub cursor_in_bullet_list: bool,
@@ -76,44 +42,6 @@ pub struct EditorResponse {
     pub cursor_in_italic: bool,
     pub cursor_in_inline_code: bool,
     pub cursor_in_strikethrough: bool,
-
-    #[cfg(target_os = "android")]
-    pub opened_url: Option<String>,
-}
-
-impl Default for EditorResponse {
-    fn default() -> Self {
-        Self {
-            text_updated: false,
-            #[cfg(any(target_os = "ios", target_os = "macos"))]
-            potential_title: ptr::null(),
-            #[cfg(not(any(target_os = "ios", target_os = "macos")))]
-            potential_title: None,
-
-            show_edit_menu: false,
-            has_selection: false,
-            selection_updated: false,
-            edit_menu_x: 0.0,
-            edit_menu_y: 0.0,
-
-            scroll_updated: false,
-
-            cursor_in_heading: false,
-            cursor_in_bullet_list: false,
-            cursor_in_number_list: false,
-            cursor_in_todo_list: false,
-            cursor_in_bold: false,
-            cursor_in_italic: false,
-            cursor_in_inline_code: false,
-            cursor_in_strikethrough: false,
-
-            #[cfg(any(target_os = "ios", target_os = "macos"))]
-            opened_url: ptr::null(),
-
-            #[cfg(target_os = "android")]
-            opened_url: None,
-        }
-    }
 }
 
 // makes for fewer arguments in a few places
@@ -245,6 +173,7 @@ impl Editor {
 
         // show ui
         let mut focus = false;
+
         let sao = egui::ScrollArea::vertical()
             .drag_to_scroll(touch_mode)
             .id_source(self.id)
@@ -309,7 +238,7 @@ impl Editor {
 
         // process events
         let (text_updated, selection_updated, pointer_offset_updated) = if self.initialized {
-            if ui.memory(|m| m.has_focus(id)) {
+            if ui.memory(|m| m.has_focus(id)) || cfg!(target_os = "ios") {
                 let custom_events = mem::take(&mut self.custom_events);
                 self.process_events(events, &custom_events, touch_mode);
                 if let Some(to_clipboard) = &self.maybe_to_clipboard {
@@ -429,11 +358,6 @@ impl Editor {
 
         let potential_title = self.get_potential_text_title();
 
-        #[cfg(any(target_os = "ios", target_os = "macos"))]
-        let potential_title = CString::new(potential_title.unwrap_or_default())
-            .expect("Could not Rust String -> C String")
-            .into_raw() as *const c_char;
-
         let mut result = EditorResponse {
             text_updated,
             potential_title,
@@ -448,20 +372,6 @@ impl Editor {
 
             ..Default::default()
         };
-
-        #[cfg(any(target_os = "ios", target_os = "macos"))]
-        {
-            result.opened_url = match &self.maybe_opened_url {
-                None => ptr::null(),
-                Some(url) => CString::new(url.to_string())
-                    .expect("Could not Rust String -> C String")
-                    .into_raw() as *const c_char,
-            };
-        }
-        #[cfg(target_os = "android")]
-        {
-            result.opened_url = self.maybe_opened_url.clone();
-        }
 
         // determine styles at cursor location
         // todo: check for styles in selection

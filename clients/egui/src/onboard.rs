@@ -3,10 +3,10 @@ use std::thread;
 
 use eframe::egui;
 use egui_extras::RetainedImage;
+use workspace_rs::widgets::ButtonGroup;
 
-use crate::model::{AccountScreenInitData, SyncError};
+use crate::model::AccountScreenInitData;
 use crate::settings::Settings;
-use crate::widgets::ButtonGroup;
 
 pub struct OnboardHandOff {
     pub settings: Arc<RwLock<Settings>>,
@@ -313,4 +313,18 @@ enum Route {
     Import,
 }
 
-const LOGO: &[u8] = include_bytes!("../lockbook-backdrop.png");
+const LOGO: &[u8] = include_bytes!("../../../libs/content/workspace/lockbook-backdrop.png");
+
+pub enum SyncError {
+    Major(String),
+    Minor(String),
+}
+
+impl From<lb::LbError> for SyncError {
+    fn from(err: lb::LbError) -> Self {
+        match err.kind {
+            lb::CoreError::Unexpected(msg) => Self::Major(msg),
+            _ => Self::Minor(format!("{:?}", err)),
+        }
+    }
+}

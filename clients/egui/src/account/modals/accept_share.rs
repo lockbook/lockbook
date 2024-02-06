@@ -1,7 +1,9 @@
 use eframe::egui;
 use lb::File;
+use workspace_rs::theme::icons::Icon;
+use workspace_rs::widgets::Button;
 
-use crate::{model::DocType, theme::Icon, widgets::Button};
+use crate::model::DocType;
 
 pub struct AcceptShareModal {
     requests: Vec<lb::File>,

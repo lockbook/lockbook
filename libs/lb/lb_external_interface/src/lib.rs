@@ -14,6 +14,8 @@ use std::path::PathBuf;
 use serde_json::{json, value::Value};
 use strum::IntoEnumIterator;
 
+pub use lb_rs;
+pub use lb_rs::Core;
 use lb_rs::{service::search_service::SearchType, *};
 
 use self::errors::*;

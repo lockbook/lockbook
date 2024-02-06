@@ -3,9 +3,9 @@ use std::thread;
 
 use eframe::egui;
 use rfd::FileDialog;
+use workspace_rs::theme::icons::Icon;
 
 use crate::model::DocType;
-use crate::theme::Icon;
 
 use super::response::*;
 use super::state::*;

@@ -23,26 +23,31 @@ struct UsageSettingsView: View {
                         Text("Calculating...")
                     }
                 }
-                HStack (alignment: .top) {
-                    Text("Uncompressed usage:")
-                        .frame(maxWidth: 175, alignment: .trailing)
-                    if let usage = settingsState.usages {
-                        Text(usage.uncompressedUsage.readable)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                }
-                
-                HStack (alignment: .top) {
-                    Text("Compression ratio:")
-                        .frame(maxWidth: 175, alignment: .trailing)
-                    if let usage = settingsState.usages {
-                        Text(usage.compressionRatio)
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                if let usage = settingsState.usages {
+                    if let uncompressedUsage = usage.uncompressedUsage {
+                        HStack (alignment: .top) {
+                            Text("Uncompressed usage:")
+                                .frame(maxWidth: 175, alignment: .trailing)
+                            
+                            Text(uncompressedUsage.readable)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        
+                        HStack (alignment: .top) {
+                            Text("Compression ratio:")
+                                .frame(maxWidth: 175, alignment: .trailing)
+                            if let usage = settingsState.usages {
+                                Text(usage.compressionRatio)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                        }
                     }
                 }
             }
         }
         .padding(20)
-        .onAppear(perform: settingsState.calculateUsage)
+        .onAppear(perform: {
+            settingsState.calculateUsage(calcUncompressed: true)
+        })
     }
 }

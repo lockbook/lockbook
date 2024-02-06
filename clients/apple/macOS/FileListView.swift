@@ -1,6 +1,8 @@
 import SwiftUI
 import SwiftLockbookCore
 import DSFQuickActionBar
+import SwiftWorkspace
+import CLockbookCore
 
 struct FileListView: View {
     @State var searchInput: String = ""
@@ -71,32 +73,28 @@ struct FileListView: View {
 }
 
 struct DetailView: View {
-    @EnvironmentObject var currentSelection: DocumentService
     @EnvironmentObject var search: SearchService
     @EnvironmentObject var share: ShareService
+    @EnvironmentObject var workspace: WorkspaceState
         
     var body: some View {
         ZStack {
-            if currentSelection.isPendingSharesOpen {
-                PendingSharesView()
-            } else {
-                DocumentTabView()
-            }
+            WorkspaceView(DI.workspace, get_core_ptr())
+                .equatable()
+                .opacity(workspace.pendingSharesOpen ? 0.0 : 1.0)
             
+            if workspace.pendingSharesOpen {
+                PendingSharesView()
+            }
         }
         .toolbar {
             ToolbarItemGroup {
-                if let id = currentSelection.selectedDoc,
+                if let id = workspace.openDoc,
                    let meta = DI.files.idsAndFiles[id],
-                   !currentSelection.isPendingSharesOpen {
-                    
-                    let view = MacOSShareSpaceHolder()
-                    
+                   !workspace.pendingSharesOpen {
                     ZStack {
-                        view.id(UUID())
-                        
                         Button(action: {
-                            view.view.exportFileAndShowShareSheet(meta: meta)
+                            NSApp.keyWindow?.toolbar?.items.first?.view?.exportFileAndShowShareSheet(meta: meta)
                         }, label: {
                             Label("Share externally to...", systemImage: "square.and.arrow.up.fill")
                                 .imageScale(.large)
@@ -116,22 +114,12 @@ struct DetailView: View {
                 }
                 
                 Button(action: {
-                    currentSelection.isPendingSharesOpen = true
+                    DI.workspace.pendingSharesOpen.toggle()
                 }) {
-                    pendingShareToolbarIcon(isPendingSharesEmpty: share.pendingShares.isEmpty)
+                    pendingShareToolbarIcon(isPendingSharesEmpty: share.pendingShares?.isEmpty ?? true)
                         .imageScale(.large)
                 }
             }
         }
     }
-}
-
-struct MacOSShareSpaceHolder: NSViewRepresentable {
-    let view = NSView()
-        
-    func makeNSView(context: Context) -> NSView {
-        view
-    }
-
-    func updateNSView(_ nsView: NSView, context: Context) {}
 }

@@ -1808,14 +1808,11 @@ dependencies = [
 name = "egui_editor"
 version = "0.8.4"
 dependencies = [
- "eframe",
  "egui",
- "egui_wgpu_backend",
  "image",
  "jni 0.21.1",
  "lb-fonts",
  "lb-rs",
- "libc",
  "linkify",
  "ndk-sys",
  "pollster",
@@ -1825,7 +1822,6 @@ dependencies = [
  "reqwest",
  "resvg",
  "serde",
- "serde_json",
  "unicode-segmentation",
 ]
 
@@ -3379,10 +3375,10 @@ dependencies = [
 
 [[package]]
 name = "lb-pdf"
-version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "34169bfa1db3c8d0f7f8176ec35884ea6ed9602d759ec64a74ba0a42f13c1ec5"
+version = "0.2.3"
+source = "git+https://github.com/lockbook/lb-pdf#445ada45289c612b06e2eade6bc125b1c10a1f6d"
 dependencies = [
+ "link-cplusplus",
  "pdfium-render",
 ]
 
@@ -3545,6 +3541,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "link-cplusplus"
+version = "1.0.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9d240c6f7e1ba3a28b0249f774e6a9dd0175054b52dfbb61b16eb8505c3785c9"
+dependencies = [
+ "cc",
+]
+
+[[package]]
 name = "linkify"
 version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3600,7 +3605,6 @@ dependencies = [
 name = "lockbook-egui"
 version = "0.8.4"
 dependencies = [
- "bezier-rs",
  "dark-light",
  "eframe",
  "egui-notify",
@@ -3608,10 +3612,8 @@ dependencies = [
  "egui_editor",
  "egui_extras",
  "egui_wgpu_backend",
- "glam",
  "image",
  "lb-fonts",
- "lb-pdf",
  "lb-rs",
  "minidom",
  "pdfium-render",
@@ -3619,8 +3621,8 @@ dependencies = [
  "rfd",
  "serde",
  "serde_json",
- "svgtypes 0.13.0",
  "winres",
+ "workspace",
 ]
 
 [[package]]
@@ -7432,6 +7434,42 @@ dependencies = [
  "egui_extras",
  "image",
  "mslnk",
+]
+
+[[package]]
+name = "workspace"
+version = "0.1.0"
+dependencies = [
+ "bezier-rs",
+ "egui",
+ "egui_editor",
+ "egui_extras",
+ "epaint",
+ "glam",
+ "lb-pdf",
+ "lb-rs",
+ "minidom",
+ "resvg",
+ "serde",
+ "svgtypes 0.13.0",
+]
+
+[[package]]
+name = "workspace-ffi"
+version = "0.1.0"
+dependencies = [
+ "egui",
+ "egui_editor",
+ "egui_wgpu_backend",
+ "jni 0.21.1",
+ "lb_external_interface",
+ "libc",
+ "ndk-sys",
+ "pollster",
+ "raw-window-handle",
+ "serde",
+ "serde_json",
+ "workspace",
 ]
 
 [[package]]

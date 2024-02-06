@@ -59,3 +59,4 @@ class ErrorEnumTests: XCTestCase {
         XCTAssert(allErrors.noneEmpty(), "Some error variants are empty!")
     }
 }
+

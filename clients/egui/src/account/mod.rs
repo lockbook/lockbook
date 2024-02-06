@@ -1,50 +1,44 @@
-mod background;
 mod full_doc_search;
 mod modals;
 mod suggested_docs;
 mod syncing;
-mod tabs;
 mod tree;
-mod workspace;
 
-use std::collections::HashMap;
 use std::ffi::OsStr;
 use std::sync::{mpsc, Arc, RwLock};
 use std::time::{Duration, Instant};
 use std::{path, thread};
 
 use eframe::egui;
-use lb::{FileType, NameComponents};
+use lb::{FileType, Uuid};
+use workspace_rs::background::BwIncomingMsg;
+use workspace_rs::tab::image_viewer::{is_supported_image_fmt, ImageViewer};
+use workspace_rs::tab::markdown::Markdown;
+use workspace_rs::tab::plain_text::PlainText;
+use workspace_rs::tab::{Tab, TabContent, TabFailure};
+use workspace_rs::theme::icons::Icon;
+use workspace_rs::widgets::{separator, Button};
+use workspace_rs::workspace::{Workspace, WsConfig};
 
 use crate::model::{AccountScreenInitData, Usage};
 use crate::settings::Settings;
-use crate::theme::Icon;
-use crate::util::NUM_KEYS;
-use crate::widgets::{separator, Button};
+use crate::util::data_dir;
 use crate::UpdateOutput;
 
-use self::background::*;
 use self::full_doc_search::FullDocSearch;
 use self::modals::*;
 
 use self::suggested_docs::SuggestedDocs;
-use self::syncing::{SyncPanel, SyncUpdate};
-use self::tabs::{
-    Drawing, ImageViewer, Markdown, PdfViewer, PlainText, SVGEditor, Tab, TabContent, TabFailure,
-};
+use self::syncing::SyncPanel;
 use self::tree::{FileTree, TreeNode};
-use self::workspace::Workspace;
 
 pub struct AccountScreen {
-    ctx: egui::Context,
     settings: Arc<RwLock<Settings>>,
     pub core: lb::Core,
     toasts: egui_notify::Toasts,
 
     update_tx: mpsc::Sender<AccountUpdate>,
     update_rx: mpsc::Receiver<AccountUpdate>,
-
-    background_tx: mpsc::Sender<BackgroundEvent>,
 
     tree: FileTree,
     has_pending_shares: bool,
@@ -68,12 +62,17 @@ impl AccountScreen {
         let AccountScreenInitData { sync_status, files, usage, has_pending_shares } = acct_data;
         let core_clone = core.clone();
 
-        let background = BackgroundWorker::new(ctx, &update_tx);
-        let background_tx = background.spawn_worker();
-
         let toasts = egui_notify::Toasts::default()
             .with_margin(egui::vec2(40.0, 30.0))
             .with_padding(egui::vec2(20.0, 20.0));
+        let reference_settings = settings.read().unwrap();
+        let ws_cfg = WsConfig::new(
+            data_dir().unwrap(),
+            reference_settings.auto_save,
+            reference_settings.auto_sync,
+            reference_settings.zen_mode,
+        );
+        drop(reference_settings);
 
         Self {
             settings,
@@ -81,7 +80,6 @@ impl AccountScreen {
             toasts,
             update_tx,
             update_rx,
-            background_tx,
             has_pending_shares,
             is_new_user,
             tree: FileTree::new(files, &core_clone),
@@ -89,17 +87,19 @@ impl AccountScreen {
             full_search_doc: FullDocSearch::new(),
             sync: SyncPanel::new(sync_status),
             usage,
-            workspace: Workspace::new(),
+            workspace: Workspace::new(ws_cfg, &core_clone, &ctx.clone()),
             modals: Modals::default(),
             shutdown: None,
-            ctx: ctx.clone(),
         }
     }
 
     pub fn begin_shutdown(&mut self) {
         self.shutdown = Some(AccountShutdownProgress::default());
-        self.save_all_tabs(&self.ctx);
-        self.background_tx.send(BackgroundEvent::Shutdown).unwrap();
+        self.workspace.save_all_tabs();
+        self.workspace
+            .background_tx
+            .send(BwIncomingMsg::Shutdown)
+            .unwrap();
     }
 
     pub fn is_shutdown(&self) -> bool {
@@ -111,7 +111,7 @@ impl AccountScreen {
 
     pub fn update(&mut self, ctx: &egui::Context, output: &mut UpdateOutput) {
         self.process_updates(ctx, output);
-        self.process_keys(ctx, output);
+        self.process_keys(ctx);
         self.process_dropped_files(ctx);
         self.toasts.show(ctx);
 
@@ -121,8 +121,9 @@ impl AccountScreen {
             return Default::default();
         }
 
-        self.background_tx
-            .send(BackgroundEvent::EguiUpdate)
+        self.workspace
+            .background_tx
+            .send(BwIncomingMsg::EguiUpdate)
             .unwrap();
 
         let is_expanded = !self.settings.read().unwrap().zen_mode;
@@ -145,13 +146,13 @@ impl AccountScreen {
                     ui.vertical(|ui| {
                         ui.add_space(15.0);
                         if let Some(&file) = self.full_search_doc.show(ui, &self.core) {
-                            self.open_file(file, ctx, false);
+                            self.workspace.open_file(file, false);
                         }
                         ui.add_space(15.0);
 
                         if self.full_search_doc.results.is_empty() {
                             if let Some(file) = self.suggested.show(ui) {
-                                self.open_file(file, ctx, false);
+                                self.workspace.open_file(file, false);
                             }
                             ui.add_space(15.0);
                             self.show_tree(ui);
@@ -162,7 +163,35 @@ impl AccountScreen {
 
         egui::CentralPanel::default()
             .frame(egui::Frame::default().fill(ctx.style().visuals.widgets.noninteractive.bg_fill))
-            .show(ctx, |ui| self.show_workspace(output, ui));
+            .show(ctx, |ui| {
+                ui.set_enabled(!self.is_any_modal_open());
+                let settings = self.settings.read().unwrap();
+                self.workspace.cfg.update(
+                    settings.auto_save,
+                    settings.auto_sync,
+                    settings.zen_mode,
+                );
+                drop(settings);
+                self.workspace.focused_parent = Some(self.focused_parent());
+                let wso = self.workspace.show_workspace(ui);
+                output.set_window_title = wso.window_title;
+                self.has_pending_shares = wso.status.pending_share_found;
+                if let Some((id, new_name)) = wso.file_renamed {
+                    if let Some(node) = self.tree.root.find_mut(id) {
+                        node.file.name = new_name.clone();
+                    }
+                    self.suggested.recalc_and_redraw(ctx, &self.core);
+                    ctx.request_repaint();
+                }
+
+                if let Some(result) = wso.file_created {
+                    self.file_created(ctx, result);
+                }
+
+                if let Some(file) = wso.selected_file {
+                    self.tree.reveal_file(file, &self.core);
+                }
+            });
 
         if self.is_new_user {
             self.modals.account_backup = Some(AccountBackup);
@@ -174,21 +203,6 @@ impl AccountScreen {
     fn process_updates(&mut self, ctx: &egui::Context, output: &mut UpdateOutput) {
         while let Ok(update) = self.update_rx.try_recv() {
             match update {
-                AccountUpdate::AutoSaveSignal => {
-                    if self.settings.read().unwrap().auto_save {
-                        self.save_all_tabs(ctx);
-                    }
-                }
-                AccountUpdate::SaveResult(id, result) => {
-                    if let Some(tab) = self.workspace.get_mut_tab_by_id(id) {
-                        match result {
-                            Ok(time_saved) => tab.last_saved = time_saved,
-                            Err(err) => {
-                                tab.failure = Some(TabFailure::Unexpected(format!("{:?}", err)))
-                            }
-                        }
-                    }
-                }
                 AccountUpdate::OpenModal(open_modal) => match open_modal {
                     OpenModal::AcceptShare => {
                         self.modals.accept_share = Some(AcceptShareModal::new(&self.core));
@@ -217,7 +231,7 @@ impl AccountScreen {
                 AccountUpdate::ShareAccepted(result) => match result {
                     Ok(_) => {
                         self.modals.file_picker = None;
-                        self.perform_sync(ctx);
+                        self.workspace.perform_sync();
                         // todo: figure out how to call reveal_file after the file tree is updated with the new sync info
                     }
                     Err(msg) => self.modals.error = Some(ErrorModal::new(msg)),
@@ -229,63 +243,10 @@ impl AccountScreen {
                     }
                     Err(msg) => self.modals.error = Some(ErrorModal::new(msg)),
                 },
-                AccountUpdate::FileCreated(result) => match result {
-                    Ok(f) => {
-                        let (id, is_doc) = (f.id, f.is_document());
-                        self.tree.root.insert(f);
-                        self.tree.reveal_file(id, &self.core);
-                        if is_doc {
-                            self.open_file(id, ctx, true);
-                        }
-                        // Close whichever new file modal was open.
-                        self.modals.new_folder = None;
-                        ctx.request_repaint();
-                    }
-                    Err(msg) => {
-                        if let Some(m) = &mut self.modals.new_folder {
-                            m.err_msg = Some(msg)
-                        }
-                    }
-                },
-                AccountUpdate::FileLoaded(id, content_result) => {
-                    if let Some(tab) = self.workspace.get_mut_tab_by_id(id) {
-                        output.set_window_title = Some(tab.name.clone());
-                        self.tree.reveal_file(id, &self.core);
-
-                        match content_result {
-                            Ok(content) => tab.content = Some(content),
-                            Err(fail) => tab.failure = Some(fail),
-                        }
-                    }
-                }
-                AccountUpdate::FileRenamed { id, new_name, new_child_paths } => {
-                    if let Some(node) = self.tree.root.find_mut(id) {
-                        node.file.name = new_name.clone();
-                    }
-                    if let Some(tab) = self.workspace.get_mut_tab_by_id(id) {
-                        tab.name = new_name.clone();
-                    }
-                    if let Some(tab) = self.workspace.current_tab() {
-                        if tab.id == id {
-                            output.set_window_title = Some(tab.name.clone());
-                        }
-                    }
-                    self.suggested.recalc_and_redraw(ctx, &self.core);
-
-                    // If any of this file's children are open, we need to update their restore
-                    // paths in case a sync deletes them.
-                    for tab in &mut self.workspace.tabs {
-                        if let Some(new_path) = new_child_paths.get(&tab.id) {
-                            tab.path = new_path.clone();
-                        }
-                    }
-                }
+                AccountUpdate::FileCreated(result) => self.file_created(ctx, result),
                 AccountUpdate::FileDeleted(f) => {
                     self.tree.remove(&f);
                     self.suggested.recalc_and_redraw(ctx, &self.core);
-                }
-                AccountUpdate::SyncUpdate(update) => {
-                    self.process_sync_update(ctx, update);
                 }
                 AccountUpdate::DoneDeleting => self.modals.confirm_delete = None,
                 AccountUpdate::ReloadTree(root) => self.tree.root = root,
@@ -314,12 +275,7 @@ impl AccountScreen {
                         }
                     }
                 }
-                AccountUpdate::BackgroundWorkerDone => {
-                    if let Some(s) = &mut self.shutdown {
-                        s.done_saving = true;
-                        self.perform_final_sync(ctx);
-                    }
-                }
+
                 AccountUpdate::FinalSyncAttemptDone => {
                     if let Some(s) = &mut self.shutdown {
                         s.done_syncing = true;
@@ -328,7 +284,7 @@ impl AccountScreen {
                 AccountUpdate::FileShared(result) => match result {
                     Ok(_) => {
                         self.modals.create_share = None;
-                        self.perform_sync(ctx);
+                        self.workspace.perform_sync();
                     }
                     Err(msg) => {
                         if let Some(m) = &mut self.modals.create_share {
@@ -336,43 +292,14 @@ impl AccountScreen {
                         }
                     }
                 },
-                AccountUpdate::SyncStatusSignal => self.refresh_sync_status(ctx),
-                AccountUpdate::AutoSyncSignal => {
-                    if self.settings.read().unwrap().auto_sync {
-                        self.perform_sync(ctx)
-                    }
-                }
-                AccountUpdate::FoundPendingShares(has_pending_shares) => {
-                    self.has_pending_shares = has_pending_shares
-                }
-                AccountUpdate::EditorRenameSignal(new_name) => {
-                    if let Some(tab) = &self.workspace.tabs.get(self.workspace.active_tab) {
-                        let core = self.core.clone();
-                        let new_name = format!("{}.md", new_name);
-                        let update_tx = self.update_tx.clone();
-                        let id = tab.id;
-
-                        thread::spawn(move || {
-                            core.rename_file(id, new_name.as_str()).unwrap();
-
-                            let mut new_child_paths = HashMap::new();
-                            for f in core.get_and_get_children_recursively(id).unwrap() {
-                                new_child_paths.insert(f.id, core.get_path_by_id(f.id).unwrap());
-                            }
-
-                            update_tx
-                                .send(AccountUpdate::FileRenamed { id, new_name, new_child_paths })
-                                .unwrap();
-                        });
-                    }
-                }
             }
         }
     }
 
-    fn process_keys(&mut self, ctx: &egui::Context, output: &mut UpdateOutput) {
+    /// See also workspace::process_keys
+    fn process_keys(&mut self, ctx: &egui::Context) {
         const ALT: egui::Modifiers = egui::Modifiers::ALT;
-        const CTRL: egui::Modifiers = egui::Modifiers::CTRL;
+        const CTRL: egui::Modifiers = egui::Modifiers::MAC_CMD;
 
         // Escape (without modifiers) to close something such as an open modal.
         // We don't want to consume it unless something is closed.
@@ -382,10 +309,6 @@ impl AccountScreen {
         {
             ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape));
         }
-        // Ctrl-N pressed while new file modal is not open.
-        if ctx.input_mut(|i| i.consume_key(CTRL, egui::Key::N)) {
-            self.create_file(false);
-        }
 
         // Ctrl-E toggle zen mode
         if ctx.input_mut(|i| i.consume_key(CTRL, egui::Key::E)) {
@@ -394,26 +317,6 @@ impl AccountScreen {
                 zen_mode = !settings.zen_mode;
             }
             self.settings.write().unwrap().zen_mode = zen_mode;
-        }
-
-        // Ctrl-S to save current tab.
-        if ctx.input_mut(|i| i.consume_key(CTRL, egui::Key::S)) {
-            self.save_tab(ctx, self.workspace.active_tab);
-        }
-
-        // Ctrl-W to close current tab.
-        if ctx.input_mut(|i| i.consume_key(CTRL, egui::Key::W)) && !self.workspace.is_empty() {
-            self.close_tab(ctx, self.workspace.active_tab);
-            output.set_window_title = Some(
-                self.workspace
-                    .current_tab()
-                    .map(|tab| tab.name.as_str())
-                    .unwrap_or("Lockbook")
-                    .to_owned(),
-            );
-            if let Some(active_t) = self.workspace.tabs.get(self.workspace.active_tab) {
-                self.tree.reveal_file(active_t.id, &self.core)
-            }
         }
 
         // Ctrl-Space or Ctrl-L pressed while search modal is not open.
@@ -441,30 +344,6 @@ impl AccountScreen {
                 None => Some(HelpModal),
             };
         }
-
-        // Alt-{1-9} to easily navigate tabs (9 will always go to the last tab).
-        ctx.input_mut(|input| {
-            for i in 1..10 {
-                if input.consume_key(ALT, NUM_KEYS[i - 1]) {
-                    self.workspace.goto_tab(i);
-                    self.tree
-                        .reveal_file(self.workspace.tabs[i - 1].id, &self.core);
-                    // Remove any text event that's also present this frame so that it doesn't show up
-                    // in the editor.
-                    if let Some(index) = input
-                        .events
-                        .iter()
-                        .position(|evt| *evt == egui::Event::Text(i.to_string()))
-                    {
-                        input.events.remove(index);
-                    }
-                    if let Some(tab) = self.workspace.current_tab() {
-                        output.set_window_title = Some(tab.name.clone());
-                    }
-                    break;
-                }
-            }
-        });
     }
 
     fn process_dropped_files(&mut self, ctx: &egui::Context) {
@@ -490,11 +369,11 @@ impl AccountScreen {
             .inner;
 
         if resp.new_file.is_some() {
-            self.create_file(false);
+            self.workspace.create_file(false);
         }
 
         if resp.new_drawing.is_some() {
-            self.create_file(true);
+            self.workspace.create_file(true);
         }
 
         if let Some(file) = resp.new_folder_modal {
@@ -512,11 +391,11 @@ impl AccountScreen {
         }
 
         if let Some(rename_req) = resp.rename_request {
-            self.rename_file(rename_req, ui.ctx());
+            self.workspace.rename_file(rename_req);
         }
 
         for id in resp.open_requests {
-            self.open_file(id, ui.ctx(), false);
+            self.workspace.open_file(id, false);
         }
 
         if resp.delete_request {
@@ -647,29 +526,24 @@ impl AccountScreen {
 
                 let ext = name.split('.').last().unwrap_or_default();
 
-                let content = if ext == "draw" {
-                    core.get_drawing(id)
-                        .map_err(TabFailure::from)
-                        .map(|drawing| TabContent::Drawing(Drawing::boxed(drawing)))
-                } else {
-                    core.read_document(id)
-                        .map_err(|err| TabFailure::Unexpected(format!("{:?}", err))) // todo(steve)
-                        .map(|bytes| {
-                            if ext == "md" {
-                                TabContent::Markdown(Markdown::boxed(
-                                    core.clone(),
-                                    &bytes,
-                                    &toolbar_visibility,
-                                    update_tx.clone(),
-                                    false,
-                                ))
-                            } else if is_supported_image_fmt(ext) {
-                                TabContent::Image(ImageViewer::boxed(id.to_string(), &bytes))
-                            } else {
-                                TabContent::PlainText(PlainText::boxed(&bytes))
-                            }
-                        })
-                };
+                let content = core
+                    .read_document(id)
+                    .map_err(|err| TabFailure::Unexpected(format!("{:?}", err))) // todo(steve)
+                    .map(|bytes| {
+                        if ext == "md" {
+                            TabContent::Markdown(Markdown::new(
+                                core.clone(),
+                                &bytes,
+                                &toolbar_visibility,
+                                // update_tx.clone(),
+                                false,
+                            ))
+                        } else if is_supported_image_fmt(ext) {
+                            TabContent::Image(ImageViewer::new(id.to_string(), &bytes))
+                        } else {
+                            TabContent::PlainText(PlainText::new(&bytes))
+                        }
+                    });
                 let now = Instant::now();
                 update_tx
                     .send(AccountUpdate::ReloadTab(
@@ -726,31 +600,13 @@ impl AccountScreen {
         });
     }
 
-    fn create_file(&mut self, is_drawing: bool) {
+    fn focused_parent(&mut self) -> Uuid {
         let mut focused_parent = self.tree.root.file.id;
         for id in self.tree.state.selected.drain() {
             focused_parent = id;
         }
-        let core = self.core.clone();
-        let update_tx = self.update_tx.clone();
 
-        thread::spawn(move || {
-            let focused_parent = core.get_file_by_id(focused_parent).unwrap();
-            let focused_parent = if focused_parent.file_type == FileType::Document {
-                focused_parent.parent
-            } else {
-                focused_parent.id
-            };
-
-            let file_format = if is_drawing { "svg" } else { "md" };
-            let new_file = NameComponents::from(&format!("untitled.{}", file_format))
-                .next_in_children(core.get_children(focused_parent).unwrap());
-
-            let result = core
-                .create_file(new_file.to_name().as_str(), focused_parent, lb::FileType::Document)
-                .map_err(|err| format!("{:?}", err));
-            update_tx.send(AccountUpdate::FileCreated(result)).unwrap();
-        });
+        focused_parent
     }
 
     fn create_share(&mut self, params: CreateShareParams) {
@@ -762,66 +618,6 @@ impl AccountScreen {
                 .share_file(params.id, &params.username, params.mode)
                 .map_err(|err| format!("{:?}", err.kind));
             update_tx.send(AccountUpdate::FileShared(result)).unwrap();
-        });
-    }
-
-    fn open_file(&mut self, id: lb::Uuid, ctx: &egui::Context, is_new_file: bool) {
-        if self.workspace.goto_tab_id(id) {
-            ctx.request_repaint();
-            return;
-        }
-
-        let fname = self
-            .core
-            .get_file_by_id(id)
-            .unwrap() // TODO
-            .name;
-
-        let fpath = self.core.get_path_by_id(id).unwrap(); // TODO
-
-        self.workspace.open_tab(id, &fname, &fpath, is_new_file);
-
-        let core = self.core.clone();
-        let ctx = ctx.clone();
-
-        let settings = &self.settings.read().unwrap();
-        let toolbar_visibility = settings.toolbar_visibility;
-        let update_tx = self.update_tx.clone();
-
-        thread::spawn(move || {
-            let ext = fname.split('.').last().unwrap_or_default();
-
-            let content = if ext == "draw" {
-                core.get_drawing(id)
-                    .map_err(TabFailure::from)
-                    .map(|drawing| TabContent::Drawing(Drawing::boxed(drawing)))
-            } else {
-                core.read_document(id)
-                    .map_err(|err| TabFailure::Unexpected(format!("{:?}", err))) // todo(steve)
-                    .map(|bytes| {
-                        if ext == "md" {
-                            TabContent::Markdown(Markdown::boxed(
-                                core.clone(),
-                                &bytes,
-                                &toolbar_visibility,
-                                update_tx.clone(),
-                                is_new_file,
-                            ))
-                        } else if is_supported_image_fmt(ext) {
-                            TabContent::Image(ImageViewer::boxed(id.to_string(), &bytes))
-                        } else if ext == "pdf" {
-                            TabContent::Pdf(PdfViewer::boxed(&bytes, &ctx))
-                        } else if ext == "svg" {
-                            TabContent::Svg(SVGEditor::boxed(&bytes))
-                        } else {
-                            TabContent::PlainText(PlainText::boxed(&bytes))
-                        }
-                    })
-            };
-            update_tx
-                .send(AccountUpdate::FileLoaded(id, content))
-                .unwrap();
-            ctx.request_repaint();
         });
     }
 
@@ -850,33 +646,6 @@ impl AccountScreen {
         ctx.request_repaint();
     }
 
-    fn rename_file(&mut self, req: (lb::Uuid, String), ctx: &egui::Context) {
-        if let Some(tab) = self.workspace.tabs.iter_mut().find(|t| t.id.eq(&req.0)) {
-            if let Some(TabContent::Markdown(md)) = &mut tab.content {
-                md.needs_name = false;
-            }
-        }
-
-        let core = self.core.clone();
-        let update_tx = self.update_tx.clone();
-        let ctx = ctx.clone();
-
-        thread::spawn(move || {
-            let (id, new_name) = req;
-            core.rename_file(id, &new_name).unwrap(); // TODO
-
-            let mut new_child_paths = HashMap::new();
-            for f in core.get_and_get_children_recursively(id).unwrap() {
-                new_child_paths.insert(f.id, core.get_path_by_id(f.id).unwrap());
-            }
-
-            update_tx
-                .send(AccountUpdate::FileRenamed { id, new_name, new_child_paths })
-                .unwrap();
-            ctx.request_repaint();
-        });
-    }
-
     fn accept_share(&self, ctx: &egui::Context, target: lb::File, parent: lb::File) {
         let core = self.core.clone();
         let update_tx = self.update_tx.clone();
@@ -884,7 +653,7 @@ impl AccountScreen {
 
         thread::spawn(move || {
             let result = core
-                .create_file(&target.name, parent.id, lb::FileType::Link { target: target.id })
+                .create_file(&target.name, parent.id, FileType::Link { target: target.id })
                 .map_err(|err| format!("{:?}", err));
 
             update_tx
@@ -938,7 +707,7 @@ impl AccountScreen {
 
         for (i, f) in files.iter().enumerate() {
             if tab_ids.contains(&f.id) {
-                self.close_tab(&ctx, i)
+                self.workspace.close_tab(i)
             }
         }
         thread::spawn(move || {
@@ -952,12 +721,30 @@ impl AccountScreen {
             ctx.request_repaint();
         });
     }
+
+    fn file_created(&mut self, ctx: &egui::Context, result: Result<lb::File, String>) {
+        match result {
+            Ok(f) => {
+                let (id, is_doc) = (f.id, f.is_document());
+                self.tree.root.insert(f);
+                self.tree.reveal_file(id, &self.core);
+                if is_doc {
+                    self.workspace.open_file(id, true);
+                }
+                // Close whichever new file modal was open.
+                self.modals.new_folder = None;
+                ctx.request_repaint();
+            }
+            Err(msg) => {
+                if let Some(m) = &mut self.modals.new_folder {
+                    m.err_msg = Some(msg)
+                }
+            }
+        }
+    }
 }
 
 pub enum AccountUpdate {
-    AutoSaveSignal,
-    SaveResult(lb::Uuid, Result<Instant, lb::LbError>),
-
     /// To open some modals, we queue an update for the next frame so that the actions used to open
     /// each modal (such as the release of a click that would then be in the "outside" area of the
     /// modal) don't automatically close the modal during the same frame.
@@ -965,31 +752,18 @@ pub enum AccountUpdate {
 
     FileCreated(Result<lb::File, String>),
     FileShared(Result<(), String>),
-    FileLoaded(lb::Uuid, Result<TabContent, TabFailure>),
-    FileRenamed {
-        id: lb::Uuid,
-        new_name: String,
-        new_child_paths: HashMap<lb::Uuid, String>,
-    },
-    EditorRenameSignal(String),
     FileDeleted(lb::File),
 
     /// if a file has been imported successfully refresh the tree, otherwise show what went wrong
     FileImported(Result<TreeNode, String>),
 
-    SyncUpdate(SyncUpdate),
-    SyncStatusSignal,
-    AutoSyncSignal,
-
     ShareAccepted(Result<lb::File, String>),
-    FoundPendingShares(bool),
 
     DoneDeleting,
 
     ReloadTree(TreeNode),
-    ReloadTab(lb::Uuid, Result<Tab, TabFailure>),
+    ReloadTab(Uuid, Result<Tab, TabFailure>),
 
-    BackgroundWorkerDone,
     FinalSyncAttemptDone,
 }
 
@@ -1009,21 +783,10 @@ impl From<OpenModal> for AccountUpdate {
     }
 }
 
-impl From<SyncUpdate> for AccountUpdate {
-    fn from(v: SyncUpdate) -> Self {
-        Self::SyncUpdate(v)
-    }
-}
-
 #[derive(Default)]
 struct AccountShutdownProgress {
     done_saving: bool,
     done_syncing: bool,
-}
-
-fn is_supported_image_fmt(ext: &str) -> bool {
-    const IMG_FORMATS: [&str; 7] = ["png", "jpeg", "jpg", "gif", "webp", "bmp", "ico"];
-    IMG_FORMATS.contains(&ext)
 }
 
 fn consume_key(ctx: &egui::Context, key: char) -> bool {

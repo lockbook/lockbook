@@ -26,10 +26,10 @@ public protocol LockbookApi {
     func listFiles() -> FfiResult<[File], ListMetadatasError>
     
     // Document
-    func getFile(id: UUID) -> FfiResult<String, ReadDocumentError>
+    func readDocument(id: UUID) -> FfiResult<String, ReadDocumentError>
     func createFile(name: String, dirId: UUID, isFolder: Bool) -> FfiResult<File, CreateFileError>
     func createLink(name: String, dirId: UUID, target: UUID) -> FfiResult<Empty, CreateFileError>
-    func updateFile(id: UUID, content: String) -> FfiResult<Empty, WriteToDocumentError>
+    func writeDocument(id: UUID, content: String) -> FfiResult<Empty, WriteToDocumentError>
     func deleteFile(id: UUID) -> FfiResult<Empty, FileDeleteError>
     func renameFile(id: UUID, name: String) -> FfiResult<Empty, RenameFileError>
     func moveFile(id: UUID, newParent: UUID) -> FfiResult<Empty, MoveFileError>

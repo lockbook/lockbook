@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use lockbook_shared::document_repo::DocumentService;
 use serde::Serialize;
 
-use lockbook_shared::api::{FileUsage, GetUsageRequest, GetUsageResponse};
+use lockbook_shared::api::{FileUsage, GetUsageResponse};
 use lockbook_shared::file_like::FileLike;
 use lockbook_shared::tree_like::TreeLike;
 use lockbook_shared::usage::bytes_to_human;
@@ -26,15 +26,9 @@ pub struct UsageItemMetric {
 }
 
 impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {
-    fn server_usage(&self) -> LbResult<GetUsageResponse> {
-        let acc = &self.get_account()?;
-
-        Ok(self.client.request(acc, GetUsageRequest {})?)
-    }
-
-    pub(crate) fn get_usage(&self) -> LbResult<UsageMetrics> {
-        let server_usage_and_cap = self.server_usage()?;
-
+    pub(crate) fn get_usage(
+        &self, server_usage_and_cap: GetUsageResponse,
+    ) -> LbResult<UsageMetrics> {
         let server_usage = server_usage_and_cap.sum_server_usage();
         let cap = server_usage_and_cap.cap;
 

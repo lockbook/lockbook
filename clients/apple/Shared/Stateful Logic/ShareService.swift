@@ -10,20 +10,31 @@ class ShareService: ObservableObject {
     
     let core: LockbookApi
     
-    @Published var pendingShares: [File] = []
+    @Published var pendingShares: [File]? = nil
     @Published var id: UUID? = nil
     @Published var shareInfo: ShareInfo? = nil
     
     init(_ core: LockbookApi) {
         self.core = core
+        
+        calculatePendingShares()
     }
     
     func calculatePendingShares() {
-        switch core.getPendingShares() {
-        case .success(let shares):
-            pendingShares = shares
-        case .failure(let err):
-            DI.errors.handleError(err)
+        if DI.accounts.account == nil {
+            print("No account yet, but tried to update last synced, ignoring")
+            return
+        }
+        
+        DispatchQueue.global(qos: .userInitiated).async {
+            switch self.core.getPendingShares() {
+            case .success(let shares):
+                DispatchQueue.main.async {
+                    self.pendingShares = shares
+                }
+            case .failure(let err):
+                DI.errors.handleError(err)
+            }
         }
     }
     

@@ -731,7 +731,7 @@ pub unsafe extern "C" fn time_ago(time_stamp: i64) -> *const c_char {
 /// Be sure to call `release_pointer` on the result of this function to free the data.
 #[no_mangle]
 pub unsafe extern "C" fn get_core_ptr() -> *mut c_void {
-    let obj = static_state::get().expect("Could not get core");
+    let obj = static_state::get().expect("Could not get core").core;
     Box::into_raw(Box::new(obj)) as *mut c_void
 }
 

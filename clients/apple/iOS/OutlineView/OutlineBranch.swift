@@ -5,13 +5,14 @@ import SwiftUI
 import Combine
 import SwiftLockbookCore
 import UniformTypeIdentifiers
+import SwiftWorkspace
 
 struct OutlineBranch: View {
-    @EnvironmentObject var current: DocumentService
+//    @EnvironmentObject var current: DocumentService
     @EnvironmentObject var files: FileService
-    @EnvironmentObject var status: StatusService
     @EnvironmentObject var errors: UnexpectedErrorService
     @EnvironmentObject var sheets: SheetState
+    @EnvironmentObject var workspace: WorkspaceState
 
     @StateObject var state: BranchState = BranchState()
     
@@ -31,7 +32,7 @@ struct OutlineBranch: View {
         ScrollViewReader { scrollView in
             VStack(alignment: .leading) {
                 if level != -1 {
-                    if file.id == current.selectedDoc {
+                    if file.id == workspace.openDoc {
                         OutlineRow(file: file, level: level, open: $state.open)
                             .background(Color.accentColor)
                             .foregroundColor(Color.white)
@@ -40,18 +41,13 @@ struct OutlineBranch: View {
                         OutlineRow(file: file, level: level, open: $state.open)
                             .onTapGesture {
                                 if file.fileType == .Folder {
-                                    DI.currentDoc.selectedFolder = file
+                                    workspace.selectedFolder = file.id
                                     
                                     withAnimation {
                                         state.open.toggle()
                                     }
                                 } else {
-                                    // Animating this causes editor to load weirdly
-                                    DispatchQueue.main.async {
-                                        current.cleanupOldDocs()
-                                        current.openDoc(id: file.id)
-                                        current.setSelectedOpenDocById(maybeId: file.id)
-                                    }
+                                    workspace.openDoc = file.id
                                 }
                             }
                     }
