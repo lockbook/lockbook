@@ -209,29 +209,7 @@ impl Buffer {
                     Some(d) => d,
                     None => continue,
                 };
-                let mut start = (0.0, 0.0);
-                let mut subpath: Subpath<ManipulatorGroupId> = Subpath::new(vec![], false);
-
-                for segment in svgtypes::SimplifyingPathParser::from(data) {
-                    let segment = match segment {
-                        Ok(v) => v,
-                        Err(_) => break,
-                    };
-
-                    match segment {
-                        svgtypes::SimplePathSegment::MoveTo { x, y } => {
-                            start = (x, y);
-                        }
-                        svgtypes::SimplePathSegment::CurveTo { x1, y1, x2, y2, x, y } => {
-                            let bez = Bezier::from_cubic_coordinates(
-                                start.0, start.1, x1, y1, x2, y2, x, y,
-                            );
-                            subpath.append_bezier(&bez, bezier_rs::AppendType::IgnoreStart);
-                            start = (x, y)
-                        }
-                        _ => {}
-                    }
-                }
+                let mut subpath = parse_subpath(data);
 
                 if let Some(transform) = el.attr("transform") {
                     let [a, b, c, d, e, f] = deserialize_transform(transform);
@@ -260,6 +238,31 @@ impl Buffer {
         }
         self.needs_path_map_update = false;
     }
+}
+
+fn parse_subpath(data: &str) -> Subpath<ManipulatorGroupId> {
+    let mut start = (0.0, 0.0);
+    let mut subpath: Subpath<ManipulatorGroupId> = Subpath::new(vec![], false);
+
+    for segment in svgtypes::SimplifyingPathParser::from(data) {
+        let segment = match segment {
+            Ok(v) => v,
+            Err(_) => break,
+        };
+
+        match segment {
+            svgtypes::SimplePathSegment::MoveTo { x, y } => {
+                start = (x, y);
+            }
+            svgtypes::SimplePathSegment::CurveTo { x1, y1, x2, y2, x, y } => {
+                let bez = Bezier::from_cubic_coordinates(start.0, start.1, x1, y1, x2, y2, x, y);
+                subpath.append_bezier(&bez, bezier_rs::AppendType::IgnoreStart);
+                start = (x, y)
+            }
+            _ => {}
+        }
+    }
+    subpath
 }
 
 impl ToString for Buffer {
