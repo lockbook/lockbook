@@ -1,5 +1,5 @@
 use eframe::egui;
-use workspace::widgets::switch;
+use workspace_rs::widgets::switch;
 
 impl super::SettingsModal {
     pub fn show_general_tab(&mut self, ui: &mut egui::Ui) {

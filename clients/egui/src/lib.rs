@@ -46,7 +46,7 @@ impl Lockbook {
         let settings = Arc::new(RwLock::new(settings));
 
         let mut fonts = egui::FontDefinitions::default();
-        workspace::register_fonts(&mut fonts);
+        workspace_rs::register_fonts(&mut fonts);
         theme::register_fonts(&mut fonts);
         ctx.set_fonts(fonts);
 

@@ -1,6 +1,6 @@
 use std::fs;
 use std::io;
-use workspace::widgets::ToolBarVisibility;
+use workspace_rs::widgets::ToolBarVisibility;
 
 use crate::util::data_dir;
 

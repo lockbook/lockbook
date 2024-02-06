@@ -1,4 +1,4 @@
-use workspace::theme::icons::Icon;
+use workspace_rs::theme::icons::Icon;
 
 pub struct AccountScreenInitData {
     pub sync_status: Result<String, String>,

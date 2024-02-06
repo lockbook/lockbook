@@ -23,8 +23,8 @@ pub use settings::{SettingsModal, SettingsResponse};
 
 use super::OpenModal;
 use eframe::egui;
-use workspace::tab::TabContent;
-use workspace::widgets::ToolBarVisibility;
+use workspace_rs::tab::TabContent;
+use workspace_rs::widgets::ToolBarVisibility;
 
 #[derive(Default)]
 pub struct Modals {

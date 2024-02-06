@@ -2,7 +2,7 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 
 use eframe::egui;
-use workspace::widgets::{Button, ProgressBar};
+use workspace_rs::widgets::{Button, ProgressBar};
 
 use super::AccountUpdate;
 

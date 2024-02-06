@@ -1,6 +1,6 @@
 use eframe::egui;
-use workspace::theme::icons::Icon;
-use workspace::widgets::Button;
+use workspace_rs::theme::icons::Icon;
+use workspace_rs::widgets::Button;
 
 pub struct AccountBackup;
 

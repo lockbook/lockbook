@@ -7,8 +7,8 @@ use std::sync::{mpsc, Arc, RwLock};
 
 use eframe::egui;
 use egui_extras::{Size, StripBuilder};
-use workspace::theme::icons::Icon;
-use workspace::widgets::{separator, ToolBarVisibility};
+use workspace_rs::theme::icons::Icon;
+use workspace_rs::widgets::{separator, ToolBarVisibility};
 
 use crate::settings::Settings;
 

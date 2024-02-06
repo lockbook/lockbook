@@ -11,14 +11,14 @@ use std::{path, thread};
 
 use eframe::egui;
 use lb::{FileType, Uuid};
-use workspace::background::BwIncomingMsg;
-use workspace::tab::image_viewer::{is_supported_image_fmt, ImageViewer};
-use workspace::tab::markdown::Markdown;
-use workspace::tab::plain_text::PlainText;
-use workspace::tab::{Tab, TabContent, TabFailure};
-use workspace::theme::icons::Icon;
-use workspace::widgets::{separator, Button};
-use workspace::workspace::{Workspace, WsConfig};
+use workspace_rs::background::BwIncomingMsg;
+use workspace_rs::tab::image_viewer::{is_supported_image_fmt, ImageViewer};
+use workspace_rs::tab::markdown::Markdown;
+use workspace_rs::tab::plain_text::PlainText;
+use workspace_rs::tab::{Tab, TabContent, TabFailure};
+use workspace_rs::theme::icons::Icon;
+use workspace_rs::widgets::{separator, Button};
+use workspace_rs::workspace::{Workspace, WsConfig};
 
 use crate::model::{AccountScreenInitData, Usage};
 use crate::settings::Settings;

@@ -2,8 +2,8 @@ use std::path;
 
 use eframe::egui;
 use lb::File;
-use workspace::theme::icons::Icon;
-use workspace::widgets::Button;
+use workspace_rs::theme::icons::Icon;
+use workspace_rs::widgets::Button;
 
 use crate::model::DocType;
 

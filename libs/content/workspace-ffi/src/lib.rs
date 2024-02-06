@@ -22,8 +22,8 @@ use egui_editor::EditorResponse;
 #[cfg(target_vendor = "apple")]
 use crate::cursor_icon::CCursorIcon;
 
-use workspace::output::WsOutput;
-use workspace::workspace::Workspace;
+use workspace_rs::output::WsOutput;
+use workspace_rs::workspace::Workspace;
 
 #[cfg(target_vendor = "apple")]
 pub mod apple;

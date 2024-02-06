@@ -3,7 +3,7 @@ use eframe::egui;
 use std::sync::{Arc, RwLock};
 use std::thread;
 use std::time::Duration;
-use workspace::theme::visuals;
+use workspace_rs::theme::visuals;
 
 use crate::settings::{Settings, ThemeMode};
 

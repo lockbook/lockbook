@@ -3,7 +3,7 @@ use std::thread;
 
 use eframe::egui;
 use egui_extras::RetainedImage;
-use workspace::widgets::ButtonGroup;
+use workspace_rs::widgets::ButtonGroup;
 
 use crate::model::AccountScreenInitData;
 use crate::settings::Settings;

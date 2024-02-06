@@ -3,7 +3,7 @@ use std::thread;
 
 use eframe::egui;
 use rfd::FileDialog;
-use workspace::theme::icons::Icon;
+use workspace_rs::theme::icons::Icon;
 
 use crate::model::DocType;
 

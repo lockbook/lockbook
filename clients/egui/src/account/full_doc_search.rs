@@ -9,8 +9,8 @@ use lb::{
     service::search_service::{ContentMatch, SearchResult::*},
     StartSearchInfo,
 };
-use workspace::theme::icons::Icon;
-use workspace::widgets::Button;
+use workspace_rs::theme::icons::Icon;
+use workspace_rs::widgets::Button;
 
 use crate::model::DocType;
 

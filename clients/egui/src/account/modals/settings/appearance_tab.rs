@@ -1,5 +1,5 @@
 use eframe::egui;
-use workspace::widgets::ToolBarVisibility;
+use workspace_rs::widgets::ToolBarVisibility;
 
 use crate::settings::ThemeMode;
 use crate::theme;

@@ -6,9 +6,9 @@ use egui_wgpu_backend::{wgpu, ScreenDescriptor};
 use lb_external_interface::Core;
 use std::ffi::{c_char, c_void, CStr, CString};
 use std::time::Instant;
-use workspace::register_fonts;
-use workspace::theme::visuals;
-use workspace::workspace::{Workspace, WsConfig};
+use workspace_rs::register_fonts;
+use workspace_rs::theme::visuals;
+use workspace_rs::workspace::{Workspace, WsConfig};
 
 /// # Safety
 #[no_mangle]

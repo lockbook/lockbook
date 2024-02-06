@@ -12,8 +12,8 @@ use std::cmp;
 use std::ffi::{c_char, c_void, CStr, CString};
 use std::mem::ManuallyDrop;
 use std::ptr::null;
-use workspace::tab::svg_editor::Tool;
-use workspace::tab::TabContent;
+use workspace_rs::tab::svg_editor::Tool;
+use workspace_rs::tab::TabContent;
 
 /// # Safety
 /// obj must be a valid pointer to WgpuEditor
@@ -932,7 +932,7 @@ pub unsafe extern "C" fn tab_renamed(obj: *mut c_void, id: *const c_char, new_na
     let _ = obj
         .workspace
         .updates_tx
-        .send(workspace::workspace::WsMsg::FileRenamed { id, new_name });
+        .send(workspace_rs::workspace::WsMsg::FileRenamed { id, new_name });
 }
 
 /// # Safety
