@@ -31,6 +31,10 @@ impl<'a> Button<'a> {
         Self { padding: Some(padding.into()), ..self }
     }
 
+    pub fn rounding(self, rounding: egui::Rounding) -> Self {
+        Self { rounding, ..self }
+    }
+
     pub fn frame(self, frame: bool) -> Self {
         Self { frame, ..self }
     }
@@ -48,13 +52,16 @@ impl<'a> Button<'a> {
             let icon: egui::WidgetText = icon.into();
             let galley = icon.into_galley(ui, Some(false), wrap_width, icon_text_style);
             width += galley.size().x;
+            if self.text.is_some() {
+                width += padding.x;
+            }
             galley
         });
 
         let maybe_text_galley = self.text.map(|text| {
             let text: egui::WidgetText = text.into();
             let galley = text.into_galley(ui, Some(false), wrap_width, text_style);
-            width += galley.size().x + padding.x;
+            width += galley.size().x;
             galley
         });
 

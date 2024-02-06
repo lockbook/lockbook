@@ -258,12 +258,14 @@ impl Workspace {
 
             if Button::default()
                 .text("New document")
+                .rounding(egui::Rounding::same(3.0))
                 .frame(true)
                 .show(ui)
                 .clicked()
             {
                 self.create_file(false);
             }
+
             ui.visuals_mut().widgets.inactive.fg_stroke =
                 egui::Stroke { color: ui.visuals().widgets.active.bg_fill, ..Default::default() };
             ui.visuals_mut().widgets.hovered.fg_stroke =
