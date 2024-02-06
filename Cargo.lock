@@ -3375,15 +3375,6 @@ dependencies = [
 
 [[package]]
 name = "lb-pdf"
-version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "34169bfa1db3c8d0f7f8176ec35884ea6ed9602d759ec64a74ba0a42f13c1ec5"
-dependencies = [
- "pdfium-render",
-]
-
-[[package]]
-name = "lb-pdf"
 version = "0.2.3"
 source = "git+https://github.com/lockbook/lb-pdf#274f4b2668d1c7c416ed8f5bd9738f9a011b89cf"
 dependencies = [
@@ -3623,7 +3614,6 @@ dependencies = [
  "egui_wgpu_backend",
  "image",
  "lb-fonts",
- "lb-pdf 0.1.1",
  "lb-rs",
  "minidom",
  "pdfium-render",
@@ -7456,7 +7446,7 @@ dependencies = [
  "egui_extras",
  "epaint",
  "glam",
- "lb-pdf 0.2.3",
+ "lb-pdf",
  "lb-rs",
  "minidom",
  "resvg",
@@ -7468,7 +7458,6 @@ dependencies = [
 name = "workspace-ffi"
 version = "0.1.0"
 dependencies = [
- "eframe",
  "egui",
  "egui_editor",
  "egui_wgpu_backend",

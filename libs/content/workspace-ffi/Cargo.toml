@@ -12,7 +12,6 @@ path = "src/lib.rs"
 egui = "0.22.0"
 egui_wgpu_backend = "0.24.0"
 libc = "0.2"
-eframe = { version = "0.22.0", optional = true }
 egui_editor = { path = "../editor/egui_editor" }
 workspace = { path = "../workspace/" }
 lb_external_interface = { path = "../../lb/lb_external_interface" }
