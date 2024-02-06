@@ -3383,6 +3383,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "lb-pdf"
+version = "0.2.3"
+source = "git+https://github.com/lockbook/lb-pdf#7fa55f35513fd5e20d7f3310c6edca13a94f8f02"
+dependencies = [
+ "link-cplusplus",
+ "pdfium-render",
+]
+
+[[package]]
 name = "lb-rs"
 version = "0.8.4"
 dependencies = [
@@ -3541,6 +3550,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "link-cplusplus"
+version = "1.0.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9d240c6f7e1ba3a28b0249f774e6a9dd0175054b52dfbb61b16eb8505c3785c9"
+dependencies = [
+ "cc",
+]
+
+[[package]]
 name = "linkify"
 version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3605,7 +3623,7 @@ dependencies = [
  "egui_wgpu_backend",
  "image",
  "lb-fonts",
- "lb-pdf",
+ "lb-pdf 0.1.1",
  "lb-rs",
  "minidom",
  "pdfium-render",
@@ -7438,9 +7456,9 @@ dependencies = [
  "egui_extras",
  "epaint",
  "glam",
+ "lb-pdf 0.2.3",
  "lb-rs",
  "minidom",
- "pdfium-render",
  "resvg",
  "serde",
  "svgtypes 0.13.0",

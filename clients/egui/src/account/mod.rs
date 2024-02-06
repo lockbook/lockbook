@@ -111,7 +111,7 @@ impl AccountScreen {
 
     pub fn update(&mut self, ctx: &egui::Context, output: &mut UpdateOutput) {
         self.process_updates(ctx, output);
-        self.process_keys(ctx, output);
+        self.process_keys(ctx);
         self.process_dropped_files(ctx);
         self.toasts.show(ctx);
 
@@ -175,6 +175,7 @@ impl AccountScreen {
                 self.workspace.focused_parent = Some(self.focused_parent());
                 let wso = self.workspace.show_workspace(ui);
                 output.set_window_title = wso.window_title;
+                self.has_pending_shares = wso.status.pending_share_found;
                 if let Some((id, new_name)) = wso.file_renamed {
                     if let Some(node) = self.tree.root.find_mut(id) {
                         node.file.name = new_name.clone();
@@ -291,15 +292,12 @@ impl AccountScreen {
                         }
                     }
                 },
-                AccountUpdate::FoundPendingShares(has_pending_shares) => {
-                    self.has_pending_shares = has_pending_shares
-                }
             }
         }
     }
 
     /// See also workspace::process_keys
-    fn process_keys(&mut self, ctx: &egui::Context, output: &mut UpdateOutput) {
+    fn process_keys(&mut self, ctx: &egui::Context) {
         const ALT: egui::Modifiers = egui::Modifiers::ALT;
         const CTRL: egui::Modifiers = egui::Modifiers::MAC_CMD;
 
@@ -760,12 +758,11 @@ pub enum AccountUpdate {
     FileImported(Result<TreeNode, String>),
 
     ShareAccepted(Result<lb::File, String>),
-    FoundPendingShares(bool),
 
     DoneDeleting,
 
     ReloadTree(TreeNode),
-    ReloadTab(lb::Uuid, Result<Tab, TabFailure>),
+    ReloadTab(Uuid, Result<Tab, TabFailure>),
 
     FinalSyncAttemptDone,
 }

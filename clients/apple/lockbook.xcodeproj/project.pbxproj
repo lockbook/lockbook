@@ -96,8 +96,6 @@
 		B2ADC2492835451000DB8D3D /* Introspect in Frameworks */ = {isa = PBXBuildFile; productRef = B2ADC2482835451000DB8D3D /* Introspect */; };
 		B2B7E2E225C6411800B9EFAD /* OnboardingState.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2B7E2E125C6411800B9EFAD /* OnboardingState.swift */; };
 		B2B7E2E325C6411800B9EFAD /* OnboardingState.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2B7E2E125C6411800B9EFAD /* OnboardingState.swift */; };
-		B2DFF7532B3518C9009F0BEC /* libpdfium.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = B2DFF7522B3518C9009F0BEC /* libpdfium.dylib */; settings = {ATTRIBUTES = (Weak, ); }; };
-		B2DFF7542B351A07009F0BEC /* libpdfium.dylib in Embed Libraries */ = {isa = PBXBuildFile; fileRef = B2DFF7522B3518C9009F0BEC /* libpdfium.dylib */; };
 		EA380B262561FAEF0021C4FA /* FileListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA380B242561FAEF0021C4FA /* FileListView.swift */; };
 		EA4559BE25169F7D003AD80A /* CodeScannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA4559BD25169F7D003AD80A /* CodeScannerView.swift */; };
 		EA5C7D7B2516606100F7F358 /* LockbookApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA5C7D682516605F00F7F358 /* LockbookApp.swift */; };
@@ -124,17 +122,6 @@
 			files = (
 			);
 			name = "Embed Foundation Extensions";
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		B2DFF7502B351046009F0BEC /* Embed Libraries */ = {
-			isa = PBXCopyFilesBuildPhase;
-			buildActionMask = 2147483647;
-			dstPath = "";
-			dstSubfolderSpec = 10;
-			files = (
-				B2DFF7542B351A07009F0BEC /* libpdfium.dylib in Embed Libraries */,
-			);
-			name = "Embed Libraries";
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXCopyFilesBuildPhase section */
@@ -196,7 +183,6 @@
 		B273394E26C8B3EF00303EAE /* Media.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Media.xcassets; sourceTree = "<group>"; };
 		B2ADC2462833FA8200DB8D3D /* FileCell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileCell.swift; sourceTree = "<group>"; };
 		B2B7E2E125C6411800B9EFAD /* OnboardingState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingState.swift; sourceTree = "<group>"; };
-		B2DFF7522B3518C9009F0BEC /* libpdfium.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; path = libpdfium.dylib; sourceTree = "<group>"; };
 		EA349F0125BC7C110016241E /* OutlineRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OutlineRow.swift; sourceTree = "<group>"; };
 		EA380B242561FAEF0021C4FA /* FileListView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = FileListView.swift; sourceTree = "<group>"; };
 		EA4559BD25169F7D003AD80A /* CodeScannerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodeScannerView.swift; sourceTree = "<group>"; };
@@ -236,7 +222,6 @@
 				B2A3AB342B27A1E800C2319E /* workspace in Frameworks */,
 				B2A3AB322B27A1E800C2319E /* SwiftWorkspace in Frameworks */,
 				B2ADC2492835451000DB8D3D /* Introspect in Frameworks */,
-				B2DFF7532B3518C9009F0BEC /* libpdfium.dylib in Frameworks */,
 				EA9EEFD525FC058200E8C790 /* SwiftLockbookCore in Frameworks */,
 				47159F4629CFA05B00969DDF /* DSFQuickActionBar in Frameworks */,
 			);
@@ -303,7 +288,6 @@
 		EA14E8172516643400B9158C /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
-				B2DFF7522B3518C9009F0BEC /* libpdfium.dylib */,
 				B2432EE72B27A00B00D9DE62 /* SwiftWorkspace */,
 				47DBF1F32A61CA5000F86B3F /* UIKit.framework */,
 				EAD401DB25E32CD50083A236 /* Notepad */,
@@ -446,7 +430,6 @@
 				EA5C7D742516606000F7F358 /* Frameworks */,
 				EA5C7D752516606000F7F358 /* Resources */,
 				47DBF25B2A61D5D600F86B3F /* Embed Foundation Extensions */,
-				B2DFF7502B351046009F0BEC /* Embed Libraries */,
 			);
 			buildRules = (
 			);

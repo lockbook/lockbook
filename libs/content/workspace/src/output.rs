@@ -24,10 +24,16 @@ pub struct WsOutput {
     pub status: PersistentWsStatus,
 }
 
+// todo: this should probably not be included in output
+// these things have ended up here because output is a major way state changes are communicated across FFI
+// this is probably an incorrect way to model this. Output should only contain diffs, and then internal state
+// should be easily communicateable, we can probably do this easily over FFI via fns. Probably would make output stack
+// allocatable
 #[derive(Default, Clone)]
 pub struct PersistentWsStatus {
     pub syncing: bool,
     pub offline: bool,
+    pub pending_share_found: bool,
     pub update_req: bool,
     pub out_of_space: bool,
     pub usage: f64,

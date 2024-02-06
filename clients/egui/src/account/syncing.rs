@@ -2,7 +2,6 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 
 use eframe::egui;
-use workspace::theme::icons::Icon;
 use workspace::widgets::{Button, ProgressBar};
 
 use super::AccountUpdate;
@@ -10,19 +9,12 @@ use super::AccountUpdate;
 pub struct SyncPanel {
     status: Result<String, String>,
     lock: Arc<Mutex<()>>,
-    phase: SyncPhase,
 }
 
 impl SyncPanel {
     pub fn new(status: Result<String, String>) -> Self {
-        Self { status, lock: Arc::new(Mutex::new(())), phase: SyncPhase::IdleGood }
+        Self { status, lock: Arc::new(Mutex::new(())) }
     }
-}
-
-enum SyncPhase {
-    IdleGood,
-    Syncing,
-    IdleError,
 }
 
 impl super::AccountScreen {
@@ -83,24 +75,19 @@ impl super::AccountScreen {
                 ui.visuals_mut().widgets.active.fg_stroke =
                     egui::Stroke { color: ui.visuals().hyperlink_color, ..Default::default() };
 
-                if Button::default()
-                    .text("Sync")
-                    .padding((6.0, 6.0))
-                    .show(ui)
-                    .clicked()
+                if !self.workspace.pers_status.syncing
+                    && Button::default()
+                        .text("Sync")
+                        .padding((6.0, 6.0))
+                        .show(ui)
+                        .clicked()
                 {
                     self.workspace.perform_sync();
                 }
 
-                match &self.sync.phase {
-                    SyncPhase::IdleGood => (),
-                    SyncPhase::Syncing => {
-                        ui.spinner();
-                    }
-                    SyncPhase::IdleError => {
-                        Icon::CANCEL.show(ui);
-                    }
-                };
+                if self.workspace.pers_status.syncing {
+                    ui.spinner();
+                }
 
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     ui.add_space(10.0);

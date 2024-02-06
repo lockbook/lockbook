@@ -1,24 +1,23 @@
 use crate::output::{DirtynessMsg, WsOutput};
 use crate::workspace::{Workspace, WsMsg};
 use lb_rs::{CoreError, LbError, SyncProgress, SyncStatus};
-use std::sync::atomic::Ordering;
 use std::thread;
 
 impl Workspace {
     // todo should anyone outside workspace ever call this? Or should they call something more
     // general that would allow workspace to determine if a sync is needed
-    pub fn perform_sync(&self) {
-        if self.syncing.load(Ordering::SeqCst) {
+    pub fn perform_sync(&mut self) {
+        if self.pers_status.syncing {
             return;
         }
 
-        let syncing = self.syncing.clone();
+        self.pers_status.syncing = true;
+
         let core = self.core.clone();
         let update_tx = self.updates_tx.clone();
         let ctx = self.ctx.clone();
 
         thread::spawn(move || {
-            syncing.store(true, Ordering::SeqCst);
             ctx.request_repaint();
 
             let closure = {
@@ -31,20 +30,27 @@ impl Workspace {
                 }
             };
 
+            println!("sync called");
             let result = core.sync(Some(Box::new(closure)));
-            syncing.store(false, Ordering::SeqCst);
             update_tx.send(WsMsg::SyncDone(result)).unwrap();
+
+            let pending_shares = core.get_pending_shares().unwrap();
+            update_tx
+                .send(WsMsg::PendingShares(pending_shares))
+                .unwrap();
+            println!("sync done");
 
             ctx.request_repaint();
         });
     }
 
-    pub fn sync_message(&self, prog: SyncProgress, out: &mut WsOutput) {
-        out.status.sync_progress = prog.progress as f32 / prog.total as f32;
-        out.status.sync_message = Some(prog.msg);
+    pub fn sync_message(&mut self, prog: SyncProgress) {
+        self.pers_status.sync_progress = prog.progress as f32 / prog.total as f32;
+        self.pers_status.sync_message = Some(prog.msg);
     }
 
-    pub fn sync_done(&self, outcome: Result<SyncStatus, LbError>, out: &mut WsOutput) {
+    pub fn sync_done(&mut self, outcome: Result<SyncStatus, LbError>, out: &mut WsOutput) {
+        self.pers_status.syncing = false;
         out.sync_done = true;
         match outcome {
             Ok(_) => {}

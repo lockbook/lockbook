@@ -164,6 +164,7 @@ impl FileTree {
 
     /// expand the parents of the file and select it
     // todo: remove this, duplicate of expand_to()
+    // todo: this doesn't request a repaint
     pub fn reveal_file(&mut self, id: lb::Uuid, core: &lb::Core) {
         let core = core.clone();
         let update_tx = self.state.update_tx.clone();

@@ -1,6 +1,5 @@
+use lb_pdf::{PdfPageRenderRotation, PdfRenderConfig};
 // use lb_pdf::PdfiumWrapper;
-use pdfium_render::prelude::*;
-
 use crate::{theme::icons::Icon, widgets::Button};
 
 pub struct PdfViewer {
@@ -48,10 +47,7 @@ impl PdfViewer {
         let pdfium_binary_path = format!("{}/egui", data_dir);
         println!("{pdfium_binary_path}");
 
-        // PdfiumWrapper::init(&pdfium_binary_path);
-        let bindings = Pdfium::bind_to_system_library().unwrap();
-
-        let pdfium = Pdfium::new(bindings);
+        let pdfium = lb_pdf::init(&pdfium_binary_path);
         let docs = pdfium.load_pdf_from_byte_slice(bytes, None).unwrap();
 
         let renders = docs

@@ -29,8 +29,6 @@ pub struct Workspace {
     pub ctx: Context,
     pub core: lb_rs::Core,
 
-    pub syncing: Arc<AtomicBool>,
-
     pub updates_tx: Sender<WsMsg>,
     pub updates_rx: Receiver<WsMsg>,
     pub background_tx: Sender<BwIncomingMsg>,
@@ -52,6 +50,7 @@ pub enum WsMsg {
     SyncMsg(SyncProgress),
     SyncDone(Result<SyncStatus, LbError>),
     Dirtyness(DirtynessMsg),
+    PendingShares(Vec<File>),
 }
 
 #[derive(Clone)]
@@ -93,7 +92,6 @@ impl Workspace {
         let (updates_tx, updates_rx) = channel();
         let background = BackgroundWorker::new(ctx, &updates_tx);
         let background_tx = background.spawn_worker();
-        let syncing = Default::default();
         let pers_status = Default::default();
 
         Self {
@@ -106,7 +104,6 @@ impl Workspace {
             updates_rx,
             updates_tx,
             background_tx,
-            syncing,
             pers_status,
             show_tabs: true,
             focused_parent: None,
@@ -203,7 +200,7 @@ impl Workspace {
     }
 
     pub fn show_workspace(&mut self, ui: &mut egui::Ui) -> WsOutput {
-        let mut output = WsOutput { status: self.pers_status.clone(), ..Default::default() };
+        let mut output = WsOutput::default();
         self.process_updates(&mut output);
         self.process_keys(&mut output);
         output.status.populate_message();
@@ -234,7 +231,7 @@ impl Workspace {
             });
         }
 
-        self.pers_status = output.status.clone();
+        output.status = self.pers_status.clone();
         output
     }
 
@@ -655,7 +652,7 @@ impl Workspace {
                 WsMsg::BgSignal(Signal::UpdateStatus) => {
                     self.refresh_sync_status();
                 }
-                WsMsg::SyncMsg(prog) => self.sync_message(prog, out),
+                WsMsg::SyncMsg(prog) => self.sync_message(prog),
                 WsMsg::FileRenamed { id, new_name } => {
                     println! {"8"};
                     out.file_renamed = Some((id, new_name.clone()));
@@ -672,6 +669,7 @@ impl Workspace {
                 WsMsg::SyncDone(sync_outcome) => self.sync_done(sync_outcome, out),
                 WsMsg::Dirtyness(dirty_msg) => self.dirty_msg(dirty_msg, out),
                 WsMsg::FileCreated(result) => out.file_created = Some(result),
+                WsMsg::PendingShares(shares) => out.status.pending_share_found = !shares.is_empty(),
             }
         }
     }
