@@ -1,8 +1,8 @@
 mod cli;
 mod core;
-mod editor;
 mod ios;
 mod mac;
+mod ws;
 
 use cli_rs::cli_error::CliResult;
 
@@ -12,7 +12,7 @@ use std::path::Path;
 pub fn release() -> CliResult<()> {
     cli::release();
     core::build();
-    editor::build();
+    ws::build();
     clean_build_dir();
     ios::release();
     mac::release();

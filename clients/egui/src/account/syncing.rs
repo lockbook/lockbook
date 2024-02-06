@@ -2,79 +2,22 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 
 use eframe::egui;
-
-use crate::model::{SyncError, Usage};
-use crate::theme::Icon;
-use crate::widgets::{Button, ProgressBar};
+use workspace_rs::widgets::{Button, ProgressBar};
 
 use super::AccountUpdate;
 
 pub struct SyncPanel {
     status: Result<String, String>,
     lock: Arc<Mutex<()>>,
-    phase: SyncPhase,
 }
 
 impl SyncPanel {
     pub fn new(status: Result<String, String>) -> Self {
-        Self { status, lock: Arc::new(Mutex::new(())), phase: SyncPhase::IdleGood }
+        Self { status, lock: Arc::new(Mutex::new(())) }
     }
-}
-
-enum SyncPhase {
-    IdleGood,
-    Syncing,
-    IdleError,
-}
-
-pub enum SyncUpdate {
-    Started,
-    Progress(lb::SyncProgress),
-    Done(Result<lb::SyncStatus, SyncError>),
-    SetStatus(Result<String, lb::UnexpectedError>),
-    SetUsage(Usage),
 }
 
 impl super::AccountScreen {
-    pub fn process_sync_update(&mut self, ctx: &egui::Context, update: SyncUpdate) {
-        match update {
-            SyncUpdate::Started => self.sync.phase = SyncPhase::Syncing,
-            SyncUpdate::Progress(progress) => {
-                self.sync.status = Ok(progress.to_string());
-            }
-            SyncUpdate::Done(result) => match result {
-                Ok(_) => {
-                    self.sync.status = Ok("just now".to_owned());
-                    self.sync.phase = SyncPhase::IdleGood;
-                    if let Ok(work) = result {
-                        self.refresh_tree_and_workspace(ctx, work);
-                        self.suggested.recalc_and_redraw(ctx, &self.core);
-                    }
-                    self.refresh_sync_status(ctx);
-
-                    let core = self.core.clone();
-                    let update_tx = self.update_tx.clone();
-                    thread::spawn(move || {
-                        update_tx
-                            .send(AccountUpdate::FoundPendingShares(
-                                !core.get_pending_shares().unwrap().is_empty(),
-                            ))
-                            .unwrap();
-                    });
-                }
-                Err(err) => {
-                    self.sync.phase = SyncPhase::IdleError;
-                    match err {
-                        SyncError::Minor(msg) => self.sync.status = Err(msg),
-                        SyncError::Major(msg) => println!("major sync error: {}", msg), // TODO
-                    }
-                }
-            },
-            SyncUpdate::SetStatus(status_result) => self.set_sync_status(status_result),
-            SyncUpdate::SetUsage(usage) => self.usage = Ok(usage),
-        }
-    }
-
     pub fn show_sync_panel(&mut self, ui: &mut egui::Ui) {
         ui.add_space(20.0);
 
@@ -132,24 +75,19 @@ impl super::AccountScreen {
                 ui.visuals_mut().widgets.active.fg_stroke =
                     egui::Stroke { color: ui.visuals().hyperlink_color, ..Default::default() };
 
-                if Button::default()
-                    .text("Sync")
-                    .padding((6.0, 6.0))
-                    .show(ui)
-                    .clicked()
+                if !self.workspace.pers_status.syncing
+                    && Button::default()
+                        .text("Sync")
+                        .padding((6.0, 6.0))
+                        .show(ui)
+                        .clicked()
                 {
-                    self.perform_sync(ui.ctx());
+                    self.workspace.perform_sync();
                 }
 
-                match &self.sync.phase {
-                    SyncPhase::IdleGood => (),
-                    SyncPhase::Syncing => {
-                        ui.spinner();
-                    }
-                    SyncPhase::IdleError => {
-                        Icon::CANCEL.show(ui);
-                    }
-                };
+                if self.workspace.pers_status.syncing {
+                    ui.spinner();
+                }
 
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     ui.add_space(10.0);
@@ -173,63 +111,13 @@ impl super::AccountScreen {
         };
     }
 
-    pub fn refresh_sync_status(&self, ctx: &egui::Context) {
-        let core = self.core.clone();
-        let update_tx = self.update_tx.clone();
-        let ctx = ctx.clone();
-
-        std::thread::spawn(move || {
-            let status_result = core.get_last_synced_human_string();
-            update_tx
-                .send(SyncUpdate::SetStatus(status_result).into())
-                .unwrap();
-            update_tx
-                .send(SyncUpdate::SetUsage(core.get_usage().unwrap().into()).into()) // TODO
-                .unwrap();
-            ctx.request_repaint();
-        });
-    }
-
-    pub fn perform_sync(&self, ctx: &egui::Context) {
-        if self.sync.lock.try_lock().is_err() {
-            return;
-        }
-
-        self.save_all_tabs(ctx);
-
-        let sync_lock = self.sync.lock.clone();
-        let core = self.core.clone();
-        let update_tx = self.update_tx.clone();
-        let ctx = ctx.clone();
-
-        std::thread::spawn(move || {
-            let _lock = sync_lock.lock().unwrap();
-            update_tx.send(SyncUpdate::Started.into()).unwrap();
-            ctx.request_repaint();
-
-            let closure = {
-                let update_tx = update_tx.clone();
-                let ctx = ctx.clone();
-
-                move |p: lb::SyncProgress| {
-                    update_tx.send(SyncUpdate::Progress(p).into()).unwrap();
-                    ctx.request_repaint();
-                }
-            };
-
-            let result = core.sync(Some(Box::new(closure))).map_err(SyncError::from);
-            update_tx.send(SyncUpdate::Done(result).into()).unwrap();
-            ctx.request_repaint();
-        });
-    }
-
     pub fn perform_final_sync(&self, ctx: &egui::Context) {
         let sync_lock = self.sync.lock.clone();
         let core = self.core.clone();
         let update_tx = self.update_tx.clone();
         let ctx = ctx.clone();
 
-        std::thread::spawn(move || {
+        thread::spawn(move || {
             let _lock = sync_lock.lock().unwrap();
             if let Err(err) = core.sync(None) {
                 eprintln!("error: final sync: {:?}", err);

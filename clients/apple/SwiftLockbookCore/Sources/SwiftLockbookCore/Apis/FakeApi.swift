@@ -53,7 +53,7 @@ public struct FakeApi: LockbookApi {
         return .success(FakeApi.fileMetas)
     }
     
-    public func getFile(id: UUID) -> FfiResult<String, ReadDocumentError> {
+    public func readDocument(id: UUID) -> FfiResult<String, ReadDocumentError> {
         .success("""
 Lorem ipsum dolor sit amet, consectetur adipiscing elit. Morbi mattis mattis arcu a commodo.
 Maecenas dapibus mollis lacinia. Nunc ut mi felis. Donec efficitur, nulla venenatis sodales sagittis, elit tellus ullamcorper leo, in fringilla turpis nisl at sapien.
@@ -92,7 +92,7 @@ Vestibulum ante ipsum primis in vel.
         .failure(.init(unexpected: "LAZY"))
     }
     
-    public func updateFile(id: UUID, content: String) -> FfiResult<Empty, WriteToDocumentError> {
+    public func writeDocument(id: UUID, content: String) -> FfiResult<Empty, WriteToDocumentError> {
         .success(Empty())
     }
     

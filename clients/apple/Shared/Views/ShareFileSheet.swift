@@ -52,7 +52,7 @@ struct ShareFileSheet: View {
                 
                 Button("Share") {
                     share.shareFile(id: meta.id, username: username, isWrite: isWriteSelected)
-                    sync.sync()
+                    DI.workspace.requestSync()
 
                     presentationMode.wrappedValue.dismiss()
                 }

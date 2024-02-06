@@ -44,6 +44,7 @@ impl SplashScreen {
         let tx = self.update_tx.clone();
 
         std::thread::spawn(move || {
+            println!("in spalsh thread");
             let writeable_path = match data_dir() {
                 Ok(dir) => format!("{}/egui", dir),
                 Err(err) => {
@@ -65,7 +66,7 @@ impl SplashScreen {
                     return;
                 }
             };
-
+            println!("loaded core");
             let is_signed_in = match is_signed_in(&core) {
                 Ok(is_signed_in) => is_signed_in,
                 Err(err) => {
@@ -78,6 +79,7 @@ impl SplashScreen {
             if is_signed_in {
                 tx.send(SplashUpdate::Status("Syncing...".to_string()))
                     .unwrap();
+                println!("syncing");
 
                 let sync_status = match core.sync(None) {
                     Ok(_) => core
@@ -85,6 +87,8 @@ impl SplashScreen {
                         .map_err(|err| format!("{:?}", err)),
                     Err(err) => Err(format!("{:?}", err)),
                 };
+
+                println!("synced");
 
                 let has_pending_shares = match core.get_pending_shares() {
                     Ok(files) => !files.is_empty(),
@@ -96,6 +100,8 @@ impl SplashScreen {
 
                 tx.send(SplashUpdate::Status("Loading files...".to_string()))
                     .unwrap();
+
+                println!("loading files");
 
                 let files = match core.list_metadatas() {
                     Ok(files) => files,

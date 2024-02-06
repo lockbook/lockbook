@@ -162,10 +162,7 @@ class SearchService: ObservableObject {
       
     func openPathAtIndex(index: Int) {
         if isPathSearching && index < pathSearchResults.count {
-            DI.currentDoc.cleanupOldDocs()
-            
-            DI.currentDoc.openDoc(id: pathSearchResults[index].lbId)
-            DI.currentDoc.setSelectedOpenDocById(maybeId: pathSearchResults[index].lbId)
+            DI.workspace.openDoc = pathSearchResults[index].lbId
             
             endSearch(isPathAndContentSearch: false)
         }
@@ -196,6 +193,8 @@ class SearchService: ObservableObject {
         } else {
             return
         }
+        
+        DI.workspace.shouldFocus = true
         
         if case .failure(let err) = self.core.endSearch(isPathAndContentSearch: isPathAndContentSearch) {
             DI.errors.handleError(err)

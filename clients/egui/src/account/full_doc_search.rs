@@ -9,8 +9,10 @@ use lb::{
     service::search_service::{ContentMatch, SearchResult::*},
     StartSearchInfo,
 };
+use workspace_rs::theme::icons::Icon;
+use workspace_rs::widgets::Button;
 
-use crate::{model::DocType, theme::Icon, widgets::Button};
+use crate::model::DocType;
 
 pub struct FullDocSearch {
     results_rx: mpsc::Receiver<SearchResult>,

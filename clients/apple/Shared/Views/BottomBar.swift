@@ -1,18 +1,18 @@
 import SwiftUI
 import SwiftLockbookCore
+import SwiftWorkspace
 
 struct BottomBar: View {
     
     var isiOS = false
     
-    @EnvironmentObject var sync: SyncService
-    @EnvironmentObject var status: StatusService
+    @EnvironmentObject var workspace: WorkspaceState
     @EnvironmentObject var settings: SettingsService
         
 #if os(iOS)
     var menu: some View {
         HStack {
-            if isiOS && !sync.syncing {
+            if isiOS && !workspace.syncing {
                 Button(action: {
                     DI.files.createDoc(isDrawing: false)
                 }) {
@@ -46,14 +46,13 @@ struct BottomBar: View {
     
 #if os(iOS)
     @ViewBuilder var syncButton: some View {
-        if sync.syncing {
+        if workspace.syncing {
             ProgressView()
                 .frame(width: 40, height: 40, alignment: .center)
                 .padding(.trailing, 9)
         } else {
             Button(action: {
-                sync.sync()
-                status.work = 0
+                workspace.requestSync()
             }) {
                 Image(systemName: "arrow.triangle.2.circlepath.circle.fill")
                     .imageScale(.large)
@@ -64,16 +63,15 @@ struct BottomBar: View {
     }
 #else
     @ViewBuilder var syncButton: some View {
-        if sync.syncing {
+        if workspace.syncing {
             Text("")
                 .font(.callout)
                 .foregroundColor(Color.gray)
         } else {
             Button(action: {
-                sync.sync()
-                status.work = 0
+                workspace.requestSync()
             }) {
-                Text(sync.offline ? "Try again" : "Sync now")
+                Text(workspace.offline ? "Try again" : "Sync now")
                     .font(.callout)
                     .foregroundColor(Color.init(red: 0.3, green: 0.45, blue: 0.79))
             }
@@ -162,43 +160,9 @@ struct BottomBar: View {
     }
 #endif
     
-    var localChangeText: String {
-        if status.work == 0 { // not shown in this situation
-            return ""
-        } else if status.work == 1 {
-            return "1 unsynced change"
-        } else {
-            return "\(status.work) unsynced changes"
-        }
-    }
-    
     @ViewBuilder
     var statusText: some View {
-        if sync.upgrade {
-            Text("Update required")
-                .foregroundColor(.secondary)
-        } else if sync.syncing {
-            HStack {
-                Text(sync.syncMsg ?? " ")
-                    .foregroundColor(.secondary)
-            #if os(iOS)
-                Spacer()
-            #endif
-            }
-        } else if sync.outOfSpace {
-            Text("Out of space")
-                .foregroundColor(.secondary)
-        } else {
-            if sync.offline {
-                Text("Offline")
-                    .foregroundColor(.secondary)
-            } else {
-                Text(status.work == 0 ? "Last update: \(status.lastSynced)" : localChangeText)
-                    .font(.callout)
-                    .foregroundColor(.secondary)
-                    .bold()
-            }
-        }
+        Text(workspace.statusMsg)
     }
     
     var body: some View {

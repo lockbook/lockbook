@@ -54,7 +54,7 @@ use crossbeam::channel::{self};
 use db_rs::Db;
 use lockbook_shared::account::Username;
 use lockbook_shared::api::{
-    AccountInfo, AdminFileInfoResponse, AdminValidateAccount, AdminValidateServer,
+    AccountInfo, AdminFileInfoResponse, AdminValidateAccount, AdminValidateServer, GetUsageRequest,
 };
 
 use crate::repo::CoreDb;
@@ -65,10 +65,12 @@ use crate::service::sync_service::SyncContext;
 pub type Core = CoreLib<Network, OnDiskDocuments>;
 
 #[derive(Clone)]
+#[repr(C)]
 pub struct CoreLib<Client: Requester, Docs: DocumentService> {
-    inner: Arc<Mutex<CoreState<Client, Docs>>>,
+    pub inner: Arc<Mutex<CoreState<Client, Docs>>>,
 }
 
+#[repr(C)]
 pub struct CoreState<Client: Requester, Docs: DocumentService> {
     pub config: Config,
     pub public_key: Option<PublicKey>,
@@ -384,7 +386,7 @@ impl<Client: Requester, Docs: DocumentService> CoreLib<Client, Docs> {
     #[instrument(level = "debug", skip_all, err(Debug))]
     pub fn sync(&self, f: Option<Box<dyn Fn(SyncProgress)>>) -> Result<SyncStatus, LbError> {
         SyncContext::sync(self, f).expected_errs(&[
-            CoreError::ServerUnreachable,
+            CoreError::ServerUnreachable, // todo already syncing?
             CoreError::ClientUpdateRequired,
             CoreError::UsageIsOverDataCap,
         ])
@@ -415,7 +417,12 @@ impl<Client: Requester, Docs: DocumentService> CoreLib<Client, Docs> {
 
     #[instrument(level = "debug", skip(self), err(Debug))]
     pub fn get_usage(&self) -> Result<UsageMetrics, LbError> {
-        self.in_tx(|s| s.get_usage())
+        let acc = self.get_account()?;
+        let s = self.inner.lock().unwrap();
+        let client = s.client.clone();
+        drop(s);
+        let usage = client.request(&acc, GetUsageRequest {})?;
+        self.in_tx(|s| s.get_usage(usage))
             .expected_errs(&[CoreError::ServerUnreachable, CoreError::ClientUpdateRequired])
     }
 

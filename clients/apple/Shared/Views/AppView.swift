@@ -5,11 +5,11 @@ struct AppView: View {
     
     @EnvironmentObject var accounts: AccountService
     @EnvironmentObject var files: FileService
-    @EnvironmentObject var sync: SyncService
     @EnvironmentObject var errors: UnexpectedErrorService
     
+    @ViewBuilder
     var body: some View {
-        let view = VStack {
+        VStack {
             switch accounts.account {
             case .none:
                 OnboardingView()
@@ -19,10 +19,11 @@ struct AppView: View {
                     BookView(currentFolder: root, account: account)
                 case .none:
                     if files.hasRootLoaded {
-                        OnboardingView().onAppear {
-                            DI.onboarding.initialSyncing = true
-                            DI.sync.importSync()
-                        }
+                        OnboardingView()
+                            .onAppear {
+                                DI.onboarding.initialSyncing = true
+                                DI.sync.importSync()
+                            }
                     } else {
                         Label("Loading...", systemImage: "clock.arrow.circlepath")
                     }
@@ -56,8 +57,6 @@ struct AppView: View {
                     )
                 }
             }
-        
-        return view
     }
     
     let updateAlert: Alert = Alert(

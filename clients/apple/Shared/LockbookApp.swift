@@ -23,7 +23,7 @@ import AppKit
             AppView()
                 .realDI()
                 .buttonStyle(PlainButtonStyle())
-                .ignoresSafeArea()
+//                .ignoresSafeArea()
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .registerBackgroundTasks(scenePhase: scenePhase, appDelegate: appDelegate)
                 .onOpenURL() { url in
@@ -31,6 +31,8 @@ import AppKit
                 }
                 .handlesExternalEvents(preferring: ["lb"], allowing: ["lb"])
         }.commands {
+            CommandGroup(replacing: .saveItem) {}
+            
             CommandGroup(replacing: CommandGroupPlacement.newItem) {
                 Button("New Doc", action: {
                     DI.files.createDoc(isDrawing: false)
@@ -45,142 +47,10 @@ import AppKit
                 Button("New Folder", action: {
                     DI.sheets.creatingFolderInfo = CreatingFolderInfo(parentPath: DI.files.getPathByIdOrParent() ?? "Error", maybeParent: nil)
                 }).keyboardShortcut("N", modifiers: [.command, .shift])
-                
-                Button("Close Tab", action: {
-                    DI.currentDoc.closeDoc(DI.currentDoc.selectedDoc)
-                }).keyboardShortcut("W", modifiers: .command)
-            }
-            
-            CommandGroup(replacing: .textFormatting) {
-                Menu("Headings") {
-                    Button("Heading 1", action: {
-                        DI.currentDoc.formatSelectedDocSelectedText(.Heading(1))
-                    }).keyboardShortcut("1", modifiers: [.command, .control])
-                    
-                    Button("Heading 2", action: {
-                        DI.currentDoc.formatSelectedDocSelectedText(.Heading(2))
-                    }).keyboardShortcut("2", modifiers: [.command, .control])
-                    
-                    Button("Heading 3", action: {
-                        DI.currentDoc.formatSelectedDocSelectedText(.Heading(3))
-                    }).keyboardShortcut("3", modifiers: [.command, .control])
-                    
-                    Button("Heading 4", action: {
-                        DI.currentDoc.formatSelectedDocSelectedText(.Heading(4))
-                    }).keyboardShortcut("4", modifiers: [.command, .control])
-                }
-
-                Button("Bold", action: {
-                    DI.currentDoc.formatSelectedDocSelectedText(.Bold)
-                }).keyboardShortcut("B", modifiers: .command)
-
-                Button("Italic", action: {
-                    DI.currentDoc.formatSelectedDocSelectedText(.Italic)
-                }).keyboardShortcut("I", modifiers: .command)
-
-                Button("Inline Code", action: {
-                    DI.currentDoc.formatSelectedDocSelectedText(.InlineCode)
-                }).keyboardShortcut("C", modifiers: [.command, .shift])
-                
-                Button("Strikethrough", action: {
-                    DI.currentDoc.formatSelectedDocSelectedText(.Strikethrough)
-                }).keyboardShortcut("S", modifiers: [.command, .shift])
-                
-                Button("Number List", action: {
-                    DI.currentDoc.formatSelectedDocSelectedText(.NumberList)
-                }).keyboardShortcut("7", modifiers: [.command, .shift])
-                
-                Button("Bullet List", action: {
-                    DI.currentDoc.formatSelectedDocSelectedText(.BulletList)
-                }).keyboardShortcut("8", modifiers: [.command, .shift])
-                
-                Button("Todo List", action: {
-                    DI.currentDoc.formatSelectedDocSelectedText(.TodoList)
-                }).keyboardShortcut("9", modifiers: [.command, .shift])
-            }
-            
-            CommandMenu("Tabs") {
-                #if os(macOS)
-                
-                Button("Next Tab", action: {
-                    DI.currentDoc.selectNextOpenDoc()
-                }).keyboardShortcut("}", modifiers: [.command, .shift])
-                
-                Button("Previous Tab", action: {
-                    DI.currentDoc.selectPreviousOpenDoc()
-                }).keyboardShortcut("{", modifiers: [.command, .shift])
-                
-                #else
-                
-                Button("Next Tab", action: {
-                    DI.currentDoc.selectNextOpenDoc()
-                }).keyboardShortcut("]", modifiers: [.command, .shift])
-                
-                Button("Previous Tab", action: {
-                    DI.currentDoc.selectPreviousOpenDoc()
-                }).keyboardShortcut("[", modifiers: [.command, .shift])
-                
-                #endif
-                
-                Menu("Go to Tab") {
-                    Button("Open Tab 1", action: {
-                        DI.currentDoc.selectOpenDocByIndex(index: 0)
-                    })
-                    .keyboardShortcut("1", modifiers: .command)
-                    .disabled(!search.isPathSearching)
-                    
-                    Button("Open Tab 2", action: {
-                        DI.currentDoc.selectOpenDocByIndex(index: 1)
-                    })
-                    .keyboardShortcut("2", modifiers: .command)
-                    .disabled(!search.isPathSearching)
-                    
-                    Button("Open Tab 3", action: {
-                        DI.currentDoc.selectOpenDocByIndex(index: 2)
-                    })
-                    .keyboardShortcut("3", modifiers: .command)
-                    .disabled(!search.isPathSearching)
-                    
-                    Button("Open Tab 4", action: {
-                        DI.currentDoc.selectOpenDocByIndex(index: 3)
-                    })
-                    .keyboardShortcut("4", modifiers: .command)
-                    .disabled(!search.isPathSearching)
-                    
-                    Button("Open Tab 5", action: {
-                        DI.currentDoc.selectOpenDocByIndex(index: 4)
-                    })
-                    .keyboardShortcut("5", modifiers: .command)
-                    .disabled(!search.isPathSearching)
-                    
-                    Button("Open Tab 6", action: {
-                        DI.currentDoc.selectOpenDocByIndex(index: 5)
-                    })
-                    .keyboardShortcut("6", modifiers: .command)
-                    .disabled(!search.isPathSearching)
-                    
-                    Button("Open Tab 7", action: {
-                        DI.currentDoc.selectOpenDocByIndex(index: 6)
-                    })
-                    .keyboardShortcut("7", modifiers: .command)
-                    .disabled(!search.isPathSearching)
-                    
-                    Button("Open Tab 8", action: {
-                        DI.currentDoc.selectOpenDocByIndex(index: 7)
-                    })
-                    .keyboardShortcut("8", modifiers: .command)
-                    .disabled(!search.isPathSearching)
-                    
-                    Button("Open Last Tab", action: {
-                        DI.currentDoc.selectOpenDocByIndex(index: 8)
-                    })
-                    .keyboardShortcut("9", modifiers: .command)
-                    .disabled(!search.isPathSearching)
-                }
             }
                         
             CommandMenu("Lockbook") {
-                Button("Sync", action: { DI.sync.sync() }).keyboardShortcut("S", modifiers: .command)
+                Button("Sync", action: { DI.workspace.requestSync() }).keyboardShortcut("S", modifiers: .command)
                 Button("Search Paths", action: { DI.search.startSearchThread(isPathAndContentSearch: false) }).keyboardShortcut("O", modifiers: .command)
                 #if os(macOS)
                 Button("Search Paths And Content") {
@@ -191,7 +61,7 @@ import AppKit
                 #endif
                 
                 Button("Copy file link", action: {
-                    if let id = DI.currentDoc.selectedDoc {
+                    if let id = DI.workspace.openDoc {
                         DI.files.copyFileLink(id: id)
                     }
                 }).keyboardShortcut("L", modifiers: [.command, .shift])
@@ -218,29 +88,11 @@ import AppKit
                         }
                         
                         if DI.files.root != nil {
-                            if let meta = DI.files.idsAndFiles[id] {
-                                Thread.sleep(until: .now + 0.1)
-                                DispatchQueue.main.sync {
-                                    var laterOpenForIphone = false
-                                    if let docInfo = DI.currentDoc.openDocuments.values.first,
-                                       docInfo.isiPhone {
-                                        docInfo.dismissForLink = meta
-                                        laterOpenForIphone.toggle()
-                                    }
-                                    
-                                    DI.currentDoc.cleanupOldDocs()
-                                    if !laterOpenForIphone {
-                                        DI.currentDoc.justOpenedLink = meta
-                                    }
-                                    
-                                    DI.currentDoc.openDoc(id: id)
-                                    DI.currentDoc.setSelectedOpenDocById(maybeId: id)
-                                }
+                            if DI.files.idsAndFiles[id] != nil {
+                                DI.workspace.openDoc = id
                             } else {
                                 DI.errors.errorWithTitle("File not found", "That file does not exist in your lockbook")
                             }
-                            
-                            return
                         }
                     }
                 } else {

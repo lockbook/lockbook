@@ -84,9 +84,9 @@ class FFITests: XCTestCase {
         
         /// 1 KB of data
         let data = Data(count: 1000)
-        assertSuccess(core.updateFile(id: createdFile.id, content: data.base64EncodedString()))
+        assertSuccess(core.writeDocument(id: createdFile.id, content: data.base64EncodedString()))
         assertSuccess(core.backgroundSync())
-        assertSuccess(core.getFile(id: createdFile.id)) { $0 == data.base64EncodedString() }
+        assertSuccess(core.readDocument(id: createdFile.id)) { $0 == data.base64EncodedString() }
     }
     
     func testUpdateContent1MB() throws {
@@ -100,9 +100,9 @@ class FFITests: XCTestCase {
         
         /// 1 MB of data
         let data = Data(count: 1000*1000)
-        assertSuccess(core.updateFile(id: createdFile.id, content: data.base64EncodedString()))
+        assertSuccess(core.writeDocument(id: createdFile.id, content: data.base64EncodedString()))
         assertSuccess(core.backgroundSync())
-        assertSuccess(core.getFile(id: createdFile.id)) { $0 == data.base64EncodedString() }
+        assertSuccess(core.readDocument(id: createdFile.id)) { $0 == data.base64EncodedString() }
     }
     func testUpdateContent10MB() throws {
         let core = freshCore()
@@ -115,9 +115,9 @@ class FFITests: XCTestCase {
         
         /// 10 MB of data
         let data = Data(count: 10*1000*1000)
-        assertSuccess(core.updateFile(id: createdFile.id, content: data.base64EncodedString()))
+        assertSuccess(core.writeDocument(id: createdFile.id, content: data.base64EncodedString()))
         assertSuccess(core.backgroundSync())
-        assertSuccess(core.getFile(id: createdFile.id)) { $0 == data.base64EncodedString() }
+        assertSuccess(core.readDocument(id: createdFile.id)) { $0 == data.base64EncodedString() }
     }
     
     func testRename() throws {

@@ -1,0 +1,24 @@
+[package]
+name = "workspace"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "workspace_rs"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+#lb = { package = "lb-rs", path = "../../lb/lb-rs", default-features = false, features=["native-tls"] }
+lb-rs = { package = "lb-rs", path = "../../lb/lb-rs" }
+lbeditor = { package = "egui_editor", path = "../editor/egui_editor" }
+egui = "0.22.0"
+egui_extras = { version = "0.22.0", features = ["image"] }
+epaint = "0.22.0"
+lb-pdf = { git ="https://github.com/lockbook/lb-pdf" }
+resvg = "0.36.0"
+svgtypes = "0.13.0"
+minidom = { git ="https://github.com/lockbook/minidom" }
+serde = "1.0.171"
+bezier-rs = "0.2.0"
+glam = "0.22.0"

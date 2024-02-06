@@ -21,10 +21,10 @@ pub use new_file::{NewFileParams, NewFolderModal};
 pub use search::SearchModal;
 pub use settings::{SettingsModal, SettingsResponse};
 
-use crate::widgets::ToolBarVisibility;
-
 use super::OpenModal;
 use eframe::egui;
+use workspace_rs::tab::TabContent;
+use workspace_rs::widgets::ToolBarVisibility;
 
 #[derive(Default)]
 pub struct Modals {
@@ -83,7 +83,7 @@ impl super::AccountScreen {
             } else if let Some(inner) = response.inner {
                 use SettingsResponse::*;
                 match inner {
-                    SuccessfullyUpgraded => self.refresh_sync_status(ctx),
+                    SuccessfullyUpgraded => self.workspace.refresh_sync_status(),
                     ToggleToolbarVisibility(new_change) => {
                         self.modals.settings = None;
                         self.refresh_toolbar_visibilities(new_change);
@@ -95,7 +95,7 @@ impl super::AccountScreen {
 
         if let Some(response) = show(ctx, x_offset, &mut self.modals.search) {
             if let Some(submission) = response.inner {
-                self.open_file(submission.id, ctx, false);
+                self.workspace.open_file(submission.id, false);
                 if submission.close {
                     self.modals.search = None;
                 }
@@ -140,7 +140,7 @@ impl super::AccountScreen {
 
     fn refresh_toolbar_visibilities(&mut self, visibility: ToolBarVisibility) {
         self.workspace.tabs.iter_mut().for_each(|t| {
-            if let Some(crate::account::tabs::TabContent::Markdown(ref mut md)) = &mut t.content {
+            if let Some(TabContent::Markdown(ref mut md)) = &mut t.content {
                 md.toolbar.visibility = visibility;
             }
         });

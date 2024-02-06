@@ -82,29 +82,35 @@ class SettingsService: ObservableObject {
         }
     }
     
-    func calculateUsage() {
+    func calculateUsage(calcUncompressed: Bool = false) {
         DispatchQueue.global(qos: .userInteractive).async {
             self.offline = false
             
             switch self.core.getUsage() {
             case .success(let usages):
-                switch self.core.getUncompressedUsage() {
-                case .success(let uncompressedUsage):
-                    DispatchQueue.main.async {
-                        self.usages = PrerequisiteInformation(serverUsages: usages, uncompressedUsage: uncompressedUsage)
-                    }
-                case .failure(let err):
-                    switch err.kind {
-                    case .UiError(let uiError):
-                        switch uiError {
-                        case .ClientUpdateRequired:
-                            DI.errors.errorWithTitle("Update Required", "You need to update to view your usage")
-                            self.offline = false
-                        case .CouldNotReachServer:
-                            self.offline = true
+                if calcUncompressed {
+                    switch self.core.getUncompressedUsage() {
+                    case .success(let uncompressedUsage):
+                        DispatchQueue.main.async {
+                            self.usages = PrerequisiteInformation(serverUsages: usages, uncompressedUsage: uncompressedUsage)
                         }
-                    default:
-                        DI.errors.handleError(err)
+                    case .failure(let err):
+                        switch err.kind {
+                        case .UiError(let uiError):
+                            switch uiError {
+                            case .ClientUpdateRequired:
+                                DI.errors.errorWithTitle("Update Required", "You need to update to view your usage")
+                                self.offline = false
+                            case .CouldNotReachServer:
+                                self.offline = true
+                            }
+                        default:
+                            DI.errors.handleError(err)
+                        }
+                    }
+                } else {
+                    DispatchQueue.main.async {
+                        self.usages = PrerequisiteInformation(serverUsages: usages, uncompressedUsage: nil)
                     }
                 }
             case .failure(let err):
@@ -139,9 +145,13 @@ class SettingsService: ObservableObject {
 
 struct PrerequisiteInformation {
     let serverUsages: UsageMetrics
-    let uncompressedUsage: UsageItemMetric
+    let uncompressedUsage: UsageItemMetric?
     var compressionRatio: String {
-        let ratio = Double(uncompressedUsage.exact) / Double(serverUsages.serverUsage.exact)
-        return "\( round(ratio*10) / 10.0 )x"
+        if let uncompressedUsage = uncompressedUsage {
+            let ratio = Double(uncompressedUsage.exact) / Double(serverUsages.serverUsage.exact)
+            return "\( round(ratio*10) / 10.0 )x"
+        } else {
+            return "..."
+        }
     }
 }

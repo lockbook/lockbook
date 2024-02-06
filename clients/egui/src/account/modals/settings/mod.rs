@@ -7,10 +7,10 @@ use std::sync::{mpsc, Arc, RwLock};
 
 use eframe::egui;
 use egui_extras::{Size, StripBuilder};
+use workspace_rs::theme::icons::Icon;
+use workspace_rs::widgets::{separator, ToolBarVisibility};
 
 use crate::settings::Settings;
-use crate::theme::Icon;
-use crate::widgets::{separator, ToolBarVisibility};
 
 use self::account_tab::*;
 use self::usage_tab::*;

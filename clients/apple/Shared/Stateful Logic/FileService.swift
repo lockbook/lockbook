@@ -1,6 +1,8 @@
 import Foundation
 import SwiftUI
 import SwiftLockbookCore
+import SwiftWorkspace
+import Combine
 
 class FileService: ObservableObject {
     let core: LockbookApi
@@ -14,7 +16,6 @@ class FileService: ObservableObject {
         }
     }
     @Published var successfulAction: FileAction? = nil
-    
     var hasRootLoaded = false
 
     // File Service keeps track of the parent being displayed on iOS. Since this functionality is not used for macOS, it is conditionally compiled.
@@ -70,6 +71,8 @@ class FileService: ObservableObject {
         let root = root!
         return childrenOf(root)
     }
+    
+    private var cancellables: Set<AnyCancellable> = []
 
     init(_ core: LockbookApi) {
         self.core = core
@@ -77,6 +80,17 @@ class FileService: ObservableObject {
         if DI.accounts.account != nil {
             refresh()
         }
+        
+        DI.workspace.$reloadFiles.sink { reload in
+            if reload {
+                print("reload triggered")
+                DI.workspace.reloadFiles = false
+                
+                self.refresh()
+                DI.share.calculatePendingShares()
+            }
+        }
+        .store(in: &cancellables)
     }
     
     func moveFile(id: UUID, newParent: UUID) {
@@ -273,23 +287,11 @@ class FileService: ObservableObject {
     }
 
     private func openFileChecks() {
-        for docInfo in DI.currentDoc.openDocuments.values {
-            let maybeMeta = idsAndFiles[docInfo.meta.id]
-            
-            if let meta = maybeMeta {
-                if (meta.lastModified != docInfo.meta.lastModified) || (meta != docInfo.meta) {
-                    docInfo.updatesFromCoreAvailable(meta)
-                }
-            } else {
-                docInfo.deleted = true
-            }
-        }
-        
-        if let selectedFolder = DI.currentDoc.selectedFolder {
-            let maybeMeta = idsAndFiles[selectedFolder.id]
+        if let selectedFolder = DI.workspace.selectedFolder {
+            let maybeMeta = idsAndFiles[selectedFolder]
             
             if maybeMeta == nil {
-                DI.currentDoc.selectedFolder = nil
+                DI.workspace.selectedFolder = nil
             }
         }
     }
@@ -300,12 +302,12 @@ class FileService: ObservableObject {
 #if os(iOS)
                 self.parent?.id ?? self.root!.id
 #else
-                DI.currentDoc.selectedFolder?.id ?? self.root!.id
+                DI.workspace.selectedFolder ?? self.root!.id
 #endif
             }()
             
             var name = ""
-            let fileExt = isDrawing ? ".draw" : ".md"
+            let fileExt = isDrawing ? ".svg" : ".md"
             let namePart = "untitled-"
             var attempt = 0
             
@@ -316,12 +318,7 @@ class FileService: ObservableObject {
                 case .success(let meta):
                     self.refreshSync()
                     
-                    DispatchQueue.main.async {
-                        DI.currentDoc.cleanupOldDocs()
-                        DI.currentDoc.justCreatedDoc = self.idsAndFiles[meta.id]
-                        DI.currentDoc.openDoc(id: meta.id)
-                        DI.currentDoc.setSelectedOpenDocById(maybeId: meta.id)
-                    }
+                    DI.workspace.openDoc = meta.id
                     
                     return
                 case .failure(let err):
@@ -343,7 +340,7 @@ class FileService: ObservableObject {
             #if os(iOS)
             parent?.id ?? root!.id
             #else
-            DI.currentDoc.selectedFolder?.id ?? root!.id
+            DI.workspace.selectedFolder ?? root!.id
             #endif
         }()
         
@@ -372,7 +369,7 @@ class FileService: ObservableObject {
             #if os(iOS)
             parent?.id ?? root!.id
             #else
-            DI.currentDoc.selectedFolder?.id ?? root!.id
+            DI.workspace.selectedFolder ?? root!.id
             #endif
         }()
         

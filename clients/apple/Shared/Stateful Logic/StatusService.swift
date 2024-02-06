@@ -20,17 +20,18 @@ class StatusService: ObservableObject {
     }
     
     func checkForLocalWork() {
-        DispatchQueue.global(qos: .userInitiated).async {
-            let localChanges = self.core.getLocalChanges()
-            DispatchQueue.main.async {
-                switch localChanges {
-                case .success(let local):
-                    self.work = local.count
-                case .failure(let err):
-                    DI.errors.handleError(err)
-                }
-            }
-        }
+        // this whole file needs to be deleted
+//        DispatchQueue.global(qos: .userInitiated).async {
+//            let localChanges = self.core.getLocalChanges()
+//            DispatchQueue.main.async {
+//                switch localChanges {
+//                case .success(let local):
+//                    self.work = local.count
+//                case .failure(let err):
+//                    DI.errors.handleError(err)
+//                }
+//            }
+//        }
     }
     
     @objc func setLastSynced() {

@@ -69,20 +69,11 @@ struct SuggestedDocs: View {
                 if let suggestedDocs = fileService.suggestedDocs {
                     ForEach(suggestedDocs) { meta in
                         if let parentMeta = fileService.idsAndFiles[meta.parent] {
-                            if isiOS {
-                                NavigationLink(destination: iOSDocumentViewWrapper(id: meta.id)) {
+                            HStack {
+                                Button(action: {
+                                    DI.workspace.openDoc = meta.id
+                                }) {
                                     SuggestedDocCell(name: meta.name, parentName: "\(parentMeta.name)/", duration: meta.lastModified, isiOS: isiOS)
-                                        .padding(.trailing, 5)
-                                }
-                            } else {
-                                HStack {
-                                    Button(action: {
-                                        DI.currentDoc.cleanupOldDocs()
-                                        DI.currentDoc.openDoc(id: meta.id)
-                                        DI.currentDoc.setSelectedOpenDocById(maybeId: meta.id)
-                                    }) {
-                                        SuggestedDocCell(name: meta.name, parentName: "\(parentMeta.name)/", duration: meta.lastModified, isiOS: isiOS)
-                                    }
                                 }
                             }
                         }
@@ -136,9 +127,7 @@ struct SuggestedDocs: View {
                                     ForEach(suggestedDocs) { meta in
                                         if let parentMeta = fileService.idsAndFiles[meta.parent] {
                                             Button(action: {
-                                                DI.currentDoc.cleanupOldDocs()
-                                                DI.currentDoc.openDoc(id: meta.id)
-                                                DI.currentDoc.setSelectedOpenDocById(maybeId: meta.id)
+                                                DI.workspace.openDoc = meta.id
                                             }) {
                                                 SuggestedDocCell(name: meta.name, parentName: "\(parentMeta.name)/", duration: meta.lastModified)
                                             }

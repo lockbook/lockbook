@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftWorkspace
 import SwiftLockbookCore
 
 struct FileTreeView: NSViewRepresentable {
@@ -12,7 +13,7 @@ struct FileTreeView: NSViewRepresentable {
     @Binding var lastOpenDoc: File?
 
     @EnvironmentObject var files: FileService
-    @EnvironmentObject var currentSelection: DocumentService
+    @EnvironmentObject var workspace: WorkspaceState
     
     let previousFilesHash: Reference<Int?> = Reference(nil)
     let previousOpenDocumentHash: Reference<Int?> = Reference(nil)
@@ -21,15 +22,9 @@ struct FileTreeView: NSViewRepresentable {
         if treeView.numberOfColumns != 1 {
             delegate.documentSelected = { meta in
                 if meta.fileType == .Document {
-                    currentSelection.cleanupOldDocs()
-
-                    if currentSelection.openDocuments[meta.id] == nil {
-                        currentSelection.openDoc(id: meta.id)
-                    }
-                    
-                    currentSelection.setSelectedOpenDocById(maybeId: meta.id)
+                    workspace.openDoc = meta.id
                 } else if meta.fileType == .Folder {
-                    DI.currentDoc.selectedFolder = meta
+                    workspace.selectedFolder = meta.id
                 }
             }
             
@@ -86,7 +81,7 @@ struct FileTreeView: NSViewRepresentable {
             treeView.reloadData()
         }
         
-        let maybeOpenDocId = currentSelection.selectedDoc
+        let maybeOpenDocId = workspace.openDoc
         
         if lastOpenDoc?.id != maybeOpenDocId {
             scrollAndSelectCurrentDoc()
@@ -99,7 +94,7 @@ struct FileTreeView: NSViewRepresentable {
     }
     
     func scrollAndSelectCurrentDoc() {
-        let maybeOpenDocId = currentSelection.selectedDoc
+        let maybeOpenDocId = workspace.openDoc
         
         if let openDocId = maybeOpenDocId {
             if let openDoc = DI.files.idsAndFiles[openDocId] {

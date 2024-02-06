@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftWorkspace
 import SwiftLockbookCore
 
 class DI {
@@ -16,11 +17,8 @@ class DI {
     static let share = ShareService(core)
     static let onboarding = OnboardingService(core)
     static let sheets: SheetState = SheetState()
-    static let currentDoc: DocumentService = DocumentService()
     static let search = SearchService(core)
-    #if os(iOS)
-    static let toolbarModel = ToolbarModel()
-    #endif
+    static let workspace = WorkspaceState(importFile: importExport.importFileURL)
     
     public static func accountDeleted() {
         DI.accounts.account = nil
@@ -29,7 +27,6 @@ class DI {
         DI.files.idsAndFiles = [:]
         DI.onboarding.theyChoseToBackup = false
         DI.onboarding.username = ""
-        DI.currentDoc.openDocuments.removeAll()
     }
 }
 
@@ -49,25 +46,13 @@ class Mock {
     static let share = ShareService(core)
     static let onboarding = OnboardingService(core)
     static let sheets: SheetState = SheetState()
-    static let currentDoc: DocumentService = DocumentService()
     static let search = SearchService(core)
-    #if os(iOS)
-    static let toolbarModel = ToolbarModel()
-    #endif
+    static let workspace = WorkspaceState(importFile: importExport.importFileURL)
 }
 
 extension View {
-    public func iOSDI() -> some View {
-        #if os(iOS)
-            return
-                self
-                    .environmentObject(DI.toolbarModel)
-        #else
-        return self
-        #endif
-    }
     public func realDI() -> some View {
-        iOSDI()
+        self
             .environmentObject(DI.coreService)
             .environmentObject(DI.errors)
             .environmentObject(DI.accounts)
@@ -78,24 +63,14 @@ extension View {
             .environmentObject(DI.sync)
             .environmentObject(DI.onboarding)
             .environmentObject(DI.sheets)
-            .environmentObject(DI.currentDoc)
             .environmentObject(DI.billing)
             .environmentObject(DI.share)
             .environmentObject(DI.search)
-    }
-    
-    public func mockiOSDI() -> some View {
-        #if os(iOS)
-            return
-                self
-                    .environmentObject(Mock.toolbarModel)
-        #else
-        return self
-        #endif
+            .environmentObject(DI.workspace)
     }
     
     public func mockDI() -> some View {
-        mockiOSDI()
+        self
             .environmentObject(Mock.coreService)
             .environmentObject(Mock.errors)
             .environmentObject(Mock.accounts)
@@ -106,8 +81,8 @@ extension View {
             .environmentObject(Mock.sync)
             .environmentObject(Mock.onboarding)
             .environmentObject(Mock.sheets)
-            .environmentObject(Mock.currentDoc)
             .environmentObject(Mock.billing)
             .environmentObject(Mock.share)
+            .environmentObject(Mock.workspace)
     }
 }
