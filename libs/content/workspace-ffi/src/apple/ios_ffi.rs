@@ -7,6 +7,7 @@ use egui_editor::input::canonical::{Bound, Increment, Location, Modification, Of
 use egui_editor::input::cursor::Cursor;
 use egui_editor::input::mutation;
 use egui_editor::offset_types::{DocCharOffset, RangeExt};
+use lb_external_interface::lb_rs::Uuid;
 use std::cmp;
 use std::ffi::{c_char, c_void, CStr, CString};
 use std::mem::ManuallyDrop;
@@ -917,17 +918,21 @@ pub unsafe extern "C" fn unfocus_title(obj: *mut c_void) {
 /// # Safety
 /// obj must be a valid pointer to WgpuEditor
 #[no_mangle]
-pub unsafe extern "C" fn active_tab_renamed(obj: *mut c_void, new_name: *const c_char) {
+pub unsafe extern "C" fn tab_renamed(obj: *mut c_void, id: *const c_char, new_name: *const c_char) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
     let new_name: String = CStr::from_ptr(new_name).to_str().unwrap().into();
+
+    let id: Uuid = CStr::from_ptr(id)
+        .to_str()
+        .expect("Could not C String -> Rust String")
+        .to_string()
+        .parse()
+        .expect("Could not String -> Uuid");
 
     let _ = obj
         .workspace
         .updates_tx
-        .send(workspace::workspace::WsMsg::FileRenamed {
-            id: obj.workspace.tabs[obj.workspace.active_tab].id,
-            new_name,
-        });
+        .send(workspace::workspace::WsMsg::FileRenamed { id, new_name });
 }
 
 /// # Safety

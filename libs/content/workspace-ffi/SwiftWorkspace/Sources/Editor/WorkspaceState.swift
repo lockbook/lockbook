@@ -35,7 +35,7 @@ public class WorkspaceState: ObservableObject {
     @Published public var currentTab: WorkspaceTab = .Welcome
     
     @Published public var renameOpenDoc: Bool = false
-    @Published public var renameCompleted: String? = nil
+    @Published public var renameCompleted: WSRenameCompleted? = nil
     @Published public var closeActiveTab: Bool = false
         
     public var importFile: (URL) -> String?
@@ -48,6 +48,16 @@ public class WorkspaceState: ObservableObject {
     public func requestSync() {
         self.syncRequested = true
     }
+}
+
+public struct WSRenameCompleted {
+    public init(id: UUID, newName: String) {
+        self.id = id
+        self.newName = newName
+    }
+    
+    public let id: UUID
+    public let newName: String
 }
 
 func createTempDir() -> URL? {

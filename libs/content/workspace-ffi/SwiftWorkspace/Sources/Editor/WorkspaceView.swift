@@ -78,7 +78,7 @@ public struct UIWS: UIViewRepresentable {
         }
         
         if workspaceState.renameCompleted != nil {
-            uiView.mtkView.openDocRenamed(newName: workspaceState.renameCompleted!)
+            uiView.mtkView.docRenamed(renameCompleted: workspaceState.renameCompleted!)
             workspaceState.renameCompleted = nil
         }
         

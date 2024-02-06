@@ -1,6 +1,7 @@
 import Foundation
 import SwiftUI
 import SwiftLockbookCore
+import SwiftWorkspace
 
 struct RenameFileSheet: View {
         
@@ -59,9 +60,8 @@ struct RenameFileSheet: View {
         if let error = DI.files.renameFileSync(id: renamingFileInfo.id, name: newFileName) {
             maybeError = error
         } else {
-            if DI.workspace.openDoc == renamingFileInfo.id {
-                DI.workspace.renameCompleted = newFileName
-            }
+            DI.workspace.renameCompleted = WSRenameCompleted(id: renamingFileInfo.id, newName: newFileName)
+            DI.files.refresh()
             
             maybeError = nil
             presentationMode.wrappedValue.dismiss()

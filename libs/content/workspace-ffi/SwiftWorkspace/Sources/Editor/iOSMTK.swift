@@ -753,8 +753,8 @@ public class iOSMTK: MTKView, MTKViewDelegate {
         setNeedsDisplay(self.frame)
     }
     
-    func openDocRenamed(newName: String) {
-        active_tab_renamed(wsHandle, newName)
+    func docRenamed(renameCompleted: WSRenameCompleted) {
+        tab_renamed(wsHandle, renameCompleted.id.uuidString, renameCompleted.newName)
         setNeedsDisplay(self.frame)
     }
 

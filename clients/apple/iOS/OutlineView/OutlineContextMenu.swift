@@ -48,7 +48,7 @@ struct OutlineContextMenu: View {
                 Button(action: {
                     DI.sheets.renamingFileInfo = RenamingFileInfo(id: meta.id, name: meta.name, parentPath: DI.files.getPathByIdOrParent(maybeId: meta.parent) ?? "ERROR")
                 }) {
-                    Label("Rename", systemImage: "questionmark.folder")
+                    Label("Rename", systemImage: "pencil.circle.fill")
                 }
 
                 Button(action: { sheets.movingInfo = meta }) {
