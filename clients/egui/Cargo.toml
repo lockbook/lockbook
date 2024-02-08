@@ -16,8 +16,6 @@ lb-fonts = "0.1.2"
 lbeditor = { package = "egui_editor", path = "../../libs/content/editor/egui_editor" }
 minidom = {git ="https://github.com/lockbook/minidom"}
 pdfium-render = "0.8.5"
-resvg = "0.37.0"
-usvg-parser = "0.37.0"
 rfd = "0.11.4"
 serde = { version = "1.0.140", features = ["derive"] }
 serde_json = "1.0.82"
