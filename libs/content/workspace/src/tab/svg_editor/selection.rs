@@ -1,20 +1,11 @@
-<<<<<<< HEAD:libs/content/workspace/src/tab/svg_editor/selection.rs
-use super::{
-    history::TransformElement,
-    node_by_id,
-    util::{deserialize_transform, pointer_interests_path, serialize_transform},
-    Buffer, DeleteElement,
-=======
 use bezier_rs::Subpath;
-use eframe::egui;
 use glam::{DAffine2, DMat2, DVec2};
 
 use super::{
-    history::ManipulatorGroupId,
-    node_by_id, pointer_interests_path,
-    util::{deserialize_transform, serialize_transform},
-    Buffer, DeleteElement, TransformElement,
->>>>>>> 5ce97131 (Mouse based element scaling):clients/egui/src/account/tabs/svg_editor/selection.rs
+    history::{ManipulatorGroupId, TransformElement},
+    node_by_id,
+    util::{deserialize_transform, pointer_interests_path, serialize_transform},
+    Buffer, DeleteElement,
 };
 
 // todo: consider making this value dynamic depending on the scale of the element
