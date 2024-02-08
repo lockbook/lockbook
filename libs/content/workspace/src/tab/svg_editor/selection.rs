@@ -17,6 +17,9 @@ use super::{
 >>>>>>> 5ce97131 (Mouse based element scaling):clients/egui/src/account/tabs/svg_editor/selection.rs
 };
 
+// todo: consider making this value dynamic depending on the scale of the element
+const SCALE_BRUSH_SIZE: f64 = 10.0;
+
 pub struct Selection {
     last_pos: Option<egui::Pos2>,
     selected_elements: Vec<SelectedElement>,
@@ -44,7 +47,7 @@ impl Selection {
             selected_elements: vec![],
             laso_original_pos: None,
             laso_rect: None,
-            current_op: SelectionOperation::Drag,
+            current_op: SelectionOperation::Idle,
         }
     }
 
@@ -80,7 +83,9 @@ impl Selection {
                     min: egui::pos2(bb[0].x as f32, bb[0].y as f32),
                     max: egui::pos2(bb[1].x as f32, bb[1].y as f32),
                 }
-                .expand(6.0);
+                // account for the fact that scaling operation can start with the
+                // cursor slightly outside of the bounding box
+                .expand(SCALE_BRUSH_SIZE as f32);
 
                 rect.contains(pos)
             });
@@ -94,7 +99,6 @@ impl Selection {
                     } else {
                         self.selected_elements = vec![new_selected_el]
                     }
-                    // this is a bit hacky, try to use the current_op instead of relying on the cursor icon
                 } else {
                     self.selected_elements.clear();
                     self.laso_original_pos = Some(pos);
@@ -163,7 +167,7 @@ impl Selection {
 
         for el in self.selected_elements.iter_mut() {
             let path = buffer.paths.get(&el.id).unwrap();
-            let res = show_bb_rect(ui, &path, working_rect, pos); // based on the response we know the intent
+            let res = show_bb_rect(ui, &path, working_rect, pos);
 
             if ui.input(|r| r.pointer.primary_released()) {
                 transform_origin_dirty = true;
@@ -191,7 +195,7 @@ impl Selection {
                         drag(delta, el, buffer);
                         ui.output_mut(|w| w.cursor_icon = egui::CursorIcon::Grabbing);
                     }
-                    SelectionOperation::HorizontalZoom | SelectionOperation::VerticalZoom => {
+                    SelectionOperation::HorizontalScale | SelectionOperation::VerticalScale => {
                         zoom_to_pos(pos, el, buffer, &self.current_op);
                         ui.output_mut(|w| w.cursor_icon = egui::CursorIcon::None);
                     }
@@ -231,12 +235,19 @@ impl Selection {
                 drag(d, el, buffer);
             }
 
-            if ui.input(|r| r.key_pressed(egui::Key::PlusEquals)) {
-                zoom_from_center(1.1, el, buffer);
-                transform_origin_dirty = true;
-                history_dirty = true;
-            } else if ui.input(|r| r.key_pressed(egui::Key::Minus)) {
-                zoom_from_center(0.9, el, buffer);
+            let is_scaling_up = ui.input(|r| r.key_pressed(egui::Key::PlusEquals));
+            let is_scaling_down = ui.input(|r| r.key_pressed(egui::Key::Minus));
+
+            let scale_factor = if is_scaling_up {
+                1.1
+            } else if is_scaling_down {
+                0.9
+            } else {
+                1.0
+            };
+
+            if is_scaling_down || is_scaling_down {
+                zoom_from_center(scale_factor, el, buffer);
                 transform_origin_dirty = true;
                 history_dirty = true;
             }
@@ -415,8 +426,8 @@ impl SelectionRect {
 
 enum SelectionOperation {
     Drag,
-    HorizontalZoom,
-    VerticalZoom,
+    HorizontalScale,
+    VerticalScale,
     Idle,
 }
 
@@ -502,34 +513,31 @@ fn get_cursor_icon(
         max: egui::pos2(bb[1].x as f32, bb[1].y as f32),
     };
 
-    // todo: adjust this based on the size of the rect
-    let error_radius = 10.0;
-
     let mut res = SelectionResponse {
-        current_op: SelectionOperation::HorizontalZoom,
+        current_op: SelectionOperation::HorizontalScale,
         cursor_icon: egui::CursorIcon::ResizeColumn,
     };
 
     if let Some(left_path) = &selection_rect.left {
-        if pointer_interests_path(left_path, cursor_pos, None, error_radius) {
+        if pointer_interests_path(left_path, cursor_pos, None, SCALE_BRUSH_SIZE) {
             return Some(res);
         }
     };
     if let Some(right_path) = &selection_rect.right {
-        if pointer_interests_path(right_path, cursor_pos, None, error_radius) {
+        if pointer_interests_path(right_path, cursor_pos, None, SCALE_BRUSH_SIZE) {
             return Some(res);
         }
     };
 
     res.cursor_icon = egui::CursorIcon::ResizeRow;
-    res.current_op = SelectionOperation::VerticalZoom;
+    res.current_op = SelectionOperation::VerticalScale;
     if let Some(top_path) = &selection_rect.top {
-        if pointer_interests_path(top_path, cursor_pos, None, error_radius) {
+        if pointer_interests_path(top_path, cursor_pos, None, SCALE_BRUSH_SIZE) {
             return Some(res);
         }
     };
     if let Some(bottom_path) = &selection_rect.bottom {
-        if pointer_interests_path(bottom_path, cursor_pos, None, error_radius) {
+        if pointer_interests_path(bottom_path, cursor_pos, None, SCALE_BRUSH_SIZE) {
             return Some(res);
         }
     };
@@ -603,12 +611,9 @@ fn zoom_from_center(factor: f64, de: &mut SelectedElement, buffer: &mut Buffer) 
 fn zoom_to_pos(
     pos: egui::Pos2, de: &mut SelectedElement, buffer: &mut Buffer, current_op: &SelectionOperation,
 ) {
-    // so i'm zooming from left, right, top or bottom. need to know which direction.
-    // then get the distance
-
     let factor = match current_op {
-        SelectionOperation::HorizontalZoom => pos.x / de.original_pos.x,
-        SelectionOperation::VerticalZoom => pos.y / de.original_pos.y,
+        SelectionOperation::HorizontalScale => pos.x / de.original_pos.x,
+        SelectionOperation::VerticalScale => pos.y / de.original_pos.y,
         _ => return,
     } as f64;
 

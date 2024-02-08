@@ -38,7 +38,6 @@ impl Eraser {
                         return;
                     }
 
-                    println!("{:#?}", id);
                     if pointer_interests_path(path, pos, self.last_pos, ERASER_THICKNESS as f64) {
                         if let Some(n) = buffer
                             .current
