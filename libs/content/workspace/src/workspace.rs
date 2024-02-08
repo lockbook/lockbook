@@ -258,6 +258,7 @@ impl Workspace {
 
             if Button::default()
                 .text("New document")
+                .rounding(egui::Rounding::same(3.0))
                 .frame(true)
                 .show(ui)
                 .clicked()
