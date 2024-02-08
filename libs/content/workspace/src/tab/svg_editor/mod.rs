@@ -140,7 +140,7 @@ impl SVGEditor {
         .unwrap();
 
         if self.buffer.needs_path_map_update {
-            self.buffer.recalc_paths();
+            self.buffer.recalc_paths(&utree);
         }
 
         let tree = resvg::Tree::from_usvg(&utree);

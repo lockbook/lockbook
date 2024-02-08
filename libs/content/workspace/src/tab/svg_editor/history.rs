@@ -3,6 +3,7 @@ use std::{collections::VecDeque, fmt::Debug, mem};
 use bezier_rs::{Bezier, Identifier, Subpath};
 use glam::{DAffine2, DMat2, DVec2};
 use minidom::Element;
+use resvg::usvg::{NodeKind, Tree};
 
 use std::collections::HashMap;
 
@@ -200,8 +201,13 @@ impl Buffer {
         !self.redo.is_empty()
     }
 
-    pub fn recalc_paths(&mut self) {
+    pub fn recalc_paths(&mut self, utree: &Tree) {
         self.paths.clear();
+
+        let mut master_transform = None;
+        if let Some(transform) = self.current.attr("transform") {
+            master_transform = Some(deserialize_transform(transform));
+        }
 
         for el in self.current.children() {
             if el.name().eq("path") {
@@ -209,60 +215,91 @@ impl Buffer {
                     Some(d) => d,
                     None => continue,
                 };
-                let mut subpath = parse_subpath(data);
+                let id = match el.attr("id") {
+                    Some(d) => d,
+                    None => continue,
+                };
+                let mut start = (0.0, 0.0);
+                let mut subpath: Subpath<ManipulatorGroupId> = Subpath::new(vec![], false);
 
-                if let Some(transform) = el.attr("transform") {
-                    let [a, b, c, d, e, f] = deserialize_transform(transform);
-                    subpath.apply_transform(DAffine2 {
-                        matrix2: DMat2 {
-                            x_axis: DVec2 { x: a, y: b },
-                            y_axis: DVec2 { x: c, y: d },
-                        },
-                        translation: DVec2 { x: e, y: f },
-                    });
+                for segment in svgtypes::SimplifyingPathParser::from(data) {
+                    let segment = match segment {
+                        Ok(v) => v,
+                        Err(_) => break,
+                    };
+
+                    match segment {
+                        svgtypes::SimplePathSegment::MoveTo { x, y } => {
+                            start = (x, y);
+                        }
+                        svgtypes::SimplePathSegment::CurveTo { x1, y1, x2, y2, x, y } => {
+                            let bez = Bezier::from_cubic_coordinates(
+                                start.0, start.1, x1, y1, x2, y2, x, y,
+                            );
+                            subpath.append_bezier(&bez, bezier_rs::AppendType::IgnoreStart);
+                            start = (x, y)
+                        }
+                        _ => {}
+                    }
                 }
-                if let Some(transform) = self.current.attr("transform") {
-                    let [a, b, c, d, e, f] = deserialize_transform(transform);
-                    subpath.apply_transform(DAffine2 {
-                        matrix2: DMat2 {
-                            x_axis: DVec2 { x: a, y: b },
-                            y_axis: DVec2 { x: c, y: d },
-                        },
-                        translation: DVec2 { x: e, y: f },
-                    });
-                }
-                if let Some(id) = el.attr("id") {
-                    self.paths.insert(id.to_string(), subpath);
-                }
+
+                apply_compounded_transforms(master_transform, el.attr("transform"), &mut subpath);
+                self.paths.insert(id.to_string(), subpath);
             }
         }
+
+        // insert images
+        for child in utree.root.descendants() {
+            if let NodeKind::Image(ref img) = *child.borrow() {
+                if img.id.is_empty() {
+                    continue;
+                }
+
+                let corner1 = DVec2 {
+                    y: img.view_box.rect.bottom() as f64,
+                    x: img.view_box.rect.right() as f64,
+                };
+                let corner2 =
+                    DVec2 { y: img.view_box.rect.top() as f64, x: img.view_box.rect.left() as f64 };
+                let mut path: Subpath<ManipulatorGroupId> = Subpath::new_rect(corner1, corner2);
+
+                let el = self
+                    .current
+                    .children()
+                    .find(|el| el.attr("id").unwrap_or_default().eq(&img.id));
+                let mut transform = None;
+                if let Some(e) = el {
+                    transform = e.attr("transform");
+                }
+
+                apply_compounded_transforms(master_transform, transform, &mut path);
+                self.paths.insert(img.id.to_string(), path);
+            }
+        }
+
         self.needs_path_map_update = false;
     }
 }
 
-fn parse_subpath(data: &str) -> Subpath<ManipulatorGroupId> {
-    let mut start = (0.0, 0.0);
-    let mut subpath: Subpath<ManipulatorGroupId> = Subpath::new(vec![], false);
+fn apply_compounded_transforms(
+    master_transform: Option<[f64; 6]>, local_transform: Option<&str>,
+    subpath: &mut Subpath<ManipulatorGroupId>,
+) {
+    if let Some(transform) = local_transform {
+        let [a, b, c, d, e, f] = deserialize_transform(transform);
 
-    for segment in svgtypes::SimplifyingPathParser::from(data) {
-        let segment = match segment {
-            Ok(v) => v,
-            Err(_) => break,
-        };
-
-        match segment {
-            svgtypes::SimplePathSegment::MoveTo { x, y } => {
-                start = (x, y);
-            }
-            svgtypes::SimplePathSegment::CurveTo { x1, y1, x2, y2, x, y } => {
-                let bez = Bezier::from_cubic_coordinates(start.0, start.1, x1, y1, x2, y2, x, y);
-                subpath.append_bezier(&bez, bezier_rs::AppendType::IgnoreStart);
-                start = (x, y)
-            }
-            _ => {}
-        }
+        subpath.apply_transform(DAffine2 {
+            matrix2: DMat2 { x_axis: DVec2 { x: a, y: b }, y_axis: DVec2 { x: c, y: d } },
+            translation: DVec2 { x: e, y: f },
+        });
     }
-    subpath
+
+    if let Some([a, b, c, d, e, f]) = master_transform {
+        subpath.apply_transform(DAffine2 {
+            matrix2: DMat2 { x_axis: DVec2 { x: a, y: b }, y_axis: DVec2 { x: c, y: d } },
+            translation: DVec2 { x: e, y: f },
+        });
+    }
 }
 
 impl ToString for Buffer {
