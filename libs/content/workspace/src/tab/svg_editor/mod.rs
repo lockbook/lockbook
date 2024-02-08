@@ -17,33 +17,24 @@ use minidom::Element;
 pub use pen::CubicBezBuilder;
 pub use pen::Pen;
 use resvg::tiny_skia::Pixmap;
-use resvg::usvg::{self, ImageHrefResolver, ImageKind, Size};
-use std::str::FromStr;
-use std::sync::Arc;
+use resvg::usvg::{self, Size};
 pub use toolbar::Tool;
-use usvg_parser::Options;
 pub use util::node_by_id;
 
 use self::zoom::handle_zoom_input;
-
-/// A shorthand for [ImageHrefResolver]'s string function.
-pub type ImageHrefStringResolverFn = Box<dyn Fn(&str, &Options) -> Option<ImageKind> + Send + Sync>;
 
 pub struct SVGEditor {
     buffer: Buffer,
     pub toolbar: Toolbar,
     inner_rect: egui::Rect,
-    core: lb_rs::Core,
 }
 
 impl SVGEditor {
-    pub fn new(bytes: &[u8], core: lb_rs::Core) -> Self {
+    pub fn new(bytes: &[u8]) -> Self {
         // todo: handle invalid utf8
         let mut content = std::str::from_utf8(bytes).unwrap().to_string();
         if content.is_empty() {
             content = "<svg xmlns=\"http://www.w3.org/2000/svg\" ></svg>".to_string();
-        } else {
-            content = content.replace("xlink:href", "href"); //risky
         }
 
         let root: Element = content.parse().unwrap();
@@ -64,7 +55,7 @@ impl SVGEditor {
 
         Self::define_dynamic_colors(&mut buffer, &mut toolbar, false, true);
 
-        Self { buffer, toolbar, inner_rect: egui::Rect::NOTHING, core }
+        Self { buffer, toolbar, inner_rect: egui::Rect::NOTHING }
     }
 
     pub fn show(&mut self, ui: &mut egui::Ui) {
@@ -118,16 +109,9 @@ impl SVGEditor {
     }
 
     fn render_svg(&mut self, ui: &mut egui::Ui) {
-        let lb_local_resolver = ImageHrefResolver {
-            resolve_data: ImageHrefResolver::default_data_resolver(),
-            resolve_string: Self::lb_local_resolver(&self.core),
-        };
-
-        let options =
-            usvg::Options { image_href_resolver: lb_local_resolver, ..Default::default() };
-
         let mut utree: usvg::Tree =
-            usvg::TreeParsing::from_str(&self.buffer.to_string(), &options).unwrap();
+            usvg::TreeParsing::from_str(&self.buffer.to_string(), &usvg::Options::default())
+                .unwrap();
         let available_rect = ui.available_rect_before_wrap();
         utree.size = Size::from_wh(available_rect.width(), available_rect.height()).unwrap();
 
@@ -165,29 +149,6 @@ impl SVGEditor {
             )
             .sense(egui::Sense::click()),
         );
-    }
-
-    fn lb_local_resolver(core: &lb_rs::Core) -> ImageHrefStringResolverFn {
-        let lb_link_prefix = "lb://";
-        let core = core.clone();
-        Box::new(move |href: &str, _opts: &Options| {
-            if !href.starts_with(lb_link_prefix) {
-                return None;
-            }
-            let id = &href[lb_link_prefix.len()..];
-            let id = lb_rs::Uuid::from_str(id).ok()?;
-            let raw = core.read_document(id).ok()?;
-
-            let name = core.get_file_by_id(id).ok()?.name;
-            let ext = name.split('.').last().unwrap_or_default();
-            match ext {
-                "jpg" | "jpeg" => Some(ImageKind::JPEG(Arc::new(raw))),
-                "png" => Some(ImageKind::PNG(Arc::new(raw))),
-                // "svg" => Some(ImageKind::SVG(Arc::new(raw))), todo: handle nested svg
-                "gif" => Some(ImageKind::GIF(Arc::new(raw))),
-                _ => None,
-            }
-        })
     }
 
     // if the data-dark mode is different from the ui dark mode, or if this is the first time running the editor
