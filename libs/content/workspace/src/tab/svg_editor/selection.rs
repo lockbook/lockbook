@@ -158,7 +158,7 @@ impl Selection {
 
         for el in self.selected_elements.iter_mut() {
             let path = buffer.paths.get(&el.id).unwrap();
-            let res = show_bb_rect(ui, &path, working_rect, pos);
+            let res = show_bb_rect(ui, path, working_rect, pos);
 
             if ui.input(|r| r.pointer.primary_released()) {
                 transform_origin_dirty = true;
@@ -192,10 +192,8 @@ impl Selection {
                     }
                     SelectionOperation::Idle => {}
                 }
-            } else {
-                if let Some(r) = res {
-                    ui.output_mut(|w| w.cursor_icon = r.cursor_icon);
-                }
+            } else if let Some(r) = res {
+                ui.output_mut(|w| w.cursor_icon = r.cursor_icon);
             }
 
             if ui.input(|r| r.key_pressed(egui::Key::ArrowDown))
@@ -237,7 +235,7 @@ impl Selection {
                 1.0
             };
 
-            if is_scaling_down || is_scaling_down {
+            if is_scaling_down || is_scaling_up {
                 zoom_from_center(scale_factor, el, buffer);
                 transform_origin_dirty = true;
                 history_dirty = true;
@@ -349,32 +347,32 @@ struct SelectionRect {
 impl SelectionRect {
     fn show(&self, ui: &mut egui::Ui) {
         if let Some(top_path) = &self.top {
-            self.show_subpath(&top_path, ui);
+            self.show_subpath(top_path, ui);
         };
         if let Some(bottom_path) = &self.bottom {
-            self.show_subpath(&bottom_path, ui);
+            self.show_subpath(bottom_path, ui);
         };
 
         if let Some(left_path) = &self.left {
-            self.show_subpath(&left_path, ui);
+            self.show_subpath(left_path, ui);
 
-            if let Some(_) = &self.top {
+            if self.top.is_some() {
                 let corner = left_path.get_segment(0).unwrap().start();
                 self.show_corner(corner, ui);
             }
-            if let Some(_) = &self.bottom {
+            if self.bottom.is_some() {
                 let corner = left_path.get_segment(0).unwrap().end();
                 self.show_corner(corner, ui);
             }
         };
         if let Some(right_path) = &self.right {
-            self.show_subpath(&right_path, ui);
+            self.show_subpath(right_path, ui);
 
-            if let Some(_) = &self.top {
+            if self.top.is_some() {
                 let corner = right_path.get_segment(0).unwrap().start();
                 self.show_corner(corner, ui);
             }
-            if let Some(_) = &self.bottom {
+            if self.bottom.is_some() {
                 let corner = right_path.get_segment(0).unwrap().end();
                 self.show_corner(corner, ui);
             }
@@ -438,7 +436,7 @@ fn show_bb_rect(
             return None;
         }
     };
-    let mut clipped_bb = bb.clone();
+    let mut clipped_bb = bb;
     clipped_bb[0].x = clipped_bb[0].x.max(working_rect.left() as f64);
     clipped_bb[0].y = clipped_bb[0].y.max(working_rect.top() as f64);
 
@@ -584,7 +582,7 @@ fn zoom_from_center(factor: f64, de: &mut SelectedElement, buffer: &mut Buffer) 
     };
 
     if let Some(node) = node_by_id(&mut buffer.current, de.id.clone()) {
-        let mut scaled_matrix = de.original_matrix.1.clone();
+        let mut scaled_matrix = de.original_matrix.1;
         scaled_matrix = scaled_matrix.map(|n| n * factor);
 
         // after scaling the matrix, a corrective translate is applied
