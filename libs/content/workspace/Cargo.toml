@@ -22,3 +22,4 @@ minidom = { git ="https://github.com/lockbook/minidom" }
 serde = "1.0.171"
 bezier-rs = "0.2.0"
 glam = "0.22.0"
+usvg-parser = "0.36.0"
