@@ -19,6 +19,9 @@ pub fn pointer_interests_path(
     path: &Subpath<ManipulatorGroupId>, pos: egui::Pos2, last_pos: Option<egui::Pos2>,
     error_radius: f64,
 ) -> bool {
+    if path.len_segments() == 0 {
+        return false;
+    }
     // first pass: check if the path bounding box contain the cursor.
     // padding to account for low sampling rate scenarios and flat
     // lines with empty bounding boxes

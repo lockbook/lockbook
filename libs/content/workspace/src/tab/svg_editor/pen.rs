@@ -65,6 +65,12 @@ impl Pen {
                 apply_transform_to_pos(&mut pos, buffer);
 
                 self.path_builder.finish(pos);
+
+                if self.path_builder.points.len() < 2 {
+                    buffer.current.remove_child(&id.to_string());
+                    return;
+                }
+
                 let node = util::node_by_id(&mut buffer.current, id.to_string()).unwrap();
                 node.set_attr("d", &self.path_builder.data);
 
