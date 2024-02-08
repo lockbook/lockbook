@@ -3652,7 +3652,6 @@ dependencies = [
  "lb-rs",
  "minidom",
  "pdfium-render",
- "resvg",
  "rfd",
  "serde",
  "serde_json",
@@ -7522,6 +7521,7 @@ dependencies = [
  "resvg",
  "serde",
  "svgtypes 0.13.0",
+ "usvg-parser",
 ]
 
 [[package]]
