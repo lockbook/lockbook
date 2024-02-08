@@ -446,8 +446,6 @@ impl AccountScreen {
                 };
                 settings_btn.on_hover_text("Settings");
 
-                ui.add_space(5.0);
-
                 let incoming_shares_btn = Button::default()
                     .icon(&Icon::SHARED_FOLDER.badge(self.has_pending_shares))
                     .show(ui);
