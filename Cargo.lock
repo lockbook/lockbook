@@ -671,7 +671,7 @@ version = "0.68.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "726e4313eb6ec35d2730258ad4e15b547ee75d6afaa1361a922e78e59b7d8078"
 dependencies = [
- "bitflags 2.4.2",
+ "bitflags 2.3.3",
  "cexpr",
  "clang-sys",
  "lazy_static",
@@ -717,9 +717,9 @@ checksum = "bef38d45163c2f1dde094a7dfd33ccf595c92905c8f8f4fdc18d06fb1037718a"
 
 [[package]]
 name = "bitflags"
-version = "2.4.2"
+version = "2.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ed570934406eb16438a4e976b1b4500774099c13b8cb96eec99f620f05090ddf"
+checksum = "630be753d4e58660abd17930c71b647fe46c27ea6b63cc59e1e3851406972e42"
 
 [[package]]
 name = "block"
@@ -3652,6 +3652,7 @@ dependencies = [
  "lb-rs",
  "minidom",
  "pdfium-render",
+ "resvg",
  "rfd",
  "serde",
  "serde_json",
@@ -4570,7 +4571,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1e938aedcb50e85685c34657a6b5ea37e9c0c8eab2551ad6dc8a55a83a085b49"
 dependencies = [
  "bindgen",
- "bitflags 2.4.2",
+ "bitflags 2.3.3",
  "bytemuck",
  "bytes",
  "chrono",
@@ -5121,7 +5122,7 @@ dependencies = [
  "png",
  "rgb",
  "svgtypes 0.12.0",
- "tiny-skia 0.11.4",
+ "tiny-skia 0.11.2",
  "usvg",
 ]
 
@@ -5234,7 +5235,7 @@ version = "0.38.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0a962918ea88d644592894bc6dc55acc6c0956488adcebbfb6e273506b7fd6e5"
 dependencies = [
- "bitflags 2.4.2",
+ "bitflags 2.3.3",
  "errno",
  "libc",
  "linux-raw-sys 0.4.3",
@@ -6123,9 +6124,9 @@ dependencies = [
 
 [[package]]
 name = "tiny-skia"
-version = "0.11.4"
+version = "0.11.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "83d13394d44dae3207b52a326c0c85a8bf87f1541f23b0d143811088497b09ab"
+checksum = "3b72a92a05db376db09fe6d50b7948d106011761c05a6a45e23e17ee9b556222"
 dependencies = [
  "arrayref",
  "arrayvec 0.7.4",
@@ -6133,7 +6134,7 @@ dependencies = [
  "cfg-if",
  "log 0.4.19",
  "png",
- "tiny-skia-path 0.11.4",
+ "tiny-skia-path 0.11.2",
 ]
 
 [[package]]
@@ -6149,9 +6150,9 @@ dependencies = [
 
 [[package]]
 name = "tiny-skia-path"
-version = "0.11.4"
+version = "0.11.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9c9e7fc0c2e86a30b117d0462aa261b72b7a99b7ebd7deb3a14ceda95c5bdc93"
+checksum = "6ac3865b9708fc7e1961a65c3a4fa55e984272f33092d3c859929f887fceb647"
 dependencies = [
  "arrayref",
  "bytemuck",
@@ -6667,7 +6668,7 @@ dependencies = [
  "rctree",
  "strict-num",
  "svgtypes 0.12.0",
- "tiny-skia-path 0.11.4",
+ "tiny-skia-path 0.11.2",
 ]
 
 [[package]]
@@ -7091,7 +7092,7 @@ checksum = "8f478237b4bf0d5b70a39898a66fa67ca3a007d79f2520485b8b0c3dfc46f8c2"
 dependencies = [
  "arrayvec 0.7.4",
  "bit-vec",
- "bitflags 2.4.2",
+ "bitflags 2.3.3",
  "codespan-reporting",
  "log 0.4.19",
  "naga",
@@ -7116,7 +7117,7 @@ dependencies = [
  "arrayvec 0.7.4",
  "ash",
  "bit-set",
- "bitflags 2.4.2",
+ "bitflags 2.3.3",
  "block",
  "core-graphics-types",
  "d3d12",
@@ -7154,7 +7155,7 @@ version = "0.16.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d0c153280bb108c2979eb5c7391cb18c56642dd3c072e55f52065e13e2a1252a"
 dependencies = [
- "bitflags 2.4.2",
+ "bitflags 2.3.3",
  "js-sys",
  "web-sys",
 ]
@@ -7521,7 +7522,6 @@ dependencies = [
  "resvg",
  "serde",
  "svgtypes 0.13.0",
- "usvg-parser",
 ]
 
 [[package]]
