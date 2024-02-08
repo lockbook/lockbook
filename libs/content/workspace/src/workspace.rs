@@ -539,7 +539,7 @@ impl Workspace {
                     } else if ext == "pdf" {
                         TabContent::Pdf(PdfViewer::new(&bytes, &ctx, &cfg.data_dir))
                     } else if ext == "svg" {
-                        TabContent::Svg(SVGEditor::new(&bytes))
+                        TabContent::Svg(SVGEditor::new(&bytes, core.clone()))
                     } else {
                         TabContent::PlainText(PlainText::new(&bytes))
                     }

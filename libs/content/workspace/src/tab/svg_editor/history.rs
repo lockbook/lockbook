@@ -268,9 +268,14 @@ fn parse_subpath(data: &str) -> Subpath<ManipulatorGroupId> {
 impl ToString for Buffer {
     fn to_string(&self) -> String {
         let mut out = Vec::new();
-        self.current.write_to(&mut out).unwrap();
-        let out = std::str::from_utf8(&out).unwrap().replace("xmlns='' ", "");
-        let out = format!("<svg xmlns=\"http://www.w3.org/2000/svg\" >{}</svg>", out);
+        if let Err(msg) = self.current.write_to(&mut out) {
+            println!("{:#?}", msg);
+        }
+        let out = std::str::from_utf8(&out)
+            .unwrap()
+            .replace("href", "xlink:href"); // risky
+        let out = out.replace("xmlns='' ", "");
+        let out = format!("<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\">{}</svg>", out);
         out
     }
 }
