@@ -47,9 +47,11 @@ impl Workspace {
 
     pub fn sync_done(&mut self, outcome: Result<SyncStatus, LbError>, out: &mut WsOutput) {
         self.pers_status.syncing = false;
-        out.sync_done = true;
         match outcome {
-            Ok(_) => self.refresh_sync_status(),
+            Ok(done) => {
+                self.refresh_sync_status();
+                out.sync_done = Some(done)
+            }
             Err(err) => match err.kind {
                 CoreError::ServerUnreachable => self.pers_status.offline = true,
                 CoreError::ClientUpdateRequired => self.pers_status.update_req = true,

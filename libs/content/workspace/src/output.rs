@@ -1,4 +1,4 @@
-use lb_rs::{File, Uuid};
+use lb_rs::{File, SyncStatus, Uuid};
 
 // todo: dirty docs
 #[derive(Default, Clone)]
@@ -20,7 +20,7 @@ pub struct WsOutput {
 
     pub settings_updated: bool,
 
-    pub sync_done: bool,
+    pub sync_done: Option<SyncStatus>,
 
     // todo see below comment about this anti-patern I've created. Only one place should be updating this, we'll refactor
     // this more thoroughly in 0.8.6
