@@ -21,6 +21,9 @@ pub struct WsOutput {
     pub settings_updated: bool,
 
     pub sync_done: bool,
+
+    // todo see below comment about this anti-patern I've created. Only one place should be updating this, we'll refactor
+    // this more thoroughly in 0.8.6
     pub status: PersistentWsStatus,
 }
 
@@ -33,7 +36,6 @@ pub struct WsOutput {
 pub struct PersistentWsStatus {
     pub syncing: bool,
     pub offline: bool,
-    pub pending_share_found: bool,
     pub update_req: bool,
     pub out_of_space: bool,
     pub usage: f64,
@@ -81,10 +83,15 @@ impl PersistentWsStatus {
 pub struct DirtynessMsg {
     pub last_synced: String,
     pub dirty_files: Vec<Uuid>,
+    pub pending_shares: Vec<File>,
 }
 
 impl Default for DirtynessMsg {
     fn default() -> Self {
-        Self { last_synced: "calculating...".to_string(), dirty_files: vec![] }
+        Self {
+            last_synced: "calculating...".to_string(),
+            dirty_files: vec![],
+            pending_shares: vec![],
+        }
     }
 }

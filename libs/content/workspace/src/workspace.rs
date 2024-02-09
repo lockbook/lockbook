@@ -50,7 +50,6 @@ pub enum WsMsg {
     SyncMsg(SyncProgress),
     SyncDone(Result<SyncStatus, LbError>),
     Dirtyness(DirtynessMsg),
-    PendingShares(Vec<File>),
 }
 
 #[derive(Clone)]
@@ -203,7 +202,7 @@ impl Workspace {
         let mut output = WsOutput::default();
         self.process_updates(&mut output);
         self.process_keys(&mut output);
-        output.status.populate_message();
+        self.pers_status.populate_message();
         output.selected_file = self.tabs.get(self.active_tab).map(|t| t.id);
 
         if self.is_empty() {
@@ -673,9 +672,8 @@ impl Workspace {
                     }
                 }
                 WsMsg::SyncDone(sync_outcome) => self.sync_done(sync_outcome, out),
-                WsMsg::Dirtyness(dirty_msg) => self.dirty_msg(dirty_msg, out),
+                WsMsg::Dirtyness(dirty_msg) => self.dirty_msg(dirty_msg),
                 WsMsg::FileCreated(result) => out.file_created = Some(result),
-                WsMsg::PendingShares(shares) => out.status.pending_share_found = !shares.is_empty(),
             }
         }
     }
