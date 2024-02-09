@@ -34,10 +34,6 @@ impl Workspace {
             let result = core.sync(Some(Box::new(closure)));
             update_tx.send(WsMsg::SyncDone(result)).unwrap();
 
-            let pending_shares = core.get_pending_shares().unwrap();
-            update_tx
-                .send(WsMsg::PendingShares(pending_shares))
-                .unwrap();
             println!("sync done");
 
             ctx.request_repaint();
@@ -53,11 +49,11 @@ impl Workspace {
         self.pers_status.syncing = false;
         out.sync_done = true;
         match outcome {
-            Ok(_) => {}
+            Ok(_) => self.refresh_sync_status(),
             Err(err) => match err.kind {
-                CoreError::ServerUnreachable => out.status.offline = true,
-                CoreError::ClientUpdateRequired => out.status.update_req = true,
-                CoreError::UsageIsOverDataCap => out.status.out_of_space = true,
+                CoreError::ServerUnreachable => self.pers_status.offline = true,
+                CoreError::ClientUpdateRequired => self.pers_status.update_req = true,
+                CoreError::UsageIsOverDataCap => self.pers_status.out_of_space = true,
                 CoreError::Unexpected(msg) => out.error = Some(msg),
                 _ => {}
             },
@@ -72,15 +68,16 @@ impl Workspace {
         thread::spawn(move || {
             let last_synced = core.get_last_synced_human_string().unwrap();
             let dirty_files = core.get_local_changes().unwrap();
+            let pending_shares = core.get_pending_shares().unwrap();
 
-            let dirty = DirtynessMsg { last_synced, dirty_files };
+            let dirty = DirtynessMsg { last_synced, dirty_files, pending_shares };
 
             update_tx.send(WsMsg::Dirtyness(dirty)).unwrap();
             ctx.request_repaint();
         });
     }
 
-    pub fn dirty_msg(&self, dirt: DirtynessMsg, out: &mut WsOutput) {
-        out.status.dirtyness = dirt;
+    pub fn dirty_msg(&mut self, dirt: DirtynessMsg) {
+        self.pers_status.dirtyness = dirt;
     }
 }
