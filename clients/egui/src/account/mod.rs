@@ -5,6 +5,7 @@ mod syncing;
 mod tree;
 
 use std::ffi::OsStr;
+use std::sync::atomic::Ordering;
 use std::sync::{mpsc, Arc, RwLock};
 use std::time::{Duration, Instant};
 use std::{path, thread};
@@ -173,6 +174,11 @@ impl AccountScreen {
                 self.workspace.focused_parent = Some(self.focused_parent());
                 let wso = self.workspace.show_workspace(ui);
                 output.set_window_title = wso.window_title;
+                if wso.settings_updated {
+                    self.settings.write().unwrap().zen_mode =
+                        self.workspace.cfg.zen_mode.load(Ordering::Relaxed);
+                    self.settings.read().unwrap().to_file().unwrap();
+                }
                 if let Some((id, new_name)) = wso.file_renamed {
                     if let Some(node) = self.tree.root.find_mut(id) {
                         node.file.name = new_name.clone();
