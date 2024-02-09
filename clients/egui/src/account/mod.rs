@@ -299,7 +299,7 @@ impl AccountScreen {
     /// See also workspace::process_keys
     fn process_keys(&mut self, ctx: &egui::Context) {
         const ALT: egui::Modifiers = egui::Modifiers::ALT;
-        const CTRL: egui::Modifiers = egui::Modifiers::MAC_CMD;
+        const CTRL: egui::Modifiers = egui::Modifiers::CTRL;
 
         // Escape (without modifiers) to close something such as an open modal.
         // We don't want to consume it unless something is closed.
