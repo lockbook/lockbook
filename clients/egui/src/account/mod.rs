@@ -41,7 +41,6 @@ pub struct AccountScreen {
     update_rx: mpsc::Receiver<AccountUpdate>,
 
     tree: FileTree,
-    has_pending_shares: bool,
     is_new_user: bool,
     suggested: SuggestedDocs,
     full_search_doc: FullDocSearch,
@@ -59,7 +58,7 @@ impl AccountScreen {
     ) -> Self {
         let (update_tx, update_rx) = mpsc::channel();
 
-        let AccountScreenInitData { sync_status, files, usage, has_pending_shares } = acct_data;
+        let AccountScreenInitData { sync_status, files, usage } = acct_data;
         let core_clone = core.clone();
 
         let toasts = egui_notify::Toasts::default()
@@ -80,7 +79,6 @@ impl AccountScreen {
             toasts,
             update_tx,
             update_rx,
-            has_pending_shares,
             is_new_user,
             tree: FileTree::new(files, &core_clone),
             suggested: SuggestedDocs::new(&core_clone),
@@ -175,7 +173,6 @@ impl AccountScreen {
                 self.workspace.focused_parent = Some(self.focused_parent());
                 let wso = self.workspace.show_workspace(ui);
                 output.set_window_title = wso.window_title;
-                self.has_pending_shares = wso.status.pending_share_found;
                 if let Some((id, new_name)) = wso.file_renamed {
                     if let Some(node) = self.tree.root.find_mut(id) {
                         node.file.name = new_name.clone();
@@ -190,6 +187,7 @@ impl AccountScreen {
 
                 if let Some(file) = wso.selected_file {
                     self.tree.reveal_file(file, &self.core);
+                    ctx.request_repaint();
                 }
             });
 
@@ -447,7 +445,16 @@ impl AccountScreen {
                 settings_btn.on_hover_text("Settings");
 
                 let incoming_shares_btn = Button::default()
-                    .icon(&Icon::SHARED_FOLDER.badge(self.has_pending_shares))
+                    .icon(
+                        &Icon::SHARED_FOLDER.badge(
+                            !self
+                                .workspace
+                                .pers_status
+                                .dirtyness
+                                .pending_shares
+                                .is_empty(),
+                        ),
+                    )
                     .show(ui);
 
                 if incoming_shares_btn.clicked() {

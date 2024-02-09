@@ -5,7 +5,7 @@ use std::time::{Duration, Instant};
 use crate::workspace::WsMsg;
 
 const AUTO_SAVE_INTERVAL: Duration = Duration::from_secs(2);
-const SYNC_STATUS_INTERVAL: Duration = Duration::from_secs(2);
+const SYNC_STATUS_INTERVAL: Duration = Duration::from_secs(1);
 
 pub enum BwIncomingMsg {
     EguiUpdate,

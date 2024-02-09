@@ -4,7 +4,6 @@ pub struct AccountScreenInitData {
     pub sync_status: Result<String, String>,
     pub files: Vec<lb::File>,
     pub usage: Result<Usage, String>,
-    pub has_pending_shares: bool,
 }
 
 pub struct Usage {
