@@ -319,11 +319,15 @@ public class MacMTK: MTKView, MTKViewDelegate {
             NSPasteboard.general.clearContents()
             NSPasteboard.general.setString(text, forType: .string)
         }
-
-        let cursor = NSCursor.fromCCursor(c: output.cursor)
-        if cursor != lastCursor {
-            self.lastCursor = cursor
-            self.resetCursorRects()
+        
+        if output.cursor == None {
+            NSCursor.hide()
+        } else {
+            let cursor = NSCursor.fromCCursor(c: output.cursor)
+            if cursor != lastCursor {
+                self.lastCursor = cursor
+                self.resetCursorRects()
+            }
         }
     }
 }
