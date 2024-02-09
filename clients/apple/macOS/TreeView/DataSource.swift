@@ -118,6 +118,7 @@ class TreeDelegate: NSObject, MenuOutlineViewDelegate {
 
         if parent.fileType == .Folder {
             menu.addItem(CreateDocument(file: parent))
+            menu.addItem(CreateDrawing(file: parent))
             menu.addItem(CreateFolder(file: parent))
         }
 
