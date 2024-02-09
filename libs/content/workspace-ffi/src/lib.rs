@@ -165,7 +165,7 @@ impl From<WsOutput> for FfiWorkspaceResp {
             selected_file: value.selected_file.unwrap_or_default().into(),
             msg: CString::new(value.status.message).unwrap().into_raw(),
             syncing: value.status.syncing,
-            refresh_files: value.sync_done
+            refresh_files: value.sync_done.is_some()
                 || value.file_renamed.is_some()
                 || value.file_created.is_some(),
             doc_created: match value.file_created {
