@@ -189,6 +189,10 @@ impl AccountScreen {
                     self.tree.reveal_file(file, &self.core);
                     ctx.request_repaint();
                 }
+
+                if let Some(done) = wso.sync_done {
+                    self.refresh_tree_and_workspace(ctx, done);
+                }
             });
 
         if self.is_new_user {
