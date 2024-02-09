@@ -18,6 +18,23 @@ class CreateDocument: NSMenuItem {
     }
 }
 
+class CreateDrawing: NSMenuItem {
+    let file: File
+    init(file: File) {
+        self.file = file
+        super.init(title: "Create drawing", action: #selector(create(_:)), keyEquivalent: "")
+        target = self
+    }
+
+    required init(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    @objc func create(_ sender: AnyObject) {
+        DI.files.createDoc(maybeParent: file.id, isDrawing: true)
+    }
+}
+
 class CreateFolder: NSMenuItem {
     let file: File
     init(file: File) {
