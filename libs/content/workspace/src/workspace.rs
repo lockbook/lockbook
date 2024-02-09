@@ -561,7 +561,7 @@ impl Workspace {
     }
 
     fn process_keys(&mut self, output: &mut WsOutput) {
-        const CTRL: egui::Modifiers = egui::Modifiers::COMMAND;
+        const CTRL: egui::Modifiers = egui::Modifiers::MAC_CMD;
         // Ctrl-N pressed while new file modal is not open.
         if self.ctx.input_mut(|i| i.consume_key(CTRL, egui::Key::N)) {
             self.create_file(false);
