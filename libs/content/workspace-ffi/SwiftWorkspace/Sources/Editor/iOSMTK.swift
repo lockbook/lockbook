@@ -575,7 +575,6 @@ public class iOSMTKDrawingWrapper: UIView, UIPencilInteractionDelegate {
     }
     
     public func pencilInteractionDidTap(_ interaction: UIPencilInteraction) {
-        print("pencil tap interaction")
         switch UIPencilInteraction.preferredTapAction {
         case .ignore, .showColorPalette, .showInkAttributes:
             print("do nothing")
@@ -680,7 +679,6 @@ public class iOSMTK: MTKView, MTKViewDelegate {
     }
     
     func requestSync() {
-        print("sync requested")
         request_sync(wsHandle)
         setNeedsDisplay(self.frame)
     }
@@ -718,8 +716,8 @@ public class iOSMTK: MTKView, MTKViewDelegate {
             onTextChanged?()
         }
         
-        workspaceState?.statusMsg = textFromPtr(s: output.workspace_resp.msg)
         workspaceState?.syncing = output.workspace_resp.syncing
+        workspaceState?.statusMsg = textFromPtr(s: output.workspace_resp.msg)
         workspaceState?.reloadFiles = output.workspace_resp.refresh_files
         
         let selectedFile = UUID(uuid: output.workspace_resp.selected_file._0)
@@ -785,15 +783,14 @@ public class iOSMTK: MTKView, MTKViewDelegate {
         redrawTask?.cancel()
         self.isPaused = output.redraw_in > 100
         if self.isPaused {
-            let redrawIn = Int(truncatingIfNeeded: output.redraw_in)
-            
-            if redrawIn != -1 {
-                let newRedrawTask = DispatchWorkItem {
-                    self.setNeedsDisplay(self.frame)
-                }
-                DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(redrawIn), execute: newRedrawTask)
-                redrawTask = newRedrawTask
+            let redrawIn = UInt64(truncatingIfNeeded: output.redraw_in)
+            let redrawInInterval = DispatchTimeInterval.milliseconds(Int(truncatingIfNeeded: min(500, redrawIn)));
+
+            let newRedrawTask = DispatchWorkItem {
+                self.setNeedsDisplay(self.frame)
             }
+            DispatchQueue.main.asyncAfter(deadline: .now() + redrawInInterval, execute: newRedrawTask)
+            redrawTask = newRedrawTask
         }
     }
     

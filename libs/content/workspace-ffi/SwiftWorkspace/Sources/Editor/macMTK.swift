@@ -71,7 +71,6 @@ public class MacMTK: MTKView, MTKViewDelegate {
     }
 
     public func setInitialContent(_ coreHandle: UnsafeMutableRawPointer?) {
-        print("initial content called")
         let metalLayer = UnsafeMutableRawPointer(Unmanaged.passUnretained(self.layer!).toOpaque())
         self.wsHandle = init_ws(coreHandle, metalLayer, isDarkMode())
 
@@ -240,7 +239,6 @@ public class MacMTK: MTKView, MTKViewDelegate {
         // initially window is not set, this defaults to 1.0, initial frame comes from `init_editor`
         // we probably want a setNeedsDisplay here
         let scale = self.window?.backingScaleFactor ?? 1.0
-        print(Float(size.width), Float(size.height), Float(scale))
         resize_editor(wsHandle, Float(size.width), Float(size.height), Float(scale))
     }
 
@@ -261,8 +259,8 @@ public class MacMTK: MTKView, MTKViewDelegate {
         set_scale(wsHandle, scale)
         let output = draw_editor(wsHandle)
 
-        workspaceState?.statusMsg = textFromPtr(s: output.workspace_resp.msg)
         workspaceState?.syncing = output.workspace_resp.syncing
+        workspaceState?.statusMsg = textFromPtr(s: output.workspace_resp.msg)
         workspaceState?.reloadFiles = output.workspace_resp.refresh_files
 
         let selectedFile = UUID(uuid: output.workspace_resp.selected_file._0)
@@ -298,19 +296,13 @@ public class MacMTK: MTKView, MTKViewDelegate {
         redrawTask?.cancel()
         self.isPaused = output.redraw_in > 100
         if self.isPaused {
-            var redrawIn = Int(truncatingIfNeeded: output.redraw_in)
-            if redrawIn == -1 {
-                // todo: this means that at a mimumum we're going to trigger 1 frame per second
-                // so that long running background tasks within egui eventually have their status
-                // shown. Ideally this would get replaced by some form of trigger within egui
-                // (what happens if requestRepaint is called while no frame is being drawn)
-                redrawIn = 1000
-            }
-
+            let redrawIn = UInt64(truncatingIfNeeded: output.redraw_in)
+            let redrawInInterval = DispatchTimeInterval.milliseconds(Int(truncatingIfNeeded: min(500, redrawIn)));
+            
             let newRedrawTask = DispatchWorkItem {
                 self.setNeedsDisplay(self.frame)
             }
-            DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(redrawIn), execute: newRedrawTask)
+            DispatchQueue.main.asyncAfter(deadline: .now() + redrawInInterval, execute: newRedrawTask)
             redrawTask = newRedrawTask
         }
 

@@ -1,5 +1,6 @@
 import SwiftUI
 import Combine
+import Bridge
 
 // todo can this go away enirely?
 public class WorkspaceState: ObservableObject {
@@ -38,7 +39,7 @@ public class WorkspaceState: ObservableObject {
     @Published public var renameCompleted: WSRenameCompleted? = nil
     @Published public var closeActiveTab: Bool = false
         
-    public var importFile: (URL) -> String?
+    public var importFile: (_ urlToImport: URL) -> String?
     
     public init(importFile: @escaping (URL) -> String?) {
         self.importFile = importFile
@@ -72,4 +73,3 @@ func createTempDir() -> URL? {
     
     return tempTempURL
 }
-
