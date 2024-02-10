@@ -121,7 +121,7 @@ pub fn calc(
 ) -> Option<Modification> {
     match event {
         Event::Key { key, pressed: true, modifiers, .. }
-            if matches!(key, Key::ArrowUp | Key::ArrowDown) =>
+            if matches!(key, Key::ArrowUp | Key::ArrowDown) && !cfg!(target_os = "ios") =>
         {
             Some(Modification::Select {
                 region: Region::ToOffset {
@@ -136,7 +136,8 @@ pub fn calc(
             })
         }
         Event::Key { key, pressed: true, modifiers, .. }
-            if matches!(key, Key::ArrowRight | Key::ArrowLeft | Key::Home | Key::End) =>
+            if matches!(key, Key::ArrowRight | Key::ArrowLeft | Key::Home | Key::End)
+                && !cfg!(target_os = "ios") =>
         {
             Some(Modification::Select {
                 region: Region::ToOffset {
@@ -168,30 +169,40 @@ pub fn calc(
                 text: "".to_string(),
             })
         }
-        Event::Key { key: Key::Enter, pressed: true, modifiers, .. } => {
+        Event::Key { key: Key::Enter, pressed: true, modifiers, .. }
+            if !cfg!(target_os = "ios") =>
+        {
             Some(Modification::Newline { advance_cursor: !modifiers.shift })
         }
         Event::Key { key: Key::Tab, pressed: true, modifiers, .. } if !modifiers.alt => {
+            if !modifiers.shift && cfg!(target_os = "ios") {
+                return None;
+            }
+
             Some(Modification::Indent { deindent: modifiers.shift })
         }
-        Event::Key { key: Key::A, pressed: true, modifiers, .. } if modifiers.command => {
+        Event::Key { key: Key::A, pressed: true, modifiers, .. }
+            if modifiers.command && !cfg!(target_os = "ios") =>
+        {
             Some(Modification::Select {
                 region: Region::Bound { bound: Bound::Doc, backwards: true },
             })
         }
         Event::Cut => Some(Modification::Cut),
         Event::Key { key: Key::X, pressed: true, modifiers, .. }
-            if modifiers.command && !modifiers.shift =>
+            if modifiers.command && !modifiers.shift && !cfg!(target_os = "ios") =>
         {
             Some(Modification::Cut)
         }
         Event::Copy => Some(Modification::Copy),
         Event::Key { key: Key::C, pressed: true, modifiers, .. }
-            if modifiers.command && !modifiers.shift =>
+            if modifiers.command && !modifiers.shift && !cfg!(target_os = "ios") =>
         {
             Some(Modification::Copy)
         }
-        Event::Key { key: Key::Z, pressed: true, modifiers, .. } if modifiers.command => {
+        Event::Key { key: Key::Z, pressed: true, modifiers, .. }
+            if modifiers.command && !cfg!(target_os = "ios") =>
+        {
             if !modifiers.shift {
                 Some(Modification::Undo)
             } else {

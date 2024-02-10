@@ -5,6 +5,8 @@ import Combine
 import Bridge
 
 #if os(iOS)
+import GameController
+
 public struct WorkspaceView: View, Equatable {
     
     let workspaceState: WorkspaceState
@@ -153,6 +155,10 @@ public class iOSMTKInputManager: UIView {
                     textWrapper.rightAnchor.constraint(equalTo: self.rightAnchor),
                     textWrapper.bottomAnchor.constraint(equalTo: self.bottomAnchor, constant: -iOSMTKTextInputWrapper.TOOL_BAR_HEIGHT)
                 ])
+                
+                if GCKeyboard.coalesced != nil {
+                    textWrapper.becomeFirstResponder()
+                }
             }
         }
     }
