@@ -851,16 +851,13 @@ public class iOSMTK: MTKView, MTKViewDelegate {
         redrawTask?.cancel()
         self.isPaused = output.redraw_in > 100
         if self.isPaused {
-            var redrawIn = Int(truncatingIfNeeded: output.redraw_in)
-            
-            if redrawIn == -1 {
-                redrawIn = 1000
-            }
-                        
+            let redrawIn = UInt64(truncatingIfNeeded: output.redraw_in)
+            let redrawInInterval = DispatchTimeInterval.milliseconds(Int(truncatingIfNeeded: min(500, redrawIn)));
+
             let newRedrawTask = DispatchWorkItem {
                 self.setNeedsDisplay(self.frame)
             }
-            DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(redrawIn), execute: newRedrawTask)
+            DispatchQueue.main.asyncAfter(deadline: .now() + redrawInInterval, execute: newRedrawTask)
             redrawTask = newRedrawTask
         }
     }
