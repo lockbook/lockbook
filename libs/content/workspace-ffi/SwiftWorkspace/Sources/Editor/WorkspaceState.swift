@@ -73,17 +73,3 @@ func createTempDir() -> URL? {
     
     return tempTempURL
 }
-
-func updateSyncMessage(_ context: UnsafePointer<Int8>?, msg: UnsafePointer<Int8>?) {
-    DispatchQueue.main.sync {
-        guard let workspaceState = UnsafeRawPointer(context)?.load(as: WorkspaceState.self) else {
-            return
-        }
-        
-        if let msg = msg {
-            workspaceState.statusMsg = String(cString: msg)
-            free_text(UnsafeMutablePointer(mutating: msg))
-        }
-    }
-}
-
