@@ -90,55 +90,6 @@ class SyncService: ObservableObject {
             }
         }
     }
-    
-    func sync() {
-        if true {
-            return
-        }
-        
-        if DI.accounts.account == nil {
-            print("tried to sync before having an account, ignoring")
-            return
-        }
-        
-        syncing = true
-                
-        DispatchQueue.global(qos: .userInteractive).async {
-            withUnsafePointer(to: self) { syncServicePtr in
-                print("Syncing...")
-                let result = self.core.syncAll(context: syncServicePtr, updateStatus: updateSyncStatus)
-                print("Finished syncing...")
-                
-                DispatchQueue.main.async {
-                    self.cleanupSyncStatus()
-                    
-                    switch result {
-                    case .success(_):
-                        self.outOfSpace = false
-                        self.offline = false
-                        self.postSyncSteps()
-                    case .failure(let error):
-                        switch error.kind {
-                        case .UiError(let uiError):
-                            switch uiError {
-                            case .CouldNotReachServer:
-                                self.offline = true
-                            case .ClientUpdateRequired:
-                                self.upgrade = true
-                            case .Retry:
-                                // TODO
-                                DI.errors.handleError(ErrorWithTitle(title: "Retry", message: "SyncService wants retry"))
-                            case .UsageIsOverDataCap:
-                                self.outOfSpace = true
-                            }
-                        default:
-                            DI.errors.handleError(error)
-                        }
-                    }
-                }
-            }
-        }
-    }
 }
 
 func updateSyncStatus(context: UnsafePointer<Int8>?, cMsg: UnsafePointer<Int8>?, syncProgress: Float) -> Void {
