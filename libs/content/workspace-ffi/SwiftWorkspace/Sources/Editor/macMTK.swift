@@ -37,7 +37,6 @@ public class MacMTK: MTKView, MTKViewDelegate {
     }
 
     func requestSync() {
-        print("requesting sync")
         withUnsafeMutablePointer(to: &workspaceState) { workspaceStatePtr in
             request_sync(wsHandle, workspaceStatePtr, updateSyncMessage)
             setNeedsDisplay(self.frame)
@@ -74,7 +73,6 @@ public class MacMTK: MTKView, MTKViewDelegate {
     }
 
     public func setInitialContent(_ coreHandle: UnsafeMutableRawPointer?) {
-        print("initial content called")
         let metalLayer = UnsafeMutableRawPointer(Unmanaged.passUnretained(self.layer!).toOpaque())
         self.wsHandle = init_ws(coreHandle, metalLayer, isDarkMode())
 
@@ -243,7 +241,6 @@ public class MacMTK: MTKView, MTKViewDelegate {
         // initially window is not set, this defaults to 1.0, initial frame comes from `init_editor`
         // we probably want a setNeedsDisplay here
         let scale = self.window?.backingScaleFactor ?? 1.0
-        print(Float(size.width), Float(size.height), Float(scale))
         resize_editor(wsHandle, Float(size.width), Float(size.height), Float(scale))
     }
 

@@ -643,7 +643,6 @@ public class iOSMTKDrawingWrapper: UIView, UIPencilInteractionDelegate {
     }
     
     public func pencilInteractionDidTap(_ interaction: UIPencilInteraction) {
-        print("pencil tap interaction")
         switch UIPencilInteraction.preferredTapAction {
         case .ignore, .showColorPalette, .showInkAttributes:
             print("do nothing")
