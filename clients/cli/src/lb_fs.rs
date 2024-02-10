@@ -45,7 +45,7 @@ on startup and then every 5 minutes.
 
 This command will not return and print out logs from the NFS server. Once the server starts it will 
 mount a virtual file system to /tmp/lockbook. Ctrl-C'ing this process will shut down the server and 
-unmount the file system.
+unmount the file system. For now, a clean umount is critical to not requiring a restart.
 
 Press Y to proceed.
 "#;
