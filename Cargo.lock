@@ -3620,8 +3620,10 @@ name = "lockbook-cli"
 version = "0.8.4"
 dependencies = [
  "cli-rs",
+ "fs_extra",
  "hotwatch",
  "is-terminal",
+ "lb-fs",
  "lb-rs",
 ]
 

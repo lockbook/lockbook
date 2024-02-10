@@ -9,8 +9,12 @@ pub struct AsyncCore {
 }
 
 impl AsyncCore {
+    pub fn path() -> String {
+        format!("{}/.lockbook/drive", std::env::var("HOME").unwrap())
+    }
+
     pub fn init() -> Self {
-        let writeable_path = format!("{}/.lockbook/drive", std::env::var("HOME").unwrap());
+        let writeable_path = Self::path();
 
         let core =
             Core::init(&lb_rs::Config { writeable_path, logs: false, colored_logs: true }).unwrap();

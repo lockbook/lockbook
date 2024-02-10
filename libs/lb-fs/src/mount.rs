@@ -44,6 +44,20 @@ pub fn mount() {
         .unwrap();
 }
 
+#[cfg(target_os = "linux")]
+pub async fn umount() {
+    info!("umounting");
+    Command::new("sudo")
+        .arg("umount")
+        .arg("/tmp/lockbook")
+        .spawn()
+        .unwrap()
+        .wait()
+        .await
+        .unwrap();
+}
+
+#[cfg(target_os = "macos")]
 pub async fn umount() {
     info!("umounting");
     Command::new("umount")
@@ -53,4 +67,9 @@ pub async fn umount() {
         .wait()
         .await
         .unwrap();
+}
+
+#[cfg(target_os = "windows")]
+pub async fn umount() {
+    todo!()
 }
