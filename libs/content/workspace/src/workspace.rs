@@ -312,7 +312,7 @@ impl Workspace {
                     } else if let Some(content) = &mut tab.content {
                         match content {
                             TabContent::Markdown(md) => {
-                                let resp = md.show(ui, !self.show_tabs);
+                                let resp = md.show(ui);
                                 // The editor signals a text change when the buffer is initially
                                 // loaded. Since we use that signal to trigger saves, we need to
                                 // check that this change was not from the initial frame.
