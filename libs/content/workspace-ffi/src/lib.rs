@@ -332,6 +332,10 @@ impl WgpuWorkspace {
             .expect("remove texture ok");
 
         out.redraw_in = full_output.repaint_after.as_millis() as u64;
+        if out.redraw_in > 50 && out.workspace_resp.syncing {
+            out.redraw_in = 50
+        }
+
         out
     }
 

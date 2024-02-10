@@ -239,8 +239,7 @@ impl AccountScreen {
                 AccountUpdate::ShareAccepted(result) => match result {
                     Ok(_) => {
                         self.modals.file_picker = None;
-                        let f: Option<Box<dyn Fn(String) + Send + 'static>> = None;
-                        self.workspace.perform_sync(f);
+                        self.workspace.perform_sync();
                         // todo: figure out how to call reveal_file after the file tree is updated with the new sync info
                     }
                     Err(msg) => self.modals.error = Some(ErrorModal::new(msg)),
@@ -293,8 +292,7 @@ impl AccountScreen {
                 AccountUpdate::FileShared(result) => match result {
                     Ok(_) => {
                         self.modals.create_share = None;
-                        let f: Option<Box<dyn Fn(String) + Send + 'static>> = None;
-                        self.workspace.perform_sync(f);
+                        self.workspace.perform_sync();
                     }
                     Err(msg) => {
                         if let Some(m) = &mut self.modals.create_share {

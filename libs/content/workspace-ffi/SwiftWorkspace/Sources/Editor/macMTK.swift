@@ -37,10 +37,8 @@ public class MacMTK: MTKView, MTKViewDelegate {
     }
 
     func requestSync() {
-        withUnsafeMutablePointer(to: &workspaceState) { workspaceStatePtr in
-            request_sync(wsHandle, workspaceStatePtr, updateSyncMessage)
-            setNeedsDisplay(self.frame)
-        }
+        request_sync(wsHandle)
+        setNeedsDisplay(self.frame)
     }
 
     func modifiersChanged(event: NSEvent) -> NSEvent {
@@ -262,9 +260,7 @@ public class MacMTK: MTKView, MTKViewDelegate {
         let output = draw_editor(wsHandle)
 
         workspaceState?.syncing = output.workspace_resp.syncing
-        if !output.workspace_resp.syncing { // sync closure will populate status message
-            workspaceState?.statusMsg = textFromPtr(s: output.workspace_resp.msg)
-        }
+        workspaceState?.statusMsg = textFromPtr(s: output.workspace_resp.msg)
         workspaceState?.reloadFiles = output.workspace_resp.refresh_files
 
         let selectedFile = UUID(uuid: output.workspace_resp.selected_file._0)

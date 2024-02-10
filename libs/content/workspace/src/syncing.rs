@@ -6,10 +6,7 @@ use std::thread;
 impl Workspace {
     // todo should anyone outside workspace ever call this? Or should they call something more
     // general that would allow workspace to determine if a sync is needed
-    pub fn perform_sync<F>(&mut self, f: Option<Box<F>>)
-    where
-        F: Fn(String) + Send + 'static + ?Sized,
-    {
+    pub fn perform_sync(&mut self) {
         if self.pers_status.syncing {
             return;
         }
@@ -28,9 +25,6 @@ impl Workspace {
                 let ctx = ctx.clone();
 
                 move |p: SyncProgress| {
-                    if let Some(ref f) = f {
-                        f(p.msg.clone());
-                    }
                     update_tx.send(WsMsg::SyncMsg(p)).unwrap();
                     ctx.request_repaint();
                 }

@@ -5,8 +5,6 @@ use egui_wgpu_backend::wgpu::CompositeAlphaMode;
 use egui_wgpu_backend::{wgpu, ScreenDescriptor};
 use lb_external_interface::Core;
 use std::ffi::{c_char, c_void, CStr, CString};
-use std::ptr::NonNull;
-use std::sync::Arc;
 use std::time::Instant;
 use workspace_rs::register_fonts;
 use workspace_rs::theme::visuals;
@@ -91,34 +89,11 @@ pub extern "C" fn open_file(obj: *mut c_void, id: CUuid, new_file: bool) {
     obj.workspace.open_file(id, new_file)
 }
 
-// parameters: context and sync message
-pub type UpdateSyncStatus = extern "C" fn(*const c_char, *const c_char);
-
-struct CClassPtr {
-    ptr: NonNull<c_char>,
-}
-unsafe impl Send for CClassPtr {}
-unsafe impl Sync for CClassPtr {}
-
 #[no_mangle]
-pub extern "C" fn request_sync(
-    obj: *mut c_void, context: *const c_char, update_status: UpdateSyncStatus,
-) {
+pub extern "C" fn request_sync(obj: *mut c_void) {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
 
-    let context = Arc::new(CClassPtr {
-        ptr: NonNull::new(context as *mut c_char).expect("context cannot be null"),
-    });
-
-    let f = move |msg: String| {
-        let cmsg = CString::new(msg)
-            .expect("Could not Rust String -> C String")
-            .into_raw();
-
-        update_status(context.ptr.as_ptr(), cmsg);
-    };
-
-    obj.workspace.perform_sync(Some(Box::new(f)))
+    obj.workspace.perform_sync()
 }
 
 #[no_mangle]
