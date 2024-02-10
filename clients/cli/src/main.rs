@@ -3,6 +3,7 @@ mod debug;
 mod edit;
 mod imex;
 mod input;
+mod lb_fs;
 mod list;
 mod share;
 mod stream;
@@ -113,6 +114,11 @@ fn run() -> CliResult<()> {
                 .handler(|target, dest| imex::export(core, target.get(), dest.get()))
         )
         .subcommand(
+            Command::name("fs")
+                .description("use your lockbook files with your local filesystem by mounting an NFS drive to /tmp/lockbook")
+                .handler(lb_fs::mount)
+        )
+        .subcommand(
             Command::name("list").description("list files and file information")
                 .input(Flag::bool("long").description("display more information"))
                 .input(Flag::bool("recursive").description("include all children of the given directory, recursively"))
@@ -164,7 +170,7 @@ fn run() -> CliResult<()> {
         .subcommand(
             Command::name("share").description("sharing related commands")
                 .subcommand(
-                    Command::name("new")
+                    Command::name("new").description("share a file with someone")
                         .input(Arg::<FileInput>::name("target").description("lockbook file path or ID of file to rename")
                             .completor(|prompt| input::file_completor(core, prompt, None)))
                         .input(Arg::str("username"))
@@ -204,16 +210,20 @@ fn main() {
     run().exit();
 }
 
-fn core() -> CliResult<Core> {
+fn writable_path() -> CliResult<String> {
     let specified_path = env::var("LOCKBOOK_PATH");
 
     let default_path = env::var("HOME") // unix
         .or(env::var("HOMEPATH")) // windows
         .map(|home| format!("{home}/.lockbook/cli"));
 
-    let writeable_path = specified_path
+    Ok(specified_path
         .or(default_path)
-        .map_err(|_| "no cli location")?;
+        .map_err(|_| "no cli location")?)
+}
+
+fn core() -> CliResult<Core> {
+    let writeable_path = writable_path()?;
 
     Core::init(&lb::Config { writeable_path, logs: true, colored_logs: true })
         .map_err(|err| CliError::from(err.msg))
