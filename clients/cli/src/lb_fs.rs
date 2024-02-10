@@ -13,7 +13,6 @@ pub fn mount() -> CliResult<()> {
 }
 
 fn warning() -> CliResult<()> {
-    println!();
     let answer: String = input::std_in(WARNING)?;
     if answer != "y" && answer != "Y" {
         return Err("Aborted.".into());
@@ -40,9 +39,9 @@ fn copy_data() -> CliResult<()> {
     Ok(())
 }
 
-const WARNING: &str = {
-    r#"lb-fs is in it's early stages, please expect bugs and report them. macOS is 8/10 stable,
-linux is 7/10 stable, windows is largely untested at the moment.
+const WARNING: &str = r#"
+lb-fs is in it's early stages, please expect bugs and report them. macOS is 8/10 stable,
+linux is 7/10 stable, and windows is largely untested at the moment.
 
 This version will cp your your CLI's data directory and create a dedicated one for lb-fs. Future
 iterations will be more tightly integrated into host programs. lb-fs will sync changes to our server
@@ -53,5 +52,4 @@ mount a virtual file system to /tmp/lockbook. Ctrl-C'ing this process will shut 
 unmount the file system.
 
 Press Y to proceed.
-"#
-};
+"#;
