@@ -15,6 +15,8 @@ use std::ptr::null;
 use workspace_rs::tab::svg_editor::Tool;
 use workspace_rs::tab::TabContent;
 
+use super::keyboard::UIKeys;
+
 /// # Safety
 /// obj must be a valid pointer to WgpuEditor
 ///
@@ -951,4 +953,27 @@ pub unsafe extern "C" fn close_active_tab(obj: *mut c_void) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
 
     obj.workspace.close_tab(obj.workspace.active_tab)
+}
+
+/// # Safety
+/// obj must be a valid pointer to WgpuEditor
+#[no_mangle]
+pub unsafe extern "C" fn ios_key_event(
+    obj: *mut c_void, key_code: isize, shift: bool, ctrl: bool, option: bool, command: bool,
+    pressed: bool,
+) {
+    let obj = &mut *(obj as *mut WgpuWorkspace);
+
+    let modifiers = egui::Modifiers { alt: option, ctrl, shift, mac_cmd: command, command };
+
+    obj.raw_input.modifiers = modifiers;
+
+    let Some(key) = UIKeys::from(key_code) else { return };
+
+    // Event::Key
+    if let Some(key) = key.egui_key() {
+        obj.raw_input
+            .events
+            .push(Event::Key { key, pressed, repeat: false, modifiers });
+    }
 }

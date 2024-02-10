@@ -16,7 +16,6 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
     var textUndoManager = iOSUndoManager()
     let textInteraction = UITextInteraction(for: .editable)
     
-    var isUnderlyingTextEdit: Bool { get { workspaceState!.currentTab.isTextEdit() } }
     var wsHandle: UnsafeMutableRawPointer? { get { mtkView.wsHandle } }
     var workspaceState: WorkspaceState? { get { mtkView.workspaceState } }
 
@@ -92,10 +91,6 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
     }
     
     public func dropInteraction(_ interaction: UIDropInteraction, canHandle session: UIDropSession) -> Bool {
-        if !isUnderlyingTextEdit {
-            return false
-        }
-        
         guard session.items.count == 1 else { return false }
         
         return session.hasItemsConforming(toTypeIdentifiers: [UTType.image.identifier, UTType.fileURL.identifier, UTType.text.identifier])
@@ -105,7 +100,7 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
         let dropLocation = session.location(in: self)
         let operation: UIDropOperation
 
-        if isUnderlyingTextEdit && self.frame.contains(dropLocation) {
+        if self.frame.contains(dropLocation) {
             operation = .copy
         } else {
             operation = .cancel
@@ -115,10 +110,6 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
     }
 
     public func dropInteraction(_ interaction: UIDropInteraction, performDrop session: UIDropSession) {
-        if !isUnderlyingTextEdit {
-            return
-        }
-        
         if session.hasItemsConforming(toTypeIdentifiers: [UTType.image.identifier as String]) {
             session.loadObjects(ofClass: UIImage.self) { imageItems in
                 let images = imageItems as? [UIImage] ?? []
@@ -218,20 +209,12 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
     }
     
     public func insertText(_ text: String) {
-        if !isUnderlyingTextEdit {
-            return
-        }
-                        
         inputDelegate?.textWillChange(self)
         insert_text(wsHandle, text)
         self.mtkView.setNeedsDisplay(mtkView.frame)
     }
     
     public func text(in range: UITextRange) -> String? {
-        if !isUnderlyingTextEdit {
-            return nil
-        }
-        
         let range = (range as! LBTextRange).c
         guard let result = text_in_range(wsHandle, range) else {
             return nil
@@ -243,10 +226,6 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
     
     
     public func replace(_ range: UITextRange, withText text: String) {
-        if !isUnderlyingTextEdit {
-            return
-        }
-        
         let range = range as! LBTextRange
         inputDelegate?.textWillChange(self)
         replace_text(wsHandle, range.c, text)
@@ -255,23 +234,16 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
     
     public var selectedTextRange: UITextRange? {
         set {
-            if !isUnderlyingTextEdit {
-                return
-            }
-            
             guard let range = (newValue as? LBTextRange)?.c else {
                 return
             }
+            
             inputDelegate?.selectionWillChange(self)
             set_selected(wsHandle, range)
             self.mtkView.setNeedsDisplay()
         }
         
         get {
-            if !isUnderlyingTextEdit {
-                return nil
-            }
-            
             let range = get_selected(wsHandle)
             if range.none {
                 return nil
@@ -282,10 +254,6 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
     
     public var markedTextRange: UITextRange? {
         get {
-            if !isUnderlyingTextEdit {
-                return nil
-            }
-            
             let range = get_marked(wsHandle)
             if range.none {
                 return nil
@@ -306,48 +274,28 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
     }
     
     public func setMarkedText(_ markedText: String?, selectedRange: NSRange) {
-        if !isUnderlyingTextEdit {
-            return
-        }
-        
         inputDelegate?.textWillChange(self)
         set_marked(wsHandle, CTextRange(none: false, start: CTextPosition(none: false, pos: UInt(selectedRange.lowerBound)), end: CTextPosition(none: false, pos: UInt(selectedRange.upperBound))), markedText)
         self.mtkView.setNeedsDisplay()
     }
     
     public func unmarkText() {
-        if !isUnderlyingTextEdit {
-            return
-        }
-        
         inputDelegate?.textWillChange(self)
         unmark_text(wsHandle)
         self.mtkView.setNeedsDisplay()
     }
     
     public var beginningOfDocument: UITextPosition {
-        if !isUnderlyingTextEdit {
-            return LBTextPos(c: CTextPosition(none: true, pos: 0))
-        }
-        
         let res = beginning_of_document(wsHandle)
         return LBTextPos(c: res)
     }
     
     public var endOfDocument: UITextPosition {
-        if !isUnderlyingTextEdit {
-            return LBTextPos(c: CTextPosition(none: true, pos: 0))
-        }
-        
         let res = end_of_document(wsHandle)
         return LBTextPos(c: res)
     }
     
     public func textRange(from fromPosition: UITextPosition, to toPosition: UITextPosition) -> UITextRange? {
-        if !isUnderlyingTextEdit {
-            return nil
-        }
-        
         guard let start = (fromPosition as? LBTextPos)?.c else {
             return nil
         }
@@ -361,10 +309,6 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
     }
     
     public func position(from position: UITextPosition, offset: Int) -> UITextPosition? {
-        if !isUnderlyingTextEdit {
-            return nil
-        }
-        
         guard let start = (position as? LBTextPos)?.c else {
             return nil
         }
@@ -376,10 +320,6 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
     }
     
     public func position(from position: UITextPosition, in direction: UITextLayoutDirection, offset: Int) -> UITextPosition? {
-        if !isUnderlyingTextEdit {
-            return nil
-        }
-        
         let start = (position as! LBTextPos).c
         let direction = CTextLayoutDirection(rawValue: UInt32(direction.rawValue));
         let new = position_offset_in_direction(wsHandle, start, direction, Int32(offset))
@@ -390,10 +330,6 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
     }
     
     public func compare(_ position: UITextPosition, to other: UITextPosition) -> ComparisonResult {
-        if !isUnderlyingTextEdit {
-            return ComparisonResult.orderedAscending
-        }
-        
         guard let left = (position as? LBTextPos)?.c.pos, let right = (other as? LBTextPos)?.c.pos else {
             return ComparisonResult.orderedAscending
         }
@@ -410,10 +346,6 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
     }
     
     public func offset(from: UITextPosition, to toPosition: UITextPosition) -> Int {
-        if !isUnderlyingTextEdit {
-            return 0
-        }
-        
         guard let left = (from as? LBTextPos)?.c.pos, let right = (toPosition as? LBTextPos)?.c.pos else {
             return 0
         }
@@ -469,10 +401,6 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
     }
     
     public func closestPosition(to point: CGPoint) -> UITextPosition? {
-        if !isUnderlyingTextEdit {
-            return nil
-        }
-        
         let point = CPoint(x: point.x, y: point.y + iOSMTK.TAB_BAR_HEIGHT)
         let result = position_at_point(wsHandle, point)
         return LBTextPos(c: result)
@@ -494,20 +422,12 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
     }
     
     public func deleteBackward() {
-        if !isUnderlyingTextEdit {
-            return
-        }
-        
         inputDelegate?.textWillChange(self)
         backspace(wsHandle)
         self.mtkView.setNeedsDisplay(mtkView.frame)
     }
     
     public func editMenu(for textRange: UITextRange, suggestedActions: [UIMenuElement]) -> UIMenu? {
-        if !isUnderlyingTextEdit {
-            return nil
-        }
-        
         let customMenu = self.selectedTextRange?.isEmpty == false ? UIMenu(title: "", options: .displayInline, children: [
             UIAction(title: "Cut") { _ in
                 self.inputDelegate?.selectionWillChange(self)
@@ -584,10 +504,6 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
     }
     
     func getText() -> String {
-        if !isUnderlyingTextEdit {
-            return ""
-        }
-        
         let result = get_text(wsHandle)
         let str = String(cString: result!)
         free_text(UnsafeMutablePointer(mutating: result))
@@ -599,21 +515,38 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
     }
     
     override public var keyCommands: [UIKeyCommand]? {
+        let deleteWord = UIKeyCommand(input: UIKeyCommand.inputDelete, modifierFlags: [.alternate], action: #selector(deleteWord))
+        
+        deleteWord.wantsPriorityOverSystemBehavior = true
+
         return [
             UIKeyCommand(input: "c", modifierFlags: .command, action: #selector(clipboardCopy)),
             UIKeyCommand(input: "x", modifierFlags: .command, action: #selector(clipboardCut)),
             UIKeyCommand(input: "v", modifierFlags: .command, action: #selector(clipboardPaste)),
             UIKeyCommand(input: "a", modifierFlags: .command, action: #selector(keyboardSelectAll)),
+            deleteWord,
         ]
     }
     
     @objc func deleteWord() {
-        if !isUnderlyingTextEdit {
-            return
-        }
-        
         delete_word(wsHandle)
         mtkView.setNeedsDisplay(mtkView.frame)
+    }
+    
+    public override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
+        mtkView.pressesBegan(presses, with: event)
+        
+        if !mtkView.overrideDefaultKeyboardBehavior {
+            super.pressesBegan(presses, with: event)
+        }
+    }
+    
+    public override func pressesEnded(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
+        mtkView.pressesEnded(presses, with: event)
+        
+        if !mtkView.overrideDefaultKeyboardBehavior {
+            super.pressesEnded(presses, with: event)
+        }
     }
     
     func unimplemented() {
@@ -630,7 +563,6 @@ public class iOSMTKDrawingWrapper: UIView, UIPencilInteractionDelegate {
     
     let mtkView: iOSMTK
     
-    var isUnderlyingTextEdit: Bool { get { !workspaceState!.currentTab.isTextEdit() } }
     var wsHandle: UnsafeMutableRawPointer? { get { mtkView.wsHandle } }
     var workspaceState: WorkspaceState? { get { mtkView.workspaceState } }
 
@@ -710,8 +642,8 @@ public class iOSMTK: MTKView, MTKViewDelegate {
     var onSelectionChanged: (() -> Void)? = nil
     var onTextChanged: (() -> Void)? = nil
         
-    var docChanged = false
     var showTabs = true
+    var overrideDefaultKeyboardBehavior = false
     
     override init(frame frameRect: CGRect, device: MTLDevice?) {
         super.init(frame: frameRect, device: device)
@@ -906,7 +838,54 @@ public class iOSMTK: MTKView, MTKViewDelegate {
     
         self.setNeedsDisplay(self.frame)
     }
+    
+    public override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
+        overrideDefaultKeyboardBehavior = false
+        
+        for press in presses {
+            guard let key = press.key else { continue }
+            
+            if workspaceState!.currentTab.isTextEdit() && key.keyCode == .keyboardDeleteOrBackspace {
+                return
+            }
+            
+            let shift = key.modifierFlags.contains(.shift)
+            let ctrl = key.modifierFlags.contains(.control)
+            let option = key.modifierFlags.contains(.alternate)
+            let command = key.modifierFlags.contains(.command)
+            
+            if (command && key.keyCode == .keyboardW) || (shift && key.keyCode == .keyboardTab) {
+                overrideDefaultKeyboardBehavior = true
+            }
+            
+            ios_key_event(wsHandle, key.keyCode.rawValue, shift, ctrl, option, command, true)
+            self.setNeedsDisplay(self.frame)
+        }
+    }
 
+    public override func pressesEnded(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
+        overrideDefaultKeyboardBehavior = false
+        
+        for press in presses {
+            guard let key = press.key else { continue }
+            
+            if workspaceState!.currentTab.isTextEdit() && key.keyCode == .keyboardDeleteOrBackspace {
+                return
+            }
+
+            let shift = key.modifierFlags.contains(.shift)
+            let ctrl = key.modifierFlags.contains(.control)
+            let option = key.modifierFlags.contains(.alternate)
+            let command = key.modifierFlags.contains(.command)
+            
+            if (command && key.keyCode == .keyboardW) || (shift && key.keyCode == .keyboardTab) {
+                overrideDefaultKeyboardBehavior = true
+            }
+            
+            ios_key_event(wsHandle, key.keyCode.rawValue, shift, ctrl, option, command, false)
+            self.setNeedsDisplay(self.frame)
+        }
+    }
     
     func isDarkMode() -> Bool {
         traitCollection.userInterfaceStyle != .light
@@ -920,6 +899,10 @@ public class iOSMTK: MTKView, MTKViewDelegate {
         print("unimplemented!")
         Thread.callStackSymbols.forEach{print($0)}
 //        exit(-69)
+    }
+    
+    public override var canBecomeFocused: Bool {
+        return true
     }
 }
 

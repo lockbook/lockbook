@@ -26,9 +26,9 @@ impl Markdown {
         self.editor.debug.frame_count > 1
     }
 
-    pub fn show(&mut self, ui: &mut egui::Ui, is_mobile: bool) -> EditorResponse {
+    pub fn show(&mut self, ui: &mut egui::Ui) -> EditorResponse {
         ui.vertical(|ui| {
-            let mut res = if is_mobile {
+            let mut res = if cfg!(target_os = "ios") {
                 let res = ui
                     .allocate_ui(
                         egui::vec2(
