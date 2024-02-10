@@ -1,11 +1,11 @@
-use crate::{input, writable_path};
+use crate::{ensure_account, input, writable_path};
 use cli_rs::cli_error::CliResult;
 use fs_extra::dir::CopyOptions;
+use lb::Core;
 use lb_fs::fs_impl::Drive;
-use nix::unistd::Uid;
 
-pub fn mount() -> CliResult<()> {
-    env_check()?;
+pub fn mount(core: &Core) -> CliResult<()> {
+    ensure_account(core)?;
     warning()?;
     copy_data()?;
     Drive::init().mount()?;
@@ -21,20 +21,16 @@ fn warning() -> CliResult<()> {
     Ok(())
 }
 
-fn env_check() -> CliResult<()> {
-    if cfg!(linux) && !Uid::effective().is_root() {
-        return Err("on linux, lb-fs requires root permissions to mount a directory".into());
-    }
-
-    Ok(())
-}
-
 fn copy_data() -> CliResult<()> {
     let current_path = writable_path()?;
     let target_path = lb_fs::core::AsyncCore::path();
 
-    fs_extra::copy_items(&[current_path], target_path, &CopyOptions::default().skip_exist(true))
-        .map_err(|err| format!("failed to copy cli -> drive: {err}"))?;
+    fs_extra::copy_items(
+        &[current_path],
+        target_path,
+        &CopyOptions::default().skip_exist(true).copy_inside(true),
+    )
+    .map_err(|err| format!("failed to copy cli -> drive: {err}"))?;
 
     Ok(())
 }

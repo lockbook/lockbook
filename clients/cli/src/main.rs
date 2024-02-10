@@ -116,7 +116,7 @@ fn run() -> CliResult<()> {
         .subcommand(
             Command::name("fs")
                 .description("use your lockbook files with your local filesystem by mounting an NFS drive to /tmp/lockbook")
-                .handler(lb_fs::mount)
+                .handler(|| lb_fs::mount(core))
         )
         .subcommand(
             Command::name("list").description("list files and file information")
