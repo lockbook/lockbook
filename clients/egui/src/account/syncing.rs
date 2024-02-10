@@ -82,7 +82,8 @@ impl super::AccountScreen {
                         .show(ui)
                         .clicked()
                 {
-                    self.workspace.perform_sync();
+                    let f: Option<Box<dyn Fn(String) + Send + 'static>> = None;
+                    self.workspace.perform_sync(f);
                 }
 
                 if self.workspace.pers_status.syncing {

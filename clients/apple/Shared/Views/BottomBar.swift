@@ -42,9 +42,7 @@ struct BottomBar: View {
             }
         }
     }
-#endif
     
-#if os(iOS)
     @ViewBuilder var syncButton: some View {
         if workspace.syncing {
             ProgressView()
@@ -167,7 +165,7 @@ struct BottomBar: View {
     
     var body: some View {
         Group {
-#if os(iOS)
+            #if os(iOS)
             HStack {
                 syncButton
                 Spacer()
@@ -176,7 +174,7 @@ struct BottomBar: View {
                 menu
             }
             .padding(.horizontal, 10)
-#else
+            #else
             VStack {
                 Divider()
                 HStack {
@@ -188,7 +186,7 @@ struct BottomBar: View {
             }
             .padding(.bottom)
             .padding(.horizontal)
-#endif
+            #endif
         }
     }
 }
@@ -225,11 +223,6 @@ struct NonSyncingPreview: PreviewProvider {
             }
         }
         .mockDI()
-        .onAppear {
-            Mock.sync.sync()
-        }
-        
-        
     }
 }
 

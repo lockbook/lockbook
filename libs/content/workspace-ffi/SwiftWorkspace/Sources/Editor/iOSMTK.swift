@@ -748,9 +748,10 @@ public class iOSMTK: MTKView, MTKViewDelegate {
     }
     
     func requestSync() {
-        print("sync requested")
-        request_sync(wsHandle)
-        setNeedsDisplay(self.frame)
+        withUnsafeMutablePointer(to: &workspaceState) { workspaceStatePtr in
+            request_sync(wsHandle, workspaceStatePtr, updateSyncMessage)
+            setNeedsDisplay(self.frame)
+        }
     }
     
     func docRenamed(renameCompleted: WSRenameCompleted) {
@@ -786,8 +787,11 @@ public class iOSMTK: MTKView, MTKViewDelegate {
             onTextChanged?()
         }
         
-        workspaceState?.statusMsg = textFromPtr(s: output.workspace_resp.msg)
         workspaceState?.syncing = output.workspace_resp.syncing
+        if !output.workspace_resp.syncing { // sync closure will populate status message
+            workspaceState?.statusMsg = textFromPtr(s: output.workspace_resp.msg)
+        }
+
         workspaceState?.reloadFiles = output.workspace_resp.refresh_files
         
         let selectedFile = UUID(uuid: output.workspace_resp.selected_file._0)
@@ -853,15 +857,17 @@ public class iOSMTK: MTKView, MTKViewDelegate {
         redrawTask?.cancel()
         self.isPaused = output.redraw_in > 100
         if self.isPaused {
-            let redrawIn = Int(truncatingIfNeeded: output.redraw_in)
+            var redrawIn = Int(truncatingIfNeeded: output.redraw_in)
             
-            if redrawIn != -1 {
-                let newRedrawTask = DispatchWorkItem {
-                    self.setNeedsDisplay(self.frame)
-                }
-                DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(redrawIn), execute: newRedrawTask)
-                redrawTask = newRedrawTask
+            if redrawIn == -1 {
+                redrawIn = 1000
             }
+                        
+            let newRedrawTask = DispatchWorkItem {
+                self.setNeedsDisplay(self.frame)
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(redrawIn), execute: newRedrawTask)
+            redrawTask = newRedrawTask
         }
     }
     

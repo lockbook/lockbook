@@ -1,9 +1,10 @@
 import SwiftUI
 import Combine
+import Bridge
 
 // todo can this go away enirely?
 public class WorkspaceState: ObservableObject {
-
+    
     @Published public var pasted: Bool = false
     @Published public var shouldFocus: Bool
     
@@ -38,7 +39,7 @@ public class WorkspaceState: ObservableObject {
     @Published public var renameCompleted: WSRenameCompleted? = nil
     @Published public var closeActiveTab: Bool = false
         
-    public var importFile: (URL) -> String?
+    public var importFile: (_ urlToImport: URL) -> String?
     
     public init(importFile: @escaping (URL) -> String?) {
         self.importFile = importFile
@@ -71,5 +72,18 @@ func createTempDir() -> URL? {
     }
     
     return tempTempURL
+}
+
+func updateSyncMessage(_ context: UnsafePointer<Int8>?, msg: UnsafePointer<Int8>?) {
+    DispatchQueue.main.sync {
+        guard let workspaceState = UnsafeRawPointer(context)?.load(as: WorkspaceState.self) else {
+            return
+        }
+        
+        if let msg = msg {
+            workspaceState.statusMsg = String(cString: msg)
+            free_text(UnsafeMutablePointer(mutating: msg))
+        }
+    }
 }
 

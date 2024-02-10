@@ -651,7 +651,8 @@ impl Workspace {
                 }
                 WsMsg::BgSignal(Signal::Sync) => {
                     if self.cfg.auto_sync.load(Ordering::Relaxed) {
-                        self.perform_sync();
+                        let f: Option<Box<dyn Fn(String) + Send + 'static>> = None;
+                        self.perform_sync(f);
                     }
                 }
                 WsMsg::BgSignal(Signal::UpdateStatus) => {
