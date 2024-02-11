@@ -1,4 +1,4 @@
-use lbeditor::{
+use crate::tab::markdown_editor::{
     input::canonical::{Modification, Region},
     style::{BlockNode, InlineNode, ListItem, MarkdownNode},
     Editor,

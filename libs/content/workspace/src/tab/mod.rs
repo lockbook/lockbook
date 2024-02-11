@@ -1,12 +1,12 @@
 use crate::tab::image_viewer::ImageViewer;
-use crate::tab::markdown::Markdown;
+use crate::tab::markdown_editor::Markdown;
 use crate::tab::pdf_viewer::PdfViewer;
 use crate::tab::plain_text::PlainText;
 use crate::tab::svg_editor::SVGEditor;
 use std::time::Instant;
 
 pub mod image_viewer;
-pub mod markdown;
+pub mod markdown_editor;
 pub mod pdf_viewer;
 pub mod plain_text;
 pub mod svg_editor;
