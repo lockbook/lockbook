@@ -104,7 +104,7 @@ public class iOSMTKInputManager: UIView {
         mtkView = iOSMTK()
         mtkView.workspaceState = workspaceState
         mtkView.setInitialContent(coreHandle)
-                
+        
         super.init(frame: .infinite)
         
         #if os(iOS)
