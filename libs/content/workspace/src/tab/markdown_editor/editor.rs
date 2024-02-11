@@ -149,6 +149,7 @@ impl Editor {
             .inner
     }
 
+    // workspace invokes this
     pub fn scroll_ui(&mut self, ui: &mut Ui) -> EditorResponse {
         let touch_mode = matches!(ui.ctx().os(), OperatingSystem::Android | OperatingSystem::IOS);
 
