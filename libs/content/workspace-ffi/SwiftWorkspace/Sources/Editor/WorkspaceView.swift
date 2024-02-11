@@ -98,12 +98,19 @@ public class iOSMTKInputManager: UIView {
     var currentWrapper: UIView? = nil
     var currentTab: WorkspaceTab = .Welcome
     
+    var isValidDrag = false
+    
     init(_ workspaceState: WorkspaceState, _ coreHandle: UnsafeMutableRawPointer?) {
         mtkView = iOSMTK()
         mtkView.workspaceState = workspaceState
         mtkView.setInitialContent(coreHandle)
-        
+                
         super.init(frame: .infinite)
+        
+        #if os(iOS)
+        let pan = UIPanGestureRecognizer(target: self, action: #selector(self.onPan(_:)))
+        addGestureRecognizer(pan)
+        #endif
                 
         mtkView.translatesAutoresizingMaskIntoConstraints = false
         addSubview(mtkView)
@@ -114,6 +121,48 @@ public class iOSMTKInputManager: UIView {
             mtkView.bottomAnchor.constraint(equalTo: bottomAnchor)
         ])
     }
+    
+    #if os(iOS)
+    @objc func onPan(_ sender: UIPanGestureRecognizer? = nil) {
+        if mtkView.showTabs {
+            return
+        }
+        
+        guard let sender = sender else {
+            return
+        }
+        
+        switch sender.state {
+        case .began:
+            isValidDrag = sender.location(in: self).x < 50
+        case .ended:
+            if sender.translation(in: self).x > 100 || sender.velocity(in: self).x > 200 {
+                withAnimation {
+                    mtkView.workspaceState?.closeActiveTab = true
+                    mtkView.workspaceState!.dragOffset = 0
+                }
+            } else {
+                withAnimation {
+                    mtkView.workspaceState!.dragOffset = 0
+                }
+            }
+            
+            isValidDrag = false
+        case .changed:
+            if isValidDrag {
+                let translation = sender.translation(in: self).x
+                
+                if translation > 0 {
+                    withAnimation {
+                        mtkView.workspaceState!.dragOffset = sender.translation(in: self).x
+                    }
+                }
+            }
+        default:
+            print("unrecognized drag state")
+        }
+    }
+    #endif
     
     required init?(coder aDecoder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
