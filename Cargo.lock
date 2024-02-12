@@ -3412,7 +3412,6 @@ dependencies = [
 [[package]]
 name = "lb-pdf"
 version = "0.2.3"
-source = "git+https://github.com/lockbook/lb-pdf#445ada45289c612b06e2eade6bc125b1c10a1f6d"
 dependencies = [
  "link-cplusplus",
  "pdfium-render",
