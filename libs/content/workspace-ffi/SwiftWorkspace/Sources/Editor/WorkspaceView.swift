@@ -92,18 +92,24 @@ public struct UIWS: UIViewRepresentable {
     }
 }
 
-public class iOSMTKInputManager: UIView {
+public class iOSMTKInputManager: UIView, UIGestureRecognizerDelegate {
     public var mtkView: iOSMTK
     
     var currentWrapper: UIView? = nil
     var currentTab: WorkspaceTab = .Welcome
-    
+        
     init(_ workspaceState: WorkspaceState, _ coreHandle: UnsafeMutableRawPointer?) {
         mtkView = iOSMTK()
         mtkView.workspaceState = workspaceState
         mtkView.setInitialContent(coreHandle)
         
         super.init(frame: .infinite)
+        
+        #if os(iOS)
+        let pan = UIPanGestureRecognizer(target: self, action: #selector(self.onPan(_:)))
+        pan.delegate = self
+        addGestureRecognizer(pan)
+        #endif
                 
         mtkView.translatesAutoresizingMaskIntoConstraints = false
         addSubview(mtkView)
@@ -114,6 +120,47 @@ public class iOSMTKInputManager: UIView {
             mtkView.bottomAnchor.constraint(equalTo: bottomAnchor)
         ])
     }
+    
+    #if os(iOS)
+    
+    public func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
+        return gestureRecognizer is UIPanGestureRecognizer && touch.location(in: self).x < 40
+    }
+    
+    @objc func onPan(_ sender: UIPanGestureRecognizer? = nil) {
+        if mtkView.showTabs {
+            return
+        }
+        
+        guard let sender = sender else {
+            return
+        }
+                
+        switch sender.state {
+        case .ended:
+            if sender.translation(in: self).x > 100 {
+                withAnimation {
+                    mtkView.workspaceState?.closeActiveTab = true
+                    mtkView.workspaceState!.dragOffset = 0
+                }
+            } else {
+                withAnimation {
+                    mtkView.workspaceState!.dragOffset = 0
+                }
+            }
+        case .changed:
+            let translation = sender.translation(in: self).x
+            
+            if translation > 0 {
+                withAnimation {
+                    mtkView.workspaceState!.dragOffset = sender.translation(in: self).x
+                }
+            }
+        default:
+            print("unrecognized drag state")
+        }
+    }
+    #endif
     
     required init?(coder aDecoder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
