@@ -4,9 +4,10 @@ use crate::tab::pdf_viewer::PdfViewer;
 use crate::tab::plain_text::PlainText;
 use crate::tab::svg_editor::SVGEditor;
 use egui::Id;
+use lb_rs::{File, FileType};
 use markdown_editor::input::canonical::Modification;
-use std::collections::HashMap;
-use std::time::Instant;
+use std::path::PathBuf;
+use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 pub mod image_viewer;
 pub mod markdown_editor;
@@ -78,11 +79,15 @@ impl From<lb_rs::LbError> for TabFailure {
 #[derive(Debug, Clone)]
 pub enum Event {
     Markdown(Modification),
-    Drop { content: ClipContent, position: egui::Pos2 },
-    Paste { content: ClipContent, position: egui::Pos2 },
+    Drop { content: Vec<ClipContent>, position: egui::Pos2 },
+    Paste { content: Vec<ClipContent>, position: egui::Pos2 },
 }
 
-pub type ClipContent = HashMap<String, Vec<u8>>;
+#[derive(Debug, Clone)]
+pub enum ClipContent {
+    Files(Vec<PathBuf>),
+    Png(Vec<u8>),
+}
 
 pub trait CustomEventer {
     fn push_custom_event(&self, event: Event);
@@ -103,14 +108,7 @@ impl CustomEventer for egui::Context {
     }
 
     fn push_markdown_event(&self, event: Modification) {
-        self.memory_mut(|m| {
-            let mut events: Vec<Event> = m
-                .data
-                .get_temp(Id::new("custom_events"))
-                .unwrap_or_default();
-            events.push(Event::Markdown(event));
-            m.data.insert_temp(Id::new("custom_events"), events);
-        })
+        self.push_custom_event(Event::Markdown(event))
     }
 
     fn pop_custom_events(&self) -> Vec<Event> {
@@ -124,4 +122,23 @@ impl CustomEventer for egui::Context {
             events
         })
     }
+}
+
+pub fn import_image(core: &lb_rs::Core, data: &[u8]) -> File {
+    let file = core
+        .create_file(
+            &format!(
+                "pasted_image_{}.png", // todo: better file name
+                SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap()
+                    .as_micros()
+            ),
+            core.get_root().expect("get lockbook root").id, // todo: better file location
+            FileType::Document,
+        )
+        .expect("create lockbook file for image");
+    core.write_document(file.id, data)
+        .expect("write lockbook file for image");
+    file
 }

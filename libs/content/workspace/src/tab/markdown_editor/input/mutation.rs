@@ -16,16 +16,10 @@ use std::collections::{HashMap, HashSet};
 use unicode_segmentation::UnicodeSegmentation;
 
 pub fn calc(
-    modification: crate::Event, buffer: &SubBuffer, galleys: &Galleys, bounds: &Bounds, ast: &Ast,
+    modification: Modification, buffer: &SubBuffer, galleys: &Galleys, bounds: &Bounds, ast: &Ast,
 ) -> EditorMutation {
     let current_cursor = buffer.cursor;
     let mut mutation = Vec::new();
-
-    let modification = if let crate::Event::Markdown(modification) = modification {
-        modification
-    } else {
-        todo!() // todo: handle drop and paste events
-    };
 
     match modification {
         Modification::Select { region } => mutation.push(SubMutation::Cursor {

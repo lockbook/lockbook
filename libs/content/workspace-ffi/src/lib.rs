@@ -115,8 +115,6 @@ pub struct WgpuWorkspace {
     pub context: egui::Context,
     pub raw_input: egui::RawInput,
 
-    pub from_host: Option<String>,
-
     pub workspace: Workspace,
 }
 

@@ -3677,6 +3677,7 @@ dependencies = [
  "percent-encoding 2.3.1",
  "pollster",
  "raw-window-handle",
+ "workspace",
  "x11rb 0.13.0",
 ]
 
