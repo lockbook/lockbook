@@ -191,7 +191,6 @@ impl WgpuLockbook {
         out.update_output = self.app.update(&self.context);
         let full_output = self.context.end_frame();
         if !full_output.platform_output.copied_text.is_empty() {
-            // todo: can this go in output?
             self.context
                 .output_mut(|o| o.copied_text = full_output.platform_output.copied_text.clone());
         }
