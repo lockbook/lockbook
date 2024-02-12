@@ -92,14 +92,12 @@ public struct UIWS: UIViewRepresentable {
     }
 }
 
-public class iOSMTKInputManager: UIView {
+public class iOSMTKInputManager: UIView, UIGestureRecognizerDelegate {
     public var mtkView: iOSMTK
     
     var currentWrapper: UIView? = nil
     var currentTab: WorkspaceTab = .Welcome
-    
-    var isValidDrag = false
-    
+        
     init(_ workspaceState: WorkspaceState, _ coreHandle: UnsafeMutableRawPointer?) {
         mtkView = iOSMTK()
         mtkView.workspaceState = workspaceState
@@ -109,6 +107,7 @@ public class iOSMTKInputManager: UIView {
         
         #if os(iOS)
         let pan = UIPanGestureRecognizer(target: self, action: #selector(self.onPan(_:)))
+        pan.delegate = self
         addGestureRecognizer(pan)
         #endif
                 
@@ -123,6 +122,11 @@ public class iOSMTKInputManager: UIView {
     }
     
     #if os(iOS)
+    
+    public func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
+        return gestureRecognizer is UIPanGestureRecognizer && touch.location(in: self).x < 40
+    }
+    
     @objc func onPan(_ sender: UIPanGestureRecognizer? = nil) {
         if mtkView.showTabs {
             return
@@ -131,12 +135,10 @@ public class iOSMTKInputManager: UIView {
         guard let sender = sender else {
             return
         }
-        
+                
         switch sender.state {
-        case .began:
-            isValidDrag = sender.location(in: self).x < 50
         case .ended:
-            if sender.translation(in: self).x > 100 || sender.velocity(in: self).x > 200 {
+            if sender.translation(in: self).x > 100 {
                 withAnimation {
                     mtkView.workspaceState?.closeActiveTab = true
                     mtkView.workspaceState!.dragOffset = 0
@@ -146,16 +148,12 @@ public class iOSMTKInputManager: UIView {
                     mtkView.workspaceState!.dragOffset = 0
                 }
             }
-            
-            isValidDrag = false
         case .changed:
-            if isValidDrag {
-                let translation = sender.translation(in: self).x
-                
-                if translation > 0 {
-                    withAnimation {
-                        mtkView.workspaceState!.dragOffset = sender.translation(in: self).x
-                    }
+            let translation = sender.translation(in: self).x
+            
+            if translation > 0 {
+                withAnimation {
+                    mtkView.workspaceState!.dragOffset = sender.translation(in: self).x
                 }
             }
         default:
