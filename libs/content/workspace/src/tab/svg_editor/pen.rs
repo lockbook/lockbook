@@ -97,7 +97,7 @@ impl Pen {
             }
 
             if (!inner_rect.contains(cursor_pos) && !self.path_builder.points.is_empty())
-                || (ui.input(|i| i.pointer.primary_released()) && inner_rect.contains(cursor_pos))
+                || (ui.input(|i| i.pointer.any_released()) && inner_rect.contains(cursor_pos))
             {
                 self.tx
                     .send(PathEvent::End(cursor_pos, self.current_id))
