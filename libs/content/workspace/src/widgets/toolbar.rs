@@ -4,7 +4,7 @@ use crate::tab::{
         style::{BlockNode, InlineNode, ListItem, MarkdownNode},
         Editor,
     },
-    CustomEventer as _,
+    EventManager as _,
 };
 
 use crate::theme::icons::Icon;

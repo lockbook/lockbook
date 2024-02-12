@@ -8,7 +8,7 @@ use crate::tab::markdown_editor::style::{
     BlockNode, InlineNode, ListItem, MarkdownNode, RenderStyle,
 };
 use crate::tab::markdown_editor::Editor;
-use crate::tab::CustomEventer;
+use crate::tab::EventManager;
 use egui::text::LayoutJob;
 use egui::{Align2, Color32, FontId, Pos2, Rect, Rounding, Sense, Stroke, Ui, Vec2};
 use pulldown_cmark::HeadingLevel;

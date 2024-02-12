@@ -19,7 +19,7 @@ use crate::tab::markdown_editor::input::events;
 use crate::tab::markdown_editor::offset_types::{DocCharOffset, RangeExt};
 use crate::tab::markdown_editor::style::{BlockNode, InlineNode, ListItem, MarkdownNode};
 use crate::tab::markdown_editor::{ast, bounds, galleys, images, register_fonts};
-use crate::tab::CustomEventer;
+use crate::tab::EventManager;
 
 #[derive(Debug, Serialize, Default)]
 pub struct EditorResponse {

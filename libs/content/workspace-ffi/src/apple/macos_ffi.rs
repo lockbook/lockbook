@@ -19,16 +19,8 @@ pub unsafe extern "C" fn key_event(
 
     let Some(key) = NSKeys::from(key_code) else { return };
 
-    let mut clip_event = false;
-    if pressed && key == NSKeys::V && modifiers.command {
-        let clip = obj.from_host.clone().unwrap_or_default();
-        obj.raw_input.events.push(Event::Paste(clip));
-        clip_event = true
-    }
-
     // Event::Text
-    if !clip_event && pressed && (modifiers.shift_only() || modifiers.is_none()) && key.valid_text()
-    {
+    if pressed && (modifiers.shift_only() || modifiers.is_none()) && key.valid_text() {
         let text = CStr::from_ptr(characters).to_str().unwrap().to_string();
         obj.raw_input.events.push(Event::Text(text));
     }

@@ -89,14 +89,14 @@ pub enum ClipContent {
     Png(Vec<u8>),
 }
 
-pub trait CustomEventer {
-    fn push_custom_event(&self, event: Event);
+pub trait EventManager {
+    fn push_event(&self, event: Event);
     fn push_markdown_event(&self, event: Modification);
     fn pop_custom_events(&self) -> Vec<Event>;
 }
 
-impl CustomEventer for egui::Context {
-    fn push_custom_event(&self, event: Event) {
+impl EventManager for egui::Context {
+    fn push_event(&self, event: Event) {
         self.memory_mut(|m| {
             let mut events: Vec<Event> = m
                 .data
@@ -108,7 +108,7 @@ impl CustomEventer for egui::Context {
     }
 
     fn push_markdown_event(&self, event: Modification) {
-        self.push_custom_event(Event::Markdown(event))
+        self.push_event(Event::Markdown(event))
     }
 
     fn pop_custom_events(&self) -> Vec<Event> {

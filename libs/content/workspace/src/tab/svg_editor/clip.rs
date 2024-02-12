@@ -1,4 +1,4 @@
-use crate::tab::{ClipContent, CustomEventer as _};
+use crate::tab::{ClipContent, EventManager as _};
 
 use super::Buffer;
 
