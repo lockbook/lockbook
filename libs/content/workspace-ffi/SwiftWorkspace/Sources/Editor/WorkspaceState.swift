@@ -38,7 +38,10 @@ public class WorkspaceState: ObservableObject {
     @Published public var renameOpenDoc: Bool = false
     @Published public var renameCompleted: WSRenameCompleted? = nil
     @Published public var closeActiveTab: Bool = false
-        
+    
+    #if os(iOS)
+    @Published public var dragOffset: CGFloat = 0.0
+    #endif
     public var importFile: (_ urlToImport: URL) -> String?
     
     public init(importFile: @escaping (URL) -> String?) {

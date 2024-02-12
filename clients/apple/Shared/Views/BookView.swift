@@ -116,7 +116,7 @@ struct BookView: View {
                             }
                         }
                 }
-                .offset(x: workspace.currentTab != .Welcome ? 0.0 : geometry.size.width)
+                .offset(x: workspace.currentTab != .Welcome ? workspace.dragOffset : geometry.size.width)
             }
         }
     }
