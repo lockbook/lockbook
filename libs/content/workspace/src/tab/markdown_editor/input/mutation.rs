@@ -16,7 +16,7 @@ use std::collections::{HashMap, HashSet};
 use unicode_segmentation::UnicodeSegmentation;
 
 pub fn calc(
-    modification: Modification, buffer: &SubBuffer, galleys: &Galleys, bounds: &Bounds, ast: &Ast,
+    modification: crate::Event, buffer: &SubBuffer, galleys: &Galleys, bounds: &Bounds, ast: &Ast,
 ) -> EditorMutation {
     let current_cursor = buffer.cursor;
     let mut mutation = Vec::new();

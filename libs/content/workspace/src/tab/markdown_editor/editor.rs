@@ -513,23 +513,35 @@ impl Editor {
             let touched_cursor = current_selection.is_empty()
                 && prior_selection == current_selection
                 && touched_a_galley
-                && combined_events
-                    .iter()
-                    .any(|e| matches!(e, Modification::Select { region: Region::Location(..) }));
+                && combined_events.iter().any(|e| {
+                    matches!(
+                        e,
+                        crate::Event::Markdown(Modification::Select {
+                            region: Region::Location(..)
+                        })
+                    )
+                });
 
             let touched_selection = current_selection.is_empty()
                 && prior_selection.contains_inclusive(current_selection.1)
                 && touched_a_galley
-                && combined_events
-                    .iter()
-                    .any(|e| matches!(e, Modification::Select { region: Region::Location(..) }));
+                && combined_events.iter().any(|e| {
+                    matches!(
+                        e,
+                        crate::Event::Markdown(Modification::Select {
+                            region: Region::Location(..)
+                        })
+                    )
+                });
 
             let double_touched_for_selection = !current_selection.is_empty()
                 && touched_a_galley
                 && combined_events.iter().any(|e| {
                     matches!(
                         e,
-                        Modification::Select { region: Region::BoundAt { bound: Bound::Word, .. } }
+                        crate::Event::Markdown(Modification::Select {
+                            region: Region::BoundAt { bound: Bound::Word, .. }
+                        })
                     )
                 });
 
