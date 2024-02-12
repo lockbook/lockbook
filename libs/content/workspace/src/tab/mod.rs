@@ -124,17 +124,21 @@ impl CustomEventer for egui::Context {
     }
 }
 
+// todo: better filename
+// todo: use currently open folder
+// todo: use background thread
+// todo: refresh file tree view
 pub fn import_image(core: &lb_rs::Core, data: &[u8]) -> File {
     let file = core
         .create_file(
             &format!(
-                "pasted_image_{}.png", // todo: better file name
+                "pasted_image_{}.png",
                 SystemTime::now()
                     .duration_since(UNIX_EPOCH)
                     .unwrap()
                     .as_micros()
             ),
-            core.get_root().expect("get lockbook root").id, // todo: better file location
+            core.get_root().expect("get lockbook root").id,
             FileType::Document,
         )
         .expect("create lockbook file for image");
