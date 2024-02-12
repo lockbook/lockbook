@@ -3,6 +3,9 @@ use crate::tab::markdown_editor::Markdown;
 use crate::tab::pdf_viewer::PdfViewer;
 use crate::tab::plain_text::PlainText;
 use crate::tab::svg_editor::SVGEditor;
+use egui::Id;
+use markdown_editor::input::canonical::Modification;
+use std::collections::HashMap;
 use std::time::Instant;
 
 pub mod image_viewer;
@@ -69,5 +72,56 @@ impl From<lb_rs::LbError> for TabFailure {
             lb_rs::CoreError::Unexpected(msg) => Self::Unexpected(msg),
             _ => Self::SimpleMisc(format!("{:?}", err)),
         }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum Event {
+    Markdown(Modification),
+    Drop { content: ClipContent, position: egui::Pos2 },
+    Paste { content: ClipContent, position: egui::Pos2 },
+}
+
+pub type ClipContent = HashMap<String, Vec<u8>>;
+
+pub trait CustomEventer {
+    fn push_custom_event(&self, event: Event);
+    fn push_markdown_event(&self, event: Modification);
+    fn pop_custom_events(&self) -> Vec<Event>;
+}
+
+impl CustomEventer for egui::Context {
+    fn push_custom_event(&self, event: Event) {
+        self.memory_mut(|m| {
+            let mut events: Vec<Event> = m
+                .data
+                .get_temp(Id::new("custom_events"))
+                .unwrap_or_default();
+            events.push(event);
+            m.data.insert_temp(Id::new("custom_events"), events);
+        })
+    }
+
+    fn push_markdown_event(&self, event: Modification) {
+        self.memory_mut(|m| {
+            let mut events: Vec<Event> = m
+                .data
+                .get_temp(Id::new("custom_events"))
+                .unwrap_or_default();
+            events.push(Event::Markdown(event));
+            m.data.insert_temp(Id::new("custom_events"), events);
+        })
+    }
+
+    fn pop_custom_events(&self) -> Vec<Event> {
+        self.memory_mut(|m| {
+            let events: Vec<Event> = m
+                .data
+                .get_temp(Id::new("custom_events"))
+                .unwrap_or_default();
+            m.data
+                .insert_temp(Id::new("custom_events"), Vec::<Event>::new());
+            events
+        })
     }
 }

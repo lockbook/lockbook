@@ -1,7 +1,10 @@
-use crate::tab::markdown_editor::{
-    input::canonical::{Modification, Region},
-    style::{BlockNode, InlineNode, ListItem, MarkdownNode},
-    Editor,
+use crate::tab::{
+    markdown_editor::{
+        input::canonical::{Modification, Region},
+        style::{BlockNode, InlineNode, ListItem, MarkdownNode},
+        Editor,
+    },
+    CustomEventer as _,
 };
 
 use crate::theme::icons::Icon;
@@ -14,7 +17,7 @@ pub const MOBILE_TOOL_BAR_SIZE: f32 = 40.0;
 struct ToolbarButton {
     icon: Icon,
     id: String,
-    callback: fn(&mut Editor, &mut ToolBar),
+    callback: fn(&mut egui::Ui, &mut ToolBar),
 }
 #[derive(Clone)]
 pub struct ToolBar {
@@ -48,6 +51,7 @@ impl ToolBar {
             id: egui::Id::null(),
         }
     }
+
     pub fn show(&mut self, ui: &mut egui::Ui, editor: &mut Editor) {
         if cfg!(target_os = "ios") {
             ui.allocate_ui(egui::vec2(ui.available_width(), MOBILE_TOOL_BAR_SIZE), |ui| {
@@ -99,7 +103,7 @@ impl ToolBar {
                 }
 
                 if res.clicked() {
-                    (btn.callback)(editor, self);
+                    (btn.callback)(ui, self);
 
                     ui.memory_mut(|w| {
                         w.request_focus(editor.id);
@@ -168,81 +172,83 @@ fn get_buttons(visibility: &ToolBarVisibility) -> Vec<ToolbarButton> {
                 },
             }]
         }
-        ToolBarVisibility::Maximized => vec![
-            ToolbarButton {
-                icon: Icon::HEADER_1,
-                id: "header".to_string(),
-                callback: |e, t| {
-                    e.custom_events
-                        .push(Modification::toggle_heading_style(t.header_click_count));
-                    if t.header_click_count > 5 {
-                        t.header_click_count = 6;
-                    } else {
-                        t.header_click_count += 1;
-                    }
+        ToolBarVisibility::Maximized => {
+            vec![
+                ToolbarButton {
+                    icon: Icon::HEADER_1,
+                    id: "header".to_string(),
+                    callback: |ui, t| {
+                        ui.ctx()
+                            .push_markdown_event(Modification::toggle_heading_style(
+                                t.header_click_count,
+                            ));
+                        if t.header_click_count > 5 {
+                            t.header_click_count = 6;
+                        } else {
+                            t.header_click_count += 1;
+                        }
+                    },
                 },
-            },
-            ToolbarButton {
-                icon: Icon::BOLD,
-                id: "bold".to_string(),
-                callback: |e, _| {
-                    e.custom_events.push(Modification::ToggleStyle {
-                        region: Region::Selection,
-                        style: MarkdownNode::Inline(InlineNode::Bold),
-                    })
+                ToolbarButton {
+                    icon: Icon::BOLD,
+                    id: "bold".to_string(),
+                    callback: |ui, _| {
+                        ui.ctx().push_markdown_event(Modification::ToggleStyle {
+                            region: Region::Selection,
+                            style: MarkdownNode::Inline(InlineNode::Bold),
+                        })
+                    },
                 },
-            },
-            ToolbarButton {
-                icon: Icon::ITALIC,
-                id: "italic".to_string(),
-                callback: |e, _| {
-                    e.custom_events.push(Modification::ToggleStyle {
-                        region: Region::Selection,
-                        style: MarkdownNode::Inline(InlineNode::Italic),
-                    })
+                ToolbarButton {
+                    icon: Icon::ITALIC,
+                    id: "italic".to_string(),
+                    callback: |ui, _| {
+                        ui.ctx().push_markdown_event(Modification::ToggleStyle {
+                            region: Region::Selection,
+                            style: MarkdownNode::Inline(InlineNode::Italic),
+                        })
+                    },
                 },
-            },
-            ToolbarButton {
-                icon: Icon::CODE,
-                id: "in_line_code".to_string(),
-                callback: |e, _| {
-                    e.custom_events.push(Modification::ToggleStyle {
-                        region: Region::Selection,
-                        style: MarkdownNode::Inline(InlineNode::Code),
-                    });
+                ToolbarButton {
+                    icon: Icon::CODE,
+                    id: "in_line_code".to_string(),
+                    callback: |ui, _| {
+                        ui.ctx().push_markdown_event(Modification::ToggleStyle {
+                            region: Region::Selection,
+                            style: MarkdownNode::Inline(InlineNode::Code),
+                        });
+                    },
                 },
-            },
-            ToolbarButton {
-                icon: Icon::NUMBER_LIST,
-                id: "number_list".to_string(),
-                callback: |e, _| {
-                    e.custom_events
-                        .push(Modification::toggle_block_style(BlockNode::ListItem(
-                            ListItem::Numbered(1),
-                            0,
-                        )))
+                ToolbarButton {
+                    icon: Icon::NUMBER_LIST,
+                    id: "number_list".to_string(),
+                    callback: |ui, _| {
+                        ui.ctx()
+                            .push_markdown_event(Modification::toggle_block_style(
+                                BlockNode::ListItem(ListItem::Numbered(1), 0),
+                            ))
+                    },
                 },
-            },
-            ToolbarButton {
-                icon: Icon::TODO_LIST,
-                id: "todo_list".to_string(),
-                callback: |e, _| {
-                    e.custom_events
-                        .push(Modification::toggle_block_style(BlockNode::ListItem(
-                            ListItem::Todo(false),
-                            0,
-                        )))
+                ToolbarButton {
+                    icon: Icon::TODO_LIST,
+                    id: "todo_list".to_string(),
+                    callback: |ui, _| {
+                        ui.ctx()
+                            .push_markdown_event(Modification::toggle_block_style(
+                                BlockNode::ListItem(ListItem::Todo(false), 0),
+                            ))
+                    },
                 },
-            },
-            ToolbarButton {
-                icon: Icon::VISIBILITY_OFF,
-                id: "visibility_off".to_string(),
-                callback: |_, t| {
-                    t.visibility = ToolBarVisibility::Minimized;
-                    t.buttons = get_buttons(&t.visibility);
+                ToolbarButton {
+                    icon: Icon::VISIBILITY_OFF,
+                    id: "visibility_off".to_string(),
+                    callback: |_, t| {
+                        t.visibility = ToolBarVisibility::Minimized;
+                        t.buttons = get_buttons(&t.visibility);
+                    },
                 },
-            },
-        ],
+            ]
+        }
         ToolBarVisibility::Disabled => vec![],
     }
 }

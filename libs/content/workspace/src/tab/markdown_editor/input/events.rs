@@ -5,7 +5,6 @@ use crate::tab::markdown_editor::buffer::{Buffer, EditorMutation};
 use crate::tab::markdown_editor::debug::DebugInfo;
 use crate::tab::markdown_editor::galleys::Galleys;
 use crate::tab::markdown_editor::input;
-use crate::tab::markdown_editor::input::canonical::Modification;
 use crate::tab::markdown_editor::input::click_checker::ClickChecker;
 use crate::tab::markdown_editor::input::cursor::PointerState;
 use egui::Event;
@@ -13,9 +12,9 @@ use std::time::Instant;
 
 /// combines `events` and `custom_events` into a single set of events
 pub fn combine(
-    events: &[Event], custom_events: &[Modification], click_checker: impl ClickChecker + Copy,
+    events: &[Event], custom_events: &[crate::Event], click_checker: impl ClickChecker + Copy,
     touch_mode: bool, appearance: &Appearance, pointer_state: &mut PointerState,
-) -> Vec<Modification> {
+) -> Vec<crate::Event> {
     let canonical_egui_events = events.iter().filter_map(|e| {
         input::canonical::calc(
             e,
@@ -25,19 +24,20 @@ pub fn combine(
             touch_mode,
             appearance,
         )
+        .map(crate::Event::Markdown)
     });
 
     custom_events
         .iter()
         .cloned()
         .chain(canonical_egui_events)
-        .collect::<Vec<Modification>>()
+        .collect()
 }
 
 /// processes `combined_events` and returns a boolean representing whether text was updated, new contents for clipboard
 /// (optional), and a link that was opened (optional)
 pub fn process(
-    combined_events: &[Modification], galleys: &Galleys, bounds: &Bounds, ast: &Ast,
+    combined_events: &[crate::Event], galleys: &Galleys, bounds: &Bounds, ast: &Ast,
     buffer: &mut Buffer, debug: &mut DebugInfo, appearance: &mut Appearance,
 ) -> (bool, Option<String>, Option<String>) {
     combined_events
