@@ -124,7 +124,7 @@ public class iOSMTKInputManager: UIView, UIGestureRecognizerDelegate {
     #if os(iOS)
     
     public func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
-        return gestureRecognizer is UIPanGestureRecognizer && touch.location(in: self).x < 40
+        return gestureRecognizer is UIPanGestureRecognizer && touch.location(in: self).x < 40 && !mtkView.showTabs
     }
     
     @objc func onPan(_ sender: UIPanGestureRecognizer? = nil) {
