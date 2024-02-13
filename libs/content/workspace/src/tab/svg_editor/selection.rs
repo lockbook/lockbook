@@ -121,7 +121,7 @@ impl Selection {
                     egui::Rounding::none(),
                     ui.visuals().hyperlink_color.gamma_multiply(0.1),
                 )
-            } else if ui.input(|r| r.pointer.primary_released()) {
+            } else if ui.input(|r| r.pointer.primary_released()) && self.laso_rect.is_some() {
                 // if the path bounding box intersects with the laso rect then it's a match
                 buffer.paths.iter().for_each(|(id, path)| {
                     let bb = path.bounding_box().unwrap();
