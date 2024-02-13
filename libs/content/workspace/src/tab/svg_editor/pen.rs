@@ -46,7 +46,6 @@ impl Pen {
                         node.set_attr("stroke", "url(#fg)");
                     }
                 } else {
-                    self.path_builder.clear();
                     self.path_builder.cubic_to(pos);
 
                     let child = Element::builder("path", "")
@@ -68,41 +67,59 @@ impl Pen {
 
                 if self.path_builder.points.len() < 2 {
                     buffer.current.remove_child(&id.to_string());
+                    self.path_builder.clear();
                     return;
                 }
 
-                let node = util::node_by_id(&mut buffer.current, id.to_string()).unwrap();
-                node.set_attr("d", &self.path_builder.data);
+                if let Some(node) = util::node_by_id(&mut buffer.current, id.to_string()) {
+                    node.set_attr("d", &self.path_builder.data);
 
-                let node = node.clone();
+                    let node = node.clone();
 
-                buffer.save(super::Event::Insert(vec![InsertElement {
-                    id: id.to_string(),
-                    element: node,
-                }]));
+                    buffer.save(super::Event::Insert(vec![InsertElement {
+                        id: id.to_string(),
+                        element: node,
+                    }]));
+                }
+                self.path_builder.clear();
             }
         }
     }
 
     pub fn setup_events(&mut self, ui: &mut egui::Ui, inner_rect: egui::Rect) {
         if let Some(cursor_pos) = ui.ctx().pointer_hover_pos() {
-            if !inner_rect.contains(cursor_pos) || !ui.is_enabled() {
+            if !ui.is_enabled() {
                 return;
+            };
+
+            if inner_rect.contains(cursor_pos) {
+                ui.output_mut(|w| w.cursor_icon = egui::CursorIcon::Crosshair);
             }
 
-            ui.output_mut(|w| w.cursor_icon = egui::CursorIcon::Crosshair);
+            let pointer_gone_out_of_canvas =
+                !self.path_builder.points.is_empty() && !inner_rect.contains(cursor_pos);
+            let pointer_released_in_canvas =
+                ui.input(|i| i.pointer.any_released()) && inner_rect.contains(cursor_pos);
+            let pointer_pressed_in_canvas =
+                ui.input(|i| i.pointer.primary_down()) && inner_rect.contains(cursor_pos);
 
-            if ui.input(|i| i.pointer.primary_down()) {
+            if pointer_gone_out_of_canvas || pointer_released_in_canvas {
+                self.tx
+                    .send(PathEvent::End(cursor_pos, self.current_id))
+                    .unwrap();
+
+                self.current_id += 1;
+            } else if pointer_pressed_in_canvas {
                 self.tx
                     .send(PathEvent::Draw(cursor_pos, self.current_id))
                     .unwrap();
             }
-            if ui.input(|i| i.pointer.primary_released()) {
-                self.tx
-                    .send(PathEvent::End(cursor_pos, self.current_id))
-                    .unwrap();
-                self.current_id += 1;
-            }
+        } else if !self.path_builder.points.is_empty() {
+            self.tx
+                .send(PathEvent::End(*self.path_builder.points.last().unwrap(), self.current_id))
+                .unwrap();
+
+            self.current_id += 1;
         }
     }
 }
@@ -189,8 +206,8 @@ impl CubicBezBuilder {
 
         self.simplify(2.);
 
-        self.data = String::default();
-        self.prev_points_window = VecDeque::default();
+        self.data.clear();
+        self.prev_points_window.clear();
 
         self.points.clone().iter().enumerate().for_each(|(i, p)| {
             self.catmull_to(*p, false);
@@ -201,9 +218,9 @@ impl CubicBezBuilder {
     }
 
     pub fn clear(&mut self) {
-        self.prev_points_window = VecDeque::default();
-        self.data = String::default();
-        self.points = vec![];
+        self.prev_points_window.clear();
+        self.data.clear();
+        self.points.clear();
     }
 
     /// Ramer–Douglas–Peucker algorithm courtesy of @author: Michael-F-Bryan
