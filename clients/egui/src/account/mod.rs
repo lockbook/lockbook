@@ -192,8 +192,11 @@ impl AccountScreen {
                 }
 
                 if let Some(file) = wso.selected_file {
-                    self.tree.reveal_file(file, &self.core);
-                    ctx.request_repaint();
+                    if !self.tree.state.selected.contains(&file) {
+                        println!("wso tree: {:#?}", self.tree.state.selected);
+                        self.tree.reveal_file(file, &self.core);
+                        ctx.request_repaint();
+                    }
                 }
 
                 if let Some(done) = wso.sync_done {
@@ -617,9 +620,9 @@ impl AccountScreen {
 
     fn focused_parent(&mut self) -> Uuid {
         let mut focused_parent = self.tree.root.file.id;
-        for id in self.tree.state.selected.drain() {
-            focused_parent = id;
-        }
+        // for id in self.tree.state.selected.drain() {
+        //     focused_parent = id;
+        // }
 
         focused_parent
     }
