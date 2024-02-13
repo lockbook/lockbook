@@ -96,19 +96,30 @@ impl Pen {
                 ui.output_mut(|w| w.cursor_icon = egui::CursorIcon::Crosshair);
             }
 
-            if (!inner_rect.contains(cursor_pos) && !self.path_builder.points.is_empty())
-                || (ui.input(|i| i.pointer.any_released()) && inner_rect.contains(cursor_pos))
-            {
+            let pointer_gone_out_of_canvas =
+                !self.path_builder.points.is_empty() && !inner_rect.contains(cursor_pos);
+            let pointer_released_in_canvas =
+                ui.input(|i| i.pointer.any_released()) && inner_rect.contains(cursor_pos);
+            let pointer_pressed_in_canvas =
+                ui.input(|i| i.pointer.primary_down()) && inner_rect.contains(cursor_pos);
+
+            if pointer_gone_out_of_canvas || pointer_released_in_canvas {
                 self.tx
                     .send(PathEvent::End(cursor_pos, self.current_id))
                     .unwrap();
 
                 self.current_id += 1;
-            } else if ui.input(|i| i.pointer.primary_down()) && inner_rect.contains(cursor_pos) {
+            } else if pointer_pressed_in_canvas {
                 self.tx
                     .send(PathEvent::Draw(cursor_pos, self.current_id))
                     .unwrap();
             }
+        } else if !self.path_builder.points.is_empty() {
+            self.tx
+                .send(PathEvent::End(*self.path_builder.points.last().unwrap(), self.current_id))
+                .unwrap();
+
+            self.current_id += 1;
         }
     }
 }
