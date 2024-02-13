@@ -8,7 +8,7 @@ pub struct PdfViewer {
     fit_page_zoom: Option<f32>,
     sa_offset: Option<egui::Vec2>,
     scroll_update: Option<f32>,
-    sidebar: SideBar,
+    sidebar: Option<SideBar>,
 }
 
 struct SideBar {
@@ -35,13 +35,14 @@ const SIDEBAR_WIDTH: f32 = 230.0;
 const SPACE_BETWEEN_PAGES: f32 = 10.0;
 
 impl PdfViewer {
-    pub fn new(bytes: &[u8], ctx: &egui::Context, data_dir: &str) -> Self {
+    pub fn new(
+        bytes: &[u8], ctx: &egui::Context, data_dir: &str, is_mobile_viewport: bool,
+    ) -> Self {
         let available_height = ctx.used_rect().height();
         let blowup_factor = 1.5; // improves the resolution of the rendered image at the cost of rendering time
 
         let render_config = PdfRenderConfig::new()
             .set_target_height((available_height * blowup_factor) as i32)
-            .set_maximum_width(ctx.used_rect().width() as i32)
             .rotate_if_landscape(PdfPageRenderRotation::Degrees90, true);
 
         let pdfium_binary_path = format!("{}/egui", data_dir);
@@ -68,21 +69,36 @@ impl PdfViewer {
 
         let render_config = PdfRenderConfig::new().thumbnail(ctx.available_rect().height() as i32);
 
-        let thumbnails = docs
-            .pages()
-            .iter()
-            .map(|f| {
-                let image = f.render_with_config(&render_config).unwrap().as_image();
-                let size = [image.width() as _, image.height() as _];
-                let image_buffer = image.to_rgba8();
-                let pixels = image_buffer.as_flat_samples();
-                let image = egui::ColorImage::from_rgba_unmultiplied(size, pixels.as_slice());
-                Content {
-                    offset: None,
-                    texture: ctx.load_texture("pdf_thumbnail", image, egui::TextureOptions::LINEAR),
-                }
+        let sidebar = if is_mobile_viewport {
+            None
+        } else {
+            let thumbnails = docs
+                .pages()
+                .iter()
+                .map(|f| {
+                    let image = f.render_with_config(&render_config).unwrap().as_image();
+                    let size = [image.width() as _, image.height() as _];
+                    let image_buffer = image.to_rgba8();
+                    let pixels = image_buffer.as_flat_samples();
+                    let image = egui::ColorImage::from_rgba_unmultiplied(size, pixels.as_slice());
+                    Content {
+                        offset: None,
+                        texture: ctx.load_texture(
+                            "pdf_thumbnail",
+                            image,
+                            egui::TextureOptions::LINEAR,
+                        ),
+                    }
+                })
+                .collect();
+            Some(SideBar {
+                thumbnails,
+                is_visible: true,
+                active_thumbnail: 0,
+                sa_offset: None,
+                scroll_update: None,
             })
-            .collect();
+        };
 
         Self {
             renders,
@@ -90,30 +106,24 @@ impl PdfViewer {
             fit_page_zoom: None,
             sa_offset: None,
             scroll_update: None,
-            sidebar: SideBar {
-                thumbnails,
-                is_visible: true,
-                active_thumbnail: 0,
-                sa_offset: None,
-                scroll_update: None,
-            },
+            sidebar,
         }
     }
 
     pub fn show(&mut self, ui: &mut egui::Ui) {
-        ui.vertical(|ui| {
-            self.show_toolbar(ui);
-            ui.separator();
-        });
+        if self.sidebar.is_some() {
+            ui.vertical(|ui| {
+                self.show_toolbar(ui);
+                ui.separator();
+            });
+            self.show_sidebar(ui);
+        }
 
         if let Some(page) = self.renders.get(0) {
             if self.fit_page_zoom.is_none() {
                 self.fit_page_zoom = Some(ui.available_height() / page.texture.size()[1] as f32);
                 self.zoom_factor = self.fit_page_zoom;
             }
-        }
-        if self.sidebar.is_visible {
-            self.show_sidebar(ui);
         }
 
         let mut sao = egui::ScrollArea::both();
@@ -123,8 +133,8 @@ impl PdfViewer {
         }
 
         let mut offset_sum = 0.0;
-        egui::CentralPanel::default().show_inside(ui, |ui| {
-            self.sa_offset = Some(
+        let res = egui::CentralPanel::default().show_inside(ui, |ui| {
+            Some(
                 // todo: read more about viewport to optimize large pdf rendering
                 sao.show_viewport(ui, |ui, _| {
                     ui.vertical_centered(|ui| {
@@ -142,17 +152,18 @@ impl PdfViewer {
                                 .sense(egui::Sense::click()),
                             );
 
-                            if self.renders[i].offset.is_none() {
-                                self.renders[i].offset = Some(offset_sum);
+                            if p.offset.is_none() {
+                                p.offset = Some(offset_sum);
                                 offset_sum += res.rect.height() + SPACE_BETWEEN_PAGES;
                             }
 
-                            if ui.clip_rect().contains(res.rect.center()) {
-                                if self.sidebar.active_thumbnail != i {
-                                    self.scroll_thumbnail_to_page(i);
+                            if let Some(sidebar) = &mut self.sidebar {
+                                if ui.clip_rect().contains(res.rect.center())
+                                    && sidebar.active_thumbnail != i
+                                {
+                                    sidebar.active_thumbnail = i;
+                                    Self::scroll_thumbnail_to_page(sidebar);
                                 }
-
-                                self.sidebar.active_thumbnail = i;
                             }
 
                             ui.add_space(SPACE_BETWEEN_PAGES);
@@ -179,9 +190,16 @@ impl PdfViewer {
                 .offset,
             )
         });
+
+        self.sa_offset = res.inner;
     }
 
     fn show_toolbar(&mut self, ui: &mut egui::Ui) {
+        let sidebar = match &mut self.sidebar {
+            Some(s) => s,
+            None => return,
+        };
+
         let zoom_controls_width = 150.0;
         let zoom_controls_height = 30.0;
 
@@ -189,7 +207,7 @@ impl PdfViewer {
             min: egui::pos2(
                 ui.available_rect_before_wrap().left()
                     + ((ui.available_rect_before_wrap().width()
-                        - if self.sidebar.is_visible { SIDEBAR_WIDTH } else { 0.0 }
+                        - if sidebar.is_visible { SIDEBAR_WIDTH } else { 0.0 }
                         - zoom_controls_width)
                         / 2.0),
                 ui.available_rect_before_wrap().top(),
@@ -197,7 +215,7 @@ impl PdfViewer {
             max: egui::pos2(
                 ui.available_rect_before_wrap().left()
                     + ((ui.available_rect_before_wrap().width()
-                        - if self.sidebar.is_visible { SIDEBAR_WIDTH } else { 0.0 }
+                        - if sidebar.is_visible { SIDEBAR_WIDTH } else { 0.0 }
                         - zoom_controls_width)
                         / 2.0)
                     + zoom_controls_width,
@@ -215,6 +233,13 @@ impl PdfViewer {
                 ui.available_rect_before_wrap().top() + zoom_controls_height,
             ),
         };
+
+        ui.allocate_ui_at_rect(end_of_line_rect, |ui| {
+            let icon = if sidebar.is_visible { Icon::SHOW_SIDEBAR } else { Icon::HIDE_SIDEBAR };
+            if Button::default().icon(&icon).show(ui).clicked() {
+                sidebar.is_visible = !sidebar.is_visible;
+            }
+        });
 
         ui.allocate_ui_at_rect(centered_rect, |ui| {
             ui.columns(3, |cols| {
@@ -251,37 +276,37 @@ impl PdfViewer {
                 });
             });
         });
-        ui.allocate_ui_at_rect(end_of_line_rect, |ui| {
-            let icon =
-                if self.sidebar.is_visible { Icon::SHOW_SIDEBAR } else { Icon::HIDE_SIDEBAR };
-            if Button::default().icon(&icon).show(ui).clicked() {
-                self.sidebar.is_visible = !self.sidebar.is_visible;
-            }
-        });
     }
 
     fn show_sidebar(&mut self, ui: &mut egui::Ui) {
+        let sidebar = match &mut self.sidebar {
+            Some(s) => s,
+            None => return,
+        };
+        if !sidebar.is_visible {
+            return;
+        }
+
         let sidebar_margin = 50.0;
         let mut offset_sum = 0.0;
 
         let mut sao = egui::ScrollArea::vertical();
-        if let Some(delta) = self.sidebar.scroll_update {
+        if let Some(delta) = sidebar.scroll_update {
             sao = sao.vertical_scroll_offset(delta);
-            self.sidebar.scroll_update = None;
+            sidebar.scroll_update = None;
         }
 
         egui::SidePanel::right("pdf_sidebar")
             .resizable(false)
             .show_separator_line(false)
             .show_inside(ui, |ui| {
-                self.sidebar.sa_offset = Some(
+                sidebar.sa_offset = Some(
                     sao.show(ui, |ui| {
                         egui::Frame::default()
                             .inner_margin(sidebar_margin)
                             .show(ui, |ui| {
-                                for (i, p) in self.sidebar.thumbnails.clone().iter_mut().enumerate()
-                                {
-                                    let tint_color = if i == self.sidebar.active_thumbnail {
+                                for (i, p) in sidebar.thumbnails.clone().iter_mut().enumerate() {
+                                    let tint_color = if i == sidebar.active_thumbnail {
                                         egui::Color32::WHITE
                                     } else {
                                         egui::Color32::GRAY.linear_multiply(0.9)
@@ -301,8 +326,8 @@ impl PdfViewer {
                                         .sense(egui::Sense::click()),
                                     );
 
-                                    if self.sidebar.thumbnails[i].offset.is_none() {
-                                        self.sidebar.thumbnails[i].offset = Some(offset_sum);
+                                    if sidebar.thumbnails[i].offset.is_none() {
+                                        sidebar.thumbnails[i].offset = Some(offset_sum);
                                         offset_sum += res.rect.height() + sidebar_margin;
                                     }
 
@@ -312,8 +337,20 @@ impl PdfViewer {
                                         })
                                     }
                                     if res.clicked() {
-                                        self.sidebar.active_thumbnail = i;
-                                        self.scroll_to_page(self.sidebar.active_thumbnail);
+                                        sidebar.active_thumbnail = i;
+
+                                        //scroll to the page
+                                        if let Some(content) =
+                                            self.renders.get(sidebar.active_thumbnail)
+                                        {
+                                            if let Some(offset) = content.offset {
+                                                self.scroll_update = Some(offset);
+                                            }
+                                        } else {
+                                            return;
+                                        }
+
+                                        Self::scroll_thumbnail_to_page(sidebar);
                                     }
 
                                     ui.add_space(sidebar_margin);
@@ -350,23 +387,10 @@ impl PdfViewer {
         self.scroll_update = Some(new_offset);
     }
 
-    fn scroll_to_page(&mut self, index: usize) {
-        //scroll to the page
-
-        if let Some(content) = self.renders.get(index) {
+    fn scroll_thumbnail_to_page(sidebar: &mut SideBar) {
+        if let Some(content) = sidebar.thumbnails.get(sidebar.active_thumbnail) {
             if let Some(offset) = content.offset {
-                self.scroll_update = Some(offset);
-            }
-        } else {
-            return;
-        }
-        self.scroll_thumbnail_to_page(index);
-    }
-
-    fn scroll_thumbnail_to_page(&mut self, index: usize) {
-        if let Some(content) = self.sidebar.thumbnails.get(index) {
-            if let Some(offset) = content.offset {
-                self.sidebar.scroll_update = Some(offset);
+                sidebar.scroll_update = Some(offset);
             }
         }
     }
