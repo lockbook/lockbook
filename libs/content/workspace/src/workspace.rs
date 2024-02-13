@@ -518,6 +518,7 @@ impl Workspace {
         let toolbar_visibility = ToolBarVisibility::Maximized;
         let update_tx = self.updates_tx.clone();
         let cfg = self.cfg.clone();
+        let is_mobile_viewport = !self.show_tabs;
 
         thread::spawn(move || {
             let ext = fname.split('.').last().unwrap_or_default();
@@ -536,7 +537,12 @@ impl Workspace {
                     } else if is_supported_image_fmt(ext) {
                         TabContent::Image(ImageViewer::new(id.to_string(), &bytes))
                     } else if ext == "pdf" {
-                        TabContent::Pdf(PdfViewer::new(&bytes, &ctx, &cfg.data_dir))
+                        TabContent::Pdf(PdfViewer::new(
+                            &bytes,
+                            &ctx,
+                            &cfg.data_dir,
+                            is_mobile_viewport,
+                        ))
                     } else if ext == "svg" {
                         TabContent::Svg(SVGEditor::new(&bytes, core.clone()))
                     } else {
