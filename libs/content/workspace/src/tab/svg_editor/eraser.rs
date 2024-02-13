@@ -103,6 +103,9 @@ impl Eraser {
                 self.last_pos = None;
                 self.tx.send(EraseEvent::End).unwrap();
             }
+        } else {
+            self.last_pos = None;
+            self.tx.send(EraseEvent::End).unwrap();
         }
     }
 }

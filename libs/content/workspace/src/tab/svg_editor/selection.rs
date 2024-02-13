@@ -90,6 +90,7 @@ impl Selection {
                     } else {
                         self.selected_elements = vec![new_selected_el]
                     }
+                    self.current_op = SelectionOperation::Drag;
                 } else {
                     self.selected_elements.clear();
                     self.laso_original_pos = Some(pos);
