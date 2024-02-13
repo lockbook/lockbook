@@ -68,7 +68,9 @@ impl PdfViewer {
             })
             .collect();
 
-        let render_config = PdfRenderConfig::new().scale_page_by_factor(0.5).thumbnail(ctx.available_rect().height() as i32);
+        let render_config = PdfRenderConfig::new()
+            .scale_page_by_factor(0.5)
+            .thumbnail(ctx.available_rect().height() as i32);
 
         let sidebar = if is_mobile_viewport {
             None
