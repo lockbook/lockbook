@@ -24,6 +24,7 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
     }
 
     var pasteBoardEventId: Int = 0
+    var pasteboardString: String?
     var lastKnownTapLocation: (Float, Float)? = nil
     
     init(mtkView: iOSMTK) {
@@ -167,8 +168,7 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
         switch importFormat {
         case .url(let url):
             if let markdownURL = workspaceState!.importFile(url) {
-                paste_text(wsHandle, markdownURL)
-                workspaceState?.pasted = true
+                pasteText(text: markdownURL)
                 
                 return true
             }
@@ -184,15 +184,13 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
                 }
 
                 if let lbImageURL = workspaceState!.importFile(imageUrl) {
-                    paste_text(wsHandle, lbImageURL)
-                    workspaceState?.pasted = true
+                    pasteText(text: lbImageURL)
 
                     return true
                 }
             }
         case .text(let text):
-            paste_text(wsHandle, text)
-            workspaceState?.pasted = true
+            pasteText(text: text)
 
             return true
         }
@@ -201,11 +199,13 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
     }
     
     func setClipboard() {
-        let pasteboardString: String? = UIPasteboard.general.string
-        if let theString = pasteboardString {
-            system_clipboard_changed(wsHandle, theString)
-        }
+        pasteboardString = UIPasteboard.general.string
         self.pasteBoardEventId = UIPasteboard.general.changeCount
+    }
+
+    func pasteText(text: String) {
+        paste_text(wsHandle, text)
+        workspaceState?.pasted = true
     }
     
     public func insertText(_ text: String) {
@@ -487,7 +487,7 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
             }
         }
 
-        clipboard_paste(self.wsHandle)
+        clipboard_paste(self.wsHandle, pasteboardString)
         self.mtkView.setNeedsDisplay()
     }
     
