@@ -43,6 +43,7 @@ impl PdfViewer {
 
         let render_config = PdfRenderConfig::new()
             .set_target_height((available_height * blowup_factor) as i32)
+            .scale_page_by_factor(if is_mobile_viewport { 5. } else { 2. })
             .rotate_if_landscape(PdfPageRenderRotation::Degrees90, true);
 
         let pdfium_binary_path = format!("{}/egui", data_dir);
@@ -111,11 +112,11 @@ impl PdfViewer {
     }
 
     pub fn show(&mut self, ui: &mut egui::Ui) {
+        ui.vertical(|ui| {
+            self.show_toolbar(ui);
+            ui.separator();
+        });
         if self.sidebar.is_some() {
-            ui.vertical(|ui| {
-                self.show_toolbar(ui);
-                ui.separator();
-            });
             self.show_sidebar(ui);
         }
 
@@ -195,9 +196,9 @@ impl PdfViewer {
     }
 
     fn show_toolbar(&mut self, ui: &mut egui::Ui) {
-        let sidebar = match &mut self.sidebar {
-            Some(s) => s,
-            None => return,
+        let sidebar_is_visible = match &mut self.sidebar {
+            Some(s) => s.is_visible,
+            None => false,
         };
 
         let zoom_controls_width = 150.0;
@@ -207,7 +208,7 @@ impl PdfViewer {
             min: egui::pos2(
                 ui.available_rect_before_wrap().left()
                     + ((ui.available_rect_before_wrap().width()
-                        - if sidebar.is_visible { SIDEBAR_WIDTH } else { 0.0 }
+                        - if sidebar_is_visible { SIDEBAR_WIDTH } else { 0.0 }
                         - zoom_controls_width)
                         / 2.0),
                 ui.available_rect_before_wrap().top(),
@@ -215,7 +216,7 @@ impl PdfViewer {
             max: egui::pos2(
                 ui.available_rect_before_wrap().left()
                     + ((ui.available_rect_before_wrap().width()
-                        - if sidebar.is_visible { SIDEBAR_WIDTH } else { 0.0 }
+                        - if sidebar_is_visible { SIDEBAR_WIDTH } else { 0.0 }
                         - zoom_controls_width)
                         / 2.0)
                     + zoom_controls_width,
@@ -234,12 +235,14 @@ impl PdfViewer {
             ),
         };
 
-        ui.allocate_ui_at_rect(end_of_line_rect, |ui| {
-            let icon = if sidebar.is_visible { Icon::SHOW_SIDEBAR } else { Icon::HIDE_SIDEBAR };
-            if Button::default().icon(&icon).show(ui).clicked() {
-                sidebar.is_visible = !sidebar.is_visible;
-            }
-        });
+        if let Some(sidebar) = &mut self.sidebar {
+            ui.allocate_ui_at_rect(end_of_line_rect, |ui| {
+                let icon = if sidebar_is_visible { Icon::SHOW_SIDEBAR } else { Icon::HIDE_SIDEBAR };
+                if Button::default().icon(&icon).show(ui).clicked() {
+                    sidebar.is_visible = !sidebar.is_visible;
+                }
+            });
+        }
 
         ui.allocate_ui_at_rect(centered_rect, |ui| {
             ui.columns(3, |cols| {
