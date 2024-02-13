@@ -2,7 +2,7 @@ use egui::Pos2;
 use image::ImageEncoder;
 use lbeguiapp::WgpuLockbook;
 use std::io::Cursor;
-use workspace_rs::tab::{ClipContent, CustomEventer as _};
+use workspace_rs::tab::{ClipContent, EventManager as _};
 
 pub fn handle(app: &mut WgpuLockbook) {
     if let Ok(unicode) = clipboard_win::get_clipboard(clipboard_win::formats::Unicode) {
@@ -16,7 +16,7 @@ pub fn handle(app: &mut WgpuLockbook) {
             .write_image(bitmap.as_bytes(), bitmap.width(), bitmap.height(), bitmap.color())
             .expect("png encode pasted image");
 
-        app.context.push_custom_event(workspace_rs::Event::Paste {
+        app.context.push_event(workspace_rs::Event::Paste {
             content: vec![ClipContent::Png(png_bytes)],
             position: Pos2::ZERO, // todo: support position
         });

@@ -1,6 +1,6 @@
 use lbeguiapp::WgpuLockbook;
 use std::mem;
-use workspace_rs::tab::{ClipContent, CustomEventer as _};
+use workspace_rs::tab::{ClipContent, EventManager as _};
 use x11rb::protocol::xproto::{Atom, ConnectionExt as _};
 use x11rb::reexports::x11rb_protocol::protocol::xproto;
 use x11rb::xcb_ffi::XCBConnection;
@@ -224,7 +224,7 @@ impl<'a> Ctx<'a> {
                 .events
                 .push(egui::Event::Paste(text.to_string()));
         } else if format == atoms.ImagePng {
-            app.context.push_custom_event(workspace_rs::Event::Paste {
+            app.context.push_event(workspace_rs::Event::Paste {
                 content: vec![ClipContent::Png(data)],
                 position: egui::Pos2::ZERO,
             });

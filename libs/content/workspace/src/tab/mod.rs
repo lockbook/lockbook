@@ -92,7 +92,7 @@ pub enum ClipContent {
 pub trait EventManager {
     fn push_event(&self, event: Event);
     fn push_markdown_event(&self, event: Modification);
-    fn pop_custom_events(&self) -> Vec<Event>;
+    fn pop_events(&self) -> Vec<Event>;
 }
 
 impl EventManager for egui::Context {
@@ -111,7 +111,7 @@ impl EventManager for egui::Context {
         self.push_event(Event::Markdown(event))
     }
 
-    fn pop_custom_events(&self) -> Vec<Event> {
+    fn pop_events(&self) -> Vec<Event> {
         self.memory_mut(|m| {
             let events: Vec<Event> = m
                 .data
