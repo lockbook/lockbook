@@ -256,17 +256,6 @@ class FileService: ObservableObject {
         }
     }
     
-    func refreshSync() {
-        let allFiles = self.core.listFiles()
-
-        switch allFiles {
-        case .success(let files):
-            postRefreshFiles(files)
-        case .failure(let error):
-            DI.errors.handleError(error)
-        }
-    }
-    
     private func postRefreshFiles(_ newFiles: [File]) {
         idsAndFiles = Dictionary(uniqueKeysWithValues: newFiles.map { ($0.id, $0) })
         refreshSuggestedDocs()
@@ -298,27 +287,24 @@ class FileService: ObservableObject {
 
     public func createDoc(maybeParent: UUID? = nil, isDrawing: Bool) {
         DispatchQueue.global(qos: .userInitiated).async {
-            let realParent = maybeParent ?? {
-#if os(iOS)
+            let parent = maybeParent ?? {
+                #if os(iOS)
                 self.parent?.id ?? self.root!.id
-#else
+                #else
                 DI.workspace.selectedFolder ?? self.root!.id
-#endif
+                #endif
             }()
             
-            var name = ""
             let fileExt = isDrawing ? ".svg" : ".md"
-            let namePart = "untitled-"
             var attempt = 0
             
             while(true) {
-                name = namePart + String(attempt)
-                
-                switch self.core.createFile(name: name + fileExt, dirId: realParent, isFolder: false) {
+                switch self.core.createFile(name: "untitled-\(attempt)\(fileExt)", dirId: parent, isFolder: false) {
                 case .success(let meta):
-                    self.refreshSync()
-                    
-                    DI.workspace.openDoc = meta.id
+                    self.refresh()
+                    DispatchQueue.main.sync {
+                        DI.workspace.openDoc = meta.id
+                    }
                     
                     return
                 case .failure(let err):
