@@ -58,7 +58,7 @@ struct OnboardingView: View {
                             .disabled(self.onboardingState.working)
                     case .Import:
                         HStack {
-                            SecureField("Account String", text: self.$onboardingState.accountString)
+                            SecureField("Private Key", text: self.$onboardingState.accountString)
                                 .disableAutocorrection(true)
                                 .autocapitalization(.none)
                                 .textFieldStyle(RoundedBorderTextFieldStyle())
