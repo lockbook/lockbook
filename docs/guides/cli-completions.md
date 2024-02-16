@@ -6,7 +6,7 @@ In general, your shell scans `$FPATH` for completions.
 If `lockbook` completions are not working automatically for you, check out [homebrew's](https://docs.brew.sh/Shell-Completion) guide.
 
 ## Manual Creation
-If building from source or your package manager doesn't support sompletions, `lockbook` supports manual creation
+If building from source or your package manager doesn't support completions, `lockbook` supports manual creation
 ### bash
 #### Auto-loaded
 ```
