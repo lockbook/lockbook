@@ -3,8 +3,7 @@
 In general, your shell scans `$FPATH` for completions.
 
 ## Debugging CLI Completions
-If `lockbook` completions are not working automatically for you, check out some resources for your package manager/shell:
-- [homebrew](https://docs.brew.sh/Shell-Completion)
+If `lockbook` completions are not working automatically for you, check out [homebrew's](https://docs.brew.sh/Shell-Completion) guide.
 
 ## Manual Creation
 If building from source or your package manager doesn't support sompletions, `lockbook` supports manual creation
@@ -22,7 +21,7 @@ lockbook completions bash > ${XDG_DATA_HOME:-~/.local/share}/bash-completion/com
 lockbook completions fish > ~/.config/fish/completions/lockbook.fish
 ```
 ### zsh
-- `oh-my-zsh` note: ensure you modify your `$FPATH` before `source $ZSH/oh-my-zsh.sh`.
+- `oh-my-zsh` note: ensure you modify your `$FPATH` before `source $ZSH/oh-my-zsh.sh` because it will call `compinit` for you.
 ```
 lockbook completions zsh > /usr/local/share/zsh/site-functions/_lockbook
 ```
