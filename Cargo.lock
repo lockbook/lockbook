@@ -104,7 +104,7 @@ checksum = "f26201604c87b1e01bd3d98f8d5d9a8fcbb815e8cedb41ffccbeb4bf593a35fe"
 
 [[package]]
 name = "admin"
-version = "0.8.4"
+version = "0.9.0"
 dependencies = [
  "clap 4.3.11",
  "dialoguer",
@@ -849,7 +849,7 @@ dependencies = [
 
 [[package]]
 name = "c_interface_v2"
-version = "0.8.4"
+version = "0.9.0"
 dependencies = [
  "lb-rs",
  "libc",
@@ -1812,7 +1812,7 @@ dependencies = [
 
 [[package]]
 name = "egui_editor"
-version = "0.8.4"
+version = "0.9.0"
 dependencies = [
  "egui",
  "image",
@@ -3397,7 +3397,7 @@ checksum = "615e43ce60261fb305818a26fbe1eaf50f1dc15ac846c5b8adaf2defbf4e2ab2"
 
 [[package]]
 name = "lb-fs"
-version = "0.1.0"
+version = "0.9.0"
 dependencies = [
  "async-trait",
  "cli-rs",
@@ -3419,7 +3419,7 @@ dependencies = [
 
 [[package]]
 name = "lb-rs"
-version = "0.8.4"
+version = "0.9.0"
 dependencies = [
  "base64 0.13.1",
  "basic-human-duration",
@@ -3456,7 +3456,7 @@ dependencies = [
 
 [[package]]
 name = "lb_external_interface"
-version = "0.8.4"
+version = "0.9.0"
 dependencies = [
  "basic-human-duration",
  "crossbeam",
@@ -3617,7 +3617,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook-cli"
-version = "0.8.4"
+version = "0.9.0"
 dependencies = [
  "cli-rs",
  "fs_extra",
@@ -3629,7 +3629,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook-dev"
-version = "0.8.4"
+version = "0.9.0"
 dependencies = [
  "clap 4.3.11",
  "dotenvy",
@@ -3640,7 +3640,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook-egui"
-version = "0.8.4"
+version = "0.9.0"
 dependencies = [
  "dark-light",
  "eframe",
@@ -3663,7 +3663,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook-linux"
-version = "0.1.0"
+version = "0.9.0"
 dependencies = [
  "egui",
  "egui_editor",
@@ -3681,7 +3681,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook-server"
-version = "0.8.4"
+version = "0.9.0"
 dependencies = [
  "async-stripe",
  "async-trait",
@@ -3719,7 +3719,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook-shared"
-version = "0.8.4"
+version = "0.9.0"
 dependencies = [
  "aead",
  "aes-gcm",
@@ -3741,7 +3741,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook-windows"
-version = "0.1.0"
+version = "0.9.0"
 dependencies = [
  "array-init",
  "clipboard-win",
@@ -5045,7 +5045,7 @@ checksum = "dbb5fb1acd8a1a18b3dd5be62d25485eb770e05afb408a9627d14d451bae12da"
 
 [[package]]
 name = "releaser"
-version = "0.8.4"
+version = "0.9.0"
 dependencies = [
  "cli-rs",
  "fs_extra",
@@ -6012,7 +6012,7 @@ dependencies = [
 
 [[package]]
 name = "test_utils"
-version = "0.8.4"
+version = "0.9.0"
 dependencies = [
  "bincode",
  "itertools",
@@ -7499,7 +7499,7 @@ dependencies = [
 
 [[package]]
 name = "winstaller"
-version = "0.8.4"
+version = "0.9.0"
 dependencies = [
  "eframe",
  "egui_extras",
@@ -7509,7 +7509,7 @@ dependencies = [
 
 [[package]]
 name = "workspace"
-version = "0.1.0"
+version = "0.9.0"
 dependencies = [
  "bezier-rs",
  "egui",
@@ -7528,7 +7528,7 @@ dependencies = [
 
 [[package]]
 name = "workspace-ffi"
-version = "0.1.0"
+version = "0.9.0"
 dependencies = [
  "egui",
  "egui_editor",
