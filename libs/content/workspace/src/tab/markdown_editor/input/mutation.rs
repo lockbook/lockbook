@@ -271,24 +271,19 @@ pub fn calc(
             let mut indented_galleys = HashMap::new();
             let mut renumbered_galleys = HashMap::new();
 
+            // determine galleys to (de)indent
             let ast_text_ranges = bounds.ast.find_intersecting(current_cursor.selection, true);
-
-            // iterate forwards for indent and backwards for de-indent because when indenting, the indentation of the
-            // prior item constraints the indentation of the current item, and when de-indenting, the indentation of
-            // the next item constraints the indentation of the current item
-            let mut ast_text_ranges_iter = ast_text_ranges.iter();
-            while let Some(ast_text_range) = if deindent {
-                ast_text_ranges_iter.next_back()
-            } else {
-                ast_text_ranges_iter.next()
-            } {
+            for ast_text_range in ast_text_ranges.iter() {
                 let ast_node = bounds.ast[ast_text_range]
                     .ancestors
                     .last()
                     .copied()
                     .unwrap(); // ast text ranges always have themselves as the last ancestor
                 let galley_idx = galleys.galley_at_char(ast.nodes[ast_node].text_range.start());
-                let galley = &galleys[galley_idx];
+
+                if bounds.ast[ast_text_range].range.start() >= current_cursor.selection.end() {
+                    continue;
+                }
 
                 let cur_indent_level =
                     if let MarkdownNode::Block(BlockNode::ListItem(_, indent_level)) =
@@ -301,6 +296,26 @@ pub fn calc(
                 if !indentation_processed_galleys.insert(galley_idx) {
                     continue; // only process each galley once
                 }
+
+                indented_galleys.insert(galley_idx, cur_indent_level);
+            }
+
+            // (de)indent identified galleys in order
+            // iterate forwards for indent and backwards for de-indent because when indenting, the indentation of the
+            // prior item constraints the indentation of the current item, and when de-indenting, the indentation of
+            // the next item constraints the indentation of the current item
+            let ordered_galleys = {
+                let mut this = Vec::new();
+                this.extend(indented_galleys.keys());
+                this.sort();
+                if deindent {
+                    this.reverse();
+                }
+                this
+            };
+            for galley_idx in ordered_galleys {
+                let galley = &galleys[galley_idx];
+                let cur_indent_level = indented_galleys[&galley_idx];
 
                 // todo: this needs more attention e.g. list items doubly indented using 2-space indents
                 // tracked by https://github.com/lockbook/lockbook/issues/1842
