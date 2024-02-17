@@ -20,7 +20,8 @@ pub unsafe extern "C" fn key_event(
     let Some(key) = NSKeys::from(key_code) else { return };
 
     // Event::Text
-    if pressed && (modifiers.shift_only() || modifiers.is_none()) && key.valid_text() {
+    let text_modifiers = modifiers.shift_only() || modifiers.is_none();
+    if pressed && text_modifiers && key.valid_text() {
         let text = CStr::from_ptr(characters).to_str().unwrap().to_string();
         obj.raw_input.events.push(Event::Text(text));
     }
