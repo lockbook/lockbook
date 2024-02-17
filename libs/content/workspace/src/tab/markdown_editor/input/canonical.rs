@@ -85,6 +85,7 @@ pub enum Modification {
     Replace { region: Region, text: String },
     ToggleStyle { region: Region, style: MarkdownNode },
     Newline { advance_cursor: bool }, // distinct from replace because it triggers auto-bullet, etc
+    Delete { region: Region }, // distinct from replace because it triggers numbered list renumber, etc
     Indent { deindent: bool },
     Undo,
     Redo,
@@ -161,12 +162,11 @@ pub fn calc(
         Event::Key { key, pressed: true, modifiers, .. }
             if matches!(key, Key::Backspace | Key::Delete) =>
         {
-            Some(Modification::Replace {
+            Some(Modification::Delete {
                 region: Region::SelectionOrOffset {
                     offset: Offset::from(modifiers),
                     backwards: key == &Key::Backspace,
                 },
-                text: "".to_string(),
             })
         }
         Event::Key { key: Key::Enter, pressed: true, modifiers, .. }

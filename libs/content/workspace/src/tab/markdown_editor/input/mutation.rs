@@ -263,6 +263,109 @@ pub fn calc(
 
             cursor.selection.0 = cursor.selection.1;
         }
+        Modification::Delete { region } => {
+            let region_cursor = region_to_cursor(region, current_cursor, buffer, galleys, bounds);
+
+            mutation.push(SubMutation::Cursor { cursor: region_cursor });
+            mutation.push(SubMutation::Delete(0.into()));
+            mutation.push(SubMutation::Cursor { cursor: current_cursor });
+
+            // check if we deleted a numbered list annotation and renumber subsequent items
+            let ast_text_ranges = bounds
+                .ast
+                .find_contained(region_cursor.selection, true, true);
+            let mut unnumbered_galleys = HashSet::new();
+            let mut renumbered_galleys = HashMap::new();
+            for ast_text_range in ast_text_ranges.iter() {
+                // skip non-head ranges; remaining ranges are head ranges contained by the selection
+                if bounds.ast[ast_text_range].range_type != AstTextRangeType::Head {
+                    continue;
+                }
+
+                // if the range is a list item annotation contained by the deleted region, renumber subsequent items
+                let ast_node = bounds.ast[ast_text_range]
+                    .ancestors
+                    .last()
+                    .copied()
+                    .unwrap(); // ast text ranges always have themselves as the last ancestor
+                let galley_idx = galleys.galley_at_char(ast.nodes[ast_node].text_range.start());
+                if let Some(Annotation::Item(ListItem::Numbered(number), indent_level)) =
+                    galleys[galley_idx].annotation
+                {
+                    renumbered_galleys = HashMap::new(); // only the last one matters; otherwise they stack
+                    increment_numbered_list_items(
+                        galley_idx,
+                        indent_level,
+                        number,
+                        true,
+                        galleys,
+                        &mut renumbered_galleys,
+                    );
+                }
+
+                unnumbered_galleys.insert(galley_idx);
+            }
+
+            // if we deleted the space between two numbered lists, renumber the second list to extend the first
+            let start_galley_idx = galleys.galley_at_char(region_cursor.selection.start());
+            let end_galley_idx = galleys.galley_at_char(region_cursor.selection.end());
+            if start_galley_idx < end_galley_idx {
+                // todo: account for indent levels
+                if let Some(Annotation::Item(ListItem::Numbered(prev_number), _)) =
+                    galleys[start_galley_idx].annotation
+                {
+                    if let Some(Annotation::Item(
+                        ListItem::Numbered(next_number),
+                        next_indent_level,
+                    )) = galleys[end_galley_idx + 1].annotation
+                    {
+                        let (amount, decrement) = if prev_number >= next_number {
+                            (prev_number - next_number + 1, false)
+                        } else {
+                            (next_number - prev_number - 1, true)
+                        };
+
+                        renumbered_galleys = HashMap::new(); // only the last one matters; otherwise they stack
+                        increment_numbered_list_items(
+                            end_galley_idx,
+                            next_indent_level,
+                            amount,
+                            decrement,
+                            galleys,
+                            &mut renumbered_galleys,
+                        );
+                    }
+                }
+            }
+
+            // apply renumber operations once at the end because otherwise they stack up and clobber each other
+            for (galley_idx, new_number) in renumbered_galleys {
+                // don't number items that were deleted
+                if unnumbered_galleys.contains(&galley_idx) {
+                    continue;
+                }
+
+                let galley = &galleys[galley_idx];
+                if let Some(Annotation::Item(ListItem::Numbered(cur_number), ..)) =
+                    galley.annotation
+                {
+                    mutation.push(SubMutation::Cursor {
+                        cursor: (
+                            galley.range.start() + galley.head_size,
+                            galley.range.start() + galley.head_size
+                                - (cur_number).to_string().len()
+                                - 2,
+                        )
+                            .into(),
+                    });
+                    mutation.push(SubMutation::Insert {
+                        text: new_number.to_string() + ". ",
+                        advance_cursor: true,
+                    });
+                    mutation.push(SubMutation::Cursor { cursor: current_cursor });
+                }
+            }
+        }
         Modification::Indent { deindent } => {
             // if we're in a list item, tab/shift+tab will indent/de-indent
             // otherwise, tab will insert a tab and shift tab will do nothing

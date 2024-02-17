@@ -615,12 +615,20 @@ impl DocCharOffset {
 }
 
 pub trait RangesExt {
-    /// Efficiently finds the possibly empty (inclusive, exclusive) range of ranges that contain `offset`
+    /// Efficiently finds the possibly empty (inclusive, exclusive) range of ranges that contain `offset`.
+    /// When no ranges contain `offset`, result.start() == result.end() == the index of the first range after `offset`.
     fn find_containing(
         &self, offset: DocCharOffset, start_inclusive: bool, end_inclusive: bool,
     ) -> (usize, usize);
 
-    /// Efficiently finds the possibly empty (inclusive, exclusive) range of ranges that intersect `range`
+    /// Efficiently finds the possibly empty (inclusive, exclusive) range of ranges that are contained by `range`.
+    /// When no ranges are contained by `range`, result.start() == result.end() == the index of the first range after `range`.
+    fn find_contained(
+        &self, range: (DocCharOffset, DocCharOffset), start_inclusive: bool, end_inclusive: bool,
+    ) -> (usize, usize);
+
+    /// Efficiently finds the possibly empty (inclusive, exclusive) range of ranges that intersect `range`.
+    /// When no ranges intersect `range`, result.start() == result.end() == the index of the first range after `range`.
     fn find_intersecting(
         &self, range: (DocCharOffset, DocCharOffset), allow_empty: bool,
     ) -> (usize, usize);
@@ -672,6 +680,31 @@ impl<Range: RangeExt<DocCharOffset>> RangesExt for Vec<Range> {
             }
             Err(idx) => (idx, idx),
         }
+    }
+
+    fn find_contained(
+        &self, range: (DocCharOffset, DocCharOffset), start_inclusive: bool, end_inclusive: bool,
+    ) -> (usize, usize) {
+        let (mut start, mut end) = self.find_intersecting(range, true);
+        while start < end
+            && !range.contains_range(
+                &(self[start].start(), self[start].end()),
+                start_inclusive,
+                end_inclusive,
+            )
+        {
+            start += 1;
+        }
+        while end > start
+            && !range.contains_range(
+                &(self[end - 1].start(), self[end - 1].end()),
+                start_inclusive,
+                end_inclusive,
+            )
+        {
+            end -= 1;
+        }
+        (start, end)
     }
 
     fn find_intersecting(
