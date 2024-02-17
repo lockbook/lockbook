@@ -299,7 +299,9 @@ class FileService: ObservableObject {
             var attempt = 0
             
             while(true) {
-                switch self.core.createFile(name: "untitled-\(attempt)\(fileExt)", dirId: parent, isFolder: false) {
+                let name: String = attempt != 0 ? "untitled-\(attempt)\(fileExt)" : "untitled\(fileExt)"
+                
+                switch self.core.createFile(name: name, dirId: parent, isFolder: false) {
                 case .success(let meta):
                     self.refresh()
                     DispatchQueue.main.sync {
