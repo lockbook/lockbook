@@ -818,6 +818,10 @@ pub fn split<const N: usize>(
 
 impl Editor {
     pub fn print_bounds(&self) {
+        println!(
+            "ast: {:?}",
+            self.ranges_text(&self.bounds.ast.iter().map(|r| r.range).collect::<Vec<_>>())
+        );
         println!("words: {:?}", self.ranges_text(&self.bounds.words));
         println!("lines: {:?}", self.ranges_text(&self.bounds.lines));
         println!("paragraphs: {:?}", self.ranges_text(&self.bounds.paragraphs));
