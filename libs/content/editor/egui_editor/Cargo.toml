@@ -8,16 +8,12 @@ name = "egui_editor"
 crate-type = ["lib", "staticlib", "cdylib"]
 path = "src/lib.rs"
 
+[features]
+debug-window = []
+
 [dependencies]
-image = "0.24"
-pulldown-cmark = { version = "0.9.2", default-features = false }
-unicode-segmentation = "1.10.0"
-rand = "0.8.5"
-linkify = "0.10.0"
 egui = "0.22.0"
-resvg = "0.36.0"
-lb-fonts = "0.1.2"
-serde = { version = "1.0.171", features = ["derive"] }
+eframe = "0.22.0"
 workspace = { path = "../../workspace" }
 
 # todo: maybe move this switch into lb itself
@@ -25,17 +21,7 @@ workspace = { path = "../../workspace" }
 lb = { package = "lb-rs", path = "../../../lb/lb-rs", default-features = false, features = [
     "native-tls",
 ] }
-reqwest = { version = "0.11", features = ["blocking"] }
-
 [target.'cfg(target_os = "android")'.dependencies]
 lb = { package = "lb-rs", path = "../../../lb/lb-rs", default-features = false, features = [
     "rustls-tls",
 ] }
-reqwest = { version = "0.11", default-features = false, features = [
-    "blocking",
-    "rustls-tls",
-] }
-ndk-sys = "0.4"
-raw-window-handle = "0.5"
-jni = "0.21.0"
-pollster = "0.2"

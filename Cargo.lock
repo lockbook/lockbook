@@ -1814,21 +1814,9 @@ dependencies = [
 name = "egui_editor"
 version = "0.9.0"
 dependencies = [
+ "eframe",
  "egui",
- "image",
- "jni 0.21.1",
- "lb-fonts",
  "lb-rs",
- "linkify",
- "ndk-sys",
- "pollster",
- "pulldown-cmark",
- "rand 0.8.5",
- "raw-window-handle",
- "reqwest",
- "resvg",
- "serde",
- "unicode-segmentation",
  "workspace",
 ]
 

@@ -22,7 +22,7 @@ fn main() {
         "My egui App",
         options,
         Box::new(|cc| {
-            let app = TestApp { editor: egui_editor::editor::Editor::new(core) };
+            let app = TestApp { editor: egui_editor::editor::Editor::new(core, "") };
             app.editor.set_font(&cc.egui_ctx);
             Box::new(app)
         }),
