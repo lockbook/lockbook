@@ -360,7 +360,9 @@ impl WgpuWorkspace {
             alpha_mode: CompositeAlphaMode::Auto,
             view_formats: vec![],
         };
-        self.surface.configure(&self.device, &surface_config);
+        if surface_config.width * surface_config.height != 0 {
+            self.surface.configure(&self.device, &surface_config);
+        }
     }
 }
 #[repr(C)]
