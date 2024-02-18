@@ -1,14 +1,16 @@
-use crate::appearance::{Appearance, CaptureCondition};
-use crate::ast::{Ast, AstTextRange, AstTextRangeType};
-use crate::buffer::SubBuffer;
-use crate::editor::HoverSyntaxRevealDebounceState;
-use crate::galleys::Galleys;
-use crate::input::canonical::Bound;
-use crate::input::cursor::Cursor;
-use crate::offset_types::{DocByteOffset, DocCharOffset, RangeExt, RelByteOffset};
-use crate::style::{BlockNodeType, MarkdownNodeType};
-use crate::unicode_segs::UnicodeSegs;
-use crate::Editor;
+use crate::tab::markdown_editor::appearance::{Appearance, CaptureCondition};
+use crate::tab::markdown_editor::ast::{Ast, AstTextRange, AstTextRangeType};
+use crate::tab::markdown_editor::buffer::SubBuffer;
+use crate::tab::markdown_editor::editor::HoverSyntaxRevealDebounceState;
+use crate::tab::markdown_editor::galleys::Galleys;
+use crate::tab::markdown_editor::input::canonical::Bound;
+use crate::tab::markdown_editor::input::cursor::Cursor;
+use crate::tab::markdown_editor::offset_types::{
+    DocByteOffset, DocCharOffset, RangeExt, RelByteOffset,
+};
+use crate::tab::markdown_editor::style::{BlockNodeType, MarkdownNodeType};
+use crate::tab::markdown_editor::unicode_segs::UnicodeSegs;
+use crate::tab::markdown_editor::Editor;
 use egui::epaint::text::cursor::RCursor;
 use linkify::LinkFinder;
 use std::cmp::Ordering;
@@ -834,7 +836,7 @@ impl Editor {
 #[cfg(test)]
 mod test {
     use super::{join, Bounds, RangesExt};
-    use crate::{input::canonical::Bound, offset_types::DocCharOffset};
+    use crate::tab::markdown_editor::{input::canonical::Bound, offset_types::DocCharOffset};
 
     #[test]
     fn range_before_after_no_ranges() {

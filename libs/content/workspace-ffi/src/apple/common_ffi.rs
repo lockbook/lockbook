@@ -7,6 +7,7 @@ use lb_external_interface::Core;
 use std::ffi::{c_char, c_void, CStr, CString};
 use std::time::Instant;
 use workspace_rs::register_fonts;
+use workspace_rs::tab::{ClipContent, EventManager as _};
 use workspace_rs::theme::visuals;
 use workspace_rs::workspace::{Workspace, WsConfig};
 
@@ -58,7 +59,6 @@ pub unsafe extern "C" fn init_ws(
         screen,
         context,
         raw_input: Default::default(),
-        from_host: None,
         workspace,
     };
 
@@ -123,11 +123,26 @@ pub unsafe extern "C" fn dark_mode(obj: *mut c_void, dark: bool) {
 }
 
 /// # Safety
+/// obj must be a valid pointer to WgpuEditor
 #[no_mangle]
-pub unsafe extern "C" fn system_clipboard_changed(obj: *mut c_void, content: *const c_char) {
+pub unsafe extern "C" fn clipboard_paste(obj: *mut c_void, content: *const c_char) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
     let content = CStr::from_ptr(content).to_str().unwrap().into();
-    obj.from_host = Some(content)
+    obj.raw_input.events.push(Event::Paste(content));
+}
+
+/// # Safety
+/// obj must be a valid pointer to WgpuEditor
+#[no_mangle]
+pub unsafe extern "C" fn clipboard_paste_image(
+    obj: *mut c_void, content: *const u8, length: usize,
+) {
+    let obj = &mut *(obj as *mut WgpuWorkspace);
+    let content = std::slice::from_raw_parts(content, length).to_vec();
+    obj.context.push_event(workspace_rs::Event::Paste {
+        content: vec![ClipContent::Png(content)],
+        position: egui::Pos2::ZERO, // todo: cursor position
+    });
 }
 
 /// # Safety

@@ -1,7 +1,6 @@
-use lb::FileType;
 use lbeguiapp::WgpuLockbook;
 use std::mem;
-use std::time::{SystemTime, UNIX_EPOCH};
+use workspace_rs::tab::{ClipContent, EventManager as _};
 use x11rb::protocol::xproto::{Atom, ConnectionExt as _};
 use x11rb::reexports::x11rb_protocol::protocol::xproto;
 use x11rb::xcb_ffi::XCBConnection;
@@ -212,48 +211,24 @@ impl<'a> Ctx<'a> {
         Ok(Some(data))
     }
 
-    // todo: dedupe with code in windows app, possibly other places
+    // todo: make all formats available and let the app decide
+    // todo: cursor positions
     fn app_paste(
         &mut self, format: Atom, data: Vec<u8>, app: &mut WgpuLockbook,
     ) -> Result<(), Box<dyn std::error::Error>> {
         let Ctx { conn, atoms, .. } = *self;
 
         if format == atoms.UTF8_STRING {
-            // utf8 -> egui paste event
             let text = String::from_utf8_lossy(&data);
             app.raw_input
                 .events
                 .push(egui::Event::Paste(text.to_string()));
         } else if format == atoms.ImagePng {
-            // png -> import lockbook file and paste markdown image link
-            let core = match &app.app {
-                lbeguiapp::Lockbook::Splash(_) => {
-                    return Ok(());
-                }
-                lbeguiapp::Lockbook::Onboard(screen) => &screen.core,
-                lbeguiapp::Lockbook::Account(screen) => &screen.core,
-            };
-            let file = core
-                .create_file(
-                    &format!(
-                        "pasted_image_{}.png",
-                        SystemTime::now()
-                            .duration_since(UNIX_EPOCH)
-                            .unwrap()
-                            .as_micros()
-                    ),
-                    core.get_root().expect("get lockbook root").id,
-                    FileType::Document,
-                )
-                .expect("create lockbook file for image");
-            core.write_document(file.id, &data)
-                .expect("write lockbook file for image");
-            let markdown_image_link = format!("![pasted image](lb://{})", file.id);
-            app.raw_input
-                .events
-                .push(egui::Event::Paste(markdown_image_link));
+            app.context.push_event(workspace_rs::Event::Paste {
+                content: vec![ClipContent::Png(data)],
+                position: egui::Pos2::ZERO,
+            });
         } else {
-            // unsupported type -> print and ignore
             let name = conn.get_atom_name(format)?.reply()?.name;
             let name = String::from_utf8(name).expect("get atom name as utf8");
             println!("handle selection: unsupported clipboard type: {}", name);

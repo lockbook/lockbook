@@ -1,8 +1,8 @@
-use crate::appearance;
-use crate::input::click_checker::ClickChecker;
-use crate::input::cursor::{ClickType, PointerState};
-use crate::offset_types::{DocCharOffset, RelCharOffset};
-use crate::style::{BlockNode, InlineNode, ListItem, MarkdownNode};
+use crate::tab::markdown_editor::appearance;
+use crate::tab::markdown_editor::input::click_checker::ClickChecker;
+use crate::tab::markdown_editor::input::cursor::{ClickType, PointerState};
+use crate::tab::markdown_editor::offset_types::{DocCharOffset, RelCharOffset};
+use crate::tab::markdown_editor::style::{BlockNode, InlineNode, ListItem, MarkdownNode};
 use egui::{Event, Key, Modifiers, PointerButton, Pos2};
 use pulldown_cmark::{HeadingLevel, LinkType};
 use std::time::Instant;
@@ -421,9 +421,11 @@ impl Modification {
 #[cfg(test)]
 mod test {
     use super::calc;
-    use crate::input::canonical::{Bound, Increment, Modification, Offset, Region};
-    use crate::input::click_checker::ClickChecker;
-    use crate::offset_types::DocCharOffset;
+    use crate::tab::markdown_editor::input::canonical::{
+        Bound, Increment, Modification, Offset, Region,
+    };
+    use crate::tab::markdown_editor::input::click_checker::ClickChecker;
+    use crate::tab::markdown_editor::offset_types::DocCharOffset;
     use egui::{Event, Key, Modifiers, Pos2};
     use std::time::Instant;
 

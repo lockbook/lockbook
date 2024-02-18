@@ -1,15 +1,15 @@
-use crate::ast::{Ast, AstTextRangeType};
-use crate::bounds::{AstTextRanges, Bounds, RangesExt, Text};
-use crate::buffer::{EditorMutation, SubBuffer, SubMutation};
-use crate::galleys::Galleys;
-use crate::input::canonical::{Location, Modification, Offset, Region};
-use crate::input::cursor::Cursor;
-use crate::layouts::Annotation;
-use crate::offset_types::{DocCharOffset, RangeExt, RangeIterExt};
-use crate::style::{
+use crate::tab::markdown_editor::ast::{Ast, AstTextRangeType};
+use crate::tab::markdown_editor::bounds::{AstTextRanges, Bounds, RangesExt, Text};
+use crate::tab::markdown_editor::buffer::{EditorMutation, SubBuffer, SubMutation};
+use crate::tab::markdown_editor::galleys::Galleys;
+use crate::tab::markdown_editor::input::canonical::{Location, Modification, Offset, Region};
+use crate::tab::markdown_editor::input::cursor::Cursor;
+use crate::tab::markdown_editor::layouts::Annotation;
+use crate::tab::markdown_editor::offset_types::{DocCharOffset, RangeExt, RangeIterExt};
+use crate::tab::markdown_editor::style::{
     BlockNode, BlockNodeType, InlineNodeType, ListItem, MarkdownNode, MarkdownNodeType,
 };
-use crate::unicode_segs::UnicodeSegs;
+use crate::tab::markdown_editor::unicode_segs::UnicodeSegs;
 use egui::Pos2;
 use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
@@ -20,6 +20,7 @@ pub fn calc(
 ) -> EditorMutation {
     let current_cursor = buffer.cursor;
     let mut mutation = Vec::new();
+
     match modification {
         Modification::Select { region } => mutation.push(SubMutation::Cursor {
             cursor: region_to_cursor(region, current_cursor, buffer, galleys, bounds),
@@ -192,7 +193,7 @@ pub fn calc(
                                 let head = galley.head(buffer);
                                 let text = head[0..head.len() - (cur_number).to_string().len() - 2]
                                     .to_string()
-                                    + &(cur_number + 1).to_string()
+                                    + (&(cur_number + 1).to_string() as &str)
                                     + ". ";
                                 mutation.push(SubMutation::Insert { text, advance_cursor: true });
 

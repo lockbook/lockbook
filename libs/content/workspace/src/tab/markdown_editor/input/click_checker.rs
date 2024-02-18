@@ -1,13 +1,13 @@
-use crate::appearance::Appearance;
-use crate::ast::Ast;
-use crate::bounds::Bounds;
-use crate::buffer::Buffer;
-use crate::galleys::Galleys;
-use crate::input::canonical::Bound;
-use crate::input::mutation;
-use crate::layouts::Annotation;
-use crate::offset_types::{DocCharOffset, RangeExt};
-use crate::style::{InlineNode, ListItem, MarkdownNode};
+use crate::tab::markdown_editor::appearance::Appearance;
+use crate::tab::markdown_editor::ast::Ast;
+use crate::tab::markdown_editor::bounds::Bounds;
+use crate::tab::markdown_editor::buffer::Buffer;
+use crate::tab::markdown_editor::galleys::Galleys;
+use crate::tab::markdown_editor::input::canonical::Bound;
+use crate::tab::markdown_editor::input::mutation;
+use crate::tab::markdown_editor::layouts::Annotation;
+use crate::tab::markdown_editor::offset_types::{DocCharOffset, RangeExt};
+use crate::tab::markdown_editor::style::{InlineNode, ListItem, MarkdownNode};
 use egui::{Pos2, Rect};
 
 pub trait ClickChecker {

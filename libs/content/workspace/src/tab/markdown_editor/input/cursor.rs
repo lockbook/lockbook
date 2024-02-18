@@ -1,10 +1,10 @@
-use crate::appearance::Appearance;
-use crate::bounds::{Bounds, Text};
-use crate::buffer::SubBuffer;
-use crate::galleys::{self, Galleys};
-use crate::input::canonical::Offset;
-use crate::offset_types::*;
-use crate::unicode_segs::UnicodeSegs;
+use crate::tab::markdown_editor::appearance::Appearance;
+use crate::tab::markdown_editor::bounds::{Bounds, Text};
+use crate::tab::markdown_editor::buffer::SubBuffer;
+use crate::tab::markdown_editor::galleys::{self, Galleys};
+use crate::tab::markdown_editor::input::canonical::Offset;
+use crate::tab::markdown_editor::offset_types::*;
+use crate::tab::markdown_editor::unicode_segs::UnicodeSegs;
 use egui::{Modifiers, Pos2, Vec2};
 use std::ops::Range;
 use std::time::{Duration, Instant};

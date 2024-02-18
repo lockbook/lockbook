@@ -1,11 +1,10 @@
+use egui::Pos2;
 use image::ImageEncoder;
-use lb::FileType;
 use lbeguiapp::WgpuLockbook;
 use std::io::Cursor;
-use std::time::{SystemTime, UNIX_EPOCH};
+use workspace_rs::tab::{ClipContent, EventManager as _};
 
 pub fn handle(app: &mut WgpuLockbook) {
-    // somewhat weird that app.from_host isn't involved here
     if let Ok(unicode) = clipboard_win::get_clipboard(clipboard_win::formats::Unicode) {
         app.raw_input.events.push(egui::Event::Paste(unicode));
     }
@@ -17,39 +16,9 @@ pub fn handle(app: &mut WgpuLockbook) {
             .write_image(bitmap.as_bytes(), bitmap.width(), bitmap.height(), bitmap.color())
             .expect("png encode pasted image");
 
-        // todo: this certainly doesn't belong here
-        // but also, what is this data modeling?
-        let core = match &app.app {
-            lbeguiapp::Lockbook::Splash(_) => {
-                return;
-            }
-            lbeguiapp::Lockbook::Onboard(screen) => &screen.core,
-            lbeguiapp::Lockbook::Account(screen) => &screen.core,
-        };
-
-        // todo: better filename
-        // todo: use currently open folder
-        // todo: use background thread
-        // todo: refresh file tree view
-        let file = core
-            .create_file(
-                &format!(
-                    "pasted_image_{}.png",
-                    SystemTime::now()
-                        .duration_since(UNIX_EPOCH)
-                        .unwrap()
-                        .as_micros()
-                ),
-                core.get_root().expect("get lockbook root").id,
-                FileType::Document,
-            )
-            .expect("create lockbook file for image");
-        core.write_document(file.id, &png_bytes)
-            .expect("write lockbook file for image");
-
-        let markdown_image_link = format!("![pasted image](lb://{})", file.id);
-        app.raw_input
-            .events
-            .push(egui::Event::Paste(markdown_image_link));
+        app.context.push_event(workspace_rs::Event::Paste {
+            content: vec![ClipContent::Png(png_bytes)],
+            position: Pos2::ZERO, // todo: support position
+        });
     }
 }

@@ -1,4 +1,4 @@
-use crate::offset_types::{DocByteOffset, DocCharOffset};
+use crate::tab::markdown_editor::offset_types::{DocByteOffset, DocCharOffset};
 use unicode_segmentation::UnicodeSegmentation;
 
 #[derive(Clone, Default, Debug)]

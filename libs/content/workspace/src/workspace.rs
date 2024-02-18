@@ -9,7 +9,7 @@ use std::time::Instant;
 use crate::background::{BackgroundWorker, BwIncomingMsg, Signal};
 use crate::output::{DirtynessMsg, PersistentWsStatus, WsOutput};
 use crate::tab::image_viewer::{is_supported_image_fmt, ImageViewer};
-use crate::tab::markdown::Markdown;
+use crate::tab::markdown_editor::Markdown;
 use crate::tab::pdf_viewer::PdfViewer;
 use crate::tab::plain_text::PlainText;
 use crate::tab::svg_editor::SVGEditor;

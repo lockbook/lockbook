@@ -1,24 +1,25 @@
+use std::cmp;
 use std::time::{Duration, Instant};
-use std::{cmp, mem};
 
 use egui::os::OperatingSystem;
 use egui::{Color32, Context, Event, FontDefinitions, Frame, Pos2, Rect, Sense, Ui, Vec2};
 use serde::Serialize;
 
-use crate::appearance::Appearance;
-use crate::ast::Ast;
-use crate::bounds::{BoundCase, Bounds};
-use crate::buffer::Buffer;
-use crate::debug::DebugInfo;
-use crate::galleys::Galleys;
-use crate::images::ImageCache;
-use crate::input::canonical::{Bound, Modification, Offset, Region};
-use crate::input::click_checker::{ClickChecker, EditorClickChecker};
-use crate::input::cursor::{Cursor, PointerState};
-use crate::input::events;
-use crate::offset_types::{DocCharOffset, RangeExt};
-use crate::style::{BlockNode, InlineNode, ListItem, MarkdownNode};
-use crate::{ast, bounds, galleys, images, register_fonts};
+use crate::tab::markdown_editor::appearance::Appearance;
+use crate::tab::markdown_editor::ast::Ast;
+use crate::tab::markdown_editor::bounds::{BoundCase, Bounds};
+use crate::tab::markdown_editor::buffer::Buffer;
+use crate::tab::markdown_editor::debug::DebugInfo;
+use crate::tab::markdown_editor::galleys::Galleys;
+use crate::tab::markdown_editor::images::ImageCache;
+use crate::tab::markdown_editor::input::canonical::{Bound, Modification, Offset, Region};
+use crate::tab::markdown_editor::input::click_checker::{ClickChecker, EditorClickChecker};
+use crate::tab::markdown_editor::input::cursor::{Cursor, PointerState};
+use crate::tab::markdown_editor::input::events;
+use crate::tab::markdown_editor::offset_types::{DocCharOffset, RangeExt};
+use crate::tab::markdown_editor::style::{BlockNode, InlineNode, ListItem, MarkdownNode};
+use crate::tab::markdown_editor::{ast, bounds, galleys, images, register_fonts};
+use crate::tab::EventManager;
 
 #[derive(Debug, Serialize, Default)]
 pub struct EditorResponse {
@@ -56,7 +57,7 @@ pub struct Editor {
     pub initialized: bool,
 
     // dependencies
-    pub core: lb::Core,
+    pub core: lb_rs::Core,
     pub client: reqwest::blocking::Client,
 
     // config
@@ -88,9 +89,6 @@ pub struct Editor {
     pub hover_syntax_reveal_debounce_state: HoverSyntaxRevealDebounceState,
     pub pointer_offset_updated: bool,
 
-    // events not supported by egui; integrations push to this vec and editor processes and clears it
-    pub custom_events: Vec<Modification>,
-
     // state for detecting clicks and converting global to local coordinates
     pub scroll_area_rect: Rect,
     pub scroll_area_offset: Vec2,
@@ -99,7 +97,7 @@ pub struct Editor {
 }
 
 impl Editor {
-    pub fn new(core: lb::Core) -> Self {
+    pub fn new(core: lb_rs::Core, content: &str) -> Self {
         Self {
             id: egui::Id::null(),
             initialized: Default::default(),
@@ -109,7 +107,7 @@ impl Editor {
 
             appearance: Default::default(),
 
-            buffer: "".into(),
+            buffer: content.into(),
             pointer_state: Default::default(),
             debug: Default::default(),
             images: Default::default(),
@@ -133,8 +131,6 @@ impl Editor {
             },
             pointer_offset_updated: Default::default(),
 
-            custom_events: Default::default(),
-
             scroll_area_rect: Rect { min: Default::default(), max: Default::default() },
             scroll_area_offset: Default::default(),
             old_scroll_area_offset: Default::default(),
@@ -149,6 +145,7 @@ impl Editor {
             .inner
     }
 
+    // workspace invokes this
     pub fn scroll_ui(&mut self, ui: &mut Ui) -> EditorResponse {
         let touch_mode = matches!(ui.ctx().os(), OperatingSystem::Android | OperatingSystem::IOS);
 
@@ -239,7 +236,7 @@ impl Editor {
         // process events
         let (text_updated, selection_updated, pointer_offset_updated) = if self.initialized {
             if ui.memory(|m| m.has_focus(id)) || cfg!(target_os = "ios") {
-                let custom_events = mem::take(&mut self.custom_events);
+                let custom_events = ui.ctx().pop_events();
                 self.process_events(events, &custom_events, touch_mode);
                 if let Some(to_clipboard) = &self.maybe_to_clipboard {
                     ui.output_mut(|o| o.copied_text = to_clipboard.clone());
@@ -257,7 +254,7 @@ impl Editor {
             ui.memory_mut(|m| m.request_focus(id));
 
             // put the cursor at the first valid cursor position
-            self.custom_events.push(Modification::Select {
+            ui.ctx().push_markdown_event(Modification::Select {
                 region: Region::ToOffset {
                     offset: Offset::To(Bound::Doc),
                     backwards: true,
@@ -432,7 +429,7 @@ impl Editor {
     }
 
     pub fn process_events(
-        &mut self, events: &[Event], custom_events: &[Modification], touch_mode: bool,
+        &mut self, events: &[Event], custom_events: &[crate::Event], touch_mode: bool,
     ) {
         // if the cursor is in an invalid location, move it to the next valid location
         if let BoundCase::BetweenRanges { range_after, .. } = self
@@ -473,6 +470,7 @@ impl Editor {
             touch_mode,
             &self.appearance,
             &mut self.pointer_state,
+            &mut self.core,
         );
         let (text_updated, maybe_to_clipboard, maybe_opened_url) = events::process(
             &combined_events,
@@ -576,13 +574,6 @@ impl Editor {
             self.hover_syntax_reveal_debounce_state
                 .pointer_offset_updated_at
         };
-    }
-
-    pub fn set_text(&mut self, text: String) {
-        self.custom_events.push(Modification::Replace {
-            region: Region::Bound { bound: Bound::Doc, backwards: false },
-            text,
-        });
     }
 
     pub fn set_font(&self, ctx: &Context) {

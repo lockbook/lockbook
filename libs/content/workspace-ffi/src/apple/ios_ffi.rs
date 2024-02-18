@@ -13,6 +13,7 @@ use std::ffi::{c_char, c_void, CStr, CString};
 use std::mem::ManuallyDrop;
 use std::ptr::null;
 use workspace_rs::tab::svg_editor::Tool;
+use workspace_rs::tab::EventManager as _;
 use workspace_rs::tab::TabContent;
 
 use super::keyboard::UIKeys;
@@ -26,21 +27,12 @@ pub unsafe extern "C" fn insert_text(obj: *mut c_void, content: *const c_char) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
     let content = CStr::from_ptr(content).to_str().unwrap().into();
 
-    let markdown = match obj.workspace.current_tab_markdown_mut() {
-        Some(markdown) => markdown,
-        None => return,
-    };
-
     if content == "\n" {
-        markdown
-            .editor
-            .custom_events
-            .push(Modification::Newline { advance_cursor: true });
+        obj.context
+            .push_markdown_event(Modification::Newline { advance_cursor: true });
     } else if content == "\t" {
-        markdown
-            .editor
-            .custom_events
-            .push(Modification::Indent { deindent: false });
+        obj.context
+            .push_markdown_event(Modification::Indent { deindent: false });
     } else {
         obj.raw_input.events.push(Event::Text(content));
     }
@@ -85,16 +77,9 @@ pub unsafe extern "C" fn has_text(obj: *mut c_void) -> bool {
 pub unsafe extern "C" fn replace_text(obj: *mut c_void, range: CTextRange, text: *const c_char) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
     let text = CStr::from_ptr(text).to_str().unwrap().into();
-    let markdown = match obj.workspace.current_tab_markdown_mut() {
-        Some(markdown) => markdown,
-        None => return,
-    };
-
     if !range.none {
-        markdown
-            .editor
-            .custom_events
-            .push(Modification::Replace { region: range.into(), text });
+        obj.context
+            .push_markdown_event(Modification::Replace { region: range.into(), text });
     }
 }
 
@@ -103,12 +88,7 @@ pub unsafe extern "C" fn replace_text(obj: *mut c_void, range: CTextRange, text:
 #[no_mangle]
 pub unsafe extern "C" fn copy_selection(obj: *mut c_void) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-    let markdown = match obj.workspace.current_tab_markdown_mut() {
-        Some(markdown) => markdown,
-        None => return,
-    };
-
-    markdown.editor.custom_events.push(Modification::Copy);
+    obj.context.push_markdown_event(Modification::Copy);
 }
 
 /// # Safety
@@ -116,12 +96,7 @@ pub unsafe extern "C" fn copy_selection(obj: *mut c_void) {
 #[no_mangle]
 pub unsafe extern "C" fn cut_selection(obj: *mut c_void) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-    let markdown = match obj.workspace.current_tab_markdown_mut() {
-        Some(markdown) => markdown,
-        None => return,
-    };
-
-    markdown.editor.custom_events.push(Modification::Cut);
+    obj.context.push_markdown_event(Modification::Cut);
 }
 
 /// # Safety
@@ -175,16 +150,9 @@ pub unsafe extern "C" fn get_selected(obj: *mut c_void) -> CTextRange {
 #[no_mangle]
 pub unsafe extern "C" fn set_selected(obj: *mut c_void, range: CTextRange) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-    let markdown = match obj.workspace.current_tab_markdown_mut() {
-        Some(markdown) => markdown,
-        None => return,
-    };
-
     if !range.none {
-        markdown
-            .editor
-            .custom_events
-            .push(Modification::Select { region: range.into() });
+        obj.context
+            .push_markdown_event(Modification::Select { region: range.into() });
     }
 }
 
@@ -193,12 +161,7 @@ pub unsafe extern "C" fn set_selected(obj: *mut c_void, range: CTextRange) {
 #[no_mangle]
 pub unsafe extern "C" fn select_current_word(obj: *mut c_void) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-    let markdown = match obj.workspace.current_tab_markdown_mut() {
-        Some(markdown) => markdown,
-        None => return,
-    };
-
-    markdown.editor.custom_events.push(Modification::Select {
+    obj.context.push_markdown_event(Modification::Select {
         region: Region::Bound { bound: Bound::Word, backwards: true },
     });
 }
@@ -208,13 +171,7 @@ pub unsafe extern "C" fn select_current_word(obj: *mut c_void) {
 #[no_mangle]
 pub unsafe extern "C" fn select_all(obj: *mut c_void) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-
-    let markdown = match obj.workspace.current_tab_markdown_mut() {
-        Some(markdown) => markdown,
-        None => return,
-    };
-
-    markdown.editor.custom_events.push(Modification::Select {
+    obj.context.push_markdown_event(Modification::Select {
         region: Region::Bound { bound: Bound::Doc, backwards: true },
     });
 }
@@ -248,21 +205,13 @@ pub unsafe extern "C" fn get_marked(obj: *mut c_void) -> CTextRange {
 #[no_mangle]
 pub unsafe extern "C" fn set_marked(obj: *mut c_void, range: CTextRange, text: *const c_char) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-    let markdown = match obj.workspace.current_tab_markdown_mut() {
-        Some(markdown) => markdown,
-        None => return,
-    };
-
     let text =
         if text.is_null() { None } else { Some(CStr::from_ptr(text).to_str().unwrap().into()) };
 
-    markdown
-        .editor
-        .custom_events
-        .push(Modification::StageMarked {
-            highlighted: range.into(),
-            text: text.unwrap_or_default(),
-        });
+    obj.context.push_markdown_event(Modification::StageMarked {
+        highlighted: range.into(),
+        text: text.unwrap_or_default(),
+    });
 }
 
 /// # Safety
@@ -272,15 +221,7 @@ pub unsafe extern "C" fn set_marked(obj: *mut c_void, range: CTextRange, text: *
 #[no_mangle]
 pub unsafe extern "C" fn unmark_text(obj: *mut c_void) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-    let markdown = match obj.workspace.current_tab_markdown_mut() {
-        Some(markdown) => markdown,
-        None => return,
-    };
-
-    markdown
-        .editor
-        .custom_events
-        .push(Modification::CommitMarked);
+    obj.context.push_markdown_event(Modification::CommitMarked);
 }
 
 /// # Safety
@@ -646,12 +587,7 @@ pub unsafe extern "C" fn first_rect(obj: *mut c_void, range: CTextRange) -> CRec
 #[no_mangle]
 pub unsafe extern "C" fn clipboard_cut(obj: *mut c_void) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-    let markdown = match obj.workspace.current_tab_markdown_mut() {
-        Some(markdown) => markdown,
-        None => return,
-    };
-
-    markdown.editor.custom_events.push(Modification::Cut);
+    obj.context.push_markdown_event(Modification::Cut);
 }
 
 /// # Safety
@@ -659,21 +595,7 @@ pub unsafe extern "C" fn clipboard_cut(obj: *mut c_void) {
 #[no_mangle]
 pub unsafe extern "C" fn clipboard_copy(obj: *mut c_void) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-    let markdown = match obj.workspace.current_tab_markdown_mut() {
-        Some(markdown) => markdown,
-        None => return,
-    };
-
-    markdown.editor.custom_events.push(Modification::Copy);
-}
-
-/// # Safety
-/// obj must be a valid pointer to WgpuEditor
-#[no_mangle]
-pub unsafe extern "C" fn clipboard_paste(obj: *mut c_void) {
-    let obj = &mut *(obj as *mut WgpuWorkspace);
-    let clip = obj.from_host.clone().unwrap_or_default();
-    obj.raw_input.events.push(Event::Paste(clip));
+    obj.context.push_markdown_event(Modification::Copy);
 }
 
 /// # Safety
@@ -792,15 +714,8 @@ pub unsafe extern "C" fn selection_rects(
 #[no_mangle]
 pub unsafe extern "C" fn indent_at_cursor(obj: *mut c_void, deindent: bool) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-    let markdown = match obj.workspace.current_tab_markdown_mut() {
-        Some(markdown) => markdown,
-        None => return,
-    };
-
-    markdown
-        .editor
-        .custom_events
-        .push(Modification::Indent { deindent });
+    obj.context
+        .push_markdown_event(Modification::Indent { deindent });
 }
 
 /// # Safety
@@ -808,15 +723,10 @@ pub unsafe extern "C" fn indent_at_cursor(obj: *mut c_void, deindent: bool) {
 #[no_mangle]
 pub unsafe extern "C" fn undo_redo(obj: *mut c_void, redo: bool) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-    let markdown = match obj.workspace.current_tab_markdown_mut() {
-        Some(markdown) => markdown,
-        None => return,
-    };
-
     if redo {
-        markdown.editor.custom_events.push(Modification::Redo);
+        obj.context.push_markdown_event(Modification::Redo);
     } else {
-        markdown.editor.custom_events.push(Modification::Undo);
+        obj.context.push_markdown_event(Modification::Undo);
     }
 }
 

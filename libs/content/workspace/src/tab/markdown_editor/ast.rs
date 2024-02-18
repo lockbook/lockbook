@@ -1,12 +1,14 @@
-use crate::bounds::{AstTextRanges, RangesExt};
-use crate::buffer::SubBuffer;
-use crate::input::cursor::Cursor;
-use crate::layouts::Annotation;
-use crate::offset_types::{DocCharOffset, RangeExt, RangeIterExt, RelCharOffset};
-use crate::style::{
+use crate::tab::markdown_editor::bounds::{AstTextRanges, RangesExt};
+use crate::tab::markdown_editor::buffer::SubBuffer;
+use crate::tab::markdown_editor::input::cursor::Cursor;
+use crate::tab::markdown_editor::layouts::Annotation;
+use crate::tab::markdown_editor::offset_types::{
+    DocCharOffset, RangeExt, RangeIterExt, RelCharOffset,
+};
+use crate::tab::markdown_editor::style::{
     BlockNode, BlockNodeType, InlineNode, ListItem, MarkdownNode, MarkdownNodeType,
 };
-use crate::Editor;
+use crate::tab::markdown_editor::Editor;
 use pulldown_cmark::{Event, HeadingLevel, LinkType, OffsetIter, Options, Parser, Tag};
 
 #[derive(Default, Debug, PartialEq)]
@@ -697,7 +699,7 @@ impl Editor {
 
 #[cfg(test)]
 mod test {
-    use crate::test_input;
+    use crate::tab::markdown_editor::test_input;
 
     #[test]
     fn test_markdown_all_no_inverted_ranges() {
