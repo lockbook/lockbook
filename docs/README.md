@@ -71,6 +71,9 @@ Windows:
 - [Github Releases](https://github.com/lockbook/lockbook/releases)
 - [Build From Source](./guides/build/cli.md)
 
+#### CLI Completions
+- [CLI Completions Guide for macos && (bash || zsh)](./guides/cli-completions.md)
+
 ## Feature Matrix
 
 <details> 
