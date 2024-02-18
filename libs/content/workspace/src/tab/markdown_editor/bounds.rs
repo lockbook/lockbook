@@ -8,7 +8,7 @@ use crate::tab::markdown_editor::input::cursor::Cursor;
 use crate::tab::markdown_editor::offset_types::{
     DocByteOffset, DocCharOffset, RangeExt, RelByteOffset,
 };
-use crate::tab::markdown_editor::style::{BlockNodeType, MarkdownNodeType};
+use crate::tab::markdown_editor::style::{BlockNodeType, InlineNodeType, MarkdownNodeType};
 use crate::tab::markdown_editor::unicode_segs::UnicodeSegs;
 use crate::tab::markdown_editor::Editor;
 use egui::epaint::text::cursor::RCursor;
@@ -250,9 +250,10 @@ pub fn calc_links(buffer: &SubBuffer, text: &Text, ast: &Ast) -> PlainTextLinks 
 
             // ignore links in code blocks because field references or method invocations can look like URLs
             for node in &ast.nodes {
-                if node.node_type.node_type() == MarkdownNodeType::Block(BlockNodeType::Code)
-                    && node.range.intersects(&link_range, false)
-                {
+                let node_type_ignores_links = node.node_type.node_type()
+                    == MarkdownNodeType::Block(BlockNodeType::Code)
+                    || node.node_type.node_type() == MarkdownNodeType::Inline(InlineNodeType::Code);
+                if node_type_ignores_links && node.range.intersects(&link_range, false) {
                     continue 'spans;
                 }
             }
