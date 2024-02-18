@@ -9,12 +9,12 @@ crate-type = ["lib", "staticlib", "cdylib"]
 path = "src/lib.rs"
 
 [features]
-debug-window = []
+debug-window = ["dep:eframe"]
 
 [dependencies]
 egui = "0.22.0"
-eframe = "0.22.0"
 workspace = { path = "../../workspace" }
+eframe = { version = "0.22.0", optional = true }
 
 # todo: maybe move this switch into lb itself
 [target.'cfg(not(target_os = "android"))'.dependencies]
