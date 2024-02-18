@@ -371,9 +371,17 @@ impl Ast {
                     text_range.1 -= 1;
                 }
                 MarkdownNode::Inline(InlineNode::Strikethrough) => {
+                    // ~strikethrough~ (not strictly markdown spec compliant)
+                    if buffer[text_range].starts_with('~') && buffer[text_range].ends_with('~') {
+                        text_range.0 += 1;
+                        text_range.1 -= 1;
+                    }
+
                     // ~~strikethrough~~
-                    text_range.0 += 2;
-                    text_range.1 -= 2;
+                    if buffer[text_range].starts_with('~') && buffer[text_range].ends_with('~') {
+                        text_range.0 += 1;
+                        text_range.1 -= 1;
+                    }
                 }
                 MarkdownNode::Inline(InlineNode::Link(LinkType::Inline, url, title)) => {
                     // [title](http://url.com "title")
