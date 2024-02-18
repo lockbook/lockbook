@@ -9,6 +9,7 @@ mod theme;
 mod util;
 
 pub use crate::settings::Settings;
+pub use workspace_rs::Event;
 
 use crate::account::AccountScreen;
 use crate::onboard::{OnboardHandOff, OnboardScreen};
@@ -152,9 +153,6 @@ pub struct WgpuLockbook {
     pub context: egui::Context,
     pub raw_input: egui::RawInput,
 
-    pub from_host: Option<String>,
-    pub from_egui: Option<String>,
-
     pub app: Lockbook,
 }
 
@@ -193,8 +191,8 @@ impl WgpuLockbook {
         out.update_output = self.app.update(&self.context);
         let full_output = self.context.end_frame();
         if !full_output.platform_output.copied_text.is_empty() {
-            // todo: can this go in output?
-            self.from_egui = Some(full_output.platform_output.copied_text.clone());
+            self.context
+                .output_mut(|o| o.copied_text = full_output.platform_output.copied_text.clone());
         }
         let paint_jobs = self.context.tessellate(full_output.shapes);
         let mut encoder = self

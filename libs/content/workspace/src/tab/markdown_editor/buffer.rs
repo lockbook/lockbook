@@ -1,9 +1,11 @@
-use crate::appearance::Appearance;
-use crate::debug::DebugInfo;
-use crate::input::cursor::Cursor;
-use crate::offset_types::{DocByteOffset, DocCharOffset, RangeExt, RelCharOffset};
-use crate::unicode_segs;
-use crate::unicode_segs::UnicodeSegs;
+use crate::tab::markdown_editor::appearance::Appearance;
+use crate::tab::markdown_editor::debug::DebugInfo;
+use crate::tab::markdown_editor::input::cursor::Cursor;
+use crate::tab::markdown_editor::offset_types::{
+    DocByteOffset, DocCharOffset, RangeExt, RelCharOffset,
+};
+use crate::tab::markdown_editor::unicode_segs;
+use crate::tab::markdown_editor::unicode_segs::UnicodeSegs;
 use std::collections::VecDeque;
 use std::iter;
 use std::ops::{Index, Range};
@@ -469,8 +471,8 @@ impl Index<(DocCharOffset, DocCharOffset)> for SubBuffer {
 
 #[cfg(test)]
 mod test {
-    use crate::buffer::{SubBuffer, SubMutation};
-    use crate::input::cursor::Cursor;
+    use crate::tab::markdown_editor::buffer::{SubBuffer, SubMutation};
+    use crate::tab::markdown_editor::input::cursor::Cursor;
 
     #[test]
     fn apply_mods_none_empty_doc() {

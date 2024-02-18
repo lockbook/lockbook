@@ -1,12 +1,16 @@
 use crate::tab::image_viewer::ImageViewer;
-use crate::tab::markdown::Markdown;
+use crate::tab::markdown_editor::Markdown;
 use crate::tab::pdf_viewer::PdfViewer;
 use crate::tab::plain_text::PlainText;
 use crate::tab::svg_editor::SVGEditor;
-use std::time::Instant;
+use egui::Id;
+use lb_rs::{File, FileType};
+use markdown_editor::input::canonical::Modification;
+use std::path::PathBuf;
+use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 pub mod image_viewer;
-pub mod markdown;
+pub mod markdown_editor;
 pub mod pdf_viewer;
 pub mod plain_text;
 pub mod svg_editor;
@@ -70,4 +74,75 @@ impl From<lb_rs::LbError> for TabFailure {
             _ => Self::SimpleMisc(format!("{:?}", err)),
         }
     }
+}
+
+#[derive(Debug, Clone)]
+pub enum Event {
+    Markdown(Modification),
+    Drop { content: Vec<ClipContent>, position: egui::Pos2 },
+    Paste { content: Vec<ClipContent>, position: egui::Pos2 },
+}
+
+#[derive(Debug, Clone)]
+pub enum ClipContent {
+    Files(Vec<PathBuf>),
+    Png(Vec<u8>),
+}
+
+pub trait EventManager {
+    fn push_event(&self, event: Event);
+    fn push_markdown_event(&self, event: Modification);
+    fn pop_events(&self) -> Vec<Event>;
+}
+
+impl EventManager for egui::Context {
+    fn push_event(&self, event: Event) {
+        self.memory_mut(|m| {
+            let mut events: Vec<Event> = m
+                .data
+                .get_temp(Id::new("custom_events"))
+                .unwrap_or_default();
+            events.push(event);
+            m.data.insert_temp(Id::new("custom_events"), events);
+        })
+    }
+
+    fn push_markdown_event(&self, event: Modification) {
+        self.push_event(Event::Markdown(event))
+    }
+
+    fn pop_events(&self) -> Vec<Event> {
+        self.memory_mut(|m| {
+            let events: Vec<Event> = m
+                .data
+                .get_temp(Id::new("custom_events"))
+                .unwrap_or_default();
+            m.data
+                .insert_temp(Id::new("custom_events"), Vec::<Event>::new());
+            events
+        })
+    }
+}
+
+// todo: better filename
+// todo: use currently open folder
+// todo: use background thread
+// todo: refresh file tree view
+pub fn import_image(core: &lb_rs::Core, data: &[u8]) -> File {
+    let file = core
+        .create_file(
+            &format!(
+                "pasted_image_{}.png",
+                SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap()
+                    .as_micros()
+            ),
+            core.get_root().expect("get lockbook root").id,
+            FileType::Document,
+        )
+        .expect("create lockbook file for image");
+    core.write_document(file.id, data)
+        .expect("write lockbook file for image");
+    file
 }

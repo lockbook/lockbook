@@ -1,5 +1,5 @@
-use crate::offset_types::{DocCharOffset, RelCharOffset};
-use crate::style::{IndentLevel, ListItem, Title, Url};
+use crate::tab::markdown_editor::offset_types::{DocCharOffset, RelCharOffset};
+use crate::tab::markdown_editor::style::{IndentLevel, ListItem, Title, Url};
 use egui::text::LayoutJob;
 use egui::TextFormat;
 use pulldown_cmark::LinkType;

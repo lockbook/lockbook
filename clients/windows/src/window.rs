@@ -420,8 +420,6 @@ pub fn init<W: raw_window_handle::HasRawWindowHandle + raw_window_handle::HasRaw
         screen,
         context,
         raw_input: Default::default(),
-        from_egui: None,
-        from_host: None,
         app,
     };
 

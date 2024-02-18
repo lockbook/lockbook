@@ -1,20 +1,24 @@
-use crate::appearance::Appearance;
-use crate::ast::Ast;
-use crate::bounds::Bounds;
-use crate::buffer::{Buffer, EditorMutation};
-use crate::debug::DebugInfo;
-use crate::galleys::Galleys;
-use crate::input;
-use crate::input::canonical::Modification;
-use crate::input::click_checker::ClickChecker;
-use crate::input::cursor::PointerState;
+use crate::tab::markdown_editor::appearance::Appearance;
+use crate::tab::markdown_editor::ast::Ast;
+use crate::tab::markdown_editor::bounds::Bounds;
+use crate::tab::markdown_editor::buffer::{Buffer, EditorMutation};
+use crate::tab::markdown_editor::debug::DebugInfo;
+use crate::tab::markdown_editor::galleys::Galleys;
+use crate::tab::markdown_editor::input;
+use crate::tab::markdown_editor::input::canonical::Modification;
+use crate::tab::markdown_editor::input::click_checker::ClickChecker;
+use crate::tab::markdown_editor::input::cursor::PointerState;
+use crate::tab::{self, ClipContent};
 use egui::Event;
 use std::time::Instant;
 
+use super::canonical::Region;
+
 /// combines `events` and `custom_events` into a single set of events
 pub fn combine(
-    events: &[Event], custom_events: &[Modification], click_checker: impl ClickChecker + Copy,
+    events: &[Event], custom_events: &[crate::Event], click_checker: impl ClickChecker + Copy,
     touch_mode: bool, appearance: &Appearance, pointer_state: &mut PointerState,
+    core: &mut lb_rs::Core,
 ) -> Vec<Modification> {
     let canonical_egui_events = events.iter().filter_map(|e| {
         input::canonical::calc(
@@ -30,8 +34,9 @@ pub fn combine(
     custom_events
         .iter()
         .cloned()
+        .flat_map(|event| handle_custom_event(event, core))
         .chain(canonical_egui_events)
-        .collect::<Vec<Modification>>()
+        .collect()
 }
 
 /// processes `combined_events` and returns a boolean representing whether text was updated, new contents for clipboard
@@ -66,4 +71,28 @@ pub fn process(
             },
         )
         .unwrap_or_default()
+}
+
+fn handle_custom_event(event: crate::Event, core: &mut lb_rs::Core) -> Vec<Modification> {
+    match event {
+        crate::Event::Markdown(modification) => vec![modification],
+        crate::Event::Drop { content, .. } | crate::Event::Paste { content, .. } => {
+            let mut modifications = Vec::new();
+            for clip in content {
+                match clip {
+                    ClipContent::Png(data) => {
+                        let file = tab::import_image(core, &data);
+                        let markdown_image_link = format!("![pasted image](lb://{})", file.id);
+
+                        modifications.push(Modification::Replace {
+                            region: Region::Selection, // todo: more thoughtful location
+                            text: markdown_image_link,
+                        });
+                    }
+                    ClipContent::Files(..) => unimplemented!(), // todo: support file drop & paste
+                }
+            }
+            modifications
+        }
+    }
 }

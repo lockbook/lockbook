@@ -536,7 +536,7 @@ impl DoubleEndedIterator for RangeIter {
 
 #[cfg(test)]
 mod test {
-    use crate::offset_types::RangeExt;
+    use crate::tab::markdown_editor::offset_types::RangeExt;
 
     #[test]
     fn contains() {

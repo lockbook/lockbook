@@ -1,4 +1,4 @@
-use crate::appearance::Appearance;
+use crate::tab::markdown_editor::appearance::Appearance;
 use egui::{FontFamily, Stroke, TextFormat};
 use pulldown_cmark::{HeadingLevel, LinkType};
 use std::hash::Hash;

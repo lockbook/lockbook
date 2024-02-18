@@ -181,7 +181,6 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
         lb.screen.scale_factor = scale_factor;
         lb.raw_input.pixels_per_point = Some(scale_factor);
 
-        // output::clipboard_copy::handle(copied_text);
         if close {
             output::close();
         }
@@ -341,8 +340,6 @@ pub fn init<W: raw_window_handle::HasRawWindowHandle + raw_window_handle::HasRaw
         screen,
         context,
         raw_input: Default::default(),
-        from_egui: None,
-        from_host: None,
         app,
     };
 

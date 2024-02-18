@@ -1,11 +1,14 @@
-use crate::appearance::{GRAY, YELLOW};
-use crate::bounds::RangesExt;
-use crate::images::ImageState;
-use crate::input::canonical::{Location, Modification, Region};
-use crate::layouts::Annotation;
-use crate::offset_types::RangeExt;
-use crate::style::{BlockNode, InlineNode, ListItem, MarkdownNode, RenderStyle};
-use crate::Editor;
+use crate::tab::markdown_editor::appearance::{GRAY, YELLOW};
+use crate::tab::markdown_editor::bounds::RangesExt;
+use crate::tab::markdown_editor::images::ImageState;
+use crate::tab::markdown_editor::input::canonical::{Location, Modification, Region};
+use crate::tab::markdown_editor::layouts::Annotation;
+use crate::tab::markdown_editor::offset_types::RangeExt;
+use crate::tab::markdown_editor::style::{
+    BlockNode, InlineNode, ListItem, MarkdownNode, RenderStyle,
+};
+use crate::tab::markdown_editor::Editor;
+use crate::tab::EventManager;
 use egui::text::LayoutJob;
 use egui::{Align2, Color32, FontId, Pos2, Rect, Rounding, Sense, Stroke, Ui, Vec2};
 use pulldown_cmark::HeadingLevel;
@@ -245,24 +248,24 @@ impl Editor {
 
             // adjust cursor based on selection handle drag
             if start_response.dragged() {
-                self.custom_events.push(Modification::Select {
+                ui.ctx().push_markdown_event(Modification::Select {
                     region: Region::BetweenLocations {
                         start: Location::Pos(ui.input(|i| {
                             i.pointer.interact_pos().unwrap_or_default() + Vec2 { x: 0.0, y: 10.0 }
                         })),
                         end: Location::DocCharOffset(cursor.selection.1),
                     },
-                })
+                });
             }
             if end_response.dragged() {
-                self.custom_events.push(Modification::Select {
+                ui.ctx().push_markdown_event(Modification::Select {
                     region: Region::BetweenLocations {
                         start: Location::DocCharOffset(cursor.selection.0),
                         end: Location::Pos(ui.input(|i| {
                             i.pointer.interact_pos().unwrap_or_default() - Vec2 { x: 0.0, y: 10.0 }
                         })),
                     },
-                })
+                });
             }
         }
     }

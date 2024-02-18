@@ -6,8 +6,10 @@ pub mod theme;
 pub mod widgets;
 pub mod workspace;
 
+pub use tab::Event;
+
 use epaint::text::FontDefinitions;
 
 pub fn register_fonts(fonts: &mut FontDefinitions) {
-    lbeditor::register_fonts(fonts)
+    tab::markdown_editor::register_fonts(fonts)
 }

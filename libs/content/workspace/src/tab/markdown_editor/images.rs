@@ -1,7 +1,7 @@
-use crate::ast::Ast;
-use crate::style::{InlineNode, MarkdownNode, Url};
+use crate::tab::markdown_editor::ast::Ast;
+use crate::tab::markdown_editor::style::{InlineNode, MarkdownNode, Url};
 use egui::{ColorImage, TextureId, Ui};
-use lb::Uuid;
+use lb_rs::Uuid;
 use resvg::tiny_skia::Pixmap;
 use resvg::usvg::{self, Transform, TreeParsing as _};
 use std::collections::HashMap;
@@ -23,7 +23,7 @@ pub enum ImageState {
 }
 
 pub fn calc(
-    ast: &Ast, prior_cache: &ImageCache, client: &reqwest::blocking::Client, core: &lb::Core,
+    ast: &Ast, prior_cache: &ImageCache, client: &reqwest::blocking::Client, core: &lb_rs::Core,
     ui: &Ui,
 ) -> ImageCache {
     let mut result = ImageCache::default();

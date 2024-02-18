@@ -14,7 +14,7 @@ use eframe::egui;
 use lb::{FileType, Uuid};
 use workspace_rs::background::BwIncomingMsg;
 use workspace_rs::tab::image_viewer::{is_supported_image_fmt, ImageViewer};
-use workspace_rs::tab::markdown::Markdown;
+use workspace_rs::tab::markdown_editor::Markdown;
 use workspace_rs::tab::plain_text::PlainText;
 use workspace_rs::tab::{Tab, TabContent, TabFailure};
 use workspace_rs::theme::icons::Icon;

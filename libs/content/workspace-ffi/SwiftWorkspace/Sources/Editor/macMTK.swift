@@ -8,6 +8,7 @@ public class MacMTK: MTKView, MTKViewDelegate {
     var coreHandle: UnsafeMutableRawPointer?
     var trackingArea : NSTrackingArea?
     var pasteBoardEventId: Int = 0
+    var pasteboardString: String?
 
     var workspaceState: WorkspaceState?
 
@@ -137,12 +138,12 @@ public class MacMTK: MTKView, MTKViewDelegate {
     }
 
     public override func keyDown(with event: NSEvent) {
-        setClipboard()
-        if pasteImageInClipboard(event) {
-            return
+        if event.modifierFlags.contains(.command) && event.keyCode == 9 { // cmd+v
+            clipboard_paste(self.wsHandle, pasteboardString)
+        } else {
+            key_event(wsHandle, event.keyCode, event.modifierFlags.contains(.shift), event.modifierFlags.contains(.control), event.modifierFlags.contains(.option), event.modifierFlags.contains(.command), true, event.characters)
         }
 
-        key_event(wsHandle, event.keyCode, event.modifierFlags.contains(.shift), event.modifierFlags.contains(.control), event.modifierFlags.contains(.option), event.modifierFlags.contains(.command), true, event.characters)
         setNeedsDisplay(self.frame)
     }
 
@@ -162,10 +163,7 @@ public class MacMTK: MTKView, MTKViewDelegate {
     }
 
     func setClipboard(){
-        let pasteboardString: String? = NSPasteboard.general.string(forType: .string)
-        if let theString = pasteboardString {
-            system_clipboard_changed(wsHandle, theString)
-        }
+        pasteboardString = NSPasteboard.general.string(forType: .string)
         self.pasteBoardEventId = NSPasteboard.general.changeCount
     }
 

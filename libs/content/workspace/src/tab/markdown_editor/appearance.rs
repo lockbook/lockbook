@@ -4,7 +4,7 @@ use egui::ecolor::Hsva;
 use egui::{Color32, Visuals};
 use pulldown_cmark::HeadingLevel;
 
-use crate::style::{BlockNodeType, InlineNodeType, MarkdownNodeType};
+use crate::tab::markdown_editor::style::{BlockNodeType, InlineNodeType, MarkdownNodeType};
 
 // Apple colors: https://developer.apple.com/design/human-interface-guidelines/foundations/color/
 pub const RED: ThemedColor =
