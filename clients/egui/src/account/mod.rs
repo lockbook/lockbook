@@ -616,9 +616,9 @@ impl AccountScreen {
 
     fn focused_parent(&mut self) -> Uuid {
         let mut focused_parent = self.tree.root.file.id;
-        // for id in self.tree.state.selected.iter() {
-        //     focused_parent = *id;
-        // }
+        for id in self.tree.state.selected.iter() {
+            focused_parent = *id;
+        }
 
         focused_parent
     }

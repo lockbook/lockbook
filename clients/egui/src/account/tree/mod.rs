@@ -152,7 +152,6 @@ impl FileTree {
     }
 
     /// expand the parents of the file and select it
-    // todo: this doesn't request a repaint
     pub fn reveal_file(&mut self, id: lb::Uuid, ctx: &egui::Context) {
         self.state.selected.clear();
         self.state.selected.insert(id);

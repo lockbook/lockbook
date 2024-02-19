@@ -205,8 +205,6 @@ impl Workspace {
         self.process_keys(&mut output);
         self.pers_status.populate_message();
 
-        // output.selected_file = self.tabs.get(self.active_tab).map(|t| t.id);
-
         if self.is_empty() {
             self.show_empty_workspace(ui, &mut output);
         } else {
