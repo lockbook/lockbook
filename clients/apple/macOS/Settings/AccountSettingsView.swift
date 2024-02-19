@@ -38,7 +38,7 @@ struct AccountSettingsView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
             HStack (alignment: .top) {
-                Text("Account Secret:")
+                Text("Private Key:")
                     .frame(maxWidth: 175, alignment: .trailing)
                 VStack {
                     Button(action: settings.copyAccountString, label: {
