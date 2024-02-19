@@ -192,8 +192,7 @@ impl AccountScreen {
                 }
 
                 if let Some(file) = wso.selected_file {
-                    self.tree.reveal_file(file, &self.core);
-                    ctx.request_repaint();
+                    self.tree.reveal_file(file, ctx);
                 }
 
                 if let Some(done) = wso.sync_done {
@@ -617,8 +616,8 @@ impl AccountScreen {
 
     fn focused_parent(&mut self) -> Uuid {
         let mut focused_parent = self.tree.root.file.id;
-        for id in self.tree.state.selected.drain() {
-            focused_parent = id;
+        for id in self.tree.state.selected.iter() {
+            focused_parent = *id;
         }
 
         focused_parent
@@ -713,18 +712,16 @@ impl AccountScreen {
         let update_tx = self.update_tx.clone();
         let ctx = ctx.clone();
 
-        let tab_ids = self
-            .workspace
-            .tabs
-            .iter()
-            .map(|t| t.id)
-            .collect::<Vec<lb::Uuid>>();
-
-        for (i, f) in files.iter().enumerate() {
-            if tab_ids.contains(&f.id) {
-                self.workspace.close_tab(i)
+        let mut tabs_to_delete = vec![];
+        for (i, tab) in self.workspace.tabs.iter().enumerate() {
+            if files.iter().any(|f| f.id.eq(&tab.id)) {
+                tabs_to_delete.push(i);
             }
         }
+        for i in tabs_to_delete {
+            self.workspace.close_tab(i);
+        }
+
         thread::spawn(move || {
             for f in &files {
                 core.delete_file(f.id).unwrap(); // TODO
@@ -742,7 +739,7 @@ impl AccountScreen {
             Ok(f) => {
                 let (id, is_doc) = (f.id, f.is_document());
                 self.tree.root.insert(f);
-                self.tree.reveal_file(id, &self.core);
+                self.tree.reveal_file(id, ctx);
                 if is_doc {
                     self.workspace.open_file(id, true);
                 }

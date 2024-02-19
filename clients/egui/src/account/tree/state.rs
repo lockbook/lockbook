@@ -6,6 +6,7 @@ use std::{
 
 use eframe::egui;
 
+#[derive(Debug)]
 pub struct TreeState {
     pub id: egui::Id,
     pub max_node_width: f32,
@@ -36,7 +37,6 @@ impl Default for TreeState {
 }
 
 pub enum TreeUpdate {
-    RevealFileDone((Vec<lb::Uuid>, lb::Uuid)),
     ExportFile((lb::File, PathBuf)),
 }
 
@@ -63,14 +63,14 @@ impl TreeState {
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct TreeDragAndDropState {
     pub is_primary_down: bool,
     pub has_moved: bool,
     pub dropped: Option<egui::Pos2>,
 }
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct NodeRenamingState {
     pub id: Option<lb::Uuid>,
     pub tmp_name: String,
