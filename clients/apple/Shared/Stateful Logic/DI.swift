@@ -20,7 +20,7 @@ class DI {
     static let search = SearchService(core)
     static let workspace = WorkspaceState(importFile: importExport.importFileURL)
     
-    public static func accountDeleted() {
+    public static func freshState() {
         DI.accounts.account = nil
         DI.settings.usages = nil
         DI.files.root = nil
