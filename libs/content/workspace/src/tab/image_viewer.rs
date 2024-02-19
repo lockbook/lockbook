@@ -14,7 +14,20 @@ impl ImageViewer {
     }
 
     pub fn show(&mut self, ui: &mut egui::Ui) {
-        self.img.show(ui);
+        egui::ScrollArea::both().show(ui, |ui| {
+            if ui.available_width() < self.img.width() as f32
+                || ui.available_height() < self.img.height() as f32
+            {
+                ui.with_layout(
+                    egui::Layout::left_to_right(egui::Align::Center).with_cross_justify(true),
+                    |ui| {
+                        self.img.show(ui);
+                    },
+                );
+            } else {
+                self.img.show(ui);
+            }
+        });
     }
 }
 
