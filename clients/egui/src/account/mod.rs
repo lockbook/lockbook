@@ -714,7 +714,7 @@ impl AccountScreen {
 
         let mut tabs_to_delete = vec![];
         for (i, tab) in self.workspace.tabs.iter().enumerate() {
-            if files.iter().find(|f| f.id.eq(&tab.id)).is_some() {
+            if files.iter().any(|f| f.id.eq(&tab.id)) {
                 tabs_to_delete.push(i);
             }
         }

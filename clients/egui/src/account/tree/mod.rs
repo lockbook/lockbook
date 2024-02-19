@@ -106,17 +106,11 @@ impl FileTree {
             .allocate_ui_at_rect(egui::Rect::from_two_pos(hover_pos, end), |ui| {
                 ui.with_layer_id(layer_id, |ui| {
                     egui::Frame::none()
+                        .fill(ui.visuals().extreme_bg_color.gamma_multiply(0.6))
                         .rounding(3.0)
-                        .inner_margin(1.0)
-                        .fill(ui.visuals().widgets.active.fg_stroke.color)
+                        .inner_margin(egui::style::Margin::symmetric(12.0, 7.0))
                         .show(ui, |ui| {
-                            egui::Frame::none()
-                                .rounding(3.0)
-                                .inner_margin(egui::style::Margin::symmetric(12.0, 7.0))
-                                .fill(ui.visuals().faint_bg_color)
-                                .show(ui, |ui| {
-                                    ui.label(self.state.drag_caption());
-                                });
+                            ui.label(self.state.drag_caption());
                         });
                 })
             })
