@@ -144,7 +144,7 @@ impl TreeNode {
         }
 
         resp = ui.interact(resp.rect, resp.id, egui::Sense::click());
-        if resp.double_clicked() {
+        if resp.clicked() {
             if self.file.is_folder() {
                 if !state.expanded.remove(&self.file.id) {
                     state.expanded.insert(self.file.id);
@@ -178,7 +178,13 @@ impl TreeNode {
         let wrap_width = ui.available_width();
 
         let icon = if self.file.is_folder() {
-            let wt: egui::WidgetText = (&Icon::FOLDER_OPEN).into();
+            let wt: egui::WidgetText = if state.expanded.contains(&self.file.id) {
+                &Icon::FOLDER_OPEN
+            } else {
+                &Icon::FOLDER
+            }
+            .into();
+
             wt.color(ui.visuals().hyperlink_color)
         } else {
             let wt: egui::WidgetText = (&self.icon()).into();
@@ -204,7 +210,7 @@ impl TreeNode {
             let bg = if state.selected.contains(&self.file.id) {
                 ui.visuals().code_bg_color.gamma_multiply(0.6)
             } else if resp.hovered() {
-                ui.visuals().code_bg_color.gamma_multiply(0.3)
+                ui.visuals().code_bg_color.gamma_multiply(0.2)
             } else {
                 ui.visuals().panel_fill
             };
