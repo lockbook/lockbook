@@ -2,8 +2,6 @@ mod node;
 mod response;
 mod state;
 
-use std::thread;
-
 pub use self::node::TreeNode;
 
 use eframe::egui;
@@ -77,15 +75,6 @@ impl FileTree {
 
         while let Ok(update) = self.state.update_rx.try_recv() {
             match update {
-                TreeUpdate::RevealFileDone((expanded_files, selected)) => {
-                    self.state.request_scroll = true;
-
-                    expanded_files.iter().for_each(|f| {
-                        self.state.expanded.insert(*f);
-                    });
-                    self.state.selected.clear();
-                    self.state.selected.insert(selected);
-                }
                 TreeUpdate::ExportFile((exported_file, dest)) => {
                     match self
                         .core
@@ -163,27 +152,23 @@ impl FileTree {
     }
 
     /// expand the parents of the file and select it
-    // todo: remove this, duplicate of expand_to()
     // todo: this doesn't request a repaint
-    pub fn reveal_file(&mut self, id: lb::Uuid, core: &lb::Core) {
-        let core = core.clone();
-        let update_tx = self.state.update_tx.clone();
-        thread::spawn(move || {
-            let mut curr = core.get_file_by_id(id).unwrap();
-            let mut expanded = vec![];
-            loop {
-                let parent = core.get_file_by_id(curr.parent).unwrap();
-                expanded.push(parent.id);
-                if parent == curr {
-                    break;
-                }
-                curr = parent;
-            }
+    pub fn reveal_file(&mut self, id: lb::Uuid, ctx: &egui::Context) {
+        self.state.selected.clear();
+        self.state.selected.insert(id);
 
-            update_tx
-                .send(TreeUpdate::RevealFileDone((expanded, id)))
-                .unwrap();
-        });
+        self.state.request_scroll = true;
+
+        let mut curr = self.core.get_file_by_id(id).unwrap();
+        loop {
+            let parent = self.core.get_file_by_id(curr.parent).unwrap();
+            self.state.expanded.insert(parent.id);
+            if parent == curr {
+                break;
+            }
+            curr = parent;
+        }
+        ctx.request_repaint();
     }
 }
 

@@ -200,10 +200,12 @@ impl Workspace {
 
     pub fn show_workspace(&mut self, ui: &mut egui::Ui) -> WsOutput {
         let mut output = WsOutput::default();
+
         self.process_updates(&mut output);
         self.process_keys(&mut output);
         self.pers_status.populate_message();
-        output.selected_file = self.tabs.get(self.active_tab).map(|t| t.id);
+
+        // output.selected_file = self.tabs.get(self.active_tab).map(|t| t.id);
 
         if self.is_empty() {
             self.show_empty_workspace(ui, &mut output);
@@ -582,7 +584,7 @@ impl Workspace {
             );
         }
 
-        // Alt-{1-9} to easily navigate tabs (9 will always go to the last tab).
+        // Ctrl-{1-9} to easily navigate tabs (9 will always go to the last tab).
         self.ctx.clone().input_mut(|input| {
             for i in 1..10 {
                 if input.consume_key(CTRL, NUM_KEYS[i - 1]) {
@@ -598,6 +600,7 @@ impl Workspace {
                     }
                     if let Some(tab) = self.current_tab() {
                         output.window_title = Some(tab.name.clone());
+                        output.selected_file = Some(tab.id);
                     }
                     break;
                 }
