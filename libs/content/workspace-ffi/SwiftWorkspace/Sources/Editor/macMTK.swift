@@ -19,6 +19,7 @@ public class MacMTK: MTKView, MTKViewDelegate {
     var redrawTask: DispatchWorkItem? = nil
 
     var lastCursor: NSCursor = NSCursor.arrow
+    var cursorHidden: Bool = false
 
     override init(frame frameRect: CGRect, device: MTLDevice?) {
         super.init(frame: frameRect, device: device)
@@ -310,13 +311,21 @@ public class MacMTK: MTKView, MTKViewDelegate {
             NSPasteboard.general.setString(text, forType: .string)
         }
         
+        let cursor = NSCursor.fromCCursor(c: output.cursor)
+        if cursor != lastCursor {
+            self.lastCursor = cursor
+            self.resetCursorRects()
+        }
+        
         if output.cursor == None {
-            NSCursor.hide()
+            if !cursorHidden {
+                NSCursor.hide()
+                cursorHidden = true
+            }
         } else {
-            let cursor = NSCursor.fromCCursor(c: output.cursor)
-            if cursor != lastCursor {
-                self.lastCursor = cursor
-                self.resetCursorRects()
+            if cursorHidden {
+                NSCursor.unhide()
+                cursorHidden = false
             }
         }
     }
