@@ -14,7 +14,9 @@ impl ImageViewer {
     }
 
     pub fn show(&mut self, ui: &mut egui::Ui) {
-        self.img.show(ui);
+        egui::ScrollArea::both().show(ui, |ui| {
+            self.img.show(ui);
+        });
     }
 }
 
