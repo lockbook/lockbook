@@ -712,18 +712,16 @@ impl AccountScreen {
         let update_tx = self.update_tx.clone();
         let ctx = ctx.clone();
 
-        let tab_ids = self
-            .workspace
-            .tabs
-            .iter()
-            .map(|t| t.id)
-            .collect::<Vec<lb::Uuid>>();
-
-        for (i, f) in files.iter().enumerate() {
-            if tab_ids.contains(&f.id) {
-                self.workspace.close_tab(i)
+        let mut tabs_to_delete = vec![];
+        for (i, tab) in self.workspace.tabs.iter().enumerate() {
+            if files.iter().find(|f| f.id.eq(&tab.id)).is_some() {
+                tabs_to_delete.push(i);
             }
         }
+        for i in tabs_to_delete {
+            self.workspace.close_tab(i);
+        }
+
         thread::spawn(move || {
             for f in &files {
                 core.delete_file(f.id).unwrap(); // TODO
