@@ -63,6 +63,8 @@ use crate::{
 pub fn main() -> Result<(), Box<dyn std::error::Error>> {
     env_logger::init();
 
+    std::env::set_var("WAYLAND_DISPLAY", "");
+
     let events = [
         EventMask::KEY_PRESS,
         EventMask::KEY_RELEASE,
