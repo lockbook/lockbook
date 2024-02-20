@@ -13,6 +13,10 @@ public struct FakeApi: LockbookApi {
         .failure(.init(unexpected: "LAZY"))
     }
     
+    public func clearLocalDb() -> FfiResult<Empty, ClearLocalDbError> {
+        .failure(.init(unexpected: "LAZY"))
+    }
+    
     public func importAccount(accountString: String) -> FfiResult<Empty, ImportError> {
         .failure(.init(unexpected: "LAZY"))
     }

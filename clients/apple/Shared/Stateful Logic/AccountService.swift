@@ -48,8 +48,12 @@ class AccountService: ObservableObject {
     }
     
     func logout() {
-        DI.freshState()
-        // delete local files
+        switch core.clearLocalDb() {
+        case .success(_):
+            DI.freshState()
+        case .failure(let error):
+            DI.errors.handleError(error)
+        }
     }
     
     func deleteAccount() {
