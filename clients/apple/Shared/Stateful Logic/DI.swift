@@ -18,7 +18,7 @@ class DI {
     static let onboarding = OnboardingService(core)
     static let sheets: SheetState = SheetState()
     static let search = SearchService(core)
-    static let workspace = WorkspaceState(importFile: importExport.importFileURL)
+    static let workspace = WorkspaceState()
     
     public static func accountDeleted() {
         DI.accounts.account = nil
@@ -47,7 +47,7 @@ class Mock {
     static let onboarding = OnboardingService(core)
     static let sheets: SheetState = SheetState()
     static let search = SearchService(core)
-    static let workspace = WorkspaceState(importFile: importExport.importFileURL)
+    static let workspace = WorkspaceState()
 }
 
 extension View {
