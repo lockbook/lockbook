@@ -142,18 +142,25 @@ impl PdfViewer {
                 sao.show_viewport(ui, |ui, _| {
                     ui.vertical_centered(|ui| {
                         for (i, p) in self.renders.clone().iter_mut().enumerate() {
-                            let res = ui.add(
-                                egui::Image::new(
-                                    &p.texture,
-                                    egui::vec2(
-                                        p.texture.size()[0] as f32
-                                            * self.zoom_factor.unwrap_or(1.0),
-                                        p.texture.size()[1] as f32
-                                            * self.zoom_factor.unwrap_or(1.0),
-                                    ),
+                            let img = egui::Image::new(
+                                &p.texture,
+                                egui::vec2(
+                                    p.texture.size()[0] as f32 * self.zoom_factor.unwrap_or(1.0),
+                                    p.texture.size()[1] as f32 * self.zoom_factor.unwrap_or(1.0),
+                                ),
+                            )
+                            .sense(egui::Sense::click());
+
+                            let res = if ui.available_size_before_wrap().x < img.size()[0] {
+                                ui.with_layout(
+                                    egui::Layout::left_to_right(egui::Align::Center)
+                                        .with_cross_justify(true),
+                                    |ui| ui.add(img),
                                 )
-                                .sense(egui::Sense::click()),
-                            );
+                                .inner
+                            } else {
+                                ui.add(img)
+                            };
 
                             if p.offset.is_none() {
                                 p.offset = Some(offset_sum);
