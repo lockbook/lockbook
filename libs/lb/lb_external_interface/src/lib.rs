@@ -76,6 +76,10 @@ impl FfiCore {
         Ok(self.core.create_account(username, api_url, welcome_doc)?)
     }
 
+    pub fn clear_local_db(&self) -> Result<(), UnexpectedError> {
+        Ok(self.core.clear_local_db()?)
+    }
+
     pub fn import_account(&self, account_string: &str) -> Result<Account, Error<ImportError>> {
         Ok(self.core.import_account(account_string)?)
     }

@@ -23,8 +23,18 @@ pub struct LbAccountResult {
     err: LbError,
 }
 
+#[repr(C)]
+pub struct LbClearLocalDbResult {
+    ok: (),
+    err: LbError,
+}
+
 fn lb_account_result_new() -> LbAccountResult {
     LbAccountResult { ok: lb_account_new(), err: lb_error_none() }
+}
+
+fn lb_clear_local_db_result_new() -> LbClearLocalDbResult {
+    LbClearLocalDbResult { ok: (), err: lb_error_none() }
 }
 
 /// # Safety
@@ -33,6 +43,15 @@ pub unsafe extern "C" fn lb_account_result_free(r: LbAccountResult) {
     if r.err.code == LbErrorCode::Success {
         lb_account_free(r.ok);
     } else {
+        lb_error_free(r.err);
+    }
+}
+
+/// # Safety
+#[no_mangle]
+pub unsafe extern "C" fn lb_clear_local_db_result_free(r: LbAccountResult) {
+    // ok is unit, so nothing to free
+    if r.err.code != LbErrorCode::Success {
         lb_error_free(r.err);
     }
 }
@@ -53,6 +72,18 @@ pub unsafe extern "C" fn lb_create_account(
             r.ok.api_url = cstr(acct.api_url);
         }
         Err(err) => r.err = lberr(err),
+    }
+    r
+}
+
+/// # Safety
+///
+/// The returned value must be passed to `lb_clear_local_db_result_free` to avoid a memory leak.
+#[no_mangle]
+pub unsafe extern "C" fn clear_local_db(core: *mut c_void) -> LbClearLocalDbResult {
+    let mut r = lb_clear_local_db_result_new();
+    if let Err(err) = core!(core).clear_local_db() {
+        r.err = lberr(err);
     }
     r
 }

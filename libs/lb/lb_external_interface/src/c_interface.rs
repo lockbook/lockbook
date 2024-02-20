@@ -99,6 +99,14 @@ pub unsafe extern "C" fn create_account(
     })
 }
 
+#[no_mangle]
+pub extern "C" fn clear_local_db() -> *const c_char {
+    c_string(match static_state::get() {
+        Ok(core) => translate(core.clear_local_db()),
+        e => translate(e.map(|_| ())),
+    })
+}
+
 /// # Safety
 ///
 /// Be sure to call `release_pointer` on the result of this function to free the data.

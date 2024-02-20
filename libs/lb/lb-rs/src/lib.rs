@@ -152,6 +152,11 @@ impl<Client: Requester, Docs: DocumentService> CoreLib<Client, Docs> {
         Ok(account)
     }
 
+    pub fn clear_local_db(&self) -> LbResult<()> {
+        self.in_tx(|s| s.clear_local_db())
+            .expected_errs(&[CoreError::ServerUnreachable])
+    }
+
     #[instrument(level = "debug", skip_all, err(Debug))]
     pub fn import_account(&self, account_string: &str) -> LbResult<Account> {
         self.in_tx(|s| s.import_account(account_string))
