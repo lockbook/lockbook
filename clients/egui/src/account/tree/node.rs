@@ -113,12 +113,10 @@ impl TreeNode {
 
         let scroll_to_this = if let Some(scroll_to) = state.request_scroll {
             scroll_to == self.file.id
+        } else if let Some(pointer_pos) = ui.input(|i| i.pointer.hover_pos()) {
+            resp.rect.contains(pointer_pos) && state.is_dragging()
         } else {
-            if let Some(pointer_pos) = ui.input(|i| i.pointer.hover_pos()) {
-                resp.rect.contains(pointer_pos) && state.is_dragging()
-            } else {
-                false
-            }
+            false
         };
         if scroll_to_this {
             ui.scroll_to_rect(resp.rect, None);
