@@ -1,4 +1,4 @@
-use egui::{epaint::text::cursor, Context, PlatformOutput, Visuals};
+use egui::{Context, PlatformOutput, Visuals};
 use egui_wgpu_backend::{
     wgpu::{self, CompositeAlphaMode},
     ScreenDescriptor,
