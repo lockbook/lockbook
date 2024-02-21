@@ -9,22 +9,24 @@ pub fn update(cursor_icon: CursorIcon) {
 
 pub fn handle() -> bool {
     let cursor_icon = unsafe { CURSOR_ICON };
-    if cursor_icon == CursorIcon::Default {
-        // if the application set a default cursor icon, defer to Windows e.g. to apply window resize cursor icons
-        false
-    } else if cursor_icon == CursorIcon::None {
-        // if the application set the cursor to None, hide the cursor
-        unsafe { ShowCursor(BOOL(0)) };
+
+    if cursor_icon == CursorIcon::None {
+        unsafe { while ShowCursor(BOOL(0)) >= 0 {} }; // showcursor increments a counter
         true
     } else {
-        while ShowCursor(BOOL(1)).0 < 0 {} // ChatGPT told me to do this in a loop
-        let windows_cursor = to_windows_cursor(unsafe { CURSOR_ICON });
-        let cursor =
-            unsafe { LoadCursorW(HINSTANCE(0), windows_cursor) }.expect("load cursor icon");
-        unsafe { SetCursor(cursor) };
-        // unsafe { CURSOR_ICON = CursorIcon::Default }; is this causing flickering?
-        true
+        unsafe { while ShowCursor(BOOL(1)) < 0 {} };
+        if cursor_icon == CursorIcon::Default {
+            // if the application set a default cursor icon, defer to Windows e.g. to apply window resize cursor icons
+            false
+        } else {
+            let windows_cursor = to_windows_cursor(unsafe { CURSOR_ICON });
+            let cursor =
+                unsafe { LoadCursorW(HINSTANCE(0), windows_cursor) }.expect("load cursor icon");
+            unsafe { SetCursor(cursor) };
+            true
+        }
     }
+
 }
 
 // https://github.com/rust-windowing/winit/blob/3eea5054405295d79a9b127a879e7accffa4db53/src/platform_impl/windows/util.rs#L167C1-L192C2
