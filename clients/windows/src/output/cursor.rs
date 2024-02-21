@@ -12,12 +12,17 @@ pub fn handle() -> bool {
     if cursor_icon == CursorIcon::Default {
         // if the application set a default cursor icon, defer to Windows e.g. to apply window resize cursor icons
         false
+    } else if cursor_icon == CursorIcon::None {
+        // if the application set the cursor to None, hide the cursor
+        unsafe { ShowCursor(BOOL(0)) };
+        true
     } else {
+        while ShowCursor(BOOL(1)).0 < 0 {} // ChatGPT told me to do this in a loop
         let windows_cursor = to_windows_cursor(unsafe { CURSOR_ICON });
         let cursor =
             unsafe { LoadCursorW(HINSTANCE(0), windows_cursor) }.expect("load cursor icon");
         unsafe { SetCursor(cursor) };
-        unsafe { CURSOR_ICON = CursorIcon::Default };
+        // unsafe { CURSOR_ICON = CursorIcon::Default }; is this causing flickering?
         true
     }
 }
