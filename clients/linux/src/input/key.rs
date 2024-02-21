@@ -119,21 +119,20 @@ pub fn handle(
             app.raw_input
                 .events
                 .push(egui::Event::Text(text.to_owned()));
-            return Ok(());
         }
     }
 
     // todo: something feels weird about this
     if let Some(key) = egui_key(key) {
-        // ctrl + v
         if pressed && key == egui::Key::V && modifiers.command {
+            // ctrl + v
             paste_context.handle_paste()?;
+        } else {
+            // other egui keys
+            app.raw_input
+                .events
+                .push(egui::Event::Key { key, pressed, repeat: false, modifiers });
         }
-
-        // other egui keys
-        app.raw_input
-            .events
-            .push(egui::Event::Key { key, pressed, repeat: false, modifiers });
     }
 
     Ok(())
