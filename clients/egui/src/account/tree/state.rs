@@ -47,6 +47,42 @@ impl TreeState {
         }
     }
 
+    // returns true if the drag was released
+    pub fn update_dnd(&mut self, i: &egui::InputState) -> bool {
+        let mut released = false;
+
+        self.dnd.is_primary_down = i.pointer.primary_down();
+
+        // check events because sometimes pointer down and up will happen in the same frame
+        // see clients/windows/src/input/pointer.rs
+        for event in &i.events {
+            if let egui::Event::PointerButton {
+                pos,
+                button: egui::PointerButton::Primary,
+                pressed,
+                ..
+            } = event
+            {
+                if *pressed {
+                    self.dnd.is_primary_down = true;
+                    self.dnd.start_pos = *pos;
+                } else {
+                    released = true;
+                }
+            }
+        }
+
+        if self.dnd.is_primary_down {
+            self.dnd.has_moved |= i.pointer.is_moving();
+        }
+
+        released
+    }
+
+    pub fn is_dragging_rect(&self, rect: egui::Rect) -> bool {
+        rect.contains(self.dnd.start_pos) && self.is_dragging()
+    }
+
     pub fn is_dragging(&self) -> bool {
         self.dnd.is_primary_down && self.dnd.has_moved
     }
@@ -66,6 +102,7 @@ impl TreeState {
 #[derive(Default, Debug)]
 pub struct TreeDragAndDropState {
     pub is_primary_down: bool,
+    pub start_pos: egui::Pos2,
     pub has_moved: bool,
     pub dropped: Option<egui::Pos2>,
 }

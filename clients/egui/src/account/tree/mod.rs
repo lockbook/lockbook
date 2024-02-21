@@ -27,10 +27,8 @@ impl FileTree {
 
     pub fn show(&mut self, ui: &mut egui::Ui) -> NodeResponse {
         ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
-        let mut is_hovered = false;
         let mut r = egui::Frame::none().show(ui, |ui| {
             let result = self.root.show(ui, &mut self.state);
-            is_hovered = result.response.hovered();
             result.inner
         });
 
@@ -57,18 +55,14 @@ impl FileTree {
             }
         });
 
-        if self.state.is_dragging() {
-            if ui.input(|i| i.pointer.any_released()) {
+        let dragging_rect = self.state.is_dragging_rect(r.response.rect);
+        let released = ui.input(|i| self.state.update_dnd(i));
+        if dragging_rect {
+            if released {
                 let maybe_pos = ui.ctx().pointer_interact_pos();
                 self.state.dropped(maybe_pos);
             } else {
                 self.draw_drag_info_by_cursor(ui);
-            }
-        } else if is_hovered && ui.input(|i| i.pointer.primary_down()) {
-            // todo(steve): prep drag only if a file is clicked
-            self.state.dnd.is_primary_down = true;
-            if ui.input(|i| i.pointer.is_moving()) {
-                self.state.dnd.has_moved = true;
             }
         }
         ui.expand_to_include_rect(ui.available_rect_before_wrap());
