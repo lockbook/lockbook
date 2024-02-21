@@ -91,6 +91,7 @@ pub fn handle(
     app: &mut WgpuLockbook, message: MessageAppDep, key: VIRTUAL_KEY, modifiers: egui::Modifiers,
 ) -> bool {
     let pressed = matches!(message, MessageAppDep::KeyDown { .. });
+    let mut consumed = false;
 
     // text
     if pressed && (modifiers.shift_only() || modifiers.is_none()) {
@@ -98,26 +99,25 @@ pub fn handle(
             app.raw_input
                 .events
                 .push(egui::Event::Text(text.to_owned()));
-            return true;
+            consumed = true;
         }
     }
 
     // todo: something feels weird about this
     if let Some(key) = egui_key(key) {
-        // ctrl + v
         if pressed && key == egui::Key::V && modifiers.command {
+            // ctrl + v
             clipboard_paste::handle(app);
-            return true;
+        } else {
+            // other egui keys
+            app.raw_input
+                .events
+                .push(egui::Event::Key { key, pressed, repeat: false, modifiers });
         }
-
-        // other egui keys
-        app.raw_input
-            .events
-            .push(egui::Event::Key { key, pressed, repeat: false, modifiers });
-        return true;
+        consumed = true;
     }
 
-    false
+    consumed
 }
 
 pub fn key_text(vk: VIRTUAL_KEY, shift: bool) -> Option<&'static str> {
