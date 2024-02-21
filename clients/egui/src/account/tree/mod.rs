@@ -96,31 +96,17 @@ impl FileTree {
         end.x += 70.0;
         end.y += 50.0;
 
-        let response = ui
-            .allocate_ui_at_rect(egui::Rect::from_two_pos(hover_pos, end), |ui| {
-                ui.with_layer_id(layer_id, |ui| {
-                    egui::Frame::none()
-                        .fill(ui.visuals().extreme_bg_color.gamma_multiply(0.6))
-                        .rounding(3.0)
-                        .inner_margin(egui::style::Margin::symmetric(12.0, 7.0))
-                        .show(ui, |ui| {
-                            ui.label(self.state.drag_caption());
-                        });
-                })
+        ui.allocate_ui_at_rect(egui::Rect::from_two_pos(hover_pos, end), |ui| {
+            ui.with_layer_id(layer_id, |ui| {
+                egui::Frame::none()
+                    .fill(ui.visuals().extreme_bg_color.gamma_multiply(0.6))
+                    .rounding(3.0)
+                    .inner_margin(egui::style::Margin::symmetric(12.0, 7.0))
+                    .show(ui, |ui| {
+                        ui.label(self.state.drag_caption());
+                    });
             })
-            .response;
-
-        if let Some(pointer_pos) = ui.ctx().pointer_hover_pos() {
-            // todo: make sure dragging doesn't expand scroll area to infinity and beyond. respect the initial max width and height;
-
-            if pointer_pos.y < 30.0 {
-                ui.scroll_with_delta(egui::vec2(0., 30.0));
-            }
-            if pointer_pos.y < 100.0 {
-                ui.scroll_with_delta(egui::vec2(0., 10.0));
-            }
-            ui.scroll_to_rect(response.rect, None);
-        }
+        });
     }
 
     pub fn remove(&mut self, f: &lb::File) {
@@ -143,8 +129,7 @@ impl FileTree {
     pub fn reveal_file(&mut self, id: lb::Uuid, ctx: &egui::Context) {
         self.state.selected.clear();
         self.state.selected.insert(id);
-
-        self.state.request_scroll = true;
+        self.state.request_scroll = Some(id);
 
         let mut curr = self.core.get_file_by_id(id).unwrap();
         loop {
