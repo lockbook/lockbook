@@ -665,7 +665,6 @@ impl Workspace {
                 }
                 WsMsg::SyncMsg(prog) => self.sync_message(prog),
                 WsMsg::FileRenamed { id, new_name } => {
-                    println! {"8"};
                     out.file_renamed = Some((id, new_name.clone()));
                     if let Some(tab) = self.get_mut_tab_by_id(id) {
                         tab.name = new_name.clone();
