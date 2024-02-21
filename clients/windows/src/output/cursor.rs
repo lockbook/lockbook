@@ -26,7 +26,6 @@ pub fn handle() -> bool {
             true
         }
     }
-
 }
 
 // https://github.com/rust-windowing/winit/blob/3eea5054405295d79a9b127a879e7accffa4db53/src/platform_impl/windows/util.rs#L167C1-L192C2
