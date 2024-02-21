@@ -2,6 +2,7 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 
 use eframe::egui;
+use workspace_rs::theme::icons::Icon;
 use workspace_rs::widgets::{Button, ProgressBar};
 
 use super::AccountUpdate;
@@ -19,29 +20,39 @@ impl SyncPanel {
 
 impl super::AccountScreen {
     pub fn show_sync_panel(&mut self, ui: &mut egui::Ui) {
-        ui.add_space(20.0);
-
         if self.settings.read().unwrap().sidebar_usage {
             match &self.usage {
                 Ok(usage) => {
-                    egui::Frame::none().inner_margin(6.0).show(ui, |ui| {
-                        ui.horizontal(|ui| {
-                            ui.columns(2, |uis| {
-                                uis[0].horizontal(|ui| {
-                                    ui.add_space(2.0);
-                                    ui.label(&usage.used);
-                                });
+                    egui::Frame::none().inner_margin(0.0).show(ui, |ui| {
+                        // ui.horizontal(|ui| {
+                        //     ui.columns(2, |uis| {
+                        //         uis[0].horizontal(|ui| {
+                        //             ui.add_space(2.0);
+                        //             ui.label(egui::RichText::new(&usage.used).size(15.));
+                        //         });
 
-                                uis[1].with_layout(
-                                    egui::Layout::right_to_left(egui::Align::Min),
-                                    |ui| {
-                                        ui.add_space(5.0);
-                                        ui.label(&usage.available);
-                                    },
-                                );
-                            });
-                        });
+                        //         uis[1].with_layout(
+                        //             egui::Layout::right_to_left(egui::Align::Min),
+                        //             |ui| {
+                        //                 ui.add_space(5.0);
+                        //                 ui.label(
+                        //                     egui::RichText::new(&usage.available)
+                        //                         .strong()
+                        //                         .size(15.),
+                        //                 );
+                        //             },
+                        //         );
+                        //     });
+                        // });
 
+                        ui.label(
+                            egui::RichText::new(format!(
+                                "{} out of {} used",
+                                usage.used, usage.available,
+                            ))
+                            .color(egui::Color32::GRAY)
+                            .size(15.0),
+                        );
                         ui.add_space(8.0);
 
                         ProgressBar::new().percent(usage.percent).show(ui);
@@ -64,36 +75,16 @@ impl super::AccountScreen {
             desired_size,
             egui::Layout::left_to_right(egui::Align::Center),
             |ui| {
-                ui.add_space(5.0);
-
-                ui.visuals_mut().widgets.inactive.fg_stroke =
-                    egui::Stroke { color: ui.visuals().hyperlink_color, ..Default::default() };
-
-                ui.visuals_mut().widgets.hovered.fg_stroke =
-                    egui::Stroke { color: ui.visuals().hyperlink_color, ..Default::default() };
-
-                ui.visuals_mut().widgets.active.fg_stroke =
-                    egui::Stroke { color: ui.visuals().hyperlink_color, ..Default::default() };
-
-                if !self.workspace.pers_status.syncing
-                    && Button::default()
-                        .text("Sync")
-                        .padding((6.0, 6.0))
-                        .show(ui)
-                        .clicked()
-                {
-                    self.workspace.perform_sync();
-                }
-
-                if self.workspace.pers_status.syncing {
-                    ui.spinner();
-                }
-
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    ui.add_space(10.0);
+                    // todo: make sure this shows for at least 1 second even if sync finishes before that
+                    if self.workspace.pers_status.syncing {
+                        ui.spinner();
+                    }
                     match &self.sync.status {
                         Ok(s) => ui.label(
-                            egui::RichText::new(format!("Updated {s}")).color(egui::Color32::GRAY),
+                            egui::RichText::new(format!("Updated {s}"))
+                                .color(ui.visuals().widgets.active.bg_fill)
+                                .size(15.0),
                         ),
                         Err(msg) => ui.label(egui::RichText::new(msg).color(egui::Color32::RED)),
                     };

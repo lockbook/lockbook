@@ -136,11 +136,13 @@ impl AccountScreen {
                 ui.with_layout(egui::Layout::bottom_up(egui::Align::Min), |ui| {
                     ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
 
-                    self.show_sync_panel(ui);
-
-                    separator(ui);
-
-                    self.show_nav_panel(ui);
+                    egui::Frame::default()
+                        .inner_margin(egui::Margin::symmetric(30.0, 20.0))
+                        .show(ui, |ui| {
+                            self.show_sync_panel(ui);
+                            separator(ui);
+                            self.show_nav_panel(ui);
+                        });
 
                     ui.vertical(|ui| {
                         ui.add_space(15.0);
@@ -441,40 +443,47 @@ impl AccountScreen {
     }
 
     fn show_nav_panel(&mut self, ui: &mut egui::Ui) {
+        let visuals_before_button = ui.visuals().clone();
+
         ui.allocate_ui_with_layout(
             egui::vec2(ui.available_size_before_wrap().x, 70.0),
             egui::Layout::left_to_right(egui::Align::Center),
             |ui| {
-                ui.add_space(10.0);
+                // ui.add_space(10.0);
 
-                let settings_btn = Button::default().icon(&Icon::SETTINGS).show(ui);
-                if settings_btn.clicked() {
-                    self.update_tx.send(OpenModal::Settings.into()).unwrap();
-                    ui.ctx().request_repaint();
-                };
-                settings_btn.on_hover_text("Settings");
+                let text_stroke =
+                    egui::Stroke { color: ui.visuals().hyperlink_color, ..Default::default() };
+                ui.visuals_mut().widgets.inactive.fg_stroke = text_stroke;
+                ui.visuals_mut().widgets.hovered.fg_stroke = text_stroke;
+                ui.visuals_mut().widgets.active.fg_stroke = text_stroke;
 
-                let incoming_shares_btn = Button::default()
-                    .icon(
-                        &Icon::SHARED_FOLDER.badge(
-                            !self
-                                .workspace
-                                .pers_status
-                                .dirtyness
-                                .pending_shares
-                                .is_empty(),
-                        ),
-                    )
-                    .show(ui);
+                ui.visuals_mut().widgets.inactive.bg_fill =
+                    ui.visuals().widgets.active.bg_fill.gamma_multiply(0.05);
+                ui.visuals_mut().widgets.hovered.bg_fill =
+                    ui.visuals().widgets.active.bg_fill.gamma_multiply(0.1);
 
-                if incoming_shares_btn.clicked() {
-                    self.update_tx.send(OpenModal::AcceptShare.into()).unwrap();
-                    ui.ctx().request_repaint();
-                };
-                incoming_shares_btn.on_hover_text("Incoming shares");
+                ui.visuals_mut().widgets.active.bg_fill =
+                    ui.visuals().widgets.active.bg_fill.gamma_multiply(0.2);
+
+                ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
+                    ui.add_space(10.0);
+                    if Button::default()
+                        .text("Sync")
+                        .icon(&Icon::SYNC)
+                        .icon_alignment(egui::Align::RIGHT)
+                        .padding(egui::vec2(10.0, 7.0))
+                        .frame(true)
+                        .rounding(egui::Rounding::same(5.0))
+                        .show(ui)
+                        .clicked()
+                    {
+                        self.workspace.perform_sync();
+                    }
+                });
+
+                
 
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    ui.add_space(10.0);
                     let zen_mode_btn = Button::default().icon(&Icon::HIDE_SIDEBAR).show(ui);
 
                     if zen_mode_btn.clicked() {
@@ -485,6 +494,32 @@ impl AccountScreen {
                     }
 
                     zen_mode_btn.on_hover_text("Hide side panel");
+
+                    let settings_btn = Button::default().icon(&Icon::SETTINGS).show(ui);
+                    if settings_btn.clicked() {
+                        self.update_tx.send(OpenModal::Settings.into()).unwrap();
+                        ui.ctx().request_repaint();
+                    };
+                    settings_btn.on_hover_text("Settings");
+
+                    let incoming_shares_btn = Button::default()
+                        .icon(
+                            &Icon::SHARED_FOLDER.badge(
+                                !self
+                                    .workspace
+                                    .pers_status
+                                    .dirtyness
+                                    .pending_shares
+                                    .is_empty(),
+                            ),
+                        )
+                        .show(ui);
+
+                    if incoming_shares_btn.clicked() {
+                        self.update_tx.send(OpenModal::AcceptShare.into()).unwrap();
+                        ui.ctx().request_repaint();
+                    };
+                    incoming_shares_btn.on_hover_text("Incoming shares");
                 });
             },
         );

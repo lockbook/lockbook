@@ -11,7 +11,7 @@ impl Default for ProgressBar {
 
 impl ProgressBar {
     pub fn new() -> Self {
-        Self { height: 5.0, percent: 0.0 }
+        Self { height: 10.0, percent: 0.0 }
     }
 
     pub fn percent(self, percent: f32) -> Self {
