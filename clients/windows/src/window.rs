@@ -67,6 +67,7 @@ unsafe fn get_window_long(hwnd: HWND, nindex: WINDOW_LONG_PTR_INDEX) -> isize {
 #[derive(Default)]
 pub struct Window {
     maybe_app: Option<WgpuLockbook>, // must be populated after the window is created
+    pointer_manager: input::pointer::PointerManager,
     width: u16,
     height: u16,
     dpi_scale: f32,
@@ -292,7 +293,7 @@ fn handle_message(hwnd: HWND, message: Message) -> bool {
                         | MessageAppDep::PointerUpdate { pointer_id }
                         | MessageAppDep::PointerUp { pointer_id } => {
                             unsafe { InvalidateRect(hwnd, None, false) };
-                            input::pointer::handle(
+                            window.pointer_manager.handle(
                                 app,
                                 hwnd,
                                 modifiers,
