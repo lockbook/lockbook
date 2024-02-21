@@ -60,6 +60,8 @@ pub unsafe extern "C" fn init_ws(
         context,
         raw_input: Default::default(),
         workspace,
+        surface_width: 0,
+        surface_height: 0,
     };
 
     obj.frame();

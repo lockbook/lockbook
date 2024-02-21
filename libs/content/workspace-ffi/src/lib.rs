@@ -109,6 +109,10 @@ pub struct WgpuWorkspace {
     pub surface: wgpu::Surface,
     pub adapter: wgpu::Adapter,
 
+    // remember size last frame to detect resize
+    pub surface_width: u32,
+    pub surface_height: u32,
+
     pub rpass: egui_wgpu_backend::RenderPass,
     pub screen: egui_wgpu_backend::ScreenDescriptor,
 
@@ -350,18 +354,23 @@ impl WgpuWorkspace {
         self.surface.get_capabilities(&self.adapter).formats[0]
     }
 
-    pub fn configure_surface(&self) {
-        let surface_config = wgpu::SurfaceConfiguration {
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-            format: self.surface_format(),
-            width: self.screen.physical_width,
-            height: self.screen.physical_height,
-            present_mode: wgpu::PresentMode::Fifo,
-            alpha_mode: CompositeAlphaMode::Auto,
-            view_formats: vec![],
-        };
-        if surface_config.width * surface_config.height != 0 {
+    pub fn configure_surface(&mut self) {
+        let resized = self.screen.physical_width != self.surface_width
+            || self.screen.physical_height != self.surface_height;
+        let visible = self.screen.physical_width * self.screen.physical_height != 0;
+        if resized && visible {
+            let surface_config = wgpu::SurfaceConfiguration {
+                usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+                format: self.surface_format(),
+                width: self.screen.physical_width,
+                height: self.screen.physical_height,
+                present_mode: wgpu::PresentMode::Fifo,
+                alpha_mode: CompositeAlphaMode::Auto,
+                view_formats: vec![],
+            };
             self.surface.configure(&self.device, &surface_config);
+            self.surface_width = self.screen.physical_width;
+            self.surface_height = self.screen.physical_height;
         }
     }
 }
