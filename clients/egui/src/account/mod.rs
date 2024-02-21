@@ -223,10 +223,10 @@ impl AccountScreen {
                             FilePickerAction::AcceptShare(target),
                         ));
                     }
-                    OpenModal::PickDropParent(target) => {
+                    OpenModal::PickDropParent(drops) => {
                         self.modals.file_picker = Some(FilePicker::new(
                             self.core.clone(),
-                            FilePickerAction::DroppedFile(target),
+                            FilePickerAction::DroppedFiles(drops),
                         ));
                     }
                     OpenModal::InitiateShare(target) => self.open_share_modal(target),
@@ -358,15 +358,10 @@ impl AccountScreen {
 
         if has_dropped_files {
             // todo: handle multiple dropped files
-            let dropped_file = ctx.input(|inp| inp.raw.dropped_files[0].clone());
-
-            if let Some(upd) = dropped_file
-                .path
-                .map(OpenModal::PickDropParent)
-                .map(AccountUpdate::OpenModal)
-            {
-                self.update_tx.send(upd).unwrap()
-            }
+            let dropped_files = ctx.input(|inp| inp.raw.dropped_files.clone());
+            self.update_tx
+                .send(AccountUpdate::OpenModal(OpenModal::PickDropParent(dropped_files)))
+                .unwrap()
         }
     }
 
@@ -688,14 +683,17 @@ impl AccountScreen {
         });
     }
 
-    fn dropped_file(&self, ctx: &egui::Context, target: path::PathBuf, parent: lb::File) {
+    fn dropped_files(&self, ctx: &egui::Context, drops: Vec<egui::DroppedFile>, parent: lb::File) {
         let core = self.core.clone();
         let ctx = ctx.clone();
         let update_tx = self.update_tx.clone();
+        let paths = drops
+            .into_iter()
+            .filter_map(|d| d.path)
+            .collect::<Vec<path::PathBuf>>();
 
         thread::spawn(move || {
-            let result =
-                core.import_files(&[target], parent.id, &|_| println!("imported one file"));
+            let result = core.import_files(&paths, parent.id, &|_| println!("imported one file"));
 
             let all_metas = core.list_metadatas().unwrap();
             let root = tree::create_root_node(all_metas);
@@ -785,7 +783,7 @@ pub enum OpenModal {
     Settings,
     AcceptShare,
     PickShareParent(lb::File),
-    PickDropParent(path::PathBuf),
+    PickDropParent(Vec<egui::DroppedFile>),
     ConfirmDelete(Vec<lb::File>),
 }
 
