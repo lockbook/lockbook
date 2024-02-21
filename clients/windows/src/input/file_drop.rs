@@ -62,7 +62,6 @@ pub fn handle(app: &mut WgpuLockbook, object: Option<IDataObject>) -> bool {
         };
         let mut rgelt = [FORMATETC::default(); 1];
         loop {
-            println!("loop start");
             let mut fetched: u32 = 0;
             if unsafe { format_enumerator.Next(&mut rgelt, Some(&mut fetched as _)) }.is_err() {
                 break;
