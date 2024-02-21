@@ -357,11 +357,10 @@ impl AccountScreen {
         let has_dropped_files = ctx.input(|inp| !inp.raw.dropped_files.is_empty());
 
         if has_dropped_files {
-            // todo: handle multiple dropped files
             let dropped_files = ctx.input(|inp| inp.raw.dropped_files.clone());
             self.update_tx
                 .send(AccountUpdate::OpenModal(OpenModal::PickDropParent(dropped_files)))
-                .unwrap()
+                .unwrap();
         }
     }
 
