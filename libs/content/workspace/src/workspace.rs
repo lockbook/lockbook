@@ -219,7 +219,7 @@ impl Workspace {
             let rect = egui::Rect { min, max };
             ui.allocate_ui_at_rect(rect, |ui| {
                 let zen_mode_btn = Button::default()
-                    .icon(&Icon::SHOW_SIDEBAR)
+                    .icon(&Icon::TOGGLE_SIDEBAR)
                     .frame(true)
                     .show(ui);
                 if zen_mode_btn.clicked() {

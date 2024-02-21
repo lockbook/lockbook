@@ -87,7 +87,6 @@ impl<'a> Button<'a> {
             let icon_visuals = icon_visuals.interact(&resp);
 
             let bg_fill = if resp.hovered() {
-                ui.output_mut(|o| o.cursor_icon = egui::CursorIcon::PointingHand);
                 text_visuals.bg_fill
             } else {
                 self.default_fill.unwrap_or(text_visuals.bg_fill)

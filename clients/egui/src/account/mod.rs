@@ -137,10 +137,9 @@ impl AccountScreen {
                     ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
 
                     egui::Frame::default()
-                        .inner_margin(egui::Margin::symmetric(30.0, 20.0))
+                        .inner_margin(egui::Margin::symmetric(20.0, 20.0))
                         .show(ui, |ui| {
                             self.show_sync_panel(ui);
-                            separator(ui);
                             self.show_nav_panel(ui);
                         });
 
@@ -443,10 +442,10 @@ impl AccountScreen {
     }
 
     fn show_nav_panel(&mut self, ui: &mut egui::Ui) {
-        let visuals_before_button = ui.visuals().clone();
+        let visuals_before_button = ui.style().clone();
 
         ui.allocate_ui_with_layout(
-            egui::vec2(ui.available_size_before_wrap().x, 70.0),
+            egui::vec2(ui.available_size_before_wrap().x, 40.0),
             egui::Layout::left_to_right(egui::Align::Center),
             |ui| {
                 // ui.add_space(10.0);
@@ -465,36 +464,22 @@ impl AccountScreen {
                 ui.visuals_mut().widgets.active.bg_fill =
                     ui.visuals().widgets.active.bg_fill.gamma_multiply(0.2);
 
-                ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
-                    ui.add_space(10.0);
-                    if Button::default()
-                        .text("Sync")
-                        .icon(&Icon::SYNC)
-                        .icon_alignment(egui::Align::RIGHT)
-                        .padding(egui::vec2(10.0, 7.0))
-                        .frame(true)
-                        .rounding(egui::Rounding::same(5.0))
-                        .show(ui)
-                        .clicked()
-                    {
-                        self.workspace.perform_sync();
-                    }
-                });
+                if Button::default()
+                    .text("Sync")
+                    .icon(&Icon::SYNC)
+                    .icon_alignment(egui::Align::RIGHT)
+                    .padding(egui::vec2(10.0, 7.0))
+                    .frame(true)
+                    .rounding(egui::Rounding::same(5.0))
+                    .show(ui)
+                    .clicked()
+                {
+                    self.workspace.perform_sync();
+                }
 
-                
+                ui.set_style(visuals_before_button);
 
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    let zen_mode_btn = Button::default().icon(&Icon::HIDE_SIDEBAR).show(ui);
-
-                    if zen_mode_btn.clicked() {
-                        self.settings.write().unwrap().zen_mode = true;
-                        if let Err(err) = self.settings.read().unwrap().to_file() {
-                            self.modals.error = Some(ErrorModal::new(err));
-                        }
-                    }
-
-                    zen_mode_btn.on_hover_text("Hide side panel");
-
                     let settings_btn = Button::default().icon(&Icon::SETTINGS).show(ui);
                     if settings_btn.clicked() {
                         self.update_tx.send(OpenModal::Settings.into()).unwrap();
@@ -520,6 +505,17 @@ impl AccountScreen {
                         ui.ctx().request_repaint();
                     };
                     incoming_shares_btn.on_hover_text("Incoming shares");
+
+                    let zen_mode_btn = Button::default().icon(&Icon::TOGGLE_SIDEBAR).show(ui);
+
+                    if zen_mode_btn.clicked() {
+                        self.settings.write().unwrap().zen_mode = true;
+                        if let Err(err) = self.settings.read().unwrap().to_file() {
+                            self.modals.error = Some(ErrorModal::new(err));
+                        }
+                    }
+
+                    zen_mode_btn.on_hover_text("Hide side panel");
                 });
             },
         );
