@@ -63,6 +63,7 @@ pub fn handle(app: &mut WgpuLockbook, object: Option<IDataObject>) -> bool {
         };
         let mut rgelt = [FORMATETC::default(); 1];
         loop {
+            println!("loop start");
             let mut fetched: u32 = 0;
             if unsafe { format_enumerator.Next(&mut rgelt, Some(&mut fetched as _)) }.is_err() {
                 break;
@@ -71,12 +72,13 @@ pub fn handle(app: &mut WgpuLockbook, object: Option<IDataObject>) -> bool {
                 break;
             }
 
+            // todo: support additional formats (including custome/registerd formats)
             let format = CLIPBOARD_FORMAT(rgelt[0].cfFormat);
-            let mut format_name = [0u16; 1000];
             let is_predefined_format = format_str(format).is_some();
-            let is_registered_format =
-                unsafe { GetClipboardFormatNameW(format.0 as _, &mut format_name) != 0 };
-            if !is_predefined_format && !is_registered_format {
+            // let mut format_name = [0u16; 1000];
+            // let is_registered_format =
+            // unsafe { GetClipboardFormatNameW(format.0 as _, &mut format_name) != 0 };
+            if !is_predefined_format {
                 continue;
             }
 
@@ -94,7 +96,6 @@ pub fn handle(app: &mut WgpuLockbook, object: Option<IDataObject>) -> bool {
                 // (this applies even if the format isn't CF_HDROP)
                 let hdrop = HDROP(unsafe { std::mem::transmute(hglobal) });
                 let file_count = unsafe { DragQueryFileW(hdrop, 0xFFFFFFFF, None) };
-
                 if format == CF_HDROP {
                     for i in 0..file_count {
                         let mut file_path_bytes = [0u16; MAX_PATH as _];
