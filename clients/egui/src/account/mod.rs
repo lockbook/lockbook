@@ -693,7 +693,17 @@ impl AccountScreen {
             .collect::<Vec<path::PathBuf>>();
 
         thread::spawn(move || {
-            let result = core.import_files(&paths, parent.id, &|_| println!("imported one file"));
+            let result = core.import_files(&paths, parent.id, &|status| match status {
+                lb::ImportStatus::CalculatedTotal(count) => {
+                    println!("importing {} files", count);
+                }
+                lb::ImportStatus::StartingItem(item) => {
+                    println!("starting import: {}", item);
+                }
+                lb::ImportStatus::FinishedItem(item) => {
+                    println!("finished import of {} as lb://{}", item.name, item.id);
+                }
+            });
 
             let all_metas = core.list_metadatas().unwrap();
             let root = tree::create_root_node(all_metas);
