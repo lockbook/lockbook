@@ -1,9 +1,8 @@
 use egui::DroppedFile;
 use lbeguiapp::WgpuLockbook;
 use windows::{
-    core::*, Win32::Foundation::*, Win32::System::Com::*, Win32::System::DataExchange::*,
-    Win32::System::Memory::*, Win32::System::Ole::*, Win32::System::SystemServices::*,
-    Win32::UI::Shell::*,
+    core::*, Win32::Foundation::*, Win32::System::Com::*, Win32::System::Memory::*,
+    Win32::System::Ole::*, Win32::System::SystemServices::*, Win32::UI::Shell::*,
 };
 
 #[derive(Clone, Debug)]
@@ -71,12 +70,14 @@ pub fn handle(app: &mut WgpuLockbook, object: Option<IDataObject>) -> bool {
                 break;
             }
 
+            // todo: support additional formats (including custome/registerd formats)
             let format = CLIPBOARD_FORMAT(rgelt[0].cfFormat);
-            let mut format_name = [0u16; 1000];
             let is_predefined_format = format_str(format).is_some();
-            let is_registered_format =
-                unsafe { GetClipboardFormatNameW(format.0 as _, &mut format_name) != 0 };
-            if !is_predefined_format && !is_registered_format {
+            // use windows::Win32::System::DataExchange::*,
+            // let mut format_name = [0u16; 1000];
+            // let is_registered_format =
+            // unsafe { GetClipboardFormatNameW(format.0 as _, &mut format_name) != 0 };
+            if !is_predefined_format {
                 continue;
             }
 
@@ -94,7 +95,6 @@ pub fn handle(app: &mut WgpuLockbook, object: Option<IDataObject>) -> bool {
                 // (this applies even if the format isn't CF_HDROP)
                 let hdrop = HDROP(unsafe { std::mem::transmute(hglobal) });
                 let file_count = unsafe { DragQueryFileW(hdrop, 0xFFFFFFFF, None) };
-
                 if format == CF_HDROP {
                     for i in 0..file_count {
                         let mut file_path_bytes = [0u16; MAX_PATH as _];

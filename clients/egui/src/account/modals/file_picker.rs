@@ -1,5 +1,3 @@
-use std::path;
-
 use eframe::egui;
 use lb::File;
 use workspace_rs::theme::icons::Icon;
@@ -27,7 +25,7 @@ struct Panel {
 #[derive(Clone)]
 pub enum FilePickerAction {
     AcceptShare(lb::File),
-    DroppedFile(path::PathBuf),
+    DroppedFiles(Vec<egui::DroppedFile>),
 }
 
 impl FilePicker {
@@ -42,12 +40,19 @@ impl FilePicker {
     fn target_type(&self) -> lb::FileType {
         match &self.action {
             FilePickerAction::AcceptShare(file) => file.file_type,
-            FilePickerAction::DroppedFile(path) => {
-                if path.is_dir() {
-                    lb::FileType::Folder
-                } else {
-                    lb::FileType::Document
+            FilePickerAction::DroppedFiles(drops) => {
+                for drop in drops {
+                    if let Some(path) = &drop.path {
+                        return if path.is_dir() {
+                            lb::FileType::Folder
+                        } else {
+                            lb::FileType::Document
+                        };
+                    }
                 }
+
+                // should be unreachable, as this code is only invoked if at least one drop has a path
+                lb::FileType::Folder
             }
         }
     }
@@ -55,9 +60,29 @@ impl FilePicker {
     fn target_name(&self) -> String {
         match &self.action {
             FilePickerAction::AcceptShare(file) => file.name.clone(),
-            FilePickerAction::DroppedFile(path) => {
-                // what a time to be alive
-                path.file_name().unwrap().to_str().unwrap().to_string()
+            FilePickerAction::DroppedFiles(drops) => {
+                let drops = drops
+                    .iter()
+                    .filter(|d| d.path.is_some())
+                    .collect::<Vec<_>>();
+                let drops_count = drops.len();
+                let first_drop_name = drops
+                    .first()
+                    .unwrap()
+                    .path
+                    .as_ref()
+                    .unwrap()
+                    .file_name()
+                    .unwrap()
+                    .to_str()
+                    .unwrap()
+                    .to_string(); // what a time to be alive
+
+                if drops_count == 1 {
+                    first_drop_name
+                } else {
+                    format!("{} (+{} more)", first_drop_name, drops_count - 1)
+                }
             }
         }
     }
