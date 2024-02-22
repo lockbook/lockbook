@@ -862,7 +862,7 @@ pub unsafe extern "C" fn show_hide_tabs(obj: *mut c_void, show: bool) {
 pub unsafe extern "C" fn close_active_tab(obj: *mut c_void) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
 
-    if obj.workspace.tabs.len() > 0 {
+    if !obj.workspace.tabs.is_empty() {
         obj.workspace.close_tab(obj.workspace.active_tab)
     }
 }

@@ -86,7 +86,7 @@ public class MacMTK: MTKView, MTKViewDelegate {
     }
 
     public override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
-        return importFromPasteboard(sender.draggingPasteboard, isDropOperation: true)
+        return importFromPasteboard(sender.draggingPasteboard, isPaste: false)
     }
 
     public override func mouseDragged(with event: NSEvent) {
@@ -140,7 +140,7 @@ public class MacMTK: MTKView, MTKViewDelegate {
 
     public override func keyDown(with event: NSEvent) {
         if event.modifierFlags.contains(.command) && event.keyCode == 9 { // cmd+v
-            clipboard_paste(self.wsHandle, pasteboardString)
+            importFromPasteboard(NSPasteboard.general, isPaste: true)
         } else {
             key_event(wsHandle, event.keyCode, event.modifierFlags.contains(.shift), event.modifierFlags.contains(.control), event.modifierFlags.contains(.option), event.modifierFlags.contains(.command), true, event.characters)
         }
@@ -168,64 +168,50 @@ public class MacMTK: MTKView, MTKViewDelegate {
         self.pasteBoardEventId = NSPasteboard.general.changeCount
     }
 
-    func importImageData(data: Data, isPNG: Bool) -> Bool {
-        guard let url = createTempDir() else {
-            return false
-        }
-
-        let imageUrl = url.appendingPathComponent(String(UUID().uuidString.prefix(10).lowercased()), conformingTo: isPNG ? .png : .tiff)
-
-        do {
-            try data.write(to: imageUrl)
-
-            if let lbImageURL = workspaceState!.importFile(imageUrl) {
-                pasteText(text: lbImageURL)
-
-                return true
-            }
-        } catch {}
-
-        return false
-    }
-
     func pasteText(text: String) {
         paste_text(wsHandle, text)
         workspaceState?.pasted = true
     }
 
-    func importFromPasteboard(_ pasteBoard: NSPasteboard, isDropOperation: Bool) -> Bool {
+    func importFromPasteboard(_ pasteBoard: NSPasteboard, isPaste: Bool) -> Bool {
         if let data = pasteBoard.data(forType: .png) {
-            return importImageData(data: data, isPNG: true)
-        } else if let data = pasteBoard.data(forType: .tiff) {
-            return importImageData(data: data, isPNG: false)
-        } else if isDropOperation {
+            sendImage(img: data, isPaste: isPaste)
+            return true
+        } else if let data = pasteBoard.data(forType: .string) {
+            if let text = String(data: data, encoding: .utf8) {
+                clipboard_paste(wsHandle, text)
+            }
+        } else if !isPaste {
             if let data = pasteBoard.data(forType: .fileURL) {
                 if let url = URL(dataRepresentation: data, relativeTo: nil) {
-                    if let markdownURL = workspaceState!.importFile(url) {
-                        pasteText(text: markdownURL)
-
-                        return true
+                    if url.pathExtension.lowercased() == "png" {
+                        guard let data = try? Data(contentsOf: url) else {
+                            return false
+                        }
+                        
+                        sendImage(img: data, isPaste: isPaste)
+                    } else {
+                        clipboard_send_file(wsHandle, url.path(percentEncoded: false), isPaste)
                     }
                 }
             } else if let data = pasteBoard.data(forType: .string) {
                 if let text = String(data: data, encoding: .utf8) {
                     pasteText(text: text)
-
+                    
                     return true
                 }
             }
         }
 
-        return false
+        return true
     }
-
-    func pasteImageInClipboard(_ event: NSEvent) -> Bool {
-        if event.keyCode == 9
-            && event.modifierFlags.contains(.command) {
-            return importFromPasteboard(NSPasteboard.general, isDropOperation: false)
+    
+    func sendImage(img: Data, isPaste: Bool) {
+        let imgPtr = img.withUnsafeBytes { (pointer: UnsafeRawBufferPointer) -> UnsafePointer<UInt8> in
+            return pointer.baseAddress!.assumingMemoryBound(to: UInt8.self)
         }
-
-        return false
+        
+        clipboard_send_image(wsHandle, imgPtr, UInt(img.count), isPaste)
     }
 
     func viewCoordinates(_ event: NSEvent) -> NSPoint {
