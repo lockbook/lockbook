@@ -6,7 +6,7 @@ import Bridge
 public class WorkspaceState: ObservableObject {
 
     @Published public var pasted: Bool = false
-    @Published public var shouldFocus: Bool
+    @Published public var shouldFocus: Bool = false
     
     @Published public var openDoc: UUID? = nil {
         didSet {
@@ -42,12 +42,8 @@ public class WorkspaceState: ObservableObject {
     #if os(iOS)
     @Published public var dragOffset: CGFloat = 0.0
     #endif
-    public var importFile: (_ urlToImport: URL) -> String?
     
-    public init(importFile: @escaping (URL) -> String?) {
-        self.importFile = importFile
-        self.shouldFocus = false
-    }
+    public init() {}
     
     public func requestSync() {
         self.syncRequested = true

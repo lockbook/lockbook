@@ -5,6 +5,7 @@ use egui_wgpu_backend::wgpu::CompositeAlphaMode;
 use egui_wgpu_backend::{wgpu, ScreenDescriptor};
 use lb_external_interface::Core;
 use std::ffi::{c_char, c_void, CStr, CString};
+use std::path::PathBuf;
 use std::time::Instant;
 use workspace_rs::register_fonts;
 use workspace_rs::tab::{ClipContent, EventManager as _};
@@ -136,15 +137,41 @@ pub unsafe extern "C" fn clipboard_paste(obj: *mut c_void, content: *const c_cha
 /// # Safety
 /// obj must be a valid pointer to WgpuEditor
 #[no_mangle]
-pub unsafe extern "C" fn clipboard_paste_image(
-    obj: *mut c_void, content: *const u8, length: usize,
+pub unsafe extern "C" fn clipboard_send_image(
+    obj: *mut c_void, content: *const u8, length: usize, is_paste: bool,
 ) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-    let content = std::slice::from_raw_parts(content, length).to_vec();
-    obj.context.push_event(workspace_rs::Event::Paste {
-        content: vec![ClipContent::Png(content)],
-        position: egui::Pos2::ZERO, // todo: cursor position
-    });
+    let img = std::slice::from_raw_parts(content, length).to_vec();
+    let content = vec![ClipContent::Png(img)];
+    let position = egui::Pos2::ZERO; // todo: cursor position
+
+    if is_paste {
+        obj.context
+            .push_event(workspace_rs::Event::Paste { content, position });
+    } else {
+        obj.context
+            .push_event(workspace_rs::Event::Drop { content, position });
+    }
+}
+
+/// # Safety
+/// obj must be a valid pointer to WgpuEditor
+#[no_mangle]
+pub unsafe extern "C" fn clipboard_send_file(
+    obj: *mut c_void, content: *const c_char, is_paste: bool,
+) {
+    let obj = &mut *(obj as *mut WgpuWorkspace);
+    let file_url: String = CStr::from_ptr(content).to_str().unwrap().into();
+    let content = vec![ClipContent::Files(vec![PathBuf::from(file_url)])];
+    let position = egui::Pos2::ZERO; // todo: cursor position
+
+    if is_paste {
+        obj.context
+            .push_event(workspace_rs::Event::Paste { content, position });
+    } else {
+        obj.context
+            .push_event(workspace_rs::Event::Drop { content, position });
+    }
 }
 
 /// # Safety

@@ -116,7 +116,7 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
                 let images = imageItems as? [UIImage] ?? []
 
                 for image in images {
-                    let _ = self.importContent(.image(image))
+                    self.importContent(.image(image), isPaste: true)
                 }
             }
         }
@@ -126,7 +126,7 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
                 let attributedStrings = textItems as? [NSAttributedString] ?? []
 
                 for attributedString in attributedStrings {
-                    let _ = self.importContent(.text(attributedString.string))
+                    self.importContent(.text(attributedString.string), isPaste: true)
                 }
             }
         }
@@ -134,7 +134,7 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
         if session.hasItemsConforming(toTypeIdentifiers: [UTType.fileURL.identifier as String]) {
             session.loadObjects(ofClass: URL.self) { urlItems in
                 for url in urlItems {
-                    let _ = self.importContent(.url(url))
+                    self.importContent(.url(url), isPaste: true)
                 }
             }
         }
@@ -163,39 +163,34 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
             self.mtkView.setNeedsDisplay()
         }
     }
+    
+    func sendImage(img: Data, isPaste: Bool) {
+        let imgPtr = img.withUnsafeBytes { (pointer: UnsafeRawBufferPointer) -> UnsafePointer<UInt8> in
+            return pointer.baseAddress!.assumingMemoryBound(to: UInt8.self)
+        }
+        
+        clipboard_send_image(wsHandle, imgPtr, UInt(img.count), isPaste)
+    }
 
-    func importContent(_ importFormat: SupportedImportFormat) -> Bool {
+    func importContent(_ importFormat: SupportedImportFormat, isPaste: Bool) {
         switch importFormat {
         case .url(let url):
-            if let markdownURL = workspaceState!.importFile(url) {
-                pasteText(text: markdownURL)
+            if url.pathExtension.lowercased() == "png" {
+                guard let data = try? Data(contentsOf: url) else {
+                    return
+                }
                 
-                return true
+                sendImage(img: data, isPaste: isPaste)
+            } else {
+                clipboard_send_file(wsHandle, url.path(percentEncoded: false), isPaste)
             }
         case .image(let image):
-            if let data = image.pngData() ?? image.jpegData(compressionQuality: 1.0),
-               let url = createTempDir() {
-                let imageUrl = url.appendingPathComponent(String(UUID().uuidString.prefix(10).lowercased()), conformingTo: .png)
-
-                do {
-                    try data.write(to: imageUrl)
-                } catch {
-                    return false
-                }
-
-                if let lbImageURL = workspaceState!.importFile(imageUrl) {
-                    pasteText(text: lbImageURL)
-
-                    return true
-                }
+            if let img = image.pngData() ?? image.jpegData(compressionQuality: 1.0) {
+                sendImage(img: img, isPaste: isPaste)
             }
         case .text(let text):
             pasteText(text: text)
-
-            return true
         }
-        
-        return false
     }
     
     func setClipboard() {
@@ -482,12 +477,11 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
         self.setClipboard()
         
         if let image = UIPasteboard.general.image {
-            if importContent(.image(image)) {
-                return
-            }
+            importContent(.image(image), isPaste: true)
+        } else if let pastedString = pasteboardString {
+            importContent(.text(pastedString), isPaste: true)
         }
 
-        clipboard_paste(self.wsHandle, pasteboardString)
         self.mtkView.setNeedsDisplay()
     }
     
