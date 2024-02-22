@@ -566,6 +566,8 @@ public class iOSMTKDrawingWrapper: UIView, UIPencilInteractionDelegate {
                         
         pencilInteraction.delegate = self
         addInteraction(pencilInteraction)
+        
+        self.isMultipleTouchEnabled = true
     }
     
     public func pencilInteractionDidTap(_ interaction: UIPencilInteraction) {
