@@ -22,7 +22,10 @@ This runs
 - `make swift_libs` in [`/libs/lb/lb_external_interface`](/libs/lb/lb_external_interface) which will generate lb-rs libs and place them into the correct location within your Xcode project.
 - `create_libs.sh` in [`/libs/content/workspace-ffi/SwiftWorkspace`](/libs/content/workspace-ffi/SwiftWorkspace)
 
-In general, when pulling new changes, you should only need to `make swift_libs` after the swift workspace has been set up once.
+In general, when pulling new changes, you should only need to `make swift_libs` after the swift workspace has been set up once, so the command will simplify to:
+```
+LBROOT=$(pwd) && cd $LBROOT/libs/lb/lb_external_interface && make swift_libs && cd $LBROOT
+```
 
 ### Build in Xcode
 After building the native libs:
