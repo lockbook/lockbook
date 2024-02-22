@@ -1,15 +1,17 @@
 use std::sync::{Arc, Mutex};
 use std::thread;
-use std::time::{Instant, SystemTime};
+use std::time::Instant;
 
 use eframe::egui;
 use lb::Duration;
+use workspace_rs::theme::icons::Icon;
 use workspace_rs::widgets::ProgressBar;
 
 use super::AccountUpdate;
 
 pub struct SyncPanel {
     pub status: Result<String, String>,
+    pub btn_lost_hover_after_sync: bool,
     lock: Arc<Mutex<()>>,
     usage_msg_gained_hover: Option<Instant>,
     expanded_usage_msg_rect: egui::Rect,
@@ -22,6 +24,7 @@ impl SyncPanel {
             lock: Arc::new(Mutex::new(())),
             usage_msg_gained_hover: None,
             expanded_usage_msg_rect: egui::Rect::NOTHING,
+            btn_lost_hover_after_sync: false,
         }
     }
 }
@@ -89,39 +92,61 @@ impl super::AccountScreen {
                         ProgressBar::new().percent(usage.percent).show(ui);
                     });
                 }
-                Err(err) => {
-                    ui.add_space(15.0);
-                    ui.horizontal(|ui| {
-                        ui.add_space(10.0);
-                        ui.label(egui::RichText::new(err).color(egui::Color32::RED));
-                    });
+                Err(_err) => {
+                    // todo: should still display usage in offline
                 }
             }
-        } else {
-            ui.add_space(10.0);
+            ui.add_space(15.0);
         }
+    }
 
-        let desired_size = egui::vec2(ui.available_size_before_wrap().x, 35.0);
-        ui.allocate_ui_with_layout(
-            desired_size,
-            egui::Layout::left_to_right(egui::Align::Center),
-            |ui| {
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    // todo: make sure this shows for at least 1 second even if sync finishes before that
-                    // if self.workspace.pers_status.syncing {
-                    //     ui.spinner();
-                    // }
-                    // match &self.sync.status {
-                    //     Ok(s) => ui.label(
-                    //         egui::RichText::new(format!("Updated {s}"))
-                    //             .color(ui.visuals().widgets.active.bg_fill)
-                    //             .size(15.0),
-                    //     ),
-                    //     Err(msg) => ui.label(egui::RichText::new(msg).color(egui::Color32::RED)),
-                    // };
+    pub fn show_sync_error_warn(&mut self, ui: &mut egui::Ui) {
+        let msg = if let Err(err_msg) = &self.sync.status {
+            err_msg.to_owned()
+        } else {
+            let dirty_files_count = self.workspace.pers_status.dirtyness.dirty_files.len();
+            if dirty_files_count > 0 {
+                format!(
+                    "{} file{} needs to be synced",
+                    dirty_files_count,
+                    if dirty_files_count > 1 { "s" } else { "" }
+                )
+            } else {
+                return;
+            }
+        };
+
+        let color = if self.sync.status.is_err() {
+            ui.visuals().error_fg_color
+        } else {
+            ui.visuals().text_color()
+        };
+
+        egui::Frame::default()
+            .fill(color.gamma_multiply(0.1))
+            .inner_margin(egui::Margin::symmetric(10.0, 7.0))
+            .rounding(egui::Rounding::same(10.0))
+            .show(ui, |ui| {
+                ui.set_width(ui.available_size_before_wrap().x);
+                ui.horizontal_wrapped(|ui| {
+                    Icon::WARNING.color(color).show(ui);
+
+                    ui.add_space(7.0);
+
+                    let mut job = egui::text::LayoutJob::single_section(
+                        msg,
+                        egui::TextFormat::simple(egui::FontId::proportional(15.0), color),
+                    );
+
+                    job.wrap = egui::epaint::text::TextWrapping {
+                        overflow_character: Some('…'),
+                        max_rows: 1,
+                        break_anywhere: true,
+                        ..Default::default()
+                    };
+                    ui.label(job);
                 });
-            },
-        );
+            });
     }
 
     pub fn set_sync_status<T: ToString>(&mut self, res: Result<String, T>) {

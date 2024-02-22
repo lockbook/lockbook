@@ -140,7 +140,12 @@ impl AccountScreen {
                         .inner_margin(egui::Margin::symmetric(20.0, 20.0))
                         .show(ui, |ui| {
                             self.show_sync_panel(ui);
+
                             self.show_nav_panel(ui);
+
+                            ui.add_space(15.0);
+                            self.show_sync_error_warn(ui);
+
                         });
 
                     ui.vertical(|ui| {
@@ -478,26 +483,34 @@ impl AccountScreen {
 
                 if sync_btn.clicked() {
                     self.workspace.perform_sync();
+                    self.sync.btn_lost_hover_after_sync = false;
                 }
 
-                if let Some(sync_message) = &self.workspace.pers_status.sync_message {
-                    sync_btn.on_hover_ui_at_pointer(|ui| {
-                        ui.label(sync_message);
-                    });
+                if sync_btn.lost_focus() {
+                    self.sync.btn_lost_hover_after_sync = true;
+                }
+
+                let tooltip_msg = if !self.sync.btn_lost_hover_after_sync {
+                    let dirty_files_count = self.workspace.pers_status.dirtyness.dirty_files.len();
+                    let dirty_msg = format!(
+                        ", {} file{} needs to be synced",
+                        dirty_files_count,
+                        if dirty_files_count > 1 { "s" } else { "" }
+                    );
+
+                    Some(format!(
+                        "Updated {}{}",
+                        &self.workspace.pers_status.dirtyness.last_synced,
+                        if dirty_files_count > 0 { dirty_msg } else { "".to_string() }
+                    ))
                 } else {
-                    if let Ok(sync_freshness) = &self.sync.status {
-                        sync_btn.on_hover_ui_at_pointer(|ui| {
-                            ui.label(format!("Synced {sync_freshness}"));
-                        });
-                    }
-                    // match &self.sync.status {
-                    //     Ok(s) => ui.label(
-                    //         egui::RichText::new(format!("Updated {s}"))
-                    //             .color(ui.visuals().widgets.active.bg_fill)
-                    //             .size(15.0),
-                    //     ),
-                    //     Err(msg) => ui.label(egui::RichText::new(msg).color(egui::Color32::RED)),
-                    // };
+                    self.workspace.pers_status.sync_message.to_owned()
+                };
+
+                if let Some(msg) = tooltip_msg {
+                    sync_btn.on_hover_ui_at_pointer(|ui| {
+                        ui.label(msg);
+                    });
                 }
 
                 ui.set_style(visuals_before_button);
