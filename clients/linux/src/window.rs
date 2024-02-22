@@ -157,11 +157,9 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
         false,
     );
 
-    // frames_since_last_event is also used as the delay, in ms, between frames when not receiving events (up to 100ms)
     let got_events_atomic = std::sync::Arc::new(AtomicBool::new(false));
     let got_events_clone = got_events_atomic.clone();
     lb.context.set_request_repaint_callback(move |rri| {
-        // launch a thread that waits for rri.after and sets frames_since_last_event to 0 atomically
         let got_events_clone = got_events_clone.clone();
         let _ = std::thread::spawn(move || {
             std::thread::sleep(rri.after);
