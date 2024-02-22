@@ -27,10 +27,8 @@ impl FileTree {
 
     pub fn show(&mut self, ui: &mut egui::Ui) -> NodeResponse {
         ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
-        let mut is_hovered = false;
         let mut r = egui::Frame::none().show(ui, |ui| {
             let result = self.root.show(ui, &mut self.state);
-            is_hovered = result.response.hovered();
             result.inner
         });
 
@@ -57,18 +55,14 @@ impl FileTree {
             }
         });
 
-        if self.state.is_dragging() {
-            if ui.input(|i| i.pointer.any_released()) {
+        let dragging_rect = self.state.is_dragging_rect(r.response.rect);
+        let released = ui.input(|i| self.state.update_dnd(i));
+        if dragging_rect {
+            if released {
                 let maybe_pos = ui.ctx().pointer_interact_pos();
                 self.state.dropped(maybe_pos);
             } else {
                 self.draw_drag_info_by_cursor(ui);
-            }
-        } else if is_hovered && ui.input(|i| i.pointer.primary_down()) {
-            // todo(steve): prep drag only if a file is clicked
-            self.state.dnd.is_primary_down = true;
-            if ui.input(|i| i.pointer.is_moving()) {
-                self.state.dnd.has_moved = true;
             }
         }
         ui.expand_to_include_rect(ui.available_rect_before_wrap());
@@ -102,31 +96,17 @@ impl FileTree {
         end.x += 70.0;
         end.y += 50.0;
 
-        let response = ui
-            .allocate_ui_at_rect(egui::Rect::from_two_pos(hover_pos, end), |ui| {
-                ui.with_layer_id(layer_id, |ui| {
-                    egui::Frame::none()
-                        .fill(ui.visuals().extreme_bg_color.gamma_multiply(0.6))
-                        .rounding(3.0)
-                        .inner_margin(egui::style::Margin::symmetric(12.0, 7.0))
-                        .show(ui, |ui| {
-                            ui.label(self.state.drag_caption());
-                        });
-                })
+        ui.allocate_ui_at_rect(egui::Rect::from_two_pos(hover_pos, end), |ui| {
+            ui.with_layer_id(layer_id, |ui| {
+                egui::Frame::none()
+                    .fill(ui.visuals().extreme_bg_color.gamma_multiply(0.6))
+                    .rounding(3.0)
+                    .inner_margin(egui::style::Margin::symmetric(12.0, 7.0))
+                    .show(ui, |ui| {
+                        ui.label(self.state.drag_caption());
+                    });
             })
-            .response;
-
-        if let Some(pointer_pos) = ui.ctx().pointer_hover_pos() {
-            // todo: make sure dragging doesn't expand scroll area to infinity and beyond. respect the initial max width and height;
-
-            if pointer_pos.y < 30.0 {
-                ui.scroll_with_delta(egui::vec2(0., 30.0));
-            }
-            if pointer_pos.y < 100.0 {
-                ui.scroll_with_delta(egui::vec2(0., 10.0));
-            }
-            ui.scroll_to_rect(response.rect, None);
-        }
+        });
     }
 
     pub fn remove(&mut self, f: &lb::File) {
@@ -149,8 +129,7 @@ impl FileTree {
     pub fn reveal_file(&mut self, id: lb::Uuid, ctx: &egui::Context) {
         self.state.selected.clear();
         self.state.selected.insert(id);
-
-        self.state.request_scroll = true;
+        self.state.request_scroll = Some(id);
 
         let mut curr = self.core.get_file_by_id(id).unwrap();
         loop {
