@@ -155,6 +155,7 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut last_copied_text = String::new();
     let mut paste_context = clipboard_paste::Context::new(window_id, conn, &atoms);
+    let cursor_manager = output::cursor::Manager::new(conn, screen_num)?;
     loop {
         while let Some(event) = conn.poll_for_event()? {
             handle(conn, &atoms, &last_copied_text, event, &mut lb, &mut paste_context)?;
@@ -187,7 +188,7 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
             output::close();
         }
         output::window_title::handle(conn, window_id, &atoms, set_window_title)?;
-        output::cursor::handle(conn, &db, screen_num, window_id, cursor_icon);
+        cursor_manager.handle(conn, &db, screen_num, window_id, cursor_icon);
         output::open_url::handle(open_url);
         output::clipboard_copy::handle_copy(
             conn,
