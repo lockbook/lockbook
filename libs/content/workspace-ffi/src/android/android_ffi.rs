@@ -70,6 +70,8 @@ pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_createWgpuCanva
         from_egui: None,
         from_host: None,
         workspace: editor,
+        surface_width: 0,
+        surface_height: 0,
     };
 
     obj.frame();
