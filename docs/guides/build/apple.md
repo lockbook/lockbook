@@ -1,6 +1,6 @@
 # Build Apple
 
-Prerequisites:
+### Prerequisites:
 1. Computer with macOS
 2. Standard iOS/macOS toolchain (Xcode)
 3. Stable rust toolchain
@@ -13,9 +13,19 @@ cargo install cbindgen
 rustup target add aarch64-apple-ios x86_64-apple-ios aarch64-apple-darwin x86_64-apple-darwin aarch64-apple-ios-sim
 ```
 
-Steps:
-1. In `/libs/lb/lb_external_interface` run `make swift_libs` which will generate lb-rs libs and place them into the correct location within your Xcode project.
-2. In `/libs/content/workspace-ffi/SwiftWorkspace` run `./create_libs.sh` to create the ffi binary artifact in `/libs/content/workspace-ffi/SwiftWorkspace/Libs/workspace.xcframework`.
-3. Open the `clients/apple` folder in Xcode.
-4. In Xcode, open the "Signing & Capabilities" tab and set the team to your personal developer email.
-5. Change the build target to macos or ios and hit the Run button.
+### Build native libraries and bootstrap swift workspace
+In `lockbook` root directory run:
+```
+LBROOT=$(pwd) && cd $LBROOT/libs/lb/lb_external_interface && make swift_libs && cd $LBROOT/libs/content/workspace-ffi/SwiftWorkspace && ./create_libs.sh && cd $LBROOT
+```
+This runs
+- `make swift_libs` in [`/libs/lb/lb_external_interface`](/libs/lb/lb_external_interface) which will generate lb-rs libs and place them into the correct location within your Xcode project.
+- `create_libs.sh` in [`/libs/content/workspace-ffi/SwiftWorkspace`](/libs/content/workspace-ffi/SwiftWorkspace)
+
+In general, when pulling new changes, you should only need to `make swift_libs` after the swift workspace has been set up once.
+
+### Build in Xcode
+After building the native libs:
+1. Open the `clients/apple` folder in Xcode.
+2. In Xcode, open the "Signing & Capabilities" tab and set the team to your personal developer email.
+3. Change the build target to MacOS or iOS and hit the Run button.
