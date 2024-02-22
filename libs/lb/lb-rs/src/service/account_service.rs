@@ -115,13 +115,6 @@ impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {
         }
     }
 
-    pub(crate) fn clear_local_db(&mut self) -> LbResult<()> {
-        self.db.clear()?;
-        self.cleanup()?;
-        self.public_key = None;
-        Ok(())
-    }
-
     pub(crate) fn delete_account(&mut self) -> LbResult<()> {
         let account = self.get_account()?;
 

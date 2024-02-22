@@ -99,12 +99,14 @@ pub unsafe extern "C" fn create_account(
     })
 }
 
+/// # Safety
+///
+/// This function is used to log out and delete the user's data from the local filesystem.
+/// Don't call it without warning the user to back up their private key.
 #[no_mangle]
-pub extern "C" fn clear_local_db() -> *const c_char {
-    c_string(match static_state::get() {
-        Ok(core) => translate(core.clear_local_db()),
-        e => translate(e.map(|_| ())),
-    })
+pub extern "C" fn logout_and_exit() -> ! {
+    let core = static_state::get().expect("Could not get core");
+    core.logout_and_exit();
 }
 
 /// # Safety
