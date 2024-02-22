@@ -9,7 +9,7 @@ use workspace_rs::widgets::ProgressBar;
 use super::AccountUpdate;
 
 pub struct SyncPanel {
-    status: Result<String, String>,
+    pub status: Result<String, String>,
     lock: Arc<Mutex<()>>,
     usage_msg_gained_hover: Option<Instant>,
     expanded_usage_msg_rect: egui::Rect,

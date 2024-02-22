@@ -450,31 +450,54 @@ impl AccountScreen {
             |ui| {
                 // ui.add_space(10.0);
 
-                let text_stroke =
-                    egui::Stroke { color: ui.visuals().hyperlink_color, ..Default::default() };
+                let text_stroke = egui::Stroke {
+                    color: ui.visuals().widgets.active.bg_fill,
+                    ..Default::default()
+                };
                 ui.visuals_mut().widgets.inactive.fg_stroke = text_stroke;
                 ui.visuals_mut().widgets.hovered.fg_stroke = text_stroke;
                 ui.visuals_mut().widgets.active.fg_stroke = text_stroke;
 
                 ui.visuals_mut().widgets.inactive.bg_fill =
-                    ui.visuals().widgets.active.bg_fill.gamma_multiply(0.05);
-                ui.visuals_mut().widgets.hovered.bg_fill =
                     ui.visuals().widgets.active.bg_fill.gamma_multiply(0.1);
-
-                ui.visuals_mut().widgets.active.bg_fill =
+                ui.visuals_mut().widgets.hovered.bg_fill =
                     ui.visuals().widgets.active.bg_fill.gamma_multiply(0.2);
 
-                if Button::default()
+                ui.visuals_mut().widgets.active.bg_fill =
+                    ui.visuals().widgets.active.bg_fill.gamma_multiply(0.3);
+
+                let sync_btn = Button::default()
                     .text("Sync")
                     .icon(&Icon::SYNC)
                     .icon_alignment(egui::Align::RIGHT)
                     .padding(egui::vec2(10.0, 7.0))
                     .frame(true)
                     .rounding(egui::Rounding::same(5.0))
-                    .show(ui)
-                    .clicked()
-                {
+                    .is_loading(self.workspace.pers_status.syncing)
+                    .show(ui);
+
+                if sync_btn.clicked() {
                     self.workspace.perform_sync();
+                }
+
+                if let Some(sync_message) = &self.workspace.pers_status.sync_message {
+                    sync_btn.on_hover_ui_at_pointer(|ui| {
+                        ui.label(sync_message);
+                    });
+                } else {
+                    if let Ok(sync_freshness) = &self.sync.status {
+                        sync_btn.on_hover_ui_at_pointer(|ui| {
+                            ui.label(format!("Synced {sync_freshness}"));
+                        });
+                    }
+                    // match &self.sync.status {
+                    //     Ok(s) => ui.label(
+                    //         egui::RichText::new(format!("Updated {s}"))
+                    //             .color(ui.visuals().widgets.active.bg_fill)
+                    //             .size(15.0),
+                    //     ),
+                    //     Err(msg) => ui.label(egui::RichText::new(msg).color(egui::Color32::RED)),
+                    // };
                 }
 
                 ui.set_style(visuals_before_button);
