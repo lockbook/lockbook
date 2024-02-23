@@ -18,7 +18,7 @@ use workspace_rs::tab::markdown::Markdown;
 use workspace_rs::tab::plain_text::PlainText;
 use workspace_rs::tab::{Tab, TabContent, TabFailure};
 use workspace_rs::theme::icons::Icon;
-use workspace_rs::widgets::{separator, Button};
+use workspace_rs::widgets::Button;
 use workspace_rs::workspace::{Workspace, WsConfig};
 
 use crate::model::{AccountScreenInitData, Usage};
@@ -446,14 +446,13 @@ impl AccountScreen {
     }
 
     fn show_nav_panel(&mut self, ui: &mut egui::Ui) {
-        
         ui.allocate_ui_with_layout(
             egui::vec2(ui.available_size_before_wrap().x, 40.0),
             egui::Layout::left_to_right(egui::Align::Center),
             |ui| {
                 // ui.add_space(10.0);
                 self.show_sync_btn(ui);
-                
+
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     let settings_btn = Button::default().icon(&Icon::SETTINGS).show(ui);
                     if settings_btn.clicked() {

@@ -12,7 +12,6 @@ use super::AccountUpdate;
 pub struct SyncPanel {
     pub initial_status: Result<String, String>,
     pub btn_lost_hover_after_sync: bool,
-    last_sync: Instant,
     lock: Arc<Mutex<()>>,
     usage_msg_gained_hover: Option<Instant>,
     expanded_usage_msg_rect: egui::Rect,
@@ -24,7 +23,6 @@ impl SyncPanel {
             initial_status,
             lock: Arc::new(Mutex::new(())),
             usage_msg_gained_hover: None,
-            last_sync: Instant::now(),
             expanded_usage_msg_rect: egui::Rect::NOTHING,
             btn_lost_hover_after_sync: false,
         }
