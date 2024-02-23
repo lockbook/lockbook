@@ -8,7 +8,11 @@ use raw_window_handle::{
     HasRawDisplayHandle, HasRawWindowHandle, RawDisplayHandle, RawWindowHandle, XcbDisplayHandle,
     XcbWindowHandle,
 };
-use std::{ffi::c_void, time::Instant};
+use std::{
+    ffi::c_void,
+    sync::atomic::{AtomicBool, Ordering},
+    time::Instant,
+};
 use x11rb::{
     atom_manager,
     connection::Connection,
@@ -153,51 +157,71 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
         false,
     );
 
+    let got_events_atomic = std::sync::Arc::new(AtomicBool::new(false));
+    let got_events_clone = got_events_atomic.clone();
+    lb.context.set_request_repaint_callback(move |rri| {
+        let got_events_clone = got_events_clone.clone();
+        let _ = std::thread::spawn(move || {
+            std::thread::sleep(rri.after);
+            got_events_clone.store(true, Ordering::SeqCst);
+        });
+    });
+
     let mut last_copied_text = String::new();
     let mut paste_context = clipboard_paste::Context::new(window_id, conn, &atoms);
     let cursor_manager = output::cursor::Manager::new(conn, screen_num)?;
     loop {
+        let mut got_events = got_events_atomic.load(Ordering::SeqCst);
         while let Some(event) = conn.poll_for_event()? {
+            got_events = true;
             handle(conn, &atoms, &last_copied_text, event, &mut lb, &mut paste_context)?;
         }
-        let IntegrationOutput {
-            redraw_in: _, // todo: handle? how's this different from checking egui context?
-            egui: PlatformOutput { cursor_icon, open_url, copied_text, .. },
-            update_output: UpdateOutput { close, set_window_title },
-        } = lb.frame();
+        if got_events {
+            got_events_atomic.store(false, Ordering::SeqCst);
 
-        // set modifiers
-        let pointer_state = conn.query_pointer(window_id)?.reply()?;
-        lb.raw_input.modifiers = input::modifiers(pointer_state.mask);
+            // only draw frames if we got events (including repaint requests)
+            let IntegrationOutput {
+                redraw_in: _, // todo: handle? how's this different from checking egui context?
+                egui: PlatformOutput { cursor_icon, open_url, copied_text, .. },
+                update_output: UpdateOutput { close, set_window_title },
+            } = lb.frame();
 
-        // set scale factor
-        let scale_factor = match db.get_string("Xft.dpi", "") {
-            Some(dpi) => {
-                let dpi = dpi.parse::<f32>().unwrap_or(96.0);
-                dpi / 96.0
+            // set modifiers
+            let pointer_state = conn.query_pointer(window_id)?.reply()?;
+            lb.raw_input.modifiers = input::modifiers(pointer_state.mask);
+
+            // set scale factor
+            let scale_factor = match db.get_string("Xft.dpi", "") {
+                Some(dpi) => {
+                    let dpi = dpi.parse::<f32>().unwrap_or(96.0);
+                    dpi / 96.0
+                }
+                None => {
+                    println!("Failed to get Xft.dpi");
+                    1.0
+                }
+            };
+            lb.screen.scale_factor = scale_factor;
+            lb.raw_input.pixels_per_point = Some(scale_factor);
+
+            if close {
+                output::close();
             }
-            None => {
-                println!("Failed to get Xft.dpi");
-                1.0
-            }
-        };
-        lb.screen.scale_factor = scale_factor;
-        lb.raw_input.pixels_per_point = Some(scale_factor);
-
-        if close {
-            output::close();
+            output::window_title::handle(conn, window_id, &atoms, set_window_title)?;
+            cursor_manager.handle(conn, &db, screen_num, window_id, cursor_icon);
+            output::open_url::handle(open_url);
+            output::clipboard_copy::handle_copy(
+                conn,
+                &atoms,
+                window_id,
+                copied_text,
+                &mut last_copied_text,
+            )?;
+            conn.flush()?;
         }
-        output::window_title::handle(conn, window_id, &atoms, set_window_title)?;
-        cursor_manager.handle(conn, &db, screen_num, window_id, cursor_icon);
-        output::open_url::handle(open_url);
-        output::clipboard_copy::handle_copy(
-            conn,
-            &atoms,
-            window_id,
-            copied_text,
-            &mut last_copied_text,
-        )?;
-        conn.flush()?;
+
+        // wait a lil before possibly rendering another frame
+        std::thread::sleep(std::time::Duration::from_millis(10));
     }
 }
 
