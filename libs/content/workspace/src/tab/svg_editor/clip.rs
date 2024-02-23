@@ -1,22 +1,36 @@
+use minidom::Element;
+
 use crate::tab::{ClipContent, EventManager as _};
 
-use super::Buffer;
+use super::SVGEditor;
 
-pub fn handle_clip_input(ui: &mut egui::Ui, _buffer: &mut Buffer) {
-    for custom_event in ui.ctx().pop_events() {
-        match custom_event {
-            crate::Event::Drop { content, .. } | crate::Event::Paste { content, .. } => {
-                for clip in content {
-                    match clip {
-                        ClipContent::Png(data) => {
-                            // todo: make necessary changes to the buffer
-                            println!("pasted image: {:?} bytes", data.len());
+impl SVGEditor {
+    pub fn handle_clip_input(&mut self, ui: &mut egui::Ui) {
+        for custom_event in ui.ctx().pop_events() {
+            match custom_event {
+                crate::Event::Drop { content, .. } | crate::Event::Paste { content, .. } => {
+                    for clip in content {
+                        match clip {
+                            ClipContent::Png(data) => {
+                                // todo: make necessary changes to the buffer
+                                let file = crate::tab::import_image(&self.core, &data);
+                                let image_href = format!("lb://{}", file.id);
+
+                                let child = Element::builder("image", "")
+                                    .attr("id", self.toolbar.pen.current_id)
+                                    .attr("href", image_href)
+                                    .build();
+
+                                self.buffer.current.append_child(child);
+                                self.toolbar.pen.current_id += 1;
+                                println!("pasted image: {:?} bytes", data.len());
+                            }
+                            ClipContent::Files(..) => unimplemented!(), // todo: support file drop & paste
                         }
-                        ClipContent::Files(..) => unimplemented!(), // todo: support file drop & paste
                     }
                 }
+                crate::Event::Markdown(..) => {}
             }
-            crate::Event::Markdown(..) => {}
         }
     }
 }
