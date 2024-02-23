@@ -801,7 +801,7 @@ pub unsafe extern "C" fn toggle_drawing_tool(obj: *mut c_void) {
 
     if let Some(svg) = obj.workspace.current_tab_svg_mut() {
         svg.toolbar
-            .set_tool(svg.toolbar.prev_non_eraser_tool.unwrap_or(Tool::Pen));
+            .set_tool(svg.toolbar.previous_tool.unwrap_or(Tool::Pen));
     }
 }
 
