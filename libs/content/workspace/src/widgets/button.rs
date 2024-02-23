@@ -114,7 +114,7 @@ impl<'a> Button<'a> {
                     rect.center().y,
                 );
 
-                Self::show_spinner(ui, rect, spinner_pos);
+                Self::show_spinner(ui, spinner_pos);
             } else if let Some(icon) = maybe_icon_galley {
                 let alignment = self.icon_alignment.unwrap_or(egui::Align::LEFT);
                 let icon_width = icon.size().x;
@@ -151,7 +151,7 @@ impl<'a> Button<'a> {
 
         resp
     }
-    fn show_spinner(ui: &mut egui::Ui, containing_rect: egui::Rect, spinner_pos: egui::Pos2) {
+    fn show_spinner(ui: &mut egui::Ui, spinner_pos: egui::Pos2) {
         let color = ui.visuals().strong_text_color();
 
         // ui.ctx().request_repaint();

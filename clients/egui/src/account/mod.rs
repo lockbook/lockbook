@@ -145,7 +145,6 @@ impl AccountScreen {
 
                             ui.add_space(15.0);
                             self.show_sync_error_warn(ui);
-
                         });
 
                     ui.vertical(|ui| {
@@ -447,74 +446,14 @@ impl AccountScreen {
     }
 
     fn show_nav_panel(&mut self, ui: &mut egui::Ui) {
-        let visuals_before_button = ui.style().clone();
-
+        
         ui.allocate_ui_with_layout(
             egui::vec2(ui.available_size_before_wrap().x, 40.0),
             egui::Layout::left_to_right(egui::Align::Center),
             |ui| {
                 // ui.add_space(10.0);
-
-                let text_stroke = egui::Stroke {
-                    color: ui.visuals().widgets.active.bg_fill,
-                    ..Default::default()
-                };
-                ui.visuals_mut().widgets.inactive.fg_stroke = text_stroke;
-                ui.visuals_mut().widgets.hovered.fg_stroke = text_stroke;
-                ui.visuals_mut().widgets.active.fg_stroke = text_stroke;
-
-                ui.visuals_mut().widgets.inactive.bg_fill =
-                    ui.visuals().widgets.active.bg_fill.gamma_multiply(0.1);
-                ui.visuals_mut().widgets.hovered.bg_fill =
-                    ui.visuals().widgets.active.bg_fill.gamma_multiply(0.2);
-
-                ui.visuals_mut().widgets.active.bg_fill =
-                    ui.visuals().widgets.active.bg_fill.gamma_multiply(0.3);
-
-                let sync_btn = Button::default()
-                    .text("Sync")
-                    .icon(&Icon::SYNC)
-                    .icon_alignment(egui::Align::RIGHT)
-                    .padding(egui::vec2(10.0, 7.0))
-                    .frame(true)
-                    .rounding(egui::Rounding::same(5.0))
-                    .is_loading(self.workspace.pers_status.syncing)
-                    .show(ui);
-
-                if sync_btn.clicked() {
-                    self.workspace.perform_sync();
-                    self.sync.btn_lost_hover_after_sync = false;
-                }
-
-                if sync_btn.lost_focus() {
-                    self.sync.btn_lost_hover_after_sync = true;
-                }
-
-                let tooltip_msg = if !self.sync.btn_lost_hover_after_sync {
-                    let dirty_files_count = self.workspace.pers_status.dirtyness.dirty_files.len();
-                    let dirty_msg = format!(
-                        ", {} file{} needs to be synced",
-                        dirty_files_count,
-                        if dirty_files_count > 1 { "s" } else { "" }
-                    );
-
-                    Some(format!(
-                        "Updated {}{}",
-                        &self.workspace.pers_status.dirtyness.last_synced,
-                        if dirty_files_count > 0 { dirty_msg } else { "".to_string() }
-                    ))
-                } else {
-                    self.workspace.pers_status.sync_message.to_owned()
-                };
-
-                if let Some(msg) = tooltip_msg {
-                    sync_btn.on_hover_ui_at_pointer(|ui| {
-                        ui.label(msg);
-                    });
-                }
-
-                ui.set_style(visuals_before_button);
-
+                self.show_sync_btn(ui);
+                
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     let settings_btn = Button::default().icon(&Icon::SETTINGS).show(ui);
                     if settings_btn.clicked() {

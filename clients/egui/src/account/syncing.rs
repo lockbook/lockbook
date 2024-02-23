@@ -5,24 +5,26 @@ use std::time::Instant;
 use eframe::egui;
 use lb::Duration;
 use workspace_rs::theme::icons::Icon;
-use workspace_rs::widgets::ProgressBar;
+use workspace_rs::widgets::{Button, ProgressBar};
 
 use super::AccountUpdate;
 
 pub struct SyncPanel {
-    pub status: Result<String, String>,
+    pub initial_status: Result<String, String>,
     pub btn_lost_hover_after_sync: bool,
+    last_sync: Instant,
     lock: Arc<Mutex<()>>,
     usage_msg_gained_hover: Option<Instant>,
     expanded_usage_msg_rect: egui::Rect,
 }
 
 impl SyncPanel {
-    pub fn new(status: Result<String, String>) -> Self {
+    pub fn new(initial_status: Result<String, String>) -> Self {
         Self {
-            status,
+            initial_status,
             lock: Arc::new(Mutex::new(())),
             usage_msg_gained_hover: None,
+            last_sync: Instant::now(),
             expanded_usage_msg_rect: egui::Rect::NOTHING,
             btn_lost_hover_after_sync: false,
         }
@@ -100,8 +102,57 @@ impl super::AccountScreen {
         }
     }
 
+    pub fn show_sync_btn(&mut self, ui: &mut egui::Ui) {
+        let visuals_before_button = ui.style().clone();
+        let text_stroke =
+            egui::Stroke { color: ui.visuals().widgets.active.bg_fill, ..Default::default() };
+        ui.visuals_mut().widgets.inactive.fg_stroke = text_stroke;
+        ui.visuals_mut().widgets.hovered.fg_stroke = text_stroke;
+        ui.visuals_mut().widgets.active.fg_stroke = text_stroke;
+
+        ui.visuals_mut().widgets.inactive.bg_fill =
+            ui.visuals().widgets.active.bg_fill.gamma_multiply(0.1);
+        ui.visuals_mut().widgets.hovered.bg_fill =
+            ui.visuals().widgets.active.bg_fill.gamma_multiply(0.2);
+
+        ui.visuals_mut().widgets.active.bg_fill =
+            ui.visuals().widgets.active.bg_fill.gamma_multiply(0.3);
+
+        let sync_btn = Button::default()
+            .text("Sync")
+            .icon(&Icon::SYNC)
+            .icon_alignment(egui::Align::RIGHT)
+            .padding(egui::vec2(10.0, 7.0))
+            .frame(true)
+            .rounding(egui::Rounding::same(5.0))
+            .is_loading(self.workspace.pers_status.syncing)
+            .show(ui);
+
+        if sync_btn.clicked() {
+            self.workspace.perform_sync();
+            self.sync.btn_lost_hover_after_sync = false;
+        }
+
+        if sync_btn.hover_pos().is_none() {
+            self.sync.btn_lost_hover_after_sync = true;
+        }
+
+        let tooltip_msg = if !self.sync.btn_lost_hover_after_sync {
+            self.workspace.pers_status.sync_message.to_owned()
+        } else {
+            Some(format!("Updated {}", &self.workspace.pers_status.dirtyness.last_synced))
+        };
+
+        if let Some(msg) = tooltip_msg {
+            sync_btn.on_hover_ui_at_pointer(|ui| {
+                ui.label(msg);
+            });
+        }
+
+        ui.set_style(visuals_before_button);
+    }
     pub fn show_sync_error_warn(&mut self, ui: &mut egui::Ui) {
-        let msg = if let Err(err_msg) = &self.sync.status {
+        let msg = if let Err(err_msg) = &self.sync.initial_status {
             err_msg.to_owned()
         } else {
             let dirty_files_count = self.workspace.pers_status.dirtyness.dirty_files.len();
@@ -116,7 +167,7 @@ impl super::AccountScreen {
             }
         };
 
-        let color = if self.sync.status.is_err() {
+        let color = if self.sync.initial_status.is_err() {
             ui.visuals().error_fg_color
         } else {
             ui.visuals().text_color()
@@ -147,13 +198,6 @@ impl super::AccountScreen {
                     ui.label(job);
                 });
             });
-    }
-
-    pub fn set_sync_status<T: ToString>(&mut self, res: Result<String, T>) {
-        self.sync.status = match res {
-            Ok(s) => Ok(s),
-            Err(v) => Err(v.to_string()),
-        };
     }
 
     pub fn perform_final_sync(&self, ctx: &egui::Context) {
