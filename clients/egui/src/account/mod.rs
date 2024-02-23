@@ -139,8 +139,7 @@ impl AccountScreen {
                     egui::Frame::default()
                         .inner_margin(egui::Margin::symmetric(20.0, 20.0))
                         .show(ui, |ui| {
-                            self.show_sync_panel(ui);
-
+                            self.show_usage_panel(ui);
                             self.show_nav_panel(ui);
 
                             ui.add_space(15.0);
@@ -450,7 +449,6 @@ impl AccountScreen {
             egui::vec2(ui.available_size_before_wrap().x, 40.0),
             egui::Layout::left_to_right(egui::Align::Center),
             |ui| {
-                // ui.add_space(10.0);
                 self.show_sync_btn(ui);
 
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {

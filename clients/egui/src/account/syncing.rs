@@ -10,8 +10,8 @@ use workspace_rs::widgets::{Button, ProgressBar};
 use super::AccountUpdate;
 
 pub struct SyncPanel {
-    pub initial_status: Result<String, String>,
-    pub btn_lost_hover_after_sync: bool,
+    initial_status: Result<String, String>,
+    btn_lost_hover_after_sync: bool,
     lock: Arc<Mutex<()>>,
     usage_msg_gained_hover: Option<Instant>,
     expanded_usage_msg_rect: egui::Rect,
@@ -30,7 +30,7 @@ impl SyncPanel {
 }
 
 impl super::AccountScreen {
-    pub fn show_sync_panel(&mut self, ui: &mut egui::Ui) {
+    pub fn show_usage_panel(&mut self, ui: &mut egui::Ui) {
         if self.settings.read().unwrap().sidebar_usage {
             match &self.usage {
                 Ok(usage) => {
@@ -48,7 +48,6 @@ impl super::AccountScreen {
                         } else {
                             format!("{} out of {} used", usage.used, usage.available)
                         };
-                        // )
 
                         let text: egui::WidgetText = text.into();
                         let text = text.color(ui.visuals().text_color().gamma_multiply(0.8));

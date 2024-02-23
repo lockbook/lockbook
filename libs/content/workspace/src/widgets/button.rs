@@ -151,28 +151,11 @@ impl<'a> Button<'a> {
 
         resp
     }
+
+    //  copied from the egui spinner impl.  
     fn show_spinner(ui: &mut egui::Ui, spinner_pos: egui::Pos2) {
         let color = ui.visuals().strong_text_color();
 
-        // ui.ctx().request_repaint();
-
-        // let radius = (containing_rect.height() / 2.0) - 2.0;
-        // let n_points = 20;
-        // let time = ui.input(|i| i.time);
-        // let start_angle = time * std::f64::consts::TAU;
-        // let end_angle = start_angle + 240f64.to_radians() * time.sin();
-        // let points: Vec<egui::Pos2> = (0..n_points)
-        //     .map(|i| {
-        //         let angle = egui::lerp(start_angle..=end_angle, i as f64 / n_points as f64);
-        //         let (sin, cos) = angle.sin_cos();
-        //         containing_rect.center() + radius * egui::vec2(cos as f32, sin as f32)
-        //     })
-        //     .collect();
-        // painter.add(egui::Shape::line(points, egui::Stroke::new(3.0, color)));
-
-        // let (rect, response) = ui.all(egui::vec2(size, size), egui::Sense::hover());
-
-        // if ui.is_rect_visible(rect) {
         ui.ctx().request_repaint();
 
         let n_points = 20;
@@ -188,8 +171,5 @@ impl<'a> Button<'a> {
             .collect();
         ui.painter()
             .add(egui::Shape::line(points, egui::Stroke::new(3.0, color)));
-        // }
-
-        // response
     }
 }
