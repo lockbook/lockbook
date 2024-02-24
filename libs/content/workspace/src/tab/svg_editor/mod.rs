@@ -70,7 +70,6 @@ impl SVGEditor {
     }
 
     pub fn show(&mut self, ui: &mut egui::Ui) {
-        println!("{:#?}", ui.input(|r| r.multi_touch()));
         ui.vertical(|ui| {
             egui::Frame::default()
                 .fill(if ui.visuals().dark_mode {
@@ -79,12 +78,18 @@ impl SVGEditor {
                     ui.visuals().faint_bg_color
                 })
                 .show(ui, |ui| {
-                    self.toolbar.show(ui, &mut self.buffer);
+                    self.toolbar.show(ui, &mut self.buffer, self.inner_rect);
                 });
 
             self.inner_rect = ui.available_rect_before_wrap();
             self.render_svg(ui);
         });
+
+        handle_zoom_input(ui, self.inner_rect, &mut self.buffer);
+
+        if ui.input(|r| r.multi_touch().is_some()) {
+            return;
+        }
 
         match self.toolbar.active_tool {
             Tool::Pen => {
@@ -106,7 +111,6 @@ impl SVGEditor {
             }
         }
 
-        handle_zoom_input(ui, self.inner_rect, &mut self.buffer);
         handle_clip_input(ui, &mut self.buffer);
 
         Self::define_dynamic_colors(
