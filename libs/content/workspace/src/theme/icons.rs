@@ -66,7 +66,6 @@ impl Icon {
     pub const WARNING: Self = ic("\u{e001}");
     pub const ZOOM_IN: Self = ic("\u{e145}");
     pub const ZOOM_OUT: Self = ic("\u{e15b}");
-    pub const HIDE_KEYBOARD: Self = ic("\u{f67a}");
     pub const STRIKETHROUGH: Self = ic("\u{e257}");
     pub const BULLET_LIST: Self = ic("\u{e241}");
     pub const INDENT: Self = ic("\u{e23e}");
