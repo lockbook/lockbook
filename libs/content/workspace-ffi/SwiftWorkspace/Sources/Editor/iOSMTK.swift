@@ -9,7 +9,7 @@ import UniformTypeIdentifiers
 // i removed UIEditMenuInteractionDelegate
 
 public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDelegate {
-    public static let TOOL_BAR_HEIGHT: CGFloat = 40
+    public static let TOOL_BAR_HEIGHT: CGFloat = 42
     
     let mtkView: iOSMTK
     

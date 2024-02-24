@@ -125,6 +125,7 @@ class SearchService: ObservableObject {
     }
     
     func startSearchThread(isPathAndContentSearch: Bool) {
+        print("starting search thread")
         if !isPathAndContentSearching && isPathAndContentSearch {
             isPathAndContentSearching = true
             isPathAndContentSearchInProgress = false

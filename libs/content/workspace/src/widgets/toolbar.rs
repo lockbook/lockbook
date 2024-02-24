@@ -1,3 +1,5 @@
+use egui::Vec2;
+
 use crate::tab::{
     markdown_editor::{
         input::canonical::{Modification, Region},
@@ -11,20 +13,28 @@ use crate::theme::icons::Icon;
 
 use super::Button;
 
-pub const MOBILE_TOOL_BAR_SIZE: f32 = 40.0;
+pub const MOBILE_TOOL_BAR_SIZE: f32 = 45.0;
 
 #[derive(Clone)]
-struct ToolbarButton {
+pub struct ToolbarButton {
     icon: Icon,
     id: String,
     callback: fn(&mut egui::Ui, &mut ToolBar),
 }
+
+#[derive(Clone)]
+pub enum Component {
+    Button(ToolbarButton),
+    Separator(egui::Margin),
+}
+
 #[derive(Clone)]
 pub struct ToolBar {
     pub margin: egui::Margin,
     id: egui::Id,
     pub has_focus: bool,
     buttons: Vec<ToolbarButton>,
+    mobile_components: Vec<Component>,
     header_click_count: usize,
     pub visibility: ToolBarVisibility,
 }
@@ -40,11 +50,12 @@ impl ToolBar {
     pub fn new(visibility: &ToolBarVisibility) -> Self {
         Self {
             margin: if cfg!(target_os = "ios") {
-                egui::Margin::symmetric(20.0, 5.0)
+                egui::Margin { left: 10.0, right: 23.0, top: 5.0, bottom: 5.0 }
             } else {
                 egui::Margin::symmetric(15.0, 0.0)
             },
             buttons: get_buttons(visibility),
+            mobile_components: get_mobile_components(),
             header_click_count: 1,
             has_focus: false,
             visibility: visibility.to_owned(),
@@ -95,27 +106,51 @@ impl ToolBar {
         egui::ScrollArea::horizontal().show(ui, |ui| {
             ui.horizontal(|ui| {
                 ui.spacing_mut().button_padding =
-                    if is_mobile { egui::vec2(10.0, 4.0) } else { egui::vec2(10.0, 20.0) };
+                    if is_mobile { egui::vec2(0.0, 5.0) } else { egui::vec2(10.0, 20.0) };
 
-                self.buttons.clone().iter().for_each(|btn| {
-                    let res = Button::default().icon(&btn.icon).show(ui);
-                    if res.hovered() && btn.id != "header" {
-                        self.header_click_count = 1;
-                    }
+                if is_mobile {
+                    self.mobile_components
+                        .clone()
+                        .iter()
+                        .for_each(|comp| match comp {
+                            Component::Button(btn) => {
+                                ui.add_space(10.0);
+                                let res = Button::default().icon(&btn.icon).show(ui);
+                                ui.add_space(10.0);
 
-                    if res.clicked() {
-                        (btn.callback)(ui, self);
-
-                        ui.memory_mut(|w| {
-                            w.request_focus(editor.id);
+                                if res.clicked() {
+                                    (btn.callback)(ui, self);
+                                }
+                            }
+                            Component::Separator(sep) => {
+                                ui.add_space(sep.right);
+                                ui.add(
+                                    egui::Separator::default().shrink(ui.available_height() * 0.3),
+                                );
+                                ui.add_space(sep.left);
+                            }
                         });
+                } else {
+                    self.buttons.clone().iter().for_each(|btn| {
+                        let res = Button::default().icon(&btn.icon).show(ui);
+                        if res.hovered() && btn.id != "header" {
+                            self.header_click_count = 1;
+                        }
 
-                        ui.ctx().request_repaint();
-                    }
-                    if btn.id == "header" {
-                        res.on_hover_text(format!("H{}", self.header_click_count));
-                    }
-                });
+                        if res.clicked() {
+                            (btn.callback)(ui, self);
+
+                            ui.memory_mut(|w| {
+                                w.request_focus(editor.id);
+                            });
+
+                            ui.ctx().request_repaint();
+                        }
+                        if btn.id == "header" {
+                            res.on_hover_text(format!("H{}", self.header_click_count));
+                        }
+                    });
+                };
             })
         });
     }
@@ -253,4 +288,124 @@ fn get_buttons(visibility: &ToolBarVisibility) -> Vec<ToolbarButton> {
         }
         ToolBarVisibility::Disabled => vec![],
     }
+}
+
+fn get_mobile_components() -> Vec<Component> {
+    vec![
+        Component::Button(ToolbarButton {
+            icon: Icon::HEADER_1,
+            id: "header".to_string(),
+            callback: |ui, t| {
+                ui.ctx()
+                    .push_markdown_event(Modification::toggle_heading_style(t.header_click_count));
+                if t.header_click_count > 5 {
+                    t.header_click_count = 6;
+                } else {
+                    t.header_click_count += 1;
+                }
+            },
+        }),
+        Component::Separator(egui::Margin::symmetric(10.0, 0.0)),
+        Component::Button(ToolbarButton {
+            icon: Icon::BOLD,
+            id: "bold".to_string(),
+            callback: |ui, _| {
+                ui.ctx().push_markdown_event(Modification::ToggleStyle {
+                    region: Region::Selection,
+                    style: MarkdownNode::Inline(InlineNode::Bold),
+                })
+            },
+        }),
+        Component::Button(ToolbarButton {
+            icon: Icon::ITALIC,
+            id: "italic".to_string(),
+            callback: |ui, _| {
+                ui.ctx().push_markdown_event(Modification::ToggleStyle {
+                    region: Region::Selection,
+                    style: MarkdownNode::Inline(InlineNode::Italic),
+                })
+            },
+        }),
+        Component::Button(ToolbarButton {
+            icon: Icon::CODE,
+            id: "in_line_code".to_string(),
+            callback: |ui, _| {
+                ui.ctx().push_markdown_event(Modification::ToggleStyle {
+                    region: Region::Selection,
+                    style: MarkdownNode::Inline(InlineNode::Code),
+                });
+            },
+        }),
+        Component::Button(ToolbarButton {
+            icon: Icon::STRIKETHROUGH,
+            id: "strikethrough".to_string(),
+            callback: |ui, _| {
+                ui.ctx().push_markdown_event(Modification::ToggleStyle {
+                    region: Region::Selection,
+                    style: MarkdownNode::Inline(InlineNode::Strikethrough),
+                });
+            },
+        }),
+        Component::Separator(egui::Margin::symmetric(10.0, 0.0)),
+        Component::Button(ToolbarButton {
+            icon: Icon::NUMBER_LIST,
+            id: "number_list".to_string(),
+            callback: |ui, _| {
+                ui.ctx()
+                    .push_markdown_event(Modification::toggle_block_style(BlockNode::ListItem(
+                        ListItem::Numbered(1),
+                        0,
+                    )))
+            },
+        }),
+        Component::Button(ToolbarButton {
+            icon: Icon::BULLET_LIST,
+            id: "bullet_list".to_string(),
+            callback: |ui, _| {
+                ui.ctx()
+                    .push_markdown_event(Modification::toggle_block_style(BlockNode::ListItem(
+                        ListItem::Bulleted,
+                        0,
+                    )))
+            },
+        }),
+        Component::Button(ToolbarButton {
+            icon: Icon::TODO_LIST,
+            id: "todo_list".to_string(),
+            callback: |ui, _| {
+                ui.ctx()
+                    .push_markdown_event(Modification::toggle_block_style(BlockNode::ListItem(
+                        ListItem::Todo(false),
+                        0,
+                    )))
+            },
+        }),
+        Component::Separator(egui::Margin::symmetric(10.0, 0.0)),
+        Component::Button(ToolbarButton {
+            icon: Icon::INDENT,
+            id: "indent".to_string(),
+            callback: |ui, _| {
+                ui.ctx()
+                    .push_markdown_event(Modification::Indent { deindent: false })
+            },
+        }),
+        Component::Button(ToolbarButton {
+            icon: Icon::DEINDENT,
+            id: "deindent".to_string(),
+            callback: |ui, _| {
+                ui.ctx()
+                    .push_markdown_event(Modification::Indent { deindent: true })
+            },
+        }),
+        Component::Button(ToolbarButton {
+            icon: Icon::UNDO,
+            id: "undo".to_string(),
+            callback: |ui, _| ui.ctx().push_markdown_event(Modification::Undo),
+        }),
+        Component::Button(ToolbarButton {
+            icon: Icon::REDO,
+            id: "redo".to_string(),
+            callback: |ui, _| ui.ctx().push_markdown_event(Modification::Undo),
+        }),
+    ]
 }
