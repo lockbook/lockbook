@@ -113,7 +113,7 @@ struct SettingsView: View, Equatable {
                     Text("[Privacy Policy](https://lockbook.net/privacy-policy)")
                         .foregroundColor(.blue)
 
-                    Text("[End User License Agreement](https://lockbook.net/eula)")
+                    Text("[Terms of Service](https://lockbook.net/tos)")
                         .foregroundColor(.blue)
 
                     Button("Delete Account", role: .destructive) {
