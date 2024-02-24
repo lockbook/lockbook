@@ -25,7 +25,6 @@ pub use toolbar::Tool;
 use usvg_parser::Options;
 pub use util::node_by_id;
 
-// use self::clip::
 use self::zoom::handle_zoom_input;
 
 /// A shorthand for [ImageHrefResolver]'s string function.
