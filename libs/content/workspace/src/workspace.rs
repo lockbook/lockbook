@@ -219,7 +219,7 @@ impl Workspace {
             let rect = egui::Rect { min, max };
             ui.allocate_ui_at_rect(rect, |ui| {
                 let zen_mode_btn = Button::default()
-                    .icon(&Icon::SHOW_SIDEBAR)
+                    .icon(&Icon::TOGGLE_SIDEBAR)
                     .frame(true)
                     .show(ui);
                 if zen_mode_btn.clicked() {
@@ -666,7 +666,6 @@ impl Workspace {
                 }
                 WsMsg::SyncMsg(prog) => self.sync_message(prog),
                 WsMsg::FileRenamed { id, new_name } => {
-                    println! {"8"};
                     out.file_renamed = Some((id, new_name.clone()));
                     if let Some(tab) = self.get_mut_tab_by_id(id) {
                         tab.name = new_name.clone();

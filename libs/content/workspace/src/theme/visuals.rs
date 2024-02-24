@@ -15,6 +15,10 @@ pub fn init(ctx: &egui::Context, dark_mode: bool) {
         .insert(egui::TextStyle::Body, egui::FontId::new(17.0, egui::FontFamily::Proportional));
     style
         .text_styles
+        .insert(egui::TextStyle::Small, egui::FontId::new(15.0, egui::FontFamily::Proportional));
+
+    style
+        .text_styles
         .insert(egui::TextStyle::Monospace, egui::FontId::new(17.0, egui::FontFamily::Monospace));
     style
         .text_styles

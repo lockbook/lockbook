@@ -1,114 +1,200 @@
 use std::sync::{Arc, Mutex};
 use std::thread;
+use std::time::Instant;
 
 use eframe::egui;
+use lb::Duration;
+use workspace_rs::theme::icons::Icon;
 use workspace_rs::widgets::{Button, ProgressBar};
 
 use super::AccountUpdate;
 
 pub struct SyncPanel {
-    status: Result<String, String>,
+    initial_status: Result<String, String>,
+    btn_lost_hover_after_sync: bool,
     lock: Arc<Mutex<()>>,
+    usage_msg_gained_hover: Option<Instant>,
+    expanded_usage_msg_rect: egui::Rect,
 }
 
 impl SyncPanel {
-    pub fn new(status: Result<String, String>) -> Self {
-        Self { status, lock: Arc::new(Mutex::new(())) }
+    pub fn new(initial_status: Result<String, String>) -> Self {
+        Self {
+            initial_status,
+            lock: Arc::new(Mutex::new(())),
+            usage_msg_gained_hover: None,
+            expanded_usage_msg_rect: egui::Rect::NOTHING,
+            btn_lost_hover_after_sync: false,
+        }
     }
 }
 
 impl super::AccountScreen {
-    pub fn show_sync_panel(&mut self, ui: &mut egui::Ui) {
-        ui.add_space(20.0);
-
+    pub fn show_usage_panel(&mut self, ui: &mut egui::Ui) {
         if self.settings.read().unwrap().sidebar_usage {
             match &self.usage {
                 Ok(usage) => {
-                    egui::Frame::none().inner_margin(6.0).show(ui, |ui| {
-                        ui.horizontal(|ui| {
-                            ui.columns(2, |uis| {
-                                uis[0].horizontal(|ui| {
-                                    ui.add_space(2.0);
-                                    ui.label(&usage.used);
-                                });
+                    egui::Frame::none().show(ui, |ui| {
+                        let is_throttled_hover =
+                            if let Some(hover_origin) = self.sync.usage_msg_gained_hover {
+                                let throttle_duration = Duration::milliseconds(100);
+                                (Instant::now() - hover_origin) > throttle_duration
+                            } else {
+                                false
+                            };
 
-                                uis[1].with_layout(
-                                    egui::Layout::right_to_left(egui::Align::Min),
-                                    |ui| {
-                                        ui.add_space(5.0);
-                                        ui.label(&usage.available);
-                                    },
-                                );
-                            });
-                        });
+                        let text = if is_throttled_hover {
+                            format!("{:.1}% used", usage.percent * 100.)
+                        } else {
+                            format!("{} out of {} used", usage.used, usage.available)
+                        };
+
+                        let text: egui::WidgetText = text.into();
+                        let text = text.color(ui.visuals().text_color().gamma_multiply(0.8));
+                        let galley = text.into_galley(
+                            ui,
+                            Some(false),
+                            ui.available_width(),
+                            egui::TextStyle::Small,
+                        );
+
+                        let desired_size = egui::vec2(galley.size().x, galley.size().y);
+                        let (rect, resp) = ui.allocate_at_least(desired_size, egui::Sense::click());
+
+                        if self.sync.usage_msg_gained_hover.is_none()
+                            && !self.sync.expanded_usage_msg_rect.eq(&rect)
+                        {
+                            self.sync.expanded_usage_msg_rect = rect;
+                        }
+
+                        galley.paint_with_visuals(
+                            ui.painter(),
+                            rect.left_top(),
+                            ui.style().interact(&resp),
+                        );
+
+                        if self
+                            .sync
+                            .expanded_usage_msg_rect
+                            .expand(5.0)
+                            .contains(ui.input(|i| i.pointer.hover_pos().unwrap_or_default()))
+                        {
+                            if self.sync.usage_msg_gained_hover.is_none() {
+                                self.sync.usage_msg_gained_hover = Some(Instant::now());
+                            }
+                        } else {
+                            self.sync.usage_msg_gained_hover = None;
+                        }
 
                         ui.add_space(8.0);
 
                         ProgressBar::new().percent(usage.percent).show(ui);
                     });
                 }
-                Err(err) => {
-                    ui.add_space(15.0);
-                    ui.horizontal(|ui| {
-                        ui.add_space(10.0);
-                        ui.label(egui::RichText::new(err).color(egui::Color32::RED));
-                    });
+                Err(_err) => {
+                    // todo: should still display usage in offline
                 }
             }
-        } else {
-            ui.add_space(10.0);
+            ui.add_space(15.0);
         }
-
-        let desired_size = egui::vec2(ui.available_size_before_wrap().x, 35.0);
-        ui.allocate_ui_with_layout(
-            desired_size,
-            egui::Layout::left_to_right(egui::Align::Center),
-            |ui| {
-                ui.add_space(5.0);
-
-                ui.visuals_mut().widgets.inactive.fg_stroke =
-                    egui::Stroke { color: ui.visuals().hyperlink_color, ..Default::default() };
-
-                ui.visuals_mut().widgets.hovered.fg_stroke =
-                    egui::Stroke { color: ui.visuals().hyperlink_color, ..Default::default() };
-
-                ui.visuals_mut().widgets.active.fg_stroke =
-                    egui::Stroke { color: ui.visuals().hyperlink_color, ..Default::default() };
-
-                if !self.workspace.pers_status.syncing
-                    && Button::default()
-                        .text("Sync")
-                        .padding((6.0, 6.0))
-                        .show(ui)
-                        .clicked()
-                {
-                    self.workspace.perform_sync();
-                }
-
-                if self.workspace.pers_status.syncing {
-                    ui.spinner();
-                }
-
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    ui.add_space(10.0);
-                    match &self.sync.status {
-                        Ok(s) => ui.label(
-                            egui::RichText::new(format!("Updated {s}")).color(egui::Color32::GRAY),
-                        ),
-                        Err(msg) => ui.label(egui::RichText::new(msg).color(egui::Color32::RED)),
-                    };
-                });
-            },
-        );
-
-        ui.add_space(20.0);
     }
 
-    pub fn set_sync_status<T: ToString>(&mut self, res: Result<String, T>) {
-        self.sync.status = match res {
-            Ok(s) => Ok(s),
-            Err(v) => Err(v.to_string()),
+    pub fn show_sync_btn(&mut self, ui: &mut egui::Ui) {
+        let visuals_before_button = ui.style().clone();
+        let text_stroke =
+            egui::Stroke { color: ui.visuals().widgets.active.bg_fill, ..Default::default() };
+        ui.visuals_mut().widgets.inactive.fg_stroke = text_stroke;
+        ui.visuals_mut().widgets.hovered.fg_stroke = text_stroke;
+        ui.visuals_mut().widgets.active.fg_stroke = text_stroke;
+
+        ui.visuals_mut().widgets.inactive.bg_fill =
+            ui.visuals().widgets.active.bg_fill.gamma_multiply(0.1);
+        ui.visuals_mut().widgets.hovered.bg_fill =
+            ui.visuals().widgets.active.bg_fill.gamma_multiply(0.2);
+
+        ui.visuals_mut().widgets.active.bg_fill =
+            ui.visuals().widgets.active.bg_fill.gamma_multiply(0.3);
+
+        let sync_btn = Button::default()
+            .text("Sync")
+            .icon(&Icon::SYNC)
+            .icon_alignment(egui::Align::RIGHT)
+            .padding(egui::vec2(10.0, 7.0))
+            .frame(true)
+            .rounding(egui::Rounding::same(5.0))
+            .is_loading(self.workspace.pers_status.syncing)
+            .show(ui);
+
+        if sync_btn.clicked() {
+            self.workspace.perform_sync();
+            self.sync.btn_lost_hover_after_sync = false;
+        }
+
+        if sync_btn.hover_pos().is_none() {
+            self.sync.btn_lost_hover_after_sync = true;
+        }
+
+        let tooltip_msg = if !self.sync.btn_lost_hover_after_sync {
+            self.workspace.pers_status.sync_message.to_owned()
+        } else {
+            Some(format!("Updated {}", &self.workspace.pers_status.dirtyness.last_synced))
         };
+
+        if let Some(msg) = tooltip_msg {
+            sync_btn.on_hover_ui_at_pointer(|ui| {
+                ui.label(msg);
+            });
+        }
+
+        ui.set_style(visuals_before_button);
+    }
+    pub fn show_sync_error_warn(&mut self, ui: &mut egui::Ui) {
+        let msg = if let Err(err_msg) = &self.sync.initial_status {
+            err_msg.to_owned()
+        } else {
+            let dirty_files_count = self.workspace.pers_status.dirtyness.dirty_files.len();
+            if dirty_files_count > 0 {
+                format!(
+                    "{} file{} needs to be synced",
+                    dirty_files_count,
+                    if dirty_files_count > 1 { "s" } else { "" }
+                )
+            } else {
+                return;
+            }
+        };
+
+        let color = if self.sync.initial_status.is_err() {
+            ui.visuals().error_fg_color
+        } else {
+            ui.visuals().text_color()
+        };
+
+        egui::Frame::default()
+            .fill(color.gamma_multiply(0.1))
+            .inner_margin(egui::Margin::symmetric(10.0, 7.0))
+            .rounding(egui::Rounding::same(10.0))
+            .show(ui, |ui| {
+                ui.set_width(ui.available_size_before_wrap().x);
+                ui.horizontal_wrapped(|ui| {
+                    Icon::WARNING.color(color).show(ui);
+
+                    ui.add_space(7.0);
+
+                    let mut job = egui::text::LayoutJob::single_section(
+                        msg,
+                        egui::TextFormat::simple(egui::FontId::proportional(15.0), color),
+                    );
+
+                    job.wrap = egui::epaint::text::TextWrapping {
+                        overflow_character: Some('…'),
+                        max_rows: 1,
+                        break_anywhere: true,
+                        ..Default::default()
+                    };
+                    ui.label(job);
+                });
+            });
     }
 
     pub fn perform_final_sync(&self, ctx: &egui::Context) {

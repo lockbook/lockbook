@@ -246,7 +246,7 @@ impl PdfViewer {
 
         if let Some(sidebar) = &mut self.sidebar {
             ui.allocate_ui_at_rect(end_of_line_rect, |ui| {
-                let icon = if sidebar_is_visible { Icon::SHOW_SIDEBAR } else { Icon::HIDE_SIDEBAR };
+                let icon = Icon::TOGGLE_SIDEBAR;
                 if Button::default().icon(&icon).show(ui).clicked() {
                     sidebar.is_visible = !sidebar.is_visible;
                 }
