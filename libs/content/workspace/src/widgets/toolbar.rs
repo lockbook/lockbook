@@ -1,5 +1,3 @@
-use egui::Vec2;
-
 use crate::tab::{
     markdown_editor::{
         input::canonical::{Modification, Region},
