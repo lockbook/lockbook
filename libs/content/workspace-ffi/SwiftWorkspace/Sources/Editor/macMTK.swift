@@ -249,16 +249,17 @@ public class MacMTK: MTKView, MTKViewDelegate {
         workspaceState?.reloadFiles = output.workspace_resp.refresh_files
 
         let selectedFile = UUID(uuid: output.workspace_resp.selected_file._0)
-        if selectedFile.isNil() {
-            currentOpenDoc = nil
-            if self.workspaceState?.openDoc != nil {
-                self.workspaceState?.openDoc = nil
-            }
-        } else {
+        if !selectedFile.isNil() {
             currentOpenDoc = selectedFile
             if selectedFile != self.workspaceState?.openDoc {
                 self.workspaceState?.openDoc = selectedFile
             }
+        }
+        
+        let currentTab = WorkspaceTab(rawValue: Int(current_tab(wsHandle)))!
+        if currentTab == .Welcome && currentOpenDoc != nil {
+            currentOpenDoc = nil
+            self.workspaceState?.openDoc = nil
         }
 
         let newFile = UUID(uuid: output.workspace_resp.doc_created._0)
