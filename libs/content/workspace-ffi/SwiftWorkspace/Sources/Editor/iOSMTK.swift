@@ -716,12 +716,7 @@ public class iOSMTK: MTKView, MTKViewDelegate {
         
         let selectedFile = UUID(uuid: output.workspace_resp.selected_file._0)
         
-        if selectedFile.isNil() {
-            currentOpenDoc = nil
-            if self.workspaceState?.openDoc != nil {
-                self.workspaceState?.openDoc = nil
-            }
-        } else {
+        if !selectedFile.isNil() {
             if currentOpenDoc != selectedFile {
                 onSelectionChanged?()
                 onTextChanged?()
@@ -742,6 +737,11 @@ public class iOSMTK: MTKView, MTKViewDelegate {
                     self.workspaceState!.currentTab = currentTab
                 }
             }
+        }
+        
+        if currentTab == .Welcome && currentOpenDoc != nil {
+            currentOpenDoc = nil
+            self.workspaceState?.openDoc = nil
         }
         
         if output.workspace_resp.tab_title_clicked {
