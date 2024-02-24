@@ -235,9 +235,8 @@ impl WgpuLockbook {
             .expect("remove texture ok");
 
         // Queue up the events for the next frame
-        self.raw_input.events.extend(self.queued_events.drain(..));
-        self.queued_events
-            .extend(self.double_queued_events.drain(..));
+        self.raw_input.events.append(&mut self.queued_events);
+        self.queued_events.append(&mut self.double_queued_events);
         if !self.raw_input.events.is_empty() {
             self.context.request_repaint();
         }
