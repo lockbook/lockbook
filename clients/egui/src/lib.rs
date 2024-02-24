@@ -157,6 +157,10 @@ pub struct WgpuLockbook {
     pub context: egui::Context,
     pub raw_input: egui::RawInput,
 
+    // events for the subsequent two frames, because canvas expects buttons to be down for two frames
+    pub queued_events: Vec<egui::Event>,
+    pub double_queued_events: Vec<egui::Event>,
+
     pub app: Lockbook,
 }
 
@@ -229,6 +233,13 @@ impl WgpuLockbook {
         self.rpass
             .remove_textures(tdelta)
             .expect("remove texture ok");
+
+        // Queue up the events for the next frame
+        self.raw_input.events.append(&mut self.queued_events);
+        self.queued_events.append(&mut self.double_queued_events);
+        if !self.raw_input.events.is_empty() {
+            self.context.request_repaint();
+        }
 
         out.redraw_in = full_output.repaint_after.as_millis() as u64;
         out.egui = full_output.platform_output;

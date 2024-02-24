@@ -14,16 +14,13 @@ use raw_window_handle::{
     HasRawDisplayHandle, HasRawWindowHandle, RawDisplayHandle, RawWindowHandle, Win32WindowHandle,
     WindowsDisplayHandle,
 };
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Instant;
 use windows::{
     core::*, Win32::Foundation::*, Win32::Graphics::Direct3D12::*, Win32::Graphics::Dxgi::*,
     Win32::Graphics::Gdi::*, Win32::System::LibraryLoader::*, Win32::System::Ole::*,
     Win32::UI::HiDpi::*, Win32::UI::Input::KeyboardAndMouse::*, Win32::UI::WindowsAndMessaging::*,
 };
-
-// todo: improve
-// instead of redrawing at a particulr time in the future, we redraw it constantly until that time
-static mut REDRAW_UNTIL: Option<Instant> = None;
 
 pub struct WindowHandle {
     handle: Win32WindowHandle,
@@ -144,10 +141,17 @@ pub fn main() -> Result<()> {
     unsafe { dxgi_factory.MakeWindowAssociation(hwnd, DXGI_MWA_NO_ALT_ENTER) }?;
 
     let app = init(&WindowHandle::new(hwnd), false);
+
+    let got_events_atomic = std::sync::Arc::new(AtomicBool::new(false));
+    let got_events_clone = got_events_atomic.clone();
     app.context.set_request_repaint_callback(move |rri| {
-        unsafe { InvalidateRect(hwnd, None, false) };
-        unsafe { REDRAW_UNTIL = Some(Instant::now() + rri.after) };
+        let got_events_clone = got_events_clone.clone();
+        let _ = std::thread::spawn(move || {
+            std::thread::sleep(rri.after);
+            got_events_clone.store(true, Ordering::SeqCst);
+        });
     });
+
     window.maybe_app = Some(app);
     window.dpi_scale = dpi_to_scale_factor(unsafe { GetDpiForWindow(hwnd) } as _);
 
@@ -164,27 +168,41 @@ pub fn main() -> Result<()> {
         unsafe { RegisterDragDrop(hwnd, &file_drop_handler) }?;
         file_drop_handler
     };
-
-    // "If the window was previously visible, the return value is nonzero."
-    // https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-showwindow
     unsafe { ShowWindow(hwnd, SW_SHOW) };
 
-    let mut message = MSG::default();
-    // "If the function retrieves the WM_QUIT message, the return value is zero."
-    // https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-getmessagea
-    while unsafe { GetMessageA(&mut message, None, 0, 0) }.into() {
+    let mut messages = Vec::new();
+    let mut msg = MSG::default();
+    loop {
+        let mut got_events = got_events_atomic.load(Ordering::SeqCst);
         unsafe {
-            // "If the message is translated [...], the return value is nonzero."
-            // https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-translatemessage
-            TranslateMessage(&message);
+            while PeekMessageA(&mut msg, HWND(0), 0, 0, PM_REMOVE).into() {
+                if msg.message == WM_QUIT {
+                    return Ok(());
+                }
 
-            // "...the return value generally is ignored."
-            // https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-dispatchmessage
-            DispatchMessageA(&message);
+                messages.push(msg);
+
+                if msg.message == WM_PAINT {
+                    break;
+                }
+
+                got_events = true;
+            }
+
+            for msg in messages.drain(..) {
+                TranslateMessage(&msg);
+                DispatchMessageA(&msg);
+            }
+
+            if got_events {
+                got_events_atomic.store(false, Ordering::SeqCst);
+                InvalidateRect(hwnd, None, false);
+            }
+
+            // wait a lil before possibly rendering another frame
+            std::thread::sleep(std::time::Duration::from_millis(1));
         }
     }
-
-    Ok(())
 }
 
 // callback invoked when Windows sends a message to the window
@@ -237,6 +255,9 @@ fn handle_message(hwnd: HWND, message: Message) -> bool {
                 MessageNoDeps::Destroy => {
                     unsafe { PostQuitMessage(0) };
                 }
+                MessageNoDeps::Quit => {
+                    unsafe { DestroyWindow(hwnd).expect("destroy window") };
+                }
             }
             true
         }
@@ -278,7 +299,6 @@ fn handle_message(hwnd: HWND, message: Message) -> bool {
 
                     match message {
                         MessageAppDep::KeyDown { key } | MessageAppDep::KeyUp { key } => {
-                            unsafe { InvalidateRect(hwnd, None, false) };
                             input::key::handle(app, message, key, modifiers)
                         }
                         MessageAppDep::LButtonDown { pos }
@@ -286,24 +306,19 @@ fn handle_message(hwnd: HWND, message: Message) -> bool {
                         | MessageAppDep::RButtonDown { pos }
                         | MessageAppDep::RButtonUp { pos }
                         | MessageAppDep::MouseMove { pos } => {
-                            unsafe { InvalidateRect(hwnd, None, false) };
                             input::mouse::handle(app, message, pos, modifiers, window.dpi_scale)
                         }
                         MessageAppDep::PointerDown { pointer_id }
                         | MessageAppDep::PointerUpdate { pointer_id }
-                        | MessageAppDep::PointerUp { pointer_id } => {
-                            unsafe { InvalidateRect(hwnd, None, false) };
-                            window.pointer_manager.handle(
-                                app,
-                                hwnd,
-                                modifiers,
-                                window.dpi_scale,
-                                pointer_id,
-                            )
-                        }
+                        | MessageAppDep::PointerUp { pointer_id } => window.pointer_manager.handle(
+                            app,
+                            hwnd,
+                            modifiers,
+                            window.dpi_scale,
+                            pointer_id,
+                        ),
                         MessageAppDep::MouseWheel { delta }
                         | MessageAppDep::MouseHWheel { delta } => {
-                            unsafe { InvalidateRect(hwnd, None, false) };
                             input::mouse::handle_wheel(app, message, delta)
                         }
                         MessageAppDep::SetCursor => output::cursor::handle(),
@@ -319,7 +334,7 @@ fn handle_message(hwnd: HWND, message: Message) -> bool {
                                 redraw_in: _, // todo: handle? how's this different from checking egui context?
                                 egui: PlatformOutput { cursor_icon, open_url, copied_text, .. },
                                 update_output: UpdateOutput { close, set_window_title },
-                            } = app.frame();
+                            } = window.maybe_app.as_mut().unwrap().frame();
 
                             output::clipboard_copy::handle(copied_text);
                             output::close::handle(close);
@@ -328,15 +343,6 @@ fn handle_message(hwnd: HWND, message: Message) -> bool {
                             output::open_url::handle(open_url);
 
                             unsafe { EndPaint(hwnd, std::ptr::null_mut()) };
-
-                            if let Some(redraw_until) = unsafe { REDRAW_UNTIL } {
-                                if redraw_until < Instant::now() {
-                                    unsafe { REDRAW_UNTIL = None };
-                                } else {
-                                    // if a redraw is pending, invalidate the window so that we get another paint message
-                                    unsafe { InvalidateRect(hwnd, None, false) };
-                                }
-                            }
 
                             true
                         }
@@ -359,7 +365,6 @@ fn handle_message(hwnd: HWND, message: Message) -> bool {
                         input::file_drop::Message::DragOver { .. } => true,
                         input::file_drop::Message::DragLeave => true,
                         input::file_drop::Message::Drop { object, .. } => {
-                            unsafe { InvalidateRect(hwnd, None, false) };
                             input::file_drop::handle(app, object)
                         }
                     }
@@ -421,6 +426,8 @@ pub fn init<W: raw_window_handle::HasRawWindowHandle + raw_window_handle::HasRaw
         screen,
         context,
         raw_input: Default::default(),
+        queued_events: Default::default(),
+        double_queued_events: Default::default(),
         app,
         surface_width: 0,
         surface_height: 0,

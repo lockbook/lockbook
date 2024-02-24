@@ -5,8 +5,6 @@ use windows::Win32::{
     Foundation::*, Graphics::Gdi::*, UI::Input::Pointer::*, UI::WindowsAndMessaging::*,
 };
 
-use super::mouse::pointer_button_event;
-
 #[derive(Default)]
 pub struct PointerManager {
     start_time_by_pointer: HashMap<u32, Instant>,
@@ -137,75 +135,151 @@ impl PointerManager {
 
             // also send pointer events when we receive touch events, similar to ios ffi
             // todo: account for other pointer flags e.g. to distinguish draw from erase
-            let phase = if has_flag(pointer_info.pointerFlags, POINTER_FLAG_DOWN) {
-                self.start_time_by_pointer
-                    .insert(pointer_id, Instant::now());
-                self.start_pos_by_pointer.insert(pointer_id, pos);
+            if has_flag(pointer_info.pointerFlags, POINTER_FLAG_INCONTACT) {
+                if let (Some(&start_time), Some(&start_pos), maybe_button) = (
+                    self.start_time_by_pointer.get(&pointer_id),
+                    self.start_pos_by_pointer.get(&pointer_id),
+                    self.button_emitted_by_pointer.get(&pointer_id),
+                ) {
+                    // pointer has already made contact
+                    let long = start_time.elapsed().as_millis() > 400;
+                    let moved = (start_pos - pos).length() >= 0.0; // todo: this disables long press right click because otherwise for some reason pen input is delayed so h's look like n's
 
-                egui::TouchPhase::Start
-            } else if has_flag(pointer_info.pointerFlags, POINTER_FLAG_UP) {
-                if let Some(&button) = self.button_emitted_by_pointer.get(&pointer_id) {
-                    // un-press whichever pointer button was pressed
-                    pointer_button_event(pos, button, false, modifiers, app);
-                } else {
-                    println!("primary (short press)");
+                    match (maybe_button, moved, long) {
+                        (Some(_), _, _) => {
+                            // pointer button already determined
+                            app.raw_input.events.push(egui::Event::PointerMoved(pos));
+                            app.raw_input.events.push(egui::Event::Touch {
+                                device_id: egui::TouchDeviceId(pointer_id as _),
+                                id: pointer_id.into(),
+                                phase: egui::TouchPhase::Move,
+                                pos,
+                                force,
+                            });
+                        }
+                        (None, true, _) => {
+                            // pointer just moved far enough to be a primary button
+                            let button = egui::PointerButton::Primary;
+                            self.button_emitted_by_pointer.insert(pointer_id, button);
 
-                    // if we didn't determine the pointer button before releasing the pointer, emit a pressed event
-                    // first (pointer events emitted in this way are always primary)
-                    pointer_button_event(pos, egui::PointerButton::Primary, true, modifiers, app);
-                    pointer_button_event(pos, egui::PointerButton::Primary, false, modifiers, app);
-                }
+                            app.raw_input.events.push(egui::Event::PointerButton {
+                                pos: start_pos,
+                                button,
+                                pressed: true,
+                                modifiers,
+                            });
+                            app.raw_input.events.push(egui::Event::Touch {
+                                device_id: egui::TouchDeviceId(pointer_id as _),
+                                id: pointer_id.into(),
+                                phase: egui::TouchPhase::Start,
+                                pos,
+                                force,
+                            });
 
-                self.start_pos_by_pointer.remove(&pointer_id);
+                            // queue moves for next frame
+                            app.double_queued_events
+                                .push(egui::Event::PointerMoved(pos));
+                            app.double_queued_events.push(egui::Event::Touch {
+                                device_id: egui::TouchDeviceId(pointer_id as _),
+                                id: pointer_id.into(),
+                                phase: egui::TouchPhase::Move,
+                                pos,
+                                force,
+                            });
+                        }
+                        (None, false, true) => {
+                            // pointer contact just lasted long enough to be a secondary button
+                            let button = egui::PointerButton::Secondary;
+                            self.button_emitted_by_pointer.insert(pointer_id, button);
 
-                egui::TouchPhase::End
-            } else if has_flag(pointer_info.pointerFlags, POINTER_FLAG_UPDATE) {
-                let long = if let Some(&start) = self.start_time_by_pointer.get(&pointer_id) {
-                    start.elapsed().as_millis() > 400
-                } else {
-                    false
-                };
-                let moved = if let Some(&start_pos) = self.start_pos_by_pointer.get(&pointer_id) {
-                    (start_pos - pos).length() > 10.0
-                } else {
-                    false
-                };
-
-                if !self.button_emitted_by_pointer.contains_key(&pointer_id) {
-                    if moved {
-                        let pos = self.start_pos_by_pointer.get(&pointer_id).unwrap_or(&pos);
-
-                        // send primary button event if we learn it's not a secondary event
-                        let button = egui::PointerButton::Primary;
-                        pointer_button_event(*pos, button, true, modifiers, app);
-                        self.button_emitted_by_pointer.insert(pointer_id, button);
-                    } else if long {
-                        // send secondary button event if the pointer has been held for a long time without moving
-                        let button = egui::PointerButton::Secondary;
-                        pointer_button_event(pos, button, true, modifiers, app);
-                        self.button_emitted_by_pointer.insert(pointer_id, button);
+                            app.raw_input.events.push(egui::Event::PointerButton {
+                                pos: start_pos,
+                                button,
+                                pressed: true,
+                                modifiers,
+                            });
+                            app.raw_input.events.push(egui::Event::Touch {
+                                device_id: egui::TouchDeviceId(pointer_id as _),
+                                id: pointer_id.into(),
+                                phase: egui::TouchPhase::Start,
+                                pos,
+                                force,
+                            });
+                        }
+                        _ => {
+                            // we're still waiting to determine the pointer button
+                        }
                     }
-                } else if moved {
-                    app.raw_input.events.push(egui::Event::PointerMoved(pos));
                 } else {
-                    continue;
+                    // pointer just made contact
+                    self.start_time_by_pointer
+                        .insert(pointer_id, Instant::now());
+                    self.start_pos_by_pointer.insert(pointer_id, pos);
                 }
-
-                egui::TouchPhase::Move
             } else {
-                continue;
+                match (
+                    self.start_time_by_pointer.remove(&pointer_id),
+                    self.start_pos_by_pointer.remove(&pointer_id),
+                    self.button_emitted_by_pointer.remove(&pointer_id),
+                ) {
+                    (_, _, Some(button)) => {
+                        // pointer just left contact after a button was determined
+                        // un-press whichever pointer button was pressed
+                        app.queued_events.push(egui::Event::PointerButton {
+                            pos,
+                            button,
+                            pressed: false,
+                            modifiers,
+                        });
+
+                        app.queued_events.push(egui::Event::Touch {
+                            device_id: egui::TouchDeviceId(pointer_id as _),
+                            id: pointer_id.into(),
+                            phase: egui::TouchPhase::End,
+                            pos,
+                            force,
+                        });
+                    }
+                    (Some(_), Some(start_pos), _) => {
+                        // pointer just left contact before a button was determined
+                        // pointer events emitted in this way are always primary
+                        let button = egui::PointerButton::Primary;
+                        app.raw_input.events.push(egui::Event::PointerButton {
+                            pos: start_pos,
+                            button,
+                            pressed: true,
+                            modifiers,
+                        });
+                        app.raw_input.events.push(egui::Event::Touch {
+                            device_id: egui::TouchDeviceId(pointer_id as _),
+                            id: pointer_id.into(),
+                            phase: egui::TouchPhase::Start,
+                            pos,
+                            force,
+                        });
+
+                        // queue releases for next frame
+                        let button = egui::PointerButton::Primary;
+                        app.double_queued_events.push(egui::Event::PointerButton {
+                            pos: start_pos,
+                            button,
+                            pressed: false,
+                            modifiers,
+                        });
+                        app.double_queued_events.push(egui::Event::Touch {
+                            device_id: egui::TouchDeviceId(pointer_id as _),
+                            id: pointer_id.into(),
+                            phase: egui::TouchPhase::End,
+                            pos,
+                            force,
+                        });
+                    }
+                    _ => {
+                        // pointer hasn't made contact and still isn't making contact
+                    }
+                };
             };
-
-            app.raw_input.events.push(egui::Event::Touch {
-                device_id: egui::TouchDeviceId(pointer_id as _),
-                id: pointer_id.into(),
-                phase,
-                pos,
-                force,
-            });
         }
-
-        let _ = unsafe { SkipPointerFrameMessages(pointer_id) };
 
         true
     }
