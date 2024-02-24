@@ -138,7 +138,7 @@ public class iOSMTKInputManager: UIView, UIGestureRecognizerDelegate {
                 
         switch sender.state {
         case .ended:
-            if sender.translation(in: self).x > 100 {
+            if sender.translation(in: self).x > 100 || sender.velocity(in: self).x > 200 {
                 withAnimation {
                     mtkView.workspaceState?.closeActiveTab = true
                     mtkView.workspaceState!.dragOffset = 0
