@@ -70,6 +70,7 @@ impl SVGEditor {
     }
 
     pub fn show(&mut self, ui: &mut egui::Ui) {
+        println!("{:#?}", ui.input(|r| r.multi_touch()));
         ui.vertical(|ui| {
             egui::Frame::default()
                 .fill(if ui.visuals().dark_mode {
