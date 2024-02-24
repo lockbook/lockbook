@@ -92,29 +92,31 @@ impl ToolBar {
     }
 
     fn map_buttons(&mut self, ui: &mut egui::Ui, editor: &mut Editor, is_mobile: bool) {
-        ui.horizontal(|ui| {
-            ui.spacing_mut().button_padding =
-                if is_mobile { egui::vec2(10.0, 4.0) } else { egui::vec2(10.0, 20.0) };
+        egui::ScrollArea::horizontal().show(ui, |ui| {
+            ui.horizontal(|ui| {
+                ui.spacing_mut().button_padding =
+                    if is_mobile { egui::vec2(10.0, 4.0) } else { egui::vec2(10.0, 20.0) };
 
-            self.buttons.clone().iter().for_each(|btn| {
-                let res = Button::default().icon(&btn.icon).show(ui);
-                if res.hovered() && btn.id != "header" {
-                    self.header_click_count = 1;
-                }
+                self.buttons.clone().iter().for_each(|btn| {
+                    let res = Button::default().icon(&btn.icon).show(ui);
+                    if res.hovered() && btn.id != "header" {
+                        self.header_click_count = 1;
+                    }
 
-                if res.clicked() {
-                    (btn.callback)(ui, self);
+                    if res.clicked() {
+                        (btn.callback)(ui, self);
 
-                    ui.memory_mut(|w| {
-                        w.request_focus(editor.id);
-                    });
+                        ui.memory_mut(|w| {
+                            w.request_focus(editor.id);
+                        });
 
-                    ui.ctx().request_repaint();
-                }
-                if btn.id == "header" {
-                    res.on_hover_text(format!("H{}", self.header_click_count));
-                }
-            });
+                        ui.ctx().request_repaint();
+                    }
+                    if btn.id == "header" {
+                        res.on_hover_text(format!("H{}", self.header_click_count));
+                    }
+                });
+            })
         });
     }
 

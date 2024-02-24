@@ -563,6 +563,8 @@ public class iOSMTKDrawingWrapper: UIView, UIPencilInteractionDelegate {
     init(mtkView: iOSMTK) {
         self.mtkView = mtkView
         super.init(frame: .infinite)
+        
+        isMultipleTouchEnabled = true
                         
         pencilInteraction.delegate = self
         addInteraction(pencilInteraction)
