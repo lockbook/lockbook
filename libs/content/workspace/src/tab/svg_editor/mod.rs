@@ -25,7 +25,6 @@ pub use toolbar::Tool;
 use usvg_parser::Options;
 pub use util::node_by_id;
 
-use self::clip::handle_clip_input;
 use self::zoom::handle_zoom_input;
 
 /// A shorthand for [ImageHrefResolver]'s string function.
@@ -106,7 +105,7 @@ impl SVGEditor {
         }
 
         handle_zoom_input(ui, self.inner_rect, &mut self.buffer);
-        handle_clip_input(ui, &mut self.buffer);
+        self.handle_clip_input(ui);
 
         Self::define_dynamic_colors(
             &mut self.buffer,

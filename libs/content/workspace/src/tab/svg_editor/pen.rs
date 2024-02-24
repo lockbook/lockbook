@@ -11,7 +11,7 @@ pub struct Pen {
     pub active_color: Option<ColorSwatch>,
     pub active_stroke_width: u32,
     path_builder: CubicBezBuilder,
-    current_id: usize,
+    pub current_id: usize, // todo: this should be at a higher component state, maybe in buffer
     pub rx: mpsc::Receiver<PathEvent>,
     pub tx: mpsc::Sender<PathEvent>,
 }
