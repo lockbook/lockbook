@@ -330,15 +330,6 @@ fn handle_message(hwnd: HWND, message: Message) -> bool {
                             // https://stackoverflow.com/questions/5841299/difference-between-getdc-and-beginpaint
                             unsafe { BeginPaint(hwnd, std::ptr::null_mut()) };
 
-                            println!(
-                                "> PAINT {:?}",
-                                app.raw_input
-                                    .events
-                                    .iter()
-                                    .filter(|&e| matches!(e, &egui::Event::PointerButton { .. }))
-                                    .collect::<Vec<_>>()
-                            );
-
                             let IntegrationOutput {
                                 redraw_in: _, // todo: handle? how's this different from checking egui context?
                                 egui: PlatformOutput { cursor_icon, open_url, copied_text, .. },
@@ -436,6 +427,7 @@ pub fn init<W: raw_window_handle::HasRawWindowHandle + raw_window_handle::HasRaw
         context,
         raw_input: Default::default(),
         queued_events: Default::default(),
+        double_queued_events: Default::default(),
         app,
         surface_width: 0,
         surface_height: 0,

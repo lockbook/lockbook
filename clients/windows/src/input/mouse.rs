@@ -24,27 +24,12 @@ pub fn handle(
             message,
             MessageAppDep::LButtonDown { .. } | MessageAppDep::RButtonDown { .. }
         );
-        pointer_button_event(pos, button, pressed, modifiers, app);
+        app.raw_input
+            .events
+            .push(egui::Event::PointerButton { pos, button, pressed, modifiers });
     }
 
     true
-}
-
-pub fn pointer_button_event(
-    pos: egui::Pos2, button: egui::PointerButton, pressed: bool, modifiers: egui::Modifiers,
-    app: &mut WgpuLockbook,
-) {
-    app.raw_input
-        .events
-        .push(egui::Event::PointerButton { pos, button, pressed, modifiers });
-}
-
-pub fn queue_pointer_button_event(
-    pos: egui::Pos2, button: egui::PointerButton, pressed: bool, modifiers: egui::Modifiers,
-    app: &mut WgpuLockbook,
-) {
-    app.queued_events
-        .push(egui::Event::PointerButton { pos, button, pressed, modifiers });
 }
 
 pub fn handle_wheel(app: &mut WgpuLockbook, message: MessageAppDep, delta: i16) -> bool {

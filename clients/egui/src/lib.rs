@@ -156,7 +156,10 @@ pub struct WgpuLockbook {
 
     pub context: egui::Context,
     pub raw_input: egui::RawInput,
+
+    // events for the subsequent two frames, because canvas expects buttons to be down for two frames
     pub queued_events: Vec<egui::Event>,
+    pub double_queued_events: Vec<egui::Event>,
 
     pub app: Lockbook,
 }
@@ -233,6 +236,11 @@ impl WgpuLockbook {
 
         // Queue up the events for the next frame
         self.raw_input.events.extend(self.queued_events.drain(..));
+        self.queued_events
+            .extend(self.double_queued_events.drain(..));
+        if !self.raw_input.events.is_empty() {
+            self.context.request_repaint();
+        }
 
         out.redraw_in = full_output.repaint_after.as_millis() as u64;
         out.egui = full_output.platform_output;
