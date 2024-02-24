@@ -34,6 +34,7 @@ pub enum Message<'a> {
 pub enum MessageNoDeps<'a> {
     Create { create_struct: &'a CREATESTRUCTA },
     Destroy,
+    Quit,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -300,7 +301,7 @@ impl<'a> Message<'a> {
             WM_QUERYOPEN => Message::Unhandled { const_name: "WM_QUERYOPEN" },
             WM_QUERYUISTATE => Message::Unhandled { const_name: "WM_QUERYUISTATE" },
             WM_QUEUESYNC => Message::Unhandled { const_name: "WM_QUEUESYNC" },
-            WM_QUIT => Message::Unhandled { const_name: "WM_QUIT" },
+            WM_QUIT => Message::NoDeps(MessageNoDeps::Quit),
             WM_RBUTTONDBLCLK => Message::Unhandled { const_name: "WM_RBUTTONDBLCLK" },
             WM_RBUTTONDOWN => Message::AppDep(MessageAppDep::RButtonDown { pos: lparam.into() }),
             WM_RBUTTONUP => Message::AppDep(MessageAppDep::RButtonUp { pos: lparam.into() }),

@@ -156,6 +156,7 @@ pub struct WgpuLockbook {
 
     pub context: egui::Context,
     pub raw_input: egui::RawInput,
+    pub queued_events: Vec<egui::Event>,
 
     pub app: Lockbook,
 }
@@ -229,6 +230,9 @@ impl WgpuLockbook {
         self.rpass
             .remove_textures(tdelta)
             .expect("remove texture ok");
+
+        // Queue up the events for the next frame
+        self.raw_input.events.extend(self.queued_events.drain(..));
 
         out.redraw_in = full_output.repaint_after.as_millis() as u64;
         out.egui = full_output.platform_output;

@@ -367,6 +367,7 @@ pub fn init<W: raw_window_handle::HasRawWindowHandle + raw_window_handle::HasRaw
         screen,
         context,
         raw_input: Default::default(),
+        queued_events: Default::default(),
         app,
         surface_width: 0,
         surface_height: 0,

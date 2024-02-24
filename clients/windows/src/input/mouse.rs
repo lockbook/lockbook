@@ -39,6 +39,14 @@ pub fn pointer_button_event(
         .push(egui::Event::PointerButton { pos, button, pressed, modifiers });
 }
 
+pub fn queue_pointer_button_event(
+    pos: egui::Pos2, button: egui::PointerButton, pressed: bool, modifiers: egui::Modifiers,
+    app: &mut WgpuLockbook,
+) {
+    app.queued_events
+        .push(egui::Event::PointerButton { pos, button, pressed, modifiers });
+}
+
 pub fn handle_wheel(app: &mut WgpuLockbook, message: MessageAppDep, delta: i16) -> bool {
     if matches!(message, MessageAppDep::MouseWheel { .. }) {
         let y = delta as f32 / WHEEL_DELTA as f32;
