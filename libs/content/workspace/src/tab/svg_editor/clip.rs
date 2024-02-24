@@ -12,7 +12,6 @@ impl SVGEditor {
                     for clip in content {
                         match clip {
                             ClipContent::Png(data) => {
-                                // todo: make necessary changes to the buffer
                                 let file = crate::tab::import_image(&self.core, &data);
                                 let image_href = format!("lb://{}", file.id);
 
