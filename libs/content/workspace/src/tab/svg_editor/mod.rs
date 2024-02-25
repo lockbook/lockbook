@@ -77,19 +77,24 @@ impl SVGEditor {
                     ui.visuals().faint_bg_color
                 })
                 .show(ui, |ui| {
-                    self.toolbar.show(ui, &mut self.buffer);
+                    self.toolbar.show(ui, &mut self.buffer, self.inner_rect);
                 });
 
             self.inner_rect = ui.available_rect_before_wrap();
             self.render_svg(ui);
         });
 
+        handle_zoom_input(ui, self.inner_rect, &mut self.buffer);
+
+        if ui.input(|r| r.multi_touch().is_some()) {
+            return;
+        }
+
         match self.toolbar.active_tool {
             Tool::Pen => {
-                self.toolbar.pen.setup_events(ui, self.inner_rect);
-                while let Ok(event) = self.toolbar.pen.rx.try_recv() {
-                    self.toolbar.pen.handle_events(event, &mut self.buffer);
-                }
+                self.toolbar
+                    .pen
+                    .handle_input(ui, self.inner_rect, &mut self.buffer);
             }
             Tool::Eraser => {
                 self.toolbar.eraser.setup_events(ui, self.inner_rect);
@@ -104,7 +109,6 @@ impl SVGEditor {
             }
         }
 
-        handle_zoom_input(ui, self.inner_rect, &mut self.buffer);
         self.handle_clip_input(ui);
 
         Self::define_dynamic_colors(

@@ -1,5 +1,5 @@
 use minidom::Element;
-use std::{collections::VecDeque, sync::mpsc};
+use std::collections::VecDeque;
 
 use super::{
     toolbar::ColorSwatch,
@@ -12,27 +12,26 @@ pub struct Pen {
     pub active_stroke_width: u32,
     path_builder: CubicBezBuilder,
     pub current_id: usize, // todo: this should be at a higher component state, maybe in buffer
-    pub rx: mpsc::Receiver<PathEvent>,
-    pub tx: mpsc::Sender<PathEvent>,
 }
 
 impl Pen {
     pub fn new(max_id: usize) -> Self {
         let default_stroke_width = 3;
-        let (tx, rx) = mpsc::channel();
 
         Pen {
             active_color: None,
             active_stroke_width: default_stroke_width,
             current_id: max_id,
-            rx,
-            tx,
             path_builder: CubicBezBuilder::new(),
         }
     }
 
-    // todo: come up with a better name
-    pub fn handle_events(&mut self, event: PathEvent, buffer: &mut Buffer) {
+    pub fn handle_input(&mut self, ui: &mut egui::Ui, inner_rect: egui::Rect, buffer: &mut Buffer) {
+        let event = match self.setup_events(ui, inner_rect) {
+            Some(e) => e,
+            None => return,
+        };
+
         match event {
             PathEvent::Draw(mut pos, id) => {
                 apply_transform_to_pos(&mut pos, buffer);
@@ -60,9 +59,14 @@ impl Pen {
                     buffer.current.append_child(child);
                 }
             }
-            PathEvent::End(mut pos, id) => {
-                apply_transform_to_pos(&mut pos, buffer);
-
+            PathEvent::End(pos, id) => {
+                let pos = match pos {
+                    Some(mut p) => {
+                        apply_transform_to_pos(&mut p, buffer);
+                        Some(p)
+                    }
+                    None => None,
+                };
                 self.path_builder.finish(pos);
 
                 if self.path_builder.points.len() < 2 {
@@ -86,10 +90,10 @@ impl Pen {
         }
     }
 
-    pub fn setup_events(&mut self, ui: &mut egui::Ui, inner_rect: egui::Rect) {
+    pub fn setup_events(&mut self, ui: &mut egui::Ui, inner_rect: egui::Rect) -> Option<PathEvent> {
         if let Some(cursor_pos) = ui.ctx().pointer_hover_pos() {
             if !ui.is_enabled() {
-                return;
+                return None;
             };
 
             if inner_rect.contains(cursor_pos) {
@@ -104,29 +108,29 @@ impl Pen {
                 ui.input(|i| i.pointer.primary_down()) && inner_rect.contains(cursor_pos);
 
             if pointer_gone_out_of_canvas || pointer_released_in_canvas {
-                self.tx
-                    .send(PathEvent::End(cursor_pos, self.current_id))
-                    .unwrap();
-
+                let curr_id = self.current_id;
                 self.current_id += 1;
+
+                Some(PathEvent::End(Some(cursor_pos), curr_id))
             } else if pointer_pressed_in_canvas {
-                self.tx
-                    .send(PathEvent::Draw(cursor_pos, self.current_id))
-                    .unwrap();
+                Some(PathEvent::Draw(cursor_pos, self.current_id))
+            } else {
+                None
             }
         } else if !self.path_builder.points.is_empty() {
-            self.tx
-                .send(PathEvent::End(*self.path_builder.points.last().unwrap(), self.current_id))
-                .unwrap();
-
+            let curr_id = self.current_id;
             self.current_id += 1;
+
+            Some(PathEvent::End(None, curr_id))
+        } else {
+            None
         }
     }
 }
 
 pub enum PathEvent {
     Draw(egui::Pos2, usize),
-    End(egui::Pos2, usize),
+    End(Option<egui::Pos2>, usize),
 }
 
 /// Build a cubic bézier path with Catmull-Rom smoothing and Ramer–Douglas–Peucker compression
@@ -199,10 +203,12 @@ impl CubicBezBuilder {
         self.catmull_to(dest, false);
     }
 
-    pub fn finish(&mut self, pos: egui::Pos2) {
-        self.points.push(pos);
-        self.catmull_to(pos, false); // todo: get rid of the double call if possible
-        self.catmull_to(pos, true);
+    pub fn finish(&mut self, pos: Option<egui::Pos2>) {
+        if let Some(pos) = pos {
+            self.points.push(pos);
+            self.catmull_to(pos, false); // todo: get rid of the double call if possible
+            self.catmull_to(pos, true);
+        }
 
         self.simplify(2.);
 

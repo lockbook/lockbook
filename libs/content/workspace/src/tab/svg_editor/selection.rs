@@ -50,7 +50,7 @@ impl Selection {
                 if ui.is_enabled() {
                     cp
                 } else {
-                    return;
+                    egui::Pos2::ZERO
                 }
             }
             None => egui::Pos2::ZERO,
