@@ -20,8 +20,6 @@ pub fn handle_zoom_input(ui: &mut egui::Ui, working_rect: egui::Rect, buffer: &m
         None => egui::Pos2::ZERO,
     };
 
-    println!("{:#?}", pos);
-
     let zoom_delta = ui.input(|r| r.zoom_delta());
     let is_zooming = zoom_delta != 0.0;
 

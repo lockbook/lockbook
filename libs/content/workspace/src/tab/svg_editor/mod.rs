@@ -93,10 +93,9 @@ impl SVGEditor {
 
         match self.toolbar.active_tool {
             Tool::Pen => {
-                self.toolbar.pen.setup_events(ui, self.inner_rect);
-                while let Ok(event) = self.toolbar.pen.rx.try_recv() {
-                    self.toolbar.pen.handle_events(event, &mut self.buffer);
-                }
+                self.toolbar
+                    .pen
+                    .handle_input(ui, self.inner_rect, &mut self.buffer);
             }
             Tool::Eraser => {
                 self.toolbar.eraser.setup_events(ui, self.inner_rect);
