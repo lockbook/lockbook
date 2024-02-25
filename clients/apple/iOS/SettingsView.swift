@@ -46,11 +46,13 @@ struct SettingsView: View, Equatable {
                             Spacer()
                         }
                     }
-                    .sheet(isPresented: $showingLogoutConfirmation) {
+                    .fullScreenCover(isPresented: $showingLogoutConfirmation) {
+                        let screenWidth = UIScreen.main.bounds.width
+                        let buttonWidth = screenWidth > 767 ? screenWidth * 0.5 : screenWidth * 0.9
                         LogoutConfirmationView(
                             h1: 22,
                             h2: 18,
-                            buttonWidth: UIScreen.main.bounds.width*0.9)
+                            buttonWidth: buttonWidth)
                     }
                 }
                 Section(header: Text("PRIVATE KEY")) {

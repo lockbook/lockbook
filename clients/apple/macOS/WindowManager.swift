@@ -22,7 +22,6 @@ class WindowManager: NSObject, NSWindowDelegate {
                 h2: macOSLogoutH2,
                 buttonWidth: macOSButtonWidth))
         } else {
-            
             // Create a new window if it does not exist
             let window = NSWindow(
                 contentRect: NSRect(x: xyOffset, y: xyOffset, width: macOSLogoutWindowSize, height: macOSLogoutWindowSize),
