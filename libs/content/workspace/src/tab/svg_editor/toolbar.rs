@@ -1,5 +1,7 @@
 use std::f32::consts::PI;
 
+use egui::ScrollArea;
+
 use crate::{theme::icons::Icon, widgets::Button};
 
 use super::{selection::Selection, Buffer, Eraser, Pen};
@@ -155,8 +157,8 @@ impl Toolbar {
         }
     }
 
-    pub fn show(&mut self, ui: &mut egui::Ui, buffer: &mut Buffer) {
-        let rect = self.calculate_rect(ui);
+    pub fn show(&mut self, ui: &mut egui::Ui, buffer: &mut Buffer, available_rect: egui::Rect) {
+        let toolbar_rect = self.calculate_rect(ui);
         if ui.is_enabled() {
             self.components
                 .iter()
@@ -192,162 +194,15 @@ impl Toolbar {
                 });
         }
 
-        ui.allocate_ui_at_rect(rect, |ui| {
-            ui.horizontal(|ui| {
-                for c in self.components.iter() {
-                    match c {
-                        Component::Button(btn) => {
-                            egui::Frame::default()
-                                .inner_margin(btn.margin)
-                                .show(ui, |ui| {
-                                    let enabled = match btn.id.as_str() {
-                                        "Undo" => buffer.has_undo(),
-                                        "Redo" => buffer.has_redo(),
-                                        _ => true,
-                                    };
-
-                                    let btn_res = ui
-                                        .add_enabled_ui(enabled, |ui| {
-                                            Button::default().icon(&btn.icon).show(ui)
-                                        })
-                                        .inner;
-
-                                    if btn_res.clicked() {
-                                        match btn.id.as_str() {
-                                            "Pen" => {
-                                                set_tool!(self, Tool::Pen);
-                                            }
-                                            "Eraser" => {
-                                                set_tool!(self, Tool::Eraser);
-                                            }
-                                            "Selection" => {
-                                                set_tool!(self, Tool::Selection);
-                                            }
-                                            "Undo" => buffer.undo(),
-                                            "Redo" => buffer.redo(),
-                                            _ => {}
-                                        }
-                                    }
-                                    let is_active = match self.active_tool {
-                                        Tool::Pen => btn.id.eq("Pen"),
-                                        Tool::Eraser => btn.id.eq("Eraser"),
-                                        Tool::Selection => btn.id.eq("Selection"),
-                                    };
-                                    if is_active {
-                                        ui.painter().rect_filled(
-                                            btn_res.rect.expand2(egui::vec2(2.0, 2.0)),
-                                            egui::Rounding::same(8.0),
-                                            egui::Color32::GRAY.gamma_multiply(0.1),
-                                        )
-                                    }
-                                    if let Some(shortcut) = &btn.key_shortcut {
-                                        let mut is_mac = false;
-                                        if cfg!(target_os = "macos") {
-                                            is_mac = true;
-                                        }
-
-                                        if shortcut.0.is_none() {
-                                            btn_res.on_hover_text(format!(
-                                                "{} ({})",
-                                                btn.id,
-                                                shortcut.1.name()
-                                            ));
-                                        } else {
-                                            let modifier = egui::ModifierNames::NAMES
-                                                .format(&shortcut.0, is_mac);
-                                            btn_res.on_hover_text(format!(
-                                                "{} ({} + {})",
-                                                btn.id,
-                                                modifier,
-                                                shortcut.1.name()
-                                            ));
-                                        }
-                                    }
-                                });
-                        }
-                        Component::Separator(margin) => {
-                            ui.add_space(margin.right);
-                            ui.add(egui::Separator::default().shrink(ui.available_height() * 0.3));
-                            ui.add_space(margin.left);
-                        }
-                        Component::ColorSwatch(btn) => {
-                            let (response, painter) = ui.allocate_painter(
-                                egui::vec2(COLOR_SWATCH_BTN_RADIUS * PI, ui.available_height()),
-                                egui::Sense::click(),
-                            );
-                            if response.clicked() {
-                                self.pen.active_color =
-                                    Some(ColorSwatch { id: btn.id.clone(), color: btn.color });
-                            }
-                            if let Some(active_color) = &self.pen.active_color {
-                                let opacity = if active_color.id.eq(&btn.id) {
-                                    1.0
-                                } else if response.hovered() {
-                                    ui.output_mut(|w| {
-                                        w.cursor_icon = egui::CursorIcon::PointingHand
-                                    });
-                                    0.9
-                                } else {
-                                    0.5
-                                };
-
-                                if active_color.id.eq(&btn.id) {
-                                    painter.rect_filled(
-                                        response.rect.shrink2(egui::vec2(0.0, 5.0)),
-                                        egui::Rounding::same(8.0),
-                                        btn.color.gamma_multiply(0.2),
-                                    )
-                                }
-                                painter.circle_filled(
-                                    response.rect.center(),
-                                    COLOR_SWATCH_BTN_RADIUS,
-                                    btn.color.gamma_multiply(opacity),
-                                );
-                            }
-                        }
-                        Component::StrokeWidth(thickness) => {
-                            ui.add_space(THICKNESS_BTN_X_MARGIN);
-                            let (response, painter) = ui.allocate_painter(
-                                egui::vec2(THICKNESS_BTN_WIDTH, ui.available_height()),
-                                egui::Sense::click(),
-                            );
-
-                            let rect = egui::Rect {
-                                min: egui::Pos2 {
-                                    x: response.rect.left(),
-                                    y: response.rect.center().y - (*thickness as f32 / 3.0),
-                                },
-                                max: egui::Pos2 {
-                                    x: response.rect.right(),
-                                    y: response.rect.center().y + (*thickness as f32 / 3.0),
-                                },
-                            };
-
-                            if thickness.eq(&self.pen.active_stroke_width) {
-                                painter.rect_filled(
-                                    response.rect.shrink2(egui::vec2(0.0, 5.0)),
-                                    egui::Rounding::same(8.0),
-                                    egui::Color32::GRAY.gamma_multiply(0.1),
-                                )
-                            }
-                            if response.clicked() {
-                                self.pen.active_stroke_width = *thickness;
-                            }
-                            if response.hovered() {
-                                ui.output_mut(|w| w.cursor_icon = egui::CursorIcon::PointingHand);
-                            }
-
-                            painter.rect_filled(
-                                rect,
-                                egui::Rounding::same(2.0),
-                                ui.visuals().text_color().gamma_multiply(0.8),
-                            );
-                            ui.add_space(THICKNESS_BTN_X_MARGIN);
-                        }
-                    };
-                }
-            })
-        });
+        if available_rect.width() < toolbar_rect.width() {
+            ScrollArea::horizontal().show(ui, |ui| {
+                self.show_toolbar(ui, buffer);
+            });
+        } else {
+            ui.allocate_ui_at_rect(toolbar_rect, |ui| {
+                self.show_toolbar(ui, buffer);
+            });
+        }
 
         ui.visuals_mut().widgets.noninteractive.bg_stroke.color = ui
             .visuals()
@@ -357,5 +212,160 @@ impl Toolbar {
             .color
             .gamma_multiply(0.4);
         ui.separator();
+    }
+
+    fn show_toolbar(&mut self, ui: &mut egui::Ui, buffer: &mut Buffer) {
+        ui.horizontal(|ui| {
+            for c in self.components.iter() {
+                match c {
+                    Component::Button(btn) => {
+                        egui::Frame::default()
+                            .inner_margin(btn.margin)
+                            .show(ui, |ui| {
+                                let enabled = match btn.id.as_str() {
+                                    "Undo" => buffer.has_undo(),
+                                    "Redo" => buffer.has_redo(),
+                                    _ => true,
+                                };
+
+                                let btn_res = ui
+                                    .add_enabled_ui(enabled, |ui| {
+                                        Button::default().icon(&btn.icon).show(ui)
+                                    })
+                                    .inner;
+
+                                if btn_res.clicked() {
+                                    match btn.id.as_str() {
+                                        "Pen" => {
+                                            set_tool!(self, Tool::Pen);
+                                        }
+                                        "Eraser" => {
+                                            set_tool!(self, Tool::Eraser);
+                                        }
+                                        "Selection" => {
+                                            set_tool!(self, Tool::Selection);
+                                        }
+                                        "Undo" => buffer.undo(),
+                                        "Redo" => buffer.redo(),
+                                        _ => {}
+                                    }
+                                }
+                                let is_active = match self.active_tool {
+                                    Tool::Pen => btn.id.eq("Pen"),
+                                    Tool::Eraser => btn.id.eq("Eraser"),
+                                    Tool::Selection => btn.id.eq("Selection"),
+                                };
+                                if is_active {
+                                    ui.painter().rect_filled(
+                                        btn_res.rect.expand2(egui::vec2(2.0, 2.0)),
+                                        egui::Rounding::same(8.0),
+                                        egui::Color32::GRAY.gamma_multiply(0.1),
+                                    )
+                                }
+                                if let Some(shortcut) = &btn.key_shortcut {
+                                    let mut is_mac = false;
+                                    if cfg!(target_os = "macos") {
+                                        is_mac = true;
+                                    }
+
+                                    if shortcut.0.is_none() {
+                                        btn_res.on_hover_text(format!(
+                                            "{} ({})",
+                                            btn.id,
+                                            shortcut.1.name()
+                                        ));
+                                    } else {
+                                        let modifier =
+                                            egui::ModifierNames::NAMES.format(&shortcut.0, is_mac);
+                                        btn_res.on_hover_text(format!(
+                                            "{} ({} + {})",
+                                            btn.id,
+                                            modifier,
+                                            shortcut.1.name()
+                                        ));
+                                    }
+                                }
+                            });
+                    }
+                    Component::Separator(margin) => {
+                        ui.add_space(margin.right);
+                        ui.add(egui::Separator::default().shrink(ui.available_height() * 0.3));
+                        ui.add_space(margin.left);
+                    }
+                    Component::ColorSwatch(btn) => {
+                        let (response, painter) = ui.allocate_painter(
+                            egui::vec2(COLOR_SWATCH_BTN_RADIUS * PI, ui.available_height()),
+                            egui::Sense::click(),
+                        );
+                        if response.clicked() {
+                            self.pen.active_color =
+                                Some(ColorSwatch { id: btn.id.clone(), color: btn.color });
+                        }
+                        if let Some(active_color) = &self.pen.active_color {
+                            let opacity = if active_color.id.eq(&btn.id) {
+                                1.0
+                            } else if response.hovered() {
+                                ui.output_mut(|w| w.cursor_icon = egui::CursorIcon::PointingHand);
+                                0.9
+                            } else {
+                                0.5
+                            };
+
+                            if active_color.id.eq(&btn.id) {
+                                painter.rect_filled(
+                                    response.rect.shrink2(egui::vec2(0.0, 5.0)),
+                                    egui::Rounding::same(8.0),
+                                    btn.color.gamma_multiply(0.2),
+                                )
+                            }
+                            painter.circle_filled(
+                                response.rect.center(),
+                                COLOR_SWATCH_BTN_RADIUS,
+                                btn.color.gamma_multiply(opacity),
+                            );
+                        }
+                    }
+                    Component::StrokeWidth(thickness) => {
+                        ui.add_space(THICKNESS_BTN_X_MARGIN);
+                        let (response, painter) = ui.allocate_painter(
+                            egui::vec2(THICKNESS_BTN_WIDTH, ui.available_height()),
+                            egui::Sense::click(),
+                        );
+
+                        let rect = egui::Rect {
+                            min: egui::Pos2 {
+                                x: response.rect.left(),
+                                y: response.rect.center().y - (*thickness as f32 / 3.0),
+                            },
+                            max: egui::Pos2 {
+                                x: response.rect.right(),
+                                y: response.rect.center().y + (*thickness as f32 / 3.0),
+                            },
+                        };
+
+                        if thickness.eq(&self.pen.active_stroke_width) {
+                            painter.rect_filled(
+                                response.rect.shrink2(egui::vec2(0.0, 5.0)),
+                                egui::Rounding::same(8.0),
+                                egui::Color32::GRAY.gamma_multiply(0.1),
+                            )
+                        }
+                        if response.clicked() {
+                            self.pen.active_stroke_width = *thickness;
+                        }
+                        if response.hovered() {
+                            ui.output_mut(|w| w.cursor_icon = egui::CursorIcon::PointingHand);
+                        }
+
+                        painter.rect_filled(
+                            rect,
+                            egui::Rounding::same(2.0),
+                            ui.visuals().text_color().gamma_multiply(0.8),
+                        );
+                        ui.add_space(THICKNESS_BTN_X_MARGIN);
+                    }
+                };
+            }
+        });
     }
 }

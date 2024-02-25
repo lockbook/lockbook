@@ -568,6 +568,8 @@ public class iOSMTKDrawingWrapper: UIView, UIPencilInteractionDelegate {
                         
         pencilInteraction.delegate = self
         addInteraction(pencilInteraction)
+        
+        self.isMultipleTouchEnabled = true
     }
     
     public func pencilInteractionDidTap(_ interaction: UIPencilInteraction) {
@@ -796,39 +798,50 @@ public class iOSMTK: MTKView, MTKViewDelegate {
     }
     
     public override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
-        let point = Unmanaged.passUnretained(touches.first!).toOpaque()
-        let value = UInt64(UInt(bitPattern: point))
-        let location = touches.first!.location(in: self)
+        for touch in touches {
+            let point = Unmanaged.passUnretained(touch).toOpaque()
+            let value = UInt64(UInt(bitPattern: point))
+            let location = touch.location(in: self)
+            
+            touches_began(wsHandle, value, Float(location.x), Float(location.y), Float(touch.force))
+        }
         
-        touches_began(wsHandle, value, Float(location.x), Float(location.y), Float(touches.first?.force ?? 0))
         self.setNeedsDisplay(self.frame)
     }
     
     public override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
-        let point = Unmanaged.passUnretained(touches.first!).toOpaque()
-        let value = UInt64(UInt(bitPattern: point))
-        let location = touches.first!.location(in: self)
+        for touch in touches {
+            let point = Unmanaged.passUnretained(touch).toOpaque()
+            let value = UInt64(UInt(bitPattern: point))
+            let location = touch.location(in: self)
+
+            touches_moved(wsHandle, value, Float(location.x), Float(location.y), Float(touch.force))
+        }
         
-        touches_moved(wsHandle, value, Float(location.x), Float(location.y), Float(touches.first?.force ?? 0))
         self.setNeedsDisplay(self.frame)
     }
     
     public override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
-        let point = Unmanaged.passUnretained(touches.first!).toOpaque()
-        let value = UInt64(UInt(bitPattern: point))
-        let location = touches.first!.location(in: self)
+        for touch in touches {
+            let point = Unmanaged.passUnretained(touch).toOpaque()
+            let value = UInt64(UInt(bitPattern: point))
+            let location = touch.location(in: self)
+            
+            touches_ended(wsHandle, value, Float(location.x), Float(location.y), Float(touch.force))
+        }
         
-        touches_ended(wsHandle, value, Float(location.x), Float(location.y), Float(touches.first?.force ?? 0))
         self.setNeedsDisplay(self.frame)
     }
 
     public override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
-        let point = Unmanaged.passUnretained(touches.first!).toOpaque()
-        let value = UInt64(UInt(bitPattern: point))
-        let location = touches.first!.location(in: self)
+        for touch in touches {
+            let point = Unmanaged.passUnretained(touch).toOpaque()
+            let value = UInt64(UInt(bitPattern: point))
+            let location = touch.location(in: self)
+            
+            touches_cancelled(wsHandle, value, Float(location.x), Float(location.y), Float(touch.force))
+        }
         
-        touches_cancelled(wsHandle, value, Float(location.x), Float(location.y), Float(touches.first?.force ?? 0))
-    
         self.setNeedsDisplay(self.frame)
     }
     
