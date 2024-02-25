@@ -38,15 +38,6 @@ pub unsafe extern "C" fn lb_account_result_free(r: LbAccountResult) {
 }
 
 /// # Safety
-#[no_mangle]
-pub unsafe extern "C" fn lb_clear_local_db_result_free(r: LbAccountResult) {
-    // ok is unit, so nothing to free
-    if r.err.code != LbErrorCode::Success {
-        lb_error_free(r.err);
-    }
-}
-
-/// # Safety
 ///
 /// The returned value must be passed to `lb_account_result_free` to avoid a memory leak.
 /// Alternatively, the `ok` value or `err` value can be passed to `lb_account_free` or

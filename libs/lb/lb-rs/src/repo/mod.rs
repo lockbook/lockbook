@@ -22,16 +22,3 @@ pub struct CoreV3 {
     pub pub_key_lookup: LookupTable<Owner, String>,
     pub doc_events: List<DocEvent>,
 }
-
-impl CoreV3 {
-    pub fn clear(&mut self) -> DbResult<()> {
-        self.account.clear()?;
-        self.last_synced.clear()?;
-        self.root.clear()?;
-        self.local_metadata.clear()?;
-        self.base_metadata.clear()?;
-        self.pub_key_lookup.clear()?;
-        // self.doc_events.clear()?; // TODO: update db-rs
-        Ok(())
-    }
-}
