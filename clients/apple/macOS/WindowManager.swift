@@ -4,8 +4,10 @@ import SwiftLockbookCore
 import BackgroundTasks
 
 let macOSLogoutWindowSize = 1024.0
-let macOSLogoutHeaderFontSize = 28.0
-var macOSButtonWidth = 512.0
+let macOSLogoutH1 = 24.0
+let macOSLogoutH2 = 20.0
+let macOSButtonWidth = 512.0
+let xyOffset = 20.0
 
 class WindowManager: NSObject, NSWindowDelegate {
     static let shared = WindowManager()
@@ -16,31 +18,31 @@ class WindowManager: NSObject, NSWindowDelegate {
         if let curWindow = windowRef {
             // replaces the contentView so that the @State variables reset
             curWindow.contentView = NSHostingView(rootView: LogoutConfirmationView(
-                h1: macOSLogoutHeaderFontSize,
-                h2: macOSLogoutHeaderFontSize-8,
+                h1: macOSLogoutH1,
+                h2: macOSLogoutH2,
                 buttonWidth: macOSButtonWidth))
-            curWindow.makeKeyAndOrderFront(nil)
-            NSApp.activate(ignoringOtherApps: true)
-            return
+        } else {
+            
+            // Create a new window if it does not exist
+            let window = NSWindow(
+                contentRect: NSRect(x: xyOffset, y: xyOffset, width: macOSLogoutWindowSize, height: macOSLogoutWindowSize),
+                styleMask: [.titled, .closable, .fullSizeContentView],
+                backing: .buffered, defer: false)
+            window.center()
+            window.title = "Logout Confirmation"
+            window.contentView = NSHostingView(rootView: LogoutConfirmationView(
+                h1: macOSLogoutH1,
+                h2: macOSLogoutH2,
+                buttonWidth: macOSButtonWidth))
+            window.isReleasedWhenClosed = false // Prevents the window from being deallocated when closed
+            window.delegate = self
+            
+            windowRef = window
         }
-        
-        // Create a new window if it does not exist
-        let window = NSWindow(
-            contentRect: NSRect(x: 20, y: 20, width: macOSLogoutWindowSize, height: macOSLogoutWindowSize),
-            styleMask: [.titled, .closable, .resizable, .fullSizeContentView],
-            backing: .buffered, defer: false)
-        window.center()
-        window.title = "Logout Confirmation"
-        window.contentView = NSHostingView(rootView: LogoutConfirmationView(
-            h1: macOSLogoutHeaderFontSize,
-            h2: macOSLogoutHeaderFontSize,
-            buttonWidth: macOSButtonWidth))
-        window.isReleasedWhenClosed = false // Prevents the window from being deallocated when closed
-        window.delegate = self
-        window.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
-        
-        windowRef = window
+        if let window = windowRef {
+            window.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+        }
     }
 
     func windowWillClose(_ notification: Notification) {
