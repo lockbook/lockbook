@@ -96,6 +96,7 @@
 		B2ADC2492835451000DB8D3D /* Introspect in Frameworks */ = {isa = PBXBuildFile; productRef = B2ADC2482835451000DB8D3D /* Introspect */; };
 		B2B7E2E225C6411800B9EFAD /* OnboardingState.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2B7E2E125C6411800B9EFAD /* OnboardingState.swift */; };
 		B2B7E2E325C6411800B9EFAD /* OnboardingState.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2B7E2E125C6411800B9EFAD /* OnboardingState.swift */; };
+		DF96DCF32B8AF7B500D0039C /* LogoutConfirmation.swift in Sources */ = {isa = PBXBuildFile; fileRef = DFE4E3702B847F6000AC8A15 /* LogoutConfirmation.swift */; };
 		DFE4E36F2B847F4300AC8A15 /* WindowManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = DFE4E36E2B847F4300AC8A15 /* WindowManager.swift */; };
 		DFE4E3712B847F6000AC8A15 /* LogoutConfirmation.swift in Sources */ = {isa = PBXBuildFile; fileRef = DFE4E3702B847F6000AC8A15 /* LogoutConfirmation.swift */; };
 		EA380B262561FAEF0021C4FA /* FileListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA380B242561FAEF0021C4FA /* FileListView.swift */; };
@@ -530,6 +531,7 @@
 				EA380B262561FAEF0021C4FA /* FileListView.swift in Sources */,
 				4709C77029FDAAE9004449EF /* SuggestedDocs.swift in Sources */,
 				4772A43A29E8656A0032D586 /* SearchWrapperView.swift in Sources */,
+				DF96DCF32B8AF7B500D0039C /* LogoutConfirmation.swift in Sources */,
 				877FB54A26D1788D0008AB3F /* CoreService.swift in Sources */,
 				877FB55926D18EC80008AB3F /* FileService.swift in Sources */,
 				1F7E4FBF2521297D0045F606 /* Colors.swift in Sources */,
