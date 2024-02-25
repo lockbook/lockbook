@@ -77,7 +77,11 @@ impl FfiCore {
     }
 
     pub fn logout_and_exit(self) -> ! {
-        self.core.logout_and_exit()
+        let this = self.core;
+        let inner = this.inner.lock().unwrap();
+        let path = &inner.config.writeable_path;
+        std::fs::remove_dir_all(path).unwrap();
+        std::process::exit(0);
     }
 
     pub fn import_account(&self, account_string: &str) -> Result<Account, Error<ImportError>> {
