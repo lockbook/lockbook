@@ -42,7 +42,7 @@ parts:
       - cmake
       - libfontconfig1-dev
       - libfontconfig
-    rust-path: ["clients/egui"]
+    rust-path: ["clients/linux"]
     override-pull: |
       snapcraftctl pull
       curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
@@ -51,7 +51,7 @@ parts:
 
 apps:
   lockbook-desktop:
-    command: bin/lockbook-egui
+    command: bin/lockbook-linux
     extensions: [gnome]
     plugs:
       - network
@@ -78,7 +78,7 @@ apps:
 
 pub fn build_x86() {
     Command::new("cargo")
-        .args(["build", "-p", "lockbook-egui", "--release", "--target=x86_64-unknown-linux-gnu"])
+        .args(["build", "-p", "lockbook-linux", "--release", "--target=x86_64-unknown-linux-gnu"])
         .assert_success();
 }
 
@@ -88,12 +88,12 @@ pub fn upload() {
     let release = client
         .get_release_by_tag_name(&lb_repo(), &lb_version())
         .unwrap();
-    let file = File::open("target/x86_64-unknown-linux-gnu/release/lockbook-egui").unwrap();
+    let file = File::open("target/x86_64-unknown-linux-gnu/release/lockbook-linux").unwrap();
     client
         .upload_release_asset(
             &lb_repo(),
             release.id,
-            "lockbook-egui",
+            "lockbook-linux",
             "application/octet-stream",
             file,
             None,
@@ -133,12 +133,12 @@ pkgver() {{
 
 build() {{
   echo $_pkgname
-  cd $srcdir/lockbook/clients/egui
+  cd $srcdir/lockbook/clients/linux
   cargo build --release --locked
 }}
 
 package() {{
-  install -D -m755 "$srcdir/lockbook/target/release/lockbook-egui" "$pkgdir/usr/bin/lockbook-desktop"
+  install -D -m755 "$srcdir/lockbook/target/release/lockbook-linux" "$pkgdir/usr/bin/lockbook-desktop"
   install -D -m644 "$srcdir/aur-lockbook-desktop/light-1-transparent.png" "$pkgdir/usr/share/pixmaps/light-1-transparent.png"
   install -D -m644 "$srcdir/aur-lockbook-desktop/lockbook-desktop.desktop" "$pkgdir/usr/share/applications/lockbook-desktop.desktop"
 }}
