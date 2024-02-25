@@ -9,7 +9,7 @@ import UniformTypeIdentifiers
 // i removed UIEditMenuInteractionDelegate
 
 public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDelegate {
-    public static let TOOL_BAR_HEIGHT: CGFloat = 40
+    public static let TOOL_BAR_HEIGHT: CGFloat = 42
     
     let mtkView: iOSMTK
     
@@ -563,6 +563,8 @@ public class iOSMTKDrawingWrapper: UIView, UIPencilInteractionDelegate {
     init(mtkView: iOSMTK) {
         self.mtkView = mtkView
         super.init(frame: .infinite)
+        
+        isMultipleTouchEnabled = true
                         
         pencilInteraction.delegate = self
         addInteraction(pencilInteraction)
@@ -718,12 +720,7 @@ public class iOSMTK: MTKView, MTKViewDelegate {
         
         let selectedFile = UUID(uuid: output.workspace_resp.selected_file._0)
         
-        if selectedFile.isNil() {
-            currentOpenDoc = nil
-            if self.workspaceState?.openDoc != nil {
-                self.workspaceState?.openDoc = nil
-            }
-        } else {
+        if !selectedFile.isNil() {
             if currentOpenDoc != selectedFile {
                 onSelectionChanged?()
                 onTextChanged?()
@@ -744,6 +741,11 @@ public class iOSMTK: MTKView, MTKViewDelegate {
                     self.workspaceState!.currentTab = currentTab
                 }
             }
+        }
+        
+        if currentTab == .Welcome && currentOpenDoc != nil {
+            currentOpenDoc = nil
+            self.workspaceState?.openDoc = nil
         }
         
         if output.workspace_resp.tab_title_clicked {

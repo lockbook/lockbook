@@ -19,7 +19,7 @@ pub struct Toolbar {
     pub eraser: Eraser,
     pub selection: Selection,
 
-    pub prev_non_eraser_tool: Option<Tool>,
+    pub previous_tool: Option<Tool>,
 }
 
 #[derive(PartialEq, Eq, Copy, Clone, Debug)]
@@ -66,11 +66,10 @@ impl SizableComponent for Component {
 
 macro_rules! set_tool {
     ($obj:expr, $new_tool:expr) => {
-        if $obj.active_tool != Tool::Eraser {
-            $obj.prev_non_eraser_tool = Some($obj.active_tool);
+        if $obj.active_tool != $new_tool {
+            $obj.previous_tool = Some($obj.active_tool);
+            $obj.active_tool = $new_tool;
         }
-
-        $obj.active_tool = $new_tool;
     };
 }
 
@@ -99,7 +98,7 @@ impl Toolbar {
 
     pub fn toggle_tool_between_eraser(&mut self) {
         let new_tool = if self.active_tool == Tool::Eraser {
-            self.prev_non_eraser_tool.unwrap_or(Tool::Pen)
+            self.previous_tool.unwrap_or(Tool::Pen)
         } else {
             Tool::Eraser
         };
@@ -151,7 +150,7 @@ impl Toolbar {
         Toolbar {
             components,
             active_tool: Tool::Pen,
-            prev_non_eraser_tool: None,
+            previous_tool: None,
             pen: Pen::new(max_id),
             eraser: Eraser::new(),
             selection: Selection::new(),

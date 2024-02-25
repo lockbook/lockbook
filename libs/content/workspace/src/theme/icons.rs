@@ -37,9 +37,8 @@ impl Icon {
     pub const HISTORY: Self = ic("\u{e889}"); // History
     pub const HIGHLIGHT_OFF: Self = ic("\u{e888}"); // Highlight Off
     pub const HEADER_1: Self = ic("\u{e262}"); // Header 11
-    pub const HIDE_SIDEBAR: Self = ic("\u{e317}"); // Keyboard tab
+    pub const TOGGLE_SIDEBAR: Self = ic("\u{f7e4}");
     pub const HAND: Self = ic("\u{eb03}"); // Selection tool
-    pub const SHOW_SIDEBAR: Self = ic("\u{e31c}");
     pub const IMAGE: Self = ic("\u{e3f4}"); // Image
     pub const INFO: Self = ic("\u{e88e}");
     pub const ITALIC: Self = ic("\u{e23f}");
@@ -66,6 +65,10 @@ impl Icon {
     pub const WARNING: Self = ic("\u{e001}");
     pub const ZOOM_IN: Self = ic("\u{e145}");
     pub const ZOOM_OUT: Self = ic("\u{e15b}");
+    pub const STRIKETHROUGH: Self = ic("\u{e257}");
+    pub const BULLET_LIST: Self = ic("\u{e241}");
+    pub const INDENT: Self = ic("\u{e23e}");
+    pub const DEINDENT: Self = ic("\u{e23d}");
 
     //pub const ARTICLE: Self = ic("\u{ef42}");
     //pub const COMMAND_KEY: Self = Self('\u{eae7}');
@@ -124,8 +127,7 @@ impl Icon {
             let visuals = ui.style().interact(&resp);
             let wrap_width = ui.available_width();
 
-            let icon_pos =
-                egui::pos2(rect.min.x + padding.x, rect.center().y - self.size / 4.1 - 1.0);
+            let icon_pos = egui::pos2(rect.min.x + padding.x, rect.center().y - self.size / 2.0);
 
             let icon: egui::WidgetText = self.into();
             let icon = icon.into_galley(ui, Some(false), wrap_width, egui::TextStyle::Body);

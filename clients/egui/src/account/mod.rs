@@ -18,7 +18,7 @@ use workspace_rs::tab::markdown_editor::Markdown;
 use workspace_rs::tab::plain_text::PlainText;
 use workspace_rs::tab::{Tab, TabContent, TabFailure};
 use workspace_rs::theme::icons::Icon;
-use workspace_rs::widgets::{separator, Button};
+use workspace_rs::widgets::Button;
 use workspace_rs::workspace::{Workspace, WsConfig};
 
 use crate::model::{AccountScreenInitData, Usage};
@@ -136,11 +136,15 @@ impl AccountScreen {
                 ui.with_layout(egui::Layout::bottom_up(egui::Align::Min), |ui| {
                     ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
 
-                    self.show_sync_panel(ui);
+                    egui::Frame::default()
+                        .inner_margin(egui::Margin::symmetric(20.0, 20.0))
+                        .show(ui, |ui| {
+                            self.show_usage_panel(ui);
+                            self.show_nav_panel(ui);
 
-                    separator(ui);
-
-                    self.show_nav_panel(ui);
+                            ui.add_space(15.0);
+                            self.show_sync_error_warn(ui);
+                        });
 
                     ui.vertical(|ui| {
                         ui.add_space(15.0);
@@ -435,40 +439,39 @@ impl AccountScreen {
 
     fn show_nav_panel(&mut self, ui: &mut egui::Ui) {
         ui.allocate_ui_with_layout(
-            egui::vec2(ui.available_size_before_wrap().x, 70.0),
+            egui::vec2(ui.available_size_before_wrap().x, 40.0),
             egui::Layout::left_to_right(egui::Align::Center),
             |ui| {
-                ui.add_space(10.0);
-
-                let settings_btn = Button::default().icon(&Icon::SETTINGS).show(ui);
-                if settings_btn.clicked() {
-                    self.update_tx.send(OpenModal::Settings.into()).unwrap();
-                    ui.ctx().request_repaint();
-                };
-                settings_btn.on_hover_text("Settings");
-
-                let incoming_shares_btn = Button::default()
-                    .icon(
-                        &Icon::SHARED_FOLDER.badge(
-                            !self
-                                .workspace
-                                .pers_status
-                                .dirtyness
-                                .pending_shares
-                                .is_empty(),
-                        ),
-                    )
-                    .show(ui);
-
-                if incoming_shares_btn.clicked() {
-                    self.update_tx.send(OpenModal::AcceptShare.into()).unwrap();
-                    ui.ctx().request_repaint();
-                };
-                incoming_shares_btn.on_hover_text("Incoming shares");
+                self.show_sync_btn(ui);
 
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    ui.add_space(10.0);
-                    let zen_mode_btn = Button::default().icon(&Icon::HIDE_SIDEBAR).show(ui);
+                    let settings_btn = Button::default().icon(&Icon::SETTINGS).show(ui);
+                    if settings_btn.clicked() {
+                        self.update_tx.send(OpenModal::Settings.into()).unwrap();
+                        ui.ctx().request_repaint();
+                    };
+                    settings_btn.on_hover_text("Settings");
+
+                    let incoming_shares_btn = Button::default()
+                        .icon(
+                            &Icon::SHARED_FOLDER.badge(
+                                !self
+                                    .workspace
+                                    .pers_status
+                                    .dirtyness
+                                    .pending_shares
+                                    .is_empty(),
+                            ),
+                        )
+                        .show(ui);
+
+                    if incoming_shares_btn.clicked() {
+                        self.update_tx.send(OpenModal::AcceptShare.into()).unwrap();
+                        ui.ctx().request_repaint();
+                    };
+                    incoming_shares_btn.on_hover_text("Incoming shares");
+
+                    let zen_mode_btn = Button::default().icon(&Icon::TOGGLE_SIDEBAR).show(ui);
 
                     if zen_mode_btn.clicked() {
                         self.settings.write().unwrap().zen_mode = true;
