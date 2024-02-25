@@ -76,10 +76,6 @@ impl FfiCore {
         Ok(self.core.create_account(username, api_url, welcome_doc)?)
     }
 
-    pub fn logout_and_exit(self) -> ! {
-        self.core.logout_and_exit()
-    }
-
     pub fn import_account(&self, account_string: &str) -> Result<Account, Error<ImportError>> {
         Ok(self.core.import_account(account_string)?)
     }
