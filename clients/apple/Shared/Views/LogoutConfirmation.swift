@@ -2,8 +2,8 @@ import SwiftLockbookCore
 import SwiftUI
 import AlertToast
 
+var buttonTextPadding = 16.0
 var cornerRadius = 10.0
-var largeButtonWidth = 512.0
 
 struct LargeButtonStyle: PrimitiveButtonStyle {
     var width: CGFloat
@@ -11,7 +11,7 @@ struct LargeButtonStyle: PrimitiveButtonStyle {
     
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .padding(.all, 16)
+            .padding(.all, buttonTextPadding)
             .frame(width: width)
             .background(Color.blue)
             .foregroundColor(.white)
@@ -32,7 +32,7 @@ struct LogoutButtonStyle: PrimitiveButtonStyle {
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .padding(.all, 16)
+            .padding(.all, buttonTextPadding)
             .frame(width: width)
             .background(Color.red)
             .foregroundColor(.white)
@@ -52,7 +52,7 @@ struct CancelButtonStyle: PrimitiveButtonStyle {
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .padding(.all, 16)
+            .padding(.all, buttonTextPadding)
             .frame(width: width)
             .background(Color.gray)
             .foregroundColor(.white)
@@ -65,6 +65,10 @@ struct CancelButtonStyle: PrimitiveButtonStyle {
 }
 
 struct LogoutConfirmationView: View {
+    var h1: CGFloat
+    var h2: CGFloat
+    var buttonWidth: CGFloat
+    
     @Environment(\.dismiss) var dismiss
     @EnvironmentObject var account: AccountService
     
@@ -77,53 +81,53 @@ struct LogoutConfirmationView: View {
         VStack(alignment: .center) {
             Text("Delete lockbook files on this device?")
                 .padding(.top, 32)
-                .font(.system(size: 24, weight: .semibold, design: .default))
+                .font(.system(size: h1, weight: .semibold, design: .default))
             Text("Tap all buttons to log out")
                 .padding(.top, 8)
-                .font(.system(size: 16, weight: .regular, design: .default))
+                .font(.system(size: h2, weight: .regular, design: .default))
             Button("My private key is saved somewhere safe") {
                 backedUp = true
             }
             .buttonStyle(LargeButtonStyle(
-                width: largeButtonWidth,
+                width: buttonWidth,
                 enabled: true))
             .padding(.all, 8)
             .padding(.top, 32)
-            .frame(width: largeButtonWidth)
+            .frame(width: buttonWidth)
             Button("I understand logout will delete my lockbook files on this device") {
                 understandDelete = true
             }
             .buttonStyle(LargeButtonStyle(
-                width: largeButtonWidth,
+                width: buttonWidth,
                 enabled: backedUp))
             .padding(.all, 8)
             .disabled(!backedUp)
-            .frame(width: largeButtonWidth)
+            .frame(width: buttonWidth)
             Button("I understand my files will NOT be recoverable if I lose my private key") {
                 understandImportance = true
             }
             .buttonStyle(LargeButtonStyle(
-                width: largeButtonWidth,
+                width: buttonWidth,
                 enabled: backedUp && understandDelete))
             .padding(.all, 8)
             .disabled(!backedUp || !understandDelete)
-            .frame(width: largeButtonWidth)
+            .frame(width: buttonWidth)
             Button("Logout") {
                 DI.accounts.logout()
             }
             .buttonStyle(LogoutButtonStyle(
-                width: largeButtonWidth,
+                width: buttonWidth,
                 enabled: backedUp && understandDelete && understandImportance))
             .padding(.all, 8)
             .disabled(!backedUp || !understandDelete || !understandImportance)
-            .frame(minWidth: largeButtonWidth)
+            .frame(minWidth: buttonWidth)
             Button("Cancel") {
                 dismiss()
             }
             .buttonStyle(CancelButtonStyle(
-                width: largeButtonWidth))
+                width: buttonWidth))
             .padding(.all, 8)
-            .frame(width: largeButtonWidth)
+            .frame(width: buttonWidth)
         }
     }
 }
