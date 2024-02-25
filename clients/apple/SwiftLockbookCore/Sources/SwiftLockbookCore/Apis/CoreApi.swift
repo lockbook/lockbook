@@ -24,8 +24,8 @@ public struct CoreApi: LockbookApi {
         fromPrimitiveResult(result: create_account(username, apiLocation, welcomeDoc))
     }
     
-    public func clearLocalDb() -> FfiResult<Empty, ClearLocalDbError> {
-        fromPrimitiveResult(result: clear_local_db())
+    public func logoutAndExit() {
+        logout_and_exit()
     }
     
     public func importAccount(accountString: String) -> FfiResult<Empty, ImportError> {

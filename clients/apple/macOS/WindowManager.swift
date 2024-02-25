@@ -10,6 +10,7 @@ class WindowManager: NSObject, NSWindowDelegate {
     func openLogoutConfirmationWindow() {
         // Check if the window already exists and bring it to the front
         if let curWindow = windowRef {
+            curWindow.contentView = NSHostingView(rootView: LogoutConfirmationView().environmentObject(DI.settings))
             curWindow.makeKeyAndOrderFront(nil)
             NSApp.activate(ignoringOtherApps: true)
             return
@@ -33,6 +34,6 @@ class WindowManager: NSObject, NSWindowDelegate {
     }
 
     func windowWillClose(_ notification: Notification) {
-        // TODO: clear state of which buttons were pressed?
+        
     }
 }

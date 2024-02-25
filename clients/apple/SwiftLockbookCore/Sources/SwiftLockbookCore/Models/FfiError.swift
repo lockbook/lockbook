@@ -91,7 +91,7 @@ public enum DeleteAccountError: String, UiError {
     case ClientUpdateRequired
 }
 
-public enum ClearLocalDbError: String, UiError {
+public enum LogoutAndExitError: String, UiError {
     case NoAccount
 }
 

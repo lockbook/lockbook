@@ -48,12 +48,8 @@ class AccountService: ObservableObject {
     }
     
     func logout() {
-        switch core.clearLocalDb() {
-        case .success(_):
-            DI.freshState()
-        case .failure(let error):
-            DI.errors.handleError(error)
-        }
+        DI.freshState()
+        core.logoutAndExit()
     }
     
     func deleteAccount() {
