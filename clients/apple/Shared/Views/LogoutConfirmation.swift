@@ -94,6 +94,7 @@ struct LogoutConfirmationView: View {
             .padding(.all, 8)
             .padding(.top, 32)
             .frame(width: buttonWidth)
+            .multilineTextAlignment(.center)
             Button("I understand logout will delete my lockbook files on this device") {
                 understandDelete = true
             }
@@ -103,6 +104,7 @@ struct LogoutConfirmationView: View {
             .padding(.all, 8)
             .disabled(!backedUp)
             .frame(width: buttonWidth)
+            .multilineTextAlignment(.center)
             Button("I understand my files will NOT be recoverable if I lose my private key") {
                 understandImportance = true
             }
@@ -112,6 +114,7 @@ struct LogoutConfirmationView: View {
             .padding(.all, 8)
             .disabled(!backedUp || !understandDelete)
             .frame(width: buttonWidth)
+            .multilineTextAlignment(.center)
             Button("Logout") {
                 DI.accounts.logout()
             }

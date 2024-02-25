@@ -33,7 +33,7 @@ class WindowManager: NSObject, NSWindowDelegate {
         window.title = "Logout Confirmation"
         window.contentView = NSHostingView(rootView: LogoutConfirmationView(
             h1: macOSLogoutHeaderFontSize,
-            h2: macOSLogoutHeaderFontSize
+            h2: macOSLogoutHeaderFontSize,
             buttonWidth: macOSButtonWidth).environmentObject(DI.settings))
         window.isReleasedWhenClosed = false // Prevents the window from being deallocated when closed
         window.delegate = self
