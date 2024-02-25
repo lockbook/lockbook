@@ -13,7 +13,28 @@ struct LargeButtonStyle: PrimitiveButtonStyle {
         configuration.label
             .padding()
             .frame(width: width)
-            .background(enabled ? Color.blue : Color.gray)
+            .background(Color.blue)
+            .foregroundColor(.white)
+            .font(.headline)
+            .cornerRadius(cornerRadius)
+            .opacity(enabled ? 1 : 0.5)
+            .onTapGesture {
+                if enabled {
+                    configuration.trigger()
+                }
+            }
+    }
+}
+
+struct LogoutButtonStyle: PrimitiveButtonStyle {
+    var width: CGFloat
+    var enabled: Bool
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .padding()
+            .frame(width: width)
+            .background(Color.red)
             .foregroundColor(.white)
             .font(.headline)
             .cornerRadius(cornerRadius)
@@ -33,7 +54,7 @@ struct CancelButtonStyle: PrimitiveButtonStyle {
         configuration.label
             .padding()
             .frame(width: width)
-            .background(Color.red)
+            .background(Color.gray)
             .foregroundColor(.white)
             .font(.headline)
             .cornerRadius(cornerRadius)
@@ -52,18 +73,15 @@ struct LogoutConfirmationView: View {
     @State var backedUp = false
     @State var understandDelete = false
     @State var understandImportance = false
-    
-    func resetState() {
-        backedUp = false
-        understandDelete = false
-        understandImportance = false
-    }
-    
+
     var body: some View {
         VStack(alignment: .center) {
             Text("Delete lockbook files on this device and log out?")
                 .padding()
                 .font(/*@START_MENU_TOKEN@*/.title/*@END_MENU_TOKEN@*/)
+            Text("Tap on all buttons to confirm you understand the implications of logging out")
+                .padding()
+                .font(.title2)
             Button("My private key is saved somewhere safe") {
                 backedUp = true
             }
@@ -91,29 +109,21 @@ struct LogoutConfirmationView: View {
             .disabled(!backedUp || !understandDelete)
             .frame(width: largeButtonWidth)
             Button("Logout") {
-                resetState()
                 DI.accounts.logout()
             }
-            .buttonStyle(LargeButtonStyle(
+            .buttonStyle(LogoutButtonStyle(
                 width: largeButtonWidth,
                 enabled: backedUp && understandDelete && understandImportance))
             .padding()
             .disabled(!backedUp || !understandDelete || !understandImportance)
             .frame(minWidth: largeButtonWidth)
             Button("Cancel") {
-                resetState()
                 dismiss()
             }
             .buttonStyle(CancelButtonStyle(
                 width: largeButtonWidth))
             .padding()
             .frame(width: largeButtonWidth)
-        }
-        .onAppear {
-            resetState()
-        }
-        .onDisappear {
-            resetState()
         }
     }
 }
