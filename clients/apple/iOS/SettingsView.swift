@@ -50,7 +50,7 @@ struct SettingsView: View, Equatable {
                         LogoutConfirmationView(
                             h1: 22,
                             h2: 18,
-                            buttonWidth: UIScreen.main.bounds.width*0.9).environmentObject(DI.settings)
+                            buttonWidth: UIScreen.main.bounds.width*0.9)
                     }
                 }
                 Section(header: Text("PRIVATE KEY")) {

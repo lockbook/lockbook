@@ -18,7 +18,7 @@ class WindowManager: NSObject, NSWindowDelegate {
             curWindow.contentView = NSHostingView(rootView: LogoutConfirmationView(
                 h1: macOSLogoutHeaderFontSize,
                 h2: macOSLogoutHeaderFontSize-8,
-                buttonWidth: macOSButtonWidth).environmentObject(DI.settings))
+                buttonWidth: macOSButtonWidth))
             curWindow.makeKeyAndOrderFront(nil)
             NSApp.activate(ignoringOtherApps: true)
             return
@@ -34,7 +34,7 @@ class WindowManager: NSObject, NSWindowDelegate {
         window.contentView = NSHostingView(rootView: LogoutConfirmationView(
             h1: macOSLogoutHeaderFontSize,
             h2: macOSLogoutHeaderFontSize,
-            buttonWidth: macOSButtonWidth).environmentObject(DI.settings))
+            buttonWidth: macOSButtonWidth))
         window.isReleasedWhenClosed = false // Prevents the window from being deallocated when closed
         window.delegate = self
         window.makeKeyAndOrderFront(nil)
