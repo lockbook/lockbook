@@ -1,4 +1,4 @@
-use db_rs::{DbResult, List, LookupTable, Single};
+use db_rs::{List, LookupTable, Single};
 use db_rs_derive::Schema;
 
 use lockbook_shared::account::Account;
