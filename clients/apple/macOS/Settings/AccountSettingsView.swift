@@ -1,6 +1,34 @@
 import SwiftUI
 import SwiftLockbookCore
 
+let buttonCornerRadius = 4.0
+
+struct AccountSettingsButtonStyle: PrimitiveButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .background(Color.blue)
+            .foregroundColor(.white)
+            .font(.body)
+            .cornerRadius(buttonCornerRadius)
+            .onTapGesture {
+                configuration.trigger()
+            }
+    }
+}
+
+struct DestructiveButtonStyle: PrimitiveButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .background(Color.red)
+            .foregroundColor(.white)
+            .font(.body)
+            .cornerRadius(buttonCornerRadius)
+            .onTapGesture {
+                configuration.trigger()
+            }
+    }
+}
+
 struct AccountSettingsView: View {
     
     let account: Account
@@ -46,37 +74,42 @@ struct AccountSettingsView: View {
             HStack (alignment: .top) {
                 Text("Private Key:")
                     .frame(maxWidth: labelWidth, alignment: .trailing)
-                VStack {
+                VStack (spacing: spacing) {
                     Button(action: settings.copyAccountString, label: {
                         HStack {
                             Spacer()
-                            Text(settings.copyToClipboardText)
+                            Text(settings.copyToClipboardText).frame(minHeight: spacing)
                             Spacer()
                         }
-                    }).frame(maxWidth: buttonsWidth, alignment: .leading)
+                    })
+                    .buttonStyle(AccountSettingsButtonStyle())
+                    .frame(maxWidth: buttonsWidth, alignment: .leading)
                     
                     Button(action: {codeRevealed.toggle()}, label: {
                         HStack {
                             Spacer()
-                            Text(qrCodeText)
+                            Text(qrCodeText).frame(minHeight: spacing)
                             Spacer()
                         }
-                    }).frame(maxWidth: buttonsWidth, alignment: .leading)
+                    })
+                    .buttonStyle(AccountSettingsButtonStyle())
+                    .frame(maxWidth: buttonsWidth, alignment: .leading)
                 }.frame(maxWidth: rightColumnWidth, alignment: .leading)
             }
             HStack (alignment: .top) {
                 Text("Account:")
                     .frame(maxWidth: labelWidth, alignment: .trailing)
-                VStack {
+                VStack (spacing: spacing) {
                     Button(role: .destructive, action: {
                         deleteAccountConfirmation = true
                     }) {
                         HStack {
                             Spacer()
-                            Text("Delete Account")
+                            Text("Delete Account").frame(minHeight: spacing)
                             Spacer()
                         }
                     }
+                    .buttonStyle(DestructiveButtonStyle())
                     .foregroundColor(.red)
                     .confirmationDialog("Are you sure you want to delete your account?", isPresented: $deleteAccountConfirmation) {
                         Button("Delete account", role: .destructive) {
@@ -96,12 +129,12 @@ struct AccountSettingsView: View {
                     }) {
                         HStack {
                             Spacer()
-                            Text("Logout")
+                            Text("Logout").frame(minHeight: spacing)
                             Spacer()
                         }
                     }
+                    .buttonStyle(DestructiveButtonStyle())
                     .frame(maxWidth: buttonsWidth, alignment: .leading)
-                    .padding(.top, spacing)
                     
                 }.frame(maxWidth: rightColumnWidth, alignment: .leading)
             }
