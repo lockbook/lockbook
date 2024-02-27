@@ -1,4 +1,4 @@
 rootProject.name='Lockbook'
 include ':app'
 include ':lb-rs'
-include ':egui-editor'
+include ':workspace'

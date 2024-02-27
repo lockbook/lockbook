@@ -141,5 +141,5 @@ dependencies {
     implementation "com.android.billingclient:billing-ktx:$billing_version"
 
     implementation project(':lb-rs')
-    implementation project(':egui-editor')
+    implementation project(':workspace')
 }

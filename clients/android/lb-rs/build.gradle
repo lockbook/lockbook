@@ -3,7 +3,7 @@ apply plugin: 'kotlin-android'
 apply plugin: "org.jmailen.kotlinter"
 
 android {
-    compileSdkVersion 32
+    compileSdk 33
 
     defaultConfig {
         minSdkVersion 22
