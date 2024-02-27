@@ -10,7 +10,7 @@ struct SettingsView: View, Equatable {
     
     @Environment(\.presentationMode) var presentationMode
     
-    @State private var showingLogoutConfirmation = false
+    @State var showingLogoutConfirmation = false
     @State var cancelSubscriptionConfirmation = false
     @State var deleteAccountConfirmation = false
     

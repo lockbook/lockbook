@@ -8,8 +8,14 @@ struct AccountSettingsView: View {
     @EnvironmentObject var settings: SettingsService
     @EnvironmentObject var accounts: AccountService
     
+    @State var showingLogoutConfirmation = false
     @State var deleteAccountConfirmation = false
     @State var deleteAccount = false
+    
+    let labelWidth = 175.0
+    let rightColumnWidth = 256.0
+    let buttonsWidth = 175.0
+    let spacing = 20.0
     
     // MARK: QR Code things
     @State var codeRevealed: Bool = false
@@ -22,35 +28,54 @@ struct AccountSettingsView: View {
     }
     
     var body: some View {
-        VStack (spacing: 20){
+        VStack (spacing: spacing) {
             HStack (alignment: .top) {
                 Text("Username:")
-                    .frame(maxWidth: 175, alignment: .trailing)
+                    .frame(maxWidth: labelWidth, alignment: .trailing)
                 Text(account.username)
                     .font(.system(.body, design: .monospaced))
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .frame(maxWidth: rightColumnWidth, alignment: .leading)
             }
             HStack (alignment: .top) {
                 Text("Server Location:")
-                    .frame(maxWidth: 175, alignment: .trailing)
+                    .frame(maxWidth: labelWidth, alignment: .trailing)
                 Text(account.apiUrl)
                     .font(.system(.body, design: .monospaced))
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .frame(maxWidth: rightColumnWidth, alignment: .leading)
             }
             HStack (alignment: .top) {
                 Text("Private Key:")
-                    .frame(maxWidth: 175, alignment: .trailing)
+                    .frame(maxWidth: labelWidth, alignment: .trailing)
                 VStack {
                     Button(action: settings.copyAccountString, label: {
-                        Text(settings.copyToClipboardText)
-                    }).frame(maxWidth: .infinity, alignment: .leading)
+                        HStack {
+                            Spacer()
+                            Text(settings.copyToClipboardText)
+                            Spacer()
+                        }
+                    }).frame(maxWidth: buttonsWidth, alignment: .leading)
                     
                     Button(action: {codeRevealed.toggle()}, label: {
-                        Text(qrCodeText)
-                    }).frame(maxWidth: .infinity, alignment: .leading)
-                    
-                    Button("Delete Account", role: .destructive) {
+                        HStack {
+                            Spacer()
+                            Text(qrCodeText)
+                            Spacer()
+                        }
+                    }).frame(maxWidth: buttonsWidth, alignment: .leading)
+                }.frame(maxWidth: rightColumnWidth, alignment: .leading)
+            }
+            HStack (alignment: .top) {
+                Text("Account:")
+                    .frame(maxWidth: labelWidth, alignment: .trailing)
+                VStack {
+                    Button(role: .destructive, action: {
                         deleteAccountConfirmation = true
+                    }) {
+                        HStack {
+                            Spacer()
+                            Text("Delete Account")
+                            Spacer()
+                        }
                     }
                     .foregroundColor(.red)
                     .confirmationDialog("Are you sure you want to delete your account?", isPresented: $deleteAccountConfirmation) {
@@ -64,15 +89,27 @@ struct AccountSettingsView: View {
                             }
                         }
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.top, 20)
+                    .frame(maxWidth: buttonsWidth, alignment: .leading)
                     
-                }.frame(maxWidth: .infinity, alignment: .leading)
+                    Button(action: {
+                        WindowManager.shared.openLogoutConfirmationWindow()
+                    }) {
+                        HStack {
+                            Spacer()
+                            Text("Logout")
+                            Spacer()
+                        }
+                    }
+                    .frame(maxWidth: buttonsWidth, alignment: .leading)
+                    .padding(.top, spacing)
+                    
+                }.frame(maxWidth: rightColumnWidth, alignment: .leading)
             }
             
             if codeRevealed {
                 settings.accountCode()
             }
-        }.padding(20)
+        }
+        .padding(spacing)
     }
 }
