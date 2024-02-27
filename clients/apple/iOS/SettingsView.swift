@@ -1,6 +1,7 @@
 import SwiftUI
 import SwiftLockbookCore
 
+
 struct SettingsView: View, Equatable {
     
     @EnvironmentObject var billing: BillingService
@@ -9,6 +10,7 @@ struct SettingsView: View, Equatable {
     
     @Environment(\.presentationMode) var presentationMode
     
+    @State var showingLogoutConfirmation = false
     @State var cancelSubscriptionConfirmation = false
     @State var deleteAccountConfirmation = false
     
@@ -34,6 +36,23 @@ struct SettingsView: View, Equatable {
                                 .padding()) {
                                     Text(account.apiUrl).font(.system(.body, design: .monospaced)).lineLimit(1).truncationMode(.tail)
                                 }
+                    }
+                    
+                    Button(action: {
+                        showingLogoutConfirmation = true
+                    }) {
+                        HStack {
+                            Text("Logout")
+                            Spacer()
+                        }
+                    }
+                    .fullScreenCover(isPresented: $showingLogoutConfirmation) {
+                        let screenWidth = UIScreen.main.bounds.width
+                        let buttonWidth = screenWidth > 767 ? screenWidth * 0.5 : screenWidth * 0.9
+                        LogoutConfirmationView(
+                            h1: 22,
+                            h2: 18,
+                            buttonWidth: buttonWidth)
                     }
                 }
                 Section(header: Text("PRIVATE KEY")) {

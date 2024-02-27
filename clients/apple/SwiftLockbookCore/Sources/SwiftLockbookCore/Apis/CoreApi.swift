@@ -24,6 +24,10 @@ public struct CoreApi: LockbookApi {
         fromPrimitiveResult(result: create_account(username, apiLocation, welcomeDoc))
     }
     
+    public func logoutAndExit() {
+        logout_and_exit()
+    }
+    
     public func importAccount(accountString: String) -> FfiResult<Empty, ImportError> {
         fromPrimitiveResult(result: import_account(accountString.trimmingCharacters(in: .whitespacesAndNewlines)))
     }

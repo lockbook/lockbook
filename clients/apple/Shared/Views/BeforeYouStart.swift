@@ -28,7 +28,6 @@ struct BeforeYouStart: View {
                 Button("I'll do this later") {
                     presentationMode.wrappedValue.dismiss()
                 }.foregroundColor(.red)
-                
             }
         }
         .padding()

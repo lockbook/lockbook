@@ -96,6 +96,9 @@
 		B2ADC2492835451000DB8D3D /* Introspect in Frameworks */ = {isa = PBXBuildFile; productRef = B2ADC2482835451000DB8D3D /* Introspect */; };
 		B2B7E2E225C6411800B9EFAD /* OnboardingState.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2B7E2E125C6411800B9EFAD /* OnboardingState.swift */; };
 		B2B7E2E325C6411800B9EFAD /* OnboardingState.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2B7E2E125C6411800B9EFAD /* OnboardingState.swift */; };
+		DF96DCF32B8AF7B500D0039C /* LogoutConfirmation.swift in Sources */ = {isa = PBXBuildFile; fileRef = DFE4E3702B847F6000AC8A15 /* LogoutConfirmation.swift */; };
+		DFE4E36F2B847F4300AC8A15 /* WindowManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = DFE4E36E2B847F4300AC8A15 /* WindowManager.swift */; };
+		DFE4E3712B847F6000AC8A15 /* LogoutConfirmation.swift in Sources */ = {isa = PBXBuildFile; fileRef = DFE4E3702B847F6000AC8A15 /* LogoutConfirmation.swift */; };
 		EA380B262561FAEF0021C4FA /* FileListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA380B242561FAEF0021C4FA /* FileListView.swift */; };
 		EA4559BE25169F7D003AD80A /* CodeScannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA4559BD25169F7D003AD80A /* CodeScannerView.swift */; };
 		EA5C7D7B2516606100F7F358 /* LockbookApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA5C7D682516605F00F7F358 /* LockbookApp.swift */; };
@@ -183,6 +186,8 @@
 		B273394E26C8B3EF00303EAE /* Media.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Media.xcassets; sourceTree = "<group>"; };
 		B2ADC2462833FA8200DB8D3D /* FileCell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileCell.swift; sourceTree = "<group>"; };
 		B2B7E2E125C6411800B9EFAD /* OnboardingState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingState.swift; sourceTree = "<group>"; };
+		DFE4E36E2B847F4300AC8A15 /* WindowManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = WindowManager.swift; sourceTree = "<group>"; };
+		DFE4E3702B847F6000AC8A15 /* LogoutConfirmation.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = LogoutConfirmation.swift; sourceTree = "<group>"; };
 		EA349F0125BC7C110016241E /* OutlineRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OutlineRow.swift; sourceTree = "<group>"; };
 		EA380B242561FAEF0021C4FA /* FileListView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = FileListView.swift; sourceTree = "<group>"; };
 		EA4559BD25169F7D003AD80A /* CodeScannerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodeScannerView.swift; sourceTree = "<group>"; };
@@ -353,6 +358,7 @@
 				B249B9F3282FE532004F5300 /* TreeView */,
 				870DC0A026BF3775002E9A92 /* Settings */,
 				8741E8F925ACBCF9005B7B01 /* FileListView.swift */,
+				DFE4E36E2B847F4300AC8A15 /* WindowManager.swift */,
 				EA5C7D792516606100F7F358 /* Info.plist */,
 				EA5C7D7A2516606100F7F358 /* macOS.entitlements */,
 				B273394E26C8B3EF00303EAE /* Media.xcassets */,
@@ -381,6 +387,7 @@
 				4709C76F29FDAAE9004449EF /* SuggestedDocs.swift */,
 				4761F30E2A1832B4002ED338 /* ManageSubscription.swift */,
 				4779C62C2AB8C09E007C0100 /* PathSearchActionBar.swift */,
+				DFE4E3702B847F6000AC8A15 /* LogoutConfirmation.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -524,6 +531,7 @@
 				EA380B262561FAEF0021C4FA /* FileListView.swift in Sources */,
 				4709C77029FDAAE9004449EF /* SuggestedDocs.swift in Sources */,
 				4772A43A29E8656A0032D586 /* SearchWrapperView.swift in Sources */,
+				DF96DCF32B8AF7B500D0039C /* LogoutConfirmation.swift in Sources */,
 				877FB54A26D1788D0008AB3F /* CoreService.swift in Sources */,
 				877FB55926D18EC80008AB3F /* FileService.swift in Sources */,
 				1F7E4FBF2521297D0045F606 /* Colors.swift in Sources */,
@@ -588,6 +596,7 @@
 				8715F92927161CC60051689E /* OnboardingView.swift in Sources */,
 				870DC09F26BDE6F4002E9A92 /* SettingsView.swift in Sources */,
 				4779C62E2AB8C09E007C0100 /* PathSearchActionBar.swift in Sources */,
+				DFE4E36F2B847F4300AC8A15 /* WindowManager.swift in Sources */,
 				47FAA4C929EC830600DB606E /* BranchState.swift in Sources */,
 				47A45FBC2969047B00573044 /* ShareService.swift in Sources */,
 				877FB55726D18AA60008AB3F /* AccountService.swift in Sources */,
@@ -603,6 +612,7 @@
 				4709DC39296609F100426106 /* PendingSharesView.swift in Sources */,
 				870DC0A226BF378F002E9A92 /* AccountSettingsView.swift in Sources */,
 				EAAA10D925B3FD58005140EE /* BottomBar.swift in Sources */,
+				DFE4E3712B847F6000AC8A15 /* LogoutConfirmation.swift in Sources */,
 				B249B9F5282FE566004F5300 /* DataSource.swift in Sources */,
 				47FB55EE2AF19AD400B74C09 /* RenameFileSheet.swift in Sources */,
 				870DC0A426BF37C0002E9A92 /* UsageSettingsView.swift in Sources */,
