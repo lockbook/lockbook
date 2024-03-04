@@ -99,7 +99,7 @@ import AppKit
                     
                     if DI.files.idsAndFiles[id] != nil {
                         DispatchQueue.main.async {
-                            DI.workspace.openDoc = id
+                            DI.workspace.requestOpenDoc(id)
                         }
                     } else {
                         DI.errors.errorWithTitle("File not found", "That file does not exist in your lockbook")

@@ -59,7 +59,7 @@ struct FileCell: View {
                 enterFolderAnim()
             } else {
                 withAnimation {
-                    DI.workspace.openDoc = meta.id
+                    DI.workspace.requestOpenDoc(meta.id)
                 }
             }
         }) {
