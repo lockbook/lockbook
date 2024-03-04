@@ -47,7 +47,7 @@ struct OutlineBranch: View {
                                         state.open.toggle()
                                     }
                                 } else {
-                                    workspace.openDoc = file.id
+                                    DI.workspace.requestOpenDoc(file.id)
                                 }
                             }
                     }

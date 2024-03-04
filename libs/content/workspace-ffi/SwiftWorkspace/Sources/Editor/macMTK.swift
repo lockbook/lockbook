@@ -30,17 +30,27 @@ public class MacMTK: MTKView, MTKViewDelegate {
     }
 
     func openFile(id: UUID) {
-        if currentOpenDoc != id {
-            let uuid = CUuid(_0: id.uuid)
-            open_file(wsHandle, uuid, false)
-            setNeedsDisplay(self.frame)
-        }
-
+        let uuid = CUuid(_0: id.uuid)
+        open_file(wsHandle, uuid, false)
+        setNeedsDisplay(self.frame)
     }
 
     func requestSync() {
         request_sync(wsHandle)
         setNeedsDisplay(self.frame)
+    }
+
+    func fileOpCompleted(fileOp: WSFileOpCompleted) {
+        switch fileOp {
+        case .Delete(let id):
+            workspaceState?.openDoc = nil
+            currentOpenDoc = nil
+            close_tab(wsHandle, id.uuidString)
+            setNeedsDisplay(self.frame)
+        case .Rename(let id, let newName):
+            tab_renamed(wsHandle, id.uuidString, newName)
+            setNeedsDisplay(self.frame)
+        }
     }
 
     func modifiersChanged(event: NSEvent) -> NSEvent {

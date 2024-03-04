@@ -36,7 +36,7 @@ struct SearchWrapperView<Content: View>: View {
                         switch result {
                         case .PathMatch(_, let meta, let name, let path, let matchedIndices, _):
                             Button(action: {
-                                DI.workspace.openDoc = meta.id
+                                DI.workspace.requestOpenDoc(meta.id)
 
                                 if isiOS {
                                     dismissSearch()
@@ -46,7 +46,7 @@ struct SearchWrapperView<Content: View>: View {
                             }
                         case .ContentMatch(_, let meta, let name, let path, let paragraph, let matchedIndices, _):
                             Button(action: {
-                                DI.workspace.openDoc = meta.id
+                                DI.workspace.requestOpenDoc(meta.id)
 
                                 if isiOS {
                                     dismissSearch()

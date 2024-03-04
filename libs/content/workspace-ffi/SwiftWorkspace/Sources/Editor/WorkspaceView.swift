@@ -59,10 +59,9 @@ public struct UIWS: UIViewRepresentable {
             Self.mtkView?.mtkView.showHideTabs(show: showTabs)
         }
         
-        if let id = workspaceState.openDoc {
-            if uiView.mtkView.currentOpenDoc != id {
-                uiView.mtkView.openFile(id: id)
-            }
+        if let id = workspaceState.openDocRequested {
+            uiView.mtkView.openFile(id: id)
+            workspaceState.openDocRequested = nil
         }
         
         if workspaceState.currentTab.viewWrapperId() != uiView.currentTab.viewWrapperId() {
@@ -79,9 +78,9 @@ public struct UIWS: UIViewRepresentable {
             uiView.mtkView.requestSync()
         }
         
-        if workspaceState.renameCompleted != nil {
-            uiView.mtkView.docRenamed(renameCompleted: workspaceState.renameCompleted!)
-            workspaceState.renameCompleted = nil
+        if workspaceState.fileOpCompleted != nil {
+            uiView.mtkView.fileOpCompleted(fileOp: workspaceState.fileOpCompleted!)
+            workspaceState.fileOpCompleted = nil
         }
         
         if workspaceState.closeActiveTab {
@@ -261,10 +260,9 @@ public struct NSWS: NSViewRepresentable {
     }
     
     public func updateNSView(_ nsView: MTKView, context: NSViewRepresentableContext<NSWS>) {
-        if let id = workspaceState.openDoc {
-            if mtkView.currentOpenDoc != id {
-                mtkView.openFile(id: id)
-            }
+        if let id = workspaceState.openDocRequested {
+            mtkView.openFile(id: id)
+            workspaceState.openDocRequested = nil
         }
         
         if workspaceState.shouldFocus {
@@ -275,6 +273,11 @@ public struct NSWS: NSViewRepresentable {
         if workspaceState.syncRequested {
             workspaceState.syncRequested = false
             mtkView.requestSync()
+        }
+        
+        if workspaceState.fileOpCompleted != nil {
+            mtkView.fileOpCompleted(fileOp: workspaceState.fileOpCompleted!)
+            workspaceState.fileOpCompleted = nil
         }
     }
 }

@@ -27,16 +27,17 @@ public class WorkspaceState: ObservableObject {
     @Published public var offline: Bool = false
     @Published public var syncProgress: Float? = nil
     @Published public var statusMsg: String = ""
-    
     @Published public var reloadFiles: Bool = false
+    
     @Published public var syncRequested: Bool = false
+    @Published public var openDocRequested: UUID? = nil
     
     @Published public var newFolderButtonPressed: Bool = false
     
     @Published public var currentTab: WorkspaceTab = .Welcome
     
     @Published public var renameOpenDoc: Bool = false
-    @Published public var renameCompleted: WSRenameCompleted? = nil
+    @Published public var fileOpCompleted: WSFileOpCompleted? = nil
     @Published public var closeActiveTab: Bool = false
     
     #if os(iOS)
@@ -48,16 +49,15 @@ public class WorkspaceState: ObservableObject {
     public func requestSync() {
         self.syncRequested = true
     }
+    
+    public func requestOpenDoc(_ id: UUID) {
+        self.openDocRequested = id
+    }
 }
 
-public struct WSRenameCompleted {
-    public init(id: UUID, newName: String) {
-        self.id = id
-        self.newName = newName
-    }
-    
-    public let id: UUID
-    public let newName: String
+public enum WSFileOpCompleted {
+    case Rename(id: UUID, newName: String)
+    case Delete(id: UUID)
 }
 
 func createTempDir() -> URL? {

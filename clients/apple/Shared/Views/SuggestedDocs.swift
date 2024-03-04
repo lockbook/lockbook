@@ -71,7 +71,7 @@ struct SuggestedDocs: View {
                         if let parentMeta = fileService.idsAndFiles[meta.parent] {
                             HStack {
                                 Button(action: {
-                                    DI.workspace.openDoc = meta.id
+                                    DI.workspace.requestOpenDoc(meta.id)
                                 }) {
                                     SuggestedDocCell(name: meta.name, parentName: "\(parentMeta.name)/", duration: meta.lastModified, isiOS: isiOS)
                                 }
@@ -127,7 +127,7 @@ struct SuggestedDocs: View {
                                     ForEach(suggestedDocs) { meta in
                                         if let parentMeta = fileService.idsAndFiles[meta.parent] {
                                             Button(action: {
-                                                DI.workspace.openDoc = meta.id
+                                                DI.workspace.requestOpenDoc(meta.id)
                                             }) {
                                                 SuggestedDocCell(name: meta.name, parentName: "\(parentMeta.name)/", duration: meta.lastModified)
                                             }

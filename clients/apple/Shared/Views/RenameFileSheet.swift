@@ -5,7 +5,7 @@ import SwiftWorkspace
 
 struct RenameFileSheet: View {
         
-    @State var newFileName: String = DI.sheets.renamingFileInfo?.name ?? ""
+    @State var newName: String = DI.sheets.renamingFileInfo?.name ?? ""
     @State var maybeError: String? = nil
     
     @Environment(\.presentationMode) var presentationMode
@@ -31,7 +31,7 @@ struct RenameFileSheet: View {
                         .font(.system(.body, design: .monospaced))
                 }
                 
-                TextField("Choose a filename", text: $newFileName, onCommit: {
+                TextField("Choose a filename", text: $newName, onCommit: {
                     onCommit(renamingFileInfo: renamingFileInfo)
                 })
                     .textFieldStyle(RoundedBorderTextFieldStyle())
@@ -57,10 +57,10 @@ struct RenameFileSheet: View {
     }
     
     func onCommit(renamingFileInfo: RenamingFileInfo) {
-        if let error = DI.files.renameFileSync(id: renamingFileInfo.id, name: newFileName) {
+        if let error = DI.files.renameFileSync(id: renamingFileInfo.id, name: newName) {
             maybeError = error
         } else {
-            DI.workspace.renameCompleted = WSRenameCompleted(id: renamingFileInfo.id, newName: newFileName)
+            DI.workspace.fileOpCompleted = .Rename(id: renamingFileInfo.id, newName: newName)
             DI.files.refresh()
             
             maybeError = nil

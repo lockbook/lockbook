@@ -161,6 +161,7 @@ class FileService: ObservableObject {
                 case .success(_):
                     self.refresh()
                     self.successfulAction = .delete
+                    DI.workspace.fileOpCompleted = .Delete(id: id)
                     DI.status.checkForLocalWork()
                 case .failure(let error):
                     DI.errors.handleError(error)
@@ -305,7 +306,7 @@ class FileService: ObservableObject {
                 case .success(let meta):
                     self.refresh()
                     DispatchQueue.main.sync {
-                        DI.workspace.openDoc = meta.id
+                        DI.workspace.requestOpenDoc(meta.id)
                     }
                     
                     return
