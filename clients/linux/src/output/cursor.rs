@@ -14,6 +14,7 @@ impl Manager {
     pub fn new(conn: &XCBConnection, screen_num: usize) -> Result<Self, ReplyOrIdError> {
         let empty_cursor_pixmap_id = conn.generate_id()?;
         let empty_cursor_id = conn.generate_id()?;
+        println!("conn.create_pixmap");
         conn.create_pixmap(1, empty_cursor_pixmap_id, conn.setup().roots[screen_num].root, 1, 1)?;
         conn.create_cursor(
             empty_cursor_id,
@@ -52,9 +53,11 @@ impl Manager {
         let cursor = if cursor_icon == CursorIcon::None {
             self.empty_cursor_id
         } else {
+            println!("cursor_handle.load_cursor");
             cursor_handle.load_cursor(conn, to_x11_cursor(cursor_icon))?
         };
 
+        println!("conn.change_window_attributes");
         conn.change_window_attributes(
             window,
             &ChangeWindowAttributesAux::default().cursor(cursor),

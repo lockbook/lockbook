@@ -16,6 +16,7 @@ pub fn handle(
     };
 
     // set the window title with a null-terminated string
+    println!("conn.change_property8 (2)");
     conn.change_property8(
         PropMode::REPLACE,
         window_id,
