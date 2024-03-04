@@ -22,7 +22,7 @@ struct FileTreeView: NSViewRepresentable {
         if treeView.numberOfColumns != 1 {
             delegate.documentSelected = { meta in
                 if meta.fileType == .Document {
-                    workspace.openDoc = meta.id
+                    DI.workspace.requestOpenDoc(meta.id)
                 } else if meta.fileType == .Folder {
                     workspace.selectedFolder = meta.id
                 }

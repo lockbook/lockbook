@@ -657,11 +657,9 @@ public class iOSMTK: MTKView, MTKViewDelegate {
     }
     
     func openFile(id: UUID) {
-        if currentOpenDoc != id {
-            let uuid = CUuid(_0: id.uuid)
-            open_file(wsHandle, uuid, false)
-            setNeedsDisplay(self.frame)
-        }
+        let uuid = CUuid(_0: id.uuid)
+        open_file(wsHandle, uuid, false)
+        setNeedsDisplay(self.frame)
     }
     
     func showHideTabs(show: Bool) {
@@ -681,9 +679,15 @@ public class iOSMTK: MTKView, MTKViewDelegate {
         setNeedsDisplay(self.frame)
     }
     
-    func docRenamed(renameCompleted: WSRenameCompleted) {
-        tab_renamed(wsHandle, renameCompleted.id.uuidString, renameCompleted.newName)
-        setNeedsDisplay(self.frame)
+    func fileOpCompleted(fileOp: WSFileOpCompleted) {
+        switch fileOp {
+        case .Delete(let id):
+            close_tab(wsHandle, id.uuidString)
+            setNeedsDisplay(self.frame)
+        case .Rename(let id, let newName):
+            tab_renamed(wsHandle, id.uuidString, newName)
+            setNeedsDisplay(self.frame)
+        }
     }
 
     public func setInitialContent(_ coreHandle: UnsafeMutableRawPointer?) {

@@ -3,6 +3,7 @@ use egui::os::OperatingSystem;
 use egui::{vec2, Context, Event, FontDefinitions, Pos2};
 use egui_wgpu_backend::wgpu::CompositeAlphaMode;
 use egui_wgpu_backend::{wgpu, ScreenDescriptor};
+use lb_external_interface::lb_rs::Uuid;
 use lb_external_interface::Core;
 use std::ffi::{c_char, c_void, CStr, CString};
 use std::path::PathBuf;
@@ -253,5 +254,43 @@ pub unsafe extern "C" fn scroll_wheel(obj: *mut c_void, scroll_x: f32, scroll_y:
 
     if matches!(obj.context.os(), OperatingSystem::IOS) {
         obj.raw_input.events.push(Event::PointerGone);
+    }
+}
+
+/// # Safety
+/// obj must be a valid pointer to WgpuEditor
+#[no_mangle]
+pub unsafe extern "C" fn tab_renamed(obj: *mut c_void, id: *const c_char, new_name: *const c_char) {
+    let obj = &mut *(obj as *mut WgpuWorkspace);
+    let new_name: String = CStr::from_ptr(new_name).to_str().unwrap().into();
+
+    let id: Uuid = CStr::from_ptr(id)
+        .to_str()
+        .expect("Could not C String -> Rust String")
+        .to_string()
+        .parse()
+        .expect("Could not String -> Uuid");
+
+    let _ = obj
+        .workspace
+        .updates_tx
+        .send(workspace_rs::workspace::WsMsg::FileRenamed { id, new_name });
+}
+
+/// # Safety
+/// obj must be a valid pointer to WgpuEditor
+#[no_mangle]
+pub unsafe extern "C" fn close_tab(obj: *mut c_void, id: *const c_char) {
+    let obj = &mut *(obj as *mut WgpuWorkspace);
+
+    let id: Uuid = CStr::from_ptr(id)
+        .to_str()
+        .expect("Could not C String -> Rust String")
+        .to_string()
+        .parse()
+        .expect("Could not String -> Uuid");
+
+    if let Some(tab_id) = obj.workspace.tabs.iter().position(|tab| tab.id == id) {
+        obj.workspace.close_tab(tab_id);
     }
 }
