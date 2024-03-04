@@ -528,7 +528,7 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
     }
     
     public override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
-        mtkView.pressesBegan(presses, with: event)
+        mtkView.forwardedPressesBegan(presses, with: event)
         
         if !mtkView.overrideDefaultKeyboardBehavior {
             super.pressesBegan(presses, with: event)
@@ -536,7 +536,7 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
     }
     
     public override func pressesEnded(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
-        mtkView.pressesEnded(presses, with: event)
+        mtkView.forwardedPressesEnded(presses, with: event)
         
         if !mtkView.overrideDefaultKeyboardBehavior {
             super.pressesEnded(presses, with: event)
@@ -846,6 +846,22 @@ public class iOSMTK: MTKView, MTKViewDelegate {
     }
     
     public override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
+        forwardedPressesBegan(presses, with: event)
+        
+        if !overrideDefaultKeyboardBehavior {
+            super.pressesBegan(presses, with: event)
+        }
+    }
+
+    public override func pressesEnded(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
+        forwardedPressesEnded(presses, with: event)
+        
+        if !overrideDefaultKeyboardBehavior {
+            super.pressesEnded(presses, with: event)
+        }
+    }
+    
+    func forwardedPressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
         overrideDefaultKeyboardBehavior = false
         
         for press in presses {
@@ -868,8 +884,8 @@ public class iOSMTK: MTKView, MTKViewDelegate {
             self.setNeedsDisplay(self.frame)
         }
     }
-
-    public override func pressesEnded(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
+    
+    func forwardedPressesEnded(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
         overrideDefaultKeyboardBehavior = false
         
         for press in presses {
