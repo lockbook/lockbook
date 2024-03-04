@@ -42,42 +42,7 @@ struct FileTreeView: View {
     
         WorkspaceView(DI.workspace, get_core_ptr())
             .equatable()
-            .toolbar {
-                ToolbarItemGroup(placement: .navigationBarTrailing) {
-                    if let id = workspace.openDoc {
-                        if let meta = DI.files.idsAndFiles[id] {
-                            Button(action: {
-                                exportFileAndShowShareSheet(meta: meta)
-                                   }, label: {
-                                Label("Share externally to...", systemImage: "square.and.arrow.up.fill")
-                            })
-                            .foregroundColor(.blue)
-                            .padding(.trailing, 10)
-                            
-                            Button(action: {
-                                DI.sheets.sharingFileInfo = meta
-                                   }, label: {
-                                Label("Share", systemImage: "person.wave.2.fill")
-                            })
-                            .foregroundColor(.blue)
-                            .padding(.trailing, 5)
-                        }
-                    }
-                    
-                    NavigationLink(
-                        destination: PendingSharesView()) {
-                            pendingShareToolbarIcon(isPendingSharesEmpty: share.pendingShares?.isEmpty ?? false)
-                        }
-                    
-                    NavigationLink(
-                        destination: SettingsView().equatable(), isActive: $onboarding.theyChoseToBackup) {
-                            Image(systemName: "gearshape.fill")
-                                .foregroundColor(.blue)
-                                .padding(.trailing, 10)
-
-                        }
-                }
-            }
+            .workspaceToolbar(theyChoseToBackup: $onboarding.theyChoseToBackup)
             .alert(isPresented: Binding(get: { sync.outOfSpace && !hideOutOfSpaceAlert }, set: {_ in sync.outOfSpace = false })) {
                 Alert(
                     title: Text("Out of Space"),
@@ -122,5 +87,51 @@ struct FileTreeView: View {
     
     func focusSearchBar() {
         searchBar?.becomeFirstResponder()
+    }
+}
+
+extension View {
+    func workspaceToolbar(theyChoseToBackup: Binding<Bool>) -> some View {
+        let basicToolbarItems = Group {
+            NavigationLink(
+                destination: PendingSharesView()) {
+                    pendingShareToolbarIcon(isPendingSharesEmpty: DI.share.pendingShares?.isEmpty ?? false)
+                }
+            
+            NavigationLink(
+                destination: SettingsView().equatable(), isActive: theyChoseToBackup) {
+                    Image(systemName: "gearshape.fill")
+                        .foregroundColor(.blue)
+                        .padding(.trailing, 10)
+                }
+        }
+        
+        return self.toolbar {
+            if let id = DI.workspace.openDoc, let meta = DI.files.idsAndFiles[id] {
+                ToolbarItemGroup(placement: .topBarTrailing) {
+                    Button(action: {
+                        exportFileAndShowShareSheet(meta: meta)
+                    }, label: {
+                        Label("Share externally to...", systemImage: "square.and.arrow.up.fill")
+                    })
+                    .foregroundColor(.blue)
+                    .padding(.trailing, 5)
+                    
+                    Button(action: {
+                        DI.sheets.sharingFileInfo = meta
+                    }, label: {
+                        Label("Share", systemImage: "person.wave.2.fill")
+                    })
+                    .foregroundColor(.blue)
+                    .padding(.trailing, 5)
+                    
+                    basicToolbarItems
+                }
+            } else {
+                ToolbarItemGroup {
+                    basicToolbarItems
+                }
+            }
+        }
     }
 }
