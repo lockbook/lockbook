@@ -72,3 +72,13 @@ pub unsafe extern "C" fn mouse_button(
         modifiers,
     })
 }
+
+/// (macos only)
+/// # Safety
+#[no_mangle]
+pub unsafe extern "C" fn magnify_gesture(obj: *mut c_void, factor: f32) {
+    let obj = &mut *(obj as *mut WgpuWorkspace);
+    let factor = factor.exp();
+
+    obj.raw_input.events.push(Event::Zoom(factor))
+}

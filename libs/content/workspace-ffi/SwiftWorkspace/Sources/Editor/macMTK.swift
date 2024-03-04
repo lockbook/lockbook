@@ -137,6 +137,11 @@ public class MacMTK: MTKView, MTKViewDelegate {
         scroll_wheel(wsHandle, Float(event.scrollingDeltaX), Float(event.scrollingDeltaY))
         setNeedsDisplay(self.frame)
     }
+    
+    public override func magnify(with event: NSEvent) {
+        magnify_gesture(wsHandle, Float(event.magnification))
+        setNeedsDisplay(self.frame)
+    }
 
     public override func keyDown(with event: NSEvent) {
         if event.modifierFlags.contains(.command) && event.keyCode == 9 { // cmd+v
