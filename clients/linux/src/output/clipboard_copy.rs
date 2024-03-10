@@ -14,7 +14,6 @@ pub fn handle_copy(
     last_copied_text: &mut String,
 ) -> Result<(), Box<dyn std::error::Error>> {
     if !copied_text.is_empty() && copied_text != *last_copied_text {
-        println!("conn.set_selection_owner");
         conn.set_selection_owner(window_id, atoms.CLIPBOARD, x11rb::CURRENT_TIME)?;
         *last_copied_text = copied_text;
     }
@@ -40,7 +39,6 @@ pub fn handle_selection_request(
     if event.selection == atoms.CLIPBOARD {
         if event.target == atoms.TARGETS {
             // deliver the supported types
-            println!("conn.change_property32");
             conn.change_property32(
                 PropMode::REPLACE,
                 event.requestor,
@@ -52,7 +50,6 @@ pub fn handle_selection_request(
         }
         if event.target == atoms.UTF8_STRING {
             // deliver the copied text
-            println!("conn.change_property8");
             conn.change_property8(
                 PropMode::REPLACE,
                 event.requestor,
@@ -65,7 +62,6 @@ pub fn handle_selection_request(
     }
 
     // notify requestor
-    println!("conn.send_event");
     conn.send_event(false, event.requestor, EventMask::NO_EVENT, notification)?;
 
     Ok(())
