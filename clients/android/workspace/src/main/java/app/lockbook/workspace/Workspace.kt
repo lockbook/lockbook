@@ -5,64 +5,30 @@ import android.view.Surface
 import kotlinx.serialization.SerialInfo
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import java.util.UUID
 
-@Serializable
-public data class EditorResponse(
-    @SerialName("text_updated")
-    val textUpdated: Boolean,
-    @SerialName("potential_title")
-    val potentialTitle: String?,
-
-    @SerialName("show_edit_menu")
-    val showEditMenu: Boolean,
-    @SerialName("has_selection")
-    val hasSelection: Boolean,
-    @SerialName("selection_updated")
-    val selectionUpdated: Boolean,
-    @SerialName("edit_menu_x")
-    val editMenuX: Float,
-    @SerialName("edit_menu_y")
-    val editMenuY: Float,
-
-    @SerialName("cursor_in_heading")
-    val cursorInHeading: Boolean,
-    @SerialName("cursor_in_bullet_list")
-    val cursorInBulletList: Boolean,
-    @SerialName("cursor_in_number_list")
-    val cursorInNumberList: Boolean,
-    @SerialName("cursor_in_todo_list")
-    val cursorInTodoList: Boolean,
-    @SerialName("cursor_in_bold")
-    val cursorInBold: Boolean,
-    @SerialName("cursor_in_italic")
-    val cursorInItalic: Boolean,
-    @SerialName("cursor_in_inline_code")
-    val cursorInInlineCode: Boolean,
-    @SerialName("cursor_in_strikethrough")
-    val cursorInStrikethrough: Boolean,
-
-    @SerialName("opened_url")
-    val openedURL: String?
-)
-
-@Serializable
-data class IntegrationOutput(
+public data class IntegrationOutput(
+    @SerialName("workspace_resp")
+    val workspaceResp: FfiWorkspaceResp,
     @SerialName("redraw_in")
     val redrawIn: ULong,
-    @SerialName("editor_response")
-    val editorResponse: EditorResponse
+    @SerialName("copied_text")
+    val copiedText: String,
+    @SerialName("url_opened")
+    val urlOpened: String
 )
 
-@Serializable
-data class AndroidRect(
-    @SerialName("min_x")
-    val minX: Float,
-    @SerialName("min_y")
-    val minY: Float,
-    @SerialName("max_x")
-    val maxX: Float,
-    @SerialName("max_y")
-    val maxY: Float,
+public data class FfiWorkspaceResp(
+    @SerialName("selected_file")
+    val selectedFile: String,
+    @SerialName("doc_created")
+    val docCreated: String,
+    val msg: String,
+    val syncing: Boolean,
+    @SerialName("refresh_files")
+    val refreshFiles: Boolean,
+    @SerialName("new_folder_btn_pressed")
+    val newFolderBtnPressed: Boolean
 )
 
 class Workspace {
@@ -78,42 +44,42 @@ class Workspace {
     external fun touchesBegin(rustObj: Long, id: Int, x: Float, y: Float, pressure: Float)
     external fun touchesMoved(rustObj: Long, id: Int, x: Float, y: Float, pressure: Float)
     external fun touchesEnded(rustObj: Long, id: Int, x: Float, y: Float, pressure: Float)
-
-    external fun getAllText(rustObj: Long): String
-    external fun setSelection(rustObj: Long, start: Int, end: Int)
-    external fun getSelection(rustObj: Long): String
     external fun sendKeyEvent(rustObj: Long, keyCode: Int, content: String, pressed: Boolean, alt: Boolean, ctrl: Boolean, shift: Boolean): Int
 
-    // Editable stuff
-    external fun getTextLength(rustObj: Long): Int
-    external fun clear(rustObj: Long)
-    external fun replace(rustObj: Long, start: Int, end: Int, text: String)
-    external fun insert(rustObj: Long, index: Int, text: String)
-    external fun append(rustObj: Long, text: String)
-    external fun getTextInRange(rustObj: Long, start: Int, end: Int): String
-
-    // context menu
-    external fun selectAll(rustObj: Long)
-    external fun clipboardCut(rustObj: Long)
-    external fun clipboardCopy(rustObj: Long)
-    external fun clipboardPaste(rustObj: Long)
-    external fun clipboardChanged(rustObj: Long, content: String)
-    external fun hasCopiedText(rustObj: Long): Boolean
-    external fun getCopiedText(rustObj: Long): String
-
-    // markdown styling
-    external fun applyStyleToSelectionHeading(rustObj: Long, headingSize: Int)
-
-    external fun applyStyleToSelectionBulletedList(rustObj: Long)
-    external fun applyStyleToSelectionNumberedList(rustObj: Long)
-    external fun applyStyleToSelectionTodoList(rustObj: Long)
-
-    external fun applyStyleToSelectionBold(rustObj: Long)
-    external fun applyStyleToSelectionItalic(rustObj: Long)
-    external fun applyStyleToSelectionInlineCode(rustObj: Long)
-    external fun applyStyleToSelectionStrikethrough(rustObj: Long)
-
-    external fun indentAtCursor(rustObj: Long, deindent: Boolean)
-
-    external fun undoRedo(rustObj: Long, redo: Boolean)
+//    external fun getAllText(rustObj: Long): String
+//    external fun setSelection(rustObj: Long, start: Int, end: Int)
+//    external fun getSelection(rustObj: Long): String
+//
+//    // Editable stuff
+//    external fun getTextLength(rustObj: Long): Int
+//    external fun clear(rustObj: Long)
+//    external fun replace(rustObj: Long, start: Int, end: Int, text: String)
+//    external fun insert(rustObj: Long, index: Int, text: String)
+//    external fun append(rustObj: Long, text: String)
+//    external fun getTextInRange(rustObj: Long, start: Int, end: Int): String
+//
+//    // context menu
+//    external fun selectAll(rustObj: Long)
+//    external fun clipboardCut(rustObj: Long)
+//    external fun clipboardCopy(rustObj: Long)
+//    external fun clipboardPaste(rustObj: Long)
+//    external fun clipboardChanged(rustObj: Long, content: String)
+//    external fun hasCopiedText(rustObj: Long): Boolean
+//    external fun getCopiedText(rustObj: Long): String
+//
+//    // markdown styling
+//    external fun applyStyleToSelectionHeading(rustObj: Long, headingSize: Int)
+//
+//    external fun applyStyleToSelectionBulletedList(rustObj: Long)
+//    external fun applyStyleToSelectionNumberedList(rustObj: Long)
+//    external fun applyStyleToSelectionTodoList(rustObj: Long)
+//
+//    external fun applyStyleToSelectionBold(rustObj: Long)
+//    external fun applyStyleToSelectionItalic(rustObj: Long)
+//    external fun applyStyleToSelectionInlineCode(rustObj: Long)
+//    external fun applyStyleToSelectionStrikethrough(rustObj: Long)
+//
+//    external fun indentAtCursor(rustObj: Long, deindent: Boolean)
+//
+//    external fun undoRedo(rustObj: Long, redo: Boolean)
 }

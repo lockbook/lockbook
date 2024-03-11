@@ -140,7 +140,7 @@ class FilesListViewModel(application: Application, val syncModel: SyncModel) : A
             when (val createFileResult = CoreModel.createFile(fileModel.parent.id, fileName, FileType.Document)) {
                 is Ok -> {
                     withContext(Dispatchers.Main) {
-                        activityModel.launchDetailScreen(DetailScreen.Loading(createFileResult.value))
+//                        activityModel.launchDetailScreen(DetailScreen.Loading(createFileResult.value))
                     }
 
                     refreshFiles()

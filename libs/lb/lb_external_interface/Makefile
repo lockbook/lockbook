@@ -10,7 +10,7 @@ android:
 	@mkdir $(jniLibs)/armeabi-v7a
 	@mkdir $(jniLibs)/x86
 	@mkdir $(jniLibs)/x86_64
-	
+
 	@cp ../../../target/aarch64-linux-android/release/$(libName) $(jniLibs)/arm64-v8a/$(libName)
 	@cp ../../../target/armv7-linux-androideabi/release/$(libName) $(jniLibs)/armeabi-v7a/$(libName)
 	@cp ../../../target/i686-linux-android/release/$(libName) $(jniLibs)/x86/$(libName)

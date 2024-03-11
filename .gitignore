@@ -74,7 +74,7 @@ fastlane/screenshots/**/*.png
 fastlane/test_output
 
 iOSInjectionProject/
-.DS_Store 
+.DS_Store
 clients/apple/include/
 clients/apple/libs/
 
@@ -92,7 +92,7 @@ containers/prod.env
 containers/devtest.env
 server/server/qa-ca-certificate.crt
 clients/android/lb-rs/src/main/jniLibs/
-clients/android/egui-editor/src/main/jniLibs/
+clients/android/workspace/src/main/jniLibs/
 liblb_external_interface.a
 lb_rs.h
 *.log

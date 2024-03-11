@@ -6,7 +6,7 @@ apply plugin: 'kotlinx-serialization'
 apply plugin: 'kotlin-parcelize'
 
 android {
-    compileSdk 33
+    compileSdk 34
 
     defaultConfig {
         applicationId "app.lockbook"
@@ -91,8 +91,6 @@ dependencies {
     implementation "androidx.fragment:fragment-ktx:$fragment_version"
     implementation "androidx.slidingpanelayout:slidingpanelayout:$sliding_pane_layout_version"
     implementation "com.afollestad:recyclical:$recyclical_version"
-    implementation "com.github.MikeOrtiz:TouchImageView:$image_viewer_version"
-    implementation "com.github.mhiew:android-pdf-viewer:$pdf_viewer_version"
     implementation "com.leinardi.android:speed-dial:$fab_speed_dial"
     implementation("app.futured.donut:donut:$donut_chart_version")
     implementation "androidx.constraintlayout:constraintlayout:$constraint_layout_version"
@@ -119,13 +117,6 @@ dependencies {
     implementation "androidx.lifecycle:lifecycle-viewmodel-ktx:$lifecycle_version"
     implementation "androidx.lifecycle:lifecycle-livedata-ktx:$lifecycle_version"
     implementation "androidx.lifecycle:lifecycle-process:$lifecycle_version"
-
-    // Markdown
-    implementation "io.noties.markwon:core:$markwon_version"
-    implementation "io.noties.markwon:editor:$markwon_version"
-    implementation "io.noties.markwon:ext-strikethrough:$markwon_version"
-    implementation "io.noties.markwon:ext-latex:$markwon_version"
-    implementation "io.noties.markwon:image:$markwon_version"
 
     // Testing Libraries
     testImplementation "junit:junit:$junit_version"
