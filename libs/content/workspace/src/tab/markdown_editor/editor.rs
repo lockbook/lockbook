@@ -151,7 +151,6 @@ impl Editor {
         let touch_mode = matches!(ui.ctx().os(), OperatingSystem::Android | OperatingSystem::IOS);
 
         let events = ui.ctx().input(|i| i.events.clone());
-        // create id (even though we don't use interact response)
         ui.interact(self.scroll_area_rect, self.id, Sense::focusable_noninteractive());
 
         // calculate focus
