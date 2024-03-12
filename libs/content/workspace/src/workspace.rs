@@ -533,6 +533,7 @@ impl Workspace {
                             &bytes,
                             &toolbar_visibility,
                             is_new_file,
+                            id,
                         ))
                     } else if is_supported_image_fmt(ext) {
                         TabContent::Image(ImageViewer::new(id.to_string(), &bytes))
