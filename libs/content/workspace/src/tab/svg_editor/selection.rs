@@ -398,18 +398,13 @@ impl SelectionRect {
         )
     }
 }
-
+#[derive(Default)]
 enum SelectionOperation {
     Drag,
     HorizontalScale,
     VerticalScale,
+    #[default]
     Idle,
-}
-
-impl Default for SelectionOperation {
-    fn default() -> Self {
-        SelectionOperation::Idle
-    }
 }
 
 struct SelectionResponse {
