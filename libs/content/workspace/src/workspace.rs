@@ -393,7 +393,7 @@ impl Workspace {
                                     let mut rename_edit_state =
                                         egui::text_edit::TextEditState::default();
                                     rename_edit_state.set_ccursor_range(Some(
-                                        egui::text_edit::CCursorRange {
+                                        egui::text::CCursorRange {
                                             primary: egui::text::CCursor::new(
                                                 active_name.rfind('.').unwrap_or(active_name.len()),
                                             ),
