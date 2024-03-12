@@ -67,6 +67,9 @@ impl SizableComponent for Component {
 macro_rules! set_tool {
     ($obj:expr, $new_tool:expr) => {
         if $obj.active_tool != $new_tool {
+            if (matches!($new_tool, Tool::Selection)) {
+                $obj.selection = Selection::default();
+            }
             $obj.previous_tool = Some($obj.active_tool);
             $obj.active_tool = $new_tool;
         }
@@ -153,7 +156,7 @@ impl Toolbar {
             previous_tool: None,
             pen: Pen::new(max_id),
             eraser: Eraser::new(),
-            selection: Selection::new(),
+            selection: Selection::default(),
         }
     }
 
