@@ -303,8 +303,8 @@ impl TreeNode {
             let name = &state.renaming.tmp_name;
             let end_pos = name.rfind('.').unwrap_or(name.len());
 
-            let mut rename_edit_state = egui::text_edit::TextEditState::default();
-            rename_edit_state.set_ccursor_range(Some(egui::text_edit::CCursorRange {
+            let mut rename_edit_state = egui::text::TextEditState::default();
+            rename_edit_state.set_ccursor_range(Some(egui::text::CCursorRange {
                 primary: egui::text::CCursor::new(end_pos),
                 secondary: egui::text::CCursor::new(0),
             }));
