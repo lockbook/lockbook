@@ -4,7 +4,7 @@ version = "0.9.0"
 edition = "2021"
 
 [target.'cfg(target_os = "linux")'.dependencies]
-egui = "0.22.0"
+egui = "0.26.0"
 egui_wgpu_backend = "0.24.0"
 env_logger = "0.10"
 image = "0.24.7"
