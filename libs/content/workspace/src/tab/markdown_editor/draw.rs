@@ -34,7 +34,7 @@ impl Editor {
                                     bullet_radius,
                                     Stroke::new(1.0, self.appearance.text()),
                                 ),
-                            }
+                            };
                         }
                         ListItem::Numbered(num) => {
                             let mut job = LayoutJob::default();
