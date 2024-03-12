@@ -142,7 +142,7 @@ impl<'a> Button<'a> {
                         icon_width / 3.2,
                         ui.visuals().hyperlink_color,
                         egui::Stroke::NONE,
-                    )
+                    );
                 }
             }
 
