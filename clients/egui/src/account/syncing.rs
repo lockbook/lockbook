@@ -3,7 +3,6 @@ use std::thread;
 use std::time::Instant;
 
 use eframe::egui;
-use egui::Color32;
 use lb::Duration;
 use workspace_rs::theme::icons::Icon;
 use workspace_rs::widgets::{Button, ProgressBar};
@@ -68,9 +67,11 @@ impl super::AccountScreen {
                             self.sync.expanded_usage_msg_rect = rect;
                         }
 
-                        // todo: visuals?
-                        ui.painter()
-                            .galley(rect.left_top(), galley, Color32::TRANSPARENT);
+                        ui.painter().galley_with_override_text_color(
+                            rect.left_top(),
+                            galley,
+                            ui.style().interact(&resp).text_color(),
+                        );
 
                         if self
                             .sync
