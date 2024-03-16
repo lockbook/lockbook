@@ -291,7 +291,7 @@ fn handle_message(hwnd: HWND, message: Message) -> bool {
             if let Some(ref mut window) = maybe_window {
                 if let Some(ref mut app) = window.maybe_app {
                     // events sent to app every frame
-                    app.raw_input.pixels_per_point = Some(window.dpi_scale);
+                    app.context.set_pixels_per_point(window.dpi_scale);
                     app.screen.scale_factor = window.dpi_scale;
                     app.screen.physical_width = window.width as _;
                     app.screen.physical_height = window.height as _;
@@ -331,7 +331,6 @@ fn handle_message(hwnd: HWND, message: Message) -> bool {
                             unsafe { BeginPaint(hwnd, std::ptr::null_mut()) };
 
                             let IntegrationOutput {
-                                redraw_in: _, // todo: handle? how's this different from checking egui context?
                                 egui: PlatformOutput { cursor_icon, open_url, copied_text, .. },
                                 update_output: UpdateOutput { close, set_window_title },
                             } = window.maybe_app.as_mut().unwrap().frame();

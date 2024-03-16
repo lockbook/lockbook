@@ -1634,6 +1634,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "d3d12"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e16e44ab292b1dddfdaf7be62cfd8877df52f2f3fde5858d95bab606be259f20"
+dependencies = [
+ "bitflags 2.4.2",
+ "libloading 0.8.0",
+ "winapi",
+]
+
+[[package]]
 name = "dark-light"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1881,6 +1892,15 @@ dependencies = [
 
 [[package]]
 name = "ecolor"
+version = "0.23.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cfdf4e52dbbb615cfd30cf5a5265335c217b5fd8d669593cea74a517d9c605af"
+dependencies = [
+ "bytemuck",
+]
+
+[[package]]
+name = "ecolor"
 version = "0.26.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "03cfe80b1890e1a8cdbffc6044d6872e814aaf6011835a2a5e2db0e5c5c4ef4e"
@@ -1931,6 +1951,17 @@ checksum = "a3aef8ec3ae1b772f340170c65bf27d5b8c28f543a0116c844d2ac08d01123e7"
 dependencies = [
  "ahash 0.8.11",
  "epaint 0.22.0",
+ "nohash-hasher",
+]
+
+[[package]]
+name = "egui"
+version = "0.23.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8bd69fed5fcf4fbb8225b24e80ea6193b61e17a625db105ef0c4d71dde6eb8b7"
+dependencies = [
+ "ahash 0.8.11",
+ "epaint 0.23.0",
  "nohash-hasher",
 ]
 
@@ -2044,6 +2075,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "egui_wgpu_backend"
+version = "0.26.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f0df4d22dde819729b80083afc897972da285aa5fef46eaca9c19c328389ce2e"
+dependencies = [
+ "bytemuck",
+ "egui 0.23.0",
+ "wgpu 0.17.2",
+]
+
+[[package]]
 name = "either"
 version = "1.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2054,6 +2096,15 @@ name = "emath"
 version = "0.22.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3857d743a6e0741cdd60b622a74c7a36ea75f5f8f11b793b41d905d2c9721a4b"
+dependencies = [
+ "bytemuck",
+]
+
+[[package]]
+name = "emath"
+version = "0.23.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1ef2b29de53074e575c18b694167ccbe6e5191f7b25fe65175a0d905a32eeec0"
 dependencies = [
  "bytemuck",
 ]
@@ -2161,6 +2212,21 @@ dependencies = [
  "bytemuck",
  "ecolor 0.22.0",
  "emath 0.22.0",
+ "nohash-hasher",
+ "parking_lot",
+]
+
+[[package]]
+name = "epaint"
+version = "0.23.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "58067b840d009143934d91d8dcb8ded054d8301d7c11a517ace0a99bb1e1595e"
+dependencies = [
+ "ab_glyph",
+ "ahash 0.8.11",
+ "bytemuck",
+ "ecolor 0.23.0",
+ "emath 0.23.0",
  "nohash-hasher",
  "parking_lot",
 ]
@@ -2726,9 +2792,9 @@ checksum = "d2fabcfbdc87f4758337ca535fb41a6d701b65693ce38287d856d1674551ec9b"
 
 [[package]]
 name = "glow"
-version = "0.12.2"
+version = "0.12.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "807edf58b70c0b5b2181dd39fe1839dbdb3ba02645630dc5f753e23da307f762"
+checksum = "ca0fe580e4b60a8ab24a868bc08e2f03cbcb20d3d676601fa909386713333728"
 dependencies = [
  "js-sys",
  "slotmap",
@@ -3995,11 +4061,12 @@ version = "0.9.0"
 dependencies = [
  "dark-light",
  "eframe",
+ "egui 0.26.2",
  "egui-notify",
  "egui-winit",
  "egui_editor",
  "egui_extras",
- "egui_wgpu_backend",
+ "egui_wgpu_backend 0.26.0",
  "image",
  "lb-fonts",
  "lb-rs",
@@ -4018,7 +4085,7 @@ version = "0.9.0"
 dependencies = [
  "egui 0.26.2",
  "egui_editor",
- "egui_wgpu_backend",
+ "egui_wgpu_backend 0.24.0",
  "env_logger",
  "image",
  "lb-rs",
@@ -4099,7 +4166,7 @@ dependencies = [
  "clipboard-win 4.5.0",
  "egui 0.26.2",
  "egui_editor",
- "egui_wgpu_backend",
+ "egui_wgpu_backend 0.24.0",
  "env_logger",
  "image",
  "lb-rs",
@@ -4211,6 +4278,21 @@ dependencies = [
  "foreign-types 0.3.2",
  "log 0.4.19",
  "objc",
+]
+
+[[package]]
+name = "metal"
+version = "0.26.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "623b5e6cefd76e58f774bd3cc0c6f5c7615c58c03a97815245a25c3c9bdee318"
+dependencies = [
+ "bitflags 2.4.2",
+ "block",
+ "core-graphics-types",
+ "foreign-types 0.5.0",
+ "log 0.4.19",
+ "objc",
+ "paste",
 ]
 
 [[package]]
@@ -4336,6 +4418,26 @@ checksum = "bbcc2e0513220fd2b598e6068608d4462db20322c0e77e47f6f488dfcfc279cb"
 dependencies = [
  "bit-set",
  "bitflags 1.3.2",
+ "codespan-reporting",
+ "hexf-parse",
+ "indexmap 1.9.3",
+ "log 0.4.19",
+ "num-traits",
+ "rustc-hash",
+ "spirv 0.2.0+1.5.4",
+ "termcolor",
+ "thiserror",
+ "unicode-xid",
+]
+
+[[package]]
+name = "naga"
+version = "0.13.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c1ceaaa4eedaece7e4ec08c55c640ba03dbb73fb812a6570a59bcf1930d0f70e"
+dependencies = [
+ "bit-set",
+ "bitflags 2.4.2",
  "codespan-reporting",
  "hexf-parse",
  "indexmap 1.9.3",
@@ -7535,6 +7637,30 @@ dependencies = [
 
 [[package]]
 name = "wgpu"
+version = "0.17.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "752e44d3998ef35f71830dd1ad3da513e628e2e4d4aedb0ab580f850827a0b41"
+dependencies = [
+ "arrayvec 0.7.4",
+ "cfg-if",
+ "js-sys",
+ "log 0.4.19",
+ "naga 0.13.0",
+ "parking_lot",
+ "profiling",
+ "raw-window-handle 0.5.2",
+ "smallvec",
+ "static_assertions",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
+ "wgpu-core 0.17.1",
+ "wgpu-hal 0.17.2",
+ "wgpu-types 0.17.0",
+]
+
+[[package]]
+name = "wgpu"
 version = "0.19.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a4b1213b52478a7631d6e387543ed8f642bc02c578ef4e3b49aca2a29a7df0cb"
@@ -7582,6 +7708,29 @@ dependencies = [
 
 [[package]]
 name = "wgpu-core"
+version = "0.17.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0f8a44dd301a30ceeed3c27d8c0090433d3da04d7b2a4042738095a424d12ae7"
+dependencies = [
+ "arrayvec 0.7.4",
+ "bit-vec",
+ "bitflags 2.4.2",
+ "codespan-reporting",
+ "log 0.4.19",
+ "naga 0.13.0",
+ "parking_lot",
+ "profiling",
+ "raw-window-handle 0.5.2",
+ "rustc-hash",
+ "smallvec",
+ "thiserror",
+ "web-sys",
+ "wgpu-hal 0.17.2",
+ "wgpu-types 0.17.0",
+]
+
+[[package]]
+name = "wgpu-core"
 version = "0.19.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f9f6b033c2f00ae0bc8ea872c5989777c60bc241aac4e58b24774faa8b391f78"
@@ -7619,9 +7768,9 @@ dependencies = [
  "bitflags 2.4.2",
  "block",
  "core-graphics-types",
- "d3d12",
+ "d3d12 0.6.0",
  "foreign-types 0.3.2",
- "glow 0.12.2",
+ "glow 0.12.3",
  "gpu-alloc 0.5.4",
  "gpu-allocator 0.22.0",
  "gpu-descriptor",
@@ -7645,6 +7794,47 @@ dependencies = [
  "wasm-bindgen",
  "web-sys",
  "wgpu-types 0.16.1",
+ "winapi",
+]
+
+[[package]]
+name = "wgpu-hal"
+version = "0.17.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9a80bf0e3c77399bb52850cb0830af9bad073d5cfcb9dd8253bef8125c42db17"
+dependencies = [
+ "android_system_properties",
+ "arrayvec 0.7.4",
+ "ash",
+ "bit-set",
+ "bitflags 2.4.2",
+ "block",
+ "core-graphics-types",
+ "d3d12 0.7.0",
+ "glow 0.12.3",
+ "gpu-alloc 0.6.0",
+ "gpu-allocator 0.22.0",
+ "gpu-descriptor",
+ "hassle-rs 0.10.0",
+ "js-sys",
+ "khronos-egl 4.1.0",
+ "libc",
+ "libloading 0.8.0",
+ "log 0.4.19",
+ "metal 0.26.0",
+ "naga 0.13.0",
+ "objc",
+ "parking_lot",
+ "profiling",
+ "range-alloc",
+ "raw-window-handle 0.5.2",
+ "renderdoc-sys",
+ "rustc-hash",
+ "smallvec",
+ "thiserror",
+ "wasm-bindgen",
+ "web-sys",
+ "wgpu-types 0.17.0",
  "winapi",
 ]
 
@@ -7694,6 +7884,17 @@ name = "wgpu-types"
 version = "0.16.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d0c153280bb108c2979eb5c7391cb18c56642dd3c072e55f52065e13e2a1252a"
+dependencies = [
+ "bitflags 2.4.2",
+ "js-sys",
+ "web-sys",
+]
+
+[[package]]
+name = "wgpu-types"
+version = "0.17.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ee64d7398d0c2f9ca48922c902ef69c42d000c759f3db41e355f4a570b052b67"
 dependencies = [
  "bitflags 2.4.2",
  "js-sys",
@@ -8163,7 +8364,7 @@ version = "0.9.0"
 dependencies = [
  "egui 0.26.2",
  "egui_editor",
- "egui_wgpu_backend",
+ "egui_wgpu_backend 0.24.0",
  "jni 0.21.1",
  "lb_external_interface",
  "libc",

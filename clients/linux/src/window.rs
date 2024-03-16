@@ -181,7 +181,6 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             // only draw frames if we got events (including repaint requests)
             let IntegrationOutput {
-                redraw_in: _, // todo: handle? how's this different from checking egui context?
                 egui: PlatformOutput { cursor_icon, open_url, copied_text, .. },
                 update_output: UpdateOutput { close, set_window_title },
             } = lb.frame();
@@ -202,7 +201,7 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             };
             lb.screen.scale_factor = scale_factor;
-            lb.raw_input.pixels_per_point = Some(scale_factor);
+            lb.context.set_pixels_per_point(window.dpi_scale);
 
             if close {
                 output::close();

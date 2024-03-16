@@ -2,6 +2,7 @@ use std::cmp::Ordering;
 use std::thread;
 
 use eframe::egui;
+use egui::Color32;
 use rfd::FileDialog;
 use workspace_rs::theme::icons::Icon;
 
@@ -172,7 +173,10 @@ impl TreeNode {
             }
         }
 
-        resp = resp.context_menu(|ui| self.context_menu(ui, &mut node_resp, state));
+        resp = resp
+            .context_menu(|ui| self.context_menu(ui, &mut node_resp, state))
+            .map(|inner| inner.response)
+            .unwrap_or(resp);
 
         (resp, node_resp)
     }
@@ -304,7 +308,7 @@ impl TreeNode {
             let name = &state.renaming.tmp_name;
             let end_pos = name.rfind('.').unwrap_or(name.len());
 
-            let mut rename_edit_state = egui::text::TextEditState::default();
+            let mut rename_edit_state = egui::text_edit::TextEditState::default();
             rename_edit_state.set_ccursor_range(Some(egui::text::CCursorRange {
                 primary: egui::text::CCursor::new(end_pos),
                 secondary: egui::text::CCursor::new(0),
