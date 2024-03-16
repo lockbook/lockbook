@@ -62,6 +62,8 @@ impl<T: Copy + PartialEq> ButtonGroup<T> {
                 rounding: egui::Rounding::same(5.0),
                 fill: ui.visuals().extreme_bg_color,
                 stroke: ui.visuals().widgets.noninteractive.fg_stroke,
+                fill_texture_id: egui::TextureId::default(),
+                uv: egui::Rect::ZERO,
             },
         );
 
