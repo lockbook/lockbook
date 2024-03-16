@@ -423,7 +423,7 @@ class FilesListFragment : Fragment(), FilesFragment {
     private fun enterFile(item: File) {
         when (item.fileType) {
             FileType.Document -> {
-                activityModel.launchDetailScreen(DetailScreen.Loading(item))
+                WorkspaceView.WORKSPACE.openFile(WorkspaceView.WGPU_OBJ, item.id, false)
             }
             FileType.Folder -> {
                 model.enterFolder(item)

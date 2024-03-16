@@ -14,7 +14,7 @@ use workspace_rs::workspace::Workspace;
 #[cfg(target_vendor = "apple")]
 pub mod apple;
 
-#[cfg(target_os = "android")]
+// #[cfg(target_os = "android")]
 pub mod android;
 
 #[cfg(target_vendor = "apple")]

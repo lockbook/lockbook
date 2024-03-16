@@ -12,6 +12,7 @@ use egui_wgpu_backend::ScreenDescriptor;
 use jni::objects::{JClass, JString};
 use jni::sys::{jboolean, jfloat, jint, jlong, jobject, jstring};
 use jni::JNIEnv;
+use lb_external_interface::lb_rs::Uuid;
 use lb_external_interface::Core;
 use std::time::Instant;
 use workspace_rs::register_fonts;
@@ -22,11 +23,29 @@ use super::keyboard::AndroidKeys;
 
 // I REMOVED MUT FROM ENV
 #[no_mangle]
-pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_createWgpuCanvas(
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_createWgpuCanvas(
     env: JNIEnv, _: JClass, surface: jobject, core: jlong, scale_factor: jfloat, dark_mode: bool,
+    workspace: jlong,
 ) -> jlong {
     let core = unsafe { &mut *(core as *mut Core) };
     let writable_dir = core.get_config().unwrap().writeable_path;
+
+    let ws_cfg = WsConfig { data_dir: writable_dir, ..Default::default() };
+
+    let context = Context::default();
+    visuals::init(&context, dark_mode);
+    let mut fonts = FontDefinitions::default();
+    register_fonts(&mut fonts);
+    context.set_fonts(fonts);
+
+    let mut ws = Workspace::new(ws_cfg, core, &context);
+    if workspace != jlong::MAX {
+        let old_ws = unsafe { Box::from_raw(workspace as *mut Workspace) };
+
+        ws.active_tab = old_ws.active_tab;
+        ws.tabs = old_ws.tabs;
+        ws.pers_status = old_ws.pers_status;
+    }
 
     let native_window = NativeWindow::new(&env, surface);
     let backends = wgpu::Backends::VULKAN;
@@ -48,16 +67,8 @@ pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_createWgpuCanva
     surface.configure(&device, &config);
     let rpass = egui_wgpu_backend::RenderPass::new(&device, format, 1);
 
-    let context = Context::default();
-    visuals::init(&context, dark_mode);
-    let ws_cfg = WsConfig { data_dir: writable_dir, ..Default::default() };
-    let workspace = Workspace::new(ws_cfg, core, &context);
-    let mut fonts = FontDefinitions::default();
-    register_fonts(&mut fonts);
-    context.set_fonts(fonts);
-
     let start_time = Instant::now();
-    let mut obj = WgpuWorkspace {
+    let obj = WgpuWorkspace {
         start_time,
         device,
         queue,
@@ -69,20 +80,18 @@ pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_createWgpuCanva
             physical_height: native_window.get_height(),
             scale_factor,
         },
-        context,
+        context: context.clone(),
         raw_input: Default::default(),
-        workspace,
+        workspace: ws,
         surface_width: 0,
         surface_height: 0,
     };
-
-    obj.frame();
 
     Box::into_raw(Box::new(obj)) as jlong
 }
 
 #[no_mangle]
-pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_enterFrame(
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_enterFrame(
     env: JNIEnv, _: JClass, obj: jlong,
 ) -> jstring {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
@@ -93,7 +102,7 @@ pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_enterFrame(
 }
 
 #[no_mangle]
-pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_resizeEditor(
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_resizeEditor(
     env: JNIEnv, _: JClass, obj: jlong, surface: jobject, scale_factor: jfloat,
 ) {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
@@ -105,14 +114,16 @@ pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_resizeEditor(
 }
 
 #[no_mangle]
-pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_dropWgpuCanvas(
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_dropWgpuCanvas(
     mut _env: JNIEnv, _: JClass, obj: jlong,
-) {
-    let _obj: Box<WgpuWorkspace> = unsafe { Box::from_raw(obj as *mut _) };
+) -> jlong {
+    let obj: Box<WgpuWorkspace> = unsafe { Box::from_raw(obj as *mut _) };
+
+    return Box::into_raw(Box::new(obj.workspace)) as jlong;
 }
 
 #[no_mangle]
-pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_sendKeyEvent(
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_sendKeyEvent(
     mut env: JNIEnv, _: JClass, obj: jlong, key_code: jint, content: JString, pressed: jboolean,
     alt: jboolean, ctrl: jboolean, shift: jboolean,
 ) {
@@ -151,7 +162,7 @@ pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_sendKeyEvent(
 }
 
 #[no_mangle]
-pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_touchesBegin(
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_touchesBegin(
     _env: JNIEnv, _: JClass, obj: jlong, id: jint, x: jfloat, y: jfloat, pressure: jfloat,
 ) {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
@@ -175,7 +186,7 @@ pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_touchesBegin(
 }
 
 #[no_mangle]
-pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_touchesMoved(
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_touchesMoved(
     _env: JNIEnv, _: JClass, obj: jlong, id: jint, x: jfloat, y: jfloat, pressure: jfloat,
 ) {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
@@ -196,7 +207,7 @@ pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_touchesMoved(
 }
 
 #[no_mangle]
-pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_touchesEnded(
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_touchesEnded(
     _env: JNIEnv, _: JClass, obj: jlong, id: jint, x: jfloat, y: jfloat, pressure: jfloat,
 ) {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
@@ -220,6 +231,20 @@ pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_touchesEnded(
 
     obj.raw_input.events.push(Event::PointerGone);
 }
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_openFile(
+    mut env: JNIEnv, _: JClass, obj: jlong, jid: JString, new_file: jboolean,
+) {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+
+    let rid: String = env.get_string(&jid).unwrap().into();
+    let id = Uuid::parse_str(&rid).unwrap();
+
+    obj.workspace.open_file(id, new_file == 1);
+}
+
+// let id = id.into();
 
 // #[no_mangle]
 // pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_getAllText(

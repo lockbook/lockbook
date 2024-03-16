@@ -69,9 +69,16 @@ class MainScreenActivity : AppCompatActivity() {
             false
         )
 
-        supportFragmentManager.commit {
-            setReorderingAllowed(true)
-            add<WorkspaceFragment>(R.id.detail_container)
+        val wFragment = supportFragmentManager.findFragmentByTag("Workspace")
+
+        if(wFragment == null) {
+            println("adding this workspace to fragment")
+            supportFragmentManager.commit {
+                setReorderingAllowed(true)
+                add<WorkspaceFragment>(R.id.detail_container, "Workspace")
+            }
+        } else {
+            println("not adding")
         }
 
         (application as App).billingClientLifecycle.apply {

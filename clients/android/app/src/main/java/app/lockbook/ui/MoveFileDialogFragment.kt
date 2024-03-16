@@ -15,6 +15,7 @@ import app.lockbook.R
 import app.lockbook.databinding.DialogMoveFileBinding
 import app.lockbook.model.*
 import app.lockbook.util.BasicFileItemHolder
+import app.lockbook.util.ExtensionHelper
 import app.lockbook.util.File
 import app.lockbook.util.FileType
 import com.afollestad.recyclical.setup

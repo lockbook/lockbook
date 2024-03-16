@@ -173,8 +173,17 @@ enum class SupportedImageFormats {
 
 val IMAGE_EXPORT_TYPE = SupportedImageFormats.Jpeg
 
-class ExtensionHelper(fileName: String) {
-    val extension = File(fileName).extension
+class ExtensionHelper(val fileName: String) {
+    private val extension: String
+        get() {
+            val indexOfDot = fileName.lastIndexOf('.')
+
+            if (indexOfDot == -1) {
+                return ""
+            }
+
+            return fileName.substring(indexOfDot + 1)
+        }
 
     val isImage: Boolean
         get() = extension in setOf(

@@ -2,22 +2,54 @@ package app.lockbook.workspace
 import android.text.Editable
 import android.text.InputFilter
 import android.view.Surface
+import kotlinx.serialization.KSerializer
 import kotlinx.serialization.SerialInfo
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.descriptors.PrimitiveKind
+import kotlinx.serialization.descriptors.PrimitiveSerialDescriptor
+import kotlinx.serialization.descriptors.SerialDescriptor
+import kotlinx.serialization.encoding.Decoder
+import kotlinx.serialization.encoding.Encoder
+import kotlinx.serialization.json.JsonDecoder
+import kotlinx.serialization.json.JsonEncoder
+import kotlinx.serialization.json.jsonPrimitive
+import java.math.BigInteger
 import java.util.UUID
 
+// Examine performance improvements with borsh.io
+
+object BigIntegerSerializer: KSerializer<BigInteger> {
+    override fun deserialize(decoder: Decoder): BigInteger {
+        return if (decoder is JsonDecoder) {
+            BigInteger(decoder.decodeJsonElement().jsonPrimitive.content)
+        } else {
+            BigInteger(decoder.decodeString())
+        }
+    }
+
+    override fun serialize(encoder: Encoder, value: BigInteger) {
+        encoder.encodeString(value.toString())
+    }
+
+    override val descriptor: SerialDescriptor
+        get() = PrimitiveSerialDescriptor("java.math.BigInteger", PrimitiveKind.LONG)
+}
+
+@Serializable
 public data class IntegrationOutput(
     @SerialName("workspace_resp")
     val workspaceResp: FfiWorkspaceResp,
+    @Serializable(with = BigIntegerSerializer::class)
     @SerialName("redraw_in")
-    val redrawIn: ULong,
+    val redrawIn: BigInteger,
     @SerialName("copied_text")
     val copiedText: String,
     @SerialName("url_opened")
     val urlOpened: String
 )
 
+@Serializable
 public data class FfiWorkspaceResp(
     @SerialName("selected_file")
     val selectedFile: String,
@@ -36,15 +68,16 @@ class Workspace {
         System.loadLibrary("workspace")
     }
 
-    external fun createWgpuCanvas(surface: Surface, core: Long, content: String, scaleFactor: Float, darkMode: Boolean): Long
+    external fun createWgpuCanvas(surface: Surface, core: Long, scaleFactor: Float, darkMode: Boolean, workspace: Long): Long
     external fun enterFrame(rustObj: Long): String
     external fun resizeEditor(rustObj: Long, surface: Surface, scaleFactor: Float)
-    external fun dropWgpuCanvas(rustObj: Long)
+    external fun dropWgpuCanvas(rustObj: Long): Long
 
     external fun touchesBegin(rustObj: Long, id: Int, x: Float, y: Float, pressure: Float)
     external fun touchesMoved(rustObj: Long, id: Int, x: Float, y: Float, pressure: Float)
     external fun touchesEnded(rustObj: Long, id: Int, x: Float, y: Float, pressure: Float)
     external fun sendKeyEvent(rustObj: Long, keyCode: Int, content: String, pressed: Boolean, alt: Boolean, ctrl: Boolean, shift: Boolean): Int
+    external fun openFile(rustObj: Long, id: String, newFile: Boolean)
 
 //    external fun getAllText(rustObj: Long): String
 //    external fun setSelection(rustObj: Long, start: Int, end: Int)
