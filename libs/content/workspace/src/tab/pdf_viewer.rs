@@ -1,3 +1,4 @@
+use egui::load::SizedTexture;
 use lb_pdf::{PdfPageRenderRotation, PdfRenderConfig};
 // use lb_pdf::PdfiumWrapper;
 use crate::{theme::icons::Icon, widgets::Button};
@@ -142,16 +143,21 @@ impl PdfViewer {
                 sao.show_viewport(ui, |ui, _| {
                     ui.vertical_centered(|ui| {
                         for (i, p) in self.renders.clone().iter_mut().enumerate() {
-                            let img = egui::Image::new(
-                                &p.texture,
-                                egui::vec2(
-                                    p.texture.size()[0] as f32 * self.zoom_factor.unwrap_or(1.0),
-                                    p.texture.size()[1] as f32 * self.zoom_factor.unwrap_or(1.0),
-                                ),
-                            )
-                            .sense(egui::Sense::click());
+                            let img =
+                                egui::Image::new(egui::ImageSource::Texture(SizedTexture::new(
+                                    &p.texture,
+                                    egui::vec2(
+                                        p.texture.size()[0] as f32
+                                            * self.zoom_factor.unwrap_or(1.0),
+                                        p.texture.size()[1] as f32
+                                            * self.zoom_factor.unwrap_or(1.0),
+                                    ),
+                                )))
+                                .sense(egui::Sense::click());
 
-                            let res = if ui.available_size_before_wrap().x < img.size()[0] {
+                            let res = if ui.available_size_before_wrap().x
+                                < img.size().unwrap_or_default()[0]
+                            {
                                 ui.with_layout(
                                     egui::Layout::left_to_right(egui::Align::Center)
                                         .with_cross_justify(true),
@@ -325,15 +331,17 @@ impl PdfViewer {
                                     };
 
                                     let res = ui.add(
-                                        egui::Image::new(
-                                            &p.texture,
-                                            egui::vec2(
-                                                SIDEBAR_WIDTH - sidebar_margin,
-                                                p.texture.size()[1] as f32
-                                                    * (SIDEBAR_WIDTH - sidebar_margin)
-                                                    / p.texture.size()[0] as f32,
+                                        egui::Image::new(egui::ImageSource::Texture(
+                                            SizedTexture::new(
+                                                &p.texture,
+                                                egui::vec2(
+                                                    SIDEBAR_WIDTH - sidebar_margin,
+                                                    p.texture.size()[1] as f32
+                                                        * (SIDEBAR_WIDTH - sidebar_margin)
+                                                        / p.texture.size()[0] as f32,
+                                                ),
                                             ),
-                                        )
+                                        ))
                                         .tint(tint_color)
                                         .sense(egui::Sense::click()),
                                     );

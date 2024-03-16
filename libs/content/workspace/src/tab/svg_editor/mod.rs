@@ -9,6 +9,7 @@ mod zoom;
 
 use crate::tab::svg_editor::toolbar::{ColorSwatch, Component, Toolbar};
 use crate::theme::palette::ThemePalette;
+use egui::load::SizedTexture;
 pub use eraser::Eraser;
 pub use history::Buffer;
 pub use history::DeleteElement;
@@ -165,10 +166,10 @@ impl SVGEditor {
             .load_texture("svg_image", image, egui::TextureOptions::LINEAR);
 
         ui.add(
-            egui::Image::new(
+            egui::Image::new(egui::ImageSource::Texture(SizedTexture::new(
                 &texture,
                 egui::vec2(texture.size()[0] as f32, texture.size()[1] as f32),
-            )
+            )))
             .sense(egui::Sense::click()),
         );
     }
