@@ -50,7 +50,7 @@ impl Editor {
                             let galley = ui.ctx().fonts(|f| f.layout_job(job));
                             let rect = Align2::RIGHT_TOP
                                 .anchor_rect(Rect::from_min_size(pos.max, galley.size()));
-                            ui.painter().galley(rect.min, galley);
+                            ui.painter().galley(rect.min, galley, Color32::TRANSPARENT);
                         }
                         ListItem::Todo(checked) => {
                             ui.painter().rect_filled(
@@ -121,7 +121,7 @@ impl Editor {
 
             // draw text
             ui.painter()
-                .galley(galley.text_location, galley.galley.clone());
+                .galley(galley.text_location, galley.galley.clone(), Color32::TRANSPARENT);
         }
 
         // draw end-of-text padding
