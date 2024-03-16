@@ -1,7 +1,7 @@
 use std::sync::{mpsc, Arc, RwLock};
 use std::thread;
 
-use eframe::egui;
+use egui::{self, Color32};
 
 use crate::model::DocType;
 

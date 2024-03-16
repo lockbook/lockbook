@@ -3,6 +3,7 @@ use std::thread;
 use std::time::Instant;
 
 use eframe::egui;
+use egui::Color32;
 use lb::Duration;
 use workspace_rs::theme::icons::Icon;
 use workspace_rs::widgets::{Button, ProgressBar};

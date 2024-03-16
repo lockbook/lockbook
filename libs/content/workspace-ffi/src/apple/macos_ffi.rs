@@ -28,9 +28,13 @@ pub unsafe extern "C" fn key_event(
 
     // Event::Key
     if let Some(key) = key.egui_key() {
-        obj.raw_input
-            .events
-            .push(Event::Key { key, pressed, repeat: false, modifiers });
+        obj.raw_input.events.push(Event::Key {
+            key,
+            physical_key: None,
+            pressed,
+            repeat: false,
+            modifiers,
+        });
     }
 }
 

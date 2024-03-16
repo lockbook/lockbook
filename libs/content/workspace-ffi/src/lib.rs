@@ -301,7 +301,9 @@ impl WgpuWorkspace {
 
         out.cursor = full_output.platform_output.cursor_icon.into();
 
-        let paint_jobs = self.context.tessellate(full_output.shapes);
+        let paint_jobs = self
+            .context
+            .tessellate(full_output.shapes, full_output.pixels_per_point);
         let mut encoder = self
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("encoder") });
@@ -333,7 +335,6 @@ impl WgpuWorkspace {
             .remove_textures(tdelta)
             .expect("remove texture ok");
 
-        out.redraw_in = full_output.repaint_after.as_millis() as u64;
         out
     }
 

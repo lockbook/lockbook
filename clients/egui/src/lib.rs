@@ -14,7 +14,7 @@ pub use workspace_rs::Event;
 use crate::account::AccountScreen;
 use crate::onboard::{OnboardHandOff, OnboardScreen};
 use crate::splash::{SplashHandOff, SplashScreen};
-use eframe::egui;
+use eframe::egui::{self, ViewportCommand};
 use egui_wgpu_backend::wgpu::{self, CompositeAlphaMode};
 use egui_winit::egui::{PlatformOutput, Pos2, Rect};
 use std::iter;
@@ -110,30 +110,23 @@ impl eframe::App for Lockbook {
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
         let output = Lockbook::update(self, ctx);
         if output.close {
-            frame.close();
+            ctx.send_viewport_cmd(ViewportCommand::CancelClose);
         }
         if let Some(set_window_title) = output.set_window_title {
-            frame.set_window_title(&set_window_title);
+            ctx.send_viewport_cmd(ViewportCommand::Title(set_window_title))
         }
-    }
 
-    /// We override `on_close_event` in order to give the Account screen a chance to:
-    /// 1) close any open modals or dialogs via a window close event, or
-    /// 2) to start a graceful shutdown by saving state and cleaning up.
-    fn on_close_event(&mut self) -> bool {
-        match self {
-            Self::Account(screen) => {
+        // We process `close_requested` in order to give the Account screen a chance to:
+        // 1) close any open modals or dialogs via a window close event, or
+        // 2) to start a graceful shutdown by saving state and cleaning up.
+        if ctx.input(|i| i.viewport().close_requested()) {
+            if let Self::Account(screen) = self {
                 // If the account screen is done shutting down, it's safe to close the app.
-                if screen.is_shutdown() {
-                    return true;
-                }
                 // If the account screen didn't close an open modal, we begin the shutdown process.
-                if !screen.close_something() {
+                if !screen.is_shutdown() && !screen.close_something() {
                     screen.begin_shutdown();
                 }
-                false
             }
-            _ => true,
         }
     }
 }
@@ -166,7 +159,6 @@ pub struct WgpuLockbook {
 
 #[derive(Default)]
 pub struct IntegrationOutput {
-    pub redraw_in: u64,
     pub egui: PlatformOutput,
     pub update_output: UpdateOutput,
 }
@@ -202,7 +194,9 @@ impl WgpuLockbook {
             self.context
                 .output_mut(|o| o.copied_text = full_output.platform_output.copied_text.clone());
         }
-        let paint_jobs = self.context.tessellate(full_output.shapes);
+        let paint_jobs = self
+            .context
+            .tessellate(full_output.shapes, full_output.pixels_per_point);
         let mut encoder = self
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("encoder") });
@@ -241,7 +235,6 @@ impl WgpuLockbook {
             self.context.request_repaint();
         }
 
-        out.redraw_in = full_output.repaint_after.as_millis() as u64;
         out.egui = full_output.platform_output;
         out
     }
@@ -254,7 +247,6 @@ impl WgpuLockbook {
                 self.screen.physical_height as f32 / self.screen.scale_factor,
             ),
         });
-        self.raw_input.pixels_per_point = Some(self.screen.scale_factor);
     }
 
     pub fn surface_format(&self) -> wgpu::TextureFormat {
