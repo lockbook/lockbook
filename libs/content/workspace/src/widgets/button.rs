@@ -105,6 +105,8 @@ impl<'a> Button<'a> {
                 rounding: self.rounding,
                 fill: if self.frame { bg_fill } else { egui::Color32::TRANSPARENT },
                 stroke: self.stroke,
+                fill_texture_id: egui::TextureId::default(),
+                uv: egui::Rect::ZERO,
             });
 
             let mut text_pos =
