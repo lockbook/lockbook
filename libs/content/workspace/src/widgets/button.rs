@@ -1,5 +1,3 @@
-use egui::Color32;
-
 use crate::theme::icons::Icon;
 
 #[derive(Default)]
@@ -93,6 +91,7 @@ impl<'a> Button<'a> {
             let text_visuals = ui.style().interact(&resp).to_owned();
             let icon_visuals = self.icon_style.as_ref().unwrap_or(ui.style().as_ref());
             let icon_visuals = icon_visuals.interact(&resp);
+            let icon_color = icon_visuals.text_color();
 
             let bg_fill = if resp.hovered() {
                 text_visuals.bg_fill
@@ -132,9 +131,8 @@ impl<'a> Button<'a> {
                 };
 
                 let icon_pos = egui::pos2(icon_x_pos, rect.center().y - icon.size().y / 3.);
-
-                // todo: visuals?
-                ui.painter().galley(icon_pos, icon, Color32::TRANSPARENT);
+                ui.painter()
+                    .galley_with_override_text_color(icon_pos, icon, icon_color);
 
                 if self.icon.unwrap().has_badge {
                     ui.painter().circle(
@@ -150,8 +148,8 @@ impl<'a> Button<'a> {
             }
 
             if let Some(text) = maybe_text_galley {
-                // todo: visuals?
-                ui.painter().galley(text_pos, text, Color32::TRANSPARENT);
+                ui.painter()
+                    .galley_with_override_text_color(text_pos, text, icon_color)
             }
         }
 

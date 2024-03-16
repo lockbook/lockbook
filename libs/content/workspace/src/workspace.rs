@@ -394,7 +394,7 @@ impl Workspace {
 
                                     let mut rename_edit_state =
                                         egui::text_edit::TextEditState::default();
-                                    rename_edit_state.set_ccursor_range(Some(
+                                    rename_edit_state.cursor.set_char_range(Some(
                                         egui::text::CCursorRange {
                                             primary: egui::text::CCursor::new(
                                                 active_name.rfind('.').unwrap_or(active_name.len()),
@@ -740,7 +740,7 @@ fn tab_label(ui: &mut egui::Ui, t: &mut Tab, is_active: bool) -> Option<TabLabel
     let (rect, resp) = ui.allocate_exact_size((w, h).into(), egui::Sense::hover());
 
     if ui.is_rect_visible(rect) {
-        let visuals = &ui.style().interact(&resp).clone();
+        let text_color = ui.style().interact(&resp).text_color();
 
         let close_btn_pos =
             egui::pos2(rect.max.x - padding.x - x_icon.size, rect.center().y - x_icon.size / 2.0);
@@ -795,8 +795,8 @@ fn tab_label(ui: &mut egui::Ui, t: &mut Tab, is_active: bool) -> Option<TabLabel
             };
             ui.painter().rect(rect, 0.0, bg, egui::Stroke::NONE);
 
-            // todo: visuals?
-            ui.painter().galley(text_pos, text, Color32::TRANSPARENT);
+            ui.painter()
+                .galley_with_override_text_color(text_pos, text, text_color);
 
             if close_hovered {
                 ui.painter().rect(
@@ -816,9 +816,8 @@ fn tab_label(ui: &mut egui::Ui, t: &mut Tab, is_active: bool) -> Option<TabLabel
             let icon: egui::WidgetText = (&x_icon).into();
             let icon = icon.into_galley(ui, Some(false), wrap_width, egui::TextStyle::Body);
 
-            // todo: visuals?
             ui.painter()
-                .galley(icon_draw_pos, icon, Color32::TRANSPARENT);
+                .galley_with_override_text_color(icon_draw_pos, icon, text_color);
 
             let close_resp = ui.interact(
                 close_btn_rect,

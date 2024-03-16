@@ -2,7 +2,6 @@ use std::cmp::Ordering;
 use std::thread;
 
 use eframe::egui;
-use egui::Color32;
 use rfd::FileDialog;
 use workspace_rs::theme::icons::Icon;
 
@@ -236,11 +235,11 @@ impl TreeNode {
                 rect.center().y - 0.5 * text.size().y,
             );
 
-            let visuals = ui.style().interact(&resp);
-
-            // todo: visuals?
-            ui.painter().galley(icon_pos, icon, Color32::TRANSPARENT);
-            ui.painter().galley(text_pos, text, Color32::TRANSPARENT);
+            let text_color = ui.style().interact(&resp).text_color();
+            ui.painter()
+                .galley_with_override_text_color(icon_pos, icon, text_color);
+            ui.painter()
+                .galley_with_override_text_color(text_pos, text, text_color);
         }
 
         let is_drop_target = self.file.is_folder()
@@ -309,10 +308,12 @@ impl TreeNode {
             let end_pos = name.rfind('.').unwrap_or(name.len());
 
             let mut rename_edit_state = egui::text_edit::TextEditState::default();
-            rename_edit_state.set_ccursor_range(Some(egui::text::CCursorRange {
-                primary: egui::text::CCursor::new(end_pos),
-                secondary: egui::text::CCursor::new(0),
-            }));
+            rename_edit_state
+                .cursor
+                .set_char_range(Some(egui::text::CCursorRange {
+                    primary: egui::text::CCursor::new(end_pos),
+                    secondary: egui::text::CCursor::new(0),
+                }));
             egui::TextEdit::store_state(ui.ctx(), egui::Id::new("rename_field"), rename_edit_state);
 
             ui.close_menu();
