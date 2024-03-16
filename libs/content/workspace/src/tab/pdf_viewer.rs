@@ -180,7 +180,7 @@ impl PdfViewer {
 
                             if res.clicked()
                                 || ui.input_mut(|i| {
-                                    i.consume_key(egui::Modifiers::CTRL, egui::Key::PlusEquals)
+                                    i.consume_key(egui::Modifiers::CTRL, egui::Key::Equals)
                                 })
                             {
                                 self.update_zoom_factor(ZoomFactor::Increase);

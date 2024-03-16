@@ -210,7 +210,7 @@ impl Selection {
                 drag(d, el, buffer);
             }
 
-            let is_scaling_up = ui.input(|r| r.key_pressed(egui::Key::PlusEquals));
+            let is_scaling_up = ui.input(|r| r.key_pressed(egui::Key::Equals));
             let is_scaling_down = ui.input(|r| r.key_pressed(egui::Key::Minus));
 
             let scale_factor = if is_scaling_up {
