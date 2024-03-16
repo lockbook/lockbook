@@ -275,7 +275,7 @@ impl Editor {
             let galley_rect = galley.galley.rect.translate(galley.text_location.to_vec2());
             ui.painter().rect(
                 galley_rect,
-                Rounding::none(),
+                Rounding::ZERO,
                 Color32::TRANSPARENT,
                 Stroke { width: 0.5, color: YELLOW.light },
             );
