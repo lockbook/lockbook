@@ -67,11 +67,9 @@ impl super::AccountScreen {
                             self.sync.expanded_usage_msg_rect = rect;
                         }
 
-                        galley.paint_with_visuals(
-                            ui.painter(),
-                            rect.left_top(),
-                            ui.style().interact(&resp),
-                        );
+                        // todo: visuals?
+                        ui.painter()
+                            .galley(rect.left_top(), galley, Color32::TRANSPARENT);
 
                         if self
                             .sync

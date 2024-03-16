@@ -184,9 +184,12 @@ impl SearchModal {
                     .rect(rect.expand(visuals.expansion), 0.0, fill, egui::Stroke::NONE);
             }
 
-            icon.paint_with_visuals(ui.painter(), icon_pos, visuals);
-            name_text.paint_with_visuals(ui.painter(), name_text_pos, visuals);
-            path_text.paint_with_visuals(ui.painter(), path_text_pos, visuals);
+            // todo: visuals?
+            ui.painter().galley(icon_pos, icon, Color32::TRANSPARENT);
+            ui.painter()
+                .galley(name_text_pos, name_text, Color32::TRANSPARENT);
+            ui.painter()
+                .galley(path_text_pos, path_text, Color32::TRANSPARENT);
         }
 
         resp

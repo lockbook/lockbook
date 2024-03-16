@@ -234,8 +234,9 @@ impl TreeNode {
 
             let visuals = ui.style().interact(&resp);
 
-            icon.paint_with_visuals(ui.painter(), icon_pos, visuals);
-            text.paint_with_visuals(ui.painter(), text_pos, visuals);
+            // todo: visuals?
+            ui.painter().galley(icon_pos, icon, Color32::TRANSPARENT);
+            ui.painter().galley(text_pos, text, Color32::TRANSPARENT);
         }
 
         let is_drop_target = self.file.is_folder()

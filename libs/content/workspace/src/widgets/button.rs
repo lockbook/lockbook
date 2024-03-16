@@ -1,4 +1,4 @@
-use egui::Rounding;
+use egui::Color32;
 
 use crate::theme::icons::Icon;
 
@@ -131,7 +131,8 @@ impl<'a> Button<'a> {
 
                 let icon_pos = egui::pos2(icon_x_pos, rect.center().y - icon.size().y / 3.);
 
-                icon.paint_with_visuals(ui.painter(), icon_pos, icon_visuals);
+                // todo: visuals?
+                ui.painter().galley(icon_pos, icon, Color32::TRANSPARENT);
 
                 if self.icon.unwrap().has_badge {
                     ui.painter().circle(
@@ -147,7 +148,8 @@ impl<'a> Button<'a> {
             }
 
             if let Some(text) = maybe_text_galley {
-                text.paint_with_visuals(ui.painter(), text_pos, &text_visuals);
+                // todo: visuals?
+                ui.painter().galley(text_pos, text, Color32::TRANSPARENT);
             }
         }
 

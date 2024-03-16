@@ -794,7 +794,9 @@ fn tab_label(ui: &mut egui::Ui, t: &mut Tab, is_active: bool) -> Option<TabLabel
                 ui.visuals().widgets.noninteractive.bg_fill
             };
             ui.painter().rect(rect, 0.0, bg, egui::Stroke::NONE);
-            text.paint_with_visuals(ui.painter(), text_pos, visuals);
+
+            // todo: visuals?
+            ui.painter().galley(text_pos, text, Color32::TRANSPARENT);
 
             if close_hovered {
                 ui.painter().rect(
@@ -812,8 +814,11 @@ fn tab_label(ui: &mut egui::Ui, t: &mut Tab, is_active: bool) -> Option<TabLabel
             );
 
             let icon: egui::WidgetText = (&x_icon).into();
-            icon.into_galley(ui, Some(false), wrap_width, egui::TextStyle::Body)
-                .paint_with_visuals(ui.painter(), icon_draw_pos, visuals);
+            let icon = icon.into_galley(ui, Some(false), wrap_width, egui::TextStyle::Body);
+
+            // todo: visuals?
+            ui.painter()
+                .galley(icon_draw_pos, icon, Color32::TRANSPARENT);
 
             let close_resp = ui.interact(
                 close_btn_rect,
