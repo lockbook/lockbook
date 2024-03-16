@@ -34,10 +34,11 @@ fn main() {
     eframe::run_native(
         "Lockbook",
         eframe::NativeOptions {
-            drag_and_drop_support: true,
-            maximized: settings.window_maximize,
-            initial_window_size: Some(egui::vec2(1300.0, 800.0)),
-            icon_data: Some(eframe::IconData { rgba: icon_bytes, width: 128, height: 128 }),
+            viewport: egui::ViewportBuilder::default()
+                .with_drag_and_drop(true)
+                .with_maximized(settings.window_maximize)
+                .with_inner_size([1300.0, 800.0])
+                .with_icon(egui::IconData { rgba: icon_bytes, width: 128, height: 128 }),
             ..Default::default()
         },
         Box::new(|cc: &eframe::CreationContext| {

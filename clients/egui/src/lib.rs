@@ -107,7 +107,7 @@ impl Lockbook {
 }
 
 impl eframe::App for Lockbook {
-    fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
+    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         let output = Lockbook::update(self, ctx);
         if output.close {
             ctx.send_viewport_cmd(ViewportCommand::CancelClose);
@@ -132,12 +132,12 @@ impl eframe::App for Lockbook {
 }
 
 #[repr(C)]
-pub struct WgpuLockbook {
+pub struct WgpuLockbook<'window> {
     pub start_time: Instant,
 
     pub device: wgpu::Device,
     pub queue: wgpu::Queue,
-    pub surface: wgpu::Surface,
+    pub surface: wgpu::Surface<'window>,
     pub adapter: wgpu::Adapter,
 
     // remember size last frame to detect resize
@@ -163,7 +163,7 @@ pub struct IntegrationOutput {
     pub update_output: UpdateOutput,
 }
 
-impl WgpuLockbook {
+impl<'window> WgpuLockbook<'window> {
     pub fn frame(&mut self) -> IntegrationOutput {
         let mut out = IntegrationOutput::default();
         self.configure_surface();
@@ -268,6 +268,7 @@ impl WgpuLockbook {
                 present_mode: wgpu::PresentMode::Fifo,
                 alpha_mode: CompositeAlphaMode::Auto,
                 view_formats: vec![],
+                desired_maximum_frame_latency: 2,
             };
             self.surface.configure(&self.device, &surface_config);
             self.surface_width = self.screen.physical_width;

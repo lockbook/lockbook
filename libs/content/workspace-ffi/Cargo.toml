@@ -10,7 +10,7 @@ path = "src/lib.rs"
 
 [dependencies]
 egui = "0.26.0"
-egui_wgpu_backend = "0.24.0"
+egui_wgpu_backend = { path = "../../../../../egui_wgpu_backend" }
 libc = "0.2"
 egui_editor = { path = "../editor/egui_editor" }
 workspace = { path = "../workspace/" }
