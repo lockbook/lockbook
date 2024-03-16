@@ -100,7 +100,7 @@ pub struct Editor {
 impl Editor {
     pub fn new(core: lb_rs::Core, content: &str, file_id: &Uuid) -> Self {
         Self {
-            id: egui::Id::new(file_id),
+            id: egui::Id::NULL,
             initialized: Default::default(),
 
             core,
