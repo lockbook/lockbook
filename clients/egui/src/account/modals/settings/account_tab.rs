@@ -1,13 +1,14 @@
 use std::sync::mpsc;
 
 use eframe::egui;
-use egui_extras::{RetainedImage, Size, StripBuilder};
+use egui::{pos2, vec2, Image, Rect};
+use egui_extras::{Size, StripBuilder};
 
 pub struct AccountSettings {
     update_tx: mpsc::Sender<Update>,
     update_rx: mpsc::Receiver<Update>,
     export_result: Result<String, String>,
-    maybe_qr_result: Option<Result<RetainedImage, String>>,
+    maybe_qr_png_bytes_result: Option<Result<Image<'static>, String>>,
     generating_qr: bool,
 }
 
@@ -15,13 +16,19 @@ impl AccountSettings {
     pub fn new(export_result: Result<String, String>) -> Self {
         let (update_tx, update_rx) = mpsc::channel();
 
-        Self { update_tx, update_rx, export_result, maybe_qr_result: None, generating_qr: false }
+        Self {
+            update_tx,
+            update_rx,
+            export_result,
+            maybe_qr_png_bytes_result: None,
+            generating_qr: false,
+        }
     }
 }
 
 enum Update {
     GenerateQr,
-    OpenQrCode(Result<RetainedImage, String>),
+    OpenQrCode(Result<Image<'static>, String>),
     CloseQr,
 }
 
@@ -34,18 +41,18 @@ impl super::SettingsModal {
                     self.generate_qr(ui.ctx());
                 }
                 Update::OpenQrCode(result) => {
-                    self.account.maybe_qr_result = Some(result);
+                    self.account.maybe_qr_png_bytes_result = Some(result);
                     self.account.generating_qr = false;
                 }
-                Update::CloseQr => self.account.maybe_qr_result = None,
+                Update::CloseQr => self.account.maybe_qr_png_bytes_result = None,
             }
         }
 
-        if let Some(qr_result) = &self.account.maybe_qr_result {
+        if let Some(qr_result) = &self.account.maybe_qr_png_bytes_result {
             ui.vertical_centered(|ui| {
                 match qr_result {
                     Ok(img) => {
-                        img.show_size(ui, egui::vec2(350.0, 350.0));
+                        img.paint_at(ui, Rect::from_min_size(pos2(0.0, 0.0), vec2(350.0, 350.0)));
                     }
                     Err(err) => {
                         ui.label(err);
@@ -103,7 +110,7 @@ impl super::SettingsModal {
         std::thread::spawn(move || {
             let result = core
                 .export_account_qr()
-                .map(|png| RetainedImage::from_image_bytes("qr", &png).unwrap())
+                .map(|png| Image::from_bytes("bytes://qr.png", png))
                 .map_err(|err| format!("{:?}", err));
             update_tx.send(Update::OpenQrCode(result)).unwrap();
             ctx.request_repaint();

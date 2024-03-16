@@ -1,31 +1,31 @@
-use egui_extras::RetainedImage;
+use egui::{pos2, Image, Rect};
 
 pub struct ImageViewer {
-    pub bytes: Vec<u8>,
-    img: RetainedImage,
+    img: Image<'static>,
 }
 
 impl ImageViewer {
-    pub fn new(id: impl Into<String>, bytes: &[u8]) -> Self {
+    pub fn new(bytes: &[u8]) -> Self {
         let bytes = Vec::from(bytes);
-        let img = RetainedImage::from_image_bytes(id, &bytes).unwrap();
-
-        Self { bytes, img }
+        let img = Image::from_bytes("bytes://qr.png", bytes);
+        Self { img }
     }
 
     pub fn show(&mut self, ui: &mut egui::Ui) {
         egui::ScrollArea::both().show(ui, |ui| {
-            if ui.available_width() < self.img.width() as f32
-                || ui.available_height() < self.img.height() as f32
-            {
+            let img_size = self.img.calc_size(ui.available_size(), None);
+            let ui_size = ui.available_size();
+            if img_size.x < ui_size.x || img_size.y < ui_size.y {
                 ui.with_layout(
                     egui::Layout::left_to_right(egui::Align::Center).with_cross_justify(true),
                     |ui| {
-                        self.img.show(ui);
+                        self.img
+                            .paint_at(ui, Rect::from_min_size(pos2(0.0, 0.0), img_size));
                     },
                 );
             } else {
-                self.img.show(ui);
+                self.img
+                    .paint_at(ui, Rect::from_min_size(pos2(0.0, 0.0), img_size));
             }
         });
     }
