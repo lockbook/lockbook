@@ -187,7 +187,15 @@ impl Editor {
                 ui.memory_mut(|m| {
                     if m.has_focus(self.id) {
                         focus = true;
-                        m.lock_focus(self.id, true);
+                        m.set_focus_lock_filter(
+                            id,
+                            egui::EventFilter {
+                                tab: true,
+                                horizontal_arrows: true,
+                                vertical_arrows: true,
+                                escape: false,
+                            },
+                        );
                     }
                 });
 
@@ -206,8 +214,16 @@ impl Editor {
         // set focus again because egui clears it for our widget for some reason
         if focus {
             ui.memory_mut(|m| {
-                m.request_focus(self.id);
-                m.lock_focus(self.id, true);
+                m.request_focus(id);
+                m.set_focus_lock_filter(
+                    id,
+                    egui::EventFilter {
+                        tab: true,
+                        horizontal_arrows: true,
+                        vertical_arrows: true,
+                        escape: false,
+                    },
+                );
             });
         }
 
