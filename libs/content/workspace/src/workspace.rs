@@ -1,4 +1,4 @@
-use egui::{Color32, Context};
+use egui::{pos2, vec2, Color32, Context, Image, Rect};
 use std::ops::Deref;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{channel, Receiver, Sender};
@@ -16,7 +16,6 @@ use crate::tab::svg_editor::SVGEditor;
 use crate::tab::{Tab, TabContent, TabFailure};
 use crate::theme::icons::Icon;
 use crate::widgets::{separator, Button, ToolBarVisibility};
-use egui_extras::RetainedImage;
 use lb_rs::{File, FileType, LbError, NameComponents, SyncProgress, SyncStatus, Uuid};
 
 pub struct Workspace {
@@ -24,7 +23,7 @@ pub struct Workspace {
 
     pub tabs: Vec<Tab>,
     pub active_tab: usize,
-    pub backdrop: RetainedImage,
+    pub backdrop: Image<'static>,
 
     pub ctx: Context,
     pub core: lb_rs::Core,
@@ -97,7 +96,7 @@ impl Workspace {
             cfg,
             tabs: vec![],
             active_tab: 0,
-            backdrop: RetainedImage::from_image_bytes("logo-backdrop", LOGO_BACKDROP).unwrap(),
+            backdrop: Image::new(egui::include_image!("../lockbook-backdrop.png")),
             ctx: ctx.clone(),
             core: core.clone(),
             updates_rx,
@@ -237,7 +236,8 @@ impl Workspace {
     fn show_empty_workspace(&mut self, ui: &mut egui::Ui, out: &mut WsOutput) {
         ui.with_layout(egui::Layout::top_down(egui::Align::Center), |ui| {
             ui.add_space(ui.clip_rect().height() / 3.0);
-            self.backdrop.show_size(ui, egui::vec2(100.0, 100.0));
+            self.backdrop
+                .paint_at(ui, Rect::from_min_size(pos2(0.0, 0.0), vec2(100.0, 100.0)));
 
             ui.label(egui::RichText::new("Welcome to your Lockbook").size(40.0));
             ui.label(
@@ -553,7 +553,7 @@ impl Workspace {
                             id,
                         ))
                     } else if is_supported_image_fmt(ext) {
-                        TabContent::Image(ImageViewer::new(id.to_string(), &bytes))
+                        TabContent::Image(ImageViewer::new(&bytes))
                     } else if ext == "pdf" {
                         TabContent::Pdf(PdfViewer::new(
                             &bytes,
@@ -857,8 +857,6 @@ fn tab_label(ui: &mut egui::Ui, t: &mut Tab, is_active: bool) -> Option<TabLabel
 
     lbl_resp
 }
-
-const LOGO_BACKDROP: &[u8] = include_bytes!("../lockbook-backdrop.png");
 
 pub const NUM_KEYS: [egui::Key; 9] = [
     egui::Key::Num1,
