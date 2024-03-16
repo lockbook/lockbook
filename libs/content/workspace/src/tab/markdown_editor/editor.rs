@@ -193,7 +193,7 @@ impl Editor {
                                 tab: true,
                                 horizontal_arrows: true,
                                 vertical_arrows: true,
-                                escape: false,
+                                escape: true,
                             },
                         );
                     }
@@ -221,7 +221,7 @@ impl Editor {
                         tab: true,
                         horizontal_arrows: true,
                         vertical_arrows: true,
-                        escape: false,
+                        escape: true,
                     },
                 );
             });

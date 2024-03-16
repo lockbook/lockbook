@@ -5,11 +5,11 @@ edition = "2021"
 
 [dependencies]
 dark-light = "1.0.0"
-egui = "0.26.0"
-eframe = "0.26.0"
+egui = "0.26.2"
+eframe = "0.26.2"
 egui-notify = "0.13.0"
-egui-winit = "0.26.0"
-egui_extras = { version = "0.26.0", features = ["image"] }
+egui-winit = "0.26.2"
+egui_extras = { version = "0.26.2", features = ["image"] }
 egui_wgpu_backend = { path = "../../../../egui_wgpu_backend" }
 image = { version = "0.24", default-features = false, features = [
     "png",
