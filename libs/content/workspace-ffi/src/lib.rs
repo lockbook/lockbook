@@ -101,12 +101,12 @@ pub struct CRect {
 }
 
 #[repr(C)]
-pub struct WgpuWorkspace {
+pub struct WgpuWorkspace<'window> {
     pub start_time: Instant,
 
     pub device: wgpu::Device,
     pub queue: wgpu::Queue,
-    pub surface: wgpu::Surface,
+    pub surface: wgpu::Surface<'window>,
     pub adapter: wgpu::Adapter,
 
     // remember size last frame to detect resize
@@ -246,7 +246,7 @@ impl From<CTextPosition> for Location {
     }
 }
 
-impl WgpuWorkspace {
+impl<'window> WgpuWorkspace<'window> {
     #[cfg(target_vendor = "apple")]
     pub fn frame(&mut self) -> IntegrationOutput {
         let mut out = IntegrationOutput::default();
@@ -346,7 +346,7 @@ impl WgpuWorkspace {
                 self.screen.physical_height as f32 / self.screen.scale_factor,
             ),
         });
-        self.raw_input.pixels_per_point = Some(self.screen.scale_factor);
+        self.context.set_pixels_per_point(self.screen.scale_factor);
     }
 
     pub fn surface_format(&self) -> wgpu::TextureFormat {
@@ -368,6 +368,7 @@ impl WgpuWorkspace {
                 present_mode: wgpu::PresentMode::Fifo,
                 alpha_mode: CompositeAlphaMode::Auto,
                 view_formats: vec![],
+                desired_maximum_frame_latency: 2,
             };
             self.surface.configure(&self.device, &surface_config);
             self.surface_width = self.screen.physical_width;
