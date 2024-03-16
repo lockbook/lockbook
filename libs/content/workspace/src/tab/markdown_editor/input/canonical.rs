@@ -393,7 +393,7 @@ pub fn calc(
             })
         }
         Event::Key { key: Key::F2, pressed: true, .. } => Some(Modification::ToggleDebug),
-        Event::Key { key: Key::PlusEquals, pressed: true, modifiers, .. } if modifiers.command => {
+        Event::Key { key: Key::Equals, pressed: true, modifiers, .. } if modifiers.command => {
             Some(Modification::SetBaseFontSize(appearance.font_size() + 1.0))
         }
         Event::Key { key: Key::Minus, pressed: true, modifiers, .. } if modifiers.command => {

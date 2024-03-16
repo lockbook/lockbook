@@ -50,7 +50,7 @@ const KEYS: [Key; 89] = [
     Key { sc: 10, egui: Some(egui::Key::Num9), text: Some("9"), s_text: Some("(") },
     Key { sc: 1, egui: Some(egui::Key::Escape), text: None, s_text: None },
     Key { sc: 12, egui: Some(egui::Key::Minus), text: Some("-"), s_text: Some("_") },
-    Key { sc: 13, egui: Some(egui::Key::PlusEquals), text: Some("="), s_text: Some("+") },
+    Key { sc: 13, egui: Some(egui::Key::Equals), text: Some("="), s_text: Some("+") },
     Key { sc: 14, egui: Some(egui::Key::Backspace), text: None, s_text: None },
     Key { sc: 15, egui: Some(egui::Key::Tab), text: None, s_text: None },
     Key { sc: 26, egui: None, text: Some("["), s_text: Some("{") },
