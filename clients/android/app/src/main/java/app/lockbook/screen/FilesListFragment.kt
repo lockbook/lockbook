@@ -423,7 +423,8 @@ class FilesListFragment : Fragment(), FilesFragment {
     private fun enterFile(item: File) {
         when (item.fileType) {
             FileType.Document -> {
-                WorkspaceView.WORKSPACE.openFile(WorkspaceView.WGPU_OBJ, item.id, false)
+                // TODO: consider that not all updates to the screen may go through because of postVal
+                activityModel.updateMainScreenUI(UpdateMainScreenUI.OpenFile(item.id))
             }
             FileType.Folder -> {
                 model.enterFolder(item)

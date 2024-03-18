@@ -68,6 +68,10 @@ class Workspace {
         System.loadLibrary("workspace")
     }
 
+    companion object {
+        val MOBILE_TOOL_BAR_SIZE = 45.0
+    }
+
     external fun createWgpuCanvas(surface: Surface, core: Long, scaleFactor: Float, darkMode: Boolean, workspace: Long): Long
     external fun enterFrame(rustObj: Long): String
     external fun resizeEditor(rustObj: Long, surface: Surface, scaleFactor: Float)
@@ -78,6 +82,8 @@ class Workspace {
     external fun touchesEnded(rustObj: Long, id: Int, x: Float, y: Float, pressure: Float)
     external fun sendKeyEvent(rustObj: Long, keyCode: Int, content: String, pressed: Boolean, alt: Boolean, ctrl: Boolean, shift: Boolean): Int
     external fun openFile(rustObj: Long, id: String, newFile: Boolean)
+    external fun closeOpenFile(rustObj: Long)
+    external fun showTabs(rustObj: Long, show: Boolean)
 
 //    external fun getAllText(rustObj: Long): String
 //    external fun setSelection(rustObj: Long, start: Int, end: Int)

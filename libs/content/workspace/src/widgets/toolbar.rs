@@ -62,7 +62,7 @@ impl ToolBar {
     }
 
     pub fn show(&mut self, ui: &mut egui::Ui, editor: &mut Editor) {
-        if cfg!(target_os = "ios") {
+        if cfg!(target_os = "ios") || cfg!(target_os = "android") {
             ui.allocate_ui(egui::vec2(ui.available_width(), MOBILE_TOOL_BAR_SIZE), |ui| {
                 egui::Frame::default()
                     .inner_margin(self.margin)

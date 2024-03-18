@@ -182,6 +182,15 @@ class MainScreenActivity : AppCompatActivity() {
 
     private fun updateMainScreenUI(update: UpdateMainScreenUI) {
         when (update) {
+            is UpdateMainScreenUI.OpenFile -> {
+                if(update.id != null) {
+                    WorkspaceView.WORKSPACE.openFile(WorkspaceView.WGPU_OBJ, update.id, false)
+                    slidingPaneLayout.openPane()
+                } else {
+                    WorkspaceView.WORKSPACE.closeOpenFile(WorkspaceView.WGPU_OBJ)
+                    slidingPaneLayout.closePane()
+                }
+            }
             is UpdateMainScreenUI.NotifyError -> alertModel.notifyError(update.error)
             is UpdateMainScreenUI.ShareDocuments -> finalizeShare(update.files)
             is UpdateMainScreenUI.ShowHideProgressOverlay -> {
@@ -249,7 +258,7 @@ class MainScreenActivity : AppCompatActivity() {
 
     override fun onBackPressed() {
         if (slidingPaneLayout.isSlideable && slidingPaneLayout.isOpen) { // if you are on a small display where only files or an editor show once at a time, you want to handle behavior a bit differently
-//            launchDetailScreen(null)
+            model.updateMainScreenUI(UpdateMainScreenUI.OpenFile(null))
         } else if (maybeGetSearchFilesFragment() != null) {
             updateMainScreenUI(UpdateMainScreenUI.ShowFiles)
         } else if (maybeGetFilesFragment()?.onBackPressed() == true) {

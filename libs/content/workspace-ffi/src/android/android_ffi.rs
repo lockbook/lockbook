@@ -244,7 +244,25 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_openFile(
     obj.workspace.open_file(id, new_file == 1);
 }
 
-// let id = id.into();
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_closeOpenFile(
+    _env: JNIEnv, _: JClass, obj: jlong,
+) {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+
+    if !obj.workspace.tabs.is_empty() {
+        obj.workspace.close_tab(obj.workspace.active_tab)
+    }
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_showTabs(
+    _env: JNIEnv, _: JClass, obj: jlong, show: jboolean,
+) {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+
+    obj.workspace.show_tabs = show == 1;
+}
 
 // #[no_mangle]
 // pub extern "system" fn Java_app_lockbook_egui_1editor_EGUIEditor_getAllText(

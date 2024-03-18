@@ -84,7 +84,7 @@ impl Markdown {
 
     pub fn show(&mut self, ui: &mut egui::Ui) -> EditorResponse {
         ui.vertical(|ui| {
-            let mut res = if cfg!(target_os = "ios") {
+            let mut res = if cfg!(target_os = "ios") || cfg!(target_os = "android") {
                 let res = ui
                     .allocate_ui(
                         egui::vec2(

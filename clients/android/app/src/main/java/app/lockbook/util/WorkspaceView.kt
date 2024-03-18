@@ -12,7 +12,9 @@ import android.view.MotionEvent
 import android.view.SurfaceHolder
 import android.view.SurfaceView
 import app.lockbook.model.CoreModel
+import app.lockbook.model.StateViewModel
 import app.lockbook.model.TextEditorViewModel
+import app.lockbook.screen.WorkspaceViewModel
 import app.lockbook.workspace.IntegrationOutput
 import app.lockbook.workspace.Workspace
 import kotlinx.serialization.decodeFromString
@@ -30,6 +32,8 @@ class WorkspaceView : SurfaceView, SurfaceHolder.Callback2 {
         invalidate()
     }
 
+    var stateModel: WorkspaceViewModel? = null
+
     constructor(context: Context, attrs: AttributeSet) : super(context, attrs)
     constructor(context: Context, attrs: AttributeSet, defStyle: Int) : super(
         context,
@@ -41,7 +45,6 @@ class WorkspaceView : SurfaceView, SurfaceHolder.Callback2 {
         holder.addCallback(this)
         this.setZOrderOnTop(true)
         holder.setFormat(PixelFormat.TRANSPARENT)
-
     }
 
     private fun adjustTouchPoint(axis: Float): Float {
@@ -106,9 +109,7 @@ class WorkspaceView : SurfaceView, SurfaceHolder.Callback2 {
     }
 
     override fun surfaceCreated(holder: SurfaceHolder) {
-        println("surface is created!")
         holder.let { h ->
-            Timber.e("Creating wgpu obj")
             WGPU_OBJ = WORKSPACE.createWgpuCanvas(
                 h.surface,
                 CoreModel.getPtr(),
@@ -116,13 +117,16 @@ class WorkspaceView : SurfaceView, SurfaceHolder.Callback2 {
                 (context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES,
                 WS_OBJ
             )
-            Timber.e("Finished creating wgpu obj")
+
+            WORKSPACE.showTabs(WGPU_OBJ, false)
 
             setWillNotDraw(false)
         }
 
         isFocusable = true
         isFocusableInTouchMode = true
+
+        requestFocus()
     }
 
     override fun surfaceDestroyed(holder: SurfaceHolder) {
@@ -140,9 +144,7 @@ class WorkspaceView : SurfaceView, SurfaceHolder.Callback2 {
             return
         }
 
-        Timber.e("entering frame")
         val responseJson = WORKSPACE.enterFrame(WGPU_OBJ)
-        Timber.e("finished entering frame: ${responseJson}")
         val response: IntegrationOutput = frameOutputJsonParser.decodeFromString(responseJson)
 
         if (response.redrawIn < BigInteger("100")) {
@@ -153,12 +155,11 @@ class WorkspaceView : SurfaceView, SurfaceHolder.Callback2 {
     }
 
     companion object {
+
+        // TODO: move these to the workspace class and make a getInstance for it
         var WGPU_OBJ = Long.MAX_VALUE
         private var WS_OBJ = Long.MAX_VALUE
 
         val WORKSPACE = Workspace()
-
-        private const val WGPU_OBJ_NAME = "wgpuObj"
-        private const val SUPER_STATE_KEY = "SUPER_STATE_KEY"
     }
 }
