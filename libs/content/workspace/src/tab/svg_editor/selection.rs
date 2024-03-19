@@ -11,6 +11,7 @@ use super::{
 // todo: consider making this value dynamic depending on the scale of the element
 const SCALE_BRUSH_SIZE: f64 = 10.0;
 
+#[derive(Default)]
 pub struct Selection {
     last_pos: Option<egui::Pos2>,
     selected_elements: Vec<SelectedElement>,
@@ -25,23 +26,7 @@ struct SelectedElement {
     original_matrix: (String, [f64; 6]),
 }
 
-impl Default for Selection {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl Selection {
-    pub fn new() -> Self {
-        Selection {
-            last_pos: None,
-            selected_elements: vec![],
-            laso_original_pos: None,
-            laso_rect: None,
-            current_op: SelectionOperation::Idle,
-        }
-    }
-
     pub fn handle_input(
         &mut self, ui: &mut egui::Ui, working_rect: egui::Rect, buffer: &mut Buffer,
     ) {
@@ -413,11 +398,12 @@ impl SelectionRect {
         )
     }
 }
-
+#[derive(Default)]
 enum SelectionOperation {
     Drag,
     HorizontalScale,
     VerticalScale,
+    #[default]
     Idle,
 }
 
