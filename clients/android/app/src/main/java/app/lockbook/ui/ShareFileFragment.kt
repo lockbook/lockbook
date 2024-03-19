@@ -19,6 +19,7 @@ class ShareFileFragment : Fragment() {
 
     private lateinit var binding: FragmentShareFileBinding
     private val activityModel: StateViewModel by activityViewModels()
+    private val workspaceModel: WorkspaceViewModel by activityViewModels()
 
     private val alertModel by lazy {
         AlertModel(WeakReference(requireActivity()))
@@ -84,7 +85,7 @@ class ShareFileFragment : Fragment() {
 
             when (val result = CoreModel.shareFile(file.id, username, mode)) {
                 is Ok -> {
-                    activityModel.updateMainScreenUI(UpdateMainScreenUI.Sync)
+                    workspaceModel._sync.postValue(Unit)
 //                    activityModel.launchDetailScreen(null)
                 }
                 is Err -> alertModel.notifyError(result.error.toLbError(resources))

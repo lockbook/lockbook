@@ -188,6 +188,14 @@ class MainScreenActivity : AppCompatActivity() {
         workspaceModel.tabTitleClicked.observe(this) {
             model.launchTransientScreen(TransientScreen.Rename(CoreModel.getFileById(workspaceModel.selectedFile.value!!).unwrap()))
         }
+
+        workspaceModel.currentTab.observe(this) { tab ->
+            if(tab == WorkspaceTab.Welcome) {
+                slidingPaneLayout.closePane()
+            } else {
+                slidingPaneLayout.openPane()
+            }
+        }
     }
 
     private fun updateMainScreenUI(update: UpdateMainScreenUI) {
@@ -195,12 +203,10 @@ class MainScreenActivity : AppCompatActivity() {
             is UpdateMainScreenUI.OpenFile -> {
                 if(update.id != null) {
                     workspaceModel._openFile.value = Pair(update.id, false)
-                    slidingPaneLayout.openPane()
                 } else {
                     if(workspaceModel.selectedFile.value != null) {
                         workspaceModel._closeDocument.value = workspaceModel.selectedFile.value
                     }
-                    slidingPaneLayout.closePane()
                 }
             }
             is UpdateMainScreenUI.NotifyError -> alertModel.notifyError(update.error)

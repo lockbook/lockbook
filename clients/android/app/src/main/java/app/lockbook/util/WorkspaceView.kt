@@ -12,8 +12,8 @@ import android.view.MotionEvent
 import android.view.SurfaceHolder
 import android.view.SurfaceView
 import androidx.core.content.ContextCompat.startActivity
-import androidx.core.view.isVisible
 import app.lockbook.model.CoreModel
+import app.lockbook.model.WorkspaceTab
 import app.lockbook.model.WorkspaceViewModel
 import app.lockbook.workspace.IntegrationOutput
 import app.lockbook.workspace.Workspace
@@ -21,6 +21,7 @@ import app.lockbook.workspace.isNullUUID
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
 import timber.log.Timber
+import java.lang.Long.max
 import java.math.BigInteger
 
 // Maybe GLSurfaceView can provide performance improvements?
@@ -33,8 +34,9 @@ class WorkspaceView : SurfaceView, SurfaceHolder.Callback2 {
         invalidate()
     }
 
-    var stateModel: WorkspaceViewModel? = null
+    var model: WorkspaceViewModel? = null
 
+    constructor(context: Context) : super(context)
     constructor(context: Context, attrs: AttributeSet) : super(context, attrs)
     constructor(context: Context, attrs: AttributeSet, defStyle: Int) : super(
         context,
@@ -119,7 +121,7 @@ class WorkspaceView : SurfaceView, SurfaceHolder.Callback2 {
                 WS_OBJ
             )
 
-            WORKSPACE.showTabs(WGPU_OBJ, false)
+            WORKSPACE.showTabs(WGPU_OBJ, true)
 
             setWillNotDraw(false)
         }
@@ -146,6 +148,7 @@ class WorkspaceView : SurfaceView, SurfaceHolder.Callback2 {
 
     fun sync() {
         Timber.e("about to sync...")
+        model!!.isSyncing = true
         WORKSPACE.requestSync(WGPU_OBJ)
         Timber.e("finished sync")
     }
@@ -165,48 +168,49 @@ class WorkspaceView : SurfaceView, SurfaceHolder.Callback2 {
 
         val responseJson = WORKSPACE.enterFrame(WGPU_OBJ)
         val response: IntegrationOutput = frameOutputJsonParser.decodeFromString(responseJson)
-//        Timber.e("got response: ${response}")
 
         if(response.urlOpened.isNotEmpty()) {
             val browserIntent = Intent(Intent.ACTION_VIEW, Uri.parse(response.urlOpened))
             startActivity(context, browserIntent, null)
         }
 
-        if(stateModel!!.isSyncing && !response.workspaceResp.syncing) {
-            stateModel!!._syncCompleted.postValue(Unit)
+        if(model!!.isSyncing && !response.workspaceResp.syncing) {
+            model!!._syncCompleted.postValue(Unit)
         }
-        stateModel!!.isSyncing = response.workspaceResp.syncing
+        model!!.isSyncing = response.workspaceResp.syncing
 
         if(response.workspaceResp.newFolderBtnPressed) {
-            stateModel!!._newFolderBtnPressed.postValue(Unit)
+            model!!._newFolderBtnPressed.postValue(Unit)
         }
 
         if(response.workspaceResp.refreshFiles) {
-            stateModel!!._refreshFiles.postValue(Unit)
+            model!!._refreshFiles.postValue(Unit)
         }
 
         if(!response.workspaceResp.docCreated.isNullUUID()) {
-            stateModel!!._docCreated.postValue(response.workspaceResp.docCreated)
+            model!!._docCreated.postValue(response.workspaceResp.docCreated)
         }
 
         if(!response.workspaceResp.selectedFile.isNullUUID()) {
-            stateModel!!._selectedFile.postValue(response.workspaceResp.selectedFile)
+            model!!._selectedFile.postValue(response.workspaceResp.selectedFile)
         }
 
         if(response.workspaceResp.tabTitleClicked) {
-            stateModel!!._tabTitleClicked.postValue(Unit)
+            model!!._tabTitleClicked.postValue(Unit)
         }
 
-        stateModel!!._msg.value = response.workspaceResp.msg
+        model!!._msg.value = response.workspaceResp.msg
+        val currentTab = WorkspaceTab.fromInt(WORKSPACE.currentTab(WGPU_OBJ))
+        if(currentTab != model!!._currentTab.value) {
+            model!!._currentTab.value = currentTab
+        }
 
         if (response.redrawIn < BigInteger("100")) {
             invalidate()
         } else {
             this.isShown
-            handler.postDelayed(redrawTask, response.redrawIn.toLong())
+            handler.postDelayed(redrawTask, max(response.redrawIn.toLong(), 500L))
         }
-
-        Timber.e("finished handling response")
     }
 
     companion object {

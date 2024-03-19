@@ -87,43 +87,24 @@ class Workspace {
     external fun closeDoc(rustObj: Long, id: String)
     external fun requestSync(rustObj: Long)
     external fun showTabs(rustObj: Long, show: Boolean)
+    external fun currentTab(rustObj: Long): Int
 
-//    external fun getAllText(rustObj: Long): String
-//    external fun setSelection(rustObj: Long, start: Int, end: Int)
-//    external fun getSelection(rustObj: Long): String
-//
-//    // Editable stuff
-//    external fun getTextLength(rustObj: Long): Int
-//    external fun clear(rustObj: Long)
-//    external fun replace(rustObj: Long, start: Int, end: Int, text: String)
-//    external fun insert(rustObj: Long, index: Int, text: String)
-//    external fun append(rustObj: Long, text: String)
-//    external fun getTextInRange(rustObj: Long, start: Int, end: Int): String
-//
-//    // context menu
-//    external fun selectAll(rustObj: Long)
-//    external fun clipboardCut(rustObj: Long)
-//    external fun clipboardCopy(rustObj: Long)
-//    external fun clipboardPaste(rustObj: Long)
-//    external fun clipboardChanged(rustObj: Long, content: String)
-//    external fun hasCopiedText(rustObj: Long): Boolean
-//    external fun getCopiedText(rustObj: Long): String
-//
-//    // markdown styling
-//    external fun applyStyleToSelectionHeading(rustObj: Long, headingSize: Int)
-//
-//    external fun applyStyleToSelectionBulletedList(rustObj: Long)
-//    external fun applyStyleToSelectionNumberedList(rustObj: Long)
-//    external fun applyStyleToSelectionTodoList(rustObj: Long)
-//
-//    external fun applyStyleToSelectionBold(rustObj: Long)
-//    external fun applyStyleToSelectionItalic(rustObj: Long)
-//    external fun applyStyleToSelectionInlineCode(rustObj: Long)
-//    external fun applyStyleToSelectionStrikethrough(rustObj: Long)
-//
-//    external fun indentAtCursor(rustObj: Long, deindent: Boolean)
-//
-//    external fun undoRedo(rustObj: Long, redo: Boolean)
+    // text input
+    external fun getAllText(rustObj: Long): String
+    external fun setSelection(rustObj: Long, start: Int, end: Int)
+    external fun getSelection(rustObj: Long): String
+
+    external fun getTextLength(rustObj: Long): Int
+    external fun clear(rustObj: Long)
+    external fun replace(rustObj: Long, start: Int, end: Int, text: String)
+    external fun insert(rustObj: Long, index: Int, text: String)
+    external fun append(rustObj: Long, text: String)
+    external fun getTextInRange(rustObj: Long, start: Int, end: Int): String
+
+    external fun selectAll(rustObj: Long)
+    external fun clipboardCut(rustObj: Long)
+    external fun clipboardCopy(rustObj: Long)
+    external fun clipboardPaste(rustObj: Long, content: String)
 }
 
 fun String.isNullUUID(): Boolean {
