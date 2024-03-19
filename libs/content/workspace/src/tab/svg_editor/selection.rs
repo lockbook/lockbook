@@ -174,7 +174,8 @@ impl Selection {
                     }
                     SelectionOperation::HorizontalScale | SelectionOperation::VerticalScale => {
                         zoom_to_pos(pos, el, buffer, &self.current_op);
-                        ui.output_mut(|w| w.cursor_icon = egui::CursorIcon::None);
+                        transform_origin_dirty = true;
+                        history_dirty = true;
                     }
                     SelectionOperation::Idle => {}
                 }
@@ -591,11 +592,37 @@ fn zoom_from_center(factor: f64, de: &mut SelectedElement, buffer: &mut Buffer) 
 fn zoom_to_pos(
     pos: egui::Pos2, de: &mut SelectedElement, buffer: &mut Buffer, current_op: &SelectionOperation,
 ) {
+    let path = match buffer.paths.get_mut(&de.id) {
+        None => return,
+        Some(p) => p,
+    };
+
+    // the inverse of the master transform will get the location of the
+    // path's in terms of the svg viewport instead of the default egui
+    // viewport. those cords are used for center based scaling.
+    if let Some(transform) = buffer.current.attr("transform") {
+        let [a, b, c, d, e, f] = deserialize_transform(transform);
+        path.apply_transform(
+            DAffine2 {
+                matrix2: DMat2 { x_axis: DVec2 { x: a, y: b }, y_axis: DVec2 { x: c, y: d } },
+                translation: DVec2 { x: e, y: f },
+            }
+            .inverse(),
+        );
+    }
+
+    let bb = path.bounding_box().unwrap();
+    let element_rect = egui::Rect {
+        min: egui::pos2(bb[0].x as f32, bb[0].y as f32),
+        max: egui::pos2(bb[1].x as f32, bb[1].y as f32),
+    };
+
     let factor = match current_op {
-        SelectionOperation::HorizontalScale => pos.x / de.original_pos.x,
-        SelectionOperation::VerticalScale => pos.y / de.original_pos.y,
+        SelectionOperation::HorizontalScale => (pos.x - element_rect.left()) / element_rect.width(),
+        SelectionOperation::VerticalScale => (pos.y - element_rect.top()) / element_rect.height(),
         _ => return,
     } as f64;
+    println!("factor: {factor}");
 
     zoom_from_center(factor, de, buffer);
 }
