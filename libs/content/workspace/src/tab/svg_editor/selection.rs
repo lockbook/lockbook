@@ -419,7 +419,6 @@ fn show_bb_rect(
     let bb = match path.bounding_box() {
         Some(b) => b,
         None => {
-            println!("none");
             return None;
         }
     };
@@ -430,52 +429,57 @@ fn show_bb_rect(
     clipped_bb[1].x = clipped_bb[1].x.min(working_rect.right() as f64);
     clipped_bb[1].y = clipped_bb[1].y.min(working_rect.bottom() as f64);
 
-    let selection_rect = SelectionRect {
-        left: if clipped_bb[0].x == bb[0].x {
-            Some(Subpath::from_anchors(
-                [
-                    DVec2 { x: clipped_bb[0].x, y: clipped_bb[0].y },
-                    DVec2 { x: clipped_bb[0].x, y: clipped_bb[1].y },
-                ],
-                false,
-            ))
-        } else {
-            None
-        },
-        right: if clipped_bb[1].x == bb[1].x {
-            Some(Subpath::from_anchors(
-                [
-                    DVec2 { x: clipped_bb[1].x, y: clipped_bb[0].y },
-                    DVec2 { x: clipped_bb[1].x, y: clipped_bb[1].y },
-                ],
-                false,
-            ))
-        } else {
-            None
-        },
-        top: if clipped_bb[0].y == bb[0].y {
-            Some(Subpath::from_anchors(
-                [
-                    DVec2 { x: clipped_bb[0].x, y: clipped_bb[0].y },
-                    DVec2 { x: clipped_bb[1].x, y: clipped_bb[0].y },
-                ],
-                false,
-            ))
-        } else {
-            None
-        },
-        bottom: if clipped_bb[1].y == bb[1].y {
-            Some(Subpath::from_anchors(
-                [
-                    DVec2 { x: clipped_bb[0].x, y: clipped_bb[1].y },
-                    DVec2 { x: clipped_bb[1].x, y: clipped_bb[1].y },
-                ],
-                false,
-            ))
-        } else {
-            None
-        },
+    let is_clipped_bb_outside_of_working_rect =
+        clipped_bb[0].x > clipped_bb[1].x || clipped_bb[0].y > clipped_bb[1].y;
+
+    if is_clipped_bb_outside_of_working_rect {
+        return None;
+    }
+
+    let mut selection_rect = SelectionRect {
+        left: Some(Subpath::from_anchors(
+            [
+                DVec2 { x: clipped_bb[0].x, y: clipped_bb[0].y },
+                DVec2 { x: clipped_bb[0].x, y: clipped_bb[1].y },
+            ],
+            false,
+        )),
+        right: Some(Subpath::from_anchors(
+            [
+                DVec2 { x: clipped_bb[1].x, y: clipped_bb[0].y },
+                DVec2 { x: clipped_bb[1].x, y: clipped_bb[1].y },
+            ],
+            false,
+        )),
+        top: Some(Subpath::from_anchors(
+            [
+                DVec2 { x: clipped_bb[0].x, y: clipped_bb[0].y },
+                DVec2 { x: clipped_bb[1].x, y: clipped_bb[0].y },
+            ],
+            false,
+        )),
+        bottom: Some(Subpath::from_anchors(
+            [
+                DVec2 { x: clipped_bb[0].x, y: clipped_bb[1].y },
+                DVec2 { x: clipped_bb[1].x, y: clipped_bb[1].y },
+            ],
+            false,
+        )),
     };
+
+    // when a bb is clipped, don't show the edge that's being clipeed
+    if clipped_bb[1].y != bb[1].y {
+        selection_rect.bottom = None;
+    }
+    if clipped_bb[0].y != bb[0].y {
+        selection_rect.top = None;
+    }
+    if clipped_bb[1].x != bb[1].x {
+        selection_rect.right = None;
+    }
+    if clipped_bb[0].x != bb[0].x {
+        selection_rect.left = None;
+    }
 
     selection_rect.show(ui);
     get_cursor_icon(selection_rect, cursor_pos, bb)
