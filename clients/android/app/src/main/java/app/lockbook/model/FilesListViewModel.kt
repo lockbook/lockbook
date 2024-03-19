@@ -18,7 +18,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-class FilesListViewModel(application: Application, val syncModel: SyncModel) : AndroidViewModel(application) {
+class FilesListViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _notifyUpdateFilesUI = SingleMutableLiveData<UpdateFilesUI>()
 
@@ -195,56 +195,6 @@ class FilesListViewModel(application: Application, val syncModel: SyncModel) : A
 
             _notifyUpdateFilesUI.postValue(UpdateFilesUI.UpdateBreadcrumbBar(breadcrumbItems))
         }
-    }
-
-    fun onSwipeToRefresh() {
-        viewModelScope.launch(Dispatchers.IO) {
-            sync()
-            refreshFiles()
-            refreshWorkInfo()
-        }
-    }
-
-    fun sync(usePreferences: Boolean) {
-        viewModelScope.launch(Dispatchers.IO) {
-            if (!usePreferences || PreferenceManager.getDefaultSharedPreferences(getContext())
-                .getBoolean(
-                        getString(
-                                getRes(),
-                                R.string.sync_automatically_key
-                            ),
-                        false
-                    )
-            ) {
-                sync()
-            }
-            refreshFiles()
-        }
-    }
-
-    private suspend fun sync() {
-        serverChanges = null
-        when (val syncResult = syncModel.trySync()) {
-            is Ok -> {
-                _notifyUpdateFilesUI.postValue(UpdateFilesUI.UpToDateSyncSnackBar)
-            }
-            is Err -> {
-                if ((syncResult.error as? CoreError.UiError)?.content == SyncAllError.UsageIsOverDataCap) {
-                    withContext(Dispatchers.Main) {
-                        _notifyUpdateFilesUI.value = UpdateFilesUI.OutOfSpaceSyncSnackBar
-                        _notifyUpdateFilesUI.value = UpdateFilesUI.OutOfSpace(100, 100)
-                    }
-                } else {
-                    _notifyUpdateFilesUI.postValue(
-                        UpdateFilesUI.NotifyError(
-                            syncResult.error.toLbError(
-                                getRes()
-                            )
-                        )
-                    )
-                }
-            }
-        }.exhaustive
     }
 
     fun reloadFiles() {

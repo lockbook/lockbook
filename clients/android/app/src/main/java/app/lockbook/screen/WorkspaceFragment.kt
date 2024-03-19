@@ -1,5 +1,6 @@
 package app.lockbook.screen
 
+import android.net.Uri
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
@@ -42,8 +43,38 @@ class WorkspaceFragment: Fragment() {
 }
 
 class WorkspaceViewModel: ViewModel() {
-    private val _msg = MutableLiveData<String>()
+    // for workspace fragment
+    val _openFile = SingleMutableLiveData<String>()
+    val openFile: LiveData<String>
+        get() = _openFile
 
+    val _closeDocument = SingleMutableLiveData<Uri>()
+    val closeDocument: LiveData<Uri>
+        get() = _closeDocument
+
+    val _sync = SingleMutableLiveData<Unit>()
+    val sync: LiveData<Unit>
+        get() = _sync
+
+    // for everyone else
+    val _msg = MutableLiveData<String>()
     val msg: LiveData<String>
         get() = _msg
+
+    val _selectedFile = MutableLiveData<String>()
+    val selectedFile: LiveData<String>
+        get() = _selectedFile
+
+    val _docCreated = MutableLiveData<String>()
+    val docCreated: LiveData<String>
+        get() = _docCreated
+
+    val _refreshFiles = SingleMutableLiveData<Unit>()
+    val refreshFiles: LiveData<Unit>
+        get() = _refreshFiles
+
+    val _newFolderBtnPressed = SingleMutableLiveData<Unit>()
+    val newFolderBtnPressed: LiveData<Unit>
+        get() = _newFolderBtnPressed
+
 }

@@ -112,13 +112,17 @@
             app:sdMainFabOpenedSrc="@drawable/ic_baseline_add_24"
             app:sdOverlayLayout="@id/fab_overlay" />
 
-        <com.google.android.material.card.MaterialCardView
+        <LinearLayout
             android:id="@+id/sync_holder"
             android:layout_width="match_parent"
             android:layout_height="50dp"
             android:layout_gravity="bottom|start"
-            app:cardCornerRadius="0dp"
             android:animateLayoutChanges="true">
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:background="@color/selectedMarkdownButtonBackground"/>
 
             <TextView
                 android:id="@+id/workspace_msg"
@@ -128,7 +132,7 @@
                 android:layout_marginTop="10dp"
                 android:layout_marginEnd="80dp"/>
 
-        </com.google.android.material.card.MaterialCardView>
+        </LinearLayout>
 
         <include
             android:id="@+id/out_of_space"
