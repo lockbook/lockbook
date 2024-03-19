@@ -215,6 +215,16 @@ class FilesListFragment : Fragment(), FilesFragment {
             binding.workspaceMsg.text = msg
         }
 
+        workspaceModel.refreshFiles.observe(viewLifecycleOwner) {
+            model.reloadFiles()
+        }
+
+        workspaceModel.syncCompleted.observe(viewLifecycleOwner) {
+            if(binding.listFilesRefresh.isRefreshing) {
+                binding.listFilesRefresh.isRefreshing = false
+            }
+        }
+
         return binding.root
     }
 

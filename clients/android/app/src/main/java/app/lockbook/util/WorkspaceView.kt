@@ -2,22 +2,22 @@ package app.lockbook.util
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.content.Intent
 import android.content.res.Configuration
 import android.graphics.Canvas
 import android.graphics.PixelFormat
 import android.net.Uri
-import android.os.Bundle
-import android.os.Parcelable
 import android.util.AttributeSet
 import android.view.MotionEvent
 import android.view.SurfaceHolder
 import android.view.SurfaceView
+import androidx.core.content.ContextCompat.startActivity
+import androidx.core.view.isVisible
 import app.lockbook.model.CoreModel
-import app.lockbook.model.StateViewModel
-import app.lockbook.model.TextEditorViewModel
-import app.lockbook.screen.WorkspaceViewModel
+import app.lockbook.model.WorkspaceViewModel
 import app.lockbook.workspace.IntegrationOutput
 import app.lockbook.workspace.Workspace
+import app.lockbook.workspace.isNullUUID
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
 import timber.log.Timber
@@ -138,12 +138,22 @@ class WorkspaceView : SurfaceView, SurfaceHolder.Callback2 {
         invalidate()
     }
 
-    fun openFile(id: String, newFile: Boolean) {
-        WORKSPACE.openFile(WGPU_OBJ, id, newFile)
+    fun openDoc(id: String, newFile: Boolean) {
+        Timber.e("about to open doc ${id}...")
+        WORKSPACE.openDoc(WGPU_OBJ, id, newFile)
+        Timber.e("finished opening doc")
     }
 
     fun sync() {
-        WORKSPACE.sync(WGPU_OBJ)
+        Timber.e("about to sync...")
+        WORKSPACE.requestSync(WGPU_OBJ)
+        Timber.e("finished sync")
+    }
+
+    fun closeDoc(id: String) {
+        Timber.e("about to close doc ${id}...")
+        WORKSPACE.closeDoc(WGPU_OBJ, id)
+        Timber.e("finished opening doc")
     }
 
     override fun draw(canvas: Canvas) {
@@ -155,11 +165,16 @@ class WorkspaceView : SurfaceView, SurfaceHolder.Callback2 {
 
         val responseJson = WORKSPACE.enterFrame(WGPU_OBJ)
         val response: IntegrationOutput = frameOutputJsonParser.decodeFromString(responseJson)
+//        Timber.e("got response: ${response}")
 
         if(response.urlOpened.isNotEmpty()) {
-            stateModel!!._openUri.value = Uri.parse(response.urlOpened)
+            val browserIntent = Intent(Intent.ACTION_VIEW, Uri.parse(response.urlOpened))
+            startActivity(context, browserIntent, null)
         }
 
+        if(stateModel!!.isSyncing && !response.workspaceResp.syncing) {
+            stateModel!!._syncCompleted.postValue(Unit)
+        }
         stateModel!!.isSyncing = response.workspaceResp.syncing
 
         if(response.workspaceResp.newFolderBtnPressed) {
@@ -170,12 +185,16 @@ class WorkspaceView : SurfaceView, SurfaceHolder.Callback2 {
             stateModel!!._refreshFiles.postValue(Unit)
         }
 
-        if(response.workspaceResp.docCreated.isNotEmpty()) {
+        if(!response.workspaceResp.docCreated.isNullUUID()) {
             stateModel!!._docCreated.postValue(response.workspaceResp.docCreated)
         }
 
-        if(response.workspaceResp.selectedFile.isNotEmpty()) {
+        if(!response.workspaceResp.selectedFile.isNullUUID()) {
             stateModel!!._selectedFile.postValue(response.workspaceResp.selectedFile)
+        }
+
+        if(response.workspaceResp.tabTitleClicked) {
+            stateModel!!._tabTitleClicked.postValue(Unit)
         }
 
         stateModel!!._msg.value = response.workspaceResp.msg
@@ -183,8 +202,11 @@ class WorkspaceView : SurfaceView, SurfaceHolder.Callback2 {
         if (response.redrawIn < BigInteger("100")) {
             invalidate()
         } else {
+            this.isShown
             handler.postDelayed(redrawTask, response.redrawIn.toLong())
         }
+
+        Timber.e("finished handling response")
     }
 
     companion object {

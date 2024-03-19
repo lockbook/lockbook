@@ -20,6 +20,7 @@ pub struct FfiWorkspaceResp {
     refresh_files: bool,
 
     new_folder_btn_pressed: bool,
+    pub tab_title_clicked: bool,
 }
 
 impl From<WsOutput> for FfiWorkspaceResp {
@@ -42,6 +43,7 @@ impl From<WsOutput> for FfiWorkspaceResp {
                 _ => Uuid::nil().into(),
             },
             new_folder_btn_pressed: value.new_folder_clicked,
+            tab_title_clicked: value.tab_title_clicked,
         }
     }
 }

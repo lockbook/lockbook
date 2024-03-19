@@ -233,7 +233,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_touchesEnded(
 }
 
 #[no_mangle]
-pub extern "system" fn Java_app_lockbook_workspace_Workspace_openFile(
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_openDoc(
     mut env: JNIEnv, _: JClass, obj: jlong, jid: JString, new_file: jboolean,
 ) {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
@@ -245,13 +245,16 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_openFile(
 }
 
 #[no_mangle]
-pub extern "system" fn Java_app_lockbook_workspace_Workspace_closeOpenFile(
-    _env: JNIEnv, _: JClass, obj: jlong,
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_closeDoc(
+    mut env: JNIEnv, _: JClass, obj: jlong, jid: JString,
 ) {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
 
-    if !obj.workspace.tabs.is_empty() {
-        obj.workspace.close_tab(obj.workspace.active_tab)
+    let rid: String = env.get_string(&jid).unwrap().into();
+    let id = Uuid::parse_str(&rid).unwrap();
+
+    if let Some(tab_id) = obj.workspace.tabs.iter().position(|tab| tab.id == id) {
+        obj.workspace.close_tab(tab_id);
     }
 }
 

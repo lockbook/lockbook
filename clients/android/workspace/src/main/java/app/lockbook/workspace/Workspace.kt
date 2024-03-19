@@ -60,7 +60,9 @@ public data class FfiWorkspaceResp(
     @SerialName("refresh_files")
     val refreshFiles: Boolean,
     @SerialName("new_folder_btn_pressed")
-    val newFolderBtnPressed: Boolean
+    val newFolderBtnPressed: Boolean,
+    @SerialName("tab_title_clicked")
+    val tabTitleClicked: Boolean
 )
 
 class Workspace {
@@ -81,9 +83,9 @@ class Workspace {
     external fun touchesMoved(rustObj: Long, id: Int, x: Float, y: Float, pressure: Float)
     external fun touchesEnded(rustObj: Long, id: Int, x: Float, y: Float, pressure: Float)
     external fun sendKeyEvent(rustObj: Long, keyCode: Int, content: String, pressed: Boolean, alt: Boolean, ctrl: Boolean, shift: Boolean): Int
-    external fun openFile(rustObj: Long, id: String, newFile: Boolean)
-    external fun closeOpenFile(rustObj: Long)
-    external fun sync(rustObj: Long)
+    external fun openDoc(rustObj: Long, id: String, newFile: Boolean)
+    external fun closeDoc(rustObj: Long, id: String)
+    external fun requestSync(rustObj: Long)
     external fun showTabs(rustObj: Long, show: Boolean)
 
 //    external fun getAllText(rustObj: Long): String
@@ -122,4 +124,8 @@ class Workspace {
 //    external fun indentAtCursor(rustObj: Long, deindent: Boolean)
 //
 //    external fun undoRedo(rustObj: Long, redo: Boolean)
+}
+
+fun String.isNullUUID(): Boolean {
+    return this == "00000000-0000-0000-0000-000000000000"
 }

@@ -18,6 +18,7 @@ import app.lockbook.databinding.ActivityMainScreenBinding
 import app.lockbook.model.*
 import app.lockbook.ui.*
 import app.lockbook.util.*
+import com.github.michaelbull.result.unwrap
 import java.io.File
 import java.lang.ref.WeakReference
 
@@ -58,6 +59,7 @@ class MainScreenActivity : AppCompatActivity() {
         }
 
     val model: StateViewModel by viewModels()
+    val workspaceModel: WorkspaceViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -178,16 +180,26 @@ class MainScreenActivity : AppCompatActivity() {
         ) { update ->
             updateMainScreenUI(update)
         }
+
+        workspaceModel.newFolderBtnPressed.observe(this) {
+            model.launchTransientScreen(TransientScreen.Create(workspaceModel.selectedFile.value ?: CoreModel.getRoot().unwrap().id, ExtendedFileType.Folder))
+        }
+
+        workspaceModel.tabTitleClicked.observe(this) {
+            model.launchTransientScreen(TransientScreen.Rename(CoreModel.getFileById(workspaceModel.selectedFile.value!!).unwrap()))
+        }
     }
 
     private fun updateMainScreenUI(update: UpdateMainScreenUI) {
         when (update) {
             is UpdateMainScreenUI.OpenFile -> {
                 if(update.id != null) {
-                    WorkspaceView.WORKSPACE.openFile(WorkspaceView.WGPU_OBJ, update.id, false)
+                    workspaceModel._openFile.value = Pair(update.id, false)
                     slidingPaneLayout.openPane()
                 } else {
-                    WorkspaceView.WORKSPACE.closeOpenFile(WorkspaceView.WGPU_OBJ)
+                    if(workspaceModel.selectedFile.value != null) {
+                        workspaceModel._closeDocument.value = workspaceModel.selectedFile.value
+                    }
                     slidingPaneLayout.closePane()
                 }
             }
@@ -244,16 +256,9 @@ class MainScreenActivity : AppCompatActivity() {
     }
 
     private fun onFileDeleted(filesFragment: FilesFragment) {
-//        val openedFile = model.detailScreen?.getUsedFile()?.id
-//        if (openedFile != null) {
-//            val isDeletedFileOpen = (model.transientScreen as TransientScreen.Delete).files.any { file -> file.id == openedFile }
-//
-//            if (isDeletedFileOpen) {
-//                launchDetailScreen(null)
-//            }
-//        }
-//
-//        filesFragment.refreshFiles()
+        if(workspaceModel.selectedFile.value != null) {
+            workspaceModel._closeDocument.value = workspaceModel.selectedFile.value
+        }
     }
 
     override fun onBackPressed() {
