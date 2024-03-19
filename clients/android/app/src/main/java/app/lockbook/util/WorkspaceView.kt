@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.res.Configuration
 import android.graphics.Canvas
 import android.graphics.PixelFormat
+import android.net.Uri
 import android.os.Bundle
 import android.os.Parcelable
 import android.util.AttributeSet
@@ -137,6 +138,14 @@ class WorkspaceView : SurfaceView, SurfaceHolder.Callback2 {
         invalidate()
     }
 
+    fun openFile(id: String, newFile: Boolean) {
+        WORKSPACE.openFile(WGPU_OBJ, id, newFile)
+    }
+
+    fun sync() {
+        WORKSPACE.sync(WGPU_OBJ)
+    }
+
     override fun draw(canvas: Canvas) {
         super.draw(canvas)
 
@@ -146,6 +155,30 @@ class WorkspaceView : SurfaceView, SurfaceHolder.Callback2 {
 
         val responseJson = WORKSPACE.enterFrame(WGPU_OBJ)
         val response: IntegrationOutput = frameOutputJsonParser.decodeFromString(responseJson)
+
+        if(response.urlOpened.isNotEmpty()) {
+            stateModel!!._openUri.value = Uri.parse(response.urlOpened)
+        }
+
+        stateModel!!.isSyncing = response.workspaceResp.syncing
+
+        if(response.workspaceResp.newFolderBtnPressed) {
+            stateModel!!._newFolderBtnPressed.postValue(Unit)
+        }
+
+        if(response.workspaceResp.refreshFiles) {
+            stateModel!!._refreshFiles.postValue(Unit)
+        }
+
+        if(response.workspaceResp.docCreated.isNotEmpty()) {
+            stateModel!!._docCreated.postValue(response.workspaceResp.docCreated)
+        }
+
+        if(response.workspaceResp.selectedFile.isNotEmpty()) {
+            stateModel!!._selectedFile.postValue(response.workspaceResp.selectedFile)
+        }
+
+        stateModel!!._msg.value = response.workspaceResp.msg
 
         if (response.redrawIn < BigInteger("100")) {
             invalidate()

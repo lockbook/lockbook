@@ -23,7 +23,7 @@ class WorkspaceFragment: Fragment() {
     private val binding get() = _binding!!
 
     private val activityModel: StateViewModel by activityViewModels()
-    private val model: WorkspaceViewModel by viewModels()
+    private val model: WorkspaceViewModel by activityViewModels()
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -38,23 +38,38 @@ class WorkspaceFragment: Fragment() {
 
         binding.workspace.stateModel = model
 
+        model.sync.observe(viewLifecycleOwner) {
+            binding.workspace.sync()
+        }
+
+        model.openFile.observe(viewLifecycleOwner) { (id, newFile) ->
+            binding.workspace.openFile(id, newFile)
+        }
+
+
         return binding.root
     }
 }
 
 class WorkspaceViewModel: ViewModel() {
     // for workspace fragment
-    val _openFile = SingleMutableLiveData<String>()
-    val openFile: LiveData<String>
+    val _openFile = SingleMutableLiveData<Pair<String, Boolean>>()
+    val openFile: LiveData<Pair<String, Boolean>>
         get() = _openFile
 
-    val _closeDocument = SingleMutableLiveData<Uri>()
-    val closeDocument: LiveData<Uri>
+    val _closeDocument = SingleMutableLiveData<String>()
+    val closeDocument: LiveData<String>
         get() = _closeDocument
+
+    val _openUri = SingleMutableLiveData<Uri>()
+    val openUri: LiveData<Uri>
+        get() = _openUri
 
     val _sync = SingleMutableLiveData<Unit>()
     val sync: LiveData<Unit>
         get() = _sync
+
+    var isSyncing = false
 
     // for everyone else
     val _msg = MutableLiveData<String>()

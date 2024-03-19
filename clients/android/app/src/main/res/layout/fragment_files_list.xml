@@ -117,7 +117,9 @@
             android:layout_width="match_parent"
             android:layout_height="50dp"
             android:layout_gravity="bottom|start"
-            android:animateLayoutChanges="true">
+            android:animateLayoutChanges="true"
+            android:orientation="vertical"
+            android:background="?attr/colorSecondaryContainer">
 
             <View
                 android:layout_width="match_parent"

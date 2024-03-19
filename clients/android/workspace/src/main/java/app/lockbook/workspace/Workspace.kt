@@ -83,6 +83,7 @@ class Workspace {
     external fun sendKeyEvent(rustObj: Long, keyCode: Int, content: String, pressed: Boolean, alt: Boolean, ctrl: Boolean, shift: Boolean): Int
     external fun openFile(rustObj: Long, id: String, newFile: Boolean)
     external fun closeOpenFile(rustObj: Long)
+    external fun sync(rustObj: Long)
     external fun showTabs(rustObj: Long, show: Boolean)
 
 //    external fun getAllText(rustObj: Long): String

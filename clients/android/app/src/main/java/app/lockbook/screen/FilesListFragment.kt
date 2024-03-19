@@ -98,7 +98,7 @@ class FilesListFragment : Fragment(), FilesFragment {
     }
 
     private val activityModel: StateViewModel by activityViewModels()
-    private val workspaceModel: WorkspaceViewModel by viewModels()
+    private val workspaceModel: WorkspaceViewModel by activityViewModels()
 
     private val model: FilesListViewModel by viewModels(
         factoryProducer = {
@@ -209,6 +209,10 @@ class FilesListFragment : Fragment(), FilesFragment {
 
         model.maybeLastSidebarInfo?.let { uiUpdate ->
             updateUI(uiUpdate)
+        }
+
+        workspaceModel.msg.observe(viewLifecycleOwner) { msg ->
+            binding.workspaceMsg.text = msg
         }
 
         return binding.root
