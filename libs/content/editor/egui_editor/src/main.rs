@@ -1,4 +1,7 @@
 #[cfg(feature = "debug-window")]
+use lb::Uuid;
+
+#[cfg(feature = "debug-window")]
 fn main() {
     struct TestApp {
         editor: egui_editor::editor::Editor,
@@ -22,7 +25,8 @@ fn main() {
         "My egui App",
         options,
         Box::new(|cc| {
-            let app = TestApp { editor: egui_editor::editor::Editor::new(core, "") };
+            let app =
+                TestApp { editor: egui_editor::editor::Editor::new(core, "", &Uuid::new_v4()) };
             app.editor.set_font(&cc.egui_ctx);
             Box::new(app)
         }),

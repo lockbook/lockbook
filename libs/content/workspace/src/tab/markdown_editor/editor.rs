@@ -3,6 +3,7 @@ use std::time::{Duration, Instant};
 
 use egui::os::OperatingSystem;
 use egui::{Color32, Context, Event, FontDefinitions, Frame, Pos2, Rect, Sense, Ui, Vec2};
+use lb_rs::Uuid;
 use serde::Serialize;
 
 use crate::tab::markdown_editor::appearance::Appearance;
@@ -97,9 +98,9 @@ pub struct Editor {
 }
 
 impl Editor {
-    pub fn new(core: lb_rs::Core, content: &str) -> Self {
+    pub fn new(core: lb_rs::Core, content: &str, file_id: &Uuid) -> Self {
         Self {
-            id: egui::Id::null(),
+            id: egui::Id::new(file_id),
             initialized: Default::default(),
 
             core,
@@ -150,13 +151,10 @@ impl Editor {
         let touch_mode = matches!(ui.ctx().os(), OperatingSystem::Android | OperatingSystem::IOS);
 
         let events = ui.ctx().input(|i| i.events.clone());
-        // create id (even though we don't use interact response)
-        let id = ui.auto_id_with("lbeditor");
-        self.id = id;
-        ui.interact(self.scroll_area_rect, id, Sense::focusable_noninteractive());
+        ui.interact(self.scroll_area_rect, self.id, Sense::focusable_noninteractive());
 
         // calculate focus
-        let mut request_focus = ui.memory(|m| m.has_focus(id));
+        let mut request_focus = ui.memory(|m| m.has_focus(self.id));
         let mut surrender_focus = false;
         for event in &events {
             if let Event::PointerButton { pos, pressed: true, .. } = event {
@@ -180,16 +178,16 @@ impl Editor {
                 // set focus
                 if request_focus {
                     ui.memory_mut(|m| {
-                        m.request_focus(id);
+                        m.request_focus(self.id);
                     });
                 }
                 if surrender_focus {
-                    ui.memory_mut(|m| m.surrender_focus(id));
+                    ui.memory_mut(|m| m.surrender_focus(self.id));
                 }
                 ui.memory_mut(|m| {
-                    if m.has_focus(id) {
+                    if m.has_focus(self.id) {
                         focus = true;
-                        m.lock_focus(id, true);
+                        m.lock_focus(self.id, true);
                     }
                 });
 
@@ -199,15 +197,17 @@ impl Editor {
                 Frame::default()
                     .fill(fill)
                     .inner_margin(egui::Margin::symmetric(7.0, 15.0))
-                    .show(ui, |ui| ui.vertical_centered(|ui| self.ui(ui, id, touch_mode, &events)))
+                    .show(ui, |ui| {
+                        ui.vertical_centered(|ui| self.ui(ui, self.id, touch_mode, &events))
+                    })
             });
         self.ui_rect = sao.inner_rect;
 
         // set focus again because egui clears it for our widget for some reason
         if focus {
             ui.memory_mut(|m| {
-                m.request_focus(id);
-                m.lock_focus(id, true);
+                m.request_focus(self.id);
+                m.lock_focus(self.id, true);
             });
         }
 
