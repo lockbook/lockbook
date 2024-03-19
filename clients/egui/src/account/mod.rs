@@ -546,8 +546,8 @@ impl AccountScreen {
                                 core.clone(),
                                 &bytes,
                                 &toolbar_visibility,
-                                // update_tx.clone(),
                                 false,
+                                id,
                             ))
                         } else if is_supported_image_fmt(ext) {
                             TabContent::Image(ImageViewer::new(id.to_string(), &bytes))
