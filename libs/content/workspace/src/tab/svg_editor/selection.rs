@@ -1,6 +1,8 @@
 use bezier_rs::Subpath;
 use glam::{DAffine2, DMat2, DVec2};
 
+use crate::tab::svg_editor::util::apply_transform_to_pos;
+
 use super::{
     history::{ManipulatorGroupId, TransformElement},
     node_by_id,
@@ -144,7 +146,7 @@ impl Selection {
 
         for el in self.selected_elements.iter_mut() {
             let path = buffer.paths.get(&el.id).unwrap();
-            let res = show_bb_rect(ui, path, working_rect, pos);
+            let mut res = show_bb_rect(ui, path, working_rect, pos);
 
             if ui.input(|r| r.pointer.primary_released()) {
                 transform_origin_dirty = true;
@@ -154,7 +156,7 @@ impl Selection {
                 transform_origin_dirty = true;
             } else if ui.input(|r| r.pointer.primary_down()) {
                 if matches!(self.current_op, SelectionOperation::Idle) {
-                    if let Some(r) = res {
+                    if let Some(r) = &mut res {
                         self.current_op = r.current_op;
                         ui.output_mut(|w| w.cursor_icon = r.cursor_icon);
                     }
@@ -172,10 +174,16 @@ impl Selection {
                         drag(delta, el, buffer);
                         ui.output_mut(|w| w.cursor_icon = egui::CursorIcon::Grabbing);
                     }
-                    SelectionOperation::HorizontalScale | SelectionOperation::VerticalScale => {
-                        zoom_to_pos(pos, el, buffer, &self.current_op);
-                        transform_origin_dirty = true;
-                        history_dirty = true;
+                    SelectionOperation::EastScale
+                    | SelectionOperation::WestScale
+                    | SelectionOperation::NorthScale
+                    | SelectionOperation::SouthScale => {
+                        let icon = zoom_to_pos(pos, el, buffer);
+                        if let Some(c) = icon {
+                            ui.output_mut(|w| w.cursor_icon = c);
+                        }
+
+                        // transform_origin_dirty = true;
                     }
                     SelectionOperation::Idle => {}
                 }
@@ -399,11 +407,13 @@ impl SelectionRect {
         )
     }
 }
-#[derive(Default)]
+#[derive(Default, Clone, Copy)]
 enum SelectionOperation {
     Drag,
-    HorizontalScale,
-    VerticalScale,
+    EastScale,
+    WestScale,
+    NorthScale,
+    SouthScale,
     #[default]
     Idle,
 }
@@ -411,6 +421,21 @@ enum SelectionOperation {
 struct SelectionResponse {
     current_op: SelectionOperation,
     cursor_icon: egui::CursorIcon,
+}
+
+impl SelectionResponse {
+    fn new(current_op: SelectionOperation) -> Self {
+        let cursor_icon = match current_op {
+            SelectionOperation::Drag => egui::CursorIcon::Grab,
+            SelectionOperation::EastScale => egui::CursorIcon::ResizeEast,
+            SelectionOperation::WestScale => egui::CursorIcon::ResizeWest,
+            SelectionOperation::NorthScale => egui::CursorIcon::ResizeNorth,
+            SelectionOperation::SouthScale => egui::CursorIcon::ResizeSouth,
+            SelectionOperation::Idle => egui::CursorIcon::Default,
+        };
+
+        Self { current_op, cursor_icon }
+    }
 }
 
 fn show_bb_rect(
@@ -494,39 +519,30 @@ fn get_cursor_icon(
         max: egui::pos2(bb[1].x as f32, bb[1].y as f32),
     };
 
-    let mut res = SelectionResponse {
-        current_op: SelectionOperation::HorizontalScale,
-        cursor_icon: egui::CursorIcon::ResizeColumn,
-    };
-
     if let Some(left_path) = &selection_rect.left {
         if pointer_interests_path(left_path, cursor_pos, None, SCALE_BRUSH_SIZE) {
-            return Some(res);
+            return Some(SelectionResponse::new(SelectionOperation::WestScale));
         }
     };
     if let Some(right_path) = &selection_rect.right {
         if pointer_interests_path(right_path, cursor_pos, None, SCALE_BRUSH_SIZE) {
-            return Some(res);
+            return Some(SelectionResponse::new(SelectionOperation::EastScale));
         }
     };
 
-    res.cursor_icon = egui::CursorIcon::ResizeRow;
-    res.current_op = SelectionOperation::VerticalScale;
     if let Some(top_path) = &selection_rect.top {
         if pointer_interests_path(top_path, cursor_pos, None, SCALE_BRUSH_SIZE) {
-            return Some(res);
+            return Some(SelectionResponse::new(SelectionOperation::NorthScale));
         }
     };
     if let Some(bottom_path) = &selection_rect.bottom {
         if pointer_interests_path(bottom_path, cursor_pos, None, SCALE_BRUSH_SIZE) {
-            return Some(res);
+            return Some(SelectionResponse::new(SelectionOperation::SouthScale));
         }
     };
 
-    res.cursor_icon = egui::CursorIcon::Grab;
-    res.current_op = SelectionOperation::Drag;
     if rect.contains(cursor_pos) {
-        return Some(res);
+        return Some(SelectionResponse::new(SelectionOperation::Drag));
     }
     None
 }
@@ -584,32 +600,21 @@ fn zoom_from_center(factor: f64, de: &mut SelectedElement, buffer: &mut Buffer) 
         scaled_matrix[5] -=
             (1. - factor) * (element_rect.height() / 2. - element_rect.bottom()) as f64;
 
-        node.set_attr("transform", serialize_transform(&scaled_matrix));
+        de.original_matrix = (serialize_transform(&scaled_matrix), scaled_matrix);
+        node.set_attr("transform", de.original_matrix.0.clone());
         buffer.needs_path_map_update = true;
     }
 }
 
 fn zoom_to_pos(
-    pos: egui::Pos2, de: &mut SelectedElement, buffer: &mut Buffer, current_op: &SelectionOperation,
-) {
+    pos: egui::Pos2, de: &mut SelectedElement, buffer: &mut Buffer,
+) -> Option<egui::CursorIcon> {
     let path = match buffer.paths.get_mut(&de.id) {
-        None => return,
+        None => return None,
         Some(p) => p,
     };
 
-    // the inverse of the master transform will get the location of the
-    // path's in terms of the svg viewport instead of the default egui
-    // viewport. those cords are used for center based scaling.
-    if let Some(transform) = buffer.current.attr("transform") {
-        let [a, b, c, d, e, f] = deserialize_transform(transform);
-        path.apply_transform(
-            DAffine2 {
-                matrix2: DMat2 { x_axis: DVec2 { x: a, y: b }, y_axis: DVec2 { x: c, y: d } },
-                translation: DVec2 { x: e, y: f },
-            }
-            .inverse(),
-        );
-    }
+    let mut res_icon = None;
 
     let bb = path.bounding_box().unwrap();
     let element_rect = egui::Rect {
@@ -617,12 +622,28 @@ fn zoom_to_pos(
         max: egui::pos2(bb[1].x as f32, bb[1].y as f32),
     };
 
-    let factor = match current_op {
-        SelectionOperation::HorizontalScale => (pos.x - element_rect.left()) / element_rect.width(),
-        SelectionOperation::VerticalScale => (pos.y - element_rect.top()) / element_rect.height(),
-        _ => return,
-    } as f64;
-    println!("factor: {factor}");
+    let top_distance = pos.y - element_rect.min.y;
+    let bottom_distance = element_rect.max.y - pos.y;
+    let left_distance = pos.x - element_rect.min.x;
+    let right_distance = element_rect.max.x - pos.x;
 
-    zoom_from_center(factor, de, buffer);
+    let min_distance =
+        f32::min(f32::min(top_distance, bottom_distance), f32::min(left_distance, right_distance));
+
+    let factor = if min_distance == top_distance {
+        res_icon = Some(SelectionResponse::new(SelectionOperation::NorthScale).cursor_icon);
+        (element_rect.bottom() - pos.y) / element_rect.height().abs()
+    } else if min_distance == bottom_distance {
+        res_icon = Some(SelectionResponse::new(SelectionOperation::SouthScale).cursor_icon);
+        (pos.y - element_rect.top()) / element_rect.height().abs()
+    } else if min_distance == right_distance {
+        res_icon = Some(SelectionResponse::new(SelectionOperation::EastScale).cursor_icon);
+        (pos.x - element_rect.left()) / element_rect.width().abs()
+    } else {
+        res_icon = Some(SelectionResponse::new(SelectionOperation::WestScale).cursor_icon);
+        (element_rect.right() - pos.x) / element_rect.width().abs()
+    };
+
+    zoom_from_center(factor as f64, de, buffer);
+    res_icon
 }
