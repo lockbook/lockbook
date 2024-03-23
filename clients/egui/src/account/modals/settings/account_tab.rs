@@ -8,7 +8,7 @@ pub struct AccountSettings {
     update_tx: mpsc::Sender<Update>,
     update_rx: mpsc::Receiver<Update>,
     export_result: Result<String, String>,
-    maybe_qr_png_bytes_result: Option<Result<Image<'static>, String>>,
+    maybe_qr_result: Option<Result<Image<'static>, String>>,
     generating_qr: bool,
 }
 
@@ -16,13 +16,7 @@ impl AccountSettings {
     pub fn new(export_result: Result<String, String>) -> Self {
         let (update_tx, update_rx) = mpsc::channel();
 
-        Self {
-            update_tx,
-            update_rx,
-            export_result,
-            maybe_qr_png_bytes_result: None,
-            generating_qr: false,
-        }
+        Self { update_tx, update_rx, export_result, maybe_qr_result: None, generating_qr: false }
     }
 }
 
@@ -41,14 +35,14 @@ impl super::SettingsModal {
                     self.generate_qr(ui.ctx());
                 }
                 Update::OpenQrCode(result) => {
-                    self.account.maybe_qr_png_bytes_result = Some(result);
+                    self.account.maybe_qr_result = Some(result);
                     self.account.generating_qr = false;
                 }
-                Update::CloseQr => self.account.maybe_qr_png_bytes_result = None,
+                Update::CloseQr => self.account.maybe_qr_result = None,
             }
         }
 
-        if let Some(qr_result) = &self.account.maybe_qr_png_bytes_result {
+        if let Some(qr_result) = &self.account.maybe_qr_result {
             ui.vertical_centered(|ui| {
                 match qr_result {
                     Ok(img) => {
