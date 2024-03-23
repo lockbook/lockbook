@@ -123,7 +123,7 @@ impl OnboardScreen {
                 ui.set_max_width(400.0);
 
                 ui.add_space(40.0);
-                ui.add(self.logo.clone().fit_to_exact_size(vec2(100.0, 100.0)));
+                ui.add(self.logo.clone());
 
                 ui.add_space(50.0);
                 ui.label(egui::RichText::new("Lockbook").size(48.0));
