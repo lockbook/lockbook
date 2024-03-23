@@ -1,4 +1,4 @@
-use egui::{pos2, vec2, Color32, Context, Image, Rect};
+use egui::{vec2, Color32, Context, Image};
 use std::ops::Deref;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{channel, Receiver, Sender};
@@ -566,9 +566,7 @@ impl Workspace {
                         TabContent::PlainText(PlainText::new(&bytes))
                     }
                 });
-            println!("file loaded message sent: {id}, success: {}", content.is_ok());
             update_tx.send(WsMsg::FileLoaded(id, content)).unwrap();
-            println!("sent successfully");
             ctx.request_repaint();
         });
     }
@@ -640,15 +638,14 @@ impl Workspace {
                         match content {
                             Ok(content) => {
                                 tab.content = Some(content);
-                                println!("successfully loaded file");
                             }
                             Err(fail) => {
+                                println!("failed to load file: {:?}", fail);
                                 tab.failure = Some(fail);
-                                println!("failed loaded file 1");
                             }
                         }
                     } else {
-                        println!("failed to load file 2");
+                        println!("failed to load file: tab not found");
                     }
                 }
                 WsMsg::BgSignal(Signal::SaveAll) => {
