@@ -59,6 +59,8 @@ impl Lockbook {
     }
 
     pub fn update(&mut self, ctx: &egui::Context) -> UpdateOutput {
+        egui_extras::install_image_loaders(ctx);
+
         let mut output = Default::default();
         match self {
             // If we're on the Splash screen, we're waiting for the handoff to transition to the
