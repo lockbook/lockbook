@@ -61,6 +61,7 @@ pub enum TabContent {
     Svg(SVGEditor),
 }
 
+#[derive(Debug)]
 pub enum TabFailure {
     DeletedFromSync,
     SimpleMisc(String),
