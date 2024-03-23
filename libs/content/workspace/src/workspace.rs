@@ -236,8 +236,7 @@ impl Workspace {
     fn show_empty_workspace(&mut self, ui: &mut egui::Ui, out: &mut WsOutput) {
         ui.with_layout(egui::Layout::top_down(egui::Align::Center), |ui| {
             ui.add_space(ui.clip_rect().height() / 3.0);
-            self.backdrop
-                .paint_at(ui, Rect::from_min_size(pos2(0.0, 0.0), vec2(100.0, 100.0)));
+            ui.add(self.backdrop.clone().fit_to_exact_size(vec2(100.0, 100.0)));
 
             ui.label(egui::RichText::new("Welcome to your Lockbook").size(40.0));
             ui.label(
