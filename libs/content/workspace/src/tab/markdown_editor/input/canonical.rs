@@ -465,6 +465,7 @@ mod test {
         assert!(matches!(
             calc(
                 &Event::Key {
+                    physical_key: None,
                     key: Key::ArrowDown,
                     pressed: true,
                     repeat: false,
@@ -491,6 +492,7 @@ mod test {
         assert!(matches!(
             calc(
                 &Event::Key {
+                    physical_key: None,
                     key: Key::ArrowDown,
                     pressed: true,
                     repeat: false,
@@ -517,6 +519,7 @@ mod test {
         assert!(matches!(
             calc(
                 &Event::Key {
+                    physical_key: None,
                     key: Key::ArrowDown,
                     pressed: true,
                     repeat: false,
@@ -543,6 +546,7 @@ mod test {
         assert!(matches!(
             calc(
                 &Event::Key {
+                    physical_key: None,
                     key: Key::ArrowDown,
                     pressed: true,
                     repeat: false,
@@ -569,6 +573,7 @@ mod test {
         assert!(matches!(
             calc(
                 &Event::Key {
+                    physical_key: None,
                     key: Key::ArrowUp,
                     pressed: true,
                     repeat: false,
@@ -595,6 +600,7 @@ mod test {
         assert!(matches!(
             calc(
                 &Event::Key {
+                    physical_key: None,
                     key: Key::ArrowUp,
                     pressed: true,
                     repeat: false,
@@ -621,6 +627,7 @@ mod test {
         assert!(matches!(
             calc(
                 &Event::Key {
+                    physical_key: None,
                     key: Key::ArrowUp,
                     pressed: true,
                     repeat: false,
@@ -647,6 +654,7 @@ mod test {
         assert!(matches!(
             calc(
                 &Event::Key {
+                    physical_key: None,
                     key: Key::ArrowUp,
                     pressed: true,
                     repeat: false,
@@ -673,6 +681,7 @@ mod test {
         assert!(matches!(
             calc(
                 &Event::Key {
+                    physical_key: None,
                     key: Key::ArrowRight,
                     pressed: true,
                     repeat: false,
@@ -700,6 +709,7 @@ mod test {
         assert!(matches!(
             calc(
                 &Event::Key {
+                    physical_key: None,
                     key: Key::ArrowRight,
                     pressed: true,
                     repeat: false,
@@ -726,6 +736,7 @@ mod test {
         assert!(matches!(
             calc(
                 &Event::Key {
+                    physical_key: None,
                     key: Key::ArrowRight,
                     pressed: true,
                     repeat: false,
@@ -752,6 +763,7 @@ mod test {
         assert!(matches!(
             calc(
                 &Event::Key {
+                    physical_key: None,
                     key: Key::ArrowRight,
                     pressed: true,
                     repeat: false,
@@ -779,6 +791,7 @@ mod test {
         assert!(matches!(
             calc(
                 &Event::Key {
+                    physical_key: None,
                     key: Key::ArrowRight,
                     pressed: true,
                     repeat: false,
@@ -805,6 +818,7 @@ mod test {
         assert!(matches!(
             calc(
                 &Event::Key {
+                    physical_key: None,
                     key: Key::ArrowRight,
                     pressed: true,
                     repeat: false,
@@ -831,6 +845,7 @@ mod test {
         assert!(matches!(
             calc(
                 &Event::Key {
+                    physical_key: None,
                     key: Key::End,
                     pressed: true,
                     repeat: false,
@@ -857,6 +872,7 @@ mod test {
         assert!(matches!(
             calc(
                 &Event::Key {
+                    physical_key: None,
                     key: Key::End,
                     pressed: true,
                     repeat: false,
@@ -883,6 +899,7 @@ mod test {
         assert!(matches!(
             calc(
                 &Event::Key {
+                    physical_key: None,
                     key: Key::ArrowLeft,
                     pressed: true,
                     repeat: false,
@@ -910,6 +927,7 @@ mod test {
         assert!(matches!(
             calc(
                 &Event::Key {
+                    physical_key: None,
                     key: Key::ArrowLeft,
                     pressed: true,
                     repeat: false,
@@ -936,6 +954,7 @@ mod test {
         assert!(matches!(
             calc(
                 &Event::Key {
+                    physical_key: None,
                     key: Key::ArrowLeft,
                     pressed: true,
                     repeat: false,
@@ -962,6 +981,7 @@ mod test {
         assert!(matches!(
             calc(
                 &Event::Key {
+                    physical_key: None,
                     key: Key::ArrowLeft,
                     pressed: true,
                     repeat: false,
@@ -989,6 +1009,7 @@ mod test {
         assert!(matches!(
             calc(
                 &Event::Key {
+                    physical_key: None,
                     key: Key::ArrowLeft,
                     pressed: true,
                     repeat: false,
@@ -1015,6 +1036,7 @@ mod test {
         assert!(matches!(
             calc(
                 &Event::Key {
+                    physical_key: None,
                     key: Key::ArrowLeft,
                     pressed: true,
                     repeat: false,
@@ -1041,6 +1063,7 @@ mod test {
         assert!(matches!(
             calc(
                 &Event::Key {
+                    physical_key: None,
                     key: Key::Home,
                     pressed: true,
                     repeat: false,
@@ -1067,6 +1090,7 @@ mod test {
         assert!(matches!(
             calc(
                 &Event::Key {
+                    physical_key: None,
                     key: Key::Home,
                     pressed: true,
                     repeat: false,
@@ -1093,6 +1117,7 @@ mod test {
         assert!(matches!(
             calc(
                 &Event::Key {
+                    physical_key: None,
                     key: Key::Home,
                     pressed: true,
                     repeat: false,
@@ -1119,6 +1144,7 @@ mod test {
         assert!(matches!(
             calc(
                 &Event::Key {
+                    physical_key: None,
                     key: Key::Home,
                     pressed: true,
                     repeat: false,
