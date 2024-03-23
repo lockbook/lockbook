@@ -8,6 +8,7 @@ impl ImageViewer {
     pub fn new(bytes: &[u8]) -> Self {
         let bytes = Vec::from(bytes);
         let img = Image::from_bytes("bytes://qr.png", bytes);
+
         Self { img }
     }
 

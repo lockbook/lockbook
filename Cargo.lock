@@ -4142,6 +4142,7 @@ dependencies = [
  "egui_editor",
  "egui_extras",
  "egui_wgpu_backend",
+ "env_logger",
  "image 0.24.9",
  "lb-fonts",
  "lb-rs",
