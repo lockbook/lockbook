@@ -30,11 +30,8 @@ impl Workspace {
                 }
             };
 
-            println!("sync called");
             let result = core.sync(Some(Box::new(closure)));
             update_tx.send(WsMsg::SyncDone(result)).unwrap();
-
-            println!("sync done");
 
             ctx.request_repaint();
         });
