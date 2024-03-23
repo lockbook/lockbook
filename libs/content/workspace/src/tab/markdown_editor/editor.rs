@@ -196,7 +196,7 @@ impl Editor {
 
                 Frame::default()
                     .fill(fill)
-                    .inner_margin(egui::Margin::symmetric(7.0, 15.0))
+                    .inner_margin(egui::Margin::symmetric(0.0, 15.0))
                     .show(ui, |ui| {
                         ui.vertical_centered(|ui| self.ui(ui, self.id, touch_mode, &events))
                     })
@@ -231,6 +231,8 @@ impl Editor {
         let max_width = 800.0;
         if ui.max_rect().width() > max_width {
             ui.set_max_width(max_width);
+        } else {
+            ui.set_max_width(ui.max_rect().width() - 15.);
         }
 
         // process events

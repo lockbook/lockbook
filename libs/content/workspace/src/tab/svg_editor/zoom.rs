@@ -9,17 +9,6 @@ use super::{
 pub const G_CONTAINER_ID: &str = "lb:zoom_container";
 
 pub fn handle_zoom_input(ui: &mut egui::Ui, working_rect: egui::Rect, buffer: &mut Buffer) {
-    let pos = match ui.ctx().pointer_hover_pos() {
-        Some(cp) => {
-            if ui.is_enabled() && working_rect.contains(cp) {
-                cp
-            } else {
-                egui::Pos2::ZERO
-            }
-        }
-        None => egui::Pos2::ZERO,
-    };
-
     let zoom_delta = ui.input(|r| r.zoom_delta());
     let is_zooming = zoom_delta != 0.0;
 
@@ -38,6 +27,17 @@ pub fn handle_zoom_input(ui: &mut egui::Ui, working_rect: egui::Rect, buffer: &m
             None
         }
     });
+
+    let pos = match ui.ctx().pointer_hover_pos() {
+        Some(cp) => {
+            if ui.is_enabled() && working_rect.contains(cp) {
+                cp
+            } else {
+                return; // todo: check this doesn't break zoom on touch devices
+            }
+        }
+        None => egui::Pos2::ZERO,
+    };
 
     if pan.is_some() || is_zooming {
         let mut original_matrix =

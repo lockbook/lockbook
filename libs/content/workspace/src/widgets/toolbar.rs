@@ -73,6 +73,10 @@ impl ToolBar {
             let pointer = ui.ctx().pointer_hover_pos().unwrap_or_default();
             let toolbar_rect = self.calculate_rect(ui, editor);
 
+            if ui.available_rect_before_wrap().width() < toolbar_rect.width() {
+                return;
+            }
+
             if toolbar_rect.contains(pointer) {
                 if editor.has_focus {
                     editor.has_focus = false
