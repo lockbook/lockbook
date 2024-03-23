@@ -1,7 +1,7 @@
 use std::sync::mpsc;
 
 use eframe::egui;
-use egui::{pos2, vec2, Image, Rect};
+use egui::{vec2, Image};
 use egui_extras::{Size, StripBuilder};
 
 pub struct AccountSettings {
@@ -52,7 +52,7 @@ impl super::SettingsModal {
             ui.vertical_centered(|ui| {
                 match qr_result {
                     Ok(img) => {
-                        img.paint_at(ui, Rect::from_min_size(pos2(0.0, 0.0), vec2(350.0, 350.0)));
+                        ui.add(img.clone().fit_to_exact_size(vec2(350.0, 350.0)));
                     }
                     Err(err) => {
                         ui.label(err);
