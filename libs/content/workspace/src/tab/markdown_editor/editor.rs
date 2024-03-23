@@ -100,7 +100,7 @@ pub struct Editor {
 impl Editor {
     pub fn new(core: lb_rs::Core, content: &str, file_id: &Uuid) -> Self {
         Self {
-            id: egui::Id::NULL,
+            id: egui::Id::new(file_id),
             initialized: Default::default(),
 
             core,
@@ -188,7 +188,7 @@ impl Editor {
                     if m.has_focus(self.id) {
                         focus = true;
                         m.set_focus_lock_filter(
-                            id,
+                            self.id,
                             egui::EventFilter {
                                 tab: true,
                                 horizontal_arrows: true,
@@ -214,9 +214,9 @@ impl Editor {
         // set focus again because egui clears it for our widget for some reason
         if focus {
             ui.memory_mut(|m| {
-                m.request_focus(id);
+                m.request_focus(self.id);
                 m.set_focus_lock_filter(
-                    id,
+                    self.id,
                     egui::EventFilter {
                         tab: true,
                         horizontal_arrows: true,
