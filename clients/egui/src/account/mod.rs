@@ -15,7 +15,9 @@ use lb::{FileType, Uuid};
 use workspace_rs::background::BwIncomingMsg;
 use workspace_rs::tab::image_viewer::{is_supported_image_fmt, ImageViewer};
 use workspace_rs::tab::markdown_editor::Markdown;
+use workspace_rs::tab::pdf_viewer::PdfViewer;
 use workspace_rs::tab::plain_text::PlainText;
+use workspace_rs::tab::svg_editor::SVGEditor;
 use workspace_rs::tab::{Tab, TabContent, TabFailure};
 use workspace_rs::theme::icons::Icon;
 use workspace_rs::widgets::Button;
@@ -550,7 +552,7 @@ impl AccountScreen {
                                 id,
                             ))
                         } else if is_supported_image_fmt(ext) {
-                            TabContent::Image(ImageViewer::new(&bytes))
+                            TabContent::Image(ImageViewer::new(&id.to_string(), ext, &bytes))
                         } else {
                             TabContent::PlainText(PlainText::new(&bytes))
                         }

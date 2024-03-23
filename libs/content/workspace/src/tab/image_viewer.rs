@@ -5,9 +5,10 @@ pub struct ImageViewer {
 }
 
 impl ImageViewer {
-    pub fn new(bytes: &[u8]) -> Self {
+    pub fn new(id: &str, ext: &str, bytes: &[u8]) -> Self {
         let bytes = Vec::from(bytes);
-        let img = Image::from_bytes("bytes://image.png", bytes);
+        let uri = format!("bytes://{}.{}", id, ext);
+        let img = Image::from_bytes(uri, bytes);
 
         Self { img }
     }
