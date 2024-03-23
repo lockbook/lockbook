@@ -9,7 +9,7 @@ pub fn subscription(
 
     egui::Frame::none()
         .fill(bg)
-        .stroke((2.0, stroke_color).into())
+        .stroke(egui::Stroke::new(2.0, stroke_color))
         .rounding(egui::Rounding::same(4.0))
         .inner_margin(12.0)
         .show(ui, |ui| {

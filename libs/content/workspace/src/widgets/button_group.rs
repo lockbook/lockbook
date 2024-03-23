@@ -62,6 +62,8 @@ impl<T: Copy + PartialEq> ButtonGroup<T> {
                 rounding: egui::Rounding::same(5.0),
                 fill: ui.visuals().extreme_bg_color,
                 stroke: ui.visuals().widgets.noninteractive.fg_stroke,
+                fill_texture_id: egui::TextureId::default(),
+                uv: egui::Rect::ZERO,
             },
         );
 
@@ -97,8 +99,7 @@ impl<T: Copy + PartialEq> ButtonGroup<T> {
         let (rect, resp) = ui.allocate_at_least(desired_size, egui::Sense::click());
 
         if ui.is_rect_visible(rect) {
-            let visuals = ui.style().interact(&resp);
-
+            let text_color = ui.style().interact(&resp).text_color();
             let is_first = index == 0;
             let is_last = index == self.buttons.len() - 1;
 
@@ -127,19 +128,20 @@ impl<T: Copy + PartialEq> ButtonGroup<T> {
                     let text = txt.into_galley(ui, Some(false), wrap_width, TextStyle::Body);
                     let text_pos = rect.center() - text.size() / 2.0;
 
-                    text.paint_with_visuals(ui.painter(), text_pos, visuals);
+                    ui.painter()
+                        .galley_with_override_text_color(text_pos, text, text_color);
                 }
                 ButtonContent::Icon(wtxt) => {
                     let text =
                         wtxt.clone()
                             .into_galley(ui, Some(false), wrap_width, TextStyle::Body);
-
                     let text_pos = egui::pos2(
                         rect.center().x - text.size().x / 2.0,
                         rect.center().y - text.size().y / 4.0,
                     );
 
-                    text.paint_with_visuals(ui.painter(), text_pos, visuals);
+                    ui.painter()
+                        .galley_with_override_text_color(text_pos, text, text_color);
                 } // TODO layout widget
             }
         };

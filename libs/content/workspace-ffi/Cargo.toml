@@ -9,8 +9,8 @@ crate-type = ["lib", "staticlib", "cdylib"]
 path = "src/lib.rs"
 
 [dependencies]
-egui = "0.22.0"
-egui_wgpu_backend = "0.24.0"
+egui = "0.26.2"
+egui_wgpu_backend = "0.28"
 libc = "0.2"
 egui_editor = { path = "../editor/egui_editor" }
 workspace = { path = "../workspace/" }

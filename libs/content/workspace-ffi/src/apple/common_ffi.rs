@@ -1,7 +1,7 @@
 use crate::{CUuid, IntegrationOutput, WgpuWorkspace};
 use egui::os::OperatingSystem;
 use egui::{vec2, Context, Event, FontDefinitions, Pos2};
-use egui_wgpu_backend::wgpu::CompositeAlphaMode;
+use egui_wgpu_backend::wgpu::{CompositeAlphaMode, SurfaceTargetUnsafe};
 use egui_wgpu_backend::{wgpu, ScreenDescriptor};
 use lb_external_interface::lb_rs::Uuid;
 use lb_external_interface::Core;
@@ -24,9 +24,10 @@ pub unsafe extern "C" fn init_ws(
     let backends = wgpu::util::backend_bits_from_env().unwrap_or_else(wgpu::Backends::all);
     let instance_desc = wgpu::InstanceDescriptor { backends, ..Default::default() };
     let instance = wgpu::Instance::new(instance_desc);
-    let surface = instance.create_surface_from_core_animation_layer(metal_layer);
-    let (adapter, device, queue) =
-        pollster::block_on(request_device(&instance, backends, &surface));
+    let surface = instance
+        .create_surface_unsafe(SurfaceTargetUnsafe::CoreAnimationLayer(metal_layer))
+        .unwrap();
+    let (adapter, device, queue) = pollster::block_on(request_device(&instance, &surface));
     let format = surface.get_capabilities(&adapter).formats[0];
     let screen =
         ScreenDescriptor { physical_width: 1000, physical_height: 1000, scale_factor: 1.0 };
@@ -38,6 +39,7 @@ pub unsafe extern "C" fn init_ws(
         present_mode: wgpu::PresentMode::Fifo,
         alpha_mode: CompositeAlphaMode::Auto,
         view_formats: vec![],
+        desired_maximum_frame_latency: 2,
     };
     surface.configure(&device, &surface_config);
     let rpass = egui_wgpu_backend::RenderPass::new(&device, format, 1);
@@ -204,20 +206,19 @@ pub unsafe extern "C" fn deinit_editor(obj: *mut c_void) {
 }
 
 async fn request_device(
-    instance: &wgpu::Instance, backend: wgpu::Backends, surface: &wgpu::Surface,
+    instance: &wgpu::Instance, surface: &wgpu::Surface<'_>,
 ) -> (wgpu::Adapter, wgpu::Device, wgpu::Queue) {
-    let adapter =
-        wgpu::util::initialize_adapter_from_env_or_default(instance, backend, Some(surface))
-            .await
-            .expect("No suitable GPU adapters found on the system!");
+    let adapter = wgpu::util::initialize_adapter_from_env_or_default(instance, Some(surface))
+        .await
+        .expect("No suitable GPU adapters found on the system!");
     let adapter_info = adapter.get_info();
     println!("Using {} ({:?})", adapter_info.name, adapter_info.backend);
     let res = adapter
         .request_device(
             &wgpu::DeviceDescriptor {
                 label: None,
-                features: adapter.features(),
-                limits: adapter.limits(),
+                required_features: adapter.features(),
+                required_limits: adapter.limits(),
             },
             None,
         )

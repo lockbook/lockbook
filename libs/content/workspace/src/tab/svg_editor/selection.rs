@@ -104,9 +104,9 @@ impl Selection {
                 self.laso_rect = Some(rect);
                 ui.painter().rect_filled(
                     rect,
-                    egui::Rounding::none(),
+                    egui::Rounding::ZERO,
                     ui.visuals().hyperlink_color.gamma_multiply(0.1),
-                )
+                );
             } else if ui.input(|r| r.pointer.primary_released()) && self.laso_rect.is_some() {
                 // if the path bounding box intersects with the laso rect then it's a match
                 buffer.paths.iter().for_each(|(id, path)| {
@@ -210,7 +210,7 @@ impl Selection {
                 drag(d, el, buffer);
             }
 
-            let is_scaling_up = ui.input(|r| r.key_pressed(egui::Key::PlusEquals));
+            let is_scaling_up = ui.input(|r| r.key_pressed(egui::Key::Equals));
             let is_scaling_down = ui.input(|r| r.key_pressed(egui::Key::Minus));
 
             let scale_factor = if is_scaling_up {
@@ -392,10 +392,10 @@ impl SelectionRect {
         };
         ui.painter().rect(
             rect,
-            egui::Rounding::none(),
+            egui::Rounding::ZERO,
             egui::Color32::WHITE,
             egui::Stroke { width: 1.0, color: ui.visuals().hyperlink_color },
-        )
+        );
     }
 }
 #[derive(Default)]

@@ -1,13 +1,14 @@
 use std::sync::mpsc;
 
 use eframe::egui;
-use egui_extras::{RetainedImage, Size, StripBuilder};
+use egui::{vec2, Image};
+use egui_extras::{Size, StripBuilder};
 
 pub struct AccountSettings {
     update_tx: mpsc::Sender<Update>,
     update_rx: mpsc::Receiver<Update>,
     export_result: Result<String, String>,
-    maybe_qr_result: Option<Result<RetainedImage, String>>,
+    maybe_qr_result: Option<Result<Image<'static>, String>>,
     generating_qr: bool,
 }
 
@@ -21,7 +22,7 @@ impl AccountSettings {
 
 enum Update {
     GenerateQr,
-    OpenQrCode(Result<RetainedImage, String>),
+    OpenQrCode(Result<Image<'static>, String>),
     CloseQr,
 }
 
@@ -45,7 +46,7 @@ impl super::SettingsModal {
             ui.vertical_centered(|ui| {
                 match qr_result {
                     Ok(img) => {
-                        img.show_size(ui, egui::vec2(350.0, 350.0));
+                        ui.add(img.clone().fit_to_exact_size(vec2(350.0, 350.0)));
                     }
                     Err(err) => {
                         ui.label(err);
@@ -103,7 +104,7 @@ impl super::SettingsModal {
         std::thread::spawn(move || {
             let result = core
                 .export_account_qr()
-                .map(|png| RetainedImage::from_image_bytes("qr", &png).unwrap())
+                .map(|png| Image::from_bytes("bytes://qr.png", png))
                 .map_err(|err| format!("{:?}", err));
             update_tx.send(Update::OpenQrCode(result)).unwrap();
             ctx.request_repaint();

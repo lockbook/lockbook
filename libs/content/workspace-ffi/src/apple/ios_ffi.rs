@@ -47,6 +47,7 @@ pub unsafe extern "C" fn backspace(obj: *mut c_void) {
 
     obj.raw_input.events.push(Event::Key {
         key: Key::Backspace,
+        physical_key: None,
         pressed: true,
         repeat: false,
         modifiers: Default::default(),
@@ -263,7 +264,7 @@ pub unsafe extern "C" fn touches_began(obj: *mut c_void, id: u64, x: f32, y: f32
         id: TouchId(id),
         phase: TouchPhase::Start,
         pos: Pos2 { x, y },
-        force,
+        force: Some(force),
     });
 
     obj.raw_input.events.push(Event::PointerButton {
@@ -284,7 +285,7 @@ pub unsafe extern "C" fn touches_moved(obj: *mut c_void, id: u64, x: f32, y: f32
         id: TouchId(id),
         phase: TouchPhase::Move,
         pos: Pos2 { x, y },
-        force,
+        force: Some(force),
     });
 
     obj.raw_input
@@ -304,7 +305,7 @@ pub unsafe extern "C" fn touches_ended(obj: *mut c_void, id: u64, x: f32, y: f32
         id: TouchId(id),
         phase: TouchPhase::End,
         pos: Pos2 { x, y },
-        force,
+        force: Some(force),
     });
 
     obj.raw_input.events.push(Event::PointerButton {
@@ -329,7 +330,7 @@ pub unsafe extern "C" fn touches_cancelled(obj: *mut c_void, id: u64, x: f32, y:
         id: TouchId(id),
         phase: TouchPhase::Cancel,
         pos: Pos2 { x, y },
-        force,
+        force: Some(force),
     });
 
     obj.raw_input.events.push(Event::PointerGone);
@@ -765,6 +766,7 @@ pub unsafe extern "C" fn delete_word(obj: *mut c_void) {
 
     obj.raw_input.events.push(Event::Key {
         key: Key::Backspace,
+        physical_key: None,
         pressed: true,
         repeat: false,
         modifiers: Modifiers::ALT,
@@ -863,8 +865,12 @@ pub unsafe extern "C" fn ios_key_event(
 
     // Event::Key
     if let Some(key) = key.egui_key() {
-        obj.raw_input
-            .events
-            .push(Event::Key { key, pressed, repeat: false, modifiers });
+        obj.raw_input.events.push(Event::Key {
+            key,
+            physical_key: None,
+            pressed,
+            repeat: false,
+            modifiers,
+        });
     }
 }

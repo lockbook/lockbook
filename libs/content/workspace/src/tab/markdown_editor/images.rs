@@ -110,7 +110,8 @@ pub fn calc(
                         let size_pixels = [image.width() as usize, image.height() as usize];
 
                         let egui_image = egui::ImageData::Color(
-                            ColorImage::from_rgba_unmultiplied(size_pixels, &image.to_rgba8()),
+                            ColorImage::from_rgba_unmultiplied(size_pixels, &image.to_rgba8())
+                                .into(),
                         );
                         Ok(texture_manager
                             .write()

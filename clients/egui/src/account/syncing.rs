@@ -67,10 +67,10 @@ impl super::AccountScreen {
                             self.sync.expanded_usage_msg_rect = rect;
                         }
 
-                        galley.paint_with_visuals(
-                            ui.painter(),
+                        ui.painter().galley_with_override_text_color(
                             rect.left_top(),
-                            ui.style().interact(&resp),
+                            galley,
+                            ui.style().interact(&resp).text_color(),
                         );
 
                         if self
