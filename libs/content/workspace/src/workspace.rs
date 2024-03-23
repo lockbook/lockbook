@@ -819,21 +819,20 @@ fn tab_label(ui: &mut egui::Ui, t: &mut Tab, is_active: bool) -> Option<TabLabel
             ui.painter()
                 .galley_with_override_text_color(icon_draw_pos, icon, text_color);
 
-            let close_resp = ui.interact(
-                close_btn_rect,
-                egui::Id::new(format!("close-btn-{}", t.id)),
-                egui::Sense::click(),
-            );
             // First, we check if the close button was clicked.
-            if close_resp.clicked() {
+            // Since egui 0.26.2, ui.interact(close_btn_rect, ..).clicked() is always false for unknown reasons
+            if ui.input(|i| i.pointer.primary_clicked()) && close_hovered {
+                println!("tab close button clicked");
                 lbl_resp = Some(TabLabelResponse::Closed);
             } else {
                 // Then, we check if the tab label was clicked so that a close button click
                 // wouldn't also count here.
                 let resp = resp.interact(egui::Sense::click());
                 if resp.clicked() {
+                    println!("tab clicked");
                     lbl_resp = Some(TabLabelResponse::Clicked);
                 } else if resp.middle_clicked() {
+                    println!("tab middle clicked");
                     lbl_resp = Some(TabLabelResponse::Closed);
                 }
             }
