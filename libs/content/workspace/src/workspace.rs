@@ -552,7 +552,7 @@ impl Workspace {
                             id,
                         ))
                     } else if is_supported_image_fmt(ext) {
-                        TabContent::Image(ImageViewer::new(&bytes))
+                        TabContent::Image(ImageViewer::new(&id.to_string(), ext, &bytes))
                     } else if ext == "pdf" {
                         TabContent::Pdf(PdfViewer::new(
                             &bytes,
