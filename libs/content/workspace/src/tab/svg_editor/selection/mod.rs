@@ -5,7 +5,7 @@ mod translate;
 use bezier_rs::Subpath;
 
 use self::{
-    rect::SelectionRect,
+    rect::SelectionRectContainer,
     scale::{scale_group_from_center, snap_scale},
     translate::{detect_translation, end_translation, save_translate, save_translates},
 };
@@ -17,7 +17,7 @@ pub struct Selection {
     last_pos: Option<egui::Pos2>,
     selected_elements: Vec<SelectedElement>,
     candidate_selected_elements: Vec<SelectedElement>,
-    selection_rect: Option<SelectionRect>,
+    selection_rect: Option<SelectionRectContainer>,
     laso_original_pos: Option<egui::Pos2>,
     laso_rect: Option<egui::Rect>,
     current_op: SelectionOperation,
@@ -151,8 +151,11 @@ impl Selection {
                         }
                     });
 
-                    self.selection_rect =
-                        SelectionRect::new(&self.candidate_selected_elements, working_rect, buffer);
+                    self.selection_rect = SelectionRectContainer::new(
+                        &self.candidate_selected_elements,
+                        working_rect,
+                        buffer,
+                    );
                 }
             } else if ui.input(|r| r.pointer.primary_released()) && self.laso_rect.is_some() {
                 self.selected_elements = self.candidate_selected_elements.clone();
@@ -162,7 +165,8 @@ impl Selection {
         }
 
         if self.laso_rect.is_none() {
-            self.selection_rect = SelectionRect::new(&self.selected_elements, working_rect, buffer);
+            self.selection_rect =
+                SelectionRectContainer::new(&self.selected_elements, working_rect, buffer);
         }
 
         let mut intent = None;

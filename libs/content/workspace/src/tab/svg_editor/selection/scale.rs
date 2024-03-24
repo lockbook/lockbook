@@ -8,10 +8,11 @@ use crate::tab::svg_editor::{
     Buffer,
 };
 
-use super::{rect::SelectionRect, SelectedElement, SelectionOperation, SelectionResponse};
+use super::{rect::SelectionRectContainer, SelectedElement, SelectionOperation, SelectionResponse};
 
 pub fn scale_group_from_center(
-    factor: f64, els: &mut [SelectedElement], selected_rect: &SelectionRect, buffer: &mut Buffer,
+    factor: f64, els: &mut [SelectedElement], selected_rect: &SelectionRectContainer,
+    buffer: &mut Buffer,
 ) {
     for el in els.iter_mut() {
         scale_from_center(factor, el, selected_rect, buffer)
@@ -19,11 +20,18 @@ pub fn scale_group_from_center(
 }
 
 pub fn scale_from_center(
-    factor: f64, el: &mut SelectedElement, selected_rect: &SelectionRect, buffer: &mut Buffer,
+    factor: f64, el: &mut SelectedElement, selected_rect: &SelectionRectContainer,
+    buffer: &mut Buffer,
 ) {
     let mut path: Subpath<ManipulatorGroupId> = Subpath::new_rect(
-        DVec2 { x: selected_rect.rect.min.x as f64, y: selected_rect.rect.min.y as f64 },
-        DVec2 { x: selected_rect.rect.max.x as f64, y: selected_rect.rect.max.y as f64 },
+        DVec2 {
+            x: selected_rect.container.raw.min.x as f64,
+            y: selected_rect.container.raw.min.y as f64,
+        },
+        DVec2 {
+            x: selected_rect.container.raw.max.x as f64,
+            y: selected_rect.container.raw.max.y as f64,
+        },
     );
 
     // the inverse of the master transform will get the location of the
@@ -63,12 +71,12 @@ pub fn scale_from_center(
 }
 
 pub fn snap_scale(
-    pos: egui::Pos2, els: &mut [SelectedElement], selected_rect: &SelectionRect,
+    pos: egui::Pos2, els: &mut [SelectedElement], selected_rect: &SelectionRectContainer,
     buffer: &mut Buffer,
 ) -> Option<egui::CursorIcon> {
     let mut res_icon = None;
 
-    let element_rect = selected_rect.rect;
+    let element_rect = selected_rect.container.raw;
 
     let top_distance = pos.y - element_rect.min.y;
     let bottom_distance = element_rect.max.y - pos.y;
