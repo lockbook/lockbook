@@ -1,18 +1,30 @@
+use bezier_rs::Subpath;
 use glam::{DAffine2, DMat2, DVec2};
 
 use crate::tab::svg_editor::{
+    history::ManipulatorGroupId,
     node_by_id,
     util::{deserialize_transform, serialize_transform},
     Buffer,
 };
 
-use super::{SelectedElement, SelectionOperation, SelectionResponse};
+use super::{rect::SelectionRect, SelectedElement, SelectionOperation, SelectionResponse};
 
-pub fn scale_from_center(factor: f64, de: &mut SelectedElement, buffer: &mut Buffer) {
-    let path = match buffer.paths.get_mut(&de.id) {
-        None => return,
-        Some(p) => p,
-    };
+pub fn scale_group_from_center(
+    factor: f64, els: &mut [SelectedElement], selected_rect: &SelectionRect, buffer: &mut Buffer,
+) {
+    for el in els.iter_mut() {
+        scale_from_center(factor, el, selected_rect, buffer)
+    }
+}
+
+pub fn scale_from_center(
+    factor: f64, el: &mut SelectedElement, selected_rect: &SelectionRect, buffer: &mut Buffer,
+) {
+    let mut path: Subpath<ManipulatorGroupId> = Subpath::new_rect(
+        DVec2 { x: selected_rect.rect.min.x as f64, y: selected_rect.rect.min.y as f64 },
+        DVec2 { x: selected_rect.rect.max.x as f64, y: selected_rect.rect.max.y as f64 },
+    );
 
     // the inverse of the master transform will get the location of the
     // path's in terms of the svg viewport instead of the default egui
@@ -34,7 +46,7 @@ pub fn scale_from_center(factor: f64, de: &mut SelectedElement, buffer: &mut Buf
         max: egui::pos2(bb[1].x as f32, bb[1].y as f32),
     };
 
-    if let Some(node) = node_by_id(&mut buffer.current, de.id.clone()) {
+    if let Some(node) = node_by_id(&mut buffer.current, el.id.clone()) {
         let mut scaled_matrix = deserialize_transform(node.attr("transform").unwrap_or_default());
         scaled_matrix = scaled_matrix.map(|n| n * factor);
 
@@ -51,18 +63,12 @@ pub fn scale_from_center(factor: f64, de: &mut SelectedElement, buffer: &mut Buf
 }
 
 pub fn snap_scale(
-    pos: egui::Pos2, de: &mut SelectedElement, buffer: &mut Buffer,
+    pos: egui::Pos2, els: &mut [SelectedElement], selected_rect: &SelectionRect,
+    buffer: &mut Buffer,
 ) -> Option<egui::CursorIcon> {
-    let path = match buffer.paths.get_mut(&de.id) {
-        None => return None,
-        Some(p) => p,
-    };
+    let mut res_icon = None;
 
-    let bb = path.bounding_box().unwrap();
-    let element_rect = egui::Rect {
-        min: egui::pos2(bb[0].x as f32, bb[0].y as f32),
-        max: egui::pos2(bb[1].x as f32, bb[1].y as f32),
-    };
+    let element_rect = selected_rect.rect;
 
     let top_distance = pos.y - element_rect.min.y;
     let bottom_distance = element_rect.max.y - pos.y;
@@ -72,7 +78,6 @@ pub fn snap_scale(
     let min_distance =
         f32::min(f32::min(top_distance, bottom_distance), f32::min(left_distance, right_distance));
 
-    let res_icon;
     let factor = if min_distance == top_distance {
         res_icon = Some(SelectionResponse::new(SelectionOperation::NorthScale).cursor_icon);
         (element_rect.bottom() - pos.y) / element_rect.height().abs()
@@ -87,6 +92,8 @@ pub fn snap_scale(
         (element_rect.right() - pos.x) / element_rect.width().abs()
     };
 
-    scale_from_center(factor as f64, de, buffer);
+    for el in els.iter_mut() {
+        scale_from_center(factor as f64, el, selected_rect, buffer);
+    }
     res_icon
 }

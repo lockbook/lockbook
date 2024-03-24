@@ -7,7 +7,6 @@ use crate::tab::svg_editor::{
 
 use super::SelectedElement;
 
-// todo: rename this so that it doesn't have the smae name as the mod
 pub fn save_translate(delta: egui::Pos2, de: &mut SelectedElement, buffer: &mut Buffer) {
     if let Some(node) = node_by_id(&mut buffer.current, de.id.clone()) {
         node.set_attr(
@@ -24,6 +23,23 @@ pub fn save_translate(delta: egui::Pos2, de: &mut SelectedElement, buffer: &mut 
     }
 }
 
+pub fn save_translates(delta: egui::Pos2, els: &mut [SelectedElement], buffer: &mut Buffer) {
+    els.iter().for_each(|el| {
+        if let Some(node) = node_by_id(&mut buffer.current, el.id.clone()) {
+            node.set_attr(
+                "transform",
+                format!(
+                    "matrix({},0,0,{},{},{} )",
+                    el.original_matrix.1[0],
+                    el.original_matrix.1[3],
+                    delta.x as f64 + el.original_matrix.clone().1[4],
+                    delta.y as f64 + el.original_matrix.clone().1[5]
+                ),
+            );
+            buffer.needs_path_map_update = true;
+        }
+    });
+}
 pub fn end_translation(
     buffer: &mut Buffer, els: &mut [SelectedElement], pos: egui::Pos2, save_event: bool,
 ) {
