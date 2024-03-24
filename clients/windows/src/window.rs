@@ -11,9 +11,10 @@ use egui_wgpu_backend::{
 };
 use lbeguiapp::{IntegrationOutput, UpdateOutput, WgpuLockbook};
 use raw_window_handle::{
-    HasRawDisplayHandle, HasRawWindowHandle, RawDisplayHandle, RawWindowHandle, Win32WindowHandle,
-    WindowsDisplayHandle,
+    DisplayHandle, HandleError, HasDisplayHandle, HasWindowHandle, RawDisplayHandle,
+    RawWindowHandle, Win32WindowHandle, WindowHandle, WindowsDisplayHandle,
 };
+use std::num::NonZeroIsize;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Instant;
 use windows::{
@@ -22,33 +23,41 @@ use windows::{
     Win32::UI::HiDpi::*, Win32::UI::Input::KeyboardAndMouse::*, Win32::UI::WindowsAndMessaging::*,
 };
 
-pub struct WindowHandle {
-    handle: Win32WindowHandle,
+#[derive(Default)]
+struct Window<'window> {
+    maybe_app: Option<WgpuLockbook<'window>>, // app is initialized after window is created
+    pointer_manager: input::pointer::PointerManager,
+    width: u16,
+    height: u16,
+    dpi_scale: f32,
 }
 
-// Smails implementations adapted for windows with reference to winit's windows implementation:
-// https://github.com/lockbook/lockbook/pull/1835/files#diff-0f28854a868a55fcd30ff5f0fda476aed540b2e1fc3762415ac6e0588ed76fb6
-// https://github.com/rust-windowing/winit/blob/ee0db52ac49d64b46c500ef31d7f5f5107ce871a/src/platform_impl/windows/window.rs#L334-L346
-impl WindowHandle {
-    pub fn new(window: HWND) -> Self {
-        let mut handle = Win32WindowHandle::empty();
-        handle.hwnd = window.0 as *mut _;
+struct AppWindowHandle {
+    window: Win32WindowHandle,
+}
+
+unsafe impl Sync for AppWindowHandle {} // window is never actually sent across threads
+
+impl AppWindowHandle {
+    fn new(window: HWND) -> Self {
+        let mut handle = Win32WindowHandle::new(NonZeroIsize::new(window.0).unwrap());
         let hinstance = unsafe { get_window_long(window, GWLP_HINSTANCE) };
-        handle.hinstance = hinstance as *mut _;
-
-        Self { handle }
+        handle.hinstance = NonZeroIsize::new(hinstance as _);
+        Self { window: handle }
     }
 }
 
-unsafe impl HasRawWindowHandle for WindowHandle {
-    fn raw_window_handle(&self) -> RawWindowHandle {
-        RawWindowHandle::Win32(self.handle)
+impl HasWindowHandle for AppWindowHandle {
+    fn window_handle(&self) -> std::result::Result<WindowHandle<'_>, HandleError> {
+        unsafe { Ok(WindowHandle::borrow_raw(RawWindowHandle::Win32(self.window))) }
     }
 }
 
-unsafe impl HasRawDisplayHandle for WindowHandle {
-    fn raw_display_handle(&self) -> RawDisplayHandle {
-        RawDisplayHandle::Windows(WindowsDisplayHandle::empty())
+impl HasDisplayHandle for AppWindowHandle {
+    fn display_handle(&self) -> std::result::Result<DisplayHandle<'_>, HandleError> {
+        unsafe {
+            Ok(DisplayHandle::borrow_raw(RawDisplayHandle::Windows(WindowsDisplayHandle::new())))
+        }
     }
 }
 
@@ -58,16 +67,6 @@ unsafe fn get_window_long(hwnd: HWND, nindex: WINDOW_LONG_PTR_INDEX) -> isize {
     return unsafe { GetWindowLongPtrW(hwnd, nindex) };
     #[cfg(target_pointer_width = "32")]
     return unsafe { GetWindowLongW(hwnd, nindex) as isize };
-}
-
-// The rest of the code in this file would go in main except for this code to build on linux it needs to all be under a cfg(windows)
-#[derive(Default)]
-pub struct Window {
-    maybe_app: Option<WgpuLockbook>, // must be populated after the window is created
-    pointer_manager: input::pointer::PointerManager,
-    width: u16,
-    height: u16,
-    dpi_scale: f32,
 }
 
 pub fn main() -> Result<()> {
@@ -112,6 +111,9 @@ pub fn main() -> Result<()> {
     let mut window_rect = RECT { left: 0, top: 0, right: 1300, bottom: 800 };
     unsafe { AdjustWindowRect(&mut window_rect, WS_OVERLAPPEDWINDOW, false) }?;
 
+    // must declare maybe_window_handle before window for it to drop after window, sating the borrow checker
+    #[allow(unused_assignments)]
+    let mut maybe_window_handle = None;
     let mut window = Window::default();
 
     // "'Setting the process-default DPI awareness via API call can lead to unexpected application behavior'... This is probably bullshit"
@@ -140,20 +142,30 @@ pub fn main() -> Result<()> {
 
     unsafe { dxgi_factory.MakeWindowAssociation(hwnd, DXGI_MWA_NO_ALT_ENTER) }?;
 
-    let app = init(&WindowHandle::new(hwnd), false);
-
     let got_events_atomic = std::sync::Arc::new(AtomicBool::new(false));
     let got_events_clone = got_events_atomic.clone();
-    app.context.set_request_repaint_callback(move |rri| {
-        let got_events_clone = got_events_clone.clone();
-        let _ = std::thread::spawn(move || {
-            std::thread::sleep(rri.after);
-            got_events_clone.store(true, Ordering::SeqCst);
-        });
-    });
 
-    window.maybe_app = Some(app);
-    window.dpi_scale = dpi_to_scale_factor(unsafe { GetDpiForWindow(hwnd) } as _);
+    maybe_window_handle = Some(AppWindowHandle::new(hwnd));
+    window.maybe_app = {
+        let scale_factor = dpi_to_scale_factor(unsafe { GetDpiForWindow(hwnd) } as _);
+        let app = init(
+            maybe_window_handle.as_ref().unwrap(),
+            ScreenDescriptor { physical_width: 1300, physical_height: 800, scale_factor },
+            false,
+        );
+        app.context.set_pixels_per_point(scale_factor);
+        window.dpi_scale = scale_factor;
+
+        app.context.set_request_repaint_callback(move |rri| {
+            let got_events_clone = got_events_clone.clone();
+            let _ = std::thread::spawn(move || {
+                std::thread::sleep(rri.delay);
+                got_events_clone.store(true, Ordering::SeqCst);
+            });
+        });
+
+        Some(app)
+    };
 
     // register file drop handler
     {
@@ -172,12 +184,12 @@ pub fn main() -> Result<()> {
 
     let mut messages = Vec::new();
     let mut msg = MSG::default();
-    loop {
+    'outer: loop {
         let mut got_events = got_events_atomic.load(Ordering::SeqCst);
         unsafe {
             while PeekMessageA(&mut msg, HWND(0), 0, 0, PM_REMOVE).into() {
                 if msg.message == WM_QUIT {
-                    return Ok(());
+                    break 'outer;
                 }
 
                 messages.push(msg);
@@ -203,6 +215,8 @@ pub fn main() -> Result<()> {
             std::thread::sleep(std::time::Duration::from_millis(1));
         }
     }
+
+    Ok(())
 }
 
 // callback invoked when Windows sends a message to the window
@@ -333,7 +347,7 @@ fn handle_message(hwnd: HWND, message: Message) -> bool {
                             let IntegrationOutput {
                                 egui: PlatformOutput { cursor_icon, open_url, copied_text, .. },
                                 update_output: UpdateOutput { close, set_window_title },
-                            } = window.maybe_app.as_mut().unwrap().frame();
+                            } = app.frame();
 
                             output::clipboard_copy::handle(copied_text);
                             output::close::handle(close);
@@ -382,17 +396,15 @@ fn handle_message(hwnd: HWND, message: Message) -> bool {
 }
 
 // Taken from other lockbook code
-pub fn init<W: raw_window_handle::HasRawWindowHandle + raw_window_handle::HasRawDisplayHandle>(
-    window: &W, dark_mode: bool,
+pub fn init<W: raw_window_handle::HasWindowHandle + raw_window_handle::HasDisplayHandle + Sync>(
+    window: &W, screen: ScreenDescriptor, dark_mode: bool,
 ) -> WgpuLockbook {
     let backends = wgpu::util::backend_bits_from_env().unwrap_or_else(wgpu::Backends::all);
     let instance_desc = wgpu::InstanceDescriptor { backends, ..Default::default() };
     let instance = wgpu::Instance::new(instance_desc);
-    let surface = unsafe { instance.create_surface(window) }.unwrap();
-    let (adapter, device, queue) =
-        pollster::block_on(request_device(&instance, backends, &surface));
+    let surface = instance.create_surface(window).unwrap();
+    let (adapter, device, queue) = pollster::block_on(request_device(&instance, &surface));
     let format = surface.get_capabilities(&adapter).formats[0];
-    let screen = ScreenDescriptor { physical_width: 1300, physical_height: 800, scale_factor: 1.0 }; // initial value overridden by resize
     let surface_config = wgpu::SurfaceConfiguration {
         usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
         format,
@@ -401,6 +413,7 @@ pub fn init<W: raw_window_handle::HasRawWindowHandle + raw_window_handle::HasRaw
         present_mode: wgpu::PresentMode::Fifo,
         alpha_mode: CompositeAlphaMode::Auto,
         view_formats: vec![],
+        desired_maximum_frame_latency: 2,
     };
     surface.configure(&device, &surface_config);
     let rpass = egui_wgpu_backend::RenderPass::new(&device, format, 1);
@@ -438,18 +451,17 @@ pub fn init<W: raw_window_handle::HasRawWindowHandle + raw_window_handle::HasRaw
 }
 
 async fn request_device(
-    instance: &wgpu::Instance, backend: wgpu::Backends, surface: &wgpu::Surface,
+    instance: &wgpu::Instance, surface: &wgpu::Surface<'_>,
 ) -> (wgpu::Adapter, wgpu::Device, wgpu::Queue) {
-    let adapter =
-        wgpu::util::initialize_adapter_from_env_or_default(instance, backend, Some(surface))
-            .await
-            .expect("No suitable GPU adapters found on the system!");
+    let adapter = wgpu::util::initialize_adapter_from_env_or_default(instance, Some(surface))
+        .await
+        .expect("No suitable GPU adapters found on the system!");
     let res = adapter
         .request_device(
             &wgpu::DeviceDescriptor {
                 label: None,
-                features: adapter.features(),
-                limits: adapter.limits(),
+                required_features: adapter.features(),
+                required_limits: adapter.limits(),
             },
             None,
         )
