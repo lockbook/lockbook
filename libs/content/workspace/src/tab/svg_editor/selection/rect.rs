@@ -38,11 +38,8 @@ impl SelectionRectContainer {
             container_bb[1].y = container_bb[1].y.max(bb[1].y);
         }
 
-        if let Some(clipped_rect) = SelectionRect::new(container_bb, working_rect) {
-            Some(SelectionRectContainer { container: clipped_rect, children })
-        } else {
-            None
-        }
+        SelectionRect::new(container_bb, working_rect)
+            .map(|clipped_rect| SelectionRectContainer { container: clipped_rect, children })
     }
 
     pub fn get_cursor_icon(&self, cursor_pos: egui::Pos2) -> Option<SelectionResponse> {
