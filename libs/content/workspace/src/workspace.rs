@@ -190,6 +190,8 @@ impl Workspace {
 
     /// called by custom integrations
     pub fn draw(&mut self, ctx: &Context) -> WsOutput {
+        egui_extras::install_image_loaders(ctx);
+
         let fill = if ctx.style().visuals.dark_mode { Color32::BLACK } else { Color32::WHITE };
         egui::CentralPanel::default()
             .frame(egui::Frame::default().fill(fill))
