@@ -110,9 +110,13 @@ pub fn handle(
             clipboard_paste::handle(app);
         } else {
             // other egui keys
-            app.raw_input
-                .events
-                .push(egui::Event::Key { key, pressed, repeat: false, modifiers });
+            app.raw_input.events.push(egui::Event::Key {
+                key,
+                pressed,
+                repeat: false,
+                modifiers,
+                physical_key: None,
+            });
         }
         consumed = true;
     }
