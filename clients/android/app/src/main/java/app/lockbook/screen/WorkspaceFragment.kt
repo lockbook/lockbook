@@ -11,6 +11,7 @@ import android.text.Selection
 import android.view.KeyEvent
 import android.view.LayoutInflater
 import android.view.MotionEvent
+import android.view.SurfaceView
 import android.view.View
 import android.view.ViewConfiguration
 import android.view.ViewGroup
@@ -26,13 +27,16 @@ import androidx.fragment.app.activityViewModels
 import app.lockbook.App
 import app.lockbook.R
 import app.lockbook.databinding.FragmentWorkspaceBinding
+import app.lockbook.model.CoreModel
 import app.lockbook.model.StateViewModel
+import app.lockbook.model.TransientScreen
 import app.lockbook.model.UpdateMainScreenUI
 import app.lockbook.model.WorkspaceTab
 import app.lockbook.model.WorkspaceViewModel
 import app.lockbook.util.WorkspaceView
+import com.github.michaelbull.result.unwrap
 import timber.log.Timber
-import java.lang.Math.abs
+import kotlin.math.abs
 
 class WorkspaceFragment: Fragment() {
     private var _binding: FragmentWorkspaceBinding? = null
@@ -47,6 +51,16 @@ class WorkspaceFragment: Fragment() {
         savedInstanceState: Bundle?
     ): View {
         _binding = FragmentWorkspaceBinding.inflate(inflater, container, false)
+
+        binding.workspaceToolbar.setOnMenuItemClickListener { it ->
+            when(it.itemId) {
+                R.id.menu_text_editor_share -> {
+                    activityModel.launchTransientScreen(TransientScreen.ShareExport(listOf()))
+                }
+            }
+
+            true
+        }
 
         val workspaceWrapper = WorkspaceWrapperView(requireContext(), model)
 
@@ -83,10 +97,30 @@ class WorkspaceFragment: Fragment() {
         }
 
         model.currentTab.observe(viewLifecycleOwner) { tab ->
-            workspaceWrapper.updateCurrentTab(tab)
+            updateCurrentTab(workspaceWrapper, tab)
+        }
+
+        model.showTabs.observe(viewLifecycleOwner) { show ->
+            workspaceWrapper.workspaceView.showTabs(show)
         }
 
         return binding.root
+    }
+
+    private fun updateCurrentTab(workspaceWrapper: WorkspaceWrapperView, newTab: WorkspaceTab) {
+        when(workspaceWrapper.currentTab) {
+            WorkspaceTab.Welcome,
+            WorkspaceTab.Loading -> { }
+            WorkspaceTab.Svg,
+            WorkspaceTab.Image,
+            WorkspaceTab.Pdf,
+            WorkspaceTab.Markdown,
+            WorkspaceTab.PlainText -> {
+
+            }
+        }
+
+        workspaceWrapper.updateCurrentTab(newTab)
     }
 }
 
@@ -132,10 +166,21 @@ class WorkspaceWrapperView(context: Context, val model: WorkspaceViewModel): Fra
     }
 
     fun updateCurrentTab(newTab: WorkspaceTab) {
-        Timber.e("UPDATING CURRENT TAB from ${currentTab} to ${newTab}")
-
         if(newTab.viewWrapperId() == currentTab.viewWrapperId()) {
             return
+        }
+
+        when(currentTab) {
+            WorkspaceTab.Welcome,
+            WorkspaceTab.Svg,
+            WorkspaceTab.Image,
+            WorkspaceTab.Pdf,
+            WorkspaceTab.Loading -> { }
+            WorkspaceTab.Markdown,
+            WorkspaceTab.PlainText -> {
+                (context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager)
+                    .hideSoftInputFromWindow(this.windowToken, 0)
+            }
         }
 
         val parentViewGroup = currentWrapper?.parent as? ViewGroup
@@ -151,28 +196,32 @@ class WorkspaceWrapperView(context: Context, val model: WorkspaceViewModel): Fra
             }
             WorkspaceTab.Markdown,
             WorkspaceTab.PlainText -> {
-                val inputWrapper = WorkspaceTextInputWrapper(context)
+                val inputWrapper = WorkspaceTextInputWrapper(context, workspaceView)
 //                inputWrapper.addView(workspaceView, WS_TEXT_LAYOUT_PARAMS)
 
                 addView(inputWrapper, WS_TEXT_LAYOUT_PARAMS)
             }
         }
-    }
 
+        currentTab = newTab
+    }
 }
 
-class WorkspaceTextInputWrapper(context: Context): FrameLayout(context) {
+@SuppressLint("ViewConstructor")
+class WorkspaceTextInputWrapper(context: Context, val workspaceView: WorkspaceView): View(context) {
+
+    private val inputConnection = WorkspaceTextInputConnection(workspaceView)
+
     private var touchStartX = 0f
     private var touchStartY = 0f
 
     init {
-        setBackgroundColor(Color.RED)
-        Timber.e("INITED TEXT INPUT WRAPPER")
+        isFocusable = true
+        isFocusableInTouchMode = true
     }
+
     @SuppressLint("ClickableViewAccessibility")
     override fun onTouchEvent(event: MotionEvent?): Boolean {
-        Timber.e("I FELT A TOUCH EVENT YEEEEE ${event?.action}")
-
         requestFocus()
 
         when(event?.action) {
@@ -188,12 +237,14 @@ class WorkspaceTextInputWrapper(context: Context): FrameLayout(context) {
                         context
                     ).scaledTouchSlop
                 ) {
-
                     (context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager)
-                        .showSoftInput(this, 0)
-
+                        .showSoftInput(this, InputMethodManager.SHOW_IMPLICIT)
                 }
             }
+        }
+
+        if(event != null) {
+            workspaceView.forwardedTouchEvent(event, WorkspaceWrapperView.TAB_BAR_HEIGHT + WorkspaceWrapperView.TEXT_TOOL_BAR_HEIGHT)
         }
 
         return true
@@ -204,18 +255,18 @@ class WorkspaceTextInputWrapper(context: Context): FrameLayout(context) {
     }
 
     override fun onCreateInputConnection(outAttrs: EditorInfo?): InputConnection {
-        return WorkspaceTextInputConnection(this)
+        return inputConnection
     }
 }
 
 class WorkspaceTextInputConnection(val view: View) : BaseInputConnection(view, true) {
     private val wsEditable = WorkspaceTextEditable(view)
-    var monitorCursorUpdates = false
+    private var monitorCursorUpdates = false
 
-    fun getInputMethodManager(): InputMethodManager = App.applicationContext().getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
-    fun getClipboardManager(): ClipboardManager = App.applicationContext().getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+    private fun getInputMethodManager(): InputMethodManager = App.applicationContext().getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+    private fun getClipboardManager(): ClipboardManager = App.applicationContext().getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
 
-    fun notifySelectionUpdated() {
+    private fun notifySelectionUpdated() {
         getInputMethodManager()
             .updateCursorAnchorInfo(
                 view,
@@ -226,6 +277,7 @@ class WorkspaceTextInputConnection(val view: View) : BaseInputConnection(view, t
     }
 
     override fun sendKeyEvent(event: KeyEvent?): Boolean {
+
         super.sendKeyEvent(event)
 
         event?.let { realEvent ->

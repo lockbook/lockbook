@@ -22,6 +22,9 @@ class WorkspaceViewModel: ViewModel() {
     val _sync = SingleMutableLiveData<Unit>()
     val sync: LiveData<Unit>
         get() = _sync
+    val _showTabs = SingleMutableLiveData<Boolean>()
+    val showTabs: LiveData<Boolean>
+        get() = _showTabs
 
     // for everyone else
     val _msg = MutableLiveData<String>()
@@ -55,6 +58,10 @@ class WorkspaceViewModel: ViewModel() {
     val _currentTab = MutableLiveData<WorkspaceTab>()
     val currentTab: LiveData<WorkspaceTab>
         get() = _currentTab
+
+    val _shouldShowTabs = SingleMutableLiveData<Unit>()
+    val shouldShowTabs: LiveData<Unit>
+        get() = _shouldShowTabs
 }
 
 enum class WorkspaceTab(val value: Int) {

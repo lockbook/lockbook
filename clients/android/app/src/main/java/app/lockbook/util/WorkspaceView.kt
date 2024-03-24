@@ -56,48 +56,9 @@ class WorkspaceView : SurfaceView, SurfaceHolder.Callback2 {
 
     @SuppressLint("ClickableViewAccessibility")
     override fun onTouchEvent(event: MotionEvent?): Boolean {
-        if (WGPU_OBJ == Long.MAX_VALUE) {
-            return true
-        }
-
-        if (event != null) {
+        if(event != null) {
             requestFocus()
-
-            for(ptrIndex in 0..(event.pointerCount - 1)) {
-                when (event.action) {
-                    MotionEvent.ACTION_DOWN -> {
-                        WORKSPACE.touchesBegin(
-                            WGPU_OBJ,
-                            event.getPointerId(ptrIndex),
-                            adjustTouchPoint(event.x),
-                            adjustTouchPoint(event.y),
-                            event.pressure
-                        )
-                    }
-
-                    MotionEvent.ACTION_MOVE -> {
-                        WORKSPACE.touchesMoved(
-                            WGPU_OBJ,
-                            event.getPointerId(ptrIndex),
-                            adjustTouchPoint(event.x),
-                            adjustTouchPoint(event.y),
-                            event.pressure
-                        )
-                    }
-
-                    MotionEvent.ACTION_UP -> {
-                        WORKSPACE.touchesEnded(
-                            WGPU_OBJ,
-                            event.getPointerId(ptrIndex),
-                            adjustTouchPoint(event.x),
-                            adjustTouchPoint(event.y),
-                            event.pressure
-                        )
-                    }
-                }
-            }
-
-            invalidate()
+            forwardedTouchEvent(event, 0)
         }
 
         return true
@@ -121,7 +82,7 @@ class WorkspaceView : SurfaceView, SurfaceHolder.Callback2 {
                 WS_OBJ
             )
 
-            WORKSPACE.showTabs(WGPU_OBJ, true)
+            model!!._shouldShowTabs.postValue(Unit)
 
             setWillNotDraw(false)
         }
@@ -130,6 +91,48 @@ class WorkspaceView : SurfaceView, SurfaceHolder.Callback2 {
         isFocusableInTouchMode = true
 
         requestFocus()
+    }
+
+    fun forwardedTouchEvent(event: MotionEvent, touchOffsetY: Int) {
+        if (WGPU_OBJ == Long.MAX_VALUE) {
+            return
+        }
+
+        if(event.pointerCount > 0) {
+            when (event.action) {
+                MotionEvent.ACTION_DOWN -> {
+                    WORKSPACE.touchesBegin(
+                        WGPU_OBJ,
+                        event.getPointerId(0),
+                        adjustTouchPoint(event.x),
+                        adjustTouchPoint(event.y + touchOffsetY),
+                        event.pressure
+                    )
+                }
+
+                MotionEvent.ACTION_MOVE -> {
+                    WORKSPACE.touchesMoved(
+                        WGPU_OBJ,
+                        event.getPointerId(0),
+                        adjustTouchPoint(event.x),
+                        adjustTouchPoint(event.y + touchOffsetY),
+                        event.pressure
+                    )
+                }
+
+                MotionEvent.ACTION_UP -> {
+                    WORKSPACE.touchesEnded(
+                        WGPU_OBJ,
+                        event.getPointerId(0),
+                        adjustTouchPoint(event.x),
+                        adjustTouchPoint(event.y + touchOffsetY),
+                        event.pressure
+                    )
+                }
+            }
+        }
+
+        invalidate()
     }
 
     override fun surfaceDestroyed(holder: SurfaceHolder) {
@@ -141,22 +144,20 @@ class WorkspaceView : SurfaceView, SurfaceHolder.Callback2 {
     }
 
     fun openDoc(id: String, newFile: Boolean) {
-        Timber.e("about to open doc ${id}...")
         WORKSPACE.openDoc(WGPU_OBJ, id, newFile)
-        Timber.e("finished opening doc")
+    }
+
+    fun showTabs(show: Boolean) {
+        WORKSPACE.showTabs(WGPU_OBJ, show)
     }
 
     fun sync() {
-        Timber.e("about to sync...")
         model!!.isSyncing = true
         WORKSPACE.requestSync(WGPU_OBJ)
-        Timber.e("finished sync")
     }
 
     fun closeDoc(id: String) {
-        Timber.e("about to close doc ${id}...")
         WORKSPACE.closeDoc(WGPU_OBJ, id)
-        Timber.e("finished opening doc")
     }
 
     override fun draw(canvas: Canvas) {
@@ -208,13 +209,11 @@ class WorkspaceView : SurfaceView, SurfaceHolder.Callback2 {
         if (response.redrawIn < BigInteger("100")) {
             invalidate()
         } else {
-            this.isShown
             handler.postDelayed(redrawTask, max(response.redrawIn.toLong(), 500L))
         }
     }
 
     companion object {
-
         // TODO: move these to the workspace class and make a getInstance for it
         var WGPU_OBJ = Long.MAX_VALUE
         private var WS_OBJ = Long.MAX_VALUE

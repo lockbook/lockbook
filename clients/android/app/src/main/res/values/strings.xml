@@ -26,9 +26,6 @@
     <string name="biometric_recommended">Protect key export with biometrics (recommended)</string>
     <string name="biometric_strict">Use biometrics every time you open the app (strict mode)</string>
 
-    <string name="menu_text_editor_redo">Redo</string>
-    <string name="menu_text_editor_undo">Undo</string>
-
     <string name="dialog_file_name">Name</string>
 
     <string name="settings_sync_edit">Sync automatically in app</string>

@@ -19,6 +19,7 @@ import app.lockbook.model.*
 import app.lockbook.ui.*
 import app.lockbook.util.*
 import com.github.michaelbull.result.unwrap
+import timber.log.Timber
 import java.io.File
 import java.lang.ref.WeakReference
 
@@ -74,7 +75,6 @@ class MainScreenActivity : AppCompatActivity() {
         val wFragment = supportFragmentManager.findFragmentByTag("Workspace")
 
         if(wFragment == null) {
-            println("adding this workspace to fragment")
             supportFragmentManager.commit {
                 setReorderingAllowed(true)
                 add<WorkspaceFragment>(R.id.detail_container, "Workspace")
@@ -195,6 +195,10 @@ class MainScreenActivity : AppCompatActivity() {
             } else {
                 slidingPaneLayout.openPane()
             }
+        }
+
+        workspaceModel.shouldShowTabs.observe(this) {
+            workspaceModel._showTabs.postValue(!binding.slidingPaneLayout.isSlideable)
         }
     }
 
