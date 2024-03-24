@@ -107,10 +107,7 @@ impl SelectionRect {
             return None;
         }
 
-        let rect = egui::Rect {
-            min: egui::pos2(bb[0].x as f32, bb[0].y as f32),
-            max: egui::pos2(bb[1].x as f32, bb[1].y as f32),
-        };
+        let rect = bb_to_rect(bb);
 
         let mut selection_rect = SelectionRect {
             left: Some(Subpath::from_anchors(

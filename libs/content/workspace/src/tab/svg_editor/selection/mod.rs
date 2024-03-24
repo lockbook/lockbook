@@ -10,7 +10,10 @@ use self::{
     translate::{detect_translation, end_translation, save_translate, save_translates},
 };
 
-use super::{util::deserialize_transform, Buffer, DeleteElement};
+use super::{
+    util::{bb_to_rect, deserialize_transform},
+    Buffer, DeleteElement,
+};
 
 #[derive(Default)]
 pub struct Selection {
@@ -57,7 +60,6 @@ impl Selection {
         // build up selected elements
         if ui.input(|r| r.pointer.primary_clicked()) {
             // is cursor inside of a selected element?
-
             let pos_over_selected_el = if let Some(r) = &self.selection_rect {
                 r.get_cursor_icon(pos).is_some()
             } else {
@@ -109,10 +111,8 @@ impl Selection {
                     // if the path bounding box intersects with the laso rect then it's a match
                     buffer.paths.iter().for_each(|(id, path)| {
                         let bb = path.bounding_box().unwrap();
-                        let path_rect = egui::Rect {
-                            min: egui::pos2(bb[0].x as f32, bb[0].y as f32),
-                            max: egui::pos2(bb[1].x as f32, bb[1].y as f32),
-                        };
+
+                        let path_rect = bb_to_rect(bb);
 
                         if self.laso_rect.unwrap().intersects(path_rect) {
                             let bb_subpath = Subpath::new_rect(

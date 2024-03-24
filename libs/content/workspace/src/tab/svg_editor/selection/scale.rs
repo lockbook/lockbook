@@ -74,8 +74,6 @@ pub fn snap_scale(
     pos: egui::Pos2, els: &mut [SelectedElement], selected_rect: &SelectionRectContainer,
     buffer: &mut Buffer,
 ) -> Option<egui::CursorIcon> {
-    let mut res_icon = None;
-
     let element_rect = selected_rect.container.raw;
 
     let top_distance = pos.y - element_rect.min.y;
@@ -86,18 +84,26 @@ pub fn snap_scale(
     let min_distance =
         f32::min(f32::min(top_distance, bottom_distance), f32::min(left_distance, right_distance));
 
-    let factor = if min_distance == top_distance {
-        res_icon = Some(SelectionResponse::new(SelectionOperation::NorthScale).cursor_icon);
-        (element_rect.bottom() - pos.y) / element_rect.height().abs()
+    let (res_icon, factor) = if min_distance == top_distance {
+        (
+            Some(SelectionResponse::new(SelectionOperation::NorthScale).cursor_icon),
+            (element_rect.bottom() - pos.y) / element_rect.height().abs(),
+        )
     } else if min_distance == bottom_distance {
-        res_icon = Some(SelectionResponse::new(SelectionOperation::SouthScale).cursor_icon);
-        (pos.y - element_rect.top()) / element_rect.height().abs()
+        (
+            Some(SelectionResponse::new(SelectionOperation::SouthScale).cursor_icon),
+            (pos.y - element_rect.top()) / element_rect.height().abs(),
+        )
     } else if min_distance == right_distance {
-        res_icon = Some(SelectionResponse::new(SelectionOperation::EastScale).cursor_icon);
-        (pos.x - element_rect.left()) / element_rect.width().abs()
+        (
+            Some(SelectionResponse::new(SelectionOperation::EastScale).cursor_icon),
+            (pos.x - element_rect.left()) / element_rect.width().abs(),
+        )
     } else {
-        res_icon = Some(SelectionResponse::new(SelectionOperation::WestScale).cursor_icon);
-        (element_rect.right() - pos.x) / element_rect.width().abs()
+        (
+            Some(SelectionResponse::new(SelectionOperation::WestScale).cursor_icon),
+            (element_rect.right() - pos.x) / element_rect.width().abs(),
+        )
     };
 
     for el in els.iter_mut() {
