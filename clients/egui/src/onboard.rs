@@ -2,7 +2,7 @@ use std::sync::{mpsc, Arc, RwLock};
 use std::thread;
 
 use eframe::egui;
-use egui::{vec2, Image};
+use egui::Image;
 use workspace_rs::widgets::ButtonGroup;
 
 use crate::model::AccountScreenInitData;
