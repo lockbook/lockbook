@@ -14,7 +14,7 @@ lb = { package = "lb-rs", path = "../../libs/lb/lb-rs", default-features = false
 lbeditor = { package = "egui_editor", path = "../../libs/content/editor/egui_editor" }
 lbeguiapp = { package = "lockbook-egui", path = "../egui" }
 pollster = "0.2"
-raw-window-handle = "0.5"
+raw-window-handle = "0.6"
 x11rb = { version = "0.13.0", features = [
     "all-extensions",
     "allow-unsafe-code",
