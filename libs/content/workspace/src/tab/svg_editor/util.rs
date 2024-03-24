@@ -1,4 +1,5 @@
 use bezier_rs::{Bezier, Subpath};
+use glam::DVec2;
 use minidom::Element;
 
 use super::{history::ManipulatorGroupId, Buffer};
@@ -83,5 +84,12 @@ pub fn apply_transform_to_pos(pos: &mut egui::Pos2, buffer: &Buffer) {
 
         pos.x /= transform[0] as f32;
         pos.y /= transform[3] as f32;
+    }
+}
+
+pub fn bb_to_rect(bb: [DVec2; 2]) -> egui::Rect {
+    egui::Rect {
+        min: egui::pos2(bb[0].x as f32, bb[0].y as f32),
+        max: egui::pos2(bb[1].x as f32, bb[1].y as f32),
     }
 }
