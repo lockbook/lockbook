@@ -129,9 +129,13 @@ pub fn handle(
             paste_context.handle_paste()?;
         } else {
             // other egui keys
-            app.raw_input
-                .events
-                .push(egui::Event::Key { key, pressed, repeat: false, modifiers });
+            app.raw_input.events.push(egui::Event::Key {
+                key,
+                pressed,
+                repeat: false,
+                modifiers,
+                physical_key: None,
+            });
         }
     }
 
