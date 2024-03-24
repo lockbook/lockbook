@@ -39,7 +39,7 @@ impl SelectionRectContainer {
         }
 
         if let Some(clipped_rect) = SelectionRect::new(container_bb, working_rect) {
-            return Some(SelectionRectContainer { container: clipped_rect, children });
+            Some(SelectionRectContainer { container: clipped_rect, children })
         } else {
             None
         }
