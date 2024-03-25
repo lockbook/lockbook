@@ -19,6 +19,7 @@ class ShareFileFragment : Fragment() {
 
     private lateinit var binding: FragmentShareFileBinding
     private val activityModel: StateViewModel by activityViewModels()
+    private val workspaceModel: WorkspaceViewModel by activityViewModels()
 
     private val alertModel by lazy {
         AlertModel(WeakReference(requireActivity()))
@@ -35,14 +36,14 @@ class ShareFileFragment : Fragment() {
     ): View {
         binding = FragmentShareFileBinding.inflate(inflater, container, false)
 
-        val file = (activityModel.detailScreen as DetailScreen.Share).file
+//        val file = (activityModel.detailScreen as DetailScreen.Share).file
 
-        binding.materialToolbar.subtitle = file.name
-        populateShares(file)
-
-        binding.materialToolbar.setNavigationOnClickListener {
-            activityModel.launchDetailScreen(null)
-        }
+//        binding.materialToolbar.subtitle = file.name
+//        populateShares(file)
+//
+//        binding.materialToolbar.setNavigationOnClickListener {
+//            activityModel.launchDetailScreen(null)
+//        }
 
         when (val getAccountResult = CoreModel.getAccount()) {
             is Ok ->
@@ -84,8 +85,8 @@ class ShareFileFragment : Fragment() {
 
             when (val result = CoreModel.shareFile(file.id, username, mode)) {
                 is Ok -> {
-                    activityModel.updateMainScreenUI(UpdateMainScreenUI.Sync)
-                    activityModel.launchDetailScreen(null)
+                    workspaceModel._sync.postValue(Unit)
+//                    activityModel.launchDetailScreen(null)
                 }
                 is Err -> alertModel.notifyError(result.error.toLbError(resources))
             }

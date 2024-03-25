@@ -44,27 +44,27 @@ class CreateLinkFragment : Fragment() {
             withItem<File, BasicFileItemHolder>(R.layout.move_file_item) {
                 onBind(::BasicFileItemHolder) { _, item ->
                     name.text = item.name
-                    val extensionHelper = ExtensionHelper(item.name)
-
-                    val imageResource = when {
-                        item.fileType == FileType.Document && extensionHelper.isDrawing -> {
-                            R.drawable.ic_outline_draw_24
-                        }
-                        item.fileType == FileType.Document && extensionHelper.isImage -> {
-                            R.drawable.ic_outline_image_24
-                        }
-                        item.fileType == FileType.Document -> {
-                            R.drawable.ic_outline_insert_drive_file_24
-                        }
-                        item.fileType == FileType.Document && extensionHelper.isPdf -> {
-                            R.drawable.ic_outline_picture_as_pdf_24
-                        }
-                        else -> {
-                            R.drawable.ic_baseline_folder_24
-                        }
-                    }
-
-                    icon.setImageResource(imageResource)
+//                    val extensionHelper = ExtensionHelper(item.name)
+//
+//                    val imageResource = when {
+//                        item.fileType == FileType.Document && extensionHelper.isDwrawing -> {
+//                            R.drawable.ic_outline_draw_24
+//                        }
+//                        item.fileType == FileType.Document && extensionHelper.isImage -> {
+//                            R.drawable.ic_outline_image_24
+//                        }
+//                        item.fileType == FileType.Document -> {
+//                            R.drawable.ic_outline_insert_drive_file_24
+//                        }
+//                        item.fileType == FileType.Document && extensionHelper.isPdf -> {
+//                            R.drawable.ic_outline_picture_as_pdf_24
+//                        }
+//                        else -> {
+//                            R.drawable.ic_baseline_folder_24
+//                        }
+//                    }
+//
+//                    icon.setImageResource(imageResource)
                 }
                 onClick {
                     model.onItemClick(item)

@@ -5,6 +5,7 @@ import app.lockbook.util.*
 import com.github.michaelbull.result.*
 
 class FileModel(
+    val root: File,
     var parent: File,
     var idsAndFiles: Map<String, File>,
     var children: List<File>,
@@ -20,6 +21,7 @@ class FileModel(
                     val root = getRootResult.value
 
                     val fileModel = FileModel(
+                        root,
                         root,
                         emptyMap(),
                         listOf(),

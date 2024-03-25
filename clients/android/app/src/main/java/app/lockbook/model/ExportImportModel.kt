@@ -59,10 +59,10 @@ class ExportImportModel(
 
             shareItemFolder.mkdir()
 
-            if (file.name.endsWith(".draw")) {
+            if (file.name.endsWith(".svg")) {
                 val image = File(
                     shareItemFolder,
-                    file.name.removeSuffix(".draw") + ".${IMAGE_EXPORT_TYPE.name.lowercase()}"
+                    file.name.removeSuffix(".svg") + ".${IMAGE_EXPORT_TYPE.name.lowercase()}"
                 ).absoluteFile
 
                 when (

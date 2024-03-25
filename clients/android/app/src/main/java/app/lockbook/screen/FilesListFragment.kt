@@ -25,7 +25,6 @@ import app.lockbook.App
 import app.lockbook.R
 import app.lockbook.databinding.FragmentFilesListBinding
 import app.lockbook.model.*
-import app.lockbook.model.SyncStatus
 import app.lockbook.ui.BreadCrumbItem
 import app.lockbook.util.*
 import com.afollestad.recyclical.setup
@@ -81,7 +80,7 @@ class FilesListFragment : Fragment(), FilesFragment {
                     }
                     R.id.menu_list_files_share -> {
                         if (model.files.getSelectionCount() == 1) {
-                            activityModel.launchDetailScreen(DetailScreen.Share(selectedFiles[0].fileMetadata))
+//                            activityModel.launchDetailScreen(DetailScreen.Share(selectedFiles[0].fileMetadata))
                             unselectFiles()
                         }
                     }
@@ -99,6 +98,8 @@ class FilesListFragment : Fragment(), FilesFragment {
     }
 
     private val activityModel: StateViewModel by activityViewModels()
+    private val workspaceModel: WorkspaceViewModel by activityViewModels()
+
     private val model: FilesListViewModel by viewModels(
         factoryProducer = {
             object : ViewModelProvider.Factory {
@@ -106,7 +107,6 @@ class FilesListFragment : Fragment(), FilesFragment {
                     if (modelClass.isAssignableFrom(FilesListViewModel::class.java))
                         return FilesListViewModel(
                             requireActivity().application,
-                            activityModel.syncModel
                         ) as T
                     throw IllegalArgumentException("Unknown ViewModel class")
                 }
@@ -134,12 +134,6 @@ class FilesListFragment : Fragment(), FilesFragment {
             viewLifecycleOwner
         ) { uiUpdates ->
             updateUI(uiUpdates)
-        }
-
-        model.syncModel.notifySyncStepInfo.observe(
-            viewLifecycleOwner
-        ) { syncProgress ->
-            updateSyncProgress(syncProgress)
         }
 
         setUpFilesList()
@@ -192,7 +186,7 @@ class FilesListFragment : Fragment(), FilesFragment {
         }
 
         binding.listFilesRefresh.setOnRefreshListener {
-            model.onSwipeToRefresh()
+            workspaceModel._sync.postValue(Unit)
         }
 
         updatedLastSyncedDescription.schedule(
@@ -217,33 +211,27 @@ class FilesListFragment : Fragment(), FilesFragment {
             updateUI(uiUpdate)
         }
 
-        return binding.root
-    }
-
-    private fun updateSyncProgress(syncStepInfo: SyncStepInfo) {
-        if (syncStepInfo.progress == 0) {
-            binding.syncHolder.visibility = View.GONE
-            updateUI(UpdateFilesUI.ShowSyncSnackBar(syncStepInfo.total))
-        } else {
-            binding.syncHolder.visibility = View.VISIBLE
-            binding.syncProgressIndicator.apply {
-                max = syncStepInfo.total
-                progress = syncStepInfo.progress
-            }
-            binding.syncText.text = syncStepInfo.msg
+        workspaceModel.msg.observe(viewLifecycleOwner) { msg ->
+            binding.workspaceMsg.text = msg
         }
+
+        workspaceModel.refreshFiles.observe(viewLifecycleOwner) {
+            model.reloadFiles()
+        }
+
+        workspaceModel.syncCompleted.observe(viewLifecycleOwner) {
+            if(binding.listFilesRefresh.isRefreshing) {
+                binding.listFilesRefresh.isRefreshing = false
+            }
+        }
+
+        return binding.root
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
         setUpToolbar()
-
-        val syncStatus = model.syncModel.syncStatus
-        if (syncStatus is SyncStatus.Syncing) {
-            updateUI(UpdateFilesUI.ShowSyncSnackBar(syncStatus.syncStepInfo.total))
-            updateSyncProgress(syncStatus.syncStepInfo)
-        }
 
         if (!model.isSuggestedDocsVisible) {
             binding.suggestedDocsLayout.root.visibility = View.GONE
@@ -423,7 +411,8 @@ class FilesListFragment : Fragment(), FilesFragment {
     private fun enterFile(item: File) {
         when (item.fileType) {
             FileType.Document -> {
-                activityModel.launchDetailScreen(DetailScreen.Loading(item))
+                // TODO: consider that not all updates to the screen may go through because of postVal
+                activityModel.updateMainScreenUI(UpdateMainScreenUI.OpenFile(item.id))
             }
             FileType.Folder -> {
                 model.enterFolder(item)
@@ -454,57 +443,6 @@ class FilesListFragment : Fragment(), FilesFragment {
                 }
 
                 alertModel.notify(uiUpdates.msg)
-            }
-            is UpdateFilesUI.ShowSyncSnackBar -> {
-                binding.syncProgressIndicator.max = uiUpdates.totalSyncItems
-                binding.syncProgressIndicator.visibility = View.VISIBLE
-                binding.syncText.text = resources.getString(R.string.list_files_sync_snackbar, uiUpdates.totalSyncItems.toString())
-                binding.syncHolder.visibility = View.VISIBLE
-            }
-            UpdateFilesUI.OutOfSpaceSyncSnackBar -> {
-                binding.listFilesRefresh.isRefreshing = false
-
-                binding.syncText.text = getString(R.string.out_of_space)
-
-                if (binding.syncProgressIndicator.isVisible) {
-                    binding.syncProgressIndicator.visibility = View.GONE
-                }
-
-                if (!binding.syncHolder.isVisible) {
-                    binding.syncHolder.visibility = View.VISIBLE
-                }
-
-                Handler(Looper.getMainLooper()).postDelayed(
-                    {
-                        binding.syncHolder.visibility = View.GONE
-                        binding.syncCheck.visibility = View.GONE
-                        binding.syncProgressIndicator.visibility = View.VISIBLE
-                    },
-                    3000L
-                )
-            }
-            UpdateFilesUI.UpToDateSyncSnackBar -> {
-                binding.listFilesRefresh.isRefreshing = false
-
-                binding.syncText.text = getString(R.string.list_files_sync_finished_snackbar)
-                binding.syncCheck.visibility = View.VISIBLE
-
-                if (binding.syncProgressIndicator.isVisible) {
-                    binding.syncProgressIndicator.visibility = View.GONE
-                }
-
-                if (!binding.syncHolder.isVisible) {
-                    binding.syncHolder.visibility = View.VISIBLE
-                }
-
-                Handler(Looper.getMainLooper()).postDelayed(
-                    {
-                        binding.syncHolder.visibility = View.GONE
-                        binding.syncCheck.visibility = View.GONE
-                        binding.syncProgressIndicator.visibility = View.VISIBLE
-                    },
-                    3000L
-                )
             }
             is UpdateFilesUI.UpdateBreadcrumbBar -> {
                 binding.filesBreadcrumbBar.setBreadCrumbItems(
@@ -664,7 +602,17 @@ class FilesListFragment : Fragment(), FilesFragment {
     }
 
     override fun sync(usePreferences: Boolean) {
-        model.sync(usePreferences)
+        if (!usePreferences || PreferenceManager.getDefaultSharedPreferences(requireContext())
+                .getBoolean(
+                    getString(
+                        resources,
+                        R.string.sync_automatically_key
+                    ),
+                    false
+                )
+        ) {
+            workspaceModel._sync.postValue(Unit)
+        }
     }
 
     override fun refreshFiles() {
@@ -691,11 +639,8 @@ class FilesListFragment : Fragment(), FilesFragment {
 sealed class UpdateFilesUI {
     data class UpdateBreadcrumbBar(val breadcrumbItems: List<BreadCrumbItem>) : UpdateFilesUI()
     data class NotifyError(val error: LbError) : UpdateFilesUI()
-    data class ShowSyncSnackBar(val totalSyncItems: Int) : UpdateFilesUI()
     data class UpdateSideBarInfo(var usageMetrics: UsageMetrics? = null, var lastSynced: String? = null, var localDirtyFilesCount: Int? = null, var serverDirtyFilesCount: Int? = null, var hasPendingShares: Boolean? = null) : UpdateFilesUI()
     data class ToggleSuggestedDocsVisibility(var show: Boolean) : UpdateFilesUI()
-    object UpToDateSyncSnackBar : UpdateFilesUI()
-    object OutOfSpaceSyncSnackBar : UpdateFilesUI()
     object ToggleMenuBar : UpdateFilesUI()
     object ShowBeforeWeStart : UpdateFilesUI()
     object SyncImport : UpdateFilesUI()
