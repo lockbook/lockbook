@@ -795,7 +795,7 @@ fn tab_label(ui: &mut egui::Ui, t: &mut Tab, is_active: bool) -> Option<TabLabel
             // todo: use galley size of icon instead of icon.size for a more accurate reading.
             let icon_draw_pos = egui::pos2(
                 close_btn_rect.center().x - x_icon.size / 2.,
-                close_btn_rect.center().y - x_icon.size / 2.5,
+                close_btn_rect.center().y - x_icon.size / 2.2,
             );
 
             let icon: egui::WidgetText = (&x_icon).into();
