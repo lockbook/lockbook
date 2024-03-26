@@ -20,9 +20,12 @@ pub fn init(ctx: &egui::Context, dark_mode: bool) {
     style
         .text_styles
         .insert(egui::TextStyle::Monospace, egui::FontId::new(17.0, egui::FontFamily::Monospace));
-    style
-        .text_styles
-        .insert(egui::TextStyle::Button, egui::FontId::new(17.0, egui::FontFamily::Proportional));
+
+    let button_font_size = if cfg!(target_os = "ios") { 30.0 } else { 17.0 };
+    style.text_styles.insert(
+        egui::TextStyle::Button,
+        egui::FontId::new(button_font_size, egui::FontFamily::Proportional),
+    );
     ctx.set_style(style);
 }
 

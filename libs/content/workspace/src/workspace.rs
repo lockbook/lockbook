@@ -1,5 +1,4 @@
 use egui::{vec2, Color32, Context, Image};
-use std::ops::Deref;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::Arc;
@@ -346,16 +345,6 @@ impl Workspace {
 
     fn show_mobile_title(&mut self, ui: &mut egui::Ui, output: &mut WsOutput) {
         ui.horizontal(|ui| {
-            ui.set_style(egui::Style {
-                text_styles: vec![(
-                    egui::TextStyle::Button,
-                    egui::FontId::new(30.0, egui::FontFamily::Proportional),
-                )]
-                .into_iter()
-                .collect(),
-                ..ui.style().deref().clone()
-            });
-
             let selectable_label = egui::widgets::Button::new(self.tabs[0].name.clone())
                 .frame(false)
                 .fill(egui::Color32::TRANSPARENT);
