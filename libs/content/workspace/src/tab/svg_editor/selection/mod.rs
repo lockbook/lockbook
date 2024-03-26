@@ -50,6 +50,13 @@ impl Selection {
 
         let mut maybe_selected_el = None;
 
+        if let Some(selection_rect) = &self.selection_rect {
+            if selection_rect.show_delete_btn(buffer, ui, working_rect) {
+                self.delete_selection(buffer);
+                return;
+            }
+        }
+
         if matches!(self.current_op, SelectionOperation::Idle) {
             maybe_selected_el = detect_translation(buffer, self.last_pos, pos);
             if maybe_selected_el.is_some() {
@@ -259,47 +266,31 @@ impl Selection {
         }
 
         if ui.input(|r| r.key_pressed(egui::Key::Backspace)) && !self.selected_elements.is_empty() {
-            let elements = self
-                .selected_elements
-                .iter()
-                .map(|el| {
-                    let element = buffer
-                        .current
-                        .children()
-                        .find(|node| node.attr("id").map_or(false, |id| id.eq(&el.id)))
-                        .unwrap()
-                        .clone();
-                    DeleteElement { id: el.id.clone(), element }
-                })
-                .collect();
-
-            let delete_event = super::Event::Delete(elements);
-            buffer.apply_event(&delete_event);
-            buffer.save(delete_event);
-            self.selected_elements.clear();
+            self.delete_selection(buffer);
         }
 
-        // if !self.selected_elements.is_empty() {
-        //     let delete_toolbar_height = 100.0;
-        //     let delete_toolbar_width = 100.0;
-
-        //     let mut delete_toolbar_rect = working_rect;
-        //     delete_toolbar_rect.min.y = delete_toolbar_rect.max.y - delete_toolbar_height;
-        //     delete_toolbar_rect.min.x = delete_toolbar_rect.max.x - delete_toolbar_width;
-
-        //     ui.allocate_ui_at_rect(delete_toolbar_rect, |ui| {
-        //         egui::Frame::default()
-        //             .fill(ui.visuals().code_bg_color)
-        //             .inner_margin(egui::Margin::same(10.0))
-        //             .outer_margin(egui::Margin::same(10.0))
-        //             .show(ui, |ui| {
-        //                 Button::default().icon(&Icon::DELETE).show(ui);
-        //                 // ui.label("hello");
-        //             })
-        //     });
-        // }
-
         self.last_pos = Some(pos);
+    }
+
+    fn delete_selection(&mut self, buffer: &mut Buffer) {
+        let elements = self
+            .selected_elements
+            .iter()
+            .map(|el| {
+                let element = buffer
+                    .current
+                    .children()
+                    .find(|node| node.attr("id").map_or(false, |id| id.eq(&el.id)))
+                    .unwrap()
+                    .clone();
+                DeleteElement { id: el.id.clone(), element }
+            })
+            .collect();
+
+        let delete_event = super::Event::Delete(elements);
+        buffer.apply_event(&delete_event);
+        buffer.save(delete_event);
+        self.selected_elements.clear();
     }
 }
 
