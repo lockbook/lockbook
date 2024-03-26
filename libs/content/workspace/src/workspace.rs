@@ -734,7 +734,7 @@ fn tab_label(ui: &mut egui::Ui, t: &mut Tab, is_active: bool) -> Option<TabLabel
 
         let close_btn_rect =
             egui::Rect::from_min_size(close_btn_pos, egui::vec2(x_icon.size, x_icon.size))
-                .expand(2.0);
+                .expand(10.0);
 
         let mut close_hovered = false;
         let pointer_pos = ui.input(|i| i.pointer.hover_pos());
@@ -792,9 +792,10 @@ fn tab_label(ui: &mut egui::Ui, t: &mut Tab, is_active: bool) -> Option<TabLabel
                 );
             }
 
+            // todo: use galley size of icon instead of icon.size for a more accurate reading.
             let icon_draw_pos = egui::pos2(
-                rect.max.x - padding.x - x_icon.size - 1.0,
-                rect.center().y - x_icon.size / 4.1 - 1.0,
+                close_btn_rect.center().x - x_icon.size / 2.,
+                close_btn_rect.center().y - x_icon.size / 2.5,
             );
 
             let icon: egui::WidgetText = (&x_icon).into();
