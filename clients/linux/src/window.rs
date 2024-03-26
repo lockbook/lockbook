@@ -169,7 +169,7 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut last_copied_text = String::new();
     let mut paste_context = clipboard_paste::Context::new(window_id, conn, &atoms);
-    let cursor_manager = output::cursor::Manager::new(conn, screen_num)?;
+    let mut cursor_manager = output::cursor::Manager::new(conn, screen_num)?;
     loop {
         let mut got_events = got_events_atomic.load(Ordering::SeqCst);
         while let Some(event) = conn.poll_for_event()? {
