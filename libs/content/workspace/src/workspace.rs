@@ -734,7 +734,7 @@ fn tab_label(ui: &mut egui::Ui, t: &mut Tab, is_active: bool) -> Option<TabLabel
 
         let close_btn_rect =
             egui::Rect::from_min_size(close_btn_pos, egui::vec2(x_icon.size, x_icon.size))
-                .expand(10.0);
+                .expand(2.0);
 
         let mut close_hovered = false;
         let pointer_pos = ui.input(|i| i.pointer.hover_pos());
