@@ -289,7 +289,7 @@ fn fuzzer_delete_concurrently_edited_document() {
 
 #[test]
 fn test_move_folder_with_deleted_file() {
-    let mut cores = vec![
+    let mut cores = [
         vec![test_core_with_account()],
         vec![test_core_with_account()],
         vec![test_core_with_account()],
@@ -310,7 +310,7 @@ fn test_move_folder_with_deleted_file() {
 
 #[test]
 fn test_clean_sync_deleted_link() {
-    let cores = vec![test_core_with_account(), test_core_with_account()];
+    let cores = [test_core_with_account(), test_core_with_account()];
 
     let doc = cores[0].create_at_path("welcome.md").unwrap();
     cores[0]
