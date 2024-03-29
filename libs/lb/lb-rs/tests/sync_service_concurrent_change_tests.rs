@@ -1261,7 +1261,7 @@ fn share_from_two_clients_write_then_read() {
 
 #[test]
 fn share_delete_then_upgrade_to_write() {
-    let cores = vec![test_core_with_account(), test_core_with_account()];
+    let cores = [test_core_with_account(), test_core_with_account()];
     let accounts = cores
         .iter()
         .map(|core| core.get_account().unwrap())
@@ -1292,7 +1292,7 @@ fn share_delete_then_upgrade_to_write() {
 
 #[test]
 fn share_upgrade_to_write_then_delete() {
-    let cores = vec![test_core_with_account(), test_core_with_account()];
+    let cores = [test_core_with_account(), test_core_with_account()];
     let accounts = cores
         .iter()
         .map(|core| core.get_account().unwrap())
