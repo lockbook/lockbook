@@ -25,6 +25,7 @@ import java.lang.Long.max
 import java.math.BigInteger
 
 // Maybe GLSurfaceView can provide performance improvements?
+// todo: implement drawing on separate thread using surfaceholder (I am currently using it wrong)
 class WorkspaceView : SurfaceView, SurfaceHolder.Callback2 {
     private val frameOutputJsonParser = Json {
         ignoreUnknownKeys = true
@@ -34,19 +35,25 @@ class WorkspaceView : SurfaceView, SurfaceHolder.Callback2 {
         invalidate()
     }
 
-    var model: WorkspaceViewModel? = null
+    val model: WorkspaceViewModel
 
-    constructor(context: Context) : super(context)
-    constructor(context: Context, attrs: AttributeSet) : super(context, attrs)
-    constructor(context: Context, attrs: AttributeSet, defStyle: Int) : super(
+    constructor(context: Context, model: WorkspaceViewModel) : super(context) {
+        this.model = model
+    }
+    constructor(context: Context, attrs: AttributeSet, model: WorkspaceViewModel) : super(context, attrs) {
+        this.model = model
+    }
+    constructor(context: Context, attrs: AttributeSet, defStyle: Int, model: WorkspaceViewModel) : super(
         context,
         attrs,
         defStyle
-    )
+    ) {
+        this.model = model
+    }
 
     init {
         holder.addCallback(this)
-        this.setZOrderOnTop(true)
+//        this.setZOrderOnTop(true)
         holder.setFormat(PixelFormat.TRANSPARENT)
     }
 
@@ -79,10 +86,10 @@ class WorkspaceView : SurfaceView, SurfaceHolder.Callback2 {
                 CoreModel.getPtr(),
                 context.resources.displayMetrics.scaledDensity,
                 (context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES,
-                WS_OBJ
+                WGPU_OBJ
             )
 
-            model!!._shouldShowTabs.postValue(Unit)
+            model._shouldShowTabs.postValue(Unit)
 
             setWillNotDraw(false)
         }
@@ -98,35 +105,46 @@ class WorkspaceView : SurfaceView, SurfaceHolder.Callback2 {
             return
         }
 
-        if(event.pointerCount > 0) {
-            when (event.action) {
-                MotionEvent.ACTION_DOWN -> {
+        val action = event.action and MotionEvent.ACTION_MASK
+
+        for (i in 0 until event.pointerCount) {
+            val pointerId = event.getPointerId(i)
+
+            when (action) {
+                MotionEvent.ACTION_DOWN, MotionEvent.ACTION_POINTER_DOWN -> {
                     WORKSPACE.touchesBegin(
                         WGPU_OBJ,
-                        event.getPointerId(0),
-                        adjustTouchPoint(event.x),
-                        adjustTouchPoint(event.y + touchOffsetY),
-                        event.pressure
+                        pointerId,
+                        adjustTouchPoint(event.getX(i)),
+                        adjustTouchPoint(event.getY(i) + touchOffsetY),
+                        0.0f
                     )
                 }
-
                 MotionEvent.ACTION_MOVE -> {
                     WORKSPACE.touchesMoved(
                         WGPU_OBJ,
-                        event.getPointerId(0),
-                        adjustTouchPoint(event.x),
-                        adjustTouchPoint(event.y + touchOffsetY),
-                        event.pressure
+                        pointerId,
+                        adjustTouchPoint(event.getX(i)),
+                        adjustTouchPoint(event.getY(i) + touchOffsetY),
+                        0.0f
                     )
                 }
-
-                MotionEvent.ACTION_UP -> {
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_POINTER_UP -> {
                     WORKSPACE.touchesEnded(
                         WGPU_OBJ,
-                        event.getPointerId(0),
-                        adjustTouchPoint(event.x),
-                        adjustTouchPoint(event.y + touchOffsetY),
-                        event.pressure
+                        pointerId,
+                        adjustTouchPoint(event.getX(i)),
+                        adjustTouchPoint(event.getY(i) + touchOffsetY),
+                        0.0f
+                    )
+                }
+                MotionEvent.ACTION_CANCEL -> {
+                    WORKSPACE.touchesCancelled(
+                        WGPU_OBJ,
+                        pointerId,
+                        adjustTouchPoint(event.getX(i)),
+                        adjustTouchPoint(event.getY(i) + touchOffsetY),
+                        0.0f
                     )
                 }
             }
@@ -135,9 +153,7 @@ class WorkspaceView : SurfaceView, SurfaceHolder.Callback2 {
         invalidate()
     }
 
-    override fun surfaceDestroyed(holder: SurfaceHolder) {
-        WS_OBJ = WORKSPACE.dropWgpuCanvas(WGPU_OBJ)
-    }
+    override fun surfaceDestroyed(holder: SurfaceHolder) {}
 
     override fun surfaceRedrawNeeded(holder: SurfaceHolder) {
         invalidate()
@@ -152,12 +168,16 @@ class WorkspaceView : SurfaceView, SurfaceHolder.Callback2 {
     }
 
     fun sync() {
-        model!!.isSyncing = true
+        model.isSyncing = true
         WORKSPACE.requestSync(WGPU_OBJ)
     }
 
     fun closeDoc(id: String) {
         WORKSPACE.closeDoc(WGPU_OBJ, id)
+    }
+
+    fun fileRenamed(id: String, name: String) {
+        WORKSPACE.fileRenamed(WGPU_OBJ, id, name)
     }
 
     override fun draw(canvas: Canvas) {
@@ -175,35 +195,37 @@ class WorkspaceView : SurfaceView, SurfaceHolder.Callback2 {
             startActivity(context, browserIntent, null)
         }
 
-        if(model!!.isSyncing && !response.workspaceResp.syncing) {
-            model!!._syncCompleted.postValue(Unit)
+        if(model.isSyncing && !response.workspaceResp.syncing) {
+            model._syncCompleted.postValue(Unit)
         }
-        model!!.isSyncing = response.workspaceResp.syncing
+        model.isSyncing = response.workspaceResp.syncing
 
         if(response.workspaceResp.newFolderBtnPressed) {
-            model!!._newFolderBtnPressed.postValue(Unit)
+            model._newFolderBtnPressed.postValue(Unit)
         }
 
         if(response.workspaceResp.refreshFiles) {
-            model!!._refreshFiles.postValue(Unit)
+            model._refreshFiles.postValue(Unit)
         }
 
         if(!response.workspaceResp.docCreated.isNullUUID()) {
-            model!!._docCreated.postValue(response.workspaceResp.docCreated)
+            model._docCreated.postValue(response.workspaceResp.docCreated)
         }
 
         if(!response.workspaceResp.selectedFile.isNullUUID()) {
-            model!!._selectedFile.postValue(response.workspaceResp.selectedFile)
+            model._selectedFile.postValue(response.workspaceResp.selectedFile)
         }
 
         if(response.workspaceResp.tabTitleClicked) {
-            model!!._tabTitleClicked.postValue(Unit)
+            model._tabTitleClicked.postValue(Unit)
+            WORKSPACE.unfocusTitle(WGPU_OBJ)
         }
 
-        model!!._msg.value = response.workspaceResp.msg
+        model._msg.value = response.workspaceResp.msg
+
         val currentTab = WorkspaceTab.fromInt(WORKSPACE.currentTab(WGPU_OBJ))
-        if(currentTab != model!!._currentTab.value) {
-            model!!._currentTab.value = currentTab
+        if(currentTab != model._currentTab.value) {
+            model._currentTab.value = currentTab
         }
 
         if (response.redrawIn < BigInteger("100")) {
@@ -216,7 +238,6 @@ class WorkspaceView : SurfaceView, SurfaceHolder.Callback2 {
     companion object {
         // TODO: move these to the workspace class and make a getInstance for it
         var WGPU_OBJ = Long.MAX_VALUE
-        private var WS_OBJ = Long.MAX_VALUE
 
         val WORKSPACE = Workspace()
     }

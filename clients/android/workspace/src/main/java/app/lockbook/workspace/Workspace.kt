@@ -74,20 +74,23 @@ class Workspace {
         val MOBILE_TOOL_BAR_SIZE = 45.0
     }
 
-    external fun createWgpuCanvas(surface: Surface, core: Long, scaleFactor: Float, darkMode: Boolean, workspace: Long): Long
+    external fun createWgpuCanvas(surface: Surface, core: Long, scaleFactor: Float, darkMode: Boolean, oldWGPU: Long): Long
     external fun enterFrame(rustObj: Long): String
     external fun resizeEditor(rustObj: Long, surface: Surface, scaleFactor: Float)
-    external fun dropWgpuCanvas(rustObj: Long): Long
 
+    external fun unfocusTitle(rustObj: Long)
     external fun touchesBegin(rustObj: Long, id: Int, x: Float, y: Float, pressure: Float)
     external fun touchesMoved(rustObj: Long, id: Int, x: Float, y: Float, pressure: Float)
     external fun touchesEnded(rustObj: Long, id: Int, x: Float, y: Float, pressure: Float)
+    external fun touchesCancelled(rustObj: Long, id: Int, x: Float, y: Float, pressure: Float)
     external fun sendKeyEvent(rustObj: Long, keyCode: Int, content: String, pressed: Boolean, alt: Boolean, ctrl: Boolean, shift: Boolean): Int
     external fun openDoc(rustObj: Long, id: String, newFile: Boolean)
     external fun closeDoc(rustObj: Long, id: String)
     external fun requestSync(rustObj: Long)
     external fun showTabs(rustObj: Long, show: Boolean)
     external fun currentTab(rustObj: Long): Int
+
+    external fun fileRenamed(rustObj: Long, id: String, name: String): Int
 
     // text input
     external fun getAllText(rustObj: Long): String

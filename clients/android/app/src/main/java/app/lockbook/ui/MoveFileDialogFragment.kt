@@ -48,7 +48,7 @@ class MoveFileDialogFragment : DialogFragment() {
     }
 
     companion object {
-        const val MOVE_FILE_DIALOG_TAG = "MoveFileDialogFragment"
+        const val TAG = "MoveFileDialogFragment"
     }
 
     override fun onCreateDialog(savedInstanceState: Bundle?): Dialog = MaterialAlertDialogBuilder(requireContext())

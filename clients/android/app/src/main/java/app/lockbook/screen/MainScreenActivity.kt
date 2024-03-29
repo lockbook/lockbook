@@ -10,6 +10,8 @@ import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.FileProvider
 import androidx.fragment.app.*
+import androidx.navigation.findNavController
+import androidx.navigation.fragment.NavHostFragment
 import androidx.slidingpanelayout.widget.SlidingPaneLayout
 import app.lockbook.App
 import app.lockbook.R
@@ -41,7 +43,13 @@ class MainScreenActivity : AppCompatActivity() {
                 is RenameFileDialogFragment -> filesFragment.refreshFiles()
                 is CreateFileDialogFragment -> filesFragment.onNewFileCreated(f.newFile)
                 is FileInfoDialogFragment -> filesFragment.unselectFiles()
-                is DeleteFilesDialogFragment -> onFileDeleted(filesFragment)
+                is DeleteFilesDialogFragment -> {
+                    if(workspaceModel.selectedFile.value != null) {
+                        workspaceModel._closeDocument.value = workspaceModel.selectedFile.value
+                    }
+
+                    filesFragment.refreshFiles()
+                }
             }
         }
     }
@@ -72,6 +80,7 @@ class MainScreenActivity : AppCompatActivity() {
             false
         )
 
+
         val wFragment = supportFragmentManager.findFragmentByTag("Workspace")
 
         if(wFragment == null) {
@@ -99,19 +108,6 @@ class MainScreenActivity : AppCompatActivity() {
         if (model.exportImportModel.isLoadingOverlayVisible) {
             updateMainScreenUI(UpdateMainScreenUI.ShowHideProgressOverlay(model.exportImportModel.isLoadingOverlayVisible))
         }
-
-        binding.slidingPaneLayout.addPanelSlideListener(object :
-                SlidingPaneLayout.PanelSlideListener {
-                override fun onPanelSlide(panel: View, slideOffset: Float) {}
-
-                override fun onPanelOpened(panel: View) {
-//                    if (model.detailScreen is DetailScreen.Loading) {
-//                        (supportFragmentManager.findFragmentById(R.id.detail_container) as DetailScreenLoaderFragment).addChecker()
-//                    }
-                }
-
-                override fun onPanelClosed(panel: View) {}
-            })
 
         slidingPaneLayout.lockMode = SlidingPaneLayout.LOCK_MODE_LOCKED
 
@@ -142,29 +138,38 @@ class MainScreenActivity : AppCompatActivity() {
                 is TransientScreen.Create -> {
                     CreateFileDialogFragment().show(
                         supportFragmentManager,
-                        CreateFileDialogFragment.CREATE_FILE_DIALOG_TAG
+                        CreateFileDialogFragment.TAG
                     )
                 }
                 is TransientScreen.Info -> {
                     FileInfoDialogFragment().show(
                         supportFragmentManager,
-                        FileInfoDialogFragment.FILE_INFO_DIALOG_TAG
+                        FileInfoDialogFragment.TAG
                     )
                 }
                 is TransientScreen.Move -> {
                     MoveFileDialogFragment().show(
                         supportFragmentManager,
-                        MoveFileDialogFragment.MOVE_FILE_DIALOG_TAG
+                        MoveFileDialogFragment.TAG
                     )
                 }
                 is TransientScreen.Rename -> {
                     RenameFileDialogFragment().show(
                         supportFragmentManager,
-                        RenameFileDialogFragment.RENAME_FILE_DIALOG_TAG
+                        RenameFileDialogFragment.TAG
                     )
                 }
                 is TransientScreen.ShareExport -> {
                     finalizeShare(screen.files)
+                }
+                is TransientScreen.ShareFile -> {
+                    supportFragmentManager.commit {
+                        add<ShareFileFragment>(R.id.detail_container, ShareFileFragment.TAG)
+                        setTransition(FragmentTransaction.TRANSIT_FRAGMENT_FADE)
+                        addToBackStack(WorkspaceFragment.BACKSTACK_TAG)
+
+                        slidingPaneLayout.openPane()
+                    }
                 }
                 is TransientScreen.Delete -> {
                     DeleteFilesDialogFragment().show(
@@ -225,6 +230,13 @@ class MainScreenActivity : AppCompatActivity() {
             UpdateMainScreenUI.ShowSubscriptionConfirmed -> {
                 alertModel.notifySuccessfulPurchaseConfirm()
             }
+            UpdateMainScreenUI.PopBackstackToWorkspace -> {
+                if(supportFragmentManager.findFragmentById(R.id.detail_container) !is WorkspaceFragment) {
+                    supportFragmentManager.popBackStack(WorkspaceFragment.BACKSTACK_TAG, FragmentManager.POP_BACK_STACK_INCLUSIVE)
+                }
+
+                workspaceModel._currentTab.postValue(workspaceModel.currentTab.value)
+            }
             UpdateMainScreenUI.ShowSearch -> navHost().navController.navigate(R.id.action_files_to_search)
             UpdateMainScreenUI.ShowFiles -> navHost().navController.popBackStack()
             UpdateMainScreenUI.Sync -> maybeGetFilesFragment()?.sync(false)
@@ -265,14 +277,10 @@ class MainScreenActivity : AppCompatActivity() {
         supportFragmentManager.unregisterFragmentLifecycleCallbacks(fragmentFinishedCallback)
     }
 
-    private fun onFileDeleted(filesFragment: FilesFragment) {
-        if(workspaceModel.selectedFile.value != null) {
-            workspaceModel._closeDocument.value = workspaceModel.selectedFile.value
-        }
-    }
-
     override fun onBackPressed() {
-        if (slidingPaneLayout.isSlideable && slidingPaneLayout.isOpen) { // if you are on a small display where only files or an editor show once at a time, you want to handle behavior a bit differently
+        if(supportFragmentManager.findFragmentById(R.id.detail_container) !is WorkspaceFragment) {
+            model.updateMainScreenUI(UpdateMainScreenUI.PopBackstackToWorkspace)
+        } else if (slidingPaneLayout.isSlideable && slidingPaneLayout.isOpen) { // if you are on a small display where only files or an editor show once at a time, you want to handle behavior a bit differently
             model.updateMainScreenUI(UpdateMainScreenUI.OpenFile(null))
         } else if (maybeGetSearchFilesFragment() != null) {
             updateMainScreenUI(UpdateMainScreenUI.ShowFiles)

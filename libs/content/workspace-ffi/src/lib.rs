@@ -80,7 +80,6 @@ impl WgpuWorkspace {
         let full_output = self.context.end_frame();
 
         if !full_output.platform_output.copied_text.is_empty() {
-            // todo: can this go in output?
             out.copied_text = full_output.platform_output.copied_text;
         }
 

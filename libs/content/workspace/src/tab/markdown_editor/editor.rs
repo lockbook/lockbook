@@ -235,7 +235,10 @@ impl Editor {
 
         // process events
         let (text_updated, selection_updated, pointer_offset_updated) = if self.initialized {
-            if ui.memory(|m| m.has_focus(id)) || cfg!(target_os = "ios") {
+            if ui.memory(|m| m.has_focus(id))
+                || cfg!(target_os = "ios")
+                || cfg!(target_os = "android")
+            {
                 let custom_events = ui.ctx().pop_events();
                 self.process_events(events, &custom_events, touch_mode);
                 if let Some(to_clipboard) = &self.maybe_to_clipboard {

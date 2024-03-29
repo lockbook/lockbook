@@ -27,7 +27,7 @@ use super::keyboard::AndroidKeys;
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_workspace_Workspace_createWgpuCanvas(
     env: JNIEnv, _: JClass, surface: jobject, core: jlong, scale_factor: jfloat, dark_mode: bool,
-    workspace: jlong,
+    old_wgpu: jlong,
 ) -> jlong {
     let core = unsafe { &mut *(core as *mut Core) };
     let writable_dir = core.get_config().unwrap().writeable_path;
@@ -41,12 +41,12 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_createWgpuCanvas(
     context.set_fonts(fonts);
 
     let mut ws = Workspace::new(ws_cfg, core, &context);
-    if workspace != jlong::MAX {
-        let old_ws = unsafe { Box::from_raw(workspace as *mut Workspace) };
+    if old_wgpu != jlong::MAX {
+        let old_wgpu: Box<WgpuWorkspace> = unsafe { Box::from_raw(old_wgpu as *mut _) };
 
-        ws.active_tab = old_ws.active_tab;
-        ws.tabs = old_ws.tabs;
-        ws.pers_status = old_ws.pers_status;
+        ws.active_tab = old_wgpu.workspace.active_tab;
+        ws.tabs = old_wgpu.workspace.tabs;
+        ws.pers_status = old_wgpu.workspace.pers_status;
     }
 
     let native_window = NativeWindow::new(&env, surface);
@@ -116,15 +116,6 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_resizeEditor(
 }
 
 #[no_mangle]
-pub extern "system" fn Java_app_lockbook_workspace_Workspace_dropWgpuCanvas(
-    mut _env: JNIEnv, _: JClass, obj: jlong,
-) -> jlong {
-    let obj: Box<WgpuWorkspace> = unsafe { Box::from_raw(obj as *mut _) };
-
-    return Box::into_raw(Box::new(obj.workspace)) as jlong;
-}
-
-#[no_mangle]
 pub extern "system" fn Java_app_lockbook_workspace_Workspace_sendKeyEvent(
     mut env: JNIEnv, _: JClass, obj: jlong, key_code: jint, content: JString, pressed: jboolean,
     alt: jboolean, ctrl: jboolean, shift: jboolean,
@@ -165,11 +156,9 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_sendKeyEvent(
 
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_workspace_Workspace_touchesBegin(
-    _env: JNIEnv, _: JClass, obj: jlong, id: jint, x: jfloat, y: jfloat, pressure: jfloat,
+    _env: JNIEnv, _: JClass, ogbj: jlong, id: jint, x: jfloat, y: jfloat, pressure: jfloat,
 ) {
-    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
-
-    println!("registering on begin: ({}, {})", x, y);
+    let obj = unsafe { &mut *(ogbj as *mut WgpuWorkspace) };
 
     obj.raw_input.events.push(Event::Touch {
         device_id: TouchDeviceId(0),
@@ -193,8 +182,6 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_touchesMoved(
 ) {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
 
-    println!("registering on moved: ({}, {})", x, y);
-
     obj.raw_input.events.push(Event::Touch {
         device_id: TouchDeviceId(0),
         id: TouchId(id as u64),
@@ -214,8 +201,6 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_touchesEnded(
 ) {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
 
-    println!("registering on ended: ({}, {})", x, y);
-
     obj.raw_input.events.push(Event::Touch {
         device_id: TouchDeviceId(0),
         id: TouchId(id as u64),
@@ -229,6 +214,23 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_touchesEnded(
         button: PointerButton::Primary,
         pressed: false,
         modifiers: Default::default(),
+    });
+
+    obj.raw_input.events.push(Event::PointerGone);
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_touchesCancelled(
+    _env: JNIEnv, _: JClass, obj: jlong, id: jint, x: jfloat, y: jfloat, pressure: jfloat,
+) {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+
+    obj.raw_input.events.push(Event::Touch {
+        device_id: TouchDeviceId(0),
+        id: TouchId(id as u64),
+        phase: TouchPhase::Cancel,
+        pos: Pos2 { x, y },
+        force: pressure,
     });
 
     obj.raw_input.events.push(Event::PointerGone);
@@ -295,6 +297,33 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_currentTab(
             None => 1,
         },
         None => 0,
+    }
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_fileRenamed(
+    mut env: JNIEnv, _: JClass, obj: jlong, jid: JString, jnew_name: JString,
+) {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+
+    let rid: String = env.get_string(&jid).unwrap().into();
+    let id = Uuid::parse_str(&rid).unwrap();
+    let new_name: String = env.get_string(&jnew_name).unwrap().into();
+
+    let _ = obj
+        .workspace
+        .updates_tx
+        .send(workspace_rs::workspace::WsMsg::FileRenamed { id, new_name });
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_unfocusTitle(
+    _env: JNIEnv, _: JClass, obj: jlong,
+) {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+
+    if let Some(tab) = obj.workspace.current_tab_mut() {
+        tab.rename = None;
     }
 }
 

@@ -80,7 +80,7 @@ class FilesListFragment : Fragment(), FilesFragment {
                     }
                     R.id.menu_list_files_share -> {
                         if (model.files.getSelectionCount() == 1) {
-//                            activityModel.launchDetailScreen(DetailScreen.Share(selectedFiles[0].fileMetadata))
+                            activityModel.launchTransientScreen(TransientScreen.ShareFile(selectedFiles[0].fileMetadata))
                             unselectFiles()
                         }
                     }

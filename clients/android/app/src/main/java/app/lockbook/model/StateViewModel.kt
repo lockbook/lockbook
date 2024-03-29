@@ -96,6 +96,7 @@ sealed class TransientScreen {
     data class Create(val parentId: String, val extendedFileType: ExtendedFileType) : TransientScreen()
     data class Info(val file: app.lockbook.util.File) : TransientScreen()
     data class ShareExport(val files: List<File>) : TransientScreen()
+    data class ShareFile(val file: app.lockbook.util.File) : TransientScreen()
     data class Delete(val files: List<app.lockbook.util.File>) : TransientScreen()
 }
 
@@ -107,6 +108,7 @@ sealed class UpdateMainScreenUI {
     object ShowSubscriptionConfirmed : UpdateMainScreenUI()
     object ShowSearch : UpdateMainScreenUI()
     object ShowFiles : UpdateMainScreenUI()
+    object PopBackstackToWorkspace : UpdateMainScreenUI()
     object Sync : UpdateMainScreenUI()
 }
 

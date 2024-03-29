@@ -22,9 +22,14 @@ class WorkspaceViewModel: ViewModel() {
     val _sync = SingleMutableLiveData<Unit>()
     val sync: LiveData<Unit>
         get() = _sync
+
     val _showTabs = SingleMutableLiveData<Boolean>()
     val showTabs: LiveData<Boolean>
         get() = _showTabs
+
+    val _finishedAction = SingleMutableLiveData<FinishedAction>()
+    val finishedAction: LiveData<FinishedAction>
+        get() = _finishedAction
 
     // for everyone else
     val _msg = MutableLiveData<String>()
@@ -94,4 +99,9 @@ enum class WorkspaceTab(val value: Int) {
     fun isSvg(): Boolean {
         return this == Svg
     }
+}
+
+sealed class FinishedAction {
+    data class Delete(val id: String): FinishedAction()
+    data class Rename(val id: String, val name: String): FinishedAction()
 }

@@ -192,7 +192,7 @@ class ExtensionHelper(val fileName: String) {
             "png"
         )
 
-    val isDrawing: Boolean get() = extension == "draw"
+    val isDrawing: Boolean get() = extension == "svg"
 
     val isPdf: Boolean get() = extension == "pdf"
 }

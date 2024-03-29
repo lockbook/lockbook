@@ -4,7 +4,10 @@ import android.annotation.SuppressLint
 import android.content.ClipboardManager
 import android.content.Context
 import android.graphics.Color
+import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.text.Editable
 import android.text.InputFilter
 import android.text.Selection
@@ -28,6 +31,7 @@ import app.lockbook.App
 import app.lockbook.R
 import app.lockbook.databinding.FragmentWorkspaceBinding
 import app.lockbook.model.CoreModel
+import app.lockbook.model.FinishedAction
 import app.lockbook.model.StateViewModel
 import app.lockbook.model.TransientScreen
 import app.lockbook.model.UpdateMainScreenUI
@@ -45,6 +49,11 @@ class WorkspaceFragment: Fragment() {
     private val activityModel: StateViewModel by activityViewModels()
     private val model: WorkspaceViewModel by activityViewModels()
 
+    companion object {
+        val TAG = "WorkspaceFragment"
+        val BACKSTACK_TAG = "WorkspaceBackstack"
+    }
+
     override fun onCreateView(
         inflater: LayoutInflater,
         container: ViewGroup?,
@@ -55,7 +64,10 @@ class WorkspaceFragment: Fragment() {
         binding.workspaceToolbar.setOnMenuItemClickListener { it ->
             when(it.itemId) {
                 R.id.menu_text_editor_share -> {
-                    activityModel.launchTransientScreen(TransientScreen.ShareExport(listOf()))
+                    activityModel.launchTransientScreen(TransientScreen.ShareFile(CoreModel.getFileById(model.selectedFile.value!!).unwrap()))
+                }
+                R.id.menu_text_editor_share_externally -> {
+                    activityModel.shareSelectedFiles(listOf(CoreModel.getFileById(model.selectedFile.value!!).unwrap()), requireContext().cacheDir)
                 }
             }
 
@@ -64,9 +76,16 @@ class WorkspaceFragment: Fragment() {
 
         val workspaceWrapper = WorkspaceWrapperView(requireContext(), model)
 
+        binding.workspaceToolbar.setNavigationOnClickListener {
+            val currentDoc = model.selectedFile.value
+            if(currentDoc != null) {
+                model._closeDocument.value = currentDoc
+            }
+        }
+
         val layoutParams = ConstraintLayout.LayoutParams(
-            ConstraintLayout.LayoutParams.MATCH_PARENT,
-            0
+            ConstraintLayout.LayoutParams.MATCH_CONSTRAINT,
+            ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
         ).apply {
             startToStart = ConstraintLayout.LayoutParams.PARENT_ID
             endToEnd = ConstraintLayout.LayoutParams.PARENT_ID
@@ -104,19 +123,30 @@ class WorkspaceFragment: Fragment() {
             workspaceWrapper.workspaceView.showTabs(show)
         }
 
+        model.finishedAction.observe(viewLifecycleOwner) { action ->
+            when(action) {
+                is FinishedAction.Delete -> workspaceWrapper.workspaceView.closeDoc(action.id)
+                is FinishedAction.Rename -> workspaceWrapper.workspaceView.fileRenamed(action.id, action.name)
+            }
+        }
+
         return binding.root
     }
 
     private fun updateCurrentTab(workspaceWrapper: WorkspaceWrapperView, newTab: WorkspaceTab) {
-        when(workspaceWrapper.currentTab) {
+        when(newTab) {
             WorkspaceTab.Welcome,
-            WorkspaceTab.Loading -> { }
+            WorkspaceTab.Loading -> {
+                binding.workspaceToolbar.menu.findItem(R.id.menu_text_editor_share).isVisible = false
+                binding.workspaceToolbar.menu.findItem(R.id.menu_text_editor_share_externally).isVisible = false
+            }
             WorkspaceTab.Svg,
             WorkspaceTab.Image,
             WorkspaceTab.Pdf,
             WorkspaceTab.Markdown,
             WorkspaceTab.PlainText -> {
-
+                binding.workspaceToolbar.menu.findItem(R.id.menu_text_editor_share).isVisible = true
+                binding.workspaceToolbar.menu.findItem(R.id.menu_text_editor_share_externally).isVisible = true
             }
         }
 
@@ -129,11 +159,11 @@ class WorkspaceWrapperView(context: Context, val model: WorkspaceViewModel): Fra
     val workspaceView: WorkspaceView
     var currentTab = WorkspaceTab.Welcome
 
-    var currentWrapper: ViewGroup? = null
+    var currentWrapper: View? = null
 
     companion object {
-        val TAB_BAR_HEIGHT = 50
-        val TEXT_TOOL_BAR_HEIGHT = 42
+        const val TAB_BAR_HEIGHT = 50
+        const val TEXT_TOOL_BAR_HEIGHT = 45
 //        val SVG_TOOL_BAR_HEIGHT = 50
     }
 
@@ -146,22 +176,12 @@ class WorkspaceWrapperView(context: Context, val model: WorkspaceViewModel): Fra
         ViewGroup.LayoutParams.MATCH_PARENT,
         ViewGroup.LayoutParams.MATCH_PARENT
     ).apply {
-        topMargin = TAB_BAR_HEIGHT + TEXT_TOOL_BAR_HEIGHT
+        topMargin = TAB_BAR_HEIGHT
+        bottomMargin = TEXT_TOOL_BAR_HEIGHT
     }
 
-//    val WS_SVG_LAYOUT_PARAMS = ViewGroup.MarginLayoutParams(
-//        ViewGroup.LayoutParams.MATCH_PARENT,
-//        ViewGroup.LayoutParams.MATCH_PARENT
-//    ).apply {
-//        // Set top and bottom margins
-//        topMargin = TAB_BAR_HEIGHT
-//        bottomMargin = SVG_TOOL_BAR_HEIGHT
-//    }
-
     init {
-        workspaceView = WorkspaceView(context)
-        workspaceView.model = model
-
+        workspaceView = WorkspaceView(context, model)
         addView(workspaceView, REG_LAYOUT_PARAMS)
     }
 
@@ -180,26 +200,30 @@ class WorkspaceWrapperView(context: Context, val model: WorkspaceViewModel): Fra
             WorkspaceTab.PlainText -> {
                 (context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager)
                     .hideSoftInputFromWindow(this.windowToken, 0)
+
+                workspaceView.requestFocus()
+
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                    (currentWrapper as WorkspaceTextInputWrapper).inputConnection.closeConnection()
+                }
+
+                Handler(Looper.getMainLooper()).postDelayed({
+                    removeView(currentWrapper)
+                }, 1000)
             }
         }
-
-        val parentViewGroup = currentWrapper?.parent as? ViewGroup
-        parentViewGroup?.removeView(currentWrapper)
 
         when(newTab) {
             WorkspaceTab.Welcome,
             WorkspaceTab.Svg,
             WorkspaceTab.Image,
             WorkspaceTab.Pdf,
-            WorkspaceTab.Loading -> {
-//                addView(workspaceView, REG_LAYOUT_PARAMS)
-            }
+            WorkspaceTab.Loading -> {}
             WorkspaceTab.Markdown,
             WorkspaceTab.PlainText -> {
-                val inputWrapper = WorkspaceTextInputWrapper(context, workspaceView)
-//                inputWrapper.addView(workspaceView, WS_TEXT_LAYOUT_PARAMS)
+                currentWrapper = WorkspaceTextInputWrapper(context, workspaceView)
 
-                addView(inputWrapper, WS_TEXT_LAYOUT_PARAMS)
+                addView(currentWrapper, WS_TEXT_LAYOUT_PARAMS)
             }
         }
 
@@ -210,7 +234,7 @@ class WorkspaceWrapperView(context: Context, val model: WorkspaceViewModel): Fra
 @SuppressLint("ViewConstructor")
 class WorkspaceTextInputWrapper(context: Context, val workspaceView: WorkspaceView): View(context) {
 
-    private val inputConnection = WorkspaceTextInputConnection(workspaceView)
+    val inputConnection = WorkspaceTextInputConnection(workspaceView)
 
     private var touchStartX = 0f
     private var touchStartY = 0f
@@ -247,6 +271,8 @@ class WorkspaceTextInputWrapper(context: Context, val workspaceView: WorkspaceVi
             workspaceView.forwardedTouchEvent(event, WorkspaceWrapperView.TAB_BAR_HEIGHT + WorkspaceWrapperView.TEXT_TOOL_BAR_HEIGHT)
         }
 
+        workspaceView.invalidate()
+
         return true
     }
 
@@ -277,13 +303,13 @@ class WorkspaceTextInputConnection(val view: View) : BaseInputConnection(view, t
     }
 
     override fun sendKeyEvent(event: KeyEvent?): Boolean {
-
         super.sendKeyEvent(event)
 
-        event?.let { realEvent ->
-            val content = realEvent.unicodeChar.toChar().toString()
 
-            WorkspaceView.WORKSPACE.sendKeyEvent(WorkspaceView.WGPU_OBJ, realEvent.keyCode, content, realEvent.action == KeyEvent.ACTION_DOWN, realEvent.isAltPressed, realEvent.isCtrlPressed, realEvent.isShiftPressed)
+        if(event != null) {
+            val content = event.unicodeChar.toChar().toString()
+
+            WorkspaceView.WORKSPACE.sendKeyEvent(WorkspaceView.WGPU_OBJ, event.keyCode, content, event.action == KeyEvent.ACTION_DOWN, event.isAltPressed, event.isCtrlPressed, event.isShiftPressed)
         }
 
         view.invalidate()

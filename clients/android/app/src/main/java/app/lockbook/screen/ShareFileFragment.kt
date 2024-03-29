@@ -1,4 +1,4 @@
-package app.lockbook.ui
+package app.lockbook.screen
 
 import android.os.Bundle
 import android.view.LayoutInflater
@@ -13,6 +13,7 @@ import app.lockbook.util.*
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import com.google.android.material.chip.Chip
+import timber.log.Timber
 import java.lang.ref.WeakReference
 
 class ShareFileFragment : Fragment() {
@@ -27,6 +28,8 @@ class ShareFileFragment : Fragment() {
 
     companion object {
         val admittedUsernames = listOf("parth", "smail", "travis", "adam", "steve", "krishma")
+
+        val TAG = "ShareFileFragment"
     }
 
     override fun onCreateView(
@@ -36,14 +39,16 @@ class ShareFileFragment : Fragment() {
     ): View {
         binding = FragmentShareFileBinding.inflate(inflater, container, false)
 
-//        val file = (activityModel.detailScreen as DetailScreen.Share).file
+        val file = (activityModel.transientScreen as TransientScreen.ShareFile).file
 
-//        binding.materialToolbar.subtitle = file.name
-//        populateShares(file)
-//
-//        binding.materialToolbar.setNavigationOnClickListener {
-//            activityModel.launchDetailScreen(null)
-//        }
+        binding.materialToolbar.subtitle = file.name
+        populateShares(file)
+
+        binding.materialToolbar.setNavigationOnClickListener {
+            activityModel.updateMainScreenUI(UpdateMainScreenUI.PopBackstackToWorkspace)
+        }
+
+        Timber.e("SHOWING")
 
         when (val getAccountResult = CoreModel.getAccount()) {
             is Ok ->

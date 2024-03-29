@@ -3,9 +3,16 @@
 
     <item
         android:id="@+id/menu_text_editor_share"
-        android:icon="@drawable/ic_baseline_share_24"
+        android:icon="@drawable/outline_person_add_24"
         android:orderInCategory="1"
         android:title="@string/menu_list_files_share"
+        app:showAsAction="always" />
+
+    <item
+        android:id="@+id/menu_text_editor_share_externally"
+        android:icon="@drawable/ic_baseline_share_24"
+        android:orderInCategory="2"
+        android:title="@string/workspace_share_externally"
         app:showAsAction="always" />
 
 </menu>
