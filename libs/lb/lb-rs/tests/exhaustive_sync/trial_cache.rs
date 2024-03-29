@@ -23,7 +23,7 @@ impl TrialCache {
         !self.state.read().unwrap().trials.is_empty()
     }
 
-    pub fn get(&self, actions: &Vec<Action>) -> (Vec<Vec<CoreIP>>, usize) {
+    pub fn get(&self, actions: &[Action]) -> (Vec<Vec<CoreIP>>, usize) {
         for i in (0..=actions.len()).rev() {
             let actions = actions[0..i].to_vec();
             if let Some(entry) = self.state.read().unwrap().trials.get(&actions) {

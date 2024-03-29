@@ -486,7 +486,7 @@ fn move_file_out_of_shared_folder_and_create_path_conflict() {
 
 #[test]
 fn test_share_link_write() {
-    let cores = vec![test_core_with_account(), test_core_with_account(), test_core_with_account()];
+    let cores = [test_core_with_account(), test_core_with_account(), test_core_with_account()];
     let accounts = cores
         .iter()
         .map(|core| core.get_account().unwrap())
@@ -522,7 +522,7 @@ fn test_share_link_write() {
 
 #[test]
 fn test_share_link_read() {
-    let cores = vec![test_core_with_account(), test_core_with_account(), test_core_with_account()];
+    let cores = [test_core_with_account(), test_core_with_account(), test_core_with_account()];
     let accounts = cores
         .iter()
         .map(|core| core.get_account().unwrap())
