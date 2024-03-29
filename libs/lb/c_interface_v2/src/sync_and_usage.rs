@@ -119,17 +119,6 @@ pub unsafe extern "C" fn lb_sync_all(
         Ok(_work) => lb_error_none(),
         Err(err) => lberr(err),
     }
-    // match core!(core).sync(Some(Box::new(move |sp| {
-    //     let c_sp: LbSyncProgress = LbSyncProgress {
-    //         total: sp.total as u64,
-    //         progress: sp.progress as u64,
-    //         msg: cstr(sp.msg),
-    //     };
-    //     progress(c_sp, user_data);
-    // }))) {
-    //     Ok(_work) => lb_error_none(),
-    //     Err(err) => lberr(err),
-    // }
 }
 
 #[repr(C)]
