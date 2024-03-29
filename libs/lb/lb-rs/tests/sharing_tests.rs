@@ -850,7 +850,7 @@ fn share_file_duplicate_new_mode() {
 
 #[test]
 fn share_folder_with_link_inside() {
-    let cores = vec![test_core_with_account(), test_core_with_account(), test_core_with_account()];
+    let cores = [test_core_with_account(), test_core_with_account(), test_core_with_account()];
     let accounts = cores
         .iter()
         .map(|core| core.get_account().unwrap())
@@ -882,7 +882,7 @@ fn share_folder_with_link_inside() {
 
 #[test]
 fn share_unowned_file_read() {
-    let cores = vec![test_core_with_account(), test_core_with_account(), test_core_with_account()];
+    let cores = [test_core_with_account(), test_core_with_account(), test_core_with_account()];
     let accounts = cores
         .iter()
         .map(|core| core.get_account().unwrap())
@@ -907,7 +907,7 @@ fn share_unowned_file_read() {
 
 #[test]
 fn share_unowned_file_write() {
-    let cores = vec![test_core_with_account(), test_core_with_account(), test_core_with_account()];
+    let cores = [test_core_with_account(), test_core_with_account(), test_core_with_account()];
     let accounts = cores
         .iter()
         .map(|core| core.get_account().unwrap())
@@ -932,7 +932,7 @@ fn share_unowned_file_write() {
 
 #[test]
 fn delete_pending_share() {
-    let cores = vec![test_core_with_account(), test_core_with_account(), test_core_with_account()];
+    let cores = [test_core_with_account(), test_core_with_account(), test_core_with_account()];
     let accounts = cores
         .iter()
         .map(|core| core.get_account().unwrap())
@@ -957,7 +957,7 @@ fn delete_pending_share() {
 
 #[test]
 fn delete_link_to_share() {
-    let cores = vec![test_core_with_account(), test_core_with_account(), test_core_with_account()];
+    let cores = [test_core_with_account(), test_core_with_account(), test_core_with_account()];
     let accounts = cores
         .iter()
         .map(|core| core.get_account().unwrap())
@@ -990,7 +990,7 @@ fn delete_link_to_share() {
 
 #[test]
 fn create_link_with_deleted_duplicate() {
-    let cores = vec![test_core_with_account(), test_core_with_account(), test_core_with_account()];
+    let cores = [test_core_with_account(), test_core_with_account(), test_core_with_account()];
     let accounts = cores
         .iter()
         .map(|core| core.get_account().unwrap())
@@ -1039,7 +1039,7 @@ fn delete_pending_share_root() {
 
 #[test]
 fn delete_pending_share_duplicate() {
-    let cores = vec![test_core_with_account(), test_core_with_account(), test_core_with_account()];
+    let cores = [test_core_with_account(), test_core_with_account(), test_core_with_account()];
     let accounts = cores
         .iter()
         .map(|core| core.get_account().unwrap())
@@ -1065,7 +1065,7 @@ fn delete_pending_share_duplicate() {
 
 #[test]
 fn delete_pending_share_nonexistent() {
-    let cores = vec![test_core_with_account(), test_core_with_account(), test_core_with_account()];
+    let cores = [test_core_with_account(), test_core_with_account(), test_core_with_account()];
     let accounts = cores
         .iter()
         .map(|core| core.get_account().unwrap())
