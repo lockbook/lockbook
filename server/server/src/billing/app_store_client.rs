@@ -159,7 +159,7 @@ fn get_trans(
 ) -> Result<(LastTransactionItem, TransactionInfo), ServerError<UpgradeAccountAppStoreError>> {
     let last_trans = sub_group
         .last_transactions
-        .get(0)
+        .first()
         .ok_or(ClientError(UpgradeAccountAppStoreError::InvalidAuthDetails))?;
 
     let part = <&str>::clone(
