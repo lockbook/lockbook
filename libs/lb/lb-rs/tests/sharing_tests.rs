@@ -6,7 +6,7 @@ use uuid::Uuid;
 
 #[test]
 fn shares_finalized() {
-    let cores = vec![test_core_with_account(), test_core_with_account()];
+    let cores = [test_core_with_account(), test_core_with_account()];
     let accounts = cores
         .iter()
         .map(|core| core.get_account().unwrap())
@@ -26,7 +26,7 @@ fn shares_finalized() {
 
 #[test]
 fn shares_finalized_unsynced_share() {
-    let cores = vec![test_core_with_account(), test_core_with_account()];
+    let cores = [test_core_with_account(), test_core_with_account()];
     let accounts = cores
         .iter()
         .map(|core| core.get_account().unwrap())
@@ -45,7 +45,7 @@ fn shares_finalized_unsynced_share() {
 
 #[test]
 fn write_document_read_share() {
-    let cores = vec![test_core_with_account(), test_core_with_account()];
+    let cores = [test_core_with_account(), test_core_with_account()];
     let accounts = cores
         .iter()
         .map(|core| core.get_account().unwrap())
@@ -65,7 +65,7 @@ fn write_document_read_share() {
 
 #[test]
 fn write_document_in_read_shared_folder() {
-    let cores = vec![test_core_with_account(), test_core_with_account()];
+    let cores = [test_core_with_account(), test_core_with_account()];
     let accounts = cores
         .iter()
         .map(|core| core.get_account().unwrap())
@@ -86,7 +86,7 @@ fn write_document_in_read_shared_folder() {
 
 #[test]
 fn write_document_write_share() {
-    let cores = vec![test_core_with_account(), test_core_with_account()];
+    let cores = [test_core_with_account(), test_core_with_account()];
     let accounts = cores
         .iter()
         .map(|core| core.get_account().unwrap())
@@ -114,7 +114,7 @@ fn write_document_write_share() {
 
 #[test]
 fn write_document_in_write_shared_folder() {
-    let cores = vec![test_core_with_account(), test_core_with_account()];
+    let cores = [test_core_with_account(), test_core_with_account()];
     let accounts = cores
         .iter()
         .map(|core| core.get_account().unwrap())
@@ -143,7 +143,7 @@ fn write_document_in_write_shared_folder() {
 
 #[test]
 fn write_document_in_write_shared_folder_in_read_shared_folder() {
-    let cores = vec![test_core_with_account(), test_core_with_account()];
+    let cores = [test_core_with_account(), test_core_with_account()];
     let accounts = cores
         .iter()
         .map(|core| core.get_account().unwrap())
@@ -176,7 +176,7 @@ fn write_document_in_write_shared_folder_in_read_shared_folder() {
 
 #[test]
 fn write_document_in_read_shared_folder_in_write_shared_folder() {
-    let cores = vec![test_core_with_account(), test_core_with_account()];
+    let cores = [test_core_with_account(), test_core_with_account()];
     let accounts = cores
         .iter()
         .map(|core| core.get_account().unwrap())
@@ -209,7 +209,7 @@ fn write_document_in_read_shared_folder_in_write_shared_folder() {
 
 #[test]
 fn write_document_rejected_share() {
-    let cores = vec![test_core_with_account(), test_core_with_account()];
+    let cores = [test_core_with_account(), test_core_with_account()];
     let accounts = cores
         .iter()
         .map(|core| core.get_account().unwrap())
@@ -233,7 +233,7 @@ fn write_document_rejected_share() {
 
 #[test]
 fn write_document_in_shared_folder_in_rejected_share_folder() {
-    let cores = vec![test_core_with_account(), test_core_with_account()];
+    let cores = [test_core_with_account(), test_core_with_account()];
     let accounts = cores
         .iter()
         .map(|core| core.get_account().unwrap())
@@ -267,7 +267,7 @@ fn write_document_in_shared_folder_in_rejected_share_folder() {
 
 #[test]
 fn write_document_in_rejected_shared_folder_in_share_folder() {
-    let cores = vec![test_core_with_account(), test_core_with_account()];
+    let cores = [test_core_with_account(), test_core_with_account()];
     let accounts = cores
         .iter()
         .map(|core| core.get_account().unwrap())
@@ -302,7 +302,7 @@ fn write_document_in_rejected_shared_folder_in_share_folder() {
 
 #[test]
 fn write_document_in_rejected_shared_folder_in_rejected_share_folder() {
-    let cores = vec![test_core_with_account(), test_core_with_account()];
+    let cores = [test_core_with_account(), test_core_with_account()];
     let accounts = cores
         .iter()
         .map(|core| core.get_account().unwrap())
@@ -446,7 +446,7 @@ fn create_document_in_link_folder_by_sharer() {
 
 #[test]
 fn create_document_in_target_folder_by_sharee() {
-    let cores = vec![test_core_with_account(), test_core_with_account()];
+    let cores = [test_core_with_account(), test_core_with_account()];
     let accounts = cores
         .iter()
         .map(|core| core.get_account().unwrap())
@@ -475,7 +475,7 @@ fn create_document_in_target_folder_by_sharee() {
 
 #[test]
 fn create_document_in_target_folder_by_sharer() {
-    let cores = vec![test_core_with_account(), test_core_with_account()];
+    let cores = [test_core_with_account(), test_core_with_account()];
     let accounts = cores
         .iter()
         .map(|core| core.get_account().unwrap())
@@ -504,7 +504,7 @@ fn create_document_in_target_folder_by_sharer() {
 
 #[test]
 fn get_link_target_children_by_sharee() {
-    let cores = vec![test_core_with_account(), test_core_with_account()];
+    let cores = [test_core_with_account(), test_core_with_account()];
     let accounts = cores
         .iter()
         .map(|core| core.get_account().unwrap())
@@ -550,7 +550,7 @@ fn get_link_target_children_by_sharee() {
 
 #[test]
 fn linked_nested_shared_folders_distinct_path_changes_when_closest_link_deleted() {
-    let cores = vec![test_core_with_account(), test_core_with_account()];
+    let cores = [test_core_with_account(), test_core_with_account()];
     let accounts = cores
         .iter()
         .map(|core| core.get_account().unwrap())
@@ -587,7 +587,7 @@ fn linked_nested_shared_folders_distinct_path_changes_when_closest_link_deleted(
 
 #[test]
 fn write_document_write_share_by_link() {
-    let cores = vec![test_core_with_account(), test_core_with_account()];
+    let cores = [test_core_with_account(), test_core_with_account()];
     let accounts = cores
         .iter()
         .map(|core| core.get_account().unwrap())
@@ -622,7 +622,7 @@ fn write_document_write_share_by_link() {
 
 #[test]
 fn write_document_deleted_link() {
-    let cores = vec![test_core_with_account(), test_core_with_account()];
+    let cores = [test_core_with_account(), test_core_with_account()];
     let accounts = cores
         .iter()
         .map(|core| core.get_account().unwrap())
@@ -661,7 +661,7 @@ fn write_document_deleted_link() {
 
 #[test]
 fn write_document_link_deleted_when_share_rejected() {
-    let cores = vec![test_core_with_account(), test_core_with_account()];
+    let cores = [test_core_with_account(), test_core_with_account()];
     let accounts = cores
         .iter()
         .map(|core| core.get_account().unwrap())
@@ -850,7 +850,7 @@ fn share_file_duplicate_new_mode() {
 
 #[test]
 fn share_folder_with_link_inside() {
-    let cores = vec![test_core_with_account(), test_core_with_account(), test_core_with_account()];
+    let cores = [test_core_with_account(), test_core_with_account(), test_core_with_account()];
     let accounts = cores
         .iter()
         .map(|core| core.get_account().unwrap())
@@ -882,7 +882,7 @@ fn share_folder_with_link_inside() {
 
 #[test]
 fn share_unowned_file_read() {
-    let cores = vec![test_core_with_account(), test_core_with_account(), test_core_with_account()];
+    let cores = [test_core_with_account(), test_core_with_account(), test_core_with_account()];
     let accounts = cores
         .iter()
         .map(|core| core.get_account().unwrap())
@@ -907,7 +907,7 @@ fn share_unowned_file_read() {
 
 #[test]
 fn share_unowned_file_write() {
-    let cores = vec![test_core_with_account(), test_core_with_account(), test_core_with_account()];
+    let cores = [test_core_with_account(), test_core_with_account(), test_core_with_account()];
     let accounts = cores
         .iter()
         .map(|core| core.get_account().unwrap())
@@ -932,7 +932,7 @@ fn share_unowned_file_write() {
 
 #[test]
 fn delete_pending_share() {
-    let cores = vec![test_core_with_account(), test_core_with_account(), test_core_with_account()];
+    let cores = [test_core_with_account(), test_core_with_account(), test_core_with_account()];
     let accounts = cores
         .iter()
         .map(|core| core.get_account().unwrap())
@@ -957,7 +957,7 @@ fn delete_pending_share() {
 
 #[test]
 fn delete_link_to_share() {
-    let cores = vec![test_core_with_account(), test_core_with_account(), test_core_with_account()];
+    let cores = [test_core_with_account(), test_core_with_account(), test_core_with_account()];
     let accounts = cores
         .iter()
         .map(|core| core.get_account().unwrap())
@@ -990,7 +990,7 @@ fn delete_link_to_share() {
 
 #[test]
 fn create_link_with_deleted_duplicate() {
-    let cores = vec![test_core_with_account(), test_core_with_account(), test_core_with_account()];
+    let cores = [test_core_with_account(), test_core_with_account(), test_core_with_account()];
     let accounts = cores
         .iter()
         .map(|core| core.get_account().unwrap())
@@ -1039,7 +1039,7 @@ fn delete_pending_share_root() {
 
 #[test]
 fn delete_pending_share_duplicate() {
-    let cores = vec![test_core_with_account(), test_core_with_account(), test_core_with_account()];
+    let cores = [test_core_with_account(), test_core_with_account(), test_core_with_account()];
     let accounts = cores
         .iter()
         .map(|core| core.get_account().unwrap())
@@ -1065,7 +1065,7 @@ fn delete_pending_share_duplicate() {
 
 #[test]
 fn delete_pending_share_nonexistent() {
-    let cores = vec![test_core_with_account(), test_core_with_account(), test_core_with_account()];
+    let cores = [test_core_with_account(), test_core_with_account(), test_core_with_account()];
     let accounts = cores
         .iter()
         .map(|core| core.get_account().unwrap())
@@ -1152,7 +1152,7 @@ fn create_link_at_path_target_nonexistent() {
 
 #[test]
 fn create_link_at_path_link_in_shared_folder() {
-    let cores = vec![test_core_with_account(), test_core_with_account()];
+    let cores = [test_core_with_account(), test_core_with_account()];
     let accounts = cores
         .iter()
         .map(|core| core.get_account().unwrap())
@@ -1187,7 +1187,7 @@ fn create_link_at_path_link_in_shared_folder() {
 
 #[test]
 fn create_link_at_path_link_duplicate() {
-    let cores = vec![test_core_with_account(), test_core_with_account()];
+    let cores = [test_core_with_account(), test_core_with_account()];
     let accounts = cores
         .iter()
         .map(|core| core.get_account().unwrap())
@@ -1238,7 +1238,7 @@ fn create_file_link_target_owned() {
 
 #[test]
 fn create_file_shared_link() {
-    let cores = vec![test_core_with_account(), test_core_with_account()];
+    let cores = [test_core_with_account(), test_core_with_account()];
     let accounts = cores
         .iter()
         .map(|core| core.get_account().unwrap())
@@ -1274,7 +1274,7 @@ fn create_file_shared_link() {
 
 #[test]
 fn create_file_duplicate_link() {
-    let cores = vec![test_core_with_account(), test_core_with_account()];
+    let cores = [test_core_with_account(), test_core_with_account()];
     let accounts = cores
         .iter()
         .map(|core| core.get_account().unwrap())
@@ -1304,7 +1304,7 @@ fn create_file_duplicate_link() {
 
 #[test]
 fn create_file_duplicate_link_deleted() {
-    let cores = vec![test_core_with_account(), test_core_with_account()];
+    let cores = [test_core_with_account(), test_core_with_account()];
     let accounts = cores
         .iter()
         .map(|core| core.get_account().unwrap())
@@ -1336,7 +1336,7 @@ fn create_file_duplicate_link_deleted() {
 
 #[test]
 fn create_file_in_read_shared_folder() {
-    let cores = vec![test_core_with_account(), test_core_with_account()];
+    let cores = [test_core_with_account(), test_core_with_account()];
     let accounts = cores
         .iter()
         .map(|core| core.get_account().unwrap())
@@ -1365,7 +1365,7 @@ fn create_file_in_read_shared_folder() {
 
 #[test]
 fn create_file_in_write_shared_folder() {
-    let cores = vec![test_core_with_account(), test_core_with_account()];
+    let cores = [test_core_with_account(), test_core_with_account()];
     let accounts = cores
         .iter()
         .map(|core| core.get_account().unwrap())
@@ -1394,7 +1394,7 @@ fn create_file_in_write_shared_folder() {
 
 #[test]
 fn rename_file_in_read_shared_folder() {
-    let cores = vec![test_core_with_account(), test_core_with_account()];
+    let cores = [test_core_with_account(), test_core_with_account()];
     let accounts = cores
         .iter()
         .map(|core| core.get_account().unwrap())
@@ -1426,7 +1426,7 @@ fn rename_file_in_read_shared_folder() {
 
 #[test]
 fn rename_file_in_write_shared_folder() {
-    let cores = vec![test_core_with_account(), test_core_with_account()];
+    let cores = [test_core_with_account(), test_core_with_account()];
     let accounts = cores
         .iter()
         .map(|core| core.get_account().unwrap())
@@ -1458,7 +1458,7 @@ fn rename_file_in_write_shared_folder() {
 
 #[test]
 fn rename_link_by_sharee() {
-    let cores = vec![test_core_with_account(), test_core_with_account()];
+    let cores = [test_core_with_account(), test_core_with_account()];
     let accounts = cores
         .iter()
         .map(|core| core.get_account().unwrap())
@@ -1492,7 +1492,7 @@ fn rename_link_by_sharee() {
 
 #[test]
 fn rename_target_by_sharee() {
-    let cores = vec![test_core_with_account(), test_core_with_account()];
+    let cores = [test_core_with_account(), test_core_with_account()];
     let accounts = cores
         .iter()
         .map(|core| core.get_account().unwrap())
@@ -1526,7 +1526,7 @@ fn rename_target_by_sharee() {
 
 #[test]
 fn rename_target_by_sharer() {
-    let cores = vec![test_core_with_account(), test_core_with_account()];
+    let cores = [test_core_with_account(), test_core_with_account()];
     let accounts = cores
         .iter()
         .map(|core| core.get_account().unwrap())
@@ -1560,7 +1560,7 @@ fn rename_target_by_sharer() {
 
 #[test]
 fn move_file_under_target() {
-    let cores = vec![test_core_with_account(), test_core_with_account()];
+    let cores = [test_core_with_account(), test_core_with_account()];
     let accounts = cores
         .iter()
         .map(|core| core.get_account().unwrap())
@@ -1600,7 +1600,7 @@ fn move_file_under_target() {
 
 #[test]
 fn move_file_under_link() {
-    let cores = vec![test_core_with_account(), test_core_with_account()];
+    let cores = [test_core_with_account(), test_core_with_account()];
     let accounts = cores
         .iter()
         .map(|core| core.get_account().unwrap())
@@ -1636,7 +1636,7 @@ fn move_file_under_link() {
 
 #[test]
 fn move_file_shared_link() {
-    let cores = vec![test_core_with_account(), test_core_with_account()];
+    let cores = [test_core_with_account(), test_core_with_account()];
     let accounts = cores
         .iter()
         .map(|core| core.get_account().unwrap())
@@ -1674,7 +1674,7 @@ fn move_file_shared_link() {
 
 #[test]
 fn move_file_shared_link_in_folder_a() {
-    let cores = vec![test_core_with_account(), test_core_with_account()];
+    let cores = [test_core_with_account(), test_core_with_account()];
     let accounts = cores
         .iter()
         .map(|core| core.get_account().unwrap())
@@ -1715,7 +1715,7 @@ fn move_file_shared_link_in_folder_a() {
 
 #[test]
 fn move_file_shared_link_in_folder_b() {
-    let cores = vec![test_core_with_account(), test_core_with_account()];
+    let cores = [test_core_with_account(), test_core_with_account()];
     let accounts = cores
         .iter()
         .map(|core| core.get_account().unwrap())
@@ -1756,7 +1756,7 @@ fn move_file_shared_link_in_folder_b() {
 
 #[test]
 fn move_file_in_read_shared_folder() {
-    let cores = vec![test_core_with_account(), test_core_with_account()];
+    let cores = [test_core_with_account(), test_core_with_account()];
     let accounts = cores
         .iter()
         .map(|core| core.get_account().unwrap())
@@ -1791,7 +1791,7 @@ fn move_file_in_read_shared_folder() {
 
 #[test]
 fn move_file_in_write_shared_folder() {
-    let cores = vec![test_core_with_account(), test_core_with_account()];
+    let cores = [test_core_with_account(), test_core_with_account()];
     let accounts = cores
         .iter()
         .map(|core| core.get_account().unwrap())
@@ -1824,7 +1824,7 @@ fn move_file_in_write_shared_folder() {
 
 #[test]
 fn move_file_into_read_shared_folder() {
-    let cores = vec![test_core_with_account(), test_core_with_account()];
+    let cores = [test_core_with_account(), test_core_with_account()];
     let accounts = cores
         .iter()
         .map(|core| core.get_account().unwrap())
@@ -1856,7 +1856,7 @@ fn move_file_into_read_shared_folder() {
 
 #[test]
 fn move_file_into_write_shared_folder() {
-    let cores = vec![test_core_with_account(), test_core_with_account()];
+    let cores = [test_core_with_account(), test_core_with_account()];
     let accounts = cores
         .iter()
         .map(|core| core.get_account().unwrap())
@@ -1886,7 +1886,7 @@ fn move_file_into_write_shared_folder() {
 
 #[test]
 fn move_write_shared_folder() {
-    let cores = vec![test_core_with_account(), test_core_with_account()];
+    let cores = [test_core_with_account(), test_core_with_account()];
     let accounts = cores
         .iter()
         .map(|core| core.get_account().unwrap())
@@ -1915,7 +1915,7 @@ fn move_write_shared_folder() {
 
 #[test]
 fn delete_file_in_read_shared_folder() {
-    let cores = vec![test_core_with_account(), test_core_with_account()];
+    let cores = [test_core_with_account(), test_core_with_account()];
     let accounts = cores
         .iter()
         .map(|core| core.get_account().unwrap())
@@ -1947,7 +1947,7 @@ fn delete_file_in_read_shared_folder() {
 
 #[test]
 fn delete_file_in_write_shared_folder() {
-    let cores = vec![test_core_with_account(), test_core_with_account()];
+    let cores = [test_core_with_account(), test_core_with_account()];
     let accounts = cores
         .iter()
         .map(|core| core.get_account().unwrap())
@@ -1978,7 +1978,7 @@ fn delete_file_in_write_shared_folder() {
 // todo: check if duplicate
 #[test]
 fn delete_write_shared_folder() {
-    let cores = vec![test_core_with_account(), test_core_with_account()];
+    let cores = [test_core_with_account(), test_core_with_account()];
     let accounts = cores
         .iter()
         .map(|core| core.get_account().unwrap())
@@ -2029,7 +2029,7 @@ fn delete_share() {
 
 #[test]
 fn delete_folder_with_shared_child() {
-    let cores = vec![test_core_with_account(), test_core_with_account()];
+    let cores = [test_core_with_account(), test_core_with_account()];
     let accounts = cores
         .iter()
         .map(|core| core.get_account().unwrap())

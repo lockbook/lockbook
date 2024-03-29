@@ -184,7 +184,7 @@ impl FullDocSearch {
                 ui.label(egui::RichText::new("No results").color(egui::Color32::GRAY));
             });
         } else {
-            for (_, sr) in self.results.iter().enumerate() {
+            for sr in self.results.iter() {
                 let sr_res = ui.vertical(|ui| {
                     match sr {
                         Error(err) => {

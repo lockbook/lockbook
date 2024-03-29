@@ -861,7 +861,7 @@ fn edit_content_then_delete_grandparent() {
 
 #[test]
 fn create_two_links() {
-    let mut cores = vec![vec![test_core_with_account()], vec![test_core_with_account()]];
+    let mut cores = [vec![test_core_with_account()], vec![test_core_with_account()]];
     let new_client = another_client(&cores[1][0]);
     cores[1].push(new_client);
     let accounts = cores
@@ -891,7 +891,7 @@ fn create_two_links() {
 
 #[test]
 fn share_then_create_link_in_folder() {
-    let mut cores = vec![vec![test_core_with_account()], vec![test_core_with_account()]];
+    let mut cores = [vec![test_core_with_account()], vec![test_core_with_account()]];
     let new_client = another_client(&cores[1][0]);
     cores[1].push(new_client);
     let accounts = cores
@@ -922,7 +922,7 @@ fn share_then_create_link_in_folder() {
 
 #[test]
 fn create_link_in_folder_then_share() {
-    let mut cores = vec![vec![test_core_with_account()], vec![test_core_with_account()]];
+    let mut cores = [vec![test_core_with_account()], vec![test_core_with_account()]];
     let new_client = another_client(&cores[1][0]);
     cores[1].push(new_client);
     let accounts = cores
@@ -953,7 +953,7 @@ fn create_link_in_folder_then_share() {
 
 #[test]
 fn create_link_then_move_to_owned_folder() {
-    let mut cores = vec![vec![test_core_with_account()], vec![test_core_with_account()]];
+    let mut cores = [vec![test_core_with_account()], vec![test_core_with_account()]];
     let new_client = another_client(&cores[1][0]);
     cores[1].push(new_client);
     let accounts = cores
@@ -988,7 +988,7 @@ fn create_link_then_move_to_owned_folder() {
 
 #[test]
 fn create_link_then_move_to_owned_folder_and_move_prior_parent_into_it() {
-    let mut cores = vec![vec![test_core_with_account()], vec![test_core_with_account()]];
+    let mut cores = [vec![test_core_with_account()], vec![test_core_with_account()]];
     let new_client = another_client(&cores[1][0]);
     cores[1].push(new_client);
     let accounts = cores
@@ -1025,7 +1025,7 @@ fn create_link_then_move_to_owned_folder_and_move_prior_parent_into_it() {
 
 #[test]
 fn create_link_then_move_to_owned_folder_and_create_file_with_conflicting_name_in_prior_parent() {
-    let mut cores = vec![vec![test_core_with_account()], vec![test_core_with_account()]];
+    let mut cores = [vec![test_core_with_account()], vec![test_core_with_account()]];
     let new_client = another_client(&cores[1][0]);
     cores[1].push(new_client);
     let accounts = cores
@@ -1068,7 +1068,7 @@ fn create_link_then_move_to_owned_folder_and_create_file_with_conflicting_name_i
 
 #[test]
 fn move_to_owned_folder_then_create_link() {
-    let mut cores = vec![vec![test_core_with_account()], vec![test_core_with_account()]];
+    let mut cores = [vec![test_core_with_account()], vec![test_core_with_account()]];
     let new_client = another_client(&cores[1][0]);
     cores[1].push(new_client);
     let accounts = cores
@@ -1102,7 +1102,7 @@ fn move_to_owned_folder_then_create_link() {
 
 #[test]
 fn create_link_then_delete() {
-    let mut cores = vec![vec![test_core_with_account()], vec![test_core_with_account()]];
+    let mut cores = [vec![test_core_with_account()], vec![test_core_with_account()]];
     let new_client = another_client(&cores[1][0]);
     cores[1].push(new_client);
     let accounts = cores
@@ -1135,7 +1135,7 @@ fn create_link_then_delete() {
 
 #[test]
 fn delete_then_create_link() {
-    let mut cores = vec![vec![test_core_with_account()], vec![test_core_with_account()]];
+    let mut cores = [vec![test_core_with_account()], vec![test_core_with_account()]];
     let new_client = another_client(&cores[1][0]);
     cores[1].push(new_client);
     let accounts = cores
@@ -1168,7 +1168,7 @@ fn delete_then_create_link() {
 
 #[test]
 fn share_from_two_clients() {
-    let mut cores = vec![vec![test_core_with_account()], vec![test_core_with_account()]];
+    let mut cores = [vec![test_core_with_account()], vec![test_core_with_account()]];
     let new_client = another_client(&cores[0][0]);
     cores[0].push(new_client);
     let accounts = cores
@@ -1199,7 +1199,7 @@ fn share_from_two_clients() {
 
 #[test]
 fn share_from_two_clients_read_then_write() {
-    let mut cores = vec![vec![test_core_with_account()], vec![test_core_with_account()]];
+    let mut cores = [vec![test_core_with_account()], vec![test_core_with_account()]];
     let new_client = another_client(&cores[0][0]);
     cores[0].push(new_client);
     let accounts = cores
@@ -1230,7 +1230,7 @@ fn share_from_two_clients_read_then_write() {
 
 #[test]
 fn share_from_two_clients_write_then_read() {
-    let mut cores = vec![vec![test_core_with_account()], vec![test_core_with_account()]];
+    let mut cores = [vec![test_core_with_account()], vec![test_core_with_account()]];
     let new_client = another_client(&cores[0][0]);
     cores[0].push(new_client);
     let accounts = cores
@@ -1261,7 +1261,7 @@ fn share_from_two_clients_write_then_read() {
 
 #[test]
 fn share_delete_then_upgrade_to_write() {
-    let cores = vec![test_core_with_account(), test_core_with_account()];
+    let cores = [test_core_with_account(), test_core_with_account()];
     let accounts = cores
         .iter()
         .map(|core| core.get_account().unwrap())
@@ -1292,7 +1292,7 @@ fn share_delete_then_upgrade_to_write() {
 
 #[test]
 fn share_upgrade_to_write_then_delete() {
-    let cores = vec![test_core_with_account(), test_core_with_account()];
+    let cores = [test_core_with_account(), test_core_with_account()];
     let accounts = cores
         .iter()
         .map(|core| core.get_account().unwrap())
@@ -1323,7 +1323,7 @@ fn share_upgrade_to_write_then_delete() {
 
 #[test]
 fn deleted_share_of_file_with_local_change() {
-    let mut cores = vec![vec![test_core_with_account()], vec![test_core_with_account()]];
+    let mut cores = [vec![test_core_with_account()], vec![test_core_with_account()]];
     let new_client = another_client(&cores[1][0]);
     cores[1].push(new_client);
     let accounts = cores

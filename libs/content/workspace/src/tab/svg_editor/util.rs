@@ -48,7 +48,7 @@ pub fn pointer_interests_path(
     .outline(error_radius, bezier_rs::Cap::Round);
 
     let is_inside_delete_brush = path.is_point()
-        && delete_brush.contains_point(path.manipulator_groups().get(0).unwrap().anchor);
+        && delete_brush.contains_point(path.manipulator_groups().first().unwrap().anchor);
     let intersects_delete_brush = !path
         .subpath_intersections(&delete_brush, None, None)
         .is_empty();

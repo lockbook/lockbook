@@ -1,4 +1,4 @@
-use lb_rs::WorkUnit;
+use lb_rs::{SyncProgress, WorkUnit};
 
 use crate::*;
 
@@ -107,14 +107,15 @@ pub type LbSyncProgressCallback = unsafe extern "C" fn(LbSyncProgress, *mut c_vo
 pub unsafe extern "C" fn lb_sync_all(
     core: *mut c_void, progress: LbSyncProgressCallback, user_data: *mut c_void,
 ) -> LbError {
-    match core!(core).sync(Some(Box::new(move |sp| {
-        let c_sp = LbSyncProgress {
+    let new_box: Option<Box<dyn Fn(SyncProgress)>> = Some(Box::new(move |sp: SyncProgress| {
+        let c_sp: LbSyncProgress = LbSyncProgress {
             total: sp.total as u64,
             progress: sp.progress as u64,
             msg: cstr(sp.msg),
         };
         progress(c_sp, user_data);
-    }))) {
+    }));
+    match core!(core).sync(new_box) {
         Ok(_work) => lb_error_none(),
         Err(err) => lberr(err),
     }

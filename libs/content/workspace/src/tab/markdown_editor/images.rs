@@ -55,7 +55,7 @@ pub fn calc(
                 thread::spawn(move || {
                     let texture_manager = ctx.tex_manager();
 
-                    match (|| -> Result<TextureId, String> {
+                    let texture_result = (|| -> Result<TextureId, String> {
                         // use core for lb:// urls
                         // todo: also handle relative paths
                         let maybe_lb_id = match url.strip_prefix("lb://") {
@@ -115,7 +115,9 @@ pub fn calc(
                         Ok(texture_manager
                             .write()
                             .alloc(title, egui_image, Default::default()))
-                    })() {
+                    })();
+
+                    match texture_result {
                         Ok(texture_id) => {
                             *image_state.lock().unwrap() = ImageState::Loaded(texture_id);
                         }

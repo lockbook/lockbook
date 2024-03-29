@@ -17,7 +17,7 @@ fn assert_stuff(c1: &Core, c2: &Core) {
 
 #[test]
 fn new_file() {
-    let cores = vec![test_core_with_account(), test_core_with_account()];
+    let cores = [test_core_with_account(), test_core_with_account()];
     let accounts = cores
         .iter()
         .map(|core| core.get_account().unwrap())
@@ -37,7 +37,7 @@ fn new_file() {
 
 #[test]
 fn new_files() {
-    let cores = vec![test_core_with_account(), test_core_with_account()];
+    let cores = [test_core_with_account(), test_core_with_account()];
     let accounts = cores
         .iter()
         .map(|core| core.get_account().unwrap())
@@ -63,7 +63,7 @@ fn new_files() {
 
 #[test]
 fn edited_document() {
-    let cores = vec![test_core_with_account(), test_core_with_account()];
+    let cores = [test_core_with_account(), test_core_with_account()];
     let accounts = cores
         .iter()
         .map(|core| core.get_account().unwrap())

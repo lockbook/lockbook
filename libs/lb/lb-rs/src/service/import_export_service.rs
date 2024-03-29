@@ -115,6 +115,7 @@ impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {
                     OpenOptions::new()
                         .write(true)
                         .create(true)
+                        .truncate(true)
                         .open(dest_with_new)
                 } else {
                     OpenOptions::new()
