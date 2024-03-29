@@ -68,7 +68,7 @@ fn get_path_folder_link() {
 
 #[test]
 fn create_path_doc_under_link() {
-    let cores = vec![test_core_with_account(), test_core_with_account()];
+    let cores = [test_core_with_account(), test_core_with_account()]
     let accounts = cores
         .iter()
         .map(|core| core.get_account().unwrap())
@@ -96,7 +96,7 @@ fn create_path_doc_under_link() {
 
 #[test]
 fn create_path_folder_under_link() {
-    let cores = vec![test_core_with_account(), test_core_with_account()];
+    let cores = [test_core_with_account(), test_core_with_account()]
     let accounts = cores
         .iter()
         .map(|core| core.get_account().unwrap())
@@ -124,7 +124,7 @@ fn create_path_folder_under_link() {
 
 #[test]
 fn list_metadatas_link() {
-    let cores = vec![test_core_with_account(), test_core_with_account()];
+    let cores = [test_core_with_account(), test_core_with_account()]
     let accounts = cores
         .iter()
         .map(|core| core.get_account().unwrap())
@@ -155,7 +155,7 @@ fn list_metadatas_link() {
 
 #[test]
 fn list_metadatas_linked_folder() {
-    let cores = vec![test_core_with_account(), test_core_with_account()];
+    let cores = [test_core_with_account(), test_core_with_account()]
     let accounts = cores
         .iter()
         .map(|core| core.get_account().unwrap())
@@ -193,7 +193,7 @@ fn list_metadatas_linked_folder() {
 
 #[test]
 fn list_metadatas_linked_nested_folder() {
-    let cores = vec![test_core_with_account(), test_core_with_account()];
+    let cores = [test_core_with_account(), test_core_with_account()]
     let accounts = cores
         .iter()
         .map(|core| core.get_account().unwrap())
@@ -238,7 +238,7 @@ fn list_metadatas_linked_nested_folder() {
 
 #[test]
 fn list_metadatas_linked_folder_shared_from_folder() {
-    let cores = vec![test_core_with_account(), test_core_with_account()];
+    let cores = [test_core_with_account(), test_core_with_account()]
     let accounts = cores
         .iter()
         .map(|core| core.get_account().unwrap())
@@ -276,7 +276,7 @@ fn list_metadatas_linked_folder_shared_from_folder() {
 
 #[test]
 fn list_metadatas_folder_linked_into_folder() {
-    let cores = vec![test_core_with_account(), test_core_with_account()];
+    let cores = [test_core_with_account(), test_core_with_account()]
     let accounts = cores
         .iter()
         .map(|core| core.get_account().unwrap())
@@ -323,7 +323,7 @@ fn list_metadatas_folder_linked_into_folder() {
 
 #[test]
 fn list_metadatas_nested_linked_folders() {
-    let cores = vec![test_core_with_account(), test_core_with_account()];
+    let cores = [test_core_with_account(), test_core_with_account()]
     let accounts = cores
         .iter()
         .map(|core| core.get_account().unwrap())
@@ -412,7 +412,7 @@ fn inconsistent_share_finalization() {
 
 #[test]
 fn link_resolving() {
-    let cores = vec![test_core_with_account(), test_core_with_account()];
+    let cores = [test_core_with_account(), test_core_with_account()]
     let accounts = cores
         .iter()
         .map(|core| core.get_account().unwrap())
