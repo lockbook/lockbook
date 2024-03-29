@@ -7,6 +7,8 @@
 ## About
 _The private, polished note-taking platform._
 
+[![What's Lockbook Video](https://img.youtube.com/vi/doPI9IajzKw/0.jpg)](https://www.youtube.com/watch?v=doPI9IajzKw)
+
 Privacy shouldn't be a compromise. That's why we created Lockbook, a secure note-taking app that lets you record, sync, and share your thoughts. We collect no personal information and encrypt your notes so even we can't see them. Don't take our word for it: Lockbook is 100% open-source.
 
 ### Polished
