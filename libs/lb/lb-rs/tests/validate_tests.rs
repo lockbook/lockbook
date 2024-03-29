@@ -44,7 +44,7 @@ fn create_two_files_with_same_path() {
 
 #[test]
 fn directly_shared_link() {
-    let cores = [test_core_with_account(), test_core_with_account()]
+    let cores = [test_core_with_account(), test_core_with_account()];
     let accounts = cores
         .iter()
         .map(|core| core.get_account().unwrap())
