@@ -125,7 +125,7 @@ where
             "-----BEGIN PUBLIC KEY-----\n{}\n-----END PUBLIC KEY-----",
             base64::encode(
                 certs
-                    .get(0)
+                    .first()
                     .ok_or(ClientError(AppStoreNotificationError::InvalidJWS))?
                     .public_key()
                     .raw
