@@ -167,7 +167,7 @@ fn get_trans(
             .signed_transaction_info
             .split('.')
             .collect_vec()
-            .get(1)
+            .first()
             .ok_or_else::<ServerError<UpgradeAccountAppStoreError>, _>(|| {
                 internal!("There should be a payload in apple jwt: {:?}", sub_status)
             })?,
