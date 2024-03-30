@@ -159,7 +159,7 @@ fn get_trans(
 ) -> Result<(LastTransactionItem, TransactionInfo), ServerError<UpgradeAccountAppStoreError>> {
     let last_trans = sub_group
         .last_transactions
-        .get(0)
+        .first()
         .ok_or(ClientError(UpgradeAccountAppStoreError::InvalidAuthDetails))?;
 
     let part = <&str>::clone(
@@ -167,7 +167,7 @@ fn get_trans(
             .signed_transaction_info
             .split('.')
             .collect_vec()
-            .get(1)
+            .first()
             .ok_or_else::<ServerError<UpgradeAccountAppStoreError>, _>(|| {
                 internal!("There should be a payload in apple jwt: {:?}", sub_status)
             })?,

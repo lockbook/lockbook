@@ -122,7 +122,7 @@ impl PdfViewer {
             self.show_sidebar(ui);
         }
 
-        if let Some(page) = self.renders.get(0) {
+        if let Some(page) = self.renders.first() {
             if self.fit_page_zoom.is_none() {
                 self.fit_page_zoom = Some(ui.available_height() / page.texture.size()[1] as f32);
                 self.zoom_factor = self.fit_page_zoom;

@@ -40,7 +40,6 @@ impl Default for CoordinatorState {
         Self {
             error_log: OpenOptions::new()
                 .create(true)
-                .write(true)
                 .append(true)
                 .open("trials/errors.log")
                 .unwrap(),
