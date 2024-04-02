@@ -29,7 +29,7 @@ fn build_x86() -> CliResult<()> {
 
     Command::new("cargo")
         .env("LB_TARGET", "x86_64-pc-windows-msvc")
-        .args(["build", "-p", "winstaller", "--release", "--target=x86_64-pc-windows-msvc"])
+        .args(["build", "-p", "winstaller", "--release", "--target=x86_64-pc-windows-msvc", "--feature", "releaser"])
         .assert_success();
 
     Ok(())

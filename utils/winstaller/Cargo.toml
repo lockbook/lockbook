@@ -8,3 +8,6 @@ eframe = "0.22.0"
 egui_extras = { version = "0.22.0", features = ["image"] }
 image = { version = "0.24", features = ["png"] }
 mslnk = "0.1.8"
+
+[features]
+releaser = []
