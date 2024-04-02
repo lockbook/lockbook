@@ -53,6 +53,7 @@ impl Selection {
         if let Some(selection_rect) = &self.selection_rect {
             if selection_rect.show_delete_btn(buffer, ui, working_rect) {
                 self.delete_selection(buffer);
+                self.laso_original_pos = None;
                 return;
             }
         }

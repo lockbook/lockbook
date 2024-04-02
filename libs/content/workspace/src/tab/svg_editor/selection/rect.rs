@@ -93,9 +93,7 @@ impl SelectionRectContainer {
             delete_toolbar_dim.x = (delete_toolbar_dim.x * transform[0] as f32).clamp(20.0, 35.0);
             delete_toolbar_dim.y = (delete_toolbar_dim.y * transform[3] as f32).clamp(20.0, 35.0);
 
-            // gap *= transform[3] as f32;
-
-            if (icon_size * transform[3] as f32) < 13. {
+            if (icon_size * transform[3] as f32) < 5. {
                 println!("{:#?}", icon_size * transform[3] as f32);
                 return false;
             }
@@ -116,17 +114,22 @@ impl SelectionRectContainer {
             return false;
         }
         ui.allocate_ui_at_rect(delete_toolbar_rect, |ui| {
-            let res = Icon::DELETE.size(icon_size).show(ui);
-            let rect = res.rect.translate(egui::vec2(-res.rect.width() / 5.6, 0.0));
-            let rect = rect.expand(5.0);
-            ui.painter().circle_filled(
-                rect.center(),
-                (rect.left() - rect.center().x).abs(),
-                egui::Color32::GRAY.gamma_multiply(0.3),
-            );
+            ui.vertical_centered(|ui| {
+                let res = Icon::DELETE
+                    .size(icon_size)
+                    .color(ui.style().visuals.hyperlink_color)
+                    .show(ui);
+                let rect = res.rect.expand(10.0);
+                ui.painter().circle_filled(
+                    rect.center(),
+                    (rect.left() - rect.center().x).abs(),
+                    ui.style().visuals.hyperlink_color.gamma_multiply(0.1),
+                );
 
-            rect.contains(ui.input(|r| r.pointer.hover_pos().unwrap_or_default()))
-                && ui.input(|r| r.pointer.primary_clicked())
+                rect.contains(ui.input(|r| r.pointer.hover_pos().unwrap_or_default()))
+                    && ui.input(|r| r.pointer.primary_clicked())
+            })
+            .inner
         })
         .inner
     }
