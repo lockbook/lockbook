@@ -2,10 +2,13 @@ use bezier_rs::Subpath;
 use glam::DVec2;
 
 use super::{SelectedElement, SelectionOperation, SelectionResponse};
-use crate::tab::svg_editor::{
-    history::ManipulatorGroupId,
-    util::{bb_to_rect, pointer_interests_path},
-    Buffer,
+use crate::{
+    tab::svg_editor::{
+        history::ManipulatorGroupId,
+        util::{bb_to_rect, deserialize_transform, pointer_interests_path},
+        Buffer,
+    },
+    theme::icons::Icon,
 };
 
 // todo: consider making this value dynamic depending on the scale of the element
@@ -76,6 +79,59 @@ impl SelectionRectContainer {
         });
 
         self.container.show(ui, false);
+    }
+
+    pub fn show_delete_btn(
+        &self, buffer: &mut Buffer, ui: &mut egui::Ui, working_rect: egui::Rect,
+    ) -> bool {
+        let mut delete_toolbar_dim = egui::pos2(20.0, 20.0);
+        let gap = 15.0;
+        let icon_size = 19.0;
+        if let Some(transform) = buffer.current.attr("transform") {
+            let transform = deserialize_transform(transform);
+
+            delete_toolbar_dim.x = (delete_toolbar_dim.x * transform[0] as f32).clamp(20.0, 35.0);
+            delete_toolbar_dim.y = (delete_toolbar_dim.y * transform[3] as f32).clamp(20.0, 35.0);
+
+            if (icon_size * transform[3] as f32) < 5. {
+                println!("{:#?}", icon_size * transform[3] as f32);
+                return false;
+            }
+        }
+
+        let delete_toolbar_rect = egui::Rect {
+            min: egui::pos2(
+                self.container.raw.min.x,
+                self.container.raw.min.y - delete_toolbar_dim.y - gap,
+            ),
+            max: egui::pos2(
+                self.container.raw.min.x + delete_toolbar_dim.x,
+                self.container.raw.min.y - gap,
+            ),
+        };
+
+        if !working_rect.contains_rect(delete_toolbar_rect) {
+            return false;
+        }
+        ui.allocate_ui_at_rect(delete_toolbar_rect, |ui| {
+            ui.vertical_centered(|ui| {
+                let res = Icon::DELETE
+                    .size(icon_size)
+                    .color(ui.style().visuals.hyperlink_color)
+                    .show(ui);
+                let rect = res.rect.expand(10.0);
+                ui.painter().circle_filled(
+                    rect.center(),
+                    (rect.left() - rect.center().x).abs(),
+                    ui.style().visuals.hyperlink_color.gamma_multiply(0.1),
+                );
+
+                rect.contains(ui.input(|r| r.pointer.hover_pos().unwrap_or_default()))
+                    && ui.input(|r| r.pointer.primary_clicked())
+            })
+            .inner
+        })
+        .inner
     }
 }
 

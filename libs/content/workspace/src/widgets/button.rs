@@ -1,3 +1,5 @@
+use egui::Rounding;
+
 use crate::theme::icons::Icon;
 
 #[derive(Default)]
@@ -41,8 +43,8 @@ impl<'a> Button<'a> {
         Self { padding: Some(padding.into()), ..self }
     }
 
-    pub fn rounding(self, rounding: egui::Rounding) -> Self {
-        Self { rounding, ..self }
+    pub fn rounding(self, rounding: impl Into<Rounding>) -> Self {
+        Self { rounding: rounding.into(), ..self }
     }
 
     pub fn is_loading(self, is_loading: bool) -> Self {
