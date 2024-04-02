@@ -14,8 +14,10 @@ use jni::JNIEnv;
 use lb_external_interface::lb_rs::Uuid;
 use lb_external_interface::Core;
 use serde::Serialize;
+use std::panic::catch_unwind;
 use std::time::Instant;
 use workspace_rs::register_fonts;
+use workspace_rs::tab::svg_editor::Tool;
 use workspace_rs::tab::EventManager;
 use workspace_rs::tab::TabContent;
 use workspace_rs::theme::visuals;
@@ -40,14 +42,13 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_createWgpuCanvas(
     register_fonts(&mut fonts);
     context.set_fonts(fonts);
 
-    let mut ws = Workspace::new(ws_cfg, core, &context);
-    if old_wgpu != jlong::MAX {
+    let ws = if old_wgpu != jlong::MAX {
         let old_wgpu: Box<WgpuWorkspace> = unsafe { Box::from_raw(old_wgpu as *mut _) };
 
-        ws.active_tab = old_wgpu.workspace.active_tab;
-        ws.tabs = old_wgpu.workspace.tabs;
-        ws.pers_status = old_wgpu.workspace.pers_status;
-    }
+        old_wgpu.workspace
+    } else {
+        Workspace::new(ws_cfg, core, &context)
+    };
 
     let native_window = NativeWindow::new(&env, surface);
     let backends = wgpu::Backends::VULKAN;
@@ -96,11 +97,33 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_createWgpuCanvas(
 pub extern "system" fn Java_app_lockbook_workspace_Workspace_enterFrame(
     env: JNIEnv, _: JClass, obj: jlong,
 ) -> jstring {
-    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    let maybe_err = catch_unwind(|| {
+        let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
 
-    env.new_string(serde_json::to_string(&obj.frame()).unwrap())
-        .expect("Couldn't create JString from rust string!")
-        .into_raw()
+        serde_json::to_string(&obj.frame()).unwrap()
+    });
+
+    match maybe_err {
+        Ok(ok) => env
+            .new_string(ok)
+            .expect("Couldn't create JString from rust string!")
+            .into_raw(),
+        Err(err) => {
+            if let Some(err_str) = err.downcast_ref::<&str>() {
+                env.new_string(*err_str)
+                    .expect("Couldn't create JString from rust string!")
+                    .into_raw()
+            } else if let Some(err_string) = err.downcast_ref::<String>() {
+                env.new_string(err_string.as_str())
+                    .expect("Couldn't create JString from rust string!")
+                    .into_raw()
+            } else {
+                env.new_string("Unknown error occurred")
+                    .expect("Couldn't create JString from rust string!")
+                    .into_raw()
+            }
+        }
+    }
 }
 
 #[no_mangle]
@@ -568,4 +591,20 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_clipboardPaste(
     };
 
     obj.raw_input.events.push(Event::Paste(content));
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_toggleEraserSVG(
+    mut env: JNIEnv, _: JClass, obj: jlong, select: jboolean,
+) {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+
+    if let Some(svg) = obj.workspace.current_tab_svg_mut() {
+        if select == 1 {
+            svg.toolbar.set_tool(Tool::Eraser);
+        } else if svg.toolbar.active_tool == Tool::Eraser {
+            svg.toolbar
+                .set_tool(svg.toolbar.previous_tool.unwrap_or(Tool::Pen));
+        }
+    }
 }

@@ -40,7 +40,3 @@ reqwest = { version = "0.11", default-features = false, features = [
     "blocking",
     "rustls-tls",
 ] }
-ndk-sys = "0.4"
-raw-window-handle = "0.5"
-jni = "0.21.0"
-pollster = "0.2"

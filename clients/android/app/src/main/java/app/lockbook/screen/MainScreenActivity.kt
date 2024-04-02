@@ -10,8 +10,6 @@ import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.FileProvider
 import androidx.fragment.app.*
-import androidx.navigation.findNavController
-import androidx.navigation.fragment.NavHostFragment
 import androidx.slidingpanelayout.widget.SlidingPaneLayout
 import app.lockbook.App
 import app.lockbook.R
@@ -21,7 +19,6 @@ import app.lockbook.model.*
 import app.lockbook.ui.*
 import app.lockbook.util.*
 import com.github.michaelbull.result.unwrap
-import timber.log.Timber
 import java.io.File
 import java.lang.ref.WeakReference
 
@@ -44,7 +41,7 @@ class MainScreenActivity : AppCompatActivity() {
                 is CreateFileDialogFragment -> filesFragment.onNewFileCreated(f.newFile)
                 is FileInfoDialogFragment -> filesFragment.unselectFiles()
                 is DeleteFilesDialogFragment -> {
-                    if(workspaceModel.selectedFile.value != null) {
+                    if (workspaceModel.selectedFile.value != null) {
                         workspaceModel._closeDocument.value = workspaceModel.selectedFile.value
                     }
 
@@ -80,10 +77,9 @@ class MainScreenActivity : AppCompatActivity() {
             false
         )
 
-
         val wFragment = supportFragmentManager.findFragmentByTag("Workspace")
 
-        if(wFragment == null) {
+        if (wFragment == null) {
             supportFragmentManager.commit {
                 setReorderingAllowed(true)
                 add<WorkspaceFragment>(R.id.detail_container, "Workspace")
@@ -187,7 +183,7 @@ class MainScreenActivity : AppCompatActivity() {
         }
 
         workspaceModel.newFolderBtnPressed.observe(this) {
-            model.launchTransientScreen(TransientScreen.Create(workspaceModel.selectedFile.value ?: CoreModel.getRoot().unwrap().id, ExtendedFileType.Folder))
+            model.launchTransientScreen(TransientScreen.Create(CoreModel.getRoot().unwrap().id, ExtendedFileType.Folder))
         }
 
         workspaceModel.tabTitleClicked.observe(this) {
@@ -195,7 +191,7 @@ class MainScreenActivity : AppCompatActivity() {
         }
 
         workspaceModel.currentTab.observe(this) { tab ->
-            if(tab == WorkspaceTab.Welcome) {
+            if (tab == WorkspaceTab.Welcome) {
                 slidingPaneLayout.closePane()
             } else {
                 slidingPaneLayout.openPane()
@@ -210,10 +206,10 @@ class MainScreenActivity : AppCompatActivity() {
     private fun updateMainScreenUI(update: UpdateMainScreenUI) {
         when (update) {
             is UpdateMainScreenUI.OpenFile -> {
-                if(update.id != null) {
+                if (update.id != null) {
                     workspaceModel._openFile.value = Pair(update.id, false)
                 } else {
-                    if(workspaceModel.selectedFile.value != null) {
+                    if (workspaceModel.selectedFile.value != null) {
                         workspaceModel._closeDocument.value = workspaceModel.selectedFile.value
                     }
                 }
@@ -231,7 +227,7 @@ class MainScreenActivity : AppCompatActivity() {
                 alertModel.notifySuccessfulPurchaseConfirm()
             }
             UpdateMainScreenUI.PopBackstackToWorkspace -> {
-                if(supportFragmentManager.findFragmentById(R.id.detail_container) !is WorkspaceFragment) {
+                if (supportFragmentManager.findFragmentById(R.id.detail_container) !is WorkspaceFragment) {
                     supportFragmentManager.popBackStack(WorkspaceFragment.BACKSTACK_TAG, FragmentManager.POP_BACK_STACK_INCLUSIVE)
                 }
 
@@ -278,7 +274,7 @@ class MainScreenActivity : AppCompatActivity() {
     }
 
     override fun onBackPressed() {
-        if(supportFragmentManager.findFragmentById(R.id.detail_container) !is WorkspaceFragment) {
+        if (supportFragmentManager.findFragmentById(R.id.detail_container) !is WorkspaceFragment) {
             model.updateMainScreenUI(UpdateMainScreenUI.PopBackstackToWorkspace)
         } else if (slidingPaneLayout.isSlideable && slidingPaneLayout.isOpen) { // if you are on a small display where only files or an editor show once at a time, you want to handle behavior a bit differently
             model.updateMainScreenUI(UpdateMainScreenUI.OpenFile(null))

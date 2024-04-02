@@ -209,6 +209,17 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
+    fun fileOpened(id: String) {
+        if (fileModel.verifyOpenFile(id)) {
+            viewModelScope.launch(Dispatchers.Main) {
+                files.set(fileModel.children.intoViewHolderInfo(localChanges, serverChanges))
+            }
+
+            breadcrumbItems = fileModel.fileDir.map { BreadCrumbItem(it.name) }
+            _notifyUpdateFilesUI.postValue(UpdateFilesUI.UpdateBreadcrumbBar(breadcrumbItems))
+        }
+    }
+
     private fun refreshFiles() {
         val refreshChildrenResult = fileModel.refreshFiles()
         if (refreshChildrenResult is Err) {

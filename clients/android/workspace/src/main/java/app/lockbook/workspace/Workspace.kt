@@ -65,13 +65,22 @@ public data class FfiWorkspaceResp(
     val tabTitleClicked: Boolean
 )
 
-class Workspace {
+class Workspace private constructor() {
+
     init {
         System.loadLibrary("workspace")
     }
 
     companion object {
-        val MOBILE_TOOL_BAR_SIZE = 45.0
+        private var workspace: Workspace? = null
+
+        fun getInstance(): Workspace {
+            if(workspace == null) {
+                workspace = Workspace()
+            }
+
+            return workspace!!
+        }
     }
 
     external fun createWgpuCanvas(surface: Surface, core: Long, scaleFactor: Float, darkMode: Boolean, oldWGPU: Long): Long
@@ -96,7 +105,6 @@ class Workspace {
     external fun getAllText(rustObj: Long): String
     external fun setSelection(rustObj: Long, start: Int, end: Int)
     external fun getSelection(rustObj: Long): String
-
     external fun getTextLength(rustObj: Long): Int
     external fun clear(rustObj: Long)
     external fun replace(rustObj: Long, start: Int, end: Int, text: String)
@@ -108,6 +116,8 @@ class Workspace {
     external fun clipboardCut(rustObj: Long)
     external fun clipboardCopy(rustObj: Long)
     external fun clipboardPaste(rustObj: Long, content: String)
+
+    external fun toggleEraserSVG(rustObj: Long, select: Boolean)
 }
 
 fun String.isNullUUID(): Boolean {

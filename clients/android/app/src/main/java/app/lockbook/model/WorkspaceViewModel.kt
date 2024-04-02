@@ -1,12 +1,11 @@
 package app.lockbook.model
 
-import android.net.Uri
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import app.lockbook.util.SingleMutableLiveData
 
-class WorkspaceViewModel: ViewModel() {
+class WorkspaceViewModel : ViewModel() {
 
     var isSyncing = false
 
@@ -102,6 +101,6 @@ enum class WorkspaceTab(val value: Int) {
 }
 
 sealed class FinishedAction {
-    data class Delete(val id: String): FinishedAction()
-    data class Rename(val id: String, val name: String): FinishedAction()
+    data class Delete(val id: String) : FinishedAction()
+    data class Rename(val id: String, val name: String) : FinishedAction()
 }

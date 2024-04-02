@@ -3,7 +3,6 @@ package app.lockbook.screen
 import android.annotation.SuppressLint
 import android.content.ClipboardManager
 import android.content.Context
-import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
@@ -14,7 +13,6 @@ import android.text.Selection
 import android.view.KeyEvent
 import android.view.LayoutInflater
 import android.view.MotionEvent
-import android.view.SurfaceView
 import android.view.View
 import android.view.ViewConfiguration
 import android.view.ViewGroup
@@ -42,7 +40,7 @@ import com.github.michaelbull.result.unwrap
 import timber.log.Timber
 import kotlin.math.abs
 
-class WorkspaceFragment: Fragment() {
+class WorkspaceFragment : Fragment() {
     private var _binding: FragmentWorkspaceBinding? = null
     private val binding get() = _binding!!
 
@@ -54,6 +52,12 @@ class WorkspaceFragment: Fragment() {
         val BACKSTACK_TAG = "WorkspaceBackstack"
     }
 
+    override fun onDetach() {
+        super.onDetach()
+
+        WorkspaceView.CAN_RENDER = false
+    }
+
     override fun onCreateView(
         inflater: LayoutInflater,
         container: ViewGroup?,
@@ -61,9 +65,14 @@ class WorkspaceFragment: Fragment() {
     ): View {
         _binding = FragmentWorkspaceBinding.inflate(inflater, container, false)
 
+        val workspaceWrapper = WorkspaceWrapperView(requireContext(), model)
+
         binding.workspaceToolbar.setOnMenuItemClickListener { it ->
-            when(it.itemId) {
+            when (it.itemId) {
                 R.id.menu_text_editor_share -> {
+                    (requireContext().getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager)
+                        .hideSoftInputFromWindow(workspaceWrapper.windowToken, 0)
+
                     activityModel.launchTransientScreen(TransientScreen.ShareFile(CoreModel.getFileById(model.selectedFile.value!!).unwrap()))
                 }
                 R.id.menu_text_editor_share_externally -> {
@@ -72,15 +81,6 @@ class WorkspaceFragment: Fragment() {
             }
 
             true
-        }
-
-        val workspaceWrapper = WorkspaceWrapperView(requireContext(), model)
-
-        binding.workspaceToolbar.setNavigationOnClickListener {
-            val currentDoc = model.selectedFile.value
-            if(currentDoc != null) {
-                model._closeDocument.value = currentDoc
-            }
         }
 
         val layoutParams = ConstraintLayout.LayoutParams(
@@ -105,6 +105,7 @@ class WorkspaceFragment: Fragment() {
 
         model.openFile.observe(viewLifecycleOwner) { (id, newFile) ->
             workspaceWrapper.workspaceView.openDoc(id, newFile)
+            Timber.e("opening new file...")
         }
 
         model.docCreated.observe(viewLifecycleOwner) { id ->
@@ -120,11 +121,22 @@ class WorkspaceFragment: Fragment() {
         }
 
         model.showTabs.observe(viewLifecycleOwner) { show ->
+            if (!show) {
+                binding.workspaceToolbar.setNavigationIcon(R.drawable.ic_baseline_arrow_back_24)
+
+                binding.workspaceToolbar.setNavigationOnClickListener {
+                    val currentDoc = model.selectedFile.value
+                    if (currentDoc != null) {
+                        model._closeDocument.value = currentDoc
+                    }
+                }
+            }
+
             workspaceWrapper.workspaceView.showTabs(show)
         }
 
         model.finishedAction.observe(viewLifecycleOwner) { action ->
-            when(action) {
+            when (action) {
                 is FinishedAction.Delete -> workspaceWrapper.workspaceView.closeDoc(action.id)
                 is FinishedAction.Rename -> workspaceWrapper.workspaceView.fileRenamed(action.id, action.name)
             }
@@ -134,7 +146,7 @@ class WorkspaceFragment: Fragment() {
     }
 
     private fun updateCurrentTab(workspaceWrapper: WorkspaceWrapperView, newTab: WorkspaceTab) {
-        when(newTab) {
+        when (newTab) {
             WorkspaceTab.Welcome,
             WorkspaceTab.Loading -> {
                 binding.workspaceToolbar.menu.findItem(R.id.menu_text_editor_share).isVisible = false
@@ -155,7 +167,7 @@ class WorkspaceFragment: Fragment() {
 }
 
 @SuppressLint("ViewConstructor")
-class WorkspaceWrapperView(context: Context, val model: WorkspaceViewModel): FrameLayout(context) {
+class WorkspaceWrapperView(context: Context, val model: WorkspaceViewModel) : FrameLayout(context) {
     val workspaceView: WorkspaceView
     var currentTab = WorkspaceTab.Welcome
 
@@ -176,8 +188,8 @@ class WorkspaceWrapperView(context: Context, val model: WorkspaceViewModel): Fra
         ViewGroup.LayoutParams.MATCH_PARENT,
         ViewGroup.LayoutParams.MATCH_PARENT
     ).apply {
-        topMargin = TAB_BAR_HEIGHT
-        bottomMargin = TEXT_TOOL_BAR_HEIGHT
+        topMargin = (TAB_BAR_HEIGHT * context.resources.displayMetrics.scaledDensity).toInt()
+        bottomMargin = (TEXT_TOOL_BAR_HEIGHT * context.resources.displayMetrics.scaledDensity).toInt()
     }
 
     init {
@@ -186,11 +198,11 @@ class WorkspaceWrapperView(context: Context, val model: WorkspaceViewModel): Fra
     }
 
     fun updateCurrentTab(newTab: WorkspaceTab) {
-        if(newTab.viewWrapperId() == currentTab.viewWrapperId()) {
+        if (newTab.viewWrapperId() == currentTab.viewWrapperId()) {
             return
         }
 
-        when(currentTab) {
+        when (currentTab) {
             WorkspaceTab.Welcome,
             WorkspaceTab.Svg,
             WorkspaceTab.Image,
@@ -207,13 +219,17 @@ class WorkspaceWrapperView(context: Context, val model: WorkspaceViewModel): Fra
                     (currentWrapper as WorkspaceTextInputWrapper).inputConnection.closeConnection()
                 }
 
-                Handler(Looper.getMainLooper()).postDelayed({
-                    removeView(currentWrapper)
-                }, 1000)
+                val instanceWrapper = currentWrapper
+                Handler(Looper.getMainLooper()).postDelayed(
+                    {
+                        removeView(instanceWrapper)
+                    },
+                    200
+                )
             }
         }
 
-        when(newTab) {
+        when (newTab) {
             WorkspaceTab.Welcome,
             WorkspaceTab.Svg,
             WorkspaceTab.Image,
@@ -232,7 +248,7 @@ class WorkspaceWrapperView(context: Context, val model: WorkspaceViewModel): Fra
 }
 
 @SuppressLint("ViewConstructor")
-class WorkspaceTextInputWrapper(context: Context, val workspaceView: WorkspaceView): View(context) {
+class WorkspaceTextInputWrapper(context: Context, val workspaceView: WorkspaceView) : View(context) {
 
     val inputConnection = WorkspaceTextInputConnection(workspaceView)
 
@@ -248,7 +264,7 @@ class WorkspaceTextInputWrapper(context: Context, val workspaceView: WorkspaceVi
     override fun onTouchEvent(event: MotionEvent?): Boolean {
         requestFocus()
 
-        when(event?.action) {
+        when (event?.action) {
             MotionEvent.ACTION_DOWN -> {
                 touchStartX = event.x
                 touchStartY = event.y
@@ -258,8 +274,8 @@ class WorkspaceTextInputWrapper(context: Context, val workspaceView: WorkspaceVi
                 if (duration < 300 && abs(event.x - touchStartX).toInt() < ViewConfiguration.get(
                         context
                     ).scaledTouchSlop && abs(event.y - touchStartY).toInt() < ViewConfiguration.get(
-                        context
-                    ).scaledTouchSlop
+                            context
+                        ).scaledTouchSlop
                 ) {
                     (context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager)
                         .showSoftInput(this, InputMethodManager.SHOW_IMPLICIT)
@@ -267,7 +283,7 @@ class WorkspaceTextInputWrapper(context: Context, val workspaceView: WorkspaceVi
             }
         }
 
-        if(event != null) {
+        if (event != null) {
             workspaceView.forwardedTouchEvent(event, WorkspaceWrapperView.TAB_BAR_HEIGHT + WorkspaceWrapperView.TEXT_TOOL_BAR_HEIGHT)
         }
 
@@ -305,8 +321,7 @@ class WorkspaceTextInputConnection(val view: View) : BaseInputConnection(view, t
     override fun sendKeyEvent(event: KeyEvent?): Boolean {
         super.sendKeyEvent(event)
 
-
-        if(event != null) {
+        if (event != null) {
             val content = event.unicodeChar.toChar().toString()
 
             WorkspaceView.WORKSPACE.sendKeyEvent(WorkspaceView.WGPU_OBJ, event.keyCode, content, event.action == KeyEvent.ACTION_DOWN, event.isAltPressed, event.isCtrlPressed, event.isShiftPressed)
@@ -511,4 +526,3 @@ class WorkspaceTextEditable(val view: View) : Editable {
     override fun getFilters(): Array<InputFilter> = arrayOf()
     override val length: Int = WorkspaceView.WORKSPACE.getTextLength(WorkspaceView.WGPU_OBJ)
 }
-

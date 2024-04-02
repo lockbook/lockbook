@@ -12,7 +12,6 @@ import app.lockbook.databinding.FragmentCreateLinkBinding
 import app.lockbook.model.*
 import app.lockbook.util.BasicFileItemHolder
 import app.lockbook.util.File
-import app.lockbook.util.FileType
 import com.afollestad.recyclical.setup
 import com.afollestad.recyclical.withItem
 import com.github.michaelbull.result.Err

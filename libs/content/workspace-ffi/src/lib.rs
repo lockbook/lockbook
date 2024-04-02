@@ -14,7 +14,7 @@ use workspace_rs::workspace::Workspace;
 #[cfg(target_vendor = "apple")]
 pub mod apple;
 
-// #[cfg(target_os = "android")]
+#[cfg(target_os = "android")]
 pub mod android;
 
 #[cfg(target_vendor = "apple")]
@@ -46,7 +46,6 @@ pub struct WgpuWorkspace {
 }
 
 impl WgpuWorkspace {
-    // merge functions after everything is well and good
     #[cfg(target_os = "android")]
     pub fn frame(&mut self) -> IntegrationOutput {
         let mut out = IntegrationOutput::default();

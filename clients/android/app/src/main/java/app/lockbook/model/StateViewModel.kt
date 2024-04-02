@@ -1,7 +1,6 @@
 package app.lockbook.model
 
 import android.app.Application
-import android.graphics.Bitmap
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.viewModelScope
@@ -101,7 +100,7 @@ sealed class TransientScreen {
 }
 
 sealed class UpdateMainScreenUI {
-    data class OpenFile(val id: String?): UpdateMainScreenUI()
+    data class OpenFile(val id: String?) : UpdateMainScreenUI()
     data class ShowHideProgressOverlay(val show: Boolean) : UpdateMainScreenUI()
     data class ShareDocuments(val files: ArrayList<File>) : UpdateMainScreenUI()
     data class NotifyError(val error: LbError) : UpdateMainScreenUI()

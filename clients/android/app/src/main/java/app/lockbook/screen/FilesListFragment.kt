@@ -33,7 +33,6 @@ import com.afollestad.recyclical.withItem
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.textview.MaterialTextView
-import timber.log.Timber
 import java.lang.ref.WeakReference
 import java.util.*
 
@@ -220,9 +219,13 @@ class FilesListFragment : Fragment(), FilesFragment {
         }
 
         workspaceModel.syncCompleted.observe(viewLifecycleOwner) {
-            if(binding.listFilesRefresh.isRefreshing) {
+            if (binding.listFilesRefresh.isRefreshing) {
                 binding.listFilesRefresh.isRefreshing = false
             }
+        }
+
+        workspaceModel.selectedFile.observe(viewLifecycleOwner) { id ->
+            model.fileOpened(id)
         }
 
         return binding.root
@@ -535,8 +538,6 @@ class FilesListFragment : Fragment(), FilesFragment {
                     outOfSpaceProgressBar.max = uiUpdates.max
                     Animate.animateVisibility(root, View.VISIBLE, 255, 200)
 
-                    Timber.e("USAGE: ${uiUpdates.progress} ${uiUpdates.max}")
-
                     outOfSpaceExit.setOnClickListener {
                         Animate.animateVisibility(root, View.GONE, 0, 200)
 
@@ -570,6 +571,7 @@ class FilesListFragment : Fragment(), FilesFragment {
                 actionModeMenu?.title = getString(R.string.files_list_items_selected, selectionCount)
                 actionModeMenu?.menu?.findItem(R.id.menu_list_files_info)?.isVisible = true
                 actionModeMenu?.menu?.findItem(R.id.menu_list_files_rename)?.isVisible = true
+                actionModeMenu?.menu?.findItem(R.id.menu_list_files_share)?.isVisible = true
             }
             else -> {
                 if (actionModeMenu == null) {
@@ -579,6 +581,7 @@ class FilesListFragment : Fragment(), FilesFragment {
                 actionModeMenu?.title = getString(R.string.files_list_items_selected, selectionCount)
                 actionModeMenu?.menu?.findItem(R.id.menu_list_files_info)?.isVisible = false
                 actionModeMenu?.menu?.findItem(R.id.menu_list_files_rename)?.isVisible = false
+                actionModeMenu?.menu?.findItem(R.id.menu_list_files_share)?.isVisible = false
             }
         }
     }
@@ -603,11 +606,11 @@ class FilesListFragment : Fragment(), FilesFragment {
 
     override fun sync(usePreferences: Boolean) {
         if (!usePreferences || PreferenceManager.getDefaultSharedPreferences(requireContext())
-                .getBoolean(
+            .getBoolean(
                     getString(
-                        resources,
-                        R.string.sync_automatically_key
-                    ),
+                            resources,
+                            R.string.sync_automatically_key
+                        ),
                     false
                 )
         ) {

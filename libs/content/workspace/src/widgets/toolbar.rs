@@ -47,7 +47,7 @@ pub enum ToolBarVisibility {
 impl ToolBar {
     pub fn new(visibility: &ToolBarVisibility) -> Self {
         Self {
-            margin: if cfg!(target_os = "ios") {
+            margin: if cfg!(target_os = "ios") || cfg!(target_os = "android") {
                 egui::Margin { left: 10.0, right: 23.0, top: 5.0, bottom: 5.0 }
             } else {
                 egui::Margin::symmetric(15.0, 0.0)

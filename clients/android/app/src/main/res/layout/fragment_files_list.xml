@@ -60,7 +60,9 @@
                 android:id="@+id/files_list"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
-                android:scrollbars="vertical" />
+                android:scrollbars="vertical"
+                android:paddingBottom="50dp"
+                android:clipToPadding="false"/>
 
         </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
 
@@ -133,8 +135,7 @@
                 android:layout_marginTop="13dp"
                 android:layout_marginEnd="90dp"
                 android:textColor="?attr/colorOnPrimaryContainer"
-                android:textStyle="bold"
-                android:text="cookie"/>
+                android:textStyle="bold"/>
 
         </LinearLayout>
 
