@@ -185,11 +185,12 @@ impl CubicBezBuilder {
             self.prev_points_window[3],
         );
 
-        let cp1x = p1.x + (p2.x - p0.x) / 6.0; // * k, k is tension which is set to 1, 0 <= k <= 1
-        let cp1y = p1.y + (p2.y - p0.y) / 6.0;
+        let k = 0.3;
 
-        let cp2x = p2.x - (p3.x - p1.x) / 6.0;
-        let cp2y = p2.y - (p3.y - p1.y) / 6.0;
+        let cp1x = p1.x + (p2.x - p0.x) / 3.0 / k;
+        let cp1y = p1.y + (p2.y - p0.y) / 3.0 / k;
+        let cp2x = p2.x - (p3.x - p1.x) / 3.0 / k;
+        let cp2y = p2.y - (p3.y - p1.y) / 3.0 / k;
 
         self.data
             .push_str(format!("C {cp1x},{cp1y},{cp2x},{cp2y},{},{}", p2.x, p2.y).as_str());
@@ -254,6 +255,7 @@ impl CubicBezBuilder {
         }
         let first = points.first().unwrap();
         let last = points.last().unwrap();
+
         let rest = &points[1..points.len() - 1];
 
         let line_segment = Line::new(*first, *last);
