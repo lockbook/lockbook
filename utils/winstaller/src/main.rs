@@ -1,6 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-#[cfg(windows)]
+#[cfg(all(windows, feature = "releaser"))]
 fn main() {
     use std::env;
     use std::fs;
@@ -163,5 +163,5 @@ fn main() {
     .unwrap()
 }
 
-#[cfg(not(windows))]
+#[cfg(any(not(windows), not(feature = "releaser")))]
 fn main() {}
