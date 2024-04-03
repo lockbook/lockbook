@@ -17,6 +17,7 @@ import com.github.michaelbull.result.getOrElse
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import timber.log.Timber
 
 class FilesListViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -127,7 +128,7 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
-    fun generateQuickNote(activityModel: StateViewModel) {
+    fun generateQuickNote(workspaceModel: WorkspaceViewModel) {
         viewModelScope.launch(Dispatchers.IO) {
             var iter = 0
             var fileName: String
@@ -140,7 +141,7 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
             when (val createFileResult = CoreModel.createFile(fileModel.parent.id, fileName, FileType.Document)) {
                 is Ok -> {
                     withContext(Dispatchers.Main) {
-//                        activityModel.launchDetailScreen(DetailScreen.Loading(createFileResult.value))
+                        workspaceModel._openFile.postValue(Pair(createFileResult.value.id, true))
                     }
 
                     refreshFiles()

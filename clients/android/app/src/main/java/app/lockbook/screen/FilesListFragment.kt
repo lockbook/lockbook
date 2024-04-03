@@ -180,7 +180,7 @@ class FilesListFragment : Fragment(), FilesFragment {
         }
         binding.fabSpeedDial.mainFab.setOnLongClickListener { view ->
             view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
-            model.generateQuickNote(activityModel)
+            model.generateQuickNote(workspaceModel)
             true
         }
 

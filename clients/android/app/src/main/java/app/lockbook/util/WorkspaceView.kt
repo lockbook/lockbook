@@ -86,6 +86,8 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
         requestFocus()
     }
 
+    var eraserToggledOnByPen = false
+
     fun forwardedTouchEvent(event: MotionEvent, touchOffsetY: Int) {
         if (WGPU_OBJ == Long.MAX_VALUE) {
             return
@@ -99,8 +101,10 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
             when (action) {
                 MotionEvent.ACTION_DOWN, MotionEvent.ACTION_POINTER_DOWN, SPEN_ACTION_DOWN -> {
                     if (action == SPEN_ACTION_DOWN) {
+                        eraserToggledOnByPen = true
                         WORKSPACE.toggleEraserSVG(WGPU_OBJ, true)
-                    } else {
+                    } else if(eraserToggledOnByPen) {
+                        eraserToggledOnByPen = false
                         WORKSPACE.toggleEraserSVG(WGPU_OBJ, false)
                     }
 

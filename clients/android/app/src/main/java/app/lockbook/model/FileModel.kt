@@ -114,11 +114,11 @@ class FileModel(
     }
 
     fun verifyOpenFile(id: String): Boolean {
-        refreshFiles()
-
         val file = idsAndFiles[id] ?: return false
 
         if (file.parent == root.id && fileDir.size > 1) {
+            refreshFiles()
+
             fileDir.clear()
             fileDir.add(root)
 
