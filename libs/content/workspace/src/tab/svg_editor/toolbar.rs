@@ -122,7 +122,10 @@ impl Toolbar {
                 id: "Redo".to_string(),
                 icon: Icon::REDO,
                 margin: egui::Margin::symmetric(4.0, 7.0),
-                key_shortcut: Some((egui::Modifiers::COMMAND, egui::Key::R)),
+                key_shortcut: Some((
+                    egui::Modifiers::COMMAND.plus(egui::Modifiers::SHIFT),
+                    egui::Key::Z,
+                )),
             }),
             Component::Separator(egui::Margin::symmetric(10.0, 0.0)),
             Component::Button(SimpleButton {
