@@ -604,7 +604,7 @@ impl Editor {
             )
                 .into();
 
-            String::from(cursor.selection_text(&self.buffer.current))
+            String::from(cursor.selection_text(&self.buffer.current)) + ".md"
         })
     }
 }
