@@ -25,7 +25,6 @@ use workspace_rs::workspace::{Workspace, WsConfig};
 
 use super::keyboard::AndroidKeys;
 
-// I REMOVED MUT FROM ENV
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_workspace_Workspace_createWgpuCanvas(
     env: JNIEnv, _: JClass, surface: jobject, core: jlong, scale_factor: jfloat, dark_mode: bool,
@@ -43,8 +42,9 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_createWgpuCanvas(
     context.set_fonts(fonts);
 
     let ws = if old_wgpu != jlong::MAX {
-        let old_wgpu: Box<WgpuWorkspace> = unsafe { Box::from_raw(old_wgpu as *mut _) };
+        let mut old_wgpu: Box<WgpuWorkspace> = unsafe { Box::from_raw(old_wgpu as *mut _) };
 
+        old_wgpu.workspace.invalidate_egui_references(&context);
         old_wgpu.workspace
     } else {
         Workspace::new(ws_cfg, core, &context)
@@ -595,7 +595,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_clipboardPaste(
 
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_workspace_Workspace_toggleEraserSVG(
-    mut env: JNIEnv, _: JClass, obj: jlong, select: jboolean,
+    _env: JNIEnv, _: JClass, obj: jlong, select: jboolean,
 ) {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
 

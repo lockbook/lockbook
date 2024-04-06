@@ -46,7 +46,12 @@ impl PdfViewer {
             .scale_page_by_factor(if is_mobile_viewport { 5. } else { 2. })
             .rotate_if_landscape(PdfPageRenderRotation::Degrees90, true);
 
-        let pdfium_binary_path = format!("{}/egui", data_dir);
+        let pdfium_binary_path = if !cfg!(target_os = "android") {
+            data_dir.to_string()
+        } else {
+            format!("{}/egui", data_dir)
+        };
+
         println!("{pdfium_binary_path}");
 
         let pdfium = lb_pdf::init(&pdfium_binary_path);

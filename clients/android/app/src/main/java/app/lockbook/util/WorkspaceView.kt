@@ -8,6 +8,7 @@ import android.graphics.Canvas
 import android.graphics.PixelFormat
 import android.net.Uri
 import android.view.MotionEvent
+import android.view.Surface
 import android.view.SurfaceHolder
 import android.view.SurfaceView
 import androidx.core.content.ContextCompat.startActivity
@@ -25,6 +26,10 @@ import java.math.BigInteger
 
 @SuppressLint("ViewConstructor")
 class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceView(context), SurfaceHolder.Callback2 {
+    private var eraserToggledOnByPen = false
+
+    private var surface: Surface? = null
+
     private val frameOutputJsonParser = Json {
         ignoreUnknownKeys = true
     }
@@ -54,7 +59,7 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
 
     override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
         Timber.e("surfaceChanged")
-        if (WGPU_OBJ == Long.MAX_VALUE) {
+        if (WGPU_OBJ == Long.MAX_VALUE || surface == null) {
             return
         }
 
@@ -64,21 +69,19 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
     override fun surfaceCreated(holder: SurfaceHolder) {
         Timber.e("surfaceCreated")
 
-        holder.let { h ->
-            WGPU_OBJ = WORKSPACE.createWgpuCanvas(
-                h.surface,
-                CoreModel.getPtr(),
-                context.resources.displayMetrics.scaledDensity,
-                (context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES,
-                WGPU_OBJ
-            )
+        surface = holder.surface
 
-            CAN_RENDER = true
+        WGPU_OBJ = WORKSPACE.createWgpuCanvas(
+            surface!!,
+            CoreModel.getPtr(),
+            context.resources.displayMetrics.scaledDensity,
+            (context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES,
+            WGPU_OBJ
+        )
 
-            model._shouldShowTabs.postValue(Unit)
+        model._shouldShowTabs.postValue(Unit)
 
-            setWillNotDraw(false)
-        }
+        setWillNotDraw(false)
 
         isFocusable = true
         isFocusableInTouchMode = true
@@ -86,10 +89,8 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
         requestFocus()
     }
 
-    var eraserToggledOnByPen = false
-
     fun forwardedTouchEvent(event: MotionEvent, touchOffsetY: Int) {
-        if (WGPU_OBJ == Long.MAX_VALUE) {
+        if (WGPU_OBJ == Long.MAX_VALUE || surface == null) {
             return
         }
 
@@ -150,7 +151,7 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
     }
 
     override fun surfaceDestroyed(holder: SurfaceHolder) {
-        CAN_RENDER = false
+        surface = null
     }
 
     override fun surfaceRedrawNeeded(holder: SurfaceHolder) {
@@ -158,35 +159,56 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
     }
 
     fun openDoc(id: String, newFile: Boolean) {
+        if (WGPU_OBJ == Long.MAX_VALUE || surface == null) {
+            return
+        }
+
         WORKSPACE.openDoc(WGPU_OBJ, id, newFile)
     }
 
     fun showTabs(show: Boolean) {
+        if (WGPU_OBJ == Long.MAX_VALUE || surface == null) {
+            return
+        }
+
         WORKSPACE.showTabs(WGPU_OBJ, show)
     }
 
     fun sync() {
-        model.isSyncing = true
+        if (WGPU_OBJ == Long.MAX_VALUE || surface == null) {
+            return
+        }
+
         WORKSPACE.requestSync(WGPU_OBJ)
     }
 
     fun closeDoc(id: String) {
+        if (WGPU_OBJ == Long.MAX_VALUE || surface == null) {
+            return
+        }
+
         WORKSPACE.closeDoc(WGPU_OBJ, id)
     }
 
     fun fileRenamed(id: String, name: String) {
+        if (WGPU_OBJ == Long.MAX_VALUE || surface == null) {
+            return
+        }
+
         WORKSPACE.fileRenamed(WGPU_OBJ, id, name)
     }
 
     override fun draw(canvas: Canvas) {
         super.draw(canvas)
 
-        if (WGPU_OBJ == Long.MAX_VALUE || !CAN_RENDER) {
+        if (WGPU_OBJ == Long.MAX_VALUE || surface == null) {
             return
         }
 
+//        Timber.e("the WGPU OBJ: ${WGPU_OBJ} and surface ${surface}")
+
         val responseJson = WORKSPACE.enterFrame(WGPU_OBJ)
-        var response: IntegrationOutput = frameOutputJsonParser.decodeFromString(responseJson)
+        val response: IntegrationOutput = frameOutputJsonParser.decodeFromString(responseJson)
 
         if (response.urlOpened.isNotEmpty()) {
             val browserIntent = Intent(Intent.ACTION_VIEW, Uri.parse(response.urlOpened))
@@ -235,7 +257,6 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
 
     companion object {
         var WGPU_OBJ = Long.MAX_VALUE
-        var CAN_RENDER = false
 
         const val SPEN_ACTION_DOWN = 211
         const val SPEN_ACTION_MOVE = 213

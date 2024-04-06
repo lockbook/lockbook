@@ -185,6 +185,7 @@ class FilesListFragment : Fragment(), FilesFragment {
         }
 
         binding.listFilesRefresh.setOnRefreshListener {
+            workspaceModel.isSyncing = true
             workspaceModel._sync.postValue(Unit)
         }
 
@@ -219,9 +220,7 @@ class FilesListFragment : Fragment(), FilesFragment {
         }
 
         workspaceModel.syncCompleted.observe(viewLifecycleOwner) {
-            if (binding.listFilesRefresh.isRefreshing) {
-                binding.listFilesRefresh.isRefreshing = false
-            }
+            binding.listFilesRefresh.isRefreshing = false
         }
 
         workspaceModel.selectedFile.observe(viewLifecycleOwner) { id ->
@@ -430,19 +429,11 @@ class FilesListFragment : Fragment(), FilesFragment {
                     binding.listFilesRefresh.isRefreshing = false
                 }
 
-                if (binding.syncHolder.isVisible) {
-                    binding.syncHolder.visibility = View.GONE
-                }
-
                 alertModel.notifyError(uiUpdates.error)
             }
             is UpdateFilesUI.NotifyWithSnackbar -> {
                 if (binding.listFilesRefresh.isRefreshing) {
                     binding.listFilesRefresh.isRefreshing = false
-                }
-
-                if (binding.syncHolder.isVisible) {
-                    binding.syncHolder.visibility = View.GONE
                 }
 
                 alertModel.notify(uiUpdates.msg)

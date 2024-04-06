@@ -115,7 +115,6 @@
             app:sdOverlayLayout="@id/fab_overlay" />
 
         <LinearLayout
-            android:id="@+id/sync_holder"
             android:layout_width="match_parent"
             android:layout_height="50dp"
             android:layout_gravity="bottom|start"

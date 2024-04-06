@@ -52,12 +52,6 @@ class WorkspaceFragment : Fragment() {
         val BACKSTACK_TAG = "WorkspaceBackstack"
     }
 
-    override fun onDetach() {
-        super.onDetach()
-
-        WorkspaceView.CAN_RENDER = false
-    }
-
     override fun onCreateView(
         inflater: LayoutInflater,
         container: ViewGroup?,
@@ -95,10 +89,6 @@ class WorkspaceFragment : Fragment() {
 
         binding.workspaceRoot.addView(workspaceWrapper, layoutParams)
 
-        binding.workspaceToolbar.setNavigationOnClickListener {
-            activityModel.updateMainScreenUI(UpdateMainScreenUI.OpenFile(null))
-        }
-
         model.sync.observe(viewLifecycleOwner) {
             workspaceWrapper.workspaceView.sync()
         }
@@ -113,6 +103,7 @@ class WorkspaceFragment : Fragment() {
         }
 
         model.closeDocument.observe(viewLifecycleOwner) { id ->
+            Timber.e("going to close doc")
             workspaceWrapper.workspaceView.closeDoc(id)
         }
 
@@ -125,6 +116,8 @@ class WorkspaceFragment : Fragment() {
                 binding.workspaceToolbar.setNavigationIcon(R.drawable.ic_baseline_arrow_back_24)
 
                 binding.workspaceToolbar.setNavigationOnClickListener {
+                    Timber.e("closing doc attempt request...")
+
                     val currentDoc = model.selectedFile.value
                     if (currentDoc != null) {
                         model._closeDocument.value = currentDoc
