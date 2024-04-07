@@ -57,7 +57,7 @@ impl ToolBar {
             header_click_count: 1,
             has_focus: false,
             visibility: visibility.to_owned(),
-            id: egui::Id::null(),
+            id: egui::Id::NULL,
         }
     }
 

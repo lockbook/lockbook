@@ -12,9 +12,9 @@ path = "src/lib.rs"
 debug-window = ["dep:eframe"]
 
 [dependencies]
-egui = "0.22.0"
+egui = "0.26.2"
 workspace = { path = "../../workspace" }
-eframe = { version = "0.22.0", optional = true }
+eframe = { version = "0.26.2", optional = true }
 
 # todo: maybe move this switch into lb itself
 [target.'cfg(not(target_os = "android"))'.dependencies]

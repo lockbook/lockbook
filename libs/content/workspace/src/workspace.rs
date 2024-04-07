@@ -1,5 +1,4 @@
-use egui::{Color32, Context};
-use std::ops::Deref;
+use egui::{vec2, Color32, Context, Image};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::Arc;
@@ -16,7 +15,6 @@ use crate::tab::svg_editor::SVGEditor;
 use crate::tab::{Tab, TabContent, TabFailure};
 use crate::theme::icons::Icon;
 use crate::widgets::{separator, Button, ToolBarVisibility};
-use egui_extras::RetainedImage;
 use lb_rs::{File, FileType, LbError, NameComponents, SyncProgress, SyncStatus, Uuid};
 
 pub struct Workspace {
@@ -24,7 +22,7 @@ pub struct Workspace {
 
     pub tabs: Vec<Tab>,
     pub active_tab: usize,
-    pub backdrop: RetainedImage,
+    pub backdrop: Image<'static>,
 
     pub ctx: Context,
     pub core: lb_rs::Core,
@@ -97,7 +95,7 @@ impl Workspace {
             cfg,
             tabs: vec![],
             active_tab: 0,
-            backdrop: RetainedImage::from_image_bytes("logo-backdrop", LOGO_BACKDROP).unwrap(),
+            backdrop: Image::new(egui::include_image!("../lockbook-backdrop.png")),
             ctx: ctx.clone(),
             core: core.clone(),
             updates_rx,
@@ -191,6 +189,8 @@ impl Workspace {
 
     /// called by custom integrations
     pub fn draw(&mut self, ctx: &Context) -> WsOutput {
+        egui_extras::install_image_loaders(ctx);
+
         let fill = if ctx.style().visuals.dark_mode { Color32::BLACK } else { Color32::WHITE };
         egui::CentralPanel::default()
             .frame(egui::Frame::default().fill(fill))
@@ -237,7 +237,7 @@ impl Workspace {
     fn show_empty_workspace(&mut self, ui: &mut egui::Ui, out: &mut WsOutput) {
         ui.with_layout(egui::Layout::top_down(egui::Align::Center), |ui| {
             ui.add_space(ui.clip_rect().height() / 3.0);
-            self.backdrop.show_size(ui, egui::vec2(100.0, 100.0));
+            ui.add(self.backdrop.clone().fit_to_exact_size(vec2(100.0, 100.0)));
 
             ui.label(egui::RichText::new("Welcome to your Lockbook").size(40.0));
             ui.label(
@@ -345,16 +345,6 @@ impl Workspace {
 
     fn show_mobile_title(&mut self, ui: &mut egui::Ui, output: &mut WsOutput) {
         ui.horizontal(|ui| {
-            ui.set_style(egui::Style {
-                text_styles: vec![(
-                    egui::TextStyle::Button,
-                    egui::FontId::new(30.0, egui::FontFamily::Proportional),
-                )]
-                .into_iter()
-                .collect(),
-                ..ui.style().deref().clone()
-            });
-
             let selectable_label = egui::widgets::Button::new(self.tabs[0].name.clone())
                 .frame(false)
                 .fill(egui::Color32::TRANSPARENT);
@@ -394,8 +384,8 @@ impl Workspace {
 
                                         let mut rename_edit_state =
                                             egui::text_edit::TextEditState::default();
-                                        rename_edit_state.set_ccursor_range(Some(
-                                            egui::text_edit::CCursorRange {
+                                        rename_edit_state.cursor.set_char_range(Some(
+                                            egui::text::CCursorRange {
                                                 primary: egui::text::CCursor::new(
                                                     active_name
                                                         .rfind('.')
@@ -540,7 +530,7 @@ impl Workspace {
                             id,
                         ))
                     } else if is_supported_image_fmt(ext) {
-                        TabContent::Image(ImageViewer::new(id.to_string(), &bytes))
+                        TabContent::Image(ImageViewer::new(&id.to_string(), ext, &bytes))
                     } else if ext == "pdf" {
                         TabContent::Pdf(PdfViewer::new(
                             &bytes,
@@ -554,9 +544,7 @@ impl Workspace {
                         TabContent::PlainText(PlainText::new(&bytes))
                     }
                 });
-            println!("file loaded message sent: {id}, success: {}", content.is_ok());
             update_tx.send(WsMsg::FileLoaded(id, content)).unwrap();
-            println!("sent successfully");
             ctx.request_repaint();
         });
     }
@@ -628,15 +616,14 @@ impl Workspace {
                         match content {
                             Ok(content) => {
                                 tab.content = Some(content);
-                                println!("successfully loaded file");
                             }
                             Err(fail) => {
+                                println!("failed to load file: {:?}", fail);
                                 tab.failure = Some(fail);
-                                println!("failed loaded file 1");
                             }
                         }
                     } else {
-                        println!("failed to load file 2");
+                        println!("failed to load file: tab not found");
                     }
                 }
                 WsMsg::BgSignal(Signal::SaveAll) => {
@@ -727,7 +714,7 @@ fn tab_label(ui: &mut egui::Ui, t: &mut Tab, is_active: bool) -> Option<TabLabel
     let (rect, resp) = ui.allocate_exact_size((w, h).into(), egui::Sense::hover());
 
     if ui.is_rect_visible(rect) {
-        let visuals = &ui.style().interact(&resp).clone();
+        let text_color = ui.style().interact(&resp).text_color();
 
         let close_btn_pos =
             egui::pos2(rect.max.x - padding.x - x_icon.size, rect.center().y - x_icon.size / 2.0);
@@ -781,7 +768,9 @@ fn tab_label(ui: &mut egui::Ui, t: &mut Tab, is_active: bool) -> Option<TabLabel
                 ui.visuals().widgets.noninteractive.bg_fill
             };
             ui.painter().rect(rect, 0.0, bg, egui::Stroke::NONE);
-            text.paint_with_visuals(ui.painter(), text_pos, visuals);
+
+            ui.painter()
+                .galley_with_override_text_color(text_pos, text, text_color);
 
             if close_hovered {
                 ui.painter().rect(
@@ -799,16 +788,14 @@ fn tab_label(ui: &mut egui::Ui, t: &mut Tab, is_active: bool) -> Option<TabLabel
             );
 
             let icon: egui::WidgetText = (&x_icon).into();
-            icon.into_galley(ui, Some(false), wrap_width, egui::TextStyle::Body)
-                .paint_with_visuals(ui.painter(), icon_draw_pos, visuals);
+            let icon = icon.into_galley(ui, Some(false), wrap_width, egui::TextStyle::Body);
 
-            let close_resp = ui.interact(
-                close_btn_rect,
-                egui::Id::new(format!("close-btn-{}", t.id)),
-                egui::Sense::click(),
-            );
+            ui.painter()
+                .galley_with_override_text_color(icon_draw_pos, icon, text_color);
+
             // First, we check if the close button was clicked.
-            if close_resp.clicked() {
+            // Since egui 0.26.2, ui.interact(close_btn_rect, ..).clicked() is always false for unknown reasons
+            if ui.input(|i| i.pointer.primary_clicked()) && close_hovered {
                 lbl_resp = Some(TabLabelResponse::Closed);
             } else {
                 // Then, we check if the tab label was clicked so that a close button click
@@ -840,8 +827,6 @@ fn tab_label(ui: &mut egui::Ui, t: &mut Tab, is_active: bool) -> Option<TabLabel
 
     lbl_resp
 }
-
-const LOGO_BACKDROP: &[u8] = include_bytes!("../lockbook-backdrop.png");
 
 pub const NUM_KEYS: [egui::Key; 9] = [
     egui::Key::Num1,

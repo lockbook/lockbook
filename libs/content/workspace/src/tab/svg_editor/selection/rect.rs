@@ -283,9 +283,9 @@ impl SelectionRect {
         };
         ui.painter().rect(
             rect,
-            egui::Rounding::none(),
+            egui::Rounding::ZERO,
             egui::Color32::WHITE,
             egui::Stroke { width: 1.0, color: ui.visuals().hyperlink_color },
-        )
+        );
     }
 }
