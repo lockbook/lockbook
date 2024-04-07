@@ -2,7 +2,6 @@ use egui::{Pos2, Rect};
 
 use egui_wgpu_backend::wgpu;
 use egui_wgpu_backend::wgpu::CompositeAlphaMode;
-use lb_external_interface::lb_rs::Uuid;
 use std::time::Instant;
 
 use std::iter;
@@ -17,11 +16,14 @@ pub mod apple;
 #[cfg(target_os = "android")]
 pub mod android;
 
-#[cfg(target_vendor = "apple")]
-pub use apple::resp::*;
-
 #[cfg(target_os = "android")]
 pub use android::resp::*;
+
+#[cfg(not(target_os = "android"))]
+pub mod resp;
+
+#[cfg(not(target_os = "android"))]
+pub use resp::*;
 
 #[repr(C)]
 pub struct WgpuWorkspace {
@@ -45,6 +47,7 @@ pub struct WgpuWorkspace {
     pub workspace: Workspace,
 }
 
+#[cfg(any(target_vendor = "apple", target_os = "android"))]
 impl WgpuWorkspace {
     pub fn frame(&mut self) -> IntegrationOutput {
         #[cfg(target_vendor = "apple")]
@@ -111,7 +114,7 @@ impl WgpuWorkspace {
             .remove_textures(tdelta)
             .expect("remove texture ok");
 
-        #[cfg(target_vendor = "apple")]
+        #[cfg(not(target_os = "android"))]
         {
             #[cfg(target_os = "ios")]
             {
@@ -190,20 +193,5 @@ impl WgpuWorkspace {
             self.surface_width = self.screen.physical_width;
             self.surface_height = self.screen.physical_height;
         }
-    }
-}
-#[repr(C)]
-#[derive(Debug, Default)]
-pub struct CUuid([u8; 16]);
-
-impl From<Uuid> for CUuid {
-    fn from(value: Uuid) -> Self {
-        Self(value.into_bytes())
-    }
-}
-
-impl From<CUuid> for Uuid {
-    fn from(value: CUuid) -> Self {
-        Uuid::from_bytes(value.0)
     }
 }

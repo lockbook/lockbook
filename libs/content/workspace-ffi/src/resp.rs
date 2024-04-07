@@ -1,5 +1,4 @@
 use crate::cursor_icon::CCursorIcon;
-use crate::CUuid;
 use egui_editor::input::canonical::{Location, Region};
 use egui_editor::offset_types::{DocCharOffset, RelCharOffset};
 use lb_external_interface::lb_rs::Uuid;
@@ -186,5 +185,21 @@ impl From<CTextRange> for Region {
 impl From<CTextPosition> for Location {
     fn from(value: CTextPosition) -> Self {
         Location::DocCharOffset(value.pos.into())
+    }
+}
+
+#[repr(C)]
+#[derive(Debug, Default)]
+pub struct CUuid([u8; 16]);
+
+impl From<Uuid> for CUuid {
+    fn from(value: Uuid) -> Self {
+        Self(value.into_bytes())
+    }
+}
+
+impl From<CUuid> for Uuid {
+    fn from(value: CUuid) -> Self {
+        Uuid::from_bytes(value.0)
     }
 }

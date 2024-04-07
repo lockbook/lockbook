@@ -94,12 +94,12 @@
 
     <string name="document">Document</string>
     <string name="folder">Folder</string>
-    <string name="drawing">Drawing</string>
+    <string name="drawing">SVG</string>
     <string name="file">File</string>
 
     <string name="create_file_title_folder">New Folder</string>
     <string name="create_file_title_document">New Document</string>
-    <string name="create_file_title_drawing">New Drawing</string>
+    <string name="create_file_title_drawing">New SVG</string>
 
     <string name="files_list_items_selected">%d Selected</string>
 
