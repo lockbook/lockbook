@@ -124,7 +124,7 @@ impl Icon {
         let (rect, resp) = ui.allocate_at_least(desired_size, egui::Sense::hover());
 
         if ui.is_rect_visible(rect) {
-            let visuals = ui.style().interact(&resp);
+            let text_color = ui.style().interact(&resp).text_color();
             let wrap_width = ui.available_width();
 
             let icon_pos = egui::pos2(rect.min.x + padding.x, rect.center().y - self.size / 2.0);
@@ -132,7 +132,8 @@ impl Icon {
             let icon: egui::WidgetText = self.into();
             let icon = icon.into_galley(ui, Some(false), wrap_width, egui::TextStyle::Body);
 
-            icon.paint_with_visuals(ui.painter(), icon_pos, visuals);
+            ui.painter()
+                .galley_with_override_text_color(icon_pos, icon, text_color);
         }
 
         resp

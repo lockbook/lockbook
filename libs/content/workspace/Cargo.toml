@@ -8,9 +8,9 @@ name = "workspace_rs"
 
 [dependencies]
 bezier-rs = "0.2.0"
-egui = "0.22.0"
-egui_extras = { version = "0.22.0", features = ["image"] }
-epaint = "0.22.0"
+egui = "0.26.2"
+egui_extras = { version = "0.26.2", features = ["image"] }
+epaint = "0.26.2"
 glam = "0.22.0"
 image = "0.24"
 lb-fonts = "0.1.2"
@@ -41,6 +41,6 @@ reqwest = { version = "0.11", default-features = false, features = [
     "rustls-tls",
 ] }
 ndk-sys = "0.4"
-raw-window-handle = "0.5"
+raw-window-handle = "0.6"
 jni = "0.21.0"
 pollster = "0.2"

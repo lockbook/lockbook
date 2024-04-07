@@ -266,7 +266,7 @@ impl Toolbar {
                                         btn_res.rect.expand2(egui::vec2(2.0, 2.0)),
                                         egui::Rounding::same(8.0),
                                         egui::Color32::GRAY.gamma_multiply(0.1),
-                                    )
+                                    );
                                 }
                                 if let Some(shortcut) = &btn.key_shortcut {
                                     let mut is_mac = false;
@@ -322,7 +322,7 @@ impl Toolbar {
                                     response.rect.shrink2(egui::vec2(0.0, 5.0)),
                                     egui::Rounding::same(8.0),
                                     btn.color.gamma_multiply(0.2),
-                                )
+                                );
                             }
                             painter.circle_filled(
                                 response.rect.center(),
@@ -354,7 +354,7 @@ impl Toolbar {
                                 response.rect.shrink2(egui::vec2(0.0, 5.0)),
                                 egui::Rounding::same(8.0),
                                 egui::Color32::GRAY.gamma_multiply(0.1),
-                            )
+                            );
                         }
                         if response.clicked() {
                             self.pen.active_stroke_width = *thickness;

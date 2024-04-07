@@ -34,7 +34,7 @@ impl Editor {
                                     bullet_radius,
                                     Stroke::new(1.0, self.appearance.text()),
                                 ),
-                            }
+                            };
                         }
                         ListItem::Numbered(num) => {
                             let mut job = LayoutJob::default();
@@ -50,7 +50,7 @@ impl Editor {
                             let galley = ui.ctx().fonts(|f| f.layout_job(job));
                             let rect = Align2::RIGHT_TOP
                                 .anchor_rect(Rect::from_min_size(pos.max, galley.size()));
-                            ui.painter().galley(rect.min, galley);
+                            ui.painter().galley(rect.min, galley, Color32::TRANSPARENT);
                         }
                         ListItem::Todo(checked) => {
                             ui.painter().rect_filled(
@@ -121,7 +121,7 @@ impl Editor {
 
             // draw text
             ui.painter()
-                .galley(galley.text_location, galley.galley.clone());
+                .galley(galley.text_location, galley.galley.clone(), Color32::TRANSPARENT);
         }
 
         // draw end-of-text padding
@@ -275,7 +275,7 @@ impl Editor {
             let galley_rect = galley.galley.rect.translate(galley.text_location.to_vec2());
             ui.painter().rect(
                 galley_rect,
-                Rounding::none(),
+                Rounding::ZERO,
                 Color32::TRANSPARENT,
                 Stroke { width: 0.5, color: YELLOW.light },
             );

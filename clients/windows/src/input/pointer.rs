@@ -154,7 +154,7 @@ impl PointerManager {
                                 id: pointer_id.into(),
                                 phase: egui::TouchPhase::Move,
                                 pos,
-                                force,
+                                force: Some(force),
                             });
                         }
                         (None, true, _) => {
@@ -173,7 +173,7 @@ impl PointerManager {
                                 id: pointer_id.into(),
                                 phase: egui::TouchPhase::Start,
                                 pos,
-                                force,
+                                force: Some(force),
                             });
 
                             // queue moves for next frame
@@ -184,7 +184,7 @@ impl PointerManager {
                                 id: pointer_id.into(),
                                 phase: egui::TouchPhase::Move,
                                 pos,
-                                force,
+                                force: Some(force),
                             });
                         }
                         (None, false, true) => {
@@ -203,7 +203,7 @@ impl PointerManager {
                                 id: pointer_id.into(),
                                 phase: egui::TouchPhase::Start,
                                 pos,
-                                force,
+                                force: Some(force),
                             });
                         }
                         _ => {
@@ -237,7 +237,7 @@ impl PointerManager {
                             id: pointer_id.into(),
                             phase: egui::TouchPhase::End,
                             pos,
-                            force,
+                            force: Some(force),
                         });
                     }
                     (Some(_), Some(start_pos), _) => {
@@ -255,7 +255,7 @@ impl PointerManager {
                             id: pointer_id.into(),
                             phase: egui::TouchPhase::Start,
                             pos,
-                            force,
+                            force: Some(force),
                         });
 
                         // queue releases for next frame
@@ -271,7 +271,7 @@ impl PointerManager {
                             id: pointer_id.into(),
                             phase: egui::TouchPhase::End,
                             pos,
-                            force,
+                            force: Some(force),
                         });
                     }
                     _ => {

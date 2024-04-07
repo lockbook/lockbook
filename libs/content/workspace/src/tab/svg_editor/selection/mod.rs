@@ -113,7 +113,7 @@ impl Selection {
                     self.laso_rect = Some(rect);
                     ui.painter().rect_filled(
                         rect,
-                        egui::Rounding::none(),
+                        egui::Rounding::ZERO,
                         ui.visuals().hyperlink_color.gamma_multiply(0.1),
                     );
                     // if the path bounding box intersects with the laso rect then it's a match
@@ -245,7 +245,7 @@ impl Selection {
             end_translation(buffer, &mut self.selected_elements, pos, true);
         }
 
-        let is_scaling_up = ui.input(|r| r.key_pressed(egui::Key::PlusEquals));
+        let is_scaling_up = ui.input(|r| r.key_pressed(egui::Key::Plus));
         let is_scaling_down = ui.input(|r| r.key_pressed(egui::Key::Minus));
 
         let factor = if is_scaling_up {

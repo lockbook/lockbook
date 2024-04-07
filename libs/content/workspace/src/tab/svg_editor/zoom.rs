@@ -13,8 +13,8 @@ pub fn handle_zoom_input(ui: &mut egui::Ui, working_rect: egui::Rect, buffer: &m
     let is_zooming = zoom_delta != 0.0;
 
     let pan = ui.input(|r| {
-        if r.scroll_delta.x.abs() > 0.0 || r.scroll_delta.y.abs() > 0.0 {
-            Some(r.scroll_delta)
+        if r.raw_scroll_delta.x.abs() > 0.0 || r.raw_scroll_delta.y.abs() > 0.0 {
+            Some(r.raw_scroll_delta)
         } else if let Some(touch_gesture) = r.multi_touch() {
             if touch_gesture.translation_delta.x.abs() > 0.0
                 || touch_gesture.translation_delta.y.abs() > 0.0

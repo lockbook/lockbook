@@ -1,10 +1,15 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+use std::io::Cursor;
+
 use egui_winit::egui;
+use image::ImageDecoder as _;
 use lockbook_egui::Lockbook;
 use lockbook_egui::Settings;
 
 fn main() {
+    env_logger::init();
+
     // We explicity use x11 on posix systems because using Wayland (at least on GNOME) has the
     // following issues:
     //  1. window decorations are non-native.
@@ -22,22 +27,26 @@ fn main() {
     };
 
     let icon_bytes = {
-        // experimentally-determined image correction
-        let mut this = include_bytes!("../lockbook.ico").to_vec();
-        this.chunks_exact_mut(4).for_each(|chunk| {
-            (chunk[0], chunk[1], chunk[2], chunk[3]) = (chunk[3], chunk[0], chunk[1], chunk[2]);
-        });
-        this.reverse();
-        this
+        let png_bytes = include_bytes!("../lockbook.png");
+
+        let decoder = image::codecs::png::PngDecoder::new(Cursor::new(png_bytes))
+            .expect("Failed to create PNG decoder");
+        let mut rgba8_bytes = vec![0; decoder.total_bytes() as usize];
+        decoder
+            .read_image(&mut rgba8_bytes)
+            .expect("Failed to read PNG image");
+
+        rgba8_bytes
     };
 
     eframe::run_native(
         "Lockbook",
         eframe::NativeOptions {
-            drag_and_drop_support: true,
-            maximized: settings.window_maximize,
-            initial_window_size: Some(egui::vec2(1300.0, 800.0)),
-            icon_data: Some(eframe::IconData { rgba: icon_bytes, width: 128, height: 128 }),
+            viewport: egui::ViewportBuilder::default()
+                .with_drag_and_drop(true)
+                .with_maximized(settings.window_maximize)
+                .with_inner_size([1300.0, 800.0])
+                .with_icon(egui::IconData { rgba: icon_bytes, width: 128, height: 128 }),
             ..Default::default()
         },
         Box::new(|cc: &eframe::CreationContext| {
