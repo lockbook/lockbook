@@ -68,7 +68,6 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
     override fun surfaceCreated(holder: SurfaceHolder) {
         surface = holder.surface
 
-        Timber.e("initing ws: ${surface != null} ${CoreModel.getPtr()} ${context.resources.displayMetrics.scaledDensity} ${(context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES} ${WGPU_OBJ}")
         WGPU_OBJ = WORKSPACE.initWS(
             surface!!,
             CoreModel.getPtr(),
@@ -76,8 +75,6 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
             (context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES,
             WGPU_OBJ
         )
-
-        Timber.e("finished initing ws")
 
         model._shouldShowTabs.postValue(Unit)
 
