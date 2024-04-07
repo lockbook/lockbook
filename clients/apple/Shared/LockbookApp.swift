@@ -17,6 +17,7 @@ import AppKit
     #endif
     
     @StateObject var search = DI.search
+    @State private var navPath = NavigationPath()
         
     var body: some Scene {
         WindowGroup {
@@ -65,6 +66,12 @@ import AppKit
                         DI.files.copyFileLink(id: id)
                     }
                 }).keyboardShortcut("L", modifiers: [.command, .shift])
+                
+                #if os(macOS)
+                Button("Logout", action: {
+                    WindowManager.shared.openLogoutConfirmationWindow()
+                })
+                #endif
             }
             SidebarCommands()
         }
@@ -73,7 +80,6 @@ import AppKit
         Settings {
             SettingsView().realDI()
         }
-        
         #endif
     }
 
@@ -93,7 +99,7 @@ import AppKit
                     
                     if DI.files.idsAndFiles[id] != nil {
                         DispatchQueue.main.async {
-                            DI.workspace.openDoc = id
+                            DI.workspace.requestOpenDoc(id)
                         }
                     } else {
                         DI.errors.errorWithTitle("File not found", "That file does not exist in your lockbook")
@@ -160,11 +166,13 @@ extension View {
 
 #if os(macOS)
 
-class AppDelegate: NSObject, NSApplicationDelegate {
+class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     let backgroundSyncStartSecs = 60 * 5
     let backgroundSyncContSecs = 60 * 60
     
     var currentSyncTask: DispatchWorkItem? = nil
+    var logoutConfirmationWindow: NSWindow?
+    
     
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         return true

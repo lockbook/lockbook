@@ -528,7 +528,7 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
     }
     
     public override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
-        mtkView.pressesBegan(presses, with: event)
+        mtkView.forwardedPressesBegan(presses, with: event)
         
         if !mtkView.overrideDefaultKeyboardBehavior {
             super.pressesBegan(presses, with: event)
@@ -536,7 +536,7 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
     }
     
     public override func pressesEnded(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
-        mtkView.pressesEnded(presses, with: event)
+        mtkView.forwardedPressesEnded(presses, with: event)
         
         if !mtkView.overrideDefaultKeyboardBehavior {
             super.pressesEnded(presses, with: event)
@@ -657,11 +657,9 @@ public class iOSMTK: MTKView, MTKViewDelegate {
     }
     
     func openFile(id: UUID) {
-        if currentOpenDoc != id {
-            let uuid = CUuid(_0: id.uuid)
-            open_file(wsHandle, uuid, false)
-            setNeedsDisplay(self.frame)
-        }
+        let uuid = CUuid(_0: id.uuid)
+        open_file(wsHandle, uuid, false)
+        setNeedsDisplay(self.frame)
     }
     
     func showHideTabs(show: Bool) {
@@ -681,9 +679,15 @@ public class iOSMTK: MTKView, MTKViewDelegate {
         setNeedsDisplay(self.frame)
     }
     
-    func docRenamed(renameCompleted: WSRenameCompleted) {
-        tab_renamed(wsHandle, renameCompleted.id.uuidString, renameCompleted.newName)
-        setNeedsDisplay(self.frame)
+    func fileOpCompleted(fileOp: WSFileOpCompleted) {
+        switch fileOp {
+        case .Delete(let id):
+            close_tab(wsHandle, id.uuidString)
+            setNeedsDisplay(self.frame)
+        case .Rename(let id, let newName):
+            tab_renamed(wsHandle, id.uuidString, newName)
+            setNeedsDisplay(self.frame)
+        }
     }
 
     public func setInitialContent(_ coreHandle: UnsafeMutableRawPointer?) {
@@ -846,6 +850,22 @@ public class iOSMTK: MTKView, MTKViewDelegate {
     }
     
     public override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
+        forwardedPressesBegan(presses, with: event)
+        
+        if !overrideDefaultKeyboardBehavior {
+            super.pressesBegan(presses, with: event)
+        }
+    }
+
+    public override func pressesEnded(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
+        forwardedPressesEnded(presses, with: event)
+        
+        if !overrideDefaultKeyboardBehavior {
+            super.pressesEnded(presses, with: event)
+        }
+    }
+    
+    func forwardedPressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
         overrideDefaultKeyboardBehavior = false
         
         for press in presses {
@@ -868,8 +888,8 @@ public class iOSMTK: MTKView, MTKViewDelegate {
             self.setNeedsDisplay(self.frame)
         }
     }
-
-    public override func pressesEnded(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
+    
+    func forwardedPressesEnded(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
         overrideDefaultKeyboardBehavior = false
         
         for press in presses {

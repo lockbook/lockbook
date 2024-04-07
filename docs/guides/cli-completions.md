@@ -1,5 +1,5 @@
 # CLI Completions for macos && (bash || zsh)
-`lockbook` ships with a think completion file for `zsh`, `bash` & `fish`. The [CLI](https://github.com/lockbook/lockbook/blob/master/clients/cli/src/main.rs) performs static and dynamic completions, powered by [`cli-rs`](https://crates.io/crates/cli-rs). You can learn more about the CLI in this [blog]() tab completions file.
+`lockbook` ships with a think completion file for `zsh`, `bash` & `fish`. The [CLI](https://github.com/lockbook/lockbook/blob/master/clients/cli/src/main.rs) performs static and dynamic completions, powered by [`cli-rs`](https://crates.io/crates/cli-rs). You can learn more about the lockbook CLI and its design in [this blog post](https://parth.cafe/p/creating-a-sick-cli).
 
 ## Debugging CLI Completions
 If `lockbook` completions are not working automatically for you, check out [homebrew's](https://docs.brew.sh/Shell-Completion) guide.

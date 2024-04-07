@@ -1,6 +1,7 @@
 use crate::widgets::{toolbar::MOBILE_TOOL_BAR_SIZE, ToolBar, ToolBarVisibility};
 pub use editor::{Editor, EditorResponse};
 use egui::{FontData, FontDefinitions, FontFamily};
+use lb_rs::Uuid;
 use std::sync::Arc;
 
 pub mod appearance;
@@ -69,9 +70,10 @@ impl Markdown {
     // todo: you eleminated the idea of an auto rename signal here, evaluate what to do with it
     pub fn new(
         core: lb_rs::Core, bytes: &[u8], toolbar_visibility: &ToolBarVisibility, needs_name: bool,
+        file_id: Uuid,
     ) -> Self {
         let content = String::from_utf8_lossy(bytes);
-        let editor = Editor::new(core, &content);
+        let editor = Editor::new(core, &content, &file_id);
 
         let toolbar = ToolBar::new(toolbar_visibility);
 

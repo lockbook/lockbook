@@ -126,6 +126,7 @@ impl AccountScreen {
             .unwrap();
 
         let is_expanded = !self.settings.read().unwrap().zen_mode;
+        self.show_any_modals(ctx, 0.0);
 
         egui::SidePanel::left("sidebar_panel")
             .frame(egui::Frame::none().fill(ctx.style().visuals.panel_fill))
@@ -208,7 +209,6 @@ impl AccountScreen {
             self.modals.account_backup = Some(AccountBackup);
             self.is_new_user = false;
         }
-        self.show_any_modals(ctx, 0.0);
     }
 
     fn process_updates(&mut self, ctx: &egui::Context, output: &mut UpdateOutput) {
@@ -546,8 +546,8 @@ impl AccountScreen {
                                 core.clone(),
                                 &bytes,
                                 &toolbar_visibility,
-                                // update_tx.clone(),
                                 false,
+                                id,
                             ))
                         } else if is_supported_image_fmt(ext) {
                             TabContent::Image(ImageViewer::new(id.to_string(), &bytes))

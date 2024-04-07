@@ -67,6 +67,9 @@ impl SizableComponent for Component {
 macro_rules! set_tool {
     ($obj:expr, $new_tool:expr) => {
         if $obj.active_tool != $new_tool {
+            if (matches!($new_tool, Tool::Selection)) {
+                $obj.selection = Selection::default();
+            }
             $obj.previous_tool = Some($obj.active_tool);
             $obj.active_tool = $new_tool;
         }
@@ -119,7 +122,10 @@ impl Toolbar {
                 id: "Redo".to_string(),
                 icon: Icon::REDO,
                 margin: egui::Margin::symmetric(4.0, 7.0),
-                key_shortcut: Some((egui::Modifiers::COMMAND, egui::Key::R)),
+                key_shortcut: Some((
+                    egui::Modifiers::COMMAND.plus(egui::Modifiers::SHIFT),
+                    egui::Key::Z,
+                )),
             }),
             Component::Separator(egui::Margin::symmetric(10.0, 0.0)),
             Component::Button(SimpleButton {
@@ -153,7 +159,7 @@ impl Toolbar {
             previous_tool: None,
             pen: Pen::new(max_id),
             eraser: Eraser::new(),
-            selection: Selection::new(),
+            selection: Selection::default(),
         }
     }
 

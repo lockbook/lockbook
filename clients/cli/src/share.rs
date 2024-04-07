@@ -63,7 +63,7 @@ fn to_share_infos(files: Vec<lb::File>) -> Vec<ShareInfo> {
         .map(|f| {
             let (from, mode) = f
                 .shares
-                .get(0)
+                .first()
                 .map(|sh| (sh.shared_by.as_str(), sh.mode))
                 .unwrap_or(("", lb::ShareMode::Write));
             ShareInfo {
