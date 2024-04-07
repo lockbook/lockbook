@@ -36,6 +36,7 @@ import app.lockbook.model.UpdateMainScreenUI
 import app.lockbook.model.WorkspaceTab
 import app.lockbook.model.WorkspaceViewModel
 import app.lockbook.util.WorkspaceView
+import com.github.michaelbull.result.get
 import com.github.michaelbull.result.unwrap
 import timber.log.Timber
 import kotlin.math.abs
@@ -67,7 +68,9 @@ class WorkspaceFragment : Fragment() {
                     (requireContext().getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager)
                         .hideSoftInputFromWindow(workspaceWrapper.windowToken, 0)
 
-                    activityModel.launchTransientScreen(TransientScreen.ShareFile(CoreModel.getFileById(model.selectedFile.value!!).unwrap()))
+                    val file = CoreModel.getFileById(model.selectedFile.value!!).unwrap()
+
+                    activityModel.launchTransientScreen(TransientScreen.ShareFile(file))
                 }
                 R.id.menu_text_editor_share_externally -> {
                     activityModel.shareSelectedFiles(listOf(CoreModel.getFileById(model.selectedFile.value!!).unwrap()), requireContext().cacheDir)

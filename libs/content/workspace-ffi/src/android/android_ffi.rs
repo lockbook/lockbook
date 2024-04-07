@@ -26,29 +26,12 @@ use workspace_rs::workspace::{Workspace, WsConfig};
 use super::keyboard::AndroidKeys;
 
 #[no_mangle]
-pub extern "system" fn Java_app_lockbook_workspace_Workspace_createWgpuCanvas(
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_initWS(
     env: JNIEnv, _: JClass, surface: jobject, core: jlong, scale_factor: jfloat, dark_mode: bool,
     old_wgpu: jlong,
 ) -> jlong {
     let core = unsafe { &mut *(core as *mut Core) };
     let writable_dir = core.get_config().unwrap().writeable_path;
-
-    let ws_cfg = WsConfig { data_dir: writable_dir, ..Default::default() };
-
-    let context = Context::default();
-    visuals::init(&context, dark_mode);
-    let mut fonts = FontDefinitions::default();
-    register_fonts(&mut fonts);
-    context.set_fonts(fonts);
-
-    let ws = if old_wgpu != jlong::MAX {
-        let mut old_wgpu: Box<WgpuWorkspace> = unsafe { Box::from_raw(old_wgpu as *mut _) };
-
-        old_wgpu.workspace.invalidate_egui_references(&context);
-        old_wgpu.workspace
-    } else {
-        Workspace::new(ws_cfg, core, &context)
-    };
 
     let native_window = NativeWindow::new(&env, surface);
     let backends = wgpu::Backends::VULKAN;
@@ -58,17 +41,41 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_createWgpuCanvas(
     let (adapter, device, queue) =
         pollster::block_on(window::request_device(&instance, backends, &surface));
     let format = surface.get_capabilities(&adapter).formats[0];
+    let screen = ScreenDescriptor {
+        physical_width: native_window.get_width(),
+        physical_height: native_window.get_height(),
+        scale_factor,
+    };
     let config = wgpu::SurfaceConfiguration {
         usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
         format,
-        width: native_window.get_width(),
-        height: native_window.get_height(),
+        width: screen.physical_width,
+        height: screen.physical_height,
         present_mode: wgpu::PresentMode::Fifo,
         alpha_mode: CompositeAlphaMode::Auto,
         view_formats: vec![],
     };
     surface.configure(&device, &config);
     let rpass = egui_wgpu_backend::RenderPass::new(&device, format, 1);
+
+    let context = Context::default();
+    visuals::init(&context, dark_mode);
+    let ws_cfg = WsConfig { data_dir: writable_dir, ..Default::default() };
+
+    let workspace = if old_wgpu != jlong::MAX {
+        let mut old_wgpu: Box<WgpuWorkspace> = unsafe { Box::from_raw(old_wgpu as *mut _) };
+
+        old_wgpu.workspace.invalidate_egui_references(&context);
+        old_wgpu.workspace.ctx = context.clone();
+        old_wgpu.workspace.core = core.clone();
+        old_wgpu.workspace
+    } else {
+        Workspace::new(ws_cfg, core, &context)
+    };
+
+    let mut fonts = FontDefinitions::default();
+    register_fonts(&mut fonts);
+    context.set_fonts(fonts);
 
     let start_time = Instant::now();
     let obj = WgpuWorkspace {
@@ -78,14 +85,10 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_createWgpuCanvas(
         surface,
         adapter,
         rpass,
-        screen: ScreenDescriptor {
-            physical_width: native_window.get_width(),
-            physical_height: native_window.get_height(),
-            scale_factor,
-        },
+        screen,
         context: context.clone(),
         raw_input: Default::default(),
-        workspace: ws,
+        workspace,
         surface_width: 0,
         surface_height: 0,
     };
