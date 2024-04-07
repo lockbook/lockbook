@@ -382,42 +382,29 @@ impl Workspace {
                                         output.tab_title_clicked = true;
                                         let active_name = self.tabs[i].name.clone();
 
-                                    let mut rename_edit_state =
-                                        egui::text_edit::TextEditState::default();
-                                    rename_edit_state.cursor.set_char_range(Some(
-                                        egui::text::CCursorRange {
-                                            primary: egui::text::CCursor::new(
-                                                active_name.rfind('.').unwrap_or(active_name.len()),
-                                            ),
-                                            secondary: egui::text::CCursor::new(0),
-                                        },
-                                    ));
-                                    egui::TextEdit::store_state(
-                                        ui.ctx(),
-                                        egui::Id::new("rename_tab"),
-                                        rename_edit_state,
-                                    );
-                                    self.tabs[i].rename = Some(active_name);
-                                } else {
-                                    self.tabs[i].rename = None;
-                                    self.active_tab = i;
-                                    output.window_title = Some(self.tabs[i].name.clone());
-                                    output.selected_file = Some(self.tabs[i].id);
-                                }
-                            }
-                            TabLabelResponse::Closed => {
-                                self.close_tab(i);
-                                output.window_title = Some(match self.current_tab() {
-                                    Some(tab) => tab.name.clone(),
-                                    None => "Lockbook".to_owned(),
-                                });
-                            }
-                            TabLabelResponse::Renamed(name) => {
-                                self.tabs[i].rename = None;
-                                let id = self.current_tab().unwrap().id;
-                                if let Some(tab) = self.get_mut_tab_by_id(id) {
-                                    if let Some(TabContent::Markdown(md)) = &mut tab.content {
-                                        md.needs_name = false;
+                                        let mut rename_edit_state =
+                                            egui::text_edit::TextEditState::default();
+                                        rename_edit_state.cursor.set_char_range(Some(
+                                            egui::text::CCursorRange {
+                                                primary: egui::text::CCursor::new(
+                                                    active_name
+                                                        .rfind('.')
+                                                        .unwrap_or(active_name.len()),
+                                                ),
+                                                secondary: egui::text::CCursor::new(0),
+                                            },
+                                        ));
+                                        egui::TextEdit::store_state(
+                                            ui.ctx(),
+                                            egui::Id::new("rename_tab"),
+                                            rename_edit_state,
+                                        );
+                                        self.tabs[i].rename = Some(active_name);
+                                    } else {
+                                        self.tabs[i].rename = None;
+                                        self.active_tab = i;
+                                        output.window_title = Some(self.tabs[i].name.clone());
+                                        output.selected_file = Some(self.tabs[i].id);
                                     }
                                 }
                                 TabLabelResponse::Closed => {

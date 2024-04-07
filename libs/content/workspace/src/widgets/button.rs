@@ -1,3 +1,5 @@
+use egui::Rounding;
+
 use crate::theme::icons::Icon;
 
 #[derive(Default)]
