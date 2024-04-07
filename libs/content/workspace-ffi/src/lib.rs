@@ -1,10 +1,5 @@
-use egui::{Pos2, Rect};
-
 use egui_wgpu_backend::wgpu;
-use egui_wgpu_backend::wgpu::CompositeAlphaMode;
 use std::time::Instant;
-
-use std::iter;
 
 mod cursor_icon;
 
@@ -50,8 +45,9 @@ pub struct WgpuWorkspace {
 #[cfg(any(target_vendor = "apple", target_os = "android"))]
 impl WgpuWorkspace {
     pub fn frame(&mut self) -> IntegrationOutput {
-        #[cfg(target_vendor = "apple")]
+        #[cfg(not(target_os = "android"))]
         use std::ffi::CString;
+        use std::iter;
 
         let mut out = IntegrationOutput::default();
         self.configure_surface();
@@ -159,6 +155,8 @@ impl WgpuWorkspace {
     }
 
     pub fn set_egui_screen(&mut self) {
+        use egui::{Pos2, Rect};
+
         self.raw_input.screen_rect = Some(Rect {
             min: Pos2::ZERO,
             max: Pos2::new(
@@ -176,6 +174,8 @@ impl WgpuWorkspace {
     }
 
     pub fn configure_surface(&mut self) {
+        use egui_wgpu_backend::wgpu::CompositeAlphaMode;
+
         let resized = self.screen.physical_width != self.surface_width
             || self.screen.physical_height != self.surface_height;
         let visible = self.screen.physical_width * self.screen.physical_height != 0;
