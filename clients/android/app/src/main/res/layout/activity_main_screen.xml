@@ -23,18 +23,11 @@
             app:navGraph="@navigation/files_navigation"
             app:defaultNavHost="true" />
 
-        <androidx.constraintlayout.widget.ConstraintLayout
-            android:layout_width="590dp"
+        <androidx.fragment.app.FragmentContainerView
+            android:id="@+id/detail_container"
+            android:layout_width="400dp"
             android:layout_height="match_parent"
-            android:layout_weight="1">
-
-            <androidx.fragment.app.FragmentContainerView
-                android:id="@+id/detail_container"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:layout_weight="1" />
-
-        </androidx.constraintlayout.widget.ConstraintLayout>
+            android:layout_weight="1" />
 
     </androidx.slidingpanelayout.widget.SlidingPaneLayout>
 

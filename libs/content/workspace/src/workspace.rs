@@ -380,9 +380,10 @@ impl Workspace {
                 ..ui.style().deref().clone()
             });
 
-            let selectable_label = egui::widgets::Button::new(self.tabs[0].name.clone())
-                .frame(false)
-                .fill(egui::Color32::TRANSPARENT);
+            let selectable_label =
+                egui::widgets::Button::new(self.tabs[self.active_tab].name.clone())
+                    .frame(false)
+                    .fill(egui::Color32::TRANSPARENT);
 
             ui.allocate_ui(ui.available_size(), |ui| {
                 ui.with_layout(egui::Layout::top_down_justified(egui::Align::LEFT), |ui| {

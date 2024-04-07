@@ -120,7 +120,7 @@ class WorkspaceFragment : Fragment() {
 
                     val currentDoc = model.selectedFile.value
                     if (currentDoc != null) {
-                        model._closeDocument.value = currentDoc
+                        workspaceWrapper.workspaceView.closeDoc(currentDoc)
                     }
                 }
             }
@@ -426,7 +426,6 @@ class WorkspaceTextEditable(val view: View) : Editable {
             Selection.SELECTION_START -> selectionStartSpanFlag
             Selection.SELECTION_END -> selectionEndSpanFlag
             else -> {
-
                 0
             }
         }

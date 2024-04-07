@@ -200,6 +200,9 @@ class MainScreenActivity : AppCompatActivity() {
 
         workspaceModel.shouldShowTabs.observe(this) {
             workspaceModel._showTabs.postValue(!binding.slidingPaneLayout.isSlideable)
+            if(binding.slidingPaneLayout.isSlideable && !binding.slidingPaneLayout.isOpen && workspaceModel.currentTab.value != WorkspaceTab.Welcome) {
+                slidingPaneLayout.openPane()
+            }
         }
     }
 

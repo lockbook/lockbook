@@ -58,7 +58,6 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
     }
 
     override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
-        Timber.e("surfaceChanged")
         if (WGPU_OBJ == Long.MAX_VALUE || surface == null) {
             return
         }
@@ -67,8 +66,6 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
     }
 
     override fun surfaceCreated(holder: SurfaceHolder) {
-        Timber.e("surfaceCreated")
-
         surface = holder.surface
 
         WGPU_OBJ = WORKSPACE.createWgpuCanvas(
@@ -205,8 +202,6 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
             return
         }
 
-//        Timber.e("the WGPU OBJ: ${WGPU_OBJ} and surface ${surface}")
-
         val responseJson = WORKSPACE.enterFrame(WGPU_OBJ)
         val response: IntegrationOutput = frameOutputJsonParser.decodeFromString(responseJson)
 
@@ -233,7 +228,7 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
         }
 
         if (!response.workspaceResp.selectedFile.isNullUUID()) {
-            model._selectedFile.postValue(response.workspaceResp.selectedFile)
+            model._selectedFile.value = response.workspaceResp.selectedFile
         }
 
         if (response.workspaceResp.tabTitleClicked) {
