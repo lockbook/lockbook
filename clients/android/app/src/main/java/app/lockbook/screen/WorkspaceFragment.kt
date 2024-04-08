@@ -32,7 +32,6 @@ import app.lockbook.model.CoreModel
 import app.lockbook.model.FinishedAction
 import app.lockbook.model.StateViewModel
 import app.lockbook.model.TransientScreen
-import app.lockbook.model.UpdateMainScreenUI
 import app.lockbook.model.WorkspaceTab
 import app.lockbook.model.WorkspaceViewModel
 import app.lockbook.util.WorkspaceView

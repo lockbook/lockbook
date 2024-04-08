@@ -20,7 +20,6 @@ import app.lockbook.workspace.Workspace
 import app.lockbook.workspace.isNullUUID
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
-import timber.log.Timber
 import java.lang.Long.max
 import java.math.BigInteger
 
@@ -101,7 +100,7 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
                     if (action == SPEN_ACTION_DOWN) {
                         eraserToggledOnByPen = true
                         WORKSPACE.toggleEraserSVG(WGPU_OBJ, true)
-                    } else if(eraserToggledOnByPen) {
+                    } else if (eraserToggledOnByPen) {
                         eraserToggledOnByPen = false
                         WORKSPACE.toggleEraserSVG(WGPU_OBJ, false)
                     }

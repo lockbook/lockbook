@@ -26,10 +26,10 @@
   <color name="md_theme_inverseOnSurface">@color/md_theme_dark_inverseOnSurface</color>
   <color name="md_theme_inverseSurface">@color/md_theme_dark_inverseSurface</color>
   <color name="md_theme_inversePrimary">@color/md_theme_dark_inversePrimary</color>
-  <color name="md_theme_shadow">@color/md_theme_dark_shadow</color>
-  <color name="md_theme_surfaceTint">@color/md_theme_dark_surfaceTint</color>
-  <color name="md_theme_outlineVariant">@color/md_theme_dark_outlineVariant</color>
-  <color name="md_theme_scrim">@color/md_theme_dark_scrim</color>
+<!--  <color name="md_theme_shadow">@color/md_theme_dark_shadow</color>-->
+<!--  <color name="md_theme_surfaceTint">@color/md_theme_dark_surfaceTint</color>-->
+<!--  <color name="md_theme_outlineVariant">@color/md_theme_dark_outlineVariant</color>-->
+<!--  <color name="md_theme_scrim">@color/md_theme_dark_scrim</color>-->
 
   <color name="selectedMarkdownButtonBackground">@color/selectedMarkdownButtonBackgroundDark</color>
 </resources>

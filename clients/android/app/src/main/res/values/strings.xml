@@ -38,8 +38,6 @@
     <string name="settings_preference_title_incremental_sync">Incremental Sync</string>
     <string name="qr_code_content_description">QR code</string>
 
-    <string name="list_files_sync_snackbar">Syncing %s items…</string>
-    <string name="list_files_sync_finished_snackbar">Up to date!</string>
     <string name="settings_preference_logs">View logs</string>
     <string name="settings_preference_clear_logs">Clear logs</string>
     <string name="dialog_duration_hours_label">Hours</string>
@@ -62,18 +60,6 @@
     <string name="dialog_rename_file_title">Rename File</string>
     <string name="popup_info_title">File Info</string>
     <string name="move_file_title">Move File</string>
-
-    <string name="menu_markdown_code">Insert code</string>
-    <string name="menu_markdown_strikethrough">Insert strikethrough</string>
-    <string name="menu_markdown_italic">Format italic</string>
-    <string name="menu_markdown_bold">Insert bold text</string>
-    <string name="menu_markdown_title">Insert title</string>
-    <string name="menu_markdown_number_list">Insert number list</string>
-    <string name="menu_markdown_bullet_list">Insert bullet list</string>
-    <string name="menu_markdown_todo_list">Insert todo List</string>
-
-    <string name="menu_markdown_indent">Indent</string>
-    <string name="menu_markdown_deindent">Deindent</string>
 
     <string name="cancel">Cancel</string>
     <string name="confirm">Confirm</string>
@@ -104,10 +90,6 @@
     <string name="files_list_items_selected">%d Selected</string>
 
     <string name="settings_open_new_document_automatically">Automatically open new files.</string>
-
-    <string name="pdf_page_indicator">%1$d / %2$d</string>
-
-    <string name="could_not_load_pdf">This PDF could not be loaded.</string>
 
     <string name="settings_protect_account_biometric_summary">Secure your account with biometrics.</string>
 
@@ -263,7 +245,6 @@
     <string name="stripe">Stripe</string>
     <string name="app_store">App Store</string>
 
-    <string name="sync_finished">Sync finished</string>
     <string name="backup_my_secret">Backup my secret</string>
     <string name="folder_action">Folder action</string>
     <string name="document_action">Document action</string>
@@ -303,13 +284,6 @@
     <string name="no_access_mode">Please choose an access mode.</string>
     <string name="reject_pending_share">Reject pending share</string>
     <string name="accept_pending_share">Accept pending share</string>
-    <string name="heading_1">Heading 1</string>
-    <string name="heading_2">Heading 2</string>
-    <string name="heading_3">Heading 3</string>
-    <string name="heading_4">Heading 4</string>
-    <string name="editor_cut">Cut</string>
-    <string name="editor_copy">Copy</string>
-    <string name="editor_paste">Paste</string>
 
     <array name="share_mode">
         <item>@string/share_mode_read</item>

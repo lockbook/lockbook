@@ -17,7 +17,6 @@ import com.github.michaelbull.result.getOrElse
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import timber.log.Timber
 
 class FilesListViewModel(application: Application) : AndroidViewModel(application) {
 
