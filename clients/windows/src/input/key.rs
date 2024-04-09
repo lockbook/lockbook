@@ -48,7 +48,7 @@ const KEYS: [Key; 74] = [
     Key { vk: VK_8, egui: Some(egui::Key::Num8), text: Some("8"), s_text: Some("*") },
     Key { vk: VK_9, egui: Some(egui::Key::Num9), text: Some("9"), s_text: Some("(") },
     Key { vk: VK_OEM_1, egui: None, text: Some(";"), s_text: Some(":") },
-    Key { vk: VK_OEM_PLUS, egui: Some(egui::Key::PlusEquals), text: Some("="), s_text: Some("+") },
+    Key { vk: VK_OEM_PLUS, egui: Some(egui::Key::Equals), text: Some("="), s_text: Some("+") },
     Key { vk: VK_OEM_COMMA, egui: None, text: Some(","), s_text: Some("<") },
     Key { vk: VK_OEM_MINUS, egui: Some(egui::Key::Minus), text: Some("-"), s_text: Some("_") },
     Key { vk: VK_OEM_PERIOD, egui: None, text: Some("."), s_text: Some(">") },
@@ -110,9 +110,13 @@ pub fn handle(
             clipboard_paste::handle(app);
         } else {
             // other egui keys
-            app.raw_input
-                .events
-                .push(egui::Event::Key { key, pressed, repeat: false, modifiers });
+            app.raw_input.events.push(egui::Event::Key {
+                key,
+                pressed,
+                repeat: false,
+                modifiers,
+                physical_key: None,
+            });
         }
         consumed = true;
     }

@@ -2,7 +2,7 @@ use std::sync::{mpsc, Arc, RwLock};
 use std::thread;
 
 use eframe::egui;
-use egui_extras::RetainedImage;
+use egui::Image;
 use workspace_rs::widgets::ButtonGroup;
 
 use crate::model::AccountScreenInitData;
@@ -35,7 +35,7 @@ pub struct OnboardScreen {
     update_rx: mpsc::Receiver<Update>,
 
     state: State,
-    logo: RetainedImage,
+    logo: Image<'static>,
     route_needs_focus: Option<Route>,
 
     uname: String,
@@ -56,7 +56,9 @@ impl OnboardScreen {
             update_tx,
             update_rx,
             state: State::Idle(Route::Create),
-            logo: RetainedImage::from_image_bytes("onboard-logo", LOGO).unwrap(),
+            logo: Image::new(egui::include_image!(
+                "../../../libs/content/workspace/lockbook-backdrop.png"
+            )),
             route_needs_focus: Some(Route::Create),
             uname: String::new(),
             create_err: None,
@@ -121,7 +123,7 @@ impl OnboardScreen {
                 ui.set_max_width(400.0);
 
                 ui.add_space(40.0);
-                self.logo.show_scaled(ui, 1.0);
+                ui.add(self.logo.clone());
 
                 ui.add_space(50.0);
                 ui.label(egui::RichText::new("Lockbook").size(48.0));
@@ -306,8 +308,6 @@ enum Route {
     Create,
     Import,
 }
-
-const LOGO: &[u8] = include_bytes!("../../../libs/content/workspace/lockbook-backdrop.png");
 
 pub enum SyncError {
     Major(String),

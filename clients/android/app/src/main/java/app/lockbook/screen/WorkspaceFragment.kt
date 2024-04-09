@@ -97,7 +97,6 @@ class WorkspaceFragment : Fragment() {
 
         model.openFile.observe(viewLifecycleOwner) { (id, newFile) ->
             workspaceWrapper.workspaceView.openDoc(id, newFile)
-            Timber.e("opening new file...")
         }
 
         model.docCreated.observe(viewLifecycleOwner) { id ->
@@ -105,7 +104,6 @@ class WorkspaceFragment : Fragment() {
         }
 
         model.closeDocument.observe(viewLifecycleOwner) { id ->
-            Timber.e("going to close doc")
             workspaceWrapper.workspaceView.closeDoc(id)
         }
 
@@ -118,9 +116,8 @@ class WorkspaceFragment : Fragment() {
                 binding.workspaceToolbar.setNavigationIcon(R.drawable.ic_baseline_arrow_back_24)
 
                 binding.workspaceToolbar.setNavigationOnClickListener {
-                    Timber.e("closing doc attempt request...")
-
                     val currentDoc = model.selectedFile.value
+
                     if (currentDoc != null) {
                         workspaceWrapper.workspaceView.closeDoc(currentDoc)
                     }
@@ -208,7 +205,7 @@ class WorkspaceWrapperView(context: Context, val model: WorkspaceViewModel) : Fr
                 (context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager)
                     .hideSoftInputFromWindow(this.windowToken, 0)
 
-                workspaceView.requestFocus()
+                currentWrapper?.clearFocus()
 
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
                     (currentWrapper as WorkspaceTextInputWrapper).inputConnection.closeConnection()
@@ -233,6 +230,7 @@ class WorkspaceWrapperView(context: Context, val model: WorkspaceViewModel) : Fr
             WorkspaceTab.Markdown,
             WorkspaceTab.PlainText -> {
                 currentWrapper = WorkspaceTextInputWrapper(context, workspaceView)
+                workspaceView.wrapperView = currentWrapper
 
                 addView(currentWrapper, WS_TEXT_LAYOUT_PARAMS)
             }

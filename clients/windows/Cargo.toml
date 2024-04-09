@@ -6,20 +6,22 @@ edition = "2021"
 [target.'cfg(windows)'.dependencies]
 array-init = "2.0.0"
 clipboard-win = "4.5.0"
-egui = "0.22.0"
-egui_wgpu_backend = "0.24.0"
+egui = "0.26.2"
+egui_wgpu_backend = "0.28"
 env_logger = "0.10"
 image = "0.24.7"
-lb = { package = "lb-rs", path = "../../libs/lb/lb-rs", default-features = false, features=["native-tls"] }
+lb = { package = "lb-rs", path = "../../libs/lb/lb-rs", default-features = false, features = [
+    "native-tls",
+] }
 lbeditor = { package = "egui_editor", path = "../../libs/content/editor/egui_editor" }
 lbeguiapp = { package = "lockbook-egui", path = "../egui" }
 pollster = "0.2"
-raw-window-handle = "0.5"
+raw-window-handle = "0.6"
 workspace = { path = "../../libs/content/workspace" }
 
 [target.'cfg(windows)'.dependencies.windows]
 version = "0.51.1"
-features = [   
+features = [
     "implement",
     "Win32_Foundation",
     "Win32_Graphics_Direct3D_Fxc",

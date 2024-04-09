@@ -5,11 +5,13 @@ use egui_wgpu_backend::{
 };
 use lbeguiapp::{IntegrationOutput, UpdateOutput, WgpuLockbook};
 use raw_window_handle::{
-    HasRawDisplayHandle, HasRawWindowHandle, RawDisplayHandle, RawWindowHandle, XcbDisplayHandle,
-    XcbWindowHandle,
+    DisplayHandle, HandleError, HasDisplayHandle, HasWindowHandle, RawDisplayHandle,
+    RawWindowHandle, WindowHandle, XcbDisplayHandle, XcbWindowHandle,
 };
 use std::{
     ffi::c_void,
+    num::NonZeroU32,
+    ptr::NonNull,
     sync::atomic::{AtomicBool, Ordering},
     time::Instant,
 };
@@ -146,7 +148,7 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
     conn.map_window(window_id)?;
     conn.flush()?;
 
-    let window_handle = WindowHandle {
+    let window_handle = AppWindowHandle {
         window_id,
         connection: conn.get_raw_xcb_connection(),
         screen: screen_num as _,
@@ -162,7 +164,7 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
     lb.context.set_request_repaint_callback(move |rri| {
         let got_events_clone = got_events_clone.clone();
         let _ = std::thread::spawn(move || {
-            std::thread::sleep(rri.after);
+            std::thread::sleep(rri.delay);
             got_events_clone.store(true, Ordering::SeqCst);
         });
     });
@@ -181,7 +183,6 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             // only draw frames if we got events (including repaint requests)
             let IntegrationOutput {
-                redraw_in: _, // todo: handle? how's this different from checking egui context?
                 egui: PlatformOutput { cursor_icon, open_url, copied_text, .. },
                 update_output: UpdateOutput { close, set_window_title },
             } = lb.frame();
@@ -202,7 +203,7 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             };
             lb.screen.scale_factor = scale_factor;
-            lb.raw_input.pixels_per_point = Some(scale_factor);
+            lb.context.set_pixels_per_point(scale_factor);
 
             if close {
                 output::close();
@@ -301,39 +302,44 @@ fn handle(
     Ok(())
 }
 
-pub struct WindowHandle {
+pub struct AppWindowHandle {
     window_id: u32,
     connection: *mut c_void,
     screen: i32,
 }
 
-unsafe impl HasRawWindowHandle for WindowHandle {
-    fn raw_window_handle(&self) -> RawWindowHandle {
-        let mut result = XcbWindowHandle::empty();
-        result.window = self.window_id;
-        RawWindowHandle::Xcb(result)
+unsafe impl Sync for AppWindowHandle {} // window is never actually sent across threads
+
+impl HasWindowHandle for AppWindowHandle {
+    fn window_handle(&self) -> Result<WindowHandle<'_>, HandleError> {
+        unsafe {
+            Ok(WindowHandle::borrow_raw(RawWindowHandle::Xcb(XcbWindowHandle::new(
+                NonZeroU32::new(self.window_id).unwrap(),
+            ))))
+        }
     }
 }
 
-unsafe impl HasRawDisplayHandle for WindowHandle {
-    fn raw_display_handle(&self) -> RawDisplayHandle {
-        let mut result = XcbDisplayHandle::empty();
-        result.connection = self.connection;
-        result.screen = self.screen;
-        RawDisplayHandle::Xcb(result)
+impl HasDisplayHandle for AppWindowHandle {
+    fn display_handle(&self) -> std::result::Result<DisplayHandle<'_>, HandleError> {
+        unsafe {
+            Ok(DisplayHandle::borrow_raw(RawDisplayHandle::Xcb(XcbDisplayHandle::new(
+                Some(NonNull::new(self.connection).unwrap()),
+                self.screen,
+            ))))
+        }
     }
 }
 
 // Taken from other lockbook code
-pub fn init<W: raw_window_handle::HasRawWindowHandle + raw_window_handle::HasRawDisplayHandle>(
+pub fn init<W: raw_window_handle::HasWindowHandle + raw_window_handle::HasDisplayHandle + Sync>(
     window: &W, screen: ScreenDescriptor, dark_mode: bool,
 ) -> WgpuLockbook {
     let backends = wgpu::util::backend_bits_from_env().unwrap_or_else(wgpu::Backends::all);
     let instance_desc = wgpu::InstanceDescriptor { backends, ..Default::default() };
     let instance = wgpu::Instance::new(instance_desc);
-    let surface = unsafe { instance.create_surface(window) }.unwrap();
-    let (adapter, device, queue) =
-        pollster::block_on(request_device(&instance, backends, &surface));
+    let surface = instance.create_surface(window).unwrap();
+    let (adapter, device, queue) = pollster::block_on(request_device(&instance, &surface));
     let format = surface.get_capabilities(&adapter).formats[0];
     let surface_config = wgpu::SurfaceConfiguration {
         usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
@@ -343,6 +349,7 @@ pub fn init<W: raw_window_handle::HasRawWindowHandle + raw_window_handle::HasRaw
         present_mode: wgpu::PresentMode::Fifo,
         alpha_mode: CompositeAlphaMode::Auto,
         view_formats: vec![],
+        desired_maximum_frame_latency: 2,
     };
     surface.configure(&device, &surface_config);
     let rpass = egui_wgpu_backend::RenderPass::new(&device, format, 1);
@@ -380,18 +387,17 @@ pub fn init<W: raw_window_handle::HasRawWindowHandle + raw_window_handle::HasRaw
 }
 
 async fn request_device(
-    instance: &wgpu::Instance, backend: wgpu::Backends, surface: &wgpu::Surface,
+    instance: &wgpu::Instance, surface: &wgpu::Surface<'_>,
 ) -> (wgpu::Adapter, wgpu::Device, wgpu::Queue) {
-    let adapter =
-        wgpu::util::initialize_adapter_from_env_or_default(instance, backend, Some(surface))
-            .await
-            .expect("No suitable GPU adapters found on the system!");
+    let adapter = wgpu::util::initialize_adapter_from_env_or_default(instance, Some(surface))
+        .await
+        .expect("No suitable GPU adapters found on the system!");
     let res = adapter
         .request_device(
             &wgpu::DeviceDescriptor {
                 label: None,
-                features: adapter.features(),
-                limits: adapter.limits(),
+                required_features: adapter.features(),
+                required_limits: adapter.limits(),
             },
             None,
         )

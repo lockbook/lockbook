@@ -11,6 +11,7 @@ import android.view.MotionEvent
 import android.view.Surface
 import android.view.SurfaceHolder
 import android.view.SurfaceView
+import android.view.View
 import androidx.core.content.ContextCompat.startActivity
 import app.lockbook.model.CoreModel
 import app.lockbook.model.WorkspaceTab
@@ -28,6 +29,7 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
     private var eraserToggledOnByPen = false
 
     private var surface: Surface? = null
+    var wrapperView: View? = null
 
     private val frameOutputJsonParser = Json {
         ignoreUnknownKeys = true
@@ -50,7 +52,13 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
     override fun onTouchEvent(event: MotionEvent?): Boolean {
         if (event != null) {
             requestFocus()
+
             forwardedTouchEvent(event, 0)
+
+            // if they tap outside the toolbar, we want to refocus the text editor to regain text input
+            if(model.currentTab.value == WorkspaceTab.Markdown || model.currentTab.value == WorkspaceTab.PlainText) {
+                wrapperView?.requestFocus()
+            }
         }
 
         return true

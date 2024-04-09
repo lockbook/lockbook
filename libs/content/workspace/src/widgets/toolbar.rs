@@ -57,7 +57,7 @@ impl ToolBar {
             header_click_count: 1,
             has_focus: false,
             visibility: visibility.to_owned(),
-            id: egui::Id::null(),
+            id: egui::Id::NULL,
         }
     }
 
@@ -122,6 +122,10 @@ impl ToolBar {
 
                                 if res.clicked() {
                                     (btn.callback)(ui, self);
+
+                                    ui.memory_mut(|w| {
+                                        w.request_focus(editor.id);
+                                    });
                                 }
                             }
                             Component::Separator(sep) => {

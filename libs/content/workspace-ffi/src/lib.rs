@@ -21,12 +21,12 @@ pub mod resp;
 pub use resp::*;
 
 #[repr(C)]
-pub struct WgpuWorkspace {
+pub struct WgpuWorkspace<'window> {
     pub start_time: Instant,
 
     pub device: wgpu::Device,
     pub queue: wgpu::Queue,
-    pub surface: wgpu::Surface,
+    pub surface: wgpu::Surface<'window>,
     pub adapter: wgpu::Adapter,
 
     // remember size last frame to detect resize
@@ -43,7 +43,7 @@ pub struct WgpuWorkspace {
 }
 
 #[cfg(any(target_vendor = "apple", target_os = "android"))]
-impl WgpuWorkspace {
+impl<'window> WgpuWorkspace<'window> {
     pub fn frame(&mut self) -> IntegrationOutput {
         #[cfg(not(target_os = "android"))]
         use std::ffi::CString;
@@ -78,7 +78,9 @@ impl WgpuWorkspace {
 
         let full_output = self.context.end_frame();
 
-        let paint_jobs = self.context.tessellate(full_output.shapes);
+        let paint_jobs = self
+            .context
+            .tessellate(full_output.shapes, full_output.pixels_per_point);
         let mut encoder = self
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("encoder") });
@@ -134,8 +136,6 @@ impl WgpuWorkspace {
             }
 
             out.cursor = full_output.platform_output.cursor_icon.into();
-
-            out.redraw_in = full_output.repaint_after.as_millis() as u64;
         }
 
         #[cfg(target_os = "android")]
@@ -147,8 +147,6 @@ impl WgpuWorkspace {
             if let Some(url) = full_output.platform_output.open_url {
                 out.url_opened = url.url;
             }
-
-            out.redraw_in = full_output.repaint_after.as_millis()
         }
 
         out
@@ -164,7 +162,7 @@ impl WgpuWorkspace {
                 self.screen.physical_height as f32 / self.screen.scale_factor,
             ),
         });
-        self.raw_input.pixels_per_point = Some(self.screen.scale_factor);
+        self.context.set_pixels_per_point(self.screen.scale_factor);
     }
 
     pub fn surface_format(&self) -> wgpu::TextureFormat {
@@ -188,6 +186,7 @@ impl WgpuWorkspace {
                 present_mode: wgpu::PresentMode::Fifo,
                 alpha_mode: CompositeAlphaMode::Auto,
                 view_formats: vec![],
+                desired_maximum_frame_latency: 2,
             };
             self.surface.configure(&self.device, &surface_config);
             self.surface_width = self.screen.physical_width;

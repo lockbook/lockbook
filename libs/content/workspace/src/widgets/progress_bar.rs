@@ -33,6 +33,8 @@ impl ProgressBar {
                 rounding,
                 fill: ui.visuals().extreme_bg_color,
                 stroke,
+                fill_texture_id: egui::TextureId::default(),
+                uv: egui::Rect::ZERO,
             });
 
             let width = rect.max.x - rect.min.x;
@@ -45,6 +47,8 @@ impl ProgressBar {
                 rounding,
                 fill: ui.visuals().widgets.active.bg_fill,
                 stroke,
+                fill_texture_id: egui::TextureId::default(),
+                uv: egui::Rect::ZERO,
             });
         }
 

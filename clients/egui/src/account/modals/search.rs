@@ -1,8 +1,6 @@
 use std::sync::{mpsc, Arc, RwLock};
 use std::thread;
 
-use eframe::egui;
-
 use crate::model::DocType;
 
 struct SearchResultItem {
@@ -184,9 +182,13 @@ impl SearchModal {
                     .rect(rect.expand(visuals.expansion), 0.0, fill, egui::Stroke::NONE);
             }
 
-            icon.paint_with_visuals(ui.painter(), icon_pos, visuals);
-            name_text.paint_with_visuals(ui.painter(), name_text_pos, visuals);
-            path_text.paint_with_visuals(ui.painter(), path_text_pos, visuals);
+            let text_color = visuals.text_color();
+            ui.painter()
+                .galley_with_override_text_color(icon_pos, icon, text_color);
+            ui.painter()
+                .galley_with_override_text_color(name_text_pos, name_text, text_color);
+            ui.painter()
+                .galley_with_override_text_color(path_text_pos, path_text, text_color);
         }
 
         resp

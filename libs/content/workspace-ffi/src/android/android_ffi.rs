@@ -1,12 +1,13 @@
 use crate::android::window;
 use crate::android::window::NativeWindow;
-use crate::{wgpu, CompositeAlphaMode, WgpuWorkspace};
+use crate::{wgpu, WgpuWorkspace};
 use egui::{
     Context, Event, FontDefinitions, PointerButton, Pos2, TouchDeviceId, TouchId, TouchPhase,
 };
 use egui_editor::input::canonical::{Location, Modification, Region};
 use egui_editor::input::cursor::Cursor;
 use egui_editor::offset_types::DocCharOffset;
+use egui_wgpu_backend::wgpu::CompositeAlphaMode;
 use egui_wgpu_backend::ScreenDescriptor;
 use jni::objects::{JClass, JString};
 use jni::sys::{jboolean, jfloat, jint, jlong, jobject, jstring};
@@ -26,20 +27,21 @@ use workspace_rs::workspace::{Workspace, WsConfig};
 use super::keyboard::AndroidKeys;
 
 #[no_mangle]
-pub extern "system" fn Java_app_lockbook_workspace_Workspace_initWS(
+pub unsafe extern "system" fn Java_app_lockbook_workspace_Workspace_initWS(
     env: JNIEnv, _: JClass, surface: jobject, core: jlong, scale_factor: jfloat, dark_mode: bool,
     old_wgpu: jlong,
 ) -> jlong {
     let core = unsafe { &mut *(core as *mut Core) };
     let writable_dir = core.get_config().unwrap().writeable_path;
 
-    let native_window = NativeWindow::new(&env, surface);
+    let mut native_window = NativeWindow::new(&env, surface);
     let backends = wgpu::Backends::VULKAN;
     let instance_desc = wgpu::InstanceDescriptor { backends, ..Default::default() };
     let instance = wgpu::Instance::new(instance_desc);
-    let surface = unsafe { instance.create_surface(&native_window).unwrap() };
-    let (adapter, device, queue) =
-        pollster::block_on(window::request_device(&instance, backends, &surface));
+    let surface = instance
+        .create_surface_unsafe(wgpu::SurfaceTargetUnsafe::from_window(&mut native_window).unwrap())
+        .unwrap();
+    let (adapter, device, queue) = pollster::block_on(window::request_device(&instance, &surface));
     let format = surface.get_capabilities(&adapter).formats[0];
     let screen = ScreenDescriptor {
         physical_width: native_window.get_width(),
@@ -54,6 +56,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_initWS(
         present_mode: wgpu::PresentMode::Fifo,
         alpha_mode: CompositeAlphaMode::Auto,
         view_formats: vec![],
+        desired_maximum_frame_latency: 2,
     };
     surface.configure(&device, &config);
     let rpass = egui_wgpu_backend::RenderPass::new(&device, format, 1);
@@ -65,9 +68,9 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_initWS(
     let workspace = if old_wgpu != jlong::MAX {
         let mut old_wgpu: Box<WgpuWorkspace> = unsafe { Box::from_raw(old_wgpu as *mut _) };
 
-        old_wgpu.workspace.invalidate_egui_references(&context);
-        old_wgpu.workspace.ctx = context.clone();
-        old_wgpu.workspace.core = core.clone();
+        old_wgpu
+            .workspace
+            .invalidate_egui_references(&context, core);
         old_wgpu.workspace
     } else {
         Workspace::new(ws_cfg, core, &context)
@@ -172,6 +175,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_sendKeyEvent(
     if let Some(key) = key.egui_key() {
         obj.raw_input.events.push(Event::Key {
             key,
+            physical_key: None,
             pressed: pressed == 1,
             repeat: false,
             modifiers,
@@ -191,7 +195,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_touchesBegin(
         id: TouchId(id as u64),
         phase: TouchPhase::Start,
         pos: Pos2 { x, y },
-        force: pressure,
+        force: Some(pressure),
     });
 
     obj.raw_input.events.push(Event::PointerButton {
@@ -213,7 +217,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_touchesMoved(
         id: TouchId(id as u64),
         phase: TouchPhase::Move,
         pos: Pos2 { x, y },
-        force: pressure,
+        force: Some(pressure),
     });
 
     obj.raw_input
@@ -232,7 +236,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_touchesEnded(
         id: TouchId(id as u64),
         phase: TouchPhase::End,
         pos: Pos2 { x, y },
-        force: pressure,
+        force: Some(pressure),
     });
 
     obj.raw_input.events.push(Event::PointerButton {
@@ -256,7 +260,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_touchesCancelled(
         id: TouchId(id as u64),
         phase: TouchPhase::Cancel,
         pos: Pos2 { x, y },
-        force: pressure,
+        force: Some(pressure),
     });
 
     obj.raw_input.events.push(Event::PointerGone);
