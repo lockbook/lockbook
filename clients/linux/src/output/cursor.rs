@@ -7,6 +7,7 @@ use x11rb::{
 };
 
 pub struct Manager {
+    last_cursor_icon: CursorIcon,
     empty_cursor_id: u32,
 }
 
@@ -28,11 +29,11 @@ impl Manager {
             0,
             0,
         )?;
-        Ok(Self { empty_cursor_id })
+        Ok(Self { last_cursor_icon: CursorIcon::None, empty_cursor_id })
     }
 
     pub fn handle(
-        &self, conn: &XCBConnection, db: &Database, screen_num: usize, window: u32,
+        &mut self, conn: &XCBConnection, db: &Database, screen_num: usize, window: u32,
         cursor_icon: CursorIcon,
     ) {
         match self.handle_impl(conn, db, screen_num, window, cursor_icon) {
@@ -44,9 +45,14 @@ impl Manager {
     }
 
     fn handle_impl(
-        &self, conn: &XCBConnection, db: &Database, screen_num: usize, window: u32,
+        &mut self, conn: &XCBConnection, db: &Database, screen_num: usize, window: u32,
         cursor_icon: CursorIcon,
     ) -> Result<(), ReplyOrIdError> {
+        if cursor_icon == self.last_cursor_icon {
+            return Ok(());
+        }
+        self.last_cursor_icon = cursor_icon;
+
         let cursor_handle = x11rb::cursor::Handle::new(conn, screen_num, db)?.reply()?;
 
         let cursor = if cursor_icon == CursorIcon::None {
