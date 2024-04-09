@@ -107,6 +107,32 @@ impl Workspace {
         }
     }
 
+    #[cfg(target_os = "android")]
+    pub fn invalidate_egui_references(&mut self, ctx: &Context, core: &lb_rs::Core) {
+        self.ctx = ctx.clone();
+        self.core = core.clone();
+
+        self.backdrop = Image::new(egui::include_image!("../lockbook-backdrop.png"));
+        let ids: Vec<lb_rs::Uuid> = self.tabs.iter().map(|tab| tab.id).collect();
+        let maybe_active_tab_id = self.current_tab().map(|tab| tab.id);
+
+        while self.active_tab != 0 {
+            self.close_tab(self.tabs.len() - 1);
+        }
+
+        for id in ids {
+            self.open_file(id, false)
+        }
+
+        if let Some(active_tab_id) = maybe_active_tab_id {
+            self.active_tab = self
+                .tabs
+                .iter()
+                .position(|tab| tab.id == active_tab_id)
+                .unwrap_or(0);
+        }
+    }
+
     pub fn open_tab(&mut self, id: lb_rs::Uuid, name: &str, path: &str, is_new_file: bool) {
         let now = Instant::now();
         self.tabs.push(Tab {

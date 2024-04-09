@@ -35,7 +35,7 @@ class CreateFileDialogFragment : AppCompatDialogFragment() {
     var newFile: File? = null
 
     companion object {
-        const val CREATE_FILE_DIALOG_TAG = "CreateFileDialogFragment"
+        const val TAG = "CreateFileDialogFragment"
     }
 
     @SuppressLint("SetTextI18n")
@@ -48,7 +48,7 @@ class CreateFileDialogFragment : AppCompatDialogFragment() {
                     setUpDocumentTextInput()
 
                     binding.createDocument.setText("")
-                    binding.createDocumentExtension.setText(".draw")
+                    binding.createDocumentExtension.setText(".svg")
 
                     binding.createDocumentHolder.setStartIconDrawable(R.drawable.ic_outline_draw_24)
 

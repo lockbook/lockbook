@@ -12,7 +12,6 @@ import app.lockbook.R
 import app.lockbook.util.*
 import com.afollestad.recyclical.datasource.emptyDataSourceTyped
 import com.github.michaelbull.result.Err
-import com.github.michaelbull.result.Ok
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.serialization.decodeFromString
@@ -210,17 +209,6 @@ class SearchDocumentsViewModel(application: Application) : AndroidViewModel(appl
         return Pair((file.parentFile!!.path + "/").makeSpannableString(), (file.name).makeSpannableString())
     }
 
-    fun openDocument(id: String) {
-        viewModelScope.launch(Dispatchers.IO) {
-            val updateSearchUI = when (val result = CoreModel.getFileById(id)) {
-                is Ok -> UpdateSearchUI.OpenFile(result.value)
-                is Err -> UpdateSearchUI.Error(result.error.toLbError(getRes()))
-            }
-
-            _updateSearchUI.postValue(updateSearchUI)
-        }
-    }
-
     override fun onCleared() {
         endSearch()
     }
@@ -229,6 +217,5 @@ class SearchDocumentsViewModel(application: Application) : AndroidViewModel(appl
 sealed class UpdateSearchUI {
     object ToggleNoSearchResults : UpdateSearchUI()
     object ToggleProgressSpinner : UpdateSearchUI()
-    data class OpenFile(val fileMetadata: app.lockbook.util.File) : UpdateSearchUI()
     data class Error(val error: LbError) : UpdateSearchUI()
 }

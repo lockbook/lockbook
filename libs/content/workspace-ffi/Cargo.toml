@@ -16,15 +16,13 @@ egui_editor = { path = "../editor/egui_editor" }
 workspace = { path = "../workspace/" }
 lb_external_interface = { path = "../../lb/lb_external_interface" }
 
-[target.'cfg(target_vendor = "apple")'.dependencies]
-pollster = "0.2"
-
-[target.'cfg(not(target_vendor = "apple"))'.dependencies]
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0.44"
-
 [target.'cfg(target_os = "android")'.dependencies]
 ndk-sys = "0.4"
 raw-window-handle = "0.6"
 jni = "0.21.0"
+pollster = "0.2"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0.44"
+
+[target.'cfg(target_vendor = "apple")'.dependencies]
 pollster = "0.2"

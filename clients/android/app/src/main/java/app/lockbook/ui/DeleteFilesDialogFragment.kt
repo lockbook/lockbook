@@ -8,8 +8,10 @@ import androidx.fragment.app.activityViewModels
 import app.lockbook.R
 import app.lockbook.model.AlertModel
 import app.lockbook.model.CoreModel
+import app.lockbook.model.FinishedAction
 import app.lockbook.model.StateViewModel
 import app.lockbook.model.TransientScreen
+import app.lockbook.model.WorkspaceViewModel
 import com.github.michaelbull.result.Err
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import kotlinx.coroutines.*
@@ -18,6 +20,8 @@ import java.lang.ref.WeakReference
 class DeleteFilesDialogFragment : AppCompatDialogFragment() {
     private val activityModel: StateViewModel by activityViewModels()
     private val uiScope = CoroutineScope(Dispatchers.Main + Job())
+
+    private val workspaceModel: WorkspaceViewModel by activityViewModels()
 
     private val alertModel by lazy {
         AlertModel(WeakReference(requireActivity()))
@@ -59,6 +63,8 @@ class DeleteFilesDialogFragment : AppCompatDialogFragment() {
                 if (deleteFileResult is Err) {
                     alertModel.notifyError(deleteFileResult.error.toLbError(resources))
                     break
+                } else {
+                    workspaceModel._finishedAction.postValue(FinishedAction.Delete(file.id))
                 }
             }
 

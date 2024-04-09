@@ -8,9 +8,11 @@ use std::process::Command;
 const MIN_NDK_VERSION: u32 = 22;
 
 #[cfg(target_os = "macos")]
-const NDK_LIB_NAME: &str = "liblb_external_interface.dylib";
+const NDK_TEST_LIB_NAME: &str = "liblb_external_interface.dylib";
 #[cfg(not(target_os = "macos"))]
-const NDK_LIB_NAME: &str = "liblb_external_interface.so";
+const NDK_TEST_LIB_NAME: &str = "liblb_external_interface.so";
+
+const NDK_ANDROID_LIB_NAME: &str = "liblb_external_interface.so";
 
 pub fn fmt_android(tool_env: &ToolEnvironment) {
     let android_dir = utils::android_dir(&tool_env.root_dir);
@@ -62,32 +64,32 @@ pub fn make_android_libs(tool_env: &ToolEnvironment) {
         tool_env
             .target_dir
             .join("aarch64-linux-android/release")
-            .join(NDK_LIB_NAME),
-        jni_lib_dir.join("arm64-v8a").join(NDK_LIB_NAME),
+            .join(NDK_ANDROID_LIB_NAME),
+        jni_lib_dir.join("arm64-v8a").join(NDK_ANDROID_LIB_NAME),
     )
     .unwrap();
     fs::copy(
         tool_env
             .target_dir
             .join("armv7-linux-androideabi/release")
-            .join(NDK_LIB_NAME),
-        jni_lib_dir.join("armeabi-v7a").join(NDK_LIB_NAME),
+            .join(NDK_ANDROID_LIB_NAME),
+        jni_lib_dir.join("armeabi-v7a").join(NDK_ANDROID_LIB_NAME),
     )
     .unwrap();
     fs::copy(
         tool_env
             .target_dir
             .join("i686-linux-android/release")
-            .join(NDK_LIB_NAME),
-        jni_lib_dir.join("x86").join(NDK_LIB_NAME),
+            .join(NDK_ANDROID_LIB_NAME),
+        jni_lib_dir.join("x86").join(NDK_ANDROID_LIB_NAME),
     )
     .unwrap();
     fs::copy(
         tool_env
             .target_dir
             .join("x86_64-linux-android/release")
-            .join(NDK_LIB_NAME),
-        jni_lib_dir.join("x86_64").join(NDK_LIB_NAME),
+            .join(NDK_ANDROID_LIB_NAME),
+        jni_lib_dir.join("x86_64").join(NDK_ANDROID_LIB_NAME),
     )
     .unwrap();
 }
@@ -103,8 +105,8 @@ pub fn make_android_test_lib(tool_env: &ToolEnvironment) {
     fs::create_dir_all(jni_lib_dir.join("desktop")).unwrap();
 
     fs::copy(
-        tool_env.target_dir.join("release").join(NDK_LIB_NAME),
-        jni_lib_dir.join("desktop").join(NDK_LIB_NAME),
+        tool_env.target_dir.join("release").join(NDK_TEST_LIB_NAME),
+        jni_lib_dir.join("desktop").join(NDK_TEST_LIB_NAME),
     )
     .unwrap();
 }

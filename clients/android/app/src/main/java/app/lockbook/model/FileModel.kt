@@ -5,6 +5,7 @@ import app.lockbook.util.*
 import com.github.michaelbull.result.*
 
 class FileModel(
+    val root: File,
     var parent: File,
     var idsAndFiles: Map<String, File>,
     var children: List<File>,
@@ -20,6 +21,7 @@ class FileModel(
                     val root = getRootResult.value
 
                     val fileModel = FileModel(
+                        root,
                         root,
                         emptyMap(),
                         listOf(),
@@ -94,14 +96,39 @@ class FileModel(
 
     fun intoFile(newParent: File) {
         parent = newParent
+        if (newParent.parent == root.id && fileDir.size > 1) {
+            fileDir.clear()
+            fileDir.add(root)
+            fileDir.add(newParent)
+        } else {
+            fileDir.add(newParent)
+        }
+
         refreshChildren()
-        fileDir.add(newParent)
     }
 
     fun intoParent() {
         parent = idsAndFiles[parent.parent]!!
         refreshChildren()
         fileDir.removeLast()
+    }
+
+    fun verifyOpenFile(id: String): Boolean {
+        val file = idsAndFiles[id] ?: return false
+
+        if (file.parent == root.id && fileDir.size > 1) {
+            refreshFiles()
+
+            fileDir.clear()
+            fileDir.add(root)
+
+            parent = root
+            refreshChildren()
+
+            return true
+        } else {
+            return false
+        }
     }
 
     fun refreshChildren() {

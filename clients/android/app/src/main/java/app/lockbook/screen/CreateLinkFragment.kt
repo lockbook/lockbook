@@ -11,6 +11,7 @@ import app.lockbook.R
 import app.lockbook.databinding.FragmentCreateLinkBinding
 import app.lockbook.model.*
 import app.lockbook.util.BasicFileItemHolder
+import app.lockbook.util.ExtensionHelper
 import app.lockbook.util.File
 import app.lockbook.util.FileType
 import com.afollestad.recyclical.setup
@@ -53,11 +54,11 @@ class CreateLinkFragment : Fragment() {
                         item.fileType == FileType.Document && extensionHelper.isImage -> {
                             R.drawable.ic_outline_image_24
                         }
-                        item.fileType == FileType.Document -> {
-                            R.drawable.ic_outline_insert_drive_file_24
-                        }
                         item.fileType == FileType.Document && extensionHelper.isPdf -> {
                             R.drawable.ic_outline_picture_as_pdf_24
+                        }
+                        item.fileType == FileType.Document -> {
+                            R.drawable.ic_outline_insert_drive_file_24
                         }
                         else -> {
                             R.drawable.ic_baseline_folder_24

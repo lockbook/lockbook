@@ -13,8 +13,10 @@
             app:destination="@id/searchFilesFragment"
             app:popUpTo="@id/filesListFragment" />
     </fragment>
+
     <fragment
         android:id="@+id/searchFilesFragment"
         android:name="app.lockbook.screen.SearchDocumentsFragment"
         android:label="SearchFilesFragment" />
+
 </navigation>

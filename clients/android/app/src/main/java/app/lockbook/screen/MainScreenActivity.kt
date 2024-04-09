@@ -18,14 +18,12 @@ import app.lockbook.databinding.ActivityMainScreenBinding
 import app.lockbook.model.*
 import app.lockbook.ui.*
 import app.lockbook.util.*
+import com.github.michaelbull.result.unwrap
 import java.io.File
 import java.lang.ref.WeakReference
 
 class MainScreenActivity : AppCompatActivity() {
     private var _binding: ActivityMainScreenBinding? = null
-
-    // This property is only valid between onCreateView and
-    // onDestroyView.
     val binding get() = _binding!!
     private val slidingPaneLayout get() = binding.slidingPaneLayout
 
@@ -42,7 +40,13 @@ class MainScreenActivity : AppCompatActivity() {
                 is RenameFileDialogFragment -> filesFragment.refreshFiles()
                 is CreateFileDialogFragment -> filesFragment.onNewFileCreated(f.newFile)
                 is FileInfoDialogFragment -> filesFragment.unselectFiles()
-                is DeleteFilesDialogFragment -> onFileDeleted(filesFragment)
+                is DeleteFilesDialogFragment -> {
+                    if (workspaceModel.selectedFile.value != null) {
+                        workspaceModel._closeDocument.value = workspaceModel.selectedFile.value
+                    }
+
+                    filesFragment.refreshFiles()
+                }
             }
         }
     }
@@ -61,18 +65,28 @@ class MainScreenActivity : AppCompatActivity() {
         }
 
     val model: StateViewModel by viewModels()
+    val workspaceModel: WorkspaceViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         _binding = ActivityMainScreenBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        toggleTransparentLockbookLogo(model.detailScreen)
-
         supportFragmentManager.registerFragmentLifecycleCallbacks(
             fragmentFinishedCallback,
             false
         )
+
+        val wFragment = supportFragmentManager.findFragmentByTag("Workspace")
+
+        if (wFragment == null) {
+            supportFragmentManager.commit {
+                setReorderingAllowed(true)
+                add<WorkspaceFragment>(R.id.detail_container, "Workspace")
+            }
+        } else {
+            println("not adding")
+        }
 
         (application as App).billingClientLifecycle.apply {
             this@MainScreenActivity.lifecycle.addObserver(this)
@@ -90,19 +104,6 @@ class MainScreenActivity : AppCompatActivity() {
         if (model.exportImportModel.isLoadingOverlayVisible) {
             updateMainScreenUI(UpdateMainScreenUI.ShowHideProgressOverlay(model.exportImportModel.isLoadingOverlayVisible))
         }
-
-        binding.slidingPaneLayout.addPanelSlideListener(object :
-                SlidingPaneLayout.PanelSlideListener {
-                override fun onPanelSlide(panel: View, slideOffset: Float) {}
-
-                override fun onPanelOpened(panel: View) {
-                    if (model.detailScreen is DetailScreen.Loading) {
-                        (supportFragmentManager.findFragmentById(R.id.detail_container) as DetailScreenLoaderFragment).addChecker()
-                    }
-                }
-
-                override fun onPanelClosed(panel: View) {}
-            })
 
         slidingPaneLayout.lockMode = SlidingPaneLayout.LOCK_MODE_LOCKED
 
@@ -122,13 +123,8 @@ class MainScreenActivity : AppCompatActivity() {
                 ActivityScreen.Shares -> {
                     onShare.launch(Intent(baseContext, SharesActivity::class.java))
                 }
+                null -> {}
             }
-        }
-
-        model.launchDetailScreen.observe(
-            this
-        ) { screen ->
-            launchDetailScreen(screen)
         }
 
         model.launchTransientScreen.observe(
@@ -138,29 +134,38 @@ class MainScreenActivity : AppCompatActivity() {
                 is TransientScreen.Create -> {
                     CreateFileDialogFragment().show(
                         supportFragmentManager,
-                        CreateFileDialogFragment.CREATE_FILE_DIALOG_TAG
+                        CreateFileDialogFragment.TAG
                     )
                 }
                 is TransientScreen.Info -> {
                     FileInfoDialogFragment().show(
                         supportFragmentManager,
-                        FileInfoDialogFragment.FILE_INFO_DIALOG_TAG
+                        FileInfoDialogFragment.TAG
                     )
                 }
                 is TransientScreen.Move -> {
                     MoveFileDialogFragment().show(
                         supportFragmentManager,
-                        MoveFileDialogFragment.MOVE_FILE_DIALOG_TAG
+                        MoveFileDialogFragment.TAG
                     )
                 }
                 is TransientScreen.Rename -> {
                     RenameFileDialogFragment().show(
                         supportFragmentManager,
-                        RenameFileDialogFragment.RENAME_FILE_DIALOG_TAG
+                        RenameFileDialogFragment.TAG
                     )
                 }
                 is TransientScreen.ShareExport -> {
                     finalizeShare(screen.files)
+                }
+                is TransientScreen.ShareFile -> {
+                    supportFragmentManager.commit {
+                        add<ShareFileFragment>(R.id.detail_container, ShareFileFragment.TAG)
+                        setTransition(FragmentTransaction.TRANSIT_FRAGMENT_FADE)
+                        addToBackStack(WorkspaceFragment.BACKSTACK_TAG)
+
+                        slidingPaneLayout.openPane()
+                    }
                 }
                 is TransientScreen.Delete -> {
                     DeleteFilesDialogFragment().show(
@@ -176,10 +181,42 @@ class MainScreenActivity : AppCompatActivity() {
         ) { update ->
             updateMainScreenUI(update)
         }
+
+        workspaceModel.newFolderBtnPressed.observe(this) {
+            model.launchTransientScreen(TransientScreen.Create(CoreModel.getRoot().unwrap().id, ExtendedFileType.Folder))
+        }
+
+        workspaceModel.tabTitleClicked.observe(this) {
+            model.launchTransientScreen(TransientScreen.Rename(CoreModel.getFileById(workspaceModel.selectedFile.value!!).unwrap()))
+        }
+
+        workspaceModel.currentTab.observe(this) { tab ->
+            if (tab == WorkspaceTab.Welcome) {
+                slidingPaneLayout.closePane()
+            } else {
+                slidingPaneLayout.openPane()
+            }
+        }
+
+        workspaceModel.shouldShowTabs.observe(this) {
+            workspaceModel._showTabs.postValue(!binding.slidingPaneLayout.isSlideable)
+            if (binding.slidingPaneLayout.isSlideable && !binding.slidingPaneLayout.isOpen && workspaceModel.currentTab.value != WorkspaceTab.Welcome) {
+                slidingPaneLayout.openPane()
+            }
+        }
     }
 
     private fun updateMainScreenUI(update: UpdateMainScreenUI) {
         when (update) {
+            is UpdateMainScreenUI.OpenFile -> {
+                if (update.id != null) {
+                    workspaceModel._openFile.value = Pair(update.id, false)
+                } else {
+                    if (workspaceModel.selectedFile.value != null) {
+                        workspaceModel._closeDocument.value = workspaceModel.selectedFile.value
+                    }
+                }
+            }
             is UpdateMainScreenUI.NotifyError -> alertModel.notifyError(update.error)
             is UpdateMainScreenUI.ShareDocuments -> finalizeShare(update.files)
             is UpdateMainScreenUI.ShowHideProgressOverlay -> {
@@ -191,6 +228,13 @@ class MainScreenActivity : AppCompatActivity() {
             }
             UpdateMainScreenUI.ShowSubscriptionConfirmed -> {
                 alertModel.notifySuccessfulPurchaseConfirm()
+            }
+            UpdateMainScreenUI.PopBackstackToWorkspace -> {
+                if (supportFragmentManager.findFragmentById(R.id.detail_container) !is WorkspaceFragment) {
+                    supportFragmentManager.popBackStack(WorkspaceFragment.BACKSTACK_TAG, FragmentManager.POP_BACK_STACK_INCLUSIVE)
+                }
+
+                workspaceModel._currentTab.postValue(workspaceModel.currentTab.value)
             }
             UpdateMainScreenUI.ShowSearch -> navHost().navController.navigate(R.id.action_files_to_search)
             UpdateMainScreenUI.ShowFiles -> navHost().navController.popBackStack()
@@ -232,78 +276,11 @@ class MainScreenActivity : AppCompatActivity() {
         supportFragmentManager.unregisterFragmentLifecycleCallbacks(fragmentFinishedCallback)
     }
 
-    private fun onFileDeleted(filesFragment: FilesFragment) {
-        val openedFile = model.detailScreen?.getUsedFile()?.id
-        if (openedFile != null) {
-            val isDeletedFileOpen = (model.transientScreen as TransientScreen.Delete).files.any { file -> file.id == openedFile }
-
-            if (isDeletedFileOpen) {
-                launchDetailScreen(null)
-            }
-        }
-
-        filesFragment.refreshFiles()
-    }
-
-    private fun launchDetailScreen(screen: DetailScreen?) {
-        supportFragmentManager.commit {
-            setReorderingAllowed(true)
-            doOnDetailExit(screen)
-            toggleTransparentLockbookLogo(screen)
-
-            when (screen) {
-                is DetailScreen.Loading -> replace<DetailScreenLoaderFragment>(R.id.detail_container)
-                is DetailScreen.TextEditor -> replace<TextEditorFragment>(R.id.detail_container)
-                is DetailScreen.Drawing -> replace<DrawingFragment>(R.id.detail_container)
-                is DetailScreen.ImageViewer -> replace<ImageViewerFragment>(R.id.detail_container)
-                is DetailScreen.PdfViewer -> replace<PdfViewerFragment>(R.id.detail_container)
-                is DetailScreen.Share -> replace<ShareFileFragment>(R.id.detail_container)
-                null -> {
-                    maybeGetFilesFragment()?.sync()
-                    supportFragmentManager.findFragmentById(R.id.detail_container)?.let {
-                        remove(it)
-                    }
-                }
-            }.exhaustive
-
-            if (slidingPaneLayout.isOpen) {
-                setTransition(FragmentTransaction.TRANSIT_FRAGMENT_FADE)
-            }
-        }
-
-        if (screen == null) {
-            slidingPaneLayout.closePane()
-        } else {
-            slidingPaneLayout.openPane()
-            binding.detailContainer.requestFocus()
-        }
-    }
-
-    private fun toggleTransparentLockbookLogo(screen: DetailScreen?) {
-        if (screen != null && binding.lockbookBackdrop.visibility == View.VISIBLE) {
-            binding.lockbookBackdrop.visibility = View.GONE
-        } else if (screen == null && binding.lockbookBackdrop.visibility == View.GONE) {
-            binding.lockbookBackdrop.visibility = View.VISIBLE
-        }
-    }
-
-    private fun doOnDetailExit(newScreen: DetailScreen?) {
-        (supportFragmentManager.findFragmentById(R.id.detail_container) as? DrawingFragment)?.let { fragment ->
-            fragment.binding.drawingView.stopThread()
-            fragment.saveOnExit()
-        }
-        (supportFragmentManager.findFragmentById(R.id.detail_container) as? TextEditorFragment)?.saveOnExit()
-        (supportFragmentManager.findFragmentById(R.id.detail_container) as? PdfViewerFragment)?.deleteLocalPdfInstance()
-        (supportFragmentManager.findFragmentById(R.id.detail_container) as? DetailScreenLoaderFragment)?.let { fragment ->
-            if (newScreen !is DetailScreen.PdfViewer) {
-                fragment.deleteDownloadedFileIfExists()
-            }
-        }
-    }
-
     override fun onBackPressed() {
-        if (slidingPaneLayout.isSlideable && slidingPaneLayout.isOpen) { // if you are on a small display where only files or an editor show once at a time, you want to handle behavior a bit differently
-            launchDetailScreen(null)
+        if (supportFragmentManager.findFragmentById(R.id.detail_container) !is WorkspaceFragment) {
+            model.updateMainScreenUI(UpdateMainScreenUI.PopBackstackToWorkspace)
+        } else if (slidingPaneLayout.isSlideable && slidingPaneLayout.isOpen) { // if you are on a small display where only files or an editor show once at a time, you want to handle behavior a bit differently
+            model.updateMainScreenUI(UpdateMainScreenUI.OpenFile(null))
         } else if (maybeGetSearchFilesFragment() != null) {
             updateMainScreenUI(UpdateMainScreenUI.ShowFiles)
         } else if (maybeGetFilesFragment()?.onBackPressed() == true) {

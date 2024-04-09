@@ -280,6 +280,7 @@ pub unsafe extern "C" fn touches_began(obj: *mut c_void, id: u64, x: f32, y: f32
 #[no_mangle]
 pub unsafe extern "C" fn touches_moved(obj: *mut c_void, id: u64, x: f32, y: f32, force: f32) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
+
     obj.raw_input.events.push(Event::Touch {
         device_id: TouchDeviceId(0),
         id: TouchId(id),

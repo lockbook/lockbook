@@ -1,5 +1,6 @@
 package app.lockbook.screen
 
+import android.annotation.SuppressLint
 import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
 import app.lockbook.R
@@ -11,6 +12,7 @@ class SharesActivity : AppCompatActivity() {
         setContentView(R.layout.activity_pending_shares)
     }
 
+    @SuppressLint("MissingSuperCall")
     override fun onBackPressed() {
         val maybeCreateLinkFragment = maybeGetCreateLinkFragment()
 

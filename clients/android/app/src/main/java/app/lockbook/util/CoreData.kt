@@ -161,3 +161,38 @@ data class ContentMatch(
     val matchedIndices: List<Int>,
     val score: Int
 )
+
+enum class SupportedImageFormats {
+    Png,
+    Jpeg,
+    Pnm,
+    Tga,
+    Farbfeld,
+    Bmp,
+}
+
+val IMAGE_EXPORT_TYPE = SupportedImageFormats.Jpeg
+
+class ExtensionHelper(val fileName: String) {
+    private val extension: String
+        get() {
+            val indexOfDot = fileName.lastIndexOf('.')
+
+            if (indexOfDot == -1) {
+                return ""
+            }
+
+            return fileName.substring(indexOfDot + 1)
+        }
+
+    val isImage: Boolean
+        get() = extension in setOf(
+            "jpeg",
+            "jpg",
+            "png"
+        )
+
+    val isDrawing: Boolean get() = extension == "svg"
+
+    val isPdf: Boolean get() = extension == "pdf"
+}
