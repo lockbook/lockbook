@@ -13,7 +13,6 @@ import app.lockbook.util.*
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import com.google.android.material.chip.Chip
-import timber.log.Timber
 import java.lang.ref.WeakReference
 
 class ShareFileFragment : Fragment() {
@@ -47,8 +46,6 @@ class ShareFileFragment : Fragment() {
         binding.materialToolbar.setNavigationOnClickListener {
             activityModel.updateMainScreenUI(UpdateMainScreenUI.PopBackstackToWorkspace)
         }
-
-        Timber.e("SHOWING")
 
         when (val getAccountResult = CoreModel.getAccount()) {
             is Ok ->
@@ -91,7 +88,7 @@ class ShareFileFragment : Fragment() {
             when (val result = CoreModel.shareFile(file.id, username, mode)) {
                 is Ok -> {
                     workspaceModel._sync.postValue(Unit)
-//                    activityModel.launchDetailScreen(null)
+                    activityModel.updateMainScreenUI(UpdateMainScreenUI.PopBackstackToWorkspace)
                 }
                 is Err -> alertModel.notifyError(result.error.toLbError(resources))
             }
