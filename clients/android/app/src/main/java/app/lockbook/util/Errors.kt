@@ -254,23 +254,6 @@ enum class ReadDocumentError : UiCoreError {
 }
 
 @Serializable
-enum class ExportDrawingToDiskError : UiCoreError {
-    FolderTreatedAsDrawing,
-    FileDoesNotExist,
-    InvalidDrawing,
-    BadPath,
-    FileAlreadyExistsInDisk;
-
-    override fun toLbError(res: Resources): LbError = when (this) {
-        FolderTreatedAsDrawing -> LbError.newUserError(getString(res, R.string.folder_treated_as_drawing))
-        FileDoesNotExist -> LbError.newUserError(getString(res, R.string.file_does_not_exist))
-        InvalidDrawing -> LbError.newUserError(getString(res, R.string.invalid_drawing))
-        BadPath -> LbError.newUserError(getString(res, R.string.bad_path))
-        FileAlreadyExistsInDisk -> LbError.newUserError(getString(res, R.string.file_already_exists_on_disk))
-    }
-}
-
-@Serializable
 enum class RenameFileError : UiCoreError {
     FileDoesNotExist,
     NewNameContainsSlash,

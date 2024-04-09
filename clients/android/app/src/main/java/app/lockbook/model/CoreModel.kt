@@ -210,29 +210,6 @@ object CoreModel {
     ): Result<String, CoreError<ReadDocumentError>> =
         readDocumentParser.tryParse(app.lockbook.core.readDocument(id))
 
-    fun readDocumentBytes(
-        id: String
-    ): ByteArray? = app.lockbook.core.readDocumentBytes(id)
-
-    private val exportDrawingToDiskParser = Json {
-        serializersModule = SerializersModule {
-            createPolyRelation(Unit.serializer(), ExportDrawingToDiskError.serializer())
-        }
-    }
-
-    fun exportDrawingToDisk(
-        id: String,
-        format: SupportedImageFormats,
-        location: String
-    ): Result<Unit, CoreError<ExportDrawingToDiskError>> =
-        exportDrawingToDiskParser.tryParse(
-            app.lockbook.core.exportDrawingToDisk(
-                id,
-                exportDrawingToDiskParser.encodeToString(format),
-                location
-            )
-        )
-
     private val createFileParser = Json {
         serializersModule = SerializersModule {
             createPolyRelation(File.serializer(), CreateFileError.serializer())

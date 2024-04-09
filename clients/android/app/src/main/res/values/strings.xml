@@ -150,8 +150,6 @@
     <string name="file_name_empty">A file\'s name cannot be empty.</string>
     <string name="no_file_with_that_id">No file with that id exists.</string>
     <string name="cannot_delete_root">You cannot delete root.</string>
-    <string name="bad_path">A bad path was given.</string>
-    <string name="file_already_exists_on_disk">A file with that name already exists on your device.</string>
     <string name="folder_treated_as_drawing">A folder cannot be treated as a drawing.</string>
     <string name="invalid_drawing">That drawing is invalid.</string>
     <string name="cannot_rename_root">You cannot rename root.</string>

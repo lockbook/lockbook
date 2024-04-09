@@ -1,0 +1,962 @@
+  [2m2024-04-09T19:51:23.185593Z[0m [31mERROR[0m  [31mserver started successfully[0m
+    [2;3mat[0m server/server/src/main.rs:57
+
+  [2m2024-04-09T19:51:23.187037Z[0m [32m INFO[0m  [32mbinding to http://0.0.0.0:8000 without tls for local development[0m
+    [2;3mat[0m server/server/src/main.rs:73
+
+  [2m2024-04-09T19:51:23.187283Z[0m [32m INFO[0m  [32mStarted capturing metrics[0m
+    [2;3mat[0m server/server/src/metrics.rs:86
+
+  [2m2024-04-09T19:51:23.187321Z[0m [32m INFO[0m  [32mMetrics refresh started[0m
+    [2;3mat[0m server/server/src/metrics.rs:96
+
+  [2m2024-04-09T19:51:23.191854Z[0m [32m INFO[0m  [32mrequest processed successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:208
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "GET", [1mroute[0m: "/get-build-info"
+
+  [2m2024-04-09T19:56:28.098629Z[0m [32m INFO[0m  [32mMetrics refresh started[0m
+    [2;3mat[0m server/server/src/metrics.rs:96
+
+  [2m2024-04-09T20:00:41.621969Z[0m [34mDEBUG[0m  [34mrequest verified successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:00:41.627084Z[0m [32m INFO[0m  [32mrequest processed successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mverified_request_signature[0m [2;3mwith[0m [1musername[0m: "~unknown~", [1mpublic_key[0m: "Au17oFkzgtvMIB9TxjfflRwKm/kSfUqpViQggKfM51Rj"
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:00:41.641043Z[0m [34mDEBUG[0m  [34mrequest verified successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:151
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "GET", [1mroute[0m: "/get-updates"
+
+  [2m2024-04-09T20:00:41.641473Z[0m [32m INFO[0m  [32mrequest processed successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:151
+    [2;3min[0m [1mverified_request_signature[0m [2;3mwith[0m [1musername[0m: "msdyvihdvhnawkdykzxx", [1mpublic_key[0m: "Au17oFkzgtvMIB9TxjfflRwKm/kSfUqpViQggKfM51Rj"
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "GET", [1mroute[0m: "/get-updates"
+
+  [2m2024-04-09T20:00:41.644545Z[0m [34mDEBUG[0m  [34mrequest verified successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:150
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "GET", [1mroute[0m: "/get-file-ids"
+
+  [2m2024-04-09T20:00:41.644636Z[0m [32m INFO[0m  [32mrequest processed successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:150
+    [2;3min[0m [1mverified_request_signature[0m [2;3mwith[0m [1musername[0m: "msdyvihdvhnawkdykzxx", [1mpublic_key[0m: "Au17oFkzgtvMIB9TxjfflRwKm/kSfUqpViQggKfM51Rj"
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "GET", [1mroute[0m: "/get-file-ids"
+
+  [2m2024-04-09T20:00:41.654829Z[0m [34mDEBUG[0m  [34mrequest verified successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:00:41.654991Z[0m [32m INFO[0m  [32mrequest processed successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mverified_request_signature[0m [2;3mwith[0m [1musername[0m: "~unknown~", [1mpublic_key[0m: "A/RcXQBIdoUgWs9/7NNdWRup6RsKTNMYBfiQW1WfU/gd"
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:00:41.657178Z[0m [34mDEBUG[0m  [34mrequest verified successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:167
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "DELETE", [1mroute[0m: "/cancel-subscription"
+
+  [2m2024-04-09T20:00:41.657500Z[0m [34mDEBUG[0m  [34mUser successfully entered payment flow, [1;34mowner[0m[34m: pub_key:A/RcXQBIdoUgWs9/7NNdWRup6RsKTNMYBfiQW1WfU/gd[0m
+    [2;3mat[0m server/server/src/billing/billing_service.rs:74
+    [2;3min[0m [1mverified_request_signature[0m [2;3mwith[0m [1musername[0m: "ofxxrgcrycazkvjzkmtq", [1mpublic_key[0m: "A/RcXQBIdoUgWs9/7NNdWRup6RsKTNMYBfiQW1WfU/gd"
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "DELETE", [1mroute[0m: "/cancel-subscription"
+
+  [2m2024-04-09T20:00:41.657766Z[0m [33m WARN[0m  [33mrequest rejected due to a client error: NotPremium[0m
+    [2;3mat[0m server/server/src/router_service.rs:167
+    [2;3min[0m [1mverified_request_signature[0m [2;3mwith[0m [1musername[0m: "ofxxrgcrycazkvjzkmtq", [1mpublic_key[0m: "A/RcXQBIdoUgWs9/7NNdWRup6RsKTNMYBfiQW1WfU/gd"
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "DELETE", [1mroute[0m: "/cancel-subscription"
+
+  [2m2024-04-09T20:00:41.667928Z[0m [34mDEBUG[0m  [34mrequest verified successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:00:41.668037Z[0m [33m WARN[0m  [33mrequest rejected due to a client error: InvalidUsername[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mverified_request_signature[0m [2;3mwith[0m [1musername[0m: "~unknown~", [1mpublic_key[0m: "AlcWUjOawoEbQvkCENthQEX9uFOdQ2+sOpoUZT+VRt2V"
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:00:41.673264Z[0m [34mDEBUG[0m  [34mrequest verified successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:00:41.675089Z[0m [32m INFO[0m  [32mrequest processed successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mverified_request_signature[0m [2;3mwith[0m [1musername[0m: "~unknown~", [1mpublic_key[0m: "AtsKatNx8RAb6A+NIf3zAJ56CbEW+UTieXZcqJYCbBC7"
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:00:41.680000Z[0m [34mDEBUG[0m  [34mrequest verified successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:00:41.680117Z[0m [33m WARN[0m  [33mrequest rejected due to a client error: UsernameTaken[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mverified_request_signature[0m [2;3mwith[0m [1musername[0m: "~unknown~", [1mpublic_key[0m: "A4O61zv+XQG8TJdLG6JfZ2a4S57m/EhqR/CIKpG9iJBX"
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:00:41.685032Z[0m [34mDEBUG[0m  [34mrequest verified successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:00:41.685179Z[0m [32m INFO[0m  [32mrequest processed successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mverified_request_signature[0m [2;3mwith[0m [1musername[0m: "~unknown~", [1mpublic_key[0m: "A4khebXglvKLB5F/XJeEhxrYIv0Axkktlwuo08CfNnlw"
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:00:41.690211Z[0m [34mDEBUG[0m  [34mrequest verified successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:00:41.690345Z[0m [32m INFO[0m  [32mrequest processed successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mverified_request_signature[0m [2;3mwith[0m [1musername[0m: "~unknown~", [1mpublic_key[0m: "A7hRGbZPPjQlO5m/VmKPF5LQXIcdXyw8D/6KgTbSIb6o"
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:00:41.696119Z[0m [34mDEBUG[0m  [34mrequest verified successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:00:41.696345Z[0m [32m INFO[0m  [32mrequest processed successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mverified_request_signature[0m [2;3mwith[0m [1musername[0m: "~unknown~", [1mpublic_key[0m: "AuQs8m0B6qBu8qU+WI4fvNI2Zd8o+G5w2d/ZdQpCYaYU"
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:00:41.702636Z[0m [34mDEBUG[0m  [34mrequest verified successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:00:41.702856Z[0m [32m INFO[0m  [32mrequest processed successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mverified_request_signature[0m [2;3mwith[0m [1musername[0m: "~unknown~", [1mpublic_key[0m: "A50Ce+PMjv848nQjmeVubFBE7U7DOm/ajIppk9gRir0b"
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:00:41.709079Z[0m [34mDEBUG[0m  [34mrequest verified successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:00:41.709295Z[0m [32m INFO[0m  [32mrequest processed successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mverified_request_signature[0m [2;3mwith[0m [1musername[0m: "~unknown~", [1mpublic_key[0m: "AzEGW+1Lgk3IcD20nuafMXJNoqmpc9uEte5M0M64RfCh"
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:00:41.714887Z[0m [34mDEBUG[0m  [34mrequest verified successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:00:41.715182Z[0m [32m INFO[0m  [32mrequest processed successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mverified_request_signature[0m [2;3mwith[0m [1musername[0m: "~unknown~", [1mpublic_key[0m: "Amqk1id7ccWe7Sem8E2ndVRk+F1V43Y5sC+yltKsBoSp"
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:00:41.721787Z[0m [34mDEBUG[0m  [34mrequest verified successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:00:41.722002Z[0m [32m INFO[0m  [32mrequest processed successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mverified_request_signature[0m [2;3mwith[0m [1musername[0m: "~unknown~", [1mpublic_key[0m: "Az16DWzrOSq0nhOx12fP6QZo2S5LcTCIOPi6sAMwrfZZ"
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:00:41.730683Z[0m [34mDEBUG[0m  [34mrequest verified successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:00:41.730849Z[0m [32m INFO[0m  [32mrequest processed successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mverified_request_signature[0m [2;3mwith[0m [1musername[0m: "~unknown~", [1mpublic_key[0m: "ArdajBe6cpDsnAbmAFdFkoDW12/GAPsQKGow11N47K1C"
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:00:41.735715Z[0m [34mDEBUG[0m  [34mrequest verified successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:00:41.735831Z[0m [32m INFO[0m  [32mrequest processed successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mverified_request_signature[0m [2;3mwith[0m [1musername[0m: "~unknown~", [1mpublic_key[0m: "AyJs6g1LQVWA4o57fAFdDIS+8AVRqjHXgKaqHTPvjaLC"
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:00:41.746660Z[0m [34mDEBUG[0m  [34mrequest verified successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:00:41.746997Z[0m [32m INFO[0m  [32mrequest processed successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mverified_request_signature[0m [2;3mwith[0m [1musername[0m: "~unknown~", [1mpublic_key[0m: "A3p84Feua+MVW2uNvG+T+7WXwQUQYcwkrsbQJKoHVeyS"
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:00:41.754037Z[0m [34mDEBUG[0m  [34mrequest verified successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:00:41.754223Z[0m [32m INFO[0m  [32mrequest processed successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mverified_request_signature[0m [2;3mwith[0m [1musername[0m: "~unknown~", [1mpublic_key[0m: "AmCg82WsAYQbi7EveSjKd3hM+mZbdMRasQX6r01BR/Qk"
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:00:41.763192Z[0m [34mDEBUG[0m  [34mrequest verified successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:00:41.763331Z[0m [32m INFO[0m  [32mrequest processed successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mverified_request_signature[0m [2;3mwith[0m [1musername[0m: "~unknown~", [1mpublic_key[0m: "AjJKqz8I2guqcgTQxuEVIDegbgVNgtLhkK32jHKheZM4"
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:00:41.772026Z[0m [34mDEBUG[0m  [34mrequest verified successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:00:41.772273Z[0m [32m INFO[0m  [32mrequest processed successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mverified_request_signature[0m [2;3mwith[0m [1musername[0m: "~unknown~", [1mpublic_key[0m: "A5O7LrLfvx9fvCLxJ6O057rYtFCCj5OzMx4eA0wHgT/T"
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:00:41.777149Z[0m [34mDEBUG[0m  [34mrequest verified successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:00:41.777376Z[0m [32m INFO[0m  [32mrequest processed successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mverified_request_signature[0m [2;3mwith[0m [1musername[0m: "~unknown~", [1mpublic_key[0m: "A9PElqgs0pWVuKksV7ZtxVZ8JBbcct3YYjVmqive0KcE"
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:00:41.785640Z[0m [34mDEBUG[0m  [34mrequest verified successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:00:41.785808Z[0m [32m INFO[0m  [32mrequest processed successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mverified_request_signature[0m [2;3mwith[0m [1musername[0m: "~unknown~", [1mpublic_key[0m: "A5v1M1DcQ3To00wvj5/YufXCAm4jpLr3SUFRvKzAaSGK"
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:00:41.791471Z[0m [34mDEBUG[0m  [34mrequest verified successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:00:41.791607Z[0m [32m INFO[0m  [32mrequest processed successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mverified_request_signature[0m [2;3mwith[0m [1musername[0m: "~unknown~", [1mpublic_key[0m: "A94ar9TtXU6CMXqBI6N5TEVZINmkCQjPC6zaWsUQf33m"
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:00:41.793163Z[0m [34mDEBUG[0m  [34mrequest verified successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:168
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "GET", [1mroute[0m: "/get-subscription-info"
+
+  [2m2024-04-09T20:00:41.794074Z[0m [32m INFO[0m  [32mrequest processed successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:168
+    [2;3min[0m [1mverified_request_signature[0m [2;3mwith[0m [1musername[0m: "nuvyicmbbsruxbznnjwn", [1mpublic_key[0m: "A94ar9TtXU6CMXqBI6N5TEVZINmkCQjPC6zaWsUQf33m"
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "GET", [1mroute[0m: "/get-subscription-info"
+
+  [2m2024-04-09T20:00:41.801439Z[0m [34mDEBUG[0m  [34mrequest verified successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:00:41.801788Z[0m [32m INFO[0m  [32mrequest processed successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mverified_request_signature[0m [2;3mwith[0m [1musername[0m: "~unknown~", [1mpublic_key[0m: "A6aoc24PIWvCWXJssMI1LmKq+AyV8xrw+uVEPT/7glh1"
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:00:41.808833Z[0m [34mDEBUG[0m  [34mrequest verified successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:00:41.812885Z[0m [32m INFO[0m  [32mrequest processed successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mverified_request_signature[0m [2;3mwith[0m [1musername[0m: "~unknown~", [1mpublic_key[0m: "Ary49VQjlnYj4nlQcnnDY2fZ/3p3iGOjClcUqFmja+UE"
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:00:41.815216Z[0m [34mDEBUG[0m  [34mrequest verified successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:149
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "GET", [1mroute[0m: "/get-usage"
+
+  [2m2024-04-09T20:00:41.815621Z[0m [32m INFO[0m  [32mrequest processed successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:149
+    [2;3min[0m [1mverified_request_signature[0m [2;3mwith[0m [1musername[0m: "ozglfwkanosmvwzodcgg", [1mpublic_key[0m: "Ary49VQjlnYj4nlQcnnDY2fZ/3p3iGOjClcUqFmja+UE"
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "GET", [1mroute[0m: "/get-usage"
+
+  [2m2024-04-09T20:00:41.824840Z[0m [34mDEBUG[0m  [34mrequest verified successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:00:41.825059Z[0m [32m INFO[0m  [32mrequest processed successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mverified_request_signature[0m [2;3mwith[0m [1musername[0m: "~unknown~", [1mpublic_key[0m: "AsetzK+SlR+iZ0FOkZbwOEFYkmf/6rZ5vn2eWk302cpu"
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:00:41.830009Z[0m [34mDEBUG[0m  [34mrequest verified successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:147
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "GET", [1mroute[0m: "/get-public-key"
+
+  [2m2024-04-09T20:00:41.830107Z[0m [32m INFO[0m  [32mrequest processed successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:147
+    [2;3min[0m [1mverified_request_signature[0m [2;3mwith[0m [1musername[0m: "paaevbqogctjgqugpchv", [1mpublic_key[0m: "AsetzK+SlR+iZ0FOkZbwOEFYkmf/6rZ5vn2eWk302cpu"
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "GET", [1mroute[0m: "/get-public-key"
+
+  [2m2024-04-09T20:00:41.843595Z[0m [34mDEBUG[0m  [34mrequest verified successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:00:41.843959Z[0m [32m INFO[0m  [32mrequest processed successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mverified_request_signature[0m [2;3mwith[0m [1musername[0m: "~unknown~", [1mpublic_key[0m: "AyGDfmUoOBfeoHnNdU3pG+fL7Pmgx3uq+uS8mFy18swl"
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:00:41.851303Z[0m [34mDEBUG[0m  [34mrequest verified successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:00:41.851587Z[0m [32m INFO[0m  [32mrequest processed successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mverified_request_signature[0m [2;3mwith[0m [1musername[0m: "~unknown~", [1mpublic_key[0m: "AoToEhHEmgpY8M2M+Hcsmpb1biWpwmhcgl45+yhVId5b"
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:00:41.857036Z[0m [34mDEBUG[0m  [34mrequest verified successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:00:41.857138Z[0m [32m INFO[0m  [32mrequest processed successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mverified_request_signature[0m [2;3mwith[0m [1musername[0m: "~unknown~", [1mpublic_key[0m: "A6SstY3ESkD/QdpRF2XICvopXEt5dqechiwmRud0kAMh"
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:00:41.863173Z[0m [34mDEBUG[0m  [34mrequest verified successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:00:41.863540Z[0m [32m INFO[0m  [32mrequest processed successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mverified_request_signature[0m [2;3mwith[0m [1musername[0m: "~unknown~", [1mpublic_key[0m: "Ao+f+5DwyetcYiF/MP6rTbdhh+A4sQ4KY2R/CSLaUxke"
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:00:41.878559Z[0m [34mDEBUG[0m  [34mrequest verified successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:00:41.878792Z[0m [32m INFO[0m  [32mrequest processed successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mverified_request_signature[0m [2;3mwith[0m [1musername[0m: "~unknown~", [1mpublic_key[0m: "AoMDeem7SZgy17ydeHrNjptbYi7I0H94P4T9LbUUBIrV"
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:00:41.884311Z[0m [34mDEBUG[0m  [34mrequest verified successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:00:41.884478Z[0m [32m INFO[0m  [32mrequest processed successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mverified_request_signature[0m [2;3mwith[0m [1musername[0m: "~unknown~", [1mpublic_key[0m: "AjVMriGgFg+qdyeMNkdVz71HmMGzeYuXhg4FkLF0ubxd"
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:00:41.889873Z[0m [34mDEBUG[0m  [34mrequest verified successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:00:41.890042Z[0m [32m INFO[0m  [32mrequest processed successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mverified_request_signature[0m [2;3mwith[0m [1musername[0m: "~unknown~", [1mpublic_key[0m: "Ai3xGy/95DHLCgi5xiHIPg3lBn1PwPmdq0+48L8Q9zgq"
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:00:41.897724Z[0m [34mDEBUG[0m  [34mrequest verified successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:00:41.897953Z[0m [32m INFO[0m  [32mrequest processed successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mverified_request_signature[0m [2;3mwith[0m [1musername[0m: "~unknown~", [1mpublic_key[0m: "A5FFrPRabKZvkA6/gzt7mQH3qk2BExMUKq5r28aigOOm"
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:00:41.902921Z[0m [34mDEBUG[0m  [34mrequest verified successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:00:41.903046Z[0m [32m INFO[0m  [32mrequest processed successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mverified_request_signature[0m [2;3mwith[0m [1musername[0m: "~unknown~", [1mpublic_key[0m: "A633qDlyd/+D87gV/aHqLcI8LqPPEkjxc5XQ11AQWBM8"
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:00:41.908509Z[0m [34mDEBUG[0m  [34mrequest verified successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:00:41.908887Z[0m [32m INFO[0m  [32mrequest processed successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mverified_request_signature[0m [2;3mwith[0m [1musername[0m: "~unknown~", [1mpublic_key[0m: "A/jbq5m8s63AiI34zyu/qtybGQEeiqU1qLnxIL95vtbD"
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:00:41.913869Z[0m [34mDEBUG[0m  [34mrequest verified successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:00:41.914005Z[0m [32m INFO[0m  [32mrequest processed successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mverified_request_signature[0m [2;3mwith[0m [1musername[0m: "~unknown~", [1mpublic_key[0m: "A7ZKz6mbUdw4Hs/i+FM8BGaNNe5K9xFDxnTroUHZwaC/"
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:00:41.921148Z[0m [34mDEBUG[0m  [34mrequest verified successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:00:41.921390Z[0m [32m INFO[0m  [32mrequest processed successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mverified_request_signature[0m [2;3mwith[0m [1musername[0m: "~unknown~", [1mpublic_key[0m: "A3qEpggNZh4yzTZxbY9K0kp+1hQQG3Xd2cHGoe7xh1Ln"
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:00:41.927621Z[0m [34mDEBUG[0m  [34mrequest verified successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:00:41.927829Z[0m [32m INFO[0m  [32mrequest processed successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mverified_request_signature[0m [2;3mwith[0m [1musername[0m: "~unknown~", [1mpublic_key[0m: "Ari4llY2CgpbOL0Jn8d2wQK3W6qNHdgDh95pkwBUeMZ1"
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:00:41.934992Z[0m [34mDEBUG[0m  [34mrequest verified successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:00:41.935131Z[0m [32m INFO[0m  [32mrequest processed successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mverified_request_signature[0m [2;3mwith[0m [1musername[0m: "~unknown~", [1mpublic_key[0m: "A7VqBtyINNdVPfMxfSfIV1qVX+cmrs4QQsHrYsPzh79u"
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:00:41.937282Z[0m [34mDEBUG[0m  [34mrequest verified successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:150
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "GET", [1mroute[0m: "/get-file-ids"
+
+  [2m2024-04-09T20:00:41.937359Z[0m [32m INFO[0m  [32mrequest processed successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:150
+    [2;3min[0m [1mverified_request_signature[0m [2;3mwith[0m [1musername[0m: "ljrqgzqxacnowjgjfmak", [1mpublic_key[0m: "A7VqBtyINNdVPfMxfSfIV1qVX+cmrs4QQsHrYsPzh79u"
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "GET", [1mroute[0m: "/get-file-ids"
+
+  [2m2024-04-09T20:00:41.937968Z[0m [34mDEBUG[0m  [34mrequest verified successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:151
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "GET", [1mroute[0m: "/get-updates"
+
+  [2m2024-04-09T20:00:41.938108Z[0m [32m INFO[0m  [32mrequest processed successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:151
+    [2;3min[0m [1mverified_request_signature[0m [2;3mwith[0m [1musername[0m: "ljrqgzqxacnowjgjfmak", [1mpublic_key[0m: "A7VqBtyINNdVPfMxfSfIV1qVX+cmrs4QQsHrYsPzh79u"
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "GET", [1mroute[0m: "/get-updates"
+
+  [2m2024-04-09T20:00:41.940374Z[0m [34mDEBUG[0m  [34mrequest verified successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:145
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/upsert-file-metadata"
+
+  [2m2024-04-09T20:00:41.941279Z[0m [34mDEBUG[0m  [34musage caps on upsert, [1;34mold_usage[0m[34m: 1000, [1;34mnew_usage[0m[34m: 3000, [1;34musage_cap[0m[34m: 1000000[0m
+    [2;3mat[0m server/server/src/file_service.rs:86
+    [2;3min[0m [1mverified_request_signature[0m [2;3mwith[0m [1musername[0m: "ljrqgzqxacnowjgjfmak", [1mpublic_key[0m: "A7VqBtyINNdVPfMxfSfIV1qVX+cmrs4QQsHrYsPzh79u"
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/upsert-file-metadata"
+
+  [2m2024-04-09T20:00:41.941641Z[0m [34mDEBUG[0m  [34mCreated file, [1;34mid[0m[34m: 07f567cb-2f65-451b-afc9-407e65553d89[0m
+    [2;3mat[0m server/server/src/file_service.rs:128
+    [2;3min[0m [1mverified_request_signature[0m [2;3mwith[0m [1musername[0m: "ljrqgzqxacnowjgjfmak", [1mpublic_key[0m: "A7VqBtyINNdVPfMxfSfIV1qVX+cmrs4QQsHrYsPzh79u"
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/upsert-file-metadata"
+
+  [2m2024-04-09T20:00:41.941669Z[0m [34mDEBUG[0m  [34mCreated file, [1;34mid[0m[34m: 3ad7e83e-6a31-449d-81a9-9abdbb1416d1[0m
+    [2;3mat[0m server/server/src/file_service.rs:128
+    [2;3min[0m [1mverified_request_signature[0m [2;3mwith[0m [1musername[0m: "ljrqgzqxacnowjgjfmak", [1mpublic_key[0m: "A7VqBtyINNdVPfMxfSfIV1qVX+cmrs4QQsHrYsPzh79u"
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/upsert-file-metadata"
+
+  [2m2024-04-09T20:00:41.941693Z[0m [32m INFO[0m  [32mrequest processed successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:145
+    [2;3min[0m [1mverified_request_signature[0m [2;3mwith[0m [1musername[0m: "ljrqgzqxacnowjgjfmak", [1mpublic_key[0m: "A7VqBtyINNdVPfMxfSfIV1qVX+cmrs4QQsHrYsPzh79u"
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/upsert-file-metadata"
+
+  [2m2024-04-09T20:01:33.008558Z[0m [32m INFO[0m  [32mMetrics refresh started[0m
+    [2;3mat[0m server/server/src/metrics.rs:96
+
+  [2m2024-04-09T20:02:56.909847Z[0m [34mDEBUG[0m  [34mrequest verified successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:02:56.911577Z[0m [32m INFO[0m  [32mrequest processed successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mverified_request_signature[0m [2;3mwith[0m [1musername[0m: "~unknown~", [1mpublic_key[0m: "AttMwZk9tEPi/UP5WciKbjyBvCD2M/x8eLiRfOCcKjwR"
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:02:56.920128Z[0m [34mDEBUG[0m  [34mrequest verified successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:151
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "GET", [1mroute[0m: "/get-updates"
+
+  [2m2024-04-09T20:02:56.920248Z[0m [32m INFO[0m  [32mrequest processed successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:151
+    [2;3min[0m [1mverified_request_signature[0m [2;3mwith[0m [1musername[0m: "dhbidggzgqtbicrwfbti", [1mpublic_key[0m: "AttMwZk9tEPi/UP5WciKbjyBvCD2M/x8eLiRfOCcKjwR"
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "GET", [1mroute[0m: "/get-updates"
+
+  [2m2024-04-09T20:02:56.921492Z[0m [34mDEBUG[0m  [34mrequest verified successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:150
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "GET", [1mroute[0m: "/get-file-ids"
+
+  [2m2024-04-09T20:02:56.921599Z[0m [32m INFO[0m  [32mrequest processed successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:150
+    [2;3min[0m [1mverified_request_signature[0m [2;3mwith[0m [1musername[0m: "dhbidggzgqtbicrwfbti", [1mpublic_key[0m: "AttMwZk9tEPi/UP5WciKbjyBvCD2M/x8eLiRfOCcKjwR"
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "GET", [1mroute[0m: "/get-file-ids"
+
+  [2m2024-04-09T20:02:56.930092Z[0m [34mDEBUG[0m  [34mrequest verified successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:02:56.930322Z[0m [32m INFO[0m  [32mrequest processed successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mverified_request_signature[0m [2;3mwith[0m [1musername[0m: "~unknown~", [1mpublic_key[0m: "A4fP5jfXOD5kqS7Gxz7jP58AK5nUnTVJB/idRx4zfqj9"
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:02:56.931750Z[0m [34mDEBUG[0m  [34mrequest verified successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:167
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "DELETE", [1mroute[0m: "/cancel-subscription"
+
+  [2m2024-04-09T20:02:56.931848Z[0m [34mDEBUG[0m  [34mUser successfully entered payment flow, [1;34mowner[0m[34m: pub_key:A4fP5jfXOD5kqS7Gxz7jP58AK5nUnTVJB/idRx4zfqj9[0m
+    [2;3mat[0m server/server/src/billing/billing_service.rs:74
+    [2;3min[0m [1mverified_request_signature[0m [2;3mwith[0m [1musername[0m: "rhxdprbpembukkmvhppy", [1mpublic_key[0m: "A4fP5jfXOD5kqS7Gxz7jP58AK5nUnTVJB/idRx4zfqj9"
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "DELETE", [1mroute[0m: "/cancel-subscription"
+
+  [2m2024-04-09T20:02:56.931947Z[0m [33m WARN[0m  [33mrequest rejected due to a client error: NotPremium[0m
+    [2;3mat[0m server/server/src/router_service.rs:167
+    [2;3min[0m [1mverified_request_signature[0m [2;3mwith[0m [1musername[0m: "rhxdprbpembukkmvhppy", [1mpublic_key[0m: "A4fP5jfXOD5kqS7Gxz7jP58AK5nUnTVJB/idRx4zfqj9"
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "DELETE", [1mroute[0m: "/cancel-subscription"
+
+  [2m2024-04-09T20:02:56.940966Z[0m [34mDEBUG[0m  [34mrequest verified successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:02:56.941119Z[0m [33m WARN[0m  [33mrequest rejected due to a client error: InvalidUsername[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mverified_request_signature[0m [2;3mwith[0m [1musername[0m: "~unknown~", [1mpublic_key[0m: "AyblRZYacfrBLlhsoPLb0FuLMLEi+CDjW1yWUP6PrNSy"
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:02:56.947296Z[0m [34mDEBUG[0m  [34mrequest verified successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:02:56.947577Z[0m [32m INFO[0m  [32mrequest processed successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mverified_request_signature[0m [2;3mwith[0m [1musername[0m: "~unknown~", [1mpublic_key[0m: "A2+HjCnJSfXiYwiFWh1q6um+lZVYpQtTYpPem3oD86JM"
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:02:56.953262Z[0m [34mDEBUG[0m  [34mrequest verified successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:02:56.953468Z[0m [33m WARN[0m  [33mrequest rejected due to a client error: UsernameTaken[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mverified_request_signature[0m [2;3mwith[0m [1musername[0m: "~unknown~", [1mpublic_key[0m: "ApMallkoiOgajWQNs2BBJNbC1YAh3pQ9OsAkuInPgv/R"
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:02:56.969640Z[0m [34mDEBUG[0m  [34mrequest verified successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:02:56.969902Z[0m [32m INFO[0m  [32mrequest processed successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mverified_request_signature[0m [2;3mwith[0m [1musername[0m: "~unknown~", [1mpublic_key[0m: "AoP8YzjA33+gAEtYWVwlWOihMjoDLttRnZM0cSo4qdmY"
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:02:56.975800Z[0m [34mDEBUG[0m  [34mrequest verified successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:02:56.976495Z[0m [32m INFO[0m  [32mrequest processed successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mverified_request_signature[0m [2;3mwith[0m [1musername[0m: "~unknown~", [1mpublic_key[0m: "A5LMHwUqf0fEOspUpd8iFSE3zL+6BU6NBw0yntKkhAeK"
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:02:56.986666Z[0m [34mDEBUG[0m  [34mrequest verified successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:02:56.986814Z[0m [32m INFO[0m  [32mrequest processed successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mverified_request_signature[0m [2;3mwith[0m [1musername[0m: "~unknown~", [1mpublic_key[0m: "AnBGCi+ejEWPbvBRC9JjgSU4pCjs6ET6LPqWLn3Y3gep"
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:02:56.993810Z[0m [34mDEBUG[0m  [34mrequest verified successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:02:56.993996Z[0m [32m INFO[0m  [32mrequest processed successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mverified_request_signature[0m [2;3mwith[0m [1musername[0m: "~unknown~", [1mpublic_key[0m: "A2KGz1tdhaWC6iZS3UZXqYKQzPDPS87c/nhdn0qjuGiR"
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:02:57.003269Z[0m [34mDEBUG[0m  [34mrequest verified successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:02:57.003426Z[0m [32m INFO[0m  [32mrequest processed successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mverified_request_signature[0m [2;3mwith[0m [1musername[0m: "~unknown~", [1mpublic_key[0m: "A5+bZTFCSwKEU+9DqdHww9kkYJOn9TIr8bX06EPfSoFr"
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:02:57.010479Z[0m [34mDEBUG[0m  [34mrequest verified successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:02:57.010787Z[0m [32m INFO[0m  [32mrequest processed successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mverified_request_signature[0m [2;3mwith[0m [1musername[0m: "~unknown~", [1mpublic_key[0m: "ArHpReBdDsa8wS3/IVhscX+pHQItPurfb9XMi+41+AoM"
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:02:57.021255Z[0m [34mDEBUG[0m  [34mrequest verified successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:02:57.021410Z[0m [32m INFO[0m  [32mrequest processed successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mverified_request_signature[0m [2;3mwith[0m [1musername[0m: "~unknown~", [1mpublic_key[0m: "AyV72DpS2j69UvGqVZLVXodkOKDaeOXVPVlMexjNqOJa"
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:02:57.030796Z[0m [34mDEBUG[0m  [34mrequest verified successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:02:57.030995Z[0m [32m INFO[0m  [32mrequest processed successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mverified_request_signature[0m [2;3mwith[0m [1musername[0m: "~unknown~", [1mpublic_key[0m: "A++fHSSBgnztNCJ6yp8bsn+lr/1Uh106KCfzLjL5iTiw"
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:02:57.048245Z[0m [34mDEBUG[0m  [34mrequest verified successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:02:57.048397Z[0m [32m INFO[0m  [32mrequest processed successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mverified_request_signature[0m [2;3mwith[0m [1musername[0m: "~unknown~", [1mpublic_key[0m: "AqhV3pjYXDCWQSED96w1gezU4/cPA2yt0Hl1y/oZAFM5"
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:02:57.061046Z[0m [34mDEBUG[0m  [34mrequest verified successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:02:57.061179Z[0m [32m INFO[0m  [32mrequest processed successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mverified_request_signature[0m [2;3mwith[0m [1musername[0m: "~unknown~", [1mpublic_key[0m: "Ajbvsj3o4o8Ko5fLrwg4xFcygROfxh9cwzAjyrCxtECL"
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:02:57.070268Z[0m [34mDEBUG[0m  [34mrequest verified successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:02:57.070475Z[0m [32m INFO[0m  [32mrequest processed successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mverified_request_signature[0m [2;3mwith[0m [1musername[0m: "~unknown~", [1mpublic_key[0m: "Al6QRH2kA4BeKgz7E/Yj1/hyMcPOoEC8FO9pdpjkP1nq"
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:02:57.082393Z[0m [34mDEBUG[0m  [34mrequest verified successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:02:57.082820Z[0m [32m INFO[0m  [32mrequest processed successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mverified_request_signature[0m [2;3mwith[0m [1musername[0m: "~unknown~", [1mpublic_key[0m: "Amo0q2PwgJhOpd9h9GyX6c3Uhi6lKhDI+MhQjHbppMGA"
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:02:57.091875Z[0m [34mDEBUG[0m  [34mrequest verified successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:02:57.092048Z[0m [32m INFO[0m  [32mrequest processed successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mverified_request_signature[0m [2;3mwith[0m [1musername[0m: "~unknown~", [1mpublic_key[0m: "AnbmCeCAeXuO86qwL+ZGA7O3n1r3BPxn230zzSWpVclf"
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:02:57.096921Z[0m [34mDEBUG[0m  [34mrequest verified successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:02:57.097197Z[0m [32m INFO[0m  [32mrequest processed successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mverified_request_signature[0m [2;3mwith[0m [1musername[0m: "~unknown~", [1mpublic_key[0m: "AtWBNrg+7hs7XpTzVs4i4SBYsqtjdHkwGZkXXHkGMqqJ"
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:02:57.104534Z[0m [34mDEBUG[0m  [34mrequest verified successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:02:57.104667Z[0m [32m INFO[0m  [32mrequest processed successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mverified_request_signature[0m [2;3mwith[0m [1musername[0m: "~unknown~", [1mpublic_key[0m: "Az/lB63dTXxSuin4gsDInST5Fb+kAiYyc0rttXXZP2iX"
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:02:57.109677Z[0m [34mDEBUG[0m  [34mrequest verified successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:02:57.109819Z[0m [32m INFO[0m  [32mrequest processed successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mverified_request_signature[0m [2;3mwith[0m [1musername[0m: "~unknown~", [1mpublic_key[0m: "AprFP71A+3SgU5rz6BJUz6HxFp8wGV4K6N1czRQFmVh+"
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:02:57.110602Z[0m [34mDEBUG[0m  [34mrequest verified successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:168
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "GET", [1mroute[0m: "/get-subscription-info"
+
+  [2m2024-04-09T20:02:57.110654Z[0m [32m INFO[0m  [32mrequest processed successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:168
+    [2;3min[0m [1mverified_request_signature[0m [2;3mwith[0m [1musername[0m: "nksqjzgxbcrqrafqqpeq", [1mpublic_key[0m: "AprFP71A+3SgU5rz6BJUz6HxFp8wGV4K6N1czRQFmVh+"
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "GET", [1mroute[0m: "/get-subscription-info"
+
+  [2m2024-04-09T20:02:57.116751Z[0m [34mDEBUG[0m  [34mrequest verified successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:02:57.116903Z[0m [32m INFO[0m  [32mrequest processed successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mverified_request_signature[0m [2;3mwith[0m [1musername[0m: "~unknown~", [1mpublic_key[0m: "A1fczJzeeB833mgjTnbxe6VLJVBKOrGmH+AEuvO6RPFx"
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:02:57.123248Z[0m [34mDEBUG[0m  [34mrequest verified successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:02:57.123443Z[0m [32m INFO[0m  [32mrequest processed successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mverified_request_signature[0m [2;3mwith[0m [1musername[0m: "~unknown~", [1mpublic_key[0m: "AkF0EgmRsL15Y1IGKaypAffosqZuMRBKy+7jOhNbTONX"
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:02:57.124211Z[0m [34mDEBUG[0m  [34mrequest verified successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:149
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "GET", [1mroute[0m: "/get-usage"
+
+  [2m2024-04-09T20:02:57.124274Z[0m [32m INFO[0m  [32mrequest processed successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:149
+    [2;3min[0m [1mverified_request_signature[0m [2;3mwith[0m [1musername[0m: "mdqzsglligitmahxsqze", [1mpublic_key[0m: "AkF0EgmRsL15Y1IGKaypAffosqZuMRBKy+7jOhNbTONX"
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "GET", [1mroute[0m: "/get-usage"
+
+  [2m2024-04-09T20:02:57.132268Z[0m [34mDEBUG[0m  [34mrequest verified successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:02:57.132420Z[0m [32m INFO[0m  [32mrequest processed successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mverified_request_signature[0m [2;3mwith[0m [1musername[0m: "~unknown~", [1mpublic_key[0m: "A/5ubiW8mwPj8RjATtnTlU1hiZ4Gr2Z307go6OVd7L9F"
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:02:57.135656Z[0m [34mDEBUG[0m  [34mrequest verified successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:147
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "GET", [1mroute[0m: "/get-public-key"
+
+  [2m2024-04-09T20:02:57.135740Z[0m [32m INFO[0m  [32mrequest processed successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:147
+    [2;3min[0m [1mverified_request_signature[0m [2;3mwith[0m [1musername[0m: "lnqmwvvyrkljodhtfsle", [1mpublic_key[0m: "A/5ubiW8mwPj8RjATtnTlU1hiZ4Gr2Z307go6OVd7L9F"
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "GET", [1mroute[0m: "/get-public-key"
+
+  [2m2024-04-09T20:02:57.148527Z[0m [34mDEBUG[0m  [34mrequest verified successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:02:57.148693Z[0m [32m INFO[0m  [32mrequest processed successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mverified_request_signature[0m [2;3mwith[0m [1musername[0m: "~unknown~", [1mpublic_key[0m: "A/xjXDrEDkp3QQmT3g8c6V4L+6c6P3k8nizSKGn2VSb9"
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:02:57.155356Z[0m [34mDEBUG[0m  [34mrequest verified successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:02:57.155533Z[0m [32m INFO[0m  [32mrequest processed successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mverified_request_signature[0m [2;3mwith[0m [1musername[0m: "~unknown~", [1mpublic_key[0m: "Ah6sACS4ZeDcU+3Qhvzlbn9Ua7/uKodhYlVxxdHAnSHS"
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:02:57.160521Z[0m [34mDEBUG[0m  [34mrequest verified successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:02:57.160718Z[0m [32m INFO[0m  [32mrequest processed successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mverified_request_signature[0m [2;3mwith[0m [1musername[0m: "~unknown~", [1mpublic_key[0m: "A3jVqmic1sVu3l7ErX/njMaFECEO+xQuBj4WVx69lRU0"
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:02:57.166082Z[0m [34mDEBUG[0m  [34mrequest verified successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:02:57.166205Z[0m [32m INFO[0m  [32mrequest processed successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mverified_request_signature[0m [2;3mwith[0m [1musername[0m: "~unknown~", [1mpublic_key[0m: "A50edUOLkgBAVnzZzLicKSfjnQp22fBJXP21qd9dvyHX"
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:02:57.172518Z[0m [34mDEBUG[0m  [34mrequest verified successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:02:57.172703Z[0m [32m INFO[0m  [32mrequest processed successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mverified_request_signature[0m [2;3mwith[0m [1musername[0m: "~unknown~", [1mpublic_key[0m: "AndO86SmBCtcXmUesl9ky53xKpAO/QwB934OerVSnHVr"
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:02:57.178040Z[0m [34mDEBUG[0m  [34mrequest verified successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:02:57.178225Z[0m [32m INFO[0m  [32mrequest processed successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mverified_request_signature[0m [2;3mwith[0m [1musername[0m: "~unknown~", [1mpublic_key[0m: "AxsfYHj88GLlZaBO7tBHqYuaZB6SkjN9ey3SA/2wKVAk"
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:02:57.183630Z[0m [34mDEBUG[0m  [34mrequest verified successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:02:57.184031Z[0m [32m INFO[0m  [32mrequest processed successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mverified_request_signature[0m [2;3mwith[0m [1musername[0m: "~unknown~", [1mpublic_key[0m: "A9iIiOs86yutlIVTgfkK4v/s5NI3F8cXQS4vfASy6yww"
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:02:57.191403Z[0m [34mDEBUG[0m  [34mrequest verified successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:02:57.191496Z[0m [32m INFO[0m  [32mrequest processed successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mverified_request_signature[0m [2;3mwith[0m [1musername[0m: "~unknown~", [1mpublic_key[0m: "Ayy8kqlJNUyHLGyTXgHMWICvPnt+esjqH4uncSfbrW0w"
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:02:57.196484Z[0m [34mDEBUG[0m  [34mrequest verified successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:02:57.196716Z[0m [32m INFO[0m  [32mrequest processed successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mverified_request_signature[0m [2;3mwith[0m [1musername[0m: "~unknown~", [1mpublic_key[0m: "Auai3mfT/d6ywZteLXxWpnyXrP2hBPuOtWE85Mb+QHIq"
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:02:57.201333Z[0m [34mDEBUG[0m  [34mrequest verified successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:02:57.201451Z[0m [32m INFO[0m  [32mrequest processed successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mverified_request_signature[0m [2;3mwith[0m [1musername[0m: "~unknown~", [1mpublic_key[0m: "A4+eBnxSRLMldnEQ6qwmDyoPdRbn0Am5Xbxnve+DlPbV"
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:02:57.207429Z[0m [34mDEBUG[0m  [34mrequest verified successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:02:57.207553Z[0m [32m INFO[0m  [32mrequest processed successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mverified_request_signature[0m [2;3mwith[0m [1musername[0m: "~unknown~", [1mpublic_key[0m: "AgGmWZRXSKiUsphWwq4ejGzgylbOrtl8fM60V28yv4vX"
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:02:57.212529Z[0m [34mDEBUG[0m  [34mrequest verified successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:02:57.212644Z[0m [32m INFO[0m  [32mrequest processed successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mverified_request_signature[0m [2;3mwith[0m [1musername[0m: "~unknown~", [1mpublic_key[0m: "A6y5Tq/qVqVOdUqBNiRPQVx2cmp95owIZyCgDMccvWq7"
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:02:57.217992Z[0m [34mDEBUG[0m  [34mrequest verified successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:02:57.218225Z[0m [32m INFO[0m  [32mrequest processed successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mverified_request_signature[0m [2;3mwith[0m [1musername[0m: "~unknown~", [1mpublic_key[0m: "AyCSq60PnuBb/NU9JZLLvfK6n8pNKCRg0uvHEqCdx6WR"
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:02:57.222606Z[0m [34mDEBUG[0m  [34mrequest verified successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:02:57.222710Z[0m [32m INFO[0m  [32mrequest processed successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mverified_request_signature[0m [2;3mwith[0m [1musername[0m: "~unknown~", [1mpublic_key[0m: "Axtio7/YVni3/EnBgsWdZN+S7PLSeNBqoEGuFuPABnWF"
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:02:57.228456Z[0m [34mDEBUG[0m  [34mrequest verified successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:02:57.228562Z[0m [32m INFO[0m  [32mrequest processed successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mverified_request_signature[0m [2;3mwith[0m [1musername[0m: "~unknown~", [1mpublic_key[0m: "AvDAV2DhC9TvhJ7kAy8bIqOPXm5CrElLkt/Q4HaTMMPZ"
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:02:57.233643Z[0m [34mDEBUG[0m  [34mrequest verified successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:02:57.233809Z[0m [32m INFO[0m  [32mrequest processed successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mverified_request_signature[0m [2;3mwith[0m [1musername[0m: "~unknown~", [1mpublic_key[0m: "AxCgfjl1swKamm5Akkh98B2MLR8MJD3KPkrp380TvXRE"
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:02:57.240213Z[0m [34mDEBUG[0m  [34mrequest verified successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:02:57.240322Z[0m [32m INFO[0m  [32mrequest processed successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mverified_request_signature[0m [2;3mwith[0m [1musername[0m: "~unknown~", [1mpublic_key[0m: "A78/Iy96WrTN6kOoMd0HuHz/e/lIdNn1ySmeTM0OT6C9"
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:02:57.242324Z[0m [34mDEBUG[0m  [34mrequest verified successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:150
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "GET", [1mroute[0m: "/get-file-ids"
+
+  [2m2024-04-09T20:02:57.242386Z[0m [32m INFO[0m  [32mrequest processed successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:150
+    [2;3min[0m [1mverified_request_signature[0m [2;3mwith[0m [1musername[0m: "yvjrczktqvgywusnfdxm", [1mpublic_key[0m: "A78/Iy96WrTN6kOoMd0HuHz/e/lIdNn1ySmeTM0OT6C9"
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "GET", [1mroute[0m: "/get-file-ids"
+
+  [2m2024-04-09T20:02:57.243057Z[0m [34mDEBUG[0m  [34mrequest verified successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:151
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "GET", [1mroute[0m: "/get-updates"
+
+  [2m2024-04-09T20:02:57.243429Z[0m [32m INFO[0m  [32mrequest processed successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:151
+    [2;3min[0m [1mverified_request_signature[0m [2;3mwith[0m [1musername[0m: "yvjrczktqvgywusnfdxm", [1mpublic_key[0m: "A78/Iy96WrTN6kOoMd0HuHz/e/lIdNn1ySmeTM0OT6C9"
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "GET", [1mroute[0m: "/get-updates"
+
+  [2m2024-04-09T20:02:57.245572Z[0m [34mDEBUG[0m  [34mrequest verified successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:145
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/upsert-file-metadata"
+
+  [2m2024-04-09T20:02:57.245760Z[0m [34mDEBUG[0m  [34musage caps on upsert, [1;34mold_usage[0m[34m: 1000, [1;34mnew_usage[0m[34m: 3000, [1;34musage_cap[0m[34m: 1000000[0m
+    [2;3mat[0m server/server/src/file_service.rs:86
+    [2;3min[0m [1mverified_request_signature[0m [2;3mwith[0m [1musername[0m: "yvjrczktqvgywusnfdxm", [1mpublic_key[0m: "A78/Iy96WrTN6kOoMd0HuHz/e/lIdNn1ySmeTM0OT6C9"
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/upsert-file-metadata"
+
+  [2m2024-04-09T20:02:57.245864Z[0m [34mDEBUG[0m  [34mCreated file, [1;34mid[0m[34m: 253bcddf-7b94-498e-8b54-579b5f2143f6[0m
+    [2;3mat[0m server/server/src/file_service.rs:128
+    [2;3min[0m [1mverified_request_signature[0m [2;3mwith[0m [1musername[0m: "yvjrczktqvgywusnfdxm", [1mpublic_key[0m: "A78/Iy96WrTN6kOoMd0HuHz/e/lIdNn1ySmeTM0OT6C9"
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/upsert-file-metadata"
+
+  [2m2024-04-09T20:02:57.245891Z[0m [34mDEBUG[0m  [34mCreated file, [1;34mid[0m[34m: b29708b9-8f86-4361-8220-6797be9dc289[0m
+    [2;3mat[0m server/server/src/file_service.rs:128
+    [2;3min[0m [1mverified_request_signature[0m [2;3mwith[0m [1musername[0m: "yvjrczktqvgywusnfdxm", [1mpublic_key[0m: "A78/Iy96WrTN6kOoMd0HuHz/e/lIdNn1ySmeTM0OT6C9"
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/upsert-file-metadata"
+
+  [2m2024-04-09T20:02:57.245917Z[0m [32m INFO[0m  [32mrequest processed successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:145
+    [2;3min[0m [1mverified_request_signature[0m [2;3mwith[0m [1musername[0m: "yvjrczktqvgywusnfdxm", [1mpublic_key[0m: "A78/Iy96WrTN6kOoMd0HuHz/e/lIdNn1ySmeTM0OT6C9"
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/upsert-file-metadata"
+
+  [2m2024-04-09T20:02:57.254376Z[0m [34mDEBUG[0m  [34mrequest verified successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:02:57.254624Z[0m [32m INFO[0m  [32mrequest processed successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mverified_request_signature[0m [2;3mwith[0m [1musername[0m: "~unknown~", [1mpublic_key[0m: "Aw/vCbOtHVpDZLHnQDMdWHbmhz0jWe//CSYciznnk2o2"
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:02:57.261337Z[0m [34mDEBUG[0m  [34mrequest verified successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:02:57.261479Z[0m [32m INFO[0m  [32mrequest processed successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mverified_request_signature[0m [2;3mwith[0m [1musername[0m: "~unknown~", [1mpublic_key[0m: "AkNY2flDGlxtE+LnKwl1qjEWvRBj+y7YDKAiJa3rZerb"
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:02:57.267009Z[0m [34mDEBUG[0m  [34mrequest verified successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
+  [2m2024-04-09T20:02:57.267133Z[0m [32m INFO[0m  [32mrequest processed successfully[0m
+    [2;3mat[0m server/server/src/router_service.rs:143
+    [2;3min[0m [1mverified_request_signature[0m [2;3mwith[0m [1musername[0m: "~unknown~", [1mpublic_key[0m: "AsYmGojfRJRa2iC03yNn19kzUEaZtjLQzxX+gwFG+ahp"
+    [2;3min[0m [1mmatched_request[0m [2;3mwith[0m [1mmethod[0m: "POST", [1mroute[0m: "/new-account"
+
