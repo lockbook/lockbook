@@ -56,7 +56,7 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
             forwardedTouchEvent(event, 0)
 
             // if they tap outside the toolbar, we want to refocus the text editor to regain text input
-            if(model.currentTab.value == WorkspaceTab.Markdown || model.currentTab.value == WorkspaceTab.PlainText) {
+            if (model.currentTab.value == WorkspaceTab.Markdown || model.currentTab.value == WorkspaceTab.PlainText) {
                 wrapperView?.requestFocus()
             }
         }

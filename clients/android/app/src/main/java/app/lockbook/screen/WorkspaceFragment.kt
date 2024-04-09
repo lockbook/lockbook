@@ -37,7 +37,6 @@ import app.lockbook.model.WorkspaceViewModel
 import app.lockbook.util.WorkspaceView
 import com.github.michaelbull.result.get
 import com.github.michaelbull.result.unwrap
-import timber.log.Timber
 import kotlin.math.abs
 
 class WorkspaceFragment : Fragment() {

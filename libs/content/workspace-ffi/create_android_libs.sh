@@ -4,6 +4,8 @@ set -ae
 cargo ndk --target aarch64-linux-android --target armv7-linux-androideabi --target i686-linux-android --target x86_64-linux-android --platform 22 -- build --release
 cd ../../../
 
+rm -rf clients/android/workspace/src/main/jniLibs/*
+
 mkdir -p clients/android/workspace/src/main/jniLibs/arm64-v8a/
 mkdir -p clients/android/workspace/src/main/jniLibs/armeabi-v7a/
 mkdir -p clients/android/workspace/src/main/jniLibs/x86/

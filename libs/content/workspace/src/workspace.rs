@@ -107,14 +107,14 @@ impl Workspace {
         }
     }
 
-    // #[cfg(target_os = "android")]
+    #[cfg(target_os = "android")]
     pub fn invalidate_egui_references(&mut self, ctx: &Context, core: &lb_rs::Core) {
         self.ctx = ctx.clone();
         self.core = core.clone();
 
         self.backdrop = Image::new(egui::include_image!("../lockbook-backdrop.png"));
-        let ids: Vec<lb_rs::Uuid> = self.tabs.iter().map(|tab| tab.id.clone()).collect();
-        let maybe_active_tab_id = self.current_tab().map(|tab| tab.id.clone());
+        let ids: Vec<lb_rs::Uuid> = self.tabs.iter().map(|tab| tab.id).collect();
+        let maybe_active_tab_id = self.current_tab().map(|tab| tab.id);
 
         while self.active_tab != 0 {
             self.close_tab(self.tabs.len() - 1);
