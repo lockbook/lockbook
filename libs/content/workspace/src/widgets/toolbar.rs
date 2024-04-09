@@ -47,7 +47,7 @@ pub enum ToolBarVisibility {
 impl ToolBar {
     pub fn new(visibility: &ToolBarVisibility) -> Self {
         Self {
-            margin: if cfg!(target_os = "ios") {
+            margin: if cfg!(target_os = "ios") || cfg!(target_os = "android") {
                 egui::Margin { left: 10.0, right: 23.0, top: 5.0, bottom: 5.0 }
             } else {
                 egui::Margin::symmetric(15.0, 0.0)
@@ -62,7 +62,7 @@ impl ToolBar {
     }
 
     pub fn show(&mut self, ui: &mut egui::Ui, editor: &mut Editor) {
-        if cfg!(target_os = "ios") {
+        if cfg!(target_os = "ios") || cfg!(target_os = "android") {
             ui.allocate_ui(egui::vec2(ui.available_width(), MOBILE_TOOL_BAR_SIZE), |ui| {
                 egui::Frame::default()
                     .inner_margin(self.margin)
@@ -122,6 +122,10 @@ impl ToolBar {
 
                                 if res.clicked() {
                                     (btn.callback)(ui, self);
+
+                                    ui.memory_mut(|w| {
+                                        w.request_focus(editor.id);
+                                    });
                                 }
                             }
                             Component::Separator(sep) => {

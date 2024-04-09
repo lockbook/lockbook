@@ -59,36 +59,22 @@ class ExportImportModel(
 
             shareItemFolder.mkdir()
 
-            if (file.name.endsWith(".draw")) {
-                val image = File(
-                    shareItemFolder,
-                    file.name.removeSuffix(".draw") + ".${IMAGE_EXPORT_TYPE.name.lowercase()}"
-                ).absoluteFile
+            when (val exportFileResult = CoreModel.exportFile(file.id, shareItemFolder.absolutePath, false)) {
+                is Ok -> filesToShare.add(
+                    File(
+                        shareItemFolder,
+                        file.name
+                    ).absoluteFile
+                )
 
-                when (
-                    val exportDrawingToDiskResult =
-                        CoreModel.exportDrawingToDisk(file.id, SupportedImageFormats.Jpeg, image.absolutePath)
-                ) {
-                    is Ok -> filesToShare.add(image)
-                    is Err -> {
-                        isLoadingOverlayVisible = false
-                        _updateMainScreenUI.postValue(UpdateMainScreenUI.ShowHideProgressOverlay(isLoadingOverlayVisible))
-                        return exportDrawingToDiskResult
-                    }
-                }
-            } else {
-                when (val exportFileResult = CoreModel.exportFile(file.id, shareItemFolder.absolutePath, false)) {
-                    is Ok -> filesToShare.add(
-                        File(
-                            shareItemFolder,
-                            file.name
-                        ).absoluteFile
+                is Err -> {
+                    isLoadingOverlayVisible = false
+                    _updateMainScreenUI.postValue(
+                        UpdateMainScreenUI.ShowHideProgressOverlay(
+                            isLoadingOverlayVisible
+                        )
                     )
-                    is Err -> {
-                        isLoadingOverlayVisible = false
-                        _updateMainScreenUI.postValue(UpdateMainScreenUI.ShowHideProgressOverlay(isLoadingOverlayVisible))
-                        return exportFileResult
-                    }
+                    return exportFileResult
                 }
             }
         }

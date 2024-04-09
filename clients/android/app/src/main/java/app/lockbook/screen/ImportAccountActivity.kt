@@ -1,5 +1,6 @@
 package app.lockbook.screen
 
+import android.annotation.SuppressLint
 import android.content.Intent
 import android.os.Bundle
 import android.view.View
@@ -29,7 +30,7 @@ class ImportAccountActivity : AppCompatActivity() {
         }
 
         binding.importExitApp.setOnClickListener {
-            super.onBackPressed()
+            onBackPressed()
         }
 
         if (model.isErrorVisible) {
@@ -67,6 +68,7 @@ class ImportAccountActivity : AppCompatActivity() {
         }
     }
 
+    @SuppressLint("MissingSuperCall")
     override fun onBackPressed() {
         val intent = Intent(Intent.ACTION_MAIN)
         intent.addCategory(Intent.CATEGORY_HOME)

@@ -210,29 +210,6 @@ object CoreModel {
     ): Result<String, CoreError<ReadDocumentError>> =
         readDocumentParser.tryParse(app.lockbook.core.readDocument(id))
 
-    fun readDocumentBytes(
-        id: String
-    ): ByteArray? = app.lockbook.core.readDocumentBytes(id)
-
-    private val exportDrawingToDiskParser = Json {
-        serializersModule = SerializersModule {
-            createPolyRelation(Unit.serializer(), ExportDrawingToDiskError.serializer())
-        }
-    }
-
-    fun exportDrawingToDisk(
-        id: String,
-        format: SupportedImageFormats,
-        location: String
-    ): Result<Unit, CoreError<ExportDrawingToDiskError>> =
-        exportDrawingToDiskParser.tryParse(
-            app.lockbook.core.exportDrawingToDisk(
-                id,
-                exportDrawingToDiskParser.encodeToString(format),
-                location
-            )
-        )
-
     private val createFileParser = Json {
         serializersModule = SerializersModule {
             createPolyRelation(File.serializer(), CreateFileError.serializer())
@@ -461,28 +438,6 @@ object CoreModel {
     fun deletePendingShare(id: String): Result<List<File>, CoreError<DeletePendingShareError>> =
         deletePendingSharesParser.tryParse(
             app.lockbook.core.deletePendingShare(id)
-        )
-
-    private val getDrawingParser = Json {
-        serializersModule = SerializersModule {
-            createPolyRelation(Drawing.serializer(), GetDrawingError.serializer())
-        }
-    }
-
-    fun getDrawing(id: String): Result<Drawing, CoreError<GetDrawingError>> =
-        getDrawingParser.tryParse(
-            app.lockbook.core.getDrawing(id)
-        )
-
-    private val saveDrawingParser = Json {
-        serializersModule = SerializersModule {
-            createPolyRelation(Unit.serializer(), SaveDrawingError.serializer())
-        }
-    }
-
-    fun saveDrawing(id: String, drawing: Drawing): Result<Unit, CoreError<SaveDrawingError>> =
-        saveDrawingParser.tryParse(
-            app.lockbook.core.saveDrawing(id, saveDrawingParser.encodeToString(drawing))
         )
 
     private val suggestedDocsParser = Json {

@@ -60,7 +60,9 @@
                 android:id="@+id/files_list"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
-                android:scrollbars="vertical" />
+                android:scrollbars="vertical"
+                android:paddingBottom="50dp"
+                android:clipToPadding="false"/>
 
         </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
 
@@ -112,54 +114,29 @@
             app:sdMainFabOpenedSrc="@drawable/ic_baseline_add_24"
             app:sdOverlayLayout="@id/fab_overlay" />
 
-        <com.google.android.material.card.MaterialCardView
-            android:id="@+id/sync_holder"
-            android:layout_width="220dp"
-            android:layout_height="wrap_content"
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="50dp"
             android:layout_gravity="bottom|start"
-            android:layout_margin="20dp"
-            android:animateLayoutChanges="true"
-            android:visibility="gone">
+            android:orientation="vertical"
+            android:background="?attr/colorPrimaryContainer">
 
-            <LinearLayout
+            <View
                 android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:orientation="vertical"
-                android:padding="5dp">
+                android:layout_height="1dp"
+                android:background="@color/selectedMarkdownButtonBackground"/>
 
-                <com.google.android.material.progressindicator.LinearProgressIndicator
-                    android:id="@+id/sync_progress_indicator"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:padding="5dp" />
+            <TextView
+                android:id="@+id/workspace_msg"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="15dp"
+                android:layout_marginTop="13dp"
+                android:layout_marginEnd="90dp"
+                android:textColor="?attr/colorOnPrimaryContainer"
+                android:textStyle="bold"/>
 
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:animateLayoutChanges="true"
-                    android:padding="5dp">
-
-                    <ImageView
-                        android:id="@+id/sync_check"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:contentDescription="@string/sync_finished"
-                        android:paddingHorizontal="15dp"
-                        android:src="@drawable/ic_baseline_check_circle_24"
-                        android:visibility="gone" />
-
-                    <com.google.android.material.textview.MaterialTextView
-                        android:id="@+id/sync_text"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:ellipsize="end"
-                        android:maxLines="1" />
-
-                </LinearLayout>
-
-            </LinearLayout>
-
-        </com.google.android.material.card.MaterialCardView>
+        </LinearLayout>
 
         <include
             android:id="@+id/out_of_space"

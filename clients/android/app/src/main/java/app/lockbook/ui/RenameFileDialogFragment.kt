@@ -9,8 +9,10 @@ import androidx.fragment.app.activityViewModels
 import app.lockbook.R
 import app.lockbook.databinding.DialogRenameFileBinding
 import app.lockbook.model.CoreModel
+import app.lockbook.model.FinishedAction
 import app.lockbook.model.StateViewModel
 import app.lockbook.model.TransientScreen
+import app.lockbook.model.WorkspaceViewModel
 import app.lockbook.util.exhaustive
 import app.lockbook.util.requestKeyboardFocus
 import com.github.michaelbull.result.Err
@@ -21,11 +23,12 @@ import kotlinx.coroutines.*
 class RenameFileDialogFragment : DialogFragment() {
     private lateinit var binding: DialogRenameFileBinding
     private val activityModel: StateViewModel by activityViewModels()
+    private val workspaceModel: WorkspaceViewModel by activityViewModels()
 
     private val uiScope = CoroutineScope(Dispatchers.Main + Job())
 
     companion object {
-        const val RENAME_FILE_DIALOG_TAG = "RenameFileDialogFragment"
+        const val TAG = "RenameFileDialogFragment"
     }
 
     val file by lazy {
@@ -66,7 +69,10 @@ class RenameFileDialogFragment : DialogFragment() {
 
             withContext(Dispatchers.Main) {
                 when (renameFileResult) {
-                    is Ok -> dismiss()
+                    is Ok -> {
+                        workspaceModel._finishedAction.postValue(FinishedAction.Rename(file.id, binding.renameFile.text.toString()))
+                        dismiss()
+                    }
                     is Err -> binding.renameFileError.setText(
                         renameFileResult.error.toLbError(
                             resources

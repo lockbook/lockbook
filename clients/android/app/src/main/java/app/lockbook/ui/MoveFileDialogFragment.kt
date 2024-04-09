@@ -15,6 +15,7 @@ import app.lockbook.R
 import app.lockbook.databinding.DialogMoveFileBinding
 import app.lockbook.model.*
 import app.lockbook.util.BasicFileItemHolder
+import app.lockbook.util.ExtensionHelper
 import app.lockbook.util.File
 import app.lockbook.util.FileType
 import com.afollestad.recyclical.setup
@@ -47,7 +48,7 @@ class MoveFileDialogFragment : DialogFragment() {
     }
 
     companion object {
-        const val MOVE_FILE_DIALOG_TAG = "MoveFileDialogFragment"
+        const val TAG = "MoveFileDialogFragment"
     }
 
     override fun onCreateDialog(savedInstanceState: Bundle?): Dialog = MaterialAlertDialogBuilder(requireContext())

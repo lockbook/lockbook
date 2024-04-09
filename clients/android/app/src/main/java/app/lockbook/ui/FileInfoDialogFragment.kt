@@ -16,7 +16,7 @@ class FileInfoDialogFragment : DialogFragment() {
     private val activityModel: StateViewModel by activityViewModels()
 
     companion object {
-        const val FILE_INFO_DIALOG_TAG = "FileInfoDialogFragment"
+        const val TAG = "FileInfoDialogFragment"
     }
 
     override fun onCreateDialog(savedInstanceState: Bundle?): Dialog = MaterialAlertDialogBuilder(requireContext(), theme)
