@@ -35,8 +35,8 @@ fn build_x86() -> CliResult<()> {
             "winstaller",
             "--release",
             "--target=x86_64-pc-windows-msvc",
-            "--feature",
-            "releaser",
+            "--features",
+            "build-winstaller",
         ])
         .assert_success();
 
