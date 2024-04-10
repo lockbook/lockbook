@@ -1,6 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-#[cfg(feature = "build-winstaller")]
+#[cfg(all(windows, feature = "build-winstaller"))]
 fn main() {
     use std::env;
     use std::fs;
@@ -162,5 +162,5 @@ fn main() {
     .unwrap()
 }
 
-#[cfg(not(feature = "build-winstaller"))]
+#[cfg(any(not(windows), not(feature = "build-winstaller")))]
 fn main() {}
