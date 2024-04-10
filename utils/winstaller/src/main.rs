@@ -113,8 +113,7 @@ fn main() {
                 }
 
                 let sl = ShellLink::new(exe_file).unwrap();
-                sl.create_lnk(&format!(r"{}\Lockbook.lnk", lnk_dir))
-                    .unwrap();
+                sl.create_lnk(format!(r"{}\Lockbook.lnk", lnk_dir)).unwrap();
 
                 update_tx.send(Ok(())).unwrap();
                 ctx.request_repaint();
