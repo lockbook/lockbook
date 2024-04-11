@@ -2,6 +2,8 @@
 name = "lockbook-shared"
 version = "0.9.1"
 edition = "2021"
+description = "the code shared between lb and our server"
+license = "BSD-3-Clause"
 
 [dependencies]
 base64 = "0.13.0"
