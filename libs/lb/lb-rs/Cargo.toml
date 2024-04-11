@@ -34,7 +34,7 @@ tracing-subscriber = "0.3.9"
 tracing-appender = "0.2"
 sublime_fuzzy = "0.7.0"
 crossbeam = "0.8.1"
-lockbook-shared = { path = "libs/shared" }
+lockbook-shared = { version = "0.9.1", path = "libs/shared" }
 qrcode-generator = "4.1.6"
 db-rs = "0.2.1"
 db-rs-derive = "0.2.1"

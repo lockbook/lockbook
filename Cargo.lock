@@ -4248,7 +4248,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook-shared"
-version = "0.9.1"
+version = "0.9.2"
 dependencies = [
  "aead",
  "aes-gcm",
