@@ -2,8 +2,11 @@
 name = "lb-rs"
 version = "0.9.1"
 edition = "2021"
-description = "The functional components of the iOS and Android lockbook clients."
+description = "The rust library for interacting with your lockbook."
+repository = "https://github.com/lockbook/lockbook"
+homepage = "https://lockbook.net"
 license = "BSD-3-Clause"
+keywords = ["notes", "encryption", "productivity", "automation", "security"]
 
 [lib]
 name = "lb_rs"
