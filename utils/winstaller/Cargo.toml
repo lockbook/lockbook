@@ -8,3 +8,6 @@ eframe = "0.26.2"
 egui_extras = { version = "0.26.2", features = ["image"] }
 image = { version = "0.24", features = ["png"] }
 mslnk = "0.1.8"
+
+[features]
+build-winstaller = []
