@@ -1,6 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-#[cfg(windows)]
+#[cfg(feature = "build-winstaller")]
 fn main() {
     use std::env;
     use std::fs;
@@ -113,8 +113,7 @@ fn main() {
                 }
 
                 let sl = ShellLink::new(exe_file).unwrap();
-                sl.create_lnk(&format!(r"{}\Lockbook.lnk", lnk_dir))
-                    .unwrap();
+                sl.create_lnk(format!(r"{}\Lockbook.lnk", lnk_dir)).unwrap();
 
                 update_tx.send(Ok(())).unwrap();
                 ctx.request_repaint();
@@ -163,5 +162,5 @@ fn main() {
     .unwrap()
 }
 
-#[cfg(not(windows))]
+#[cfg(not(feature = "build-winstaller"))]
 fn main() {}

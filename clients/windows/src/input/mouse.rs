@@ -1,7 +1,7 @@
 use lbeguiapp::WgpuLockbook;
 use windows::Win32::UI::WindowsAndMessaging::*;
 
-use super::{message::MessageAppDep, Point};
+use super::message::{MessageAppDep, Point};
 
 pub fn handle(
     app: &mut WgpuLockbook, message: MessageAppDep, pos: Point<u16>, modifiers: egui::Modifiers,
