@@ -8,7 +8,7 @@ use resvg::usvg::{NodeKind, Tree};
 use std::collections::HashMap;
 
 use super::{
-    util::{self, deserialize_transform},
+    util::{self, d_to_subpath, deserialize_transform},
     zoom::{verify_zoom_g, G_CONTAINER_ID},
 };
 
@@ -219,29 +219,7 @@ impl Buffer {
                     Some(d) => d,
                     None => continue,
                 };
-                let mut start = (0.0, 0.0);
-                let mut subpath: Subpath<ManipulatorGroupId> = Subpath::new(vec![], false);
-
-                for segment in svgtypes::SimplifyingPathParser::from(data) {
-                    let segment = match segment {
-                        Ok(v) => v,
-                        Err(_) => break,
-                    };
-
-                    match segment {
-                        svgtypes::SimplePathSegment::MoveTo { x, y } => {
-                            start = (x, y);
-                        }
-                        svgtypes::SimplePathSegment::CurveTo { x1, y1, x2, y2, x, y } => {
-                            let bez = Bezier::from_cubic_coordinates(
-                                start.0, start.1, x1, y1, x2, y2, x, y,
-                            );
-                            subpath.append_bezier(&bez, bezier_rs::AppendType::IgnoreStart);
-                            start = (x, y)
-                        }
-                        _ => {}
-                    }
-                }
+                let mut subpath = d_to_subpath(data);
 
                 apply_compounded_transforms(master_transform, el.attr("transform"), &mut subpath);
                 self.paths.insert(id.to_string(), subpath);

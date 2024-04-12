@@ -1,9 +1,12 @@
 use minidom::Element;
-use std::collections::VecDeque;
+use std::{
+    collections::VecDeque,
+    time::{Duration, Instant},
+};
 
 use super::{
     toolbar::ColorSwatch,
-    util::{self, apply_transform_to_pos},
+    util::{self, apply_transform_to_pos, d_to_subpath},
     Buffer, InsertElement,
 };
 
@@ -12,6 +15,11 @@ pub struct Pen {
     pub active_stroke_width: u32,
     path_builder: CubicBezBuilder,
     pub current_id: usize, // todo: this should be at a higher component state, maybe in buffer
+    maybe_snap_started: Option<Instant>,
+}
+
+pub enum PenResponse {
+    ToggleSelection(usize),
 }
 
 impl Pen {
@@ -23,19 +31,35 @@ impl Pen {
             active_stroke_width: default_stroke_width,
             current_id: max_id,
             path_builder: CubicBezBuilder::new(),
+            maybe_snap_started: None,
         }
     }
 
-    pub fn handle_input(&mut self, ui: &mut egui::Ui, inner_rect: egui::Rect, buffer: &mut Buffer) {
+    pub fn handle_input(
+        &mut self, ui: &mut egui::Ui, inner_rect: egui::Rect, buffer: &mut Buffer,
+    ) -> Option<PenResponse> {
         let event = match self.setup_events(ui, inner_rect) {
             Some(e) => e,
-            None => return,
+            None => return None,
         };
 
         match event {
             PathEvent::Draw(mut pos, id) => {
                 apply_transform_to_pos(&mut pos, buffer);
-                if let Some(node) = util::node_by_id(&mut buffer.current, id.to_string()) {
+                if self.detect_snap(pos) {
+                    let curr_id = self.current_id; // needed because end path will advance to the next id
+                    self.end_path(Some(pos), buffer, true);
+                    return Some(PenResponse::ToggleSelection(curr_id));
+                } else if let Some(node) = util::node_by_id(&mut buffer.current, id.to_string()) {
+                    /*
+                     * if this point is around the same cord as the last point:
+                        if the timestamp is none:
+                            then store the current timestamp.
+                        else compare the current time with the stored timestamp if it's bigger than interval finish line and set timestamp to none
+                    else
+                        set the timestamp to none
+                     */
+
                     self.path_builder.cubic_to(pos);
                     node.set_attr("d", &self.path_builder.data);
 
@@ -59,35 +83,73 @@ impl Pen {
                     buffer.current.append_child(child);
                 }
             }
-            PathEvent::End(pos, id) => {
-                let pos = match pos {
-                    Some(mut p) => {
-                        apply_transform_to_pos(&mut p, buffer);
-                        Some(p)
-                    }
-                    None => None,
-                };
-                self.path_builder.finish(pos);
-
-                if self.path_builder.points.len() < 2 {
-                    buffer.current.remove_child(&id.to_string());
-                    self.path_builder.clear();
-                    return;
-                }
-
-                if let Some(node) = util::node_by_id(&mut buffer.current, id.to_string()) {
-                    node.set_attr("d", &self.path_builder.data);
-
-                    let node = node.clone();
-
-                    buffer.save(super::Event::Insert(vec![InsertElement {
-                        id: id.to_string(),
-                        element: node,
-                    }]));
-                }
-                self.path_builder.clear();
+            PathEvent::End(pos) => {
+                self.end_path(pos, buffer, false);
+                self.maybe_snap_started = None;
             }
         }
+        return None;
+    }
+
+    fn end_path(&mut self, pos: Option<egui::Pos2>, buffer: &mut Buffer, is_snapped: bool) {
+        let pos = match pos {
+            Some(mut p) => {
+                apply_transform_to_pos(&mut p, buffer);
+                Some(p)
+            }
+            None => None,
+        };
+
+        if self.path_builder.points.len() < 2 {
+            buffer.current.remove_child(&self.current_id.to_string());
+            self.path_builder.clear();
+            return;
+        }
+
+        self.path_builder.finish(is_snapped);
+
+        if let Some(node) = util::node_by_id(&mut buffer.current, self.current_id.to_string()) {
+            node.set_attr("d", &self.path_builder.data);
+
+            let node = node.clone();
+
+            buffer.save(super::Event::Insert(vec![InsertElement {
+                id: self.current_id.to_string(),
+                element: node,
+            }]));
+        }
+        self.path_builder.clear();
+        self.current_id += 1;
+    }
+
+    fn detect_snap(&mut self, current_pos: egui::Pos2) -> bool {
+        if self.path_builder.points.len() < 2 {
+            return false;
+        }
+
+        if let Some(last_pos) = self.path_builder.points.last() {
+            let dist_diff = last_pos.distance(current_pos).abs();
+            let dist_to_trigger_snap = 2.0; // todo: maybe should scale this relative to canvas zoom level
+            let time_to_trigger_snap = Duration::from_secs(2);
+
+            if dist_diff < dist_to_trigger_snap {
+                if let Some(snap_start) = self.maybe_snap_started {
+                    if Instant::now() - snap_start > time_to_trigger_snap {
+                        println!("dist diff {dist_diff}");
+                        println!("time diff: {:#?}", Instant::now() - snap_start);
+                        println!("finish the line!");
+                        println!("points len {}", self.path_builder.points.len());
+                        self.maybe_snap_started = None;
+                        return true;
+                    }
+                } else {
+                    self.maybe_snap_started = Some(Instant::now());
+                }
+            } else {
+                self.maybe_snap_started = Some(Instant::now());
+            }
+        }
+        return false;
     }
 
     pub fn setup_events(&mut self, ui: &mut egui::Ui, inner_rect: egui::Rect) -> Option<PathEvent> {
@@ -108,20 +170,14 @@ impl Pen {
                 ui.input(|i| i.pointer.primary_down()) && inner_rect.contains(cursor_pos);
 
             if pointer_gone_out_of_canvas || pointer_released_in_canvas {
-                let curr_id = self.current_id;
-                self.current_id += 1;
-
-                Some(PathEvent::End(Some(cursor_pos), curr_id))
+                Some(PathEvent::End(Some(cursor_pos)))
             } else if pointer_pressed_in_canvas {
                 Some(PathEvent::Draw(cursor_pos, self.current_id))
             } else {
                 None
             }
         } else if !self.path_builder.points.is_empty() {
-            let curr_id = self.current_id;
-            self.current_id += 1;
-
-            Some(PathEvent::End(None, curr_id))
+            Some(PathEvent::End(None))
         } else {
             None
         }
@@ -130,7 +186,7 @@ impl Pen {
 
 pub enum PathEvent {
     Draw(egui::Pos2, usize),
-    End(Option<egui::Pos2>, usize),
+    End(Option<egui::Pos2>),
 }
 
 /// Build a cubic bézier path with Catmull-Rom smoothing and Ramer–Douglas–Peucker compression
@@ -154,6 +210,18 @@ impl CubicBezBuilder {
             points: vec![],
             data: String::new(),
         }
+    }
+
+    fn line_to(&mut self, dest: egui::Pos2) {
+        let is_first_point = self.prev_points_window.is_empty();
+
+        if is_first_point {
+            self.data = format!("M {} {}", dest.x, dest.y);
+        }
+        self.data
+            .push_str(format!(" L{} {}", dest.x, dest.y).as_str());
+
+        self.prev_points_window.push_back(dest);
     }
 
     fn catmull_to(&mut self, dest: egui::Pos2, is_last_point: bool) {
@@ -203,23 +271,29 @@ impl CubicBezBuilder {
         self.catmull_to(dest, false);
     }
 
-    pub fn finish(&mut self, pos: Option<egui::Pos2>) {
-        if let Some(pos) = pos {
-            self.points.push(pos);
-            self.catmull_to(pos, false); // todo: get rid of the double call if possible
-            self.catmull_to(pos, true);
-        }
-
-        self.simplify(2.);
+    pub fn finish(&mut self, is_snapped: bool) {
+        //todo: maybe scale this value according to zoom
+        let tolerance = if is_snapped {
+            let perim = d_to_subpath(&self.data).length(None) as f32;
+            perim * 0.04
+        } else {
+            2.0
+        };
+        self.simplify(tolerance);
 
         self.data.clear();
         self.prev_points_window.clear();
 
+        println!("{}", self.points.len());
         self.points.clone().iter().enumerate().for_each(|(i, p)| {
-            self.catmull_to(*p, false);
-            if i == self.points.len() - 1 {
-                self.catmull_to(*p, true);
-            };
+            if is_snapped {
+                self.line_to(*p);
+            } else {
+                self.catmull_to(*p, false);
+                if i == self.points.len() - 1 {
+                    self.catmull_to(*p, true);
+                };
+            }
         });
     }
 

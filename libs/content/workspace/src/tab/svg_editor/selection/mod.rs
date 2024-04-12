@@ -293,6 +293,21 @@ impl Selection {
         buffer.save(delete_event);
         self.selected_elements.clear();
     }
+
+    pub fn select_el_by_id(&mut self, id: &str, current_pos: egui::Pos2, buffer: &mut Buffer) {
+        if let Some(el) = buffer
+            .current
+            .children()
+            .find(|el| el.attr("id").unwrap_or_default().eq(id))
+        {
+            let transform = el.attr("transform").unwrap_or_default();
+            self.selected_elements = vec![SelectedElement {
+                id: id.to_string(),
+                original_pos: current_pos,
+                original_matrix: (transform.to_string(), deserialize_transform(transform)),
+            }];
+        }
+    }
 }
 
 #[derive(Default, Clone, Copy)]

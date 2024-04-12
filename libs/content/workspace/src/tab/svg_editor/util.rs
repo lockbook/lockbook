@@ -93,3 +93,34 @@ pub fn bb_to_rect(bb: [DVec2; 2]) -> egui::Rect {
         max: egui::pos2(bb[1].x as f32, bb[1].y as f32),
     }
 }
+
+pub fn d_to_subpath(data: &str) -> Subpath<ManipulatorGroupId> {
+    let mut start = (0.0, 0.0);
+    let mut subpath: Subpath<ManipulatorGroupId> = Subpath::new(vec![], false);
+
+    for segment in svgtypes::SimplifyingPathParser::from(data) {
+        let segment = match segment {
+            Ok(v) => v,
+            Err(_) => break,
+        };
+
+        match segment {
+            svgtypes::SimplePathSegment::MoveTo { x, y } => {
+                start = (x, y);
+            }
+            svgtypes::SimplePathSegment::CurveTo { x1, y1, x2, y2, x, y } => {
+                let bez = Bezier::from_cubic_coordinates(start.0, start.1, x1, y1, x2, y2, x, y);
+                subpath.append_bezier(&bez, bezier_rs::AppendType::IgnoreStart);
+                start = (x, y)
+            }
+            svgtypes::SimplePathSegment::LineTo { x, y } => {
+                let bez = Bezier::from_linear_coordinates(start.0, start.1, x, y);
+                subpath.append_bezier(&bez, bezier_rs::AppendType::IgnoreStart);
+
+                start = (x, y)
+            }
+            _ => {}
+        }
+    }
+    subpath
+}
