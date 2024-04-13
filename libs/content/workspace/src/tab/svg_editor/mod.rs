@@ -98,16 +98,16 @@ impl SVGEditor {
                     .pen
                     .handle_input(ui, self.inner_rect, &mut self.buffer)
                 {
-                    Some(res) => match res {
-                        pen::PenResponse::ToggleSelection(id) => {
-                            self.toolbar.set_tool(Tool::Selection);
-                            self.toolbar.selection.select_el_by_id(
-                                id.to_string().as_str(),
-                                ui.ctx().pointer_hover_pos().unwrap_or_default(),
-                                &mut self.buffer,
-                            );
-                        }
-                    },
+                    Some(res) => {
+                        let pen::PenResponse::ToggleSelection(id) = res;
+                        self.toolbar.set_tool(Tool::Selection);
+                        self.toolbar.selection.select_el_by_id(
+                            id.to_string().as_str(),
+                            ui.ctx().pointer_hover_pos().unwrap_or_default(),
+                            &mut self.buffer,
+                        );
+                    }
+
                     None => {}
                 }
             }

@@ -85,7 +85,7 @@ impl Pen {
                 self.maybe_snap_started = None;
             }
         }
-        return None;
+        None
     }
 
     fn end_path(&mut self, buffer: &mut Buffer, is_snapped: bool) {
@@ -139,7 +139,7 @@ impl Pen {
                 self.maybe_snap_started = Some(Instant::now());
             }
         }
-        return false;
+        false
     }
 
     pub fn setup_events(&mut self, ui: &mut egui::Ui, inner_rect: egui::Rect) -> Option<PathEvent> {
