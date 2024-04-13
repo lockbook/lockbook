@@ -6,7 +6,7 @@ use std::{
 
 use super::{
     toolbar::ColorSwatch,
-    util::{self, apply_transform_to_pos, d_to_subpath},
+    util::{self, apply_transform_to_pos, d_to_subpath, deserialize_transform},
     Buffer, InsertElement,
 };
 
@@ -46,20 +46,17 @@ impl Pen {
         match event {
             PathEvent::Draw(mut pos, id) => {
                 apply_transform_to_pos(&mut pos, buffer);
-                if self.detect_snap(pos) {
+
+                let mut master_transform = None;
+                if let Some(transform) = buffer.current.attr("transform") {
+                    master_transform = Some(deserialize_transform(transform));
+                }
+
+                if self.detect_snap(pos, master_transform) {
                     let curr_id = self.current_id; // needed because end path will advance to the next id
-                    self.end_path(Some(pos), buffer, true);
+                    self.end_path(buffer, true);
                     return Some(PenResponse::ToggleSelection(curr_id));
                 } else if let Some(node) = util::node_by_id(&mut buffer.current, id.to_string()) {
-                    /*
-                     * if this point is around the same cord as the last point:
-                        if the timestamp is none:
-                            then store the current timestamp.
-                        else compare the current time with the stored timestamp if it's bigger than interval finish line and set timestamp to none
-                    else
-                        set the timestamp to none
-                     */
-
                     self.path_builder.cubic_to(pos);
                     node.set_attr("d", &self.path_builder.data);
 
@@ -83,30 +80,22 @@ impl Pen {
                     buffer.current.append_child(child);
                 }
             }
-            PathEvent::End(pos) => {
-                self.end_path(pos, buffer, false);
+            PathEvent::End => {
+                self.end_path(buffer, false);
                 self.maybe_snap_started = None;
             }
         }
         return None;
     }
 
-    fn end_path(&mut self, pos: Option<egui::Pos2>, buffer: &mut Buffer, is_snapped: bool) {
-        let pos = match pos {
-            Some(mut p) => {
-                apply_transform_to_pos(&mut p, buffer);
-                Some(p)
-            }
-            None => None,
-        };
-
+    fn end_path(&mut self, buffer: &mut Buffer, is_snapped: bool) {
         if self.path_builder.points.len() < 2 {
             buffer.current.remove_child(&self.current_id.to_string());
             self.path_builder.clear();
             return;
         }
 
-        self.path_builder.finish(is_snapped);
+        self.path_builder.finish(is_snapped, buffer);
 
         if let Some(node) = util::node_by_id(&mut buffer.current, self.current_id.to_string()) {
             node.set_attr("d", &self.path_builder.data);
@@ -122,23 +111,24 @@ impl Pen {
         self.current_id += 1;
     }
 
-    fn detect_snap(&mut self, current_pos: egui::Pos2) -> bool {
+    fn detect_snap(&mut self, current_pos: egui::Pos2, master_transform: Option<[f64; 6]>) -> bool {
         if self.path_builder.points.len() < 2 {
             return false;
         }
 
         if let Some(last_pos) = self.path_builder.points.last() {
             let dist_diff = last_pos.distance(current_pos).abs();
-            let dist_to_trigger_snap = 2.0; // todo: maybe should scale this relative to canvas zoom level
-            let time_to_trigger_snap = Duration::from_secs(2);
+
+            let mut dist_to_trigger_snap = 1.5;
+            if let Some(t) = master_transform {
+                dist_to_trigger_snap /= t[0] as f32;
+            }
+
+            let time_to_trigger_snap = Duration::from_secs(1);
 
             if dist_diff < dist_to_trigger_snap {
                 if let Some(snap_start) = self.maybe_snap_started {
                     if Instant::now() - snap_start > time_to_trigger_snap {
-                        println!("dist diff {dist_diff}");
-                        println!("time diff: {:#?}", Instant::now() - snap_start);
-                        println!("finish the line!");
-                        println!("points len {}", self.path_builder.points.len());
                         self.maybe_snap_started = None;
                         return true;
                     }
@@ -170,14 +160,14 @@ impl Pen {
                 ui.input(|i| i.pointer.primary_down()) && inner_rect.contains(cursor_pos);
 
             if pointer_gone_out_of_canvas || pointer_released_in_canvas {
-                Some(PathEvent::End(Some(cursor_pos)))
+                Some(PathEvent::End)
             } else if pointer_pressed_in_canvas {
                 Some(PathEvent::Draw(cursor_pos, self.current_id))
             } else {
                 None
             }
         } else if !self.path_builder.points.is_empty() {
-            Some(PathEvent::End(None))
+            Some(PathEvent::End)
         } else {
             None
         }
@@ -186,7 +176,7 @@ impl Pen {
 
 pub enum PathEvent {
     Draw(egui::Pos2, usize),
-    End(Option<egui::Pos2>),
+    End,
 }
 
 /// Build a cubic bézier path with Catmull-Rom smoothing and Ramer–Douglas–Peucker compression
@@ -271,20 +261,22 @@ impl CubicBezBuilder {
         self.catmull_to(dest, false);
     }
 
-    pub fn finish(&mut self, is_snapped: bool) {
+    pub fn finish(&mut self, is_snapped: bool, buffer: &mut Buffer) {
         //todo: maybe scale this value according to zoom
-        let tolerance = if is_snapped {
+        let mut tolerance = if is_snapped {
             let perim = d_to_subpath(&self.data).length(None) as f32;
             perim * 0.04
         } else {
             2.0
         };
+        if let Some(transform) = buffer.current.attr("transform") {
+            tolerance /= deserialize_transform(transform)[0] as f32;
+        }
         self.simplify(tolerance);
 
         self.data.clear();
         self.prev_points_window.clear();
 
-        println!("{}", self.points.len());
         self.points.clone().iter().enumerate().for_each(|(i, p)| {
             if is_snapped {
                 self.line_to(*p);

@@ -1,6 +1,6 @@
 use std::{collections::VecDeque, fmt::Debug, mem};
 
-use bezier_rs::{Bezier, Identifier, Subpath};
+use bezier_rs::{Identifier, Subpath};
 use glam::{DAffine2, DMat2, DVec2};
 use minidom::Element;
 use resvg::usvg::{NodeKind, Tree};
