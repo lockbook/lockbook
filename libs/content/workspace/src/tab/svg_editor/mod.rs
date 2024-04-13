@@ -93,22 +93,18 @@ impl SVGEditor {
 
         match self.toolbar.active_tool {
             Tool::Pen => {
-                match self
-                    .toolbar
-                    .pen
-                    .handle_input(ui, self.inner_rect, &mut self.buffer)
+                if let Some(res) =
+                    self.toolbar
+                        .pen
+                        .handle_input(ui, self.inner_rect, &mut self.buffer)
                 {
-                    Some(res) => {
-                        let pen::PenResponse::ToggleSelection(id) = res;
-                        self.toolbar.set_tool(Tool::Selection);
-                        self.toolbar.selection.select_el_by_id(
-                            id.to_string().as_str(),
-                            ui.ctx().pointer_hover_pos().unwrap_or_default(),
-                            &mut self.buffer,
-                        );
-                    }
-
-                    None => {}
+                    let pen::PenResponse::ToggleSelection(id) = res;
+                    self.toolbar.set_tool(Tool::Selection);
+                    self.toolbar.selection.select_el_by_id(
+                        id.to_string().as_str(),
+                        ui.ctx().pointer_hover_pos().unwrap_or_default(),
+                        &mut self.buffer,
+                    );
                 }
             }
             Tool::Eraser => {
