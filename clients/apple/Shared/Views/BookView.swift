@@ -27,11 +27,25 @@ struct BookView: View {
             .iOSOnlySheet(isPresented: $sheets.moving)
             .sheet(isPresented: $onboarding.anAccountWasCreatedThisSession, content: BeforeYouStart.init)
             .sheet(isPresented: $sheets.sharingFile, content: ShareFileSheet.init)
-            .sheet(isPresented: $sheets.creatingFolder, content: NewFolderSheet.init)
-            .sheet(isPresented: $sheets.renamingFile, content: RenameFileSheet.init)
+            .sheet(isPresented: $sheets.creatingFolder, content: createFolderSheet)
+            .sheet(isPresented: $sheets.renamingFile, content: renameFileSheet)
             .toast(isPresenting: Binding(get: { files.successfulAction != nil }, set: { _ in files.successfulAction = nil }), duration: 2, tapToDismiss: true) {
                 postFileAction()
             }
+    }
+    
+    @ViewBuilder
+    func createFolderSheet() -> some View {
+        if let creatingFolderInfo = sheets.creatingFolderInfo {
+            CreateFolderSheet(creatingFolderInfo: creatingFolderInfo)
+        }
+    }
+    
+    @ViewBuilder
+    func renameFileSheet() -> some View {
+        if let renamingFileInfo = sheets.renamingFileInfo {
+            RenameFileSheet(renamingFileInfo: renamingFileInfo)
+        }
     }
     
     func postFileAction() -> AlertToast {

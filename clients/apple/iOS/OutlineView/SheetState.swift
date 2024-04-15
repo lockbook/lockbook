@@ -15,7 +15,6 @@ struct RenamingFileInfo: Identifiable {
     let parentPath: String
 }
 
-
 class SheetState: ObservableObject {
     // These can't just be a part of OutlineContextMenu because the view goes away before
     // the sheet is presented
