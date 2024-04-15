@@ -439,6 +439,8 @@ impl Workspace {
                                         Some(tab) => tab.name.clone(),
                                         None => "Lockbook".to_owned(),
                                     });
+
+                                    output.selected_file = self.current_tab().map(|tab| tab.id);
                                 }
                                 TabLabelResponse::Renamed(name) => {
                                     self.tabs[i].rename = None;
@@ -605,6 +607,8 @@ impl Workspace {
                     .unwrap_or("Lockbook")
                     .to_owned(),
             );
+
+            output.selected_file = self.current_tab().map(|tab| tab.id);
         }
 
         // Ctrl-{1-9} to easily navigate tabs (9 will always go to the last tab).
