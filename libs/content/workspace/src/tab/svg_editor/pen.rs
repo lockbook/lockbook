@@ -262,7 +262,6 @@ impl CubicBezBuilder {
     }
 
     pub fn finish(&mut self, is_snapped: bool, buffer: &mut Buffer) {
-        //todo: maybe scale this value according to zoom
         let mut tolerance = if is_snapped {
             let perim = d_to_subpath(&self.data).length(None) as f32;
             perim * 0.04
