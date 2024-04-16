@@ -21,15 +21,23 @@ pub mod test_input;
 pub mod unicode_segs;
 
 pub fn register_fonts(fonts: &mut FontDefinitions) {
+    let (pt_sans, pt_mono, pt_bold) = if cfg!(target_vendor = "apple") {
+        (lb_fonts::SF_PRO_TEXT_REGULAR, lb_fonts::SF_MONO_REGULAR, lb_fonts::SF_PRO_TEXT_BOLD)
+    } else if cfg!(target_os = "android") {
+        (lb_fonts::ROBOTO_REGULAR, lb_fonts::ROBOTO_MONO_REGULAR, lb_fonts::ROBOTO_BOLD)
+    } else {
+        (lb_fonts::PT_SANS_REGULAR, lb_fonts::PT_MONO_REGULAR, lb_fonts::PT_SANS_BOLD)
+    };
+
     fonts
         .font_data
-        .insert("pt_sans".to_string(), FontData::from_static(lb_fonts::PT_SANS_REGULAR));
+        .insert("pt_sans".to_string(), FontData::from_static(pt_sans));
     fonts
         .font_data
-        .insert("pt_mono".to_string(), FontData::from_static(lb_fonts::PT_MONO_REGULAR));
+        .insert("pt_mono".to_string(), FontData::from_static(pt_mono));
     fonts
         .font_data
-        .insert("pt_bold".to_string(), FontData::from_static(lb_fonts::PT_SANS_BOLD));
+        .insert("pt_bold".to_string(), FontData::from_static(pt_bold));
     fonts.font_data.insert("material_icons".to_owned(), {
         let mut font = egui::FontData::from_static(lb_fonts::MATERIAL_SYMBOLS_OUTLINED);
         font.tweak.y_offset_factor = -0.1;

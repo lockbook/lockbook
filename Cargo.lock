@@ -3874,9 +3874,8 @@ checksum = "830d08ce1d1d941e6b30645f1a0eb5643013d835ce3779a5fc208261dbe10f55"
 
 [[package]]
 name = "lb-fonts"
-version = "0.1.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "615e43ce60261fb305818a26fbe1eaf50f1dc15ac846c5b8adaf2defbf4e2ab2"
+version = "0.1.4"
+source = "git+https://github.com/lockbook/lb-fonts#e959233c1e357ea3799c4bc20900350e1e47d137"
 
 [[package]]
 name = "lb-fs"
