@@ -536,19 +536,10 @@ impl Workspace {
         let fname = match self.core.get_file_by_id(id) {
             Ok(f) => f.name,
             Err(err) => {
-                match err.kind {
-                    lb_rs::CoreError::FileNonexistent => {
-                        if let Some(i) = self.tabs.iter().position(|t| t.id == id) {
-                            self.close_tab(i);
-                        }
-                    }
-                    _ => {
-                        self.updates_tx
-                            .send(WsMsg::FileLoaded(
-                                id,
-                                Err(TabFailure::Unexpected(format!("{:?}", err))),
-                            ))
-                            .unwrap();
+                if let Some(t) = self.tabs.iter_mut().find(|t| t.id == id) {
+                    t.failure = match err.kind {
+                        lb_rs::CoreError::FileNonexistent => Some(TabFailure::DeletedFromSync),
+                        _ => Some(err.into()),
                     }
                 }
                 return;

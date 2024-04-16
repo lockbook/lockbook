@@ -7,16 +7,12 @@ mod tree;
 use std::ffi::OsStr;
 use std::sync::atomic::Ordering;
 use std::sync::{mpsc, Arc, RwLock};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 use std::{path, thread};
 
 use eframe::egui;
 use lb::{FileType, Uuid};
 use workspace_rs::background::BwIncomingMsg;
-use workspace_rs::tab::image_viewer::{is_supported_image_fmt, ImageViewer};
-use workspace_rs::tab::markdown_editor::Markdown;
-use workspace_rs::tab::plain_text::PlainText;
-use workspace_rs::tab::{Tab, TabContent, TabFailure};
 use workspace_rs::theme::icons::Icon;
 use workspace_rs::widgets::Button;
 use workspace_rs::workspace::{Workspace, WsConfig};
@@ -109,7 +105,7 @@ impl AccountScreen {
     }
 
     pub fn update(&mut self, ctx: &egui::Context, output: &mut UpdateOutput) {
-        self.process_updates(ctx, output);
+        self.process_updates(ctx);
         self.process_keys(ctx);
         self.process_dropped_files(ctx);
         self.toasts.show(ctx);
@@ -211,7 +207,7 @@ impl AccountScreen {
         }
     }
 
-    fn process_updates(&mut self, ctx: &egui::Context, output: &mut UpdateOutput) {
+    fn process_updates(&mut self, ctx: &egui::Context) {
         while let Ok(update) = self.update_rx.try_recv() {
             match update {
                 AccountUpdate::OpenModal(open_modal) => match open_modal {
@@ -261,31 +257,6 @@ impl AccountScreen {
                 }
                 AccountUpdate::DoneDeleting => self.modals.confirm_delete = None,
                 AccountUpdate::ReloadTree(root) => self.tree.root = root,
-                AccountUpdate::ReloadTab(id, res) => {
-                    let focussed_tab_id = self.workspace.current_tab().map(|tab| tab.id);
-                    for i in 0..self.workspace.tabs.len() {
-                        let tab_id = self.workspace.tabs[i].id;
-
-                        if tab_id == id {
-                            match res {
-                                Ok(new_tab) => {
-                                    self.workspace.tabs[i] = new_tab;
-                                    if let Some(open_tab) = focussed_tab_id {
-                                        if tab_id == open_tab {
-                                            output.set_window_title =
-                                                Some(self.workspace.tabs[i].name.clone());
-                                        }
-                                    }
-                                    break;
-                                }
-                                Err(fail) => {
-                                    self.workspace.tabs[i].failure = Some(fail);
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                }
 
                 AccountUpdate::FinalSyncAttemptDone => {
                     if let Some(s) = &mut self.shutdown {
@@ -714,7 +685,6 @@ pub enum AccountUpdate {
     DoneDeleting,
 
     ReloadTree(TreeNode),
-    ReloadTab(Uuid, Result<Tab, TabFailure>),
 
     FinalSyncAttemptDone,
 }
@@ -739,14 +709,4 @@ impl From<OpenModal> for AccountUpdate {
 struct AccountShutdownProgress {
     done_saving: bool,
     done_syncing: bool,
-}
-
-fn ids_changed_on_server(work: &lb::SyncStatus) -> Vec<lb::Uuid> {
-    work.work_units
-        .iter()
-        .filter_map(|wu| match wu {
-            lb::WorkUnit::LocalChange { .. } => None,
-            lb::WorkUnit::ServerChange(id) => Some(*id),
-        })
-        .collect()
 }
