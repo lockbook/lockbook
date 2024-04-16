@@ -13,7 +13,7 @@ egui_extras = { version = "0.26.2", features = ["image"] }
 epaint = "0.26.2"
 glam = "0.22.0"
 image = "0.24"
-lb-fonts = "0.1.2"
+lb-fonts = { git = "https://github.com/lockbook/lb-fonts" }
 lb-pdf = { git = "https://github.com/lockbook/lb-pdf" }
 linkify = "0.10.0"
 minidom = { git = "https://github.com/lockbook/minidom" }
