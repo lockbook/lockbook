@@ -69,7 +69,7 @@ struct FileTreeView: NSViewRepresentable {
                 treeView.expandItem(item)
             }
             
-            scrollAndSelectCurrentDoc()
+            scrollAndSelectDoc(maybeOpenDocId: workspace.openDoc)
         }
 
         return scrollView
@@ -82,31 +82,30 @@ struct FileTreeView: NSViewRepresentable {
         }
         
         let maybeOpenDocId = workspace.openDoc
-        
+                
         if lastOpenDoc?.id != maybeOpenDocId {
-            scrollAndSelectCurrentDoc()
+            scrollAndSelectDoc(maybeOpenDocId: maybeOpenDocId)
             
             if let openDocId = maybeOpenDocId {
                 lastOpenDoc = DI.files.idsAndFiles[openDocId]
+            } else {
+                lastOpenDoc = nil
             }
-            
         }
     }
     
-    func scrollAndSelectCurrentDoc() {
-        let maybeOpenDocId = workspace.openDoc
-        
+    func scrollAndSelectDoc(maybeOpenDocId: UUID?) {
         if let openDocId = maybeOpenDocId {
             if let openDoc = DI.files.idsAndFiles[openDocId] {
-                scrollAndexpandAncestorsOfDocument(file: openDoc)
-                
+                scrollAndExpandAncestorsOfDocument(file: openDoc)
                 treeView.selectRowIndexes(IndexSet(integer: treeView.row(forItem: openDoc)), byExtendingSelection: false)
-
             }
+        } else {
+            treeView.selectRowIndexes(IndexSet(), byExtendingSelection: false)
         }
     }
     
-    func scrollAndexpandAncestorsOfDocument(file: File) {
+    func scrollAndExpandAncestorsOfDocument(file: File) {
         if(treeView.row(forItem: file) == -1) {
             let pathToRoot = DI.files.filesToExpand(pathToRoot: [], currentFile: file)
                     
@@ -133,7 +132,7 @@ class MenuOutlineView: NSOutlineView {
 
     @objc private func outlineViewClicked(_ outlineView: NSOutlineView) {
         if let clickedItem = item(atRow: clickedRow) {
-            if  isItemExpanded(clickedItem) {
+            if isItemExpanded(clickedItem) {
                 animator().collapseItem(clickedItem)
             } else {
                 animator().expandItem(clickedItem)
@@ -147,6 +146,10 @@ class MenuOutlineView: NSOutlineView {
         let item = item(atRow: row)
 
         return (delegate as! MenuOutlineViewDelegate).outlineView(self, menuForItem: item)
+    }
+    
+    override var acceptsFirstResponder: Bool {
+        return false
     }
 
     required init(coder: NSCoder) {
