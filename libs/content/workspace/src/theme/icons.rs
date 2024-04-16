@@ -132,8 +132,7 @@ impl Icon {
             let icon: egui::WidgetText = self.into();
             let icon = icon.into_galley(ui, Some(false), wrap_width, egui::TextStyle::Body);
 
-            ui.painter()
-                .galley_with_override_text_color(icon_pos, icon, text_color);
+            ui.painter().galley(icon_pos, icon, text_color);
         }
 
         resp

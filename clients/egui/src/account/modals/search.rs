@@ -183,12 +183,9 @@ impl SearchModal {
             }
 
             let text_color = visuals.text_color();
-            ui.painter()
-                .galley_with_override_text_color(icon_pos, icon, text_color);
-            ui.painter()
-                .galley_with_override_text_color(name_text_pos, name_text, text_color);
-            ui.painter()
-                .galley_with_override_text_color(path_text_pos, path_text, text_color);
+            ui.painter().galley(icon_pos, icon, text_color);
+            ui.painter().galley(name_text_pos, name_text, text_color);
+            ui.painter().galley(path_text_pos, path_text, text_color);
         }
 
         resp
