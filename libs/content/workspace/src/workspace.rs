@@ -795,8 +795,7 @@ fn tab_label(ui: &mut egui::Ui, t: &mut Tab, is_active: bool) -> Option<TabLabel
             };
             ui.painter().rect(rect, 0.0, bg, egui::Stroke::NONE);
 
-            ui.painter()
-                .galley_with_override_text_color(text_pos, text, text_color);
+            ui.painter().galley(text_pos, text, text_color);
 
             if close_hovered {
                 ui.painter().rect(
@@ -816,8 +815,7 @@ fn tab_label(ui: &mut egui::Ui, t: &mut Tab, is_active: bool) -> Option<TabLabel
             let icon: egui::WidgetText = (&x_icon).into();
             let icon = icon.into_galley(ui, Some(false), wrap_width, egui::TextStyle::Body);
 
-            ui.painter()
-                .galley_with_override_text_color(icon_draw_pos, icon, text_color);
+            ui.painter().galley(icon_draw_pos, icon, text_color);
 
             // First, we check if the close button was clicked.
             // Since egui 0.26.2, ui.interact(close_btn_rect, ..).clicked() is always false for unknown reasons
