@@ -46,6 +46,7 @@ impl Workspace {
         self.pers_status.syncing = false;
         match outcome {
             Ok(done) => {
+                self.pers_status.offline = false;
                 self.refresh_sync_status();
                 self.refresh_files(&done);
                 out.sync_done = Some(done)
