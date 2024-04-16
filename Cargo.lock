@@ -3874,8 +3874,8 @@ checksum = "830d08ce1d1d941e6b30645f1a0eb5643013d835ce3779a5fc208261dbe10f55"
 
 [[package]]
 name = "lb-fonts"
-version = "0.1.4"
-source = "git+https://github.com/lockbook/lb-fonts#e959233c1e357ea3799c4bc20900350e1e47d137"
+version = "0.1.5"
+source = "git+https://github.com/lockbook/lb-fonts#b2718aad58a7ff1c7bbe85f03cb37cec14517b56"
 
 [[package]]
 name = "lb-fs"

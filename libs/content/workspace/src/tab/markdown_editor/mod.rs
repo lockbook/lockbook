@@ -22,7 +22,7 @@ pub mod unicode_segs;
 
 pub fn register_fonts(fonts: &mut FontDefinitions) {
     let (pt_sans, pt_mono, pt_bold) = if cfg!(target_vendor = "apple") {
-        (lb_fonts::SF_PRO_TEXT_REGULAR, lb_fonts::SF_MONO_REGULAR, lb_fonts::SF_PRO_TEXT_BOLD)
+        (lb_fonts::SF_PRO_REGULAR, lb_fonts::SF_MONO_REGULAR, lb_fonts::SF_PRO_TEXT_BOLD)
     } else if cfg!(target_os = "android") {
         (lb_fonts::ROBOTO_REGULAR, lb_fonts::ROBOTO_MONO_REGULAR, lb_fonts::ROBOTO_BOLD)
     } else {
