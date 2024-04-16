@@ -343,7 +343,9 @@ impl AccountScreen {
         }
 
         // Ctrl-, to open settings modal.
-        if self.modals.settings.is_none() && consume_key(ctx, ',') {
+        if self.modals.settings.is_none()
+            && ctx.input_mut(|i| i.consume_key(CTRL, egui::Key::Comma))
+        {
             self.modals.settings = Some(SettingsModal::new(&self.core, &self.settings));
         }
 
@@ -809,23 +811,6 @@ impl From<OpenModal> for AccountUpdate {
 struct AccountShutdownProgress {
     done_saving: bool,
     done_syncing: bool,
-}
-
-fn consume_key(ctx: &egui::Context, key: char) -> bool {
-    ctx.input_mut(|input| {
-        let m = &input.modifiers;
-        if m.ctrl && !m.alt && !m.shift {
-            if let Some(index) = input
-                .events
-                .iter()
-                .position(|evt| *evt == egui::Event::Text(key.to_string()))
-            {
-                input.events.remove(index);
-                return true;
-            }
-        }
-        false
-    })
 }
 
 fn ids_changed_on_server(work: &lb::SyncStatus) -> Vec<lb::Uuid> {
