@@ -133,9 +133,12 @@ impl Workspace {
         }
     }
 
-    pub fn open_tab(&mut self, id: lb_rs::Uuid, name: &str, path: &str, is_new_file: bool) {
+    pub fn upsert_tab(
+        &mut self, id: lb_rs::Uuid, name: &str, path: &str, is_new_file: bool, make_active: bool,
+    ) {
         let now = Instant::now();
-        self.tabs.push(Tab {
+
+        let new_tab = Tab {
             id,
             rename: None,
             name: name.to_owned(),
@@ -145,8 +148,22 @@ impl Workspace {
             last_changed: now,
             is_new_file,
             last_saved: now,
-        });
-        self.active_tab = self.tabs.len() - 1;
+        };
+
+        for (i, tab) in self.tabs.iter().enumerate() {
+            if tab.id == id {
+                self.tabs[i] = new_tab;
+                if make_active {
+                    self.active_tab = i;
+                }
+                return;
+            }
+        }
+
+        self.tabs.push(new_tab);
+        if make_active {
+            self.active_tab = self.tabs.len() - 1;
+        }
     }
 
     pub fn get_mut_tab_by_id(&mut self, id: lb_rs::Uuid) -> Option<&mut Tab> {
@@ -515,21 +532,23 @@ impl Workspace {
         });
     }
 
-    pub fn open_file(&mut self, id: Uuid, is_new_file: bool) {
-        if self.goto_tab_id(id) {
-            self.ctx.request_repaint();
-            return;
-        }
-
-        let fname = self
-            .core
-            .get_file_by_id(id)
-            .unwrap() // TODO
-            .name;
+    pub fn open_file(&mut self, id: Uuid, is_new_file: bool, make_active: bool) {
+        let fname = match self.core.get_file_by_id(id) {
+            Ok(f) => f.name,
+            Err(err) => {
+                if let Some(t) = self.tabs.iter_mut().find(|t| t.id == id) {
+                    t.failure = match err.kind {
+                        lb_rs::CoreError::FileNonexistent => Some(TabFailure::DeletedFromSync),
+                        _ => Some(err.into()),
+                    }
+                }
+                return;
+            }
+        };
 
         let fpath = self.core.get_path_by_id(id).unwrap(); // TODO
 
-        self.open_tab(id, &fname, &fpath, is_new_file);
+        self.upsert_tab(id, &fname, &fpath, is_new_file, make_active);
 
         let core = self.core.clone();
         let ctx = self.ctx.clone();

@@ -47,6 +47,7 @@ impl Workspace {
         match outcome {
             Ok(done) => {
                 self.refresh_sync_status();
+                self.refresh_files(&done);
                 out.sync_done = Some(done)
             }
             Err(err) => match err.kind {
@@ -74,6 +75,24 @@ impl Workspace {
             update_tx.send(WsMsg::Dirtyness(dirty)).unwrap();
             ctx.request_repaint();
         });
+    }
+
+    pub fn refresh_files(&mut self, work: &SyncStatus) {
+        let server_ids: Vec<lb_rs::Uuid> = work
+            .work_units
+            .iter()
+            .filter_map(|wu| match wu {
+                lb_rs::WorkUnit::LocalChange { .. } => None,
+                lb_rs::WorkUnit::ServerChange(id) => Some(*id),
+            })
+            .collect();
+
+        for id in server_ids {
+            if !self.tabs.iter().any(|t| t.id == id) {
+                continue;
+            }
+            self.open_file(id, false, false);
+        }
     }
 
     pub fn dirty_msg(&mut self, dirt: DirtynessMsg) {
