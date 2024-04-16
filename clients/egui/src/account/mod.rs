@@ -196,7 +196,7 @@ impl AccountScreen {
                     self.tree.reveal_file(file, ctx);
                 }
 
-                if let Some(_) = wso.sync_done {
+                if wso.sync_done.is_some() {
                     self.refresh_tree(ctx);
                 }
             });
