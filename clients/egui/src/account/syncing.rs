@@ -153,9 +153,9 @@ impl super::AccountScreen {
             err_msg.to_owned()
         } else {
             let dirty_files_count = self.workspace.pers_status.dirtyness.dirty_files.len();
-            if dirty_files_count > 0 {
+            if dirty_files_count > 5 {
                 format!(
-                    "{} file{} needs to be synced",
+                    "{} change{} needs to be synced",
                     dirty_files_count,
                     if dirty_files_count > 1 { "s" } else { "" }
                 )
