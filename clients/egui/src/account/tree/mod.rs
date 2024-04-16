@@ -131,16 +131,17 @@ impl FileTree {
         self.state.selected.insert(id);
         self.state.request_scroll = Some(id);
 
-        let mut curr = self.core.get_file_by_id(id).unwrap();
-        loop {
-            let parent = self.core.get_file_by_id(curr.parent).unwrap();
-            self.state.expanded.insert(parent.id);
-            if parent == curr {
-                break;
+        if let Ok(mut curr) = self.core.get_file_by_id(id) {
+            loop {
+                let parent = self.core.get_file_by_id(curr.parent).unwrap();
+                self.state.expanded.insert(parent.id);
+                if parent == curr {
+                    break;
+                }
+                curr = parent;
             }
-            curr = parent;
+            ctx.request_repaint();
         }
-        ctx.request_repaint();
     }
 }
 

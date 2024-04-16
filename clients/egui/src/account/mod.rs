@@ -150,13 +150,13 @@ impl AccountScreen {
                     ui.vertical(|ui| {
                         ui.add_space(15.0);
                         if let Some(&file) = self.full_search_doc.show(ui, &self.core) {
-                            self.workspace.open_file(file, false);
+                            self.workspace.open_file(file, false, true);
                         }
                         ui.add_space(15.0);
 
                         if self.full_search_doc.results.is_empty() {
                             if let Some(file) = self.suggested.show(ui) {
-                                self.workspace.open_file(file, false);
+                                self.workspace.open_file(file, false, true);
                             }
                             ui.add_space(15.0);
                             self.show_tree(ui);
@@ -200,8 +200,8 @@ impl AccountScreen {
                     self.tree.reveal_file(file, ctx);
                 }
 
-                if let Some(done) = wso.sync_done {
-                    self.refresh_tree_and_workspace(ctx, done);
+                if let Some(_) = wso.sync_done {
+                    self.refresh_tree(ctx);
                 }
             });
 
@@ -402,7 +402,7 @@ impl AccountScreen {
         }
 
         for id in resp.open_requests {
-            self.workspace.open_file(id, false);
+            self.workspace.open_file(id, false, true);
         }
 
         if resp.delete_request {
@@ -494,88 +494,16 @@ impl AccountScreen {
         }
     }
 
-    pub fn refresh_tree_and_workspace(&self, ctx: &egui::Context, work: lb::SyncStatus) {
-        let opened_ids = self
-            .workspace
-            .tabs
-            .iter()
-            .map(|t| t.id)
-            .collect::<Vec<lb::Uuid>>();
-
+    pub fn refresh_tree(&self, ctx: &egui::Context) {
         let core = self.core.clone();
         let ctx = ctx.clone();
 
-        let settings = &self.settings.read().unwrap();
-        let toolbar_visibility = settings.toolbar_visibility;
         let update_tx = self.update_tx.clone();
 
         thread::spawn(move || {
             let all_metas = core.list_metadatas().unwrap();
             let root = tree::create_root_node(all_metas);
             update_tx.send(AccountUpdate::ReloadTree(root)).unwrap();
-            ctx.request_repaint();
-
-            let server_ids = ids_changed_on_server(&work);
-            let stale_tab_ids = server_ids.iter().filter(|id| opened_ids.contains(id));
-
-            for &id in stale_tab_ids {
-                let name = match core.get_file_by_id(id) {
-                    Ok(file) => file.name,
-                    Err(err) => {
-                        update_tx
-                            .send(AccountUpdate::ReloadTab(
-                                id,
-                                Err(match err.kind {
-                                    lb::CoreError::FileNonexistent => TabFailure::DeletedFromSync,
-                                    _ => TabFailure::Unexpected(format!("{:?}", err)),
-                                }),
-                            ))
-                            .unwrap();
-                        continue;
-                    }
-                };
-
-                let path = core.get_path_by_id(id).unwrap(); // TODO
-
-                let ext = name.split('.').last().unwrap_or_default();
-
-                let content = core
-                    .read_document(id)
-                    .map_err(|err| TabFailure::Unexpected(format!("{:?}", err))) // todo(steve)
-                    .map(|bytes| {
-                        if ext == "md" {
-                            TabContent::Markdown(Markdown::new(
-                                core.clone(),
-                                &bytes,
-                                &toolbar_visibility,
-                                false,
-                                id,
-                            ))
-                        } else if is_supported_image_fmt(ext) {
-                            TabContent::Image(ImageViewer::new(&id.to_string(), ext, &bytes))
-                        } else {
-                            TabContent::PlainText(PlainText::new(&bytes))
-                        }
-                    });
-                let now = Instant::now();
-                update_tx
-                    .send(AccountUpdate::ReloadTab(
-                        id,
-                        Ok(Tab {
-                            id,
-                            name,
-                            path,
-                            rename: None,
-                            content: content.ok(),
-                            failure: None,
-                            last_changed: now,
-                            last_saved: now,
-                            is_new_file: false,
-                        }),
-                    ))
-                    .unwrap();
-            }
-
             ctx.request_repaint();
         });
     }
@@ -753,7 +681,7 @@ impl AccountScreen {
                 self.tree.root.insert(f);
                 self.tree.reveal_file(id, ctx);
                 if is_doc {
-                    self.workspace.open_file(id, true);
+                    self.workspace.open_file(id, true, true);
                 }
                 // Close whichever new file modal was open.
                 self.modals.new_folder = None;
