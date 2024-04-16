@@ -39,7 +39,7 @@ impl DocType {
     pub fn from_name(name: &str) -> Self {
         let ext = name.split('.').last().unwrap_or_default();
         match ext {
-            "draw" => Self::Drawing,
+            "draw" | "svg" => Self::Drawing,
             "md" => Self::Markdown,
             "txt" => Self::PlainText,
             "png" | "jpeg" | "jpg" | "gif" | "webp" | "bmp" | "ico" => Self::Image(ext.to_string()),

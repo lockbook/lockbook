@@ -67,7 +67,7 @@ impl super::AccountScreen {
                             self.sync.expanded_usage_msg_rect = rect;
                         }
 
-                        ui.painter().galley_with_override_text_color(
+                        ui.painter().galley(
                             rect.left_top(),
                             galley,
                             ui.style().interact(&resp).text_color(),

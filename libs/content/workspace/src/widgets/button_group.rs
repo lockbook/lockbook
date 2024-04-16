@@ -128,8 +128,7 @@ impl<T: Copy + PartialEq> ButtonGroup<T> {
                     let text = txt.into_galley(ui, Some(false), wrap_width, TextStyle::Body);
                     let text_pos = rect.center() - text.size() / 2.0;
 
-                    ui.painter()
-                        .galley_with_override_text_color(text_pos, text, text_color);
+                    ui.painter().galley(text_pos, text, text_color);
                 }
                 ButtonContent::Icon(wtxt) => {
                     let text =
@@ -140,8 +139,7 @@ impl<T: Copy + PartialEq> ButtonGroup<T> {
                         rect.center().y - text.size().y / 4.0,
                     );
 
-                    ui.painter()
-                        .galley_with_override_text_color(text_pos, text, text_color);
+                    ui.painter().galley(text_pos, text, text_color);
                 } // TODO layout widget
             }
         };

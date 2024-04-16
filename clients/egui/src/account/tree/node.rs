@@ -198,7 +198,14 @@ impl TreeNode {
             wt.color(ui.visuals().hyperlink_color)
         } else {
             let wt: egui::WidgetText = (&self.icon()).into();
-            wt.color(ui.visuals().text_color().gamma_multiply(0.6))
+            wt.color(
+                ui.visuals()
+                    .widgets
+                    .active
+                    .bg_stroke
+                    .color
+                    .gamma_multiply(0.5),
+            )
         };
 
         let icon = icon.into_galley(ui, Some(false), wrap_width, egui::TextStyle::Body);
@@ -236,10 +243,8 @@ impl TreeNode {
             );
 
             let text_color = ui.style().interact(&resp).text_color();
-            ui.painter()
-                .galley_with_override_text_color(icon_pos, icon, text_color);
-            ui.painter()
-                .galley_with_override_text_color(text_pos, text, text_color);
+            ui.painter().galley(icon_pos, icon, text_color);
+            ui.painter().galley(text_pos, text, text_color);
         }
 
         let is_drop_target = self.file.is_folder()

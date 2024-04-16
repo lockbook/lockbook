@@ -133,8 +133,7 @@ impl<'a> Button<'a> {
                 };
 
                 let icon_pos = egui::pos2(icon_x_pos, rect.center().y - icon.size().y / 3.);
-                ui.painter()
-                    .galley_with_override_text_color(icon_pos, icon, icon_color);
+                ui.painter().galley(icon_pos, icon, icon_color);
 
                 if self.icon.unwrap().has_badge {
                     ui.painter().circle(
@@ -151,7 +150,7 @@ impl<'a> Button<'a> {
 
             if let Some(text) = maybe_text_galley {
                 ui.painter()
-                    .galley_with_override_text_color(text_pos, text, icon_color)
+                    .galley(text_pos, text, text_visuals.text_color())
             }
         }
 
