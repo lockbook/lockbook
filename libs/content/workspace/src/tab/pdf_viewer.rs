@@ -26,6 +26,14 @@ struct Content {
     texture: egui::TextureHandle,
 }
 
+impl std::fmt::Debug for Content {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Content")
+            .field("offset", &self.offset)
+            .finish()
+    }
+}
+
 enum ZoomFactor {
     Increase,
     Decrease,
@@ -124,9 +132,8 @@ impl PdfViewer {
             self.show_toolbar(ui);
             ui.separator();
         });
-        if self.sidebar.is_some() {
-            self.show_sidebar(ui);
-        }
+
+        self.show_sidebar(ui);
 
         if let Some(page) = self.renders.first() {
             if self.fit_page_zoom.is_none() {
@@ -146,66 +153,65 @@ impl PdfViewer {
             Some(
                 // todo: read more about viewport to optimize large pdf rendering
                 sao.show_viewport(ui, |ui, _| {
-                    ui.vertical_centered(|ui| {
-                        for (i, p) in self.renders.clone().iter_mut().enumerate() {
-                            let img =
-                                egui::Image::new(egui::ImageSource::Texture(SizedTexture::new(
-                                    &p.texture,
-                                    egui::vec2(
-                                        p.texture.size()[0] as f32
-                                            * self.zoom_factor.unwrap_or(1.0),
-                                        p.texture.size()[1] as f32
-                                            * self.zoom_factor.unwrap_or(1.0),
+                    let renders_res = ui
+                        .vertical_centered(|ui| {
+                            for (i, p) in self.renders.iter_mut().enumerate() {
+                                let img = egui::Image::new(egui::ImageSource::Texture(
+                                    SizedTexture::new(
+                                        &p.texture,
+                                        egui::vec2(
+                                            p.texture.size()[0] as f32
+                                                * self.zoom_factor.unwrap_or(1.0),
+                                            p.texture.size()[1] as f32
+                                                * self.zoom_factor.unwrap_or(1.0),
+                                        ),
                                     ),
-                                )))
+                                ))
                                 .sense(egui::Sense::click());
 
-                            let res = if ui.available_size_before_wrap().x
-                                < img.size().unwrap_or_default()[0]
-                            {
-                                ui.with_layout(
-                                    egui::Layout::left_to_right(egui::Align::Center)
-                                        .with_cross_justify(true),
-                                    |ui| ui.add(img),
-                                )
-                                .inner
-                            } else {
-                                ui.add(img)
-                            };
-
-                            if p.offset.is_none() {
-                                p.offset = Some(offset_sum);
-                                offset_sum += res.rect.height() + SPACE_BETWEEN_PAGES;
-                            }
-
-                            if let Some(sidebar) = &mut self.sidebar {
-                                if ui.clip_rect().contains(res.rect.center())
-                                    && sidebar.active_thumbnail != i
+                                let res = if ui.available_size_before_wrap().x
+                                    < img.size().unwrap_or_default()[0]
                                 {
-                                    sidebar.active_thumbnail = i;
-                                    Self::scroll_thumbnail_to_page(sidebar);
+                                    ui.with_layout(
+                                        egui::Layout::left_to_right(egui::Align::Center)
+                                            .with_cross_justify(true),
+                                        |ui| ui.add(img),
+                                    )
+                                    .inner
+                                } else {
+                                    ui.add(img)
+                                };
+
+                                if p.offset.is_none() {
+                                    p.offset = Some(offset_sum);
+                                    offset_sum += res.rect.height() + SPACE_BETWEEN_PAGES;
                                 }
-                            }
 
-                            ui.add_space(SPACE_BETWEEN_PAGES);
+                                if let Some(sidebar) = &mut self.sidebar {
+                                    if ui.clip_rect().contains(res.rect.center())
+                                        && sidebar.active_thumbnail != i
+                                    {
+                                        sidebar.active_thumbnail = i;
+                                        Self::scroll_thumbnail_to_page(sidebar);
+                                    }
+                                }
 
-                            if res.clicked()
-                                || ui.input_mut(|i| {
-                                    i.consume_key(egui::Modifiers::CTRL, egui::Key::Equals)
-                                })
-                            {
-                                self.update_zoom_factor(ZoomFactor::Increase);
+                                ui.add_space(SPACE_BETWEEN_PAGES);
                             }
+                        })
+                        .response;
 
-                            if res.clicked_by(egui::PointerButton::Secondary)
-                                || ui.input_mut(|i| {
-                                    i.consume_key(egui::Modifiers::CTRL, egui::Key::Minus)
-                                })
-                            {
-                                self.update_zoom_factor(ZoomFactor::Decrease);
-                            }
-                        }
-                    });
+                    if renders_res.clicked()
+                        || ui.input_mut(|i| i.consume_key(egui::Modifiers::CTRL, egui::Key::Equals))
+                    {
+                        self.update_zoom_factor(ZoomFactor::Increase);
+                    }
+
+                    if renders_res.clicked_by(egui::PointerButton::Secondary)
+                        || ui.input_mut(|i| i.consume_key(egui::Modifiers::CTRL, egui::Key::Minus))
+                    {
+                        self.update_zoom_factor(ZoomFactor::Decrease);
+                    }
                 })
                 .state
                 .offset,
@@ -306,9 +312,6 @@ impl PdfViewer {
             Some(s) => s,
             None => return,
         };
-        if !sidebar.is_visible {
-            return;
-        }
 
         let sidebar_margin = 50.0;
         let mut offset_sum = 0.0;
@@ -322,7 +325,7 @@ impl PdfViewer {
         egui::SidePanel::right("pdf_sidebar")
             .resizable(false)
             .show_separator_line(false)
-            .show_inside(ui, |ui| {
+            .show_animated_inside(ui, sidebar.is_visible, |ui| {
                 sidebar.sa_offset = Some(
                     sao.show(ui, |ui| {
                         egui::Frame::default()
@@ -332,7 +335,7 @@ impl PdfViewer {
                                     let tint_color = if i == sidebar.active_thumbnail {
                                         egui::Color32::WHITE
                                     } else {
-                                        egui::Color32::GRAY.linear_multiply(0.9)
+                                        egui::Color32::GRAY.linear_multiply(0.5)
                                     };
 
                                     let res = ui.add(
@@ -364,7 +367,7 @@ impl PdfViewer {
                                     if res.clicked() {
                                         sidebar.active_thumbnail = i;
 
-                                        //scroll to the page
+                                        // scroll to the page
                                         if let Some(content) =
                                             self.renders.get(sidebar.active_thumbnail)
                                         {
