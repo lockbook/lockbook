@@ -60,7 +60,7 @@ const KEYS: [Key; 89] = [
     Key { sc: 40, egui: None, text: Some("'"), s_text: Some("\"") },
     Key { sc: 41, egui: None, text: Some("`"), s_text: Some("~") },
     Key { sc: 43, egui: None, text: Some("\\"), s_text: Some("|") },
-    Key { sc: 51, egui: None, text: Some(","), s_text: Some("<") },
+    Key { sc: 51, egui: Some(egui::Key::Comma), text: Some(","), s_text: Some("<") },
     Key { sc: 52, egui: None, text: Some("."), s_text: Some(">") },
     Key { sc: 53, egui: None, text: Some("/"), s_text: Some("?") },
     Key { sc: 55, egui: None, text: Some("*"), s_text: Some("*") },
