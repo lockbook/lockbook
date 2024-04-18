@@ -186,7 +186,7 @@ impl Toolbar {
                 });
         }
 
-        let height = self.height.unwrap_or(70.0); // make the height exapnd to fit the elmeents inside of the toolbar
+        let height = self.height.unwrap_or(70.0); // estimate the height of the toolbar before having that info from last frame
         let available_rect = ui.available_rect_before_wrap();
 
         if available_rect.width() < self.width() {
