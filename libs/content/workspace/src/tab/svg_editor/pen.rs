@@ -397,3 +397,34 @@ impl Line {
         }
     }
 }
+
+#[test]
+fn catmull_to() {
+    let points = vec![
+        egui::pos2(440.6, 902.5),
+        egui::pos2(431.2, 945.1),
+        egui::pos2(438.6, 917.9),
+        egui::pos2(455.0, 887.6),
+        egui::pos2(465.4, 884.2),
+        egui::pos2(466.4, 893.1),
+        egui::pos2(457.9, 906.5),
+        egui::pos2(454.0, 922.8),
+        egui::pos2(471.8, 956.0),
+    ];
+
+    let mut path_builder =
+        CubicBezBuilder { prev_points_window: VecDeque::default(), points, data: "".to_string() };
+
+    path_builder
+        .points
+        .clone()
+        .iter()
+        .enumerate()
+        .for_each(|(i, p)| {
+            path_builder.catmull_to(*p, false);
+            if i == path_builder.points.len() - 1 {
+                path_builder.catmull_to(*p, true);
+            };
+        });
+    println!("{}", path_builder.data);
+}

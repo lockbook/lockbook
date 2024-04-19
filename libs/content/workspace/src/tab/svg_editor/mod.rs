@@ -140,19 +140,25 @@ impl SVGEditor {
             resolve_string: Self::lb_local_resolver(&self.core),
         };
 
-        let options =
-            usvg::Options { image_href_resolver: lb_local_resolver, ..Default::default() };
+        let options = usvg::Options {
+            image_href_resolver: lb_local_resolver,
+            image_rendering: usvg::ImageRendering::OptimizeSpeed,
+            dpi: 300.,
+            ..Default::default()
+        };
 
         let mut utree: usvg::Tree =
             usvg::TreeParsing::from_str(&self.buffer.to_string(), &options).unwrap();
-        let available_rect = ui.available_rect_before_wrap();
+        let available_rect = self
+            .inner_rect
+            .expand2(egui::vec2(self.inner_rect.width() * 0.5, self.inner_rect.height() * 0.5));
         utree.size = Size::from_wh(available_rect.width(), available_rect.height()).unwrap();
 
         utree.view_box.rect = usvg::NonZeroRect::from_ltrb(
-            available_rect.left(),
-            available_rect.top(),
-            available_rect.right(),
-            available_rect.bottom(),
+            self.inner_rect.left(),
+            self.inner_rect.top(),
+            self.inner_rect.right(),
+            self.inner_rect.bottom(),
         )
         .unwrap();
 
@@ -166,6 +172,7 @@ impl SVGEditor {
         let mut pixmap = Pixmap::new(pixmap_size.width(), pixmap_size.height()).unwrap();
 
         tree.render(usvg::Transform::default(), &mut pixmap.as_mut());
+
         let image = egui::ColorImage::from_rgba_unmultiplied(
             [pixmap.width() as usize, pixmap.height() as usize],
             pixmap.data(),
@@ -178,7 +185,7 @@ impl SVGEditor {
         ui.add(
             egui::Image::new(egui::ImageSource::Texture(SizedTexture::new(
                 &texture,
-                egui::vec2(texture.size()[0] as f32, texture.size()[1] as f32),
+                egui::vec2(self.inner_rect.width(), self.inner_rect.height()),
             )))
             .sense(egui::Sense::click()),
         );
