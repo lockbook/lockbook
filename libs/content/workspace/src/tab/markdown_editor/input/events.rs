@@ -10,6 +10,7 @@ use crate::tab::markdown_editor::input::click_checker::ClickChecker;
 use crate::tab::markdown_editor::input::cursor::PointerState;
 use crate::tab::{self, ClipContent};
 use egui::Event;
+use lb_rs::Uuid;
 use std::time::Instant;
 
 use super::canonical::Region;
@@ -18,7 +19,7 @@ use super::canonical::Region;
 pub fn combine(
     events: &[Event], custom_events: &[crate::Event], click_checker: impl ClickChecker + Copy,
     touch_mode: bool, appearance: &Appearance, pointer_state: &mut PointerState,
-    core: &mut lb_rs::Core,
+    core: &mut lb_rs::Core, open_file: Uuid,
 ) -> Vec<Modification> {
     let canonical_egui_events = events.iter().filter_map(|e| {
         input::canonical::calc(
@@ -34,7 +35,7 @@ pub fn combine(
     custom_events
         .iter()
         .cloned()
-        .flat_map(|event| handle_custom_event(event, core))
+        .flat_map(|event| handle_custom_event(event, core, open_file))
         .chain(canonical_egui_events)
         .collect()
 }
@@ -73,7 +74,9 @@ pub fn process(
         .unwrap_or_default()
 }
 
-fn handle_custom_event(event: crate::Event, core: &mut lb_rs::Core) -> Vec<Modification> {
+fn handle_custom_event(
+    event: crate::Event, core: &mut lb_rs::Core, open_file: Uuid,
+) -> Vec<Modification> {
     match event {
         crate::Event::Markdown(modification) => vec![modification],
         crate::Event::Drop { content, .. } | crate::Event::Paste { content, .. } => {
@@ -81,8 +84,8 @@ fn handle_custom_event(event: crate::Event, core: &mut lb_rs::Core) -> Vec<Modif
             for clip in content {
                 match clip {
                     ClipContent::Png(data) => {
-                        let file = tab::import_image(core, &data);
-                        let markdown_image_link = format!("![pasted image](lb://{})", file.id);
+                        let file = tab::import_image(core, open_file, &data);
+                        let markdown_image_link = format!("![{}](lb://{})", file.name, file.id);
 
                         modifications.push(Modification::Replace {
                             region: Region::Selection, // todo: more thoughtful location

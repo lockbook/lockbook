@@ -15,6 +15,7 @@ pub use history::Buffer;
 pub use history::DeleteElement;
 pub use history::Event;
 pub use history::InsertElement;
+use lb_rs::Uuid;
 use minidom::Element;
 pub use pen::CubicBezBuilder;
 pub use pen::Pen;
@@ -36,10 +37,11 @@ pub struct SVGEditor {
     pub toolbar: Toolbar,
     inner_rect: egui::Rect,
     core: lb_rs::Core,
+    open_file: Uuid,
 }
 
 impl SVGEditor {
-    pub fn new(bytes: &[u8], core: lb_rs::Core) -> Self {
+    pub fn new(bytes: &[u8], core: lb_rs::Core, open_file: Uuid) -> Self {
         // todo: handle invalid utf8
         let mut content = std::str::from_utf8(bytes).unwrap().to_string();
         if content.is_empty() {
@@ -66,7 +68,7 @@ impl SVGEditor {
 
         Self::define_dynamic_colors(&mut buffer, &mut toolbar, false, true);
 
-        Self { buffer, toolbar, inner_rect: egui::Rect::NOTHING, core }
+        Self { buffer, toolbar, inner_rect: egui::Rect::NOTHING, core, open_file }
     }
 
     pub fn show(&mut self, ui: &mut egui::Ui) {

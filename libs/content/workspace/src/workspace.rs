@@ -586,7 +586,7 @@ impl Workspace {
                             is_mobile_viewport,
                         ))
                     } else if ext == "svg" {
-                        TabContent::Svg(SVGEditor::new(&bytes, core.clone()))
+                        TabContent::Svg(SVGEditor::new(&bytes, core.clone(), id))
                     } else {
                         TabContent::PlainText(PlainText::new(&bytes))
                     }
