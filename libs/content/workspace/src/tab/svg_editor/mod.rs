@@ -78,7 +78,7 @@ impl SVGEditor {
                     ui.visuals().faint_bg_color
                 })
                 .show(ui, |ui| {
-                    self.toolbar.show(ui, &mut self.buffer, self.inner_rect);
+                    self.toolbar.show(ui, &mut self.buffer);
                 });
 
             self.inner_rect = ui.available_rect_before_wrap();

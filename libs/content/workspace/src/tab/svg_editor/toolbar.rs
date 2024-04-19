@@ -18,7 +18,7 @@ pub struct Toolbar {
     pub pen: Pen,
     pub eraser: Eraser,
     pub selection: Selection,
-
+    height: Option<f32>,
     pub previous_tool: Option<Tool>,
 }
 
@@ -79,20 +79,6 @@ macro_rules! set_tool {
 impl Toolbar {
     fn width(&self) -> f32 {
         self.components.iter().map(|c| c.get_width()).sum()
-    }
-    fn calculate_rect(&self, ui: &mut egui::Ui) -> egui::Rect {
-        let height = 0.0;
-        let available_rect = ui.available_rect_before_wrap();
-
-        let maximized_min_x = (available_rect.width() - self.width()) / 2.0 + available_rect.left();
-
-        let min_pos = egui::Pos2 { x: maximized_min_x, y: available_rect.top() + height };
-
-        let maximized_max_x =
-            available_rect.right() - (available_rect.width() - self.width()) / 2.0;
-
-        let max_pos = egui::Pos2 { x: maximized_max_x, y: available_rect.top() };
-        egui::Rect { min: min_pos, max: max_pos }
     }
 
     pub fn set_tool(&mut self, new_tool: Tool) {
@@ -159,12 +145,12 @@ impl Toolbar {
             previous_tool: None,
             pen: Pen::new(max_id),
             eraser: Eraser::new(),
+            height: None,
             selection: Selection::default(),
         }
     }
 
-    pub fn show(&mut self, ui: &mut egui::Ui, buffer: &mut Buffer, available_rect: egui::Rect) {
-        let toolbar_rect = self.calculate_rect(ui);
+    pub fn show(&mut self, ui: &mut egui::Ui, buffer: &mut Buffer) {
         if ui.is_enabled() {
             self.components
                 .iter()
@@ -200,11 +186,31 @@ impl Toolbar {
                 });
         }
 
-        if available_rect.width() < toolbar_rect.width() {
-            ScrollArea::horizontal().show(ui, |ui| {
+        let height = self.height.unwrap_or(70.0); // estimate the height of the toolbar before having that info from last frame
+        let available_rect = ui.available_rect_before_wrap();
+
+        if available_rect.width() < self.width() {
+            let toolbar_rect = egui::Rect {
+                min: available_rect.min,
+                max: egui::pos2(available_rect.max.x, available_rect.min.y + height + 10.), // + 10.0 to account for the height of the separator
+            };
+            ui.set_clip_rect(toolbar_rect);
+
+            ScrollArea::both().show(ui, |ui| {
                 self.show_toolbar(ui, buffer);
             });
         } else {
+            let maximized_min_x =
+                (available_rect.width() - self.width()) / 2.0 + available_rect.left();
+
+            let min_pos = egui::Pos2 { x: maximized_min_x, y: available_rect.top() };
+
+            let maximized_max_x =
+                available_rect.right() - (available_rect.width() - self.width()) / 2.0;
+
+            let max_pos = egui::Pos2 { x: maximized_max_x, y: available_rect.top() };
+            let toolbar_rect = egui::Rect { min: min_pos, max: max_pos };
+
             ui.allocate_ui_at_rect(toolbar_rect, |ui| {
                 self.show_toolbar(ui, buffer);
             });
@@ -371,6 +377,7 @@ impl Toolbar {
                         ui.add_space(THICKNESS_BTN_X_MARGIN);
                     }
                 };
+                self.height = Some(ui.available_height());
             }
         });
     }
