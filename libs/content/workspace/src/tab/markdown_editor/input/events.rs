@@ -16,6 +16,7 @@ use std::time::Instant;
 use super::canonical::Region;
 
 /// combines `events` and `custom_events` into a single set of events
+#[allow(clippy::too_many_arguments)]
 pub fn combine(
     events: &[Event], custom_events: &[crate::Event], click_checker: impl ClickChecker + Copy,
     touch_mode: bool, appearance: &Appearance, pointer_state: &mut PointerState,
