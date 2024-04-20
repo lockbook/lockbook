@@ -47,6 +47,12 @@ impl Pen {
             PathEvent::Draw(mut pos, id) => {
                 apply_transform_to_pos(&mut pos, buffer);
 
+                // for some reason the integration will send two draw events on the same pos which results in a knot.
+                if let Some(last_pos) = self.path_builder.points.last() {
+                    if last_pos.eq(&pos) {
+                        return None;
+                    }
+                }
                 let mut master_transform = None;
                 if let Some(transform) = buffer.current.attr("transform") {
                     master_transform = Some(deserialize_transform(transform));
