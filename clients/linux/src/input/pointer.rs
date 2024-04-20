@@ -33,7 +33,7 @@ fn handle(
             _ => unreachable!(),
         };
 
-        if modifiers.ctrl | modifiers.command {
+        if modifiers.command {
             let resistence = 200.;
             let factor = (delta.y / resistence).exp();
             app.raw_input.events.push(egui::Event::Zoom(factor))
