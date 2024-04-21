@@ -124,17 +124,7 @@ pub fn calc(
                 is_annotation = annotation.is_some();
             }
 
-            // render tab-only text as spaces
-            // tab characters have weird rendering behavior in egui e.g. tab-only galleys are not rendered even though empty galleys are
-            // see https://github.com/lockbook/lockbook/issues/1983, https://github.com/emilk/egui/issues/3203
-            let text = {
-                let mut this = buffer[text_range_portion].to_string();
-                let paragraph_body = &buffer[(paragraph.0 + head_size, paragraph.1)];
-                if paragraph_body == "\t".repeat(paragraph_body.len()) {
-                    this = " ".repeat(this.len()).to_string();
-                }
-                this
-            };
+            let text = &buffer[text_range_portion];
             match text_range.range_type {
                 AstTextRangeType::Head => {
                     if captured {
@@ -143,7 +133,7 @@ pub fn calc(
                     } else {
                         // uncaptured syntax characters have syntax style applied on top of node style
                         RenderStyle::Syntax.apply_style(&mut text_format, appearance);
-                        layout.append(&text, 0.0, text_format);
+                        layout.append(text, 0.0, text_format);
                     }
 
                     if captured && is_annotation {
@@ -157,11 +147,11 @@ pub fn calc(
                     } else {
                         // uncaptured syntax characters have syntax style applied on top of node style
                         RenderStyle::Syntax.apply_style(&mut text_format, appearance);
-                        layout.append(&text, 0.0, text_format);
+                        layout.append(text, 0.0, text_format);
                     }
                 }
                 AstTextRangeType::Text => {
-                    layout.append(&text, 0.0, text_format);
+                    layout.append(text, 0.0, text_format);
                 }
             }
         }
