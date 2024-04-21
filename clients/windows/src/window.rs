@@ -349,7 +349,10 @@ fn handle_message(hwnd: HWND, message: Message) -> bool {
                                 update_output: UpdateOutput { close, set_window_title },
                             } = app.frame();
 
-                            output::clipboard_copy::handle(copied_text);
+                            if let Err(_) = output::clipboard_copy::handle(copied_text.clone()) {
+                                // windows clipboard sometimes has transient errors
+                                app.context.output_mut(|o| o.copied_text = copied_text);
+                            }
                             output::close::handle(close);
                             output::window_title::handle(hwnd, set_window_title);
                             output::cursor::update(cursor_icon); // output saved and handled by 'SetCursor' message
