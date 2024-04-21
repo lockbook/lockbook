@@ -81,7 +81,7 @@ impl Markdown {
         file_id: Uuid,
     ) -> Self {
         let content = String::from_utf8_lossy(bytes);
-        let editor = Editor::new(core, &content, &file_id);
+        let editor = Editor::new(core, file_id, &content, &file_id);
 
         let toolbar = ToolBar::new(toolbar_visibility);
 

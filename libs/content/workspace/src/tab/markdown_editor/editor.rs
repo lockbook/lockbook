@@ -55,6 +55,7 @@ pub struct HoverSyntaxRevealDebounceState {
 
 pub struct Editor {
     pub id: egui::Id,
+    pub open_file: Uuid,
     pub initialized: bool,
 
     // dependencies
@@ -98,9 +99,10 @@ pub struct Editor {
 }
 
 impl Editor {
-    pub fn new(core: lb_rs::Core, content: &str, file_id: &Uuid) -> Self {
+    pub fn new(core: lb_rs::Core, open_file: Uuid, content: &str, file_id: &Uuid) -> Self {
         Self {
             id: egui::Id::new(file_id),
+            open_file,
             initialized: Default::default(),
 
             core,
@@ -492,6 +494,7 @@ impl Editor {
             &self.appearance,
             &mut self.pointer_state,
             &mut self.core,
+            self.open_file,
         );
         let (text_updated, maybe_to_clipboard, maybe_opened_url) = events::process(
             &combined_events,

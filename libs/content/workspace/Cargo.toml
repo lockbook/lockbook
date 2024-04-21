@@ -24,6 +24,7 @@ serde = { version = "1.0.171", features = ["derive"] }
 svgtypes = "0.13.0"
 unicode-segmentation = "1.10.0"
 usvg-parser = "0.36.0"
+chrono = "0.4"
 
 # todo: maybe move this switch into lb itself
 [target.'cfg(not(target_os = "android"))'.dependencies]
