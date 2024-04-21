@@ -192,10 +192,6 @@ impl<'window> WgpuLockbook<'window> {
         self.context.begin_frame(self.raw_input.take());
         out.update_output = self.app.update(&self.context);
         let full_output = self.context.end_frame();
-        if !full_output.platform_output.copied_text.is_empty() {
-            self.context
-                .output_mut(|o| o.copied_text = full_output.platform_output.copied_text.clone());
-        }
         let paint_jobs = self
             .context
             .tessellate(full_output.shapes, full_output.pixels_per_point);
