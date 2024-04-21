@@ -8450,6 +8450,7 @@ name = "workspace"
 version = "0.9.1"
 dependencies = [
  "bezier-rs",
+ "chrono",
  "egui",
  "egui_extras",
  "epaint",

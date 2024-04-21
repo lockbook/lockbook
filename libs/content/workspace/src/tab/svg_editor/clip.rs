@@ -12,7 +12,8 @@ impl SVGEditor {
                     for clip in content {
                         match clip {
                             ClipContent::Png(data) => {
-                                let file = crate::tab::import_image(&self.core, &data);
+                                let file =
+                                    crate::tab::import_image(&self.core, self.open_file, &data);
                                 let image_href = format!("lb://{}", file.id);
 
                                 let child = Element::builder("image", "")
