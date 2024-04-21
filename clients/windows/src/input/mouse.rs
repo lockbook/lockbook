@@ -32,22 +32,21 @@ pub fn handle(
     true
 }
 
-pub fn handle_wheel(app: &mut WgpuLockbook, message: MessageAppDep, delta: i16) -> bool {
-    if matches!(message, MessageAppDep::MouseWheel { .. }) {
-        let y = delta as f32 / WHEEL_DELTA as f32;
-        let y = y * 20.0; // arbitrary multiplier to make scrolling feel better
-        app.raw_input
-            .events
-            .push(egui::Event::Scroll(egui::Vec2 { x: 0.0, y }));
-
-        true
+pub fn handle_wheel(
+    app: &mut WgpuLockbook, message: MessageAppDep, delta: i16, modifiers: egui::Modifiers,
+) -> bool {
+    if modifiers.command {
+        let resistance = 500.0;
+        let factor = (delta as f32 / resistance).exp();
+        app.raw_input.events.push(egui::Event::Zoom(factor));
     } else {
-        let x = -delta as f32 / WHEEL_DELTA as f32;
-        let x = x * 20.0; // arbitrary multiplier to make scrolling feel better
-        app.raw_input
-            .events
-            .push(egui::Event::Scroll(egui::Vec2 { x, y: 0.0 }));
-
-        true
+        let scroll_magnitude = 20.0 * delta as f32 / WHEEL_DELTA as f32;
+        let scroll = if matches!(message, MessageAppDep::MouseWheel { .. }) {
+            egui::Vec2 { x: 0.0, y: scroll_magnitude }
+        } else {
+            egui::Vec2 { x: -scroll_magnitude, y: 0.0 }
+        };
+        app.raw_input.events.push(egui::Event::Scroll(scroll));
     }
+    true
 }

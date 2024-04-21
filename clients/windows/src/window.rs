@@ -333,7 +333,7 @@ fn handle_message(hwnd: HWND, message: Message) -> bool {
                         ),
                         MessageAppDep::MouseWheel { delta }
                         | MessageAppDep::MouseHWheel { delta } => {
-                            input::mouse::handle_wheel(app, message, delta)
+                            input::mouse::handle_wheel(app, message, delta, modifiers)
                         }
                         MessageAppDep::SetCursor => output::cursor::handle(),
                         MessageAppDep::Paint => {

@@ -32,7 +32,14 @@ fn handle(
             7 => egui::Vec2::new(-scroll_unit, 0.0),
             _ => unreachable!(),
         };
-        app.raw_input.events.push(egui::Event::Scroll(delta))
+
+        if modifiers.command {
+            let resistence = 200.;
+            let factor = (delta.y / resistence).exp();
+            app.raw_input.events.push(egui::Event::Zoom(factor))
+        } else {
+            app.raw_input.events.push(egui::Event::Scroll(delta))
+        }
     } else {
         // button event
         let pos = egui::Pos2::new(event_x as f32 / scale, event_y as f32 / scale);
