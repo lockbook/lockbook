@@ -121,7 +121,7 @@ impl Workspace {
         }
 
         for id in ids {
-            self.open_file(id, false)
+            self.open_file(id, false, false)
         }
 
         if let Some(active_tab_id) = maybe_active_tab_id {
