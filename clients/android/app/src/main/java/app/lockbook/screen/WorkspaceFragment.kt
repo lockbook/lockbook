@@ -22,6 +22,7 @@ import android.view.inputmethod.BaseInputConnection
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputConnection
 import android.view.inputmethod.InputMethodManager
+import android.view.inputmethod.TextAttribute
 import android.widget.FrameLayout
 import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.view.WindowInsetsCompat
@@ -36,12 +37,14 @@ import app.lockbook.model.StateViewModel
 import app.lockbook.model.TransientScreen
 import app.lockbook.model.WorkspaceTab
 import app.lockbook.model.WorkspaceViewModel
+import app.lockbook.util.InitError
 import app.lockbook.util.WorkspaceView
 import app.lockbook.workspace.JTextRange
 import com.github.michaelbull.result.unwrap
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
 import kotlin.math.abs
+
 
 class WorkspaceFragment : Fragment() {
     private var _binding: FragmentWorkspaceBinding? = null
@@ -498,6 +501,8 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
     }
 
     override fun getSpanStart(tag: Any?): Int {
+        Timber.e("getting start of tag ${(tag ?: Unit)::class.qualifiedName}")
+
         if (tag == Selection.SELECTION_START) {
             return selectionStart
         }
@@ -509,6 +514,12 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
         if (tag == composingTag || ((tag ?: Unit)::class.simpleName ?: "").lowercase().contains("composing")) {
             return composingStart
         }
+
+        if (tag == Selection.SELECTION_END) {
+            return getSelection().end
+        }
+
+
 
         return -1
     }
@@ -544,10 +555,13 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
     }
 
     override fun nextSpanTransition(start: Int, limit: Int, type: Class<*>?): Int {
+        Timber.e("getting next span transition")
         return -1
     }
 
     override fun setSpan(what: Any?, start: Int, end: Int, flags: Int) {
+        Timber.e("adding span ${(what ?: Unit)::class.qualifiedName}")
+
         if (what == Selection.SELECTION_START) {
             selectionStartSpanFlag = flags
             WorkspaceView.WORKSPACE.setSelection(WorkspaceView.WGPU_OBJ, start, end)
@@ -595,6 +609,7 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
     }
 
     override fun append(text: Char): Editable {
+        Timber.e("appending $text")
         WorkspaceView.WORKSPACE.append(WorkspaceView.WGPU_OBJ, text.toString())
         view.drawImmediately()
         wsInputConnection.notifySelectionUpdated()
@@ -699,6 +714,7 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
     }
 
     override fun delete(st: Int, en: Int): Editable {
+        Timber.e("deleting $st-$en")
         WorkspaceView.WORKSPACE.replace(WorkspaceView.WGPU_OBJ, st, en, "")
 
         if (en < composingStart) {
@@ -713,6 +729,7 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
     }
 
     override fun clear() {
+        Timber.e("clearing")
         WorkspaceView.WORKSPACE.clear(WorkspaceView.WGPU_OBJ)
 
         composingStart = -1

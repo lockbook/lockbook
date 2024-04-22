@@ -120,6 +120,9 @@ class Workspace private constructor() {
     // text input
     external fun setSelection(rustObj: Long, start: Int, end: Int)
     external fun getSelection(rustObj: Long): String
+    external fun getComposing(rustObj: Long): String
+    external fun setComposing(rustObj: Long, none: Boolean, start: Int, end: Int, text: String)
+    external fun uncomposeText(rustObj: Long)
     external fun getTextLength(rustObj: Long): Int
     external fun clear(rustObj: Long)
     external fun replace(rustObj: Long, start: Int, end: Int, text: String)
