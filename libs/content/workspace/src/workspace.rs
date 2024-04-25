@@ -708,14 +708,26 @@ impl Workspace {
                 WsMsg::SyncMsg(prog) => self.sync_message(prog),
                 WsMsg::FileRenamed { id, new_name } => {
                     out.file_renamed = Some((id, new_name.clone()));
+
+                    let mut different_file_type = false;
                     if let Some(tab) = self.get_mut_tab_by_id(id) {
+                        different_file_type = !NameComponents::from(&new_name)
+                            .extension
+                            .eq(&NameComponents::from(&tab.name).extension);
+
                         tab.name = new_name.clone();
                     }
 
+                    let mut is_tab_active = false;
                     if let Some(tab) = self.current_tab() {
                         if tab.id == id {
                             out.window_title = Some(tab.name.clone());
+                            is_tab_active = true;
                         }
+                    }
+
+                    if different_file_type {
+                        self.open_file(id, false, is_tab_active);
                     }
                 }
                 WsMsg::SyncDone(sync_outcome) => self.sync_done(sync_outcome, out),
