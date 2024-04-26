@@ -1,4 +1,6 @@
 mod account;
+mod ml_init;
+mod ml_chat;
 mod debug;
 mod edit;
 mod imex;
@@ -21,6 +23,7 @@ use cli_rs::{
 };
 
 use input::FileInput;
+// use input::Model;
 use lb::{Core, CoreError, Filter, Uuid};
 
 fn run() -> CliResult<()> {
@@ -199,6 +202,24 @@ fn run() -> CliResult<()> {
         .subcommand(
             Command::name("sync").description("sync your local changes back to lockbook servers") // todo also back
                 .handler(|| sync(core))
+        )
+        .subcommand(
+            Command::name("ml")
+                .description("use machine learning models to enchance your lockbook")
+                .subcommand(
+                    Command::name("init")
+                        .description("download llm models locally to use the chat subcommand.")
+                        .input(ml_init::model_flag()
+                            .completor(|prompt| input::file_completor(core, prompt, None)))
+                        .handler(|model| ml_init::start(core, model.get()))
+                )
+                .subcommand(
+                    Command::name("chat")
+                        .description("llm chat with a lockbook file")
+                        .input(Arg::<FileInput>::name("file").description("file you want to chat with"))
+                        .handler(|target| ml_chat::get_first_prompt(core, target.get()))
+                        // .input(Arg::<Model>::name("model").description("llm model to use"))
+                )
         )
         .with_completions()
         .parse();
