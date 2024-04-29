@@ -227,6 +227,8 @@ class WorkspaceWrapperView(context: Context, val model: WorkspaceViewModel) : Fr
             }
         }
 
+        workspaceView.postWrapperRender = null
+
         when (newTab) {
             WorkspaceTab.Welcome,
             WorkspaceTab.Svg,
@@ -501,8 +503,6 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
     }
 
     override fun getSpanStart(tag: Any?): Int {
-        Timber.e("getting start of tag ${(tag ?: Unit)::class.qualifiedName}")
-
         if (tag == Selection.SELECTION_START) {
             return selectionStart
         }
@@ -555,13 +555,11 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
     }
 
     override fun nextSpanTransition(start: Int, limit: Int, type: Class<*>?): Int {
-        Timber.e("getting next span transition")
+//        Timber.e("getting next span transition")
         return -1
     }
 
     override fun setSpan(what: Any?, start: Int, end: Int, flags: Int) {
-        Timber.e("adding span ${(what ?: Unit)::class.qualifiedName}")
-
         if (what == Selection.SELECTION_START) {
             selectionStartSpanFlag = flags
             WorkspaceView.WORKSPACE.setSelection(WorkspaceView.WGPU_OBJ, start, end)
@@ -609,7 +607,6 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
     }
 
     override fun append(text: Char): Editable {
-        Timber.e("appending $text")
         WorkspaceView.WORKSPACE.append(WorkspaceView.WGPU_OBJ, text.toString())
         view.drawImmediately()
         wsInputConnection.notifySelectionUpdated()
@@ -714,7 +711,6 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
     }
 
     override fun delete(st: Int, en: Int): Editable {
-        Timber.e("deleting $st-$en")
         WorkspaceView.WORKSPACE.replace(WorkspaceView.WGPU_OBJ, st, en, "")
 
         if (en < composingStart) {
@@ -729,7 +725,6 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
     }
 
     override fun clear() {
-        Timber.e("clearing")
         WorkspaceView.WORKSPACE.clear(WorkspaceView.WGPU_OBJ)
 
         composingStart = -1

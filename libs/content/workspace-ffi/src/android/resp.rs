@@ -4,6 +4,7 @@ use egui_editor::{
 };
 use lb_external_interface::lb_rs::Uuid;
 use serde::Serialize;
+use utf16string::WString;
 use workspace_rs::output::WsOutput;
 
 #[derive(Serialize, Default)]
@@ -64,6 +65,7 @@ impl From<WsOutput> for FfiWorkspaceResp {
     }
 }
 
+// uses utf16 encoding
 #[derive(Serialize, Default)]
 pub struct JTextPosition {
     pub none: bool,

@@ -492,6 +492,11 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_replace(
         Err(err) => format!("error: {:?}", err),
     };
 
+    let text_len = match obj.workspace.current_tab_markdown_mut() {
+        Some(markdown) => markdown.editor.buffer.current.text.len() as i32,
+        None => return,
+    };
+
     obj.context.push_markdown_event(Modification::Replace {
         region: Region::BetweenLocations {
             start: Location::DocCharOffset(DocCharOffset(start as usize)),
@@ -512,12 +517,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_insert(
         Err(err) => format!("error: {:?}", err),
     };
 
-    let loc = Location::DocCharOffset(DocCharOffset(index as usize));
-
-    obj.context.push_markdown_event(Modification::Replace {
-        region: Region::BetweenLocations { start: loc, end: loc },
-        text,
-    })
+    obj.raw_input.events.push(Event::Text(text));
 }
 
 #[no_mangle]
@@ -563,7 +563,11 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_getTextInRange(
     let cursor: Cursor = (start as usize, end as usize).into();
 
     let buffer = &markdown.editor.buffer.current;
-    let text = cursor.selection_text(buffer);
+    let text = if start >= buffer.text.len() || end >= buffer.text.len() {
+        ""
+    } else {
+        cursor.selection_text(buffer)
+    };
 
     env.new_string(text)
         .expect("Couldn't create JString from rust string!")
