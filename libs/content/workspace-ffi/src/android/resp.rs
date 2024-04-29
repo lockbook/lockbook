@@ -1,10 +1,9 @@
 use egui_editor::{
     input::canonical::{Location, Region},
-    offset_types::{DocCharOffset, RelCharOffset},
+    offset_types::DocCharOffset,
 };
 use lb_external_interface::lb_rs::Uuid;
 use serde::Serialize;
-use utf16string::WString;
 use workspace_rs::output::WsOutput;
 
 #[derive(Serialize, Default)]
@@ -58,10 +57,6 @@ pub struct JTextRange {
     pub none: bool,
     pub start: usize,
     pub end: usize,
-}
-
-impl JTextRange {
-    fn into_doc_char_offset(text: &str) -> (DocCharOffset, DocCharOffset) {}
 }
 
 impl From<JTextRange> for (DocCharOffset, DocCharOffset) {
