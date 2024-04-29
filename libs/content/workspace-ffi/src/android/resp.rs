@@ -4,7 +4,6 @@ use egui_editor::{
 };
 use lb_external_interface::lb_rs::Uuid;
 use serde::Serialize;
-use utf16string::WString;
 use workspace_rs::output::WsOutput;
 
 #[derive(Serialize, Default)]

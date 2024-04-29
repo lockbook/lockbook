@@ -492,11 +492,6 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_replace(
         Err(err) => format!("error: {:?}", err),
     };
 
-    let text_len = match obj.workspace.current_tab_markdown_mut() {
-        Some(markdown) => markdown.editor.buffer.current.text.len() as i32,
-        None => return,
-    };
-
     obj.context.push_markdown_event(Modification::Replace {
         region: Region::BetweenLocations {
             start: Location::DocCharOffset(DocCharOffset(start as usize)),
@@ -517,7 +512,12 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_insert(
         Err(err) => format!("error: {:?}", err),
     };
 
-    obj.raw_input.events.push(Event::Text(text));
+    let loc = Location::DocCharOffset(DocCharOffset(index as usize));
+
+    obj.context.push_markdown_event(Modification::Replace {
+        region: Region::BetweenLocations { start: loc, end: loc },
+        text,
+    })
 }
 
 #[no_mangle]
@@ -563,11 +563,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_getTextInRange(
     let cursor: Cursor = (start as usize, end as usize).into();
 
     let buffer = &markdown.editor.buffer.current;
-    let text = if start >= buffer.text.len() || end >= buffer.text.len() {
-        ""
-    } else {
-        cursor.selection_text(buffer)
-    };
+    let text = cursor.selection_text(buffer);
 
     env.new_string(text)
         .expect("Couldn't create JString from rust string!")
@@ -639,48 +635,4 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_toggleEraserSVG(
                 .set_tool(svg.toolbar.previous_tool.unwrap_or(Tool::Pen));
         }
     }
-}
-
-#[no_mangle]
-pub extern "system" fn Java_app_lockbook_workspace_Workspace_getComposing(
-    env: JNIEnv, _: JClass, obj: jlong,
-) -> jstring {
-    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
-
-    let resp = match obj.workspace.current_tab_markdown_mut() {
-        Some(markdown) => match markdown.editor.buffer.current.cursor.mark {
-            None => JTextRange { none: true, ..Default::default() },
-            Some((start, end)) => JTextRange { none: false, start: start.0, end: end.0 },
-        },
-        None => JTextRange::default(),
-    };
-
-    env.new_string(serde_json::to_string(&resp).unwrap())
-        .expect("Couldn't create JString from rust string!")
-        .into_raw()
-}
-
-#[no_mangle]
-pub extern "system" fn Java_app_lockbook_workspace_Workspace_setComposing(
-    mut env: JNIEnv, _: JClass, obj: jlong, none: jboolean, start: jint, end: jint, text: JString,
-) {
-    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
-    let text: String = match env.get_string(&text) {
-        Ok(cont) => cont.into(),
-        Err(err) => format!("error: {:?}", err),
-    };
-
-    obj.context.push_markdown_event(Modification::StageMarked {
-        highlighted: JTextRange { none: none == 1, start: start as usize, end: end as usize }
-            .into(),
-        text,
-    });
-}
-
-#[no_mangle]
-pub extern "system" fn Java_app_lockbook_workspace_Workspace_uncomposeText(
-    _env: JNIEnv, _: JClass, obj: jlong,
-) {
-    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
-    obj.context.push_markdown_event(Modification::CommitMarked);
 }
