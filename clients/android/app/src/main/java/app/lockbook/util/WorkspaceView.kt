@@ -39,8 +39,6 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
         invalidate()
     }
 
-    var postWrapperRender: (() -> Unit)? = null
-
     init {
         holder.addCallback(this)
         holder.setFormat(PixelFormat.TRANSPARENT)
@@ -251,8 +249,6 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
         if (currentTab != model._currentTab.value) {
             model._currentTab.value = currentTab
         }
-
-        postWrapperRender?.invoke()
 
         if (response.redrawIn < BigInteger("100")) {
             invalidate()

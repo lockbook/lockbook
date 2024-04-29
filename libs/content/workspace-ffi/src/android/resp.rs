@@ -53,7 +53,6 @@ impl From<WsOutput> for FfiWorkspaceResp {
     }
 }
 
-// uses utf16 encoding
 #[derive(Serialize, Default)]
 pub struct JTextRange {
     pub none: bool,

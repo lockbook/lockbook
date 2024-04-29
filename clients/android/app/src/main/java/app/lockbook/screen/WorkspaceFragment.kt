@@ -231,8 +231,6 @@ class WorkspaceWrapperView(context: Context, val model: WorkspaceViewModel) : Fr
             }
         }
 
-        workspaceView.postWrapperRender = null
-
         when (newTab) {
             WorkspaceTab.Welcome,
             WorkspaceTab.Svg,
@@ -387,20 +385,7 @@ class WorkspaceTextEditable(val view: WorkspaceView) : Editable {
     private var selectionStartSpanFlag = 0
     private var selectionEndSpanFlag = 0
 
-    private var currentSelectionStart: Int? = null
-    private var currentSelectionEnd: Int? = null
-
-    private val postWrapperRender: () -> Unit = {
-        currentSelectionStart = null
-        currentSelectionEnd = null
-    }
-
-    init {
-        view.postWrapperRender = postWrapperRender
-    }
-
     fun getSelection(): JTextRange = Json.decodeFromString(WorkspaceView.WORKSPACE.getSelection(WorkspaceView.WGPU_OBJ))
-    fun getComposingText(): JTextRange = Json.decodeFromString(WorkspaceView.WORKSPACE.getComposing(WorkspaceView.WGPU_OBJ))
 
     override fun get(index: Int): Char =
         WorkspaceView.WORKSPACE.getTextInRange(WorkspaceView.WGPU_OBJ, index, index)[0]
