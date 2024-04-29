@@ -550,7 +550,6 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
     }
 
     override fun nextSpanTransition(start: Int, limit: Int, type: Class<*>?): Int {
-//        Timber.e("getting next span transition")
         return -1
     }
 
