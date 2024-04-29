@@ -432,11 +432,9 @@ class WorkspaceTextEditable(val view: WorkspaceView) : Editable {
     override fun getSpanFlags(tag: Any?): Int {
         return when (tag) {
             Selection.SELECTION_START -> {
-//                Timber.e("get selection started flags...")
                 selectionStartSpanFlag
             }
             Selection.SELECTION_END -> {
-//                Timber.e("get selection ended flags...")
                 selectionEndSpanFlag
             }
             else -> {
@@ -446,7 +444,6 @@ class WorkspaceTextEditable(val view: WorkspaceView) : Editable {
     }
 
     override fun nextSpanTransition(start: Int, limit: Int, type: Class<*>?): Int {
-//        Timber.e("getting next span transition")
         return -1
     }
 
