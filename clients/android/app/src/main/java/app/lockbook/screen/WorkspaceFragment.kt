@@ -231,6 +231,8 @@ class WorkspaceWrapperView(context: Context, val model: WorkspaceViewModel) : Fr
             }
         }
 
+        workspaceView.postWrapperRender = null
+
         when (newTab) {
             WorkspaceTab.Welcome,
             WorkspaceTab.Svg,
@@ -304,8 +306,8 @@ class WorkspaceTextInputWrapper(context: Context, val workspaceView: WorkspaceVi
     }
 }
 
-class WorkspaceTextInputConnection(val view: View) : BaseInputConnection(view, true) {
-    private val wsEditable = WorkspaceTextEditable(view)
+class WorkspaceTextInputConnection(val view: WorkspaceView) : BaseInputConnection(view, true) {
+    val wsEditable = WorkspaceTextEditable(view)
     private var monitorCursorUpdates = false
 
     private fun getInputMethodManager(): InputMethodManager = App.applicationContext().getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
@@ -372,39 +374,6 @@ class WorkspaceTextInputConnection(val view: View) : BaseInputConnection(view, t
         return true
     }
 
-    override fun setComposingRegion(start: Int, end: Int): Boolean {
-        WorkspaceView.WORKSPACE.setComposing(WorkspaceView.WGPU_OBJ, false, start, end, "")
-
-        return true
-    }
-
-    override fun setComposingText(text: CharSequence?, newCursorPosition: Int): Boolean {
-        WorkspaceView.WORKSPACE.setComposing(WorkspaceView.WGPU_OBJ, false, wsEditable.getComposingText().start, wsEditable.getComposingText().end, text?.toString() ?: "")
-        WorkspaceView.WORKSPACE.setSelection(WorkspaceView.WGPU_OBJ, newCursorPosition, newCursorPosition)
-
-        return true
-    }
-
-    override fun setComposingRegion(start: Int, end: Int, textAttribute: TextAttribute?): Boolean {
-        WorkspaceView.WORKSPACE.setComposing(WorkspaceView.WGPU_OBJ, false, start, end, "")
-
-        return true
-    }
-
-    override fun setComposingText(
-        text: CharSequence,
-        newCursorPosition: Int,
-        textAttribute: TextAttribute?
-    ): Boolean {
-        return setComposingText(text, newCursorPosition)
-    }
-
-    override fun finishComposingText(): Boolean {
-        WorkspaceView.WORKSPACE.uncomposeText(WorkspaceView.WGPU_OBJ)
-
-        return true
-    }
-
     override fun getEditable(): Editable {
         return wsEditable
     }
@@ -413,10 +382,22 @@ class WorkspaceTextInputConnection(val view: View) : BaseInputConnection(view, t
 @Serializable
 data class JTextRange(val none: Boolean, val start: Int, val end: Int)
 
-class WorkspaceTextEditable(val view: View) : Editable {
+class WorkspaceTextEditable(val view: WorkspaceView) : Editable {
 
     private var selectionStartSpanFlag = 0
     private var selectionEndSpanFlag = 0
+
+    private var currentSelectionStart: Int? = null
+    private var currentSelectionEnd: Int? = null
+
+    private val postWrapperRender: () -> Unit = {
+        currentSelectionStart = null
+        currentSelectionEnd = null
+    }
+
+    init {
+        view.postWrapperRender = postWrapperRender
+    }
 
     fun getSelection(): JTextRange = Json.decodeFromString(WorkspaceView.WORKSPACE.getSelection(WorkspaceView.WGPU_OBJ))
     fun getComposingText(): JTextRange = Json.decodeFromString(WorkspaceView.WORKSPACE.getComposing(WorkspaceView.WGPU_OBJ))
@@ -444,17 +425,11 @@ class WorkspaceTextEditable(val view: View) : Editable {
         }
     }
 
-    val emptySpannable = SpannableString("")
-
     override fun <T> getSpans(start: Int, end: Int, type: Class<T>?): Array<T> {
-        Timber.e("getting spans for ${(type ?: Unit::class.java).simpleName}")
-
-        return emptySpannable.getSpans(0, 1, type)
+        return java.lang.reflect.Array.newInstance(type, 0) as Array<T>
     }
 
     override fun getSpanStart(tag: Any?): Int {
-        Timber.e("getting start of tag ${(tag ?: Unit)::class.qualifiedName}")
-
         if (tag == Selection.SELECTION_START) {
             return getSelection().start
         }
@@ -463,14 +438,10 @@ class WorkspaceTextEditable(val view: View) : Editable {
             return getSelection().end
         }
 
-
-
         return -1
     }
 
     override fun getSpanEnd(tag: Any?): Int {
-        Timber.e("getting end of tag ${(tag ?: Unit)::class.qualifiedName}")
-
         if (tag == Selection.SELECTION_START) {
             return getSelection().start
         }
@@ -485,11 +456,11 @@ class WorkspaceTextEditable(val view: View) : Editable {
     override fun getSpanFlags(tag: Any?): Int {
         return when (tag) {
             Selection.SELECTION_START -> {
-                Timber.e("get selection started flags...")
+//                Timber.e("get selection started flags...")
                 selectionStartSpanFlag
             }
             Selection.SELECTION_END -> {
-                Timber.e("get selection ended flags...")
+//                Timber.e("get selection ended flags...")
                 selectionEndSpanFlag
             }
             else -> {
@@ -499,26 +470,23 @@ class WorkspaceTextEditable(val view: View) : Editable {
     }
 
     override fun nextSpanTransition(start: Int, limit: Int, type: Class<*>?): Int {
-        Timber.e("getting next span transition")
+//        Timber.e("getting next span transition")
         return -1
     }
 
     override fun setSpan(what: Any?, start: Int, end: Int, flags: Int) {
-        Timber.e("adding span ${(what ?: Unit)::class.qualifiedName}")
-
         if (what == Selection.SELECTION_START) {
             selectionStartSpanFlag = flags
-            WorkspaceView.WORKSPACE.setSelection(WorkspaceView.WGPU_OBJ, start, getSelection().end)
+            WorkspaceView.WORKSPACE.setSelection(WorkspaceView.WGPU_OBJ, start, end)
         } else if (what == Selection.SELECTION_END) {
             selectionEndSpanFlag = flags
-            WorkspaceView.WORKSPACE.setSelection(WorkspaceView.WGPU_OBJ, getSelection().start, end)
+            WorkspaceView.WORKSPACE.setSelection(WorkspaceView.WGPU_OBJ, start, end)
         }
+
+        view.invalidate()
     }
 
-    override fun removeSpan(what: Any?) {
-
-        Timber.e("removing span ${(what ?: Unit)::class.qualifiedName} ... selectionstartspan=${what == Selection.SELECTION_START} selectionendedspan=${what == Selection.SELECTION_START}")
-    }
+    override fun removeSpan(what: Any?) {}
 
     override fun append(text: CharSequence?): Editable {
         text?.let { realText ->
@@ -537,7 +505,6 @@ class WorkspaceTextEditable(val view: View) : Editable {
     }
 
     override fun append(text: Char): Editable {
-        Timber.e("appending $text")
         WorkspaceView.WORKSPACE.append(WorkspaceView.WGPU_OBJ, text.toString())
 
         return this
@@ -545,8 +512,6 @@ class WorkspaceTextEditable(val view: View) : Editable {
 
     override fun replace(st: Int, en: Int, source: CharSequence?, start: Int, end: Int): Editable {
         source?.let { realText ->
-            Timber.e("replacing from $st-$en with ${realText.substring(start, end)}")
-
             WorkspaceView.WORKSPACE.replace(WorkspaceView.WGPU_OBJ, st, en, realText.substring(start, end))
         }
 
@@ -555,8 +520,6 @@ class WorkspaceTextEditable(val view: View) : Editable {
 
     override fun replace(st: Int, en: Int, text: CharSequence?): Editable {
         text?.let { realText ->
-            Timber.e("replacing from $st-$en with $text")
-
             WorkspaceView.WORKSPACE.replace(WorkspaceView.WGPU_OBJ, st, en, realText.toString())
         }
 
@@ -565,7 +528,6 @@ class WorkspaceTextEditable(val view: View) : Editable {
 
     override fun insert(where: Int, text: CharSequence?, start: Int, end: Int): Editable {
         text?.let { realText ->
-            Timber.e("inserting at $where ${realText.substring(start, end)}")
             WorkspaceView.WORKSPACE.insert(WorkspaceView.WGPU_OBJ, where, realText.substring(start, end))
         }
 
@@ -574,7 +536,6 @@ class WorkspaceTextEditable(val view: View) : Editable {
 
     override fun insert(where: Int, text: CharSequence?): Editable {
         text?.let { realText ->
-            Timber.e("inserting at $where $realText")
             WorkspaceView.WORKSPACE.insert(WorkspaceView.WGPU_OBJ, where, realText.toString())
         }
 
@@ -582,14 +543,12 @@ class WorkspaceTextEditable(val view: View) : Editable {
     }
 
     override fun delete(st: Int, en: Int): Editable {
-        Timber.e("deleting $st-$en")
         WorkspaceView.WORKSPACE.replace(WorkspaceView.WGPU_OBJ, st, en, "")
 
         return this
     }
 
     override fun clear() {
-        Timber.e("clearing")
         WorkspaceView.WORKSPACE.clear(WorkspaceView.WGPU_OBJ)
     }
 
@@ -598,5 +557,7 @@ class WorkspaceTextEditable(val view: View) : Editable {
 
     // no text needs to be filtered
     override fun getFilters(): Array<InputFilter> = arrayOf()
-    override val length: Int = WorkspaceView.WORKSPACE.getTextLength(WorkspaceView.WGPU_OBJ)
+    override val length: Int get() {
+        return WorkspaceView.WORKSPACE.getTextLength(WorkspaceView.WGPU_OBJ)
+    }
 }

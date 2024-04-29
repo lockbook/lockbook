@@ -4,6 +4,7 @@ use egui_editor::{
 };
 use lb_external_interface::lb_rs::Uuid;
 use serde::Serialize;
+use utf16string::WString;
 use workspace_rs::output::WsOutput;
 
 #[derive(Serialize, Default)]
@@ -52,6 +53,7 @@ impl From<WsOutput> for FfiWorkspaceResp {
     }
 }
 
+// uses utf16 encoding
 #[derive(Serialize, Default)]
 pub struct JTextRange {
     pub none: bool,
@@ -59,13 +61,11 @@ pub struct JTextRange {
     pub end: usize,
 }
 
-impl From<JTextRange> for (DocCharOffset, DocCharOffset) {
-    fn from(value: JTextRange) -> Self {
-        (value.start.into(), value.end.into())
-    }
+impl JTextRange {
+    fn into_doc_char_offset(text: &str) -> (DocCharOffset, DocCharOffset) {}
 }
 
-impl From<JTextRange> for (RelCharOffset, RelCharOffset) {
+impl From<JTextRange> for (DocCharOffset, DocCharOffset) {
     fn from(value: JTextRange) -> Self {
         (value.start.into(), value.end.into())
     }
