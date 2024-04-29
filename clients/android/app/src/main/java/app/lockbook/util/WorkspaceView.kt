@@ -53,8 +53,6 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
         invalidate()
     }
 
-    var postWrapperRender: (() -> Unit)? = null
-
     init {
         holder.addCallback(this)
         holder.setFormat(PixelFormat.TRANSPARENT)

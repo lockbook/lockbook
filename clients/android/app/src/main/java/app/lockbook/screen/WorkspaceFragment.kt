@@ -227,8 +227,6 @@ class WorkspaceWrapperView(context: Context, val model: WorkspaceViewModel) : Fr
             }
         }
 
-        workspaceView.postWrapperRender = null
-
         when (newTab) {
             WorkspaceTab.Welcome,
             WorkspaceTab.Svg,
