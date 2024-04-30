@@ -149,9 +149,11 @@ impl SVGEditor {
 
         let mut utree: usvg::Tree =
             usvg::TreeParsing::from_str(&self.buffer.to_string(), &options).unwrap();
-        let available_rect = self
-            .inner_rect
-            .expand2(egui::vec2(self.inner_rect.width() * 0.5, self.inner_rect.height() * 0.5));
+        let high_res_factor = ui.input(|r| r.pixels_per_point) - 1.0;
+        let available_rect = self.inner_rect.expand2(egui::vec2(
+            self.inner_rect.width() * high_res_factor,
+            self.inner_rect.height() * high_res_factor,
+        ));
         utree.size = Size::from_wh(available_rect.width(), available_rect.height()).unwrap();
 
         utree.view_box.rect = usvg::NonZeroRect::from_ltrb(
