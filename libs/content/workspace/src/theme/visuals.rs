@@ -9,6 +9,7 @@ pub fn init(ctx: &egui::Context, dark_mode: bool) {
     let mut style = (*ctx.style()).clone();
     style.spacing.button_padding = egui::vec2(7.0, 7.0);
     style.spacing.menu_margin = egui::Margin::same(10.0);
+    style.spacing.combo_width = 50.0;
 
     style
         .text_styles

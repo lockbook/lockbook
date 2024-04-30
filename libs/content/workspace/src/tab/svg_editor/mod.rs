@@ -7,7 +7,7 @@ mod toolbar;
 mod util;
 mod zoom;
 
-use crate::tab::svg_editor::toolbar::{ColorSwatch, Component, Toolbar};
+use crate::tab::svg_editor::toolbar::{ColorSwatch, Toolbar};
 use crate::theme::palette::ThemePalette;
 use egui::load::SizedTexture;
 pub use eraser::Eraser;
@@ -20,7 +20,7 @@ use minidom::Element;
 pub use pen::CubicBezBuilder;
 pub use pen::Pen;
 use resvg::tiny_skia::Pixmap;
-use resvg::usvg::{self, ImageHrefResolver, ImageKind, Size};
+use resvg::usvg::{self, ImageHrefResolver, ImageKind, Rect, Size};
 use std::str::FromStr;
 use std::sync::Arc;
 pub use toolbar::Tool;
@@ -36,8 +36,10 @@ pub struct SVGEditor {
     buffer: Buffer,
     pub toolbar: Toolbar,
     inner_rect: egui::Rect,
+    content_area: Option<Rect>,
     core: lb_rs::Core,
     open_file: Uuid,
+    skip_frame: bool,
 }
 
 impl SVGEditor {
@@ -68,7 +70,15 @@ impl SVGEditor {
 
         Self::define_dynamic_colors(&mut buffer, &mut toolbar, false, true);
 
-        Self { buffer, toolbar, inner_rect: egui::Rect::NOTHING, core, open_file }
+        Self {
+            buffer,
+            toolbar,
+            inner_rect: egui::Rect::NOTHING,
+            content_area: None,
+            core,
+            open_file,
+            skip_frame: false,
+        }
     }
 
     pub fn show(&mut self, ui: &mut egui::Ui) {
@@ -80,7 +90,8 @@ impl SVGEditor {
                     ui.visuals().faint_bg_color
                 })
                 .show(ui, |ui| {
-                    self.toolbar.show(ui, &mut self.buffer);
+                    self.toolbar
+                        .show(ui, &mut self.buffer, &mut self.skip_frame);
                 });
 
             self.inner_rect = ui.available_rect_before_wrap();
@@ -89,7 +100,8 @@ impl SVGEditor {
 
         handle_zoom_input(ui, self.inner_rect, &mut self.buffer);
 
-        if ui.input(|r| r.multi_touch().is_some()) {
+        if ui.input(|r| r.multi_touch().is_some()) || self.skip_frame {
+            self.skip_frame = false;
             return;
         }
 
@@ -168,6 +180,8 @@ impl SVGEditor {
         let mut pixmap = Pixmap::new(pixmap_size.width(), pixmap_size.height()).unwrap();
 
         tree.render(usvg::Transform::default(), &mut pixmap.as_mut());
+        self.content_area = tree.content_area;
+
         let image = egui::ColorImage::from_rgba_unmultiplied(
             [pixmap.width() as usize, pixmap.height() as usize],
             pixmap.data(),
@@ -236,17 +250,6 @@ impl SVGEditor {
                 color: theme_colors.iter().find(|p| p.0.eq("fg")).unwrap().1,
             });
         }
-
-        let btns = theme_colors.iter().map(|theme_color| {
-            Component::ColorSwatch(ColorSwatch { id: theme_color.0.clone(), color: theme_color.1 })
-        });
-        toolbar.components = toolbar
-            .components
-            .clone()
-            .into_iter()
-            .filter(|c| !matches!(c, Component::ColorSwatch(_)))
-            .chain(btns)
-            .collect();
 
         let mut gradient_group = Element::builder("g", "")
             .attr("id", gradient_group_id)
