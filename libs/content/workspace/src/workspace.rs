@@ -287,10 +287,8 @@ impl Workspace {
                 matches!(e, egui::Event::Touch { device_id: _, id: _, phase: _, pos: _, force: _ })
             })
         });
-        if has_touch {
-            if self.last_touch_event.is_none() {
-                self.last_touch_event = Some(Instant::now());
-            }
+        if has_touch && self.last_touch_event.is_none() {
+            self.last_touch_event = Some(Instant::now());
         }
 
         if let Some(last_touch_event) = self.last_touch_event {
