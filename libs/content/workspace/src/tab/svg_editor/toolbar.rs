@@ -335,11 +335,9 @@ impl Toolbar {
             })
             .inner;
 
-        if let Some(rect) = res {
-            if let Some(r) = rect {
-                if r.contains(ui.input(|r| r.pointer.hover_pos().unwrap_or_default())) {
-                    *skip_frame = true;
-                }
+        if let Some(Some(r)) = res {
+            if r.contains(ui.input(|r| r.pointer.hover_pos().unwrap_or_default())) {
+                *skip_frame = true;
             }
         }
         if Button::default().icon(&Icon::ZOOM_OUT).show(ui).clicked() {
