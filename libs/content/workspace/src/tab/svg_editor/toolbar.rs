@@ -18,6 +18,7 @@ const THICKNESS_BTN_WIDTH: f32 = 30.0;
 
 pub struct Toolbar {
     pub active_tool: Tool,
+    right_tab_rect: Option<egui::Rect>,
     pub pen: Pen,
     pub eraser: Eraser,
     pub selection: Selection,
@@ -101,6 +102,7 @@ impl Toolbar {
         Toolbar {
             active_tool: Tool::Pen,
             previous_tool: None,
+            right_tab_rect: None,
             pen: Pen::new(max_id),
             eraser: Eraser::new(),
             selection: Selection::default(),
@@ -136,6 +138,11 @@ impl Toolbar {
                 .show(ui, |ui| {
                     ui.horizontal(|ui| {
                         self.show_left_toolbar(ui, buffer);
+
+                        let right_bar_width =
+                            if let Some(r) = self.right_tab_rect { r.width() } else { 0.0 };
+                        ui.add_space(right_bar_width + 10.0);
+
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Min), |ui| {
                             self.show_right_toolbar(ui, buffer, skip_frame);
                         });
@@ -208,6 +215,10 @@ impl Toolbar {
         ui.add_space(4.0);
 
         self.show_tool_inline_controls(ui);
+
+        ui.add_space(4.0);
+        ui.add(egui::Separator::default().shrink(ui.available_height() * 0.3));
+        ui.add_space(4.0);
     }
 
     fn show_tool_inline_controls(&mut self, ui: &mut egui::Ui) {
@@ -294,7 +305,9 @@ impl Toolbar {
         chosen
     }
 
-    fn show_right_toolbar(&self, ui: &mut egui::Ui, buffer: &mut Buffer, skip_frame: &mut bool) {
+    fn show_right_toolbar(
+        &mut self, ui: &mut egui::Ui, buffer: &mut Buffer, skip_frame: &mut bool,
+    ) {
         let mut zoom_percentage = 100;
         if let Some(transform) = buffer.current.attr("transform") {
             let [a, b, c, d, _, _] = deserialize_transform(transform);
@@ -311,14 +324,24 @@ impl Toolbar {
 
         let mut selected = (zoom_percentage, false);
 
-        egui::ComboBox::from_id_source("a")
+        let res = egui::ComboBox::from_id_source("zoom_percentage_combobox")
             .selected_text(format!("{:?}%", zoom_percentage))
             .show_ui(ui, |ui| {
-                ui.selectable_value(&mut selected, (50, true), "50%");
-                ui.selectable_value(&mut selected, (100, true), "100%");
-                ui.selectable_value(&mut selected, (200, true), "200%");
-            });
+                let btns = [50, 100, 200].iter().map(|&i| {
+                    ui.selectable_value(&mut selected, (i, true), format!("{}%", i))
+                        .rect
+                });
+                btns.reduce(|acc, e| e.union(acc))
+            })
+            .inner;
 
+        if let Some(rect) = res {
+            if let Some(r) = rect {
+                if r.contains(ui.input(|r| r.pointer.hover_pos().unwrap_or_default())) {
+                    *skip_frame = true;
+                }
+            }
+        }
         if Button::default().icon(&Icon::ZOOM_OUT).show(ui).clicked() {
             zoom_to_percentage(buffer, zoom_percentage - 10, ui.ctx().screen_rect());
         }
@@ -327,5 +350,7 @@ impl Toolbar {
             zoom_to_percentage(buffer, selected.0, ui.ctx().screen_rect());
             selected.1 = false;
         }
+
+        self.right_tab_rect = Some(ui.min_rect());
     }
 }

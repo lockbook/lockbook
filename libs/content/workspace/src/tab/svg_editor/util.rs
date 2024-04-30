@@ -51,7 +51,7 @@ pub fn pointer_interests_path(
         .manipulator_groups()
         .iter()
         .all(|m| delete_brush.contains_point(m.anchor));
-    
+
     let intersects_delete_brush = !path
         .subpath_intersections(&delete_brush, None, None)
         .is_empty();
