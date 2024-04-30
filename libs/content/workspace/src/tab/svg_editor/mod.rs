@@ -143,7 +143,6 @@ impl SVGEditor {
         let options = usvg::Options {
             image_href_resolver: lb_local_resolver,
             image_rendering: usvg::ImageRendering::OptimizeSpeed,
-            dpi: 300.,
             ..Default::default()
         };
 
