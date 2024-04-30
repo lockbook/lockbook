@@ -4,10 +4,10 @@ use std::sync::mpsc;
 
 use super::{util, util::pointer_interests_path, Buffer, DeleteElement};
 
-const ERASER_THICKNESS: f32 = 10.0;
 pub struct Eraser {
     pub rx: mpsc::Receiver<EraseEvent>,
     pub tx: mpsc::Sender<EraseEvent>,
+    pub thickness: f32,
     paths_to_delete: HashMap<String, Element>,
     last_pos: Option<egui::Pos2>,
 }
@@ -27,7 +27,7 @@ impl Eraser {
     pub fn new() -> Self {
         let (tx, rx) = mpsc::channel();
 
-        Eraser { rx, tx, paths_to_delete: HashMap::default(), last_pos: None }
+        Eraser { rx, tx, paths_to_delete: HashMap::default(), thickness: 10.0, last_pos: None }
     }
 
     pub fn handle_events(&mut self, event: EraseEvent, buffer: &mut Buffer) {
@@ -38,7 +38,7 @@ impl Eraser {
                         return;
                     }
 
-                    if pointer_interests_path(path, pos, self.last_pos, ERASER_THICKNESS as f64) {
+                    if pointer_interests_path(path, pos, self.last_pos, self.thickness as f64) {
                         if let Some(n) = buffer
                             .current
                             .children()
@@ -93,9 +93,8 @@ impl Eraser {
 
             let stroke = egui::Stroke { width: 1.0, color: ui.visuals().text_color() };
             ui.painter()
-                .circle_stroke(cursor_pos, ERASER_THICKNESS, stroke);
+                .circle_stroke(cursor_pos, self.thickness, stroke);
             ui.output_mut(|w| w.cursor_icon = egui::CursorIcon::None);
-
             if ui.input(|i| i.pointer.primary_down()) {
                 self.tx.send(EraseEvent::Start(cursor_pos)).unwrap();
             }
