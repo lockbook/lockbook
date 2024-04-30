@@ -3,7 +3,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::Arc;
 use std::thread;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use crate::background::{BackgroundWorker, BwIncomingMsg, Signal};
 use crate::output::{DirtynessMsg, PersistentWsStatus, WsOutput};
@@ -34,6 +34,7 @@ pub struct Workspace {
     // todo set this in swift as well
     pub focused_parent: Option<Uuid>,
     pub show_tabs: bool,
+    pub last_touch_event: Option<Instant>,
 
     pub pers_status: PersistentWsStatus,
 }
@@ -104,6 +105,7 @@ impl Workspace {
             pers_status,
             show_tabs: true,
             focused_parent: None,
+            last_touch_event: None,
         }
     }
 
@@ -244,6 +246,8 @@ impl Workspace {
     pub fn show_workspace(&mut self, ui: &mut egui::Ui) -> WsOutput {
         let mut output = WsOutput::default();
 
+        self.set_tooltip_visibility(ui);
+
         self.process_updates(&mut output);
         self.process_keys(&mut output);
         self.pers_status.populate_message();
@@ -275,6 +279,28 @@ impl Workspace {
 
         output.status = self.pers_status.clone();
         output
+    }
+
+    fn set_tooltip_visibility(&mut self, ui: &mut egui::Ui) {
+        let has_touch = ui.input(|r| {
+            r.events.iter().any(|e| {
+                matches!(e, egui::Event::Touch { device_id: _, id: _, phase: _, pos: _, force: _ })
+            })
+        });
+        if has_touch && self.last_touch_event.is_none() {
+            self.last_touch_event = Some(Instant::now());
+        }
+
+        if let Some(last_touch_event) = self.last_touch_event {
+            if Instant::now() - last_touch_event > Duration::from_secs(5) {
+                self.ctx
+                    .style_mut(|style| style.interaction.tooltip_delay = 0.0);
+                self.last_touch_event = None;
+            } else {
+                self.ctx
+                    .style_mut(|style| style.interaction.tooltip_delay = f32::MAX);
+            }
+        }
     }
 
     fn show_empty_workspace(&mut self, ui: &mut egui::Ui, out: &mut WsOutput) {
