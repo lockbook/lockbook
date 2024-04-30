@@ -77,3 +77,26 @@ pub fn verify_zoom_g(buffer: &mut Buffer) {
         buffer.current = g;
     }
 }
+
+pub fn zoom_to_percentage(buffer: &mut Buffer, percentage: i32, working_rect: egui::Rect) {
+    let original_matrix =
+        deserialize_transform(buffer.current.attr("transform").unwrap_or_default());
+
+    let [a, b, _, _, _, _] = original_matrix;
+
+    let scale_x = (a * a + b * b).sqrt();
+
+    let zoom_delta = percentage as f64 / (scale_x * 100.0);
+
+    let mut scaled_matrix: Vec<f64> = original_matrix
+        .iter()
+        .map(|x| zoom_delta as f64 * x)
+        .collect();
+
+    scaled_matrix[4] += ((1.0 - zoom_delta) * working_rect.center().x as f64) as f64;
+    scaled_matrix[5] += ((1.0 - zoom_delta) * working_rect.center().y as f64) as f64;
+    let new_transform = serialize_transform(scaled_matrix.as_slice());
+
+    buffer.current.set_attr("transform", new_transform);
+    buffer.needs_path_map_update = true;
+}
