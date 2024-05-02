@@ -259,7 +259,7 @@ impl Buffer {
     }
 }
 
-fn apply_compounded_transforms(
+pub fn apply_compounded_transforms(
     master_transform: Option<[f64; 6]>, local_transform: Option<&str>,
     subpath: &mut Subpath<ManipulatorGroupId>,
 ) {

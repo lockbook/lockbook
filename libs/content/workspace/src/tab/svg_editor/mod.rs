@@ -27,6 +27,8 @@ pub use toolbar::Tool;
 use usvg_parser::Options;
 pub use util::node_by_id;
 
+use self::history::apply_compounded_transforms;
+use self::util::{d_to_subpath, deserialize_transform};
 use self::zoom::handle_zoom_input;
 
 /// A shorthand for [ImageHrefResolver]'s string function.
@@ -149,55 +151,77 @@ impl SVGEditor {
     }
 
     fn render_svg(&mut self, ui: &mut egui::Ui) {
-        let lb_local_resolver = ImageHrefResolver {
-            resolve_data: ImageHrefResolver::default_data_resolver(),
-            resolve_string: Self::lb_local_resolver(&self.core),
-        };
-
-        let options =
-            usvg::Options { image_href_resolver: lb_local_resolver, ..Default::default() };
-
-        let mut utree: usvg::Tree =
-            usvg::TreeParsing::from_str(&self.buffer.to_string(), &options).unwrap();
-        let available_rect = ui.available_rect_before_wrap();
-        utree.size = Size::from_wh(available_rect.width(), available_rect.height()).unwrap();
-
-        utree.view_box.rect = usvg::NonZeroRect::from_ltrb(
-            available_rect.left(),
-            available_rect.top(),
-            available_rect.right(),
-            available_rect.bottom(),
-        )
-        .unwrap();
-
-        if self.buffer.needs_path_map_update {
-            self.buffer.recalc_paths(&utree);
+        let mut master_transform = None;
+        if let Some(transform) = self.buffer.current.attr("transform") {
+            master_transform = Some(deserialize_transform(transform));
         }
 
-        let tree = resvg::Tree::from_usvg(&utree);
+        for el in self.buffer.current.children() {
+            if el.name().eq("path") {
+                let data = match el.attr("d") {
+                    Some(d) => d,
+                    None => continue,
+                };
 
-        let pixmap_size = tree.size.to_int_size();
-        let mut pixmap = Pixmap::new(pixmap_size.width(), pixmap_size.height()).unwrap();
+                let mut subpath = d_to_subpath(data);
 
-        tree.render(usvg::Transform::default(), &mut pixmap.as_mut());
-        self.content_area = tree.content_area;
+                apply_compounded_transforms(master_transform, el.attr("transform"), &mut subpath);
 
-        let image = egui::ColorImage::from_rgba_unmultiplied(
-            [pixmap.width() as usize, pixmap.height() as usize],
-            pixmap.data(),
-        );
+                if subpath.len() < 1 {
+                    continue;
+                }
+                subpath.iter().for_each(|bezier| {
+                    let points: Vec<egui::Pos2> = bezier
+                        .get_points()
+                        .map(|dvec| egui::pos2(dvec.x as f32, dvec.y as f32))
+                        .collect();
 
-        let texture = ui
-            .ctx()
-            .load_texture("svg_image", image, egui::TextureOptions::LINEAR);
+                    let epath = epaint::CubicBezierShape::from_points_stroke(
+                        points.try_into().unwrap(),
+                        false,
+                        egui::Color32::TRANSPARENT,
+                        egui::Stroke { width: 2.0, color: egui::Color32::BLACK },
+                    );
+                    ui.painter().add(epath);
+                });
+            }
+        }
 
-        ui.add(
-            egui::Image::new(egui::ImageSource::Texture(SizedTexture::new(
-                &texture,
-                egui::vec2(texture.size()[0] as f32, texture.size()[1] as f32),
-            )))
-            .sense(egui::Sense::click()),
-        );
+        // let available_rect = ui.available_rect_before_wrap();
+        // utree.size = Size::from_wh(available_rect.width(), available_rect.height()).unwrap();
+
+        // utree.view_box.rect = usvg::NonZeroRect::from_ltrb(
+        //     available_rect.left(),
+        //     available_rect.top(),
+        //     available_rect.right(),
+        //     available_rect.bottom(),
+        // )
+        // .unwrap();
+
+        // let tree = resvg::Tree::from_usvg(&utree);
+
+        // let pixmap_size = tree.size.to_int_size();
+        // let mut pixmap = Pixmap::new(pixmap_size.width(), pixmap_size.height()).unwrap();
+
+        // tree.render(usvg::Transform::default(), &mut pixmap.as_mut());
+        // self.content_area = tree.content_area;
+
+        // let image = egui::ColorImage::from_rgba_unmultiplied(
+        //     [pixmap.width() as usize, pixmap.height() as usize],
+        //     pixmap.data(),
+        // );
+
+        // let texture = ui
+        //     .ctx()
+        //     .load_texture("svg_image", image, egui::TextureOptions::LINEAR);
+
+        // ui.add(
+        //     egui::Image::new(egui::ImageSource::Texture(SizedTexture::new(
+        //         &texture,
+        //         egui::vec2(texture.size()[0] as f32, texture.size()[1] as f32),
+        //     )))
+        //     .sense(egui::Sense::click()),
+        // );
     }
 
     fn lb_local_resolver(core: &lb_rs::Core) -> ImageHrefStringResolverFn {
