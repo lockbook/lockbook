@@ -1,11 +1,12 @@
 use crate::android::window;
 use crate::android::window::NativeWindow;
-use crate::{wgpu, JTextRange, WgpuWorkspace};
+use crate::{wgpu, JTextPosition, JTextRange, WgpuWorkspace};
 use egui::{
     Context, Event, FontDefinitions, PointerButton, Pos2, TouchDeviceId, TouchId, TouchPhase,
 };
 use egui_editor::input::canonical::{Location, Modification, Region};
 use egui_editor::input::cursor::Cursor;
+use egui_editor::input::mutation;
 use egui_editor::offset_types::DocCharOffset;
 use egui_wgpu_backend::wgpu::CompositeAlphaMode;
 use egui_wgpu_backend::ScreenDescriptor;
@@ -635,4 +636,33 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_toggleEraserSVG(
                 .set_tool(svg.toolbar.previous_tool.unwrap_or(Tool::Pen));
         }
     }
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_textOffsetForPosition(
+    env: JNIEnv, _: JClass, obj: jlong, x: jfloat, y: jfloat,
+) -> jstring {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+
+    let markdown = match obj.workspace.current_tab_markdown_mut() {
+        Some(markdown) => markdown,
+        None => {
+            return env
+                .new_string("")
+                .expect("Couldn't create JString from rust string!")
+                .into_raw()
+        }
+    };
+
+    let segs = &markdown.editor.buffer.current.segs;
+    let galleys = &markdown.editor.galleys;
+    let text = &markdown.editor.bounds.text;
+
+    let offset = mutation::pos_to_char_offset(Pos2 { x, y }, galleys, segs, text);
+
+    let position = JTextPosition { none: false, position: offset.0 };
+
+    env.new_string(serde_json::to_string(&position).unwrap())
+        .expect("Couldn't create JString from rust string!")
+        .into_raw()
 }

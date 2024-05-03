@@ -134,6 +134,7 @@ class Workspace private constructor() {
     external fun clipboardCopy(rustObj: Long)
     external fun clipboardPaste(rustObj: Long, content: String)
 
+
     external fun toggleEraserSVG(rustObj: Long, select: Boolean)
 
     external fun insertTextAtCursor(rustObj: Long, text: String)

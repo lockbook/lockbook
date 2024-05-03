@@ -3,6 +3,8 @@ package app.lockbook.screen
 import android.annotation.SuppressLint
 import android.content.ClipboardManager
 import android.content.Context
+import android.graphics.Canvas
+import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
@@ -23,6 +25,7 @@ import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputConnection
 import android.view.inputmethod.InputMethodManager
 import android.widget.FrameLayout
+import androidx.appcompat.widget.AppCompatEditText
 import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.view.WindowInsetsCompat
 import androidx.fragment.app.Fragment
@@ -41,6 +44,7 @@ import app.lockbook.workspace.JTextRange
 import com.github.michaelbull.result.unwrap
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
+import timber.log.Timber
 import kotlin.math.abs
 
 class WorkspaceFragment : Fragment() {
@@ -241,6 +245,7 @@ class WorkspaceWrapperView(context: Context, val model: WorkspaceViewModel) : Fr
 
                 currentWrapper = WorkspaceTextInputWrapper(context, workspaceView, touchYOffset)
                 workspaceView.wrapperView = currentWrapper
+                Timber.e("creating workspace 2")
 
                 addView(currentWrapper, WS_TEXT_LAYOUT_PARAMS)
             }
@@ -330,6 +335,10 @@ class WorkspaceTextInputConnection(val workspaceView: WorkspaceView, val textInp
         super.setComposingText(text, newCursorPosition)
 
         return true
+    }
+
+    init {
+        Timber.e("created ws input connection")
     }
 
     private fun getInputMethodManager(): InputMethodManager = App.applicationContext().getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
@@ -554,6 +563,7 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
     }
 
     override fun setSpan(what: Any?, start: Int, end: Int, flags: Int) {
+        Timber.e("setting span...")
         if (what == Selection.SELECTION_START) {
             selectionStartSpanFlag = flags
             WorkspaceView.WORKSPACE.setSelection(WorkspaceView.WGPU_OBJ, start, end)
