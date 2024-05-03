@@ -110,11 +110,13 @@ class Workspace private constructor() {
     external fun insert(rustObj: Long, index: Int, text: String)
     external fun append(rustObj: Long, text: String)
     external fun getTextInRange(rustObj: Long, start: Int, end: Int): String
+    external fun textOffsetForPosition(rustObj: Long, x: Float, y: Float): String
 
     external fun selectAll(rustObj: Long)
     external fun clipboardCut(rustObj: Long)
     external fun clipboardCopy(rustObj: Long)
     external fun clipboardPaste(rustObj: Long, content: String)
+
 
     external fun toggleEraserSVG(rustObj: Long, select: Boolean)
 }

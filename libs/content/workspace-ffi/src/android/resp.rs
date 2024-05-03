@@ -53,6 +53,12 @@ impl From<WsOutput> for FfiWorkspaceResp {
 }
 
 #[derive(Serialize, Default)]
+pub struct JTextPosition {
+    pub none: bool,
+    pub position: usize,
+}
+
+#[derive(Serialize, Default)]
 pub struct JTextRange {
     pub none: bool,
     pub start: usize,

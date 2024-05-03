@@ -3,12 +3,15 @@ package app.lockbook.screen
 import android.annotation.SuppressLint
 import android.content.ClipboardManager
 import android.content.Context
+import android.graphics.Canvas
+import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.text.Editable
 import android.text.InputFilter
+import android.text.InputType
 import android.text.Selection
 import android.view.KeyEvent
 import android.view.LayoutInflater
@@ -22,6 +25,7 @@ import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputConnection
 import android.view.inputmethod.InputMethodManager
 import android.widget.FrameLayout
+import androidx.appcompat.widget.AppCompatEditText
 import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
@@ -39,6 +43,7 @@ import com.github.michaelbull.result.unwrap
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
+import timber.log.Timber
 import kotlin.math.abs
 
 class WorkspaceFragment : Fragment() {
@@ -209,7 +214,7 @@ class WorkspaceWrapperView(context: Context, val model: WorkspaceViewModel) : Fr
                 currentWrapper?.clearFocus()
 
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                    (currentWrapper as WorkspaceTextInputWrapper).inputConnection.closeConnection()
+                    (currentWrapper as WorkspaceTextInputWrapper).wsInputConnection.closeConnection()
                 }
 
                 val instanceWrapper = currentWrapper
@@ -230,8 +235,11 @@ class WorkspaceWrapperView(context: Context, val model: WorkspaceViewModel) : Fr
             WorkspaceTab.Loading -> {}
             WorkspaceTab.Markdown,
             WorkspaceTab.PlainText -> {
-                currentWrapper = WorkspaceTextInputWrapper(context, workspaceView)
+                val ic = WorkspaceTextInputConnection(workspaceView)
+                Timber.e("creating workspace ${ic}")
+                currentWrapper = WorkspaceTextInputWrapper(context, workspaceView, ic)
                 workspaceView.wrapperView = currentWrapper
+                Timber.e("creating workspace 2")
 
                 addView(currentWrapper, WS_TEXT_LAYOUT_PARAMS)
             }
@@ -242,8 +250,64 @@ class WorkspaceWrapperView(context: Context, val model: WorkspaceViewModel) : Fr
 }
 
 @SuppressLint("ViewConstructor")
-class WorkspaceTextInputWrapper(context: Context, val workspaceView: WorkspaceView) : View(context) {
+class WorkspaceTextInputWrapper(context: Context, private val workspaceView: WorkspaceView, val wsInputConnection: WorkspaceTextInputConnection) : AppCompatEditText(context) {
+    init {
+        Timber.e("initing workspace")
+        inputType = InputType.TYPE_TEXT_FLAG_MULTI_LINE
+        isSingleLine = false
+        maxLines = Int.MAX_VALUE
+    }
 
+    override fun onDraw(canvas: Canvas) {
+        workspaceView.invalidate()
+    }
+
+    override fun onCreateInputConnection(outAttrs: EditorInfo): InputConnection {
+        return wsInputConnection
+    }
+
+    override fun getEditableText(): Editable {
+        return wsInputConnection.wsEditable
+    }
+
+    @SuppressLint("ClickableViewAccessibility")
+    override fun onTouchEvent(event: MotionEvent?): Boolean {
+        requestFocus()
+
+        super.onTouchEvent(event)
+
+        if (event != null) {
+            workspaceView.forwardedTouchEvent(event, (WorkspaceWrapperView.TAB_BAR_HEIGHT * context.resources.displayMetrics.scaledDensity).toInt())
+        }
+
+        workspaceView.invalidate()
+
+        return true
+    }
+
+    override fun getOffsetForPosition(x: Float, y: Float): Int {
+        val position: JTextPosition = Json.decodeFromString(WorkspaceView.WORKSPACE.textOffsetForPosition(WorkspaceView.WGPU_OBJ, x, y + (WorkspaceWrapperView.TAB_BAR_HEIGHT * context.resources.displayMetrics.scaledDensity).toInt()))
+
+        Timber.e("position ${position.position} from len ${wsInputConnection.wsEditable.length}")
+
+        return position.position
+    }
+
+    override fun getLineHeight(): Int {
+        return (2 * context.resources.displayMetrics.scaledDensity).toInt()
+    }
+
+    override fun getText(): Editable? {
+        if(wsInputConnection == null) {
+            return null
+        }
+
+        return wsInputConnection.wsEditable
+    }
+}
+
+@SuppressLint("ViewConstructor")
+class WorkspaceTextInputWrapper2(context: Context, val workspaceView: WorkspaceView) : View(context) {
     val inputConnection = WorkspaceTextInputConnection(workspaceView)
 
     private var touchStartX = 0f
@@ -298,6 +362,10 @@ class WorkspaceTextInputWrapper(context: Context, val workspaceView: WorkspaceVi
 class WorkspaceTextInputConnection(val view: WorkspaceView) : BaseInputConnection(view, true) {
     val wsEditable = WorkspaceTextEditable(view)
     private var monitorCursorUpdates = false
+
+    init {
+        Timber.e("created ws input connection")
+    }
 
     private fun getInputMethodManager(): InputMethodManager = App.applicationContext().getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
     private fun getClipboardManager(): ClipboardManager = App.applicationContext().getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
@@ -370,6 +438,8 @@ class WorkspaceTextInputConnection(val view: WorkspaceView) : BaseInputConnectio
 
 @Serializable
 data class JTextRange(val none: Boolean, val start: Int, val end: Int)
+@Serializable
+data class JTextPosition(val none: Boolean, val position: Int)
 
 class WorkspaceTextEditable(val view: WorkspaceView) : Editable {
 
@@ -448,6 +518,7 @@ class WorkspaceTextEditable(val view: WorkspaceView) : Editable {
     }
 
     override fun setSpan(what: Any?, start: Int, end: Int, flags: Int) {
+        Timber.e("setting span...")
         if (what == Selection.SELECTION_START) {
             selectionStartSpanFlag = flags
             WorkspaceView.WORKSPACE.setSelection(WorkspaceView.WGPU_OBJ, start, end)
