@@ -1,6 +1,6 @@
 use crate::android::window;
 use crate::android::window::NativeWindow;
-use crate::{wgpu, WgpuWorkspace};
+use crate::{wgpu, JTextRange, WgpuWorkspace};
 use egui::{
     Context, Event, FontDefinitions, PointerButton, Pos2, TouchDeviceId, TouchId, TouchPhase,
 };
@@ -384,20 +384,15 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_getSelection(
 ) -> jstring {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
 
-    let markdown = match obj.workspace.current_tab_markdown_mut() {
-        Some(markdown) => markdown,
-        None => {
-            return env
-                .new_string("")
-                .expect("Couldn't create JString from rust string!")
-                .into_raw()
+    let resp = match obj.workspace.current_tab_markdown_mut() {
+        Some(markdown) => {
+            let (start, end) = markdown.editor.buffer.current.cursor.selection;
+            JTextRange { none: false, start: start.0, end: end.0 }
         }
+        None => JTextRange { none: true, start: 0, end: 0 },
     };
 
-    let (start, end) = markdown.editor.buffer.current.cursor.selection;
-    let selection_text = format!("{} {}", start.0, end.0);
-
-    env.new_string(selection_text)
+    env.new_string(serde_json::to_string(&resp).unwrap())
         .expect("Couldn't create JString from rust string!")
         .into_raw()
 }

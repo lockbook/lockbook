@@ -1,3 +1,7 @@
+use egui_editor::{
+    input::canonical::{Location, Region},
+    offset_types::DocCharOffset,
+};
 use lb_external_interface::lb_rs::Uuid;
 use serde::Serialize;
 use workspace_rs::output::WsOutput;
@@ -44,6 +48,28 @@ impl From<WsOutput> for FfiWorkspaceResp {
             },
             new_folder_btn_pressed: value.new_folder_clicked,
             tab_title_clicked: value.tab_title_clicked,
+        }
+    }
+}
+
+#[derive(Serialize, Default)]
+pub struct JTextRange {
+    pub none: bool,
+    pub start: usize,
+    pub end: usize,
+}
+
+impl From<JTextRange> for (DocCharOffset, DocCharOffset) {
+    fn from(value: JTextRange) -> Self {
+        (value.start.into(), value.end.into())
+    }
+}
+
+impl From<JTextRange> for Region {
+    fn from(value: JTextRange) -> Self {
+        Region::BetweenLocations {
+            start: Location::DocCharOffset(value.start.into()),
+            end: Location::DocCharOffset(value.start.into()),
         }
     }
 }

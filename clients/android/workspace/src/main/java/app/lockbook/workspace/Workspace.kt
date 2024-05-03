@@ -102,7 +102,6 @@ class Workspace private constructor() {
     external fun fileRenamed(rustObj: Long, id: String, name: String): Int
 
     // text input
-    external fun getAllText(rustObj: Long): String
     external fun setSelection(rustObj: Long, start: Int, end: Int)
     external fun getSelection(rustObj: Long): String
     external fun getTextLength(rustObj: Long): Int
