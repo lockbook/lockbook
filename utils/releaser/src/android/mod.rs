@@ -9,7 +9,7 @@ use std::process::Command;
 use tokio::runtime::Runtime;
 
 mod core;
-mod editor;
+mod ws;
 
 const OUTPUTS: &str = "clients/android/app/build/outputs";
 const PACKAGE: &str = "app.lockbook";
@@ -24,7 +24,7 @@ const MIME: &str = "application/octet-stream";
 
 pub fn release() -> CliResult<()> {
     core::build_libs();
-    editor::build();
+    ws::build();
     build_android();
     release_gh();
     release_play_store();
