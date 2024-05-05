@@ -8,8 +8,8 @@ use crate::{
 };
 
 use super::{
-    selection::Selection, util::deserialize_transform, zoom::zoom_to_percentage, Buffer, Eraser,
-    Pen,
+    parser, selection::Selection, util::deserialize_transform, zoom::zoom_to_percentage, Buffer,
+    Eraser, Pen,
 };
 
 const COLOR_SWATCH_BTN_RADIUS: f32 = 9.0;
@@ -109,7 +109,8 @@ impl Toolbar {
         }
     }
 
-    pub fn show(&mut self, ui: &mut egui::Ui, buffer: &mut Buffer, skip_frame: &mut bool) {
+    pub fn show(&mut self, ui: &mut egui::Ui, buffer: &mut parser::Buffer, skip_frame: &mut bool) {
+        
         if ui.input_mut(|r| {
             r.consume_key(egui::Modifiers::CTRL | egui::Modifiers::SHIFT, egui::Key::Z)
         }) {

@@ -2,13 +2,13 @@ use minidom::Element;
 use std::collections::HashSet;
 
 use super::{
+    parser,
     util::{deserialize_transform, serialize_transform},
-    Buffer,
 };
 
 pub const G_CONTAINER_ID: &str = "lb:zoom_container";
 
-pub fn handle_zoom_input(ui: &mut egui::Ui, working_rect: egui::Rect, buffer: &mut Buffer) {
+pub fn handle_zoom_input(ui: &mut egui::Ui, working_rect: egui::Rect, buffer: &mut parser::Buffer) {
     let zoom_delta = ui.input(|r| r.zoom_delta());
     let is_zooming = zoom_delta != 0.0;
 
@@ -40,41 +40,17 @@ pub fn handle_zoom_input(ui: &mut egui::Ui, working_rect: egui::Rect, buffer: &m
     };
 
     if pan.is_some() || is_zooming {
-        let mut original_matrix =
-            deserialize_transform(buffer.current.attr("transform").unwrap_or_default());
-
+        let pan = pan.unwrap_or_default();
         // apply pan
-        original_matrix[4] += pan.unwrap_or_default().x as f64;
-        original_matrix[5] += pan.unwrap_or_default().y as f64;
+        buffer.master_transform.post_translate(pan.x, pan.y);
 
-        // apply zoom/scale
-        let mut scaled_matrix: Vec<f64> = original_matrix
-            .iter()
-            .map(|x| zoom_delta as f64 * x)
-            .collect();
-        scaled_matrix[4] += ((1.0 - zoom_delta) * pos.x) as f64;
-        scaled_matrix[5] += ((1.0 - zoom_delta) * pos.y) as f64;
-        let new_transform = serialize_transform(scaled_matrix.as_slice());
+        // apply zoom
+        buffer.master_transform.post_scale(zoom_delta, zoom_delta);
 
-        buffer.current.set_attr("transform", new_transform);
+        // correct the zoom via translate
+        buffer.master_transform.post_translate(pos.x, pos.y);
+
         buffer.needs_path_map_update = true;
-    }
-}
-
-pub fn verify_zoom_g(buffer: &mut Buffer) {
-    if buffer.current.attr("id").unwrap_or_default() != G_CONTAINER_ID {
-        let mut g = Element::builder("g", "").attr("id", G_CONTAINER_ID).build();
-        let mut moved_ids = HashSet::new();
-        buffer.current.children().for_each(|child| {
-            g.append_child(child.clone());
-            moved_ids.insert(child.attr("id").unwrap_or_default().to_string());
-        });
-
-        moved_ids.iter().for_each(|id| {
-            buffer.current.remove_child(id);
-        });
-
-        buffer.current = g;
     }
 }
 

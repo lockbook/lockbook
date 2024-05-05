@@ -7,7 +7,7 @@ edition = "2021"
 name = "workspace_rs"
 
 [dependencies]
-bezier-rs = "0.2.0"
+bezier-rs ={version= "0.2.0", features=["serde"]}
 egui = "0.26.2"
 egui_extras = { version = "0.26.2", features = ["image"] }
 epaint = "0.26.2"
@@ -19,7 +19,7 @@ linkify = "0.10.0"
 minidom = { git = "https://github.com/lockbook/minidom" }
 pulldown-cmark = { version = "0.9.2", default-features = false }
 rand = "0.8.5"
-resvg = "0.36.0"
+resvg = "0.41.0"
 serde = { version = "1.0.171", features = ["derive"] }
 svgtypes = "0.13.0"
 unicode-segmentation = "1.10.0"
