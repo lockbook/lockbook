@@ -3,7 +3,7 @@ mod eraser;
 mod history;
 mod parser;
 mod pen;
-mod selection;
+// mod selection;
 mod toolbar;
 mod util;
 mod zoom;
@@ -27,7 +27,7 @@ pub use toolbar::Tool;
 use usvg_parser::Options;
 pub use util::node_by_id;
 
-use self::util::{d_to_subpath, deserialize_transform};
+use self::util::deserialize_transform;
 use self::zoom::handle_zoom_input;
 
 /// A shorthand for [ImageHrefResolver]'s string function.

@@ -3,6 +3,7 @@ mod scale;
 mod translate;
 
 use bezier_rs::Subpath;
+use resvg::usvg::Transform;
 
 use self::{
     rect::SelectionRectContainer,
@@ -11,6 +12,7 @@ use self::{
 };
 
 use super::{
+    parser,
     util::{bb_to_rect, deserialize_transform},
     Buffer, DeleteElement,
 };
@@ -30,12 +32,12 @@ pub struct Selection {
 struct SelectedElement {
     id: String,
     original_pos: egui::Pos2,
-    original_matrix: (String, [f64; 6]),
+    original_transform: Transform,
 }
 
 impl Selection {
     pub fn handle_input(
-        &mut self, ui: &mut egui::Ui, working_rect: egui::Rect, buffer: &mut Buffer,
+        &mut self, ui: &mut egui::Ui, working_rect: egui::Rect, buffer: &mut parser::Buffer,
     ) {
         let pos = match ui.ctx().pointer_hover_pos() {
             Some(cp) => {
@@ -117,46 +119,39 @@ impl Selection {
                         ui.visuals().hyperlink_color.gamma_multiply(0.1),
                     );
                     // if the path bounding box intersects with the laso rect then it's a match
-                    buffer.paths.iter().for_each(|(id, path)| {
-                        let bb = path.bounding_box().unwrap();
+                    buffer.elements.iter().for_each(|(id, el)| {
+                        match el {
+                            parser::Element::Path(path) => {
+                                let bb = path.data.bounding_box().unwrap();
+                                let path_rect = bb_to_rect(bb);
+                                if self.laso_rect.unwrap().intersects(path_rect) {
+                                    let bb_subpath = Subpath::new_rect(
+                                        glam::DVec2 {
+                                            x: self.laso_rect.unwrap().min.x as f64,
+                                            y: self.laso_rect.unwrap().min.y as f64,
+                                        },
+                                        glam::DVec2 {
+                                            x: self.laso_rect.unwrap().max.x as f64,
+                                            y: self.laso_rect.unwrap().max.y as f64,
+                                        },
+                                    );
 
-                        let path_rect = bb_to_rect(bb);
-
-                        if self.laso_rect.unwrap().intersects(path_rect) {
-                            let bb_subpath = Subpath::new_rect(
-                                glam::DVec2 {
-                                    x: self.laso_rect.unwrap().min.x as f64,
-                                    y: self.laso_rect.unwrap().min.y as f64,
-                                },
-                                glam::DVec2 {
-                                    x: self.laso_rect.unwrap().max.x as f64,
-                                    y: self.laso_rect.unwrap().max.y as f64,
-                                },
-                            );
-
-                            if !path
-                                .subpath_intersections(&bb_subpath, None, None)
-                                .is_empty()
-                                || self.laso_rect.unwrap().contains_rect(path_rect)
-                            {
-                                let transform = buffer
-                                    .current
-                                    .children()
-                                    .find(|el| el.attr("id").unwrap_or_default().eq(id))
-                                    .unwrap()
-                                    .attr("transform")
-                                    .unwrap_or_default();
-
-                                self.candidate_selected_elements.push(SelectedElement {
-                                    id: id.to_owned(),
-                                    original_pos: pos,
-                                    original_matrix: (
-                                        transform.to_string(),
-                                        deserialize_transform(transform),
-                                    ),
-                                });
+                                    if !path
+                                        .data
+                                        .subpath_intersections(&bb_subpath, None, None)
+                                        .is_empty()
+                                        || self.laso_rect.unwrap().contains_rect(path_rect)
+                                    {
+                                        self.candidate_selected_elements.push(SelectedElement {
+                                            id: id.to_owned(),
+                                            original_pos: pos,
+                                            original_transform: path.transform,
+                                        });
+                                    }
+                                }
                             }
-                        }
+                            _ => todo!(),
+                        };
                     });
 
                     self.selection_rect = SelectionRectContainer::new(
@@ -201,7 +196,7 @@ impl Selection {
                     self.selected_elements.iter_mut().for_each(|el| {
                         let mut delta =
                             egui::pos2(pos.x - el.original_pos.x, pos.y - el.original_pos.y);
-                        if let Some(transform) = buffer.current.attr("transform") {
+                        if let Some(transform) = el.buffer.current.attr("transform") {
                             let transform = deserialize_transform(transform);
                             delta.x /= transform[0] as f32;
                             delta.y /= transform[3] as f32;

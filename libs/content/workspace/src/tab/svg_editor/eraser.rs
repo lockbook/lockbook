@@ -1,14 +1,15 @@
-use minidom::Element;
-use std::collections::HashMap;
+use resvg::usvg::Visibility;
+use std::collections::HashSet;
 use std::sync::mpsc;
 
-use super::{util, util::pointer_interests_path, Buffer, DeleteElement};
+use super::history::History;
+use super::{util::pointer_interests_path, Buffer, DeleteElement};
 
 pub struct Eraser {
     pub rx: mpsc::Receiver<EraseEvent>,
     pub tx: mpsc::Sender<EraseEvent>,
     pub thickness: f32,
-    paths_to_delete: HashMap<String, Element>,
+    paths_to_delete: HashSet<String>,
     last_pos: Option<egui::Pos2>,
 }
 
@@ -27,29 +28,34 @@ impl Eraser {
     pub fn new() -> Self {
         let (tx, rx) = mpsc::channel();
 
-        Eraser { rx, tx, paths_to_delete: HashMap::default(), thickness: 10.0, last_pos: None }
+        Eraser { rx, tx, paths_to_delete: HashSet::default(), thickness: 10.0, last_pos: None }
     }
 
-    pub fn handle_events(&mut self, event: EraseEvent, buffer: &mut Buffer) {
+    pub fn handle_events(&mut self, event: EraseEvent, buffer: &mut Buffer, history: &mut History) {
         match event {
             EraseEvent::Start(pos) => {
-                buffer.paths.iter().for_each(|(id, path)| {
-                    if self.paths_to_delete.contains_key(id) {
+                buffer.elements.iter_mut().for_each(|(id, el)| {
+                    if self.paths_to_delete.contains(id) {
                         return;
                     }
-
-                    if pointer_interests_path(path, pos, self.last_pos, self.thickness as f64) {
-                        if let Some(n) = buffer
-                            .current
-                            .children()
-                            .find(|e| e.attr("id").unwrap_or_default().eq(&id.to_string()))
-                        {
-                            self.paths_to_delete.insert(id.clone(), n.clone());
+                    match el {
+                        super::parser::Element::Path(path) => {
+                            if pointer_interests_path(
+                                &path.data,
+                                pos,
+                                self.last_pos,
+                                self.thickness as f64,
+                            ) {
+                                self.paths_to_delete.insert(id.clone());
+                            }
                         }
+                        _ => todo!(),
+                    }
+                });
 
-                        if let Some(n) = util::node_by_id(&mut buffer.current, id.to_string()) {
-                            n.set_attr("opacity", "0.3");
-                        }
+                self.paths_to_delete.iter().for_each(|id| {
+                    if let Some(super::parser::Element::Path(path)) = buffer.elements.get_mut(id) {
+                        path.opacity = 0.3;
                     }
                 });
 
@@ -60,25 +66,19 @@ impl Eraser {
                     return;
                 }
 
-                self.paths_to_delete.iter().for_each(|(id, _)| {
-                    if let Some(n) = util::node_by_id(&mut buffer.current, id.to_string()) {
-                        n.set_attr("opacity", "1");
+                self.paths_to_delete.iter().for_each(|id| {
+                    if let Some(super::parser::Element::Path(path)) = buffer.elements.get_mut(id) {
+                        path.opacity = 1.0;
+                        path.visibility = Visibility::Hidden;
                     }
                 });
 
-                buffer.save(super::Event::Delete(
+                history.save(super::Event::Delete(
                     self.paths_to_delete
                         .iter()
-                        .map(|(id, path_el)| DeleteElement {
-                            id: id.to_owned(),
-                            element: path_el.clone(),
-                        })
+                        .map(|id| DeleteElement { id: id.to_owned() })
                         .collect(),
                 ));
-
-                self.paths_to_delete.iter().for_each(|(id, _)| {
-                    buffer.current.remove_child(id);
-                });
 
                 self.paths_to_delete.clear();
             }

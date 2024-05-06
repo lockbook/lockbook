@@ -2,7 +2,7 @@ use bezier_rs::{Bezier, Subpath};
 use glam::DVec2;
 use minidom::Element;
 
-use super::{history::ManipulatorGroupId, Buffer};
+use super::parser::{self, ManipulatorGroupId};
 
 pub fn node_by_id(root: &mut Element, id: String) -> Option<&mut Element> {
     root.children_mut().find(
@@ -79,15 +79,12 @@ pub fn serialize_transform(matrix: &[f64]) -> String {
     )
 }
 
-pub fn apply_transform_to_pos(pos: &mut egui::Pos2, buffer: &Buffer) {
-    if let Some(transform) = buffer.current.attr("transform") {
-        let transform = deserialize_transform(transform);
-        pos.x -= transform[4] as f32;
-        pos.y -= transform[5] as f32;
+pub fn apply_transform_to_pos(pos: &mut egui::Pos2, buffer: &mut parser::Buffer) {
+    pos.x -= buffer.master_transform.tx;
+    pos.y -= buffer.master_transform.ty;
 
-        pos.x /= transform[0] as f32;
-        pos.y /= transform[3] as f32;
-    }
+    pos.x /= buffer.master_transform.sx;
+    pos.y /= buffer.master_transform.sy;
 }
 
 pub fn bb_to_rect(bb: [DVec2; 2]) -> egui::Rect {

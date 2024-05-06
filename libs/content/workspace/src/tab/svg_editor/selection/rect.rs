@@ -4,7 +4,7 @@ use glam::DVec2;
 use super::{SelectedElement, SelectionOperation, SelectionResponse};
 use crate::{
     tab::svg_editor::{
-        history::ManipulatorGroupId,
+        parser::ManipulatorGroupId,
         util::{bb_to_rect, deserialize_transform, pointer_interests_path},
         Buffer,
     },

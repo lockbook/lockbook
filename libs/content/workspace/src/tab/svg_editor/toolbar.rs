@@ -8,8 +8,11 @@ use crate::{
 };
 
 use super::{
-    parser, selection::Selection, util::deserialize_transform, zoom::zoom_to_percentage, Buffer,
-    Eraser, Pen,
+    history::{self, History},
+    parser,
+    util::deserialize_transform,
+    zoom::zoom_to_percentage,
+    Buffer, Eraser, Pen,
 };
 
 const COLOR_SWATCH_BTN_RADIUS: f32 = 9.0;
@@ -21,7 +24,7 @@ pub struct Toolbar {
     right_tab_rect: Option<egui::Rect>,
     pub pen: Pen,
     pub eraser: Eraser,
-    pub selection: Selection,
+    // pub selection: Selection,
     pub previous_tool: Option<Tool>,
 }
 
@@ -75,7 +78,7 @@ macro_rules! set_tool {
     ($obj:expr, $new_tool:expr) => {
         if $obj.active_tool != $new_tool {
             if (matches!($new_tool, Tool::Selection)) {
-                $obj.selection = Selection::default();
+                // $obj.selection = Selection::default();
             }
             $obj.previous_tool = Some($obj.active_tool);
             $obj.active_tool = $new_tool;
@@ -105,16 +108,18 @@ impl Toolbar {
             right_tab_rect: None,
             pen: Pen::new(max_id),
             eraser: Eraser::new(),
-            selection: Selection::default(),
+            // selection: Selection::default(),
         }
     }
 
-    pub fn show(&mut self, ui: &mut egui::Ui, buffer: &mut parser::Buffer, skip_frame: &mut bool) {
-        
+    pub fn show(
+        &mut self, ui: &mut egui::Ui, buffer: &mut parser::Buffer, history: &mut History,
+        skip_frame: &mut bool,
+    ) {
         if ui.input_mut(|r| {
             r.consume_key(egui::Modifiers::CTRL | egui::Modifiers::SHIFT, egui::Key::Z)
         }) {
-            buffer.redo();
+            history.redo(buffer);
         }
 
         if ui.input_mut(|r| r.consume_key(egui::Modifiers::NONE, egui::Key::B)) {
@@ -130,7 +135,7 @@ impl Toolbar {
         }
 
         if ui.input_mut(|r| r.consume_key(egui::Modifiers::COMMAND, egui::Key::Z)) {
-            buffer.undo();
+            history.undo(buffer);
         }
 
         ScrollArea::both().show(ui, |ui| {
@@ -138,7 +143,7 @@ impl Toolbar {
                 .inner_margin(egui::Margin::symmetric(15.0, 7.0))
                 .show(ui, |ui| {
                     ui.horizontal(|ui| {
-                        self.show_left_toolbar(ui, buffer);
+                        self.show_left_toolbar(ui, buffer, history);
 
                         let right_bar_width =
                             if let Some(r) = self.right_tab_rect { r.width() } else { 0.0 };
@@ -161,22 +166,22 @@ impl Toolbar {
         ui.separator();
     }
 
-    fn show_left_toolbar(&mut self, ui: &mut egui::Ui, buffer: &mut Buffer) {
+    fn show_left_toolbar(&mut self, ui: &mut egui::Ui, buffer: &mut Buffer, history: &mut History) {
         // show history controls: redo and undo
         let undo = ui
-            .add_enabled_ui(buffer.has_undo(), |ui| Button::default().icon(&Icon::UNDO).show(ui))
+            .add_enabled_ui(history.has_undo(), |ui| Button::default().icon(&Icon::UNDO).show(ui))
             .inner;
 
         let redo = ui
-            .add_enabled_ui(buffer.has_redo(), |ui| Button::default().icon(&Icon::REDO).show(ui))
+            .add_enabled_ui(history.has_redo(), |ui| Button::default().icon(&Icon::REDO).show(ui))
             .inner;
 
         if undo.clicked() {
-            buffer.undo();
+            history.undo(buffer);
         }
 
         if redo.clicked() {
-            buffer.redo();
+            history.redo(buffer);
         }
 
         ui.add_space(4.0);
@@ -310,14 +315,10 @@ impl Toolbar {
         &mut self, ui: &mut egui::Ui, buffer: &mut Buffer, skip_frame: &mut bool,
     ) {
         let mut zoom_percentage = 100;
-        if let Some(transform) = buffer.current.attr("transform") {
-            let [a, b, c, d, _, _] = deserialize_transform(transform);
-            let scale_x = (a * a + b * b).sqrt();
-            let scale_y = (c * c + d * d).sqrt();
 
-            // Calculate the zoom percentage
-            zoom_percentage = ((scale_x + scale_y) / 2.0 * 100.0).round() as i32;
-        }
+        // Calculate the zoom percentage
+        zoom_percentage = ((buffer.master_transform.sx + buffer.master_transform.sy) / 2.0 * 100.0)
+            .round() as i32;
 
         if Button::default().icon(&Icon::ZOOM_IN).show(ui).clicked() {
             zoom_to_percentage(buffer, zoom_percentage + 10, ui.ctx().screen_rect());

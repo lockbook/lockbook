@@ -1,5 +1,3 @@
-use minidom::Element;
-
 use crate::tab::{ClipContent, EventManager as _};
 
 use super::SVGEditor;
@@ -12,18 +10,18 @@ impl SVGEditor {
                     for clip in content {
                         match clip {
                             ClipContent::Png(data) => {
-                                let file =
-                                    crate::tab::import_image(&self.core, self.open_file, &data);
-                                let image_href = format!("lb://{}", file.id);
+                                // let file =
+                                //     crate::tab::import_image(&self.core, self.open_file, &data);
+                                // let image_href = format!("lb://{}", file.id);
 
-                                let child = Element::builder("image", "")
-                                    .attr("id", self.toolbar.pen.current_id)
-                                    .attr("href", image_href)
-                                    .build();
+                                // let child = Element::builder("image", "")
+                                //     .attr("id", self.toolbar.pen.current_id)
+                                //     .attr("href", image_href)
+                                //     .build();
 
-                                self.buffer.current.append_child(child);
-                                self.toolbar.pen.current_id += 1;
-                                println!("pasted image: {:?} bytes", data.len());
+                                // self.buffer.current.append_child(child);
+                                // self.toolbar.pen.current_id += 1;
+                                // println!("pasted image: {:?} bytes", data.len());
                             }
                             ClipContent::Files(..) => unimplemented!(), // todo: support file drop & paste
                         }

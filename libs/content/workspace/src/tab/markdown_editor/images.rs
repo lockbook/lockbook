@@ -3,7 +3,7 @@ use crate::tab::markdown_editor::style::{InlineNode, MarkdownNode, Url};
 use egui::{ColorImage, TextureId, Ui};
 use lb_rs::Uuid;
 use resvg::tiny_skia::Pixmap;
-use resvg::usvg::{self, Transform, TreeParsing as _};
+use resvg::usvg::{self, Options, Transform};
 use std::collections::HashMap;
 use std::ops::Deref;
 use std::sync::{Arc, Mutex};
@@ -70,40 +70,44 @@ pub fn calc(
                         };
 
                         // convert lockbook drawings to images
-                        let image_bytes = if let Some(id) = maybe_lb_id {
-                            let file = core.get_file_by_id(id).map_err(|e| e.to_string())?;
-                            if file.name.ends_with(".svg") {
-                                // todo: check errors
-                                let tree = usvg::Tree::from_data(&image_bytes, &Default::default())
-                                    .map_err(|e| e.to_string())?;
-                                let tree = resvg::Tree::from_usvg(&tree);
-                                if let Some(content_area) = tree.content_area {
-                                    // dimensions & transform chosen so that all svg content appears in the result
-                                    let mut pix_map = Pixmap::new(
-                                        content_area.width() as _,
-                                        content_area.height() as _,
-                                    )
-                                    .ok_or("failed to create pixmap")
-                                    .map_err(|e| e.to_string())?;
-                                    let transform = Transform::identity()
-                                        .post_translate(-content_area.left(), -content_area.top());
-                                    tree.render(transform, &mut pix_map.as_mut());
-                                    pix_map.encode_png().map_err(|e| e.to_string())?
-                                } else {
-                                    // empty svg
-                                    Pixmap::new(100, 100)
-                                        .unwrap()
-                                        .encode_png()
-                                        .map_err(|e| e.to_string())?
-                                }
-                            } else {
-                                // leave non-drawings alone
-                                image_bytes
-                            }
-                        } else {
-                            // leave non-lockbook images alone
-                            image_bytes
-                        };
+                        // let image_bytes = if let Some(id) = maybe_lb_id {
+                        //     let file = core.get_file_by_id(id).map_err(|e| e.to_string())?;
+                        //     if file.name.ends_with(".svg") {
+                        //         // todo: check errors
+                        //         let tree = usvg::Tree::from_data(
+                        //             &image_bytes,
+                        //             &Options::default(),
+                        //             &usvg::fontdb::Database::new(),
+                        //         )
+                        //         .map_err(|e| e.to_string())?;
+                        //         let tree = resvg::Tree::from_usvg(&tree);
+                        //         if let Some(content_area) = tree.content_area {
+                        //             // dimensions & transform chosen so that all svg content appears in the result
+                        //             let mut pix_map = Pixmap::new(
+                        //                 content_area.width() as _,
+                        //                 content_area.height() as _,
+                        //             )
+                        //             .ok_or("failed to create pixmap")
+                        //             .map_err(|e| e.to_string())?;
+                        //             let transform = Transform::identity()
+                        //                 .post_translate(-content_area.left(), -content_area.top());
+                        //             tree.render(transform, &mut pix_map.as_mut());
+                        //             pix_map.encode_png().map_err(|e| e.to_string())?
+                        //         } else {
+                        //             // empty svg
+                        //             Pixmap::new(100, 100)
+                        //                 .unwrap()
+                        //                 .encode_png()
+                        //                 .map_err(|e| e.to_string())?
+                        //         }
+                        //     } else {
+                        //         // leave non-drawings alone
+                        //         image_bytes
+                        //     }
+                        // } else {
+                        //     // leave non-lockbook images alone
+                        //     image_bytes
+                        // };
 
                         let image =
                             image::load_from_memory(&image_bytes).map_err(|e| e.to_string())?;

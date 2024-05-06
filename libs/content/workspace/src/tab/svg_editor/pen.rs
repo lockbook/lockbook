@@ -1,10 +1,14 @@
+use bezier_rs::{Bezier, Subpath};
 use minidom::Element;
+use resvg::usvg::{Color, Stroke, Transform};
 use std::{
     collections::VecDeque,
     time::{Duration, Instant},
 };
 
 use super::{
+    history::{self, History},
+    parser::{self, ManipulatorGroupId, Path},
     toolbar::ColorSwatch,
     util::{self, apply_transform_to_pos, d_to_subpath, deserialize_transform},
     Buffer, InsertElement,
@@ -36,7 +40,8 @@ impl Pen {
     }
 
     pub fn handle_input(
-        &mut self, ui: &mut egui::Ui, inner_rect: egui::Rect, buffer: &mut Buffer,
+        &mut self, ui: &mut egui::Ui, inner_rect: egui::Rect, buffer: &mut parser::Buffer,
+        history: &mut History,
     ) -> Option<PenResponse> {
         let event = match self.setup_events(ui, inner_rect) {
             Some(e) => e,
@@ -47,71 +52,61 @@ impl Pen {
             PathEvent::Draw(mut pos, id) => {
                 apply_transform_to_pos(&mut pos, buffer);
 
-                let mut master_transform = None;
-                if let Some(transform) = buffer.current.attr("transform") {
-                    master_transform = Some(deserialize_transform(transform));
-                }
-
-                if self.detect_snap(pos, master_transform) {
+                if self.detect_snap(pos, buffer.master_transform) {
                     let curr_id = self.current_id; // needed because end path will advance to the next id
-                    self.end_path(buffer, true);
+                    self.end_path(buffer, history, true);
                     return Some(PenResponse::ToggleSelection(curr_id));
-                } else if let Some(node) = util::node_by_id(&mut buffer.current, id.to_string()) {
+                } else if let Some(parser::Element::Path(p)) =
+                    buffer.elements.get_mut(&id.to_string())
+                {
                     self.path_builder.cubic_to(pos);
-                    node.set_attr("d", &self.path_builder.data);
+                    p.data = self.path_builder.path.clone();
+                    // node.set_attr("d", &self.path_builder.data);
 
-                    if let Some(color) = &self.active_color {
-                        node.set_attr("stroke", format!("url(#{})", color.id));
-                    } else {
-                        node.set_attr("stroke", "url(#fg)");
-                    }
+                    // if let Some(color) = &self.active_color {
+                    //     node.set_attr("stroke", format!("url(#{})", color.id));
+                    // } else {
+                    //     node.set_attr("stroke", "url(#fg)");
+                    // }
                 } else {
                     self.path_builder.cubic_to(pos);
 
-                    let child = Element::builder("path", "")
-                        .attr("stroke-width", self.active_stroke_width.to_string())
-                        .attr("fill", "none")
-                        .attr("stroke-linejoin", "round")
-                        .attr("stroke-linecap", "round")
-                        .attr("id", id)
-                        .attr("d", &self.path_builder.data)
-                        .build();
-
-                    buffer.current.append_child(child);
+                    buffer.elements.insert(
+                        id.to_string(),
+                        parser::Element::Path(Path {
+                            data: self.path_builder.path.clone(),
+                            visibility: resvg::usvg::Visibility::Visible,
+                            fill: None,
+                            stroke: None,
+                            transform: Transform::default(),
+                            opacity: 1.0,
+                        }),
+                    );
                 }
             }
             PathEvent::End => {
-                self.end_path(buffer, false);
+                self.end_path(buffer, history, false);
                 self.maybe_snap_started = None;
             }
         }
         None
     }
 
-    fn end_path(&mut self, buffer: &mut Buffer, is_snapped: bool) {
+    fn end_path(&mut self, buffer: &mut Buffer, history: &mut History, is_snapped: bool) {
         if self.path_builder.points.len() < 2 {
-            buffer.current.remove_child(&self.current_id.to_string());
+            buffer.elements.remove(&self.current_id.to_string());
             self.path_builder.clear();
             return;
         }
 
         self.path_builder.finish(is_snapped, buffer);
 
-        if let Some(node) = util::node_by_id(&mut buffer.current, self.current_id.to_string()) {
-            node.set_attr("d", &self.path_builder.data);
-
-            let node = node.clone();
-
-            buffer.save(super::Event::Insert(vec![InsertElement {
-                id: self.current_id.to_string(),
-                element: node,
-            }]));
-        }
+        history.save(super::Event::Insert(vec![InsertElement { id: self.current_id.to_string() }]));
         self.path_builder.clear();
         self.current_id += 1;
     }
 
-    fn detect_snap(&mut self, current_pos: egui::Pos2, master_transform: Option<[f64; 6]>) -> bool {
+    fn detect_snap(&mut self, current_pos: egui::Pos2, master_transform: Transform) -> bool {
         if self.path_builder.points.len() < 2 {
             return false;
         }
@@ -120,9 +115,8 @@ impl Pen {
             let dist_diff = last_pos.distance(current_pos).abs();
 
             let mut dist_to_trigger_snap = 1.5;
-            if let Some(t) = master_transform {
-                dist_to_trigger_snap /= t[0] as f32;
-            }
+
+            dist_to_trigger_snap /= master_transform.sx;
 
             let time_to_trigger_snap = Duration::from_secs(1);
 
@@ -187,6 +181,7 @@ pub struct CubicBezBuilder {
     prev_points_window: VecDeque<egui::Pos2>,
     points: Vec<egui::Pos2>,
     pub data: String,
+    path: Subpath<ManipulatorGroupId>,
 }
 
 impl Default for CubicBezBuilder {
@@ -201,6 +196,7 @@ impl CubicBezBuilder {
             prev_points_window: VecDeque::from(vec![]),
             points: vec![],
             data: String::new(),
+            path: Subpath::<ManipulatorGroupId>::from_anchors(vec![], false),
         }
     }
 
@@ -209,10 +205,19 @@ impl CubicBezBuilder {
 
         if is_first_point {
             self.data = format!("M {} {}", dest.x, dest.y);
+        } else {
+            let prev = self.prev_points_window.back().unwrap();
+            let bez = Bezier::from_linear_coordinates(
+                prev.x.into(),
+                prev.y.into(),
+                dest.x.into(),
+                dest.y.into(),
+            );
+            self.path
+                .append_bezier(&bez, bezier_rs::AppendType::IgnoreStart);
         }
         self.data
             .push_str(format!(" L{} {}", dest.x, dest.y).as_str());
-
         self.prev_points_window.push_back(dest);
     }
 
@@ -254,6 +259,19 @@ impl CubicBezBuilder {
         self.data
             .push_str(format!("C {cp1x},{cp1y},{cp2x},{cp2y},{},{}", p2.x, p2.y).as_str());
 
+        let bez = Bezier::from_cubic_coordinates(
+            self.prev_points_window.back().unwrap().x.into(),
+            self.prev_points_window.back().unwrap().y.into(),
+            cp1x.into(),
+            cp1y.into(),
+            cp2x.into(),
+            cp2x.into(),
+            p2.x.into(),
+            p2.y.into(),
+        );
+        self.path
+            .append_bezier(&bez, bezier_rs::AppendType::IgnoreStart);
+
         // shift the window foreword
         self.prev_points_window.pop_front();
     }
@@ -270,9 +288,8 @@ impl CubicBezBuilder {
         } else {
             2.0
         };
-        if let Some(transform) = buffer.current.attr("transform") {
-            tolerance /= deserialize_transform(transform)[0] as f32;
-        }
+
+        tolerance /= buffer.master_transform.sx;
         self.simplify(tolerance);
 
         self.data.clear();

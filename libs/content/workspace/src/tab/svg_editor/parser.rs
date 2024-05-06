@@ -4,9 +4,11 @@ use bezier_rs::{Bezier, Identifier, Subpath};
 use glam::{DAffine2, DMat2, DVec2};
 use resvg::{
     tiny_skia::Point,
-    usvg::{self, Fill, ImageHrefStringResolverFn, ImageKind, Stroke, Text, Transform, Visibility},
+    usvg::{
+        self, Fill, ImageHrefResolver, ImageHrefStringResolverFn, ImageKind, Options, Stroke, Text,
+        Transform, Visibility,
+    },
 };
-use usvg_parser::Options;
 
 use super::zoom::G_CONTAINER_ID;
 
@@ -31,15 +33,16 @@ pub enum Element {
     Text(Text),
 }
 
-struct Path {
+pub struct Path {
     pub data: Subpath<ManipulatorGroupId>,
     pub visibility: Visibility,
     pub fill: Option<Fill>,
     pub stroke: Option<Stroke>,
     pub transform: Transform,
+    pub opacity: f32,
 }
 
-struct Image {
+pub struct Image {
     pub data: ImageKind,
     pub visibility: Visibility,
     pub transform: Transform,
@@ -48,12 +51,7 @@ struct Image {
 impl Buffer {
     pub fn new(svg: &str) -> Self {
         let fontdb = usvg::fontdb::Database::new();
-        let utree: usvg::Tree = usvg::Tree::from_str(
-            svg,
-            &Options { image_href_resolver: lb_local_resolver, ..Default::default() },
-            &fontdb,
-        )
-        .unwrap();
+        let utree: usvg::Tree = usvg::Tree::from_str(svg, &Options::default(), &fontdb).unwrap();
 
         let mut buffer = Buffer::default();
 
@@ -79,9 +77,9 @@ impl Buffer {
                     );
                 }
                 usvg::Node::Text(text) => {
-                    buffer
-                        .elements
-                        .insert(i.to_string(), Element::Text(*text.to_owned().deref()));
+                    // buffer
+                    //     .elements
+                    //     .insert(i.to_string(), Element::Text(*text.to_owned().deref()));
                 }
                 usvg::Node::Path(path) => {
                     buffer.elements.insert(
@@ -92,6 +90,7 @@ impl Buffer {
                             fill: path.fill().cloned(),
                             stroke: path.stroke().cloned(),
                             transform: path.abs_transform(),
+                            opacity: 1.0,
                         }),
                     );
                 }
@@ -150,28 +149,28 @@ fn usvg_d_to_subpath(path: &Box<usvg::Path>) -> Subpath<ManipulatorGroupId> {
     subpath
 }
 
-fn lb_local_resolver(core: &lb_rs::Core) -> ImageHrefStringResolverFn {
-    let lb_link_prefix = "lb://";
-    let core = core.clone();
-    Box::new(move |href: &str, _opts: &Options| {
-        if !href.starts_with(lb_link_prefix) {
-            return None;
-        }
-        let id = &href[lb_link_prefix.len()..];
-        let id = lb_rs::Uuid::from_str(id).ok()?;
-        let raw = core.read_document(id).ok()?;
+// pub fn lb_local_resolver(core: &lb_rs::Core) -> ImageHrefResolver {
+// let lb_link_prefix = "lb://";
+// let core = core.clone();
+// Box::new(move |href: &str, _opts: &Options| {
+//     if !href.starts_with(lb_link_prefix) {
+//         return None;
+//     }
+//     let id = &href[lb_link_prefix.len()..];
+//     let id = lb_rs::Uuid::from_str(id).ok()?;
+//     let raw = core.read_document(id).ok()?;
 
-        let name = core.get_file_by_id(id).ok()?.name;
-        let ext = name.split('.').last().unwrap_or_default();
-        match ext {
-            "jpg" | "jpeg" => Some(ImageKind::JPEG(Arc::new(raw))),
-            "png" => Some(ImageKind::PNG(Arc::new(raw))),
-            // "svg" => Some(ImageKind::SVG(Arc::new(raw))), todo: handle nested svg
-            "gif" => Some(ImageKind::GIF(Arc::new(raw))),
-            _ => None,
-        }
-    })
-}
+//     let name = core.get_file_by_id(id).ok()?.name;
+//     let ext = name.split('.').last().unwrap_or_default();
+//     match ext {
+//         "jpg" | "jpeg" => Some(ImageKind::JPEG(Arc::new(raw))),
+//         "png" => Some(ImageKind::PNG(Arc::new(raw))),
+//         // "svg" => Some(ImageKind::SVG(Arc::new(raw))), todo: handle nested svg
+//         "gif" => Some(ImageKind::GIF(Arc::new(raw))),
+//         _ => None,
+//     }
+// })
+// }
 
 impl ToString for Buffer {
     fn to_string(&self) -> String {

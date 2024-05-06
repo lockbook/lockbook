@@ -54,22 +54,22 @@ pub fn handle_zoom_input(ui: &mut egui::Ui, working_rect: egui::Rect, buffer: &m
     }
 }
 
-pub fn zoom_to_percentage(buffer: &mut Buffer, percentage: i32, working_rect: egui::Rect) {
-    let original_matrix =
-        deserialize_transform(buffer.current.attr("transform").unwrap_or_default());
+pub fn zoom_to_percentage(buffer: &mut parser::Buffer, percentage: i32, working_rect: egui::Rect) {
+    // let original_matrix =
+    //     deserialize_transform(buffer.current.attr("transform").unwrap_or_default());
 
-    let [a, b, _, _, _, _] = original_matrix;
+    // let [a, b, _, _, _, _] = original_matrix;
 
-    let scale_x = (a * a + b * b).sqrt();
+    // let scale_x = (a * a + b * b).sqrt();
 
-    let zoom_delta = percentage as f64 / (scale_x * 100.0);
+    // let zoom_delta = percentage as f64 / (scale_x * 100.0);
 
-    let mut scaled_matrix: Vec<f64> = original_matrix.iter().map(|x| zoom_delta * x).collect();
+    // let mut scaled_matrix: Vec<f64> = original_matrix.iter().map(|x| zoom_delta * x).collect();
 
-    scaled_matrix[4] += (1.0 - zoom_delta) * working_rect.center().x as f64;
-    scaled_matrix[5] += (1.0 - zoom_delta) * working_rect.center().y as f64;
-    let new_transform = serialize_transform(scaled_matrix.as_slice());
+    // scaled_matrix[4] += (1.0 - zoom_delta) * working_rect.center().x as f64;
+    // scaled_matrix[5] += (1.0 - zoom_delta) * working_rect.center().y as f64;
+    // let new_transform = serialize_transform(scaled_matrix.as_slice());
 
-    buffer.current.set_attr("transform", new_transform);
-    buffer.needs_path_map_update = true;
+    // buffer.current.set_attr("transform", new_transform);
+    // buffer.needs_path_map_update = true;
 }

@@ -2,8 +2,8 @@ use bezier_rs::Subpath;
 use glam::{DAffine2, DMat2, DVec2};
 
 use crate::tab::svg_editor::{
-    history::ManipulatorGroupId,
     node_by_id,
+    parser::ManipulatorGroupId,
     util::{deserialize_transform, serialize_transform},
     Buffer,
 };
