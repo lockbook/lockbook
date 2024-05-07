@@ -21,12 +21,14 @@ pub use pen::CubicBezBuilder;
 pub use pen::Pen;
 use resvg::tiny_skia::Pixmap;
 use resvg::usvg::{self, ImageHrefResolver, ImageKind, Rect, Size};
+use std::any::Any;
 use std::str::FromStr;
 use std::sync::Arc;
 pub use toolbar::Tool;
 use usvg_parser::Options;
 pub use util::node_by_id;
 
+use self::history::History;
 use self::util::deserialize_transform;
 use self::zoom::handle_zoom_input;
 
@@ -35,6 +37,7 @@ pub type ImageHrefStringResolverFn = Box<dyn Fn(&str, &Options) -> Option<ImageK
 
 pub struct SVGEditor {
     buffer: parser::Buffer,
+    history: History,
     pub toolbar: Toolbar,
     inner_rect: egui::Rect,
     content_area: Option<Rect>,
@@ -45,9 +48,9 @@ pub struct SVGEditor {
 
 impl SVGEditor {
     pub fn new(bytes: &[u8], core: lb_rs::Core, open_file: Uuid) -> Self {
-        let mut content = std::str::from_utf8(bytes).unwrap();
+        let content = std::str::from_utf8(bytes).unwrap();
 
-        let mut buffer = parser::Buffer::new(content);
+        let buffer = parser::Buffer::new(content);
         let max_id = buffer
             .elements
             .keys()
@@ -56,12 +59,13 @@ impl SVGEditor {
             .unwrap_or_default()
             + 1;
 
-        let mut toolbar = Toolbar::new(max_id);
+        let toolbar = Toolbar::new(max_id);
 
         // Self::define_dynamic_colors(&mut buffer, &mut toolbar, false, true);
 
         Self {
             buffer,
+            history: History::default(),
             toolbar,
             inner_rect: egui::Rect::NOTHING,
             content_area: None,
@@ -73,56 +77,61 @@ impl SVGEditor {
 
     pub fn show(&mut self, ui: &mut egui::Ui) {
         ui.vertical(|ui| {
-            // egui::Frame::default()
-            //     .fill(if ui.visuals().dark_mode {
-            //         egui::Color32::GRAY.gamma_multiply(0.03)
-            //     } else {
-            //         ui.visuals().faint_bg_color
-            //     })
-            //     .show(ui, |ui| {
-            //         self.toolbar
-            //             .show(ui, &mut self.buffer, &mut self.skip_frame);
-            //     });
+            egui::Frame::default()
+                .fill(if ui.visuals().dark_mode {
+                    egui::Color32::GRAY.gamma_multiply(0.03)
+                } else {
+                    ui.visuals().faint_bg_color
+                })
+                .show(ui, |ui| {
+                    self.toolbar.show(
+                        ui,
+                        &mut self.buffer,
+                        &mut self.history,
+                        &mut self.skip_frame,
+                    );
+                });
 
-            // self.inner_rect = ui.available_rect_before_wrap();
+            self.inner_rect = ui.available_rect_before_wrap();
             self.render_svg(ui);
         });
 
         // handle_zoom_input(ui, self.inner_rect, &mut self.buffer);
 
-        // if ui.input(|r| r.multi_touch().is_some()) || self.skip_frame {
-        //     self.skip_frame = false;
-        //     return;
-        // }
+        if ui.input(|r| r.multi_touch().is_some()) || self.skip_frame {
+            self.skip_frame = false;
+            return;
+        }
 
-        // match self.toolbar.active_tool {
-        //     Tool::Pen => {
-        //         if let Some(res) =
-        //             self.toolbar
-        //                 .pen
-        //                 .handle_input(ui, self.inner_rect, &mut self.buffer)
-        //         {
-        //             let pen::PenResponse::ToggleSelection(id) = res;
-        //             self.toolbar.set_tool(Tool::Selection);
-        //             self.toolbar.selection.select_el_by_id(
-        //                 id.to_string().as_str(),
-        //                 ui.ctx().pointer_hover_pos().unwrap_or_default(),
-        //                 &mut self.buffer,
-        //             );
-        //         }
-        //     }
-        //     Tool::Eraser => {
-        //         self.toolbar.eraser.setup_events(ui, self.inner_rect);
-        //         while let Ok(event) = self.toolbar.eraser.rx.try_recv() {
-        //             self.toolbar.eraser.handle_events(event, &mut self.buffer);
-        //         }
-        //     }
-        //     Tool::Selection => {
-        //         self.toolbar
-        //             .selection
-        //             .handle_input(ui, self.inner_rect, &mut self.buffer);
-        //     }
-        // }
+        match self.toolbar.active_tool {
+            Tool::Pen => {
+                if let Some(res) = self.toolbar.pen.handle_input(
+                    ui,
+                    self.inner_rect,
+                    &mut self.buffer,
+                    &mut self.history,
+                ) {
+                    // let pen::PenResponse::ToggleSelection(id) = res;
+                    // self.toolbar.set_tool(Tool::Selection);
+                    // self.toolbar.selection.select_el_by_id(
+                    //     id.to_string().as_str(),
+                    //     ui.ctx().pointer_hover_pos().unwrap_or_default(),
+                    //     &mut self.buffer,
+                    // );
+                }
+            }
+            _ => {} // Tool::Eraser => {
+                    //     self.toolbar.eraser.setup_events(ui, self.inner_rect);
+                    //     while let Ok(event) = self.toolbar.eraser.rx.try_recv() {
+                    //         self.toolbar.eraser.handle_events(event, &mut self.buffer);
+                    //     }
+                    // }
+                    // Tool::Selection => {
+                    //     self.toolbar
+                    //         .selection
+                    //         .handle_input(ui, self.inner_rect, &mut self.buffer);
+                    // }
+        }
 
         // self.handle_clip_input(ui);
 
@@ -147,11 +156,11 @@ impl SVGEditor {
                         continue;
                     }
                     path.data.iter().for_each(|bezier| {
+                        let bezier = bezier.to_cubic();
                         let points: Vec<egui::Pos2> = bezier
                             .get_points()
                             .map(|dvec| egui::pos2(dvec.x as f32, dvec.y as f32))
                             .collect();
-
                         let epath = epaint::CubicBezierShape::from_points_stroke(
                             points.try_into().unwrap(),
                             false,

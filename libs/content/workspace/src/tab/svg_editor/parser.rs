@@ -51,7 +51,12 @@ pub struct Image {
 impl Buffer {
     pub fn new(svg: &str) -> Self {
         let fontdb = usvg::fontdb::Database::new();
-        let utree: usvg::Tree = usvg::Tree::from_str(svg, &Options::default(), &fontdb).unwrap();
+        let maybe_tree = usvg::Tree::from_str(svg, &Options::default(), &fontdb);
+        if let Err(err) = maybe_tree {
+            println!("{:#?}", err);
+            return Self::default();
+        }
+        let utree = maybe_tree.unwrap();
 
         let mut buffer = Buffer::default();
 
