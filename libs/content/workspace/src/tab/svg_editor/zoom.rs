@@ -1,4 +1,5 @@
 use minidom::Element;
+use resvg::usvg::Transform;
 use std::collections::HashSet;
 
 use super::{
@@ -10,7 +11,7 @@ pub const G_CONTAINER_ID: &str = "lb:zoom_container";
 
 pub fn handle_zoom_input(ui: &mut egui::Ui, working_rect: egui::Rect, buffer: &mut parser::Buffer) {
     let zoom_delta = ui.input(|r| r.zoom_delta());
-    let is_zooming = zoom_delta != 0.0;
+    let is_zooming = zoom_delta != 1.0;
 
     let pan = ui.input(|r| {
         if r.raw_scroll_delta.x.abs() > 0.0 || r.raw_scroll_delta.y.abs() > 0.0 {
@@ -39,18 +40,37 @@ pub fn handle_zoom_input(ui: &mut egui::Ui, working_rect: egui::Rect, buffer: &m
         None => egui::Pos2::ZERO,
     };
 
-    if pan.is_some() || is_zooming {
-        let pan = pan.unwrap_or_default();
-        // apply pan
-        buffer.master_transform.post_translate(pan.x, pan.y);
+    let mut t = Transform::identity();
 
+    if let Some(p) = pan {
+        t = t.post_translate(p.x, p.y);
+    }
+
+    if is_zooming {
         // apply zoom
-        buffer.master_transform.post_scale(zoom_delta, zoom_delta);
+        t = t.post_scale(zoom_delta, zoom_delta);
 
-        // correct the zoom via translate
-        buffer.master_transform.post_translate(pos.x, pos.y);
+        // correct the zoom to center
+        t = t.post_translate((1.0 - zoom_delta) * pos.x, (1.0 - zoom_delta) * pos.y);
+    }
 
-        buffer.needs_path_map_update = true;
+    if pan.is_some() || is_zooming {
+        let transform = glam::DAffine2 {
+            matrix2: glam::DMat2 {
+                x_axis: glam::DVec2 { x: t.sx.into(), y: t.ky.into() },
+                y_axis: glam::DVec2 { x: t.kx.into(), y: t.sy.into() },
+            },
+            translation: glam::DVec2 { x: t.tx.into(), y: t.ty.into() },
+        };
+        for el in buffer.elements.values_mut() {
+            match el {
+                parser::Element::Path(path) => {
+                    path.data.apply_transform(transform);
+                }
+                parser::Element::Image(img) => todo!(),
+                parser::Element::Text(text) => todo!(),
+            }
+        }
     }
 }
 

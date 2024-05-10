@@ -20,6 +20,7 @@ pub struct Pen {
     pub active_color: Option<egui::Color32>,
     pub active_stroke_width: u32,
     path_builder: CubicBezBuilder,
+    pub simplification_tolerance: f32,
     pub current_id: usize, // todo: this should be at a higher component state, maybe in buffer
     maybe_snap_started: Option<Instant>,
 }
@@ -36,6 +37,7 @@ impl Pen {
             active_color: None,
             active_stroke_width: default_stroke_width,
             current_id: max_id,
+            simplification_tolerance: 1.5,
             path_builder: CubicBezBuilder::new(),
             maybe_snap_started: None,
         }
@@ -117,7 +119,8 @@ impl Pen {
             return;
         }
 
-        self.path_builder.finish(is_snapped, buffer);
+        self.path_builder
+            .finish(is_snapped, buffer, self.simplification_tolerance);
 
         history.save(super::Event::Insert(vec![InsertElement { id: self.current_id.to_string() }]));
 
@@ -296,12 +299,12 @@ impl CubicBezBuilder {
         self.catmull_to(dest);
     }
 
-    pub fn finish(&mut self, is_snapped: bool, buffer: &mut Buffer) {
+    pub fn finish(&mut self, is_snapped: bool, buffer: &mut Buffer, user_tolerance: f32) {
         let mut tolerance = if is_snapped {
             let perim = self.path.length(None) as f32;
             perim * 0.04
         } else {
-            1.
+            user_tolerance
         };
 
         tolerance /= buffer.master_transform.sx;

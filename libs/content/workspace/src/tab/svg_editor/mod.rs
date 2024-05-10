@@ -12,6 +12,7 @@ use crate::tab::svg_editor::toolbar::{ColorSwatch, Toolbar};
 use crate::theme::palette::ThemePalette;
 use egui::load::SizedTexture;
 pub use eraser::Eraser;
+use glam::{DAffine2, DMat2, DVec2};
 pub use history::DeleteElement;
 pub use history::Event;
 pub use history::InsertElement;
@@ -61,8 +62,6 @@ impl SVGEditor {
 
         let toolbar = Toolbar::new(max_id);
 
-        // Self::define_dynamic_colors(&mut buffer, &mut toolbar, false, true);
-
         Self {
             buffer,
             history: History::default(),
@@ -96,7 +95,7 @@ impl SVGEditor {
             self.render_svg(ui);
         });
 
-        // handle_zoom_input(ui, self.inner_rect, &mut self.buffer);
+        handle_zoom_input(ui, self.inner_rect, &mut self.buffer);
 
         if ui.input(|r| r.multi_touch().is_some()) || self.skip_frame {
             self.skip_frame = false;
@@ -142,14 +141,19 @@ impl SVGEditor {
     }
 
     fn render_svg(&mut self, ui: &mut egui::Ui) {
-        for el in self.buffer.elements.values() {
+        let painter = ui
+            .allocate_painter(self.inner_rect.size(), egui::Sense::click_and_drag())
+            .1;
+        for el in self.buffer.elements.values_mut() {
             match el {
                 parser::Element::Path(path) => {
                     if path.data.len() < 1 || path.visibility.eq(&usvg::Visibility::Hidden) {
                         continue;
                     }
+
                     path.data.iter().for_each(|bezier| {
                         let bezier = bezier.to_cubic();
+
                         let points: Vec<egui::Pos2> = bezier
                             .get_points()
                             .map(|dvec| egui::pos2(dvec.x as f32, dvec.y as f32))
@@ -163,7 +167,7 @@ impl SVGEditor {
                                 color: path.stroke.unwrap_or_default().color,
                             },
                         );
-                        ui.painter().add(epath);
+                        painter.add(epath);
                     });
                 }
                 parser::Element::Image(img) => todo!(),

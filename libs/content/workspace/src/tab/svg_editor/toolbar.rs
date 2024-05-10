@@ -1,6 +1,6 @@
 use std::f32::consts::PI;
 
-use egui::ScrollArea;
+use egui::{RichText, ScrollArea, Widget};
 
 use crate::{
     theme::{icons::Icon, palette::ThemePalette},
@@ -197,6 +197,23 @@ impl Toolbar {
     fn show_tool_inline_controls(&mut self, ui: &mut egui::Ui) {
         match self.active_tool {
             Tool::Pen => {
+                ui.label(
+                    RichText::from("Smoothing:")
+                        .color(ui.visuals().text_color().gamma_multiply(0.8))
+                        .size(15.0),
+                );
+                ui.add_space(10.0);
+
+                ui.add(
+                    egui::DragValue::new(&mut self.pen.simplification_tolerance)
+                        .clamp_range(0.1..=5.0)
+                        .speed(0.1),
+                );
+
+                ui.add_space(4.0);
+                ui.add(egui::Separator::default().shrink(ui.available_height() * 0.3));
+                ui.add_space(4.0);
+
                 if let Some(thickness) = self.show_thickness_pickers(
                     ui,
                     self.pen.active_stroke_width as f32,
