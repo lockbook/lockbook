@@ -37,41 +37,8 @@ pub enum Tool {
 
 #[derive(Clone)]
 pub struct ColorSwatch {
-    pub id: String,
+    pub id: Option<String>,
     pub color: egui::Color32,
-}
-impl ColorSwatch {
-    fn show(&self, ui: &mut egui::Ui, pen_active_color: Option<ColorSwatch>) -> egui::Response {
-        let (response, painter) = ui.allocate_painter(
-            egui::vec2(COLOR_SWATCH_BTN_RADIUS * PI, ui.available_height()),
-            egui::Sense::click(),
-        );
-
-        if let Some(active_color) = pen_active_color {
-            let opacity = if active_color.id.eq(&self.id) {
-                1.0
-            } else if response.hovered() {
-                ui.output_mut(|w| w.cursor_icon = egui::CursorIcon::PointingHand);
-                0.9
-            } else {
-                0.5
-            };
-
-            if active_color.id.eq(&self.id) {
-                painter.rect_filled(
-                    response.rect,
-                    egui::Rounding::same(8.0),
-                    self.color.gamma_multiply(0.2),
-                );
-            }
-            painter.circle_filled(
-                response.rect.center(),
-                COLOR_SWATCH_BTN_RADIUS,
-                self.color.gamma_multiply(opacity),
-            );
-        };
-        response
-    }
 }
 
 macro_rules! set_tool {
@@ -259,11 +226,42 @@ impl Toolbar {
         let theme_colors = ThemePalette::as_array(ui.visuals().dark_mode);
 
         theme_colors.iter().for_each(|theme_color| {
-            let color = ColorSwatch { id: theme_color.0.clone(), color: theme_color.1 };
-            if color.show(ui, self.pen.active_color.clone()).clicked() {
-                self.pen.active_color = Some(color);
+            // let color = ColorSwatch { id: theme_color.0.clone(), color: theme_color.1 };
+            if self.show_color_btn(ui, theme_color.1).clicked() {
+                self.pen.active_color = Some(theme_color.1);
             }
         });
+    }
+
+    fn show_color_btn(&self, ui: &mut egui::Ui, color: egui::Color32) -> egui::Response {
+        let (response, painter) = ui.allocate_painter(
+            egui::vec2(COLOR_SWATCH_BTN_RADIUS * PI, ui.available_height()),
+            egui::Sense::click(),
+        );
+
+        if let Some(active_color) = self.pen.active_color {
+            let opacity = if active_color.eq(&color) {
+                1.0
+            } else if response.hovered() {
+                0.9
+            } else {
+                0.5
+            };
+
+            if active_color.eq(&color) {
+                painter.rect_filled(
+                    response.rect,
+                    egui::Rounding::same(8.0),
+                    color.gamma_multiply(0.2),
+                );
+            }
+            painter.circle_filled(
+                response.rect.center(),
+                COLOR_SWATCH_BTN_RADIUS,
+                color.gamma_multiply(opacity),
+            );
+        };
+        response
     }
 
     fn show_thickness_pickers(

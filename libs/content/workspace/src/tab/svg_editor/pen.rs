@@ -1,21 +1,23 @@
 use bezier_rs::{Bezier, Subpath};
 use minidom::Element;
-use resvg::usvg::{Color, Stroke, Transform};
+use resvg::usvg::{Color, Transform};
 use std::{
     collections::VecDeque,
     time::{Duration, Instant},
 };
 
+use crate::theme::palette::ThemePalette;
+
 use super::{
     history::{self, History},
-    parser::{self, ManipulatorGroupId, Path},
+    parser::{self, ManipulatorGroupId, Path, Stroke},
     toolbar::ColorSwatch,
     util::{self, apply_transform_to_pos, d_to_subpath, deserialize_transform},
     Buffer, InsertElement,
 };
 
 pub struct Pen {
-    pub active_color: Option<ColorSwatch>,
+    pub active_color: Option<egui::Color32>,
     pub active_stroke_width: u32,
     path_builder: CubicBezBuilder,
     pub current_id: usize, // todo: this should be at a higher component state, maybe in buffer
@@ -43,6 +45,22 @@ impl Pen {
         &mut self, ui: &mut egui::Ui, inner_rect: egui::Rect, buffer: &mut parser::Buffer,
         history: &mut History,
     ) -> Option<PenResponse> {
+        if self.active_color.is_none() {
+            self.active_color = Some(ThemePalette::get_fg_color(ui.visuals().dark_mode));
+        }
+
+        if ui.input(|r| r.key_down(egui::Key::F2)) {
+            self.path_builder.original_points.iter().for_each(|p| {
+                ui.painter()
+                    .circle(*p, 2.0, egui::Color32::RED, egui::Stroke::NONE);
+            });
+        } else if ui.input(|r| r.key_down(egui::Key::F3)) {
+            self.path_builder.simplified_points.iter().for_each(|p| {
+                ui.painter()
+                    .circle(*p, 2.0, egui::Color32::BLUE, egui::Stroke::NONE);
+            });
+        }
+
         let event = match self.setup_events(ui, inner_rect) {
             Some(e) => e,
             None => return None,
@@ -61,22 +79,21 @@ impl Pen {
                 {
                     self.path_builder.cubic_to(pos);
                     p.data = self.path_builder.path.clone();
-                    // node.set_attr("d", &self.path_builder.data);
-
-                    // if let Some(color) = &self.active_color {
-                    //     node.set_attr("stroke", format!("url(#{})", color.id));
-                    // } else {
-                    //     node.set_attr("stroke", "url(#fg)");
-                    // }
                 } else {
                     self.path_builder.cubic_to(pos);
+                    let mut stroke = Stroke::default();
+                    if let Some(c) = &self.active_color {
+                        stroke.color = *c;
+                    }
+                    stroke.width = self.active_stroke_width as f32;
+
                     buffer.elements.insert(
                         id.to_string(),
                         parser::Element::Path(Path {
                             data: self.path_builder.path.clone(),
                             visibility: resvg::usvg::Visibility::Visible,
                             fill: None,
-                            stroke: None,
+                            stroke: Some(stroke),
                             transform: Transform::default(),
                             opacity: 1.0,
                         }),
@@ -89,6 +106,7 @@ impl Pen {
                 self.maybe_snap_started = None;
             }
         }
+
         None
     }
 
@@ -99,7 +117,7 @@ impl Pen {
             return;
         }
 
-        // self.path_builder.finish(is_snapped, buffer);
+        self.path_builder.finish(is_snapped, buffer);
 
         history.save(super::Event::Insert(vec![InsertElement { id: self.current_id.to_string() }]));
 
@@ -118,28 +136,31 @@ impl Pen {
             return false;
         }
 
-        // if let Some(last_pos) = self.path_builder.path.po {
-        //     let dist_diff = last_pos.distance(current_pos).abs();
+        if let Some(last_pos) = self.path_builder.path.iter().last() {
+            let last_pos = last_pos.end();
+            let last_pos = egui::pos2(last_pos.x as f32, last_pos.y as f32);
 
-        //     let mut dist_to_trigger_snap = 1.5;
+            let dist_diff = last_pos.distance(current_pos).abs();
 
-        //     dist_to_trigger_snap /= master_transform.sx;
+            let mut dist_to_trigger_snap = 1.5;
 
-        //     let time_to_trigger_snap = Duration::from_secs(1);
+            dist_to_trigger_snap /= master_transform.sx;
 
-        //     if dist_diff < dist_to_trigger_snap {
-        //         if let Some(snap_start) = self.maybe_snap_started {
-        //             if Instant::now() - snap_start > time_to_trigger_snap {
-        //                 self.maybe_snap_started = None;
-        //                 return true;
-        //             }
-        //         } else {
-        //             self.maybe_snap_started = Some(Instant::now());
-        //         }
-        //     } else {
-        //         self.maybe_snap_started = Some(Instant::now());
-        //     }
-        // }
+            let time_to_trigger_snap = Duration::from_secs(1);
+
+            if dist_diff < dist_to_trigger_snap {
+                if let Some(snap_start) = self.maybe_snap_started {
+                    if Instant::now() - snap_start > time_to_trigger_snap {
+                        self.maybe_snap_started = None;
+                        return true;
+                    }
+                } else {
+                    self.maybe_snap_started = Some(Instant::now());
+                }
+            } else {
+                self.maybe_snap_started = Some(Instant::now());
+            }
+        }
         false
     }
 
@@ -187,6 +208,8 @@ pub struct CubicBezBuilder {
     /// store the 4 past points
     prev_points_window: VecDeque<egui::Pos2>,
     path: Subpath<ManipulatorGroupId>,
+    simplified_points: Vec<egui::Pos2>,
+    original_points: Vec<egui::Pos2>,
 }
 
 impl Default for CubicBezBuilder {
@@ -200,10 +223,13 @@ impl CubicBezBuilder {
         CubicBezBuilder {
             prev_points_window: VecDeque::from(vec![]),
             path: Subpath::<ManipulatorGroupId>::from_anchors(vec![], false),
+            simplified_points: vec![],
+            original_points: vec![],
         }
     }
 
     fn line_to(&mut self, dest: egui::Pos2) {
+        self.original_points.push(dest);
         if let Some(prev) = self.prev_points_window.back() {
             let bez = Bezier::from_linear_coordinates(
                 prev.x.into(),
@@ -217,19 +243,14 @@ impl CubicBezBuilder {
         self.prev_points_window.push_back(dest);
     }
 
-    fn catmull_to(&mut self, dest: egui::Pos2, is_last_point: bool) {
+    fn catmull_to(&mut self, dest: egui::Pos2) {
         let is_first_point = self.prev_points_window.is_empty();
 
         if is_first_point {
             // repeat the first pos twice to avoid later index arithmetic
             self.prev_points_window.push_back(dest);
+            self.prev_points_window.push_back(dest);
         };
-
-        if is_last_point {
-            if let Some(last) = self.prev_points_window.back() {
-                self.prev_points_window.push_back(*last);
-            }
-        }
 
         self.prev_points_window.push_back(dest);
 
@@ -268,7 +289,11 @@ impl CubicBezBuilder {
     }
 
     pub fn cubic_to(&mut self, dest: egui::Pos2) {
-        self.catmull_to(dest, false);
+        if self.prev_points_window.is_empty() {
+            self.original_points.clear();
+        }
+        self.original_points.push(dest);
+        self.catmull_to(dest);
     }
 
     pub fn finish(&mut self, is_snapped: bool, buffer: &mut Buffer) {
@@ -276,7 +301,7 @@ impl CubicBezBuilder {
             let perim = self.path.length(None) as f32;
             perim * 0.04
         } else {
-            2.0
+            1.
         };
 
         tolerance /= buffer.master_transform.sx;
@@ -285,11 +310,15 @@ impl CubicBezBuilder {
         self.clear();
 
         if let Some(simple_points) = maybe_simple_points {
+            self.simplified_points = simple_points.clone();
             simple_points.iter().enumerate().for_each(|(i, p)| {
                 if is_snapped {
                     self.line_to(*p);
                 } else {
-                    self.catmull_to(*p, i == simple_points.len() - 1);
+                    if i == simple_points.len() - 1 {
+                        self.catmull_to(*p);
+                    }
+                    self.catmull_to(*p);
                 }
             });
         }
@@ -309,12 +338,11 @@ impl CubicBezBuilder {
         let mut simplified_points = Vec::new();
 
         // push the first point
-        let points: Vec<egui::Pos2> = self
-            .path
-            .manipulator_groups()
-            .iter()
-            .map(|m| egui::pos2(m.anchor.x as f32, m.anchor.y as f32))
-            .collect();
+        let mut points = vec![];
+        self.path.iter().for_each(|b| {
+            points.push(egui::pos2(b.start().x as f32, b.start().y as f32));
+            points.push(egui::pos2(b.end().x as f32, b.end().y as f32));
+        });
 
         simplified_points.push(points[0]);
 

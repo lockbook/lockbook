@@ -5,8 +5,8 @@ use glam::{DAffine2, DMat2, DVec2};
 use resvg::{
     tiny_skia::Point,
     usvg::{
-        self, Fill, ImageHrefResolver, ImageHrefStringResolverFn, ImageKind, Options, Stroke, Text,
-        Transform, Visibility,
+        self, Color, Fill, ImageHrefResolver, ImageHrefStringResolverFn, ImageKind, Options, Paint,
+        Text, Transform, Visibility,
     },
 };
 
@@ -40,6 +40,19 @@ pub struct Path {
     pub stroke: Option<Stroke>,
     pub transform: Transform,
     pub opacity: f32,
+}
+
+#[derive(Clone, Copy)]
+pub struct Stroke {
+    pub color: egui::Color32,
+    opacity: f32,
+    pub width: f32,
+}
+
+impl Default for Stroke {
+    fn default() -> Self {
+        Self { color: egui::Color32::BLACK, opacity: 1.0, width: 1.0 }
+    }
 }
 
 pub struct Image {
@@ -87,13 +100,21 @@ impl Buffer {
                     //     .insert(i.to_string(), Element::Text(*text.to_owned().deref()));
                 }
                 usvg::Node::Path(path) => {
+                    let mut stroke = Stroke::default();
+                    if let Some(s) = path.stroke() {
+                        if let Paint::Color(c) = s.paint() {
+                            stroke.color = egui::Color32::from_rgb(c.blue, c.green, c.blue);
+                        }
+                        stroke.width = s.width().get();
+                        stroke.opacity = s.opacity().get();
+                    }
                     buffer.elements.insert(
                         i.to_string(),
                         Element::Path(Path {
                             data: usvg_d_to_subpath(path),
                             visibility: path.visibility(),
                             fill: path.fill().cloned(),
-                            stroke: path.stroke().cloned(),
+                            stroke: Some(stroke),
                             transform: path.abs_transform(),
                             opacity: 1.0,
                         }),

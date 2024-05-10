@@ -134,13 +134,6 @@ impl SVGEditor {
         }
 
         // self.handle_clip_input(ui);
-
-        // Self::define_dynamic_colors(
-        //     &mut self.buffer,
-        //     &mut self.toolbar,
-        //     ui.visuals().dark_mode,
-        //     false,
-        // );
     }
 
     pub fn get_minimal_content(&self) -> String {
@@ -152,7 +145,7 @@ impl SVGEditor {
         for el in self.buffer.elements.values() {
             match el {
                 parser::Element::Path(path) => {
-                    if path.data.len() < 1 {
+                    if path.data.len() < 1 || path.visibility.eq(&usvg::Visibility::Hidden) {
                         continue;
                     }
                     path.data.iter().for_each(|bezier| {
@@ -165,7 +158,10 @@ impl SVGEditor {
                             points.try_into().unwrap(),
                             false,
                             egui::Color32::TRANSPARENT,
-                            egui::Stroke { width: 2.0, color: egui::Color32::BLACK }, // todo determine stroke thickness based on scale
+                            egui::Stroke {
+                                width: path.stroke.unwrap_or_default().width, // todo determine stroke thickness based on scale
+                                color: path.stroke.unwrap_or_default().color,
+                            },
                         );
                         ui.painter().add(epath);
                     });
@@ -175,56 +171,4 @@ impl SVGEditor {
             }
         }
     }
-
-    // if the data-dark mode is different from the ui dark mode, or if this is the first time running the editor
-    // fn define_dynamic_colors(
-    //     buffer: &mut Buffer, toolbar: &mut Toolbar, is_dark_mode: bool, force_update: bool,
-    // ) {
-    //     let needs_update;
-    //     if let Some(svg_flag) = buffer.current.attr("data-dark-mode") {
-    //         let svg_flag: bool = svg_flag.parse().unwrap_or(false);
-
-    //         needs_update = svg_flag != is_dark_mode;
-    //     } else {
-    //         needs_update = true;
-    //     }
-
-    //     if !needs_update && !force_update {
-    //         return;
-    //     }
-
-    //     let gradient_group_id = "lb:gg";
-    //     buffer.current.remove_child(gradient_group_id);
-
-    //     let theme_colors = ThemePalette::as_array(is_dark_mode);
-    //     if toolbar.pen.active_color.is_none() {
-    //         toolbar.pen.active_color = Some(ColorSwatch {
-    //             id: "fg".to_string(),
-    //             color: theme_colors.iter().find(|p| p.0.eq("fg")).unwrap().1,
-    //         });
-    //     }
-
-    //     let mut gradient_group = Element::builder("g", "")
-    //         .attr("id", gradient_group_id)
-    //         .build();
-
-    //     theme_colors.iter().for_each(|theme_color| {
-    //         let rgb_color =
-    //             format!("rgb({} {} {})", theme_color.1.r(), theme_color.1.g(), theme_color.1.b());
-    //         let gradient = Element::builder("linearGradient", "")
-    //             .attr("id", theme_color.0.as_str())
-    //             .append(
-    //                 Element::builder("stop", "")
-    //                     .attr("stop-color", rgb_color)
-    //                     .build(),
-    //             )
-    //             .build();
-    //         gradient_group.append_child(gradient);
-    //     });
-
-    //     buffer.current.append_child(gradient_group);
-    //     buffer
-    //         .current
-    //         .set_attr("data-dark-mode", format!("{}", is_dark_mode));
-    // }
 }
