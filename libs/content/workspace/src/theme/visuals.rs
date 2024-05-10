@@ -11,6 +11,9 @@ pub fn init(ctx: &egui::Context, dark_mode: bool) {
     style.spacing.menu_margin = egui::Margin::same(10.0);
     style.spacing.combo_width = 50.0;
 
+    style.visuals.menu_rounding = egui::Rounding::same(10.0);
+    style.visuals.window_rounding = egui::Rounding::same(10.0);
+
     style
         .text_styles
         .insert(egui::TextStyle::Body, egui::FontId::new(17.0, egui::FontFamily::Proportional));

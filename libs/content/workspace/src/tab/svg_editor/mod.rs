@@ -119,17 +119,20 @@ impl SVGEditor {
                     // );
                 }
             }
-            _ => {} // Tool::Eraser => {
-                    //     self.toolbar.eraser.setup_events(ui, self.inner_rect);
-                    //     while let Ok(event) = self.toolbar.eraser.rx.try_recv() {
-                    //         self.toolbar.eraser.handle_events(event, &mut self.buffer);
-                    //     }
-                    // }
-                    // Tool::Selection => {
-                    //     self.toolbar
-                    //         .selection
-                    //         .handle_input(ui, self.inner_rect, &mut self.buffer);
-                    // }
+            Tool::Eraser => {
+                self.toolbar.eraser.setup_events(ui, self.inner_rect);
+                while let Ok(event) = self.toolbar.eraser.rx.try_recv() {
+                    self.toolbar
+                        .eraser
+                        .handle_events(event, &mut self.buffer, &mut self.history);
+                }
+            }
+            // Tool::Selection => {
+            //     self.toolbar
+            //         .selection
+            //         .handle_input(ui, self.inner_rect, &mut self.buffer);
+            // }
+            _ => {}
         }
 
         // self.handle_clip_input(ui);
@@ -158,13 +161,14 @@ impl SVGEditor {
                             .get_points()
                             .map(|dvec| egui::pos2(dvec.x as f32, dvec.y as f32))
                             .collect();
+                        let stroke = path.stroke.unwrap_or_default();
                         let epath = epaint::CubicBezierShape::from_points_stroke(
                             points.try_into().unwrap(),
                             false,
                             egui::Color32::TRANSPARENT,
                             egui::Stroke {
-                                width: path.stroke.unwrap_or_default().width, // todo determine stroke thickness based on scale
-                                color: path.stroke.unwrap_or_default().color,
+                                width: stroke.width, // todo determine stroke thickness based on scale
+                                color: stroke.color.gamma_multiply(path.opacity),
                             },
                         );
                         painter.add(epath);
