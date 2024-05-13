@@ -258,7 +258,7 @@ public class MacMTK: MTKView, MTKViewDelegate {
         dark_mode(wsHandle, isDarkMode())
         set_scale(wsHandle, scale)
         let output = draw_editor(wsHandle)
-
+        
         workspaceState?.syncing = output.workspace_resp.syncing
         workspaceState?.statusMsg = textFromPtr(s: output.workspace_resp.msg)
         workspaceState?.reloadFiles = output.workspace_resp.refresh_files

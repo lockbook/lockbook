@@ -140,12 +140,34 @@ impl<'window> WgpuWorkspace<'window> {
 
         #[cfg(target_os = "android")]
         {
-            if !full_output.platform_output.copied_text.is_empty() {
+            if let Some(url) = full_output.platform_output.open_url {
+                out.url_opened = url.url;
+            }
+
+            out.has_copied_text = !full_output.platform_output.copied_text.is_empty();
+
+            if out.has_copied_text {
                 out.copied_text = full_output.platform_output.copied_text;
             }
 
-            if let Some(url) = full_output.platform_output.open_url {
-                out.url_opened = url.url;
+            if let Some(markdown) = self.workspace.current_tab_markdown() {
+                out.workspace_resp.show_edit_menu = markdown.editor.maybe_menu_location.is_some();
+
+                out.workspace_resp.edit_menu_x = markdown
+                    .editor
+                    .maybe_menu_location
+                    .map(|p| p.x)
+                    .unwrap_or_default();
+
+                out.workspace_resp.edit_menu_y = markdown
+                    .editor
+                    .maybe_menu_location
+                    .map(|p| p.y)
+                    .unwrap_or_default();
+
+                out.workspace_resp.selection_updated = (markdown.editor.scroll_area_offset
+                    != markdown.editor.old_scroll_area_offset)
+                    || markdown.editor.selection_updated;
             }
         }
 

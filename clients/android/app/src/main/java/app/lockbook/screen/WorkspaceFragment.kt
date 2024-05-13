@@ -3,8 +3,7 @@ package app.lockbook.screen
 import android.annotation.SuppressLint
 import android.content.ClipboardManager
 import android.content.Context
-import android.graphics.Canvas
-import android.graphics.Color
+import android.graphics.Matrix
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
@@ -13,6 +12,8 @@ import android.text.Editable
 import android.text.InputFilter
 import android.text.InputType
 import android.text.Selection
+import android.text.style.SuggestionSpan
+import android.util.ArraySet
 import android.view.KeyEvent
 import android.view.LayoutInflater
 import android.view.MotionEvent
@@ -21,11 +22,21 @@ import android.view.ViewConfiguration
 import android.view.ViewGroup
 import android.view.inputmethod.BaseInputConnection
 import android.view.inputmethod.CursorAnchorInfo
+import android.view.inputmethod.DeleteGesture
+import android.view.inputmethod.DeleteRangeGesture
 import android.view.inputmethod.EditorInfo
+import android.view.inputmethod.HandwritingGesture
 import android.view.inputmethod.InputConnection
 import android.view.inputmethod.InputMethodManager
+import android.view.inputmethod.InsertGesture
+import android.view.inputmethod.InsertModeGesture
+import android.view.inputmethod.JoinOrSplitGesture
+import android.view.inputmethod.PreviewableHandwritingGesture
+import android.view.inputmethod.RemoveSpaceGesture
+import android.view.inputmethod.SelectGesture
+import android.view.inputmethod.SelectRangeGesture
+import android.view.inputmethod.TextAttribute
 import android.widget.FrameLayout
-import androidx.appcompat.widget.AppCompatEditText
 import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
@@ -39,12 +50,17 @@ import app.lockbook.model.TransientScreen
 import app.lockbook.model.WorkspaceTab
 import app.lockbook.model.WorkspaceViewModel
 import app.lockbook.util.WorkspaceView
+import app.lockbook.workspace.JRect
+import app.lockbook.workspace.JTextRange
+import app.lockbook.workspace.Workspace
 import com.github.michaelbull.result.unwrap
-import kotlinx.serialization.Serializable
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
 import timber.log.Timber
+import java.util.concurrent.Executor
+import java.util.function.IntConsumer
 import kotlin.math.abs
+
 
 class WorkspaceFragment : Fragment() {
     private var _binding: FragmentWorkspaceBinding? = null
@@ -235,9 +251,14 @@ class WorkspaceWrapperView(context: Context, val model: WorkspaceViewModel) : Fr
             WorkspaceTab.Loading -> {}
             WorkspaceTab.Markdown,
             WorkspaceTab.PlainText -> {
-                val ic = WorkspaceTextInputConnection(workspaceView)
-                Timber.e("creating workspace ${ic}")
-                currentWrapper = WorkspaceTextInputWrapper(context, workspaceView, ic)
+                val touchYOffset: Float
+                if(model.showTabs.value == true) {
+                    touchYOffset = (TAB_BAR_HEIGHT + TEXT_TOOL_BAR_HEIGHT) * context.resources.displayMetrics.scaledDensity
+                } else {
+                    touchYOffset = TEXT_TOOL_BAR_HEIGHT * context.resources.displayMetrics.scaledDensity
+                }
+
+                currentWrapper = WorkspaceTextInputWrapper(context, workspaceView, touchYOffset)
                 workspaceView.wrapperView = currentWrapper
                 Timber.e("creating workspace 2")
 
@@ -249,66 +270,65 @@ class WorkspaceWrapperView(context: Context, val model: WorkspaceViewModel) : Fr
     }
 }
 
+//@SuppressLint("ViewConstructor")
+//class WorkspaceTextInputWrapper(context: Context, private val workspaceView: WorkspaceView) : EditText(context) {
+//    val wsInputConnection = WorkspaceTextInputConnection(workspaceView)
+//
+//    init {
+//        Timber.e("initing workspace")
+//        inputType = InputType.TYPE_TEXT_FLAG_MULTI_LINE
+//        isSingleLine = false
+//    }
+//
+//    override fun onDraw(canvas: Canvas) {
+////        super.onDraw(canvas)
+//
+//        workspaceView.invalidate()
+//    }
+//
+//    override fun onCreateInputConnection(outAttrs: EditorInfo): InputConnection {
+//        return wsInputConnection
+//    }
+//
+//    override fun getEditableText(): Editable {
+//        return wsInputConnection.wsEditable
+//    }
+//
+//    @SuppressLint("ClickableViewAccessibility")
+//    override fun onTouchEvent(event: MotionEvent?): Boolean {
+//        requestFocus()
+//
+//        super.onTouchEvent(event)
+//
+//        if (event != null) {
+//            workspaceView.forwardedTouchEvent(event, (WorkspaceWrapperView.TAB_BAR_HEIGHT * context.resources.displayMetrics.scaledDensity).toInt())
+//        }
+//
+//        workspaceView.invalidate()
+//
+//        return true
+//    }
+//
+//    override fun getOffsetForPosition(x: Float, y: Float): Int {
+//        val position: JTextPosition = Json.decodeFromString(WorkspaceView.WORKSPACE.textOffsetForPosition(WorkspaceView.WGPU_OBJ, x, y + (WorkspaceWrapperView.TAB_BAR_HEIGHT * context.resources.displayMetrics.scaledDensity).toInt()))
+//
+//        Timber.e("position ${position.position} from len ${wsInputConnection.wsEditable.length}")
+//
+//        return position.position
+//    }
+//
+//    override fun getText(): Editable? {
+//        if(wsInputConnection == null) {
+//            return null
+//        }
+//
+//        return wsInputConnection.wsEditable
+//    }
+//}
+
 @SuppressLint("ViewConstructor")
-class WorkspaceTextInputWrapper(context: Context, private val workspaceView: WorkspaceView, val wsInputConnection: WorkspaceTextInputConnection) : AppCompatEditText(context) {
-    init {
-        Timber.e("initing workspace")
-        inputType = InputType.TYPE_TEXT_FLAG_MULTI_LINE
-        isSingleLine = false
-        maxLines = Int.MAX_VALUE
-    }
-
-    override fun onDraw(canvas: Canvas) {
-        workspaceView.invalidate()
-    }
-
-    override fun onCreateInputConnection(outAttrs: EditorInfo): InputConnection {
-        return wsInputConnection
-    }
-
-    override fun getEditableText(): Editable {
-        return wsInputConnection.wsEditable
-    }
-
-    @SuppressLint("ClickableViewAccessibility")
-    override fun onTouchEvent(event: MotionEvent?): Boolean {
-        requestFocus()
-
-        super.onTouchEvent(event)
-
-        if (event != null) {
-            workspaceView.forwardedTouchEvent(event, (WorkspaceWrapperView.TAB_BAR_HEIGHT * context.resources.displayMetrics.scaledDensity).toInt())
-        }
-
-        workspaceView.invalidate()
-
-        return true
-    }
-
-    override fun getOffsetForPosition(x: Float, y: Float): Int {
-        val position: JTextPosition = Json.decodeFromString(WorkspaceView.WORKSPACE.textOffsetForPosition(WorkspaceView.WGPU_OBJ, x, y + (WorkspaceWrapperView.TAB_BAR_HEIGHT * context.resources.displayMetrics.scaledDensity).toInt()))
-
-        Timber.e("position ${position.position} from len ${wsInputConnection.wsEditable.length}")
-
-        return position.position
-    }
-
-    override fun getLineHeight(): Int {
-        return (2 * context.resources.displayMetrics.scaledDensity).toInt()
-    }
-
-    override fun getText(): Editable? {
-        if(wsInputConnection == null) {
-            return null
-        }
-
-        return wsInputConnection.wsEditable
-    }
-}
-
-@SuppressLint("ViewConstructor")
-class WorkspaceTextInputWrapper2(context: Context, val workspaceView: WorkspaceView) : View(context) {
-    val inputConnection = WorkspaceTextInputConnection(workspaceView)
+class WorkspaceTextInputWrapper(context: Context, val workspaceView: WorkspaceView, val touchYOffset: Float) : View(context) {
+    val wsInputConnection = WorkspaceTextInputConnection(workspaceView, this)
 
     private var touchStartX = 0f
     private var touchStartY = 0f
@@ -316,6 +336,10 @@ class WorkspaceTextInputWrapper2(context: Context, val workspaceView: WorkspaceV
     init {
         isFocusable = true
         isFocusableInTouchMode = true
+    }
+
+    companion object {
+        const val BASE_FONT_SIZE = 16
     }
 
     @SuppressLint("ClickableViewAccessibility")
@@ -342,7 +366,7 @@ class WorkspaceTextInputWrapper2(context: Context, val workspaceView: WorkspaceV
         }
 
         if (event != null) {
-            workspaceView.forwardedTouchEvent(event, WorkspaceWrapperView.TAB_BAR_HEIGHT + WorkspaceWrapperView.TEXT_TOOL_BAR_HEIGHT)
+            workspaceView.forwardedTouchEvent(event, touchYOffset)
         }
 
         workspaceView.invalidate()
@@ -355,13 +379,50 @@ class WorkspaceTextInputWrapper2(context: Context, val workspaceView: WorkspaceV
     }
 
     override fun onCreateInputConnection(outAttrs: EditorInfo?): InputConnection {
-        return inputConnection
+        if(outAttrs != null) {
+            outAttrs.initialCapsMode = wsInputConnection.getCursorCapsMode(EditorInfo.TYPE_CLASS_TEXT)
+            outAttrs.hintText = "Type here"
+            outAttrs.inputType =
+                InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE
+//            or InputType.TYPE_TEXT_FLAG_AUTO_CORRECT or InputType.TYPE_TEXT_FLAG_AUTO_COMPLETE
+//            outAttrs.imeOptions = EditorInfo.IME_FLAG_NO_EXTRACT_UI
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                outAttrs.setInitialSurroundingText(wsInputConnection.wsEditable.toString())
+            }
+
+            outAttrs.initialSelStart = wsInputConnection.wsEditable.getSelection().start
+            outAttrs.initialSelEnd = wsInputConnection.wsEditable.getSelection().end
+
+            val gestures = ArrayList<Class<out HandwritingGesture?>>()
+            if (Build.VERSION.SDK_INT >= 34) {
+                gestures.add(SelectGesture::class.java)
+                gestures.add(SelectRangeGesture::class.java)
+                gestures.add(DeleteGesture::class.java)
+                gestures.add(DeleteRangeGesture::class.java)
+                gestures.add(InsertGesture::class.java)
+                gestures.add(RemoveSpaceGesture::class.java)
+                gestures.add(JoinOrSplitGesture::class.java)
+                gestures.add(InsertModeGesture::class.java)
+                outAttrs.supportedHandwritingGestures = gestures
+
+                val previews: MutableSet<Class<out PreviewableHandwritingGesture?>> = ArraySet()
+
+                previews.add(SelectGesture::class.java)
+                previews.add(SelectRangeGesture::class.java)
+                previews.add(DeleteGesture::class.java)
+                previews.add(DeleteRangeGesture::class.java)
+                outAttrs.supportedHandwritingGesturePreviews = previews
+            }
+        }
+
+        return wsInputConnection
     }
 }
 
-class WorkspaceTextInputConnection(val view: WorkspaceView) : BaseInputConnection(view, true) {
-    val wsEditable = WorkspaceTextEditable(view)
-    private var monitorCursorUpdates = false
+class WorkspaceTextInputConnection(val workspaceView: WorkspaceView, val textInputWrapper: WorkspaceTextInputWrapper) : BaseInputConnection(textInputWrapper, true) {
+    val wsEditable = WorkspaceTextEditable(workspaceView)
+    var monitorCursorUpdates = false
 
     init {
         Timber.e("created ws input connection")
@@ -370,15 +431,32 @@ class WorkspaceTextInputConnection(val view: WorkspaceView) : BaseInputConnectio
     private fun getInputMethodManager(): InputMethodManager = App.applicationContext().getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
     private fun getClipboardManager(): ClipboardManager = App.applicationContext().getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
 
-    private fun notifySelectionUpdated() {
-        getInputMethodManager()
-            .updateCursorAnchorInfo(
-                view,
-                CursorAnchorInfo.Builder()
-                    .setSelectionRange(wsEditable.getSelection().start, wsEditable.getSelection().end)
-                    .build()
-            )
+    fun getCursorRect(): JRect = Json.decodeFromString(WorkspaceView.WORKSPACE.getCursorRect(WorkspaceView.WGPU_OBJ))
+
+    fun notifySelectionUpdated() {
+        val selection = wsEditable.getSelection()
+        val cursorRect = getCursorRect()
+        val scaleDensity = App.applicationContext().resources.displayMetrics.scaledDensity
+
+        val matrix = Matrix()
+        matrix.setScale(scaleDensity, scaleDensity)
+
+        Timber.e("notifying selection updated ${selection.start} ${selection.end}")
+
+        getInputMethodManager().updateSelection(textInputWrapper, selection.start, selection.end, wsEditable.composingStart, wsEditable.composingEnd)
+
+//        getInputMethodManager()
+//            .updateCursorAnchorInfo(
+//                textInputWrapper,
+//                CursorAnchorInfo.Builder()
+//                    .setMatrix(matrix)
+//                    .setSelectionRange(selection.start, selection.end)
+//                    .setInsertionMarkerLocation(cursorRect.minX, cursorRect.minY, cursorRect.maxY, cursorRect.maxY, 0)
+//                    .build()
+//            )
     }
+
+    // I can just override a bunch of these methods and fix the inconsistent behavior
 
     override fun sendKeyEvent(event: KeyEvent?): Boolean {
         super.sendKeyEvent(event)
@@ -386,10 +464,11 @@ class WorkspaceTextInputConnection(val view: WorkspaceView) : BaseInputConnectio
         if (event != null) {
             val content = event.unicodeChar.toChar().toString()
 
+            Timber.e("sending key ${content} ${event.action} ${event.keyCode}")
             WorkspaceView.WORKSPACE.sendKeyEvent(WorkspaceView.WGPU_OBJ, event.keyCode, content, event.action == KeyEvent.ACTION_DOWN, event.isAltPressed, event.isCtrlPressed, event.isShiftPressed)
         }
 
-        view.invalidate()
+        workspaceView.invalidate()
 
         return true
     }
@@ -401,7 +480,10 @@ class WorkspaceTextInputConnection(val view: WorkspaceView) : BaseInputConnectio
             android.R.id.copy -> WorkspaceView.WORKSPACE.clipboardCopy(WorkspaceView.WGPU_OBJ)
             android.R.id.paste -> {
                 getClipboardManager().primaryClip?.getItemAt(0)?.text.let { clipboardText ->
-                    WorkspaceView.WORKSPACE.clipboardPaste(WorkspaceView.WGPU_OBJ, clipboardText.toString())
+                    WorkspaceView.WORKSPACE.clipboardPaste(
+                        WorkspaceView.WGPU_OBJ,
+                        clipboardText.toString()
+                    )
                 }
             }
             android.R.id.copyUrl,
@@ -411,7 +493,7 @@ class WorkspaceTextInputConnection(val view: WorkspaceView) : BaseInputConnectio
             else -> return false
         }
 
-        view.invalidate()
+        workspaceView.invalidate()
 
         return true
     }
@@ -419,6 +501,8 @@ class WorkspaceTextInputConnection(val view: WorkspaceView) : BaseInputConnectio
     override fun requestCursorUpdates(cursorUpdateMode: Int): Boolean {
         val immediateFlag = cursorUpdateMode and InputConnection.CURSOR_UPDATE_IMMEDIATE == InputConnection.CURSOR_UPDATE_IMMEDIATE
         val monitorFlag = cursorUpdateMode and InputConnection.CURSOR_UPDATE_MONITOR == InputConnection.CURSOR_UPDATE_MONITOR
+
+        Timber.e("requesting cursor updates... ${immediateFlag} ${monitorFlag}")
 
         if (immediateFlag) {
             notifySelectionUpdated()
@@ -431,22 +515,28 @@ class WorkspaceTextInputConnection(val view: WorkspaceView) : BaseInputConnectio
         return true
     }
 
+    override fun requestCursorUpdates(cursorUpdateMode: Int, cursorUpdateFilter: Int): Boolean {
+        return requestCursorUpdates(cursorUpdateMode)
+    }
+
+    override fun setComposingText(text: CharSequence?, newCursorPosition: Int): Boolean {
+        Timber.e("the text \"${text}\" and new cursor position ${newCursorPosition} ")
+        return super.setComposingText(text, newCursorPosition)
+    }
+
     override fun getEditable(): Editable {
         return wsEditable
     }
 }
 
-@Serializable
-data class JTextRange(val none: Boolean, val start: Int, val end: Int)
-@Serializable
-data class JTextPosition(val none: Boolean, val position: Int)
-
 class WorkspaceTextEditable(val view: WorkspaceView) : Editable {
 
     private var selectionStartSpanFlag = 0
     private var selectionEndSpanFlag = 0
+    private var composingFlag = 0
 
     fun getSelection(): JTextRange = Json.decodeFromString(WorkspaceView.WORKSPACE.getSelection(WorkspaceView.WGPU_OBJ))
+    fun getComposingText(): JTextRange = Json.decodeFromString(WorkspaceView.WORKSPACE.getComposing(WorkspaceView.WGPU_OBJ))
 
     override fun get(index: Int): Char =
         WorkspaceView.WORKSPACE.getTextInRange(WorkspaceView.WGPU_OBJ, index, index)[0]
@@ -476,24 +566,38 @@ class WorkspaceTextEditable(val view: WorkspaceView) : Editable {
     }
 
     override fun getSpanStart(tag: Any?): Int {
+        Timber.e("getting span start: ${(tag ?: Unit)::class.qualifiedName} ${(tag ?: Unit)::class.simpleName}")
+
         if (tag == Selection.SELECTION_START) {
             return getSelection().start
         }
 
         if (tag == Selection.SELECTION_END) {
             return getSelection().end
+        }
+
+        if ((tag ?: Unit)::class.simpleName == "ComposingText") {
+            Timber.e("v: ${composingStart} len=${length}")
+            return composingStart
         }
 
         return -1
     }
 
     override fun getSpanEnd(tag: Any?): Int {
+        Timber.e("getting span end: ${(tag ?: Unit)::class.qualifiedName}")
+
         if (tag == Selection.SELECTION_START) {
             return getSelection().start
         }
 
         if (tag == Selection.SELECTION_END) {
             return getSelection().end
+        }
+
+        if ((tag ?: Unit)::class.simpleName == "ComposingText") {
+            Timber.e("v: ${composingEnd} len=${length}")
+            return composingEnd
         }
 
         return -1
@@ -508,6 +612,10 @@ class WorkspaceTextEditable(val view: WorkspaceView) : Editable {
                 selectionEndSpanFlag
             }
             else -> {
+                if((tag ?: Unit)::class.simpleName == "ComposingText") {
+                    return composingFlag
+                }
+
                 0
             }
         }
@@ -517,20 +625,33 @@ class WorkspaceTextEditable(val view: WorkspaceView) : Editable {
         return -1
     }
 
+    var composingStart = -1
+    var composingEnd = -1
+
     override fun setSpan(what: Any?, start: Int, end: Int, flags: Int) {
-        Timber.e("setting span...")
+        Timber.e("setting span... ${(what ?: Unit)::class.simpleName} $start $end")
         if (what == Selection.SELECTION_START) {
             selectionStartSpanFlag = flags
             WorkspaceView.WORKSPACE.setSelection(WorkspaceView.WGPU_OBJ, start, end)
         } else if (what == Selection.SELECTION_END) {
             selectionEndSpanFlag = flags
             WorkspaceView.WORKSPACE.setSelection(WorkspaceView.WGPU_OBJ, start, end)
+        } else if ((what ?: Unit)::class.simpleName == "ComposingText") {
+            composingFlag = flags
+            composingStart = start
+            composingEnd = end
         }
 
-        view.invalidate()
+//        view.invalidate()
     }
 
-    override fun removeSpan(what: Any?) {}
+    override fun removeSpan(what: Any?) {
+        Timber.e("remove span... ${(what ?: Unit)::class.simpleName}")
+        if((what ?: Unit)::class.simpleName == "ComposingText") {
+            composingStart = -1
+            composingEnd = -1
+        }
+    }
 
     override fun append(text: CharSequence?): Editable {
         text?.let { realText ->
@@ -556,6 +677,9 @@ class WorkspaceTextEditable(val view: WorkspaceView) : Editable {
 
     override fun replace(st: Int, en: Int, source: CharSequence?, start: Int, end: Int): Editable {
         source?.let { realText ->
+
+            Timber.e("replacing... start=$st end=$en with ${realText.substring(start, end)} of len=${length}")
+
             WorkspaceView.WORKSPACE.replace(WorkspaceView.WGPU_OBJ, st, en, realText.substring(start, end))
         }
 
@@ -564,6 +688,11 @@ class WorkspaceTextEditable(val view: WorkspaceView) : Editable {
 
     override fun replace(st: Int, en: Int, text: CharSequence?): Editable {
         text?.let { realText ->
+            Timber.e("replacing... start=$st end=$en with $realText len=${length}")
+            Timber.w("stack trace START")
+            Thread.currentThread().stackTrace.forEach { Timber.w(it.toString()) }
+            Timber.w("stack trace END")
+
             WorkspaceView.WORKSPACE.replace(WorkspaceView.WGPU_OBJ, st, en, realText.toString())
         }
 
@@ -587,6 +716,8 @@ class WorkspaceTextEditable(val view: WorkspaceView) : Editable {
     }
 
     override fun delete(st: Int, en: Int): Editable {
+        Timber.e("deleting... start=$st end=$en")
+
         WorkspaceView.WORKSPACE.replace(WorkspaceView.WGPU_OBJ, st, en, "")
 
         return this

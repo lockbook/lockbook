@@ -43,6 +43,8 @@ public data class IntegrationOutput(
     @Serializable(with = BigIntegerSerializer::class)
     @SerialName("redraw_in")
     val redrawIn: BigInteger,
+    @SerialName("has_copied_text")
+    val hasCopiedText: Boolean,
     @SerialName("copied_text")
     val copiedText: String,
     @SerialName("url_opened")
@@ -62,7 +64,17 @@ public data class FfiWorkspaceResp(
     @SerialName("new_folder_btn_pressed")
     val newFolderBtnPressed: Boolean,
     @SerialName("tab_title_clicked")
-    val tabTitleClicked: Boolean
+    val tabTitleClicked: Boolean,
+
+    @SerialName("show_edit_menu")
+    val showEditMenu: Boolean,
+    @SerialName("edit_menu_x")
+    val editMenuX: Float,
+    @SerialName("edit_menu_y")
+    val editMenuY: Float,
+
+    @SerialName("selection_updated")
+    val selectionUpdated: Boolean
 )
 
 class Workspace private constructor() {
@@ -117,9 +129,31 @@ class Workspace private constructor() {
     external fun clipboardCopy(rustObj: Long)
     external fun clipboardPaste(rustObj: Long, content: String)
 
+    external fun getComposing(rustObj: Long): String
+    external fun setComposing(rustObj: Long, none: Boolean, start: Int, end: Int, text: String)
+    external fun uncomposeText(rustObj: Long)
 
     external fun toggleEraserSVG(rustObj: Long, select: Boolean)
+
+    external fun getCursorRect(rustObj: Long): String
 }
+
+@Serializable
+data class JTextRange(val none: Boolean, val start: Int, val end: Int)
+@Serializable
+data class JTextPosition(val none: Boolean, val position: Int)
+
+@Serializable
+data class JRect(
+    @SerialName("min_x")
+    val minX: Float,
+    @SerialName("min_y")
+    val minY: Float,
+    @SerialName("max_x")
+    val maxX: Float,
+    @SerialName("max_y")
+    val maxY: Float
+)
 
 fun String.isNullUUID(): Boolean {
     return this == "00000000-0000-0000-0000-000000000000"

@@ -1,6 +1,6 @@
 use egui_editor::{
     input::canonical::{Location, Region},
-    offset_types::DocCharOffset,
+    offset_types::{DocCharOffset, RelCharOffset},
 };
 use lb_external_interface::lb_rs::Uuid;
 use serde::Serialize;
@@ -10,6 +10,7 @@ use workspace_rs::output::WsOutput;
 pub struct IntegrationOutput {
     pub workspace_resp: FfiWorkspaceResp,
     pub redraw_in: u128,
+    pub has_copied_text: bool,
     pub copied_text: String,
     pub url_opened: String,
 }
@@ -25,6 +26,12 @@ pub struct FfiWorkspaceResp {
 
     new_folder_btn_pressed: bool,
     pub tab_title_clicked: bool,
+
+    pub show_edit_menu: bool,
+    pub edit_menu_x: f32,
+    pub edit_menu_y: f32,
+
+    pub selection_updated: bool,
 }
 
 impl From<WsOutput> for FfiWorkspaceResp {
@@ -48,6 +55,11 @@ impl From<WsOutput> for FfiWorkspaceResp {
             },
             new_folder_btn_pressed: value.new_folder_clicked,
             tab_title_clicked: value.tab_title_clicked,
+            show_edit_menu: false,
+            edit_menu_x: Default::default(),
+            edit_menu_y: Default::default(),
+
+            selection_updated: false,
         }
     }
 }
@@ -65,7 +77,21 @@ pub struct JTextRange {
     pub end: usize,
 }
 
+#[derive(Serialize, Default)]
+pub struct JRect {
+    pub min_x: f32,
+    pub min_y: f32,
+    pub max_x: f32,
+    pub max_y: f32,
+}
+
 impl From<JTextRange> for (DocCharOffset, DocCharOffset) {
+    fn from(value: JTextRange) -> Self {
+        (value.start.into(), value.end.into())
+    }
+}
+
+impl From<JTextRange> for (RelCharOffset, RelCharOffset) {
     fn from(value: JTextRange) -> Self {
         (value.start.into(), value.end.into())
     }
