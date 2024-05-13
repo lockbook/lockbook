@@ -3,8 +3,7 @@ package app.lockbook.screen
 import android.annotation.SuppressLint
 import android.content.ClipboardManager
 import android.content.Context
-import android.graphics.Canvas
-import android.graphics.Color
+import android.graphics.Matrix
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
@@ -22,10 +21,18 @@ import android.view.ViewConfiguration
 import android.view.ViewGroup
 import android.view.inputmethod.BaseInputConnection
 import android.view.inputmethod.EditorInfo
+import android.view.inputmethod.HandwritingGesture
 import android.view.inputmethod.InputConnection
 import android.view.inputmethod.InputMethodManager
+import android.view.inputmethod.InsertGesture
+import android.view.inputmethod.InsertModeGesture
+import android.view.inputmethod.JoinOrSplitGesture
+import android.view.inputmethod.PreviewableHandwritingGesture
+import android.view.inputmethod.RemoveSpaceGesture
+import android.view.inputmethod.SelectGesture
+import android.view.inputmethod.SelectRangeGesture
+import android.view.inputmethod.TextAttribute
 import android.widget.FrameLayout
-import androidx.appcompat.widget.AppCompatEditText
 import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.view.WindowInsetsCompat
 import androidx.fragment.app.Fragment
@@ -45,7 +52,10 @@ import com.github.michaelbull.result.unwrap
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
 import timber.log.Timber
+import java.util.concurrent.Executor
+import java.util.function.IntConsumer
 import kotlin.math.abs
+
 
 class WorkspaceFragment : Fragment() {
     private var _binding: FragmentWorkspaceBinding? = null
@@ -267,6 +277,10 @@ class WorkspaceTextInputWrapper(context: Context, val workspaceView: WorkspaceVi
         isFocusableInTouchMode = true
     }
 
+    companion object {
+        const val BASE_FONT_SIZE = 16
+    }
+
     @SuppressLint("ClickableViewAccessibility")
     override fun onTouchEvent(event: MotionEvent?): Boolean {
         requestFocus()
@@ -358,12 +372,15 @@ class WorkspaceTextInputConnection(val workspaceView: WorkspaceView, val textInp
         }
     }
 
+    // I can just override a bunch of these methods and fix the inconsistent behavior
+
     override fun sendKeyEvent(event: KeyEvent?): Boolean {
         super.sendKeyEvent(event)
 
         if (event != null) {
             val content = event.unicodeChar.toChar().toString()
 
+            Timber.e("sending key ${content} ${event.action} ${event.keyCode}")
             WorkspaceView.WORKSPACE.sendKeyEvent(WorkspaceView.WGPU_OBJ, event.keyCode, content, event.action == KeyEvent.ACTION_DOWN, event.isAltPressed, event.isCtrlPressed, event.isShiftPressed)
         }
 
@@ -427,6 +444,7 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
 
     private var selectionStartSpanFlag = 0
     private var selectionEndSpanFlag = 0
+    private var composingFlag = 0
 
     var composingStart = -1
     var composingEnd = -1
@@ -447,6 +465,7 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
     }
 
     fun getSelection(): JTextRange = Json.decodeFromString(WorkspaceView.WORKSPACE.getSelection(WorkspaceView.WGPU_OBJ))
+    fun getComposingText(): JTextRange = Json.decodeFromString(WorkspaceView.WORKSPACE.getComposing(WorkspaceView.WGPU_OBJ))
 
     override fun get(index: Int): Char {
         return WorkspaceView.WORKSPACE.getTextInRange(WorkspaceView.WGPU_OBJ, index, index).getOrNull(0) ?: '0'
@@ -507,6 +526,8 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
     }
 
     override fun getSpanStart(tag: Any?): Int {
+        Timber.e("getting span start: ${(tag ?: Unit)::class.qualifiedName} ${(tag ?: Unit)::class.simpleName}")
+
         if (tag == Selection.SELECTION_START) {
             return selectionStart
         }
@@ -537,6 +558,11 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
             return composingEnd
         }
 
+        if ((tag ?: Unit)::class.simpleName == "ComposingText") {
+            Timber.e("v: ${composingEnd} len=${length}")
+            return composingEnd
+        }
+
         return -1
     }
 
@@ -562,8 +588,11 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
         return -1
     }
 
+    var composingStart = -1
+    var composingEnd = -1
+
     override fun setSpan(what: Any?, start: Int, end: Int, flags: Int) {
-        Timber.e("setting span...")
+        Timber.e("setting span... ${(what ?: Unit)::class.simpleName} $start $end")
         if (what == Selection.SELECTION_START) {
             selectionStartSpanFlag = flags
             WorkspaceView.WORKSPACE.setSelection(WorkspaceView.WGPU_OBJ, start, end)
@@ -715,6 +744,8 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
     }
 
     override fun delete(st: Int, en: Int): Editable {
+        Timber.e("deleting... start=$st end=$en")
+
         WorkspaceView.WORKSPACE.replace(WorkspaceView.WGPU_OBJ, st, en, "")
 
         if (en < composingStart) {

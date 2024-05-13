@@ -97,6 +97,12 @@ impl From<JTextRange> for (RelCharOffset, RelCharOffset) {
     }
 }
 
+impl From<JTextRange> for (RelCharOffset, RelCharOffset) {
+    fn from(value: JTextRange) -> Self {
+        (value.start.into(), value.end.into())
+    }
+}
+
 impl From<JTextRange> for Region {
     fn from(value: JTextRange) -> Self {
         Region::BetweenLocations {

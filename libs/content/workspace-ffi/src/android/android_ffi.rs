@@ -1,6 +1,6 @@
 use crate::android::window;
 use crate::android::window::NativeWindow;
-use crate::{wgpu, JTextPosition, JTextRange, WgpuWorkspace};
+use crate::{wgpu, JRect, JTextPosition, JTextRange, WgpuWorkspace};
 use egui::{
     Context, Event, FontDefinitions, PointerButton, Pos2, TouchDeviceId, TouchId, TouchPhase,
 };
@@ -663,6 +663,84 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_textOffsetForPositi
     let position = JTextPosition { none: false, position: offset.0 };
 
     env.new_string(serde_json::to_string(&position).unwrap())
+        .expect("Couldn't create JString from rust string!")
+        .into_raw()
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_getComposing(
+    env: JNIEnv, _: JClass, obj: jlong,
+) -> jstring {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+
+    let resp = match obj.workspace.current_tab_markdown_mut() {
+        Some(markdown) => match markdown.editor.buffer.current.cursor.mark {
+            None => JTextRange { none: true, ..Default::default() },
+            Some((start, end)) => JTextRange { none: false, start: start.0, end: end.0 },
+        },
+        None => JTextRange::default(),
+    };
+
+    env.new_string(serde_json::to_string(&resp).unwrap())
+        .expect("Couldn't create JString from rust string!")
+        .into_raw()
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_setComposing(
+    mut env: JNIEnv, _: JClass, obj: jlong, none: jboolean, start: jint, end: jint, text: JString,
+) {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    let text: String = match env.get_string(&text) {
+        Ok(cont) => cont.into(),
+        Err(err) => format!("error: {:?}", err),
+    };
+
+    obj.context.push_markdown_event(Modification::StageMarked {
+        highlighted: JTextRange { none: none == 1, start: start as usize, end: end as usize }
+            .into(),
+        text,
+    });
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_uncomposeText(
+    _env: JNIEnv, _: JClass, obj: jlong,
+) {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    obj.context.push_markdown_event(Modification::CommitMarked);
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_getCursorRect(
+    env: JNIEnv, _: JClass, obj: jlong,
+) -> jstring {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+
+    let markdown = match obj.workspace.current_tab_markdown_mut() {
+        Some(markdown) => markdown,
+        None => {
+            return env
+                .new_string("")
+                .expect("Couldn't create JString from rust string!")
+                .into_raw()
+        }
+    };
+
+    let galleys = &markdown.editor.galleys;
+    let text = &markdown.editor.bounds.text;
+    let appearance = &markdown.editor.appearance;
+
+    let line = markdown
+        .editor
+        .buffer
+        .current
+        .cursor
+        .start_line(galleys, text, appearance);
+
+    let jrect = JRect { min_x: line[0].x, min_y: line[0].y, max_x: line[1].x, max_y: line[1].y };
+
+    env.new_string(serde_json::to_string(&jrect).unwrap())
         .expect("Couldn't create JString from rust string!")
         .into_raw()
 }

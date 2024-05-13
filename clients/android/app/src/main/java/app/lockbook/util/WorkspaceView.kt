@@ -32,6 +32,7 @@ import app.lockbook.workspace.WsStatus
 import app.lockbook.workspace.isNullUUID
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
+import timber.log.Timber
 import java.lang.Long.max
 import java.math.BigInteger
 
@@ -417,3 +418,5 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
         }
     }
 }
+
+
