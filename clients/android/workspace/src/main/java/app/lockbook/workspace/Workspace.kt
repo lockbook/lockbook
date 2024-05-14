@@ -136,6 +136,8 @@ class Workspace private constructor() {
     external fun toggleEraserSVG(rustObj: Long, select: Boolean)
 
     external fun getCursorRect(rustObj: Long): String
+
+    external fun insertTextAtCursor(rustObj: Long, text: String)
 }
 
 @Serializable

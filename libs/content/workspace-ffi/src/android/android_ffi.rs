@@ -185,6 +185,22 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_sendKeyEvent(
 }
 
 #[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_insertTextAtCursor(
+    mut env: JNIEnv, _: JClass, obj: jlong, content: JString,
+) {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+
+    // let text: String = match env.get_string(&content) {
+    //     Ok(cont) => cont.into(),
+    //     Err(_) => return,
+    // };
+
+    if let Ok(text) = env.get_string(&content) {
+        obj.raw_input.events.push(Event::Text(text.into()));
+    }
+}
+
+#[no_mangle]
 pub extern "system" fn Java_app_lockbook_workspace_Workspace_touchesBegin(
     _env: JNIEnv, _: JClass, ogbj: jlong, id: jint, x: jfloat, y: jfloat, pressure: jfloat,
 ) {

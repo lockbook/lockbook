@@ -25,6 +25,7 @@ import app.lockbook.App
 import app.lockbook.model.CoreModel
 import app.lockbook.model.WorkspaceTab
 import app.lockbook.model.WorkspaceViewModel
+import app.lockbook.screen.BatchEditState
 import app.lockbook.screen.WorkspaceTextInputWrapper
 import app.lockbook.workspace.IntegrationOutput
 import app.lockbook.workspace.Workspace
@@ -279,9 +280,7 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
         }
 
         if(currentTab == WorkspaceTab.Markdown) {
-            val textInputWrapper = wrapperView as? WorkspaceTextInputWrapper
-
-            if(textInputWrapper != null) {
+            (wrapperView as? WorkspaceTextInputWrapper)?.let { textInputWrapper ->
                 if (response.workspaceResp.showEditMenu && contextMenu == null) {
                     val actionModeCallback =
                         TextEditorContextMenu(textInputWrapper, response.workspaceResp.editMenuX, response.workspaceResp.editMenuY)
@@ -289,8 +288,7 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
                     contextMenu = this.startActionMode(actionModeCallback, ActionMode.TYPE_FLOATING)
                 }
 
-//            Timber.e("sending selection updated? ${textInputWrapper.wsInputConnection.monitorCursorUpdates}")
-                if(response.workspaceResp.selectionUpdated) {
+                if(textInputWrapper.wsInputConnection.batchEditCount == 0 && response.workspaceResp.selectionUpdated) {
                     textInputWrapper.wsInputConnection.notifySelectionUpdated()
                 }
             }
