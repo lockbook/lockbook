@@ -25,6 +25,7 @@ import app.lockbook.App
 import app.lockbook.model.CoreModel
 import app.lockbook.model.WorkspaceTab
 import app.lockbook.model.WorkspaceViewModel
+import app.lockbook.screen.BatchEditState
 import app.lockbook.screen.WorkspaceTextInputWrapper
 import app.lockbook.workspace.IntegrationOutput
 import app.lockbook.workspace.Workspace

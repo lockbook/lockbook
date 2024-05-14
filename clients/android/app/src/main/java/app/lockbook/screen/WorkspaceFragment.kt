@@ -55,6 +55,7 @@ import timber.log.Timber
 import java.util.concurrent.Executor
 import java.util.function.IntConsumer
 import kotlin.math.abs
+import kotlin.math.absoluteValue
 
 
 class WorkspaceFragment : Fragment() {
@@ -255,7 +256,6 @@ class WorkspaceWrapperView(context: Context, val model: WorkspaceViewModel) : Fr
 
                 currentWrapper = WorkspaceTextInputWrapper(context, workspaceView, touchYOffset)
                 workspaceView.wrapperView = currentWrapper
-                Timber.e("creating workspace 2")
 
                 addView(currentWrapper, WS_TEXT_LAYOUT_PARAMS)
             }
@@ -341,6 +341,12 @@ class WorkspaceTextInputWrapper(context: Context, val workspaceView: WorkspaceVi
     }
 }
 
+sealed class BatchEditState {
+    class Started(val selectionStart: Int, val selectionEnd: Int): BatchEditState()
+    class Ended(val selectionStart: Int, val selectionEnd: Int): BatchEditState()
+    object NotInitiated: BatchEditState()
+}
+
 class WorkspaceTextInputConnection(val workspaceView: WorkspaceView, val textInputWrapper: WorkspaceTextInputWrapper) : BaseInputConnection(textInputWrapper, true) {
     val wsEditable = WorkspaceTextEditable(workspaceView, this)
     private var batchEditCount = 0
@@ -351,9 +357,9 @@ class WorkspaceTextInputConnection(val workspaceView: WorkspaceView, val textInp
         return true
     }
 
-    init {
-        Timber.e("created ws input connection")
-    }
+//    var batchEditState: BatchEditState = BatchEditState.NotInitiated
+
+    var batchEditCount = 0
 
     private fun getInputMethodManager(): InputMethodManager = App.applicationContext().getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
     private fun getClipboardManager(): ClipboardManager = App.applicationContext().getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
@@ -375,12 +381,11 @@ class WorkspaceTextInputConnection(val workspaceView: WorkspaceView, val textInp
     // I can just override a bunch of these methods and fix the inconsistent behavior
 
     override fun sendKeyEvent(event: KeyEvent?): Boolean {
-        super.sendKeyEvent(event)
+//        super.sendKeyEvent(event)
 
         if (event != null) {
             val content = event.unicodeChar.toChar().toString()
 
-            Timber.e("sending key ${content} ${event.action} ${event.keyCode}")
             WorkspaceView.WORKSPACE.sendKeyEvent(WorkspaceView.WGPU_OBJ, event.keyCode, content, event.action == KeyEvent.ACTION_DOWN, event.isAltPressed, event.isCtrlPressed, event.isShiftPressed)
         }
 
@@ -414,6 +419,16 @@ class WorkspaceTextInputConnection(val workspaceView: WorkspaceView, val textInp
         return true
     }
 
+    override fun deleteSurroundingText(beforeLength: Int, afterLength: Int): Boolean {
+        Timber.e("deleting text surrounding $beforeLength $afterLength")
+        return super.deleteSurroundingText(beforeLength, afterLength)
+    }
+
+    override fun deleteSurroundingTextInCodePoints(beforeLength: Int, afterLength: Int): Boolean {
+        Timber.e("deleting surrounding text surrounding $beforeLength $afterLength")
+        return super.deleteSurroundingTextInCodePoints(beforeLength, afterLength)
+    }
+
     override fun requestCursorUpdates(cursorUpdateMode: Int): Boolean {
         return false
     }
@@ -444,6 +459,10 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
 
     private var selectionStartSpanFlag = 0
     private var selectionEndSpanFlag = 0
+
+    var composingStart = -1
+    var composingEnd = -1
+
     private var composingFlag = 0
 
     var composingStart = -1
@@ -526,8 +545,6 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
     }
 
     override fun getSpanStart(tag: Any?): Int {
-        Timber.e("getting span start: ${(tag ?: Unit)::class.qualifiedName} ${(tag ?: Unit)::class.simpleName}")
-
         if (tag == Selection.SELECTION_START) {
             return selectionStart
         }
@@ -559,7 +576,12 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
         }
 
         if ((tag ?: Unit)::class.simpleName == "ComposingText") {
-            Timber.e("v: ${composingEnd} len=${length}")
+            Timber.e("getting composing end: $composingEnd")
+
+            if(composingEnd > length) {
+                composingEnd = length
+            }
+
             return composingEnd
         }
 
@@ -588,11 +610,7 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
         return -1
     }
 
-    var composingStart = -1
-    var composingEnd = -1
-
     override fun setSpan(what: Any?, start: Int, end: Int, flags: Int) {
-        Timber.e("setting span... ${(what ?: Unit)::class.simpleName} $start $end")
         if (what == Selection.SELECTION_START) {
             selectionStartSpanFlag = flags
             WorkspaceView.WORKSPACE.setSelection(WorkspaceView.WGPU_OBJ, start, end)
@@ -744,8 +762,6 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
     }
 
     override fun delete(st: Int, en: Int): Editable {
-        Timber.e("deleting... start=$st end=$en")
-
         WorkspaceView.WORKSPACE.replace(WorkspaceView.WGPU_OBJ, st, en, "")
 
         if (en < composingStart) {
