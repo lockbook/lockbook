@@ -25,7 +25,6 @@ import app.lockbook.App
 import app.lockbook.model.CoreModel
 import app.lockbook.model.WorkspaceTab
 import app.lockbook.model.WorkspaceViewModel
-import app.lockbook.screen.BatchEditState
 import app.lockbook.screen.WorkspaceTextInputWrapper
 import app.lockbook.workspace.IntegrationOutput
 import app.lockbook.workspace.Workspace
@@ -35,6 +34,7 @@ import kotlinx.serialization.json.Json
 import timber.log.Timber
 import java.lang.Long.max
 import java.math.BigInteger
+import kotlin.math.absoluteValue
 
 @SuppressLint("ViewConstructor")
 class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceView(context), SurfaceHolder.Callback2 {
@@ -291,6 +291,8 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
                 if(textInputWrapper.wsInputConnection.batchEditCount == 0 && response.workspaceResp.selectionUpdated) {
                     textInputWrapper.wsInputConnection.notifySelectionUpdated()
                 }
+
+
             }
         }
 

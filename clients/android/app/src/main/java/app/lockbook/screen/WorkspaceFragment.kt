@@ -12,6 +12,7 @@ import android.text.Editable
 import android.text.InputFilter
 import android.text.InputType
 import android.text.Selection
+import android.text.Spanned
 import android.text.style.SuggestionSpan
 import android.util.ArraySet
 import android.view.KeyEvent
@@ -393,63 +394,41 @@ class WorkspaceTextInputWrapper(context: Context, val workspaceView: WorkspaceVi
 
             outAttrs.initialSelStart = wsInputConnection.wsEditable.getSelection().start
             outAttrs.initialSelEnd = wsInputConnection.wsEditable.getSelection().end
-
-//            val gestures = ArrayList<Class<out HandwritingGesture?>>()
-//            if (Build.VERSION.SDK_INT >= 34) {
-//                gestures.add(SelectGesture::class.java)
-//                gestures.add(SelectRangeGesture::class.java)
-//                gestures.add(DeleteGesture::class.java)
-//                gestures.add(DeleteRangeGesture::class.java)
-//                gestures.add(InsertGesture::class.java)
-//                gestures.add(RemoveSpaceGesture::class.java)
-//                gestures.add(JoinOrSplitGesture::class.java)
-//                gestures.add(InsertModeGesture::class.java)
-//                outAttrs.supportedHandwritingGestures = gestures
-//
-//                val previews: MutableSet<Class<out PreviewableHandwritingGesture?>> = ArraySet()
-//
-//                previews.add(SelectGesture::class.java)
-//                previews.add(SelectRangeGesture::class.java)
-//                previews.add(DeleteGesture::class.java)
-//                previews.add(DeleteRangeGesture::class.java)
-//                outAttrs.supportedHandwritingGesturePreviews = previews
-//            }
         }
 
         return wsInputConnection
     }
 }
 
-sealed class BatchEditState {
-    class Started(val selectionStart: Int, val selectionEnd: Int): BatchEditState()
-    class Ended(val selectionStart: Int, val selectionEnd: Int): BatchEditState()
-    object NotInitiated: BatchEditState()
-}
-
 class WorkspaceTextInputConnection(val workspaceView: WorkspaceView, val textInputWrapper: WorkspaceTextInputWrapper) : BaseInputConnection(textInputWrapper, true) {
-    val wsEditable = WorkspaceTextEditable(workspaceView)
+    val wsEditable = WorkspaceTextEditable(workspaceView, this)
     var monitorCursorUpdates = false
-
-//    var batchEditState: BatchEditState = BatchEditState.NotInitiated
 
     var batchEditCount = 0
 
     private fun getInputMethodManager(): InputMethodManager = App.applicationContext().getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
     private fun getClipboardManager(): ClipboardManager = App.applicationContext().getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
 
-    fun getCursorRect(): JRect = Json.decodeFromString(WorkspaceView.WORKSPACE.getCursorRect(WorkspaceView.WGPU_OBJ))
-
     fun notifySelectionUpdated() {
-        val selection = wsEditable.getSelection()
+        if(batchEditCount == 0) {
+            val selection = wsEditable.getSelection()
 
-        Timber.e("notifying the selection values...")
+            Timber.e("notifying the selection values: (${selection.start}-${selection.end}) (${wsEditable.composingStart}-${wsEditable.composingEnd}) len=${wsEditable.length}")
 
-//        Timber.e("sending selection update: (${selection.start}-${selection.end}) ${Thread.currentThread().stackTrace[3]}")
-
-        getInputMethodManager().updateSelection(textInputWrapper, selection.start, selection.end, wsEditable.composingStart, wsEditable.composingEnd)
+            getInputMethodManager().updateSelection(
+                textInputWrapper,
+                selection.start,
+                selection.end,
+                wsEditable.composingStart,
+                wsEditable.composingEnd
+            )
+        }
     }
 
-    // I can just override a bunch of these methods and fix the inconsistent behavior
+    override fun setImeConsumesInput(imeConsumesInput: Boolean): Boolean {
+        Timber.e("consumes input...")
+        return super.setImeConsumesInput(imeConsumesInput)
+    }
 
     override fun sendKeyEvent(event: KeyEvent?): Boolean {
 //        super.sendKeyEvent(event)
@@ -491,6 +470,9 @@ class WorkspaceTextInputConnection(val workspaceView: WorkspaceView, val textInp
     }
 
     override fun deleteSurroundingText(beforeLength: Int, afterLength: Int): Boolean {
+        Timber.w("start")
+        Thread.currentThread().stackTrace.forEach { Timber.w("next $it") }
+        Timber.w("end")
         Timber.e("deleting text surrounding $beforeLength $afterLength")
         return super.deleteSurroundingText(beforeLength, afterLength)
     }
@@ -501,42 +483,22 @@ class WorkspaceTextInputConnection(val workspaceView: WorkspaceView, val textInp
     }
 
     override fun requestCursorUpdates(cursorUpdateMode: Int): Boolean {
-        val immediateFlag = cursorUpdateMode and InputConnection.CURSOR_UPDATE_IMMEDIATE == InputConnection.CURSOR_UPDATE_IMMEDIATE
-        val monitorFlag = cursorUpdateMode and InputConnection.CURSOR_UPDATE_MONITOR == InputConnection.CURSOR_UPDATE_MONITOR
-
-        if (immediateFlag) {
-            notifySelectionUpdated()
-        }
-
-        if (monitorFlag) {
-            monitorCursorUpdates = true
-        }
-
-        return true
+        return false
     }
 
     override fun requestCursorUpdates(cursorUpdateMode: Int, cursorUpdateFilter: Int): Boolean {
-        return requestCursorUpdates(cursorUpdateMode)
+        return false
     }
 
     override fun beginBatchEdit(): Boolean {
-        val selection = wsEditable.getSelection()
         batchEditCount += 1
-//        batchEditState = BatchEditState.Started(selection.start, selection.end)
 
         return true
     }
 
     override fun endBatchEdit(): Boolean {
         batchEditCount = (batchEditCount - 1).coerceAtLeast(0)
-
-//        (batchEditState as? BatchEditState.Started)?.let {
-//            batchEditState = BatchEditState.Ended(it.selectionStart, it.selectionEnd)
-//        }
-
-        if(batchEditCount == 0) {
-            notifySelectionUpdated()
-        }
+        notifySelectionUpdated()
 
         return batchEditCount > 0
     }
@@ -546,7 +508,7 @@ class WorkspaceTextInputConnection(val workspaceView: WorkspaceView, val textInp
     }
 }
 
-class WorkspaceTextEditable(val view: WorkspaceView) : Editable {
+class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: WorkspaceTextInputConnection) : Editable {
 
     private var selectionStartSpanFlag = 0
     private var selectionEndSpanFlag = 0
@@ -555,6 +517,7 @@ class WorkspaceTextEditable(val view: WorkspaceView) : Editable {
     var composingEnd = -1
 
     private var composingFlag = 0
+    private var composingTag: Any? = null
 
     fun getSelection(): JTextRange = Json.decodeFromString(WorkspaceView.WORKSPACE.getSelection(WorkspaceView.WGPU_OBJ))
     fun getComposingText(): JTextRange = Json.decodeFromString(WorkspaceView.WORKSPACE.getComposing(WorkspaceView.WGPU_OBJ))
@@ -588,16 +551,16 @@ class WorkspaceTextEditable(val view: WorkspaceView) : Editable {
 
     override fun getSpanStart(tag: Any?): Int {
         if (tag == Selection.SELECTION_START) {
-            Timber.e("getting selection start: ${getSelection().start}")
+//            Timber.e("getting selection start: ${getSelection().start}")
             return getSelection().start
         }
 
         if (tag == Selection.SELECTION_END) {
-            Timber.e("getting selection end: ${getSelection().end}")
+//            Timber.e("getting selection end: ${getSelection().end}")
             return getSelection().end
         }
 
-        if ((tag ?: Unit)::class.simpleName == "ComposingText") {
+        if (tag == composingTag) {
             Timber.e("getting composing start: $composingStart")
 
             return composingStart
@@ -617,7 +580,7 @@ class WorkspaceTextEditable(val view: WorkspaceView) : Editable {
             return getSelection().end
         }
 
-        if ((tag ?: Unit)::class.simpleName == "ComposingText") {
+        if (tag == composingTag) {
             Timber.e("getting composing end: $composingEnd")
 
             if(composingEnd > length) {
@@ -639,7 +602,7 @@ class WorkspaceTextEditable(val view: WorkspaceView) : Editable {
                 selectionEndSpanFlag
             }
             else -> {
-                if((tag ?: Unit)::class.simpleName == "ComposingText") {
+                if(tag == composingTag) {
                     return composingFlag
                 }
 
@@ -659,10 +622,12 @@ class WorkspaceTextEditable(val view: WorkspaceView) : Editable {
         } else if (what == Selection.SELECTION_END) {
             selectionEndSpanFlag = flags
             WorkspaceView.WORKSPACE.setSelection(WorkspaceView.WGPU_OBJ, start, end)
-        } else if ((what ?: Unit)::class.simpleName == "ComposingText") {
-            Timber.e("setting composing start from $composingStart to $start and end from $composingEnd to $end")
+        } else if ((flags and Spanned.SPAN_COMPOSING) != 0) {
+            Timber.e("setting composing span")
+            wsInputConnection.notifySelectionUpdated()
 
             composingFlag = flags
+            composingTag = what
             composingStart = start
             composingEnd = end
         }
