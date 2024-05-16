@@ -341,12 +341,6 @@ class WorkspaceTextInputWrapper(context: Context, val workspaceView: WorkspaceVi
     }
 }
 
-sealed class BatchEditState {
-    class Started(val selectionStart: Int, val selectionEnd: Int): BatchEditState()
-    class Ended(val selectionStart: Int, val selectionEnd: Int): BatchEditState()
-    object NotInitiated: BatchEditState()
-}
-
 class WorkspaceTextInputConnection(val workspaceView: WorkspaceView, val textInputWrapper: WorkspaceTextInputWrapper) : BaseInputConnection(textInputWrapper, true) {
     val wsEditable = WorkspaceTextEditable(workspaceView, this)
     private var batchEditCount = 0
@@ -356,8 +350,6 @@ class WorkspaceTextInputConnection(val workspaceView: WorkspaceView, val textInp
 
         return true
     }
-
-//    var batchEditState: BatchEditState = BatchEditState.NotInitiated
 
     var batchEditCount = 0
 
@@ -378,7 +370,10 @@ class WorkspaceTextInputConnection(val workspaceView: WorkspaceView, val textInp
         }
     }
 
-    // I can just override a bunch of these methods and fix the inconsistent behavior
+    override fun setImeConsumesInput(imeConsumesInput: Boolean): Boolean {
+        Timber.e("consumes input...")
+        return super.setImeConsumesInput(imeConsumesInput)
+    }
 
     override fun sendKeyEvent(event: KeyEvent?): Boolean {
 //        super.sendKeyEvent(event)
@@ -420,6 +415,9 @@ class WorkspaceTextInputConnection(val workspaceView: WorkspaceView, val textInp
     }
 
     override fun deleteSurroundingText(beforeLength: Int, afterLength: Int): Boolean {
+        Timber.w("start")
+        Thread.currentThread().stackTrace.forEach { Timber.w("next $it") }
+        Timber.w("end")
         Timber.e("deleting text surrounding $beforeLength $afterLength")
         return super.deleteSurroundingText(beforeLength, afterLength)
     }
@@ -464,6 +462,7 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
     var composingEnd = -1
 
     private var composingFlag = 0
+    private var composingTag: Any? = null
 
     var composingStart = -1
     var composingEnd = -1
@@ -575,7 +574,7 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
             return composingEnd
         }
 
-        if ((tag ?: Unit)::class.simpleName == "ComposingText") {
+        if (tag == composingTag) {
             Timber.e("getting composing end: $composingEnd")
 
             if(composingEnd > length) {
