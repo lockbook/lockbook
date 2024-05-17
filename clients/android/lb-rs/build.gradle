@@ -7,7 +7,7 @@ android {
 
     defaultConfig {
         minSdkVersion 22
-        targetSdkVersion 32
+        targetSdkVersion 33
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         consumerProguardFiles 'consumer-rules.pro'
@@ -40,6 +40,7 @@ android {
     kotlinter {
         disabledRules = ["no-wildcard-imports", "parameter-list-wrapping"]
     }
+    namespace 'app.lockbook.core'
 }
 
 dependencies {
