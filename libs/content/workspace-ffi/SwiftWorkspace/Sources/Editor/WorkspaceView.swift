@@ -255,8 +255,6 @@ public struct NSWS: NSViewRepresentable {
     }
     
     public func makeNSView(context: NSViewRepresentableContext<NSWS>) -> MTKView {
-        print("making new workspace")
-        
         mtkView.setInitialContent(coreHandle)
         return mtkView
     }
