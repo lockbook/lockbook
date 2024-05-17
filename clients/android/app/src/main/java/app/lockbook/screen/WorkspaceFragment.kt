@@ -3,7 +3,6 @@ package app.lockbook.screen
 import android.annotation.SuppressLint
 import android.content.ClipboardManager
 import android.content.Context
-import android.graphics.Matrix
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
@@ -12,9 +11,8 @@ import android.text.Editable
 import android.text.InputFilter
 import android.text.InputType
 import android.text.Selection
+import android.text.SpannableString
 import android.text.Spanned
-import android.text.style.SuggestionSpan
-import android.util.ArraySet
 import android.view.KeyEvent
 import android.view.LayoutInflater
 import android.view.MotionEvent
@@ -22,24 +20,13 @@ import android.view.View
 import android.view.ViewConfiguration
 import android.view.ViewGroup
 import android.view.inputmethod.BaseInputConnection
-import android.view.inputmethod.CorrectionInfo
-import android.view.inputmethod.CursorAnchorInfo
-import android.view.inputmethod.DeleteGesture
-import android.view.inputmethod.DeleteRangeGesture
 import android.view.inputmethod.EditorInfo
-import android.view.inputmethod.HandwritingGesture
 import android.view.inputmethod.InputConnection
 import android.view.inputmethod.InputMethodManager
-import android.view.inputmethod.InsertGesture
-import android.view.inputmethod.InsertModeGesture
-import android.view.inputmethod.JoinOrSplitGesture
-import android.view.inputmethod.PreviewableHandwritingGesture
-import android.view.inputmethod.RemoveSpaceGesture
-import android.view.inputmethod.SelectGesture
-import android.view.inputmethod.SelectRangeGesture
 import android.view.inputmethod.TextAttribute
 import android.widget.FrameLayout
 import androidx.constraintlayout.widget.ConstraintLayout
+import androidx.core.view.WindowInsetsCompat
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
 import app.lockbook.App
@@ -52,17 +39,12 @@ import app.lockbook.model.TransientScreen
 import app.lockbook.model.WorkspaceTab
 import app.lockbook.model.WorkspaceViewModel
 import app.lockbook.util.WorkspaceView
-import app.lockbook.workspace.JRect
 import app.lockbook.workspace.JTextRange
-import app.lockbook.workspace.Workspace
 import com.github.michaelbull.result.unwrap
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
 import timber.log.Timber
-import java.util.concurrent.Executor
-import java.util.function.IntConsumer
 import kotlin.math.abs
-import kotlin.math.absoluteValue
 
 
 class WorkspaceFragment : Fragment() {
@@ -355,7 +337,11 @@ class WorkspaceTextInputWrapper(context: Context, val workspaceView: WorkspaceVi
             }
             MotionEvent.ACTION_UP -> {
                 val duration = event.eventTime - event.downTime
-                if (duration < 300 && abs(event.x - touchStartX).toInt() < ViewConfiguration.get(
+                val keyboardShown = WindowInsetsCompat
+                    .toWindowInsetsCompat(rootWindowInsets)
+                    .isVisible(WindowInsetsCompat.Type.ime())
+
+                if (!keyboardShown && duration < 300 && abs(event.x - touchStartX).toInt() < ViewConfiguration.get(
                         context
                     ).scaledTouchSlop && abs(event.y - touchStartY).toInt() < ViewConfiguration.get(
                             context
@@ -386,11 +372,11 @@ class WorkspaceTextInputWrapper(context: Context, val workspaceView: WorkspaceVi
             outAttrs.hintText = "Type here"
             outAttrs.inputType =
                 InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE or InputType.TYPE_TEXT_FLAG_AUTO_CORRECT or InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
-//            outAttrs.imeOptions = EditorInfo.IME_FLAG_NO_EXTRACT_UI
+//            outAttrs.contentMimeTypes   ------- THIS IS HOW WE ALLOW IMAGE PASTING
 
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                outAttrs.setInitialSurroundingText(wsInputConnection.wsEditable.toString())
-            }
+//            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+//                outAttrs.setInitialSurroundingText(wsInputConnection.wsEditable.toString())
+//            }
 
             outAttrs.initialSelStart = wsInputConnection.wsEditable.getSelection().start
             outAttrs.initialSelEnd = wsInputConnection.wsEditable.getSelection().end
@@ -402,8 +388,6 @@ class WorkspaceTextInputWrapper(context: Context, val workspaceView: WorkspaceVi
 
 class WorkspaceTextInputConnection(val workspaceView: WorkspaceView, val textInputWrapper: WorkspaceTextInputWrapper) : BaseInputConnection(textInputWrapper, true) {
     val wsEditable = WorkspaceTextEditable(workspaceView, this)
-    var monitorCursorUpdates = false
-
     var batchEditCount = 0
 
     private fun getInputMethodManager(): InputMethodManager = App.applicationContext().getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
@@ -441,6 +425,11 @@ class WorkspaceTextInputConnection(val workspaceView: WorkspaceView, val textInp
 
         workspaceView.invalidate()
 
+        return true
+    }
+
+    override fun performEditorAction(actionCode: Int): Boolean {
+        sendKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_ENTER))
         return true
     }
 
@@ -519,8 +508,9 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
     private var composingFlag = 0
     private var composingTag: Any? = null
 
+    var spannableString = SpannableString(this.toString())
+
     fun getSelection(): JTextRange = Json.decodeFromString(WorkspaceView.WORKSPACE.getSelection(WorkspaceView.WGPU_OBJ))
-    fun getComposingText(): JTextRange = Json.decodeFromString(WorkspaceView.WORKSPACE.getComposing(WorkspaceView.WGPU_OBJ))
 
     override fun get(index: Int): Char =
         WorkspaceView.WORKSPACE.getTextInRange(WorkspaceView.WGPU_OBJ, index, index)[0]
@@ -545,8 +535,34 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
         }
     }
 
+    var count = 0
+
     override fun <T> getSpans(start: Int, end: Int, type: Class<T>?): Array<T> {
-        return java.lang.reflect.Array.newInstance(type, 0) as Array<T>
+
+        var spans: MutableList<Any> = mutableListOf()
+        val spanRange = start..end
+
+        if(type == (composingTag ?: Unit).javaClass && (spanRange.contains(composingStart) || spanRange.contains(composingEnd))) {
+            composingTag?.let {
+                spans.add(it)
+            }
+        }
+
+        if(type == Selection.SELECTION_START.javaClass && spanRange.contains(getSelection().start)) {
+            spans.add(Selection.SELECTION_START)
+        }
+
+        if(type == Selection.SELECTION_END.javaClass && spanRange.contains(getSelection().end)) {
+            spans.add(Selection.SELECTION_END)
+        }
+
+        val returnSpans = java.lang.reflect.Array.newInstance(type, spans.size) as Array<T>
+
+        for(i in 0 until spans.size) {
+            returnSpans[i] = spans[i] as T
+        }
+
+        return returnSpans
     }
 
     override fun getSpanStart(tag: Any?): Int {
@@ -612,6 +628,7 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
     }
 
     override fun nextSpanTransition(start: Int, limit: Int, type: Class<*>?): Int {
+        Timber.e("getting span transitions...")
         return -1
     }
 
@@ -623,7 +640,7 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
             selectionEndSpanFlag = flags
             WorkspaceView.WORKSPACE.setSelection(WorkspaceView.WGPU_OBJ, start, end)
         } else if ((flags and Spanned.SPAN_COMPOSING) != 0) {
-            Timber.e("setting composing span")
+            Timber.e("setting composing span $start and $end")
             wsInputConnection.notifySelectionUpdated()
 
             composingFlag = flags
@@ -634,9 +651,12 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
     }
 
     override fun removeSpan(what: Any?) {
-        if((what ?: Unit)::class.simpleName == "ComposingText") {
+        if(what == composingTag) {
+            Timber.e("removing composing start...")
             composingStart = -1
             composingEnd = -1
+
+            wsInputConnection.notifySelectionUpdated()
         }
     }
 
@@ -712,7 +732,16 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
         WorkspaceView.WORKSPACE.clear(WorkspaceView.WGPU_OBJ)
     }
 
-    override fun clearSpans() {}
+    override fun clearSpans() {
+        Timber.e("clearing spans...")
+
+        if(composingStart != -1 || composingEnd != -1) {
+            composingStart = -1
+            composingEnd = -1
+
+            wsInputConnection.notifySelectionUpdated()
+        }
+    }
     override fun setFilters(filters: Array<out InputFilter>?) {}
 
     // no text needs to be filtered

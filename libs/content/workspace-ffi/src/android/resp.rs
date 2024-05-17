@@ -32,6 +32,7 @@ pub struct FfiWorkspaceResp {
     pub edit_menu_y: f32,
 
     pub selection_updated: bool,
+    pub text_updated: bool,
 }
 
 impl From<WsOutput> for FfiWorkspaceResp {
@@ -60,6 +61,7 @@ impl From<WsOutput> for FfiWorkspaceResp {
             edit_menu_y: Default::default(),
 
             selection_updated: false,
+            text_updated: false,
         }
     }
 }

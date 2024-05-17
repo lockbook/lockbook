@@ -168,6 +168,7 @@ impl<'window> WgpuWorkspace<'window> {
                 out.workspace_resp.selection_updated = (markdown.editor.scroll_area_offset
                     != markdown.editor.old_scroll_area_offset)
                     || markdown.editor.selection_updated;
+                out.workspace_resp.text_updated = markdown.editor.text_updated;
             }
         }
 

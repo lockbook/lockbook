@@ -74,7 +74,9 @@ public data class FfiWorkspaceResp(
     val editMenuY: Float,
 
     @SerialName("selection_updated")
-    val selectionUpdated: Boolean
+    val selectionUpdated: Boolean,
+    @SerialName("text_updated")
+    val textUpdated: Boolean
 )
 
 class Workspace private constructor() {
