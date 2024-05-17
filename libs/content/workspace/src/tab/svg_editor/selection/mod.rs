@@ -37,16 +37,7 @@ impl Selection {
     pub fn handle_input(
         &mut self, ui: &mut egui::Ui, working_rect: egui::Rect, buffer: &mut Buffer,
     ) {
-        let pos = match ui.ctx().pointer_hover_pos() {
-            Some(cp) => {
-                if ui.is_enabled() {
-                    cp
-                } else {
-                    egui::Pos2::ZERO
-                }
-            }
-            None => egui::Pos2::ZERO,
-        };
+        let maybe_pos = ui.ctx().pointer_hover_pos();
 
         let mut maybe_selected_el = None;
 
@@ -59,7 +50,9 @@ impl Selection {
         }
 
         if matches!(self.current_op, SelectionOperation::Idle) {
-            maybe_selected_el = detect_translation(buffer, self.last_pos, pos);
+            if let Some(pos) = maybe_pos {
+                maybe_selected_el = detect_translation(buffer, self.last_pos, pos);
+            }
             if maybe_selected_el.is_some() {
                 ui.output_mut(|r| r.cursor_icon = egui::CursorIcon::Grab);
             }
@@ -69,7 +62,7 @@ impl Selection {
         if ui.input(|r| r.pointer.primary_clicked()) {
             // is cursor inside of a selected element?
             let pos_over_selected_el = if let Some(r) = &self.selection_rect {
-                r.get_cursor_icon(pos).is_some()
+                r.get_cursor_icon(maybe_pos.unwrap_or_default()).is_some()
             } else {
                 false
             };
@@ -85,13 +78,13 @@ impl Selection {
                 self.current_op = SelectionOperation::Translation;
             } else if !pos_over_selected_el {
                 self.selected_elements.clear();
-                self.laso_original_pos = Some(pos);
+                self.laso_original_pos = maybe_pos;
             }
         }
 
         if self.selected_elements.is_empty() && self.laso_original_pos.is_some() {
             if ui.input(|r| r.pointer.primary_down()) {
-                let mut corners = [self.laso_original_pos.unwrap(), pos];
+                let mut corners = [self.laso_original_pos.unwrap(), maybe_pos.unwrap_or_default()];
                 corners.sort_by(|a, b| (a.x.total_cmp(&b.x)));
                 let mut rect = egui::Rect { min: corners[0], max: corners[1] };
                 if rect.height() < 0. {
@@ -149,7 +142,7 @@ impl Selection {
 
                                 self.candidate_selected_elements.push(SelectedElement {
                                     id: id.to_owned(),
-                                    original_pos: pos,
+                                    original_pos: maybe_pos.unwrap_or_default(),
                                     original_matrix: (
                                         transform.to_string(),
                                         deserialize_transform(transform),
@@ -180,8 +173,13 @@ impl Selection {
         let mut intent = None;
         if let Some(r) = &self.selection_rect {
             r.show(ui);
-            intent = r.get_cursor_icon(pos);
+            intent = r.get_cursor_icon(maybe_pos.unwrap_or_default());
         }
+
+        let pos = match maybe_pos {
+            Some(p) => p,
+            None => return,
+        };
 
         if ui.input(|r| r.pointer.primary_released()) {
             end_translation(buffer, &mut self.selected_elements, pos, true);

@@ -8,7 +8,6 @@ fn main() {
     use std::sync::mpsc;
 
     use eframe::egui;
-    use egui_extras::RetainedImage;
     use mslnk::ShellLink;
 
     enum Stage {
@@ -22,7 +21,6 @@ fn main() {
         update_tx: mpsc::Sender<Result<(), String>>,
         install_dir: String,
         lnk_dir: String,
-        logo: RetainedImage,
         stage: Stage,
     }
 
@@ -38,8 +36,6 @@ fn main() {
                 update_tx,
                 install_dir: format!(r"{}\Lockbook", local_appdata),
                 lnk_dir: format!(r"{}\Microsoft\Windows\Start Menu\Programs", appdata),
-                logo: RetainedImage::from_image_bytes("logo", include_bytes!("../lockbook.png"))
-                    .unwrap(),
                 stage: Stage::Prompting,
             }
         }
@@ -123,6 +119,8 @@ fn main() {
 
     impl eframe::App for Winstaller {
         fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+            egui_extras::install_image_loaders(ctx);
+
             while let Ok(result) = self.update_rx.try_recv() {
                 self.stage = Stage::Done(result);
             }
@@ -132,7 +130,7 @@ fn main() {
                 .show(ctx, |ui| {
                     ui.vertical_centered(|ui| {
                         ui.add_space(25.0);
-                        self.logo.show(ui);
+                        ui.image(egui::include_image!("../lockbook.png"));
                     });
                 });
 
@@ -153,10 +151,7 @@ fn main() {
 
     eframe::run_native(
         "Lockbook Installer",
-        eframe::NativeOptions {
-            initial_window_size: Some(egui::vec2(600.0, 250.0)),
-            ..Default::default()
-        },
+        eframe::NativeOptions { ..Default::default() },
         Box::new(|_cc: &eframe::CreationContext| Box::new(Winstaller::new())),
     )
     .unwrap()

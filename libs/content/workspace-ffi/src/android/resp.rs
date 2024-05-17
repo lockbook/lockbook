@@ -107,3 +107,25 @@ impl From<JTextRange> for Region {
         }
     }
 }
+
+#[derive(Serialize, Default)]
+pub struct JTextRange {
+    pub none: bool,
+    pub start: usize,
+    pub end: usize,
+}
+
+impl From<JTextRange> for (DocCharOffset, DocCharOffset) {
+    fn from(value: JTextRange) -> Self {
+        (value.start.into(), value.end.into())
+    }
+}
+
+impl From<JTextRange> for Region {
+    fn from(value: JTextRange) -> Self {
+        Region::BetweenLocations {
+            start: Location::DocCharOffset(value.start.into()),
+            end: Location::DocCharOffset(value.start.into()),
+        }
+    }
+}

@@ -3,8 +3,9 @@ use crate::tab::markdown_editor::Markdown;
 use crate::tab::pdf_viewer::PdfViewer;
 use crate::tab::plain_text::PlainText;
 use crate::tab::svg_editor::SVGEditor;
+use chrono::DateTime;
 use egui::Id;
-use lb_rs::{File, FileType};
+use lb_rs::{File, FileType, Uuid};
 use markdown_editor::input::canonical::Modification;
 use std::path::PathBuf;
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
@@ -125,25 +126,49 @@ impl EventManager for egui::Context {
     }
 }
 
-// todo: better filename
-// todo: use currently open folder
+// todo: use relative path (caller responsibilty?)
 // todo: use background thread
 // todo: refresh file tree view
-pub fn import_image(core: &lb_rs::Core, data: &[u8]) -> File {
+pub fn import_image(core: &lb_rs::Core, open_file: Uuid, data: &[u8]) -> File {
+    println!("importing image");
+
+    let file = core
+        .get_file_by_id(open_file)
+        .expect("get lockbook file for image");
+    let siblings = core
+        .get_children(file.parent)
+        .expect("get lockbook siblings for image");
+
+    let imports_folder = {
+        let mut imports_folder = None;
+        for sibling in siblings {
+            if sibling.name == "imports" {
+                imports_folder = Some(sibling);
+                break;
+            }
+        }
+        imports_folder.unwrap_or_else(|| {
+            core.create_file("imports", file.parent, FileType::Folder)
+                .expect("create lockbook folder for image")
+        })
+    };
+
+    // get local time in a human readable datetime format
+    let time = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
+    let human_readable_time = DateTime::from_timestamp(time.as_secs() as _, 0)
+        .expect("invalid system time")
+        .format("%Y-%m-%d_%H-%M-%S")
+        .to_string();
+
     let file = core
         .create_file(
-            &format!(
-                "pasted_image_{}.png",
-                SystemTime::now()
-                    .duration_since(UNIX_EPOCH)
-                    .unwrap()
-                    .as_micros()
-            ),
-            core.get_root().expect("get lockbook root").id,
+            &format!("pasted_image_{}.png", human_readable_time),
+            imports_folder.id,
             FileType::Document,
         )
         .expect("create lockbook file for image");
     core.write_document(file.id, data)
         .expect("write lockbook file for image");
+
     file
 }

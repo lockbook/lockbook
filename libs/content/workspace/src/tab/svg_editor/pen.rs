@@ -156,12 +156,14 @@ impl Pen {
                 !self.path_builder.points.is_empty() && !inner_rect.contains(cursor_pos);
             let pointer_released_in_canvas =
                 ui.input(|i| i.pointer.any_released()) && inner_rect.contains(cursor_pos);
-            let pointer_pressed_in_canvas =
-                ui.input(|i| i.pointer.primary_down()) && inner_rect.contains(cursor_pos);
+            let pointer_pressed_and_originated_in_canvas = ui.input(|i| {
+                i.pointer.primary_down()
+                    && inner_rect.contains(i.pointer.press_origin().unwrap_or_default())
+            }) && inner_rect.contains(cursor_pos);
 
             if pointer_gone_out_of_canvas || pointer_released_in_canvas {
                 Some(PathEvent::End)
-            } else if pointer_pressed_in_canvas {
+            } else if pointer_pressed_and_originated_in_canvas {
                 Some(PathEvent::Draw(cursor_pos, self.current_id))
             } else {
                 None
