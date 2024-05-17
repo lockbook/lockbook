@@ -327,7 +327,7 @@ class WorkspaceTextInputWrapper(context: Context, val workspaceView: WorkspaceVi
 
 class WorkspaceTextInputConnection(val workspaceView: WorkspaceView, val textInputWrapper: WorkspaceTextInputWrapper) : BaseInputConnection(textInputWrapper, true) {
     val wsEditable = WorkspaceTextEditable(workspaceView, this)
-    var batchEditCount = 0
+    private var batchEditCount = 0
 
     private fun getInputMethodManager(): InputMethodManager = App.applicationContext().getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
     private fun getClipboardManager(): ClipboardManager = App.applicationContext().getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
@@ -585,10 +585,12 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
 
     override fun replace(st: Int, en: Int, source: CharSequence?, start: Int, end: Int): Editable {
         source?.let { realText ->
+            val sourceString = realText.substring(start, end)
+
             if (st == getSelection().start && en == getSelection().end) {
-                WorkspaceView.WORKSPACE.insertTextAtCursor(WorkspaceView.WGPU_OBJ, realText.substring(start, end))
+                WorkspaceView.WORKSPACE.insertTextAtCursor(WorkspaceView.WGPU_OBJ, sourceString)
             } else {
-                WorkspaceView.WORKSPACE.replace(WorkspaceView.WGPU_OBJ, st, en, realText.substring(start, end))
+                WorkspaceView.WORKSPACE.replace(WorkspaceView.WGPU_OBJ, st, en, sourceString)
             }
         }
 
