@@ -11,7 +11,6 @@ import android.text.Editable
 import android.text.InputFilter
 import android.text.InputType
 import android.text.Selection
-import android.text.SpannableString
 import android.text.Spanned
 import android.view.KeyEvent
 import android.view.LayoutInflater
@@ -23,7 +22,6 @@ import android.view.inputmethod.BaseInputConnection
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputConnection
 import android.view.inputmethod.InputMethodManager
-import android.view.inputmethod.TextAttribute
 import android.widget.FrameLayout
 import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.view.WindowInsetsCompat
@@ -43,9 +41,7 @@ import app.lockbook.workspace.JTextRange
 import com.github.michaelbull.result.unwrap
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
-import timber.log.Timber
 import kotlin.math.abs
-
 
 class WorkspaceFragment : Fragment() {
     private var _binding: FragmentWorkspaceBinding? = null
@@ -359,13 +355,8 @@ class WorkspaceTextInputConnection(val workspaceView: WorkspaceView, val textInp
         }
     }
 
-    override fun setImeConsumesInput(imeConsumesInput: Boolean): Boolean {
-        Timber.e("consumes input...")
-        return super.setImeConsumesInput(imeConsumesInput)
-    }
-
     override fun sendKeyEvent(event: KeyEvent?): Boolean {
-//        super.sendKeyEvent(event)
+        super.sendKeyEvent(event)
 
         if (event != null) {
             val content = event.unicodeChar.toChar().toString()
@@ -375,11 +366,6 @@ class WorkspaceTextInputConnection(val workspaceView: WorkspaceView, val textInp
 
         workspaceView.invalidate()
 
-        return true
-    }
-
-    override fun performEditorAction(actionCode: Int): Boolean {
-        sendKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_ENTER))
         return true
     }
 
@@ -406,19 +392,6 @@ class WorkspaceTextInputConnection(val workspaceView: WorkspaceView, val textInp
         workspaceView.invalidate()
 
         return true
-    }
-
-    override fun deleteSurroundingText(beforeLength: Int, afterLength: Int): Boolean {
-        Timber.w("start")
-        Thread.currentThread().stackTrace.forEach { Timber.w("next $it") }
-        Timber.w("end")
-        Timber.e("deleting text surrounding $beforeLength $afterLength")
-        return super.deleteSurroundingText(beforeLength, afterLength)
-    }
-
-    override fun deleteSurroundingTextInCodePoints(beforeLength: Int, afterLength: Int): Boolean {
-        Timber.e("deleting surrounding text surrounding $beforeLength $afterLength")
-        return super.deleteSurroundingTextInCodePoints(beforeLength, afterLength)
     }
 
     override fun requestCursorUpdates(cursorUpdateMode: Int): Boolean {
@@ -570,9 +543,7 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
         }
 
         if (tag == composingTag) {
-            Timber.e("getting composing end: $composingEnd")
-
-            if(composingEnd > length) {
+            if (composingEnd > length) {
                 composingEnd = length
             }
 
@@ -601,7 +572,6 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
     }
 
     override fun nextSpanTransition(start: Int, limit: Int, type: Class<*>?): Int {
-        Timber.e("getting span transitions...")
         return -1
     }
 
