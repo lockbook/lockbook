@@ -3,7 +3,6 @@ package app.lockbook.screen
 import android.annotation.SuppressLint
 import android.content.ClipboardManager
 import android.content.Context
-import android.graphics.Matrix
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
@@ -12,6 +11,7 @@ import android.text.Editable
 import android.text.InputFilter
 import android.text.InputType
 import android.text.Selection
+import android.text.SpannableString
 import android.text.Spanned
 import android.view.KeyEvent
 import android.view.LayoutInflater
@@ -21,16 +21,8 @@ import android.view.ViewConfiguration
 import android.view.ViewGroup
 import android.view.inputmethod.BaseInputConnection
 import android.view.inputmethod.EditorInfo
-import android.view.inputmethod.HandwritingGesture
 import android.view.inputmethod.InputConnection
 import android.view.inputmethod.InputMethodManager
-import android.view.inputmethod.InsertGesture
-import android.view.inputmethod.InsertModeGesture
-import android.view.inputmethod.JoinOrSplitGesture
-import android.view.inputmethod.PreviewableHandwritingGesture
-import android.view.inputmethod.RemoveSpaceGesture
-import android.view.inputmethod.SelectGesture
-import android.view.inputmethod.SelectRangeGesture
 import android.view.inputmethod.TextAttribute
 import android.widget.FrameLayout
 import androidx.constraintlayout.widget.ConstraintLayout
@@ -52,10 +44,7 @@ import com.github.michaelbull.result.unwrap
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
 import timber.log.Timber
-import java.util.concurrent.Executor
-import java.util.function.IntConsumer
 import kotlin.math.abs
-import kotlin.math.absoluteValue
 
 
 class WorkspaceFragment : Fragment() {
@@ -389,6 +378,11 @@ class WorkspaceTextInputConnection(val workspaceView: WorkspaceView, val textInp
         return true
     }
 
+    override fun performEditorAction(actionCode: Int): Boolean {
+        sendKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_ENTER))
+        return true
+    }
+
     override fun performContextMenuAction(id: Int): Boolean {
         when (id) {
             android.R.id.selectAll -> WorkspaceView.WORKSPACE.selectAll(WorkspaceView.WGPU_OBJ)
@@ -483,7 +477,6 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
     }
 
     fun getSelection(): JTextRange = Json.decodeFromString(WorkspaceView.WORKSPACE.getSelection(WorkspaceView.WGPU_OBJ))
-    fun getComposingText(): JTextRange = Json.decodeFromString(WorkspaceView.WORKSPACE.getComposing(WorkspaceView.WGPU_OBJ))
 
     override fun get(index: Int): Char {
         return WorkspaceView.WORKSPACE.getTextInRange(WorkspaceView.WGPU_OBJ, index, index).getOrNull(0) ?: '0'
@@ -510,6 +503,8 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
             }
         }
     }
+
+    var count = 0
 
     override fun <T> getSpans(start: Int, end: Int, type: Class<T>?): Array<T> {
         val spans: MutableList<Any> = mutableListOf()
@@ -606,6 +601,7 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
     }
 
     override fun nextSpanTransition(start: Int, limit: Int, type: Class<*>?): Int {
+        Timber.e("getting span transitions...")
         return -1
     }
 
