@@ -10,6 +10,7 @@ import android.graphics.Canvas
 import android.graphics.PixelFormat
 import android.graphics.Rect
 import android.net.Uri
+import android.os.Build
 import android.view.ActionMode
 import android.view.Menu
 import android.view.MenuItem
@@ -18,8 +19,7 @@ import android.view.Surface
 import android.view.SurfaceHolder
 import android.view.SurfaceView
 import android.view.View
-import android.view.ViewGroup
-import android.widget.TextView
+import androidx.annotation.RequiresApi
 import androidx.core.content.ContextCompat.startActivity
 import app.lockbook.App
 import app.lockbook.model.CoreModel
@@ -31,10 +31,8 @@ import app.lockbook.workspace.Workspace
 import app.lockbook.workspace.isNullUUID
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
-import timber.log.Timber
 import java.lang.Long.max
 import java.math.BigInteger
-import kotlin.math.absoluteValue
 
 @SuppressLint("ViewConstructor")
 class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceView(context), SurfaceHolder.Callback2 {
@@ -267,7 +265,7 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
             WORKSPACE.unfocusTitle(WGPU_OBJ)
         }
 
-        if(response.hasCopiedText) {
+        if (response.hasCopiedText) {
             (App.applicationContext().getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager)
                 .setPrimaryClip(ClipData.newPlainText("", response.copiedText))
         }
@@ -279,20 +277,22 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
             model._currentTab.value = currentTab
         }
 
-        if(currentTab == WorkspaceTab.Markdown) {
+        if (currentTab == WorkspaceTab.Markdown) {
             (wrapperView as? WorkspaceTextInputWrapper)?.let { textInputWrapper ->
                 if (response.workspaceResp.showEditMenu && contextMenu == null) {
                     val actionModeCallback =
-                        TextEditorContextMenu(textInputWrapper, response.workspaceResp.editMenuX, response.workspaceResp.editMenuY)
+                        TextEditorContextMenu(textInputWrapper)
 
-                    contextMenu = this.startActionMode(actionModeCallback, ActionMode.TYPE_FLOATING)
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                        contextMenu = this.startActionMode(FloatingTextEditorContextMenu(actionModeCallback, response.workspaceResp.editMenuX, response.workspaceResp.editMenuY), ActionMode.TYPE_FLOATING)
+                    } else {
+                        contextMenu = this.startActionMode(actionModeCallback)
+                    }
                 }
 
-                if(textInputWrapper.wsInputConnection.batchEditCount == 0 && response.workspaceResp.selectionUpdated) {
+                if (response.workspaceResp.selectionUpdated) {
                     textInputWrapper.wsInputConnection.notifySelectionUpdated()
                 }
-
-
             }
         }
 
@@ -313,15 +313,38 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
         val WORKSPACE = Workspace.getInstance()
     }
 
-    inner class TextEditorContextMenu(private val textInputWrapper: WorkspaceTextInputWrapper, val editMenuX: Float, val editMenuY: Float): ActionMode.Callback2() {
+    @RequiresApi(Build.VERSION_CODES.M)
+    inner class FloatingTextEditorContextMenu(private val textEditorContextMenu: TextEditorContextMenu, val editMenuX: Float, val editMenuY: Float) : ActionMode.Callback2() {
         override fun onCreateActionMode(mode: ActionMode?, menu: Menu?): Boolean {
-            if(mode != null) {
+            return textEditorContextMenu.onCreateActionMode(mode, menu)
+        }
+
+        override fun onPrepareActionMode(mode: ActionMode?, menu: Menu?): Boolean {
+            return textEditorContextMenu.onPrepareActionMode(mode, menu)
+        }
+
+        override fun onActionItemClicked(mode: ActionMode?, item: MenuItem?): Boolean {
+            return textEditorContextMenu.onActionItemClicked(mode, item)
+        }
+
+        override fun onDestroyActionMode(mode: ActionMode?) {
+            return textEditorContextMenu.onDestroyActionMode(mode)
+        }
+
+        override fun onGetContentRect(mode: ActionMode?, view: View?, outRect: Rect?) {
+            outRect!!.set(Rect((editMenuX * context.resources.displayMetrics.scaledDensity).toInt(), (editMenuY * context.resources.displayMetrics.scaledDensity).toInt(), (editMenuX * context.resources.displayMetrics.scaledDensity).toInt(), (editMenuY * context.resources.displayMetrics.scaledDensity).toInt()))
+        }
+    }
+
+    inner class TextEditorContextMenu(private val textInputWrapper: WorkspaceTextInputWrapper) : ActionMode.Callback {
+        override fun onCreateActionMode(mode: ActionMode?, menu: Menu?): Boolean {
+            if (mode != null) {
                 mode.title = null
                 mode.subtitle = null
                 mode.titleOptionalHint = true
             }
 
-            if(menu != null) {
+            if (menu != null) {
                 populateMenuWithItems(menu)
             }
 
@@ -352,7 +375,7 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
         }
 
         override fun onActionItemClicked(mode: ActionMode?, item: MenuItem?): Boolean {
-            if(item != null) {
+            if (item != null) {
                 textInputWrapper.wsInputConnection.performContextMenuAction(item.itemId)
             }
 
@@ -364,12 +387,5 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
         override fun onDestroyActionMode(mode: ActionMode?) {
             contextMenu = null
         }
-
-        override fun onGetContentRect(mode: ActionMode?, view: View?, outRect: Rect?) {
-            outRect!!.set(Rect((editMenuX * context.resources.displayMetrics.scaledDensity).toInt(), (editMenuY * context.resources.displayMetrics.scaledDensity).toInt(), (editMenuX * context.resources.displayMetrics.scaledDensity).toInt(), (editMenuY * context.resources.displayMetrics.scaledDensity).toInt()))
-        }
-
     }
 }
-
-
