@@ -3,7 +3,7 @@
 buildscript {
     ext {
         test_runner_version = '1.4.0'
-        gradle_version = '7.4.2'
+        gradle_version = '8.4.0'
         core_ktx_version = '1.7.0'
         navigation_version = '2.4.1'
         kotlin_version = '1.8.0'
@@ -30,7 +30,7 @@ buildscript {
         fragment_version = '1.4.1'
         sliding_pane_layout_version = '1.2.0'
         recyclical_version = '1.1.0'
-        safe_args_gradle_plugin = '2.4.2'
+        safe_args_gradle_plugin = '2.7.7'
         billing_version = '4.1.0'
         fab_speed_dial = '3.3.0'
         billing_version = '5.0.0'
