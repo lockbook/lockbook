@@ -4,10 +4,10 @@ use crate::{wgpu, JTextPosition, JTextRange, WgpuWorkspace};
 use egui::{
     Context, Event, FontDefinitions, PointerButton, Pos2, TouchDeviceId, TouchId, TouchPhase,
 };
-use egui_editor::input::canonical::{Location, Modification, Region};
+use egui_editor::input::canonical::{Location, Modification, Offset, Region};
 use egui_editor::input::cursor::Cursor;
 use egui_editor::input::mutation;
-use egui_editor::offset_types::DocCharOffset;
+use egui_editor::offset_types::{DocCharOffset, RangeExt};
 use egui_wgpu_backend::wgpu::CompositeAlphaMode;
 use egui_wgpu_backend::ScreenDescriptor;
 use jni::objects::{JClass, JString};
@@ -641,4 +641,53 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_textOffsetForPositi
     env.new_string(serde_json::to_string(&position).unwrap())
         .expect("Couldn't create JString from rust string!")
         .into_raw()
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_deleteSurroundingText(
+    _env: JNIEnv, _: JClass, obj: jlong, before: jint, after: jint,
+) {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+
+    let markdown = match obj.workspace.current_tab_markdown_mut() {
+        Some(markdown) => markdown,
+        None => return,
+    };
+
+    let cursor = markdown.editor.buffer.current.cursor.clone();
+    let max_cursor_pos = markdown.editor.buffer.current.segs.last_cursor_position().0;
+
+    // let delete_after: Cursor = (cursor.selection.end().0, cursor.selection.end().0.saturating_add(after)).into();
+    // let delete_before: Cursor = (cursor.selection.start().0.saturating_sub(before), cursor.selection.start().0).into();
+
+    if (after != 0) {
+        obj.context.push_markdown_event(Modification::Delete {
+            region: Region::ToOffset { offset: (), backwards: (), extend_selection: () }
+
+            Region::BetweenLocations {
+                start: Location::DocCharOffset(DocCharOffset(
+                    (cursor.selection.end().0 + 1).min(max_cursor_pos),
+                )),
+                end: Location::DocCharOffset(DocCharOffset(
+                    cursor
+                        .selection
+                        .end()
+                        .0
+                        .saturating_sub(after as usize)
+                        .min(max_cursor_pos),
+                )),
+            },
+        });
+    }
+
+    if (before != 0) {
+        obj.context.push_markdown_event(Modification::Delete {
+            region: Region::BetweenLocations {
+                start: Location::DocCharOffset(DocCharOffset(
+                    cursor.selection.start().0.saturating_sub(before as usize),
+                )),
+                end: Location::DocCharOffset(DocCharOffset(cursor.selection.start().0)),
+            },
+        });
+    }
 }

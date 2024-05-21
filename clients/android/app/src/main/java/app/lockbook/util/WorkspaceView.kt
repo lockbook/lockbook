@@ -291,6 +291,11 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
                 }
 
                 if (response.workspaceResp.selectionUpdated) {
+                    textInputWrapper.wsInputConnection.wsEditable.let {
+                        it.intermediateSelectionStart = -1
+                        it.intermediateSelectionEnd = -1
+                    }
+
                     textInputWrapper.wsInputConnection.notifySelectionUpdated()
                 }
             }

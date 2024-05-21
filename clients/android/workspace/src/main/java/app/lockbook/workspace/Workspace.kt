@@ -127,6 +127,8 @@ class Workspace private constructor() {
     external fun textOffsetForPosition(rustObj: Long, x: Float, y: Float): String
     external fun getAllText(rustObj: Long): String
 
+    external fun deleteSurroundingText(rustObj: Long, before: Int, after: Int)
+
     external fun selectAll(rustObj: Long)
     external fun clipboardCut(rustObj: Long)
     external fun clipboardCopy(rustObj: Long)
