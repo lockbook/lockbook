@@ -1,6 +1,6 @@
 use crate::android::window;
 use crate::android::window::NativeWindow;
-use crate::{wgpu, JRect, JTextPosition, JTextRange, WgpuWorkspace};
+use crate::{wgpu, JTextPosition, JTextRange, WgpuWorkspace};
 use egui::{
     Context, Event, FontDefinitions, PointerButton, Pos2, TouchDeviceId, TouchId, TouchPhase,
 };
@@ -133,7 +133,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_enterFrame(
 }
 
 #[no_mangle]
-pub extern "system" fn Java_app_lockbook_workspace_Workspace_resizeEditor(
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_resizeWS(
     env: JNIEnv, _: JClass, obj: jlong, surface: jobject, scale_factor: jfloat,
 ) {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };

@@ -80,7 +80,7 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
             return
         }
 
-        WORKSPACE.resizeEditor(
+        WORKSPACE.resizeWS(
             WGPU_OBJ,
             holder.surface,
             context.resources.displayMetrics.scaledDensity
@@ -366,8 +366,6 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
 
             menu.add(Menu.NONE, android.R.id.selectAll, 3, "Select all")
                 .setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS)
-
-//        mHelper.updateAssistMenuItems(menu, null)
         }
 
         override fun onPrepareActionMode(mode: ActionMode?, menu: Menu?): Boolean {
