@@ -3,8 +3,10 @@ package app.lockbook.screen
 import android.annotation.SuppressLint
 import android.content.ClipboardManager
 import android.content.Context
+import android.graphics.RectF
 import android.os.Build
 import android.os.Bundle
+import android.os.CancellationSignal
 import android.os.Handler
 import android.os.Looper
 import android.text.Editable
@@ -19,9 +21,20 @@ import android.view.View
 import android.view.ViewConfiguration
 import android.view.ViewGroup
 import android.view.inputmethod.BaseInputConnection
+import android.view.inputmethod.CompletionInfo
+import android.view.inputmethod.CorrectionInfo
 import android.view.inputmethod.EditorInfo
+import android.view.inputmethod.ExtractedText
+import android.view.inputmethod.ExtractedTextRequest
+import android.view.inputmethod.HandwritingGesture
 import android.view.inputmethod.InputConnection
+import android.view.inputmethod.InputContentInfo
 import android.view.inputmethod.InputMethodManager
+import android.view.inputmethod.PreviewableHandwritingGesture
+import android.view.inputmethod.SurroundingText
+import android.view.inputmethod.TextAttribute
+import android.view.inputmethod.TextBoundsInfoResult
+import android.view.inputmethod.TextSnapshot
 import android.widget.FrameLayout
 import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.view.WindowInsetsCompat
@@ -42,6 +55,9 @@ import com.github.michaelbull.result.unwrap
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
 import timber.log.Timber
+import java.util.concurrent.Executor
+import java.util.function.Consumer
+import java.util.function.IntConsumer
 import kotlin.math.abs
 
 class WorkspaceFragment : Fragment() {
@@ -346,6 +362,13 @@ class WorkspaceTextInputConnection(val workspaceView: WorkspaceView, val textInp
         if (batchEditCount == 0) {
             val selection = wsEditable.getSelection()
 
+//            if(selection.start != selection.end && wsEditable.composingStart == -1) {
+//                wsEditable.composingStart = selection.start
+//                wsEditable.composingEnd = selection.end
+//            }
+
+            Timber.e("notifySelectionUpdated selectionStart=${selection.start} selectionEnd=${selection.end} composingStart=${wsEditable.composingStart} composingEnd=${wsEditable.composingEnd}...")
+
             getInputMethodManager().updateSelection(
                 textInputWrapper,
                 selection.start,
@@ -429,6 +452,9 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
 
     var composingStart = -1
     var composingEnd = -1
+
+    var intermediateSelectionStart = -1
+    var intermediateSelectionEnd = -1
 
     private var composingFlag = 0
     private var composingTag: Any? = null
@@ -600,10 +626,14 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
 
         if (what == Selection.SELECTION_START) {
             selectionStartSpanFlag = flags
+            intermediateSelectionStart = start
+            intermediateSelectionEnd = end
             WorkspaceView.WORKSPACE.setSelection(WorkspaceView.WGPU_OBJ, start, end)
             view.drawImmediately()
         } else if (what == Selection.SELECTION_END) {
             selectionEndSpanFlag = flags
+            intermediateSelectionStart = start
+            intermediateSelectionEnd = end
             WorkspaceView.WORKSPACE.setSelection(WorkspaceView.WGPU_OBJ, start, end)
             view.drawImmediately()
         } else if ((flags and Spanned.SPAN_COMPOSING) != 0) {
