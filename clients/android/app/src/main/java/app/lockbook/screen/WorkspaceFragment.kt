@@ -41,6 +41,7 @@ import app.lockbook.workspace.JTextRange
 import com.github.michaelbull.result.unwrap
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
+import timber.log.Timber
 import kotlin.math.abs
 
 class WorkspaceFragment : Fragment() {
@@ -420,6 +421,7 @@ class WorkspaceTextInputConnection(val workspaceView: WorkspaceView, val textInp
     }
 }
 
+// check if each function is correct
 class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: WorkspaceTextInputConnection) : Editable {
 
     private var selectionStartSpanFlag = 0
@@ -460,6 +462,8 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
     }
 
     override fun getChars(start: Int, end: Int, dest: CharArray?, destoff: Int) {
+        Timber.w("${Thread.currentThread().stackTrace[2]}...")
+
         dest?.let { realDest ->
             val text = WorkspaceView.WORKSPACE.getTextInRange(WorkspaceView.WGPU_OBJ, start, end)
 
@@ -476,8 +480,6 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
             }
         }
     }
-
-    var count = 0
 
     override fun <T> getSpans(start: Int, end: Int, type: Class<T>?): Array<T> {
         val spans: MutableList<Any> = mutableListOf()
@@ -499,6 +501,16 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
             if (type.isAssignableFrom(Selection.SELECTION_END.javaClass) && spanRange.contains(getSelection().end)) {
                 spans.add(Selection.SELECTION_END)
             }
+
+            if (type.isAssignableFrom(Selection.SELECTION_START.javaClass) && spanRange.contains(getSelection().start)) {
+                spans.add(Selection.SELECTION_START)
+            }
+
+            if (type.isAssignableFrom(Selection.SELECTION_END.javaClass) && spanRange.contains(getSelection().end)) {
+                spans.add(Selection.SELECTION_END)
+            }
+        } else {
+            Timber.w("getSpans null type...")
         }
 
         @Suppress("UNCHECKED_CAST")
@@ -543,6 +555,8 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
         }
 
         if (tag == composingTag) {
+            Timber.w("getSpanEnd selStart=${tag == Selection.SELECTION_START} selEnd=${tag == Selection.SELECTION_END} composingEnd=${tag == composingTag} value=${composingEnd} from ${Thread.currentThread().stackTrace[3]}...")
+
             if (composingEnd > length) {
                 composingEnd = length
             }
@@ -550,10 +564,15 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
             return composingEnd
         }
 
+        Timber.w("getSpanStart selStart=${tag == Selection.SELECTION_START} selEnd=${tag == Selection.SELECTION_END} composingEnd=${tag == composingTag} value=MISS from ${Thread.currentThread().stackTrace[3]}...")
+
+
         return -1
     }
 
     override fun getSpanFlags(tag: Any?): Int {
+        Timber.w("getSpanFlags selStart=${tag == Selection.SELECTION_START} selEnd=${tag == Selection.SELECTION_END} composing=${tag == composingTag}...")
+
         return when (tag) {
             Selection.SELECTION_START -> {
                 selectionStartSpanFlag
@@ -572,10 +591,13 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
     }
 
     override fun nextSpanTransition(start: Int, limit: Int, type: Class<*>?): Int {
+        Timber.w("${Thread.currentThread().stackTrace[2]}...")
         return -1
     }
 
     override fun setSpan(what: Any?, start: Int, end: Int, flags: Int) {
+        Timber.w("setSpan selStart=${what == Selection.SELECTION_START} selEnd=${what == Selection.SELECTION_END} composing=${(flags and Spanned.SPAN_COMPOSING) != 0} with value=($start-$end) from ${Thread.currentThread().stackTrace[3]}...")
+
         if (what == Selection.SELECTION_START) {
             selectionStartSpanFlag = flags
             WorkspaceView.WORKSPACE.setSelection(WorkspaceView.WGPU_OBJ, start, end)
@@ -602,10 +624,16 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
             composingEnd = -1
 
             wsInputConnection.notifySelectionUpdated()
+
+            return
         }
+
+        Timber.w("removeSpan selStart=${what == Selection.SELECTION_START} selEnd=${what == Selection.SELECTION_END} composing=${what == composingTag} value=MISS...")
     }
 
     override fun append(text: CharSequence?): Editable {
+        Timber.w("${Thread.currentThread().stackTrace[2]}...")
+
         text?.let { realText ->
             WorkspaceView.WORKSPACE.append(WorkspaceView.WGPU_OBJ, realText.toString())
 
@@ -623,6 +651,8 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
     }
 
     override fun append(text: Char): Editable {
+        Timber.w("${Thread.currentThread().stackTrace[2]}...")
+
         WorkspaceView.WORKSPACE.append(WorkspaceView.WGPU_OBJ, text.toString())
         view.drawImmediately()
         wsInputConnection.notifySelectionUpdated()
@@ -631,6 +661,8 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
     }
 
     override fun replace(st: Int, en: Int, source: CharSequence?, start: Int, end: Int): Editable {
+        Timber.w("${Thread.currentThread().stackTrace[2]}...")
+
         source?.let { realText ->
             val sourceString = realText.substring(start, end)
 
@@ -659,6 +691,8 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
     }
 
     override fun replace(st: Int, en: Int, text: CharSequence?): Editable {
+        Timber.w("${Thread.currentThread().stackTrace[2]}...")
+
         text?.let { realText ->
             if (st == selectionStart && en == selectionEnd) {
                 if (realText == "\n") {
@@ -685,6 +719,8 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
     }
 
     override fun insert(where: Int, text: CharSequence?, start: Int, end: Int): Editable {
+        Timber.w("${Thread.currentThread().stackTrace[2]}...")
+
         text?.let { realText ->
             val subRealText = realText.substring(start, end)
 
@@ -707,6 +743,8 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
     }
 
     override fun insert(where: Int, text: CharSequence?): Editable {
+        Timber.w("${Thread.currentThread().stackTrace[2]}...")
+
         text?.let { realText ->
             if (realText == "\n" && selectionEnd == where && selectionStart == where) {
                 WorkspaceView.WORKSPACE.sendKeyEvent(WorkspaceView.WGPU_OBJ, KeyEvent.KEYCODE_ENTER, "", true, false, false, false)
@@ -727,6 +765,8 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
     }
 
     override fun delete(st: Int, en: Int): Editable {
+        Timber.w("delete ($st-$en)")
+
         WorkspaceView.WORKSPACE.replace(WorkspaceView.WGPU_OBJ, st, en, "")
 
         if (en < composingStart) {
@@ -741,6 +781,8 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
     }
 
     override fun clear() {
+        Timber.w("${Thread.currentThread().stackTrace[2]}...")
+
         WorkspaceView.WORKSPACE.clear(WorkspaceView.WGPU_OBJ)
 
         composingStart = -1
@@ -751,6 +793,8 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
     }
 
     override fun clearSpans() {
+        Timber.w("${Thread.currentThread().stackTrace[2]}...")
+
         if (composingStart != -1 || composingEnd != -1) {
             composingStart = -1
             composingEnd = -1
@@ -758,7 +802,9 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
             wsInputConnection.notifySelectionUpdated()
         }
     }
-    override fun setFilters(filters: Array<out InputFilter>?) {}
+    override fun setFilters(filters: Array<out InputFilter>?) {
+        Timber.w("${Thread.currentThread().stackTrace[2]}...")
+    }
 
     override fun getFilters(): Array<InputFilter> = arrayOf()
     override val length: Int get() {
