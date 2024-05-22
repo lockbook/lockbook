@@ -251,7 +251,7 @@ class WorkspaceWrapperView(context: Context, val model: WorkspaceViewModel) : Fr
             WorkspaceTab.PlainText -> {
                 val touchYOffset: Float
                 if (model.showTabs.value == true) {
-                    touchYOffset = (TAB_BAR_HEIGHT + TEXT_TOOL_BAR_HEIGHT) * context.resources.displayMetrics.scaledDensity
+                    touchYOffset = TAB_BAR_HEIGHT * context.resources.displayMetrics.scaledDensity
                 } else {
                     touchYOffset = TEXT_TOOL_BAR_HEIGHT * context.resources.displayMetrics.scaledDensity
                 }
@@ -656,7 +656,7 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
 
     override fun get(index: Int): Char {
         Timber.w("${Thread.currentThread().stackTrace[2]}...")
-        return WorkspaceView.WORKSPACE.getTextInRange(WorkspaceView.WGPU_OBJ, index, index)[0]
+        return WorkspaceView.WORKSPACE.getTextInRange(WorkspaceView.WGPU_OBJ, index, index).getOrNull(0) ?: '0'
     }
 
     override fun subSequence(startIndex: Int, endIndex: Int): CharSequence {
