@@ -1820,19 +1820,20 @@ checksum = "5c297a1c74b71ae29df00c3e22dd9534821d60eb9af5a0192823fa2acea70c2a"
 
 [[package]]
 name = "db-rs"
-version = "0.2.1"
+version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "36b737c8e3b8018c03926390a42e78ece1d1455f42ae2f8a1d9e16ee0a2fda10"
+checksum = "0184bbfa5fc69ef7d6b53cc0f3eeaf9f728c3e1e7f2e2be06cb60a333f71d08d"
 dependencies = [
  "bincode",
+ "fs2",
  "serde",
 ]
 
 [[package]]
 name = "db-rs-derive"
-version = "0.2.1"
+version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0961c29b9ddc2809adc993e3386aaba512a7beb7c5b856895d683288dcd4ad13"
+checksum = "635c914a3ba843700b4d8dc9ff024682b54c48795cb435cee1a842ed6738a32a"
 dependencies = [
  "db-rs",
  "quote",
@@ -2547,6 +2548,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e13624c2627564efccf4934284bdd98cbaa14e79b0b5a141218e507b3a823456"
 dependencies = [
  "percent-encoding 2.3.1",
+]
+
+[[package]]
+name = "fs2"
+version = "0.4.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9564fc758e15025b46aa6643b1b77d047d1a56a1aea6e01002ac0c7026876213"
+dependencies = [
+ "libc",
+ "winapi",
 ]
 
 [[package]]
