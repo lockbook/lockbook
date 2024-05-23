@@ -8,11 +8,8 @@ mod toolbar;
 mod util;
 mod zoom;
 
-use crate::tab::svg_editor::toolbar::{ColorSwatch, Toolbar};
-use crate::theme::palette::ThemePalette;
-use egui::load::SizedTexture;
+use crate::tab::svg_editor::toolbar::Toolbar;
 pub use eraser::Eraser;
-use glam::{DAffine2, DMat2, DVec2};
 pub use history::DeleteElement;
 pub use history::Event;
 pub use history::InsertElement;
@@ -20,17 +17,12 @@ use lb_rs::Uuid;
 pub use parser::Buffer;
 pub use pen::CubicBezBuilder;
 pub use pen::Pen;
-use resvg::tiny_skia::Pixmap;
-use resvg::usvg::{self, ImageHrefResolver, ImageKind, Rect, Size};
-use std::any::Any;
-use std::str::FromStr;
-use std::sync::Arc;
+use resvg::usvg::{self, ImageKind, Rect};
 pub use toolbar::Tool;
 use usvg_parser::Options;
 pub use util::node_by_id;
 
 use self::history::History;
-use self::util::deserialize_transform;
 use self::zoom::handle_zoom_input;
 
 /// A shorthand for [ImageHrefResolver]'s string function.
@@ -142,8 +134,7 @@ impl SVGEditor {
     }
 
     pub fn get_minimal_content(&self) -> String {
-        "".to_string()
-        // self.buffer.to_string()
+        self.buffer.to_string()
     }
 
     fn render_svg(&mut self, ui: &mut egui::Ui) {

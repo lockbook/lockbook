@@ -14,12 +14,7 @@ use self::{
     translate::{detect_translation, end_translation},
 };
 
-use super::{
-    history::{self, History},
-    parser,
-    util::{bb_to_rect, deserialize_transform},
-    Buffer, DeleteElement,
-};
+use super::{history::History, parser, util::bb_to_rect, Buffer, DeleteElement};
 
 #[derive(Default)]
 pub struct Selection {
@@ -201,8 +196,8 @@ impl Selection {
                             let transform = glam::DAffine2 {
                                 matrix2: glam::DMat2::IDENTITY,
                                 translation: glam::DVec2 {
-                                    x: (pos.x - selection.prev_pos.x).into(), // todo: divide by master transform[0]
-                                    y: (pos.y - selection.prev_pos.y).into(), // todo: divide by master transform[3]
+                                    x: (pos.x - selection.prev_pos.x).into(),
+                                    y: (pos.y - selection.prev_pos.y).into(),
                                 },
                             };
                             // save_translate(delta, el, buffer);
@@ -249,8 +244,7 @@ impl Selection {
         };
 
         if let Some(d) = delta {
-            // save_translates(d, &mut self.selected_elements, buffer);
-            // end_translation(buffer, &mut self.selected_elements, pos, true);
+            end_translation(buffer, history, &mut self.selected_elements, pos, true);
         }
 
         let is_scaling_up = ui.input(|r| r.key_pressed(egui::Key::Equals));
@@ -271,7 +265,7 @@ impl Selection {
                 self.selection_rect.as_ref().unwrap(), // todo: remove unwrap cus it can be none
                 buffer,
             );
-            // end_translation(buffer, &mut self.selected_elements, pos, true);
+            end_translation(buffer, history, &mut self.selected_elements, pos, true);
         }
 
         if ui.input(|r| r.key_pressed(egui::Key::Backspace)) && !self.selected_elements.is_empty() {

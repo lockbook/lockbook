@@ -1,4 +1,4 @@
-use std::{collections::HashMap, ops::Deref, sync::Arc};
+use std::{collections::HashMap, fmt::Write, ops::Deref, sync::Arc};
 
 use bezier_rs::{Bezier, Identifier, Subpath};
 use glam::{DAffine2, DMat2, DVec2};
@@ -210,7 +210,22 @@ impl ToString for Buffer {
         // let out = out.replace("xmlns='' ", "");
         // let out = format!("<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\">{}</svg>", out);
         // out
-        "todo serialize the buffer".to_string()
+
+        let mut root = r#"<svg xmlns="http://www.w3.org/2000/svg">"#.into();
+        self.elements.iter().for_each(|el| match el.1 {
+            Element::Path(p) => p.data.to_svg(
+                &mut root,
+                r#"stroke-color="red""#.into(),
+                "".into(),
+                "".into(),
+                "".into(),
+            ),
+            Element::Image(_) => todo!(),
+            Element::Text(_) => todo!(),
+        });
+        let _ = write!(&mut root, "</svg>");
+        println!("{:#?}", root);
+        root
     }
 }
 

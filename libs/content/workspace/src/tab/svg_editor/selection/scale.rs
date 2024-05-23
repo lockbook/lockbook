@@ -1,13 +1,8 @@
 use bezier_rs::Subpath;
-use glam::{DAffine2, DMat2, DVec2};
+use glam::DVec2;
 use resvg::usvg::Transform;
 
-use crate::tab::svg_editor::{
-    node_by_id,
-    parser::ManipulatorGroupId,
-    util::{deserialize_transform, serialize_transform},
-    Buffer,
-};
+use crate::tab::svg_editor::{parser::ManipulatorGroupId, Buffer};
 
 use super::{
     rect::SelectionRectContainer, u_transform_to_bezier, SelectedElement, SelectionOperation,
