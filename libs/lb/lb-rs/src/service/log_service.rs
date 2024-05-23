@@ -20,14 +20,14 @@ pub fn init(config: &Config) -> LbResult<()> {
                     fmt::Layer::new()
                         .with_span_events(FmtSpan::ACTIVE)
                         .with_ansi(config.colored_logs)
-                        .with_target(false)
+                        .with_target(true)
                         .with_writer(tracing_appender::rolling::never(
                             &config.writeable_path,
                             LOG_FILE,
                         ))
                         .with_filter(lockbook_log_level)
                         .with_filter(filter::filter_fn(|metadata| {
-                            metadata.target().starts_with("lockbook")
+                            metadata.target().starts_with("lb_rs")
                                 || metadata.target().starts_with("dbrs")
                         })),
                 )
