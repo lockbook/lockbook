@@ -3,7 +3,7 @@ mod eraser;
 mod history;
 mod parser;
 mod pen;
-// mod selection;
+mod selection;
 mod toolbar;
 mod util;
 mod zoom;
@@ -127,11 +127,14 @@ impl SVGEditor {
                         .handle_events(event, &mut self.buffer, &mut self.history);
                 }
             }
-            // Tool::Selection => {
-            //     self.toolbar
-            //         .selection
-            //         .handle_input(ui, self.inner_rect, &mut self.buffer);
-            // }
+            Tool::Selection => {
+                self.toolbar.selection.handle_input(
+                    ui,
+                    self.inner_rect,
+                    &mut self.buffer,
+                    &mut self.history,
+                );
+            }
             _ => {}
         }
 

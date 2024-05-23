@@ -25,8 +25,14 @@ impl SelectionRectContainer {
         let mut container_bb = [DVec2::new(f64::MAX, f64::MAX), DVec2::new(f64::MIN, f64::MIN)];
         let mut children = vec![];
         for el in els.iter() {
-            let bb = match buffer.paths.get(&el.id) {
-                Some(path) => path.bounding_box().unwrap_or_default(),
+            let bb = match buffer.elements.get(&el.id) {
+                Some(el) => match el {
+                    crate::tab::svg_editor::parser::Element::Path(p) => {
+                        p.data.bounding_box().unwrap()
+                    }
+                    crate::tab::svg_editor::parser::Element::Image(_) => todo!(),
+                    crate::tab::svg_editor::parser::Element::Text(_) => todo!(),
+                },
                 None => continue,
             };
 
@@ -81,23 +87,10 @@ impl SelectionRectContainer {
         self.container.show(ui, false);
     }
 
-    pub fn show_delete_btn(
-        &self, buffer: &mut Buffer, ui: &mut egui::Ui, working_rect: egui::Rect,
-    ) -> bool {
-        let mut delete_toolbar_dim = egui::pos2(20.0, 20.0);
+    pub fn show_delete_btn(&self, ui: &mut egui::Ui, working_rect: egui::Rect) -> bool {
+        let delete_toolbar_dim = egui::pos2(20.0, 20.0);
         let gap = 15.0;
         let icon_size = 19.0;
-        if let Some(transform) = buffer.current.attr("transform") {
-            let transform = deserialize_transform(transform);
-
-            delete_toolbar_dim.x = (delete_toolbar_dim.x * transform[0] as f32).clamp(20.0, 35.0);
-            delete_toolbar_dim.y = (delete_toolbar_dim.y * transform[3] as f32).clamp(20.0, 35.0);
-
-            if (icon_size * transform[3] as f32) < 5. {
-                println!("{:#?}", icon_size * transform[3] as f32);
-                return false;
-            }
-        }
 
         let delete_toolbar_rect = egui::Rect {
             min: egui::pos2(

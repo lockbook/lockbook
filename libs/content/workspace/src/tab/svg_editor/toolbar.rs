@@ -10,6 +10,7 @@ use crate::{
 use super::{
     history::{self, History},
     parser,
+    selection::Selection,
     util::deserialize_transform,
     zoom::zoom_to_percentage,
     Buffer, Eraser, Pen,
@@ -24,7 +25,7 @@ pub struct Toolbar {
     right_tab_rect: Option<egui::Rect>,
     pub pen: Pen,
     pub eraser: Eraser,
-    // pub selection: Selection,
+    pub selection: Selection,
     pub previous_tool: Option<Tool>,
 }
 
@@ -45,7 +46,7 @@ macro_rules! set_tool {
     ($obj:expr, $new_tool:expr) => {
         if $obj.active_tool != $new_tool {
             if (matches!($new_tool, Tool::Selection)) {
-                // $obj.selection = Selection::default();
+                $obj.selection = Selection::default();
             }
             $obj.previous_tool = Some($obj.active_tool);
             $obj.active_tool = $new_tool;
@@ -75,7 +76,7 @@ impl Toolbar {
             right_tab_rect: None,
             pen: Pen::new(max_id),
             eraser: Eraser::new(),
-            // selection: Selection::default(),
+            selection: Selection::default(),
         }
     }
 

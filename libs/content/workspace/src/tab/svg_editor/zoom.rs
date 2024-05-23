@@ -4,6 +4,7 @@ use std::collections::HashSet;
 
 use super::{
     parser,
+    selection::u_transform_to_bezier,
     util::{deserialize_transform, serialize_transform},
 };
 
@@ -55,13 +56,7 @@ pub fn handle_zoom_input(ui: &mut egui::Ui, working_rect: egui::Rect, buffer: &m
     }
 
     if pan.is_some() || is_zooming {
-        let transform = glam::DAffine2 {
-            matrix2: glam::DMat2 {
-                x_axis: glam::DVec2 { x: t.sx.into(), y: t.ky.into() },
-                y_axis: glam::DVec2 { x: t.kx.into(), y: t.sy.into() },
-            },
-            translation: glam::DVec2 { x: t.tx.into(), y: t.ty.into() },
-        };
+        let transform = u_transform_to_bezier(&t);
         for el in buffer.elements.values_mut() {
             match el {
                 parser::Element::Path(path) => {

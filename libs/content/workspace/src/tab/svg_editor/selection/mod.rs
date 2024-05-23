@@ -3,15 +3,19 @@ mod scale;
 mod translate;
 
 use bezier_rs::Subpath;
+use glam::{DAffine2, DMat2, DVec2};
 use resvg::usvg::Transform;
+
+use crate::tab::svg_editor::selection::scale::snap_scale;
 
 use self::{
     rect::SelectionRectContainer,
-    scale::{scale_group_from_center, snap_scale},
-    translate::{detect_translation, end_translation, save_translate, save_translates},
+    scale::scale_group_from_center,
+    translate::{detect_translation, end_translation},
 };
 
 use super::{
+    history::{self, History},
     parser,
     util::{bb_to_rect, deserialize_transform},
     Buffer, DeleteElement,
@@ -31,13 +35,13 @@ pub struct Selection {
 #[derive(Clone)]
 struct SelectedElement {
     id: String,
-    original_pos: egui::Pos2,
-    original_transform: Transform,
+    prev_pos: egui::Pos2,
 }
 
 impl Selection {
     pub fn handle_input(
         &mut self, ui: &mut egui::Ui, working_rect: egui::Rect, buffer: &mut parser::Buffer,
+        history: &mut History,
     ) {
         let pos = match ui.ctx().pointer_hover_pos() {
             Some(cp) => {
@@ -53,8 +57,8 @@ impl Selection {
         let mut maybe_selected_el = None;
 
         if let Some(selection_rect) = &self.selection_rect {
-            if selection_rect.show_delete_btn(buffer, ui, working_rect) {
-                self.delete_selection(buffer);
+            if selection_rect.show_delete_btn(ui, working_rect) {
+                self.delete_selection(buffer, history);
                 self.laso_original_pos = None;
                 return;
             }
@@ -144,8 +148,7 @@ impl Selection {
                                     {
                                         self.candidate_selected_elements.push(SelectedElement {
                                             id: id.to_owned(),
-                                            original_pos: pos,
-                                            original_transform: path.transform,
+                                            prev_pos: pos,
                                         });
                                     }
                                 }
@@ -179,10 +182,10 @@ impl Selection {
         }
 
         if ui.input(|r| r.pointer.primary_released()) {
-            end_translation(buffer, &mut self.selected_elements, pos, true);
+            end_translation(buffer, history, &mut self.selected_elements, pos, true);
             self.current_op = SelectionOperation::Idle;
         } else if ui.input(|r| r.pointer.primary_clicked()) {
-            end_translation(buffer, &mut self.selected_elements, pos, false);
+            end_translation(buffer, history, &mut self.selected_elements, pos, false);
         } else if ui.input(|r| r.pointer.primary_down()) {
             if matches!(self.current_op, SelectionOperation::Idle) {
                 if let Some(r) = &mut intent {
@@ -193,15 +196,25 @@ impl Selection {
 
             match self.current_op {
                 SelectionOperation::Translation => {
-                    self.selected_elements.iter_mut().for_each(|el| {
-                        let mut delta =
-                            egui::pos2(pos.x - el.original_pos.x, pos.y - el.original_pos.y);
-                        if let Some(transform) = el.buffer.current.attr("transform") {
-                            let transform = deserialize_transform(transform);
-                            delta.x /= transform[0] as f32;
-                            delta.y /= transform[3] as f32;
+                    self.selected_elements.iter_mut().for_each(|selection| {
+                        if let Some(el) = buffer.elements.get_mut(&selection.id) {
+                            let transform = glam::DAffine2 {
+                                matrix2: glam::DMat2::IDENTITY,
+                                translation: glam::DVec2 {
+                                    x: (pos.x - selection.prev_pos.x).into(), // todo: divide by master transform[0]
+                                    y: (pos.y - selection.prev_pos.y).into(), // todo: divide by master transform[3]
+                                },
+                            };
+                            // save_translate(delta, el, buffer);
+                            match el {
+                                parser::Element::Path(p) => {
+                                    p.data.apply_transform(transform);
+                                }
+                                parser::Element::Image(_) => todo!(),
+                                parser::Element::Text(_) => todo!(),
+                            }
                         }
-                        save_translate(delta, el, buffer);
+                        selection.prev_pos = pos;
                         ui.output_mut(|w| w.cursor_icon = egui::CursorIcon::Grabbing);
                     });
                 }
@@ -236,11 +249,11 @@ impl Selection {
         };
 
         if let Some(d) = delta {
-            save_translates(d, &mut self.selected_elements, buffer);
-            end_translation(buffer, &mut self.selected_elements, pos, true);
+            // save_translates(d, &mut self.selected_elements, buffer);
+            // end_translation(buffer, &mut self.selected_elements, pos, true);
         }
 
-        let is_scaling_up = ui.input(|r| r.key_pressed(egui::Key::Plus));
+        let is_scaling_up = ui.input(|r| r.key_pressed(egui::Key::Equals));
         let is_scaling_down = ui.input(|r| r.key_pressed(egui::Key::Minus));
 
         let factor = if is_scaling_up {
@@ -255,54 +268,52 @@ impl Selection {
             scale_group_from_center(
                 factor,
                 &mut self.selected_elements,
-                self.selection_rect.as_ref().unwrap(),
+                self.selection_rect.as_ref().unwrap(), // todo: remove unwrap cus it can be none
                 buffer,
             );
-            end_translation(buffer, &mut self.selected_elements, pos, true);
+            // end_translation(buffer, &mut self.selected_elements, pos, true);
         }
 
         if ui.input(|r| r.key_pressed(egui::Key::Backspace)) && !self.selected_elements.is_empty() {
-            self.delete_selection(buffer);
+            self.delete_selection(buffer, history);
         }
 
         self.last_pos = Some(pos);
     }
 
-    fn delete_selection(&mut self, buffer: &mut Buffer) {
+    fn delete_selection(&mut self, buffer: &mut Buffer, history: &mut History) {
         let elements = self
             .selected_elements
             .iter()
-            .map(|el| {
-                let element = buffer
-                    .current
-                    .children()
-                    .find(|node| node.attr("id").map_or(false, |id| id.eq(&el.id)))
-                    .unwrap()
-                    .clone();
-                DeleteElement { id: el.id.clone(), element }
+            .map(|selection| {
+                buffer
+                    .elements
+                    .iter()
+                    .find(|(&ref id, _el)| id.eq(&selection.id));
+                DeleteElement { id: selection.id.clone() }
             })
             .collect();
 
         let delete_event = super::Event::Delete(elements);
-        buffer.apply_event(&delete_event);
-        buffer.save(delete_event);
+        history.apply_event(&delete_event, buffer);
+        history.save(delete_event);
         self.selected_elements.clear();
     }
 
-    pub fn select_el_by_id(&mut self, id: &str, current_pos: egui::Pos2, buffer: &mut Buffer) {
-        if let Some(el) = buffer
-            .current
-            .children()
-            .find(|el| el.attr("id").unwrap_or_default().eq(id))
-        {
-            let transform = el.attr("transform").unwrap_or_default();
-            self.selected_elements = vec![SelectedElement {
-                id: id.to_string(),
-                original_pos: current_pos,
-                original_matrix: (transform.to_string(), deserialize_transform(transform)),
-            }];
-        }
-    }
+    // pub fn select_el_by_id(&mut self, id: &str, current_pos: egui::Pos2, buffer: &mut Buffer) {
+    //     if let Some(el) = buffer
+    //         .current
+    //         .children()
+    //         .find(|el| el.attr("id").unwrap_or_default().eq(id))
+    //     {
+    //         let transform = el.attr("transform").unwrap_or_default();
+    //         self.selected_elements = vec![SelectedElement {
+    //             id: id.to_string(),
+    //             original_pos: current_pos,
+    //             original_matrix: (transform.to_string(), deserialize_transform(transform)),
+    //         }];
+    //     }
+    // }
 }
 
 #[derive(Default, Clone, Copy)]
@@ -333,5 +344,16 @@ impl SelectionResponse {
         };
 
         Self { current_op, cursor_icon }
+    }
+}
+
+/// converts a usvg transform into a bezier_rs transform
+pub fn u_transform_to_bezier(src: &Transform) -> DAffine2 {
+    glam::DAffine2 {
+        matrix2: DMat2 {
+            x_axis: DVec2 { x: src.sx.into(), y: src.ky.into() },
+            y_axis: DVec2 { x: src.kx.into(), y: src.sy.into() },
+        },
+        translation: glam::DVec2 { x: src.tx.into(), y: src.ty.into() },
     }
 }
