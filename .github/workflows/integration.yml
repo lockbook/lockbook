@@ -16,16 +16,16 @@ jobs:
       CARGO_TARGET_DIR: /home/lockbook-ci/.lockbook-dev/target
     steps:
     - uses: actions/checkout@v2
-#     - name: Install Nightly
-#       run: rustup toolchain install nightly
-#     - name: Install udeps
-#       run: cargo install cargo-udeps --locked
+    - name: Install Nightly
+      run: rustup toolchain install nightly
+    - name: Install udeps
+      run: cargo install cargo-udeps --locked
     - name: Check Workspace Fmt
       run: cargo run -p lockbook-dev -- check-workspace-fmt
     - name: Check Workspace Clippy
       run: cargo run -p lockbook-dev -- check-workspace-clippy
-# - name: Check Unused Dependencies
-#   run: cargo run -p lockbook-dev -- check-workspace-udeps
+    - name: Check Unused Dependencies
+      run: cargo run -p lockbook-dev -- check-workspace-udeps
     - name: Run Server
       run: cargo run -p lockbook-dev -- run-server
     - name: Run Rust Tests
