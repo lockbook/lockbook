@@ -35,7 +35,7 @@ libsecp256k1 = "0.7.1"
 prometheus = "0.13.0"
 prometheus-static-metric = "0.5.1"
 lazy_static = "1.4.0"
-async-stripe = { version = "0.20.0", default-features = true, features = ["runtime-tokio-hyper-rustls"] }
+async-stripe = { version = "0.37.0", default-features = true, features = ["runtime-tokio-hyper-rustls"] }
 sha2 = "0.10.2"
 google-androidpublisher3 = "5.0.5"
 constant_time_eq = "0.2.2"

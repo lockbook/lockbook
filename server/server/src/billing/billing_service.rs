@@ -452,10 +452,10 @@ where
     ) -> Result<(), ServerError<StripeWebhookError>> {
         let event = self.verify_request_and_get_event(&request_body, stripe_sig)?;
 
-        let event_type = event.event_type;
+        let event_type = event.type_;
         debug!(?event_type, "Verified stripe request");
 
-        match (&event.event_type, &event.data.object) {
+        match (&event.type_, &event.data.object) {
             (stripe::EventType::InvoicePaymentFailed, stripe::EventObject::Invoice(invoice)) => {
                 if let Some(stripe::InvoiceBillingReason::SubscriptionCycle) =
                     invoice.billing_reason
@@ -537,7 +537,7 @@ where
                 }
             }
             (_, _) => {
-                return Err(internal!("Unexpected stripe event: {:?}", event.event_type));
+                return Err(internal!("Unexpected stripe event: {:?}", event.type_));
             }
         }
 
