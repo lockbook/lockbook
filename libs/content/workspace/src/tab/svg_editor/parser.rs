@@ -107,6 +107,7 @@ impl Buffer {
                         }
                         stroke.width = s.width().get();
                         stroke.opacity = s.opacity().get();
+                        println!("{:#?}", s);
                     }
                     buffer.elements.insert(
                         i.to_string(),
@@ -213,18 +214,22 @@ impl ToString for Buffer {
 
         let mut root = r#"<svg xmlns="http://www.w3.org/2000/svg">"#.into();
         self.elements.iter().for_each(|el| match el.1 {
-            Element::Path(p) => p.data.to_svg(
-                &mut root,
-                r#"stroke-color="red""#.into(),
-                "".into(),
-                "".into(),
-                "".into(),
-            ),
+            Element::Path(p) => {
+                let mut curv_attrs = " ".to_string(); // if it's empty then the curve might not be converted to string via bezier_rs
+                if let Some(stroke) = p.stroke {
+                    curv_attrs = format!(
+                        r#"stroke-width="{}" stroke="{}""#,
+                        stroke.width,
+                        stroke.color.to_hex() // todo: see how to handle opacity
+                    );
+                }
+                p.data
+                    .to_svg(&mut root, curv_attrs, "".into(), "".into(), "".into())
+            }
             Element::Image(_) => todo!(),
             Element::Text(_) => todo!(),
         });
         let _ = write!(&mut root, "</svg>");
-        println!("{:#?}", root);
         root
     }
 }
