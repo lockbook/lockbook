@@ -63,15 +63,16 @@ impl BillingPlatform {
     pub fn new_play_sub(
         config: &Config, purchase_token: &str, expiry_information: SubscriptionPurchase,
     ) -> Result<Self, ServerError<UpgradeAccountGooglePlayError>> {
-        let expiration_time = expiry_information
-            .expiry_time_millis
-            .ok_or_else::<ServerError<UpgradeAccountGooglePlayError>, _>(|| {
-                internal!("Cannot get expiration time of a recovered subscription")
-            })?
-            .parse()
-            .map_err::<ServerError<UpgradeAccountGooglePlayError>, _>(|e| {
-                internal!("Cannot parse millis into int: {:?}", e)
-            })?;
+        let expiration_time = UnixTimeMillis::try_from(
+            expiry_information
+                .expiry_time_millis
+                .ok_or_else::<ServerError<UpgradeAccountGooglePlayError>, _>(|| {
+                    internal!("Cannot get expiration time of a recovered subscription")
+                })?,
+        )
+        .map_err::<ServerError<UpgradeAccountGooglePlayError>, _>(|e| {
+            internal!("Cannot parse millis into int: {:?}", e)
+        })?;
 
         Ok(Self::GooglePlay(GooglePlayUserInfo {
             purchase_token: purchase_token.to_string(),
