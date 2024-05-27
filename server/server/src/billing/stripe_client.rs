@@ -100,6 +100,13 @@ impl StripeClient for stripe::Client {
         setup_intent_params.customer = Some(customer_id);
         setup_intent_params.payment_method = Some(payment_method_id);
         setup_intent_params.confirm = Some(true);
+        setup_intent_params.automatic_payment_methods =
+            Some(stripe::CreateSetupIntentAutomaticPaymentMethods {
+                allow_redirects: Some(
+                    stripe::CreateSetupIntentAutomaticPaymentMethodsAllowRedirects::Never,
+                ),
+                enabled: true,
+            });
 
         let setup_intent = stripe::SetupIntent::create(self, setup_intent_params).await?;
 

@@ -3,12 +3,16 @@ use async_trait::async_trait;
 use google_androidpublisher3::api::{
     SubscriptionPurchase, SubscriptionPurchasesAcknowledgeRequest,
 };
+use google_androidpublisher3::hyper::client::HttpConnector;
 use google_androidpublisher3::hyper::StatusCode;
+use google_androidpublisher3::hyper_rustls::HttpsConnector;
 use google_androidpublisher3::{hyper, hyper_rustls, oauth2, AndroidPublisher, Error};
 
 const PACKAGE_NAME: &str = "app.lockbook";
 
-pub async fn get_google_play_client(service_account_key: &Option<String>) -> AndroidPublisher {
+pub async fn get_google_play_client(
+    service_account_key: &Option<String>,
+) -> AndroidPublisher<HttpsConnector<HttpConnector>> {
     let auth = match service_account_key {
         Some(key) => {
             let service_account_key: oauth2::ServiceAccountKey =
@@ -79,7 +83,7 @@ pub trait GooglePlayClient: Send + Sync + Clone + 'static {
 }
 
 #[async_trait]
-impl GooglePlayClient for AndroidPublisher {
+impl GooglePlayClient for AndroidPublisher<HttpsConnector<HttpConnector>> {
     async fn acknowledge_subscription(
         &self, config: &Config, purchase_token: &str,
     ) -> Result<(), SimpleGCPError> {
