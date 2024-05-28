@@ -14,7 +14,12 @@ use self::{
     translate::{detect_translation, end_translation},
 };
 
-use super::{history::History, parser, util::bb_to_rect, Buffer, DeleteElement};
+use super::{
+    history::{History, TransformElement},
+    parser,
+    util::bb_to_rect,
+    Buffer, DeleteElement,
+};
 
 #[derive(Default)]
 pub struct Selection {
@@ -31,6 +36,7 @@ pub struct Selection {
 struct SelectedElement {
     id: String,
     prev_pos: egui::Pos2,
+    transform: Transform,
 }
 
 impl Selection {
@@ -144,6 +150,7 @@ impl Selection {
                                         self.candidate_selected_elements.push(SelectedElement {
                                             id: id.to_owned(),
                                             prev_pos: pos,
+                                            transform: Transform::identity(),
                                         });
                                     }
                                 }
@@ -193,22 +200,20 @@ impl Selection {
                 SelectionOperation::Translation => {
                     self.selected_elements.iter_mut().for_each(|selection| {
                         if let Some(el) = buffer.elements.get_mut(&selection.id) {
-                            let transform = glam::DAffine2 {
-                                matrix2: glam::DMat2::IDENTITY,
-                                translation: glam::DVec2 {
-                                    x: (pos.x - selection.prev_pos.x).into(),
-                                    y: (pos.y - selection.prev_pos.y).into(),
-                                },
-                            };
-                            // save_translate(delta, el, buffer);
+                            let transform = Transform::identity().post_translate(
+                                pos.x - selection.prev_pos.x,
+                                pos.y - selection.prev_pos.y,
+                            );
+                            selection.transform = selection.transform.post_concat(transform);
                             match el {
                                 parser::Element::Path(p) => {
-                                    p.data.apply_transform(transform);
+                                    p.data.apply_transform(u_transform_to_bezier(&transform));
                                 }
                                 parser::Element::Image(_) => todo!(),
                                 parser::Element::Text(_) => todo!(),
                             }
                         }
+
                         selection.prev_pos = pos;
                         ui.output_mut(|w| w.cursor_icon = egui::CursorIcon::Grabbing);
                     });

@@ -69,9 +69,15 @@ impl Pen {
         };
 
         match event {
-            PathEvent::Draw(mut pos, id) => {
+            PathEvent::Draw(pos, id) => {
                 // apply_transform_to_pos(&mut pos, buffer);
 
+                // for some reason the integration will send two draw events on the same pos which results in a knot.
+                if let Some(last_pos) = self.path_builder.original_points.last() {
+                    if last_pos.eq(&pos) {
+                        return None;
+                    }
+                }
                 if self.detect_snap(pos, buffer.master_transform) {
                     let curr_id = self.current_id; // needed because end path will advance to the next id
                     self.end_path(buffer, history, true);

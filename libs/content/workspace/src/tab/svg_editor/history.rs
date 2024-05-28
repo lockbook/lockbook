@@ -5,6 +5,7 @@ use std::{
     mem,
 };
 
+use glam::DAffine2;
 use resvg::usvg::{Transform, Visibility};
 
 use super::parser;
@@ -37,8 +38,7 @@ pub struct InsertElement {
 #[derive(Clone, Debug)]
 pub struct TransformElement {
     pub id: String,
-    pub old_transform: Transform,
-    pub new_transform: Transform,
+    pub transform: DAffine2,
 }
 
 impl History {
@@ -76,10 +76,7 @@ impl History {
                     if let Some(el) = buffer.elements.get_mut(&transform_payload.id) {
                         match el {
                             parser::Element::Path(p) => {
-                                p.transform = transform_payload.new_transform
-                            }
-                            parser::Element::Image(img) => {
-                                img.transform = transform_payload.new_transform
+                                p.data.apply_transform(transform_payload.transform);
                             }
                             _ => {}
                         }
@@ -139,12 +136,9 @@ impl History {
                 source = Event::Transform(
                     payload
                         .iter_mut()
-                        .map(|transform_payload| {
-                            mem::swap(
-                                &mut transform_payload.new_transform,
-                                &mut transform_payload.old_transform,
-                            );
-                            transform_payload.clone()
+                        .map(|transform_payload| TransformElement {
+                            id: transform_payload.id.clone(),
+                            transform: transform_payload.transform.inverse(),
                         })
                         .collect(),
                 )

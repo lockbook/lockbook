@@ -1,3 +1,5 @@
+use resvg::usvg::Transform;
+
 use crate::tab::svg_editor::{
     history::{self, History, TransformElement},
     node_by_id,
@@ -5,7 +7,7 @@ use crate::tab::svg_editor::{
     Buffer, Event,
 };
 
-use super::SelectedElement;
+use super::{u_transform_to_bezier, SelectedElement};
 
 // pub fn save_translate(delta: egui::Pos2, de: &mut SelectedElement, buffer: &mut Buffer) {
 //     if let Some(node) = node_by_id(&mut buffer.current, de.id.clone()) {
@@ -51,14 +53,11 @@ pub fn end_translation(
             el.prev_pos = pos;
             if let Some(node) = buffer.elements.get_mut(&el.id) {
                 match node {
-                    crate::tab::svg_editor::parser::Element::Path(p) => {
-                        if save_event
-                            && (delta.y > history_threshold || delta.x > history_threshold)
-                        {
+                    crate::tab::svg_editor::parser::Element::Path(_) => {
+                        if save_event {
                             Some(TransformElement {
                                 id: el.id.to_owned(),
-                                old_transform: old_transform.0,
-                                new_transform: new_transform.0,
+                                transform: u_transform_to_bezier(&el.transform),
                             })
                         } else {
                             None
@@ -67,31 +66,6 @@ pub fn end_translation(
                     crate::tab::svg_editor::parser::Element::Image(_) => todo!(),
                     crate::tab::svg_editor::parser::Element::Text(_) => todo!(),
                 }
-                // if let Some(new_transform) = node.attr("transform") {
-                //     let new_transform =
-                //         (new_transform.to_string(), deserialize_transform(new_transform));
-
-                //     let old_transform = el.original_matrix.clone();
-                //     let delta = egui::pos2(
-                //         (new_transform.1[4] - old_transform.1[4]).abs() as f32,
-                //         (new_transform.1[5] - old_transform.1[5]).abs() as f32,
-                //     );
-
-                //     el.original_matrix = new_transform.clone();
-
-                //     let history_threshold = 1.0;
-                //     if save_event && (delta.y > history_threshold || delta.x > history_threshold) {
-                //         Some(TransformElement {
-                //             id: el.id.to_owned(),
-                //             old_transform: old_transform.0,
-                //             new_transform: new_transform.0,
-                //         })
-                //     } else {
-                //         None
-                //     }
-                // } else {
-                //     None
-                // }
             } else {
                 None
             }
@@ -109,7 +83,11 @@ pub fn detect_translation(
         match el {
             crate::tab::svg_editor::parser::Element::Path(p) => {
                 if pointer_interests_path(&p.data, current_pos, last_pos, 10.0) {
-                    return Some(SelectedElement { id: id.clone(), prev_pos: current_pos });
+                    return Some(SelectedElement {
+                        id: id.clone(),
+                        prev_pos: current_pos,
+                        transform: Transform::identity(),
+                    });
                 }
             }
             crate::tab::svg_editor::parser::Element::Image(_) => todo!(),

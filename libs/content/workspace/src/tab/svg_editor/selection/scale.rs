@@ -1,8 +1,12 @@
 use bezier_rs::Subpath;
-use glam::DVec2;
+use glam::{DAffine2, DVec2};
 use resvg::usvg::Transform;
 
-use crate::tab::svg_editor::{parser::ManipulatorGroupId, Buffer};
+use crate::tab::svg_editor::{
+    history::{self, History, TransformElement},
+    parser::ManipulatorGroupId,
+    Buffer,
+};
 
 use super::{
     rect::SelectionRectContainer, u_transform_to_bezier, SelectedElement, SelectionOperation,
@@ -13,9 +17,9 @@ pub fn scale_group_from_center(
     factor: f32, els: &mut [SelectedElement], selected_rect: &SelectionRectContainer,
     buffer: &mut Buffer,
 ) {
-    for el in els.iter_mut() {
-        scale_from_center(factor, el, selected_rect, buffer)
-    }
+    els.iter_mut().for_each(|el| {
+        scale_from_center(factor, el, selected_rect, buffer);
+    });
 }
 
 pub fn scale_from_center(
@@ -49,6 +53,8 @@ pub fn scale_from_center(
                         -(1. - factor) * (element_rect.height() / 2. - element_rect.bottom()),
                     );
                 let b_transform = u_transform_to_bezier(&u_transform);
+                el.transform = el.transform.post_concat(u_transform);
+
                 p.data.apply_transform(b_transform);
             }
             crate::tab::svg_editor::parser::Element::Image(_) => todo!(),
@@ -93,8 +99,9 @@ pub fn snap_scale(
         )
     };
 
-    for el in els.iter_mut() {
+    els.iter_mut().for_each(|el| {
         scale_from_center(factor, el, selected_rect, buffer);
-    }
+    });
+
     res_icon
 }
