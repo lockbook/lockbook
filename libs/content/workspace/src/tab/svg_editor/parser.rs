@@ -23,6 +23,7 @@ pub struct ManipulatorGroupId;
 #[derive(Default)]
 pub struct Buffer {
     pub elements: HashMap<String, Element>,
+    pub deleted_elements: HashMap<String, Element>,
     pub master_transform: Transform,
     pub needs_path_map_update: bool,
 }
@@ -94,16 +95,12 @@ impl Buffer {
                         }),
                     );
                 }
-                usvg::Node::Text(text) => {
-                    // buffer
-                    //     .elements
-                    //     .insert(i.to_string(), Element::Text(*text.to_owned().deref()));
-                }
+                usvg::Node::Text(text) => {}
                 usvg::Node::Path(path) => {
                     let mut stroke = Stroke::default();
                     if let Some(s) = path.stroke() {
                         if let Paint::Color(c) = s.paint() {
-                            stroke.color = egui::Color32::from_rgb(c.blue, c.green, c.blue);
+                            stroke.color = egui::Color32::from_rgb(c.red, c.green, c.blue);
                         }
                         stroke.width = s.width().get();
                         stroke.opacity = s.opacity().get();
@@ -213,22 +210,29 @@ impl ToString for Buffer {
         // out
 
         let mut root = r#"<svg xmlns="http://www.w3.org/2000/svg">"#.into();
-        self.elements.iter().for_each(|el| match el.1 {
-            Element::Path(p) => {
-                let mut curv_attrs = " ".to_string(); // if it's empty then the curve might not be converted to string via bezier_rs
-                if let Some(stroke) = p.stroke {
-                    curv_attrs = format!(
-                        r#"stroke-width="{}" stroke="{}""#,
-                        stroke.width,
-                        stroke.color.to_hex() // todo: see how to handle opacity
-                    );
+        for el in self.elements.iter() {
+            match el.1 {
+                Element::Path(p) => {
+                    let mut curv_attrs = " ".to_string(); // if it's empty then the curve might not be converted to string via bezier_rs
+                    if let Some(stroke) = p.stroke {
+                        curv_attrs = format!(
+                            r#"stroke-width="{}" stroke="{}""#,
+                            stroke.width,
+                            format!(
+                                "#{:02X}{:02X}{:02X}",
+                                stroke.color.r(),
+                                stroke.color.g(),
+                                stroke.color.b()
+                            ) // todo: see how to handle opacity
+                        );
+                    }
+                    p.data
+                        .to_svg(&mut root, curv_attrs, "".into(), "".into(), "".into())
                 }
-                p.data
-                    .to_svg(&mut root, curv_attrs, "".into(), "".into(), "".into())
+                Element::Image(_) => todo!(),
+                Element::Text(_) => todo!(),
             }
-            Element::Image(_) => todo!(),
-            Element::Text(_) => todo!(),
-        });
+        }
         let _ = write!(&mut root, "</svg>");
         root
     }

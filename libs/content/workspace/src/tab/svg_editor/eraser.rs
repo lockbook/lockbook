@@ -72,13 +72,16 @@ impl Eraser {
                         path.visibility = Visibility::Hidden;
                     }
                 });
-
-                history.save(super::Event::Delete(
+                let event = super::Event::Delete(
                     self.paths_to_delete
                         .iter()
                         .map(|id| DeleteElement { id: id.to_owned() })
                         .collect(),
-                ));
+                );
+
+                // todo: figure out if the history api should automatically apply the event on save
+                history.save(event.clone());
+                history.apply_event(&event, buffer);
 
                 self.paths_to_delete.clear();
             }

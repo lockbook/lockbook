@@ -52,8 +52,17 @@ pub fn end_translation(
             if let Some(node) = buffer.elements.get_mut(&el.id) {
                 match node {
                     crate::tab::svg_editor::parser::Element::Path(p) => {
-                        println!("should push to transform event to hisotry");
-                        None
+                        if save_event
+                            && (delta.y > history_threshold || delta.x > history_threshold)
+                        {
+                            Some(TransformElement {
+                                id: el.id.to_owned(),
+                                old_transform: old_transform.0,
+                                new_transform: new_transform.0,
+                            })
+                        } else {
+                            None
+                        }
                     }
                     crate::tab::svg_editor::parser::Element::Image(_) => todo!(),
                     crate::tab::svg_editor::parser::Element::Text(_) => todo!(),

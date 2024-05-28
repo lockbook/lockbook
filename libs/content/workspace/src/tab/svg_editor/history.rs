@@ -1,6 +1,10 @@
-use std::{collections::VecDeque, fmt::Debug, mem};
+use std::{
+    borrow::BorrowMut,
+    collections::{HashMap, VecDeque},
+    fmt::Debug,
+    mem,
+};
 
-use bezier_rs::Identifier;
 use resvg::usvg::{Transform, Visibility};
 
 use super::parser;
@@ -51,15 +55,19 @@ impl History {
 
     pub fn apply_event(&mut self, event: &Event, buffer: &mut parser::Buffer) {
         match event {
-            Event::Insert(payload) => {}
+            Event::Insert(payload) => {
+                payload.iter().for_each(|insert_payload| {
+                    if let Some(el) = buffer.deleted_elements.remove(&insert_payload.id) {
+                        buffer.elements.insert(insert_payload.id.to_owned(), el);
+                    }
+                });
+            }
             Event::Delete(payload) => {
                 payload.iter().for_each(|delete_payload| {
-                    if let Some(el) = buffer.elements.get_mut(&delete_payload.id) {
-                        match el {
-                            parser::Element::Path(p) => p.visibility = Visibility::Hidden,
-                            parser::Element::Image(img) => img.visibility = Visibility::Hidden,
-                            _ => {}
-                        }
+                    if let Some(el) = buffer.elements.remove(&delete_payload.id) {
+                        buffer
+                            .deleted_elements
+                            .insert(delete_payload.id.clone(), el);
                     }
                 });
             }
