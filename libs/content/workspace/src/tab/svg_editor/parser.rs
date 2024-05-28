@@ -1,13 +1,11 @@
-use std::{collections::HashMap, fmt::Write, ops::Deref, sync::Arc};
+use std::{collections::HashMap, fmt::Write};
 
 use bezier_rs::{Bezier, Identifier, Subpath};
+use egui::TextureHandle;
 use glam::{DAffine2, DMat2, DVec2};
 use resvg::{
     tiny_skia::Point,
-    usvg::{
-        self, Color, Fill, ImageHrefResolver, ImageHrefStringResolverFn, ImageKind, Options, Paint,
-        Text, Transform, Visibility,
-    },
+    usvg::{self, Fill, ImageKind, Options, Paint, Text, Transform, Visibility},
 };
 
 use super::zoom::G_CONTAINER_ID;
@@ -60,6 +58,8 @@ pub struct Image {
     pub data: ImageKind,
     pub visibility: Visibility,
     pub transform: Transform,
+    pub view_box: usvg::ViewBox,
+    pub texture: Option<TextureHandle>,
 }
 
 impl Buffer {
@@ -92,6 +92,8 @@ impl Buffer {
                             data: img.kind().clone(),
                             visibility: img.visibility(),
                             transform: img.abs_transform(),
+                            view_box: img.view_box(),
+                            texture: None,
                         }),
                     );
                 }
@@ -104,7 +106,6 @@ impl Buffer {
                         }
                         stroke.width = s.width().get();
                         stroke.opacity = s.opacity().get();
-                        println!("{:#?}", s);
                     }
                     buffer.elements.insert(
                         i.to_string(),
@@ -118,7 +119,6 @@ impl Buffer {
                         }),
                     );
                 }
-                _ => {}
             });
         buffer
     }
