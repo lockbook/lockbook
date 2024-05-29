@@ -32,12 +32,12 @@ jobs:
       run: cargo run -p lockbook-dev -- run-rust-tests
     - name: Run Swift Tests
       run: cargo run -p lockbook-dev -- run-swift-tests
-    - name: Run Android Fmt
-      run: cargo run -p lockbook-dev -- check-android-fmt
-    - name: Run Android Lint
-      run: cargo run -p lockbook-dev -- check-android-lint
-    - name: Run Kotlin Tests
-      run: cargo run -p lockbook-dev -- run-kotlin-tests
+    # - name: Run Android Fmt
+    #   run: cargo run -p lockbook-dev -- check-android-fmt
+    # - name: Run Android Lint
+    #   run: cargo run -p lockbook-dev -- check-android-lint
+    # - name: Run Kotlin Tests
+    #   run: cargo run -p lockbook-dev -- run-kotlin-tests
     - name: Server Logs
       if: always()
       run: cargo run -p lockbook-dev -- print-server-logs

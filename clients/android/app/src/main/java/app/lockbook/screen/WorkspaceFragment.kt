@@ -421,7 +421,6 @@ class WorkspaceTextInputConnection(val workspaceView: WorkspaceView, val textInp
     }
 }
 
-// check if each function is correct
 class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: WorkspaceTextInputConnection) : Editable {
 
     private var selectionStartSpanFlag = 0
