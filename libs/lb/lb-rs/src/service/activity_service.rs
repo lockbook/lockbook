@@ -25,7 +25,7 @@ impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {
         let events = &self.db.doc_events;
 
         if events.get().len() > max_stored_events {
-            self.db.doc_events.pop()?;
+            self.db.doc_events.remove(0)?;
         }
         self.db.doc_events.push(event)?;
         Ok(())
