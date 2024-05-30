@@ -128,10 +128,9 @@ impl SVGEditor {
                     &mut self.history,
                 );
             }
-            _ => {}
         }
 
-        // self.handle_clip_input(ui);
+        self.handle_clip_input(ui);
     }
 
     pub fn get_minimal_content(&self) -> String {
