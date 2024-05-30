@@ -169,33 +169,7 @@ impl SVGEditor {
                     });
                 }
                 parser::Element::Image(img) => match &img.data {
-                    ImageKind::JPEG(bytes) => {
-                        let image = egui::ColorImage::from_rgba_unmultiplied(
-                            [
-                                img.view_box.rect.width() as usize,
-                                img.view_box.rect.height() as usize,
-                            ],
-                            &bytes,
-                        );
-
-                        if img.texture.is_none() {
-                            img.texture = Some(ui.ctx().load_texture(
-                                id,
-                                image,
-                                egui::TextureOptions::LINEAR,
-                            ));
-                        }
-
-                        if let Some(texture) = &img.texture {
-                            let img =
-                                egui::Image::new(egui::ImageSource::Texture(SizedTexture::new(
-                                    texture,
-                                    egui::vec2(texture.size()[0] as f32, texture.size()[1] as f32),
-                                )));
-                            ui.add(img);
-                        }
-                    }
-                    ImageKind::PNG(bytes) => {
+                    ImageKind::JPEG(bytes) | ImageKind::PNG(bytes) => {
                         let image = egui::ColorImage::from_rgba_unmultiplied(
                             [
                                 img.view_box.rect.width() as usize,
