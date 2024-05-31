@@ -1,14 +1,22 @@
-use std::{collections::HashMap, fmt::Write};
+use std::{collections::HashMap, fmt::Write, str::FromStr, sync::Arc};
 
 use bezier_rs::{Bezier, Identifier, Subpath};
 use egui::TextureHandle;
 use glam::{DAffine2, DMat2, DVec2};
+use lb_rs::Uuid;
 use resvg::{
     tiny_skia::Point,
-    usvg::{self, Fill, ImageKind, Options, Paint, Text, Transform, Visibility},
+    usvg::{
+        self, fontdb::Database, Fill, ImageHrefResolver, ImageKind, Options, Paint, Text,
+        Transform, Visibility,
+    },
 };
 
 use super::zoom::G_CONTAINER_ID;
+
+/// A shorthand for [ImageHrefResolver]'s string function.
+pub type ImageHrefStringResolverFn =
+    Box<dyn Fn(&str, &Options, &Database) -> Option<ImageKind> + Send + Sync>;
 
 impl Identifier for ManipulatorGroupId {
     fn new() -> Self {
@@ -60,12 +68,22 @@ pub struct Image {
     pub transform: Transform,
     pub view_box: usvg::ViewBox,
     pub texture: Option<TextureHandle>,
+    pub href: Option<Uuid>, // todo: change data modeling when impl remote images. this assumes that all images are resolved to an lb file
 }
 
 impl Buffer {
-    pub fn new(svg: &str) -> Self {
+    pub fn new(svg: &str, core: &lb_rs::Core) -> Self {
         let fontdb = usvg::fontdb::Database::new();
-        let maybe_tree = usvg::Tree::from_str(svg, &Options::default(), &fontdb);
+
+        let lb_local_resolver = ImageHrefResolver {
+            resolve_data: ImageHrefResolver::default_data_resolver(),
+            resolve_string: lb_local_resolver(&core),
+        };
+
+        let options =
+            usvg::Options { image_href_resolver: lb_local_resolver, ..Default::default() };
+
+        let maybe_tree = usvg::Tree::from_str(svg, &options, &fontdb);
         if let Err(err) = maybe_tree {
             println!("{:#?}", err);
             return Self::default();
@@ -94,10 +112,10 @@ impl Buffer {
                             transform: img.abs_transform(),
                             view_box: img.view_box(),
                             texture: None,
+                            href: Uuid::from_str(img.id()).ok(),
                         }),
                     );
                 }
-                usvg::Node::Text(text) => {}
                 usvg::Node::Path(path) => {
                     let mut stroke = Stroke::default();
                     if let Some(s) = path.stroke() {
@@ -119,9 +137,34 @@ impl Buffer {
                         }),
                     );
                 }
+                usvg::Node::Text(_) => todo!(),
             });
         buffer
     }
+}
+
+fn lb_local_resolver(core: &lb_rs::Core) -> ImageHrefStringResolverFn {
+    let lb_link_prefix = "lb://";
+    let core = core.clone();
+    Box::new(move |href: &str, _opts: &Options, _db: &Database| {
+        if !href.starts_with(lb_link_prefix) {
+            // todo: resolve remote links
+            return None;
+        }
+        let id = &href[lb_link_prefix.len()..];
+        let id = lb_rs::Uuid::from_str(id).ok()?;
+        let raw = core.read_document(id).ok()?;
+
+        let name = core.get_file_by_id(id).ok()?.name;
+        let ext = name.split('.').last().unwrap_or_default();
+        match ext {
+            "jpg" | "jpeg" => Some(ImageKind::JPEG(Arc::new(raw))),
+            "png" => Some(ImageKind::PNG(Arc::new(raw))),
+            // "svg" => Some(ImageKind::SVG(Arc::new(raw))), todo: handle nested svg
+            "gif" => Some(ImageKind::GIF(Arc::new(raw))),
+            _ => None,
+        }
+    })
 }
 
 fn usvg_d_to_subpath(path: &Box<usvg::Path>) -> Subpath<ManipulatorGroupId> {
@@ -173,42 +216,8 @@ fn usvg_d_to_subpath(path: &Box<usvg::Path>) -> Subpath<ManipulatorGroupId> {
     subpath
 }
 
-// pub fn lb_local_resolver(core: &lb_rs::Core) -> ImageHrefResolver {
-// let lb_link_prefix = "lb://";
-// let core = core.clone();
-// Box::new(move |href: &str, _opts: &Options| {
-//     if !href.starts_with(lb_link_prefix) {
-//         return None;
-//     }
-//     let id = &href[lb_link_prefix.len()..];
-//     let id = lb_rs::Uuid::from_str(id).ok()?;
-//     let raw = core.read_document(id).ok()?;
-
-//     let name = core.get_file_by_id(id).ok()?.name;
-//     let ext = name.split('.').last().unwrap_or_default();
-//     match ext {
-//         "jpg" | "jpeg" => Some(ImageKind::JPEG(Arc::new(raw))),
-//         "png" => Some(ImageKind::PNG(Arc::new(raw))),
-//         // "svg" => Some(ImageKind::SVG(Arc::new(raw))), todo: handle nested svg
-//         "gif" => Some(ImageKind::GIF(Arc::new(raw))),
-//         _ => None,
-//     }
-// })
-// }
-
 impl ToString for Buffer {
     fn to_string(&self) -> String {
-        // let mut out = Vec::new();
-        // if let Err(msg) = self.current.write_to(&mut out) {
-        //     println!("{:#?}", msg);
-        // }
-        // let out = std::str::from_utf8(&out)
-        //     .unwrap()
-        //     .replace("href", "xlink:href"); // risky
-        // let out = out.replace("xmlns='' ", "");
-        // let out = format!("<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\">{}</svg>", out);
-        // out
-
         let mut root = r#"<svg xmlns="http://www.w3.org/2000/svg">"#.into();
         for el in self.elements.iter() {
             match el.1 {
@@ -229,7 +238,19 @@ impl ToString for Buffer {
                     p.data
                         .to_svg(&mut root, curv_attrs, "".into(), "".into(), "".into())
                 }
-                Element::Image(_) => todo!(),
+                Element::Image(img) => {
+                    let image_element = format!(
+                        r#" <image id= "{}" href ="lb://{}" width="{}" height="{}" x="{}" y="{}" />"#,
+                        img.href.unwrap_or_default(),
+                        img.href.unwrap_or_default(),
+                        img.view_box.rect.width(),
+                        img.view_box.rect.height(),
+                        img.view_box.rect.left(),
+                        img.view_box.rect.top(),
+                    );
+
+                    let _ = write!(root, "{image_element}");
+                }
                 Element::Text(_) => todo!(),
             }
         }

@@ -1,3 +1,5 @@
+use std::fmt::format;
+
 use resvg::usvg::{AspectRatio, NonZeroRect, Transform, ViewBox};
 
 use crate::tab::{ClipContent, EventManager as _};
@@ -13,12 +15,11 @@ impl SVGEditor {
                     for clip in content {
                         match clip {
                             ClipContent::Png(data) => {
-                                let _file =
+                                let file =
                                     crate::tab::import_image(&self.core, self.open_file, &data);
-                                // let image_href = format!("lb://{}", file.id);
-                                println!("pasted image: {:?} bytes", data.len());
 
                                 let img = image::load_from_memory(&data).unwrap();
+
                                 self.buffer.elements.insert(
                                     self.toolbar.pen.current_id.to_string(),
                                     crate::tab::svg_editor::parser::Element::Image(
@@ -37,6 +38,7 @@ impl SVGEditor {
                                                 aspect: AspectRatio::default(),
                                             },
                                             texture: None,
+                                            href: Some(file.id),
                                         },
                                     ),
                                 );

@@ -10,6 +10,9 @@ mod zoom;
 
 use crate::tab::svg_editor::toolbar::Toolbar;
 use egui::load::SizedTexture;
+use egui::ColorImage;
+use egui::ImageData;
+use egui::Widget;
 pub use eraser::Eraser;
 pub use history::DeleteElement;
 pub use history::Event;
@@ -44,7 +47,7 @@ impl SVGEditor {
     pub fn new(bytes: &[u8], core: lb_rs::Core, open_file: Uuid) -> Self {
         let content = std::str::from_utf8(bytes).unwrap();
 
-        let buffer = parser::Buffer::new(content);
+        let buffer = parser::Buffer::new(content, &core);
         let max_id = buffer
             .elements
             .keys()
@@ -68,6 +71,50 @@ impl SVGEditor {
     }
 
     pub fn show(&mut self, ui: &mut egui::Ui) {
+        for (id, el) in self.buffer.elements.iter_mut() {
+            match el {
+                parser::Element::Image(img) => match &img.data {
+                    ImageKind::JPEG(bytes) | ImageKind::PNG(bytes) => {
+                        // let image = image::load_from_memory(&bytes).unwrap();
+                        // let egui_image = egui::ColorImage::from_rgba_unmultiplied(
+                        //     [image.width() as usize, image.height() as usize],
+                        //     &image.to_rgba8(),
+                        // );
+
+                        // if img.texture.is_none() {
+                        //     img.texture = Some(ui.ctx().load_texture(
+                        //         id,
+                        //         egui_image,
+                        //         egui::TextureOptions::LINEAR,
+                        //     ));
+                        //     println!("loading texture");
+                        // }
+
+                        if let Some(texture) = &img.texture {
+                            // egui::Image::from_texture(texture)
+                            //     .paint_at(ui, ui.available_rect_before_wrap());
+                            // egui::Image::from_texture(texture)
+                            //     .paint_at(ui, ui.available_rect_before_wrap());
+                            // texture.ui.image((texture.id(), texture.size_vec2()));
+                            // let uv = egui::Rect {
+                            //     min: egui::Pos2 { x: 0.0, y: 0.0 },
+                            //     max: egui::Pos2 { x: 1.0, y: 1.0 },
+                            // };
+                            // painter.image(
+                            //     texture.id(),
+                            //     ui.available_rect_before_wrap(),
+                            //     uv,
+                            //     egui::Color32::WHITE,
+                            // );
+                        }
+                    }
+                    ImageKind::GIF(_) => todo!(),
+                    ImageKind::SVG(_) => todo!(),
+                },
+                parser::Element::Path(_) => {}
+                parser::Element::Text(_) => {}
+            }
+        }
         ui.vertical(|ui| {
             egui::Frame::default()
                 .fill(if ui.visuals().dark_mode {
@@ -82,10 +129,10 @@ impl SVGEditor {
                         &mut self.history,
                         &mut self.skip_frame,
                     );
-                });
 
-            self.inner_rect = ui.available_rect_before_wrap();
-            self.render_svg(ui);
+                    self.inner_rect = ui.available_rect_before_wrap();
+                    self.render_svg(ui);
+                });
         });
 
         handle_zoom_input(ui, self.inner_rect, &mut self.buffer);
@@ -143,6 +190,42 @@ impl SVGEditor {
             .1;
         for (id, el) in self.buffer.elements.iter_mut() {
             match el {
+                parser::Element::Image(img) => match &img.data {
+                    ImageKind::JPEG(bytes) | ImageKind::PNG(bytes) => {
+                        let image = image::load_from_memory(&bytes).unwrap();
+
+                        let egui_image = egui::ColorImage::from_rgba_unmultiplied(
+                            [image.width() as usize, image.height() as usize],
+                            &image.to_rgba8(),
+                        );
+                        if img.texture.is_none() {
+                            img.texture = Some(ui.ctx().load_texture(
+                                format!("canvas_img_{}", id),
+                                egui_image,
+                                egui::TextureOptions::LINEAR,
+                            ));
+                        }
+
+                        if let Some(texture) = &img.texture {
+                            let rect = egui::Rect {
+                                min: egui::pos2(img.view_box.rect.left(), img.view_box.rect.top()),
+                                max: egui::pos2(
+                                    img.view_box.rect.right(),
+                                    img.view_box.rect.bottom(),
+                                ),
+                            };
+                            let uv = egui::Rect {
+                                min: egui::Pos2 { x: 0.0, y: 0.0 },
+                                max: egui::Pos2 { x: 1.0, y: 1.0 },
+                            };
+                            let mut mesh = egui::Mesh::with_texture(texture.id());
+                            mesh.add_rect_with_uv(rect, uv, egui::Color32::WHITE);
+                            painter.add(egui::Shape::mesh(mesh));
+                        }
+                    }
+                    ImageKind::GIF(_) => todo!(),
+                    ImageKind::SVG(_) => todo!(),
+                },
                 parser::Element::Path(path) => {
                     if path.data.len() < 1 || path.visibility.eq(&usvg::Visibility::Hidden) {
                         continue;
@@ -168,36 +251,7 @@ impl SVGEditor {
                         painter.add(epath);
                     });
                 }
-                parser::Element::Image(img) => match &img.data {
-                    ImageKind::JPEG(bytes) | ImageKind::PNG(bytes) => {
-                        let image = egui::ColorImage::from_rgba_unmultiplied(
-                            [
-                                img.view_box.rect.width() as usize,
-                                img.view_box.rect.height() as usize,
-                            ],
-                            &bytes,
-                        );
 
-                        if img.texture.is_none() {
-                            img.texture = Some(ui.ctx().load_texture(
-                                id,
-                                image,
-                                egui::TextureOptions::LINEAR,
-                            ));
-                        }
-
-                        if let Some(texture) = &img.texture {
-                            let img =
-                                egui::Image::new(egui::ImageSource::Texture(SizedTexture::new(
-                                    texture,
-                                    egui::vec2(texture.size()[0] as f32, texture.size()[1] as f32),
-                                )));
-                            ui.add(img);
-                        }
-                    }
-                    ImageKind::GIF(_) => todo!(),
-                    ImageKind::SVG(_) => todo!(),
-                },
                 parser::Element::Text(text) => todo!(),
             }
         }
