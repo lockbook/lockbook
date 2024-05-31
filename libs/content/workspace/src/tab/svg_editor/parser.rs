@@ -7,8 +7,8 @@ use lb_rs::Uuid;
 use resvg::{
     tiny_skia::Point,
     usvg::{
-        self, fontdb::Database, Fill, ImageHrefResolver, ImageKind, Options, Paint, Text,
-        Transform, Visibility,
+        self, fontdb::Database, Fill, ImageHrefResolver, ImageKind, NonZeroRect, Options, Paint,
+        Text, Transform, Visibility,
     },
 };
 
@@ -68,6 +68,7 @@ pub struct Image {
     pub transform: Transform,
     pub view_box: usvg::ViewBox,
     pub texture: Option<TextureHandle>,
+    pub opacity: f32,
     pub href: Option<Uuid>, // todo: change data modeling when impl remote images. this assumes that all images are resolved to an lb file
 }
 
@@ -112,6 +113,7 @@ impl Buffer {
                             transform: img.abs_transform(),
                             view_box: img.view_box(),
                             texture: None,
+                            opacity: 1.0,
                             href: Uuid::from_str(img.id()).ok(),
                         }),
                     );
@@ -259,11 +261,36 @@ impl ToString for Buffer {
     }
 }
 
-// impl Debug for Buffer {
-//     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-//         f.debug_struct("Buffer")
-//             .field("undo", &self.undo)
-//             .field("redo", &self.redo)
-//             .finish()
-//     }
-// }
+impl Image {
+    pub fn bounding_box(&self) -> egui::Rect {
+        egui::Rect {
+            min: egui::pos2(self.view_box.rect.left(), self.view_box.rect.top()),
+            max: egui::pos2(self.view_box.rect.right(), self.view_box.rect.bottom()),
+        }
+    }
+    pub fn apply_transform(&mut self, transform: Transform) {
+        // let mut left = self.view_box.rect.left();
+        // let mut right = self.view_box.rect.right();
+        // let mut top = self.view_box.rect.top();
+        // let mut bottom = self.view_box.rect.bottom();
+
+        // left += transform.tx;
+        // left *= transform.sx;
+
+        // right += transform.tx;
+        // right *= transform.sx;
+
+        // top += transform.ty;
+        // top *= transform.sy;
+
+        // bottom += transform.ty;
+        // bottom *= transform.sy;
+
+        // if let Some(new_rect) = NonZeroRect::from_ltrb(left, top, right, bottom) {
+        //     self.view_box.rect = new_rect;
+        // }
+        if let Some(new_vb) = self.view_box.rect.transform(transform) {
+            self.view_box.rect = new_vb;
+        }
+    }
+}

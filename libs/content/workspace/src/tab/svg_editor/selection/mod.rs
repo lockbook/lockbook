@@ -120,12 +120,12 @@ impl Selection {
                     );
                     // if the path bounding box intersects with the laso rect then it's a match
                     buffer.elements.iter().for_each(|(id, el)| {
-                        match el {
+                        let el_intersects_laso = match el {
                             parser::Element::Path(path) => {
                                 let bb = path.data.bounding_box().unwrap();
                                 let path_rect = bb_to_rect(bb);
                                 if self.laso_rect.unwrap().intersects(path_rect) {
-                                    let bb_subpath = Subpath::new_rect(
+                                    let laso_bb = Subpath::new_rect(
                                         glam::DVec2 {
                                             x: self.laso_rect.unwrap().min.x as f64,
                                             y: self.laso_rect.unwrap().min.y as f64,
@@ -136,22 +136,30 @@ impl Selection {
                                         },
                                     );
 
-                                    if !path
+                                    !path
                                         .data
-                                        .subpath_intersections(&bb_subpath, None, None)
+                                        .subpath_intersections(&laso_bb, None, None)
                                         .is_empty()
                                         || self.laso_rect.unwrap().contains_rect(path_rect)
-                                    {
-                                        self.candidate_selected_elements.push(SelectedElement {
-                                            id: id.to_owned(),
-                                            prev_pos: pos,
-                                            transform: Transform::identity(),
-                                        });
-                                    }
+                                } else {
+                                    false
                                 }
                             }
-                            _ => todo!(),
+                            parser::Element::Image(img) => {
+                                let img_bb = img.bounding_box();
+                                self.laso_rect.unwrap().contains_rect(img_bb)
+                                    || self.laso_rect.unwrap().intersects(img_bb)
+                            }
+                            parser::Element::Text(_) => todo!(),
                         };
+
+                        if el_intersects_laso {
+                            self.candidate_selected_elements.push(SelectedElement {
+                                id: id.to_owned(),
+                                prev_pos: pos,
+                                transform: Transform::identity(),
+                            });
+                        }
                     });
 
                     self.selection_rect = SelectionRectContainer::new(
@@ -204,7 +212,7 @@ impl Selection {
                                 parser::Element::Path(p) => {
                                     p.data.apply_transform(u_transform_to_bezier(&transform));
                                 }
-                                parser::Element::Image(_) => todo!(),
+                                parser::Element::Image(img) => img.apply_transform(transform),
                                 parser::Element::Text(_) => todo!(),
                             }
                         }

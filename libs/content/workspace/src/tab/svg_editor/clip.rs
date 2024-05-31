@@ -37,6 +37,7 @@ impl SVGEditor {
                                             },
                                             texture: None,
                                             href: Some(file.id),
+                                            opacity: 1.0,
                                         },
                                     ),
                                 );

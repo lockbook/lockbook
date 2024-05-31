@@ -5,7 +5,7 @@ use super::{SelectedElement, SelectionOperation, SelectionResponse};
 use crate::{
     tab::svg_editor::{
         parser::ManipulatorGroupId,
-        util::{bb_to_rect, pointer_interests_path},
+        util::{bb_to_rect, pointer_intersects_outline},
         Buffer,
     },
     theme::icons::Icon,
@@ -30,7 +30,13 @@ impl SelectionRectContainer {
                     crate::tab::svg_editor::parser::Element::Path(p) => {
                         p.data.bounding_box().unwrap()
                     }
-                    crate::tab::svg_editor::parser::Element::Image(_) => todo!(),
+                    crate::tab::svg_editor::parser::Element::Image(img) => {
+                        let rect = img.bounding_box();
+                        [
+                            DVec2 { x: rect.left().into(), y: rect.top().into() },
+                            DVec2 { x: rect.right().into(), y: rect.bottom().into() },
+                        ]
+                    }
                     crate::tab::svg_editor::parser::Element::Text(_) => todo!(),
                 },
                 None => continue,
@@ -57,23 +63,23 @@ impl SelectionRectContainer {
         }
 
         if let Some(left_path) = &self.container.left {
-            if pointer_interests_path(left_path, cursor_pos, None, SCALE_BRUSH_SIZE) {
+            if pointer_intersects_outline(left_path, cursor_pos, None, SCALE_BRUSH_SIZE) {
                 return Some(SelectionResponse::new(SelectionOperation::WestScale));
             }
         };
         if let Some(right_path) = &self.container.right {
-            if pointer_interests_path(right_path, cursor_pos, None, SCALE_BRUSH_SIZE) {
+            if pointer_intersects_outline(right_path, cursor_pos, None, SCALE_BRUSH_SIZE) {
                 return Some(SelectionResponse::new(SelectionOperation::EastScale));
             }
         };
 
         if let Some(top_path) = &self.container.top {
-            if pointer_interests_path(top_path, cursor_pos, None, SCALE_BRUSH_SIZE) {
+            if pointer_intersects_outline(top_path, cursor_pos, None, SCALE_BRUSH_SIZE) {
                 return Some(SelectionResponse::new(SelectionOperation::NorthScale));
             }
         };
         if let Some(bottom_path) = &self.container.bottom {
-            if pointer_interests_path(bottom_path, cursor_pos, None, SCALE_BRUSH_SIZE) {
+            if pointer_intersects_outline(bottom_path, cursor_pos, None, SCALE_BRUSH_SIZE) {
                 return Some(SelectionResponse::new(SelectionOperation::SouthScale));
             }
         };

@@ -3,13 +3,13 @@ use std::collections::HashSet;
 use std::sync::mpsc;
 
 use super::history::History;
-use super::{util::pointer_interests_path, Buffer, DeleteElement};
+use super::{util::pointer_intersects_element, Buffer, DeleteElement};
 
 pub struct Eraser {
     pub rx: mpsc::Receiver<EraseEvent>,
     pub tx: mpsc::Sender<EraseEvent>,
     pub thickness: f32,
-    paths_to_delete: HashSet<String>,
+    delete_candidates: HashSet<String>,
     last_pos: Option<egui::Pos2>,
 }
 
@@ -28,52 +28,53 @@ impl Eraser {
     pub fn new() -> Self {
         let (tx, rx) = mpsc::channel();
 
-        Eraser { rx, tx, paths_to_delete: HashSet::default(), thickness: 10.0, last_pos: None }
+        Eraser { rx, tx, delete_candidates: HashSet::default(), thickness: 10.0, last_pos: None }
     }
 
     pub fn handle_events(&mut self, event: EraseEvent, buffer: &mut Buffer, history: &mut History) {
         match event {
             EraseEvent::Start(pos) => {
-                buffer.elements.iter_mut().for_each(|(id, el)| {
-                    if self.paths_to_delete.contains(id) {
+                buffer.elements.iter().for_each(|(id, el)| {
+                    if self.delete_candidates.contains(id) {
                         return;
                     }
-                    match el {
-                        super::parser::Element::Path(path) => {
-                            if pointer_interests_path(
-                                &path.data,
-                                pos,
-                                self.last_pos,
-                                self.thickness as f64,
-                            ) {
-                                self.paths_to_delete.insert(id.clone());
-                            }
-                        }
-                        _ => todo!(),
+                    if pointer_intersects_element(&el, pos, self.last_pos, self.thickness as f64) {
+                        self.delete_candidates.insert(id.clone());
                     }
                 });
 
-                self.paths_to_delete.iter().for_each(|id| {
-                    if let Some(super::parser::Element::Path(path)) = buffer.elements.get_mut(id) {
-                        path.opacity = 0.3;
-                    }
+                self.delete_candidates.iter().for_each(|id| {
+                    if let Some(el) = buffer.elements.get_mut(id) {
+                        match el {
+                            super::parser::Element::Path(p) => p.opacity = 0.3,
+                            super::parser::Element::Image(img) => img.opacity = 0.3,
+                            super::parser::Element::Text(_) => todo!(),
+                        }
+                    };
                 });
 
                 self.last_pos = Some(pos);
             }
             EraseEvent::End => {
-                if self.paths_to_delete.is_empty() {
+                if self.delete_candidates.is_empty() {
                     return;
                 }
 
-                self.paths_to_delete.iter().for_each(|id| {
-                    if let Some(super::parser::Element::Path(path)) = buffer.elements.get_mut(id) {
-                        path.opacity = 1.0;
-                        path.visibility = Visibility::Hidden;
-                    }
+                self.delete_candidates.iter().for_each(|id| {
+                    if let Some(el) = buffer.elements.get_mut(id) {
+                        match el {
+                            super::parser::Element::Path(p) => {
+                                p.opacity = 1.0;
+                            }
+                            super::parser::Element::Image(img) => {
+                                img.opacity = 1.0;
+                            }
+                            super::parser::Element::Text(_) => todo!(),
+                        }
+                    };
                 });
                 let event = super::Event::Delete(
-                    self.paths_to_delete
+                    self.delete_candidates
                         .iter()
                         .map(|id| DeleteElement { id: id.to_owned() })
                         .collect(),
@@ -83,7 +84,7 @@ impl Eraser {
                 history.save(event.clone());
                 history.apply_event(&event, buffer);
 
-                self.paths_to_delete.clear();
+                self.delete_candidates.clear();
             }
         }
     }

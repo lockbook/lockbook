@@ -1,6 +1,6 @@
 use resvg::usvg::Transform;
 
-use super::{ parser, selection::u_transform_to_bezier};
+use super::{parser, selection::u_transform_to_bezier};
 
 pub const G_CONTAINER_ID: &str = "lb:zoom_container";
 
@@ -57,11 +57,9 @@ pub fn handle_zoom_input(ui: &mut egui::Ui, working_rect: egui::Rect, buffer: &m
                     path.data.apply_transform(transform);
                 }
                 parser::Element::Image(img) => {
-                    if let Some(transformed_view_box) = img.view_box.rect.transform(t) {
-                        img.view_box.rect = transformed_view_box;
-                    }
+                    img.apply_transform(t);
                 }
-                parser::Element::Text(text) => todo!(),
+                parser::Element::Text(_) => todo!(),
             }
         }
     }

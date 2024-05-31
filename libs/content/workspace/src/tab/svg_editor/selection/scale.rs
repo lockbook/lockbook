@@ -40,20 +40,21 @@ pub fn scale_from_center(
     };
 
     if let Some(node) = buffer.elements.get_mut(&el.id) {
+        let u_transform = Transform::identity()
+            .post_scale(factor, factor)
+            .post_translate(
+                -(1. - factor) * (element_rect.width() / 2. - element_rect.right()),
+                -(1. - factor) * (element_rect.height() / 2. - element_rect.bottom()),
+            );
+        let b_transform = u_transform_to_bezier(&u_transform);
+
         match node {
             crate::tab::svg_editor::parser::Element::Path(p) => {
-                let u_transform = Transform::identity()
-                    .post_scale(factor, factor)
-                    .post_translate(
-                        -(1. - factor) * (element_rect.width() / 2. - element_rect.right()),
-                        -(1. - factor) * (element_rect.height() / 2. - element_rect.bottom()),
-                    );
-                let b_transform = u_transform_to_bezier(&u_transform);
                 el.transform = el.transform.post_concat(u_transform);
 
                 p.data.apply_transform(b_transform);
             }
-            crate::tab::svg_editor::parser::Element::Image(_) => todo!(),
+            crate::tab::svg_editor::parser::Element::Image(img) => img.apply_transform(u_transform),
             crate::tab::svg_editor::parser::Element::Text(_) => todo!(),
         }
     }

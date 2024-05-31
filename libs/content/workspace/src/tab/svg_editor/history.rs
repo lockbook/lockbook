@@ -4,8 +4,6 @@ use glam::DAffine2;
 
 use super::parser;
 
-const MAX_UNDOS: usize = 100;
-
 #[derive(Default)]
 pub struct History {
     undo: VecDeque<Event>,
@@ -42,9 +40,6 @@ impl History {
         }
 
         self.undo.push_back(event);
-        if self.undo.len() > MAX_UNDOS {
-            self.undo.pop_front();
-        }
     }
 
     pub fn apply_event(&mut self, event: &Event, buffer: &mut parser::Buffer) {

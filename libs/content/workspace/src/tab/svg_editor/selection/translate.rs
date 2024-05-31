@@ -2,7 +2,7 @@ use resvg::usvg::Transform;
 
 use crate::tab::svg_editor::{
     history::{History, TransformElement},
-    util::pointer_interests_path,
+    util::pointer_intersects_element,
     Buffer, Event,
 };
 
@@ -18,7 +18,7 @@ pub fn end_translation(
             el.prev_pos = pos;
             if let Some(node) = buffer.elements.get_mut(&el.id) {
                 match node {
-                    crate::tab::svg_editor::parser::Element::Path(_) => {
+                    _ => {
                         if save_event {
                             Some(TransformElement {
                                 id: el.id.to_owned(),
@@ -28,8 +28,6 @@ pub fn end_translation(
                             None
                         }
                     }
-                    crate::tab::svg_editor::parser::Element::Image(_) => todo!(),
-                    crate::tab::svg_editor::parser::Element::Text(_) => todo!(),
                 }
             } else {
                 None
@@ -45,18 +43,12 @@ pub fn detect_translation(
     buffer: &mut Buffer, last_pos: Option<egui::Pos2>, current_pos: egui::Pos2,
 ) -> Option<SelectedElement> {
     for (id, el) in buffer.elements.iter() {
-        match el {
-            crate::tab::svg_editor::parser::Element::Path(p) => {
-                if pointer_interests_path(&p.data, current_pos, last_pos, 10.0) {
-                    return Some(SelectedElement {
-                        id: id.clone(),
-                        prev_pos: current_pos,
-                        transform: Transform::identity(),
-                    });
-                }
-            }
-            crate::tab::svg_editor::parser::Element::Image(_) => todo!(),
-            crate::tab::svg_editor::parser::Element::Text(_) => todo!(),
+        if pointer_intersects_element(&el, current_pos, last_pos, 10.0) {
+            return Some(SelectedElement {
+                id: id.clone(),
+                prev_pos: current_pos,
+                transform: Transform::identity(),
+            });
         }
     }
     None

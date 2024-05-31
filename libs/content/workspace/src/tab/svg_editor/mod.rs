@@ -20,7 +20,6 @@ pub use pen::Pen;
 use resvg::usvg::{self, ImageKind};
 pub use toolbar::Tool;
 use usvg_parser::Options;
-pub use util::node_by_id;
 
 use self::history::History;
 use self::zoom::handle_zoom_input;
@@ -169,7 +168,11 @@ impl SVGEditor {
                                 max: egui::Pos2 { x: 1.0, y: 1.0 },
                             };
                             let mut mesh = egui::Mesh::with_texture(texture.id());
-                            mesh.add_rect_with_uv(rect, uv, egui::Color32::WHITE);
+                            mesh.add_rect_with_uv(
+                                rect,
+                                uv,
+                                egui::Color32::WHITE.gamma_multiply(img.opacity),
+                            );
                             painter.add(egui::Shape::mesh(mesh));
                         }
                     }

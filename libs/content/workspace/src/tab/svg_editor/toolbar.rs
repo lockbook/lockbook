@@ -184,10 +184,6 @@ impl Toolbar {
         ui.add_space(4.0);
 
         self.show_tool_inline_controls(ui);
-
-        ui.add_space(4.0);
-        ui.add(egui::Separator::default().shrink(ui.available_height() * 0.3));
-        ui.add_space(4.0);
     }
 
     fn show_tool_inline_controls(&mut self, ui: &mut egui::Ui) {

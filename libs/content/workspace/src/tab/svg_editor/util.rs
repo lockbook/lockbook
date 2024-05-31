@@ -1,22 +1,25 @@
 use bezier_rs::{Bezier, Subpath};
 use glam::DVec2;
-use minidom::Element;
 
-use super::parser::ManipulatorGroupId;
+use super::parser::{Element, ManipulatorGroupId};
 
-pub fn node_by_id(root: &mut Element, id: String) -> Option<&mut Element> {
-    root.children_mut().find(
-        |e| {
-            if let Some(id_attr) = e.attr("id") {
-                id_attr == id
-            } else {
-                false
-            }
-        },
-    )
+pub fn pointer_intersects_element(
+    el: &Element, pos: egui::Pos2, last_pos: Option<egui::Pos2>, error_radius: f64,
+) -> bool {
+    match el {
+        Element::Path(p) => pointer_intersects_outline(&p.data, pos, last_pos, error_radius),
+        Element::Image(img) => {
+            let rect = img.bounding_box().expand(error_radius as f32);
+
+            let last_pos = last_pos.unwrap_or(pos.round());
+
+            rect.contains(pos) || rect.contains(last_pos)
+        }
+        Element::Text(_) => todo!(),
+    }
 }
 
-pub fn pointer_interests_path(
+pub fn pointer_intersects_outline(
     path: &Subpath<ManipulatorGroupId>, pos: egui::Pos2, last_pos: Option<egui::Pos2>,
     error_radius: f64,
 ) -> bool {
@@ -24,8 +27,6 @@ pub fn pointer_interests_path(
         return false;
     }
     // first pass: check if the path bounding box contain the cursor.
-    // padding to account for low sampling rate scenarios and flat
-    // lines with empty bounding boxes
     let padding = 50.0;
     let bb = match path.bounding_box() {
         Some(bb) => egui::Rect {
