@@ -1,6 +1,5 @@
 use bezier_rs::{Bezier, Subpath};
-use minidom::Element;
-use resvg::usvg::{Color, Transform};
+use resvg::usvg::Transform;
 use std::{
     collections::VecDeque,
     time::{Duration, Instant},
@@ -9,10 +8,8 @@ use std::{
 use crate::theme::palette::ThemePalette;
 
 use super::{
-    history::{self, History},
+    history::History,
     parser::{self, ManipulatorGroupId, Path, Stroke},
-    toolbar::ColorSwatch,
-    util::{self, apply_transform_to_pos, d_to_subpath, deserialize_transform},
     Buffer, InsertElement,
 };
 

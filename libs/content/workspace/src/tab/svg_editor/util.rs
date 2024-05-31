@@ -2,7 +2,7 @@ use bezier_rs::{Bezier, Subpath};
 use glam::DVec2;
 use minidom::Element;
 
-use super::parser::{self, ManipulatorGroupId};
+use super::parser::ManipulatorGroupId;
 
 pub fn node_by_id(root: &mut Element, id: String) -> Option<&mut Element> {
     root.children_mut().find(
@@ -59,68 +59,9 @@ pub fn pointer_interests_path(
     intersects_delete_brush || is_inside_delete_brush
 }
 
-pub fn deserialize_transform(transform: &str) -> [f64; 6] {
-    for segment in svgtypes::TransformListParser::from(transform) {
-        let segment = match segment {
-            Ok(v) => v,
-            Err(_) => break,
-        };
-        if let svgtypes::TransformListToken::Matrix { a, b, c, d, e, f } = segment {
-            return [a, b, c, d, e, f];
-        }
-    }
-    [1, 0, 0, 1, 0, 0].map(|f| f as f64)
-}
-
-pub fn serialize_transform(matrix: &[f64]) -> String {
-    format!(
-        "matrix({},{},{},{},{},{} )",
-        matrix[0], matrix[1], matrix[2], matrix[3], matrix[4], matrix[5]
-    )
-}
-
-pub fn apply_transform_to_pos(pos: &mut egui::Pos2, buffer: &mut parser::Buffer) {
-    pos.x -= buffer.master_transform.tx;
-    pos.y -= buffer.master_transform.ty;
-
-    pos.x /= buffer.master_transform.sx;
-    pos.y /= buffer.master_transform.sy;
-}
-
 pub fn bb_to_rect(bb: [DVec2; 2]) -> egui::Rect {
     egui::Rect {
         min: egui::pos2(bb[0].x as f32, bb[0].y as f32),
         max: egui::pos2(bb[1].x as f32, bb[1].y as f32),
     }
-}
-
-pub fn d_to_subpath(data: &str) -> Subpath<ManipulatorGroupId> {
-    let mut start = (0.0, 0.0);
-    let mut subpath: Subpath<ManipulatorGroupId> = Subpath::new(vec![], false);
-
-    for segment in svgtypes::SimplifyingPathParser::from(data) {
-        let segment = match segment {
-            Ok(v) => v,
-            Err(_) => break,
-        };
-
-        match segment {
-            svgtypes::SimplePathSegment::MoveTo { x, y } => {
-                start = (x, y);
-            }
-            svgtypes::SimplePathSegment::CurveTo { x1, y1, x2, y2, x, y } => {
-                let bez = Bezier::from_cubic_coordinates(start.0, start.1, x1, y1, x2, y2, x, y);
-                subpath.append_bezier(&bez, bezier_rs::AppendType::IgnoreStart);
-                start = (x, y)
-            }
-            svgtypes::SimplePathSegment::LineTo { x, y } => {
-                let bez = Bezier::from_linear_coordinates(start.0, start.1, x, y);
-                subpath.append_bezier(&bez, bezier_rs::AppendType::IgnoreStart);
-
-                start = (x, y)
-            }
-            _ => {}
-        }
-    }
-    subpath
 }

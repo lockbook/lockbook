@@ -1,12 +1,6 @@
-use minidom::Element;
 use resvg::usvg::Transform;
-use std::collections::HashSet;
 
-use super::{
-    parser,
-    selection::u_transform_to_bezier,
-    util::{deserialize_transform, serialize_transform},
-};
+use super::{ parser, selection::u_transform_to_bezier};
 
 pub const G_CONTAINER_ID: &str = "lb:zoom_container";
 

@@ -1,6 +1,6 @@
 use std::f32::consts::PI;
 
-use egui::{RichText, ScrollArea, Widget};
+use egui::{RichText, ScrollArea};
 
 use crate::{
     theme::{icons::Icon, palette::ThemePalette},
@@ -8,12 +8,7 @@ use crate::{
 };
 
 use super::{
-    history::{self, History},
-    parser,
-    selection::Selection,
-    util::deserialize_transform,
-    zoom::zoom_to_percentage,
-    Buffer, Eraser, Pen,
+    history::History, parser, selection::Selection, zoom::zoom_to_percentage, Buffer, Eraser, Pen,
 };
 
 const COLOR_SWATCH_BTN_RADIUS: f32 = 9.0;

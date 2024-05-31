@@ -12,7 +12,7 @@ use crate::tab::markdown_editor::Markdown;
 use crate::tab::pdf_viewer::PdfViewer;
 use crate::tab::plain_text::PlainText;
 use crate::tab::svg_editor::SVGEditor;
-use crate::tab::{ClipContent, EventManager, Tab, TabContent, TabFailure};
+use crate::tab::{Tab, TabContent, TabFailure};
 use crate::theme::icons::Icon;
 use crate::widgets::{separator, Button, ToolBarVisibility};
 use lb_rs::{File, FileType, LbError, NameComponents, SyncProgress, SyncStatus, Uuid};
@@ -37,8 +37,6 @@ pub struct Workspace {
     pub last_touch_event: Option<Instant>,
 
     pub pers_status: PersistentWsStatus,
-
-    texture: Option<egui::TextureHandle>,
 }
 
 pub enum WsMsg {
@@ -108,7 +106,6 @@ impl Workspace {
             show_tabs: true,
             focused_parent: None,
             last_touch_event: None,
-            texture: None,
         }
     }
 
@@ -342,36 +339,6 @@ impl Workspace {
                 egui::Stroke { color: ui.visuals().widgets.active.bg_fill, ..Default::default() };
             if Button::default().text("New folder").show(ui).clicked() {
                 out.new_folder_clicked = true;
-            }
-
-            for custom_event in ui.ctx().pop_events() {
-                match custom_event {
-                    crate::Event::Drop { content, position }
-                    | crate::Event::Paste { content, position } => {
-                        for clip in content {
-                            match clip {
-                                ClipContent::Png(data) => {
-                                    // let image_href = format!("lb://{}", file.id);
-
-                                    if self.texture.is_none() {
-                                        println!("alloc texture");
-
-                                        self.texture = Some(ui.ctx().load_texture(
-                                            "test",
-                                            egui::ColorImage::example(),
-                                            egui::TextureOptions::LINEAR,
-                                        ));
-                                    }
-                                }
-                                ClipContent::Files(..) => unimplemented!(), // todo: support file drop & paste
-                            }
-                        }
-                    }
-                    crate::Event::Markdown(..) => {}
-                }
-            }
-            if let Some(texture) = &self.texture {
-                ui.image((texture.id(), texture.size_vec2()));
             }
         });
     }

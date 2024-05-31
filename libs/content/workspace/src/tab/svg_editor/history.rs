@@ -1,12 +1,6 @@
-use std::{
-    borrow::BorrowMut,
-    collections::{HashMap, VecDeque},
-    fmt::Debug,
-    mem,
-};
+use std::{collections::VecDeque, fmt::Debug};
 
 use glam::DAffine2;
-use resvg::usvg::{Transform, Visibility};
 
 use super::parser;
 

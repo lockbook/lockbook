@@ -14,12 +14,7 @@ use self::{
     translate::{detect_translation, end_translation},
 };
 
-use super::{
-    history::{History, TransformElement},
-    parser,
-    util::bb_to_rect,
-    Buffer, DeleteElement,
-};
+use super::{history::History, parser, util::bb_to_rect, Buffer, DeleteElement};
 
 #[derive(Default)]
 pub struct Selection {
@@ -248,7 +243,7 @@ impl Selection {
             None
         };
 
-        if let Some(d) = delta {
+        if let Some(_) = delta {
             end_translation(buffer, history, &mut self.selected_elements, pos, true);
         }
 

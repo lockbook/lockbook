@@ -9,10 +9,6 @@ mod util;
 mod zoom;
 
 use crate::tab::svg_editor::toolbar::Toolbar;
-use egui::load::SizedTexture;
-use egui::ColorImage;
-use egui::ImageData;
-use egui::Widget;
 pub use eraser::Eraser;
 pub use history::DeleteElement;
 pub use history::Event;
@@ -21,7 +17,7 @@ use lb_rs::Uuid;
 pub use parser::Buffer;
 pub use pen::CubicBezBuilder;
 pub use pen::Pen;
-use resvg::usvg::{self, ImageKind, Rect};
+use resvg::usvg::{self, ImageKind};
 pub use toolbar::Tool;
 use usvg_parser::Options;
 pub use util::node_by_id;
@@ -37,7 +33,6 @@ pub struct SVGEditor {
     history: History,
     pub toolbar: Toolbar,
     inner_rect: egui::Rect,
-    content_area: Option<Rect>,
     core: lb_rs::Core,
     open_file: Uuid,
     skip_frame: bool,
@@ -63,7 +58,6 @@ impl SVGEditor {
             history: History::default(),
             toolbar,
             inner_rect: egui::Rect::NOTHING,
-            content_area: None,
             core,
             open_file,
             skip_frame: false,
@@ -71,50 +65,6 @@ impl SVGEditor {
     }
 
     pub fn show(&mut self, ui: &mut egui::Ui) {
-        for (id, el) in self.buffer.elements.iter_mut() {
-            match el {
-                parser::Element::Image(img) => match &img.data {
-                    ImageKind::JPEG(bytes) | ImageKind::PNG(bytes) => {
-                        // let image = image::load_from_memory(&bytes).unwrap();
-                        // let egui_image = egui::ColorImage::from_rgba_unmultiplied(
-                        //     [image.width() as usize, image.height() as usize],
-                        //     &image.to_rgba8(),
-                        // );
-
-                        // if img.texture.is_none() {
-                        //     img.texture = Some(ui.ctx().load_texture(
-                        //         id,
-                        //         egui_image,
-                        //         egui::TextureOptions::LINEAR,
-                        //     ));
-                        //     println!("loading texture");
-                        // }
-
-                        if let Some(texture) = &img.texture {
-                            // egui::Image::from_texture(texture)
-                            //     .paint_at(ui, ui.available_rect_before_wrap());
-                            // egui::Image::from_texture(texture)
-                            //     .paint_at(ui, ui.available_rect_before_wrap());
-                            // texture.ui.image((texture.id(), texture.size_vec2()));
-                            // let uv = egui::Rect {
-                            //     min: egui::Pos2 { x: 0.0, y: 0.0 },
-                            //     max: egui::Pos2 { x: 1.0, y: 1.0 },
-                            // };
-                            // painter.image(
-                            //     texture.id(),
-                            //     ui.available_rect_before_wrap(),
-                            //     uv,
-                            //     egui::Color32::WHITE,
-                            // );
-                        }
-                    }
-                    ImageKind::GIF(_) => todo!(),
-                    ImageKind::SVG(_) => todo!(),
-                },
-                parser::Element::Path(_) => {}
-                parser::Element::Text(_) => {}
-            }
-        }
         ui.vertical(|ui| {
             egui::Frame::default()
                 .fill(if ui.visuals().dark_mode {
@@ -144,7 +94,7 @@ impl SVGEditor {
 
         match self.toolbar.active_tool {
             Tool::Pen => {
-                if let Some(res) = self.toolbar.pen.handle_input(
+                if let Some(_) = self.toolbar.pen.handle_input(
                     ui,
                     self.inner_rect,
                     &mut self.buffer,
@@ -252,7 +202,7 @@ impl SVGEditor {
                     });
                 }
 
-                parser::Element::Text(text) => todo!(),
+                parser::Element::Text(_) => todo!(),
             }
         }
     }

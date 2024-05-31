@@ -1,5 +1,3 @@
-use std::fmt::format;
-
 use resvg::usvg::{AspectRatio, NonZeroRect, Transform, ViewBox};
 
 use crate::tab::{ClipContent, EventManager as _};

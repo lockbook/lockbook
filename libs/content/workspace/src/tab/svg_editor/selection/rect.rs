@@ -5,7 +5,7 @@ use super::{SelectedElement, SelectionOperation, SelectionResponse};
 use crate::{
     tab::svg_editor::{
         parser::ManipulatorGroupId,
-        util::{bb_to_rect, deserialize_transform, pointer_interests_path},
+        util::{bb_to_rect, pointer_interests_path},
         Buffer,
     },
     theme::icons::Icon,
