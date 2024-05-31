@@ -8,8 +8,7 @@ impl SVGEditor {
     pub fn handle_clip_input(&mut self, ui: &mut egui::Ui) {
         for custom_event in ui.ctx().pop_events() {
             match custom_event {
-                crate::Event::Drop { content, position }
-                | crate::Event::Paste { content, position } => {
+                crate::Event::Drop { content, .. } | crate::Event::Paste { content, .. } => {
                     for clip in content {
                         match clip {
                             ClipContent::Png(data) => {
@@ -18,6 +17,9 @@ impl SVGEditor {
 
                                 let img = image::load_from_memory(&data).unwrap();
 
+                                let position = ui.input(|r| {
+                                    r.pointer.hover_pos().unwrap_or(self.inner_rect.center())
+                                });
                                 self.buffer.elements.insert(
                                     self.toolbar.pen.current_id.to_string(),
                                     crate::tab::svg_editor::parser::Element::Image(

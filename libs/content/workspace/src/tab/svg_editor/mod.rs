@@ -8,6 +8,8 @@ mod toolbar;
 mod util;
 mod zoom;
 
+use std::time::Instant;
+
 use crate::tab::svg_editor::toolbar::Toolbar;
 pub use eraser::Eraser;
 pub use history::DeleteElement;
@@ -35,6 +37,7 @@ pub struct SVGEditor {
     core: lb_rs::Core,
     open_file: Uuid,
     skip_frame: bool,
+    last_render: Instant,
 }
 
 impl SVGEditor {
@@ -60,10 +63,21 @@ impl SVGEditor {
             core,
             open_file,
             skip_frame: false,
+            last_render: Instant::now(),
         }
     }
 
     pub fn show(&mut self, ui: &mut egui::Ui) {
+        let frame_cost = Instant::now() - self.last_render;
+        self.last_render = Instant::now();
+        let mut top = self.inner_rect.right_top();
+        top.x -= 50.0;
+        ui.painter().debug_text(
+            top,
+            egui::Align2::LEFT_TOP,
+            egui::Color32::RED,
+            format!("{}ms", frame_cost.as_millis()),
+        );
         ui.vertical(|ui| {
             egui::Frame::default()
                 .fill(if ui.visuals().dark_mode {
@@ -167,6 +181,7 @@ impl SVGEditor {
                                 min: egui::Pos2 { x: 0.0, y: 0.0 },
                                 max: egui::Pos2 { x: 1.0, y: 1.0 },
                             };
+
                             let mut mesh = egui::Mesh::with_texture(texture.id());
                             mesh.add_rect_with_uv(
                                 rect,
