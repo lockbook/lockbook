@@ -7,9 +7,7 @@ use crate::{
     widgets::Button,
 };
 
-use super::{
-    history::History, parser, selection::Selection, zoom::zoom_to_percentage, Buffer, Eraser, Pen,
-};
+use super::{history::History, parser, selection::Selection, Buffer, Eraser, Pen};
 
 const COLOR_SWATCH_BTN_RADIUS: f32 = 9.0;
 const THICKNESS_BTN_X_MARGIN: f32 = 5.0;
@@ -77,7 +75,7 @@ impl Toolbar {
 
     pub fn show(
         &mut self, ui: &mut egui::Ui, buffer: &mut parser::Buffer, history: &mut History,
-        skip_frame: &mut bool,
+        _skip_frame: &mut bool,
     ) {
         if ui.input_mut(|r| {
             r.consume_key(egui::Modifiers::CTRL | egui::Modifiers::SHIFT, egui::Key::Z)
@@ -112,9 +110,9 @@ impl Toolbar {
                             if let Some(r) = self.right_tab_rect { r.width() } else { 0.0 };
                         ui.add_space(right_bar_width + 10.0);
 
-                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Min), |ui| {
-                            self.show_right_toolbar(ui, buffer, skip_frame);
-                        });
+                        // ui.with_layout(egui::Layout::right_to_left(egui::Align::Min), |ui| {
+                        //     self.show_right_toolbar(ui, buffer, skip_frame);
+                        // });
                     });
                 });
         });
@@ -318,46 +316,46 @@ impl Toolbar {
         chosen
     }
 
-    fn show_right_toolbar(
-        &mut self, ui: &mut egui::Ui, buffer: &mut Buffer, skip_frame: &mut bool,
-    ) {
-        let mut zoom_percentage = 100;
+    // fn show_right_toolbar(
+    //     &mut self, ui: &mut egui::Ui, buffer: &mut Buffer, skip_frame: &mut bool,
+    // ) {
+    //     let mut zoom_percentage = 100;
 
-        // Calculate the zoom percentage
-        zoom_percentage = ((buffer.master_transform.sx + buffer.master_transform.sy) / 2.0 * 100.0)
-            .round() as i32;
+    //     // Calculate the zoom percentage
+    //     zoom_percentage = ((buffer.master_transform.sx + buffer.master_transform.sy) / 2.0 * 100.0)
+    //         .round() as i32;
 
-        if Button::default().icon(&Icon::ZOOM_IN).show(ui).clicked() {
-            zoom_to_percentage(buffer, zoom_percentage + 10, ui.ctx().screen_rect());
-        };
+    //     if Button::default().icon(&Icon::ZOOM_IN).show(ui).clicked() {
+    //         zoom_to_percentage(buffer, zoom_percentage + 10, ui.ctx().screen_rect());
+    //     };
 
-        let mut selected = (zoom_percentage, false);
+    //     let mut selected = (zoom_percentage, false);
 
-        let res = egui::ComboBox::from_id_source("zoom_percentage_combobox")
-            .selected_text(format!("{:?}%", zoom_percentage))
-            .show_ui(ui, |ui| {
-                let btns = [50, 100, 200].iter().map(|&i| {
-                    ui.selectable_value(&mut selected, (i, true), format!("{}%", i))
-                        .rect
-                });
-                btns.reduce(|acc, e| e.union(acc))
-            })
-            .inner;
+    //     let res = egui::ComboBox::from_id_source("zoom_percentage_combobox")
+    //         .selected_text(format!("{:?}%", zoom_percentage))
+    //         .show_ui(ui, |ui| {
+    //             let btns = [50, 100, 200].iter().map(|&i| {
+    //                 ui.selectable_value(&mut selected, (i, true), format!("{}%", i))
+    //                     .rect
+    //             });
+    //             btns.reduce(|acc, e| e.union(acc))
+    //         })
+    //         .inner;
 
-        if let Some(Some(r)) = res {
-            if r.contains(ui.input(|r| r.pointer.hover_pos().unwrap_or_default())) {
-                *skip_frame = true;
-            }
-        }
-        if Button::default().icon(&Icon::ZOOM_OUT).show(ui).clicked() {
-            zoom_to_percentage(buffer, zoom_percentage - 10, ui.ctx().screen_rect());
-        }
+    //     if let Some(Some(r)) = res {
+    //         if r.contains(ui.input(|r| r.pointer.hover_pos().unwrap_or_default())) {
+    //             *skip_frame = true;
+    //         }
+    //     }
+    //     if Button::default().icon(&Icon::ZOOM_OUT).show(ui).clicked() {
+    //         zoom_to_percentage(buffer, zoom_percentage - 10, ui.ctx().screen_rect());
+    //     }
 
-        if selected.1 {
-            zoom_to_percentage(buffer, selected.0, ui.ctx().screen_rect());
-            selected.1 = false;
-        }
+    //     if selected.1 {
+    //         zoom_to_percentage(buffer, selected.0, ui.ctx().screen_rect());
+    //         selected.1 = false;
+    //     }
 
-        self.right_tab_rect = Some(ui.min_rect());
-    }
+    //     self.right_tab_rect = Some(ui.min_rect());
+    // }
 }

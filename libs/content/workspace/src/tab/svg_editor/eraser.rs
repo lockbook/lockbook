@@ -1,4 +1,3 @@
-use resvg::usvg::Visibility;
 use std::collections::HashSet;
 use std::sync::mpsc;
 

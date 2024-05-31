@@ -7,8 +7,8 @@ use lb_rs::Uuid;
 use resvg::{
     tiny_skia::Point,
     usvg::{
-        self, fontdb::Database, Fill, ImageHrefResolver, ImageKind, NonZeroRect, Options, Paint,
-        Text, Transform, Visibility,
+        self, fontdb::Database, Fill, ImageHrefResolver, ImageKind, Options, Paint, Text,
+        Transform, Visibility,
     },
 };
 
@@ -98,50 +98,56 @@ impl Buffer {
             .children()
             .iter()
             .enumerate()
-            .for_each(|(i, u_el)| match &u_el {
-                usvg::Node::Group(group) => {
-                    if group.id().eq(G_CONTAINER_ID) {
-                        buffer.master_transform = group.transform();
-                    }
-                }
-                usvg::Node::Image(img) => {
-                    buffer.elements.insert(
-                        i.to_string(),
-                        Element::Image(Image {
-                            data: img.kind().clone(),
-                            visibility: img.visibility(),
-                            transform: img.abs_transform(),
-                            view_box: img.view_box(),
-                            texture: None,
-                            opacity: 1.0,
-                            href: Uuid::from_str(img.id()).ok(),
-                        }),
-                    );
-                }
-                usvg::Node::Path(path) => {
-                    let mut stroke = Stroke::default();
-                    if let Some(s) = path.stroke() {
-                        if let Paint::Color(c) = s.paint() {
-                            stroke.color = egui::Color32::from_rgb(c.red, c.green, c.blue);
-                        }
-                        stroke.width = s.width().get();
-                        stroke.opacity = s.opacity().get();
-                    }
-                    buffer.elements.insert(
-                        i.to_string(),
-                        Element::Path(Path {
-                            data: usvg_d_to_subpath(path),
-                            visibility: path.visibility(),
-                            fill: path.fill().cloned(),
-                            stroke: Some(stroke),
-                            transform: path.abs_transform(),
-                            opacity: 1.0,
-                        }),
-                    );
-                }
-                usvg::Node::Text(_) => todo!(),
-            });
+            .for_each(|(i, u_el)| parse_child(u_el, &mut buffer, i));
         buffer
+    }
+}
+
+fn parse_child(u_el: &usvg::Node, mut buffer: &mut Buffer, i: usize) {
+    match &u_el {
+        usvg::Node::Group(group) => {
+            group
+                .children()
+                .iter()
+                .enumerate()
+                .for_each(|(i, u_el)| parse_child(u_el, &mut buffer, i));
+        }
+        usvg::Node::Image(img) => {
+            buffer.elements.insert(
+                i.to_string(),
+                Element::Image(Image {
+                    data: img.kind().clone(),
+                    visibility: img.visibility(),
+                    transform: img.abs_transform(),
+                    view_box: img.view_box(),
+                    texture: None,
+                    opacity: 1.0,
+                    href: Uuid::from_str(img.id()).ok(),
+                }),
+            );
+        }
+        usvg::Node::Path(path) => {
+            let mut stroke = Stroke::default();
+            if let Some(s) = path.stroke() {
+                if let Paint::Color(c) = s.paint() {
+                    stroke.color = egui::Color32::from_rgb(c.red, c.green, c.blue);
+                }
+                stroke.width = s.width().get();
+                stroke.opacity = s.opacity().get();
+            }
+            buffer.elements.insert(
+                i.to_string(),
+                Element::Path(Path {
+                    data: usvg_d_to_subpath(path),
+                    visibility: path.visibility(),
+                    fill: path.fill().cloned(),
+                    stroke: Some(stroke),
+                    transform: path.abs_transform(),
+                    opacity: 1.0,
+                }),
+            );
+        }
+        usvg::Node::Text(_) => todo!(),
     }
 }
 
@@ -227,7 +233,7 @@ impl ToString for Buffer {
                     let mut curv_attrs = " ".to_string(); // if it's empty then the curve might not be converted to string via bezier_rs
                     if let Some(stroke) = p.stroke {
                         curv_attrs = format!(
-                            r#"stroke-width="{}" stroke="{}""#,
+                            r#"stroke-width="{}" stroke="{}" fill="none""#,
                             stroke.width,
                             format!(
                                 "#{:02X}{:02X}{:02X}",
@@ -269,26 +275,6 @@ impl Image {
         }
     }
     pub fn apply_transform(&mut self, transform: Transform) {
-        // let mut left = self.view_box.rect.left();
-        // let mut right = self.view_box.rect.right();
-        // let mut top = self.view_box.rect.top();
-        // let mut bottom = self.view_box.rect.bottom();
-
-        // left += transform.tx;
-        // left *= transform.sx;
-
-        // right += transform.tx;
-        // right *= transform.sx;
-
-        // top += transform.ty;
-        // top *= transform.sy;
-
-        // bottom += transform.ty;
-        // bottom *= transform.sy;
-
-        // if let Some(new_rect) = NonZeroRect::from_ltrb(left, top, right, bottom) {
-        //     self.view_box.rect = new_rect;
-        // }
         if let Some(new_vb) = self.view_box.rect.transform(transform) {
             self.view_box.rect = new_vb;
         }
