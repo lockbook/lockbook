@@ -76,7 +76,7 @@ impl SVGEditor {
             top,
             egui::Align2::LEFT_TOP,
             egui::Color32::RED,
-            format!("{}ms", frame_cost.as_millis()),
+            format!("{}fps", 1000 / frame_cost.as_millis()),
         );
         ui.vertical(|ui| {
             egui::Frame::default()
