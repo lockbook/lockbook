@@ -12,8 +12,6 @@ use resvg::{
     },
 };
 
-use super::zoom::G_CONTAINER_ID;
-
 /// A shorthand for [ImageHrefResolver]'s string function.
 pub type ImageHrefStringResolverFn =
     Box<dyn Fn(&str, &Options, &Database) -> Option<ImageKind> + Send + Sync>;
@@ -243,8 +241,10 @@ impl ToString for Buffer {
                             ) // todo: see how to handle opacity
                         );
                     }
-                    p.data
-                        .to_svg(&mut root, curv_attrs, "".into(), "".into(), "".into())
+                    if p.data.len() > 1 {
+                        p.data
+                            .to_svg(&mut root, curv_attrs, "".into(), "".into(), "".into())
+                    }
                 }
                 Element::Image(img) => {
                     let image_element = format!(

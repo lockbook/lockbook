@@ -80,11 +80,9 @@ impl Selection {
             if let Some(new_selected_el) = maybe_selected_el {
                 if ui.input(|r| r.modifiers.shift) {
                     self.selected_elements.push(new_selected_el);
-                    // end_translation(buffer, &mut self.selected_elements, pos);
                 } else if !pos_over_selected_el {
                     self.selected_elements = vec![new_selected_el]
                 }
-                self.current_op = SelectionOperation::Translation;
             } else if !pos_over_selected_el {
                 self.selected_elements.clear();
                 self.laso_original_pos = Some(pos);

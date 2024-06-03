@@ -67,10 +67,9 @@ impl Pen {
 
         match event {
             PathEvent::Draw(pos, id) => {
-
-                // for some reason the integration will send two draw events on the same pos which results in a knot.
+                // for some reason in ipad there are  two draw events on the same pos which results in a knot.
                 if let Some(last_pos) = self.path_builder.original_points.last() {
-                    if last_pos.eq(&pos) {
+                    if last_pos.eq(&pos) && self.path_builder.path.len() > 1 {
                         return None;
                     }
                 }
@@ -115,14 +114,10 @@ impl Pen {
     }
 
     fn end_path(&mut self, buffer: &mut Buffer, history: &mut History, is_snapped: bool) {
-        if self.path_builder.path.len() < 2 {
-            buffer.elements.remove(&self.current_id.to_string());
-            self.path_builder.clear();
-            return;
+        if self.path_builder.path.len() > 2 {
+            self.path_builder
+                .finish(is_snapped, buffer, self.simplification_tolerance);
         }
-
-        self.path_builder
-            .finish(is_snapped, buffer, self.simplification_tolerance);
 
         history.save(super::Event::Insert(vec![InsertElement { id: self.current_id.to_string() }]));
 
@@ -131,6 +126,7 @@ impl Pen {
         {
             p.data = self.path_builder.path.clone();
         }
+
         self.path_builder.clear();
 
         self.current_id += 1;
@@ -337,9 +333,6 @@ impl CubicBezBuilder {
     /// Ramer–Douglas–Peucker algorithm courtesy of @author: Michael-F-Bryan
     /// https://github.com/Michael-F-Bryan/arcs/blob/master/core/src/algorithms/line_simplification.rs
     fn simplify(&mut self, tolerance: f32) -> Option<Vec<egui::Pos2>> {
-        if self.path.len() <= 2 {
-            return None;
-        }
         let mut simplified_points = Vec::new();
 
         // push the first point

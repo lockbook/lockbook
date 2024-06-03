@@ -199,25 +199,35 @@ impl SVGEditor {
                         continue;
                     }
 
-                    path.data.iter().for_each(|bezier| {
-                        let bezier = bezier.to_cubic();
+                    let stroke = path.stroke.unwrap_or_default();
+                    let alpha_stroke_color = stroke.color.gamma_multiply(path.opacity);
 
-                        let points: Vec<egui::Pos2> = bezier
-                            .get_points()
-                            .map(|dvec| egui::pos2(dvec.x as f32, dvec.y as f32))
-                            .collect();
-                        let stroke = path.stroke.unwrap_or_default();
-                        let epath = epaint::CubicBezierShape::from_points_stroke(
-                            points.try_into().unwrap(),
-                            false,
-                            egui::Color32::TRANSPARENT,
-                            egui::Stroke {
-                                width: stroke.width, // todo determine stroke thickness based on scale
-                                color: stroke.color.gamma_multiply(path.opacity),
-                            },
+                    if path.data.is_point() {
+                        let origin = &path.data.manipulator_groups()[0];
+                        let origin = egui::pos2(origin.anchor.x as f32, origin.anchor.y as f32);
+                        let circle = epaint::CircleShape::filled(
+                            origin,
+                            stroke.width / 2.0,
+                            alpha_stroke_color,
                         );
-                        painter.add(epath);
-                    });
+                        painter.add(circle);
+                    } else {
+                        path.data.iter().for_each(|bezier| {
+                            let bezier = bezier.to_cubic();
+
+                            let points: Vec<egui::Pos2> = bezier
+                                .get_points()
+                                .map(|dvec| egui::pos2(dvec.x as f32, dvec.y as f32))
+                                .collect();
+                            let epath = epaint::CubicBezierShape::from_points_stroke(
+                                points.try_into().unwrap(),
+                                false,
+                                egui::Color32::TRANSPARENT,
+                                egui::Stroke { width: stroke.width, color: alpha_stroke_color },
+                            );
+                            painter.add(epath);
+                        });
+                    };
                 }
 
                 parser::Element::Text(_) => todo!(),
