@@ -2,8 +2,6 @@ use resvg::usvg::Transform;
 
 use super::{parser, selection::u_transform_to_bezier};
 
-pub const G_CONTAINER_ID: &str = "lb:zoom_container";
-
 pub fn handle_zoom_input(ui: &mut egui::Ui, working_rect: egui::Rect, buffer: &mut parser::Buffer) {
     let zoom_delta = ui.input(|r| r.zoom_delta());
     let is_zooming = zoom_delta != 1.0;

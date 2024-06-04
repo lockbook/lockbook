@@ -839,7 +839,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d6228d36f205328c4633194f55592b4bee584f4e1651b41210485c07e89bc85b"
 dependencies = [
  "glam",
- "serde",
 ]
 
 [[package]]

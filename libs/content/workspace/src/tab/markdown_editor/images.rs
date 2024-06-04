@@ -2,8 +2,6 @@ use crate::tab::markdown_editor::ast::Ast;
 use crate::tab::markdown_editor::style::{InlineNode, MarkdownNode, Url};
 use egui::{ColorImage, TextureId, Ui};
 use lb_rs::Uuid;
-use resvg::tiny_skia::Pixmap;
-use resvg::usvg::{self, Options, Transform};
 use std::collections::HashMap;
 use std::ops::Deref;
 use std::sync::{Arc, Mutex};
