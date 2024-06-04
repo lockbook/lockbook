@@ -70,13 +70,20 @@ impl SVGEditor {
     pub fn show(&mut self, ui: &mut egui::Ui) {
         let frame_cost = Instant::now() - self.last_render;
         self.last_render = Instant::now();
+        let mut anchor_count = 0;
+        self.buffer.elements.iter().for_each(|(_, el)| {
+            if let parser::Element::Path(p) = el {
+                anchor_count += p.data.len()
+            }
+        });
+
         let mut top = self.inner_rect.right_top();
-        top.x -= 50.0;
+        top.x -= 150.0;
         ui.painter().debug_text(
             top,
             egui::Align2::LEFT_TOP,
             egui::Color32::RED,
-            format!("{}fps", 1000 / frame_cost.as_millis()),
+            format!("{} anchor | {}fps", anchor_count, 1000 / frame_cost.as_millis()),
         );
         ui.vertical(|ui| {
             egui::Frame::default()
