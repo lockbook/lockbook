@@ -24,3 +24,11 @@ pub fn get() -> Result<FfiCore, UnexpectedError> {
         .clone()
         .ok_or_else(|| unexpected_only!("Did not initialize core prior to using it!"))
 }
+
+pub fn free() -> Result<(), UnexpectedError> {
+    STATE
+        .write()
+        .map_err(|err| unexpected_only!("{:#?}", err))?
+        .take();
+    Ok(())
+}

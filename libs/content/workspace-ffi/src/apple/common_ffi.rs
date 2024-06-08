@@ -18,7 +18,7 @@ use workspace_rs::workspace::{Workspace, WsConfig};
 pub unsafe extern "C" fn init_ws(
     core: *mut c_void, metal_layer: *mut c_void, dark_mode: bool,
 ) -> *mut c_void {
-    let core = unsafe { &mut *(core as *mut Core) };
+    let core = Box::from_raw(unsafe { &mut *(core as *mut Core) });
     let writable_dir = core.get_config().unwrap().writeable_path;
 
     let backends = wgpu::util::backend_bits_from_env().unwrap_or_else(wgpu::Backends::all);
@@ -47,13 +47,13 @@ pub unsafe extern "C" fn init_ws(
     let context = Context::default();
     visuals::init(&context, dark_mode);
     let ws_cfg = WsConfig { data_dir: writable_dir, ..Default::default() };
-    let workspace = Workspace::new(ws_cfg, core, &context);
+    let workspace = Workspace::new(ws_cfg, &core, &context);
     let mut fonts = FontDefinitions::default();
     register_fonts(&mut fonts);
     context.set_fonts(fonts);
 
     let start_time = Instant::now();
-    let mut obj = WgpuWorkspace {
+    let obj = WgpuWorkspace {
         start_time,
         device,
         queue,
@@ -67,8 +67,6 @@ pub unsafe extern "C" fn init_ws(
         surface_width: 0,
         surface_height: 0,
     };
-
-    obj.frame();
 
     Box::into_raw(Box::new(obj)) as *mut c_void
 }

@@ -13,8 +13,7 @@ use time::Duration;
 
 use lb_rs::service::search_service::{SearchRequest, SearchResult, SearchType};
 use lb_rs::{
-    clock, Config, FileType, ImportStatus, ShareMode, SupportedImageFormats, SyncProgress,
-    UnexpectedError, Uuid,
+    clock, Config, Core, FileType, ImportStatus, ShareMode, SupportedImageFormats, SyncProgress, UnexpectedError, Uuid
 };
 
 use crate::{get_all_error_variants, json_interface::translate, static_state, RankingWeights};
@@ -80,6 +79,15 @@ pub unsafe extern "C" fn release_pointer(s: *mut c_char) {
 #[no_mangle]
 pub unsafe extern "C" fn init(writeable_path: *const c_char, logs: bool) -> *const c_char {
     c_string(translate(static_state::init(&config_from_ptr(writeable_path, logs, true))))
+}
+
+/// # Safety
+///
+/// Be sure to call `release_pointer` on the result of this function to free the data.
+#[no_mangle]
+pub unsafe extern "C" fn free_core(core_ptr: *mut c_void) {
+    static_state::free().unwrap();
+    drop(Box::from_raw(core_ptr as *mut Core));
 }
 
 /// # Safety
@@ -741,7 +749,7 @@ pub unsafe extern "C" fn time_ago(time_stamp: i64) -> *const c_char {
 /// Be sure to call `release_pointer` on the result of this function to free the data.
 #[no_mangle]
 pub unsafe extern "C" fn get_core_ptr() -> *mut c_void {
-    let obj = static_state::get().expect("Could not get core").core;
+    let obj: lb_rs::CoreLib<lb_rs::service::api_service::Network, lb_rs::OnDiskDocuments> = static_state::get().expect("Could not get core").core;
     Box::into_raw(Box::new(obj)) as *mut c_void
 }
 

@@ -37,26 +37,20 @@ public struct UIWS: UIViewRepresentable {
     @Environment(\.verticalSizeClass) var vertical
     
     var openDoc: UUID? = nil
-    
-    public static var mtkView: iOSMTKInputManager? = nil
-    
+        
     public init(_ workspaceState: WorkspaceState, _ coreHandle: UnsafeMutableRawPointer?) {
         self.workspaceState = workspaceState
         self.coreHandle = coreHandle
     }
 
     public func makeUIView(context: Context) -> iOSMTKInputManager {
-        if Self.mtkView == nil {
-            Self.mtkView = iOSMTKInputManager(workspaceState, coreHandle)
-        }
-        
-        return Self.mtkView!
+        return iOSMTKInputManager(workspaceState, coreHandle)
     }
     
     public func updateUIView(_ uiView: iOSMTKInputManager, context: Context) {
         let showTabs = horizontal == .regular && vertical == .regular
         if uiView.mtkView.showTabs != showTabs {
-            Self.mtkView?.mtkView.showHideTabs(show: showTabs)
+            uiView.mtkView.showHideTabs(show: showTabs)
         }
         
         if let id = workspaceState.openDocRequested {
@@ -104,11 +98,9 @@ public class iOSMTKInputManager: UIView, UIGestureRecognizerDelegate {
         
         super.init(frame: .infinite)
         
-        #if os(iOS)
         let pan = UIPanGestureRecognizer(target: self, action: #selector(self.onPan(_:)))
         pan.delegate = self
         addGestureRecognizer(pan)
-        #endif
                 
         mtkView.translatesAutoresizingMaskIntoConstraints = false
         addSubview(mtkView)
@@ -120,7 +112,6 @@ public class iOSMTKInputManager: UIView, UIGestureRecognizerDelegate {
         ])
     }
     
-    #if os(iOS)
     
     public func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
         return gestureRecognizer is UIPanGestureRecognizer && touch.location(in: self).x < 40 && !mtkView.showTabs
@@ -159,51 +150,52 @@ public class iOSMTKInputManager: UIView, UIGestureRecognizerDelegate {
             print("unrecognized drag state")
         }
     }
-    #endif
     
     required init?(coder aDecoder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
     
     public func updateCurrentTab(newCurrentTab: WorkspaceTab) {
-        mtkView.tabSwitchTask = {
-            self.currentWrapper?.removeFromSuperview()
-            
-            self.mtkView.onSelectionChanged = nil
-            self.mtkView.onTextChanged = nil
-            
-            self.currentTab = newCurrentTab
-            
-            switch self.currentTab {
-            case .Welcome, .Pdf, .Loading, .Image:
-                print("wrapper not needed")
-            case .Svg:
-                let drawingWrapper = iOSMTKDrawingWrapper(mtkView: self.mtkView)
-                self.currentWrapper = drawingWrapper
-                                
-                drawingWrapper.translatesAutoresizingMaskIntoConstraints = false
-                self.addSubview(drawingWrapper)
-                NSLayoutConstraint.activate([
-                    drawingWrapper.topAnchor.constraint(equalTo: self.topAnchor, constant: iOSMTK.TAB_BAR_HEIGHT + iOSMTKDrawingWrapper.TOOL_BAR_HEIGHT),
-                    drawingWrapper.leftAnchor.constraint(equalTo: self.leftAnchor),
-                    drawingWrapper.rightAnchor.constraint(equalTo: self.rightAnchor),
-                    drawingWrapper.bottomAnchor.constraint(equalTo: self.bottomAnchor)
-                ])
-            case .PlainText, .Markdown:
-                let textWrapper = iOSMTKTextInputWrapper(mtkView: self.mtkView)
-                self.currentWrapper = textWrapper
+        mtkView.tabSwitchTask = { [weak self] in
+            if let inputManager = self {
+                inputManager.currentWrapper?.removeFromSuperview()
                 
-                textWrapper.translatesAutoresizingMaskIntoConstraints = false
-                self.addSubview(textWrapper)
-                NSLayoutConstraint.activate([
-                    textWrapper.topAnchor.constraint(equalTo: self.topAnchor, constant: iOSMTK.TAB_BAR_HEIGHT),
-                    textWrapper.leftAnchor.constraint(equalTo: self.leftAnchor),
-                    textWrapper.rightAnchor.constraint(equalTo: self.rightAnchor),
-                    textWrapper.bottomAnchor.constraint(equalTo: self.bottomAnchor, constant: -iOSMTKTextInputWrapper.TOOL_BAR_HEIGHT)
-                ])
+                inputManager.mtkView.onSelectionChanged = nil
+                inputManager.mtkView.onTextChanged = nil
                 
-                if GCKeyboard.coalesced != nil {
-                    textWrapper.becomeFirstResponder()
+                inputManager.currentTab = newCurrentTab
+                
+                switch inputManager.currentTab {
+                case .Welcome, .Pdf, .Loading, .Image:
+                    print("wrapper not needed")
+                case .Svg:
+                    let drawingWrapper = iOSMTKDrawingWrapper(mtkView: inputManager.mtkView)
+                    inputManager.currentWrapper = drawingWrapper
+                                    
+                    drawingWrapper.translatesAutoresizingMaskIntoConstraints = false
+                    inputManager.addSubview(drawingWrapper)
+                    NSLayoutConstraint.activate([
+                        drawingWrapper.topAnchor.constraint(equalTo: inputManager.topAnchor, constant: iOSMTK.TAB_BAR_HEIGHT + iOSMTKDrawingWrapper.TOOL_BAR_HEIGHT),
+                        drawingWrapper.leftAnchor.constraint(equalTo: inputManager.leftAnchor),
+                        drawingWrapper.rightAnchor.constraint(equalTo: inputManager.rightAnchor),
+                        drawingWrapper.bottomAnchor.constraint(equalTo: inputManager.bottomAnchor)
+                    ])
+                case .PlainText, .Markdown:
+                    let textWrapper = iOSMTKTextInputWrapper(mtkView: inputManager.mtkView)
+                    inputManager.currentWrapper = textWrapper
+                    
+                    textWrapper.translatesAutoresizingMaskIntoConstraints = false
+                    inputManager.addSubview(textWrapper)
+                    NSLayoutConstraint.activate([
+                        textWrapper.topAnchor.constraint(equalTo: inputManager.topAnchor, constant: iOSMTK.TAB_BAR_HEIGHT),
+                        textWrapper.leftAnchor.constraint(equalTo: inputManager.leftAnchor),
+                        textWrapper.rightAnchor.constraint(equalTo: inputManager.rightAnchor),
+                        textWrapper.bottomAnchor.constraint(equalTo: inputManager.bottomAnchor, constant: -iOSMTKTextInputWrapper.TOOL_BAR_HEIGHT)
+                    ])
+//                    
+//                    if GCKeyboard.coalesced != nil {
+//                        textWrapper.becomeFirstResponder()
+//                    }
                 }
             }
         }
@@ -245,23 +237,24 @@ public struct NSWS: NSViewRepresentable {
     
     @ObservedObject public var workspaceState: WorkspaceState
     let coreHandle: UnsafeMutableRawPointer?
-    let mtkView: MacMTK = MacMTK()
     
     public init(_ workspaceState: WorkspaceState, _ coreHandle: UnsafeMutableRawPointer?) {
         self.workspaceState = workspaceState
-        mtkView.workspaceState = workspaceState
         self.coreHandle = coreHandle
-        
     }
     
-    public func makeNSView(context: NSViewRepresentableContext<NSWS>) -> MTKView {
+    public func makeNSView(context: NSViewRepresentableContext<NSWS>) -> MacMTK {
+        print("Making NSWS")
+        let mtkView = MacMTK()
+        mtkView.workspaceState = workspaceState
         mtkView.setInitialContent(coreHandle)
+        
         return mtkView
     }
     
-    public func updateNSView(_ nsView: MTKView, context: NSViewRepresentableContext<NSWS>) {
+    public func updateNSView(_ nsView: MacMTK, context: NSViewRepresentableContext<NSWS>) {
         if let id = workspaceState.openDocRequested {
-            mtkView.openFile(id: id)
+            nsView.openFile(id: id)
             workspaceState.openDocRequested = nil
         }
         
@@ -272,11 +265,11 @@ public struct NSWS: NSViewRepresentable {
         
         if workspaceState.syncRequested {
             workspaceState.syncRequested = false
-            mtkView.requestSync()
+            nsView.requestSync()
         }
         
         if workspaceState.fileOpCompleted != nil {
-            mtkView.fileOpCompleted(fileOp: workspaceState.fileOpCompleted!)
+            nsView.fileOpCompleted(fileOp: workspaceState.fileOpCompleted!)
             workspaceState.fileOpCompleted = nil
         }
     }

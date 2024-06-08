@@ -13,16 +13,16 @@ struct FileListView: View {
         
     var body: some View {
         VStack {
-            SearchWrapperView(
-                searchInput: $searchInput,
-                mainView: mainView,
-                isiOS: false)
-            .searchable(text: $searchInput, prompt: "Search")
+//            SearchWrapperView(
+//                searchInput: $searchInput,
+//                mainView: mainView,
+//                isiOS: false)
+//            .searchable(text: $searchInput, prompt: "Search")
                 
-            BottomBar()
+//            BottomBar()
         }
             
-        DetailView()
+//        DetailView()
     }
     
     var mainView: some View {
@@ -79,9 +79,9 @@ struct DetailView: View {
         
     var body: some View {
         ZStack {
-            WorkspaceView(DI.workspace, get_core_ptr())
-                .equatable()
-                .opacity(workspace.pendingSharesOpen ? 0.0 : 1.0)
+//            WorkspaceView(DI.workspace, DI.coreService.corePtr)
+//                .equatable()
+//                .opacity(workspace.pendingSharesOpen ? 0.0 : 1.0)
             
             if workspace.pendingSharesOpen {
                 PendingSharesView()

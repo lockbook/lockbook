@@ -9,7 +9,6 @@ use egui_editor::input::mutation;
 use egui_editor::offset_types::{DocCharOffset, RangeExt};
 use std::cmp;
 use std::ffi::{c_char, c_void, CStr, CString};
-use std::mem::ManuallyDrop;
 use std::ptr::null;
 use workspace_rs::tab::svg_editor::Tool;
 use workspace_rs::tab::EventManager as _;
@@ -682,7 +681,7 @@ pub unsafe extern "C" fn selection_rects(
     let range: (DocCharOffset, DocCharOffset) = range.into();
     let mut cont_start = range.start();
 
-    let mut selection_rects = ManuallyDrop::new(vec![]);
+    let mut selection_rects = vec![];
 
     while cont_start < range.end() {
         let mut new_end: Cursor = cont_start.into();
@@ -707,7 +706,14 @@ pub unsafe extern "C" fn selection_rects(
         cont_start = new_end.selection.end();
     }
 
-    UITextSelectionRects { size: selection_rects.len() as i32, rects: selection_rects.as_ptr() }
+    UITextSelectionRects { size: selection_rects.len() as i32, rects: Box::into_raw(selection_rects.into_boxed_slice()) as *const CRect }
+}
+
+/// # Safety
+/// obj must be a valid pointer to WgpuEditor
+#[no_mangle]
+pub unsafe extern "C" fn free_selection_rects(rects: UITextSelectionRects) {
+    let _ = Box::from_raw(std::slice::from_raw_parts_mut(rects.rects as *mut CRect, rects.size as usize));
 }
 
 /// # Safety

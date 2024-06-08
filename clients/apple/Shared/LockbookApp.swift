@@ -15,22 +15,38 @@ import AppKit
     #else
     @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     #endif
-    
-    @StateObject var search = DI.search
-    @State private var navPath = NavigationPath()
         
     var body: some Scene {
         WindowGroup {
             AppView()
                 .realDI()
                 .buttonStyle(PlainButtonStyle())
-//                .ignoresSafeArea()
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .registerBackgroundTasks(scenePhase: scenePhase, appDelegate: appDelegate)
                 .onOpenURL() { url in
-                    onUrlOpen(url: url)
+                    guard let uuidString = url.host, let id = UUID(uuidString: uuidString), url.scheme == "lb" else {
+                        DI.errors.errorWithTitle("Malformed link", "Cannot open file")
+                        return
+                    }
+                    
+                    DispatchQueue.global(qos: .userInitiated).async {
+                        while !DI.files.hasRootLoaded {
+                            if DI.accounts.calculated && DI.accounts.account == nil {
+                                return
+                            }
+                        }
+                        
+                        Thread.sleep(until: .now + 0.1)
+                        
+                        if DI.files.idsAndFiles[id] == nil {
+                            DI.errors.errorWithTitle("File not found", "That file does not exist in your lockbook")
+                        }
+                        
+                        DispatchQueue.main.async {
+                            DI.workspace.requestOpenDoc(id)
+                        }
+                    }
                 }
-                .handlesExternalEvents(preferring: ["lb"], allowing: ["lb"])
         }.commands {
             CommandGroup(replacing: .saveItem) {}
             
@@ -82,36 +98,6 @@ import AppKit
         }
         #endif
     }
-
-    func onUrlOpen(url: URL) {
-        if url.scheme == "lb" {
-            if let uuidString = url.host,
-               let id = UUID(uuidString: uuidString) {
-                
-                DispatchQueue.global(qos: .userInitiated).async {
-                    while !DI.files.hasRootLoaded {
-                        if DI.accounts.calculated && DI.accounts.account == nil {
-                            return
-                        }
-                    }
-                    
-                    Thread.sleep(until: .now + 0.1)
-                    
-                    if DI.files.idsAndFiles[id] != nil {
-                        DispatchQueue.main.async {
-                            DI.workspace.requestOpenDoc(id)
-                        }
-                    } else {
-                        DI.errors.errorWithTitle("File not found", "That file does not exist in your lockbook")
-                    }
-                }
-            } else {
-                DI.errors.errorWithTitle("Malformed link", "Cannot open file")
-            }
-        } else {
-            DI.errors.errorWithTitle("Error", "An unexpected error has occurred")
-        }
-    }
 }
 
 extension View {
@@ -131,7 +117,9 @@ extension View {
 
 extension View {
     func registerBackgroundTasks(scenePhase: ScenePhase, appDelegate: AppDelegate) -> some View {
+
         #if os(iOS)
+        // TODO: IOS AND IPAD: DO WEAK REFERENCE OF SCENE PHASE AND APP DELEGATE HERE (OR JUST APP DELEGATE I THINK)
         self
             .onChange(of: scenePhase, perform: { newValue in
                 switch newValue {
@@ -149,15 +137,15 @@ extension View {
         self
             .onReceive(
                 NotificationCenter.default.publisher(for: NSApplication.willResignActiveNotification),
-                perform: { _ in
+                perform: { [weak appDelegate] _ in
                     if !DI.onboarding.initialSyncing {
-                        appDelegate.scheduleBackgroundTask(initialRun: true)
+                        appDelegate?.scheduleBackgroundTask(initialRun: true)
                     }
                 })
             .onReceive(
                 NotificationCenter.default.publisher(for: NSApplication.willBecomeActiveNotification),
-                perform: { _ in
-                    appDelegate.endBackgroundTasks()
+                perform: { [weak appDelegate] _ in
+                    appDelegate?.endBackgroundTasks()
                 })
         #endif
     }
@@ -171,19 +159,23 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     let backgroundSyncContSecs = 60 * 60
     
     var currentSyncTask: DispatchWorkItem? = nil
-    var logoutConfirmationWindow: NSWindow?
+//    var logoutConfirmationWindow: NSWindow?
     
     
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         return true
     }
+    
+    func applicationWillTerminate(_ notification: Notification) {
+        DI.coreService.deinitCore()
+    }
         
     func scheduleBackgroundTask(initialRun: Bool) {
-        let newSyncTask = DispatchWorkItem {
+        let newSyncTask = DispatchWorkItem { [weak self] in
             DI.sync.backgroundSync(onSuccess: {
-                self.scheduleBackgroundTask(initialRun: false)
+                self?.scheduleBackgroundTask(initialRun: false)
             }, onFailure: {
-                self.scheduleBackgroundTask(initialRun: false)
+                self?.scheduleBackgroundTask(initialRun: false)
             })
         }
         
@@ -194,6 +186,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     
     func endBackgroundTasks() {
         currentSyncTask?.cancel()
+        currentSyncTask = nil
     }
 }
 
@@ -212,6 +205,7 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         return true
     }
     
+    // TODO: DO WEAK SELF EVEYWHERE HERE
     func registerBackgroundTask() {
         BGTaskScheduler.shared.register(forTaskWithIdentifier: backgroundSyncIdentifier, using: nil) { task in
             task.expirationHandler = {
@@ -219,6 +213,7 @@ class AppDelegate: NSObject, UIApplicationDelegate {
             }
             
             DispatchQueue.main.async {
+                // DO WEAK SELF
                 DI.sync.backgroundSync(onSuccess: {
                     task.setTaskCompleted(success: true)
 

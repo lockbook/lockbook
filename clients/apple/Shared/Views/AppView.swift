@@ -18,7 +18,7 @@ struct AppView: View {
                 case .some(let root):
                     BookView(currentFolder: root, account: account)
                 case .none:
-                    if files.hasRootLoaded {
+                    if files.hasRootLoaded { // memory leak reported here
                         OnboardingView()
                             .onAppear {
                                 DI.onboarding.initialSyncing = true
@@ -30,33 +30,33 @@ struct AppView: View {
                 }
             }
         }
-            .alert(isPresented: Binding(get: { errors.globalError != nil }, set: { _ in errors.globalError = nil })) {
-                // TODO: Improve the UX of this
-                switch errors.globalError {
-                case let update as FfiError<CreateAccountError> where update == .init(.ClientUpdateRequired):
-                    return updateAlert
-                case let update as FfiError<ImportError> where update == .init(.ClientUpdateRequired):
-                    return updateAlert
-                case let update as FfiError<CalculateWorkError> where update == .init(.ClientUpdateRequired):
-                    return updateAlert
-                case let update as FfiError<SyncAllError> where update == .init(.ClientUpdateRequired):
-                    return updateAlert
-                case let update as FfiError<GetUsageError> where update == .init(.ClientUpdateRequired):
-                    return updateAlert
-                case let error as ErrorWithTitle:
-                    return Alert(
-                        title: Text(error.title),
-                        message: Text(error.message),
-                        dismissButton: .default(Text("Dismiss"))
-                    )
-                default:
-                    return Alert(
-                        title: Text("Core Error!"),
-                        message: errors.globalError.map({ Text($0.message) }),
-                        dismissButton: .default(Text("Dismiss"))
-                    )
-                }
-            }
+//            .alert(isPresented: Binding(get: { [weak errors] in errors?.globalError != nil }, set: { [weak errors] _ in errors?.globalError = nil })) { [weak errors] in
+//                // TODO: Improve the UX of this
+//                switch errors?.globalError {
+//                case let update as FfiError<CreateAccountError> where update == .init(.ClientUpdateRequired):
+//                    return updateAlert
+//                case let update as FfiError<ImportError> where update == .init(.ClientUpdateRequired):
+//                    return updateAlert
+//                case let update as FfiError<CalculateWorkError> where update == .init(.ClientUpdateRequired):
+//                    return updateAlert
+//                case let update as FfiError<SyncAllError> where update == .init(.ClientUpdateRequired):
+//                    return updateAlert
+//                case let update as FfiError<GetUsageError> where update == .init(.ClientUpdateRequired):
+//                    return updateAlert
+//                case let error as ErrorWithTitle:
+//                    return Alert(
+//                        title: Text(error.title),
+//                        message: Text(error.message),
+//                        dismissButton: .default(Text("Dismiss"))
+//                    )
+//                default:
+//                    return Alert(
+//                        title: Text("Core Error!"),
+//                        message: errors?.globalError.map({ Text($0.message) }),
+//                        dismissButton: .default(Text("Dismiss"))
+//                    )
+//                }
+//            }
     }
     
     let updateAlert: Alert = Alert(
