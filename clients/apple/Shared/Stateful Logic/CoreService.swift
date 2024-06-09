@@ -13,6 +13,6 @@ class CoreService: ObservableObject {
     }
     
     func deinitCore() {
-        free_core(self.corePtr)
+//        free_core(self.corePtr)
     }
 }

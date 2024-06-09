@@ -244,7 +244,6 @@ public struct NSWS: NSViewRepresentable {
     }
     
     public func makeNSView(context: NSViewRepresentableContext<NSWS>) -> MacMTK {
-        print("Making NSWS")
         let mtkView = MacMTK()
         mtkView.workspaceState = workspaceState
         mtkView.setInitialContent(coreHandle)

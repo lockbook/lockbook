@@ -22,31 +22,7 @@ import AppKit
                 .realDI()
                 .buttonStyle(PlainButtonStyle())
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .registerBackgroundTasks(scenePhase: scenePhase, appDelegate: appDelegate)
-                .onOpenURL() { url in
-                    guard let uuidString = url.host, let id = UUID(uuidString: uuidString), url.scheme == "lb" else {
-                        DI.errors.errorWithTitle("Malformed link", "Cannot open file")
-                        return
-                    }
-                    
-                    DispatchQueue.global(qos: .userInitiated).async {
-                        while !DI.files.hasRootLoaded {
-                            if DI.accounts.calculated && DI.accounts.account == nil {
-                                return
-                            }
-                        }
-                        
-                        Thread.sleep(until: .now + 0.1)
-                        
-                        if DI.files.idsAndFiles[id] == nil {
-                            DI.errors.errorWithTitle("File not found", "That file does not exist in your lockbook")
-                        }
-                        
-                        DispatchQueue.main.async {
-                            DI.workspace.requestOpenDoc(id)
-                        }
-                    }
-                }
+                .registeriOSBackgroundTasks(scenePhase: scenePhase, appDelegate: appDelegate)
         }.commands {
             CommandGroup(replacing: .saveItem) {}
             
@@ -116,7 +92,7 @@ extension View {
 }
 
 extension View {
-    func registerBackgroundTasks(scenePhase: ScenePhase, appDelegate: AppDelegate) -> some View {
+    func registeriOSBackgroundTasks(scenePhase: ScenePhase, appDelegate: AppDelegate) -> some View {
 
         #if os(iOS)
         // TODO: IOS AND IPAD: DO WEAK REFERENCE OF SCENE PHASE AND APP DELEGATE HERE (OR JUST APP DELEGATE I THINK)
@@ -135,18 +111,6 @@ extension View {
             })
         #else
         self
-            .onReceive(
-                NotificationCenter.default.publisher(for: NSApplication.willResignActiveNotification),
-                perform: { [weak appDelegate] _ in
-                    if !DI.onboarding.initialSyncing {
-                        appDelegate?.scheduleBackgroundTask(initialRun: true)
-                    }
-                })
-            .onReceive(
-                NotificationCenter.default.publisher(for: NSApplication.willBecomeActiveNotification),
-                perform: { [weak appDelegate] _ in
-                    appDelegate?.endBackgroundTasks()
-                })
         #endif
     }
     
@@ -155,38 +119,12 @@ extension View {
 #if os(macOS)
 
 class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
-    let backgroundSyncStartSecs = 60 * 5
-    let backgroundSyncContSecs = 60 * 60
-    
-    var currentSyncTask: DispatchWorkItem? = nil
-//    var logoutConfirmationWindow: NSWindow?
-    
-    
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         return true
     }
     
     func applicationWillTerminate(_ notification: Notification) {
         DI.coreService.deinitCore()
-    }
-        
-    func scheduleBackgroundTask(initialRun: Bool) {
-        let newSyncTask = DispatchWorkItem { [weak self] in
-            DI.sync.backgroundSync(onSuccess: {
-                self?.scheduleBackgroundTask(initialRun: false)
-            }, onFailure: {
-                self?.scheduleBackgroundTask(initialRun: false)
-            })
-        }
-        
-        DispatchQueue.main.asyncAfter(deadline: .now() + .seconds((initialRun ? backgroundSyncStartSecs : backgroundSyncContSecs)), execute: newSyncTask)
-        
-        currentSyncTask = newSyncTask
-    }
-    
-    func endBackgroundTasks() {
-        currentSyncTask?.cancel()
-        currentSyncTask = nil
     }
 }
 

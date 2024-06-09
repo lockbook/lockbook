@@ -1,6 +1,11 @@
 import Foundation
 import SwiftLockbookCore
 
+#if os(macOS)
+import AppKit
+import Combine
+#endif
+
 class AccountService: ObservableObject {
     let core: LockbookApi
     
@@ -25,7 +30,60 @@ class AccountService: ObservableObject {
         }
         
         calculated = true
+        #if os(macOS)
+        registerBackgroundTasks()
+        #endif
     }
+    
+    #if os(macOS)
+
+    let backgroundSyncStartSecs = 60 * 5
+    let backgroundSyncContSecs = 60 * 60
+
+    private var cancellables: Set<AnyCancellable> = []
+    var currentSyncTask: DispatchWorkItem? = nil
+
+    func registerBackgroundTasks() {
+        let willResignActivePublisher = NotificationCenter.default.publisher(for: NSApplication.willResignActiveNotification)
+        let willBecomeActivePublisher = NotificationCenter.default.publisher(for: NSApplication.willBecomeActiveNotification)
+
+        willResignActivePublisher
+            .sink { [weak self] _ in
+                if !DI.onboarding.initialSyncing {
+                    self?.scheduleBackgroundTask(initialRun: true)
+                }
+            }
+            .store(in: &cancellables)
+
+        willBecomeActivePublisher
+            .sink { [weak self] _ in
+                self?.endBackgroundTasks()
+            }
+            .store(in: &cancellables)
+
+    }
+
+    func scheduleBackgroundTask(initialRun: Bool) {
+        let newSyncTask = DispatchWorkItem { [weak self] in
+            DI.sync.backgroundSync(onSuccess: {
+                self?.scheduleBackgroundTask(initialRun: false)
+            }, onFailure: {
+                self?.scheduleBackgroundTask(initialRun: false)
+            })
+        }
+        
+        DispatchQueue.main.asyncAfter(deadline: .now() + .seconds((initialRun ? backgroundSyncStartSecs : backgroundSyncContSecs)), execute: newSyncTask)
+        
+        currentSyncTask = newSyncTask
+    }
+
+    func endBackgroundTasks() {
+        currentSyncTask?.cancel()
+        currentSyncTask = nil
+    }
+
+    #endif
+
     
     func getAccount() {
         if account == nil {

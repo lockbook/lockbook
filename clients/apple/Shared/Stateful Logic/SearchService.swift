@@ -1,6 +1,5 @@
 import Foundation
 import SwiftLockbookCore
-import CLockbookCore
 
 class SearchService: ObservableObject {
     let core: LockbookApi
