@@ -705,18 +705,19 @@ pub unsafe extern "C" fn search(
 /// Be sure to call `release_pointer` on the result of this function to free the data.
 #[no_mangle]
 pub unsafe extern "C" fn end_search(is_path_content_search: bool) -> *const c_char {
-    let result = send_search_request(SearchRequest::EndSearch, is_path_content_search);
-
     match if is_path_content_search {
         MAYBE_PATH_AND_CONTENT_SEARCH_TX.lock()
     } else {
         MAYBE_PATH_SEARCH_TX.lock()
     } {
-        Ok(mut lock) => *lock = None,
-        Err(_) => return c_string(translate(Err::<(), _>("Cannot get search lock."))),
-    }
+        Ok(mut lock) => {
+            let result = send_search_request(SearchRequest::EndSearch, is_path_content_search);
+            *lock = None;
 
-    result
+            result
+        },
+        Err(_) => c_string(translate(Err::<(), _>("Cannot get search lock."))),
+    }
 }
 
 /// # Safety

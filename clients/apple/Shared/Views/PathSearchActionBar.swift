@@ -99,7 +99,7 @@ struct PathSearchActionBar: View {
                     )
                     .frame(width: 500)
                     .onChange(of: text, perform: { newValue in
-                        search.search(query: newValue, isPathAndContentSearch: false)
+//                        DI.search.search(query: newValue, isPathAndContentSearch: false)
                     })
                 }
                 .padding(.top, geometry.size.height / 4.5)
