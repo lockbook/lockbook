@@ -1,6 +1,6 @@
 use crate::model::errors::core_err_unexpected;
 use crate::{Config, LbResult};
-use std::env;
+use std::{backtrace, env, panic};
 use tracing::metadata::LevelFilter;
 use tracing_subscriber::fmt::format::FmtSpan;
 use tracing_subscriber::{filter, fmt, prelude::*, Layer};
@@ -36,6 +36,13 @@ pub fn init(config: &Config) -> LbResult<()> {
                 ));
 
         tracing::subscriber::set_global_default(subscriber).map_err(core_err_unexpected)?;
+        panic_capture();
     }
     Ok(())
+}
+
+fn panic_capture() {
+    panic::set_hook(Box::new(|panic_info| {
+        tracing::error!("panic detected: {panic_info} {}", backtrace::Backtrace::force_capture());
+    }));
 }
