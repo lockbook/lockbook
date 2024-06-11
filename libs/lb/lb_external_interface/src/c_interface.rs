@@ -13,7 +13,8 @@ use time::Duration;
 
 use lb_rs::service::search_service::{SearchRequest, SearchResult, SearchType};
 use lb_rs::{
-    clock, Config, Core, FileType, ImportStatus, ShareMode, SupportedImageFormats, SyncProgress, UnexpectedError, Uuid
+    clock, Config, FileType, ImportStatus, ShareMode, SupportedImageFormats, SyncProgress,
+    UnexpectedError, Uuid,
 };
 
 use crate::{get_all_error_variants, json_interface::translate, static_state, RankingWeights};
@@ -706,7 +707,7 @@ pub unsafe extern "C" fn end_search(is_path_content_search: bool) -> *const c_ch
             *lock = None;
 
             result
-        },
+        }
         Err(_) => c_string(translate(Err::<(), _>("Cannot get search lock."))),
     }
 }

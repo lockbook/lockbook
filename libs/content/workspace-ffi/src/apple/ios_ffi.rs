@@ -706,14 +706,20 @@ pub unsafe extern "C" fn selection_rects(
         cont_start = new_end.selection.end();
     }
 
-    UITextSelectionRects { size: selection_rects.len() as i32, rects: Box::into_raw(selection_rects.into_boxed_slice()) as *const CRect }
+    UITextSelectionRects {
+        size: selection_rects.len() as i32,
+        rects: Box::into_raw(selection_rects.into_boxed_slice()) as *const CRect,
+    }
 }
 
 /// # Safety
 /// obj must be a valid pointer to WgpuEditor
 #[no_mangle]
 pub unsafe extern "C" fn free_selection_rects(rects: UITextSelectionRects) {
-    let _ = Box::from_raw(std::slice::from_raw_parts_mut(rects.rects as *mut CRect, rects.size as usize));
+    let _ = Box::from_raw(std::slice::from_raw_parts_mut(
+        rects.rects as *mut CRect,
+        rects.size as usize,
+    ));
 }
 
 /// # Safety

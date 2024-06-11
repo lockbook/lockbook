@@ -28,8 +28,8 @@ struct BookView: View {
             .sheet(isPresented: $sheets.sharingFile, content: ShareFileSheet.init)
             .sheet(isPresented: $sheets.creatingFolder, content: createFolderSheet)
             .sheet(isPresented: $sheets.renamingFile, content: renameFileSheet)
-            .toast(isPresenting: Binding(get: { [weak files] in files?.successfulAction != nil }, set: { [weak files] _ in files?.successfulAction = nil }), duration: 2, tapToDismiss: true) { [weak files] in
-                if let action = files?.successfulAction {
+            .toast(isPresenting: Binding(get: { files.successfulAction != nil }, set: { _ in files.successfulAction = nil }), duration: 2, tapToDismiss: true) {
+                if let action = files.successfulAction {
                     switch action {
                     case .delete:
                         return AlertToast(type: .regular, title: "File deleted")
