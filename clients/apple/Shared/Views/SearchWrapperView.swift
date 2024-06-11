@@ -12,7 +12,7 @@ struct SearchWrapperView<Content: View>: View {
     @Environment(\.dismissSearch) private var dismissSearch
 
     @Binding var searchInput: String
-    
+        
     var mainView: Content
     var isiOS: Bool
     

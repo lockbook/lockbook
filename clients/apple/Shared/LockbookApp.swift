@@ -154,7 +154,6 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         return true
     }
     
-    // TODO: DO WEAK SELF EVEYWHERE HERE
     func registerBackgroundTask() {
         BGTaskScheduler.shared.register(forTaskWithIdentifier: backgroundSyncIdentifier, using: nil) { task in
             task.expirationHandler = {

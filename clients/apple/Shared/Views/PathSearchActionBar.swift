@@ -98,9 +98,6 @@ struct PathSearchActionBar: View {
                             .shadow(radius: 10)
                     )
                     .frame(width: 500)
-                    .onChange(of: text, perform: { newValue in
-//                        DI.search.search(query: newValue, isPathAndContentSearch: false)
-                    })
                 }
                 .padding(.top, geometry.size.height / 4.5)
                 .padding(.leading, (geometry.size.width / 2) - 250)
@@ -340,6 +337,7 @@ public struct PathSearchTextFieldWrapper: NSViewRepresentable {
             if let textField = obj.object as? NSTextField {
                 DispatchQueue.main.async {
                     if DI.search.isPathSearching {
+                        print("sending path search 2")
                         DI.search.search(query: textField.stringValue, isPathAndContentSearch: false)
                     }
                 }

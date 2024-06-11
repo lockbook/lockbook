@@ -1,4 +1,5 @@
 import Foundation
+import CLockbookCore
 
 public func intEpochToString(epoch: UInt64) -> String {
     let date = Date(timeIntervalSince1970: TimeInterval(epoch/1000))
@@ -41,16 +42,9 @@ func deserializeResult<T: Decodable, E: UiError>(jsonResultStr: String) -> FfiRe
 
 func fromPrimitiveResult<T: Decodable, E: UiError>(result: UnsafePointer<Int8>) -> FfiResult<T, E> {
     let resultString = String(cString: result)
-    
-    // Assuming the C code allocated the memory with malloc
-    let resultPtr = UnsafeMutableRawPointer(mutating: result)
-    free(resultPtr)  // Deallocate memory using free
-    
-    guard let jsonData = resultString.data(using: .utf8) else {
-        return .failure(.init(unexpected: "Failed to convert C string to UTF-8 data"))
-    }
-    
-    return try! deserialize(data: jsonData).get()
+    release_pointer(UnsafeMutablePointer(mutating: result))
+
+    return deserializeResult(jsonResultStr: resultString)
 }
 
 public struct Empty: Decodable {
