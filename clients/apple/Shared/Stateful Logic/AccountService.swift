@@ -65,6 +65,7 @@ class AccountService: ObservableObject {
 
     func scheduleBackgroundTask(initialRun: Bool) {
         let newSyncTask = DispatchWorkItem { [weak self] in
+            
             DI.sync.backgroundSync(onSuccess: {
                 self?.scheduleBackgroundTask(initialRun: false)
             }, onFailure: {

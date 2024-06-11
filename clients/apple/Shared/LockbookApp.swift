@@ -5,6 +5,7 @@ import BackgroundTasks
 
 #if os(macOS)
 import AppKit 
+
 #endif
 
 @main struct LockbookApp: App {
@@ -15,15 +16,31 @@ import AppKit
     #else
     @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     #endif
-        
-    var body: some Scene {
+    
+    var app: some View {
+        AppView()
+            .realDI()
+            .buttonStyle(PlainButtonStyle())
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .registeriOSBackgroundTasks(scenePhase: scenePhase, appDelegate: appDelegate)
+    }
+    
+    
+    var window: some Scene {
+        #if os(macOS)
+        Window("Lockbook", id: "main") {
+            app
+        }
+        #else
         WindowGroup {
-            AppView()
-                .realDI()
-                .buttonStyle(PlainButtonStyle())
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .registeriOSBackgroundTasks(scenePhase: scenePhase, appDelegate: appDelegate)
-        }.commands {
+            app
+        }
+        #endif
+    }
+    
+    var body: some Scene {
+        window
+        .commands {
             CommandGroup(replacing: .saveItem) {}
             
             CommandGroup(replacing: CommandGroupPlacement.newItem) {

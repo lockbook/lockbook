@@ -28,8 +28,8 @@ struct ShareFileSheet: View {
                         Image(systemName: "xmark.circle.fill")
                             .foregroundColor(.gray)
                             .imageScale(.large)
-                            .frame(width: 50, height: 50, alignment: .center)
                     }
+                    .buttonStyle(.plain)
                 }
                 
                 #if os(iOS)

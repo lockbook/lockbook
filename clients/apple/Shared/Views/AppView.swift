@@ -41,6 +41,7 @@ struct AppView: View {
                                 }
                             }
                         }
+                        .handlesExternalEvents(preferring: ["lb"], allowing: ["lb"])
 
                 case .none:
                     if files.hasRootLoaded { // memory leak reported here
