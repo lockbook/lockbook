@@ -326,7 +326,7 @@ impl RenderStyle {
             RenderStyle::Markdown(MarkdownNode::Inline(InlineNode::Code)) => {
                 text_format.font_id.family = FontFamily::Monospace;
                 text_format.color = vis.code();
-                text_format.font_id.size = vis.monospace_font_size();
+                text_format.font_id.size *= 14.0 / 16.0;
             }
             RenderStyle::Markdown(MarkdownNode::Inline(InlineNode::Bold)) => {
                 text_format.color = vis.bold();
@@ -358,7 +358,7 @@ impl RenderStyle {
             }
             RenderStyle::Markdown(MarkdownNode::Block(BlockNode::Code)) => {
                 text_format.font_id.family = FontFamily::Monospace;
-                text_format.font_id.size = vis.monospace_font_size();
+                text_format.font_id.size *= 14.0 / 16.0;
                 text_format.color = vis.code();
             }
             RenderStyle::Markdown(MarkdownNode::Block(BlockNode::ListItem(..))) => {}

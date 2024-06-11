@@ -203,10 +203,6 @@ impl Appearance {
         self.base_font_size.unwrap_or(16.0)
     }
 
-    pub fn monospace_font_size(&self) -> f32 {
-        self.font_size() * 14.0 / 16.0
-    }
-
     pub fn heading_size(&self, level: &HeadingLevel) -> f32 {
         (match level {
             HeadingLevel::H1 => 32.0,
