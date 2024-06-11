@@ -93,9 +93,7 @@ extension View {
 
 extension View {
     func registeriOSBackgroundTasks(scenePhase: ScenePhase, appDelegate: AppDelegate) -> some View {
-
         #if os(iOS)
-        // TODO: IOS AND IPAD: DO WEAK REFERENCE OF SCENE PHASE AND APP DELEGATE HERE (OR JUST APP DELEGATE I THINK)
         self
             .onChange(of: scenePhase, perform: { newValue in
                 switch newValue {
@@ -122,10 +120,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         return true
     }
-    
-    func applicationWillTerminate(_ notification: Notification) {
-        DI.coreService.deinitCore()
-    }
 }
 
 #else
@@ -150,19 +144,18 @@ class AppDelegate: NSObject, UIApplicationDelegate {
                 task.setTaskCompleted(success: false)
             }
             
-            DispatchQueue.main.async {
-                // DO WEAK SELF
+            DispatchQueue.main.async { [weak self] in
                 DI.sync.backgroundSync(onSuccess: {
                     task.setTaskCompleted(success: true)
 
-                    self.scheduleBackgroundTask(initialRun: false)
+                    self?.scheduleBackgroundTask(initialRun: false)
                 }, onFailure: {
                     task.setTaskCompleted(success: false)
 
-                    self.scheduleBackgroundTask(initialRun: false)
+                    self?.scheduleBackgroundTask(initialRun: false)
                 })
                 
-                self.scheduleBackgroundTask(initialRun: false)
+                self?.scheduleBackgroundTask(initialRun: false)
             }
         }
     }

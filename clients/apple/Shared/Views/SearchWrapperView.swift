@@ -15,127 +15,66 @@ struct SearchWrapperView<Content: View>: View {
     
     var mainView: Content
     var isiOS: Bool
-            
-    #if os(macOS)
-    
-    @State var expandedFolders: [File] = []
-    @State var lastOpenDoc: File? = nil
-    
-    @State var treeBranchState: Bool = true
-    
-    
-    var macOSMainView: some View {
-        VStack {
-            SuggestedDocs()
-
-            fileTreeView
-        }
-    }
-    
-    var fileTreeView: some View {
-        Group {
-            Button(action: {
-                withAnimation {
-                    treeBranchState.toggle()
-                }
-            }) {
-                HStack {
-                    Text("Files")
-                        .bold()
-                        .foregroundColor(.gray)
-                        .font(.subheadline)
-                    Spacer()
-                    if treeBranchState {
-                        Image(systemName: "chevron.down")
-                            .foregroundColor(.gray)
-                            .imageScale(.small)
-                    } else {
-                        Image(systemName: "chevron.right")
-                            .foregroundColor(.gray)
-                            .imageScale(.small)
-                    }
-                }
-                .padding(.top)
-                .padding(.horizontal)
-                .contentShape(Rectangle())
-            }
-            
-            if treeBranchState {
-                FileTreeView(expandedFolders: $expandedFolders, lastOpenDoc: $lastOpenDoc)
-                    .padding(.leading, 4)
-                Spacer()
-            } else {
-                Spacer()
-            }
-        }
-    }
-
-    
-    #endif
     
     var body: some View {
         VStack {
-//            if search.isPathAndContentSearching {
-//                if search.isPathAndContentSearchInProgress {
-//                    #if os(iOS)
-//                    ProgressView()
-//                        .frame(width: 20, height: 20)
-//                        .padding(.top)
-//                    #else
-//                    ProgressView()
-//                        .scaleEffect(0.5)
-//                        .frame(width: 20, height: 20)
-//                    #endif
-//                }
-//                
-//                if !search.pathAndContentSearchResults.isEmpty {
-//                    List(search.pathAndContentSearchResults) { result in
-//                        switch result {
-//                        case .PathMatch(_, let meta, let name, let path, let matchedIndices, _):
-//                            Button(action: {
-//                                DI.workspace.requestOpenDoc(meta.id)
-//
-//                                if isiOS {
-//                                    dismissSearch()
-//                                }
-//                            }) {
-//                                SearchFilePathCell(name: name, path: path, matchedIndices: matchedIndices)
-//                            }
-//                        case .ContentMatch(_, let meta, let name, let path, let paragraph, let matchedIndices, _):
-//                            Button(action: {
-//                                DI.workspace.requestOpenDoc(meta.id)
-//
-//                                if isiOS {
-//                                    dismissSearch()
-//                                }
-//                            }) {
-//                                SearchFileContentCell(name: name, path: path, paragraph: paragraph, matchedIndices: matchedIndices)
-//                            }
-//                        }
-//                            
-//                        #if os(macOS)
-//                        Divider()
-//                        #endif
-//                    }
-//                    .setSearchListStyle(isiOS: isiOS)
-//                } else if !search.isPathAndContentSearchInProgress && !search.pathAndContentSearchQuery.isEmpty {
-//                    Text("No results.")
-//                       .font(.headline)
-//                       .foregroundColor(.gray)
-//                       .fontWeight(.bold)
-//                       .padding()
-//                    
-//                    Spacer()
-//                } else {
-//                    Spacer()
-//                }
-//            } else {
-                #if os(macOS)
-                macOSMainView
-                #else
+            if search.isPathAndContentSearching {
+                if search.isPathAndContentSearchInProgress {
+                    #if os(iOS)
+                    ProgressView()
+                        .frame(width: 20, height: 20)
+                        .padding(.top)
+                    #else
+                    ProgressView()
+                        .scaleEffect(0.5)
+                        .frame(width: 20, height: 20)
+                    #endif
+                }
+                
+                if !search.pathAndContentSearchResults.isEmpty {
+                    List(search.pathAndContentSearchResults) { result in
+                        switch result {
+                        case .PathMatch(_, let meta, let name, let path, let matchedIndices, _):
+                            Button(action: {
+                                DI.workspace.requestOpenDoc(meta.id)
+
+                                if isiOS {
+                                    dismissSearch()
+                                }
+                            }) {
+                                SearchFilePathCell(name: name, path: path, matchedIndices: matchedIndices)
+                            }
+                        case .ContentMatch(_, let meta, let name, let path, let paragraph, let matchedIndices, _):
+                            Button(action: {
+                                DI.workspace.requestOpenDoc(meta.id)
+
+                                if isiOS {
+                                    dismissSearch()
+                                }
+                            }) {
+                                SearchFileContentCell(name: name, path: path, paragraph: paragraph, matchedIndices: matchedIndices)
+                            }
+                        }
+                            
+                        #if os(macOS)
+                        Divider()
+                        #endif
+                    }
+                    .setSearchListStyle(isiOS: isiOS)
+                } else if !search.isPathAndContentSearchInProgress && !search.pathAndContentSearchQuery.isEmpty {
+                    Text("No results.")
+                       .font(.headline)
+                       .foregroundColor(.gray)
+                       .fontWeight(.bold)
+                       .padding()
+                    
+                    Spacer()
+                } else {
+                    Spacer()
+                }
+            } else {
                 mainView
-                #endif
-//            }
+            }
         }
         .onChange(of: searchInput) { newInput in
             DI.search.search(query: newInput, isPathAndContentSearch: true)

@@ -85,15 +85,6 @@ pub unsafe extern "C" fn init(writeable_path: *const c_char, logs: bool) -> *con
 ///
 /// Be sure to call `release_pointer` on the result of this function to free the data.
 #[no_mangle]
-pub unsafe extern "C" fn free_core(core_ptr: *mut c_void) {
-    static_state::free().unwrap();
-    drop(Box::from_raw(core_ptr as *mut Core));
-}
-
-/// # Safety
-///
-/// Be sure to call `release_pointer` on the result of this function to free the data.
-#[no_mangle]
 pub unsafe extern "C" fn create_account(
     username: *const c_char, api_url: *const c_char, welcome_doc: bool,
 ) -> *const c_char {

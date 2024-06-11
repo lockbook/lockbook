@@ -11,8 +11,4 @@ class CoreService: ObservableObject {
         self.core = core
         self.corePtr = get_core_ptr()
     }
-    
-    func deinitCore() {
-//        free_core(self.corePtr)
-    }
 }

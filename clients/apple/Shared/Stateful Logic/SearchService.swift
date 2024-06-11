@@ -12,8 +12,6 @@ class SearchService: ObservableObject {
     }
         
     var pathSearchTask: DispatchWorkItem? = nil
-        
-    // have bool for search (and have spinner be on top right corner)
     
     @Published var isPathSearching = false
     @Published var isPathAndContentSearching = false
@@ -77,10 +75,7 @@ class SearchService: ObservableObject {
         DispatchQueue.global(qos: .userInitiated).async {
             let searchService = Unmanaged<SearchService>.fromOpaque(context!).takeUnretainedValue()
             
-            print("GOT RESULT: \(searchResultType)")
-
             if !searchService.isPathAndContentSearching {
-                print("ending early!")
                 if searchResultType == 1 || searchResultType == 2 {
                     searchService.core.freeText(s: searchResult!)
                 }
@@ -90,9 +85,9 @@ class SearchService: ObservableObject {
                         
             switch searchResultType {
             case 0:
-                DispatchQueue.main.async { [weak searchService] in
-                    searchService?.isPathAndContentSearchInProgress = true
-                    searchService?.pathAndContentSearchResults.removeAll()
+                DispatchQueue.main.sync {
+                    searchService.isPathAndContentSearchInProgress = true
+                    searchService.pathAndContentSearchResults.removeAll()
                 }
             case 1:
                 let data = String(cString: searchResult!).data(using: .utf8)!
@@ -101,10 +96,10 @@ class SearchService: ObservableObject {
                 let nameMatch: FileNameMatch = try! searchService.decoder.decode(FileNameMatch.self, from: data)
                 let pathComp = nameMatch.getNameAndPath()
                 
-                DispatchQueue.main.async { [weak searchService] in
-                    searchService?.pathAndContentSearchResults.append(.PathMatch(meta: DI.files.idsAndFiles[nameMatch.id]!, name: pathComp.name, path: pathComp.path, matchedIndices: nameMatch.matchedIndices, score: nameMatch.score))
+                DispatchQueue.main.sync {
+                    searchService.pathAndContentSearchResults.append(.PathMatch(meta: DI.files.idsAndFiles[nameMatch.id]!, name: pathComp.name, path: pathComp.path, matchedIndices: nameMatch.matchedIndices, score: nameMatch.score))
                     
-                    searchService?.pathAndContentSearchResults.sort { $0.score > $1.score }
+                    searchService.pathAndContentSearchResults.sort { $0.score > $1.score }
                 }
             case 2:
                 let data = String(cString: searchResult!).data(using: .utf8)!
@@ -113,16 +108,16 @@ class SearchService: ObservableObject {
                 let contentMatches: FileContentMatches = try! searchService.decoder.decode(FileContentMatches.self, from: data)
                 let pathComp = contentMatches.getNameAndPath()
                 
-                DispatchQueue.main.async { [weak searchService] in
+                DispatchQueue.main.sync {
                     for contentMatch in contentMatches.contentMatches {
-                        searchService?.pathAndContentSearchResults.append(.ContentMatch(meta: DI.files.idsAndFiles[contentMatches.id]!, name: pathComp.name, path: pathComp.path, paragraph: contentMatch.paragraph, matchedIndices: contentMatch.matchedIndices, score: contentMatch.score))
+                        searchService.pathAndContentSearchResults.append(.ContentMatch(meta: DI.files.idsAndFiles[contentMatches.id]!, name: pathComp.name, path: pathComp.path, paragraph: contentMatch.paragraph, matchedIndices: contentMatch.matchedIndices, score: contentMatch.score))
                     }
                     
-                    searchService?.pathAndContentSearchResults.sort { $0.score > $1.score }
+                    searchService.pathAndContentSearchResults.sort { $0.score > $1.score }
                 }
             case 3:
-                DispatchQueue.main.async { [weak searchService] in
-                    searchService?.isPathAndContentSearchInProgress = false
+                DispatchQueue.main.sync {
+                    searchService.isPathAndContentSearchInProgress = false
                 }
             default:
                 print("unrecognized search result type: \(searchResultType)")
@@ -147,7 +142,6 @@ class SearchService: ObservableObject {
             if case .failure(let err) = self.core.startSearch(isPathAndContentSearch: isPathAndContentSearch, context: searchServicePtr, updateStatus: isPathAndContentSearch ? self.updatePathAndContentSearchStatus : self.updatePathSearchStatus) {
                 DI.errors.handleError(err)
             }
-            print("search ended...")
         }
     }
     

@@ -388,7 +388,7 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
         let range = (range as! LBTextRange).c
         let result = selection_rects(wsHandle, range)
                 
-        let buffer = Array(UnsafeBufferPointer(start: result.rects, count: Int(result.size))) // this does not free the selection rects
+        let buffer = Array(UnsafeBufferPointer(start: result.rects, count: Int(result.size)))
         
         free_selection_rects(result)
         
