@@ -139,11 +139,9 @@ class SearchService: ObservableObject {
         DispatchQueue.global(qos: .userInitiated).async {
             let searchServicePtr = Unmanaged.passUnretained(self).toOpaque()
             
-            print("starting search 1")
             if case .failure(let err) = self.core.startSearch(isPathAndContentSearch: isPathAndContentSearch, context: searchServicePtr, updateStatus: isPathAndContentSearch ? self.updatePathAndContentSearchStatus : self.updatePathSearchStatus) {
                 DI.errors.handleError(err)
             }
-            print("starting search 2")
         }
     }
     
@@ -159,9 +157,7 @@ class SearchService: ObservableObject {
         }
         
         DispatchQueue.global(qos: .userInitiated).async {
-            print("sending search 1")
             let _ = self.core.searchQuery(query: query, isPathAndContentSearch: isPathAndContentSearch)
-            print("sending search 2")
         }
     }
       
@@ -184,7 +180,6 @@ class SearchService: ObservableObject {
     }
 
     func endSearch(isPathAndContentSearch: Bool) {
-        print("ending search 1")
         if isPathAndContentSearch && isPathAndContentSearching {
             isPathAndContentSearching = false
             pathAndContentSearchQuery = ""
@@ -199,16 +194,12 @@ class SearchService: ObservableObject {
         } else {
             return
         }
-        
-        print("ending search 2")
-        
+                
         DI.workspace.shouldFocus = true
         
         if case .failure(let err) = self.core.endSearch(isPathAndContentSearch: isPathAndContentSearch) {
             DI.errors.handleError(err)
         }
-        
-        print("ending search 3")
     }
 }
 

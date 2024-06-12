@@ -5,7 +5,6 @@ import BackgroundTasks
 
 #if os(macOS)
 import AppKit 
-
 #endif
 
 @main struct LockbookApp: App {
