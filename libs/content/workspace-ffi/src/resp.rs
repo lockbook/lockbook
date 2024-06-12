@@ -1,8 +1,8 @@
 use crate::cursor_icon::CCursorIcon;
 use egui_editor::input::canonical::{Location, Region};
 use egui_editor::offset_types::{DocCharOffset, RelCharOffset};
-use workspace_rs::lb_rs::Uuid;
 use std::ffi::{c_char, CString};
+use workspace_rs::lb_rs::Uuid;
 use workspace_rs::output::WsOutput;
 
 #[repr(C)]

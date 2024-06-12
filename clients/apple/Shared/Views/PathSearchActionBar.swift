@@ -337,7 +337,6 @@ public struct PathSearchTextFieldWrapper: NSViewRepresentable {
             if let textField = obj.object as? NSTextField {
                 DispatchQueue.main.async {
                     if DI.search.isPathSearching {
-                        print("sending path search 2")
                         DI.search.search(query: textField.stringValue, isPathAndContentSearch: false)
                     }
                 }

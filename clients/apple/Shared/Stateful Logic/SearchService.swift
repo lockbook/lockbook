@@ -194,7 +194,7 @@ class SearchService: ObservableObject {
         } else {
             return
         }
-                
+        
         DI.workspace.shouldFocus = true
         
         if case .failure(let err) = self.core.endSearch(isPathAndContentSearch: isPathAndContentSearch) {

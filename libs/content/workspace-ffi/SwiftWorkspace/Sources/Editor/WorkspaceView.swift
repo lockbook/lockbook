@@ -192,10 +192,10 @@ public class iOSMTKInputManager: UIView, UIGestureRecognizerDelegate {
                         textWrapper.rightAnchor.constraint(equalTo: inputManager.rightAnchor),
                         textWrapper.bottomAnchor.constraint(equalTo: inputManager.bottomAnchor, constant: -iOSMTKTextInputWrapper.TOOL_BAR_HEIGHT)
                     ])
-//                    
-//                    if GCKeyboard.coalesced != nil {
-//                        textWrapper.becomeFirstResponder()
-//                    }
+                    
+                    if GCKeyboard.coalesced != nil {
+                        textWrapper.becomeFirstResponder()
+                    }
                 }
             }
         }

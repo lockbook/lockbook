@@ -655,8 +655,6 @@ pub unsafe extern "C" fn start_search(
 
             *lock = Some(search_tx);
 
-            // drop(lock);
-
             results_rx
         }
         Err(_) => return c_string(translate(Err::<(), _>("Cannot get search lock."))),

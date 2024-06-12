@@ -3,11 +3,11 @@ use egui::os::OperatingSystem;
 use egui::{vec2, Context, Event, FontDefinitions, Pos2};
 use egui_wgpu_backend::wgpu::{CompositeAlphaMode, SurfaceTargetUnsafe};
 use egui_wgpu_backend::{wgpu, ScreenDescriptor};
-use workspace_rs::lb_rs::Uuid;
-use workspace_rs::lb_rs::Core;
 use std::ffi::{c_char, c_void, CStr, CString};
 use std::path::PathBuf;
 use std::time::Instant;
+use workspace_rs::lb_rs::Core;
+use workspace_rs::lb_rs::Uuid;
 use workspace_rs::register_fonts;
 use workspace_rs::tab::{ClipContent, EventManager as _};
 use workspace_rs::theme::visuals;
@@ -18,7 +18,7 @@ use workspace_rs::workspace::{Workspace, WsConfig};
 pub unsafe extern "C" fn init_ws(
     core: *mut c_void, metal_layer: *mut c_void, dark_mode: bool,
 ) -> *mut c_void {
-    let core = Box::from_raw(unsafe { &mut *(core as *mut Core) });
+    let core = unsafe { &mut *(core as *mut Core) };
     let writable_dir = core.get_config().unwrap().writeable_path;
 
     let backends = wgpu::util::backend_bits_from_env().unwrap_or_else(wgpu::Backends::all);
@@ -47,7 +47,7 @@ pub unsafe extern "C" fn init_ws(
     let context = Context::default();
     visuals::init(&context, dark_mode);
     let ws_cfg = WsConfig { data_dir: writable_dir, ..Default::default() };
-    let workspace = Workspace::new(ws_cfg, &core, &context);
+    let workspace = Workspace::new(ws_cfg, core, &context);
     let mut fonts = FontDefinitions::default();
     register_fonts(&mut fonts);
     context.set_fonts(fonts);
