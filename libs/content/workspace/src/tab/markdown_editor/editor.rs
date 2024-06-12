@@ -1,5 +1,5 @@
 use std::cmp;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use egui::os::OperatingSystem;
 use egui::{Color32, Context, Event, FontDefinitions, Frame, Pos2, Rect, Sense, Ui, Vec2};
@@ -46,13 +46,6 @@ pub struct EditorResponse {
     pub cursor_in_strikethrough: bool,
 }
 
-// makes for fewer arguments in a few places
-#[derive(Clone, Copy)]
-pub struct HoverSyntaxRevealDebounceState {
-    pub pointer_offset: Option<DocCharOffset>,
-    pub pointer_offset_updated_at: Instant,
-}
-
 pub struct Editor {
     pub id: egui::Id,
     pub open_file: Uuid,
@@ -86,10 +79,6 @@ pub struct Editor {
     pub text_updated: bool,
     pub selection_updated: bool,
     pub maybe_menu_location: Option<Pos2>,
-
-    // additional pointer state for syntax hover reveal with debounce
-    pub hover_syntax_reveal_debounce_state: HoverSyntaxRevealDebounceState,
-    pub pointer_offset_updated: bool,
 
     // state for detecting clicks and converting global to local coordinates
     pub scroll_area_rect: Rect,
@@ -127,12 +116,6 @@ impl Editor {
             text_updated: Default::default(),
             selection_updated: Default::default(),
             maybe_menu_location: Default::default(),
-
-            hover_syntax_reveal_debounce_state: HoverSyntaxRevealDebounceState {
-                pointer_offset: None,
-                pointer_offset_updated_at: Instant::now(),
-            },
-            pointer_offset_updated: Default::default(),
 
             scroll_area_rect: Rect { min: Default::default(), max: Default::default() },
             scroll_area_offset: Default::default(),
@@ -254,7 +237,7 @@ impl Editor {
         }
 
         // process events
-        let (text_updated, selection_updated, pointer_offset_updated) = if self.initialized {
+        let (text_updated, selection_updated) = if self.initialized {
             if ui.memory(|m| m.has_focus(id))
                 || cfg!(target_os = "ios")
                 || cfg!(target_os = "android")
@@ -269,9 +252,9 @@ impl Editor {
                         o.open_url = Some(egui::output::OpenUrl::new_tab(opened_url))
                     });
                 }
-                (self.text_updated, self.selection_updated, self.pointer_offset_updated)
+                (self.text_updated, self.selection_updated)
             } else {
-                (false, false, false)
+                (false, false)
             }
         } else {
             ui.memory_mut(|m| m.request_focus(id));
@@ -285,18 +268,7 @@ impl Editor {
                 },
             });
 
-            (true, true, true)
-        };
-        let appearance_updated = {
-            let capture_already_disabled = self
-                .appearance
-                .markdown_capture_disabled_for_cursor_paragraph;
-            self.appearance
-                .markdown_capture_disabled_for_cursor_paragraph = ui.input(|i| i.modifiers.command); // command key disables capture for current paragraph
-            capture_already_disabled
-                != self
-                    .appearance
-                    .markdown_capture_disabled_for_cursor_paragraph
+            (true, true)
         };
 
         // recalculate dependent state
@@ -304,7 +276,7 @@ impl Editor {
             self.ast = ast::calc(&self.buffer.current);
             self.bounds.ast = bounds::calc_ast(&self.ast);
         }
-        if text_updated || appearance_updated {
+        if text_updated {
             self.bounds.words = bounds::calc_words(
                 &self.buffer.current,
                 &self.ast,
@@ -314,7 +286,7 @@ impl Editor {
             self.bounds.paragraphs =
                 bounds::calc_paragraphs(&self.buffer.current, &self.bounds.ast);
         }
-        if text_updated || selection_updated || appearance_updated || pointer_offset_updated {
+        if text_updated || selection_updated {
             self.bounds.text = bounds::calc_text(
                 &self.ast,
                 &self.bounds.ast,
@@ -322,7 +294,6 @@ impl Editor {
                 &self.appearance,
                 &self.buffer.current.segs,
                 self.buffer.current.cursor,
-                self.hover_syntax_reveal_debounce_state,
             );
             self.bounds.links =
                 bounds::calc_links(&self.buffer.current, &self.bounds.text, &self.ast);
@@ -336,18 +307,12 @@ impl Editor {
             &self.bounds,
             &self.images,
             &self.appearance,
-            self.hover_syntax_reveal_debounce_state,
             ui,
         );
         self.bounds.lines = bounds::calc_lines(&self.galleys, &self.bounds.ast, &self.bounds.text);
         self.initialized = true;
 
-        if self.images.any_loading()
-            || self
-                .hover_syntax_reveal_debounce_state
-                .pointer_offset_updated_at
-                > Instant::now() - bounds::HOVER_SYNTAX_REVEAL_DEBOUNCE
-        {
+        if self.images.any_loading() {
             ui.ctx().request_repaint_after(Duration::from_millis(50));
         }
 
@@ -477,7 +442,6 @@ impl Editor {
         }
 
         let prior_selection = self.buffer.current.cursor.selection;
-        let prior_pointer_offset = self.hover_syntax_reveal_debounce_state.pointer_offset;
         let click_checker = EditorClickChecker {
             ui_rect: self.ui_rect,
             galleys: &self.galleys,
@@ -515,13 +479,6 @@ impl Editor {
             appearance: &self.appearance,
             bounds: &self.bounds,
         };
-        let pointer_offset = self.pointer_state.pointer_pos.and_then(|pos| {
-            if (&click_checker).text(pos).is_some() {
-                Some((&click_checker).pos_to_char_offset(pos))
-            } else {
-                None
-            }
-        });
         if touch_mode {
             let current_cursor = self.buffer.current.cursor;
             let current_selection = current_cursor.selection;
@@ -589,15 +546,6 @@ impl Editor {
         self.maybe_opened_url = maybe_opened_url;
         self.text_updated = text_updated;
         self.selection_updated = self.buffer.current.cursor.selection != prior_selection;
-        self.hover_syntax_reveal_debounce_state.pointer_offset = pointer_offset;
-        self.pointer_offset_updated = pointer_offset != prior_pointer_offset;
-        self.hover_syntax_reveal_debounce_state
-            .pointer_offset_updated_at = if self.pointer_offset_updated {
-            Instant::now()
-        } else {
-            self.hover_syntax_reveal_debounce_state
-                .pointer_offset_updated_at
-        };
     }
 
     pub fn set_font(&self, ctx: &Context) {
