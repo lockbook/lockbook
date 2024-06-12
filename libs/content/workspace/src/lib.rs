@@ -7,6 +7,7 @@ pub mod widgets;
 pub mod workspace;
 
 pub use tab::Event;
+pub use lb_rs;
 
 use epaint::text::FontDefinitions;
 
