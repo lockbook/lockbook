@@ -287,24 +287,11 @@ impl Editor {
 
             (true, true, true)
         };
-        let appearance_updated = {
-            let capture_already_disabled = self
-                .appearance
-                .markdown_capture_disabled_for_cursor_paragraph;
-            self.appearance
-                .markdown_capture_disabled_for_cursor_paragraph = ui.input(|i| i.modifiers.command); // command key disables capture for current paragraph
-            capture_already_disabled
-                != self
-                    .appearance
-                    .markdown_capture_disabled_for_cursor_paragraph
-        };
 
         // recalculate dependent state
         if text_updated {
             self.ast = ast::calc(&self.buffer.current);
             self.bounds.ast = bounds::calc_ast(&self.ast);
-        }
-        if text_updated || appearance_updated {
             self.bounds.words = bounds::calc_words(
                 &self.buffer.current,
                 &self.ast,
@@ -314,7 +301,7 @@ impl Editor {
             self.bounds.paragraphs =
                 bounds::calc_paragraphs(&self.buffer.current, &self.bounds.ast);
         }
-        if text_updated || selection_updated || appearance_updated || pointer_offset_updated {
+        if text_updated || selection_updated || pointer_offset_updated {
             self.bounds.text = bounds::calc_text(
                 &self.ast,
                 &self.bounds.ast,
