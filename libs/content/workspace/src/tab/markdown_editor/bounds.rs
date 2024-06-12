@@ -15,10 +15,7 @@ use egui::epaint::text::cursor::RCursor;
 use linkify::LinkFinder;
 use std::cmp::Ordering;
 use std::collections::HashSet;
-use std::time::{Duration, Instant};
 use unicode_segmentation::UnicodeSegmentation;
-
-pub const HOVER_SYNTAX_REVEAL_DEBOUNCE: Duration = Duration::from_millis(500);
 
 pub type AstTextRanges = Vec<AstTextRange>;
 pub type Words = Vec<(DocCharOffset, DocCharOffset)>;
@@ -272,16 +269,10 @@ pub fn captured(
 ) -> bool {
     let ast_node_range = ast.nodes[*text_range.ancestors.last().unwrap()].range;
     let intersects_selection = ast_node_range.intersects_allow_empty(&cursor.selection);
-
-    let debounce_satisfied = hover_syntax_reveal_debounce_state.pointer_offset_updated_at
-        < Instant::now() - HOVER_SYNTAX_REVEAL_DEBOUNCE;
-    let intersects_pointer = debounce_satisfied
-        && hover_syntax_reveal_debounce_state
-            .pointer_offset
-            .map(|pointer_offset| {
-                ast_node_range.intersects(&(pointer_offset, pointer_offset), true)
-            })
-            .unwrap_or(false);
+    let intersects_pointer = hover_syntax_reveal_debounce_state
+        .pointer_offset
+        .map(|pointer_offset| ast_node_range.intersects(&(pointer_offset, pointer_offset), true))
+        .unwrap_or(false);
 
     let text_range_paragraphs = paragraphs.find_intersecting(text_range.range, true);
     let in_capture_disabled_paragraph = appearance.markdown_capture_disabled_for_cursor_paragraph

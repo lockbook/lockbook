@@ -1,5 +1,5 @@
 use std::cmp;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use egui::os::OperatingSystem;
 use egui::{Color32, Context, Event, FontDefinitions, Frame, Pos2, Rect, Sense, Ui, Vec2};
@@ -50,7 +50,6 @@ pub struct EditorResponse {
 #[derive(Clone, Copy)]
 pub struct HoverSyntaxRevealDebounceState {
     pub pointer_offset: Option<DocCharOffset>,
-    pub pointer_offset_updated_at: Instant,
 }
 
 pub struct Editor {
@@ -130,7 +129,6 @@ impl Editor {
 
             hover_syntax_reveal_debounce_state: HoverSyntaxRevealDebounceState {
                 pointer_offset: None,
-                pointer_offset_updated_at: Instant::now(),
             },
             pointer_offset_updated: Default::default(),
 
@@ -329,12 +327,7 @@ impl Editor {
         self.bounds.lines = bounds::calc_lines(&self.galleys, &self.bounds.ast, &self.bounds.text);
         self.initialized = true;
 
-        if self.images.any_loading()
-            || self
-                .hover_syntax_reveal_debounce_state
-                .pointer_offset_updated_at
-                > Instant::now() - bounds::HOVER_SYNTAX_REVEAL_DEBOUNCE
-        {
+        if self.images.any_loading() {
             ui.ctx().request_repaint_after(Duration::from_millis(50));
         }
 
@@ -578,13 +571,6 @@ impl Editor {
         self.selection_updated = self.buffer.current.cursor.selection != prior_selection;
         self.hover_syntax_reveal_debounce_state.pointer_offset = pointer_offset;
         self.pointer_offset_updated = pointer_offset != prior_pointer_offset;
-        self.hover_syntax_reveal_debounce_state
-            .pointer_offset_updated_at = if self.pointer_offset_updated {
-            Instant::now()
-        } else {
-            self.hover_syntax_reveal_debounce_state
-                .pointer_offset_updated_at
-        };
     }
 
     pub fn set_font(&self, ctx: &Context) {
