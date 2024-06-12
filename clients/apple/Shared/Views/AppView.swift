@@ -44,7 +44,7 @@ struct AppView: View {
                         .handlesExternalEvents(preferring: ["lb"], allowing: ["lb"])
 
                 case .none:
-                    if files.hasRootLoaded { // memory leak reported here
+                    if files.hasRootLoaded {
                         OnboardingView()
                             .onAppear {
                                 DI.onboarding.initialSyncing = true
