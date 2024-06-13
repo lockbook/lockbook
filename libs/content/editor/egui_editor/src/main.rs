@@ -25,8 +25,9 @@ fn main() {
         "My egui App",
         options,
         Box::new(|cc| {
-            let app =
-                TestApp { editor: egui_editor::editor::Editor::new(core, "", &Uuid::new_v4()) };
+            let app = TestApp {
+                editor: egui_editor::editor::Editor::new(core, Uuid::new_v4(), "", &Uuid::new_v4()),
+            };
             app.editor.set_font(&cc.egui_ctx);
             Box::new(app)
         }),
