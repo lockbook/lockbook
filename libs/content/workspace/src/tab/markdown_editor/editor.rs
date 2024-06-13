@@ -8,7 +8,7 @@ use serde::Serialize;
 
 use crate::tab::markdown_editor::appearance::Appearance;
 use crate::tab::markdown_editor::ast::Ast;
-use crate::tab::markdown_editor::bounds::{BoundCase, Bounds};
+use crate::tab::markdown_editor::bounds::{BoundCase, Bounds, RangesExt as _};
 use crate::tab::markdown_editor::buffer::Buffer;
 use crate::tab::markdown_editor::debug::DebugInfo;
 use crate::tab::markdown_editor::galleys::Galleys;
@@ -17,7 +17,8 @@ use crate::tab::markdown_editor::input::canonical::{Bound, Modification, Offset,
 use crate::tab::markdown_editor::input::click_checker::{ClickChecker, EditorClickChecker};
 use crate::tab::markdown_editor::input::cursor::{Cursor, PointerState};
 use crate::tab::markdown_editor::input::events;
-use crate::tab::markdown_editor::offset_types::{DocCharOffset, RangeExt};
+use crate::tab::markdown_editor::input::mutation;
+use crate::tab::markdown_editor::offset_types::{DocCharOffset, RangeExt as _};
 use crate::tab::markdown_editor::style::{BlockNode, InlineNode, ListItem, MarkdownNode};
 use crate::tab::markdown_editor::{ast, bounds, galleys, images, register_fonts};
 use crate::tab::EventManager;
@@ -49,8 +50,8 @@ pub struct EditorResponse {
 // makes for fewer arguments in a few places
 #[derive(Clone, Copy)]
 pub struct HoverSyntaxRevealDebounceState {
-    pub pointer_offset: Option<DocCharOffset>,
-    pub pointer_offset_updated_at: Instant,
+    pub pointer_ast_leaf_node: Option<usize>,
+    pub updated_at: Instant,
 }
 
 pub struct Editor {
@@ -89,7 +90,7 @@ pub struct Editor {
 
     // additional pointer state for syntax hover reveal with debounce
     pub hover_syntax_reveal_debounce_state: HoverSyntaxRevealDebounceState,
-    pub pointer_offset_updated: bool,
+    pub pointer_ast_leaf_node_updated: bool,
 
     // state for detecting clicks and converting global to local coordinates
     pub scroll_area_rect: Rect,
@@ -129,10 +130,10 @@ impl Editor {
             maybe_menu_location: Default::default(),
 
             hover_syntax_reveal_debounce_state: HoverSyntaxRevealDebounceState {
-                pointer_offset: None,
-                pointer_offset_updated_at: Instant::now(),
+                pointer_ast_leaf_node: None,
+                updated_at: Instant::now(),
             },
-            pointer_offset_updated: Default::default(),
+            pointer_ast_leaf_node_updated: Default::default(),
 
             scroll_area_rect: Rect { min: Default::default(), max: Default::default() },
             scroll_area_offset: Default::default(),
@@ -253,8 +254,13 @@ impl Editor {
             ui.set_max_width(ui.max_rect().width() - 15.);
         }
 
+        // remember prior values to check what changed
+        let prior_pointer_ast_leaf_node = self
+            .hover_syntax_reveal_debounce_state
+            .pointer_ast_leaf_node;
+
         // process events
-        let (text_updated, selection_updated, pointer_offset_updated) = if self.initialized {
+        let (text_updated, selection_updated) = if self.initialized {
             if ui.memory(|m| m.has_focus(id))
                 || cfg!(target_os = "ios")
                 || cfg!(target_os = "android")
@@ -269,9 +275,9 @@ impl Editor {
                         o.open_url = Some(egui::output::OpenUrl::new_tab(opened_url))
                     });
                 }
-                (self.text_updated, self.selection_updated, self.pointer_offset_updated)
+                (self.text_updated, self.selection_updated)
             } else {
-                (false, false, false)
+                (false, false)
             }
         } else {
             ui.memory_mut(|m| m.request_focus(id));
@@ -285,7 +291,7 @@ impl Editor {
                 },
             });
 
-            (true, true, true)
+            (true, true)
         };
 
         // recalculate dependent state
@@ -301,7 +307,7 @@ impl Editor {
             self.bounds.paragraphs =
                 bounds::calc_paragraphs(&self.buffer.current, &self.bounds.ast);
         }
-        if text_updated || selection_updated || pointer_offset_updated {
+        if text_updated || selection_updated {
             self.bounds.text = bounds::calc_text(
                 &self.ast,
                 &self.bounds.ast,
@@ -329,14 +335,72 @@ impl Editor {
         self.bounds.lines = bounds::calc_lines(&self.galleys, &self.bounds.ast, &self.bounds.text);
         self.initialized = true;
 
-        if self.images.any_loading()
-            || self
-                .hover_syntax_reveal_debounce_state
-                .pointer_offset_updated_at
-                > Instant::now() - bounds::HOVER_SYNTAX_REVEAL_DEBOUNCE
-        {
-            ui.ctx().request_repaint_after(Duration::from_millis(50));
+        // handle hover syntax reveal
+        // If the pointer is over a different AST node, set self.pointer_ast_leaf_node_updated, and request a new frame
+        // so we can render according to the new state next frame. This works around a cyclic dependency between
+        // captured syntax and text layout.
+        self.hover_syntax_reveal_debounce_state
+            .pointer_ast_leaf_node = {
+            if let Some(pos) = self.pointer_state.pointer_pos {
+                let pointer_offset = mutation::pos_to_char_offset(
+                    pos,
+                    &self.galleys,
+                    &self.buffer.current.segs,
+                    &self.bounds.text,
+                );
+                let (ast_text_range_start, ast_text_range_end) =
+                    self.bounds
+                        .ast
+                        .find_containing(pointer_offset, false, false);
+                if ast_text_range_start == ast_text_range_end {
+                    None
+                } else {
+                    Some(
+                        *self.bounds.ast[ast_text_range_start]
+                            .ancestors
+                            .last()
+                            .unwrap(),
+                    )
+                }
+            } else {
+                None
+            }
+        };
+        self.pointer_ast_leaf_node_updated = self
+            .hover_syntax_reveal_debounce_state
+            .pointer_ast_leaf_node
+            != prior_pointer_ast_leaf_node;
+        if self.pointer_ast_leaf_node_updated {
+            self.hover_syntax_reveal_debounce_state.updated_at = Instant::now();
         }
+
+        // repaint conditions
+        {
+            let mut repaints = Vec::new();
+            let now = Instant::now();
+
+            if self.images.any_loading() {
+                // repaint every 50ms until images load
+                repaints.push(Duration::from_millis(50))
+            }
+
+            if self.pointer_ast_leaf_node_updated {
+                // repaint immediately so we can cease to hover-reveal syntax
+                repaints.push(Duration::from_millis(0))
+            }
+
+            let time_to_hover_reveal_syntax = self.hover_syntax_reveal_debounce_state.updated_at
+                + bounds::HOVER_SYNTAX_REVEAL_DEBOUNCE;
+            if now < time_to_hover_reveal_syntax {
+                // repaint when it's time to hover-reveal syntax
+                // (or sooner if we have other reasons to repaint)
+                repaints.push(time_to_hover_reveal_syntax - now);
+            }
+
+            if let Some(&repaint_after) = repaints.iter().min() {
+                ui.ctx().request_repaint_after(repaint_after);
+            }
+        };
 
         // draw
         self.draw_text(self.ui_rect.size(), ui, touch_mode);
@@ -464,7 +528,6 @@ impl Editor {
         }
 
         let prior_selection = self.buffer.current.cursor.selection;
-        let prior_pointer_offset = self.hover_syntax_reveal_debounce_state.pointer_offset;
         let click_checker = EditorClickChecker {
             ui_rect: self.ui_rect,
             galleys: &self.galleys,
@@ -502,13 +565,6 @@ impl Editor {
             appearance: &self.appearance,
             bounds: &self.bounds,
         };
-        let pointer_offset = self.pointer_state.pointer_pos.and_then(|pos| {
-            if (&click_checker).text(pos).is_some() {
-                Some((&click_checker).pos_to_char_offset(pos))
-            } else {
-                None
-            }
-        });
         if touch_mode {
             let current_cursor = self.buffer.current.cursor;
             let current_selection = current_cursor.selection;
@@ -576,15 +632,6 @@ impl Editor {
         self.maybe_opened_url = maybe_opened_url;
         self.text_updated = text_updated;
         self.selection_updated = self.buffer.current.cursor.selection != prior_selection;
-        self.hover_syntax_reveal_debounce_state.pointer_offset = pointer_offset;
-        self.pointer_offset_updated = pointer_offset != prior_pointer_offset;
-        self.hover_syntax_reveal_debounce_state
-            .pointer_offset_updated_at = if self.pointer_offset_updated {
-            Instant::now()
-        } else {
-            self.hover_syntax_reveal_debounce_state
-                .pointer_offset_updated_at
-        };
     }
 
     pub fn set_font(&self, ctx: &Context) {

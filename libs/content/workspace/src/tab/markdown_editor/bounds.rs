@@ -18,7 +18,7 @@ use std::collections::HashSet;
 use std::time::{Duration, Instant};
 use unicode_segmentation::UnicodeSegmentation;
 
-pub const HOVER_SYNTAX_REVEAL_DEBOUNCE: Duration = Duration::from_millis(500);
+pub const HOVER_SYNTAX_REVEAL_DEBOUNCE: Duration = Duration::from_millis(200);
 
 pub type AstTextRanges = Vec<AstTextRange>;
 pub type Words = Vec<(DocCharOffset, DocCharOffset)>;
@@ -266,28 +266,28 @@ pub fn calc_links(buffer: &SubBuffer, text: &Text, ast: &Ast) -> PlainTextLinks 
 }
 
 pub fn captured(
-    cursor: Cursor, paragraphs: &Paragraphs, ast: &Ast, text_range: &AstTextRange,
+    cursor: Cursor, paragraphs: &Paragraphs, ast: &Ast, ast_text_range: &AstTextRange,
     hover_syntax_reveal_debounce_state: HoverSyntaxRevealDebounceState, appearance: &Appearance,
     cursor_paragraphs: (usize, usize),
 ) -> bool {
-    let ast_node_range = ast.nodes[*text_range.ancestors.last().unwrap()].range;
+    let ast_node_range = ast.nodes[*ast_text_range.ancestors.last().unwrap()].range;
     let intersects_selection = ast_node_range.intersects_allow_empty(&cursor.selection);
 
-    let debounce_satisfied = hover_syntax_reveal_debounce_state.pointer_offset_updated_at
+    let debounce_satisfied = hover_syntax_reveal_debounce_state.updated_at
         < Instant::now() - HOVER_SYNTAX_REVEAL_DEBOUNCE;
     let intersects_pointer = debounce_satisfied
         && hover_syntax_reveal_debounce_state
-            .pointer_offset
-            .map(|pointer_offset| {
-                ast_node_range.intersects(&(pointer_offset, pointer_offset), true)
+            .pointer_ast_leaf_node
+            .map(|pointer_ast_leaf_node| {
+                // reveal syntax for leaf node of the pointer
+                *ast_text_range.ancestors.last().unwrap() == pointer_ast_leaf_node
             })
-            .unwrap_or(false);
+            .unwrap_or_default();
 
-    let text_range_paragraphs = paragraphs.find_intersecting(text_range.range, true);
-    let in_capture_disabled_paragraph = appearance.markdown_capture_disabled_for_cursor_paragraph
-        && cursor_paragraphs.intersects(&text_range_paragraphs, false);
+    let text_range_paragraphs = paragraphs.find_intersecting(ast_text_range.range, true);
+    let in_capture_disabled_paragraph = cursor_paragraphs.intersects(&text_range_paragraphs, false);
 
-    match appearance.markdown_capture(text_range.node(ast).node_type()) {
+    match appearance.markdown_capture(ast_text_range.node(ast).node_type()) {
         CaptureCondition::Always => true,
         CaptureCondition::NoCursor => {
             !(intersects_selection || intersects_pointer || in_capture_disabled_paragraph)
