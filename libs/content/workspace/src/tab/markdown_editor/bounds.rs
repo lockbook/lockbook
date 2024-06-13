@@ -18,7 +18,7 @@ use std::collections::HashSet;
 use std::time::{Duration, Instant};
 use unicode_segmentation::UnicodeSegmentation;
 
-pub const HOVER_SYNTAX_REVEAL_DEBOUNCE: Duration = Duration::from_millis(200);
+pub const HOVER_SYNTAX_REVEAL_DEBOUNCE: Duration = Duration::from_millis(300);
 
 pub type AstTextRanges = Vec<AstTextRange>;
 pub type Words = Vec<(DocCharOffset, DocCharOffset)>;
