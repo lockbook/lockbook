@@ -306,7 +306,7 @@ impl CubicBezBuilder {
             user_tolerance
         };
 
-        tolerance /= buffer.master_transform.sx;
+        tolerance *= buffer.master_transform.sx;
         let maybe_simple_points = self.simplify(tolerance);
 
         self.clear();

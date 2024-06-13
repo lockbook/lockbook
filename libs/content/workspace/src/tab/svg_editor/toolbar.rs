@@ -111,7 +111,7 @@ impl Toolbar {
                         ui.add_space(right_bar_width + 10.0);
 
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Min), |ui| {
-                            self.show_right_toolbar(ui, buffer, &mut false);
+                            // self.show_right_toolbar(ui, buffer, &mut false);
                         });
                     });
                 });
