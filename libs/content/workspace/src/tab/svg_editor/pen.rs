@@ -97,7 +97,8 @@ impl Pen {
                             visibility: resvg::usvg::Visibility::Visible,
                             fill: None,
                             stroke: Some(stroke),
-                            transform: Transform::default(),
+                            transform: Transform::identity()
+                                .post_scale(buffer.master_transform.sx, buffer.master_transform.sy),
                             opacity: 1.0,
                         }),
                     );

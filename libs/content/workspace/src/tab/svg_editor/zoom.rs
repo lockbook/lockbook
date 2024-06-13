@@ -48,10 +48,13 @@ pub fn handle_zoom_input(ui: &mut egui::Ui, working_rect: egui::Rect, buffer: &m
     }
 
     if pan.is_some() || is_zooming {
+        buffer.master_transform = buffer.master_transform.post_concat(t);
+
         let transform = u_transform_to_bezier(&t);
         for el in buffer.elements.values_mut() {
             match el {
                 parser::Element::Path(path) => {
+                    path.transform = path.transform.post_concat(t);
                     path.data.apply_transform(transform);
                 }
                 parser::Element::Image(img) => {

@@ -12,6 +12,8 @@ use resvg::{
     },
 };
 
+const ZOOM_G_ID: &str = "lb_master_transform";
+
 /// A shorthand for [ImageHrefResolver]'s string function.
 pub type ImageHrefStringResolverFn =
     Box<dyn Fn(&str, &Options, &Database) -> Option<ImageKind> + Send + Sync>;
@@ -72,7 +74,7 @@ pub struct Image {
 
 impl Buffer {
     pub fn new(svg: &str, core: &lb_rs::Core) -> Self {
-        let fontdb = usvg::fontdb::Database::new();
+        let fontdb = usvg::fontdb::Database::default();
 
         let lb_local_resolver = ImageHrefResolver {
             resolve_data: ImageHrefResolver::default_data_resolver(),
@@ -90,7 +92,6 @@ impl Buffer {
         let utree = maybe_tree.unwrap();
 
         let mut buffer = Buffer::default();
-
         utree
             .root()
             .children()
@@ -104,6 +105,9 @@ impl Buffer {
 fn parse_child(u_el: &usvg::Node, mut buffer: &mut Buffer, i: usize) {
     match &u_el {
         usvg::Node::Group(group) => {
+            if group.id().eq(ZOOM_G_ID) {
+                buffer.master_transform = group.transform();
+            }
             group
                 .children()
                 .iter()
@@ -145,7 +149,7 @@ fn parse_child(u_el: &usvg::Node, mut buffer: &mut Buffer, i: usize) {
                 }),
             );
         }
-        usvg::Node::Text(_) => todo!(),
+        usvg::Node::Text(_) => {}
     }
 }
 
@@ -259,10 +263,20 @@ impl ToString for Buffer {
 
                     let _ = write!(root, "{image_element}");
                 }
-                Element::Text(_) => todo!(),
+                Element::Text(_) => {}
             }
         }
-        let _ = write!(&mut root, "</svg>");
+        let zoom_level = format!(
+            r#"<g id="{}" transform="matrix({} {} {} {} {} {})"></g>"#,
+            ZOOM_G_ID,
+            self.master_transform.sx,
+            self.master_transform.kx,
+            self.master_transform.ky,
+            self.master_transform.sy,
+            self.master_transform.tx,
+            self.master_transform.ty
+        );
+        let _ = write!(&mut root, "{} {}", zoom_level, "</svg>");
         root
     }
 }
