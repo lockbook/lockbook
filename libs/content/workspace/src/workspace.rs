@@ -632,19 +632,19 @@ impl Workspace {
     }
 
     fn process_keys(&mut self, output: &mut WsOutput) {
-        const CTRL: egui::Modifiers = egui::Modifiers::COMMAND;
+        const COMMAND: egui::Modifiers = egui::Modifiers::COMMAND;
         // Ctrl-N pressed while new file modal is not open.
-        if self.ctx.input_mut(|i| i.consume_key(CTRL, egui::Key::N)) {
+        if self.ctx.input_mut(|i| i.consume_key(COMMAND, egui::Key::N)) {
             self.create_file(false);
         }
 
         // Ctrl-S to save current tab.
-        if self.ctx.input_mut(|i| i.consume_key(CTRL, egui::Key::S)) {
+        if self.ctx.input_mut(|i| i.consume_key(COMMAND, egui::Key::S)) {
             self.save_tab(self.active_tab);
         }
 
         // Ctrl-W to close current tab.
-        if self.ctx.input_mut(|i| i.consume_key(CTRL, egui::Key::W)) && !self.is_empty() {
+        if self.ctx.input_mut(|i| i.consume_key(COMMAND, egui::Key::W)) && !self.is_empty() {
             self.close_tab(self.active_tab);
             output.window_title = Some(
                 self.current_tab()
@@ -659,7 +659,7 @@ impl Workspace {
         // Ctrl-{1-9} to easily navigate tabs (9 will always go to the last tab).
         self.ctx.clone().input_mut(|input| {
             for i in 1..10 {
-                if input.consume_key_exact(CTRL, NUM_KEYS[i - 1]) {
+                if input.consume_key_exact(COMMAND, NUM_KEYS[i - 1]) {
                     self.goto_tab(i);
                     // Remove any text event that's also present this frame so that it doesn't show up
                     // in the editor.
