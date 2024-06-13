@@ -659,7 +659,7 @@ impl Workspace {
         // Ctrl-{1-9} to easily navigate tabs (9 will always go to the last tab).
         self.ctx.clone().input_mut(|input| {
             for i in 1..10 {
-                if input.consume_key(CTRL, NUM_KEYS[i - 1]) {
+                if input.consume_key_exact(CTRL, NUM_KEYS[i - 1]) {
                     self.goto_tab(i);
                     // Remove any text event that's also present this frame so that it doesn't show up
                     // in the editor.
@@ -924,3 +924,45 @@ pub const NUM_KEYS: [egui::Key; 9] = [
     egui::Key::Num8,
     egui::Key::Num9,
 ];
+
+// The only difference from count_and_consume_key is that here we use matches_exact instead of matches_logical,
+// preserving the behavior before egui 0.25.0. The documentation for the 0.25.0 count_and_consume_key says
+// "you should match most specific shortcuts first", but this doesn't go well with egui's usual pattern where widgets
+// process input in the order in which they're drawn, with parent widgets (e.g. workspace) drawn before children
+// (e.g. editor). Using this older way of doing things affects matching keyboard shortcuts with shift included e.g. '+'
+trait InputStateExt {
+    fn count_and_consume_key_exact(
+        &mut self, modifiers: egui::Modifiers, logical_key: egui::Key,
+    ) -> usize;
+    fn consume_key_exact(&mut self, modifiers: egui::Modifiers, logical_key: egui::Key) -> bool;
+}
+
+impl InputStateExt for egui::InputState {
+    fn count_and_consume_key_exact(
+        &mut self, modifiers: egui::Modifiers, logical_key: egui::Key,
+    ) -> usize {
+        let mut count = 0usize;
+
+        self.events.retain(|event| {
+            let is_match = matches!(
+                event,
+                egui::Event::Key {
+                    key: ev_key,
+                    modifiers: ev_mods,
+                    pressed: true,
+                    ..
+                } if *ev_key == logical_key && ev_mods.matches_exact(modifiers)
+            );
+
+            count += is_match as usize;
+
+            !is_match
+        });
+
+        count
+    }
+
+    fn consume_key_exact(&mut self, modifiers: egui::Modifiers, logical_key: egui::Key) -> bool {
+        self.count_and_consume_key_exact(modifiers, logical_key) > 0
+    }
+}
