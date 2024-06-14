@@ -36,6 +36,8 @@ pub struct EditorResponse {
     pub edit_menu_x: f32,
     pub edit_menu_y: f32,
 
+    pub hide_keyboard: bool,
+
     pub cursor_in_heading: bool,
     pub cursor_in_bullet_list: bool,
     pub cursor_in_number_list: bool,

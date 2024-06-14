@@ -40,9 +40,13 @@ pub struct FfiWorkspaceResp {
     new_folder_btn_pressed: bool,
 
     #[cfg(target_os = "ios")]
+    pub hide_keyboard: bool,
+
+    #[cfg(target_os = "ios")]
     pub text_updated: bool,
     #[cfg(target_os = "ios")]
     pub selection_updated: bool,
+
     #[cfg(target_os = "ios")]
     pub tab_title_clicked: bool,
 }
@@ -56,6 +60,8 @@ impl Default for FfiWorkspaceResp {
             syncing: Default::default(),
             refresh_files: Default::default(),
             new_folder_btn_pressed: Default::default(),
+            #[cfg(target_os = "ios")]
+            hide_keyboard: false,
             #[cfg(target_os = "ios")]
             text_updated: Default::default(),
             #[cfg(target_os = "ios")]
@@ -86,6 +92,9 @@ impl From<WsOutput> for FfiWorkspaceResp {
                 _ => Uuid::nil().into(),
             },
             new_folder_btn_pressed: value.new_folder_clicked,
+
+            #[cfg(target_os = "ios")]
+            hide_keyboard: value.hide_keyboard,
             #[cfg(target_os = "ios")]
             text_updated: false,
             #[cfg(target_os = "ios")]
