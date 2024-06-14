@@ -29,7 +29,6 @@ public struct WorkspaceView: View, Equatable {
 }
 
 public struct UIWS: UIViewRepresentable {
-    
     @ObservedObject public var workspaceState: WorkspaceState
     let coreHandle: UnsafeMutableRawPointer?
     
@@ -37,6 +36,8 @@ public struct UIWS: UIViewRepresentable {
     @Environment(\.verticalSizeClass) var vertical
     
     var openDoc: UUID? = nil
+    
+    static var inputManager: iOSMTKInputManager? = nil
         
     public init(_ workspaceState: WorkspaceState, _ coreHandle: UnsafeMutableRawPointer?) {
         self.workspaceState = workspaceState
@@ -44,7 +45,11 @@ public struct UIWS: UIViewRepresentable {
     }
 
     public func makeUIView(context: Context) -> iOSMTKInputManager {
-        return iOSMTKInputManager(workspaceState, coreHandle)
+        if Self.inputManager == nil {
+            Self.inputManager = iOSMTKInputManager(workspaceState, coreHandle)
+        }
+        
+        return Self.inputManager!
     }
     
     public func updateUIView(_ uiView: iOSMTKInputManager, context: Context) {

@@ -24,10 +24,8 @@ struct AppView: View {
                             }
         
                             DispatchQueue.global(qos: .userInitiated).async {
-                                while !DI.files.hasRootLoaded {
-                                    if DI.accounts.calculated && DI.accounts.account == nil {
-                                        return
-                                    }
+                                while !DI.files.hasRootLoaded {                                    
+                                    Thread.sleep(until: .now + 1)
                                 }
         
                                 Thread.sleep(until: .now + 0.1)
