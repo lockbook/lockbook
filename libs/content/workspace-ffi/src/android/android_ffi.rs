@@ -14,7 +14,6 @@ use jni::sys::{jboolean, jfloat, jint, jlong, jobject, jstring};
 use jni::JNIEnv;
 use lb_external_interface::lb_rs::Uuid;
 use lb_external_interface::Core;
-use serde::Serialize;
 use std::panic::catch_unwind;
 use std::time::Instant;
 use workspace_rs::register_fonts;
@@ -133,7 +132,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_enterFrame(
 }
 
 #[no_mangle]
-pub extern "system" fn Java_app_lockbook_workspace_Workspace_resizeEditor(
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_resizeWS(
     env: JNIEnv, _: JClass, obj: jlong, surface: jobject, scale_factor: jfloat,
 ) {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
@@ -181,6 +180,17 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_sendKeyEvent(
             modifiers,
         });
     } else {
+    }
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_insertTextAtCursor(
+    mut env: JNIEnv, _: JClass, obj: jlong, content: JString,
+) {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+
+    if let Ok(text) = env.get_string(&content) {
+        obj.raw_input.events.push(Event::Text(text.into()));
     }
 }
 
@@ -534,14 +544,6 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_getTextInRange(
     env.new_string(text)
         .expect("Couldn't create JString from rust string!")
         .into_raw()
-}
-
-#[derive(Serialize)]
-pub struct AndroidRect {
-    min_x: f32,
-    min_y: f32,
-    max_x: f32,
-    max_y: f32,
 }
 
 #[no_mangle]
