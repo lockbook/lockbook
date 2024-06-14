@@ -8374,6 +8374,7 @@ dependencies = [
  "egui_editor",
  "egui_wgpu_backend",
  "jni 0.21.1",
+ "lb_external_interface",
  "libc",
  "ndk-sys 0.4.1+23.1.7779620",
  "pollster",

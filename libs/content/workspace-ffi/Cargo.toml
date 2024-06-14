@@ -14,6 +14,7 @@ egui_wgpu_backend = "0.28"
 libc = "0.2"
 egui_editor = { path = "../editor/egui_editor" }
 workspace = { path = "../workspace/" }
+lb_external_interface = { path = "../../lb/lb_external_interface" }
 
 [target.'cfg(target_os = "android")'.dependencies]
 ndk-sys = "0.4"
