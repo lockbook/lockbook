@@ -15,7 +15,7 @@ use egui::epaint::text::cursor::RCursor;
 use linkify::LinkFinder;
 use std::cmp::Ordering;
 use std::collections::HashSet;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 use unicode_segmentation::UnicodeSegmentation;
 
 pub const HOVER_SYNTAX_REVEAL_DEBOUNCE: Duration = Duration::from_millis(300);
@@ -187,10 +187,8 @@ pub fn calc_paragraphs(buffer: &SubBuffer, ast: &AstTextRanges) -> Paragraphs {
 pub fn calc_text(
     ast: &Ast, ast_ranges: &AstTextRanges, paragraphs: &Paragraphs, appearance: &Appearance,
     segs: &UnicodeSegs, cursor: Cursor,
-    hover_syntax_reveal_debounce_state: HoverSyntaxRevealDebounceState,
+    hover_syntax_reveal_debounce_state: &HoverSyntaxRevealDebounceState,
 ) -> Text {
-    let cursor_paragraphs = paragraphs.find_intersecting(cursor.selection, true);
-
     let mut result = vec![];
     let mut last_range_pushed = false;
     for text_range in ast_ranges {
@@ -201,10 +199,9 @@ pub fn calc_text(
             text_range,
             hover_syntax_reveal_debounce_state,
             appearance,
-            cursor_paragraphs,
         );
 
-        let this_range_pushed = if text_range.range_type == AstTextRangeType::Text || !captured {
+        let this_range_pushed = if !captured {
             // text range or uncaptured syntax range
             result.push(text_range.range);
             true
@@ -267,30 +264,34 @@ pub fn calc_links(buffer: &SubBuffer, text: &Text, ast: &Ast) -> PlainTextLinks 
 
 pub fn captured(
     cursor: Cursor, paragraphs: &Paragraphs, ast: &Ast, ast_text_range: &AstTextRange,
-    hover_syntax_reveal_debounce_state: HoverSyntaxRevealDebounceState, appearance: &Appearance,
-    cursor_paragraphs: (usize, usize),
+    hover_syntax_reveal_debounce_state: &HoverSyntaxRevealDebounceState, appearance: &Appearance,
 ) -> bool {
-    let ast_node_range = ast.nodes[*ast_text_range.ancestors.last().unwrap()].range;
-    let intersects_selection = ast_node_range.intersects_allow_empty(&cursor.selection);
+    if ast_text_range.range_type == AstTextRangeType::Text {
+        return false;
+    }
 
-    let debounce_satisfied = hover_syntax_reveal_debounce_state.updated_at
-        < Instant::now() - HOVER_SYNTAX_REVEAL_DEBOUNCE;
-    let intersects_pointer = debounce_satisfied
-        && hover_syntax_reveal_debounce_state
-            .pointer_ast_leaf_node
-            .map(|pointer_ast_leaf_node| {
-                // reveal syntax for leaf node of the pointer
-                *ast_text_range.ancestors.last().unwrap() == pointer_ast_leaf_node
-            })
-            .unwrap_or_default();
-
+    // check if this text range intersects any paragraph with selected text
+    let selection_paragraphs = paragraphs.find_intersecting(cursor.selection, true);
     let text_range_paragraphs = paragraphs.find_intersecting(ast_text_range.range, true);
-    let in_capture_disabled_paragraph = cursor_paragraphs.intersects(&text_range_paragraphs, false);
+    let intersects_selected_paragraph =
+        selection_paragraphs.intersects(&text_range_paragraphs, false);
+
+    // check if the pointer is hovering over the ast leaf node of this text range
+    let now = hover_syntax_reveal_debounce_state.frame_start;
+    let time_to_hover_reveal_syntax =
+        hover_syntax_reveal_debounce_state.updated_at + HOVER_SYNTAX_REVEAL_DEBOUNCE;
+    let debounce_satisfied = now > time_to_hover_reveal_syntax;
+    let intersects_pointer = hover_syntax_reveal_debounce_state
+        .pointer_ast_leaf_node
+        .map(|pointer_ast_leaf_node| {
+            *ast_text_range.ancestors.last().unwrap() == pointer_ast_leaf_node
+        })
+        .unwrap_or_default();
 
     match appearance.markdown_capture(ast_text_range.node(ast).node_type()) {
         CaptureCondition::Always => true,
         CaptureCondition::NoCursor => {
-            !(intersects_selection || intersects_pointer || in_capture_disabled_paragraph)
+            !((debounce_satisfied && intersects_pointer) || intersects_selected_paragraph)
         }
         CaptureCondition::Never => false,
     }
@@ -852,14 +853,38 @@ pub fn split<const N: usize>(
 
 impl Editor {
     pub fn print_bounds(&self) {
+        self.print_ast_bounds();
+        self.print_words_bounds();
+        self.print_lines_bounds();
+        self.print_paragraphs_bounds();
+        self.print_text_bounds();
+        self.print_links_bounds();
+    }
+
+    pub fn print_ast_bounds(&self) {
         println!(
             "ast: {:?}",
             self.ranges_text(&self.bounds.ast.iter().map(|r| r.range).collect::<Vec<_>>())
         );
+    }
+
+    pub fn print_words_bounds(&self) {
         println!("words: {:?}", self.ranges_text(&self.bounds.words));
+    }
+
+    pub fn print_lines_bounds(&self) {
         println!("lines: {:?}", self.ranges_text(&self.bounds.lines));
+    }
+
+    pub fn print_paragraphs_bounds(&self) {
         println!("paragraphs: {:?}", self.ranges_text(&self.bounds.paragraphs));
+    }
+
+    pub fn print_text_bounds(&self) {
         println!("text: {:?}", self.ranges_text(&self.bounds.text));
+    }
+
+    pub fn print_links_bounds(&self) {
         println!("links: {:?}", self.ranges_text(&self.bounds.links));
     }
 

@@ -48,10 +48,10 @@ pub struct EditorResponse {
 }
 
 // makes for fewer arguments in a few places
-#[derive(Clone, Copy)]
 pub struct HoverSyntaxRevealDebounceState {
     pub pointer_ast_leaf_node: Option<usize>,
     pub updated_at: Instant,
+    pub frame_start: Instant,
 }
 
 pub struct Editor {
@@ -132,6 +132,7 @@ impl Editor {
             hover_syntax_reveal_debounce_state: HoverSyntaxRevealDebounceState {
                 pointer_ast_leaf_node: None,
                 updated_at: Instant::now(),
+                frame_start: Instant::now(),
             },
             pointer_ast_leaf_node_updated: Default::default(),
 
@@ -241,6 +242,8 @@ impl Editor {
     fn ui(
         &mut self, ui: &mut Ui, id: egui::Id, touch_mode: bool, events: &[Event],
     ) -> EditorResponse {
+        let now = Instant::now();
+        self.hover_syntax_reveal_debounce_state.frame_start = now;
         self.debug.frame_start();
 
         // update theme
@@ -307,7 +310,7 @@ impl Editor {
             self.bounds.paragraphs =
                 bounds::calc_paragraphs(&self.buffer.current, &self.bounds.ast);
         }
-        if text_updated || selection_updated {
+        if text_updated || selection_updated || self.pointer_ast_leaf_node_updated {
             self.bounds.text = bounds::calc_text(
                 &self.ast,
                 &self.bounds.ast,
@@ -315,7 +318,7 @@ impl Editor {
                 &self.appearance,
                 &self.buffer.current.segs,
                 self.buffer.current.cursor,
-                self.hover_syntax_reveal_debounce_state,
+                &self.hover_syntax_reveal_debounce_state,
             );
             self.bounds.links =
                 bounds::calc_links(&self.buffer.current, &self.bounds.text, &self.ast);
@@ -329,7 +332,6 @@ impl Editor {
             &self.bounds,
             &self.images,
             &self.appearance,
-            self.hover_syntax_reveal_debounce_state,
             ui,
         );
         self.bounds.lines = bounds::calc_lines(&self.galleys, &self.bounds.ast, &self.bounds.text);
@@ -352,7 +354,7 @@ impl Editor {
                     self.bounds
                         .ast
                         .find_containing(pointer_offset, false, false);
-                if ast_text_range_start == ast_text_range_end {
+                let ast_leaf_node = if ast_text_range_start == ast_text_range_end {
                     None
                 } else {
                     Some(
@@ -361,39 +363,46 @@ impl Editor {
                             .last()
                             .unwrap(),
                     )
-                }
+                };
+                ast_leaf_node
             } else {
                 None
             }
         };
-        self.pointer_ast_leaf_node_updated = self
+
+        // clear debounce updated when debounce time has passed
+        let time_to_hover_reveal_syntax = self.hover_syntax_reveal_debounce_state.updated_at
+            + bounds::HOVER_SYNTAX_REVEAL_DEBOUNCE;
+        if now > time_to_hover_reveal_syntax {
+            self.pointer_ast_leaf_node_updated = false;
+        }
+
+        // set debounce updated if ast leaf node changed this frame
+        if self
             .hover_syntax_reveal_debounce_state
             .pointer_ast_leaf_node
-            != prior_pointer_ast_leaf_node;
-        if self.pointer_ast_leaf_node_updated {
+            != prior_pointer_ast_leaf_node
+        {
+            self.pointer_ast_leaf_node_updated = true;
             self.hover_syntax_reveal_debounce_state.updated_at = Instant::now();
         }
 
         // repaint conditions
         {
             let mut repaints = Vec::new();
-            let now = Instant::now();
 
             if self.images.any_loading() {
                 // repaint every 50ms until images load
-                repaints.push(Duration::from_millis(50))
+                repaints.push(Duration::from_millis(50));
             }
 
             if self.pointer_ast_leaf_node_updated {
                 // repaint immediately so we can cease to hover-reveal syntax
-                repaints.push(Duration::from_millis(0))
+                repaints.push(Duration::from_millis(0));
             }
 
-            let time_to_hover_reveal_syntax = self.hover_syntax_reveal_debounce_state.updated_at
-                + bounds::HOVER_SYNTAX_REVEAL_DEBOUNCE;
             if now < time_to_hover_reveal_syntax {
                 // repaint when it's time to hover-reveal syntax
-                // (or sooner if we have other reasons to repaint)
                 repaints.push(time_to_hover_reveal_syntax - now);
             }
 
