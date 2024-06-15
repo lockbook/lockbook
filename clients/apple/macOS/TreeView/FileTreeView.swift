@@ -24,7 +24,7 @@ struct FileTreeView: NSViewRepresentable {
                 if meta.fileType == .Document {
                     DI.workspace.requestOpenDoc(meta.id)
                 } else if meta.fileType == .Folder {
-                    workspace.selectedFolder = meta.id
+                    DI.workspace.selectedFolder = meta.id
                 }
             }
             

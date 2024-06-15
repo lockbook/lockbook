@@ -36,12 +36,6 @@ struct OutlineContextMenu: View {
                 }) {
                     Label("Create a folder", systemImage: "folder.fill")
                 }
-            } else {
-                Button(action: {
-                    DI.files.copyFileLink(id: meta.id)
-                }) {
-                    Label("Copy file link", systemImage: "link")
-                }
             }
             
             if !meta.isRoot {
@@ -65,6 +59,14 @@ struct OutlineContextMenu: View {
 
                 Button(action: { exportFileAndShowShareSheet(meta: meta) }) {
                     Label("Share externally to...", systemImage: "square.and.arrow.up.fill")
+                }
+            }
+            
+            if meta.fileType == .Document {
+                Button(action: {
+                    DI.files.copyFileLink(id: meta.id)
+                }) {
+                    Label("Copy file link", systemImage: "link")
                 }
             }
         }

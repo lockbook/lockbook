@@ -1,6 +1,5 @@
 import Foundation
 import SwiftLockbookCore
-import CLockbookCore
 
 class SearchService: ObservableObject {
     let core: LockbookApi
@@ -13,8 +12,6 @@ class SearchService: ObservableObject {
     }
         
     var pathSearchTask: DispatchWorkItem? = nil
-        
-    // have bool for search (and have spinner be on top right corner)
     
     @Published var isPathSearching = false
     @Published var isPathAndContentSearching = false
@@ -34,11 +31,13 @@ class SearchService: ObservableObject {
     
     let updatePathSearchStatus: @convention(c) (UnsafePointer<Int8>?, Int32, UnsafePointer<Int8>?) -> Void = { context, searchResultType, searchResult in
         DispatchQueue.global(qos: .userInitiated).async {
-            guard let searchService = UnsafeRawPointer(context)?.load(as: SearchService.self) else {
-                return
-            }
-            
+            let searchService = Unmanaged<SearchService>.fromOpaque(context!).takeUnretainedValue()
+
             if !searchService.isPathSearching {
+                if searchResultType == 1 {
+                    searchService.core.freeText(s: searchResult!)
+                }
+                
                 return
             }
             
@@ -74,11 +73,13 @@ class SearchService: ObservableObject {
     
     let updatePathAndContentSearchStatus: @convention(c) (UnsafePointer<Int8>?, Int32, UnsafePointer<Int8>?) -> Void = { context, searchResultType, searchResult in
         DispatchQueue.global(qos: .userInitiated).async {
-            guard let searchService = UnsafeRawPointer(context)?.load(as: SearchService.self) else {
-                return
-            }
+            let searchService = Unmanaged<SearchService>.fromOpaque(context!).takeUnretainedValue()
             
             if !searchService.isPathAndContentSearching {
+                if searchResultType == 1 || searchResultType == 2 {
+                    searchService.core.freeText(s: searchResult!)
+                }
+                
                 return
             }
                         
@@ -136,10 +137,10 @@ class SearchService: ObservableObject {
         }
                 
         DispatchQueue.global(qos: .userInitiated).async {
-            withUnsafePointer(to: self) { searchServicePtr in
-                if case .failure(let err) = self.core.startSearch(isPathAndContentSearch: isPathAndContentSearch, context: searchServicePtr, updateStatus: isPathAndContentSearch ? self.updatePathAndContentSearchStatus : self.updatePathSearchStatus) {
-                    DI.errors.handleError(err)
-                }
+            let searchServicePtr = Unmanaged.passUnretained(self).toOpaque()
+            
+            if case .failure(let err) = self.core.startSearch(isPathAndContentSearch: isPathAndContentSearch, context: searchServicePtr, updateStatus: isPathAndContentSearch ? self.updatePathAndContentSearchStatus : self.updatePathSearchStatus) {
+                DI.errors.handleError(err)
             }
         }
     }

@@ -244,7 +244,7 @@ class FileService: ObservableObject {
 
     func refresh() {
         DispatchQueue.global(qos: .userInteractive).async {
-            let allFiles = self.core.listFiles()
+            let allFiles = DI.core.listFiles()
 
             DispatchQueue.main.async {
                 switch allFiles {

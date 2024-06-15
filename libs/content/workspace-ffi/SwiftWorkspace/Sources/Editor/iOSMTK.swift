@@ -32,11 +32,11 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
         
         super.init(frame: .infinite)
                 
-        mtkView.onSelectionChanged = {
-            self.inputDelegate?.selectionDidChange(self)
+        mtkView.onSelectionChanged = { [weak self] in
+            self?.inputDelegate?.selectionDidChange(self)
         }
-        mtkView.onTextChanged = {
-            self.inputDelegate?.textDidChange(self)
+        mtkView.onTextChanged = { [weak self] in
+            self?.inputDelegate?.textDidChange(self)
         }
         
         self.clipsToBounds = true
@@ -66,8 +66,8 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
         
         // undo redo
         self.textUndoManager.wsHandle = self.wsHandle
-        self.textUndoManager.onUndoRedo = {
-            self.mtkView.setNeedsDisplay(mtkView.frame)
+        self.textUndoManager.onUndoRedo = { [weak self] in
+            self?.mtkView.setNeedsDisplay(mtkView.frame)
         }
     }
     
@@ -387,7 +387,11 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
     public func selectionRects(for range: UITextRange) -> [UITextSelectionRect] {
         let range = (range as! LBTextRange).c
         let result = selection_rects(wsHandle, range)
+                
         let buffer = Array(UnsafeBufferPointer(start: result.rects, count: Int(result.size)))
+        
+        free_selection_rects(result)
+        
         return buffer.enumerated().map { (index, rect) in
             let new_rect = CRect(min_x: rect.min_x, min_y: rect.min_y - iOSMTK.TAB_BAR_HEIGHT, max_x: rect.max_x, max_y: rect.max_y - iOSMTK.TAB_BAR_HEIGHT)
             
@@ -424,36 +428,42 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
     
     public func editMenu(for textRange: UITextRange, suggestedActions: [UIMenuElement]) -> UIMenu? {
         let customMenu = self.selectedTextRange?.isEmpty == false ? UIMenu(title: "", options: .displayInline, children: [
-            UIAction(title: "Cut") { _ in
-                self.inputDelegate?.selectionWillChange(self)
-                self.clipboardCut()
+            UIAction(title: "Cut") { [weak self] _ in
+                self?.inputDelegate?.selectionWillChange(self)
+                self?.clipboardCut()
             },
-            UIAction(title: "Copy") { _ in
-                self.clipboardCopy()
+            UIAction(title: "Copy") { [weak self] _ in
+                self?.clipboardCopy()
             },
-            UIAction(title: "Paste") { _ in
-                self.inputDelegate?.textWillChange(self)
-                self.clipboardPaste()
+            UIAction(title: "Paste") { [weak self] _ in
+                self?.inputDelegate?.textWillChange(self)
+                self?.clipboardPaste()
             },
-            UIAction(title: "Select All") { _ in
-                self.inputDelegate?.selectionWillChange(self)
-                select_all(self.wsHandle)
-                self.mtkView.setNeedsDisplay(self.mtkView.frame)
+            UIAction(title: "Select All") { [weak self] _ in
+                if let inputWrapper = self {
+                    inputWrapper.inputDelegate?.selectionWillChange(inputWrapper)
+                    select_all(inputWrapper.wsHandle)
+                    inputWrapper.mtkView.setNeedsDisplay(inputWrapper.mtkView.frame)
+                }
             },
         ]) : UIMenu(title: "", options: .displayInline, children: [
-            UIAction(title: "Select") { _ in
-                self.inputDelegate?.selectionWillChange(self)
-                select_current_word(self.wsHandle)
-                self.mtkView.setNeedsDisplay(self.mtkView.frame)
+            UIAction(title: "Select") { [weak self] _ in
+                if let inputWrapper = self {
+                    inputWrapper.inputDelegate?.selectionWillChange(inputWrapper)
+                    select_current_word(inputWrapper.wsHandle)
+                    inputWrapper.mtkView.setNeedsDisplay(inputWrapper.mtkView.frame)
+                }
             },
-            UIAction(title: "Select All") { _ in
-                self.inputDelegate?.selectionWillChange(self)
-                select_all(self.wsHandle)
-                self.mtkView.setNeedsDisplay(self.mtkView.frame)
+            UIAction(title: "Select All") { [weak self] _ in
+                if let inputWrapper = self {
+                    inputWrapper.inputDelegate?.selectionWillChange(inputWrapper)
+                    select_all(inputWrapper.wsHandle)
+                    inputWrapper.mtkView.setNeedsDisplay(inputWrapper.mtkView.frame)
+                }
             },
-            UIAction(title: "Paste") { _ in
-                self.inputDelegate?.textWillChange(self)
-                self.clipboardPaste()
+            UIAction(title: "Paste") { [weak self] _ in
+                self?.inputDelegate?.textWillChange(self)
+                self?.clipboardPaste()
             },
         ])
         

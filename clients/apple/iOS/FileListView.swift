@@ -2,7 +2,6 @@ import SwiftUI
 import SwiftWorkspace
 import SwiftLockbookCore
 import Foundation
-import CLockbookCore
 
 struct FileListView: View {
     @EnvironmentObject var sheets: SheetState

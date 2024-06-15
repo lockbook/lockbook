@@ -2,7 +2,6 @@ import SwiftUI
 import SwiftLockbookCore
 import DSFQuickActionBar
 import SwiftWorkspace
-import CLockbookCore
 
 struct FileListView: View {
     @State var searchInput: String = ""
@@ -79,7 +78,7 @@ struct DetailView: View {
         
     var body: some View {
         ZStack {
-            WorkspaceView(DI.workspace, get_core_ptr())
+            WorkspaceView(DI.workspace, DI.coreService.corePtr)
                 .equatable()
                 .opacity(workspace.pendingSharesOpen ? 0.0 : 1.0)
             

@@ -17,6 +17,30 @@ struct AppView: View {
                 switch files.root {
                 case .some(let root):
                     BookView(currentFolder: root, account: account)
+                        .onOpenURL() { url in
+                            guard let uuidString = url.host, let id = UUID(uuidString: uuidString), url.scheme == "lb" else {
+                                DI.errors.errorWithTitle("Malformed link", "Cannot open file")
+                                return
+                            }
+        
+                            DispatchQueue.global(qos: .userInitiated).async {
+                                while !DI.files.hasRootLoaded {                                    
+                                    Thread.sleep(until: .now + 1)
+                                }
+        
+                                Thread.sleep(until: .now + 0.1)
+        
+                                if DI.files.idsAndFiles[id] == nil {
+                                    DI.errors.errorWithTitle("File not found", "That file does not exist in your lockbook")
+                                }
+        
+                                DispatchQueue.main.async {
+                                    DI.workspace.requestOpenDoc(id)
+                                }
+                            }
+                        }
+                        .handlesExternalEvents(preferring: ["lb"], allowing: ["lb"])
+
                 case .none:
                     if files.hasRootLoaded {
                         OnboardingView()

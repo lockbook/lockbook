@@ -1,7 +1,6 @@
 import SwiftUI
 import SwiftWorkspace
 import SwiftLockbookCore
-import CLockbookCore
 import AlertToast
 import Introspect
 
@@ -30,7 +29,20 @@ struct BookView: View {
             .sheet(isPresented: $sheets.creatingFolder, content: createFolderSheet)
             .sheet(isPresented: $sheets.renamingFile, content: renameFileSheet)
             .toast(isPresenting: Binding(get: { files.successfulAction != nil }, set: { _ in files.successfulAction = nil }), duration: 2, tapToDismiss: true) {
-                postFileAction()
+                if let action = files.successfulAction {
+                    switch action {
+                    case .delete:
+                        return AlertToast(type: .regular, title: "File deleted")
+                    case .move:
+                        return AlertToast(type: .regular, title: "File moved")
+                    case .createFolder:
+                        return AlertToast(type: .regular, title: "Folder created")
+                    case .importFiles:
+                        return AlertToast(type: .regular, title: "Imported successfully")
+                    }
+                } else {
+                    return AlertToast(type: .regular, title: "ERROR")
+                }
             }
     }
     
@@ -45,23 +57,6 @@ struct BookView: View {
     func renameFileSheet() -> some View {
         if let renamingFileInfo = sheets.renamingFileInfo {
             RenameFileSheet(renamingFileInfo: renamingFileInfo)
-        }
-    }
-    
-    func postFileAction() -> AlertToast {
-        if let action = files.successfulAction {
-            switch action {
-            case .delete:
-                return AlertToast(type: .regular, title: "File deleted")
-            case .move:
-                return AlertToast(type: .regular, title: "File moved")
-            case .createFolder:
-                return AlertToast(type: .regular, title: "Folder created")
-            case .importFiles:
-                return AlertToast(type: .regular, title: "Imported successfully")
-            }
-        } else {
-            return AlertToast(type: .regular, title: "ERROR")
         }
     }
     
@@ -89,7 +84,7 @@ struct BookView: View {
             
             GeometryReader { geometry in
                 NavigationView {
-                    WorkspaceView(DI.workspace, get_core_ptr())
+                    WorkspaceView(DI.workspace, DI.coreService.corePtr)
                         .equatable()
                         .toolbar {
                             ToolbarItem(placement: .navigationBarLeading) {
