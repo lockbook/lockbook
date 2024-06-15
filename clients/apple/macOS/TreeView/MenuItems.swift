@@ -160,7 +160,6 @@ class ShareTo: NSMenuItem {
     }
 
     @objc func create(_ sender: AnyObject) {
-
         if let dest = DI.importExport.exportFilesToTempDirSync(meta: file) {
             let maybeFileRow = fileTree.rowView(atRow: fileTree.row(forItem: file), makeIfNecessary: false)
 

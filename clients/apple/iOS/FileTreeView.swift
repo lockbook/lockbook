@@ -1,7 +1,6 @@
 import SwiftUI
 import SwiftWorkspace
 import SwiftLockbookCore
-import CLockbookCore
 
 struct FileTreeView: View {
     @EnvironmentObject var sheets: SheetState
@@ -40,7 +39,7 @@ struct FileTreeView: View {
             } as? UISearchBar
         }
     
-        WorkspaceView(DI.workspace, get_core_ptr())
+        WorkspaceView(DI.workspace, DI.coreService.corePtr)
             .equatable()
             .workspaceToolbar(theyChoseToBackup: $onboarding.theyChoseToBackup)
             .alert(isPresented: Binding(get: { sync.outOfSpace && !hideOutOfSpaceAlert }, set: {_ in sync.outOfSpace = false })) {

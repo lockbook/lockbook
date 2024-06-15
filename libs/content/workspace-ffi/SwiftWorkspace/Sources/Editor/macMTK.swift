@@ -20,6 +20,8 @@ public class MacMTK: MTKView, MTKViewDelegate {
 
     var lastCursor: NSCursor = NSCursor.arrow
     var cursorHidden: Bool = false
+    
+    var modifierEventHandle: Any? = nil
 
     override init(frame frameRect: CGRect, device: MTLDevice?) {
         super.init(frame: frameRect, device: device)
@@ -86,7 +88,7 @@ public class MacMTK: MTKView, MTKViewDelegate {
         let metalLayer = UnsafeMutableRawPointer(Unmanaged.passUnretained(self.layer!).toOpaque())
         self.wsHandle = init_ws(coreHandle, metalLayer, isDarkMode())
 
-        NSEvent.addLocalMonitorForEvents(matching: .flagsChanged, handler: modifiersChanged(event:))
+        modifierEventHandle = NSEvent.addLocalMonitorForEvents(matching: .flagsChanged, handler: modifiersChanged(event:))
         registerForDraggedTypes([.png, .tiff, .fileURL, .string])
         becomeFirstResponder()
     }
@@ -155,7 +157,7 @@ public class MacMTK: MTKView, MTKViewDelegate {
 
     public override func keyDown(with event: NSEvent) {
         if event.modifierFlags.contains(.command) && event.keyCode == 9 { // cmd+v
-            importFromPasteboard(NSPasteboard.general, isPaste: true)
+            let _ = importFromPasteboard(NSPasteboard.general, isPaste: true)
         } else {
             key_event(wsHandle, event.keyCode, event.modifierFlags.contains(.shift), event.modifierFlags.contains(.control), event.modifierFlags.contains(.option), event.modifierFlags.contains(.command), true, event.characters)
         }
@@ -295,6 +297,7 @@ public class MacMTK: MTKView, MTKViewDelegate {
         }
 
         redrawTask?.cancel()
+        redrawTask = nil
         self.isPaused = output.redraw_in > 100
         if self.isPaused {
             let redrawIn = UInt64(truncatingIfNeeded: output.redraw_in)
@@ -329,6 +332,16 @@ public class MacMTK: MTKView, MTKViewDelegate {
                 NSCursor.unhide()
                 cursorHidden = false
             }
+        }
+    }
+    
+    deinit {        
+        if let wsHandle = wsHandle {
+            deinit_editor(wsHandle)
+        }
+        
+        if let modifierEventHandle = modifierEventHandle {
+            NSEvent.removeMonitor(modifierEventHandle)
         }
     }
 }

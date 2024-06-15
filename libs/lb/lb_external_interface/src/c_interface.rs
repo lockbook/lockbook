@@ -705,7 +705,11 @@ pub unsafe extern "C" fn end_search(is_path_content_search: bool) -> *const c_ch
         MAYBE_PATH_SEARCH_TX.lock()
     } {
         Ok(mut lock) => *lock = None,
-        Err(_) => return c_string(translate(Err::<(), _>("Cannot get search lock."))),
+        Err(_) => {
+            release_pointer(result as *mut c_char);
+
+            return c_string(translate(Err::<(), _>("Cannot get search lock.")));
+        }
     }
 
     result
