@@ -98,6 +98,8 @@ pub struct Editor {
     pub scroll_area_offset: Vec2,
 
     pub old_scroll_area_offset: Vec2,
+
+    pub is_virtual_keyboard_showing: bool,
 }
 
 impl Editor {
@@ -139,6 +141,8 @@ impl Editor {
             scroll_area_rect: Rect { min: Default::default(), max: Default::default() },
             scroll_area_offset: Default::default(),
             old_scroll_area_offset: Default::default(),
+
+            is_virtual_keyboard_showing: Default::default(),
         }
     }
 

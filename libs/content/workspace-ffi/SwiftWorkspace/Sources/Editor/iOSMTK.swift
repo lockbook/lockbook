@@ -6,6 +6,8 @@ import SwiftUI
 import MobileCoreServices
 import UniformTypeIdentifiers
 
+import GameController
+
 // i removed UIEditMenuInteractionDelegate
 
 public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDelegate {
@@ -648,6 +650,8 @@ public class iOSMTK: MTKView, MTKViewDelegate {
     var tabSwitchTask: (() -> Void)? = nil
     var onSelectionChanged: (() -> Void)? = nil
     var onTextChanged: (() -> Void)? = nil
+    
+    weak var currentWrapper: UIView? = nil
         
     var showTabs = true
     var overrideDefaultKeyboardBehavior = false
@@ -719,7 +723,7 @@ public class iOSMTK: MTKView, MTKViewDelegate {
         dark_mode(wsHandle, isDarkMode())
         set_scale(wsHandle, Float(self.contentScaleFactor))
         let output = draw_editor(wsHandle)
-        
+                
         if(output.workspace_resp.hide_keyboard) {
             UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
         }
@@ -764,6 +768,11 @@ public class iOSMTK: MTKView, MTKViewDelegate {
         if currentTab == .Welcome && currentOpenDoc != nil {
             currentOpenDoc = nil
             self.workspaceState?.openDoc = nil
+        }
+        
+        if(currentTab == .Markdown) {
+            let keyboard_shown = currentWrapper?.isFirstResponder ?? false && GCKeyboard.coalesced == nil;
+            update_virtual_keyboard(wsHandle, keyboard_shown)
         }
         
         if output.workspace_resp.tab_title_clicked {

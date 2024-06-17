@@ -35,6 +35,7 @@ pub struct ToolBar {
     pub has_focus: bool,
     buttons: Vec<ToolbarButton>,
     mobile_components: Vec<Component>,
+    hide_keyboard_components: Vec<Component>,
     header_click_count: usize,
     pub visibility: ToolBarVisibility,
 }
@@ -56,6 +57,7 @@ impl ToolBar {
             },
             buttons: get_buttons(visibility),
             mobile_components: get_mobile_components(),
+            hide_keyboard_components: get_hide_keyboard_components(),
             header_click_count: 1,
             has_focus: false,
             visibility: visibility.to_owned(),
@@ -113,6 +115,34 @@ impl ToolBar {
                     if is_mobile { egui::vec2(0.0, 5.0) } else { egui::vec2(10.0, 20.0) };
 
                 if is_mobile {
+                    if editor.is_virtual_keyboard_showing {
+                        self.hide_keyboard_components
+                            .clone()
+                            .iter()
+                            .for_each(|comp| match comp {
+                                Component::Button(btn) => {
+                                    ui.add_space(10.0);
+                                    let res = Button::default().icon(&btn.icon).show(ui);
+                                    ui.add_space(10.0);
+
+                                    if res.clicked() {
+                                        (btn.callback)(ui, self, editor_res);
+
+                                        ui.memory_mut(|w| {
+                                            w.request_focus(editor.id);
+                                        });
+                                    }
+                                }
+                                Component::Separator(sep) => {
+                                    ui.add_space(sep.right);
+                                    ui.add(
+                                        egui::Separator::default().shrink(ui.available_height() * 0.3),
+                                    );
+                                    ui.add_space(sep.left);
+                                }
+                            });
+                    }
+
                     self.mobile_components
                         .clone()
                         .iter()
@@ -298,7 +328,7 @@ fn get_buttons(visibility: &ToolBarVisibility) -> Vec<ToolbarButton> {
     }
 }
 
-fn get_mobile_components() -> Vec<Component> {
+fn get_hide_keyboard_components() -> Vec<Component> {
     vec![
         Component::Button(ToolbarButton {
             icon: Icon::KEYBOARD_HIDE,
@@ -308,6 +338,11 @@ fn get_mobile_components() -> Vec<Component> {
             },
         }),
         Component::Separator(egui::Margin::symmetric(10.0, 0.0)),
+    ]
+}
+
+fn get_mobile_components() -> Vec<Component> {
+    vec![
         Component::Button(ToolbarButton {
             icon: Icon::HEADER_1,
             id: "header".to_string(),
@@ -321,7 +356,6 @@ fn get_mobile_components() -> Vec<Component> {
                 }
             },
         }),
-        Component::Separator(egui::Margin::symmetric(10.0, 0.0)),
         Component::Button(ToolbarButton {
             icon: Icon::BOLD,
             id: "bold".to_string(),
