@@ -108,7 +108,10 @@ impl ToolBar {
         }
     }
 
-    fn map_buttons(&mut self, ui: &mut egui::Ui, editor: &mut Editor, editor_res: &mut EditorResponse, is_mobile: bool) {
+    fn map_buttons(
+        &mut self, ui: &mut egui::Ui, editor: &mut Editor, editor_res: &mut EditorResponse,
+        is_mobile: bool,
+    ) {
         egui::ScrollArea::horizontal().show(ui, |ui| {
             ui.horizontal(|ui| {
                 ui.spacing_mut().button_padding =
@@ -116,58 +119,20 @@ impl ToolBar {
 
                 if is_mobile {
                     if editor.is_virtual_keyboard_showing {
-                        self.hide_keyboard_components
-                            .clone()
-                            .iter()
-                            .for_each(|comp| match comp {
-                                Component::Button(btn) => {
-                                    ui.add_space(10.0);
-                                    let res = Button::default().icon(&btn.icon).show(ui);
-                                    ui.add_space(10.0);
-
-                                    if res.clicked() {
-                                        (btn.callback)(ui, self, editor_res);
-
-                                        ui.memory_mut(|w| {
-                                            w.request_focus(editor.id);
-                                        });
-                                    }
-                                }
-                                Component::Separator(sep) => {
-                                    ui.add_space(sep.right);
-                                    ui.add(
-                                        egui::Separator::default().shrink(ui.available_height() * 0.3),
-                                    );
-                                    ui.add_space(sep.left);
-                                }
-                            });
+                        self.process_mobile_components(
+                            self.hide_keyboard_components.clone(),
+                            ui,
+                            editor,
+                            editor_res,
+                        );
                     }
 
-                    self.mobile_components
-                        .clone()
-                        .iter()
-                        .for_each(|comp| match comp {
-                            Component::Button(btn) => {
-                                ui.add_space(10.0);
-                                let res = Button::default().icon(&btn.icon).show(ui);
-                                ui.add_space(10.0);
-
-                                if res.clicked() {
-                                    (btn.callback)(ui, self, editor_res);
-
-                                    ui.memory_mut(|w| {
-                                        w.request_focus(editor.id);
-                                    });
-                                }
-                            }
-                            Component::Separator(sep) => {
-                                ui.add_space(sep.right);
-                                ui.add(
-                                    egui::Separator::default().shrink(ui.available_height() * 0.3),
-                                );
-                                ui.add_space(sep.left);
-                            }
-                        });
+                    self.process_mobile_components(
+                        self.mobile_components.clone(),
+                        ui,
+                        editor,
+                        editor_res,
+                    );
                 } else {
                     self.buttons.clone().iter().for_each(|btn| {
                         let res = Button::default().icon(&btn.icon).show(ui);
@@ -190,6 +155,32 @@ impl ToolBar {
                     });
                 };
             })
+        });
+    }
+
+    fn process_mobile_components(
+        &mut self, components: Vec<Component>, ui: &mut egui::Ui, editor: &Editor,
+        editor_res: &mut EditorResponse,
+    ) {
+        components.iter().for_each(|comp| match comp {
+            Component::Button(btn) => {
+                ui.add_space(10.0);
+                let res = Button::default().icon(&btn.icon).show(ui);
+                ui.add_space(10.0);
+
+                if res.clicked() {
+                    (btn.callback)(ui, self, editor_res);
+
+                    ui.memory_mut(|w| {
+                        w.request_focus(editor.id);
+                    });
+                }
+            }
+            Component::Separator(sep) => {
+                ui.add_space(sep.right);
+                ui.add(egui::Separator::default().shrink(ui.available_height() * 0.3));
+                ui.add_space(sep.left);
+            }
         });
     }
 
@@ -334,7 +325,7 @@ fn get_hide_keyboard_components() -> Vec<Component> {
             icon: Icon::KEYBOARD_HIDE,
             id: "keyboard_hide".to_string(),
             callback: |_, _, res| {
-                res.hide_keyboard = true;
+                res.hide_virtual_keyboard = true;
             },
         }),
         Component::Separator(egui::Margin::symmetric(10.0, 0.0)),
@@ -435,15 +426,14 @@ fn get_mobile_components() -> Vec<Component> {
             icon: Icon::LINK,
             id: "link".to_string(),
             callback: |ui, _, _| {
-                ui.ctx()
-                    .push_markdown_event(Modification::ToggleStyle {
-                        region: Region::Selection,
-                        style: MarkdownNode::Inline(InlineNode::Link(
-                            LinkType::Inline,
-                            "".into(),
-                            "".into(),
-                        )),
-                    });
+                ui.ctx().push_markdown_event(Modification::ToggleStyle {
+                    region: Region::Selection,
+                    style: MarkdownNode::Inline(InlineNode::Link(
+                        LinkType::Inline,
+                        "".into(),
+                        "".into(),
+                    )),
+                });
             },
         }),
         Component::Separator(egui::Margin::symmetric(10.0, 0.0)),

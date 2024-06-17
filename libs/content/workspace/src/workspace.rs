@@ -393,8 +393,8 @@ impl Workspace {
                                     rename_req = Some((tab.id, new_name))
                                 }
 
-                                if resp.hide_keyboard {
-                                    output.hide_keyboard = resp.hide_keyboard;
+                                if resp.hide_virtual_keyboard {
+                                    output.hide_virtual_keyboard = resp.hide_virtual_keyboard;
                                 }
                             }
                             TabContent::PlainText(txt) => txt.show(ui),

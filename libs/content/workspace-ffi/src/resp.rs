@@ -40,7 +40,7 @@ pub struct FfiWorkspaceResp {
     new_folder_btn_pressed: bool,
 
     #[cfg(target_os = "ios")]
-    pub hide_keyboard: bool,
+    pub hide_virtual_keyboard: bool,
 
     #[cfg(target_os = "ios")]
     pub text_updated: bool,
@@ -61,7 +61,7 @@ impl Default for FfiWorkspaceResp {
             refresh_files: Default::default(),
             new_folder_btn_pressed: Default::default(),
             #[cfg(target_os = "ios")]
-            hide_keyboard: false,
+            hide_virtual_keyboard: false,
             #[cfg(target_os = "ios")]
             text_updated: Default::default(),
             #[cfg(target_os = "ios")]
@@ -94,7 +94,7 @@ impl From<WsOutput> for FfiWorkspaceResp {
             new_folder_btn_pressed: value.new_folder_clicked,
 
             #[cfg(target_os = "ios")]
-            hide_keyboard: value.hide_keyboard,
+            hide_virtual_keyboard: value.hide_virtual_keyboard,
             #[cfg(target_os = "ios")]
             text_updated: false,
             #[cfg(target_os = "ios")]

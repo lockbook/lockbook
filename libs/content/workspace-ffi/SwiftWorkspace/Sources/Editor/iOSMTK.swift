@@ -8,8 +8,6 @@ import UniformTypeIdentifiers
 
 import GameController
 
-// i removed UIEditMenuInteractionDelegate
-
 public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDelegate {
     public static let TOOL_BAR_HEIGHT: CGFloat = 42
     
@@ -723,18 +721,6 @@ public class iOSMTK: MTKView, MTKViewDelegate {
         dark_mode(wsHandle, isDarkMode())
         set_scale(wsHandle, Float(self.contentScaleFactor))
         let output = draw_editor(wsHandle)
-                
-        if(output.workspace_resp.hide_keyboard) {
-            UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
-        }
-
-        if output.workspace_resp.selection_updated {
-            onSelectionChanged?()
-        }
-        
-        if output.workspace_resp.text_updated {
-            onTextChanged?()
-        }
         
         workspaceState?.syncing = output.workspace_resp.syncing
         workspaceState?.statusMsg = textFromPtr(s: output.workspace_resp.msg)
@@ -771,6 +757,18 @@ public class iOSMTK: MTKView, MTKViewDelegate {
         }
         
         if(currentTab == .Markdown) {
+            if(output.workspace_resp.hide_virtual_keyboard) {
+                UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+            }
+            
+            if output.workspace_resp.selection_updated {
+                onSelectionChanged?()
+            }
+            
+            if output.workspace_resp.text_updated {
+                onTextChanged?()
+            }
+
             let keyboard_shown = currentWrapper?.isFirstResponder ?? false && GCKeyboard.coalesced == nil;
             update_virtual_keyboard(wsHandle, keyboard_shown)
         }

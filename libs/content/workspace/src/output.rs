@@ -14,7 +14,7 @@ pub struct WsOutput {
     pub new_folder_clicked: bool,
     pub tab_title_clicked: bool,
 
-    pub hide_keyboard: bool,
+    pub hide_virtual_keyboard: bool,
 
     pub file_created: Option<Result<File, String>>,
 
