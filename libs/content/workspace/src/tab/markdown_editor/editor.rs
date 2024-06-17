@@ -6,24 +6,22 @@ use egui::{Color32, Context, Event, FontDefinitions, Frame, Pos2, Rect, Sense, U
 use lb_rs::Uuid;
 use serde::Serialize;
 
-use crate::tab::markdown_editor;
-use crate::tab::EventManager;
-
-use markdown_editor::appearance::Appearance;
-use markdown_editor::ast::Ast;
-use markdown_editor::bounds::{BoundCase, Bounds};
-use markdown_editor::buffer::Buffer;
-use markdown_editor::debug::DebugInfo;
-use markdown_editor::galleys::Galleys;
-use markdown_editor::images::ImageCache;
-use markdown_editor::input::canonical::{Bound, Modification, Offset, Region};
-use markdown_editor::input::capture::CaptureState;
-use markdown_editor::input::click_checker::{ClickChecker, EditorClickChecker};
-use markdown_editor::input::cursor::{Cursor, PointerState};
-use markdown_editor::input::events;
-use markdown_editor::offset_types::{DocCharOffset, RangeExt as _};
-use markdown_editor::style::{BlockNode, InlineNode, ListItem, MarkdownNode};
-use markdown_editor::{ast, bounds, galleys, images, register_fonts};
+use crate::tab::markdown_editor::appearance::Appearance;
+use crate::tab::markdown_editor::ast::Ast;
+use crate::tab::markdown_editor::bounds::{BoundCase, Bounds};
+use crate::tab::markdown_editor::buffer::Buffer;
+use crate::tab::markdown_editor::debug::DebugInfo;
+use crate::tab::markdown_editor::galleys::Galleys;
+use crate::tab::markdown_editor::images::ImageCache;
+use crate::tab::markdown_editor::input::canonical::{Bound, Modification, Offset, Region};
+use crate::tab::markdown_editor::input::capture::CaptureState;
+use crate::tab::markdown_editor::input::click_checker::{ClickChecker, EditorClickChecker};
+use crate::tab::markdown_editor::input::cursor::{Cursor, PointerState};
+use crate::tab::markdown_editor::input::events;
+use crate::tab::markdown_editor::offset_types::{DocCharOffset, RangeExt as _};
+use crate::tab::markdown_editor::style::{BlockNode, InlineNode, ListItem, MarkdownNode};
+use crate::tab::markdown_editor::{ast, bounds, galleys, images, register_fonts};
+use crate::tab::EventManager as _;
 
 #[derive(Debug, Serialize, Default)]
 pub struct EditorResponse {
@@ -304,7 +302,6 @@ impl Editor {
             );
             self.bounds.links =
                 bounds::calc_links(&self.buffer.current, &self.bounds.text, &self.ast);
-            self.capture.mark_changes_processed();
         }
         if text_updated || selection_updated || theme_updated {
             self.images = images::calc(&self.ast, &self.images, &self.client, &self.core, ui);

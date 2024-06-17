@@ -3,6 +3,7 @@ use crate::tab::markdown_editor::ast::{Ast, AstTextRange, AstTextRangeType};
 use crate::tab::markdown_editor::buffer::SubBuffer;
 use crate::tab::markdown_editor::galleys::Galleys;
 use crate::tab::markdown_editor::input::canonical::Bound;
+use crate::tab::markdown_editor::input::capture::CaptureState;
 use crate::tab::markdown_editor::input::cursor::Cursor;
 use crate::tab::markdown_editor::offset_types::{
     DocByteOffset, DocCharOffset, RangeExt, RelByteOffset,
@@ -15,8 +16,6 @@ use linkify::LinkFinder;
 use std::cmp::Ordering;
 use std::collections::HashSet;
 use unicode_segmentation::UnicodeSegmentation;
-
-use super::input::capture::CaptureState;
 
 pub type AstTextRanges = Vec<AstTextRange>;
 pub type Words = Vec<(DocCharOffset, DocCharOffset)>;
@@ -184,13 +183,12 @@ pub fn calc_paragraphs(buffer: &SubBuffer, ast: &AstTextRanges) -> Paragraphs {
 
 pub fn calc_text(
     ast: &Ast, ast_ranges: &AstTextRanges, paragraphs: &Paragraphs, appearance: &Appearance,
-    segs: &UnicodeSegs, cursor: Cursor, hover_reveal_state: &CaptureState,
+    segs: &UnicodeSegs, cursor: Cursor, capture: &CaptureState,
 ) -> Text {
     let mut result = vec![];
     let mut last_range_pushed = false;
     for (i, text_range) in ast_ranges.iter().enumerate() {
-        let captured =
-            hover_reveal_state.captured(cursor, paragraphs, ast, ast_ranges, i, appearance);
+        let captured = capture.captured(cursor, paragraphs, ast, ast_ranges, i, appearance);
 
         let this_range_pushed = if !captured {
             // text range or uncaptured syntax range

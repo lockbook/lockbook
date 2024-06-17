@@ -100,6 +100,7 @@ impl CaptureState {
         }
     }
 
+    /// Marks changes to capture state as processed. Returns true if there were unprocessed changes.
     pub fn mark_changes_processed(&mut self) -> bool {
         let unprocessed_changes = self.unprocessed_changes;
         self.unprocessed_changes = false;
@@ -107,7 +108,8 @@ impl CaptureState {
     }
 
     /// Returns true if the given AST text range should be captured for any reason, including cursor selection or hover
-    /// reveal. Debounce is evaluated using the time of last update rather than the current time.
+    /// reveal. Debounce is evaluated using the time of last update rather than the current time to facilitate change
+    /// detection.
     pub fn captured(
         &self, cursor: Cursor, paragraphs: &Paragraphs, ast: &Ast, ast_ranges: &AstTextRanges,
         ast_range_idx: usize, appearance: &Appearance,
