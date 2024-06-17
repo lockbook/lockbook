@@ -1,7 +1,6 @@
 use crate::tab::markdown_editor::appearance::{Appearance, CaptureCondition};
 use crate::tab::markdown_editor::ast::{Ast, AstTextRange, AstTextRangeType};
 use crate::tab::markdown_editor::buffer::SubBuffer;
-use crate::tab::markdown_editor::editor::HoverSyntaxRevealDebounceState;
 use crate::tab::markdown_editor::galleys::Galleys;
 use crate::tab::markdown_editor::input::canonical::Bound;
 use crate::tab::markdown_editor::input::cursor::Cursor;
@@ -15,10 +14,9 @@ use egui::epaint::text::cursor::RCursor;
 use linkify::LinkFinder;
 use std::cmp::Ordering;
 use std::collections::HashSet;
-use std::time::Duration;
 use unicode_segmentation::UnicodeSegmentation;
 
-pub const HOVER_SYNTAX_REVEAL_DEBOUNCE: Duration = Duration::from_millis(300);
+use super::input::capture::CaptureState;
 
 pub type AstTextRanges = Vec<AstTextRange>;
 pub type Words = Vec<(DocCharOffset, DocCharOffset)>;
@@ -186,20 +184,13 @@ pub fn calc_paragraphs(buffer: &SubBuffer, ast: &AstTextRanges) -> Paragraphs {
 
 pub fn calc_text(
     ast: &Ast, ast_ranges: &AstTextRanges, paragraphs: &Paragraphs, appearance: &Appearance,
-    segs: &UnicodeSegs, cursor: Cursor,
-    hover_syntax_reveal_debounce_state: &HoverSyntaxRevealDebounceState,
+    segs: &UnicodeSegs, cursor: Cursor, hover_reveal_state: &CaptureState,
 ) -> Text {
     let mut result = vec![];
     let mut last_range_pushed = false;
-    for text_range in ast_ranges {
-        let captured = captured(
-            cursor,
-            paragraphs,
-            ast,
-            text_range,
-            hover_syntax_reveal_debounce_state,
-            appearance,
-        );
+    for (i, text_range) in ast_ranges.iter().enumerate() {
+        let captured =
+            hover_reveal_state.captured(cursor, paragraphs, ast, ast_ranges, i, appearance);
 
         let this_range_pushed = if !captured {
             // text range or uncaptured syntax range
@@ -260,41 +251,6 @@ pub fn calc_links(buffer: &SubBuffer, text: &Text, ast: &Ast) -> PlainTextLinks 
     }
 
     result
-}
-
-pub fn captured(
-    cursor: Cursor, paragraphs: &Paragraphs, ast: &Ast, ast_text_range: &AstTextRange,
-    hover_syntax_reveal_debounce_state: &HoverSyntaxRevealDebounceState, appearance: &Appearance,
-) -> bool {
-    if ast_text_range.range_type == AstTextRangeType::Text {
-        return false;
-    }
-
-    // check if this text range intersects any paragraph with selected text
-    let selection_paragraphs = paragraphs.find_intersecting(cursor.selection, true);
-    let text_range_paragraphs = paragraphs.find_intersecting(ast_text_range.range, true);
-    let intersects_selected_paragraph =
-        selection_paragraphs.intersects(&text_range_paragraphs, false);
-
-    // check if the pointer is hovering over the ast leaf node of this text range
-    let now = hover_syntax_reveal_debounce_state.frame_start;
-    let time_to_hover_reveal_syntax =
-        hover_syntax_reveal_debounce_state.updated_at + HOVER_SYNTAX_REVEAL_DEBOUNCE;
-    let debounce_satisfied = now > time_to_hover_reveal_syntax;
-    let intersects_pointer = hover_syntax_reveal_debounce_state
-        .pointer_ast_leaf_node
-        .map(|pointer_ast_leaf_node| {
-            *ast_text_range.ancestors.last().unwrap() == pointer_ast_leaf_node
-        })
-        .unwrap_or_default();
-
-    match appearance.markdown_capture(ast_text_range.node(ast).node_type()) {
-        CaptureCondition::Always => true,
-        CaptureCondition::NoCursor => {
-            !((debounce_satisfied && intersects_pointer) || intersects_selected_paragraph)
-        }
-        CaptureCondition::Never => false,
-    }
 }
 
 impl Bounds {

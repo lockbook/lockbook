@@ -6,22 +6,24 @@ use egui::{Color32, Context, Event, FontDefinitions, Frame, Pos2, Rect, Sense, U
 use lb_rs::Uuid;
 use serde::Serialize;
 
-use crate::tab::markdown_editor::appearance::Appearance;
-use crate::tab::markdown_editor::ast::Ast;
-use crate::tab::markdown_editor::bounds::{BoundCase, Bounds, RangesExt as _};
-use crate::tab::markdown_editor::buffer::Buffer;
-use crate::tab::markdown_editor::debug::DebugInfo;
-use crate::tab::markdown_editor::galleys::Galleys;
-use crate::tab::markdown_editor::images::ImageCache;
-use crate::tab::markdown_editor::input::canonical::{Bound, Modification, Offset, Region};
-use crate::tab::markdown_editor::input::click_checker::{ClickChecker, EditorClickChecker};
-use crate::tab::markdown_editor::input::cursor::{Cursor, PointerState};
-use crate::tab::markdown_editor::input::events;
-use crate::tab::markdown_editor::input::mutation;
-use crate::tab::markdown_editor::offset_types::{DocCharOffset, RangeExt as _};
-use crate::tab::markdown_editor::style::{BlockNode, InlineNode, ListItem, MarkdownNode};
-use crate::tab::markdown_editor::{ast, bounds, galleys, images, register_fonts};
+use crate::tab::markdown_editor;
 use crate::tab::EventManager;
+
+use markdown_editor::appearance::Appearance;
+use markdown_editor::ast::Ast;
+use markdown_editor::bounds::{BoundCase, Bounds};
+use markdown_editor::buffer::Buffer;
+use markdown_editor::debug::DebugInfo;
+use markdown_editor::galleys::Galleys;
+use markdown_editor::images::ImageCache;
+use markdown_editor::input::canonical::{Bound, Modification, Offset, Region};
+use markdown_editor::input::capture::CaptureState;
+use markdown_editor::input::click_checker::{ClickChecker, EditorClickChecker};
+use markdown_editor::input::cursor::{Cursor, PointerState};
+use markdown_editor::input::events;
+use markdown_editor::offset_types::{DocCharOffset, RangeExt as _};
+use markdown_editor::style::{BlockNode, InlineNode, ListItem, MarkdownNode};
+use markdown_editor::{ast, bounds, galleys, images, register_fonts};
 
 #[derive(Debug, Serialize, Default)]
 pub struct EditorResponse {
@@ -45,13 +47,6 @@ pub struct EditorResponse {
     pub cursor_in_italic: bool,
     pub cursor_in_inline_code: bool,
     pub cursor_in_strikethrough: bool,
-}
-
-// makes for fewer arguments in a few places
-pub struct HoverSyntaxRevealDebounceState {
-    pub pointer_ast_leaf_node: Option<usize>,
-    pub updated_at: Instant,
-    pub frame_start: Instant,
 }
 
 pub struct Editor {
@@ -88,9 +83,8 @@ pub struct Editor {
     pub selection_updated: bool,
     pub maybe_menu_location: Option<Pos2>,
 
-    // additional pointer state for syntax hover reveal with debounce
-    pub hover_syntax_reveal_debounce_state: HoverSyntaxRevealDebounceState,
-    pub pointer_ast_leaf_node_updated: bool,
+    // additional state for hover reveal etc
+    pub capture: CaptureState,
 
     // state for detecting clicks and converting global to local coordinates
     pub scroll_area_rect: Rect,
@@ -129,12 +123,7 @@ impl Editor {
             selection_updated: Default::default(),
             maybe_menu_location: Default::default(),
 
-            hover_syntax_reveal_debounce_state: HoverSyntaxRevealDebounceState {
-                pointer_ast_leaf_node: None,
-                updated_at: Instant::now(),
-                frame_start: Instant::now(),
-            },
-            pointer_ast_leaf_node_updated: Default::default(),
+            capture: CaptureState::new(),
 
             scroll_area_rect: Rect { min: Default::default(), max: Default::default() },
             scroll_area_offset: Default::default(),
@@ -242,8 +231,6 @@ impl Editor {
     fn ui(
         &mut self, ui: &mut Ui, id: egui::Id, touch_mode: bool, events: &[Event],
     ) -> EditorResponse {
-        let now = Instant::now();
-        self.hover_syntax_reveal_debounce_state.frame_start = now;
         self.debug.frame_start();
 
         // update theme
@@ -256,11 +243,6 @@ impl Editor {
         } else {
             ui.set_max_width(ui.max_rect().width() - 15.);
         }
-
-        // remember prior values to check what changed
-        let prior_pointer_ast_leaf_node = self
-            .hover_syntax_reveal_debounce_state
-            .pointer_ast_leaf_node;
 
         // process events
         let (text_updated, selection_updated) = if self.initialized {
@@ -310,7 +292,7 @@ impl Editor {
             self.bounds.paragraphs =
                 bounds::calc_paragraphs(&self.buffer.current, &self.bounds.ast);
         }
-        if text_updated || selection_updated || self.pointer_ast_leaf_node_updated {
+        if text_updated || selection_updated || self.capture.mark_changes_processed() {
             self.bounds.text = bounds::calc_text(
                 &self.ast,
                 &self.bounds.ast,
@@ -318,10 +300,11 @@ impl Editor {
                 &self.appearance,
                 &self.buffer.current.segs,
                 self.buffer.current.cursor,
-                &self.hover_syntax_reveal_debounce_state,
+                &self.capture,
             );
             self.bounds.links =
                 bounds::calc_links(&self.buffer.current, &self.bounds.text, &self.ast);
+            self.capture.mark_changes_processed();
         }
         if text_updated || selection_updated || theme_updated {
             self.images = images::calc(&self.ast, &self.images, &self.client, &self.core, ui);
@@ -335,81 +318,29 @@ impl Editor {
             ui,
         );
         self.bounds.lines = bounds::calc_lines(&self.galleys, &self.bounds.ast, &self.bounds.text);
+        self.capture.update(
+            Instant::now(),
+            &self.pointer_state,
+            &self.galleys,
+            &self.buffer.current.segs,
+            &self.bounds,
+            &self.ast,
+        );
         self.initialized = true;
 
-        // handle hover syntax reveal
-        // If the pointer is over a different AST node, set self.pointer_ast_leaf_node_updated, and request a new frame
-        // so we can render according to the new state next frame. This works around a cyclic dependency between
-        // captured syntax and text layout.
-        self.hover_syntax_reveal_debounce_state
-            .pointer_ast_leaf_node = {
-            if let Some(pos) = self.pointer_state.pointer_pos {
-                let pointer_offset = mutation::pos_to_char_offset(
-                    pos,
-                    &self.galleys,
-                    &self.buffer.current.segs,
-                    &self.bounds.text,
-                );
-                let (ast_text_range_start, ast_text_range_end) =
-                    self.bounds
-                        .ast
-                        .find_containing(pointer_offset, false, false);
-                let ast_leaf_node = if ast_text_range_start == ast_text_range_end {
-                    None
-                } else {
-                    Some(
-                        *self.bounds.ast[ast_text_range_start]
-                            .ancestors
-                            .last()
-                            .unwrap(),
-                    )
-                };
-                ast_leaf_node
-            } else {
-                None
-            }
-        };
-
-        // clear debounce updated when debounce time has passed
-        let time_to_hover_reveal_syntax = self.hover_syntax_reveal_debounce_state.updated_at
-            + bounds::HOVER_SYNTAX_REVEAL_DEBOUNCE;
-        if now > time_to_hover_reveal_syntax {
-            self.pointer_ast_leaf_node_updated = false;
-        }
-
-        // set debounce updated if ast leaf node changed this frame
-        if self
-            .hover_syntax_reveal_debounce_state
-            .pointer_ast_leaf_node
-            != prior_pointer_ast_leaf_node
-        {
-            self.pointer_ast_leaf_node_updated = true;
-            self.hover_syntax_reveal_debounce_state.updated_at = Instant::now();
-        }
-
         // repaint conditions
-        {
-            let mut repaints = Vec::new();
-
-            if self.images.any_loading() {
-                // repaint every 50ms until images load
-                repaints.push(Duration::from_millis(50));
-            }
-
-            if self.pointer_ast_leaf_node_updated {
-                // repaint immediately so we can cease to hover-reveal syntax
-                repaints.push(Duration::from_millis(0));
-            }
-
-            if now < time_to_hover_reveal_syntax {
-                // repaint when it's time to hover-reveal syntax
-                repaints.push(time_to_hover_reveal_syntax - now);
-            }
-
-            if let Some(&repaint_after) = repaints.iter().min() {
-                ui.ctx().request_repaint_after(repaint_after);
-            }
-        };
+        let mut repaints = Vec::new();
+        if self.images.any_loading() {
+            // repaint every 50ms until images load
+            repaints.push(Duration::from_millis(50));
+        }
+        if let Some(recalc_after) = self.capture.recalc_after() {
+            // repaint when capture state needs it
+            repaints.push(recalc_after);
+        }
+        if let Some(&repaint_after) = repaints.iter().min() {
+            ui.ctx().request_repaint_after(repaint_after);
+        }
 
         // draw
         self.draw_text(self.ui_rect.size(), ui, touch_mode);
