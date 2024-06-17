@@ -24,6 +24,12 @@ pub struct CaptureState {
     hovered_at_by_ast_text_range: HashMap<usize, Instant>,
 }
 
+impl Default for CaptureState {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl CaptureState {
     pub fn new() -> Self {
         Self {
@@ -90,12 +96,9 @@ impl CaptureState {
                     continue; // only head and tail ranges are ever captured
                 }
 
-                if !self
-                    .hovered_at_by_ast_text_range
-                    .contains_key(&ast_range_idx)
-                {
-                    self.hovered_at_by_ast_text_range.insert(ast_range_idx, now);
-                }
+                self.hovered_at_by_ast_text_range
+                    .entry(ast_range_idx)
+                    .or_insert(now);
             }
         }
     }

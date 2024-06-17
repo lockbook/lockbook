@@ -121,7 +121,7 @@ impl Editor {
             selection_updated: Default::default(),
             maybe_menu_location: Default::default(),
 
-            capture: CaptureState::new(),
+            capture: Default::default(),
 
             scroll_area_rect: Rect { min: Default::default(), max: Default::default() },
             scroll_area_offset: Default::default(),
