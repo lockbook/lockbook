@@ -98,6 +98,7 @@ impl SVGEditor {
                         &mut self.buffer,
                         &mut self.history,
                         &mut self.skip_frame,
+                        self.inner_rect,
                     );
 
                     self.inner_rect = ui.available_rect_before_wrap();

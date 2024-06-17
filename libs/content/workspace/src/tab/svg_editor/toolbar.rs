@@ -1,13 +1,19 @@
 use std::f32::consts::PI;
 
 use egui::{RichText, ScrollArea};
+use resvg::usvg::Transform;
 
 use crate::{
     theme::{icons::Icon, palette::ThemePalette},
     widgets::Button,
 };
 
-use super::{history::History, parser, selection::Selection, Buffer, Eraser, Pen};
+use super::{
+    history::History,
+    parser,
+    selection::{u_transform_to_bezier, Selection},
+    Buffer, Eraser, Pen,
+};
 
 const COLOR_SWATCH_BTN_RADIUS: f32 = 9.0;
 const THICKNESS_BTN_X_MARGIN: f32 = 5.0;
@@ -47,6 +53,8 @@ macro_rules! set_tool {
     };
 }
 
+const FIT_ZOOM: i32 = -1;
+
 impl Toolbar {
     pub fn set_tool(&mut self, new_tool: Tool) {
         set_tool!(self, new_tool);
@@ -75,7 +83,7 @@ impl Toolbar {
 
     pub fn show(
         &mut self, ui: &mut egui::Ui, buffer: &mut parser::Buffer, history: &mut History,
-        _skip_frame: &mut bool,
+        skip_frame: &mut bool, inner_rect: egui::Rect,
     ) {
         if ui.input_mut(|r| {
             r.consume_key(egui::Modifiers::CTRL | egui::Modifiers::SHIFT, egui::Key::Z)
@@ -111,7 +119,20 @@ impl Toolbar {
                         ui.add_space(right_bar_width + 10.0);
 
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Min), |ui| {
-                            // self.show_right_toolbar(ui, buffer, &mut false);
+                            if let Some(transform) =
+                                self.show_right_toolbar(ui, buffer, skip_frame, inner_rect)
+                            {
+                                buffer.master_transform =
+                                    buffer.master_transform.pre_concat(transform);
+
+                                buffer.elements.iter_mut().for_each(|(_, el)| match el {
+                                    parser::Element::Path(p) => {
+                                        p.data.apply_transform(u_transform_to_bezier(&transform))
+                                    }
+                                    parser::Element::Image(img) => img.apply_transform(transform),
+                                    parser::Element::Text(_) => todo!(),
+                                });
+                            }
                         });
                     });
                 });
@@ -318,15 +339,14 @@ impl Toolbar {
 
     fn show_right_toolbar(
         &mut self, ui: &mut egui::Ui, buffer: &mut Buffer, skip_frame: &mut bool,
-    ) {
-        let mut zoom_percentage = 100;
-
-        // Calculate the zoom percentage
-        zoom_percentage = ((buffer.master_transform.sx + buffer.master_transform.sy) / 2.0 * 100.0)
-            .round() as i32;
+        inner_rect: egui::Rect,
+    ) -> Option<Transform> {
+        let zoom_percentage = ((buffer.master_transform.sx + buffer.master_transform.sy) / 2.0
+            * 100.0)
+            .round() as f32;
 
         if Button::default().icon(&Icon::ZOOM_IN).show(ui).clicked() {
-            // zoom_to_percentage(buffer, zoom_percentage + 10, ui.ctx().screen_rect());
+            return Some(zoom_percentage_to_transform(zoom_percentage + 10., buffer, ui));
         };
 
         let mut selected = (zoom_percentage, false);
@@ -334,8 +354,10 @@ impl Toolbar {
         let res = egui::ComboBox::from_id_source("zoom_percentage_combobox")
             .selected_text(format!("{:?}%", zoom_percentage))
             .show_ui(ui, |ui| {
-                let btns = [50, 100, 200].iter().map(|&i| {
-                    ui.selectable_value(&mut selected, (i, true), format!("{}%", i))
+                let btns = [FIT_ZOOM, 50, 100, 200].iter().map(|&i| {
+                    let label =
+                        if i == FIT_ZOOM { "Content Fit".to_string() } else { format!("{}%", i) };
+                    ui.selectable_value(&mut selected, (i as f32, true), label)
                         .rect
                 });
                 btns.reduce(|acc, e| e.union(acc))
@@ -348,14 +370,85 @@ impl Toolbar {
             }
         }
         if Button::default().icon(&Icon::ZOOM_OUT).show(ui).clicked() {
-            // zoom_to_percentage(buffer, zoom_percentage - 10, ui.ctx().screen_rect());
+            return Some(zoom_percentage_to_transform(zoom_percentage - 10., buffer, ui));
         }
 
         if selected.1 {
-            // zoom_to_percentage(buffer, selected.0, ui.ctx().screen_rect());
             selected.1 = false;
+
+            if selected.0 as i32 == FIT_ZOOM {
+                let elements_bound = calc_elements_bounds(buffer);
+                let is_width_smaller = elements_bound.width() < elements_bound.height();
+
+                let padding_coeff = 0.7; // from 0 to 1. the closer you're to 0 the less zoomed in the fit will be
+                let zoom_delta = if is_width_smaller {
+                    inner_rect.height() * padding_coeff / elements_bound.height()
+                } else {
+                    inner_rect.width() * padding_coeff / elements_bound.width()
+                };
+
+                let center_x = inner_rect.center().x
+                    - zoom_delta * (elements_bound.left() + elements_bound.width() / 2.0);
+                let center_y = inner_rect.center().y
+                    - zoom_delta * (elements_bound.top() + elements_bound.height() / 2.0);
+
+                return Some(
+                    Transform::identity()
+                        .post_scale(zoom_delta, zoom_delta)
+                        .post_translate(center_x, center_y),
+                );
+            } else {
+                return Some(zoom_percentage_to_transform(selected.0, buffer, ui));
+            }
         }
 
         self.right_tab_rect = Some(ui.min_rect());
+        None
     }
+}
+
+fn calc_elements_bounds(buffer: &mut Buffer) -> egui::Rect {
+    let mut elements_bound =
+        egui::Rect { min: egui::pos2(f32::MAX, f32::MAX), max: egui::pos2(f32::MIN, f32::MIN) };
+    for (_, el) in buffer.elements.iter() {
+        let el_rect = match el {
+            parser::Element::Path(p) => {
+                // without this bezier_rs will panic when calculating bounding box
+                if p.data.len() < 2 {
+                    continue;
+                }
+                let bb = p.data.bounding_box().unwrap_or_default();
+                egui::Rect {
+                    min: egui::pos2(bb[0].x as f32, bb[0].y as f32),
+                    max: egui::pos2(bb[1].x as f32, bb[1].y as f32),
+                }
+            }
+            parser::Element::Image(img) => {
+                let bb = img.bounding_box();
+                egui::Rect {
+                    min: egui::pos2(bb.left(), bb.top()),
+                    max: egui::pos2(bb.right(), bb.bottom()),
+                }
+            }
+            parser::Element::Text(_) => todo!(),
+        };
+        elements_bound.min.x = elements_bound.min.x.min(el_rect.min.x);
+        elements_bound.min.y = elements_bound.min.y.min(el_rect.min.y);
+
+        elements_bound.max.x = elements_bound.max.x.max(el_rect.max.x);
+        elements_bound.max.y = elements_bound.max.y.max(el_rect.max.y);
+    }
+    return elements_bound;
+}
+
+fn zoom_percentage_to_transform(
+    zoom_percentage: f32, buffer: &mut Buffer, ui: &mut egui::Ui,
+) -> Transform {
+    let zoom_delta = (zoom_percentage) / (buffer.master_transform.sx * 100.0);
+    return Transform::identity()
+        .post_scale(zoom_delta, zoom_delta)
+        .post_translate(
+            (1.0 - zoom_delta) * ui.ctx().screen_rect().center().x,
+            (1.0 - zoom_delta) * ui.ctx().screen_rect().center().y,
+        );
 }
