@@ -226,7 +226,7 @@ impl Toolbar {
                 if let Some(thickness) = self.show_thickness_pickers(
                     ui,
                     self.pen.active_stroke_width as f32,
-                    vec![3.0, 6.0, 9.0],
+                    vec![2.0, 4.0, 6.0],
                 ) {
                     self.pen.active_stroke_width = thickness as u32;
                 }

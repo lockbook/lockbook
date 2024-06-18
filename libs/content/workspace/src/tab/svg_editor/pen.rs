@@ -68,7 +68,6 @@ impl Pen {
             Some(e) => e,
             None => return None,
         };
-
         match event {
             PathEvent::Draw(pos, id) => {
                 // for some reason in ipad there are  two draw events on the same pos which results in a knot.
@@ -119,7 +118,7 @@ impl Pen {
     }
 
     fn end_path(&mut self, buffer: &mut Buffer, history: &mut History, is_snapped: bool) {
-        if self.path_builder.path.len() > 2 {
+        if self.path_builder.path.len() > 2 && is_snapped {
             self.path_builder
                 .finish(is_snapped, buffer, self.simplification_tolerance);
         }
