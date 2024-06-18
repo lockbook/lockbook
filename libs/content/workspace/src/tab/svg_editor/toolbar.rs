@@ -214,11 +214,9 @@ impl Toolbar {
                         .size(15.0),
                 );
                 ui.add_space(10.0);
-
                 ui.add(
-                    egui::DragValue::new(&mut self.pen.simplification_tolerance)
-                        .clamp_range(0.1..=5.0)
-                        .speed(0.1),
+                    egui::Slider::new(&mut self.pen.simplification_tolerance, 0.0..=5.0)
+                        .show_value(false),
                 );
 
                 ui.add_space(4.0);
@@ -376,7 +374,7 @@ impl Toolbar {
         if selected.1 {
             selected.1 = false;
 
-            if selected.0 as i32 == FIT_ZOOM {
+            if selected.0 as i32 == FIT_ZOOM && !buffer.elements.is_empty() {
                 let elements_bound = calc_elements_bounds(buffer);
                 let is_width_smaller = elements_bound.width() < elements_bound.height();
 

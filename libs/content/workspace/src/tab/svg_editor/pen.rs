@@ -34,7 +34,11 @@ impl Pen {
             active_color: None,
             active_stroke_width: default_stroke_width,
             current_id: max_id,
-            simplification_tolerance: 1.5,
+            simplification_tolerance: if cfg!(target_os = "ios") || cfg!(target_os = "android") {
+                0.2
+            } else {
+                1.0
+            },
             path_builder: CubicBezBuilder::new(),
             maybe_snap_started: None,
         }

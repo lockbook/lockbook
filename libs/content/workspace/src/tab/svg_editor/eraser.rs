@@ -1,12 +1,9 @@
 use std::collections::HashSet;
-use std::sync::mpsc;
 
 use super::history::History;
 use super::{util::pointer_intersects_element, Buffer, DeleteElement};
 
 pub struct Eraser {
-    pub rx: mpsc::Receiver<EraseEvent>,
-    pub tx: mpsc::Sender<EraseEvent>,
     pub thickness: f32,
     delete_candidates: HashSet<String>,
     last_pos: Option<egui::Pos2>,
@@ -25,12 +22,18 @@ impl Default for Eraser {
 
 impl Eraser {
     pub fn new() -> Self {
-        let (tx, rx) = mpsc::channel();
-
-        Eraser { rx, tx, delete_candidates: HashSet::default(), thickness: 10.0, last_pos: None }
+        Eraser { delete_candidates: HashSet::default(), thickness: 10.0, last_pos: None }
     }
 
-    pub fn handle_events(&mut self, event: EraseEvent, buffer: &mut Buffer, history: &mut History) {
+    pub fn handle_input(
+        &mut self, ui: &mut egui::Ui, inner_rect: egui::Rect, buffer: &mut Buffer,
+        history: &mut History,
+    ) {
+        let event = match self.setup_events(ui, inner_rect) {
+            Some(e) => e,
+            None => return,
+        };
+
         match event {
             EraseEvent::Start(pos) => {
                 buffer.elements.iter().for_each(|(id, el)| {
@@ -88,10 +91,12 @@ impl Eraser {
         }
     }
 
-    pub fn setup_events(&mut self, ui: &mut egui::Ui, inner_rect: egui::Rect) {
+    pub fn setup_events(
+        &mut self, ui: &mut egui::Ui, inner_rect: egui::Rect,
+    ) -> Option<EraseEvent> {
         if let Some(cursor_pos) = ui.ctx().pointer_hover_pos() {
             if !inner_rect.contains(cursor_pos) || !ui.is_enabled() {
-                return;
+                return None;
             }
 
             let stroke = egui::Stroke { width: 1.0, color: ui.visuals().text_color() };
@@ -99,15 +104,17 @@ impl Eraser {
                 .circle_stroke(cursor_pos, self.thickness, stroke);
             ui.output_mut(|w| w.cursor_icon = egui::CursorIcon::None);
             if ui.input(|i| i.pointer.primary_down()) {
-                self.tx.send(EraseEvent::Start(cursor_pos)).unwrap();
+                return Some(EraseEvent::Start(cursor_pos));
             }
             if ui.input(|i| i.pointer.primary_released()) {
                 self.last_pos = None;
-                self.tx.send(EraseEvent::End).unwrap();
+                return Some(EraseEvent::End);
+            } else {
+                return None;
             }
         } else {
             self.last_pos = None;
-            self.tx.send(EraseEvent::End).unwrap();
+            return Some(EraseEvent::End);
         }
     }
 }
