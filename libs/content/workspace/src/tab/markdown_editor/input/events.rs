@@ -93,7 +93,10 @@ fn handle_custom_event(
                             text: markdown_image_link,
                         });
                     }
-                    ClipContent::Files(..) => unimplemented!(), // todo: support file drop & paste
+                    ClipContent::Files(..) => {
+                        // todo: support file drop & paste
+                        println!("unimplemented: editor file drop & paste");
+                    }
                 }
             }
             modifications

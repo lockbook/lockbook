@@ -201,7 +201,6 @@ public class MacMTK: MTKView, MTKViewDelegate {
         } else if !isPaste {
             if let data = pasteBoard.data(forType: .fileURL) {
                 if let url = URL(dataRepresentation: data, relativeTo: nil) {
-                    print("url.pathExtension.lowercased(): \(url.pathExtension.lowercased())")
                     if isSupportedImageFormat(ext: url.pathExtension.lowercased()) {
                         guard let data = try? Data(contentsOf: url) else {
                             return false
