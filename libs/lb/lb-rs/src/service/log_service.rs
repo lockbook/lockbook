@@ -1,6 +1,6 @@
 use crate::model::errors::core_err_unexpected;
 use crate::{Config, LbResult};
-use std::env;
+use std::{backtrace, env, panic};
 use tracing::metadata::LevelFilter;
 use tracing_subscriber::fmt::format::FmtSpan;
 use tracing_subscriber::{filter, fmt, prelude::*, Layer};
@@ -20,14 +20,14 @@ pub fn init(config: &Config) -> LbResult<()> {
                     fmt::Layer::new()
                         .with_span_events(FmtSpan::ACTIVE)
                         .with_ansi(config.colored_logs)
-                        .with_target(false)
+                        .with_target(true)
                         .with_writer(tracing_appender::rolling::never(
                             &config.writeable_path,
                             LOG_FILE,
                         ))
                         .with_filter(lockbook_log_level)
                         .with_filter(filter::filter_fn(|metadata| {
-                            metadata.target().starts_with("lockbook")
+                            metadata.target().starts_with("lb_rs")
                                 || metadata.target().starts_with("dbrs")
                         })),
                 )
@@ -36,6 +36,17 @@ pub fn init(config: &Config) -> LbResult<()> {
                 ));
 
         tracing::subscriber::set_global_default(subscriber).map_err(core_err_unexpected)?;
+        panic_capture();
     }
     Ok(())
+}
+
+fn panic_capture() {
+    panic::set_hook(Box::new(|panic_info| {
+        tracing::error!("panic detected: {panic_info} {}", backtrace::Backtrace::force_capture());
+        eprintln!(
+            "panic detected and logged: {panic_info} {}",
+            backtrace::Backtrace::force_capture()
+        );
+    }));
 }
