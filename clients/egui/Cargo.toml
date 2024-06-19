@@ -24,7 +24,6 @@ lb = { package = "lb-rs", path = "../../libs/lb/lb-rs", default-features = false
     "native-tls",
 ] }
 lb-fonts = { git = "https://github.com/lockbook/lb-fonts" }
-lbeditor = { package = "egui_editor", path = "../../libs/content/editor/egui_editor" }
 minidom = { git = "https://github.com/lockbook/minidom" }
 pdfium-render = "0.8.5"
 rfd = "0.11.4"

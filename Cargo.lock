@@ -4103,7 +4103,6 @@ dependencies = [
  "egui",
  "egui-notify",
  "egui-winit",
- "egui_editor",
  "egui_extras",
  "egui_wgpu_backend",
  "env_logger",
