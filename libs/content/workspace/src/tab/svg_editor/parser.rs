@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fmt::Write, str::FromStr, sync::Arc};
+use std::{collections::HashMap, fmt::Write, path::PathBuf, str::FromStr, sync::Arc};
 
 use bezier_rs::{Bezier, Identifier, Subpath};
 use egui::TextureHandle;
@@ -69,16 +69,16 @@ pub struct Image {
     pub view_box: usvg::ViewBox,
     pub texture: Option<TextureHandle>,
     pub opacity: f32,
-    pub href: Option<Uuid>, // todo: change data modeling when impl remote images. this assumes that all images are resolved to an lb file
+    pub href: Option<String>,
 }
 
 impl Buffer {
-    pub fn new(svg: &str, core: &lb_rs::Core) -> Self {
+    pub fn new(svg: &str, core: &lb_rs::Core, open_file: Uuid) -> Self {
         let fontdb = usvg::fontdb::Database::default();
 
         let lb_local_resolver = ImageHrefResolver {
             resolve_data: ImageHrefResolver::default_data_resolver(),
-            resolve_string: lb_local_resolver(core),
+            resolve_string: lb_local_resolver(core, open_file),
         };
 
         let options =
@@ -124,7 +124,7 @@ fn parse_child(u_el: &usvg::Node, buffer: &mut Buffer, i: usize) {
                     view_box: img.view_box(),
                     texture: None,
                     opacity: 1.0,
-                    href: Uuid::from_str(img.id()).ok(),
+                    href: Some(img.id().to_string()),
                 }),
             );
         }
@@ -153,16 +153,20 @@ fn parse_child(u_el: &usvg::Node, buffer: &mut Buffer, i: usize) {
     }
 }
 
-fn lb_local_resolver(core: &lb_rs::Core) -> ImageHrefStringResolverFn {
+fn lb_local_resolver(core: &lb_rs::Core, open_file: Uuid) -> ImageHrefStringResolverFn {
     let lb_link_prefix = "lb://";
     let core = core.clone();
     Box::new(move |href: &str, _opts: &Options, _db: &Database| {
-        if !href.starts_with(lb_link_prefix) {
-            // todo: resolve remote links
-            return None;
-        }
-        let id = &href[lb_link_prefix.len()..];
-        let id = lb_rs::Uuid::from_str(id).ok()?;
+        let id = if href.starts_with(lb_link_prefix) {
+            let id = &href[lb_link_prefix.len()..];
+            let id = lb_rs::Uuid::from_str(id).ok()?;
+            id
+        } else {
+            crate::tab::core_get_by_relative_path(&core, open_file, &PathBuf::from(&href))
+                .ok()?
+                .id
+        };
+
         let raw = core.read_document(id).ok()?;
 
         let name = core.get_file_by_id(id).ok()?.name;
@@ -249,9 +253,9 @@ impl ToString for Buffer {
                 }
                 Element::Image(img) => {
                     let image_element = format!(
-                        r#" <image id= "{}" href ="lb://{}" width="{}" height="{}" x="{}" y="{}" />"#,
-                        img.href.unwrap_or_default(),
-                        img.href.unwrap_or_default(),
+                        r#" <image id="{}" href="{}" width="{}" height="{}" x="{}" y="{}" />"#,
+                        img.href.clone().unwrap_or_default(),
+                        img.href.clone().unwrap_or_default(),
                         img.view_box.rect.width(),
                         img.view_box.rect.height(),
                         img.view_box.rect.left(),

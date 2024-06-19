@@ -61,16 +61,13 @@ pub fn calc(
                         // use core for lb:// urls and relative paths
                         let maybe_lb_id = match url.strip_prefix("lb://") {
                             Some(id) => Some(Uuid::parse_str(id).map_err(|e| e.to_string())?),
-                            None => match PathBuf::try_from(&url) {
-                                // not an id
-                                Ok(path) => Some(
-                                    tab::core_get_by_relative_path(&core, open_file, &path)?.id,
-                                ),
-                                Err(_) => {
-                                    // not a path either
-                                    None
-                                }
-                            },
+                            None => tab::core_get_by_relative_path(
+                                &core,
+                                open_file,
+                                &PathBuf::from(&url),
+                            )
+                            .map(|f| f.id)
+                            .ok(),
                         };
 
                         let image_bytes = if let Some(id) = maybe_lb_id {

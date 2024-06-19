@@ -7,7 +7,7 @@ use chrono::DateTime;
 use egui::Id;
 use lb_rs::{File, FileType, Uuid};
 use markdown_editor::input::canonical::Modification;
-use std::path::{Component, PathBuf};
+use std::path::{Component, Path, PathBuf};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 pub mod image_viewer;
@@ -236,7 +236,7 @@ pub fn canonicalize_path(path: &str) -> String {
 }
 
 pub fn core_get_by_relative_path(
-    core: &lb_rs::Core, from: Uuid, path: &PathBuf,
+    core: &lb_rs::Core, from: Uuid, path: &Path,
 ) -> Result<File, String> {
     let target_path = if path.is_relative() {
         let mut open_file_path =
