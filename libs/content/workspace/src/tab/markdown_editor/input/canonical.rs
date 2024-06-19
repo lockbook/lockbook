@@ -309,7 +309,7 @@ pub fn calc(
         Event::PointerButton { pos, button: PointerButton::Primary, pressed: true, modifiers }
             if click_checker.ui(*pos) =>
         {
-            pointer_state.press(now, *pos, click_checker.pos_to_char_offset(*pos), *modifiers);
+            pointer_state.press(now, *pos, *modifiers);
             None
         }
         Event::PointerMoved(pos) if click_checker.ui(*pos) => {
@@ -317,10 +317,10 @@ pub fn calc(
             if pointer_state.click_dragged.unwrap_or_default() && !touch_mode {
                 if pointer_state.click_mods.unwrap_or_default().shift {
                     Some(Modification::Select { region: Region::ToLocation(Location::Pos(*pos)) })
-                } else if let Some(click_offset) = pointer_state.click_offset {
+                } else if let Some(click_pos) = pointer_state.click_pos {
                     Some(Modification::Select {
                         region: Region::BetweenLocations {
-                            start: Location::DocCharOffset(click_offset),
+                            start: Location::Pos(click_pos),
                             end: Location::Pos(*pos),
                         },
                     })
@@ -333,7 +333,7 @@ pub fn calc(
         }
         Event::PointerButton { pos, button: PointerButton::Primary, pressed: false, .. } => {
             let click_type = pointer_state.click_type.unwrap_or_default();
-            let click_offset = pointer_state.click_offset.unwrap_or_default();
+            let click_pos = pointer_state.click_pos.unwrap_or_default();
             let click_mods = pointer_state.click_mods.unwrap_or_default();
             let click_dragged = pointer_state.click_dragged.unwrap_or_default();
             pointer_state.release();
@@ -366,7 +366,7 @@ pub fn calc(
                                         }
                                     } else {
                                         Region::BetweenLocations {
-                                            start: Location::DocCharOffset(click_offset),
+                                            start: Location::Pos(click_pos),
                                             end: location,
                                         }
                                     }
