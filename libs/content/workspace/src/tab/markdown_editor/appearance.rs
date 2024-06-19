@@ -81,7 +81,6 @@ pub struct Appearance {
 
     // capture of markdown syntax characters
     pub markdown_capture: Option<HashSet<MarkdownNodeType>>,
-    pub markdown_capture_disabled_for_cursor_paragraph: bool,
 }
 
 impl Appearance {

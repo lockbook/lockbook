@@ -1,8 +1,7 @@
 use crate::tab::markdown_editor::appearance::Appearance;
 use crate::tab::markdown_editor::ast::{Ast, AstTextRangeType};
-use crate::tab::markdown_editor::bounds::{self, Bounds, RangesExt, Text};
+use crate::tab::markdown_editor::bounds::{self, Bounds, Text};
 use crate::tab::markdown_editor::buffer::SubBuffer;
-use crate::tab::markdown_editor::editor::HoverSyntaxRevealDebounceState;
 use crate::tab::markdown_editor::images::{ImageCache, ImageState};
 use crate::tab::markdown_editor::layouts::{Annotation, LayoutJobInfo};
 use crate::tab::markdown_editor::offset_types::{DocCharOffset, RangeExt, RelCharOffset};
@@ -45,12 +44,8 @@ pub struct ImageInfo {
 
 pub fn calc(
     ast: &Ast, buffer: &SubBuffer, bounds: &Bounds, images: &ImageCache, appearance: &Appearance,
-    hover_syntax_reveal_debounce_state: HoverSyntaxRevealDebounceState, ui: &mut Ui,
+    ui: &mut Ui,
 ) -> Galleys {
-    let cursor_paragraphs = bounds
-        .paragraphs
-        .find_intersecting(buffer.cursor.selection, true);
-
     let mut result: Galleys = Default::default();
 
     let mut head_size: RelCharOffset = 0.into();
@@ -58,21 +53,20 @@ pub fn calc(
     let mut annotation_text_format = Default::default();
     let mut layout: LayoutJob = Default::default();
 
-    // join ast text ranges, paragraphs, plaintext links, selection, and whole document (to ensure everything is captured)
+    // join all bounds that affect rendering
     // emit one galley per paragraph; other data is used to determine style
     let ast_ranges = bounds
         .ast
         .iter()
         .map(|range| range.range)
         .collect::<Vec<_>>();
-    let doc_range = (0.into(), buffer.segs.last_cursor_position());
-    for ([ast_idx, paragraph_idx, link_idx, selection_idx, _], text_range_portion) in
+    for ([ast_idx, paragraph_idx, link_idx, selection_idx, text_idx], text_range_portion) in
         bounds::join([
             &ast_ranges,
             &bounds.paragraphs,
             &bounds.links,
             &[buffer.cursor.selection],
-            &[doc_range],
+            &bounds.text,
         ])
     {
         // paragraphs cover all text; will always have at least one possibly-empty paragraph
@@ -88,15 +82,7 @@ pub fn calc(
             let maybe_link_range = link_idx.map(|link_idx| bounds.links[link_idx]);
             let in_selection = selection_idx.is_some() && !buffer.cursor.selection.is_empty();
 
-            let captured = bounds::captured(
-                buffer.cursor,
-                &bounds.paragraphs,
-                ast,
-                text_range,
-                hover_syntax_reveal_debounce_state,
-                appearance,
-                cursor_paragraphs,
-            );
+            let captured = text_idx.is_none();
 
             // construct text format using styles for all ancestor nodes
             let mut text_format = TextFormat::default();
