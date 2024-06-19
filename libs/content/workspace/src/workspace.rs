@@ -392,6 +392,10 @@ impl Workspace {
                                 if let Some(new_name) = resp.document_renamed {
                                     rename_req = Some((tab.id, new_name))
                                 }
+
+                                if resp.hide_virtual_keyboard {
+                                    output.hide_virtual_keyboard = resp.hide_virtual_keyboard;
+                                }
                             }
                             TabContent::PlainText(txt) => txt.show(ui),
                             TabContent::Image(img) => img.show(ui),

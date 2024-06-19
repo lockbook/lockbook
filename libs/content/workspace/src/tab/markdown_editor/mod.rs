@@ -95,7 +95,7 @@ impl Markdown {
     pub fn show(&mut self, ui: &mut egui::Ui) -> EditorResponse {
         ui.vertical(|ui| {
             let mut res = if cfg!(target_os = "ios") || cfg!(target_os = "android") {
-                let res = ui
+                let mut res = ui
                     .allocate_ui(
                         egui::vec2(
                             ui.available_width(),
@@ -104,12 +104,12 @@ impl Markdown {
                         |ui| self.editor.scroll_ui(ui),
                     )
                     .inner;
-                self.toolbar.show(ui, &mut self.editor);
+                self.toolbar.show(ui, &mut self.editor, &mut res);
 
                 res
             } else {
-                let res = self.editor.scroll_ui(ui);
-                self.toolbar.show(ui, &mut self.editor);
+                let mut res = self.editor.scroll_ui(ui);
+                self.toolbar.show(ui, &mut self.editor, &mut res);
 
                 res
             };
