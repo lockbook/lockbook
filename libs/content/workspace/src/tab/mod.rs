@@ -126,7 +126,6 @@ impl EventManager for egui::Context {
     }
 }
 
-// todo: use relative path (caller responsibilty?)
 // todo: use background thread
 // todo: refresh file tree view
 pub fn import_image(core: &lb_rs::Core, open_file: Uuid, data: &[u8]) -> File {
