@@ -8,7 +8,7 @@ edition = "2021"
 [dependencies]
 async-trait = "0.1.77"
 nfsserve = "0.10.1"
-tokio = { version = "1.35.1", features = ["signal", "process"] } 
+tokio = { version = "1.35.1", features = ["signal", "process", "rt-multi-thread"] } 
 cli-rs = "0.1.12"
 lb-rs = { path = "../lb/lb-rs" }
 tracing = "0.1"

@@ -35,8 +35,10 @@ import app.lockbook.model.TransientScreen
 import app.lockbook.model.WorkspaceTab
 import app.lockbook.model.WorkspaceViewModel
 import app.lockbook.util.WorkspaceView
-import com.github.michaelbull.result.get
 import com.github.michaelbull.result.unwrap
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.json.Json
 import kotlin.math.abs
 
 class WorkspaceFragment : Fragment() {
@@ -293,8 +295,8 @@ class WorkspaceTextInputWrapper(context: Context, val workspaceView: WorkspaceVi
     }
 }
 
-class WorkspaceTextInputConnection(val view: View) : BaseInputConnection(view, true) {
-    private val wsEditable = WorkspaceTextEditable(view)
+class WorkspaceTextInputConnection(val view: WorkspaceView) : BaseInputConnection(view, true) {
+    val wsEditable = WorkspaceTextEditable(view)
     private var monitorCursorUpdates = false
 
     private fun getInputMethodManager(): InputMethodManager = App.applicationContext().getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
@@ -305,7 +307,7 @@ class WorkspaceTextInputConnection(val view: View) : BaseInputConnection(view, t
             .updateCursorAnchorInfo(
                 view,
                 CursorAnchorInfo.Builder()
-                    .setSelectionRange(wsEditable.getSelection().first, wsEditable.getSelection().second)
+                    .setSelectionRange(wsEditable.getSelection().start, wsEditable.getSelection().end)
                     .build()
             )
     }
@@ -366,17 +368,15 @@ class WorkspaceTextInputConnection(val view: View) : BaseInputConnection(view, t
     }
 }
 
-class WorkspaceTextEditable(val view: View) : Editable {
+@Serializable
+data class JTextRange(val none: Boolean, val start: Int, val end: Int)
+
+class WorkspaceTextEditable(val view: WorkspaceView) : Editable {
 
     private var selectionStartSpanFlag = 0
     private var selectionEndSpanFlag = 0
 
-    fun getSelection(): Pair<Int, Int> {
-        val selStr = WorkspaceView.WORKSPACE.getSelection(WorkspaceView.WGPU_OBJ)
-        val selections = selStr.split(" ").map { it.toIntOrNull() ?: 0 }
-
-        return Pair(selections.getOrNull(0) ?: 0, selections.getOrNull(1) ?: 0)
-    }
+    fun getSelection(): JTextRange = Json.decodeFromString(WorkspaceView.WORKSPACE.getSelection(WorkspaceView.WGPU_OBJ))
 
     override fun get(index: Int): Char =
         WorkspaceView.WORKSPACE.getTextInRange(WorkspaceView.WGPU_OBJ, index, index)[0]
@@ -400,21 +400,30 @@ class WorkspaceTextEditable(val view: View) : Editable {
             }
         }
     }
+
     override fun <T> getSpans(start: Int, end: Int, type: Class<T>?): Array<T> {
-        return arrayOf<Any>() as Array<T>
+        return java.lang.reflect.Array.newInstance(type, 0) as Array<T>
     }
 
     override fun getSpanStart(tag: Any?): Int {
         if (tag == Selection.SELECTION_START) {
-            return getSelection().first
+            return getSelection().start
+        }
+
+        if (tag == Selection.SELECTION_END) {
+            return getSelection().end
         }
 
         return -1
     }
 
     override fun getSpanEnd(tag: Any?): Int {
+        if (tag == Selection.SELECTION_START) {
+            return getSelection().start
+        }
+
         if (tag == Selection.SELECTION_END) {
-            return getSelection().second
+            return getSelection().end
         }
 
         return -1
@@ -422,8 +431,12 @@ class WorkspaceTextEditable(val view: View) : Editable {
 
     override fun getSpanFlags(tag: Any?): Int {
         return when (tag) {
-            Selection.SELECTION_START -> selectionStartSpanFlag
-            Selection.SELECTION_END -> selectionEndSpanFlag
+            Selection.SELECTION_START -> {
+                selectionStartSpanFlag
+            }
+            Selection.SELECTION_END -> {
+                selectionEndSpanFlag
+            }
             else -> {
                 0
             }
@@ -437,11 +450,13 @@ class WorkspaceTextEditable(val view: View) : Editable {
     override fun setSpan(what: Any?, start: Int, end: Int, flags: Int) {
         if (what == Selection.SELECTION_START) {
             selectionStartSpanFlag = flags
-            WorkspaceView.WORKSPACE.setSelection(WorkspaceView.WGPU_OBJ, start, getSelection().second)
+            WorkspaceView.WORKSPACE.setSelection(WorkspaceView.WGPU_OBJ, start, end)
         } else if (what == Selection.SELECTION_END) {
             selectionEndSpanFlag = flags
-            WorkspaceView.WORKSPACE.setSelection(WorkspaceView.WGPU_OBJ, getSelection().first, end)
+            WorkspaceView.WORKSPACE.setSelection(WorkspaceView.WGPU_OBJ, start, end)
         }
+
+        view.invalidate()
     }
 
     override fun removeSpan(what: Any?) {}
@@ -515,5 +530,7 @@ class WorkspaceTextEditable(val view: View) : Editable {
 
     // no text needs to be filtered
     override fun getFilters(): Array<InputFilter> = arrayOf()
-    override val length: Int = WorkspaceView.WORKSPACE.getTextLength(WorkspaceView.WGPU_OBJ)
+    override val length: Int get() {
+        return WorkspaceView.WORKSPACE.getTextLength(WorkspaceView.WGPU_OBJ)
+    }
 }
