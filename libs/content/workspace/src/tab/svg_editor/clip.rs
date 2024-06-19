@@ -1,6 +1,6 @@
 use resvg::usvg::{AspectRatio, NonZeroRect, Transform, ViewBox};
 
-use crate::tab::{self, ClipContent, EventManager as _};
+use crate::tab::{ClipContent, EventManager as _};
 
 use super::SVGEditor;
 
