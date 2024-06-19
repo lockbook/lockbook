@@ -339,9 +339,8 @@ impl Toolbar {
         &mut self, ui: &mut egui::Ui, buffer: &mut Buffer, skip_frame: &mut bool,
         inner_rect: egui::Rect,
     ) -> Option<Transform> {
-        let zoom_percentage = ((buffer.master_transform.sx + buffer.master_transform.sy) / 2.0
-            * 100.0)
-            .round() as f32;
+        let zoom_percentage =
+            ((buffer.master_transform.sx + buffer.master_transform.sy) / 2.0 * 100.0).round();
 
         if Button::default().icon(&Icon::ZOOM_IN).show(ui).clicked() {
             return Some(zoom_percentage_to_transform(zoom_percentage + 10., buffer, ui));
@@ -436,7 +435,7 @@ fn calc_elements_bounds(buffer: &mut Buffer) -> egui::Rect {
         elements_bound.max.x = elements_bound.max.x.max(el_rect.max.x);
         elements_bound.max.y = elements_bound.max.y.max(el_rect.max.y);
     }
-    return elements_bound;
+    elements_bound
 }
 
 fn zoom_percentage_to_transform(

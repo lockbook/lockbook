@@ -117,20 +117,12 @@ impl SVGEditor {
 
         match self.toolbar.active_tool {
             Tool::Pen => {
-                if let Some(_) = self.toolbar.pen.handle_input(
+                self.toolbar.pen.handle_input(
                     ui,
                     self.inner_rect,
                     &mut self.buffer,
                     &mut self.history,
-                ) {
-                    // let pen::PenResponse::ToggleSelection(id) = res;
-                    // self.toolbar.set_tool(Tool::Selection);
-                    // self.toolbar.selection.select_el_by_id(
-                    //     id.to_string().as_str(),
-                    //     ui.ctx().pointer_hover_pos().unwrap_or_default(),
-                    //     &mut self.buffer,
-                    // );
-                }
+                );
             }
             Tool::Eraser => {
                 self.toolbar.eraser.handle_input(
@@ -170,7 +162,7 @@ impl SVGEditor {
 
         for (_, el) in self.buffer.elements.iter_mut() {
             if let parser::Element::Path(path) = el {
-                if path.data.len() < 1 || path.visibility.eq(&usvg::Visibility::Hidden) {
+                if path.data.is_empty() || path.visibility.eq(&usvg::Visibility::Hidden) {
                     continue;
                 }
 
@@ -230,7 +222,7 @@ impl SVGEditor {
 fn render_image(img: &mut parser::Image, ui: &mut egui::Ui, id: &String, painter: &egui::Painter) {
     match &img.data {
         ImageKind::JPEG(bytes) | ImageKind::PNG(bytes) => {
-            let image = image::load_from_memory(&bytes).unwrap();
+            let image = image::load_from_memory(bytes).unwrap();
 
             let egui_image = egui::ColorImage::from_rgba_unmultiplied(
                 [image.width() as usize, image.height() as usize],

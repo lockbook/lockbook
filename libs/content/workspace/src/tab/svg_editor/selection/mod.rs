@@ -249,7 +249,7 @@ impl Selection {
             None
         };
 
-        if let Some(_) = delta {
+        if delta.is_some() {
             end_translation(buffer, history, &mut self.selected_elements, pos, true);
         }
 
@@ -289,7 +289,7 @@ impl Selection {
                 buffer
                     .elements
                     .iter()
-                    .find(|(&ref id, _el)| id.eq(&selection.id));
+                    .find(|(id, _el)| id.to_owned().eq(&selection.id));
                 DeleteElement { id: selection.id.clone() }
             })
             .collect();

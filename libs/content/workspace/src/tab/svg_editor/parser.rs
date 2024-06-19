@@ -102,7 +102,7 @@ impl Buffer {
     }
 }
 
-fn parse_child(u_el: &usvg::Node, mut buffer: &mut Buffer, i: usize) {
+fn parse_child(u_el: &usvg::Node, buffer: &mut Buffer, i: usize) {
     match &u_el {
         usvg::Node::Group(group) => {
             if group.id().eq(ZOOM_G_ID) {
@@ -235,14 +235,11 @@ impl ToString for Buffer {
                     let mut curv_attrs = " ".to_string(); // if it's empty then the curve might not be converted to string via bezier_rs
                     if let Some(stroke) = p.stroke {
                         curv_attrs = format!(
-                            r#"stroke-width="{}" stroke="{}" fill="none""#,
+                            r#"stroke-width="{}" stroke="\#{:02X}{:02X}{:02X}" fill="none""#,
                             stroke.width,
-                            format!(
-                                "#{:02X}{:02X}{:02X}",
-                                stroke.color.r(),
-                                stroke.color.g(),
-                                stroke.color.b()
-                            ) // todo: see how to handle opacity
+                            stroke.color.r(),
+                            stroke.color.g(),
+                            stroke.color.b(),
                         );
                     }
                     if p.data.len() > 1 {
@@ -276,7 +273,7 @@ impl ToString for Buffer {
             self.master_transform.tx,
             self.master_transform.ty
         );
-        let _ = write!(&mut root, "{} {}", zoom_level, "</svg>");
+        let _ = write!(&mut root, "{} </svg>", zoom_level);
         root
     }
 }

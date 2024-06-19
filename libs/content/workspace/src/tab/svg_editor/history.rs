@@ -1,12 +1,8 @@
 use std::{collections::VecDeque, fmt::Debug};
 
 use glam::DAffine2;
-use resvg::usvg::Transform;
 
-use super::{
-    parser,
-    selection::{bezier_transform_to_u, u_transform_to_bezier},
-};
+use super::{parser, selection::bezier_transform_to_u};
 
 #[derive(Default)]
 pub struct History {

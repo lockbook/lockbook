@@ -17,17 +17,13 @@ pub fn end_translation(
         .filter_map(|el| {
             el.prev_pos = pos;
             if let Some(node) = buffer.elements.get_mut(&el.id) {
-                match node {
-                    _ => {
-                        if save_event {
-                            Some(TransformElement {
-                                id: el.id.to_owned(),
-                                transform: u_transform_to_bezier(&el.transform),
-                            })
-                        } else {
-                            None
-                        }
-                    }
+                if save_event {
+                    Some(TransformElement {
+                        id: el.id.to_owned(),
+                        transform: u_transform_to_bezier(&el.transform),
+                    })
+                } else {
+                    None
                 }
             } else {
                 None
@@ -43,7 +39,7 @@ pub fn detect_translation(
     buffer: &mut Buffer, last_pos: Option<egui::Pos2>, current_pos: egui::Pos2,
 ) -> Option<SelectedElement> {
     for (id, el) in buffer.elements.iter() {
-        if pointer_intersects_element(&el, current_pos, last_pos, 10.0) {
+        if pointer_intersects_element(el, current_pos, last_pos, 10.0) {
             return Some(SelectedElement {
                 id: id.clone(),
                 prev_pos: current_pos,
