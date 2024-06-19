@@ -1,29 +1,28 @@
 use bezier_rs::Subpath;
-use glam::{DAffine2, DMat2, DVec2};
+use glam::DVec2;
+use resvg::usvg::Transform;
 
-use crate::tab::svg_editor::{
-    history::ManipulatorGroupId,
-    node_by_id,
-    util::{deserialize_transform, serialize_transform},
-    Buffer,
+use crate::tab::svg_editor::{parser::ManipulatorGroupId, Buffer};
+
+use super::{
+    rect::SelectionRectContainer, u_transform_to_bezier, SelectedElement, SelectionOperation,
+    SelectionResponse,
 };
 
-use super::{rect::SelectionRectContainer, SelectedElement, SelectionOperation, SelectionResponse};
-
 pub fn scale_group_from_center(
-    factor: f64, els: &mut [SelectedElement], selected_rect: &SelectionRectContainer,
+    factor: f32, els: &mut [SelectedElement], selected_rect: &SelectionRectContainer,
     buffer: &mut Buffer,
 ) {
-    for el in els.iter_mut() {
-        scale_from_center(factor, el, selected_rect, buffer)
-    }
+    els.iter_mut().for_each(|el| {
+        scale_from_center(factor, el, selected_rect, buffer);
+    });
 }
 
 pub fn scale_from_center(
-    factor: f64, el: &mut SelectedElement, selected_rect: &SelectionRectContainer,
+    factor: f32, el: &mut SelectedElement, selected_rect: &SelectionRectContainer,
     buffer: &mut Buffer,
 ) {
-    let mut path: Subpath<ManipulatorGroupId> = Subpath::new_rect(
+    let path: Subpath<ManipulatorGroupId> = Subpath::new_rect(
         DVec2 {
             x: selected_rect.container.raw.min.x as f64,
             y: selected_rect.container.raw.min.y as f64,
@@ -34,39 +33,30 @@ pub fn scale_from_center(
         },
     );
 
-    // the inverse of the master transform will get the location of the
-    // path's in terms of the svg viewport instead of the default egui
-    // viewport. those cords are used for center based scaling.
-    if let Some(transform) = buffer.current.attr("transform") {
-        let [a, b, c, d, e, f] = deserialize_transform(transform);
-        path.apply_transform(
-            DAffine2 {
-                matrix2: DMat2 { x_axis: DVec2 { x: a, y: b }, y_axis: DVec2 { x: c, y: d } },
-                translation: DVec2 { x: e, y: f },
-            }
-            .inverse(),
-        );
-    }
-
     let bb = path.bounding_box().unwrap();
     let element_rect = egui::Rect {
         min: egui::pos2(bb[0].x as f32, bb[0].y as f32),
         max: egui::pos2(bb[1].x as f32, bb[1].y as f32),
     };
 
-    if let Some(node) = node_by_id(&mut buffer.current, el.id.clone()) {
-        let mut scaled_matrix = deserialize_transform(node.attr("transform").unwrap_or_default());
-        scaled_matrix = scaled_matrix.map(|n| n * factor);
+    if let Some(node) = buffer.elements.get_mut(&el.id) {
+        let u_transform = Transform::identity()
+            .post_scale(factor, factor)
+            .post_translate(
+                -(1. - factor) * (element_rect.width() / 2. - element_rect.right()),
+                -(1. - factor) * (element_rect.height() / 2. - element_rect.bottom()),
+            );
+        let b_transform = u_transform_to_bezier(&u_transform);
 
-        // after scaling the matrix, a corrective translate is applied
-        // to ensure that it's scaled from the center
-        scaled_matrix[4] -=
-            (1. - factor) * (element_rect.width() / 2. - element_rect.right()) as f64;
-        scaled_matrix[5] -=
-            (1. - factor) * (element_rect.height() / 2. - element_rect.bottom()) as f64;
+        match node {
+            crate::tab::svg_editor::parser::Element::Path(p) => {
+                el.transform = el.transform.post_concat(u_transform);
 
-        node.set_attr("transform", serialize_transform(&scaled_matrix));
-        buffer.needs_path_map_update = true;
+                p.data.apply_transform(b_transform);
+            }
+            crate::tab::svg_editor::parser::Element::Image(img) => img.apply_transform(u_transform),
+            crate::tab::svg_editor::parser::Element::Text(_) => todo!(),
+        }
     }
 }
 
@@ -106,8 +96,9 @@ pub fn snap_scale(
         )
     };
 
-    for el in els.iter_mut() {
-        scale_from_center(factor as f64, el, selected_rect, buffer);
-    }
+    els.iter_mut().for_each(|el| {
+        scale_from_center(factor, el, selected_rect, buffer);
+    });
+
     res_icon
 }
