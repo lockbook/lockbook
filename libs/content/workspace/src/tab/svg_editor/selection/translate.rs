@@ -16,7 +16,7 @@ pub fn end_translation(
         .iter_mut()
         .filter_map(|el| {
             el.prev_pos = pos;
-            if let Some(node) = buffer.elements.get_mut(&el.id) {
+            if buffer.elements.get_mut(&el.id).is_some() {
                 if save_event {
                     Some(TransformElement {
                         id: el.id.to_owned(),
