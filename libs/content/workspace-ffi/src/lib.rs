@@ -45,7 +45,6 @@ pub struct WgpuWorkspace<'window> {
 #[cfg(any(target_vendor = "apple", target_os = "android"))]
 impl<'window> WgpuWorkspace<'window> {
     pub fn frame(&mut self) -> IntegrationOutput {
-        panic!("you catch this?");
         #[cfg(not(target_os = "android"))]
         use std::ffi::CString;
         use std::iter;

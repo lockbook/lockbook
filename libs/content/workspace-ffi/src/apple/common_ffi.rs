@@ -6,7 +6,6 @@ use egui_wgpu_backend::{wgpu, ScreenDescriptor};
 use lb_external_interface::lb_rs::Core;
 use lb_external_interface::lb_rs::Uuid;
 use std::ffi::{c_char, c_void, CStr, CString};
-use std::panic;
 use std::path::PathBuf;
 use std::time::Instant;
 use workspace_rs::register_fonts;
@@ -19,9 +18,6 @@ use workspace_rs::workspace::{Workspace, WsConfig};
 pub unsafe extern "C" fn init_ws(
     core: *mut c_void, metal_layer: *mut c_void, dark_mode: bool,
 ) -> *mut c_void {
-    panic::set_hook(Box::new(|_p| {
-        println!("FROM WS: {}", std::backtrace::Backtrace::force_capture());
-    }));
     let core = unsafe { &mut *(core as *mut Core) };
     let writable_dir = core.get_config().unwrap().writeable_path;
 
