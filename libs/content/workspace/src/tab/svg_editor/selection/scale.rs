@@ -39,7 +39,7 @@ pub fn scale_from_center(
         max: egui::pos2(bb[1].x as f32, bb[1].y as f32),
     };
 
-    if let Some(node) = buffer.elements.get_mut(&el.id) {
+    if buffer.elements.get_mut(&el.id).is_some() {
         let u_transform = Transform::identity()
             .post_scale(factor, factor)
             .post_translate(
