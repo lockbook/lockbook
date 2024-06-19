@@ -154,13 +154,10 @@ fn parse_child(u_el: &usvg::Node, buffer: &mut Buffer, i: usize) {
 }
 
 fn lb_local_resolver(core: &lb_rs::Core, open_file: Uuid) -> ImageHrefStringResolverFn {
-    let lb_link_prefix = "lb://";
     let core = core.clone();
     Box::new(move |href: &str, _opts: &Options, _db: &Database| {
-        let id = if href.starts_with(lb_link_prefix) {
-            let id = &href[lb_link_prefix.len()..];
-            let id = lb_rs::Uuid::from_str(id).ok()?;
-            id
+        let id = if let Some(id) = href.strip_prefix("lb://") {
+            lb_rs::Uuid::from_str(id).ok()?
         } else {
             crate::tab::core_get_by_relative_path(&core, open_file, &PathBuf::from(&href))
                 .ok()?
