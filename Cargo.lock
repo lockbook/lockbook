@@ -8464,7 +8464,6 @@ dependencies = [
  "lb-pdf",
  "lb-rs",
  "linkify",
- "minidom",
  "ndk-sys 0.4.1+23.1.7779620",
  "pollster",
  "pulldown-cmark",

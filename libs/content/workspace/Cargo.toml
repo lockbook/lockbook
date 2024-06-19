@@ -16,7 +16,6 @@ image = "0.24"
 lb-fonts = { git = "https://github.com/lockbook/lb-fonts" }
 lb-pdf = { git = "https://github.com/lockbook/lb-pdf" }
 linkify = "0.10.0"
-minidom = { git = "https://github.com/lockbook/minidom" }
 pulldown-cmark = { version = "0.9.2", default-features = false }
 rand = "0.8.5"
 resvg = "0.41.0"
