@@ -172,10 +172,11 @@ public class iOSMTKInputManager: UIView, UIGestureRecognizerDelegate {
                 
                 switch inputManager.currentTab {
                 case .Welcome, .Pdf, .Loading, .Image:
-                    print("wrapper not needed")
+                    inputManager.mtkView.currentWrapper = nil
                 case .Svg:
                     let drawingWrapper = iOSMTKDrawingWrapper(mtkView: inputManager.mtkView)
                     inputManager.currentWrapper = drawingWrapper
+                    inputManager.mtkView.currentWrapper = drawingWrapper
                                     
                     drawingWrapper.translatesAutoresizingMaskIntoConstraints = false
                     inputManager.addSubview(drawingWrapper)
@@ -188,6 +189,7 @@ public class iOSMTKInputManager: UIView, UIGestureRecognizerDelegate {
                 case .PlainText, .Markdown:
                     let textWrapper = iOSMTKTextInputWrapper(mtkView: inputManager.mtkView)
                     inputManager.currentWrapper = textWrapper
+                    inputManager.mtkView.currentWrapper = textWrapper
                     
                     textWrapper.translatesAutoresizingMaskIntoConstraints = false
                     inputManager.addSubview(textWrapper)

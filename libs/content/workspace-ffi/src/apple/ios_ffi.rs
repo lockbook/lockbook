@@ -665,6 +665,19 @@ pub unsafe extern "C" fn cursor_rect_at_position(obj: *mut c_void, pos: CTextPos
 /// # Safety
 /// obj must be a valid pointer to WgpuEditor
 #[no_mangle]
+pub unsafe extern "C" fn update_virtual_keyboard(obj: *mut c_void, showing: bool) {
+    let obj = &mut *(obj as *mut WgpuWorkspace);
+    let markdown = match obj.workspace.current_tab_markdown_mut() {
+        Some(markdown) => markdown,
+        None => return,
+    };
+
+    markdown.editor.is_virtual_keyboard_showing = showing;
+}
+
+/// # Safety
+/// obj must be a valid pointer to WgpuEditor
+#[no_mangle]
 pub unsafe extern "C" fn selection_rects(
     obj: *mut c_void, range: CTextRange,
 ) -> UITextSelectionRects {
