@@ -86,7 +86,8 @@ fn handle_custom_event(
                 match clip {
                     ClipContent::Image(data) => {
                         let file = tab::import_image(core, open_file, &data);
-                        let markdown_image_link = format!("![{}](lb://{})", file.name, file.id);
+                        let rel_path = tab::core_get_relative_path(core, open_file, file.id);
+                        let markdown_image_link = format!("![{}]({})", file.name, rel_path);
 
                         modifications.push(Modification::Replace {
                             region: Region::Selection, // todo: more thoughtful location
