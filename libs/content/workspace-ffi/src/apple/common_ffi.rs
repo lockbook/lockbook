@@ -143,7 +143,7 @@ pub unsafe extern "C" fn clipboard_send_image(
 ) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
     let img = std::slice::from_raw_parts(content, length).to_vec();
-    let content = vec![ClipContent::Png(img)];
+    let content = vec![ClipContent::Image(img)];
     let position = egui::Pos2::ZERO; // todo: cursor position
 
     if is_paste {

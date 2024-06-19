@@ -84,7 +84,7 @@ fn handle_custom_event(
             let mut modifications = Vec::new();
             for clip in content {
                 match clip {
-                    ClipContent::Png(data) => {
+                    ClipContent::Image(data) => {
                         let file = tab::import_image(core, open_file, &data);
                         let markdown_image_link = format!("![{}](lb://{})", file.name, file.id);
 

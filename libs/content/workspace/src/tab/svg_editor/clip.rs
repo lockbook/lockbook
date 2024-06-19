@@ -11,7 +11,7 @@ impl SVGEditor {
                 crate::Event::Drop { content, .. } | crate::Event::Paste { content, .. } => {
                     for clip in content {
                         match clip {
-                            ClipContent::Png(data) => {
+                            ClipContent::Image(data) => {
                                 let file =
                                     crate::tab::import_image(&self.core, self.open_file, &data);
 

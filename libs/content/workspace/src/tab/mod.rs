@@ -88,7 +88,7 @@ pub enum Event {
 #[derive(Debug, Clone)]
 pub enum ClipContent {
     Files(Vec<PathBuf>),
-    Png(Vec<u8>),
+    Image(Vec<u8>), // image format guessed by egui
 }
 
 pub trait EventManager {
@@ -130,8 +130,6 @@ impl EventManager for egui::Context {
 // todo: use background thread
 // todo: refresh file tree view
 pub fn import_image(core: &lb_rs::Core, open_file: Uuid, data: &[u8]) -> File {
-    println!("importing image");
-
     let file = core
         .get_file_by_id(open_file)
         .expect("get lockbook file for image");
@@ -159,10 +157,15 @@ pub fn import_image(core: &lb_rs::Core, open_file: Uuid, data: &[u8]) -> File {
         .expect("invalid system time")
         .format("%Y-%m-%d_%H-%M-%S")
         .to_string();
+    let file_extension = image::guess_format(data)
+        .unwrap_or(image::ImageFormat::Png /* shrug */)
+        .extensions_str()
+        .first()
+        .unwrap_or(&"png");
 
     let file = core
         .create_file(
-            &format!("pasted_image_{}.png", human_readable_time),
+            &format!("pasted_image_{}.{}", human_readable_time, file_extension),
             imports_folder.id,
             FileType::Document,
         )

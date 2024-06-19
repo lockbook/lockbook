@@ -201,7 +201,8 @@ public class MacMTK: MTKView, MTKViewDelegate {
         } else if !isPaste {
             if let data = pasteBoard.data(forType: .fileURL) {
                 if let url = URL(dataRepresentation: data, relativeTo: nil) {
-                    if url.pathExtension.lowercased() == "png" {
+                    print("url.pathExtension.lowercased(): \(url.pathExtension.lowercased())")
+                    if isSupportedImageFormat(ext: url.pathExtension.lowercased()) {
                         guard let data = try? Data(contentsOf: url) else {
                             return false
                         }
@@ -229,6 +230,17 @@ public class MacMTK: MTKView, MTKViewDelegate {
         }
         
         clipboard_send_image(wsHandle, imgPtr, UInt(img.count), isPaste)
+    }
+    
+    // copy of workspace::tab::image_viewer::is_supported_image_fmt() because ffi seems like overkill
+    func isSupportedImageFormat(ext: String) -> Bool {
+        // Complete list derived from which features are enabled on image crate according to image-rs default features:
+        // https://github.com/image-rs/image/blob/main/Cargo.toml#L70
+        let imgFormats: Set<String> = [
+            "avif", "bmp", "dds", "exr", "ff", "gif", "hdr", "ico", "jpeg", "jpg", "png", "pnm", "qoi", "tga",
+            "tiff", "webp"
+        ]
+        return imgFormats.contains(ext)
     }
 
     func viewCoordinates(_ event: NSEvent) -> NSPoint {
