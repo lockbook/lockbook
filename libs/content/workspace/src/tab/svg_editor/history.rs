@@ -1,8 +1,12 @@
 use std::{collections::VecDeque, fmt::Debug};
 
 use glam::DAffine2;
+use resvg::usvg::Transform;
 
-use super::parser;
+use super::{
+    parser,
+    selection::{bezier_transform_to_u, u_transform_to_bezier},
+};
 
 #[derive(Default)]
 pub struct History {
@@ -66,6 +70,11 @@ impl History {
                         match el {
                             parser::Element::Path(p) => {
                                 p.data.apply_transform(transform_payload.transform);
+                            }
+                            parser::Element::Image(img) => {
+                                img.apply_transform(bezier_transform_to_u(
+                                    &transform_payload.transform,
+                                ));
                             }
                             _ => {}
                         }

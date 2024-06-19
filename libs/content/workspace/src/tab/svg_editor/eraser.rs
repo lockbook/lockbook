@@ -40,7 +40,7 @@ impl Eraser {
                     if self.delete_candidates.contains(id) {
                         return;
                     }
-                    if pointer_intersects_element(&el, pos, self.last_pos, self.thickness as f64) {
+                    if pointer_intersects_element(el, pos, self.last_pos, self.thickness as f64) {
                         self.delete_candidates.insert(id.clone());
                     }
                 });
@@ -108,13 +108,13 @@ impl Eraser {
             }
             if ui.input(|i| i.pointer.primary_released()) {
                 self.last_pos = None;
-                return Some(EraseEvent::End);
+                Some(EraseEvent::End)
             } else {
-                return None;
+                None
             }
         } else {
             self.last_pos = None;
-            return Some(EraseEvent::End);
+            Some(EraseEvent::End)
         }
     }
 }

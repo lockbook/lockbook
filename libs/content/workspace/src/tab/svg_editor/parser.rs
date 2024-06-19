@@ -78,7 +78,7 @@ impl Buffer {
 
         let lb_local_resolver = ImageHrefResolver {
             resolve_data: ImageHrefResolver::default_data_resolver(),
-            resolve_string: lb_local_resolver(&core),
+            resolve_string: lb_local_resolver(core),
         };
 
         let options =
@@ -112,7 +112,7 @@ fn parse_child(u_el: &usvg::Node, mut buffer: &mut Buffer, i: usize) {
                 .children()
                 .iter()
                 .enumerate()
-                .for_each(|(i, u_el)| parse_child(u_el, &mut buffer, i));
+                .for_each(|(i, u_el)| parse_child(u_el, buffer, i));
         }
         usvg::Node::Image(img) => {
             buffer.elements.insert(
@@ -177,7 +177,7 @@ fn lb_local_resolver(core: &lb_rs::Core) -> ImageHrefStringResolverFn {
     })
 }
 
-fn usvg_d_to_subpath(path: &Box<usvg::Path>) -> Subpath<ManipulatorGroupId> {
+fn usvg_d_to_subpath(path: &usvg::Path) -> Subpath<ManipulatorGroupId> {
     let mut prev = Point::default();
     let mut subpath: Subpath<ManipulatorGroupId> = Subpath::new(vec![], false);
     for segment in path.data().segments() {

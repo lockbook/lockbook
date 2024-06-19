@@ -342,3 +342,14 @@ pub fn u_transform_to_bezier(src: &Transform) -> DAffine2 {
         translation: glam::DVec2 { x: src.tx.into(), y: src.ty.into() },
     }
 }
+
+pub fn bezier_transform_to_u(src: &glam::DAffine2) -> Transform {
+    Transform::from_row(
+        src.matrix2.x_axis.x as f32,
+        src.matrix2.x_axis.y as f32,
+        src.matrix2.y_axis.x as f32,
+        src.matrix2.y_axis.y as f32,
+        src.translation.x as f32,
+        src.translation.y as f32,
+    )
+}
