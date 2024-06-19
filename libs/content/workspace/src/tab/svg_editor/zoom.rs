@@ -1,16 +1,10 @@
-use minidom::Element;
-use std::collections::HashSet;
+use resvg::usvg::Transform;
 
-use super::{
-    util::{deserialize_transform, serialize_transform},
-    Buffer,
-};
+use super::{parser, selection::u_transform_to_bezier};
 
-pub const G_CONTAINER_ID: &str = "lb:zoom_container";
-
-pub fn handle_zoom_input(ui: &mut egui::Ui, working_rect: egui::Rect, buffer: &mut Buffer) {
+pub fn handle_zoom_input(ui: &mut egui::Ui, working_rect: egui::Rect, buffer: &mut parser::Buffer) {
     let zoom_delta = ui.input(|r| r.zoom_delta());
-    let is_zooming = zoom_delta != 0.0;
+    let is_zooming = zoom_delta != 1.0;
 
     let pan = ui.input(|r| {
         if r.raw_scroll_delta.x.abs() > 0.0 || r.raw_scroll_delta.y.abs() > 0.0 {
@@ -39,61 +33,35 @@ pub fn handle_zoom_input(ui: &mut egui::Ui, working_rect: egui::Rect, buffer: &m
         None => egui::Pos2::ZERO,
     };
 
+    let mut t = Transform::identity();
+
+    if let Some(p) = pan {
+        t = t.post_translate(p.x, p.y);
+    }
+
+    if is_zooming {
+        // apply zoom
+        t = t.post_scale(zoom_delta, zoom_delta);
+
+        // correct the zoom to center
+        t = t.post_translate((1.0 - zoom_delta) * pos.x, (1.0 - zoom_delta) * pos.y);
+    }
+
     if pan.is_some() || is_zooming {
-        let mut original_matrix =
-            deserialize_transform(buffer.current.attr("transform").unwrap_or_default());
+        buffer.master_transform = buffer.master_transform.post_concat(t);
 
-        // apply pan
-        original_matrix[4] += pan.unwrap_or_default().x as f64;
-        original_matrix[5] += pan.unwrap_or_default().y as f64;
-
-        // apply zoom/scale
-        let mut scaled_matrix: Vec<f64> = original_matrix
-            .iter()
-            .map(|x| zoom_delta as f64 * x)
-            .collect();
-        scaled_matrix[4] += ((1.0 - zoom_delta) * pos.x) as f64;
-        scaled_matrix[5] += ((1.0 - zoom_delta) * pos.y) as f64;
-        let new_transform = serialize_transform(scaled_matrix.as_slice());
-
-        buffer.current.set_attr("transform", new_transform);
-        buffer.needs_path_map_update = true;
+        let transform = u_transform_to_bezier(&t);
+        for el in buffer.elements.values_mut() {
+            match el {
+                parser::Element::Path(path) => {
+                    path.transform = path.transform.post_concat(t);
+                    path.data.apply_transform(transform);
+                }
+                parser::Element::Image(img) => {
+                    img.apply_transform(t);
+                }
+                parser::Element::Text(_) => todo!(),
+            }
+        }
     }
-}
-
-pub fn verify_zoom_g(buffer: &mut Buffer) {
-    if buffer.current.attr("id").unwrap_or_default() != G_CONTAINER_ID {
-        let mut g = Element::builder("g", "").attr("id", G_CONTAINER_ID).build();
-        let mut moved_ids = HashSet::new();
-        buffer.current.children().for_each(|child| {
-            g.append_child(child.clone());
-            moved_ids.insert(child.attr("id").unwrap_or_default().to_string());
-        });
-
-        moved_ids.iter().for_each(|id| {
-            buffer.current.remove_child(id);
-        });
-
-        buffer.current = g;
-    }
-}
-
-pub fn zoom_to_percentage(buffer: &mut Buffer, percentage: i32, working_rect: egui::Rect) {
-    let original_matrix =
-        deserialize_transform(buffer.current.attr("transform").unwrap_or_default());
-
-    let [a, b, _, _, _, _] = original_matrix;
-
-    let scale_x = (a * a + b * b).sqrt();
-
-    let zoom_delta = percentage as f64 / (scale_x * 100.0);
-
-    let mut scaled_matrix: Vec<f64> = original_matrix.iter().map(|x| zoom_delta * x).collect();
-
-    scaled_matrix[4] += (1.0 - zoom_delta) * working_rect.center().x as f64;
-    scaled_matrix[5] += (1.0 - zoom_delta) * working_rect.center().y as f64;
-    let new_transform = serialize_transform(scaled_matrix.as_slice());
-
-    buffer.current.set_attr("transform", new_transform);
-    buffer.needs_path_map_update = true;
 }

@@ -11,6 +11,9 @@ pub fn init(ctx: &egui::Context, dark_mode: bool) {
     style.spacing.menu_margin = egui::Margin::same(10.0);
     style.spacing.combo_width = 50.0;
 
+    style.visuals.menu_rounding = egui::Rounding::same(10.0);
+    style.visuals.window_rounding = egui::Rounding::same(10.0);
+
     style
         .text_styles
         .insert(egui::TextStyle::Body, egui::FontId::new(17.0, egui::FontFamily::Proportional));
@@ -22,11 +25,9 @@ pub fn init(ctx: &egui::Context, dark_mode: bool) {
         .text_styles
         .insert(egui::TextStyle::Monospace, egui::FontId::new(17.0, egui::FontFamily::Monospace));
 
-    let button_font_size = if cfg!(target_os = "ios") { 30.0 } else { 17.0 };
-    style.text_styles.insert(
-        egui::TextStyle::Button,
-        egui::FontId::new(button_font_size, egui::FontFamily::Proportional),
-    );
+    style
+        .text_styles
+        .insert(egui::TextStyle::Button, egui::FontId::new(17.0, egui::FontFamily::Proportional));
     ctx.set_style(style);
 }
 

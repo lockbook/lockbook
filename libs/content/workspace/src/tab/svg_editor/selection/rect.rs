@@ -4,8 +4,8 @@ use glam::DVec2;
 use super::{SelectedElement, SelectionOperation, SelectionResponse};
 use crate::{
     tab::svg_editor::{
-        history::ManipulatorGroupId,
-        util::{bb_to_rect, deserialize_transform, pointer_interests_path},
+        parser::ManipulatorGroupId,
+        util::{bb_to_rect, pointer_intersects_outline},
         Buffer,
     },
     theme::icons::Icon,
@@ -25,8 +25,20 @@ impl SelectionRectContainer {
         let mut container_bb = [DVec2::new(f64::MAX, f64::MAX), DVec2::new(f64::MIN, f64::MIN)];
         let mut children = vec![];
         for el in els.iter() {
-            let bb = match buffer.paths.get(&el.id) {
-                Some(path) => path.bounding_box().unwrap_or_default(),
+            let bb = match buffer.elements.get(&el.id) {
+                Some(el) => match el {
+                    crate::tab::svg_editor::parser::Element::Path(p) => {
+                        p.data.bounding_box().unwrap()
+                    }
+                    crate::tab::svg_editor::parser::Element::Image(img) => {
+                        let rect = img.bounding_box();
+                        [
+                            DVec2 { x: rect.left().into(), y: rect.top().into() },
+                            DVec2 { x: rect.right().into(), y: rect.bottom().into() },
+                        ]
+                    }
+                    crate::tab::svg_editor::parser::Element::Text(_) => todo!(),
+                },
                 None => continue,
             };
 
@@ -51,23 +63,23 @@ impl SelectionRectContainer {
         }
 
         if let Some(left_path) = &self.container.left {
-            if pointer_interests_path(left_path, cursor_pos, None, SCALE_BRUSH_SIZE) {
+            if pointer_intersects_outline(left_path, cursor_pos, None, SCALE_BRUSH_SIZE) {
                 return Some(SelectionResponse::new(SelectionOperation::WestScale));
             }
         };
         if let Some(right_path) = &self.container.right {
-            if pointer_interests_path(right_path, cursor_pos, None, SCALE_BRUSH_SIZE) {
+            if pointer_intersects_outline(right_path, cursor_pos, None, SCALE_BRUSH_SIZE) {
                 return Some(SelectionResponse::new(SelectionOperation::EastScale));
             }
         };
 
         if let Some(top_path) = &self.container.top {
-            if pointer_interests_path(top_path, cursor_pos, None, SCALE_BRUSH_SIZE) {
+            if pointer_intersects_outline(top_path, cursor_pos, None, SCALE_BRUSH_SIZE) {
                 return Some(SelectionResponse::new(SelectionOperation::NorthScale));
             }
         };
         if let Some(bottom_path) = &self.container.bottom {
-            if pointer_interests_path(bottom_path, cursor_pos, None, SCALE_BRUSH_SIZE) {
+            if pointer_intersects_outline(bottom_path, cursor_pos, None, SCALE_BRUSH_SIZE) {
                 return Some(SelectionResponse::new(SelectionOperation::SouthScale));
             }
         };
@@ -81,23 +93,10 @@ impl SelectionRectContainer {
         self.container.show(ui, false);
     }
 
-    pub fn show_delete_btn(
-        &self, buffer: &mut Buffer, ui: &mut egui::Ui, working_rect: egui::Rect,
-    ) -> bool {
-        let mut delete_toolbar_dim = egui::pos2(20.0, 20.0);
+    pub fn show_delete_btn(&self, ui: &mut egui::Ui, working_rect: egui::Rect) -> bool {
+        let delete_toolbar_dim = egui::pos2(20.0, 20.0);
         let gap = 15.0;
         let icon_size = 19.0;
-        if let Some(transform) = buffer.current.attr("transform") {
-            let transform = deserialize_transform(transform);
-
-            delete_toolbar_dim.x = (delete_toolbar_dim.x * transform[0] as f32).clamp(20.0, 35.0);
-            delete_toolbar_dim.y = (delete_toolbar_dim.y * transform[3] as f32).clamp(20.0, 35.0);
-
-            if (icon_size * transform[3] as f32) < 5. {
-                println!("{:#?}", icon_size * transform[3] as f32);
-                return false;
-            }
-        }
 
         let delete_toolbar_rect = egui::Rect {
             min: egui::pos2(

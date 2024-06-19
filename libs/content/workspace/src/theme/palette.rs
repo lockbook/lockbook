@@ -49,6 +49,16 @@ impl ThemePalette {
             ("fg".to_string(), if is_dark_mode { palette.white } else { palette.black }),
         ]
     }
+
+    pub fn get_fg_color(is_dark_mode: bool) -> Color32 {
+        let palette = if is_dark_mode { ThemePalette::DARK } else { ThemePalette::LIGHT };
+
+        if is_dark_mode {
+            palette.white
+        } else {
+            palette.black
+        }
+    }
 }
 
 impl std::ops::Index<lb_rs::ColorAlias> for ThemePalette {
