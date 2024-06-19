@@ -41,7 +41,6 @@ impl From<&Config> for OnDiskDocuments {
 }
 
 impl DocumentService for OnDiskDocuments {
-    #[instrument(level = "debug", skip(self, document), err(Debug))]
     fn insert(
         &self, id: &Uuid, hmac: Option<&DocumentHmac>, document: &EncryptedDocument,
     ) -> SharedResult<()> {
@@ -98,7 +97,6 @@ impl DocumentService for OnDiskDocuments {
         }
     }
 
-    #[instrument(level = "debug", skip(self), err(Debug))]
     fn delete(&self, id: &Uuid, hmac: Option<&DocumentHmac>) -> SharedResult<()> {
         if let Some(hmac) = hmac {
             let path_str = key_path(&self.config.writeable_path, id, hmac);
@@ -112,7 +110,6 @@ impl DocumentService for OnDiskDocuments {
         Ok(())
     }
 
-    #[instrument(level = "debug", skip(self), err(Debug))]
     fn retain(&self, file_hmacs: HashSet<(&Uuid, &DocumentHmac)>) -> SharedResult<()> {
         let dir_path = namespace_path(&self.config.writeable_path);
         fs::create_dir_all(&dir_path)?;
