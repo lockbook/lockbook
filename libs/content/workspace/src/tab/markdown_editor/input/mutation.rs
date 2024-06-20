@@ -317,9 +317,12 @@ pub fn calc(
                     if let Some(Annotation::Item(
                         ListItem::Numbered(next_number),
                         next_indent_level,
-                    )) = galleys[end_galley_idx + 1].annotation
+                    )) = galleys
+                        .galleys
+                        .get(end_galley_idx + 1)
+                        .and_then(|g| g.annotation.as_ref())
                     {
-                        let (amount, decrement) = if prev_number >= next_number {
+                        let (amount, decrement) = if prev_number >= *next_number {
                             (prev_number - next_number + 1, false)
                         } else {
                             (next_number - prev_number - 1, true)
@@ -328,7 +331,7 @@ pub fn calc(
                         renumbered_galleys = HashMap::new(); // only the last one matters; otherwise they stack
                         increment_numbered_list_items(
                             end_galley_idx,
-                            next_indent_level,
+                            *next_indent_level,
                             amount,
                             decrement,
                             galleys,
