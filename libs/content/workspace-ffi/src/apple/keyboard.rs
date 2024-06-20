@@ -1,4 +1,4 @@
-#[derive(PartialEq, Eq)]
+#[derive(PartialEq, Eq, Debug)]
 pub enum NSKeys {
     A,
     B,
@@ -37,6 +37,11 @@ pub enum NSKeys {
     Num7,
     Num8,
     Num9,
+
+    KeypadPlus,
+    KeypadDivide,
+    KeypadEnter,
+    KeypadMinus,
 
     Apostrophe,
     BackApostrophe,
@@ -165,7 +170,10 @@ impl NSKeys {
             63 => Fn,
             64 => F17,
             65 => Period, // Keypad
-
+            69 => KeypadPlus,
+            75 => KeypadDivide,
+            76 => KeypadEnter,
+            78 => KeypadMinus,
             79 => F18,
             80 => F19,
             81 => Equals, // Keypad
@@ -207,17 +215,15 @@ impl NSKeys {
             _ => return None,
         };
 
+        println!("NS Key: {:?}", key);
+
         // esoteric, ignored for now
 
         // 67 => KeypadMultiply,
-        // 69 => KeypadPlus,
         // 71 => KeypadClear,
         // 72 => VolumeUp,
         // 73 => VolumeDown,
         // 74 => Mute,
-        // 75 => KeypadDivide,
-        // 76 => KeypadEnter,
-        // 78 => KeypadMinus,
         // 114 => Help,
         // 117 => ForwardDelete,
 
@@ -230,12 +236,13 @@ impl NSKeys {
             A | B | C | D | E | F | G | H | I | J | K | L | M | N | O | P | Q | R | S | T | U
             | V | W | X | Y | Z | Num0 | Num1 | Num2 | Num3 | Num4 | Num5 | Num6 | Num7 | Num8
             | Num9 | Apostrophe | BackApostrophe | Backslash | Comma | Equals | FrontSlash
-            | LeftBracket | Minus | Period | RightBracket | Semicolon | Space => true,
+            | LeftBracket | Minus | Period | RightBracket | Semicolon | Space | KeypadPlus
+            | KeypadDivide | KeypadMinus => true,
 
             CapsLock | Command | Control | Delete | Escape | Option | Return | Shift | Tab | Up
             | Left | Down | Right | Backspace | Fn | F1 | F2 | F3 | F4 | F5 | F6 | F7 | F8 | F9
             | F10 | F11 | F12 | F13 | F14 | F15 | F16 | F17 | F18 | F19 | F20 | Home | End
-            | PageUp | PageDown | Insert => false,
+            | PageUp | PageDown | Insert | KeypadEnter => false,
         }
     }
 
@@ -313,10 +320,16 @@ impl NSKeys {
             PageUp => egui::Key::PageUp,
             PageDown => egui::Key::PageDown,
             Insert => egui::Key::Insert,
+            KeypadPlus => egui::Key::Plus,
+            KeypadDivide => egui::Key::Slash,
+            KeypadEnter => egui::Key::Enter,
+            KeypadMinus => egui::Key::Minus,
             Apostrophe | Comma | BackApostrophe | Backslash | CapsLock | Command | Control
             | Equals | FrontSlash | LeftBracket | Minus | Option | Period | RightBracket
             | Semicolon | Shift | Fn => return None,
         };
+
+        println!("egui key: {:?}", key);
 
         Some(key)
     }
