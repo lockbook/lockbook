@@ -389,7 +389,7 @@ impl Workspace {
                                     tab.last_changed = Instant::now();
                                 }
 
-                                if let Some(new_name) = resp.document_renamed {
+                                if let Some(new_name) = resp.suggested_rename {
                                     rename_req = Some((tab.id, new_name))
                                 }
 
