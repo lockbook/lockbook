@@ -774,10 +774,7 @@ impl Workspace {
 
         thread::spawn(move || {
             let (id, new_name) = req;
-            if let Err(err) = core.rename_file(id, &new_name) {
-                println!("failed to rename file {:?} to {:?}: {:?}", id, new_name, err);
-                return;
-            }
+            core.rename_file(id, &new_name).unwrap(); // TODO
 
             update_tx.send(WsMsg::FileRenamed { id, new_name }).unwrap();
             ctx.request_repaint();
