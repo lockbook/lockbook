@@ -96,8 +96,7 @@ pub struct Editor {
 
 impl Editor {
     pub fn new(
-        core: lb_rs::Core, open_file: Uuid, content: &str, file_id: &Uuid, needs_name: bool,
-        plaintext_mode: bool,
+        core: lb_rs::Core, content: &str, file_id: Uuid, needs_name: bool, plaintext_mode: bool,
     ) -> Self {
         Self {
             id: egui::Id::new(file_id),

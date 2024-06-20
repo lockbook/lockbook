@@ -79,7 +79,7 @@ impl Markdown {
         file_id: Uuid, plaintext_mode: bool,
     ) -> Self {
         let content = String::from_utf8_lossy(bytes);
-        let editor = Editor::new(core, file_id, &content, &file_id, needs_name, plaintext_mode);
+        let editor = Editor::new(core, &content, file_id, needs_name, plaintext_mode);
         let toolbar = ToolBar::new(toolbar_visibility);
 
         Self { editor, toolbar }
@@ -100,7 +100,9 @@ impl Markdown {
             } else {
                 self.editor.scroll_ui(ui)
             };
-            self.toolbar.show(ui, &mut self.editor, &mut res);
+            if !self.editor.appearance.plaintext_mode {
+                self.toolbar.show(ui, &mut self.editor, &mut res);
+            }
             res
         })
         .inner
