@@ -15,6 +15,7 @@ use egui::epaint::text::cursor::RCursor;
 use linkify::LinkFinder;
 use std::cmp::Ordering;
 use std::collections::HashSet;
+use tldextract::{TldExtractor, TldOption};
 use unicode_segmentation::UnicodeSegmentation;
 
 pub type AstTextRanges = Vec<AstTextRange>;
@@ -232,6 +233,34 @@ pub fn calc_links(buffer: &SubBuffer, text: &Text, ast: &Ast) -> PlainTextLinks 
 
             if span.kind().is_none() {
                 continue;
+            }
+
+            let link_text = if buffer[link_range].contains("://") {
+                buffer[link_range].to_string()
+            } else {
+                format!("http://{}", &buffer[link_range])
+            };
+
+            match TldExtractor::new(TldOption::default()).extract(&link_text) {
+                Ok(tld) => {
+                    // the last one of these must be a top level domain
+                    if let Some(ref d) = tld.suffix {
+                        if !tld::exist(d) {
+                            continue;
+                        }
+                    } else if let Some(ref d) = tld.domain {
+                        if !tld::exist(d) {
+                            continue;
+                        }
+                    } else if let Some(ref d) = tld.subdomain {
+                        if !tld::exist(d) {
+                            continue;
+                        }
+                    }
+                }
+                Err(_) => {
+                    continue;
+                }
             }
 
             // ignore links in code blocks because field references or method invocations can look like URLs

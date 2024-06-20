@@ -24,6 +24,8 @@ svgtypes = "0.13.0"
 unicode-segmentation = "1.10.0"
 usvg-parser = "0.36.0"
 chrono = "0.4"
+tld = "2.35.0"
+tldextract = "0.6.0"
 
 # todo: maybe move this switch into lb itself
 [target.'cfg(not(target_os = "android"))'.dependencies]
