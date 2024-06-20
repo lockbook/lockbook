@@ -70,8 +70,6 @@ pub fn register_fonts(fonts: &mut FontDefinitions) {
 pub struct Markdown {
     pub editor: Editor,
     pub toolbar: ToolBar,
-    // update_tx: Sender<AccountUpdate>,
-    pub needs_name: bool,
 }
 
 impl Markdown {
@@ -81,11 +79,11 @@ impl Markdown {
         file_id: Uuid,
     ) -> Self {
         let content = String::from_utf8_lossy(bytes);
-        let editor = Editor::new(core, file_id, &content, &file_id);
+        let editor = Editor::new(core, file_id, &content, needs_name);
 
         let toolbar = ToolBar::new(toolbar_visibility);
 
-        Self { editor, toolbar, needs_name }
+        Self { editor, toolbar }
     }
 
     pub fn past_first_frame(&self) -> bool {
@@ -95,30 +93,15 @@ impl Markdown {
     pub fn show(&mut self, ui: &mut egui::Ui) -> EditorResponse {
         ui.vertical(|ui| {
             let mut res = if cfg!(target_os = "ios") || cfg!(target_os = "android") {
-                let mut res = ui
-                    .allocate_ui(
-                        egui::vec2(
-                            ui.available_width(),
-                            ui.available_height() - MOBILE_TOOL_BAR_SIZE,
-                        ),
-                        |ui| self.editor.scroll_ui(ui),
-                    )
-                    .inner;
-                self.toolbar.show(ui, &mut self.editor, &mut res);
-
-                res
+                ui.allocate_ui(
+                    egui::vec2(ui.available_width(), ui.available_height() - MOBILE_TOOL_BAR_SIZE),
+                    |ui| self.editor.scroll_ui(ui),
+                )
+                .inner
             } else {
-                let mut res = self.editor.scroll_ui(ui);
-                self.toolbar.show(ui, &mut self.editor, &mut res);
-
-                res
+                self.editor.scroll_ui(ui)
             };
-
-            if self.needs_name {
-                if let Some(title) = &res.potential_title {
-                    res.document_renamed = Some(title.clone());
-                }
-            }
+            self.toolbar.show(ui, &mut self.editor, &mut res);
             res
         })
         .inner
