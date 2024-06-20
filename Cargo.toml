@@ -22,6 +22,3 @@ members = [
 	"utils/releaser",
 	"utils/winstaller",
 ]
-
-[profile.release]
-debug = true
