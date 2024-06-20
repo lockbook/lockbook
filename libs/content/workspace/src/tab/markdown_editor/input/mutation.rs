@@ -320,8 +320,7 @@ pub fn calc(
                     )) = galleys
                         .galleys
                         .get(end_galley_idx + 1)
-                        .map(|g| g.annotation.as_ref())
-                        .flatten()
+                        .and_then(|g| g.annotation.as_ref())
                     {
                         let (amount, decrement) = if prev_number >= *next_number {
                             (prev_number - next_number + 1, false)
