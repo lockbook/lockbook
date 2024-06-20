@@ -235,7 +235,7 @@ impl ToString for Buffer {
                     let mut curv_attrs = " ".to_string(); // if it's empty then the curve might not be converted to string via bezier_rs
                     if let Some(stroke) = p.stroke {
                         curv_attrs = format!(
-                            r#"stroke-width="{}" stroke="\#{:02X}{:02X}{:02X}" fill="none""#,
+                            r###"stroke-width="{}" stroke="#{:02X}{:02X}{:02X}" fill="none""###,
                             stroke.width,
                             stroke.color.r(),
                             stroke.color.g(),
