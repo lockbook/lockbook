@@ -76,11 +76,10 @@ impl Markdown {
     // todo: you eleminated the idea of an auto rename signal here, evaluate what to do with it
     pub fn new(
         core: lb_rs::Core, bytes: &[u8], toolbar_visibility: &ToolBarVisibility, needs_name: bool,
-        file_id: Uuid,
+        file_id: Uuid, plaintext_mode: bool,
     ) -> Self {
         let content = String::from_utf8_lossy(bytes);
-        let editor = Editor::new(core, file_id, &content, needs_name);
-
+        let editor = Editor::new(core, file_id, &content, &file_id, needs_name, plaintext_mode);
         let toolbar = ToolBar::new(toolbar_visibility);
 
         Self { editor, toolbar }

@@ -325,8 +325,8 @@ impl RenderStyle {
             RenderStyle::Markdown(MarkdownNode::Paragraph) => {}
             RenderStyle::Markdown(MarkdownNode::Inline(InlineNode::Code)) => {
                 text_format.font_id.family = FontFamily::Monospace;
-                text_format.color = vis.code();
                 text_format.font_id.size *= 14.0 / 16.0;
+                text_format.color = vis.code();
             }
             RenderStyle::Markdown(MarkdownNode::Inline(InlineNode::Bold)) => {
                 text_format.color = vis.bold();
@@ -347,19 +347,19 @@ impl RenderStyle {
                 text_format.italics = true;
             }
             RenderStyle::Markdown(MarkdownNode::Block(BlockNode::Heading(level))) => {
-                if level == &HeadingLevel::H1 {
+                if level == &HeadingLevel::H1 || vis.plaintext_mode {
                     text_format.font_id.family = FontFamily::Name(Arc::from("Bold"));
                 }
-                text_format.font_id.size = vis.heading_size(level);
                 text_format.color = vis.heading();
+                text_format.font_id.size = vis.heading_size(level);
             }
             RenderStyle::Markdown(MarkdownNode::Block(BlockNode::Quote)) => {
                 text_format.italics = true;
             }
             RenderStyle::Markdown(MarkdownNode::Block(BlockNode::Code)) => {
+                text_format.color = vis.code();
                 text_format.font_id.family = FontFamily::Monospace;
                 text_format.font_id.size *= 14.0 / 16.0;
-                text_format.color = vis.code();
             }
             RenderStyle::Markdown(MarkdownNode::Block(BlockNode::ListItem(..))) => {}
             RenderStyle::Markdown(MarkdownNode::Block(BlockNode::Rule)) => {}
