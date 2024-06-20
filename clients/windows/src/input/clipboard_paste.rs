@@ -17,7 +17,7 @@ pub fn handle(app: &mut WgpuLockbook) {
             .expect("png encode pasted image");
 
         app.context.push_event(workspace_rs::Event::Paste {
-            content: vec![ClipContent::Png(png_bytes)],
+            content: vec![ClipContent::Image(png_bytes)],
             position: Pos2::ZERO, // todo: support position
         });
     }

@@ -20,8 +20,13 @@ impl ImageViewer {
     }
 }
 
+// a copy of this fn exists in Swift as isSupportedImageFormat()
 pub fn is_supported_image_fmt(ext: &str) -> bool {
-    // todo see if this list is incomplete
-    const IMG_FORMATS: [&str; 7] = ["png", "jpeg", "jpg", "gif", "webp", "bmp", "ico"];
+    // complete list derived from which features are enabled on image crate according to image-rs default features:
+    // https://github.com/image-rs/image/blob/main/Cargo.toml#L70
+    const IMG_FORMATS: [&str; 16] = [
+        "avif", "bmp", "dds", "exr", "ff", "gif", "hdr", "ico", "jpeg", "jpg", "png", "pnm", "qoi",
+        "tga", "tiff", "webp",
+    ];
     IMG_FORMATS.contains(&ext)
 }

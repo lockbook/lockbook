@@ -1,3 +1,4 @@
+use crate::tab;
 use crate::tab::markdown_editor::ast::Ast;
 use crate::tab::markdown_editor::style::{InlineNode, MarkdownNode, Url};
 use egui::{ColorImage, TextureId, Ui};
@@ -6,6 +7,7 @@ use resvg::tiny_skia::Pixmap;
 use resvg::usvg::{self, Transform};
 use std::collections::HashMap;
 use std::ops::Deref;
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::thread;
 
@@ -24,7 +26,7 @@ pub enum ImageState {
 
 pub fn calc(
     ast: &Ast, prior_cache: &ImageCache, client: &reqwest::blocking::Client, core: &lb_rs::Core,
-    ui: &Ui,
+    open_file: Uuid, ui: &Ui,
 ) -> ImageCache {
     let mut result = ImageCache::default();
 
@@ -56,11 +58,16 @@ pub fn calc(
                     let texture_manager = ctx.tex_manager();
 
                     let texture_result = (|| -> Result<TextureId, String> {
-                        // use core for lb:// urls
-                        // todo: also handle relative paths
+                        // use core for lb:// urls and relative paths
                         let maybe_lb_id = match url.strip_prefix("lb://") {
                             Some(id) => Some(Uuid::parse_str(id).map_err(|e| e.to_string())?),
-                            None => None,
+                            None => tab::core_get_by_relative_path(
+                                &core,
+                                open_file,
+                                &PathBuf::from(&url),
+                            )
+                            .map(|f| f.id)
+                            .ok(),
                         };
 
                         let image_bytes = if let Some(id) = maybe_lb_id {

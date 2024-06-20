@@ -225,7 +225,7 @@ impl<'a> Ctx<'a> {
                 .push(egui::Event::Paste(text.to_string()));
         } else if format == atoms.ImagePng {
             app.context.push_event(workspace_rs::Event::Paste {
-                content: vec![ClipContent::Png(data)],
+                content: vec![ClipContent::Image(data)],
                 position: egui::Pos2::ZERO,
             });
         } else {

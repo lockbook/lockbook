@@ -42,9 +42,11 @@ impl DocType {
             "draw" | "svg" => Self::Drawing,
             "md" => Self::Markdown,
             "txt" => Self::PlainText,
-            "png" | "jpeg" | "jpg" | "gif" | "webp" | "bmp" | "ico" => Self::Image(ext.to_string()),
             "cr2" => Self::ImageUnsupported(ext.to_string()),
             "go" => Self::Code(ext.to_string()),
+            _ if workspace_rs::tab::image_viewer::is_supported_image_fmt(ext) => {
+                Self::Image(ext.to_string())
+            }
             _ => Self::Unknown,
         }
     }

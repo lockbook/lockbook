@@ -310,7 +310,8 @@ impl Editor {
                 bounds::calc_links(&self.buffer.current, &self.bounds.text, &self.ast);
         }
         if text_updated || selection_updated || theme_updated {
-            self.images = images::calc(&self.ast, &self.images, &self.client, &self.core, ui);
+            self.images =
+                images::calc(&self.ast, &self.images, &self.client, &self.core, self.open_file, ui);
         }
         self.galleys = galleys::calc(
             &self.ast,
