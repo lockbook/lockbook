@@ -194,25 +194,6 @@ impl SVGEditor {
                         },
                     );
                     painter.add(epath);
-
-                    // path.data.iter().for_each(|bezier| {
-                    //     let bezier = bezier.to_cubic();
-
-                    //     let points: Vec<egui::Pos2> = bezier
-                    //         .get_points()
-                    //         .map(|dvec| egui::pos2(dvec.x as f32, dvec.y as f32))
-                    //         .collect();
-                    //     let epath = epaint::CubicBezierShape::from_points_stroke(
-                    //         points.try_into().unwrap(),
-                    //         false,
-                    //         egui::Color32::TRANSPARENT,
-                    //         egui::Stroke {
-                    //             width: stroke.width * self.buffer.master_transform.sx,
-                    //             color: alpha_stroke_color,
-                    //         },
-                    //     );
-                    //     painter.add(epath);
-                    // });
                 };
             }
         }
