@@ -1,6 +1,6 @@
 [package]
 name = "lockbook-shared"
-version = "0.9.2"
+version = "0.9.3"
 edition = "2021"
 description = "the code shared between lb and our server"
 license = "BSD-3-Clause"
