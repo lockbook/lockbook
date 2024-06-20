@@ -277,7 +277,7 @@ impl super::Modal for SearchModal {
                         if self.draw_search_result(ui, res, index).clicked() {
                             let keep_open = {
                                 let m = ui.input(|i| i.modifiers);
-                                m.ctrl && !m.alt && !m.shift
+                                m.command && !m.alt && !m.shift
                             };
                             resp = Some(SearchItemSelection { id: res.id, close: !keep_open });
                             self.field_needs_focus = true;
