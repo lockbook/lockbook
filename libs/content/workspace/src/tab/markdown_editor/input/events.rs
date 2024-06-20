@@ -84,16 +84,20 @@ fn handle_custom_event(
             let mut modifications = Vec::new();
             for clip in content {
                 match clip {
-                    ClipContent::Png(data) => {
+                    ClipContent::Image(data) => {
                         let file = tab::import_image(core, open_file, &data);
-                        let markdown_image_link = format!("![{}](lb://{})", file.name, file.id);
+                        let rel_path = tab::core_get_relative_path(core, open_file, file.id);
+                        let markdown_image_link = format!("![{}]({})", file.name, rel_path);
 
                         modifications.push(Modification::Replace {
                             region: Region::Selection, // todo: more thoughtful location
                             text: markdown_image_link,
                         });
                     }
-                    ClipContent::Files(..) => unimplemented!(), // todo: support file drop & paste
+                    ClipContent::Files(..) => {
+                        // todo: support file drop & paste
+                        println!("unimplemented: editor file drop & paste");
+                    }
                 }
             }
             modifications
