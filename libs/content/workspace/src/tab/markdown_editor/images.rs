@@ -26,7 +26,7 @@ pub enum ImageState {
 
 pub fn calc(
     ast: &Ast, prior_cache: &ImageCache, client: &reqwest::blocking::Client, core: &lb_rs::Core,
-    open_file: Uuid, ui: &Ui,
+    file_id: Uuid, ui: &Ui,
 ) -> ImageCache {
     let mut result = ImageCache::default();
 
@@ -61,13 +61,11 @@ pub fn calc(
                         // use core for lb:// urls and relative paths
                         let maybe_lb_id = match url.strip_prefix("lb://") {
                             Some(id) => Some(Uuid::parse_str(id).map_err(|e| e.to_string())?),
-                            None => tab::core_get_by_relative_path(
-                                &core,
-                                open_file,
-                                &PathBuf::from(&url),
-                            )
-                            .map(|f| f.id)
-                            .ok(),
+                            None => {
+                                tab::core_get_by_relative_path(&core, file_id, &PathBuf::from(&url))
+                                    .map(|f| f.id)
+                                    .ok()
+                            }
                         };
 
                         let image_bytes = if let Some(id) = maybe_lb_id {

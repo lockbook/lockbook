@@ -494,7 +494,7 @@ impl Workspace {
                                     let id = self.current_tab().unwrap().id;
                                     if let Some(tab) = self.get_mut_tab_by_id(id) {
                                         if let Some(TabContent::Markdown(md)) = &mut tab.content {
-                                            md.needs_name = false;
+                                            md.editor.needs_name = false;
                                         }
                                     }
                                     self.rename_file((id, name.clone()));

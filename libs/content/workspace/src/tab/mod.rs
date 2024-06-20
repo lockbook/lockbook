@@ -128,9 +128,9 @@ impl EventManager for egui::Context {
 
 // todo: use background thread
 // todo: refresh file tree view
-pub fn import_image(core: &lb_rs::Core, open_file: Uuid, data: &[u8]) -> File {
+pub fn import_image(core: &lb_rs::Core, file_id: Uuid, data: &[u8]) -> File {
     let file = core
-        .get_file_by_id(open_file)
+        .get_file_by_id(file_id)
         .expect("get lockbook file for image");
     let siblings = core
         .get_children(file.parent)

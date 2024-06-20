@@ -51,7 +51,8 @@ pub struct EditorResponse {
 
 pub struct Editor {
     pub id: egui::Id,
-    pub open_file: Uuid,
+    pub file_id: Uuid,
+    pub needs_name: bool,
     pub initialized: bool,
 
     // dependencies
@@ -96,10 +97,11 @@ pub struct Editor {
 }
 
 impl Editor {
-    pub fn new(core: lb_rs::Core, open_file: Uuid, content: &str, file_id: &Uuid) -> Self {
+    pub fn new(core: lb_rs::Core, file_id: Uuid, content: &str, needs_name: bool) -> Self {
         Self {
             id: egui::Id::new(file_id),
-            open_file,
+            file_id,
+            needs_name,
             initialized: Default::default(),
 
             core,
@@ -311,7 +313,7 @@ impl Editor {
         }
         if text_updated || selection_updated || theme_updated {
             self.images =
-                images::calc(&self.ast, &self.images, &self.client, &self.core, self.open_file, ui);
+                images::calc(&self.ast, &self.images, &self.client, &self.core, self.file_id, ui);
         }
         self.galleys = galleys::calc(
             &self.ast,
@@ -372,10 +374,20 @@ impl Editor {
         }
 
         let potential_title = self.get_potential_text_title();
+        let document_renamed = if self.needs_name {
+            if let Some(title) = &potential_title {
+                Some(title.clone())
+            } else {
+                None
+            }
+        } else {
+            None
+        };
 
         let mut result = EditorResponse {
             text_updated,
             potential_title,
+            document_renamed,
 
             show_edit_menu: self.maybe_menu_location.is_some(),
             has_selection: self.buffer.current.cursor.selection().is_some(),
@@ -488,7 +500,7 @@ impl Editor {
             &self.appearance,
             &mut self.pointer_state,
             &mut self.core,
-            self.open_file,
+            self.file_id,
         );
         let (text_updated, maybe_to_clipboard, maybe_opened_url) = events::process(
             &combined_events,
