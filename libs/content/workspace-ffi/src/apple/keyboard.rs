@@ -1,4 +1,4 @@
-#[derive(PartialEq, Eq, Debug)]
+#[derive(PartialEq, Eq)]
 pub enum NSKeys {
     A,
     B,
@@ -215,8 +215,6 @@ impl NSKeys {
             _ => return None,
         };
 
-        println!("NS Key: {:?}", key);
-
         // esoteric, ignored for now
 
         // 67 => KeypadMultiply,
@@ -328,8 +326,6 @@ impl NSKeys {
             | Equals | FrontSlash | LeftBracket | Minus | Option | Period | RightBracket
             | Semicolon | Shift | Fn => return None,
         };
-
-        println!("egui key: {:?}", key);
 
         Some(key)
     }
