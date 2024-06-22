@@ -14,7 +14,7 @@ use super::{
 };
 
 pub struct Pen {
-    pub active_color: Option<egui::Color32>,
+    pub active_color: Option<(egui::Color32, egui::Color32)>,
     pub active_stroke_width: u32,
     path_builder: CubicBezBuilder,
     pub simplification_tolerance: f32,
@@ -49,7 +49,7 @@ impl Pen {
         history: &mut History,
     ) -> Option<PenResponse> {
         if self.active_color.is_none() {
-            self.active_color = Some(ThemePalette::get_fg_color(ui.visuals().dark_mode));
+            self.active_color = Some(ThemePalette::get_fg_color());
         }
 
         if ui.input(|r| r.key_down(egui::Key::F2)) {
@@ -88,8 +88,8 @@ impl Pen {
                 } else {
                     self.path_builder.cubic_to(pos);
                     let mut stroke = Stroke::default();
-                    if let Some(c) = &self.active_color {
-                        stroke.color = *c;
+                    if let Some(c) = self.active_color {
+                        stroke.color = c;
                     }
                     stroke.width = self.active_stroke_width as f32;
 

@@ -249,12 +249,18 @@ impl Toolbar {
     }
 
     fn show_default_color_swatches(&mut self, ui: &mut egui::Ui) {
-        let theme_colors = ThemePalette::as_array(ui.visuals().dark_mode);
+        let theme_colors = ThemePalette::as_array();
 
         theme_colors.iter().for_each(|theme_color| {
             // let color = ColorSwatch { id: theme_color.0.clone(), color: theme_color.1 };
-            if self.show_color_btn(ui, theme_color.1).clicked() {
-                self.pen.active_color = Some(theme_color.1);
+            if self
+                .show_color_btn(
+                    ui,
+                    if ui.visuals().dark_mode { theme_color.1 } else { theme_color.0 },
+                )
+                .clicked()
+            {
+                self.pen.active_color = Some(*theme_color);
             }
         });
     }
@@ -266,6 +272,7 @@ impl Toolbar {
         );
 
         if let Some(active_color) = self.pen.active_color {
+            let active_color = if ui.visuals().dark_mode { active_color.0 } else { active_color.1 };
             let opacity = if active_color.eq(&color) {
                 1.0
             } else if response.hovered() {

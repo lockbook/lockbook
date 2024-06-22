@@ -36,28 +36,20 @@ impl ThemePalette {
     };
 
     // todo: passing the is_dark_mode aram doesn't feel like good data modeling
-    pub fn as_array(is_dark_mode: bool) -> Vec<(String, Color32)> {
-        let palette = if is_dark_mode { ThemePalette::DARK } else { ThemePalette::LIGHT };
-
+    pub fn as_array() -> Vec<(Color32, Color32)> {
         vec![
-            ("magenta".to_string(), palette.magenta),
-            ("blue".to_string(), palette.blue),
-            ("cyan".to_string(), palette.cyan),
-            ("green".to_string(), palette.green),
-            ("yellow".to_string(), palette.yellow),
-            ("red".to_string(), palette.red),
-            ("fg".to_string(), if is_dark_mode { palette.white } else { palette.black }),
+            (ThemePalette::LIGHT.magenta, ThemePalette::DARK.magenta),
+            (ThemePalette::LIGHT.blue, ThemePalette::DARK.blue),
+            (ThemePalette::LIGHT.cyan, ThemePalette::DARK.cyan),
+            (ThemePalette::LIGHT.green, ThemePalette::DARK.green),
+            (ThemePalette::LIGHT.yellow, ThemePalette::DARK.yellow),
+            (ThemePalette::LIGHT.red, ThemePalette::DARK.red),
+            Self::get_fg_color(),
         ]
     }
 
-    pub fn get_fg_color(is_dark_mode: bool) -> Color32 {
-        let palette = if is_dark_mode { ThemePalette::DARK } else { ThemePalette::LIGHT };
-
-        if is_dark_mode {
-            palette.white
-        } else {
-            palette.black
-        }
+    pub fn get_fg_color() -> (Color32, Color32) {
+        (ThemePalette::LIGHT.black, ThemePalette::DARK.white)
     }
 }
 

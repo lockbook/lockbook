@@ -167,7 +167,9 @@ impl SVGEditor {
                 }
 
                 let stroke = path.stroke.unwrap_or_default();
-                let alpha_stroke_color = stroke.color.gamma_multiply(path.opacity);
+                let alpha_stroke_color =
+                    if ui.visuals().dark_mode { stroke.color.1 } else { stroke.color.0 }
+                        .gamma_multiply(path.opacity);
 
                 if path.data.is_point() {
                     let origin = &path.data.manipulator_groups()[0];
