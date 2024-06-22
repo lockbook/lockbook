@@ -54,13 +54,12 @@ pub struct Path {
 #[derive(Clone, Copy)]
 pub struct Stroke {
     pub color: (egui::Color32, egui::Color32),
-    opacity: f32,
     pub width: f32,
 }
 
 impl Default for Stroke {
     fn default() -> Self {
-        Self { color: (egui::Color32::BLACK, egui::Color32::WHITE), opacity: 1.0, width: 1.0 }
+        Self { color: (egui::Color32::BLACK, egui::Color32::WHITE), width: 1.0 }
     }
 }
 
@@ -132,6 +131,7 @@ fn parse_child(u_el: &usvg::Node, buffer: &mut Buffer, i: usize) {
         }
         usvg::Node::Path(path) => {
             let mut stroke = Stroke::default();
+            let mut opacity = 1.0;
             if let Some(s) = path.stroke() {
                 if let Paint::Color(c) = s.paint() {
                     let parsed_color = egui::Color32::from_rgb(c.red, c.green, c.blue);
@@ -147,7 +147,7 @@ fn parse_child(u_el: &usvg::Node, buffer: &mut Buffer, i: usize) {
                     stroke.color = maybe_dynamic_color;
                 }
                 stroke.width = s.width().get();
-                stroke.opacity = s.opacity().get();
+                opacity = s.opacity().get();
             }
             buffer.elements.insert(
                 i.to_string(),
@@ -157,7 +157,7 @@ fn parse_child(u_el: &usvg::Node, buffer: &mut Buffer, i: usize) {
                     fill: path.fill().cloned(),
                     stroke: Some(stroke),
                     transform: path.abs_transform(),
-                    opacity: 1.0,
+                    opacity,
                 }),
             );
         }
@@ -244,14 +244,15 @@ impl ToString for Buffer {
         for el in self.elements.iter() {
             match el.1 {
                 Element::Path(p) => {
-                    let mut curv_attrs = " ".to_string(); // if it's empty then the curve might not be converted to string via bezier_rs
+                    let mut curv_attrs = " ".to_string(); // if it's empty then the curve will not be converted to string via bezier_rs
                     if let Some(stroke) = p.stroke {
                         curv_attrs = format!(
-                            "stroke-width='{}' stroke='#{:02X}{:02X}{:02X}' fill='none'",
+                            "stroke-width='{}' stroke='rgba({},{},{},{})' fill='none'",
                             stroke.width,
                             stroke.color.0.r(),
                             stroke.color.0.g(),
                             stroke.color.0.b(),
+                            p.opacity
                         );
                     }
                     if p.data.len() > 1 {

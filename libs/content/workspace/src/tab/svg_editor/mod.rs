@@ -168,7 +168,7 @@ impl SVGEditor {
 
                 let stroke = path.stroke.unwrap_or_default();
                 let alpha_stroke_color = ThemePalette::resolve_dynamic_color(stroke.color, ui)
-                    .gamma_multiply(path.opacity);
+                    .linear_multiply(path.opacity);
 
                 if path.data.is_point() {
                     let origin = &path.data.manipulator_groups()[0];

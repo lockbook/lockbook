@@ -16,6 +16,7 @@ use super::{
 pub struct Pen {
     pub active_color: Option<(egui::Color32, egui::Color32)>,
     pub active_stroke_width: u32,
+    pub active_opacity: f32,
     path_builder: CubicBezBuilder,
     pub simplification_tolerance: f32,
     pub current_id: usize, // todo: this should be at a higher component state, maybe in buffer
@@ -41,6 +42,7 @@ impl Pen {
             },
             path_builder: CubicBezBuilder::new(),
             maybe_snap_started: None,
+            active_opacity: 1.0,
         }
     }
 
@@ -102,7 +104,7 @@ impl Pen {
                             stroke: Some(stroke),
                             transform: Transform::identity()
                                 .post_scale(buffer.master_transform.sx, buffer.master_transform.sy),
-                            opacity: 1.0,
+                            opacity: self.active_opacity,
                         }),
                     );
                 }
