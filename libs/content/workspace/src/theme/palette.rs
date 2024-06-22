@@ -51,6 +51,16 @@ impl ThemePalette {
     pub fn get_fg_color() -> (Color32, Color32) {
         (ThemePalette::LIGHT.black, ThemePalette::DARK.white)
     }
+
+    pub fn resolve_dynamic_color(
+        dynamic_color: (egui::Color32, egui::Color32), ui: &mut egui::Ui,
+    ) -> egui::Color32 {
+        if ui.visuals().dark_mode {
+            dynamic_color.1
+        } else {
+            dynamic_color.0
+        }
+    }
 }
 
 impl std::ops::Index<lb_rs::ColorAlias> for ThemePalette {

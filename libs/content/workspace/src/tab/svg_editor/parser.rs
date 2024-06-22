@@ -144,7 +144,6 @@ fn parse_child(u_el: &usvg::Node, buffer: &mut Buffer, i: usize) {
                     } else {
                         (parsed_color, parsed_color)
                     };
-                    println!("{:#?}", maybe_dynamic_color);
                     stroke.color = maybe_dynamic_color;
                 }
                 stroke.width = s.width().get();
@@ -248,7 +247,7 @@ impl ToString for Buffer {
                     let mut curv_attrs = " ".to_string(); // if it's empty then the curve might not be converted to string via bezier_rs
                     if let Some(stroke) = p.stroke {
                         curv_attrs = format!(
-                            r#"stroke-width="{}" stroke="\#{:02X}{:02X}{:02X}" fill="none""#,
+                            "stroke-width='{}' stroke='#{:02X}{:02X}{:02X}' fill='none'",
                             stroke.width,
                             stroke.color.0.r(),
                             stroke.color.0.g(),

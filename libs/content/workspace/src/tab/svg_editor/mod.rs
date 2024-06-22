@@ -10,7 +10,10 @@ mod zoom;
 
 use std::time::Instant;
 
+use self::history::History;
+use self::zoom::handle_zoom_input;
 use crate::tab::svg_editor::toolbar::Toolbar;
+use crate::theme::palette::ThemePalette;
 pub use eraser::Eraser;
 pub use history::DeleteElement;
 pub use history::Event;
@@ -22,9 +25,6 @@ pub use pen::Pen;
 use resvg::usvg::{self, ImageKind};
 pub use toolbar::Tool;
 use usvg_parser::Options;
-
-use self::history::History;
-use self::zoom::handle_zoom_input;
 
 /// A shorthand for [ImageHrefResolver]'s string function.
 pub type ImageHrefStringResolverFn = Box<dyn Fn(&str, &Options) -> Option<ImageKind> + Send + Sync>;
@@ -167,9 +167,8 @@ impl SVGEditor {
                 }
 
                 let stroke = path.stroke.unwrap_or_default();
-                let alpha_stroke_color =
-                    if ui.visuals().dark_mode { stroke.color.1 } else { stroke.color.0 }
-                        .gamma_multiply(path.opacity);
+                let alpha_stroke_color = ThemePalette::resolve_dynamic_color(stroke.color, ui)
+                    .gamma_multiply(path.opacity);
 
                 if path.data.is_point() {
                     let origin = &path.data.manipulator_groups()[0];
