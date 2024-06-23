@@ -1,66 +1,93 @@
+import Foundation
 import SwiftUI
 import SwiftWorkspace
-import SwiftLockbookCore
 import AlertToast
-import Introspect
+import SwiftLockbookCore
 
-struct BookView: View {
-
+struct PlatformView: View {
+    
     @EnvironmentObject var sheets: SheetState
     @EnvironmentObject var onboarding: OnboardingService
     @EnvironmentObject var files: FileService
     @EnvironmentObject var share: ShareService
     @EnvironmentObject var search: SearchService
     @EnvironmentObject var workspace: WorkspaceState
-
-    let currentFolder: File
-    let account: Account
     
-    #if os(iOS)
     @Environment(\.horizontalSizeClass) var horizontal
     @Environment(\.verticalSizeClass) var vertical
-    #endif
     
     var body: some View {
-        platformFileTree
-            .iOSOnlySheet(isPresented: $sheets.moving)
-            .sheet(isPresented: $onboarding.anAccountWasCreatedThisSession, content: BeforeYouStart.init)
-            .sheet(isPresented: $sheets.sharingFile, content: ShareFileSheet.init)
-            .sheet(isPresented: $sheets.creatingFolder, content: createFolderSheet)
-            .sheet(isPresented: $sheets.renamingFile, content: renameFileSheet)
-            .toast(isPresenting: Binding(get: { files.successfulAction != nil }, set: { _ in files.successfulAction = nil }), duration: 2, tapToDismiss: true) {
-                if let action = files.successfulAction {
-                    switch action {
-                    case .delete:
-                        return AlertToast(type: .regular, title: "File deleted")
-                    case .move:
-                        return AlertToast(type: .regular, title: "File moved")
-                    case .createFolder:
-                        return AlertToast(type: .regular, title: "Folder created")
-                    case .importFiles:
-                        return AlertToast(type: .regular, title: "Imported successfully")
+        ZStack {
+            platform
+                .sheet(isPresented: $onboarding.anAccountWasCreatedThisSession, content: BeforeYouStart.init)
+                .sheet(isPresented: $sheets.sharingFile, content: {
+                    if let meta = sheets.sharingFileInfo {
+                        ShareFileSheet(meta: meta)
                     }
-                } else {
-                    return AlertToast(type: .regular, title: "ERROR")
+                    
+                })
+                .sheet(isPresented: $sheets.creatingFolder, content: {
+                    if let creatingFolderInfo = sheets.creatingFolderInfo {
+                        CreateFolderSheet(creatingFolderInfo: creatingFolderInfo)
+                    }
+                })
+                .sheet(isPresented: $sheets.renamingFile, content: {
+                    if let renamingFileInfo = sheets.renamingFileInfo {
+                        RenameFileSheet(renamingFileInfo: renamingFileInfo)
+                    }
+                })
+                .toast(isPresenting: Binding(get: { files.successfulAction != nil }, set: { _ in files.successfulAction = nil }), duration: 2, tapToDismiss: true) {
+                    if let action = files.successfulAction {
+                        switch action {
+                        case .delete:
+                            return AlertToast(type: .regular, title: "File deleted")
+                        case .move:
+                            return AlertToast(type: .regular, title: "File moved")
+                        case .createFolder:
+                            return AlertToast(type: .regular, title: "Folder created")
+                        case .importFiles:
+                            return AlertToast(type: .regular, title: "Imported successfully")
+                        }
+                    } else {
+                        return AlertToast(type: .regular, title: "ERROR")
+                    }
                 }
+            
+            if search.isPathSearching {
+                PathSearchActionBar()
             }
-    }
-    
-    @ViewBuilder
-    func createFolderSheet() -> some View {
-        if let creatingFolderInfo = sheets.creatingFolderInfo {
-            CreateFolderSheet(creatingFolderInfo: creatingFolderInfo)
-        }
-    }
-    
-    @ViewBuilder
-    func renameFileSheet() -> some View {
-        if let renamingFileInfo = sheets.renamingFileInfo {
-            RenameFileSheet(renamingFileInfo: renamingFileInfo)
         }
     }
     
     #if os(iOS)
+    var platform: some View {
+        Group {
+            if horizontal == .regular && vertical == .regular {
+                ZStack {
+                    iPad
+                    
+                    if search.isPathSearching {
+                        PathSearchActionBar()
+                    }
+                }
+            } else {
+                iOS
+            }
+        }
+        .onChange(of: horizontal) { newHorizontal in
+            horizontal == .regular && vertical == .regular ? (DI.platformViewShown = .iPad) : (DI.platformViewShown = .iOS)
+        }
+        .onChange(of: vertical) { newVertical in
+            horizontal == .regular && vertical == .regular ? (DI.platformViewShown = .iPad) : (DI.platformViewShown = .iOS)
+        }
+        .sheet(isPresented: $sheets.moving, content: {
+            if let meta = sheets.movingInfo {
+                MoveSheet(meta: meta)
+            }
+        })
+        
+    }
+    
     var iOS: some View {
         ZStack {
             NavigationView {
@@ -129,57 +156,32 @@ struct BookView: View {
             }
         }
     }
-
-    @ViewBuilder
+    
     var iPad: some View {
         NavigationView {
-            FileTreeView(currentFolder: currentFolder, account: account)
+            FileTreeView()
         }
     }
+    
     #else
-    var macOS: some View {
-        NavigationView {
-            FileListView()
-        }
-    }
-    #endif
-
-    @ViewBuilder
-    var platformFileTree: some View {
-        #if os(iOS)
-        if horizontal == .regular && vertical == .regular {
-            ZStack {
-                iPad
-                
-                if search.isPathSearching {
-                    PathSearchActionBar()
-                }
-            }
-        } else {
-            iOS
-        }
-        #else
+    
+    var platform: some View {
         ZStack {
-            macOS
+            NavigationView {
+                FileListView()
+            }
             
             if search.isPathSearching {
                 PathSearchActionBar()
             }
         }
-        #endif
-    }
-}
-
-extension View {
-    func iOSOnlySheet(isPresented: Binding<Bool>) -> some View {
-        #if os(iOS)
-        self.sheet(isPresented: isPresented, content: MoveSheet.init)
-        #else
-        self
-        #endif
     }
     
-    #if os(iOS)
+    #endif
+}
+
+#if os(iOS)
+extension View {
     func exportFileAndShowShareSheet(meta: File) {
         DispatchQueue.global(qos: .userInitiated).async {
             if let url = DI.importExport.exportFilesToTempDirSync(meta: meta) {
@@ -196,11 +198,9 @@ extension View {
             }
         }
     }
-    #endif
 }
 
-#if os(macOS)
-
+#else
 extension NSView {
     func exportFileAndShowShareSheet(meta: File) {
         DispatchQueue.global(qos: .userInitiated).async {
@@ -243,11 +243,9 @@ func pendingShareToolbarIcon(isPendingSharesEmpty: Bool) -> some View {
     #endif
 }
 
-struct BookView_Previews: PreviewProvider {
-    static var previews: some View {
-        Group {
-            BookView(currentFolder: FakeApi.root, account: .fake(username: "jeff"))
-                    .ignoresSafeArea()
-        }
-    }
+enum PlatformViewShown {
+    case iOS
+    case iPad
+    case macOS
+    case unspecifiedMobile
 }

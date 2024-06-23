@@ -103,7 +103,6 @@ class FileService: ObservableObject {
                 case .success(_):
                     self.successfulAction = .move
                     self.refresh()
-                    DI.status.checkForLocalWork()
                 case .failure(let error):
                     switch error.kind {
                     case .UiError(let uiError):
@@ -131,7 +130,6 @@ class FileService: ObservableObject {
         case .success(_):
             self.successfulAction = .move
             refresh()
-            DI.status.checkForLocalWork()
             return true
         case .failure(let error):
             switch error.kind {
@@ -162,7 +160,6 @@ class FileService: ObservableObject {
                     self.refresh()
                     self.successfulAction = .delete
                     DI.workspace.fileOpCompleted = .Delete(id: id)
-                    DI.status.checkForLocalWork()
                 case .failure(let error):
                     DI.errors.handleError(error)
                 }

@@ -3,6 +3,108 @@ import SwiftWorkspace
 import SwiftLockbookCore
 import Foundation
 
+class SwiftUITableViewCell: UITableViewCell {
+    private var hostingController: UIHostingController<FileCell>?
+
+    func configure(with meta: File, enterFolderAnim: @escaping (File) -> Void) {
+        // If the hosting controller already exists, update it
+        if let hostingController = hostingController {
+            hostingController.rootView = FileCell(meta: meta, enterFolderAnim: enterFolderAnim)
+            hostingController.view.invalidateIntrinsicContentSize()
+            return
+        }
+        
+        // Otherwise, create a new hosting controller
+        let fileCell = FileCell(meta: meta, enterFolderAnim: enterFolderAnim)
+        let hostingController = UIHostingController(rootView: fileCell)
+        
+        // Add the hosting controller's view to the cell's content view
+        contentView.addSubview(hostingController.view)
+        
+        // Set up constraints
+        hostingController.view.translatesAutoresizingMaskIntoConstraints = false
+        NSLayoutConstraint.activate([
+            hostingController.view.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
+            hostingController.view.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
+            hostingController.view.topAnchor.constraint(equalTo: contentView.topAnchor),
+            hostingController.view.bottomAnchor.constraint(equalTo: contentView.bottomAnchor)
+        ])
+        
+        // Save the hosting controller
+        self.hostingController = hostingController
+    }
+}
+
+class FileListViewController: UIViewController, UITableViewDataSource, UITableViewDelegate {
+    private let tableView = UITableView()
+    private var items: [File] = []
+    
+    var currentParent: File? = nil
+    
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        
+        view.addSubview(tableView)
+        tableView.translatesAutoresizingMaskIntoConstraints = false
+        NSLayoutConstraint.activate([
+            tableView.topAnchor.constraint(equalTo: view.topAnchor),
+            tableView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+            tableView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            tableView.trailingAnchor.constraint(equalTo: view.trailingAnchor)
+        ])
+        
+        tableView.dataSource = self
+        tableView.delegate = self
+        tableView.register(SwiftUITableViewCell.self, forCellReuseIdentifier: "SwiftUICell")
+    }
+    
+    func updateItems(_ newItems: [File]) {
+        self.items = newItems
+        tableView.reloadData()
+    }
+    
+    // MARK: - UITableViewDataSource
+    
+    func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
+        return items.count
+    }
+    
+    func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
+        guard let cell = tableView.dequeueReusableCell(withIdentifier: "SwiftUICell", for: indexPath) as? SwiftUITableViewCell else {
+            return UITableViewCell()
+        }
+        let file = items[indexPath.row]
+        cell.configure(with: file) { meta in
+            let secondFileListVC = FileListViewController()
+            secondFileListVC.updateItems(DI.files.childrenOf(meta))
+            self.navigationController!.pushViewController(secondFileListVC, animated: true)
+            
+        }
+        return cell
+    }
+        
+    func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
+        let file = items[indexPath.row]
+        print("Selected item: \(file.name)")
+    }
+}
+
+struct FileListViewRepresentable: UIViewControllerRepresentable {
+    @EnvironmentObject var files: FileService
+        
+    func makeUIViewController(context: Context) -> FileListViewController {
+        let viewController = FileListViewController()
+        return viewController
+    }
+    
+    func updateUIViewController(_ uiViewController: FileListViewController, context: Context) {
+        if(uiViewController.currentParent != files.parent) {
+            uiViewController.currentParent = files.parent
+            uiViewController.updateItems(files.childrenOf(uiViewController.currentParent))
+        }
+    }
+}
+
 struct FileListView: View {
     @EnvironmentObject var sheets: SheetState
     @EnvironmentObject var fileService: FileService
@@ -77,7 +179,8 @@ struct FileListView: View {
                     .textCase(.none)
                     .font(.headline)
                     .padding(.bottom, 3)) {
-                        files
+                        FileListViewRepresentable()
+                            .frame(height: 200)
                     }
                     .offset(mainViewOffset)
                     .opacity(mainViewOpacity)
@@ -113,7 +216,7 @@ struct FileListView: View {
         let children = fileService.childrenOfParent()
 
         return ForEach(children) { meta in
-                FileCell(meta: meta) {
+                FileCell(meta: meta) { meta in
                     withAnimation(.linear(duration: 0.2)) {
                         mainViewOffset.width = -200
                     }

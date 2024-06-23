@@ -16,7 +16,7 @@ struct AppView: View {
             case .some(let account):
                 switch files.root {
                 case .some(let root):
-                    BookView(currentFolder: root, account: account)
+                    PlatformView()
                         .onOpenURL() { url in
                             guard let uuidString = url.host, let id = UUID(uuidString: uuidString), url.scheme == "lb" else {
                                 DI.errors.errorWithTitle("Malformed link", "Cannot open file")

@@ -16,9 +16,6 @@ struct FileTreeView: View {
     @State var searchInput: String = ""
     @State private var hideOutOfSpaceAlert = UserDefaults.standard.bool(forKey: "hideOutOfSpaceAlert")
     @State private var searchBar: UISearchBar?
-
-    let currentFolder: File
-    let account: Account
     
     var body: some View {
         SearchWrapperView(
@@ -76,7 +73,7 @@ struct FileTreeView: View {
                     .padding(.top)
                     .padding(.bottom, 5)
                 
-                OutlineSection(root: currentFolder)
+                OutlineSection(root: DI.files.root!)
             }
             .padding(.horizontal)
             

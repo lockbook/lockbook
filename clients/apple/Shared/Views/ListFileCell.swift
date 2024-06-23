@@ -5,7 +5,7 @@ import Introspect
 struct FileCell: View {
     let meta: File
 
-    let enterFolderAnim: () -> Void
+    let enterFolderAnim: (File) -> Void
 
     var body: some View {
         cell
@@ -56,7 +56,7 @@ struct FileCell: View {
     var cell: some View {
         Button(action: {
             if meta.fileType == .Folder {
-                enterFolderAnim()
+                enterFolderAnim(meta)
             } else {
                 withAnimation {
                     DI.workspace.requestOpenDoc(meta.id)
