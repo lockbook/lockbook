@@ -309,7 +309,7 @@ public class MacMTK: MTKView, MTKViewDelegate {
 
         redrawTask?.cancel()
         redrawTask = nil
-        self.isPaused = output.redraw_in > 100
+        self.isPaused = output.redraw_in > 50
         if self.isPaused {
             let redrawIn = UInt64(truncatingIfNeeded: output.redraw_in)
             let redrawInInterval = DispatchTimeInterval.milliseconds(Int(truncatingIfNeeded: min(500, redrawIn)));
