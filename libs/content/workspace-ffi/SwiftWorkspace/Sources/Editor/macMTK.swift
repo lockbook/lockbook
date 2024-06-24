@@ -270,7 +270,7 @@ public class MacMTK: MTKView, MTKViewDelegate {
         let scale = Float(self.window?.backingScaleFactor ?? 1.0)
         dark_mode(wsHandle, isDarkMode())
         set_scale(wsHandle, scale)
-        let output = draw_editor(wsHandle)
+        let output = draw_workspace(wsHandle)
 
         workspaceState?.syncing = output.workspace_resp.syncing
         workspaceState?.statusMsg = textFromPtr(s: output.workspace_resp.msg)
