@@ -25,6 +25,8 @@ pub unsafe extern "C" fn insert_text(obj: *mut c_void, content: *const c_char) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
     let content = CStr::from_ptr(content).to_str().unwrap().into();
 
+    println!("insert_text: {:?}", content);
+
     if content == "\n" {
         obj.context
             .push_markdown_event(Modification::Newline { advance_cursor: true });
@@ -44,6 +46,8 @@ pub unsafe extern "C" fn insert_text(obj: *mut c_void, content: *const c_char) {
 pub unsafe extern "C" fn backspace(obj: *mut c_void) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
 
+    println!("backspace");
+
     obj.raw_input.events.push(Event::Key {
         key: Key::Backspace,
         physical_key: None,
@@ -60,6 +64,9 @@ pub unsafe extern "C" fn backspace(obj: *mut c_void) {
 #[no_mangle]
 pub unsafe extern "C" fn has_text(obj: *mut c_void) -> bool {
     let obj = &mut *(obj as *mut WgpuWorkspace);
+
+    println!("has_text");
+
     let markdown = match obj.workspace.current_tab_markdown_mut() {
         Some(markdown) => markdown,
         None => return false,
@@ -76,6 +83,9 @@ pub unsafe extern "C" fn has_text(obj: *mut c_void) -> bool {
 pub unsafe extern "C" fn replace_text(obj: *mut c_void, range: CTextRange, text: *const c_char) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
     let text = CStr::from_ptr(text).to_str().unwrap().into();
+
+    println!("replace_text: {:?}, {:?}", range, text);
+
     if !range.none {
         obj.context
             .push_markdown_event(Modification::Replace { region: range.into(), text });
@@ -87,6 +97,9 @@ pub unsafe extern "C" fn replace_text(obj: *mut c_void, range: CTextRange, text:
 #[no_mangle]
 pub unsafe extern "C" fn copy_selection(obj: *mut c_void) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
+
+    println!("copy_selection");
+
     obj.context.push_markdown_event(Modification::Copy);
 }
 
@@ -95,6 +108,9 @@ pub unsafe extern "C" fn copy_selection(obj: *mut c_void) {
 #[no_mangle]
 pub unsafe extern "C" fn cut_selection(obj: *mut c_void) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
+
+    println!("cut_selection");
+
     obj.context.push_markdown_event(Modification::Cut);
 }
 
@@ -105,6 +121,9 @@ pub unsafe extern "C" fn cut_selection(obj: *mut c_void) {
 #[no_mangle]
 pub unsafe extern "C" fn text_in_range(obj: *mut c_void, range: CTextRange) -> *const c_char {
     let obj = &mut *(obj as *mut WgpuWorkspace);
+
+    println!("text_in_range: {:?}", range);
+
     let markdown = match obj.workspace.current_tab_markdown_mut() {
         Some(markdown) => markdown,
         None => return null(),
@@ -128,6 +147,9 @@ pub unsafe extern "C" fn text_in_range(obj: *mut c_void, range: CTextRange) -> *
 #[no_mangle]
 pub unsafe extern "C" fn get_selected(obj: *mut c_void) -> CTextRange {
     let obj = &mut *(obj as *mut WgpuWorkspace);
+
+    println!("get_selected");
+
     let markdown = match obj.workspace.current_tab_markdown_mut() {
         Some(markdown) => markdown,
         None => return CTextRange::default(),
@@ -149,6 +171,9 @@ pub unsafe extern "C" fn get_selected(obj: *mut c_void) -> CTextRange {
 #[no_mangle]
 pub unsafe extern "C" fn set_selected(obj: *mut c_void, range: CTextRange) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
+
+    println!("set_selected: {:?}", range);
+
     if !range.none {
         obj.context
             .push_markdown_event(Modification::Select { region: range.into() });
@@ -160,6 +185,9 @@ pub unsafe extern "C" fn set_selected(obj: *mut c_void, range: CTextRange) {
 #[no_mangle]
 pub unsafe extern "C" fn select_current_word(obj: *mut c_void) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
+
+    println!("select_current_word");
+
     obj.context.push_markdown_event(Modification::Select {
         region: Region::Bound { bound: Bound::Word, backwards: true },
     });
@@ -170,6 +198,9 @@ pub unsafe extern "C" fn select_current_word(obj: *mut c_void) {
 #[no_mangle]
 pub unsafe extern "C" fn select_all(obj: *mut c_void) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
+
+    println!("select_all");
+
     obj.context.push_markdown_event(Modification::Select {
         region: Region::Bound { bound: Bound::Doc, backwards: true },
     });
@@ -182,6 +213,9 @@ pub unsafe extern "C" fn select_all(obj: *mut c_void) {
 #[no_mangle]
 pub unsafe extern "C" fn get_marked(obj: *mut c_void) -> CTextRange {
     let obj = &mut *(obj as *mut WgpuWorkspace);
+
+    println!("get_marked");
+
     let markdown = match obj.workspace.current_tab_markdown_mut() {
         Some(markdown) => markdown,
         None => return CTextRange::default(),
@@ -207,6 +241,8 @@ pub unsafe extern "C" fn set_marked(obj: *mut c_void, range: CTextRange, text: *
     let text =
         if text.is_null() { None } else { Some(CStr::from_ptr(text).to_str().unwrap().into()) };
 
+    println!("set_marked: {:?} {:?}", range, text);
+
     obj.context.push_markdown_event(Modification::StageMarked {
         highlighted: range.into(),
         text: text.unwrap_or_default(),
@@ -220,6 +256,9 @@ pub unsafe extern "C" fn set_marked(obj: *mut c_void, range: CTextRange, text: *
 #[no_mangle]
 pub unsafe extern "C" fn unmark_text(obj: *mut c_void) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
+
+    println!("unmark_text");
+
     obj.context.push_markdown_event(Modification::CommitMarked);
 }
 
@@ -231,6 +270,8 @@ pub unsafe extern "C" fn unmark_text(obj: *mut c_void) {
 /// should we be returning a subset of the document? https://stackoverflow.com/questions/12676851/uitextinput-is-it-ok-to-return-incorrect-beginningofdocument-endofdocumen
 #[no_mangle]
 pub unsafe extern "C" fn beginning_of_document(_obj: *mut c_void) -> CTextPosition {
+    println!("beginning_of_document");
+
     CTextPosition { ..Default::default() }
 }
 
@@ -242,6 +283,9 @@ pub unsafe extern "C" fn beginning_of_document(_obj: *mut c_void) -> CTextPositi
 #[no_mangle]
 pub unsafe extern "C" fn end_of_document(obj: *mut c_void) -> CTextPosition {
     let obj = &mut *(obj as *mut WgpuWorkspace);
+
+    println!("end_of_document");
+
     let markdown = match obj.workspace.current_tab_markdown_mut() {
         Some(markdown) => markdown,
         None => return CTextPosition::default(),
@@ -258,6 +302,9 @@ pub unsafe extern "C" fn end_of_document(obj: *mut c_void) -> CTextPosition {
 #[no_mangle]
 pub unsafe extern "C" fn touches_began(obj: *mut c_void, id: u64, x: f32, y: f32, force: f32) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
+
+    println!("touches_began: {:?} {:?} {:?} {:?}", id, x, y, force);
+
     obj.raw_input.events.push(Event::Touch {
         device_id: TouchDeviceId(0),
         id: TouchId(id),
@@ -280,6 +327,8 @@ pub unsafe extern "C" fn touches_began(obj: *mut c_void, id: u64, x: f32, y: f32
 pub unsafe extern "C" fn touches_moved(obj: *mut c_void, id: u64, x: f32, y: f32, force: f32) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
 
+    println!("touches_moved: {:?} {:?} {:?} {:?}", id, x, y, force);
+
     obj.raw_input.events.push(Event::Touch {
         device_id: TouchDeviceId(0),
         id: TouchId(id),
@@ -300,6 +349,9 @@ pub unsafe extern "C" fn touches_moved(obj: *mut c_void, id: u64, x: f32, y: f32
 #[no_mangle]
 pub unsafe extern "C" fn touches_ended(obj: *mut c_void, id: u64, x: f32, y: f32, force: f32) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
+
+    println!("touches_ended: {:?} {:?} {:?} {:?}", id, x, y, force);
+
     obj.raw_input.events.push(Event::Touch {
         device_id: TouchDeviceId(0),
         id: TouchId(id),
@@ -325,6 +377,9 @@ pub unsafe extern "C" fn touches_ended(obj: *mut c_void, id: u64, x: f32, y: f32
 #[no_mangle]
 pub unsafe extern "C" fn touches_cancelled(obj: *mut c_void, id: u64, x: f32, y: f32, force: f32) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
+
+    println!("touches_cancelled: {:?} {:?} {:?} {:?}", id, x, y, force);
+
     obj.raw_input.events.push(Event::Touch {
         device_id: TouchDeviceId(0),
         id: TouchId(id),
@@ -339,6 +394,8 @@ pub unsafe extern "C" fn touches_cancelled(obj: *mut c_void, id: u64, x: f32, y:
 /// https://developer.apple.com/documentation/uikit/uiresponder/1621142-touchesbegan
 #[no_mangle]
 pub extern "C" fn text_range(start: CTextPosition, end: CTextPosition) -> CTextRange {
+    println!("text_range: {:?} {:?}", start, end);
+
     if start.pos < end.pos {
         CTextRange { none: false, start, end }
     } else {
@@ -355,6 +412,9 @@ pub unsafe extern "C" fn position_offset(
     obj: *mut c_void, mut start: CTextPosition, offset: i32,
 ) -> CTextPosition {
     let obj = &mut *(obj as *mut WgpuWorkspace);
+
+    println!("position_offset: {:?} {:?}", start, offset);
+
     let markdown = match obj.workspace.current_tab_markdown_mut() {
         Some(markdown) => markdown,
         None => return CTextPosition::default(),
@@ -384,6 +444,8 @@ pub unsafe extern "C" fn position_offset(
 pub unsafe extern "C" fn position_offset_in_direction(
     obj: *mut c_void, start: CTextPosition, direction: CTextLayoutDirection, offset: i32,
 ) -> CTextPosition {
+    println!("position_offset_in_direction: {:?} {:?} {:?}", start, direction, offset);
+
     let obj = &mut *(obj as *mut WgpuWorkspace);
     let markdown = match obj.workspace.current_tab_markdown_mut() {
         Some(markdown) => markdown,
@@ -416,6 +478,8 @@ pub unsafe extern "C" fn position_offset_in_direction(
 pub unsafe extern "C" fn is_position_at_bound(
     obj: *mut c_void, pos: CTextPosition, granularity: CTextGranularity, backwards: bool,
 ) -> bool {
+    println!("is_position_at_bound: {:?} {:?} {:?}", pos, granularity, backwards);
+
     let obj = &mut *(obj as *mut WgpuWorkspace);
     let markdown = match obj.workspace.current_tab_markdown_mut() {
         Some(markdown) => markdown,
@@ -433,10 +497,14 @@ pub unsafe extern "C" fn is_position_at_bound(
     if let Some(range) =
         DocCharOffset(pos.pos).range_bound(bound, backwards, false, &markdown.editor.bounds)
     {
-        if !backwards && pos.pos == range.0 || backwards && pos.pos == range.1 {
+        // forwards: the provided position is at the end of the enclosing range
+        // backwards: the provided position is at the start of the enclosing range
+        if !backwards && pos.pos == range.end() || backwards && pos.pos == range.start() {
+            println!("-> true");
             return true;
         }
     }
+    println!("-> false");
     false
 }
 
@@ -448,6 +516,8 @@ pub unsafe extern "C" fn is_position_at_bound(
 pub unsafe extern "C" fn is_position_within_bound(
     obj: *mut c_void, pos: CTextPosition, granularity: CTextGranularity, backwards: bool,
 ) -> bool {
+    println!("is_position_within_bound: {:?} {:?} {:?}", pos, granularity, backwards);
+
     let obj = &mut *(obj as *mut WgpuWorkspace);
     let markdown = match obj.workspace.current_tab_markdown_mut() {
         Some(markdown) => markdown,
@@ -467,9 +537,11 @@ pub unsafe extern "C" fn is_position_within_bound(
     if let Some(range) = pos.range_bound(bound, backwards, false, &markdown.editor.bounds) {
         // this implementation doesn't meet the specification in apple's docs, but the implementation that does creates word jumping bugs
         if range.contains_inclusive(pos) {
+            println!("-> true");
             return true;
         }
     }
+    println!("-> false");
     false
 }
 
@@ -481,6 +553,8 @@ pub unsafe extern "C" fn is_position_within_bound(
 pub unsafe extern "C" fn bound_from_position(
     obj: *mut c_void, pos: CTextPosition, granularity: CTextGranularity, backwards: bool,
 ) -> CTextPosition {
+    println!("bound_from_position: {:?} {:?} {:?}", pos, granularity, backwards);
+
     let obj = &mut *(obj as *mut WgpuWorkspace);
     let markdown = match obj.workspace.current_tab_markdown_mut() {
         Some(markdown) => markdown,
@@ -501,7 +575,9 @@ pub unsafe extern "C" fn bound_from_position(
     };
     cursor.advance(Offset::Next(bound), backwards, buffer, galleys, &markdown.editor.bounds);
 
-    CTextPosition { none: false, pos: cursor.selection.1 .0 }
+    let result = CTextPosition { none: false, pos: cursor.selection.1 .0 };
+    println!("-> {:?}", result);
+    result
 }
 
 /// # Safety
@@ -512,6 +588,8 @@ pub unsafe extern "C" fn bound_from_position(
 pub unsafe extern "C" fn bound_at_position(
     obj: *mut c_void, pos: CTextPosition, granularity: CTextGranularity, backwards: bool,
 ) -> CTextRange {
+    println!("bound_at_position: {:?} {:?} {:?}", pos, granularity, backwards);
+
     let obj = &mut *(obj as *mut WgpuWorkspace);
     let markdown = match obj.workspace.current_tab_markdown_mut() {
         Some(markdown) => markdown,
@@ -537,11 +615,13 @@ pub unsafe extern "C" fn bound_at_position(
         &markdown.editor.bounds,
     );
 
-    CTextRange {
+    let result = CTextRange {
         none: false,
         start: CTextPosition { none: false, pos: cursor.selection.start().0 },
         end: CTextPosition { none: false, pos: cursor.selection.end().0 },
-    }
+    };
+    println!("-> {:?}", result);
+    result
 }
 
 /// # Safety
@@ -550,6 +630,8 @@ pub unsafe extern "C" fn bound_at_position(
 /// https://developer.apple.com/documentation/uikit/uitextinput/1614570-firstrect
 #[no_mangle]
 pub unsafe extern "C" fn first_rect(obj: *mut c_void, range: CTextRange) -> CRect {
+    println!("first_rect: {:?}", range);
+
     let obj = &mut *(obj as *mut WgpuWorkspace);
     let markdown = match obj.workspace.current_tab_markdown_mut() {
         Some(markdown) => markdown,
@@ -586,6 +668,8 @@ pub unsafe extern "C" fn first_rect(obj: *mut c_void, range: CTextRange) -> CRec
 /// obj must be a valid pointer to WgpuEditor
 #[no_mangle]
 pub unsafe extern "C" fn clipboard_cut(obj: *mut c_void) {
+    println!("clipboard_cut");
+
     let obj = &mut *(obj as *mut WgpuWorkspace);
     obj.context.push_markdown_event(Modification::Cut);
 }
@@ -594,6 +678,8 @@ pub unsafe extern "C" fn clipboard_cut(obj: *mut c_void) {
 /// obj must be a valid pointer to WgpuEditor
 #[no_mangle]
 pub unsafe extern "C" fn clipboard_copy(obj: *mut c_void) {
+    println!("clipboard_copy");
+
     let obj = &mut *(obj as *mut WgpuWorkspace);
     obj.context.push_markdown_event(Modification::Copy);
 }
@@ -602,6 +688,8 @@ pub unsafe extern "C" fn clipboard_copy(obj: *mut c_void) {
 /// obj must be a valid pointer to WgpuEditor
 #[no_mangle]
 pub unsafe extern "C" fn position_at_point(obj: *mut c_void, point: CPoint) -> CTextPosition {
+    println!("position_at_point: {:?}", point);
+
     let obj = &mut *(obj as *mut WgpuWorkspace);
     let markdown = match obj.workspace.current_tab_markdown_mut() {
         Some(markdown) => markdown,
@@ -624,6 +712,8 @@ pub unsafe extern "C" fn position_at_point(obj: *mut c_void, point: CPoint) -> C
 /// # Safety
 #[no_mangle]
 pub unsafe extern "C" fn get_text(obj: *mut c_void) -> *const c_char {
+    println!("get_text");
+
     let obj = &mut *(obj as *mut WgpuWorkspace);
     let markdown = match obj.workspace.current_tab_markdown_mut() {
         Some(markdown) => markdown,
@@ -641,6 +731,8 @@ pub unsafe extern "C" fn get_text(obj: *mut c_void) -> *const c_char {
 /// obj must be a valid pointer to WgpuEditor
 #[no_mangle]
 pub unsafe extern "C" fn cursor_rect_at_position(obj: *mut c_void, pos: CTextPosition) -> CRect {
+    println!("cursor_rect_at_position: {:?}", pos);
+
     let obj = &mut *(obj as *mut WgpuWorkspace);
     let markdown = match obj.workspace.current_tab_markdown_mut() {
         Some(markdown) => markdown,
@@ -666,6 +758,8 @@ pub unsafe extern "C" fn cursor_rect_at_position(obj: *mut c_void, pos: CTextPos
 /// obj must be a valid pointer to WgpuEditor
 #[no_mangle]
 pub unsafe extern "C" fn update_virtual_keyboard(obj: *mut c_void, showing: bool) {
+    println!("update_virtual_keyboard: {:?}", showing);
+
     let obj = &mut *(obj as *mut WgpuWorkspace);
     let markdown = match obj.workspace.current_tab_markdown_mut() {
         Some(markdown) => markdown,
@@ -681,6 +775,8 @@ pub unsafe extern "C" fn update_virtual_keyboard(obj: *mut c_void, showing: bool
 pub unsafe extern "C" fn selection_rects(
     obj: *mut c_void, range: CTextRange,
 ) -> UITextSelectionRects {
+    println!("selection_rects: {:?}", range);
+
     let obj = &mut *(obj as *mut WgpuWorkspace);
     let markdown = match obj.workspace.current_tab_markdown_mut() {
         Some(markdown) => markdown,
@@ -729,6 +825,8 @@ pub unsafe extern "C" fn selection_rects(
 /// obj must be a valid pointer to WgpuEditor
 #[no_mangle]
 pub unsafe extern "C" fn free_selection_rects(rects: UITextSelectionRects) {
+    println!("free_selection_rects");
+
     let _ = Box::from_raw(std::slice::from_raw_parts_mut(
         rects.rects as *mut CRect,
         rects.size as usize,
@@ -739,6 +837,8 @@ pub unsafe extern "C" fn free_selection_rects(rects: UITextSelectionRects) {
 /// obj must be a valid pointer to WgpuEditor
 #[no_mangle]
 pub unsafe extern "C" fn indent_at_cursor(obj: *mut c_void, deindent: bool) {
+    println!("indent_at_cursor: {:?}", deindent);
+
     let obj = &mut *(obj as *mut WgpuWorkspace);
     obj.context
         .push_markdown_event(Modification::Indent { deindent });
@@ -748,6 +848,8 @@ pub unsafe extern "C" fn indent_at_cursor(obj: *mut c_void, deindent: bool) {
 /// obj must be a valid pointer to WgpuEditor
 #[no_mangle]
 pub unsafe extern "C" fn undo_redo(obj: *mut c_void, redo: bool) {
+    println!("undo_redo: {:?}", redo);
+
     let obj = &mut *(obj as *mut WgpuWorkspace);
     if redo {
         obj.context.push_markdown_event(Modification::Redo);
@@ -760,6 +862,8 @@ pub unsafe extern "C" fn undo_redo(obj: *mut c_void, redo: bool) {
 /// obj must be a valid pointer to WgpuEditor
 #[no_mangle]
 pub unsafe extern "C" fn can_undo(obj: *mut c_void) -> bool {
+    println!("can_undo");
+
     let obj = &mut *(obj as *mut WgpuWorkspace);
     let markdown = match obj.workspace.current_tab_markdown_mut() {
         Some(markdown) => markdown,
@@ -773,6 +877,8 @@ pub unsafe extern "C" fn can_undo(obj: *mut c_void) -> bool {
 /// obj must be a valid pointer to WgpuEditor
 #[no_mangle]
 pub unsafe extern "C" fn can_redo(obj: *mut c_void) -> bool {
+    println!("can_redo");
+
     let obj = &mut *(obj as *mut WgpuWorkspace);
     let markdown = match obj.workspace.current_tab_markdown_mut() {
         Some(markdown) => markdown,
@@ -788,6 +894,8 @@ pub unsafe extern "C" fn can_redo(obj: *mut c_void) -> bool {
 /// https://developer.apple.com/documentation/uikit/uikeyinput/1614543-inserttext
 #[no_mangle]
 pub unsafe extern "C" fn delete_word(obj: *mut c_void) {
+    println!("delete_word");
+
     let obj = &mut *(obj as *mut WgpuWorkspace);
 
     obj.raw_input.events.push(Event::Key {
@@ -803,6 +911,8 @@ pub unsafe extern "C" fn delete_word(obj: *mut c_void) {
 /// obj must be a valid pointer to WgpuEditor
 #[no_mangle]
 pub unsafe extern "C" fn current_tab(obj: *mut c_void) -> i64 {
+    println!("current_tab");
+
     let obj = &mut *(obj as *mut WgpuWorkspace);
 
     match obj.workspace.current_tab() {
@@ -824,6 +934,8 @@ pub unsafe extern "C" fn current_tab(obj: *mut c_void) -> i64 {
 /// obj must be a valid pointer to WgpuEditor
 #[no_mangle]
 pub unsafe extern "C" fn toggle_drawing_tool(obj: *mut c_void) {
+    println!("toggle_drawing_tool");
+
     let obj = &mut *(obj as *mut WgpuWorkspace);
 
     if let Some(svg) = obj.workspace.current_tab_svg_mut() {
@@ -836,6 +948,8 @@ pub unsafe extern "C" fn toggle_drawing_tool(obj: *mut c_void) {
 /// obj must be a valid pointer to WgpuEditor
 #[no_mangle]
 pub unsafe extern "C" fn toggle_drawing_tool_between_eraser(obj: *mut c_void) {
+    println!("toggle_drawing_tool_between_eraser");
+
     let obj = &mut *(obj as *mut WgpuWorkspace);
 
     if let Some(svg) = obj.workspace.current_tab_svg_mut() {
@@ -847,6 +961,8 @@ pub unsafe extern "C" fn toggle_drawing_tool_between_eraser(obj: *mut c_void) {
 /// obj must be a valid pointer to WgpuEditor
 #[no_mangle]
 pub unsafe extern "C" fn unfocus_title(obj: *mut c_void) {
+    println!("unfocus_title");
+
     let obj = &mut *(obj as *mut WgpuWorkspace);
 
     if let Some(tab) = obj.workspace.current_tab_mut() {
@@ -858,6 +974,8 @@ pub unsafe extern "C" fn unfocus_title(obj: *mut c_void) {
 /// obj must be a valid pointer to WgpuEditor
 #[no_mangle]
 pub unsafe extern "C" fn show_hide_tabs(obj: *mut c_void, show: bool) {
+    println!("show_hide_tabs: {:?}", show);
+
     let obj = &mut *(obj as *mut WgpuWorkspace);
 
     obj.workspace.show_tabs = show;
@@ -867,6 +985,8 @@ pub unsafe extern "C" fn show_hide_tabs(obj: *mut c_void, show: bool) {
 /// obj must be a valid pointer to WgpuEditor
 #[no_mangle]
 pub unsafe extern "C" fn close_active_tab(obj: *mut c_void) {
+    println!("close_active_tab");
+
     let obj = &mut *(obj as *mut WgpuWorkspace);
 
     if !obj.workspace.tabs.is_empty() {
@@ -881,6 +1001,11 @@ pub unsafe extern "C" fn ios_key_event(
     obj: *mut c_void, key_code: isize, shift: bool, ctrl: bool, option: bool, command: bool,
     pressed: bool,
 ) {
+    println!(
+        "ios_key_event: {:?}, shift: {:?}, ctrl: {:?}, option: {:?}, command: {:?}, pressed: {:?}",
+        key_code, shift, ctrl, option, command, pressed
+    );
+
     let obj = &mut *(obj as *mut WgpuWorkspace);
 
     let modifiers = egui::Modifiers { alt: option, ctrl, shift, mac_cmd: command, command };
