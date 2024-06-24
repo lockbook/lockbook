@@ -17,46 +17,40 @@ struct PlatformView: View {
     @Environment(\.verticalSizeClass) var vertical
     
     var body: some View {
-        ZStack {
-            platform
-                .sheet(isPresented: $onboarding.anAccountWasCreatedThisSession, content: BeforeYouStart.init)
-                .sheet(isPresented: $sheets.sharingFile, content: {
-                    if let meta = sheets.sharingFileInfo {
-                        ShareFileSheet(meta: meta)
-                    }
-                    
-                })
-                .sheet(isPresented: $sheets.creatingFolder, content: {
-                    if let creatingFolderInfo = sheets.creatingFolderInfo {
-                        CreateFolderSheet(creatingFolderInfo: creatingFolderInfo)
-                    }
-                })
-                .sheet(isPresented: $sheets.renamingFile, content: {
-                    if let renamingFileInfo = sheets.renamingFileInfo {
-                        RenameFileSheet(renamingFileInfo: renamingFileInfo)
-                    }
-                })
-                .toast(isPresenting: Binding(get: { files.successfulAction != nil }, set: { _ in files.successfulAction = nil }), duration: 2, tapToDismiss: true) {
-                    if let action = files.successfulAction {
-                        switch action {
-                        case .delete:
-                            return AlertToast(type: .regular, title: "File deleted")
-                        case .move:
-                            return AlertToast(type: .regular, title: "File moved")
-                        case .createFolder:
-                            return AlertToast(type: .regular, title: "Folder created")
-                        case .importFiles:
-                            return AlertToast(type: .regular, title: "Imported successfully")
-                        }
-                    } else {
-                        return AlertToast(type: .regular, title: "ERROR")
-                    }
+        platform
+            .sheet(isPresented: $onboarding.anAccountWasCreatedThisSession, content: BeforeYouStart.init)
+            .sheet(isPresented: $sheets.sharingFile, content: {
+                if let meta = sheets.sharingFileInfo {
+                    ShareFileSheet(meta: meta)
                 }
-            
-            if search.isPathSearching {
-                PathSearchActionBar()
+                
+            })
+            .sheet(isPresented: $sheets.creatingFolder, content: {
+                if let creatingFolderInfo = sheets.creatingFolderInfo {
+                    CreateFolderSheet(creatingFolderInfo: creatingFolderInfo)
+                }
+            })
+            .sheet(isPresented: $sheets.renamingFile, content: {
+                if let renamingFileInfo = sheets.renamingFileInfo {
+                    RenameFileSheet(renamingFileInfo: renamingFileInfo)
+                }
+            })
+            .toast(isPresenting: Binding(get: { files.successfulAction != nil }, set: { _ in files.successfulAction = nil }), duration: 2, tapToDismiss: true) {
+                if let action = files.successfulAction {
+                    switch action {
+                    case .delete:
+                        return AlertToast(type: .regular, title: "File deleted")
+                    case .move:
+                        return AlertToast(type: .regular, title: "File moved")
+                    case .createFolder:
+                        return AlertToast(type: .regular, title: "Folder created")
+                    case .importFiles:
+                        return AlertToast(type: .regular, title: "Imported successfully")
+                    }
+                } else {
+                    return AlertToast(type: .regular, title: "ERROR")
+                }
             }
-        }
     }
     
     #if os(iOS)

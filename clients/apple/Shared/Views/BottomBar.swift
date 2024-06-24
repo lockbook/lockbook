@@ -254,9 +254,6 @@ struct WorkItemsPreview: PreviewProvider {
             }.toolbar {
                 ToolbarItemGroup(placement: .bottomBar) {
                     BottomBar()
-                        .onAppear {
-                            Mock.status.work = 5
-                        }
                 }
             }
             .mockDI()

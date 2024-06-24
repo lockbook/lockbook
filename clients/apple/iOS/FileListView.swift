@@ -35,6 +35,16 @@ class SwiftUITableViewCell: UITableViewCell {
     }
 }
 
+class TempWrapperView: UIView {
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+    }
+    
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+}
+
 class FileListViewController: UIViewController, UITableViewDataSource, UITableViewDelegate {
     private let tableView = UITableView()
     private var items: [File] = []
@@ -55,37 +65,46 @@ class FileListViewController: UIViewController, UITableViewDataSource, UITableVi
         
         tableView.dataSource = self
         tableView.delegate = self
-        tableView.register(SwiftUITableViewCell.self, forCellReuseIdentifier: "SwiftUICell")
+        tableView.register(UITableViewCell.self, forCellReuseIdentifier: "SwiftUICell")
     }
     
     func updateItems(_ newItems: [File]) {
         self.items = newItems
         tableView.reloadData()
     }
-    
-    // MARK: - UITableViewDataSource
-    
+        
     func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
         return items.count
     }
     
     func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-        guard let cell = tableView.dequeueReusableCell(withIdentifier: "SwiftUICell", for: indexPath) as? SwiftUITableViewCell else {
-            return UITableViewCell()
-        }
-        let file = items[indexPath.row]
-        cell.configure(with: file) { meta in
-            let secondFileListVC = FileListViewController()
-            secondFileListVC.updateItems(DI.files.childrenOf(meta))
-            self.navigationController!.pushViewController(secondFileListVC, animated: true)
-            
-        }
+//        guard let cell = tableView.dequeueReusableCell(withIdentifier: "SwiftUICell", for: indexPath) as? SwiftUITableViewCell else {
+//            return UITableViewCell()
+//        }
+//        let file = items[indexPath.row]
+//        cell.configure(with: file) { meta in
+//            
+//            
+//        }
+        
+        let cell = UITableViewCell()
+        cell.backgroundColor = .red
         return cell
     }
         
     func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         let file = items[indexPath.row]
         print("Selected item: \(file.name)")
+        
+        UIView.transition(
+            with: self.view,
+            duration: 1,
+            animations: {
+                var newFrame = tableView.frame
+                newFrame.origin.x = self.view.bounds.width
+                tableView.frame = newFrame
+            },
+            completion: nil)
     }
 }
 
@@ -181,6 +200,8 @@ struct FileListView: View {
                     .padding(.bottom, 3)) {
                         FileListViewRepresentable()
                             .frame(height: 200)
+                            .listRowBackground(Color.clear)
+                            .listRowInsets(EdgeInsets())
                     }
                     .offset(mainViewOffset)
                     .opacity(mainViewOpacity)

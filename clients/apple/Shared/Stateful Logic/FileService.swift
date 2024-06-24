@@ -257,7 +257,6 @@ class FileService: ObservableObject {
     private func postRefreshFiles(_ newFiles: [File]) {
         idsAndFiles = Dictionary(uniqueKeysWithValues: newFiles.map { ($0.id, $0) })
         refreshSuggestedDocs()
-        DI.status.setLastSynced()
         newFiles.forEach {
             if root == nil && $0.id == $0.parent {
                 root = $0
