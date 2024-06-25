@@ -8,6 +8,15 @@ import UniformTypeIdentifiers
 
 import GameController
 
+extension UIView {
+    func printViewHierarchy(indent: String = "") {
+        print("\(indent)\(self)")
+        for subview in self.subviews {
+            subview.printViewHierarchy(indent: indent + "  ")
+        }
+    }
+}
+
 public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDelegate {
     public static let TOOL_BAR_HEIGHT: CGFloat = 42
     
@@ -27,11 +36,13 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
     var pasteboardString: String?
     var lastKnownTapLocation: (Float, Float)? = nil
     
+    var floatingCursor: Any? = nil
+    
     init(mtkView: iOSMTK) {
         self.mtkView = mtkView
         
         super.init(frame: .infinite)
-                
+        
         mtkView.onSelectionChanged = { [weak self] in
             self?.inputDelegate?.selectionDidChange(self)
         }
@@ -59,7 +70,7 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
                 gestureRecognizer.cancelsTouchesInView = false
             }
         }
-        
+                
         // drop support
         let dropInteraction = UIDropInteraction(delegate: self)
         self.addInteraction(dropInteraction)
@@ -68,6 +79,62 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
         self.textUndoManager.wsHandle = self.wsHandle
         self.textUndoManager.onUndoRedo = { [weak self] in
             self?.mtkView.setNeedsDisplay(mtkView.frame)
+        }
+    }
+    
+    var oldTint: UIColor? = nil
+    var lastFloatingPos: CGPoint? = nil
+    
+    public func beginFloatingCursor(at point: CGPoint) {
+        if #available(iOS 17.4, *) {
+            tintColor = traitCollection.userInterfaceStyle == .light ? .lightGray : .gray
+            
+            let concreteFloatingCursor = UIStandardTextCursorView()
+            concreteFloatingCursor.tintColor = .systemBlue
+            floatingCursor = concreteFloatingCursor
+                        
+            setFloatingCursorLoc(point: point, animateClosing: false)
+            addSubview(concreteFloatingCursor)
+        }
+    }
+    
+    public func updateFloatingCursor(at point: CGPoint) {
+        if #available(iOS 17.4, *) {
+            setFloatingCursorLoc(point: point, animateClosing: false)
+        }
+    }
+    
+    func setFloatingCursorLoc(point: CGPoint, animateClosing: Bool) {
+        if #available(iOS 17.4, *) {
+            let concreteFloatingCursor = floatingCursor as! UIStandardTextCursorView
+            let pos = closestPosition(to: point)
+            let cursorRect = caretRect(for: pos!)
+            
+            if animateClosing {
+                UIView.animate(withDuration: 0.15, animations: {
+                    concreteFloatingCursor.frame = CGRect(x: cursorRect.origin.x, y: cursorRect.origin.y, width: 1, height: cursorRect.height)
+                }, completion: {[weak self] finished in
+                    print("setting the color")
+                    concreteFloatingCursor.removeFromSuperview()
+                    self?.floatingCursor = nil
+                    
+                    self?.tintColor = .systemBlue
+                    self?.inputDelegate?.selectionDidChange(self)
+                })
+                
+                return
+            }
+            
+            concreteFloatingCursor.frame = CGRect(x: point.x, y: cursorRect.origin.y, width: 1, height: cursorRect.height)
+            lastFloatingPos = point
+        }
+    }
+    
+    public func endFloatingCursor() {
+        if #available(iOS 17.4, *) {
+            if let lastFloatingPos = lastFloatingPos {
+                setFloatingCursorLoc(point: lastFloatingPos, animateClosing: true)
+            }
         }
     }
     
