@@ -307,62 +307,81 @@ pub type IndentLevel = u8;
 
 impl RenderStyle {
     pub fn apply_style(&self, text_format: &mut TextFormat, vis: &Appearance) {
-        match self {
-            RenderStyle::Selection => {
-                text_format.background = vis.selection_bg();
+        if vis.plaintext_mode {
+            match self {
+                RenderStyle::Selection => {
+                    text_format.background = vis.selection_bg();
+                }
+                RenderStyle::PlaintextLink => {
+                    text_format.color = vis.link();
+                    text_format.underline = Stroke { width: 1.5, color: vis.link() };
+                }
+                RenderStyle::Syntax => {}
+                RenderStyle::Markdown(MarkdownNode::Document) => {
+                    text_format.font_id.family = FontFamily::Monospace;
+                    text_format.font_id.size = vis.font_size();
+                    text_format.color = vis.text();
+                }
+                RenderStyle::Markdown(_) => {}
             }
-            RenderStyle::PlaintextLink => {
-                text_format.color = vis.link();
-                text_format.underline = Stroke { width: 1.5, color: vis.link() };
-            }
-            RenderStyle::Syntax => {
-                text_format.color = vis.syntax();
-            }
-            RenderStyle::Markdown(MarkdownNode::Document) => {
-                text_format.font_id.size = vis.font_size();
-                text_format.color = vis.text();
-            }
-            RenderStyle::Markdown(MarkdownNode::Paragraph) => {}
-            RenderStyle::Markdown(MarkdownNode::Inline(InlineNode::Code)) => {
-                text_format.font_id.family = FontFamily::Monospace;
-                text_format.color = vis.code();
-                text_format.font_id.size *= 14.0 / 16.0;
-            }
-            RenderStyle::Markdown(MarkdownNode::Inline(InlineNode::Bold)) => {
-                text_format.color = vis.bold();
-                text_format.font_id.family = FontFamily::Name(Arc::from("Bold"));
-            }
-            RenderStyle::Markdown(MarkdownNode::Inline(InlineNode::Italic)) => {
-                text_format.color = vis.italics();
-                text_format.italics = true;
-            }
-            RenderStyle::Markdown(MarkdownNode::Inline(InlineNode::Strikethrough)) => {
-                text_format.strikethrough = Stroke { width: 1.5, color: vis.strikethrough() };
-            }
-            RenderStyle::Markdown(MarkdownNode::Inline(InlineNode::Link(..))) => {
-                text_format.color = vis.link();
-                text_format.underline = Stroke { width: 1.5, color: vis.link() };
-            }
-            RenderStyle::Markdown(MarkdownNode::Inline(InlineNode::Image(..))) => {
-                text_format.italics = true;
-            }
-            RenderStyle::Markdown(MarkdownNode::Block(BlockNode::Heading(level))) => {
-                if level == &HeadingLevel::H1 {
+        } else {
+            match self {
+                RenderStyle::Selection => {
+                    text_format.background = vis.selection_bg();
+                }
+                RenderStyle::PlaintextLink => {
+                    text_format.color = vis.link();
+                    text_format.underline = Stroke { width: 1.5, color: vis.link() };
+                }
+                RenderStyle::Syntax => {
+                    text_format.color = vis.syntax();
+                }
+                RenderStyle::Markdown(MarkdownNode::Document) => {
+                    text_format.font_id.size = vis.font_size();
+                    text_format.color = vis.text();
+                }
+                RenderStyle::Markdown(MarkdownNode::Paragraph) => {}
+                RenderStyle::Markdown(MarkdownNode::Inline(InlineNode::Code)) => {
+                    text_format.font_id.family = FontFamily::Monospace;
+                    text_format.font_id.size *= 14.0 / 16.0;
+                    text_format.color = vis.code();
+                }
+                RenderStyle::Markdown(MarkdownNode::Inline(InlineNode::Bold)) => {
+                    text_format.color = vis.bold();
                     text_format.font_id.family = FontFamily::Name(Arc::from("Bold"));
                 }
-                text_format.font_id.size = vis.heading_size(level);
-                text_format.color = vis.heading();
+                RenderStyle::Markdown(MarkdownNode::Inline(InlineNode::Italic)) => {
+                    text_format.color = vis.italics();
+                    text_format.italics = true;
+                }
+                RenderStyle::Markdown(MarkdownNode::Inline(InlineNode::Strikethrough)) => {
+                    text_format.strikethrough = Stroke { width: 1.5, color: vis.strikethrough() };
+                }
+                RenderStyle::Markdown(MarkdownNode::Inline(InlineNode::Link(..))) => {
+                    text_format.color = vis.link();
+                    text_format.underline = Stroke { width: 1.5, color: vis.link() };
+                }
+                RenderStyle::Markdown(MarkdownNode::Inline(InlineNode::Image(..))) => {
+                    text_format.italics = true;
+                }
+                RenderStyle::Markdown(MarkdownNode::Block(BlockNode::Heading(level))) => {
+                    if level == &HeadingLevel::H1 {
+                        text_format.font_id.family = FontFamily::Name(Arc::from("Bold"));
+                    }
+                    text_format.color = vis.heading();
+                    text_format.font_id.size = vis.heading_size(level);
+                }
+                RenderStyle::Markdown(MarkdownNode::Block(BlockNode::Quote)) => {
+                    text_format.italics = true;
+                }
+                RenderStyle::Markdown(MarkdownNode::Block(BlockNode::Code)) => {
+                    text_format.color = vis.code();
+                    text_format.font_id.family = FontFamily::Monospace;
+                    text_format.font_id.size *= 14.0 / 16.0;
+                }
+                RenderStyle::Markdown(MarkdownNode::Block(BlockNode::ListItem(..))) => {}
+                RenderStyle::Markdown(MarkdownNode::Block(BlockNode::Rule)) => {}
             }
-            RenderStyle::Markdown(MarkdownNode::Block(BlockNode::Quote)) => {
-                text_format.italics = true;
-            }
-            RenderStyle::Markdown(MarkdownNode::Block(BlockNode::Code)) => {
-                text_format.font_id.family = FontFamily::Monospace;
-                text_format.font_id.size *= 14.0 / 16.0;
-                text_format.color = vis.code();
-            }
-            RenderStyle::Markdown(MarkdownNode::Block(BlockNode::ListItem(..))) => {}
-            RenderStyle::Markdown(MarkdownNode::Block(BlockNode::Rule)) => {}
         }
     }
 }

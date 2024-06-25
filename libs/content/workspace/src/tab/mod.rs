@@ -1,7 +1,6 @@
 use crate::tab::image_viewer::ImageViewer;
 use crate::tab::markdown_editor::Markdown;
 use crate::tab::pdf_viewer::PdfViewer;
-use crate::tab::plain_text::PlainText;
 use crate::tab::svg_editor::SVGEditor;
 use chrono::DateTime;
 use egui::Id;
@@ -13,7 +12,6 @@ use std::time::{Instant, SystemTime, UNIX_EPOCH};
 pub mod image_viewer;
 pub mod markdown_editor;
 pub mod pdf_viewer;
-pub mod plain_text;
 pub mod svg_editor;
 
 pub struct Tab {
@@ -39,7 +37,6 @@ impl Tab {
         if let Some(tab_content) = &self.content {
             let maybe_save_content = match tab_content {
                 TabContent::Markdown(md) => Some(md.editor.buffer.current.text.clone()),
-                TabContent::PlainText(txt) => Some(txt.content.clone()),
                 TabContent::Svg(svg) => Some(svg.get_minimal_content()),
                 _ => None,
             };
@@ -57,7 +54,6 @@ impl Tab {
 pub enum TabContent {
     Image(ImageViewer),
     Markdown(Markdown),
-    PlainText(PlainText),
     Pdf(PdfViewer),
     Svg(SVGEditor),
 }
