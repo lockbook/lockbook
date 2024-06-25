@@ -65,8 +65,8 @@ struct FilePathBreadcrumb: View {
 struct FilePathBreadcrumb_Previews: PreviewProvider {
     static var previews: some View {
         NavigationView {
-            FileListView()
-                .mockDI()
+//            FileListView()
+//                .mockDI()
         }
     }
 }

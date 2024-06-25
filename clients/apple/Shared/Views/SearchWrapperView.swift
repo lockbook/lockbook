@@ -76,16 +76,6 @@ struct SearchWrapperView<Content: View>: View {
                 mainView
             }
         }
-        .onChange(of: searchInput) { newInput in
-            DI.search.search(query: newInput, isPathAndContentSearch: true)
-        }
-        .onChange(of: isSearching, perform: { newInput in
-            if newInput {
-                DI.search.startSearchThread(isPathAndContentSearch: true)
-            } else {
-                DI.search.endSearch(isPathAndContentSearch: true)
-            }
-        })
     }
 }
 

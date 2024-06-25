@@ -3,124 +3,107 @@ import SwiftWorkspace
 import SwiftLockbookCore
 import Foundation
 
-class SwiftUITableViewCell: UITableViewCell {
-    private var hostingController: UIHostingController<FileCell>?
-
-    func configure(with meta: File, enterFolderAnim: @escaping (File) -> Void) {
-        // If the hosting controller already exists, update it
-        if let hostingController = hostingController {
-            hostingController.rootView = FileCell(meta: meta, enterFolderAnim: enterFolderAnim)
-            hostingController.view.invalidateIntrinsicContentSize()
-            return
-        }
-        
-        // Otherwise, create a new hosting controller
-        let fileCell = FileCell(meta: meta, enterFolderAnim: enterFolderAnim)
-        let hostingController = UIHostingController(rootView: fileCell)
-        
-        // Add the hosting controller's view to the cell's content view
-        contentView.addSubview(hostingController.view)
-        
-        // Set up constraints
-        hostingController.view.translatesAutoresizingMaskIntoConstraints = false
-        NSLayoutConstraint.activate([
-            hostingController.view.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
-            hostingController.view.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
-            hostingController.view.topAnchor.constraint(equalTo: contentView.topAnchor),
-            hostingController.view.bottomAnchor.constraint(equalTo: contentView.bottomAnchor)
-        ])
-        
-        // Save the hosting controller
-        self.hostingController = hostingController
-    }
-}
-
-class TempWrapperView: UIView {
-    override init(frame: CGRect) {
-        super.init(frame: frame)
-    }
-    
-    required init?(coder: NSCoder) {
-        fatalError("init(coder:) has not been implemented")
-    }
-}
-
-class FileListViewController: UIViewController, UITableViewDataSource, UITableViewDelegate {
-    private let tableView = UITableView()
-    private var items: [File] = []
-    
-    var currentParent: File? = nil
-    
-    override func viewDidLoad() {
-        super.viewDidLoad()
-        
-        view.addSubview(tableView)
-        tableView.translatesAutoresizingMaskIntoConstraints = false
-        NSLayoutConstraint.activate([
-            tableView.topAnchor.constraint(equalTo: view.topAnchor),
-            tableView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
-            tableView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            tableView.trailingAnchor.constraint(equalTo: view.trailingAnchor)
-        ])
-        
-        tableView.dataSource = self
-        tableView.delegate = self
-        tableView.register(UITableViewCell.self, forCellReuseIdentifier: "SwiftUICell")
-    }
-    
-    func updateItems(_ newItems: [File]) {
-        self.items = newItems
-        tableView.reloadData()
-    }
-        
-    func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-        return items.count
-    }
-    
-    func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-//        guard let cell = tableView.dequeueReusableCell(withIdentifier: "SwiftUICell", for: indexPath) as? SwiftUITableViewCell else {
-//            return UITableViewCell()
-//        }
-//        let file = items[indexPath.row]
-//        cell.configure(with: file) { meta in
-//            
-//            
-//        }
-        
-        let cell = UITableViewCell()
-        cell.backgroundColor = .red
-        return cell
-    }
-        
-    func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
-        let file = items[indexPath.row]
-        print("Selected item: \(file.name)")
-        
-        UIView.transition(
-            with: self.view,
-            duration: 1,
-            animations: {
-                var newFrame = tableView.frame
-                newFrame.origin.x = self.view.bounds.width
-                tableView.frame = newFrame
-            },
-            completion: nil)
-    }
-}
-
-struct FileListViewRepresentable: UIViewControllerRepresentable {
+struct ConstrainedHomeView: View {
     @EnvironmentObject var files: FileService
-        
-    func makeUIViewController(context: Context) -> FileListViewController {
-        let viewController = FileListViewController()
-        return viewController
+    @EnvironmentObject var search: SearchService
+    
+    @Binding var searchInput: String
+    
+    @Environment(\.isSearching) var isSearching
+    @Environment(\.colorScheme) var colorScheme
+    @Environment(\.dismissSearch) private var dismissSearch
+    
+    var body: some View {
+        VStack {
+            if search.isPathAndContentSearching {
+                if search.isPathAndContentSearchInProgress {
+                    ProgressView()
+                        .frame(width: 20, height: 20)
+                        .padding(.top)
+                }
+                
+                if !search.pathAndContentSearchResults.isEmpty {
+                    List(search.pathAndContentSearchResults) { result in
+                        switch result {
+                        case .PathMatch(_, let meta, let name, let path, let matchedIndices, _):
+                            Button(action: {
+                                DI.workspace.requestOpenDoc(meta.id)
+                                dismissSearch()
+                            }) {
+                                SearchFilePathCell(name: name, path: path, matchedIndices: matchedIndices)
+                            }
+                        case .ContentMatch(_, let meta, let name, let path, let paragraph, let matchedIndices, _):
+                            Button(action: {
+                                DI.workspace.requestOpenDoc(meta.id)
+                                dismissSearch()
+                            }) {
+                                SearchFileContentCell(name: name, path: path, paragraph: paragraph, matchedIndices: matchedIndices)
+                            }
+                        }
+                    }
+                    .listStyle(.inset)
+                } else if !search.isPathAndContentSearchInProgress && !search.pathAndContentSearchQuery.isEmpty {
+                    Text("No results.")
+                        .font(.headline)
+                        .foregroundColor(.gray)
+                        .fontWeight(.bold)
+                        .padding()
+                    
+                    Spacer()
+                }
+            } else {
+                main
+            }
+        }
+        .onChange(of: searchInput) { newInput in
+            DI.search.search(query: newInput, isPathAndContentSearch: true)
+        }
+        .onChange(of: isSearching, perform: { newInput in
+            if newInput {
+                DI.search.startSearchThread(isPathAndContentSearch: true)
+            } else {
+                DI.search.endSearch(isPathAndContentSearch: true)
+            }
+        })
+        .navigationBarTitle(files.parent.map{$0.name} ?? "")
     }
     
-    func updateUIViewController(_ uiViewController: FileListViewController, context: Context) {
-        if(uiViewController.currentParent != files.parent) {
-            uiViewController.currentParent = files.parent
-            uiViewController.updateItems(files.childrenOf(uiViewController.currentParent))
+    var main: some View {
+//        Group {
+            List {
+                if files.parent?.isRoot == true && files.suggestedDocs?.isEmpty != true {
+                    Section(header: Text("Suggested")
+                        .bold()
+                        .foregroundColor(.primary)
+                        .textCase(.none)
+                        .font(.headline)
+                        .padding(.bottom, 3)) {
+                            SuggestedDocs(isiOS: true)
+                        }
+                }
+                
+                Section(header: Text("Files")
+                    .bold()
+                    .foregroundColor(.primary)
+                    .textCase(.none)
+                    .font(.headline)
+                    .padding(.bottom, 3)) {
+                        fileList
+                    }
+            }
+//        }
+    }
+    
+    var fileList: some View {
+        ForEach(files.childrenOfParent()) { meta in
+            FileCell(meta: meta)
+                .padding(.horizontal)
+                .padding(.vertical, 5)
+                .background(colorScheme == .light ? .white : Color(uiColor: .secondarySystemBackground))
         }
+        .listRowBackground(Color.clear)
+        .listRowInsets(EdgeInsets())
+        .listRowSeparator(.hidden)
     }
 }
 
@@ -198,10 +181,7 @@ struct FileListView: View {
                     .textCase(.none)
                     .font(.headline)
                     .padding(.bottom, 3)) {
-                        FileListViewRepresentable()
-                            .frame(height: 200)
-                            .listRowBackground(Color.clear)
-                            .listRowInsets(EdgeInsets())
+                        EmptyView()
                     }
                     .offset(mainViewOffset)
                     .opacity(mainViewOpacity)
@@ -237,29 +217,7 @@ struct FileListView: View {
         let children = fileService.childrenOfParent()
 
         return ForEach(children) { meta in
-                FileCell(meta: meta) { meta in
-                    withAnimation(.linear(duration: 0.2)) {
-                        mainViewOffset.width = -200
-                    }
-
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                        mainViewOpacity = 0
-                        mainViewOffset.width = 200
-
-                        fileService.intoChildDirectory(meta)
-
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                            withAnimation(.linear(duration: 0.1)) {
-                                mainViewOffset.width = 0
-                                mainViewOpacity = 1
-                            }
-                        }
-                    }
-                }
-                .padding(.horizontal)
-                .padding(.vertical, 5)
-                .background(colorScheme == .light ? .white : Color(uiColor: .secondarySystemBackground))
-
+            EmptyView()
         }
         .listRowBackground(Color.clear)
         .listRowInsets(EdgeInsets())
