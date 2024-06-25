@@ -16,8 +16,6 @@ struct PlatformView: View {
     @Environment(\.horizontalSizeClass) var horizontal
     @Environment(\.verticalSizeClass) var vertical
     
-    @State var searchInput: String = ""
-    
     var body: some View {
         platform
             .sheet(isPresented: $onboarding.anAccountWasCreatedThisSession, content: BeforeYouStart.init)
@@ -85,10 +83,7 @@ struct PlatformView: View {
     }
     
     var iOS: some View {
-        NavigationView {
-            ConstrainedHomeView(searchInput: $searchInput)
-        }
-        .searchable(text: $searchInput, prompt: "Search...")
+        ConstrainedHomeViewWrapper()
     }
     
 //    var iOS: some View {

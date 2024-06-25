@@ -3,6 +3,66 @@ import SwiftWorkspace
 import SwiftLockbookCore
 import Foundation
 
+struct ConstrainedHomeViewWrapper: View {
+    
+    @EnvironmentObject var workspace: WorkspaceState
+    
+    @State var searchInput: String = ""
+    
+    var body: some View {
+        ZStack {
+            NavigationView {
+                ConstrainedHomeView(searchInput: $searchInput)
+            }
+            .searchable(text: $searchInput, prompt: "Search...")
+            
+            NavigationView {
+                WorkspaceView(DI.workspace, DI.coreService.corePtr)
+                    .equatable()
+                    .toolbar {
+                        ToolbarItem(placement: .navigationBarLeading) {
+                            Button(action: {
+                                workspace.closeActiveTab = true
+                            }) {
+                                HStack {
+                                    Image(systemName: "chevron.backward")
+                                        .foregroundStyle(.blue)
+                                        .bold()
+                                    
+                                    Text(DI.accounts.account!.username)
+                                        .foregroundStyle(.blue)
+                                }
+                            }
+                        }
+                        
+                        ToolbarItemGroup {
+                            if let id = workspace.openDoc {
+                                if let meta = DI.files.idsAndFiles[id] {
+                                    Button(action: {
+                                        DI.sheets.sharingFileInfo = meta
+                                    }, label: {
+                                        Label("Share", systemImage: "person.wave.2.fill")
+                                    })
+                                    .foregroundColor(.blue)
+                                    .padding(.trailing, 10)
+                                    
+                                    Button(action: {
+                                        exportFileAndShowShareSheet(meta: meta)
+                                    }, label: {
+                                        Label("Share externally to...", systemImage: "square.and.arrow.up.fill")
+                                    })
+                                    .foregroundColor(.blue)
+                                    .padding(.trailing, 10)
+                                }
+                            }
+                        }
+                    }
+            }
+            .offset(x: workspace.currentTab != .Welcome ? workspace.dragOffset : UIScreen.current?.bounds.width ?? 0)
+        }
+    }
+}
+
 struct ConstrainedHomeView: View {
     @EnvironmentObject var files: FileService
     @EnvironmentObject var search: SearchService
@@ -14,7 +74,7 @@ struct ConstrainedHomeView: View {
     @Environment(\.dismissSearch) private var dismissSearch
     
     var body: some View {
-        VStack {
+        ScrollView {
             if search.isPathAndContentSearching {
                 if search.isPathAndContentSearchInProgress {
                     ProgressView()
@@ -23,25 +83,28 @@ struct ConstrainedHomeView: View {
                 }
                 
                 if !search.pathAndContentSearchResults.isEmpty {
-                    List(search.pathAndContentSearchResults) { result in
-                        switch result {
-                        case .PathMatch(_, let meta, let name, let path, let matchedIndices, _):
-                            Button(action: {
-                                DI.workspace.requestOpenDoc(meta.id)
-                                dismissSearch()
-                            }) {
-                                SearchFilePathCell(name: name, path: path, matchedIndices: matchedIndices)
-                            }
-                        case .ContentMatch(_, let meta, let name, let path, let paragraph, let matchedIndices, _):
-                            Button(action: {
-                                DI.workspace.requestOpenDoc(meta.id)
-                                dismissSearch()
-                            }) {
-                                SearchFileContentCell(name: name, path: path, paragraph: paragraph, matchedIndices: matchedIndices)
+                    VStack(spacing: 0) {
+                        ForEach(search.pathAndContentSearchResults) { result in
+                            switch result {
+                            case .PathMatch(_, let meta, let name, let path, let matchedIndices, _):
+                                Button(action: {
+                                    DI.workspace.requestOpenDoc(meta.id)
+                                    dismissSearch()
+                                }) {
+                                    SearchFilePathCell(name: name, path: path, matchedIndices: matchedIndices)
+                                }
+                            case .ContentMatch(_, let meta, let name, let path, let paragraph, let matchedIndices, _):
+                                Button(action: {
+                                    DI.workspace.requestOpenDoc(meta.id)
+                                    dismissSearch()
+                                }) {
+                                    SearchFileContentCell(name: name, path: path, paragraph: paragraph, matchedIndices: matchedIndices)
+                                }
                             }
                         }
                     }
-                    .listStyle(.inset)
+                    .padding(.horizontal)
+                    .background(RoundedRectangle(cornerRadius: 10).fill(colorScheme == .light ? .white : Color(uiColor: .secondarySystemBackground)))
                 } else if !search.isPathAndContentSearchInProgress && !search.pathAndContentSearchQuery.isEmpty {
                     Text("No results.")
                         .font(.headline)
@@ -52,7 +115,7 @@ struct ConstrainedHomeView: View {
                     Spacer()
                 }
             } else {
-                main
+                suggestAndFilesView
             }
         }
         .onChange(of: searchInput) { newInput in
@@ -65,45 +128,55 @@ struct ConstrainedHomeView: View {
                 DI.search.endSearch(isPathAndContentSearch: true)
             }
         })
+        .background(Color(uiColor: UIColor.systemGroupedBackground))
         .navigationBarTitle(files.parent.map{$0.name} ?? "")
     }
     
-    var main: some View {
-//        Group {
-            List {
-                if files.parent?.isRoot == true && files.suggestedDocs?.isEmpty != true {
-                    Section(header: Text("Suggested")
-                        .bold()
-                        .foregroundColor(.primary)
-                        .textCase(.none)
-                        .font(.headline)
-                        .padding(.bottom, 3)) {
-                            SuggestedDocs(isiOS: true)
-                        }
-                }
-                
-                Section(header: Text("Files")
+    var suggestAndFilesView: some View {
+        VStack(alignment: .leading) {
+            if files.parent?.isRoot == true && files.suggestedDocs?.isEmpty != true {
+                Section(header: Text("Suggested")
                     .bold()
                     .foregroundColor(.primary)
                     .textCase(.none)
                     .font(.headline)
                     .padding(.bottom, 3)) {
-                        fileList
+                        SuggestedDocs(isiOS: true)
                     }
+                    .padding(.horizontal, 20)
             }
-//        }
-    }
-    
-    var fileList: some View {
-        ForEach(files.childrenOfParent()) { meta in
-            FileCell(meta: meta)
-                .padding(.horizontal)
-                .padding(.vertical, 5)
-                .background(colorScheme == .light ? .white : Color(uiColor: .secondarySystemBackground))
+            
+            Section(header: Text("Files")
+                .bold()
+                .foregroundColor(.primary)
+                .textCase(.none)
+                .font(.headline)
+                .padding(.bottom, 3)) {
+                    VStack {
+                        ForEach(files.childrenOfParent()) { meta in
+                            FileCell(meta: meta)
+                                .padding(.horizontal)
+                        }
+                        .listRowBackground(Color.clear)
+                        .listRowInsets(EdgeInsets())
+                        .listRowSeparator(.hidden)
+                    }
+                    .background(RoundedRectangle(cornerRadius: 10).fill(colorScheme == .light ? .white : Color(uiColor: .secondarySystemBackground)))
+                }
+                .padding(.horizontal, 20)
         }
-        .listRowBackground(Color.clear)
-        .listRowInsets(EdgeInsets())
-        .listRowSeparator(.hidden)
+    }
+}
+
+extension UIScreen {
+    static var current: UIScreen? {
+        for scene in UIApplication.shared.connectedScenes {
+            guard let windowScene = scene as? UIWindowScene else { continue }
+            for window in windowScene.windows {
+                if window.isKeyWindow { return window.screen }
+            }
+        }
+        return nil
     }
 }
 
