@@ -149,6 +149,19 @@ impl<'window> WgpuWorkspace<'window> {
             }
         }
 
+        out.redraw_in = match full_output
+            .viewport_output
+            .values()
+            .next()
+            .map(|v| v.repaint_delay)
+        {
+            Some(d) => d.as_millis() as u64,
+            None => {
+                eprintln!("VIEWPORT Missing, not requesting redraw");
+                u64::max_value()
+            }
+        };
+
         out
     }
 

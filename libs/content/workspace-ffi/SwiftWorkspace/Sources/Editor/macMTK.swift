@@ -270,7 +270,7 @@ public class MacMTK: MTKView, MTKViewDelegate {
         let scale = Float(self.window?.backingScaleFactor ?? 1.0)
         dark_mode(wsHandle, isDarkMode())
         set_scale(wsHandle, scale)
-        let output = draw_editor(wsHandle)
+        let output = draw_workspace(wsHandle)
 
         workspaceState?.syncing = output.workspace_resp.syncing
         workspaceState?.statusMsg = textFromPtr(s: output.workspace_resp.msg)
@@ -309,7 +309,7 @@ public class MacMTK: MTKView, MTKViewDelegate {
 
         redrawTask?.cancel()
         redrawTask = nil
-        self.isPaused = output.redraw_in > 100
+        self.isPaused = output.redraw_in > 50
         if self.isPaused {
             let redrawIn = UInt64(truncatingIfNeeded: output.redraw_in)
             let redrawInInterval = DispatchTimeInterval.milliseconds(Int(truncatingIfNeeded: min(500, redrawIn)));
