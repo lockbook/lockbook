@@ -1054,7 +1054,7 @@ pub fn region_to_cursor(
                 &bounds.text,
             );
             let range = offset
-                .range_bound(bound, backwards, false, bounds)
+                .range_bound(bound, backwards, true, bounds)
                 .unwrap_or((offset, offset));
             range.into()
         }
