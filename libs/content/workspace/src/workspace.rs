@@ -10,7 +10,6 @@ use crate::output::{DirtynessMsg, PersistentWsStatus, WsOutput};
 use crate::tab::image_viewer::{is_supported_image_fmt, ImageViewer};
 use crate::tab::markdown_editor::Markdown;
 use crate::tab::pdf_viewer::PdfViewer;
-use crate::tab::plain_text::PlainText;
 use crate::tab::svg_editor::SVGEditor;
 use crate::tab::{Tab, TabContent, TabFailure};
 use crate::theme::icons::Icon;
@@ -397,7 +396,6 @@ impl Workspace {
                                     output.hide_virtual_keyboard = resp.hide_virtual_keyboard;
                                 }
                             }
-                            TabContent::PlainText(txt) => txt.show(ui),
                             TabContent::Image(img) => img.show(ui),
                             TabContent::Pdf(pdf) => pdf.show(ui),
                             TabContent::Svg(svg) => {
@@ -598,15 +596,7 @@ impl Workspace {
                 .read_document(id)
                 .map_err(|err| TabFailure::Unexpected(format!("{:?}", err))) // todo(steve)
                 .map(|bytes| {
-                    if ext == "md" {
-                        TabContent::Markdown(Markdown::new(
-                            core.clone(),
-                            &bytes,
-                            &toolbar_visibility,
-                            is_new_file,
-                            id,
-                        ))
-                    } else if is_supported_image_fmt(ext) {
+                    if is_supported_image_fmt(ext) {
                         TabContent::Image(ImageViewer::new(&id.to_string(), ext, &bytes))
                     } else if ext == "pdf" {
                         TabContent::Pdf(PdfViewer::new(
@@ -618,7 +608,14 @@ impl Workspace {
                     } else if ext == "svg" {
                         TabContent::Svg(SVGEditor::new(&bytes, core.clone(), id))
                     } else {
-                        TabContent::PlainText(PlainText::new(&bytes))
+                        TabContent::Markdown(Markdown::new(
+                            core.clone(),
+                            &bytes,
+                            &toolbar_visibility,
+                            is_new_file,
+                            id,
+                            ext != "md",
+                        ))
                     }
                 });
             update_tx.send(WsMsg::FileLoaded(id, content)).unwrap();

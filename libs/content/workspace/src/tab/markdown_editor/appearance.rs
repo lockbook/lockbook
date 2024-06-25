@@ -1,5 +1,3 @@
-use std::collections::HashSet;
-
 use egui::ecolor::Hsva;
 use egui::{Color32, Visuals};
 use pulldown_cmark::HeadingLevel;
@@ -55,6 +53,7 @@ pub const WHITE: ThemedColor =
 #[derive(Default)]
 pub struct Appearance {
     pub current_theme: Theme,
+    pub plaintext_mode: bool,
 
     // colors
     pub text: Option<ThemedColor>,
@@ -78,9 +77,6 @@ pub struct Appearance {
     pub rule_height: Option<f32>,
     pub image_padding: Option<f32>,
     pub base_font_size: Option<f32>,
-
-    // capture of markdown syntax characters
-    pub markdown_capture: Option<HashSet<MarkdownNodeType>>,
 }
 
 impl Appearance {
@@ -182,6 +178,9 @@ impl Appearance {
     }
 
     pub fn markdown_capture(&self, node_type: MarkdownNodeType) -> CaptureCondition {
+        if self.plaintext_mode {
+            return CaptureCondition::Never;
+        }
         match node_type {
             MarkdownNodeType::Block(BlockNodeType::ListItem(_)) => CaptureCondition::Always,
             MarkdownNodeType::Block(BlockNodeType::Heading(_))
