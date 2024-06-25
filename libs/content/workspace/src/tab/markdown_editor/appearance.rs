@@ -202,9 +202,6 @@ impl Appearance {
     }
 
     pub fn heading_size(&self, level: &HeadingLevel) -> f32 {
-        if self.plaintext_mode {
-            return self.font_size();
-        }
         (match level {
             HeadingLevel::H1 => 32.0,
             HeadingLevel::H2 => 28.0,
