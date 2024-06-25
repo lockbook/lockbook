@@ -82,8 +82,8 @@ impl Eraser {
                 });
                 let event = super::Event::Delete(
                     self.delete_candidates
-                        .iter()
-                        .map(|(id, _)| DeleteElement { id: id.to_owned() })
+                        .keys()
+                        .map(|id| DeleteElement { id: id.to_owned() })
                         .collect(),
                 );
 

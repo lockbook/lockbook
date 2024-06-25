@@ -35,7 +35,6 @@ impl ThemePalette {
         white: Color32::from_rgb(255, 255, 255),
     };
 
-    // todo: passing the is_dark_mode aram doesn't feel like good data modeling
     pub fn as_array() -> Vec<(Color32, Color32)> {
         vec![
             (ThemePalette::LIGHT.magenta, ThemePalette::DARK.magenta),
