@@ -1,6 +1,6 @@
 use std::f32::consts::PI;
 
-use egui::{RichText, ScrollArea};
+use egui::ScrollArea;
 use resvg::usvg::Transform;
 
 use crate::{
@@ -220,7 +220,7 @@ impl Toolbar {
                 ui.add(egui::Separator::default().shrink(ui.available_height() * 0.3));
                 ui.add_space(4.0);
 
-                ui.label(RichText::from("Opacity:").size(15.0));
+                ui.label(egui::RichText::from("Opacity:").size(15.0));
                 ui.add_space(10.0);
                 ui.add(
                     egui::Slider::new(&mut self.pen.active_opacity, 0.0..=1.0).show_value(false),

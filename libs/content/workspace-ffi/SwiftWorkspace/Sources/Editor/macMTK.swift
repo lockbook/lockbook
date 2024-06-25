@@ -201,7 +201,7 @@ public class MacMTK: MTKView, MTKViewDelegate {
         } else if !isPaste {
             if let data = pasteBoard.data(forType: .fileURL) {
                 if let url = URL(dataRepresentation: data, relativeTo: nil) {
-                    if url.pathExtension.lowercased() == "png" {
+                    if isSupportedImageFormat(ext: url.pathExtension.lowercased()) {
                         guard let data = try? Data(contentsOf: url) else {
                             return false
                         }
@@ -229,6 +229,17 @@ public class MacMTK: MTKView, MTKViewDelegate {
         }
         
         clipboard_send_image(wsHandle, imgPtr, UInt(img.count), isPaste)
+    }
+    
+    // copy of workspace::tab::image_viewer::is_supported_image_fmt() because ffi seems like overkill
+    func isSupportedImageFormat(ext: String) -> Bool {
+        // Complete list derived from which features are enabled on image crate according to image-rs default features:
+        // https://github.com/image-rs/image/blob/main/Cargo.toml#L70
+        let imgFormats: Set<String> = [
+            "avif", "bmp", "dds", "exr", "ff", "gif", "hdr", "ico", "jpeg", "jpg", "png", "pnm", "qoi", "tga",
+            "tiff", "webp"
+        ]
+        return imgFormats.contains(ext)
     }
 
     func viewCoordinates(_ event: NSEvent) -> NSPoint {
@@ -259,7 +270,7 @@ public class MacMTK: MTKView, MTKViewDelegate {
         let scale = Float(self.window?.backingScaleFactor ?? 1.0)
         dark_mode(wsHandle, isDarkMode())
         set_scale(wsHandle, scale)
-        let output = draw_editor(wsHandle)
+        let output = draw_workspace(wsHandle)
 
         workspaceState?.syncing = output.workspace_resp.syncing
         workspaceState?.statusMsg = textFromPtr(s: output.workspace_resp.msg)
@@ -298,7 +309,7 @@ public class MacMTK: MTKView, MTKViewDelegate {
 
         redrawTask?.cancel()
         redrawTask = nil
-        self.isPaused = output.redraw_in > 100
+        self.isPaused = output.redraw_in > 50
         if self.isPaused {
             let redrawIn = UInt64(truncatingIfNeeded: output.redraw_in)
             let redrawInInterval = DispatchTimeInterval.milliseconds(Int(truncatingIfNeeded: min(500, redrawIn)));

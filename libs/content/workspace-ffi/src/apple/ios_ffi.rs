@@ -433,7 +433,9 @@ pub unsafe extern "C" fn is_position_at_bound(
     if let Some(range) =
         DocCharOffset(pos.pos).range_bound(bound, backwards, false, &markdown.editor.bounds)
     {
-        if !backwards && pos.pos == range.0 || backwards && pos.pos == range.1 {
+        // forwards: the provided position is at the end of the enclosing range
+        // backwards: the provided position is at the start of the enclosing range
+        if !backwards && pos.pos == range.end() || backwards && pos.pos == range.start() {
             return true;
         }
     }
@@ -810,7 +812,7 @@ pub unsafe extern "C" fn current_tab(obj: *mut c_void) -> i64 {
             Some(tab) => match tab {
                 TabContent::Image(_) => 2,
                 TabContent::Markdown(_) => 3,
-                TabContent::PlainText(_) => 4,
+                // TabContent::PlainText(_) => 4,
                 TabContent::Pdf(_) => 5,
                 TabContent::Svg(_) => 6,
             },

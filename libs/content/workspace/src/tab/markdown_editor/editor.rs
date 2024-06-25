@@ -1,4 +1,3 @@
-use std::cmp;
 use std::time::{Duration, Instant};
 
 use egui::os::OperatingSystem;
@@ -7,7 +6,7 @@ use lb_rs::Uuid;
 use serde::Serialize;
 
 use crate::tab::markdown_editor::appearance::Appearance;
-use crate::tab::markdown_editor::ast::Ast;
+use crate::tab::markdown_editor::ast::{Ast, AstTextRangeType};
 use crate::tab::markdown_editor::bounds::{BoundCase, Bounds};
 use crate::tab::markdown_editor::buffer::Buffer;
 use crate::tab::markdown_editor::debug::DebugInfo;
@@ -16,7 +15,7 @@ use crate::tab::markdown_editor::images::ImageCache;
 use crate::tab::markdown_editor::input::canonical::{Bound, Modification, Offset, Region};
 use crate::tab::markdown_editor::input::capture::CaptureState;
 use crate::tab::markdown_editor::input::click_checker::{ClickChecker, EditorClickChecker};
-use crate::tab::markdown_editor::input::cursor::{Cursor, PointerState};
+use crate::tab::markdown_editor::input::cursor::PointerState;
 use crate::tab::markdown_editor::input::events;
 use crate::tab::markdown_editor::offset_types::{DocCharOffset, RangeExt as _};
 use crate::tab::markdown_editor::style::{BlockNode, InlineNode, ListItem, MarkdownNode};
@@ -26,8 +25,7 @@ use crate::tab::EventManager as _;
 #[derive(Debug, Serialize, Default)]
 pub struct EditorResponse {
     pub text_updated: bool,
-    pub potential_title: Option<String>,
-    pub document_renamed: Option<String>,
+    pub suggested_rename: Option<String>,
 
     pub scroll_updated: bool,
 
@@ -51,7 +49,8 @@ pub struct EditorResponse {
 
 pub struct Editor {
     pub id: egui::Id,
-    pub open_file: Uuid,
+    pub file_id: Uuid,
+    pub needs_name: bool,
     pub initialized: bool,
 
     // dependencies
@@ -96,16 +95,19 @@ pub struct Editor {
 }
 
 impl Editor {
-    pub fn new(core: lb_rs::Core, open_file: Uuid, content: &str, file_id: &Uuid) -> Self {
+    pub fn new(
+        core: lb_rs::Core, content: &str, file_id: Uuid, needs_name: bool, plaintext_mode: bool,
+    ) -> Self {
         Self {
             id: egui::Id::new(file_id),
-            open_file,
+            file_id,
+            needs_name,
             initialized: Default::default(),
 
             core,
             client: Default::default(),
 
-            appearance: Default::default(),
+            appearance: Appearance { plaintext_mode, ..Default::default() },
 
             buffer: content.into(),
             pointer_state: Default::default(),
@@ -248,6 +250,9 @@ impl Editor {
             ui.set_max_width(ui.max_rect().width() - 15.);
         }
 
+        // remember state for change detection
+        let prior_suggested_title = self.get_suggested_title();
+
         // process events
         let (text_updated, selection_updated) = if self.initialized {
             if ui.memory(|m| m.has_focus(id))
@@ -310,7 +315,8 @@ impl Editor {
                 bounds::calc_links(&self.buffer.current, &self.bounds.text, &self.ast);
         }
         if text_updated || selection_updated || theme_updated {
-            self.images = images::calc(&self.ast, &self.images, &self.client, &self.core, ui);
+            self.images =
+                images::calc(&self.ast, &self.images, &self.client, &self.core, self.file_id, ui);
         }
         self.galleys = galleys::calc(
             &self.ast,
@@ -370,11 +376,12 @@ impl Editor {
             ui.scroll_to_rect(rect, None);
         }
 
-        let potential_title = self.get_potential_text_title();
-
+        let suggested_title = self.get_suggested_title();
+        let suggested_rename =
+            if suggested_title != prior_suggested_title { suggested_title } else { None };
         let mut result = EditorResponse {
             text_updated,
-            potential_title,
+            suggested_rename,
 
             show_edit_menu: self.maybe_menu_location.is_some(),
             has_selection: self.buffer.current.cursor.selection().is_some(),
@@ -487,7 +494,7 @@ impl Editor {
             &self.appearance,
             &mut self.pointer_state,
             &mut self.core,
-            self.open_file,
+            self.file_id,
         );
         let (text_updated, maybe_to_clipboard, maybe_opened_url) = events::process(
             &combined_events,
@@ -583,27 +590,35 @@ impl Editor {
         ctx.set_fonts(fonts);
     }
 
-    pub fn get_potential_text_title(&self) -> Option<String> {
-        let mut maybe_chosen: Option<(DocCharOffset, DocCharOffset)> = None;
-
-        for text_range in &self.bounds.text {
-            if !text_range.is_empty() {
-                maybe_chosen = Some(*text_range);
-                break;
-            }
+    pub fn get_suggested_title(&self) -> Option<String> {
+        if !self.needs_name {
+            return None;
         }
 
-        maybe_chosen.map(|chosen: (DocCharOffset, DocCharOffset)| {
-            let ast_idx = self.ast.ast_node_at_char(chosen.start());
-            let ast = &self.ast.nodes[ast_idx];
+        let ast_ranges = self
+            .bounds
+            .ast
+            .iter()
+            .map(|range| range.range)
+            .collect::<Vec<_>>();
+        for ([ast_idx, paragraph_idx], text_range_portion) in
+            bounds::join([&ast_ranges, &self.bounds.paragraphs])
+        {
+            if let Some(ast_idx) = ast_idx {
+                let ast_text_range = &self.bounds.ast[ast_idx];
+                if ast_text_range.range_type != AstTextRangeType::Text {
+                    continue; // no syntax characters in suggested title
+                }
+                if ast_text_range.is_empty() {
+                    continue; // no empty text in suggested title
+                }
+            }
+            if paragraph_idx > Some(0) {
+                break; // suggested title must be from first paragraph
+            }
 
-            let cursor: Cursor = (
-                ast.text_range.start(),
-                cmp::min(ast.text_range.end(), ast.text_range.start() + 30),
-            )
-                .into();
-
-            String::from(cursor.selection_text(&self.buffer.current)) + ".md"
-        })
+            return Some(String::from(&self.buffer.current[text_range_portion]) + ".md");
+        }
+        None
     }
 }

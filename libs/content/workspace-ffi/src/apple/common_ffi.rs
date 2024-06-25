@@ -100,7 +100,7 @@ pub extern "C" fn request_sync(obj: *mut c_void) {
 }
 
 #[no_mangle]
-pub extern "C" fn draw_editor(obj: *mut c_void) -> IntegrationOutput {
+pub extern "C" fn draw_workspace(obj: *mut c_void) -> IntegrationOutput {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
     obj.frame()
 }
@@ -143,7 +143,7 @@ pub unsafe extern "C" fn clipboard_send_image(
 ) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
     let img = std::slice::from_raw_parts(content, length).to_vec();
-    let content = vec![ClipContent::Png(img)];
+    let content = vec![ClipContent::Image(img)];
     let position = egui::Pos2::ZERO; // todo: cursor position
 
     if is_paste {

@@ -281,7 +281,7 @@ impl AccountScreen {
     /// See also workspace::process_keys
     fn process_keys(&mut self, ctx: &egui::Context) {
         const ALT: egui::Modifiers = egui::Modifiers::ALT;
-        const CTRL: egui::Modifiers = egui::Modifiers::CTRL;
+        const COMMAND: egui::Modifiers = egui::Modifiers::COMMAND;
 
         // Escape (without modifiers) to close something such as an open modal.
         // We don't want to consume it unless something is closed.
@@ -293,7 +293,7 @@ impl AccountScreen {
         }
 
         // Ctrl-E toggle zen mode
-        if ctx.input_mut(|i| i.consume_key(CTRL, egui::Key::E)) {
+        if ctx.input_mut(|i| i.consume_key(COMMAND, egui::Key::E)) {
             let mut zen_mode = false;
             if let Ok(settings) = &self.settings.read() {
                 zen_mode = !settings.zen_mode;
@@ -303,7 +303,7 @@ impl AccountScreen {
 
         // Ctrl-Space or Ctrl-L pressed while search modal is not open.
         let is_search_open = ctx.input_mut(|i| {
-            i.consume_key(CTRL, egui::Key::Space) || i.consume_key(CTRL, egui::Key::L)
+            i.consume_key(COMMAND, egui::Key::Space) || i.consume_key(COMMAND, egui::Key::L)
         });
         if is_search_open {
             if let Some(search) = &mut self.modals.search {
@@ -315,7 +315,7 @@ impl AccountScreen {
 
         // Ctrl-, to open settings modal.
         if self.modals.settings.is_none()
-            && ctx.input_mut(|i| i.consume_key(CTRL, egui::Key::Comma))
+            && ctx.input_mut(|i| i.consume_key(COMMAND, egui::Key::Comma))
         {
             self.modals.settings = Some(SettingsModal::new(&self.core, &self.settings));
         }

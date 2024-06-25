@@ -1,19 +1,17 @@
 use crate::tab::image_viewer::ImageViewer;
 use crate::tab::markdown_editor::Markdown;
 use crate::tab::pdf_viewer::PdfViewer;
-use crate::tab::plain_text::PlainText;
 use crate::tab::svg_editor::SVGEditor;
 use chrono::DateTime;
 use egui::Id;
 use lb_rs::{File, FileType, Uuid};
 use markdown_editor::input::canonical::Modification;
-use std::path::PathBuf;
+use std::path::{Component, Path, PathBuf};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 pub mod image_viewer;
 pub mod markdown_editor;
 pub mod pdf_viewer;
-pub mod plain_text;
 pub mod svg_editor;
 
 pub struct Tab {
@@ -39,7 +37,6 @@ impl Tab {
         if let Some(tab_content) = &self.content {
             let maybe_save_content = match tab_content {
                 TabContent::Markdown(md) => Some(md.editor.buffer.current.text.clone()),
-                TabContent::PlainText(txt) => Some(txt.content.clone()),
                 TabContent::Svg(svg) => Some(svg.get_minimal_content()),
                 _ => None,
             };
@@ -57,7 +54,6 @@ impl Tab {
 pub enum TabContent {
     Image(ImageViewer),
     Markdown(Markdown),
-    PlainText(PlainText),
     Pdf(PdfViewer),
     Svg(SVGEditor),
 }
@@ -88,7 +84,7 @@ pub enum Event {
 #[derive(Debug, Clone)]
 pub enum ClipContent {
     Files(Vec<PathBuf>),
-    Png(Vec<u8>),
+    Image(Vec<u8>), // image format guessed by egui
 }
 
 pub trait EventManager {
@@ -126,14 +122,11 @@ impl EventManager for egui::Context {
     }
 }
 
-// todo: use relative path (caller responsibilty?)
 // todo: use background thread
 // todo: refresh file tree view
-pub fn import_image(core: &lb_rs::Core, open_file: Uuid, data: &[u8]) -> File {
-    println!("importing image");
-
+pub fn import_image(core: &lb_rs::Core, file_id: Uuid, data: &[u8]) -> File {
     let file = core
-        .get_file_by_id(open_file)
+        .get_file_by_id(file_id)
         .expect("get lockbook file for image");
     let siblings = core
         .get_children(file.parent)
@@ -159,10 +152,15 @@ pub fn import_image(core: &lb_rs::Core, open_file: Uuid, data: &[u8]) -> File {
         .expect("invalid system time")
         .format("%Y-%m-%d_%H-%M-%S")
         .to_string();
+    let file_extension = image::guess_format(data)
+        .unwrap_or(image::ImageFormat::Png /* shrug */)
+        .extensions_str()
+        .first()
+        .unwrap_or(&"png");
 
     let file = core
         .create_file(
-            &format!("pasted_image_{}.png", human_readable_time),
+            &format!("pasted_image_{}.{}", human_readable_time, file_extension),
             imports_folder.id,
             FileType::Document,
         )
@@ -171,4 +169,128 @@ pub fn import_image(core: &lb_rs::Core, open_file: Uuid, data: &[u8]) -> File {
         .expect("write lockbook file for image");
 
     file
+}
+
+pub fn core_get_relative_path(core: &lb_rs::Core, from: Uuid, to: Uuid) -> String {
+    let from_path = core
+        .get_path_by_id(from)
+        .expect("get source file path for relative link");
+    let to_path = core
+        .get_path_by_id(to)
+        .expect("get target file path for relative link");
+    get_relative_path(&from_path, &to_path)
+}
+
+pub fn get_relative_path(from: &str, to: &str) -> String {
+    if from == to {
+        if from.ends_with('/') {
+            return "./".to_string();
+        } else {
+            return ".".to_string();
+        }
+    }
+
+    let from_path = PathBuf::from(from);
+    let to_path = PathBuf::from(to);
+
+    let mut num_common_ancestors = 0;
+    for (from_component, to_component) in from_path.components().zip(to_path.components()) {
+        if from_component != to_component {
+            break;
+        }
+        num_common_ancestors += 1;
+    }
+
+    let mut result = "../".repeat(from_path.components().count() - num_common_ancestors);
+    for to_component in to_path.components().skip(num_common_ancestors) {
+        result.push_str(to_component.as_os_str().to_str().unwrap());
+        result.push('/');
+    }
+    if !to.ends_with('/') {
+        result.pop();
+    }
+    result
+}
+
+pub fn canonicalize_path(path: &str) -> String {
+    let path = PathBuf::from(path);
+    let mut result = PathBuf::new();
+
+    for component in path.components() {
+        match component {
+            Component::Normal(component) => {
+                result.push(component);
+            }
+            Component::ParentDir => {
+                result.pop();
+            }
+            _ => {}
+        }
+    }
+
+    result.to_string_lossy().to_string()
+}
+
+pub fn core_get_by_relative_path(
+    core: &lb_rs::Core, from: Uuid, path: &Path,
+) -> Result<File, String> {
+    let target_path = if path.is_relative() {
+        let mut open_file_path =
+            PathBuf::from(core.get_path_by_id(from).map_err(|e| e.to_string())?);
+        for component in path.components() {
+            open_file_path.push(component);
+        }
+        let target_file_path = open_file_path.to_string_lossy();
+
+        canonicalize_path(&target_file_path)
+    } else {
+        path.to_string_lossy().to_string()
+    };
+    core.get_by_path(&target_path).map_err(|e| e.to_string())
+}
+
+#[cfg(test)]
+mod test {
+    #[test]
+    fn get_relative_path() {
+        use super::get_relative_path;
+
+        // to documents
+        assert_eq!(get_relative_path("/a/b/c", "/a/b/c"), ".");
+        assert_eq!(get_relative_path("/a/b/c", "/a/b/c/d"), "d");
+        assert_eq!(get_relative_path("/a/b/c", "/a/b/c/d/e"), "d/e");
+        assert_eq!(get_relative_path("/a/b/c", "/a/b/c/d/e/f"), "d/e/f");
+
+        assert_eq!(get_relative_path("/a/b/c", "/a/b/d"), "../d");
+        assert_eq!(get_relative_path("/a/b/c", "/a/b/d/e"), "../d/e");
+        assert_eq!(get_relative_path("/a/b/c", "/a/b/d/e/f"), "../d/e/f");
+
+        assert_eq!(get_relative_path("/a/b/c", "/a/d"), "../../d");
+        assert_eq!(get_relative_path("/a/b/c", "/a/d/e"), "../../d/e");
+        assert_eq!(get_relative_path("/a/b/c", "/a/d/e/f"), "../../d/e/f");
+
+        assert_eq!(get_relative_path("/a/b/c", "/d"), "../../../d");
+        assert_eq!(get_relative_path("/a/b/c", "/d/e"), "../../../d/e");
+        assert_eq!(get_relative_path("/a/b/c", "/d/e/f"), "../../../d/e/f");
+
+        // to folders
+        assert_eq!(get_relative_path("/a/b/c", "/a/b/c/d/"), "d/");
+        assert_eq!(get_relative_path("/a/b/c", "/a/b/c/d/e/"), "d/e/");
+        assert_eq!(get_relative_path("/a/b/c", "/a/b/c/d/e/f/"), "d/e/f/");
+
+        assert_eq!(get_relative_path("/a/b/c", "/a/b/"), "../");
+        assert_eq!(get_relative_path("/a/b/c", "/a/b/d/"), "../d/");
+        assert_eq!(get_relative_path("/a/b/c", "/a/b/d/e/"), "../d/e/");
+        assert_eq!(get_relative_path("/a/b/c", "/a/b/d/e/f/"), "../d/e/f/");
+
+        assert_eq!(get_relative_path("/a/b/c", "/a/"), "../../");
+        assert_eq!(get_relative_path("/a/b/c", "/a/d/"), "../../d/");
+        assert_eq!(get_relative_path("/a/b/c", "/a/d/e/"), "../../d/e/");
+        assert_eq!(get_relative_path("/a/b/c", "/a/d/e/f/"), "../../d/e/f/");
+
+        assert_eq!(get_relative_path("/a/b/c", "/"), "../../../");
+        assert_eq!(get_relative_path("/a/b/c", "/d/"), "../../../d/");
+        assert_eq!(get_relative_path("/a/b/c", "/d/e/"), "../../../d/e/");
+        assert_eq!(get_relative_path("/a/b/c", "/d/e/f/"), "../../../d/e/f/");
+    }
 }

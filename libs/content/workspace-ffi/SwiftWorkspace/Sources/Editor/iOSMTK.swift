@@ -720,7 +720,7 @@ public class iOSMTK: MTKView, MTKViewDelegate {
         
         dark_mode(wsHandle, isDarkMode())
         set_scale(wsHandle, Float(self.contentScaleFactor))
-        let output = draw_editor(wsHandle)
+        let output = draw_workspace(wsHandle)
         
         workspaceState?.syncing = output.workspace_resp.syncing
         workspaceState?.statusMsg = textFromPtr(s: output.workspace_resp.msg)
@@ -804,7 +804,7 @@ public class iOSMTK: MTKView, MTKViewDelegate {
         }
 
         redrawTask?.cancel()
-        self.isPaused = output.redraw_in > 100
+        self.isPaused = output.redraw_in > 50
         if self.isPaused {
             let redrawIn = UInt64(truncatingIfNeeded: output.redraw_in)
             let redrawInInterval = DispatchTimeInterval.milliseconds(Int(truncatingIfNeeded: min(500, redrawIn)));
