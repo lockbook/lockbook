@@ -100,7 +100,7 @@ pub extern "C" fn request_sync(obj: *mut c_void) {
 }
 
 #[no_mangle]
-pub extern "C" fn draw_editor(obj: *mut c_void) -> IntegrationOutput {
+pub extern "C" fn draw_workspace(obj: *mut c_void) -> IntegrationOutput {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
     obj.frame()
 }
