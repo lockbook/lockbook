@@ -9,7 +9,7 @@ use workspace_rs::output::WsOutput;
 #[derive(Serialize, Default)]
 pub struct IntegrationOutput {
     pub workspace_resp: FfiWorkspaceResp,
-    pub redraw_in: u128,
+    pub redraw_in: u64,
     pub copied_text: String,
     pub url_opened: String,
 }
