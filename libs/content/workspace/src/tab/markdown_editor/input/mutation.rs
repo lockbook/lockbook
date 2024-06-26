@@ -24,7 +24,7 @@ pub fn calc(
 
     match modification {
         Modification::Select { region } => mutation.push(SubMutation::Cursor {
-            cursor: region_to_cursor(region, &current_cursor, buffer, galleys, bounds),
+            cursor: region_to_cursor(region, current_cursor, buffer, galleys, bounds),
         }),
         Modification::StageMarked { highlighted, text } => {
             let mut cursor = current_cursor.clone();

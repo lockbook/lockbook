@@ -480,7 +480,7 @@ impl Index<&Range<DocCharOffset>> for SubBuffer {
     type Output = str;
 
     fn index(&self, index: &Range<DocCharOffset>) -> &Self::Output {
-        self.index(self.segs.range_to_byte(&index))
+        self.index(self.segs.range_to_byte(index))
     }
 }
 
