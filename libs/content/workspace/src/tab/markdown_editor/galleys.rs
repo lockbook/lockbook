@@ -58,14 +58,14 @@ pub fn calc(
     let ast_ranges = bounds
         .ast
         .iter()
-        .map(|range| range.range)
+        .map(|range| range.range.clone())
         .collect::<Vec<_>>();
     for ([ast_idx, paragraph_idx, link_idx, selection_idx, text_idx], text_range_portion) in
         bounds::join([
             &ast_ranges,
             &bounds.paragraphs,
             &bounds.links,
-            &[buffer.cursor.selection],
+            &[buffer.cursor.selection.clone()],
             &bounds.text,
         ])
     {
@@ -75,11 +75,11 @@ pub fn calc(
         } else {
             continue;
         };
-        let paragraph = bounds.paragraphs[paragraph_idx];
+        let paragraph = &bounds.paragraphs[paragraph_idx];
 
         if let Some(ast_idx) = ast_idx {
             let text_range = &bounds.ast[ast_idx];
-            let maybe_link_range = link_idx.map(|link_idx| bounds.links[link_idx]);
+            let maybe_link_range = link_idx.map(|link_idx| &bounds.links[link_idx]);
             let in_selection = selection_idx.is_some() && !buffer.cursor.selection.is_empty();
 
             let captured = text_idx.is_none();
@@ -110,7 +110,7 @@ pub fn calc(
                 is_annotation = annotation.is_some();
             }
 
-            let text = &buffer[text_range_portion];
+            let text = &buffer[&text_range_portion];
             match text_range.range_type {
                 AstTextRangeType::Head => {
                     if captured {
@@ -152,7 +152,7 @@ pub fn calc(
                 layout.append("", 0.0, text_format);
             }
             let layout_info = LayoutJobInfo {
-                range: bounds.paragraphs[paragraph_idx],
+                range: bounds.paragraphs[paragraph_idx].clone(),
                 job: mem::take(&mut layout),
                 annotation: mem::take(&mut annotation),
                 head_size: mem::take(&mut head_size),
@@ -404,7 +404,7 @@ impl Editor {
         for galley in &self.galleys.galleys {
             println!(
                 "galley: range: {:?}, annotation: {:?}, head: {:?}, tail: {:?}",
-                &self.buffer.current[galley.range],
+                &self.buffer.current[&galley.range],
                 galley.annotation,
                 galley.head_size,
                 galley.tail_size

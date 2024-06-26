@@ -19,15 +19,15 @@ use unicode_segmentation::UnicodeSegmentation;
 pub fn calc(
     modification: Modification, buffer: &SubBuffer, galleys: &Galleys, bounds: &Bounds, ast: &Ast,
 ) -> EditorMutation {
-    let current_cursor = buffer.cursor;
+    let current_cursor = &buffer.cursor;
     let mut mutation = Vec::new();
 
     match modification {
         Modification::Select { region } => mutation.push(SubMutation::Cursor {
-            cursor: region_to_cursor(region, current_cursor, buffer, galleys, bounds),
+            cursor: region_to_cursor(region, &current_cursor, buffer, galleys, bounds),
         }),
         Modification::StageMarked { highlighted, text } => {
-            let mut cursor = current_cursor;
+            let mut cursor = current_cursor.clone();
             let text_length = text.grapheme_indices(true).count();
 
             // when inserting text, replacing existing marked text if any
@@ -41,15 +41,15 @@ pub fn calc(
 
             // highlight is relative to text start
             cursor.mark_highlight = Some(
-                current_cursor.selection.start + highlighted.0
-                    ..current_cursor.selection.start + highlighted.1,
+                current_cursor.selection.start + highlighted.start
+                    ..current_cursor.selection.start + highlighted.end,
             );
 
             mutation.push(SubMutation::Cursor { cursor });
             mutation.push(SubMutation::Insert { text, advance_cursor: true });
         }
         Modification::CommitMarked => {
-            let mut cursor = current_cursor;
+            let mut cursor = current_cursor.clone();
             cursor.mark = None;
             mutation.push(SubMutation::Cursor { cursor });
         }
@@ -58,24 +58,24 @@ pub fn calc(
                 cursor: region_to_cursor(region, current_cursor, buffer, galleys, bounds),
             });
             mutation.push(SubMutation::Insert { text, advance_cursor: true });
-            mutation.push(SubMutation::Cursor { cursor: current_cursor });
+            mutation.push(SubMutation::Cursor { cursor: current_cursor.clone() });
         }
         Modification::ToggleStyle { region, mut style } => {
             let cursor = region_to_cursor(region, current_cursor, buffer, galleys, bounds);
-            let unapply = should_unapply(cursor, &style, ast, &bounds.ast);
+            let unapply = should_unapply(&cursor, &style, ast, &bounds.ast);
 
             // unapply conflicting styles; if replacing a list item with a list item, preserve indentation level and
             // don't remove outer items in nested lists
             let mut removed_conflicting_list_item = false;
             let mut list_item_indent_level = 0;
             if !unapply {
-                for conflict in conflicting_styles(cursor.selection, &style, ast, &bounds.ast) {
+                for conflict in conflicting_styles(&cursor.selection, &style, ast, &bounds.ast) {
                     if let MarkdownNode::Block(BlockNode::ListItem(_, indent_level)) = conflict {
                         if !removed_conflicting_list_item {
                             list_item_indent_level = indent_level;
                             removed_conflicting_list_item = true;
                             apply_style(
-                                cursor.selection,
+                                &cursor.selection,
                                 conflict,
                                 true,
                                 buffer,
@@ -86,7 +86,7 @@ pub fn calc(
                         }
                     } else {
                         apply_style(
-                            cursor.selection,
+                            &cursor.selection,
                             conflict,
                             true,
                             buffer,
@@ -103,7 +103,7 @@ pub fn calc(
 
             // apply style
             apply_style(
-                cursor.selection,
+                &cursor.selection,
                 style.clone(),
                 unapply,
                 buffer,
@@ -132,11 +132,11 @@ pub fn calc(
                 }
             } else if style.node_type() != MarkdownNodeType::Inline(InlineNodeType::Link) {
                 // toggling link style leaves cursor where you can type link destination
-                mutation.push(SubMutation::Cursor { cursor: current_cursor });
+                mutation.push(SubMutation::Cursor { cursor: current_cursor.clone() });
             }
         }
         Modification::Newline { advance_cursor } => {
-            let mut cursor = current_cursor;
+            let mut cursor = current_cursor.clone();
             let galley_idx = galleys.galley_at_char(cursor.selection.end);
             let galley = &galleys[galley_idx];
             let ast_text_range = bounds
@@ -172,7 +172,7 @@ pub fn calc(
                                 .into(),
                         });
                         mutation.push(SubMutation::Delete(0.into()));
-                        mutation.push(SubMutation::Cursor { cursor });
+                        mutation.push(SubMutation::Cursor { cursor: cursor.clone() });
                     } else {
                         // nonempty list item -> insert new list item
                         mutation.push(SubMutation::Insert {
@@ -228,8 +228,9 @@ pub fn calc(
                                             text: galley_new_number.to_string() + ". ",
                                             advance_cursor: true,
                                         });
-                                        mutation
-                                            .push(SubMutation::Cursor { cursor: current_cursor });
+                                        mutation.push(SubMutation::Cursor {
+                                            cursor: current_cursor.clone(),
+                                        });
                                     }
                                 }
                             }
@@ -252,7 +253,7 @@ pub fn calc(
                     mutation.push(SubMutation::Cursor { cursor: galley.range.start().into() });
                     mutation
                         .push(SubMutation::Insert { text: "\n".to_string(), advance_cursor: true });
-                    mutation.push(SubMutation::Cursor { cursor });
+                    mutation.push(SubMutation::Cursor { cursor: cursor.clone() });
                     break 'modification;
                 }
 
@@ -265,14 +266,14 @@ pub fn calc(
         Modification::Delete { region } => {
             let region_cursor = region_to_cursor(region, current_cursor, buffer, galleys, bounds);
 
-            mutation.push(SubMutation::Cursor { cursor: region_cursor });
+            mutation.push(SubMutation::Cursor { cursor: region_cursor.clone() });
             mutation.push(SubMutation::Delete(0.into()));
-            mutation.push(SubMutation::Cursor { cursor: current_cursor });
+            mutation.push(SubMutation::Cursor { cursor: current_cursor.clone() });
 
             // check if we deleted a numbered list annotation and renumber subsequent items
             let ast_text_ranges = bounds
                 .ast
-                .find_contained(region_cursor.selection, true, true);
+                .find_contained(&region_cursor.selection, true, true);
             let mut unnumbered_galleys = HashSet::new();
             let mut renumbered_galleys = HashMap::new();
             for ast_text_range in ast_text_ranges.iter() {
@@ -362,7 +363,7 @@ pub fn calc(
                         text: new_number.to_string() + ". ",
                         advance_cursor: true,
                     });
-                    mutation.push(SubMutation::Cursor { cursor: current_cursor });
+                    mutation.push(SubMutation::Cursor { cursor: current_cursor.clone() });
                 }
             }
         }
@@ -375,7 +376,9 @@ pub fn calc(
             let mut renumbered_galleys = HashMap::new();
 
             // determine galleys to (de)indent
-            let ast_text_ranges = bounds.ast.find_intersecting(current_cursor.selection, true);
+            let ast_text_ranges = bounds
+                .ast
+                .find_intersecting(&current_cursor.selection, true);
             for ast_text_range in ast_text_ranges.iter() {
                 let ast_node = bounds.ast[ast_text_range]
                     .ancestors
@@ -422,7 +425,7 @@ pub fn calc(
 
                 // todo: this needs more attention e.g. list items doubly indented using 2-space indents
                 // tracked by https://github.com/lockbook/lockbook/issues/1842
-                let galley_text = &buffer[galley.range];
+                let galley_text = &buffer[&galley.range];
                 let indent_seq = if galley_text.starts_with('\t') {
                     "\t"
                 } else if galley_text.starts_with("    ") {
@@ -460,7 +463,7 @@ pub fn calc(
                                 .into(),
                         });
                         mutation.push(SubMutation::Delete(0.into()));
-                        mutation.push(SubMutation::Cursor { cursor: current_cursor });
+                        mutation.push(SubMutation::Cursor { cursor: current_cursor.clone() });
 
                         cur_indent_level - 1
                     } else {
@@ -494,7 +497,7 @@ pub fn calc(
                             text: indent_seq.to_string(),
                             advance_cursor: true,
                         });
-                        mutation.push(SubMutation::Cursor { cursor: current_cursor });
+                        mutation.push(SubMutation::Cursor { cursor: current_cursor.clone() });
 
                         cur_indent_level + 1
                     } else {
@@ -647,7 +650,7 @@ pub fn calc(
                         text: new_number.to_string() + ". ",
                         advance_cursor: true,
                     });
-                    mutation.push(SubMutation::Cursor { cursor: current_cursor });
+                    mutation.push(SubMutation::Cursor { cursor: current_cursor.clone() });
                 }
             }
 
@@ -687,7 +690,7 @@ pub fn calc(
                     text: if checked { "* [ ] " } else { "* [x] " }.to_string(),
                     advance_cursor: true,
                 });
-                mutation.push(SubMutation::Cursor { cursor: current_cursor });
+                mutation.push(SubMutation::Cursor { cursor: current_cursor.clone() });
             }
         }
     }
@@ -696,7 +699,7 @@ pub fn calc(
 
 /// Returns true if all text in `cursor` has style `style`
 fn should_unapply(
-    cursor: Cursor, style: &MarkdownNode, ast: &Ast, ast_ranges: &AstTextRanges,
+    cursor: &Cursor, style: &MarkdownNode, ast: &Ast, ast_ranges: &AstTextRanges,
 ) -> bool {
     if cursor.selection.is_empty() {
         return false;
@@ -737,7 +740,7 @@ fn should_unapply(
 
 /// Returns list of nodes whose styles should be removed before applying `style`
 fn conflicting_styles(
-    selection: Range<DocCharOffset>, style: &MarkdownNode, ast: &Ast, ast_ranges: &AstTextRanges,
+    selection: &Range<DocCharOffset>, style: &MarkdownNode, ast: &Ast, ast_ranges: &AstTextRanges,
 ) -> Vec<MarkdownNode> {
     let mut result = Vec::new();
     let mut dedup_set = HashSet::new();
@@ -780,7 +783,7 @@ fn conflicting_styles(
 
 /// Applies or unapplies `style` to `cursor`, splitting or joining surrounding styles as necessary.
 fn apply_style(
-    selection: Range<DocCharOffset>, style: MarkdownNode, unapply: bool, buffer: &SubBuffer,
+    selection: &Range<DocCharOffset>, style: MarkdownNode, unapply: bool, buffer: &SubBuffer,
     ast: &Ast, ast_ranges: &AstTextRanges, mutation: &mut Vec<SubMutation>,
 ) {
     if buffer.is_empty() {
@@ -983,7 +986,7 @@ fn insert_tail(offset: DocCharOffset, style: MarkdownNode, mutation: &mut Vec<Su
 }
 
 pub fn region_to_cursor(
-    region: Region, current_cursor: Cursor, buffer: &SubBuffer, galleys: &Galleys, bounds: &Bounds,
+    region: Region, current_cursor: &Cursor, buffer: &SubBuffer, galleys: &Galleys, bounds: &Bounds,
 ) -> Cursor {
     match region {
         Region::Location(location) => {
@@ -1004,15 +1007,15 @@ pub fn region_to_cursor(
                 ..location_to_char_offset(end, current_cursor, galleys, &buffer.segs, &bounds.text))
                 .into()
         }
-        Region::Selection => current_cursor,
+        Region::Selection => current_cursor.clone(),
         Region::SelectionOrOffset { offset, backwards } => {
             if current_cursor.selection().is_none() {
-                let mut cursor = current_cursor;
+                let mut cursor = current_cursor.clone();
                 cursor.advance(offset, backwards, buffer, galleys, bounds);
                 cursor.selection.start = current_cursor.selection.end;
                 cursor
             } else {
-                current_cursor
+                current_cursor.clone()
             }
         }
         Region::ToOffset { offset, backwards, extend_selection } => {
@@ -1020,7 +1023,7 @@ pub fn region_to_cursor(
                 || current_cursor.selection.is_empty()
                 || matches!(offset, Offset::To(..))
             {
-                let mut cursor = current_cursor;
+                let mut cursor = current_cursor.clone();
                 cursor.advance(offset, backwards, buffer, galleys, bounds);
                 if extend_selection {
                     cursor.selection.start = current_cursor.selection.start;
@@ -1058,7 +1061,7 @@ pub fn region_to_cursor(
 }
 
 pub fn location_to_char_offset(
-    location: Location, current_cursor: Cursor, galleys: &Galleys, segs: &UnicodeSegs, text: &Text,
+    location: Location, current_cursor: &Cursor, galleys: &Galleys, segs: &UnicodeSegs, text: &Text,
 ) -> DocCharOffset {
     match location {
         Location::CurrentCursor => current_cursor.selection.end,

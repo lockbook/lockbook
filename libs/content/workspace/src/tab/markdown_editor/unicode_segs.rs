@@ -27,7 +27,7 @@ impl UnicodeSegs {
         self.grapheme_indexes[i.0]
     }
 
-    pub fn range_to_byte(&self, i: Range<DocCharOffset>) -> Range<DocByteOffset> {
+    pub fn range_to_byte(&self, i: &Range<DocCharOffset>) -> Range<DocByteOffset> {
         self.offset_to_byte(i.start)..self.offset_to_byte(i.end)
     }
 

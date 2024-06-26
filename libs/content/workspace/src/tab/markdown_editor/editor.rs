@@ -308,7 +308,7 @@ impl Editor {
                 &self.bounds.paragraphs,
                 &self.appearance,
                 &self.buffer.current.segs,
-                self.buffer.current.cursor,
+                &self.buffer.current.cursor,
                 &self.capture,
             );
             self.bounds.links =
@@ -477,7 +477,7 @@ impl Editor {
             self.buffer.current.cursor.selection.end = range_after.start();
         }
 
-        let prior_selection = self.buffer.current.cursor.selection;
+        let prior_selection = self.buffer.current.cursor.selection.clone();
         let click_checker = EditorClickChecker {
             ui_rect: self.ui_rect,
             galleys: &self.galleys,
@@ -516,8 +516,7 @@ impl Editor {
             bounds: &self.bounds,
         };
         if touch_mode {
-            let current_cursor = self.buffer.current.cursor;
-            let current_selection = current_cursor.selection;
+            let current_selection = &self.buffer.current.cursor.selection;
 
             let touched_a_galley = events.iter().any(|e| {
                 if let Event::Touch { pos, .. } | Event::PointerButton { pos, .. } = e {
@@ -528,7 +527,7 @@ impl Editor {
             });
 
             let touched_cursor = current_selection.is_empty()
-                && prior_selection == current_selection
+                && &prior_selection == current_selection
                 && touched_a_galley
                 && combined_events
                     .iter()
@@ -564,7 +563,7 @@ impl Editor {
             }
             if touched_cursor || touched_selection {
                 // put the cursor back the way it was
-                self.buffer.current.cursor.selection = prior_selection;
+                self.buffer.current.cursor.selection = prior_selection.clone();
             }
         }
 
@@ -599,7 +598,7 @@ impl Editor {
             .bounds
             .ast
             .iter()
-            .map(|range| range.range)
+            .map(|range| range.range.clone())
             .collect::<Vec<_>>();
         for ([ast_idx, paragraph_idx], text_range_portion) in
             bounds::join([&ast_ranges, &self.bounds.paragraphs])

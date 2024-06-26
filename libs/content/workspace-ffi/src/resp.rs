@@ -1,6 +1,5 @@
 use crate::cursor_icon::CCursorIcon;
 use egui_editor::input::canonical::{Location, Region};
-use egui_editor::offset_types::{DocCharOffset, RelCharOffset};
 use lb_external_interface::lb_rs::Uuid;
 use std::ffi::{c_char, CString};
 use workspace_rs::output::WsOutput;
@@ -171,18 +170,6 @@ pub struct CRect {
     pub min_y: f64,
     pub max_x: f64,
     pub max_y: f64,
-}
-
-impl From<CTextRange> for Range<DocCharOffset> {
-    fn from(value: CTextRange) -> Self {
-        (value.start.pos.into(), value.end.pos.into())
-    }
-}
-
-impl From<CTextRange> for (RelCharOffset, RelCharOffset) {
-    fn from(value: CTextRange) -> Self {
-        (value.start.pos.into(), value.end.pos.into())
-    }
 }
 
 impl From<CTextRange> for Region {

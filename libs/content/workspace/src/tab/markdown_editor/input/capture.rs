@@ -118,7 +118,7 @@ impl CaptureState {
     /// reveal. Debounce is evaluated using the time of last update rather than the current time to facilitate change
     /// detection.
     pub fn captured(
-        &self, cursor: Cursor, paragraphs: &Paragraphs, ast: &Ast, ast_ranges: &AstTextRanges,
+        &self, cursor: &Cursor, paragraphs: &Paragraphs, ast: &Ast, ast_ranges: &AstTextRanges,
         ast_range_idx: usize, appearance: &Appearance,
     ) -> bool {
         let ast_text_range = &ast_ranges[ast_range_idx];
@@ -127,8 +127,8 @@ impl CaptureState {
         }
 
         // check if this text range intersects any paragraph with selected text
-        let selection_paragraphs = paragraphs.find_intersecting(cursor.selection, true);
-        let text_range_paragraphs = paragraphs.find_intersecting(ast_text_range.range, true);
+        let selection_paragraphs = paragraphs.find_intersecting(&cursor.selection, true);
+        let text_range_paragraphs = paragraphs.find_intersecting(&ast_text_range.range, true);
         let intersects_selected_paragraph =
             selection_paragraphs.intersects(&text_range_paragraphs, false);
 

@@ -64,13 +64,13 @@ pub fn calc_words(
             && !text_range.node(ast).node_type().syntax_includes_text()
         {
             // syntax sequences for node types without text count as single words
-            result.push(text_range.range);
+            result.push(text_range.range.clone());
         } else {
             // remaining text and syntax sequences (including link URLs etc) are split into words
             let mut prev_char_offset = text_range.range.start;
             let mut prev_word = "";
             for (byte_offset, word) in
-                (buffer[text_range.range].to_string() + " ").split_word_bound_indices()
+                (buffer[&text_range.range].to_string() + " ").split_word_bound_indices()
             {
                 let char_offset = buffer.segs.offset_to_char(
                     buffer.segs.offset_to_byte(text_range.range.start) + RelByteOffset(byte_offset),
@@ -153,7 +153,7 @@ pub fn calc_paragraphs(buffer: &SubBuffer, ast: &AstTextRanges) -> Paragraphs {
                 AstTextRangeType::Head | AstTextRangeType::Tail => {
                     // newlines in syntax sequences don't break paragraphs
                     let range_start_byte = buffer.segs.offset_to_byte(text_range.range.start);
-                    captured_newlines.extend(buffer[text_range.range].match_indices('\n').map(
+                    captured_newlines.extend(buffer[&text_range.range].match_indices('\n').map(
                         |(idx, _)| {
                             buffer
                                 .segs
@@ -185,7 +185,7 @@ pub fn calc_paragraphs(buffer: &SubBuffer, ast: &AstTextRanges) -> Paragraphs {
 
 pub fn calc_text(
     ast: &Ast, ast_ranges: &AstTextRanges, paragraphs: &Paragraphs, appearance: &Appearance,
-    segs: &UnicodeSegs, cursor: Cursor, capture: &CaptureState,
+    segs: &UnicodeSegs, cursor: &Cursor, capture: &CaptureState,
 ) -> Text {
     let mut result = vec![];
     let mut last_range_pushed = false;
@@ -194,7 +194,7 @@ pub fn calc_text(
 
         let this_range_pushed = if !captured {
             // text range or uncaptured syntax range
-            result.push(text_range.range);
+            result.push(text_range.range.clone());
             true
         } else {
             false
@@ -228,9 +228,10 @@ pub fn calc_links(buffer: &SubBuffer, text: &Text, ast: &Ast) -> PlainTextLinks 
     };
 
     let mut result = vec![];
-    for &text_range in text {
+    for text_range in text {
         'spans: for span in finder.spans(&buffer[text_range]) {
             let link_range = text_range.start + span.start()..text_range.start + span.end();
+            let link_range = &link_range;
 
             if span.kind().is_none() {
                 continue;
@@ -269,12 +270,12 @@ pub fn calc_links(buffer: &SubBuffer, text: &Text, ast: &Ast) -> PlainTextLinks 
                 let node_type_ignores_links = node.node_type.node_type()
                     == MarkdownNodeType::Block(BlockNodeType::Code)
                     || node.node_type.node_type() == MarkdownNodeType::Inline(InlineNodeType::Code);
-                if node_type_ignores_links && node.range.intersects(&link_range, false) {
+                if node_type_ignores_links && node.range.intersects(link_range, false) {
                     continue 'spans;
                 }
             }
 
-            result.push(link_range);
+            result.push(link_range.clone());
         }
     }
 
@@ -288,7 +289,7 @@ impl Bounds {
             .iter()
             .enumerate()
             .rev()
-            .find(|(_, &range)| range.start() < char_offset)
+            .find(|(_, range)| range.start() < char_offset)
             .map(|(idx, _)| idx)
     }
 
@@ -297,12 +298,15 @@ impl Bounds {
         ranges
             .iter()
             .enumerate()
-            .find(|(_, &range)| char_offset < range.end())
+            .find(|(_, range)| char_offset < range.end())
             .map(|(idx, _)| idx)
     }
 
     pub fn ast_ranges(&self) -> Vec<Range<DocCharOffset>> {
-        self.ast.iter().map(|text_range| text_range.range).collect()
+        self.ast
+            .iter()
+            .map(|text_range| text_range.range.clone())
+            .collect()
     }
 }
 
@@ -394,9 +398,9 @@ impl DocCharOffset {
 
         if jump {
             if backwards {
-                range_before.map(|range_before| ranges[range_before])
+                range_before.map(|range_before| ranges[range_before].clone())
             } else {
-                range_after.map(|range_after| ranges[range_after])
+                range_after.map(|range_after| ranges[range_after].clone())
             }
         } else {
             match self.bound_case(ranges) {
@@ -522,8 +526,8 @@ impl DocCharOffset {
             (None, None) => BoundCase::NoRanges,
             // before or at the start of the first range
             (None, Some(range_after)) => {
-                let first_range = ranges[0];
-                let range_after = ranges[range_after];
+                let first_range = ranges[0].clone();
+                let range_after = ranges[range_after].clone();
                 if self < first_range.start() {
                     // a cursor before the first range is considered at the start of the first range
                     first_range.start().bound_case(ranges)
@@ -534,8 +538,8 @@ impl DocCharOffset {
             }
             // after or at the end of the last range
             (Some(range_before), None) => {
-                let last_range = ranges[ranges.len() - 1];
-                let range_before = ranges[range_before];
+                let last_range = ranges[ranges.len() - 1].clone();
+                let range_before = ranges[range_before].clone();
                 if self > last_range.end() {
                     // a cursor after the last range is considered at the end of the last range
                     last_range.end().bound_case(ranges)
@@ -545,11 +549,11 @@ impl DocCharOffset {
                 }
             }
             (Some(range_before), Some(range_after)) if range_before == range_after => {
-                BoundCase::InsideRange { range: ranges[range_before] }
+                BoundCase::InsideRange { range: ranges[range_before].clone() }
             }
             (Some(range_before_idx), Some(range_after_idx)) => {
-                let range_before = ranges[range_before_idx];
-                let range_after = ranges[range_after_idx];
+                let range_before = ranges[range_before_idx].clone();
+                let range_after = ranges[range_after_idx].clone();
                 if range_before_idx + 1 != range_after_idx {
                     BoundCase::AtEmptyRange { range: self..self, range_before, range_after }
                 } else if range_before.end() == range_after.start() {
@@ -606,12 +610,12 @@ pub trait RangesExt {
     /// Efficiently finds the possibly empty (inclusive, exclusive) range of ranges that are contained by `range`.
     /// When no ranges are contained by `range`, result.start() == result.end() == the index of the first range after `range`.
     fn find_contained(
-        &self, range: Range<DocCharOffset>, start_inclusive: bool, end_inclusive: bool,
+        &self, range: &Range<DocCharOffset>, start_inclusive: bool, end_inclusive: bool,
     ) -> Range<usize>;
 
     /// Efficiently finds the possibly empty (inclusive, exclusive) range of ranges that intersect `range`.
     /// When no ranges intersect `range`, result.start() == result.end() == the index of the first range after `range`.
-    fn find_intersecting(&self, range: Range<DocCharOffset>, allow_empty: bool) -> Range<usize>;
+    fn find_intersecting(&self, range: &Range<DocCharOffset>, allow_empty: bool) -> Range<usize>;
 }
 
 impl<R> RangesExt for Vec<R>
@@ -668,7 +672,7 @@ where
     }
 
     fn find_contained(
-        &self, range: Range<DocCharOffset>, start_inclusive: bool, end_inclusive: bool,
+        &self, range: &Range<DocCharOffset>, start_inclusive: bool, end_inclusive: bool,
     ) -> Range<usize> {
         let mut r = self.find_intersecting(range, true);
         while r.start < r.end
@@ -692,7 +696,7 @@ where
         r
     }
 
-    fn find_intersecting(&self, range: Range<DocCharOffset>, allow_empty: bool) -> Range<usize> {
+    fn find_intersecting(&self, range: &Range<DocCharOffset>, allow_empty: bool) -> Range<usize> {
         let start = self.find_containing(range.start(), false, allow_empty);
         let end = self.find_containing(range.end(), allow_empty, false);
         start.start..end.end
@@ -732,7 +736,7 @@ impl<'r, const N: usize> Iterator for RangeJoinIter<'r, N> {
 
                 // range set must not be out of ranges
                 if let Some(current) = self.current[idx] {
-                    let range = self.ranges[idx][current];
+                    let range = self.ranges[idx][current].clone();
 
                     // must be at end of current range
                     if (in_range && current_end == range.end())
@@ -773,7 +777,7 @@ impl<'r, const N: usize> Iterator for RangeJoinIter<'r, N> {
             let mut next_end: Option<DocCharOffset> = None;
             for (idx, &in_range) in self.in_range.iter().enumerate() {
                 let next_range = if let Some(next) = self.current[idx] {
-                    self.ranges[idx][next]
+                    self.ranges[idx][next].clone()
                 } else {
                     // when we're beyond the last range in a set of ranges, we no longer consider that set's next range
                     continue;
@@ -809,7 +813,7 @@ impl<'r, const N: usize> Iterator for RangeJoinIter<'r, N> {
 
 /// splits a range into pieces, each of which is contained in one of the ranges in `into_ranges`
 pub fn split<const N: usize>(
-    range_to_split: Range<DocCharOffset>, into_ranges: [&[Range<DocCharOffset>]; N],
+    range_to_split: &Range<DocCharOffset>, into_ranges: [&[Range<DocCharOffset>]; N],
 ) -> Vec<Range<DocCharOffset>> {
     let mut result = Vec::new();
     for (indexes, into_range) in join(into_ranges) {
@@ -842,7 +846,14 @@ impl Editor {
     pub fn print_ast_bounds(&self) {
         println!(
             "ast: {:?}",
-            self.ranges_text(&self.bounds.ast.iter().map(|r| r.range).collect::<Vec<_>>())
+            self.ranges_text(
+                &self
+                    .bounds
+                    .ast
+                    .iter()
+                    .map(|r| r.range.clone())
+                    .collect::<Vec<_>>()
+            )
         );
     }
 
@@ -869,7 +880,7 @@ impl Editor {
     fn ranges_text(&self, ranges: &[Range<DocCharOffset>]) -> Vec<String> {
         ranges
             .iter()
-            .map(|&range| self.buffer.current[range].to_string())
+            .map(|range| self.buffer.current[range].to_string())
             .collect::<Vec<_>>()
     }
 }
@@ -2248,25 +2259,25 @@ mod test {
         let ranges: Vec<Range<DocCharOffset>> =
             vec![1.into()..3.into(), 5.into()..6.into(), 6.into()..6.into(), 6.into()..7.into()];
 
-        assert_eq!(ranges.find_intersecting(0.into()..0.into(), false), 0..0);
-        assert_eq!(ranges.find_intersecting(1.into()..1.into(), false), 0..0);
-        assert_eq!(ranges.find_intersecting(2.into()..2.into(), false), 0..1);
-        assert_eq!(ranges.find_intersecting(3.into()..3.into(), false), 1..1);
-        assert_eq!(ranges.find_intersecting(4.into()..4.into(), false), 1..1);
-        assert_eq!(ranges.find_intersecting(5.into()..5.into(), false), 1..1);
-        assert_eq!(ranges.find_intersecting(6.into()..6.into(), false), 3..3);
-        assert_eq!(ranges.find_intersecting(7.into()..7.into(), false), 4..4);
-        assert_eq!(ranges.find_intersecting(8.into()..8.into(), false), 4..4);
+        assert_eq!(ranges.find_intersecting(&(0.into()..0.into()), false), 0..0);
+        assert_eq!(ranges.find_intersecting(&(1.into()..1.into()), false), 0..0);
+        assert_eq!(ranges.find_intersecting(&(2.into()..2.into()), false), 0..1);
+        assert_eq!(ranges.find_intersecting(&(3.into()..3.into()), false), 1..1);
+        assert_eq!(ranges.find_intersecting(&(4.into()..4.into()), false), 1..1);
+        assert_eq!(ranges.find_intersecting(&(5.into()..5.into()), false), 1..1);
+        assert_eq!(ranges.find_intersecting(&(6.into()..6.into()), false), 3..3);
+        assert_eq!(ranges.find_intersecting(&(7.into()..7.into()), false), 4..4);
+        assert_eq!(ranges.find_intersecting(&(8.into()..8.into()), false), 4..4);
 
-        assert_eq!(ranges.find_intersecting(0.into()..0.into(), true), 0..0);
-        assert_eq!(ranges.find_intersecting(1.into()..1.into(), true), 0..1);
-        assert_eq!(ranges.find_intersecting(2.into()..2.into(), true), 0..1);
-        assert_eq!(ranges.find_intersecting(3.into()..3.into(), true), 0..1);
-        assert_eq!(ranges.find_intersecting(4.into()..4.into(), true), 1..1);
-        assert_eq!(ranges.find_intersecting(5.into()..5.into(), true), 1..2);
-        assert_eq!(ranges.find_intersecting(6.into()..6.into(), true), 1..4);
-        assert_eq!(ranges.find_intersecting(7.into()..7.into(), true), 3..4);
-        assert_eq!(ranges.find_intersecting(8.into()..8.into(), true), 4..4);
+        assert_eq!(ranges.find_intersecting(&(0.into()..0.into()), true), 0..0);
+        assert_eq!(ranges.find_intersecting(&(1.into()..1.into()), true), 0..1);
+        assert_eq!(ranges.find_intersecting(&(2.into()..2.into()), true), 0..1);
+        assert_eq!(ranges.find_intersecting(&(3.into()..3.into()), true), 0..1);
+        assert_eq!(ranges.find_intersecting(&(4.into()..4.into()), true), 1..1);
+        assert_eq!(ranges.find_intersecting(&(5.into()..5.into()), true), 1..2);
+        assert_eq!(ranges.find_intersecting(&(6.into()..6.into()), true), 1..4);
+        assert_eq!(ranges.find_intersecting(&(7.into()..7.into()), true), 3..4);
+        assert_eq!(ranges.find_intersecting(&(8.into()..8.into()), true), 4..4);
     }
 
     #[test]

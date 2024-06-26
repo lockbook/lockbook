@@ -97,7 +97,7 @@ impl Ast {
                         Tag::BlockQuote => MarkdownNode::Block(BlockNode::Quote),
                         Tag::CodeBlock(_) => MarkdownNode::Block(BlockNode::Code),
                         Tag::Item => {
-                            let item_type = Self::item_type(&buffer[range]);
+                            let item_type = Self::item_type(&buffer[&range]);
                             let mut indent_level = 0;
                             let mut ancestor_idx = current_idx;
                             while ancestor_idx != 0 {
@@ -192,16 +192,16 @@ impl Ast {
         cmark_range: Range<DocCharOffset>, buffer: &SubBuffer,
     ) -> Option<usize> {
         // assumption: whitespace-only nodes have no children
-        if buffer[cmark_range].trim().is_empty() {
+        if buffer[&cmark_range].trim().is_empty() {
             return None;
         }
 
         let range = {
-            let mut range = cmark_range;
+            let mut range = cmark_range.clone();
 
             // trim trailing whitespace from range
             // operations that adjust styles will not add or remove trailing whitespace
-            range.end -= buffer[cmark_range].len() - buffer[cmark_range].trim_end().len();
+            range.end -= buffer[&cmark_range].len() - buffer[&cmark_range].trim_end().len();
 
             // capture leading whitespace for list items and code blocks (affects non-fenced code blocks only)
             if matches!(
@@ -236,7 +236,7 @@ impl Ast {
             }
 
             // clamp range to text range of parent
-            let parent_text_range = self.nodes[parent_idx].text_range;
+            let parent_text_range = self.nodes[parent_idx].text_range.clone();
             let Range { start: min, end: max } = parent_text_range;
             range.start = range.start.max(min).min(max);
             range.end = range.end.max(min).min(max);
@@ -254,7 +254,7 @@ impl Ast {
         // the head and tail characters are those that are modified when styles are adjusted
         // assumption: syntax characters are single-byte unicode sequences
         let text_range = {
-            let mut text_range = range;
+            let mut text_range = range.clone();
             match markdown_node.clone() {
                 MarkdownNode::Block(BlockNode::Heading(h)) => {
                     // # heading
@@ -263,7 +263,7 @@ impl Ast {
                     text_range.start += h as usize;
 
                     // correct cmark behavior with no space in syntax chars
-                    if buffer[text_range].starts_with(' ') {
+                    if buffer[&text_range].starts_with(' ') {
                         text_range.start += 1;
                     } else {
                         markdown_node = MarkdownNode::Paragraph;
@@ -273,15 +273,16 @@ impl Ast {
                 MarkdownNode::Block(BlockNode::Quote) => {
                     // >quote block
                     // > quote block
-                    if buffer[text_range].starts_with("> ") {
+                    if buffer[&text_range].starts_with("> ") {
                         text_range.start += 2;
-                    } else if buffer[text_range].starts_with('>') {
+                    } else if buffer[&text_range].starts_with('>') {
                         text_range.start += 1;
                     }
                 }
                 MarkdownNode::Block(BlockNode::Code) => {
-                    if (buffer[range].starts_with("```\n") && buffer[range].ends_with("\n```"))
-                        || (buffer[range].starts_with("~~~\n") && buffer[range].ends_with("\n~~~"))
+                    if (buffer[&range].starts_with("```\n") && buffer[&range].ends_with("\n```"))
+                        || (buffer[&range].starts_with("~~~\n")
+                            && buffer[&range].ends_with("\n~~~"))
                     {
                         /*
                         ```
@@ -315,7 +316,7 @@ impl Ast {
                     //     - [ ] item
                     let original_text_range_0 = text_range.start;
 
-                    text_range.start += buffer[range].len() - buffer[range].trim_start().len();
+                    text_range.start += buffer[&range].len() - buffer[&range].trim_start().len();
                     text_range.start += match item_type {
                         ListItem::Bulleted => 1,
                         ListItem::Numbered(n) => 1 + n.to_string().len(),
@@ -323,7 +324,7 @@ impl Ast {
                     };
 
                     // correct cmark behavior with no space in syntax chars
-                    if buffer[text_range].starts_with(' ') {
+                    if buffer[&text_range].starts_with(' ') {
                         text_range.start += 1;
                     } else {
                         markdown_node = MarkdownNode::Paragraph;
@@ -349,7 +350,7 @@ impl Ast {
                     // ___________________
 
                     // require a trailing newline
-                    if !buffer[range].ends_with('\n') {
+                    if !buffer[&range].ends_with('\n') {
                         markdown_node = MarkdownNode::Paragraph;
                     } else {
                         text_range.start = text_range.end - 1;
@@ -372,13 +373,13 @@ impl Ast {
                 }
                 MarkdownNode::Inline(InlineNode::Strikethrough) => {
                     // ~strikethrough~ (not strictly markdown spec compliant)
-                    if buffer[text_range].starts_with('~') && buffer[text_range].ends_with('~') {
+                    if buffer[&text_range].starts_with('~') && buffer[&text_range].ends_with('~') {
                         text_range.start += 1;
                         text_range.end -= 1;
                     }
 
                     // ~~strikethrough~~
-                    if buffer[text_range].starts_with('~') && buffer[text_range].ends_with('~') {
+                    if buffer[&text_range].starts_with('~') && buffer[&text_range].ends_with('~') {
                         text_range.start += 1;
                         text_range.end -= 1;
                     }
@@ -387,7 +388,7 @@ impl Ast {
                     // [title](http://url.com "title")
 
                     // require url and title
-                    if url.is_empty() || buffer[range].starts_with("[]") {
+                    if url.is_empty() || buffer[&range].starts_with("[]") {
                         markdown_node = MarkdownNode::Paragraph;
                     } else {
                         text_range.start += 1;
@@ -460,9 +461,9 @@ impl Ast {
                 range.range.start,
                 range.range.end,
                 match range.range_type {
-                    AstTextRangeType::Head => &buffer[range.range],
-                    AstTextRangeType::Text => &buffer[range.range],
-                    AstTextRangeType::Tail => &buffer[range.range],
+                    AstTextRangeType::Head => &buffer[&range.range],
+                    AstTextRangeType::Text => &buffer[&range.range],
+                    AstTextRangeType::Tail => &buffer[&range.range],
                 }
             );
         }
@@ -524,7 +525,7 @@ impl AstTextRange {
         }
     }
 
-    pub fn intersects_selection(&self, ast: &Ast, cursor: Cursor) -> bool {
+    pub fn intersects_selection(&self, ast: &Ast, cursor: &Cursor) -> bool {
         if let Some(&ast_node_idx) = self.ancestors.last() {
             ast.nodes[ast_node_idx]
                 .range

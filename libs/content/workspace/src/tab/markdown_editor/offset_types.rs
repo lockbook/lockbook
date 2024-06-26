@@ -496,13 +496,13 @@ where
 pub trait RangeIterExt {
     type Item;
     type Iter: DoubleEndedIterator<Item = Self::Item>;
-    fn iter(self) -> Self::Iter;
+    fn iter(&self) -> Self::Iter;
 }
 
 impl RangeIterExt for Range<usize> {
     type Item = usize;
     type Iter = RangeIter;
-    fn iter(self) -> Self::Iter {
+    fn iter(&self) -> Self::Iter {
         RangeIter { start_inclusive: self.start, end_exclusive: self.end }
     }
 }

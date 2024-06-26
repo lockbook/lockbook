@@ -5,6 +5,7 @@ use crate::tab::markdown_editor::offset_types::{DocCharOffset, RelCharOffset};
 use crate::tab::markdown_editor::style::{BlockNode, InlineNode, ListItem, MarkdownNode};
 use egui::{Event, Key, Modifiers, PointerButton, Pos2};
 use pulldown_cmark::{HeadingLevel, LinkType};
+use std::ops::Range;
 use std::time::Instant;
 
 /// text location
@@ -80,7 +81,7 @@ pub enum Region {
 #[derive(Clone, Debug, PartialEq)]
 pub enum Modification {
     Select { region: Region },
-    StageMarked { highlighted: (RelCharOffset, RelCharOffset), text: String },
+    StageMarked { highlighted: Range<RelCharOffset>, text: String },
     CommitMarked,
     Replace { region: Region, text: String },
     ToggleStyle { region: Region, style: MarkdownNode },

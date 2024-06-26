@@ -115,7 +115,7 @@ impl<'a> ClickChecker for &'a EditorClickChecker<'a> {
         }
         for plaintext_link in &self.bounds.links {
             if plaintext_link.contains_inclusive(offset) {
-                return Some(self.buffer.current[*plaintext_link].to_string());
+                return Some(self.buffer.current[plaintext_link].to_string());
             }
         }
 

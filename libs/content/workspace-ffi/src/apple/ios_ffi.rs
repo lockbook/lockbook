@@ -9,6 +9,7 @@ use egui_editor::input::mutation;
 use egui_editor::offset_types::{DocCharOffset, RangeExt};
 use std::cmp;
 use std::ffi::{c_char, c_void, CStr, CString};
+use std::ops::Range;
 use std::ptr::null;
 use workspace_rs::tab::svg_editor::Tool;
 use workspace_rs::tab::EventManager as _;
@@ -110,8 +111,9 @@ pub unsafe extern "C" fn text_in_range(obj: *mut c_void, range: CTextRange) -> *
         None => return null(),
     };
 
-    let (start, end): Range<DocCharOffset> = (range.start.pos.into(), range.end.pos.into());
-    let cursor: Cursor = (start, end).into();
+    let (start, end): (DocCharOffset, DocCharOffset) =
+        (range.start.pos.into(), range.end.pos.into());
+    let cursor: Cursor = (start..end).into();
     let buffer = &markdown.editor.buffer.current;
     let text = cursor.selection_text(buffer);
 
@@ -132,12 +134,12 @@ pub unsafe extern "C" fn get_selected(obj: *mut c_void) -> CTextRange {
         None => return CTextRange::default(),
     };
 
-    let (start, end) = markdown.editor.buffer.current.cursor.selection;
+    let selection = &markdown.editor.buffer.current.cursor.selection;
 
     CTextRange {
         none: false,
-        start: CTextPosition { pos: start.0, ..Default::default() },
-        end: CTextPosition { pos: end.0, ..Default::default() },
+        start: CTextPosition { pos: selection.start.0, ..Default::default() },
+        end: CTextPosition { pos: selection.end.0, ..Default::default() },
     }
 }
 
@@ -186,12 +188,12 @@ pub unsafe extern "C" fn get_marked(obj: *mut c_void) -> CTextRange {
         None => return CTextRange::default(),
     };
 
-    match markdown.editor.buffer.current.cursor.mark {
+    match &markdown.editor.buffer.current.cursor.mark {
         None => CTextRange { none: true, ..Default::default() },
-        Some((start, end)) => CTextRange {
+        Some(selection) => CTextRange {
             none: false,
-            start: CTextPosition { pos: start.0, ..Default::default() },
-            end: CTextPosition { pos: end.0, ..Default::default() },
+            start: CTextPosition { pos: selection.start.0, ..Default::default() },
+            end: CTextPosition { pos: selection.end.0, ..Default::default() },
         },
     }
 }
@@ -207,7 +209,7 @@ pub unsafe extern "C" fn set_marked(obj: *mut c_void, range: CTextRange, text: *
         if text.is_null() { None } else { Some(CStr::from_ptr(text).to_str().unwrap().into()) };
 
     obj.context.push_markdown_event(Modification::StageMarked {
-        highlighted: range.into(),
+        highlighted: range.start.pos.into()..range.end.pos.into(),
         text: text.unwrap_or_default(),
     });
 }
@@ -532,7 +534,7 @@ pub unsafe extern "C" fn bound_at_position(
     };
     let cursor = mutation::region_to_cursor(
         Region::BoundAt { bound, location: Location::DocCharOffset(pos.pos.into()), backwards },
-        buffer.cursor,
+        &buffer.cursor,
         buffer,
         galleys,
         &markdown.editor.bounds,
@@ -563,14 +565,14 @@ pub unsafe extern "C" fn first_rect(obj: *mut c_void, range: CTextRange) -> CRec
     let appearance = &markdown.editor.appearance;
 
     let cursor_representing_rect: Cursor = {
-        let range: Range<DocCharOffset> = range.into();
+        let range: Range<DocCharOffset> = range.start.pos.into()..range.end.pos.into();
         let selection_start = range.start();
         let selection_end = range.end();
         let mut cursor: Cursor = selection_start.into();
         cursor.advance(Offset::To(Bound::Line), false, buffer, galleys, &markdown.editor.bounds);
         let end_of_selection_start_line = cursor.selection.end;
         let end_of_rect = cmp::min(selection_end, end_of_selection_start_line);
-        (selection_start, end_of_rect).into()
+        (selection_start..end_of_rect).into()
     };
 
     let start_line = cursor_representing_rect.start_line(galleys, text, appearance);
@@ -692,7 +694,7 @@ pub unsafe extern "C" fn selection_rects(
     let galleys = &markdown.editor.galleys;
     let text = &markdown.editor.bounds.text;
 
-    let range: Range<DocCharOffset> = range.into();
+    let range: Range<DocCharOffset> = range.start.pos.into()..range.end.pos.into();
     let mut cont_start = range.start();
 
     let mut selection_rects = vec![];
@@ -702,7 +704,7 @@ pub unsafe extern "C" fn selection_rects(
         new_end.advance(Offset::To(Bound::Line), false, buffer, galleys, &markdown.editor.bounds);
         let end_of_rect = cmp::min(new_end.selection.end(), range.end());
 
-        let cursor_representing_rect: Cursor = (cont_start, end_of_rect).into();
+        let cursor_representing_rect: Cursor = (cont_start..end_of_rect).into();
 
         let start_line =
             cursor_representing_rect.start_line(galleys, text, &markdown.editor.appearance);

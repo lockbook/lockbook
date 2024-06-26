@@ -154,7 +154,7 @@ impl Editor {
 
     pub fn draw_cursor(&mut self, ui: &mut Ui, touch_mode: bool) {
         // determine cursor style
-        let cursor = self.buffer.current.cursor;
+        let cursor = &self.buffer.current.cursor;
         let selection_start_line =
             cursor.start_line(&self.galleys, &self.bounds.text, &self.appearance);
         let selection_end_line =

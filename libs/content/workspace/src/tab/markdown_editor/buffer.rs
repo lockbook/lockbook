@@ -26,7 +26,7 @@ pub enum EditorMutation {
     Undo,
     Redo,
     // todo: redefine
-    // SetCursor { cursor: Range<DocCharOffset>, marked: bool }, // set the cursor
+    // SetCursor { cursor: &Range<DocCharOffset>, marked: bool }, // set the cursor
     // Replace { text: String }, // replace the current selection
 }
 
@@ -213,7 +213,7 @@ impl SubBuffer {
         let mut to_clipboard = None;
         let mut opened_url = None;
 
-        let mut cur_cursor = self.cursor;
+        let mut cur_cursor = self.cursor.clone();
         mods.reverse();
         while let Some(modification) = mods.pop() {
             // todo: reduce duplication
@@ -225,14 +225,14 @@ impl SubBuffer {
                     let replaced_text_range = cur_cursor.selection_or_position();
 
                     Self::modify_subsequent_cursors(
-                        replaced_text_range.clone(),
+                        &replaced_text_range,
                         &text_replacement,
                         advance_cursor,
                         &mut mods,
                         &mut cur_cursor,
                     );
 
-                    self.replace_range(replaced_text_range, &text_replacement);
+                    self.replace_range(&replaced_text_range, &text_replacement);
                     self.segs = unicode_segs::calc(&self.text);
                     text_updated = true;
                 }
@@ -244,14 +244,14 @@ impl SubBuffer {
                     });
 
                     Self::modify_subsequent_cursors(
-                        replaced_text_range.clone(),
+                        &replaced_text_range,
                         text_replacement,
                         false,
                         &mut mods,
                         &mut cur_cursor,
                     );
 
-                    self.replace_range(replaced_text_range, text_replacement);
+                    self.replace_range(&replaced_text_range, text_replacement);
                     self.segs = unicode_segs::calc(&self.text);
                     text_updated = true;
                 }
@@ -275,7 +275,7 @@ impl SubBuffer {
     }
 
     fn modify_subsequent_cursors(
-        replaced_text_range: Range<DocCharOffset>, text_replacement: &str, advance_cursor: bool,
+        replaced_text_range: &Range<DocCharOffset>, text_replacement: &str, advance_cursor: bool,
         mods: &mut [SubMutation], cur_cursor: &mut Cursor,
     ) {
         let text_replacement_len = text_replacement.grapheme_indices(true).count();
@@ -316,8 +316,8 @@ impl SubBuffer {
     /// positions after the replacement generally are, and positions within the replacement are adjusted to the end of
     /// the replacement if `prefer_advance` is true or are adjusted to the start of the replacement otherwise.
     fn adjust_subsequent_range(
-        replaced_range: Range<DocCharOffset>, replacement_len: RelCharOffset, prefer_advance: bool,
-        maybe_range: Option<&mut Range<DocCharOffset>>,
+        replaced_range: &Range<DocCharOffset>, replacement_len: RelCharOffset,
+        prefer_advance: bool, maybe_range: Option<&mut Range<DocCharOffset>>,
     ) {
         if let Some(range) = maybe_range {
             for position in [&mut range.start, &mut range.end] {
@@ -335,8 +335,8 @@ impl SubBuffer {
     /// positions after the replacement generally are, and positions within the replacement are adjusted to the end of
     /// the replacement if `prefer_advance` is true or are adjusted to the start of the replacement otherwise.
     fn adjust_subsequent_position(
-        replaced_range: Range<DocCharOffset>, replacement_len: RelCharOffset, prefer_advance: bool,
-        position: &mut DocCharOffset,
+        replaced_range: &Range<DocCharOffset>, replacement_len: RelCharOffset,
+        prefer_advance: bool, position: &mut DocCharOffset,
     ) {
         let replaced_len = replaced_range.len();
         let replacement_start = replaced_range.start();
@@ -441,7 +441,7 @@ impl SubBuffer {
         }
     }
 
-    fn replace_range(&mut self, range: Range<DocCharOffset>, replacement: &str) {
+    fn replace_range(&mut self, range: &Range<DocCharOffset>, replacement: &str) {
         self.text.replace_range(
             Range {
                 start: self.segs.offset_to_byte(range.start).0,
@@ -456,7 +456,7 @@ impl Index<Range<DocByteOffset>> for SubBuffer {
     type Output = str;
 
     fn index(&self, index: Range<DocByteOffset>) -> &Self::Output {
-        &self.text[index.start.0..index.end.0]
+        self.index(&index)
     }
 }
 
@@ -464,8 +464,23 @@ impl Index<Range<DocCharOffset>> for SubBuffer {
     type Output = str;
 
     fn index(&self, index: Range<DocCharOffset>) -> &Self::Output {
-        let index = self.segs.range_to_byte(index);
+        self.index(&index)
+    }
+}
+
+impl Index<&Range<DocByteOffset>> for SubBuffer {
+    type Output = str;
+
+    fn index(&self, index: &Range<DocByteOffset>) -> &Self::Output {
         &self.text[index.start.0..index.end.0]
+    }
+}
+
+impl Index<&Range<DocCharOffset>> for SubBuffer {
+    type Output = str;
+
+    fn index(&self, index: &Range<DocCharOffset>) -> &Self::Output {
+        self.index(self.segs.range_to_byte(&index))
     }
 }
 
@@ -559,44 +574,44 @@ mod test {
                 expected_cursor: (2, 2),
             },
             Case {
-                cursor_a: (1, 3).into(),
-                cursor_b: (4, 6).into(),
+                cursor_a: (1..3).into(),
+                cursor_b: (4..6).into(),
                 expected_buffer: "1a4b7",
                 expected_cursor: (4, 4),
             },
             Case {
-                cursor_a: (4, 6).into(),
-                cursor_b: (1, 3).into(),
+                cursor_a: (4..6).into(),
+                cursor_b: (1..3).into(),
                 expected_buffer: "1b4a7",
                 expected_cursor: (2, 2),
             },
             Case {
-                cursor_a: (1, 5).into(),
-                cursor_b: (2, 6).into(),
+                cursor_a: (1..5).into(),
+                cursor_b: (2..6).into(),
                 expected_buffer: "1ab7",
                 expected_cursor: (3, 3),
             },
             Case {
-                cursor_a: (2, 6).into(),
-                cursor_b: (1, 5).into(),
+                cursor_a: (2..6).into(),
+                cursor_b: (1..5).into(),
                 expected_buffer: "1b7",
                 expected_cursor: (2, 2),
             },
             Case {
-                cursor_a: (1, 6).into(),
-                cursor_b: (2, 5).into(),
+                cursor_a: (1..6).into(),
+                cursor_b: (2..5).into(),
                 expected_buffer: "1ab7",
                 expected_cursor: (3, 3),
             },
             Case {
-                cursor_a: (2, 5).into(),
-                cursor_b: (1, 6).into(),
+                cursor_a: (2..5).into(),
+                cursor_b: (1..6).into(),
                 expected_buffer: "1b7",
                 expected_cursor: (2, 2),
             },
             Case {
-                cursor_a: (1, 6).into(),
-                cursor_b: (1, 1).into(),
+                cursor_a: (1..6).into(),
+                cursor_b: (1..1).into(),
                 expected_buffer: "1ab7",
                 expected_cursor: (3, 3),
             },

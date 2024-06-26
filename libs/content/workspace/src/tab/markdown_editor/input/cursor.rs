@@ -44,9 +44,9 @@ impl From<DocCharOffset> for Cursor {
     }
 }
 
-impl From<(usize, usize)> for Cursor {
-    fn from(value: (usize, usize)) -> Self {
-        Self { selection: value.0.into()..value.1.into(), ..Default::default() }
+impl From<Range<usize>> for Cursor {
+    fn from(value: Range<usize>) -> Self {
+        Self { selection: value.start.into()..value.end.into(), ..Default::default() }
     }
 }
 
@@ -91,7 +91,7 @@ impl Cursor {
 
     pub fn mark_highlight(&self) -> Option<Range<DocCharOffset>> {
         match self.mark_highlight {
-            Some(mark_highlight) if !mark_highlight.is_empty() => Some(mark_highlight),
+            Some(ref mark_highlight) if !mark_highlight.is_empty() => Some(mark_highlight.clone()),
             _ => None,
         }
     }
