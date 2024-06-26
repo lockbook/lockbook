@@ -2,9 +2,7 @@ use crate::tab::markdown_editor::bounds::{AstTextRanges, RangesExt};
 use crate::tab::markdown_editor::buffer::SubBuffer;
 use crate::tab::markdown_editor::input::cursor::Cursor;
 use crate::tab::markdown_editor::layouts::Annotation;
-use crate::tab::markdown_editor::offset_types::{
-    DocCharOffset, RangeExt, RangeIterExt, RelCharOffset,
-};
+use crate::tab::markdown_editor::offset_types::{DocCharOffset, RangeExt, RangeIterExt};
 use crate::tab::markdown_editor::style::{
     BlockNode, BlockNodeType, InlineNode, ListItem, MarkdownNode, MarkdownNodeType,
 };
@@ -537,32 +535,12 @@ impl AstTextRange {
 }
 
 impl RangeExt<DocCharOffset> for AstTextRange {
-    /// returns whether the range includes the value
-    fn contains(&self, value: DocCharOffset, start_inclusive: bool, end_inclusive: bool) -> bool {
-        self.range.contains(value, start_inclusive, end_inclusive)
-    }
-
-    /// returns whether the range intersects another range
-    fn intersects(
-        &self, other: &(DocCharOffset, DocCharOffset), allow_empty_intersection: bool,
-    ) -> bool {
-        self.range.intersects(other, allow_empty_intersection)
-    }
-
     fn start(&self) -> DocCharOffset {
         self.range.start()
     }
 
     fn end(&self) -> DocCharOffset {
         self.range.end()
-    }
-
-    fn len(&self) -> RelCharOffset {
-        self.range.len()
-    }
-
-    fn is_empty(&self) -> bool {
-        self.range.is_empty()
     }
 }
 

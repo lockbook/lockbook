@@ -1,6 +1,6 @@
 use std::cmp::{max, min, Ordering};
 use std::fmt::{Debug, Formatter};
-use std::ops::{Add, AddAssign, Sub, SubAssign};
+use std::ops::{Add, AddAssign, Range, Sub, SubAssign};
 
 /// A byte position in a buffer
 #[repr(transparent)]
@@ -414,28 +414,53 @@ impl Debug for RelCharOffset {
     }
 }
 
-pub trait RangeExt<Element: Sub<Element>>: Sized
-where
-    Element: Copy,
-{
-    fn contains(&self, value: Element, start_inclusive: bool, end_inclusive: bool) -> bool;
-    fn intersects(&self, other: &(Element, Element), allow_empty_intersection: bool) -> bool;
+pub trait RangeExt<Element: Sub<Element> + Ord + Sized + Copy>: Sized {
     fn start(&self) -> Element;
     fn end(&self) -> Element;
-    fn len(&self) -> <Element as Sub>::Output;
-    fn is_empty(&self) -> bool;
 
-    fn contains_range(
-        &self, value: &(Element, Element), start_inclusive: bool, end_inclusive: bool,
+    fn len(&self) -> <Element as Sub>::Output {
+        self.end() - self.start()
+    }
+
+    fn is_empty(&self) -> bool {
+        self.start() == self.end()
+    }
+
+    fn contains(&self, value: Element, start_inclusive: bool, end_inclusive: bool) -> bool {
+        (self.start() < value || (start_inclusive && self.start() == value))
+            && (value < self.end() || (end_inclusive && self.end() == value))
+    }
+
+    fn intersects<O: RangeExt<Element>>(&self, other: &O, allow_empty_intersection: bool) -> bool {
+        (self.start() < other.end() || (allow_empty_intersection && self.start() == other.end()))
+            && (other.start() < self.end()
+                || (allow_empty_intersection && other.start() == self.end()))
+    }
+
+    fn contains_range<O: RangeExt<Element>>(
+        &self, value: &O, start_inclusive: bool, end_inclusive: bool,
     ) -> bool {
-        self.contains(value.0, start_inclusive, end_inclusive)
-            && self.contains(value.1, start_inclusive, end_inclusive)
+        self.contains(value.start(), start_inclusive, end_inclusive)
+            && self.contains(value.end(), start_inclusive, end_inclusive)
     }
     fn contains_inclusive(&self, value: Element) -> bool {
         self.contains(value, true, true)
     }
-    fn intersects_allow_empty(&self, other: &(Element, Element)) -> bool {
+    fn intersects_allow_empty<O: RangeExt<Element>>(&self, other: &O) -> bool {
         self.intersects(other, true)
+    }
+}
+
+impl<T> RangeExt<T> for Range<T>
+where
+    T: Ord + Sized + Copy + Sub<T>,
+{
+    fn start(&self) -> T {
+        self.start
+    }
+
+    fn end(&self) -> T {
+        self.end
     }
 }
 
@@ -443,33 +468,12 @@ impl<T> RangeExt<T> for (T, T)
 where
     T: Ord + Sized + Copy + Sub<T>,
 {
-    /// returns whether the range includes the value
-    fn contains(&self, value: T, start_inclusive: bool, end_inclusive: bool) -> bool {
-        (self.start() < value || (start_inclusive && self.start() == value))
-            && (value < self.end() || (end_inclusive && self.end() == value))
-    }
-
-    /// returns whether the range intersects another range
-    fn intersects(&self, other: &(T, T), allow_empty_intersection: bool) -> bool {
-        (self.start() < other.end() || (allow_empty_intersection && self.start() == other.end()))
-            && (other.start() < self.end()
-                || (allow_empty_intersection && other.start() == self.end()))
-    }
-
     fn start(&self) -> T {
         *min(&self.0, &self.1)
     }
 
     fn end(&self) -> T {
         *max(&self.0, &self.1)
-    }
-
-    fn len(&self) -> <T as Sub>::Output {
-        self.end() - self.start()
-    }
-
-    fn is_empty(&self) -> bool {
-        self.0 == self.1
     }
 }
 
