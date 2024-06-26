@@ -13,6 +13,7 @@ use crate::tab::markdown_editor::unicode_segs::UnicodeSegs;
 use egui::Pos2;
 use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
+use std::ops::Range;
 use unicode_segmentation::UnicodeSegmentation;
 
 pub fn calc(
@@ -36,13 +37,13 @@ pub fn calc(
 
             // mark inserted text
             cursor.mark =
-                Some((current_cursor.selection.0, current_cursor.selection.0 + text_length));
+                Some(current_cursor.selection.start..current_cursor.selection.start + text_length);
 
             // highlight is relative to text start
-            cursor.mark_highlight = Some((
-                current_cursor.selection.0 + highlighted.0,
-                current_cursor.selection.0 + highlighted.1,
-            ));
+            cursor.mark_highlight = Some(
+                current_cursor.selection.start + highlighted.0
+                    ..current_cursor.selection.start + highlighted.1,
+            );
 
             mutation.push(SubMutation::Cursor { cursor });
             mutation.push(SubMutation::Insert { text, advance_cursor: true });
@@ -116,7 +117,7 @@ pub fn calc(
                 // toggling style at end of styled range moves cursor to outside of styled range
                 if let Some(text_range) = bounds
                     .ast
-                    .find_containing(current_cursor.selection.1, true, true)
+                    .find_containing(current_cursor.selection.end, true, true)
                     .iter()
                     .last()
                 {
@@ -125,7 +126,7 @@ pub fn calc(
                         && text_range.range_type == AstTextRangeType::Tail
                     {
                         mutation.push(SubMutation::Cursor {
-                            cursor: (text_range.range.end(), text_range.range.end()).into(),
+                            cursor: (text_range.range.end()..text_range.range.end()).into(),
                         });
                     }
                 }
@@ -136,14 +137,14 @@ pub fn calc(
         }
         Modification::Newline { advance_cursor } => {
             let mut cursor = current_cursor;
-            let galley_idx = galleys.galley_at_char(cursor.selection.1);
+            let galley_idx = galleys.galley_at_char(cursor.selection.end);
             let galley = &galleys[galley_idx];
             let ast_text_range = bounds
                 .ast
-                .find_containing(current_cursor.selection.1, true, true)
+                .find_containing(current_cursor.selection.end, true, true)
                 .iter()
                 .last();
-            let after_galley_head = current_cursor.selection.1 >= galley.text_range().start();
+            let after_galley_head = current_cursor.selection.end >= galley.text_range().start();
 
             'modification: {
                 if let Some(ast_text_range) = ast_text_range {
@@ -151,11 +152,11 @@ pub fn calc(
                     if ast_text_range.range_type == AstTextRangeType::Tail
                         && ast_text_range.node(ast).node_type()
                             == MarkdownNodeType::Inline(InlineNodeType::Link)
-                        && ast_text_range.range.end() != cursor.selection.1
+                        && ast_text_range.range.end() != cursor.selection.end
                     {
                         // cursor inside link url -> move cursor to end of link
                         mutation.push(SubMutation::Cursor {
-                            cursor: (ast_text_range.range.end(), ast_text_range.range.end()).into(),
+                            cursor: (ast_text_range.range.end()..ast_text_range.range.end()).into(),
                         });
                         break 'modification;
                     }
@@ -167,7 +168,7 @@ pub fn calc(
                     if galley.size() - galley.head_size - galley.tail_size == 0 {
                         // empty list item -> delete current annotation
                         mutation.push(SubMutation::Cursor {
-                            cursor: (galley.range.start(), galley.range.start() + galley.head_size)
+                            cursor: (galley.range.start()..galley.range.start() + galley.head_size)
                                 .into(),
                         });
                         mutation.push(SubMutation::Delete(0.into()));
@@ -217,12 +218,10 @@ pub fn calc(
                                     )) = galley.annotation
                                     {
                                         mutation.push(SubMutation::Cursor {
-                                            cursor: (
-                                                galley.range.start() + galley.head_size,
-                                                galley.range.start() + galley.head_size
+                                            cursor: (galley.range.start() + galley.head_size
+                                                ..galley.range.start() + galley.head_size
                                                     - (galley_cur_number).to_string().len()
-                                                    - 2,
-                                            )
+                                                    - 2)
                                                 .into(),
                                         });
                                         mutation.push(SubMutation::Insert {
@@ -246,7 +245,7 @@ pub fn calc(
                         }
                     }
                     break 'modification;
-                } else if cursor.selection.1 == galley.range.start() + galley.head_size
+                } else if cursor.selection.end == galley.range.start() + galley.head_size
                     && !matches!(galley.annotation, Some(Annotation::Item(..)))
                 {
                     // cursor at start of non-list item -> insert newline before annotation
@@ -261,7 +260,7 @@ pub fn calc(
                 mutation.push(SubMutation::Insert { text: "\n".to_string(), advance_cursor });
             }
 
-            cursor.selection.0 = cursor.selection.1;
+            cursor.selection.start = cursor.selection.end;
         }
         Modification::Delete { region } => {
             let region_cursor = region_to_cursor(region, current_cursor, buffer, galleys, bounds);
@@ -353,12 +352,10 @@ pub fn calc(
                     galley.annotation
                 {
                     mutation.push(SubMutation::Cursor {
-                        cursor: (
-                            galley.range.start() + galley.head_size,
-                            galley.range.start() + galley.head_size
+                        cursor: (galley.range.start() + galley.head_size
+                            ..galley.range.start() + galley.head_size
                                 - (cur_number).to_string().len()
-                                - 2,
-                        )
+                                - 2)
                             .into(),
                     });
                     mutation.push(SubMutation::Insert {
@@ -425,7 +422,7 @@ pub fn calc(
 
                 // todo: this needs more attention e.g. list items doubly indented using 2-space indents
                 // tracked by https://github.com/lockbook/lockbook/issues/1842
-                let galley_text = &buffer[(galley.range.start(), galley.range.end())];
+                let galley_text = &buffer[galley.range];
                 let indent_seq = if galley_text.starts_with('\t') {
                     "\t"
                 } else if galley_text.starts_with("    ") {
@@ -459,7 +456,7 @@ pub fn calc(
                     if can_deindent {
                         // de-indentation: select text, delete selection, restore cursor
                         mutation.push(SubMutation::Cursor {
-                            cursor: (galley.range.start(), galley.range.start() + indent_seq.len())
+                            cursor: (galley.range.start()..galley.range.start() + indent_seq.len())
                                 .into(),
                         });
                         mutation.push(SubMutation::Delete(0.into()));
@@ -640,12 +637,10 @@ pub fn calc(
                     galley.annotation
                 {
                     mutation.push(SubMutation::Cursor {
-                        cursor: (
-                            galley.range.start() + galley.head_size,
-                            galley.range.start() + galley.head_size
+                        cursor: (galley.range.start() + galley.head_size
+                            ..galley.range.start() + galley.head_size
                                 - (cur_number).to_string().len()
-                                - 2,
-                        )
+                                - 2)
                             .into(),
                     });
                     mutation.push(SubMutation::Insert {
@@ -684,10 +679,8 @@ pub fn calc(
             let galley = &galleys[galley_idx];
             if let Some(Annotation::Item(ListItem::Todo(checked), ..)) = galley.annotation {
                 mutation.push(SubMutation::Cursor {
-                    cursor: (
-                        galley.range.start() + galley.head_size - 6,
-                        galley.range.start() + galley.head_size,
-                    )
+                    cursor: (galley.range.start() + galley.head_size - 6
+                        ..galley.range.start() + galley.head_size)
                         .into(),
                 });
                 mutation.push(SubMutation::Insert {
@@ -744,8 +737,7 @@ fn should_unapply(
 
 /// Returns list of nodes whose styles should be removed before applying `style`
 fn conflicting_styles(
-    selection: (DocCharOffset, DocCharOffset), style: &MarkdownNode, ast: &Ast,
-    ast_ranges: &AstTextRanges,
+    selection: Range<DocCharOffset>, style: &MarkdownNode, ast: &Ast, ast_ranges: &AstTextRanges,
 ) -> Vec<MarkdownNode> {
     let mut result = Vec::new();
     let mut dedup_set = HashSet::new();
@@ -788,8 +780,8 @@ fn conflicting_styles(
 
 /// Applies or unapplies `style` to `cursor`, splitting or joining surrounding styles as necessary.
 fn apply_style(
-    selection: (DocCharOffset, DocCharOffset), style: MarkdownNode, unapply: bool,
-    buffer: &SubBuffer, ast: &Ast, ast_ranges: &AstTextRanges, mutation: &mut Vec<SubMutation>,
+    selection: Range<DocCharOffset>, style: MarkdownNode, unapply: bool, buffer: &SubBuffer,
+    ast: &Ast, ast_ranges: &AstTextRanges, mutation: &mut Vec<SubMutation>,
 ) {
     if buffer.is_empty() {
         insert_head(selection.start(), style.clone(), mutation);
@@ -928,13 +920,13 @@ fn apply_style(
 fn dehead_ast_node(node_idx: usize, ast: &Ast, mutation: &mut Vec<SubMutation>) {
     let node = &ast.nodes[node_idx];
     mutation
-        .push(SubMutation::Cursor { cursor: (node.range.start(), node.text_range.start()).into() });
+        .push(SubMutation::Cursor { cursor: (node.range.start()..node.text_range.start()).into() });
     mutation.push(SubMutation::Insert { text: "".to_string(), advance_cursor: true });
 }
 
 fn detail_ast_node(node_idx: usize, ast: &Ast, mutation: &mut Vec<SubMutation>) {
     let node = &ast.nodes[node_idx];
-    mutation.push(SubMutation::Cursor { cursor: (node.text_range.end(), node.range.end()).into() });
+    mutation.push(SubMutation::Cursor { cursor: (node.text_range.end()..node.range.end()).into() });
     mutation.push(SubMutation::Insert { text: "".to_string(), advance_cursor: false });
 }
 
@@ -947,12 +939,12 @@ fn adjust_for_whitespace(
                 if offset == 0 {
                     break;
                 }
-                &buffer[(offset - 1, offset)]
+                &buffer[offset - 1..offset]
             } else {
                 if offset == buffer.segs.last_cursor_position() {
                     break;
                 }
-                &buffer[(offset, offset + 1)]
+                &buffer[offset..offset + 1]
             };
             if c == " " {
                 if tail {
@@ -998,22 +990,26 @@ pub fn region_to_cursor(
             location_to_char_offset(location, current_cursor, galleys, &buffer.segs, &bounds.text)
                 .into()
         }
-        Region::ToLocation(location) => (
-            current_cursor.selection.0,
-            location_to_char_offset(location, current_cursor, galleys, &buffer.segs, &bounds.text),
-        )
+        Region::ToLocation(location) => (current_cursor.selection.start
+            ..location_to_char_offset(
+                location,
+                current_cursor,
+                galleys,
+                &buffer.segs,
+                &bounds.text,
+            ))
             .into(),
-        Region::BetweenLocations { start, end } => (
-            location_to_char_offset(start, current_cursor, galleys, &buffer.segs, &bounds.text),
-            location_to_char_offset(end, current_cursor, galleys, &buffer.segs, &bounds.text),
-        )
-            .into(),
+        Region::BetweenLocations { start, end } => {
+            (location_to_char_offset(start, current_cursor, galleys, &buffer.segs, &bounds.text)
+                ..location_to_char_offset(end, current_cursor, galleys, &buffer.segs, &bounds.text))
+                .into()
+        }
         Region::Selection => current_cursor,
         Region::SelectionOrOffset { offset, backwards } => {
             if current_cursor.selection().is_none() {
                 let mut cursor = current_cursor;
                 cursor.advance(offset, backwards, buffer, galleys, bounds);
-                cursor.selection.0 = current_cursor.selection.1;
+                cursor.selection.start = current_cursor.selection.end;
                 cursor
             } else {
                 current_cursor
@@ -1027,9 +1023,9 @@ pub fn region_to_cursor(
                 let mut cursor = current_cursor;
                 cursor.advance(offset, backwards, buffer, galleys, bounds);
                 if extend_selection {
-                    cursor.selection.0 = current_cursor.selection.0;
+                    cursor.selection.start = current_cursor.selection.start;
                 } else {
-                    cursor.selection.0 = cursor.selection.1;
+                    cursor.selection.start = cursor.selection.end;
                 }
                 cursor
             } else if backwards {
@@ -1039,10 +1035,10 @@ pub fn region_to_cursor(
             }
         }
         Region::Bound { bound, backwards } => {
-            let offset = current_cursor.selection.1;
+            let offset = current_cursor.selection.end;
             let range = offset
                 .range_bound(bound, backwards, false, bounds)
-                .unwrap_or((offset, offset));
+                .unwrap_or(offset..offset);
             range.into()
         }
         Region::BoundAt { bound, location, backwards } => {
@@ -1055,7 +1051,7 @@ pub fn region_to_cursor(
             );
             let range = offset
                 .range_bound(bound, backwards, true, bounds)
-                .unwrap_or((offset, offset));
+                .unwrap_or(offset..offset);
             range.into()
         }
     }
@@ -1065,7 +1061,7 @@ pub fn location_to_char_offset(
     location: Location, current_cursor: Cursor, galleys: &Galleys, segs: &UnicodeSegs, text: &Text,
 ) -> DocCharOffset {
     match location {
-        Location::CurrentCursor => current_cursor.selection.1,
+        Location::CurrentCursor => current_cursor.selection.end,
         Location::DocCharOffset(o) => o,
         Location::Pos(pos) => pos_to_char_offset(pos, galleys, segs, text),
     }

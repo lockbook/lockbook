@@ -1,4 +1,4 @@
-use std::cmp::{max, min, Ordering};
+use std::cmp::Ordering;
 use std::fmt::{Debug, Formatter};
 use std::ops::{Add, AddAssign, Range, Sub, SubAssign};
 
@@ -426,9 +426,14 @@ pub trait RangeExt<Element: Sub<Element> + Ord + Sized + Copy>: Sized {
         self.start() == self.end()
     }
 
-    fn contains(&self, value: Element, start_inclusive: bool, end_inclusive: bool) -> bool {
+    // todo: lazy af name
+    fn contains_ext(&self, value: Element, start_inclusive: bool, end_inclusive: bool) -> bool {
         (self.start() < value || (start_inclusive && self.start() == value))
             && (value < self.end() || (end_inclusive && self.end() == value))
+    }
+
+    fn contains_inclusive(&self, value: Element) -> bool {
+        self.contains_ext(value, true, true)
     }
 
     fn intersects<O: RangeExt<Element>>(&self, other: &O, allow_empty_intersection: bool) -> bool {
@@ -437,17 +442,15 @@ pub trait RangeExt<Element: Sub<Element> + Ord + Sized + Copy>: Sized {
                 || (allow_empty_intersection && other.start() == self.end()))
     }
 
+    fn intersects_allow_empty<O: RangeExt<Element>>(&self, other: &O) -> bool {
+        self.intersects(other, true)
+    }
+
     fn contains_range<O: RangeExt<Element>>(
         &self, value: &O, start_inclusive: bool, end_inclusive: bool,
     ) -> bool {
-        self.contains(value.start(), start_inclusive, end_inclusive)
-            && self.contains(value.end(), start_inclusive, end_inclusive)
-    }
-    fn contains_inclusive(&self, value: Element) -> bool {
-        self.contains(value, true, true)
-    }
-    fn intersects_allow_empty<O: RangeExt<Element>>(&self, other: &O) -> bool {
-        self.intersects(other, true)
+        self.contains_ext(value.start(), start_inclusive, end_inclusive)
+            && self.contains_ext(value.end(), start_inclusive, end_inclusive)
     }
 }
 
@@ -461,19 +464,6 @@ where
 
     fn end(&self) -> T {
         self.end
-    }
-}
-
-impl<T> RangeExt<T> for (T, T)
-where
-    T: Ord + Sized + Copy + Sub<T>,
-{
-    fn start(&self) -> T {
-        *min(&self.0, &self.1)
-    }
-
-    fn end(&self) -> T {
-        *max(&self.0, &self.1)
     }
 }
 
@@ -509,11 +499,11 @@ pub trait RangeIterExt {
     fn iter(self) -> Self::Iter;
 }
 
-impl RangeIterExt for (usize, usize) {
+impl RangeIterExt for Range<usize> {
     type Item = usize;
     type Iter = RangeIter;
     fn iter(self) -> Self::Iter {
-        RangeIter { start_inclusive: self.0, end_exclusive: self.1 }
+        RangeIter { start_inclusive: self.start, end_exclusive: self.end }
     }
 }
 
@@ -549,51 +539,51 @@ impl DoubleEndedIterator for RangeIter {
 
 #[cfg(test)]
 mod test {
-    use crate::tab::markdown_editor::offset_types::RangeExt;
+    use crate::tab::markdown_editor::offset_types::RangeExt as _;
 
     #[test]
-    fn contains() {
-        assert!(!(1, 3).contains(0, false, false));
-        assert!(!(1, 3).contains(1, false, false));
-        assert!((1, 3).contains(2, false, false));
-        assert!(!(1, 3).contains(3, false, false));
-        assert!(!(1, 3).contains(4, false, false));
+    fn contains_ext() {
+        assert!(!(1..3).contains_ext(0, false, false));
+        assert!(!(1..3).contains_ext(1, false, false));
+        assert!((1..3).contains_ext(2, false, false));
+        assert!(!(1..3).contains_ext(3, false, false));
+        assert!(!(1..3).contains_ext(4, false, false));
 
-        assert!(!(1, 3).contains(0, true, false));
-        assert!((1, 3).contains(1, true, false));
-        assert!((1, 3).contains(2, true, false));
-        assert!(!(1, 3).contains(3, true, false));
-        assert!(!(1, 3).contains(4, true, false));
+        assert!(!(1..3).contains_ext(0, true, false));
+        assert!((1..3).contains_ext(1, true, false));
+        assert!((1..3).contains_ext(2, true, false));
+        assert!(!(1..3).contains_ext(3, true, false));
+        assert!(!(1..3).contains_ext(4, true, false));
 
-        assert!(!(1, 3).contains(0, false, true));
-        assert!(!(1, 3).contains(1, false, true));
-        assert!((1, 3).contains(2, false, true));
-        assert!((1, 3).contains(3, false, true));
-        assert!(!(1, 3).contains(4, false, true));
+        assert!(!(1..3).contains_ext(0, false, true));
+        assert!(!(1..3).contains_ext(1, false, true));
+        assert!((1..3).contains_ext(2, false, true));
+        assert!((1..3).contains_ext(3, false, true));
+        assert!(!(1..3).contains_ext(4, false, true));
 
-        assert!(!(1, 3).contains(0, true, true));
-        assert!((1, 3).contains(1, true, true));
-        assert!((1, 3).contains(2, true, true));
-        assert!((1, 3).contains(3, true, true));
-        assert!(!(1, 3).contains(4, true, true));
+        assert!(!(1..3).contains_ext(0, true, true));
+        assert!((1..3).contains_ext(1, true, true));
+        assert!((1..3).contains_ext(2, true, true));
+        assert!((1..3).contains_ext(3, true, true));
+        assert!(!(1..3).contains_ext(4, true, true));
     }
 
     #[test]
-    fn contains_empty() {
-        assert!(!(1, 1).contains(0, false, false));
-        assert!(!(1, 1).contains(1, false, false));
-        assert!(!(1, 1).contains(2, false, false));
+    fn contains_ext_empty() {
+        assert!(!(1..1).contains_ext(0, false, false));
+        assert!(!(1..1).contains_ext(1, false, false));
+        assert!(!(1..1).contains_ext(2, false, false));
 
-        assert!(!(1, 1).contains(0, true, false));
-        assert!(!(1, 1).contains(1, true, false));
-        assert!(!(1, 1).contains(2, true, false));
+        assert!(!(1..1).contains_ext(0, true, false));
+        assert!(!(1..1).contains_ext(1, true, false));
+        assert!(!(1..1).contains_ext(2, true, false));
 
-        assert!(!(1, 1).contains(0, false, true));
-        assert!(!(1, 1).contains(1, false, true));
-        assert!(!(1, 1).contains(2, false, true));
+        assert!(!(1..1).contains_ext(0, false, true));
+        assert!(!(1..1).contains_ext(1, false, true));
+        assert!(!(1..1).contains_ext(2, false, true));
 
-        assert!(!(1, 1).contains(0, true, true));
-        assert!((1, 1).contains(1, true, true));
-        assert!(!(1, 1).contains(2, true, true));
+        assert!(!(1..1).contains_ext(0, true, true));
+        assert!((1..1).contains_ext(1, true, true));
+        assert!(!(1..1).contains_ext(2, true, true));
     }
 }

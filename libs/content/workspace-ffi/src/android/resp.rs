@@ -59,7 +59,7 @@ pub struct JTextRange {
     pub end: usize,
 }
 
-impl From<JTextRange> for (DocCharOffset, DocCharOffset) {
+impl From<JTextRange> for Range<DocCharOffset> {
     fn from(value: JTextRange) -> Self {
         (value.start.into(), value.end.into())
     }

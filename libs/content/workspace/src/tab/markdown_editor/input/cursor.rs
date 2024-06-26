@@ -13,12 +13,12 @@ use std::time::{Duration, Instant};
 const DRAG_DURATION: Duration = Duration::from_millis(300);
 const DRAG_DISTANCE: f32 = 10.0;
 
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct Cursor {
     /// Selected text. When selection is empty, elements are equal. First element represents start
     /// of selection and second element represents end of selection, which is the primary cursor
     /// position - elements are not ordered by value.
-    pub selection: (DocCharOffset, DocCharOffset),
+    pub selection: Range<DocCharOffset>,
 
     /// When navigating using up/down keys, x_target stores the original *absolute* x coordinate of
     /// the cursor, which helps us keep the cursor in a consistent x position even navigating past
@@ -26,15 +26,15 @@ pub struct Cursor {
     pub x_target: Option<f32>,
 
     /// Marked text indicates prospective input by smart keyboards, rendered inline
-    pub mark: Option<(DocCharOffset, DocCharOffset)>,
+    pub mark: Option<Range<DocCharOffset>>,
 
     /// Highlighted region within marked text to indicate keyboard suggestion target
-    pub mark_highlight: Option<(DocCharOffset, DocCharOffset)>,
+    pub mark_highlight: Option<Range<DocCharOffset>>,
 }
 
 impl From<usize> for Cursor {
     fn from(pos: usize) -> Self {
-        Self { selection: (pos.into(), pos.into()), ..Default::default() }
+        Self { selection: pos.into()..pos.into(), ..Default::default() }
     }
 }
 
@@ -46,12 +46,12 @@ impl From<DocCharOffset> for Cursor {
 
 impl From<(usize, usize)> for Cursor {
     fn from(value: (usize, usize)) -> Self {
-        Self { selection: (value.0.into(), value.1.into()), ..Default::default() }
+        Self { selection: value.0.into()..value.1.into(), ..Default::default() }
     }
 }
 
-impl From<(DocCharOffset, DocCharOffset)> for Cursor {
-    fn from(value: (DocCharOffset, DocCharOffset)) -> Self {
+impl From<Range<DocCharOffset>> for Cursor {
+    fn from(value: Range<DocCharOffset>) -> Self {
         Self { selection: value, ..Default::default() }
     }
 }
@@ -89,12 +89,9 @@ impl Cursor {
         }
     }
 
-    /// returns the nonempty, sorted range of selected text, if any
     pub fn mark_highlight(&self) -> Option<Range<DocCharOffset>> {
         match self.mark_highlight {
-            Some(mark_highlight) if !mark_highlight.is_empty() => {
-                Some(Range { start: mark_highlight.0, end: mark_highlight.1 })
-            }
+            Some(mark_highlight) if !mark_highlight.is_empty() => Some(mark_highlight),
             _ => None,
         }
     }
@@ -103,7 +100,7 @@ impl Cursor {
         &mut self, offset: Offset, backwards: bool, buffer: &SubBuffer, galleys: &Galleys,
         bounds: &Bounds,
     ) {
-        self.selection.1 = self.selection.1.advance(
+        self.selection.start = self.selection.end.advance(
             &mut self.x_target,
             offset,
             backwards,
@@ -114,11 +111,11 @@ impl Cursor {
     }
 
     pub fn start_line(&self, galleys: &Galleys, text: &Text, appearance: &Appearance) -> [Pos2; 2] {
-        self.line(galleys, self.selection.0, text, appearance)
+        self.line(galleys, self.selection.start, text, appearance)
     }
 
     pub fn end_line(&self, galleys: &Galleys, text: &Text, appearance: &Appearance) -> [Pos2; 2] {
-        self.line(galleys, self.selection.1, text, appearance)
+        self.line(galleys, self.selection.end, text, appearance)
     }
 
     fn line(
@@ -140,7 +137,7 @@ impl Cursor {
     }
 
     fn empty(&self) -> bool {
-        self.selection.0 == self.selection.1
+        self.selection.is_empty()
     }
 }
 

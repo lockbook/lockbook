@@ -1,3 +1,5 @@
+use std::ops::Range;
+
 use crate::tab::markdown_editor::offset_types::{DocByteOffset, DocCharOffset};
 use unicode_segmentation::UnicodeSegmentation;
 
@@ -25,10 +27,8 @@ impl UnicodeSegs {
         self.grapheme_indexes[i.0]
     }
 
-    pub fn range_to_byte(
-        &self, i: (DocCharOffset, DocCharOffset),
-    ) -> (DocByteOffset, DocByteOffset) {
-        (self.offset_to_byte(i.0), self.offset_to_byte(i.1))
+    pub fn range_to_byte(&self, i: Range<DocCharOffset>) -> Range<DocByteOffset> {
+        self.offset_to_byte(i.start)..self.offset_to_byte(i.end)
     }
 
     pub fn offset_to_char(&self, i: DocByteOffset) -> DocCharOffset {
@@ -39,10 +39,8 @@ impl UnicodeSegs {
         DocCharOffset(self.grapheme_indexes.binary_search(&i).unwrap())
     }
 
-    pub fn range_to_char(
-        &self, i: (DocByteOffset, DocByteOffset),
-    ) -> (DocCharOffset, DocCharOffset) {
-        (self.offset_to_char(i.0), self.offset_to_char(i.1))
+    pub fn range_to_char(&self, i: Range<DocByteOffset>) -> Range<DocCharOffset> {
+        self.offset_to_char(i.start)..self.offset_to_char(i.end)
     }
 
     pub fn last_cursor_position(&self) -> DocCharOffset {

@@ -173,7 +173,7 @@ pub struct CRect {
     pub max_y: f64,
 }
 
-impl From<CTextRange> for (DocCharOffset, DocCharOffset) {
+impl From<CTextRange> for Range<DocCharOffset> {
     fn from(value: CTextRange) -> Self {
         (value.start.pos.into(), value.end.pos.into())
     }

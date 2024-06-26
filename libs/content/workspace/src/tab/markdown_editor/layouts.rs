@@ -1,3 +1,5 @@
+use std::ops::Range;
+
 use crate::tab::markdown_editor::offset_types::{DocCharOffset, RelCharOffset};
 use crate::tab::markdown_editor::style::{IndentLevel, ListItem, Title, Url};
 use egui::text::LayoutJob;
@@ -6,7 +8,7 @@ use pulldown_cmark::LinkType;
 
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct LayoutJobInfo {
-    pub range: (DocCharOffset, DocCharOffset),
+    pub range: Range<DocCharOffset>,
     pub job: LayoutJob,
     pub annotation: Option<Annotation>,
 

@@ -26,7 +26,7 @@ pub enum EditorMutation {
     Undo,
     Redo,
     // todo: redefine
-    // SetCursor { cursor: (DocCharOffset, DocCharOffset), marked: bool }, // set the cursor
+    // SetCursor { cursor: Range<DocCharOffset>, marked: bool }, // set the cursor
     // Replace { text: String }, // replace the current selection
 }
 
@@ -239,8 +239,8 @@ impl SubBuffer {
                 SubMutation::Delete(n_chars) => {
                     let text_replacement = "";
                     let replaced_text_range = cur_cursor.selection().unwrap_or(Range {
-                        start: cur_cursor.selection.1 - n_chars,
-                        end: cur_cursor.selection.1,
+                        start: cur_cursor.selection.end - n_chars,
+                        end: cur_cursor.selection.end,
                     });
 
                     Self::modify_subsequent_cursors(
@@ -292,19 +292,19 @@ impl SubBuffer {
             .chain(iter::once(cur_cursor))
         {
             Self::adjust_subsequent_range(
-                (replaced_text_range.start, replaced_text_range.end),
+                replaced_text_range,
                 text_replacement_len.into(),
                 advance_cursor,
                 Some(&mut mod_cursor.selection),
             );
             Self::adjust_subsequent_range(
-                (replaced_text_range.start, replaced_text_range.end),
+                replaced_text_range,
                 text_replacement_len.into(),
                 advance_cursor,
                 mod_cursor.mark.as_mut(),
             );
             Self::adjust_subsequent_range(
-                (replaced_text_range.start, replaced_text_range.end),
+                replaced_text_range,
                 text_replacement_len.into(),
                 advance_cursor,
                 mod_cursor.mark_highlight.as_mut(),
@@ -316,11 +316,11 @@ impl SubBuffer {
     /// positions after the replacement generally are, and positions within the replacement are adjusted to the end of
     /// the replacement if `prefer_advance` is true or are adjusted to the start of the replacement otherwise.
     fn adjust_subsequent_range(
-        replaced_range: (DocCharOffset, DocCharOffset), replacement_len: RelCharOffset,
-        prefer_advance: bool, maybe_range: Option<&mut (DocCharOffset, DocCharOffset)>,
+        replaced_range: Range<DocCharOffset>, replacement_len: RelCharOffset, prefer_advance: bool,
+        maybe_range: Option<&mut Range<DocCharOffset>>,
     ) {
         if let Some(range) = maybe_range {
-            for position in [&mut range.0, &mut range.1] {
+            for position in [&mut range.start, &mut range.end] {
                 Self::adjust_subsequent_position(
                     replaced_range,
                     replacement_len,
@@ -335,8 +335,8 @@ impl SubBuffer {
     /// positions after the replacement generally are, and positions within the replacement are adjusted to the end of
     /// the replacement if `prefer_advance` is true or are adjusted to the start of the replacement otherwise.
     fn adjust_subsequent_position(
-        replaced_range: (DocCharOffset, DocCharOffset), replacement_len: RelCharOffset,
-        prefer_advance: bool, position: &mut DocCharOffset,
+        replaced_range: Range<DocCharOffset>, replacement_len: RelCharOffset, prefer_advance: bool,
+        position: &mut DocCharOffset,
     ) {
         let replaced_len = replaced_range.len();
         let replacement_start = replaced_range.start();
@@ -452,20 +452,20 @@ impl SubBuffer {
     }
 }
 
-impl Index<(DocByteOffset, DocByteOffset)> for SubBuffer {
+impl Index<Range<DocByteOffset>> for SubBuffer {
     type Output = str;
 
-    fn index(&self, index: (DocByteOffset, DocByteOffset)) -> &Self::Output {
-        &self.text[index.0 .0..index.1 .0]
+    fn index(&self, index: Range<DocByteOffset>) -> &Self::Output {
+        &self.text[index.start.0..index.end.0]
     }
 }
 
-impl Index<(DocCharOffset, DocCharOffset)> for SubBuffer {
+impl Index<Range<DocCharOffset>> for SubBuffer {
     type Output = str;
 
-    fn index(&self, index: (DocCharOffset, DocCharOffset)) -> &Self::Output {
+    fn index(&self, index: Range<DocCharOffset>) -> &Self::Output {
         let index = self.segs.range_to_byte(index);
-        &self.text[index.0 .0..index.1 .0]
+        &self.text[index.start.0..index.end.0]
     }
 }
 
@@ -618,8 +618,8 @@ mod test {
             let (text_updated, _, _) = buffer.apply_modification(mods, &mut debug, &mut appearance);
 
             assert_eq!(buffer.text, case.expected_buffer);
-            assert_eq!(buffer.cursor.selection.1 .0, case.expected_cursor.0);
-            assert_eq!(buffer.cursor.selection.0, case.expected_cursor.1);
+            assert_eq!(buffer.cursor.selection.end.0, case.expected_cursor.0);
+            assert_eq!(buffer.cursor.selection.start.0, case.expected_cursor.1);
             assert!(!debug.draw_enabled);
             assert!(text_updated);
         }

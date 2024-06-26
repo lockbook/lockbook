@@ -169,7 +169,7 @@ impl Editor {
 
             for style in self
                 .ast
-                .styles_at_offset(cursor.selection.1, &self.bounds.ast)
+                .styles_at_offset(cursor.selection.end, &self.bounds.ast)
             {
                 match style {
                     MarkdownNode::Inline(InlineNode::Bold)
@@ -200,7 +200,7 @@ impl Editor {
             if !self
                 .bounds
                 .links
-                .find_containing(cursor.selection.1, true, true)
+                .find_containing(cursor.selection.end, true, true)
                 .is_empty()
             {
                 stroke.color = self.appearance.link();
@@ -253,14 +253,14 @@ impl Editor {
                         start: Location::Pos(ui.input(|i| {
                             i.pointer.interact_pos().unwrap_or_default() + Vec2 { x: 0.0, y: 10.0 }
                         })),
-                        end: Location::DocCharOffset(cursor.selection.1),
+                        end: Location::DocCharOffset(cursor.selection.end),
                     },
                 });
             }
             if end_response.dragged() {
                 ui.ctx().push_markdown_event(Modification::Select {
                     region: Region::BetweenLocations {
-                        start: Location::DocCharOffset(cursor.selection.0),
+                        start: Location::DocCharOffset(cursor.selection.start),
                         end: Location::Pos(ui.input(|i| {
                             i.pointer.interact_pos().unwrap_or_default() - Vec2 { x: 0.0, y: 10.0 }
                         })),
@@ -306,12 +306,12 @@ impl Editor {
 
         let cursor_info = format!(
             "selection: ({:?}, {:?}), byte: {:?}, x_target: {}",
-            self.buffer.current.cursor.selection.0,
-            self.buffer.current.cursor.selection.1,
+            self.buffer.current.cursor.selection.start,
+            self.buffer.current.cursor.selection.end,
             self.buffer
                 .current
                 .segs
-                .offset_to_byte(self.buffer.current.cursor.selection.1),
+                .offset_to_byte(self.buffer.current.cursor.selection.end),
             self.buffer
                 .current
                 .cursor

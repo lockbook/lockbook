@@ -461,20 +461,20 @@ impl Editor {
             .current
             .cursor
             .selection
-            .0
+            .start
             .bound_case(&self.bounds.text)
         {
-            self.buffer.current.cursor.selection.0 = range_after.start();
+            self.buffer.current.cursor.selection.start = range_after.start();
         }
         if let BoundCase::BetweenRanges { range_after, .. } = self
             .buffer
             .current
             .cursor
             .selection
-            .1
+            .end
             .bound_case(&self.bounds.text)
         {
-            self.buffer.current.cursor.selection.1 = range_after.start();
+            self.buffer.current.cursor.selection.end = range_after.start();
         }
 
         let prior_selection = self.buffer.current.cursor.selection;
@@ -535,7 +535,7 @@ impl Editor {
                     .any(|e| matches!(e, Modification::Select { region: Region::Location(..) }));
 
             let touched_selection = current_selection.is_empty()
-                && prior_selection.contains_inclusive(current_selection.1)
+                && prior_selection.contains_inclusive(current_selection.end)
                 && touched_a_galley
                 && combined_events
                     .iter()

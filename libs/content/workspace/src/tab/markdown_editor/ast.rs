@@ -1,8 +1,10 @@
-use crate::tab::markdown_editor::bounds::{AstTextRanges, RangesExt};
+use std::ops::Range;
+
+use crate::tab::markdown_editor::bounds::{AstTextRanges, RangesExt as _};
 use crate::tab::markdown_editor::buffer::SubBuffer;
 use crate::tab::markdown_editor::input::cursor::Cursor;
 use crate::tab::markdown_editor::layouts::Annotation;
-use crate::tab::markdown_editor::offset_types::{DocCharOffset, RangeExt, RangeIterExt};
+use crate::tab::markdown_editor::offset_types::{DocCharOffset, RangeExt, RangeIterExt as _};
 use crate::tab::markdown_editor::style::{
     BlockNode, BlockNodeType, InlineNode, ListItem, MarkdownNode, MarkdownNodeType,
 };
@@ -21,22 +23,22 @@ pub struct AstNode {
     pub node_type: MarkdownNode,
 
     /// Range of source text captured
-    pub range: (DocCharOffset, DocCharOffset),
+    pub range: Range<DocCharOffset>,
 
     /// Range of source text still rendered after syntax characters are captured/interpreted
-    pub text_range: (DocCharOffset, DocCharOffset),
+    pub text_range: Range<DocCharOffset>,
 
     /// Indexes of sub-nodes in the vector containing this node
     pub children: Vec<usize>,
 }
 
 impl AstNode {
-    pub fn head_range(&self) -> (DocCharOffset, DocCharOffset) {
-        (self.range.0, self.text_range.0)
+    pub fn head_range(&self) -> Range<DocCharOffset> {
+        self.range.start..self.text_range.start
     }
 
-    pub fn tail_range(&self) -> (DocCharOffset, DocCharOffset) {
-        (self.text_range.1, self.range.1)
+    pub fn tail_range(&self) -> Range<DocCharOffset> {
+        self.text_range.end..self.range.end
     }
 }
 
@@ -47,8 +49,8 @@ pub fn calc(buffer: &SubBuffer) -> Ast {
     let mut result = Ast {
         nodes: vec![AstNode::new(
             MarkdownNode::Document,
-            (0.into(), buffer.segs.last_cursor_position()),
-            (0.into(), buffer.segs.last_cursor_position()),
+            0.into()..buffer.segs.last_cursor_position(),
+            0.into()..buffer.segs.last_cursor_position(),
         )],
         root: 0,
     };
@@ -86,7 +88,7 @@ impl Ast {
         while let Some((event, range)) = iter.next() {
             let range = buffer
                 .segs
-                .range_to_char((range.start.into(), range.end.into()));
+                .range_to_char(range.start.into()..range.end.into());
             match event {
                 Event::Start(child_tag) => {
                     let new_child_node = match child_tag {
@@ -187,7 +189,7 @@ impl Ast {
 
     fn push_child(
         &mut self, parent_idx: usize, mut markdown_node: MarkdownNode,
-        cmark_range: (DocCharOffset, DocCharOffset), buffer: &SubBuffer,
+        cmark_range: Range<DocCharOffset>, buffer: &SubBuffer,
     ) -> Option<usize> {
         // assumption: whitespace-only nodes have no children
         if buffer[cmark_range].trim().is_empty() {
@@ -199,18 +201,18 @@ impl Ast {
 
             // trim trailing whitespace from range
             // operations that adjust styles will not add or remove trailing whitespace
-            range.1 -= buffer[cmark_range].len() - buffer[cmark_range].trim_end().len();
+            range.end -= buffer[cmark_range].len() - buffer[cmark_range].trim_end().len();
 
             // capture leading whitespace for list items and code blocks (affects non-fenced code blocks only)
             if matches!(
                 markdown_node,
                 MarkdownNode::Block(BlockNode::ListItem(..)) | MarkdownNode::Block(BlockNode::Code)
             ) {
-                while range.0 > 0
-                    && buffer[(range.0 - 1, range.1)]
+                while range.start > 0
+                    && buffer[(range.start - 1)..range.end]
                         .starts_with(|c: char| c.is_whitespace() && c != '\n')
                 {
-                    range.0 -= 1;
+                    range.start -= 1;
                 }
             }
 
@@ -219,25 +221,25 @@ impl Ast {
                 markdown_node,
                 MarkdownNode::Block(BlockNode::ListItem(..))
                     | MarkdownNode::Block(BlockNode::Heading(..))
-            ) && range.1 < buffer.segs.last_cursor_position()
-                && buffer[(range.0, range.1 + 1)].ends_with(' ')
+            ) && range.end < buffer.segs.last_cursor_position()
+                && buffer[range.start..(range.end + 1)].ends_with(' ')
             {
-                range.1 += 1;
+                range.end += 1;
             }
 
             // capture up to one trailing newline for rules
             if markdown_node.node_type() == MarkdownNodeType::Block(BlockNodeType::Rule)
-                && range.1 < buffer.segs.last_cursor_position()
-                && buffer[(range.0, range.1 + 1)].ends_with('\n')
+                && range.end < buffer.segs.last_cursor_position()
+                && buffer[range.start..(range.end + 1)].ends_with('\n')
             {
-                range.1 += 1;
+                range.end += 1;
             }
 
             // clamp range to text range of parent
             let parent_text_range = self.nodes[parent_idx].text_range;
-            let (min, max) = parent_text_range;
-            range.0 = range.0.max(min).min(max);
-            range.1 = range.1.max(min).min(max);
+            let Range { start: min, end: max } = parent_text_range;
+            range.start = range.start.max(min).min(max);
+            range.end = range.end.max(min).min(max);
 
             if range.is_empty() {
                 return None;
@@ -247,8 +249,8 @@ impl Ast {
         };
 
         // trim syntax characters from text range
-        // the characters between range.0 and text_range.0 are the head characters
-        // the characters between text_range.1 and range.1 are the tail characters
+        // the characters between range.start and text_range.start are the head characters
+        // the characters between text_range.end and range.end are the tail characters
         // the head and tail characters are those that are modified when styles are adjusted
         // assumption: syntax characters are single-byte unicode sequences
         let text_range = {
@@ -256,25 +258,25 @@ impl Ast {
             match markdown_node.clone() {
                 MarkdownNode::Block(BlockNode::Heading(h)) => {
                     // # heading
-                    let original_text_range_0 = text_range.0;
+                    let original_text_range_0 = text_range.start;
 
-                    text_range.0 += h as usize;
+                    text_range.start += h as usize;
 
                     // correct cmark behavior with no space in syntax chars
                     if buffer[text_range].starts_with(' ') {
-                        text_range.0 += 1;
+                        text_range.start += 1;
                     } else {
                         markdown_node = MarkdownNode::Paragraph;
-                        text_range.0 = original_text_range_0;
+                        text_range.start = original_text_range_0;
                     }
                 }
                 MarkdownNode::Block(BlockNode::Quote) => {
                     // >quote block
                     // > quote block
                     if buffer[text_range].starts_with("> ") {
-                        text_range.0 += 2;
+                        text_range.start += 2;
                     } else if buffer[text_range].starts_with('>') {
-                        text_range.0 += 1;
+                        text_range.start += 1;
                     }
                 }
                 MarkdownNode::Block(BlockNode::Code) => {
@@ -289,14 +291,14 @@ impl Ast {
                         code block
                         ~~~
                          */
-                        text_range.0 += 3;
-                        text_range.1 -= 3;
+                        text_range.start += 3;
+                        text_range.end -= 3;
                     } else {
                         /*
                             code block
                         */
                     }
-                    if text_range.1 < text_range.0 {
+                    if text_range.end < text_range.start {
                         /*
                         ```
                         ```
@@ -304,17 +306,17 @@ impl Ast {
                         ~~~
                         single newline gets captured in head and not tail
                          */
-                        text_range.1 += 1;
+                        text_range.end += 1;
                     }
                 }
                 MarkdownNode::Block(BlockNode::ListItem(item_type, _)) => {
                     // * item
                     //   1. item
                     //     - [ ] item
-                    let original_text_range_0 = text_range.0;
+                    let original_text_range_0 = text_range.start;
 
-                    text_range.0 += buffer[range].len() - buffer[range].trim_start().len();
-                    text_range.0 += match item_type {
+                    text_range.start += buffer[range].len() - buffer[range].trim_start().len();
+                    text_range.start += match item_type {
                         ListItem::Bulleted => 1,
                         ListItem::Numbered(n) => 1 + n.to_string().len(),
                         ListItem::Todo(_) => 5,
@@ -322,19 +324,19 @@ impl Ast {
 
                     // correct cmark behavior with no space in syntax chars
                     if buffer[text_range].starts_with(' ') {
-                        text_range.0 += 1;
+                        text_range.start += 1;
                     } else {
                         markdown_node = MarkdownNode::Paragraph;
-                        text_range.0 = original_text_range_0;
+                        text_range.start = original_text_range_0;
                     }
 
                     // prevent same-line list item nesting
                     // 1. * nested item
                     let parent_node = &self.nodes[parent_idx];
                     if let MarkdownNode::Block(BlockNode::ListItem(..)) = parent_node.node_type {
-                        if !buffer[(parent_node.range.0, range.0)].contains('\n') {
+                        if !buffer[parent_node.range.start..range.start].contains('\n') {
                             markdown_node = MarkdownNode::Paragraph;
-                            text_range.0 = original_text_range_0;
+                            text_range.start = original_text_range_0;
                         }
                     }
                 }
@@ -350,35 +352,35 @@ impl Ast {
                     if !buffer[range].ends_with('\n') {
                         markdown_node = MarkdownNode::Paragraph;
                     } else {
-                        text_range.0 = text_range.1 - 1;
+                        text_range.start = text_range.end - 1;
                     }
                 }
                 MarkdownNode::Inline(InlineNode::Code) => {
                     // `code`
-                    text_range.0 += 1;
-                    text_range.1 -= 1;
+                    text_range.start += 1;
+                    text_range.end -= 1;
                 }
                 MarkdownNode::Inline(InlineNode::Bold) => {
                     // __strong__
-                    text_range.0 += 2;
-                    text_range.1 -= 2;
+                    text_range.start += 2;
+                    text_range.end -= 2;
                 }
                 MarkdownNode::Inline(InlineNode::Italic) => {
                     // _emphasis_
-                    text_range.0 += 1;
-                    text_range.1 -= 1;
+                    text_range.start += 1;
+                    text_range.end -= 1;
                 }
                 MarkdownNode::Inline(InlineNode::Strikethrough) => {
                     // ~strikethrough~ (not strictly markdown spec compliant)
                     if buffer[text_range].starts_with('~') && buffer[text_range].ends_with('~') {
-                        text_range.0 += 1;
-                        text_range.1 -= 1;
+                        text_range.start += 1;
+                        text_range.end -= 1;
                     }
 
                     // ~~strikethrough~~
                     if buffer[text_range].starts_with('~') && buffer[text_range].ends_with('~') {
-                        text_range.0 += 1;
-                        text_range.1 -= 1;
+                        text_range.start += 1;
+                        text_range.end -= 1;
                     }
                 }
                 MarkdownNode::Inline(InlineNode::Link(LinkType::Inline, url, title)) => {
@@ -388,19 +390,19 @@ impl Ast {
                     if url.is_empty() || buffer[range].starts_with("[]") {
                         markdown_node = MarkdownNode::Paragraph;
                     } else {
-                        text_range.0 += 1;
-                        text_range.1 -= url.len() + 3;
+                        text_range.start += 1;
+                        text_range.end -= url.len() + 3;
                         if !title.is_empty() {
-                            text_range.1 -= title.len() + 3;
+                            text_range.end -= title.len() + 3;
                         }
                     }
                 }
                 MarkdownNode::Inline(InlineNode::Image(LinkType::Inline, url, title)) => {
                     // ![title](http://url.com)
-                    text_range.0 += 2;
-                    text_range.1 -= url.len() + 3;
+                    text_range.start += 2;
+                    text_range.end -= url.len() + 3;
                     if !title.is_empty() {
-                        text_range.1 -= title.len() + 3;
+                        text_range.end -= title.len() + 3;
                     }
                 }
                 _ => {}
@@ -421,7 +423,7 @@ impl Ast {
             ast: self,
             maybe_current_range: Some(AstTextRange {
                 range_type: AstTextRangeType::Head,
-                range: (0.into(), 0.into()),
+                range: 0.into()..0.into(),
                 ancestors: vec![0],
             }),
         }
@@ -455,8 +457,8 @@ impl Ast {
                     .iter()
                     .map(|&i| format!("[{:?} {:?}]", i, self.nodes[i].node_type))
                     .collect::<Vec<_>>(),
-                range.range.0,
-                range.range.1,
+                range.range.start,
+                range.range.end,
                 match range.range_type {
                     AstTextRangeType::Head => &buffer[range.range],
                     AstTextRangeType::Text => &buffer[range.range],
@@ -469,8 +471,7 @@ impl Ast {
 
 impl AstNode {
     pub fn new(
-        node: MarkdownNode, range: (DocCharOffset, DocCharOffset),
-        text_range: (DocCharOffset, DocCharOffset),
+        node: MarkdownNode, range: Range<DocCharOffset>, text_range: Range<DocCharOffset>,
     ) -> Self {
         Self { node_type: node, range, text_range, children: vec![] }
     }
@@ -478,15 +479,15 @@ impl AstNode {
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum AstTextRangeType {
-    /// Text between `node.range.0` and `node.text_range.0` i.e. leading syntax characters for a node.
+    /// Text between `node.range.start` and `node.text_range.start` i.e. leading syntax characters for a node.
     /// Occurs at most once per node.
     Head,
 
-    /// Text between node.text_range.0 and node.text_range.1, excluding ranges captured by child nodes.
+    /// Text between node.text_range.start and node.text_range.end, excluding ranges captured by child nodes.
     /// Can occur any number of times per node because child nodes slice node text into multiple parts.
     Text,
 
-    /// Text between `node.text_range.1` and `node.range.1` i.e. trailing syntax characters for a node.
+    /// Text between `node.text_range.end` and `node.range.end` i.e. trailing syntax characters for a node.
     /// Occurs at most once per node.
     Tail,
 }
@@ -494,7 +495,7 @@ pub enum AstTextRangeType {
 #[derive(Clone, Debug, PartialEq)]
 pub struct AstTextRange {
     pub range_type: AstTextRangeType,
-    pub range: (DocCharOffset, DocCharOffset),
+    pub range: Range<DocCharOffset>,
 
     /// Indexes of all AST nodes containing this range, ordered from root to leaf.
     pub ancestors: Vec<usize>,
@@ -536,11 +537,11 @@ impl AstTextRange {
 
 impl RangeExt<DocCharOffset> for AstTextRange {
     fn start(&self) -> DocCharOffset {
-        self.range.start()
+        self.range.start
     }
 
     fn end(&self) -> DocCharOffset {
-        self.range.end()
+        self.range.end
     }
 }
 
@@ -570,19 +571,16 @@ impl<'ast> Iterator for AstTextRangeIter<'ast> {
 
                         // current range should have ended at start of current node's text range
                         #[cfg(debug)]
-                        assert_eq!(current_range.range.1, current.text_range.0);
+                        assert_eq!(current_range.range.end, current.text_range.start);
 
                         AstTextRange {
                             range_type: AstTextRangeType::Text,
-                            range: (
-                                current_range.range.1,
-                                if current.children.is_empty() {
-                                    current.text_range.1
-                                } else {
-                                    let first_child = &self.ast.nodes[current.children[0]];
-                                    first_child.range.0
-                                },
-                            ),
+                            range: current_range.range.end..if current.children.is_empty() {
+                                current.text_range.end
+                            } else {
+                                let first_child = &self.ast.nodes[current.children[0]];
+                                first_child.range.start
+                            },
                             ancestors: current_range.ancestors.clone(),
                         }
                     }
@@ -590,7 +588,7 @@ impl<'ast> Iterator for AstTextRangeIter<'ast> {
                         // text -> advance to next child head or advance to own tail
                         let maybe_next_child_idx = current.children.iter().find(|&&child_idx| {
                             // child of the current node starting at end of current range
-                            self.ast.nodes[child_idx].range.0 == current_range.range.1
+                            self.ast.nodes[child_idx].range.start == current_range.range.end
                         });
 
                         if let Some(&next_child_idx) = maybe_next_child_idx {
@@ -604,7 +602,7 @@ impl<'ast> Iterator for AstTextRangeIter<'ast> {
 
                             AstTextRange {
                                 range_type: AstTextRangeType::Head,
-                                range: (current_range.range.1, next_child.text_range.0),
+                                range: current_range.range.end..next_child.text_range.start,
                                 ancestors,
                             }
                         } else {
@@ -612,11 +610,11 @@ impl<'ast> Iterator for AstTextRangeIter<'ast> {
 
                             // current range should have ended at end of current node's text range
                             #[cfg(debug)]
-                            assert_eq!(current_range.range.1, current.text_range.1);
+                            assert_eq!(current_range.range.end, current.text_range.end);
 
                             AstTextRange {
                                 range_type: AstTextRangeType::Tail,
-                                range: (current_range.range.1, current.range.1),
+                                range: current_range.range.end..current.range.end,
                                 ancestors: current_range.ancestors.clone(),
                             }
                         }
@@ -624,7 +622,7 @@ impl<'ast> Iterator for AstTextRangeIter<'ast> {
                     AstTextRangeType::Tail => {
                         // current range should have ended at end of current node's range
                         #[cfg(debug)]
-                        assert_eq!(current_range.range.1, current.range.1);
+                        assert_eq!(current_range.range.end, current.range.end);
 
                         // tail -> advance to parent text
                         // find next child of parent
@@ -639,7 +637,7 @@ impl<'ast> Iterator for AstTextRangeIter<'ast> {
                         let parent = &self.ast.nodes[parent_idx];
                         let maybe_next_child_idx = parent.children.iter().find(|&&child_idx| {
                             // first child of the parent node starting after end of current range
-                            self.ast.nodes[child_idx].range.0 >= current_range.range.1
+                            self.ast.nodes[child_idx].range.start >= current_range.range.end
                         });
 
                         if let Some(&next_child_idx) = maybe_next_child_idx {
@@ -648,7 +646,7 @@ impl<'ast> Iterator for AstTextRangeIter<'ast> {
 
                             AstTextRange {
                                 range_type: AstTextRangeType::Text,
-                                range: (current_range.range.1, next_child.range.0),
+                                range: current_range.range.end..next_child.range.start,
                                 ancestors,
                             }
                         } else {
@@ -656,7 +654,7 @@ impl<'ast> Iterator for AstTextRangeIter<'ast> {
 
                             AstTextRange {
                                 range_type: AstTextRangeType::Text,
-                                range: (current_range.range.1, parent.text_range.1),
+                                range: current_range.range.end..parent.text_range.end,
                                 ancestors,
                             }
                         }
@@ -693,7 +691,7 @@ mod test {
             let buffer = test_markdown.into();
             let ast = super::calc(&buffer);
             for text_range in ast.iter_text_ranges() {
-                assert!(text_range.range.0 <= text_range.range.1);
+                assert!(text_range.range.start <= text_range.range.end);
             }
         }
     }

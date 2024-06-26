@@ -110,8 +110,7 @@ pub unsafe extern "C" fn text_in_range(obj: *mut c_void, range: CTextRange) -> *
         None => return null(),
     };
 
-    let (start, end): (DocCharOffset, DocCharOffset) =
-        (range.start.pos.into(), range.end.pos.into());
+    let (start, end): Range<DocCharOffset> = (range.start.pos.into(), range.end.pos.into());
     let cursor: Cursor = (start, end).into();
     let buffer = &markdown.editor.buffer.current;
     let text = cursor.selection_text(buffer);
@@ -405,7 +404,7 @@ pub unsafe extern "C" fn position_offset_in_direction(
     for _ in 0..offset {
         cursor.advance(offset_type, backwards, buffer, galleys, &markdown.editor.bounds);
     }
-    CTextPosition { none: start.none, pos: cursor.selection.1 .0 }
+    CTextPosition { none: start.none, pos: cursor.selection.end.0 }
 }
 
 /// # Safety
@@ -503,7 +502,7 @@ pub unsafe extern "C" fn bound_from_position(
     };
     cursor.advance(Offset::Next(bound), backwards, buffer, galleys, &markdown.editor.bounds);
 
-    CTextPosition { none: false, pos: cursor.selection.1 .0 }
+    CTextPosition { none: false, pos: cursor.selection.end.0 }
 }
 
 /// # Safety
@@ -564,12 +563,12 @@ pub unsafe extern "C" fn first_rect(obj: *mut c_void, range: CTextRange) -> CRec
     let appearance = &markdown.editor.appearance;
 
     let cursor_representing_rect: Cursor = {
-        let range: (DocCharOffset, DocCharOffset) = range.into();
+        let range: Range<DocCharOffset> = range.into();
         let selection_start = range.start();
         let selection_end = range.end();
         let mut cursor: Cursor = selection_start.into();
         cursor.advance(Offset::To(Bound::Line), false, buffer, galleys, &markdown.editor.bounds);
-        let end_of_selection_start_line = cursor.selection.1;
+        let end_of_selection_start_line = cursor.selection.end;
         let end_of_rect = cmp::min(selection_end, end_of_selection_start_line);
         (selection_start, end_of_rect).into()
     };
@@ -693,7 +692,7 @@ pub unsafe extern "C" fn selection_rects(
     let galleys = &markdown.editor.galleys;
     let text = &markdown.editor.bounds.text;
 
-    let range: (DocCharOffset, DocCharOffset) = range.into();
+    let range: Range<DocCharOffset> = range.into();
     let mut cont_start = range.start();
 
     let mut selection_rects = vec![];

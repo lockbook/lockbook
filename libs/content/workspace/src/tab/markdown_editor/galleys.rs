@@ -11,7 +11,7 @@ use egui::epaint::text::cursor::Cursor;
 use egui::text::{CCursor, LayoutJob};
 use egui::{Galley, Pos2, Rect, Sense, TextFormat, Ui, Vec2};
 use std::mem;
-use std::ops::{Deref, Index};
+use std::ops::{Deref, Index, Range};
 use std::sync::Arc;
 
 #[derive(Default)]
@@ -21,7 +21,7 @@ pub struct Galleys {
 
 #[derive(Debug)]
 pub struct GalleyInfo {
-    pub range: (DocCharOffset, DocCharOffset),
+    pub range: Range<DocCharOffset>,
     pub galley: Arc<Galley>,
     pub annotation: Option<Annotation>,
 
@@ -100,7 +100,7 @@ pub fn calc(
             // only the first portion of a head text range gets that range's annotation
             let mut is_annotation = false;
             if text_range.range_type == AstTextRangeType::Head
-                && text_range.range.start() == text_range_portion.start()
+                && text_range.range.start == text_range_portion.start
                 && (captured
                     || matches!(text_range.annotation(ast), Some(Annotation::HeadingRule | Annotation::Image(..)))) // heading rules and images drawn reglardless of capture
                 && annotation.is_none()
@@ -142,7 +142,7 @@ pub fn calc(
             }
         }
 
-        if text_range_portion.end() == paragraph.end() {
+        if text_range_portion.end == paragraph.end {
             // emit a galley
             if layout.is_empty() {
                 // dummy text with document style
@@ -201,22 +201,20 @@ impl Galleys {
         let galley_index = self.galley_at_char(char_offset);
         let galley = &self.galleys[galley_index];
         let galley_text_range = galley.text_range();
-        let char_offset = char_offset.clamp(galley_text_range.start(), galley_text_range.end());
+        let char_offset = char_offset.clamp(galley_text_range.start, galley_text_range.end);
 
         // adjust for captured syntax chars
         let mut rendered_chars: RelCharOffset = 0.into();
         for text_range in text {
-            if text_range.end() <= galley_text_range.start() {
+            if text_range.end <= galley_text_range.start {
                 continue;
             }
-            if text_range.start() >= char_offset {
+            if text_range.start >= char_offset {
                 break;
             }
 
-            let text_range = (
-                text_range.start().max(galley_text_range.start()),
-                text_range.end().min(char_offset),
-            );
+            let text_range =
+                text_range.start.max(galley_text_range.start)..text_range.end.min(char_offset);
             rendered_chars += text_range.len();
         }
 
@@ -231,26 +229,24 @@ impl Galleys {
     ) -> DocCharOffset {
         let galley = &self.galleys[galley_idx];
         let galley_text_range = galley.text_range();
-        let mut result = galley_text_range.start() + cursor.ccursor.index;
+        let mut result = galley_text_range.start + cursor.ccursor.index;
 
         // adjust for captured syntax chars
-        let mut last_range: Option<(DocCharOffset, DocCharOffset)> = None;
+        let mut last_range: Option<Range<DocCharOffset>> = None;
         for text_range in text {
-            if text_range.end() <= galley_text_range.start() {
+            if text_range.end <= galley_text_range.start {
                 continue;
             }
 
-            let text_range = (
-                text_range.start().max(galley_text_range.start()),
-                text_range.end().min(galley_text_range.end()),
-            );
+            let text_range = text_range.start.max(galley_text_range.start)
+                ..text_range.end.min(galley_text_range.end);
             if let Some(last_range) = last_range {
-                result += text_range.start() - last_range.end();
+                result += text_range.start - last_range.end;
             } else {
-                result += text_range.start() - galley_text_range.start();
+                result += text_range.start - galley_text_range.start;
             }
 
-            if text_range.end() >= result {
+            if text_range.end >= result {
                 break;
             }
 
@@ -259,7 +255,7 @@ impl Galleys {
 
         // correct for prefer_next_row behavior
         let read_cursor = galley.galley.from_ccursor(CCursor {
-            index: (result - galley_text_range.start()).0,
+            index: (result - galley_text_range.start).0,
             prefer_next_row: true,
         });
         if read_cursor.rcursor.row > cursor.rcursor.row {
@@ -390,15 +386,15 @@ impl GalleyInfo {
     }
 
     pub fn size(&self) -> RelCharOffset {
-        self.range.end() - self.range.start()
+        self.range.end - self.range.start
     }
 
     pub fn head<'b>(&self, buffer: &'b SubBuffer) -> &'b str {
-        &buffer[(self.range.start(), self.range.start() + self.head_size)]
+        &buffer[self.range.start..(self.range.start + self.head_size)]
     }
 
-    pub fn text_range(&self) -> (DocCharOffset, DocCharOffset) {
-        (self.range.0 + self.head_size, self.range.1 - self.tail_size)
+    pub fn text_range(&self) -> Range<DocCharOffset> {
+        (self.range.start + self.head_size)..(self.range.end - self.tail_size)
     }
 }
 

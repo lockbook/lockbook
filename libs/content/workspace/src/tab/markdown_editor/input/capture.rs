@@ -68,13 +68,17 @@ impl CaptureState {
                     let ast_node = &ast.nodes[ancestor_ast_node_idx];
 
                     if !ast_node.head_range().is_empty() {
-                        let head_range_idx =
-                            bounds.ast.find_containing(ast_node.range.0, true, false).0;
+                        let head_range_idx = bounds
+                            .ast
+                            .find_containing(ast_node.range.start, true, false)
+                            .start;
                         revealed_ranges.insert(head_range_idx);
                     }
                     if !ast_node.tail_range().is_empty() {
-                        let tail_range_idx =
-                            bounds.ast.find_containing(ast_node.range.1, false, true).0;
+                        let tail_range_idx = bounds
+                            .ast
+                            .find_containing(ast_node.range.end, false, true)
+                            .start;
                         revealed_ranges.insert(tail_range_idx);
                     }
                 }
