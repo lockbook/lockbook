@@ -8,17 +8,9 @@ import UniformTypeIdentifiers
 
 import GameController
 
-extension UIView {
-    func printViewHierarchy(indent: String = "") {
-        print("\(indent)\(self)")
-        for subview in self.subviews {
-            subview.printViewHierarchy(indent: indent + "  ")
-        }
-    }
-}
-
 public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDelegate {
     public static let TOOL_BAR_HEIGHT: CGFloat = 42
+    public static let FLOATING_CURSOR_OFFSET_HEIGHT: CGFloat = 0.6
     
     let mtkView: iOSMTK
     
@@ -44,7 +36,7 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
         self.mtkView = mtkView
         
         super.init(frame: .infinite)
-        
+                
         mtkView.onSelectionChanged = { [weak self] in
             self?.inputDelegate?.selectionDidChange(self)
         }
@@ -72,7 +64,7 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
                 gestureRecognizer.cancelsTouchesInView = false
             }
         }
-                
+        
         // drop support
         let dropInteraction = UIDropInteraction(delegate: self)
         self.addInteraction(dropInteraction)
@@ -125,27 +117,40 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
     public func beginFloatingCursor(at point: CGPoint) {
         tintColor = traitCollection.userInterfaceStyle == .light ? .lightGray : .gray
         
-        setFloatingCursorLoc(point: point)
+        setFloatingCursorLoc(point: point, animate: false)
         self.bringSubviewToFront(floatingCursor)
         floatingCursor.isHidden = false
     }
     
     public func updateFloatingCursor(at point: CGPoint) {
-        setFloatingCursorLoc(point: point)
+        setFloatingCursorLoc(point: point, animate: true)
     }
     
-    func setFloatingCursorLoc(point: CGPoint) {
+    func setFloatingCursorLoc(point: CGPoint, animate: Bool) {
         let pos = closestPosition(to: point)
         let cursorRect = caretRect(for: pos!)
         
         lastFloatingCursorRect = cursorRect
-        floatingCursor.frame = CGRect(x: point.x, y: cursorRect.origin.y, width: floatingCursorWidth, height: cursorRect.height + 0.6)
+        
+        if animate {
+            UIView.animate(withDuration: 0.15, animations: { [weak self] in
+                if let textInputWrapper = self {
+                    textInputWrapper.floatingCursor.frame = CGRect(x: point.x, y: cursorRect.origin.y, width: textInputWrapper.floatingCursorWidth, height: cursorRect.height + Self.FLOATING_CURSOR_OFFSET_HEIGHT)
+                }
+                
+            })
+        } else {
+            floatingCursor.frame = CGRect(x: point.x, y: cursorRect.origin.y, width: floatingCursorWidth, height: cursorRect.height + Self.FLOATING_CURSOR_OFFSET_HEIGHT)
+        }
+        
     }
     
     public func endFloatingCursor() {
         if let cursorRect = lastFloatingCursorRect {
             UIView.animate(withDuration: 0.15, animations: { [weak self] in
-                self?.floatingCursor.frame = CGRect(x: cursorRect.origin.x, y: cursorRect.origin.y, width: self?.floatingCursorWidth ?? 2, height: cursorRect.height + 0.6)
+                if let textInputWrapper = self {
+                    textInputWrapper.floatingCursor.frame = CGRect(x: cursorRect.origin.x, y: cursorRect.origin.y, width: textInputWrapper.floatingCursorWidth, height: cursorRect.height + Self.FLOATING_CURSOR_OFFSET_HEIGHT)
+                }
             }, completion: {[weak self] finished in
                 
                 self?.floatingCursor.isHidden = true
