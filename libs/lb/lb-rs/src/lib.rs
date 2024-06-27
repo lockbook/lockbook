@@ -728,6 +728,14 @@ impl<Client: Requester, Docs: DocumentService> CoreLib<Client, Docs> {
                 CoreError::ExistingRequestPending,
             ])
     }
+
+    #[instrument(level = "debug", skip(self))]
+    pub fn debug_info(&self) -> String {
+        match self.in_tx(|s| s.debug_info()) {
+            Ok(debug_info) => debug_info,
+            Err(e) => format!("failed to produce debug info: {:?}", e.to_string()),
+        }
+    }
 }
 
 pub fn get_code_version() -> &'static str {

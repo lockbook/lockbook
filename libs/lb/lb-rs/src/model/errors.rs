@@ -450,7 +450,7 @@ impl From<ApiError<api::GetUsageError>> for LbError {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub enum TestRepoError {
     NoAccount,
     NoRootFolder,
@@ -525,7 +525,7 @@ impl fmt::Display for TestRepoError {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub enum Warning {
     EmptyFile(Uuid),
     InvalidUTF8(Uuid),

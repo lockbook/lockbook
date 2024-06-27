@@ -5,7 +5,7 @@ use tracing::metadata::LevelFilter;
 use tracing_subscriber::fmt::format::FmtSpan;
 use tracing_subscriber::{filter, fmt, prelude::*, Layer};
 
-static LOG_FILE: &str = "lockbook.log";
+pub static LOG_FILE: &str = "lockbook.log";
 
 pub fn init(config: &Config) -> LbResult<()> {
     if config.logs {
