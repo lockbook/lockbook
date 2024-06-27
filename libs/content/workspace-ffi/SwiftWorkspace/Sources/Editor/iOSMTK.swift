@@ -142,6 +142,7 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
     }
     
     func setFloatingCursorLoc(point: CGPoint, animate: Bool) {
+        let point = clampPoint(point: point)
         let pos = closestPosition(to: point)
         let cursorRect = caretRect(for: pos!)
         
@@ -156,6 +157,10 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
         } else {
             floatingCursor.frame = CGRect(x: point.x, y: cursorRect.origin.y, width: floatingCursorWidth, height: cursorRect.height + Self.FLOATING_CURSOR_OFFSET_HEIGHT)
         }
+    }
+    
+    func clampPoint(point: CGPoint) -> CGPoint {
+        return CGPoint(x: max(bounds.minX + 3, min(point.x, bounds.maxX - 3)), y: max(bounds.minY + 3, min(point.y, bounds.maxY - 3)))
     }
     
     public func dropInteraction(_ interaction: UIDropInteraction, canHandle session: UIDropSession) -> Bool {
