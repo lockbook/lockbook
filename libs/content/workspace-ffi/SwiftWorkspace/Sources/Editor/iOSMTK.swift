@@ -126,25 +126,6 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
         setFloatingCursorLoc(point: point, animate: true)
     }
     
-    func setFloatingCursorLoc(point: CGPoint, animate: Bool) {
-        let pos = closestPosition(to: point)
-        let cursorRect = caretRect(for: pos!)
-        
-        lastFloatingCursorRect = cursorRect
-        
-        if animate {
-            UIView.animate(withDuration: 0.15, animations: { [weak self] in
-                if let textInputWrapper = self {
-                    textInputWrapper.floatingCursor.frame = CGRect(x: point.x, y: cursorRect.origin.y, width: textInputWrapper.floatingCursorWidth, height: cursorRect.height + Self.FLOATING_CURSOR_OFFSET_HEIGHT)
-                }
-                
-            })
-        } else {
-            floatingCursor.frame = CGRect(x: point.x, y: cursorRect.origin.y, width: floatingCursorWidth, height: cursorRect.height + Self.FLOATING_CURSOR_OFFSET_HEIGHT)
-        }
-        
-    }
-    
     public func endFloatingCursor() {
         if let cursorRect = lastFloatingCursorRect {
             UIView.animate(withDuration: 0.15, animations: { [weak self] in
@@ -157,6 +138,23 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
                 self?.tintColor = .systemBlue
                 self?.inputDelegate?.selectionDidChange(self)
             })
+        }
+    }
+    
+    func setFloatingCursorLoc(point: CGPoint, animate: Bool) {
+        let pos = closestPosition(to: point)
+        let cursorRect = caretRect(for: pos!)
+        
+        lastFloatingCursorRect = cursorRect
+        
+        if animate {
+            UIView.animate(withDuration: 0.15, animations: { [weak self] in
+                if let textInputWrapper = self {
+                    textInputWrapper.floatingCursor.frame = CGRect(x: point.x, y: cursorRect.origin.y, width: textInputWrapper.floatingCursorWidth, height: cursorRect.height + Self.FLOATING_CURSOR_OFFSET_HEIGHT)
+                }
+            })
+        } else {
+            floatingCursor.frame = CGRect(x: point.x, y: cursorRect.origin.y, width: floatingCursorWidth, height: cursorRect.height + Self.FLOATING_CURSOR_OFFSET_HEIGHT)
         }
     }
     
