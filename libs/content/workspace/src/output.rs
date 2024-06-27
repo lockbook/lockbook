@@ -27,6 +27,13 @@ pub struct WsOutput {
     // todo see below comment about this anti-patern I've created. Only one place should be updating this, we'll refactor
     // this more thoroughly in 0.8.6
     pub status: PersistentWsStatus,
+
+    // first of all, love the above commitment to refactor something in 0.8.6 (we're now on 0.9.4). it do be like that.
+    // next up, acknowledging the need for a better pattern here, but there are some editor-specific outputs that need
+    // to make their way across FFI and it's cleaner to put them in this transient data structure than to maintain them
+    // as persistent editor state
+    pub markdown_editor_text_updated: bool,
+    pub markdown_editor_selection_updated: bool,
 }
 
 // todo: this should probably not be included in output

@@ -395,6 +395,13 @@ impl Workspace {
                                 if resp.hide_virtual_keyboard {
                                     output.hide_virtual_keyboard = resp.hide_virtual_keyboard;
                                 }
+                                if resp.text_updated {
+                                    output.markdown_editor_text_updated = true;
+                                }
+                                if resp.selection_updated || resp.scroll_updated {
+                                    // not sure what scroll has to do with it but I'm just moving code written by smail
+                                    output.markdown_editor_selection_updated = true;
+                                }
                             }
                             TabContent::Image(img) => img.show(ui),
                             TabContent::Pdf(pdf) => pdf.show(ui),
