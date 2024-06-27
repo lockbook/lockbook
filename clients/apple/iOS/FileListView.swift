@@ -168,6 +168,96 @@ struct ConstrainedHomeView: View {
     }
 }
 
+// NOT DETECTING TOUCH SINCE IT IS A SCROLLVIEW!!!!!!!!!
+struct SlidingListView: UIViewControllerRepresentable {
+    var items: [String]
+    
+    func makeUIViewController(context: Context) -> SlidingListViewController {
+        let viewController = SlidingListViewController()
+        viewController.items = items
+        return viewController
+    }
+    
+    func updateUIViewController(_ uiViewController: SlidingListViewController, context: Context) {
+        // Optionally handle updates
+    }
+}
+
+class SlidingListViewController: UIViewController, UITableViewDataSource, UITableViewDelegate {
+    var currentList: UITableView!
+    private var nextList: UITableView?
+    
+    var items: [String] = []
+    var nextItems: [String] = []
+    
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        
+        setupCurrentList()
+    }
+    
+    private func setupCurrentList() {
+        print("Setting up current list")
+        currentList = UITableView(frame: view.bounds, style: .plain)
+        currentList.dataSource = self
+        currentList.delegate = self
+        currentList.register(UITableViewCell.self, forCellReuseIdentifier: "cell")
+        currentList.isUserInteractionEnabled = true
+        currentList.allowsSelection = true
+        currentList.reloadData()
+        view.addSubview(currentList)
+    }
+    
+    func setNextItems(_ items: [String]) {
+        print("Setting next items!")
+        nextItems = items
+        
+        nextList = UITableView(frame: view.bounds.offsetBy(dx: view.bounds.width, dy: 0), style: .plain)
+        nextList?.dataSource = self
+        nextList?.delegate = self
+        nextList?.register(UITableViewCell.self, forCellReuseIdentifier: "cell")
+        nextList?.isUserInteractionEnabled = true
+        view.addSubview(nextList!)
+        
+        UIView.animate(withDuration: 0.3, animations: {
+            self.currentList.frame = self.view.bounds.offsetBy(dx: -self.view.bounds.width, dy: 0)
+            self.nextList?.frame = self.view.bounds
+        }) { _ in
+            print("Animation completed")
+            self.currentList.removeFromSuperview()
+            self.currentList = self.nextList
+            self.nextList = nil
+        }
+    }
+    
+    func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
+        print("Number of rows in section: \(section)")
+        if tableView == currentList {
+            return items.count
+        } else {
+            return nextItems.count
+        }
+    }
+    
+    func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
+        print("Making cell for row at \(indexPath.row)")
+        let cell = tableView.dequeueReusableCell(withIdentifier: "cell", for: indexPath)
+        if tableView == currentList {
+            cell.textLabel?.text = items[indexPath.row]
+        } else {
+            cell.textLabel?.text = nextItems[indexPath.row]
+        }
+        return cell
+    }
+    
+    func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
+        print("Selecting row at \(indexPath.row)")
+        let newItems = ["Item 1", "Item 2", "Item 3"]
+        setNextItems(newItems)
+    }
+}
+
+
 extension UIScreen {
     static var current: UIScreen? {
         for scene in UIApplication.shared.connectedScenes {
