@@ -3,6 +3,7 @@ pub mod activity_service;
 pub mod admin_service;
 pub mod api_service;
 pub mod billing_service;
+pub mod debug_service;
 pub mod document_service;
 pub mod drawing_service;
 pub mod file_service;

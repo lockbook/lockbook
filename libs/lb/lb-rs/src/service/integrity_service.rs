@@ -13,7 +13,7 @@ const UTF8_SUFFIXES: [&str; 12] =
     ["md", "txt", "text", "markdown", "sh", "zsh", "bash", "html", "css", "js", "csv", "rs"];
 
 impl<Client: Requester, Docs: DocumentService> CoreState<Client, Docs> {
-    pub(crate) fn test_repo_integrity(&mut self) -> Result<Vec<Warning>, TestRepoError> {
+    pub(crate) fn test_repo_integrity(&self) -> Result<Vec<Warning>, TestRepoError> {
         let mut tree = (&self.db.base_metadata)
             .to_staged(&self.db.local_metadata)
             .to_lazy();
