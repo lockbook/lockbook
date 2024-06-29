@@ -450,7 +450,7 @@ impl From<ApiError<api::GetUsageError>> for LbError {
     }
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug)]
 pub enum TestRepoError {
     NoAccount,
     NoRootFolder,

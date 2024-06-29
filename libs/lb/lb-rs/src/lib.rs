@@ -730,8 +730,8 @@ impl<Client: Requester, Docs: DocumentService> CoreLib<Client, Docs> {
     }
 
     #[instrument(level = "debug", skip(self))]
-    pub fn debug_info(&self) -> String {
-        match self.in_tx(|s| s.debug_info()) {
+    pub fn debug_info(&self, os_info: String) -> String {
+        match self.in_tx(|s| s.debug_info(os_info)) {
             Ok(debug_info) => debug_info,
             Err(e) => format!("failed to produce debug info: {:?}", e.to_string()),
         }

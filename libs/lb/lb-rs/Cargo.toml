@@ -41,7 +41,7 @@ lockbook-shared = { version = "0.9.1", path = "libs/shared" }
 qrcode-generator = "4.1.6"
 db-rs = "0.3.1"
 db-rs-derive = "0.3.1"
-ansi_term = "0.12.1"
+strip-ansi-escapes = "0.2.0"
 chrono = "0.4"
 
 lockbook-server = { version = "0.9.1", path = "../../../server/server", optional = true }
