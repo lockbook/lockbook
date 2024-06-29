@@ -145,6 +145,12 @@ struct SettingsView: View, Equatable {
                         }
                     }
                 }
+                
+                Section(header: Text("DEBUG")) {
+                    NavigationLink(destination: DebugView()) {
+                        Text("See Debug Info")
+                    }
+                }
             }.navigationBarTitle("Settings")
         }
     }

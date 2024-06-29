@@ -185,6 +185,17 @@ public struct CoreApi: LockbookApi {
     public func getPathById(id: UUID) -> FfiResult<String, GetPathByIdError> {
         fromPrimitiveResult(result: get_path_by_id(id.uuidString))
     }
+
+    public func debugInfo() -> String {
+        let osInfo = ProcessInfo.processInfo.operatingSystemVersion
+        
+        let msgPointer = debug_info("\(osInfo.majorVersion).\(osInfo.minorVersion).\(osInfo.patchVersion)")
+        
+        let msg = String(cString: msgPointer!)
+        release_pointer(UnsafeMutablePointer(mutating: msgPointer))
+        
+        return msg
+    }
     
     public func timeAgo(timeStamp: Int64) -> String {
         let msgPointer = time_ago(timeStamp)

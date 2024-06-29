@@ -27,6 +27,10 @@ struct SettingsView: View {
                     .tabItem {
                         Label("Premium", systemImage: "banknote")
                     }
+                DebugView()
+                    .tabItem {
+                        Label("Debug", systemImage: "hammer")
+                    }
             }
             .padding(20)
             .frame(width: 600)

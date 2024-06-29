@@ -1,7 +1,6 @@
 import Foundation
 
 public struct FakeApi: LockbookApi {
-    
     public init() {
     }
     
@@ -180,6 +179,10 @@ Vestibulum ante ipsum primis in vel.
     
     public func timeAgo(timeStamp: Int64) -> String {
         ""
+    }
+    
+    public func debugInfo() -> String {
+        "FAKE"
     }
     
     public func freeText(s: UnsafePointer<Int8>) {}

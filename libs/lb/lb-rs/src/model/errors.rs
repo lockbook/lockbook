@@ -525,7 +525,7 @@ impl fmt::Display for TestRepoError {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub enum Warning {
     EmptyFile(Uuid),
     InvalidUTF8(Uuid),

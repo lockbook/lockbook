@@ -47,6 +47,7 @@ public protocol LockbookApi {
     func getFileByPath(path: String) -> FfiResult<File, GetFileByPathError>
     func suggestedDocs() -> FfiResult<[UUID], SuggestedDocsError>
     func getPathById(id: UUID) -> FfiResult<String, GetPathByIdError>
+    func debugInfo() -> String
     
     func timeAgo(timeStamp: Int64) -> String
     

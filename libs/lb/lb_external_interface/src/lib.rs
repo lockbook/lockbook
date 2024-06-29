@@ -303,4 +303,8 @@ impl FfiCore {
     pub fn delete_account(&self) -> Result<(), Error<DeleteAccountError>> {
         Ok(self.core.delete_account()?)
     }
+
+    pub fn debug_info(&self, os_info: String) -> String {
+        self.core.debug_info(os_info)
+    }
 }
