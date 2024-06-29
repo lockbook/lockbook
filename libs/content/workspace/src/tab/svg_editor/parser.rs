@@ -12,6 +12,8 @@ use resvg::{
     },
 };
 
+use crate::theme::palette::ThemePalette;
+
 const ZOOM_G_ID: &str = "lb_master_transform";
 
 /// A shorthand for [ImageHrefResolver]'s string function.
@@ -51,14 +53,13 @@ pub struct Path {
 
 #[derive(Clone, Copy)]
 pub struct Stroke {
-    pub color: egui::Color32,
-    opacity: f32,
+    pub color: (egui::Color32, egui::Color32),
     pub width: f32,
 }
 
 impl Default for Stroke {
     fn default() -> Self {
-        Self { color: egui::Color32::BLACK, opacity: 1.0, width: 1.0 }
+        Self { color: (egui::Color32::BLACK, egui::Color32::WHITE), width: 1.0 }
     }
 }
 
@@ -130,12 +131,23 @@ fn parse_child(u_el: &usvg::Node, buffer: &mut Buffer, i: usize) {
         }
         usvg::Node::Path(path) => {
             let mut stroke = Stroke::default();
+            let mut opacity = 1.0;
             if let Some(s) = path.stroke() {
                 if let Paint::Color(c) = s.paint() {
-                    stroke.color = egui::Color32::from_rgb(c.red, c.green, c.blue);
+                    let parsed_color = egui::Color32::from_rgb(c.red, c.green, c.blue);
+                    let theme_colors = ThemePalette::as_array();
+                    let maybe_dynamic_color = if let Some(dynamic_color) = theme_colors
+                        .iter()
+                        .find(|c| c.0.eq(&parsed_color) || c.1.eq(&parsed_color))
+                    {
+                        *dynamic_color
+                    } else {
+                        (parsed_color, parsed_color)
+                    };
+                    stroke.color = maybe_dynamic_color;
                 }
                 stroke.width = s.width().get();
-                stroke.opacity = s.opacity().get();
+                opacity = s.opacity().get();
             }
             buffer.elements.insert(
                 i.to_string(),
@@ -145,7 +157,7 @@ fn parse_child(u_el: &usvg::Node, buffer: &mut Buffer, i: usize) {
                     fill: path.fill().cloned(),
                     stroke: Some(stroke),
                     transform: path.abs_transform(),
-                    opacity: 1.0,
+                    opacity,
                 }),
             );
         }
@@ -233,14 +245,15 @@ impl ToString for Buffer {
         for el in self.elements.iter() {
             match el.1 {
                 Element::Path(p) => {
-                    let mut curv_attrs = " ".to_string(); // if it's empty then the curve might not be converted to string via bezier_rs
+                    let mut curv_attrs = " ".to_string(); // if it's empty then the curve will not be converted to string via bezier_rs
                     if let Some(stroke) = p.stroke {
                         curv_attrs = format!(
-                            r###"stroke-width="{}" stroke="#{:02X}{:02X}{:02X}" fill="none""###,
+                            "stroke-width='{}' stroke='rgba({},{},{},{})' fill='none'",
                             stroke.width,
-                            stroke.color.r(),
-                            stroke.color.g(),
-                            stroke.color.b(),
+                            stroke.color.0.r(),
+                            stroke.color.0.g(),
+                            stroke.color.0.b(),
+                            p.opacity
                         );
                     }
                     if p.data.len() > 1 {
