@@ -66,7 +66,7 @@ struct FileCell: View {
     }
 }
 
-struct RealFileCell: View {
+struct RealFileCell2: View {
     let meta: File
 
     var body: some View {
@@ -85,6 +85,26 @@ struct RealFileCell: View {
         }
             .padding(.vertical, 5)
             .contentShape(Rectangle()) /// https://stackoverflow.com/questions/57258371/swiftui-increase-tap-drag-area-for-user-interaction
+    }
+}
+
+struct RealFileCell: View {
+    let meta: File
+
+    var body: some View {
+        HStack(spacing: 20) {
+            Image(systemName: meta.fileType == .Folder ? "folder.fill" : documentExtensionToImage(name: meta.name))
+                .foregroundColor(meta.fileType == .Folder ? .blue : .secondary)
+                .font(.title3)
+                .frame(width: 20)
+            
+            Text(meta.name)
+                .font(.body)
+            
+            Spacer()
+        }
+        .padding(.vertical, 10)
+        .contentShape(Rectangle()) /// https://stackoverflow.com/questions/57258371/swiftui-increase-tap-drag-area-for-user-interaction
     }
 }
 

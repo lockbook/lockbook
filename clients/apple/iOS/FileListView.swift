@@ -128,7 +128,6 @@ struct ConstrainedHomeView: View {
                 DI.search.endSearch(isPathAndContentSearch: true)
             }
         })
-        .background(Color(uiColor: UIColor.systemGroupedBackground))
         .navigationBarTitle(files.parent.map{$0.name} ?? "")
     }
     
