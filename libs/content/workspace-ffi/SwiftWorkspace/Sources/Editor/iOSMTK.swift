@@ -189,7 +189,7 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
                 
         if y >= bounds.height - 5 {
             scroll_wheel(wsHandle, 0, -20)
-        } else if y == 0 {
+        } else if y <= 5 {
             scroll_wheel(wsHandle, 0, 20)
         }
         
