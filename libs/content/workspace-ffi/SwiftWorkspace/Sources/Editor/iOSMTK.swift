@@ -31,6 +31,12 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
     var lastFloatingCursorRect: CGRect? = nil
     var floatingCursor: UIView = UIView()
     var floatingCursorWidth = 1.0
+    var floatingCursorNewStartX = 0.0
+    var floatingCursorNewEndX = 0.0
+    
+    var floatingCursorNewStartY = 0.0
+    var floatingCursorNewEndY = 0.0
+    
         
     init(mtkView: iOSMTK) {
         self.mtkView = mtkView
@@ -91,6 +97,7 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
         floatingCursor.layer.shadowOffset = CGSize(width: 0, height: 8)
         floatingCursor.layer.shadowRadius = 4
         floatingCursor.isHidden = true
+        
         addSubview(floatingCursor)
     }
     
@@ -116,6 +123,8 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
     
     public func beginFloatingCursor(at point: CGPoint) {
         tintColor = traitCollection.userInterfaceStyle == .light ? .lightGray : .gray
+        self.floatingCursorNewEndX = self.bounds.size.width
+        self.floatingCursorNewEndY = self.bounds.size.height
         
         setFloatingCursorLoc(point: point, animate: false)
         self.bringSubviewToFront(floatingCursor)
@@ -123,6 +132,26 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
     }
     
     public func updateFloatingCursor(at point: CGPoint) {
+        if(point.x < floatingCursorNewStartX) {
+            floatingCursorNewEndX -= (floatingCursorNewStartX - point.x)
+            floatingCursorNewStartX = point.x
+        }
+        
+        if(point.x > floatingCursorNewEndX) {
+            floatingCursorNewStartX += (point.x - floatingCursorNewEndX)
+            floatingCursorNewEndX = point.x
+        }
+        
+        if(point.y < floatingCursorNewStartY) {
+            floatingCursorNewEndY -= (floatingCursorNewStartY - point.y)
+            floatingCursorNewStartY = point.y
+        }
+        
+        if(point.y > floatingCursorNewEndY) {
+            floatingCursorNewStartY += (point.y - floatingCursorNewEndY)
+            floatingCursorNewEndY = point.y
+        }
+                        
         setFloatingCursorLoc(point: point, animate: true)
     }
     
@@ -133,36 +162,48 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
                     textInputWrapper.floatingCursor.frame = CGRect(x: cursorRect.origin.x, y: cursorRect.origin.y, width: textInputWrapper.floatingCursorWidth, height: cursorRect.height + Self.FLOATING_CURSOR_OFFSET_HEIGHT)
                 }
             }, completion: {[weak self] finished in
-                
-                self?.floatingCursor.isHidden = true
-                self?.tintColor = .systemBlue
-                self?.inputDelegate?.selectionDidChange(self)
+                if let textWrapper = self {
+                    textWrapper.floatingCursor.isHidden = true
+                    textWrapper.tintColor = .systemBlue
+                    textWrapper.inputDelegate?.selectionDidChange(self)
+                    
+                    textWrapper.floatingCursorNewStartX = 0
+                    textWrapper.floatingCursorNewEndX = textWrapper.bounds.size.width
+                    textWrapper.floatingCursorNewStartY = 0
+                    textWrapper.floatingCursorNewEndY = textWrapper.bounds.size.height
+                }
             })
         }
     }
     
     func setFloatingCursorLoc(point: CGPoint, animate: Bool) {
-        let point = clampPoint(point: point)
         let pos = closestPosition(to: point)
         let cursorRect = caretRect(for: pos!)
         
+        let animate = animate && cursorRect.origin.y != lastFloatingCursorRect?.origin.y ? false : animate
+                
         lastFloatingCursorRect = cursorRect
+        
+        let x = point.x - self.floatingCursorNewStartX
+        let y = point.y - self.floatingCursorNewStartY
+                
+        if y >= bounds.height - 5 {
+            scroll_wheel(wsHandle, 0, -20)
+        } else if y == 0 {
+            scroll_wheel(wsHandle, 0, 20)
+        }
         
         if animate {
             UIView.animate(withDuration: 0.15, animations: { [weak self] in
-                if let textInputWrapper = self {
-                    textInputWrapper.floatingCursor.frame = CGRect(x: point.x, y: cursorRect.origin.y, width: textInputWrapper.floatingCursorWidth, height: cursorRect.height + Self.FLOATING_CURSOR_OFFSET_HEIGHT)
+                if let textWrapper = self {
+                    textWrapper.floatingCursor.frame = CGRect(x: x, y: cursorRect.origin.y, width: textWrapper.floatingCursorWidth, height: cursorRect.height + Self.FLOATING_CURSOR_OFFSET_HEIGHT)
                 }
             })
         } else {
-            floatingCursor.frame = CGRect(x: point.x, y: cursorRect.origin.y, width: floatingCursorWidth, height: cursorRect.height + Self.FLOATING_CURSOR_OFFSET_HEIGHT)
+            floatingCursor.frame = CGRect(x: x, y: cursorRect.origin.y, width: floatingCursorWidth, height: cursorRect.height + Self.FLOATING_CURSOR_OFFSET_HEIGHT)
         }
     }
-    
-    func clampPoint(point: CGPoint) -> CGPoint {
-        return CGPoint(x: max(bounds.minX + 3, min(point.x, bounds.maxX - 3)), y: max(bounds.minY + 3, min(point.y, bounds.maxY - 3)))
-    }
-    
+
     public func dropInteraction(_ interaction: UIDropInteraction, canHandle session: UIDropSession) -> Bool {
         guard session.items.count == 1 else { return false }
         
@@ -472,8 +513,11 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
     }
     
     public func closestPosition(to point: CGPoint) -> UITextPosition? {
-        let point = CPoint(x: point.x, y: point.y + iOSMTK.TAB_BAR_HEIGHT)
+        let (x, y) = floatingCursor.isHidden ? (point.x, point.y) : (point.x - floatingCursorNewStartX, point.y - floatingCursorNewStartY)
+        
+        let point = CPoint(x: x, y: y + iOSMTK.TAB_BAR_HEIGHT)
         let result = position_at_point(wsHandle, point)
+        
         return LBTextPos(c: result)
     }
     
@@ -911,7 +955,7 @@ public class iOSMTK: MTKView, MTKViewDelegate {
             let point = Unmanaged.passUnretained(touch).toOpaque()
             let value = UInt64(UInt(bitPattern: point))
             let location = touch.location(in: self)
-
+            
             touches_moved(wsHandle, value, Float(location.x), Float(location.y), Float(touch.force))
         }
         
