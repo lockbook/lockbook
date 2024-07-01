@@ -6,7 +6,7 @@ struct FilePathBreadcrumb: View {
     
     @EnvironmentObject var fileService: FileService
     
-    let onBreadcrumbClick: (File) -> Void
+//    let onBreadcrumbClick: (File) -> Void
     
     var body: some View {
         ScrollViewReader { scrollHelper in
@@ -35,7 +35,8 @@ struct FilePathBreadcrumb: View {
 
             if(index == lastFileIndex) {
                 Button(action: {
-                    onBreadcrumbClick(file)
+                    print("item clicked")
+//                    onBreadcrumbClick(file)
                 }, label: {
                     Image(systemName: "folder.fill")
                         .foregroundColor(.blue)
@@ -45,7 +46,8 @@ struct FilePathBreadcrumb: View {
                 .id(index)
             } else {
                 Button(action: {
-                    onBreadcrumbClick(file)
+                    print("item clicked")
+//                    onBreadcrumbClick(file)
                 }, label: {
                     Image(systemName: "folder.fill")
                         .foregroundColor(.blue)

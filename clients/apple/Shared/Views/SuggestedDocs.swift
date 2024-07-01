@@ -176,7 +176,7 @@ extension View {
     func setSuggestedDocsBackground(isiOS: Bool, colorScheme: ColorScheme) -> some View {
         #if os(iOS)
         if isiOS {
-            let fill: Color = colorScheme == .light ? .white : .blue.opacity(0.19)
+            let fill: Color = colorScheme == .light ? .blue.opacity(0.08) : .blue.opacity(0.19)
             
             self.background(RoundedRectangle(cornerRadius: 10).fill(fill))
         } else {

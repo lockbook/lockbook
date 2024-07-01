@@ -98,8 +98,20 @@ struct RealFileCell: View {
                 .font(.title3)
                 .frame(width: 20)
             
-            Text(meta.name)
-                .font(.body)
+            if meta.fileType == .Document {
+                VStack(alignment: .leading) {
+                    Text(meta.name)
+                        .font(.body)
+                    
+                    Text(DI.core.timeAgo(timeStamp: Int64(meta.lastModified)))
+                            .foregroundColor(.secondary)
+                            .font(.caption)
+                }
+            } else {
+                Text(meta.name)
+                    .font(.body)
+            }
+            
             
             Spacer()
         }
